@@ -29,19 +29,16 @@ export async function createApp(options = {}) {
 
   const app = new Elysia()                                         // 创建可被监听或直接 handle 测试的 Elysia 实例
     .get('/health', () => ({ ok: true }))                           // 提供进程存活检查，不参与业务状态修改
-    .post('/chat/send', ({ body, request }) => {                    // 接收用户消息并触发真实 Agent 循环
+    .post('/chat/send', async ({ body, request }) => {              // 接收用户消息并触发真实 Agent 循环
       let sessionID = body.sessionId                               // 允许客户端继续已有会话
-      let isNewSession = false                                     // 记录是否需要向 SSE 反馈会话创建事件
+      let initialEvents = []                                       // 新会话需要在模型流之前反馈创建结果
       if (!sessionID) {                                            // 未传会话时自动创建空会话
-        return Session.create().then((session) => {                // 创建完成后再启动流，保证目标会话存在
-          sessionID = session.id
-          isNewSession = true
-          const stream = Chat.startLoop({ sessionID, message: body.message, request, initialEvents: isNewSession ? [{ event: 'session-created', data: { id: sessionID } }] : [] }) // 将触发交给对话指令
-          return createSSEResponse(stream)                           // 显式声明标准 SSE 响应类型
-        })
+        const session = await Session.create()                      // 创建完成后再启动流，保证目标会话存在
+        sessionID = session.id                                      // 后续循环统一使用真实新会话 ID
+        initialEvents = [{ event: 'session-created', data: { id: sessionID } }] // 准备首个 SSE 业务事件
       }
       if (!Session.get(sessionID)) return createJSONError(404, 'session not found') // 已有会话不存在时拒绝写入
-      const stream = Chat.startLoop({ sessionID, message: body.message, request, initialEvents: [] }) // 继续已有会话并返回 SSE
+      const stream = Chat.startLoop({ sessionID, message: body.message, request, initialEvents }) // 启动新会话或继续已有会话
       return createSSEResponse(stream)                               // 显式声明标准 SSE 响应类型
     }, {
       body: t.Object({
@@ -74,7 +71,7 @@ export async function createApp(options = {}) {
 export function listenOnAvailablePort(app, preferredPort = 4632) {
   for (let port = preferredPort; port <= 65535; port += 1) {          // 从 README 默认端口开始逐个尝试
     try {
-      app.listen({ hostname: '127.0.0.1', port })                     // 只监听本机，避免无认证 API 暴露到网络
+      app.listen({ hostname: '127.0.0.1', port, idleTimeout: 255 })   // 长模型轮次允许最多 255 秒无网络数据，避免 SSE 被默认超时切断
       return port                                                      // 反馈宿主实际可连接的端口
     } catch (error) {
       if (error.code !== 'EADDRINUSE') throw error                    // 非端口占用错误必须立即反馈

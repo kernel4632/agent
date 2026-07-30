@@ -13,6 +13,7 @@ import { retry } from '../utils/retry.js'                             // 引入�
 
 const runningLoops = new Map()                                        // sessionID 到 AbortController，统一管理运行中循环
 const approvals = new Map()                                           // toolCallID 到批准 Promise，承载 ask 权限的暂停恢复
+const sseEncoder = new TextEncoder()                                   // 将 SSE 文本转换为真实 HTTP socket 接受的 UTF-8 字节
 
 
 // --- 将项目参数定义转换为 Zod ---
@@ -105,7 +106,8 @@ function createTools(sessionID, emit) {
 // --- 向 SSE 客户端写入事件 ---
 function writeEvent(streamWriter, event, data) {
   const payload = JSON.stringify(data, (_, value) => typeof value === 'bigint' ? Number(value) : value) // 保证 token 数等值可序列化
-  streamWriter.enqueue(`event: ${event}\ndata: ${payload}\n\n`)         // 使用标准 SSE 帧反馈业务和 AI SDK 流事件
+  const frame = `event: ${event}\ndata: ${payload}\n\n`               // 组装一个完整标准 SSE 事件帧
+  streamWriter.enqueue(sseEncoder.encode(frame))                        // 网络 Response 必须写入字节，避免真实 socket 被 Bun 重置
 }
 
 

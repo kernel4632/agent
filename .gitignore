@@ -11,6 +11,7 @@ config.local.json
 # Agent runtime data
 .agent/
 /server/sessions/
+/server/test-output/
 
 # Tests and diagnostics
 coverage/

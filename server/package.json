@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
-    "test": "bun test --timeout 180000"
+    "test": "bun test --timeout 180000",
+    "test:e2e": "bun run test/real-agent.e2e.js"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "latest",
@@ -17,5 +18,8 @@
     "tiktoken": "latest",
     "unstorage": "latest",
     "zod": "latest"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.0"
   }
 }
