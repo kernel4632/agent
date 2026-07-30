@@ -38,11 +38,12 @@ export async function createApp(options = {}) {
         initialEvents = [{ event: 'session-created', data: { id: sessionID } }] // 准备首个 SSE 业务事件
       }
       if (!Session.get(sessionID)) return createJSONError(404, 'session not found') // 已有会话不存在时拒绝写入
-      const stream = Chat.startLoop({ sessionID, message: body.message, request, initialEvents }) // 启动新会话或继续已有会话
+      const stream = Chat.startLoop({ sessionID, message: body.message, messageID: body.messageId, request, initialEvents }) // 使用客户端消息 ID 启动或继续会话
       return createSSEResponse(stream)                               // 显式声明标准 SSE 响应类型
     }, {
       body: t.Object({
         sessionId: t.Optional(t.String()),                          // 会话 ID 可省略以自动创建
+        messageId: t.Optional(t.String()),                          // 前端生成稳定 ID 供当前页面立即回退
         message: t.String({ minLength: 1 }),                         // 空消息没有可执行业务动作
       }),
     })
@@ -56,8 +57,9 @@ export async function createApp(options = {}) {
       return session ?? createJSONError(404, 'session not found')   // 不存在时返回明确 HTTP 404
     })
     .delete('/session/:id', ({ params }) => Session.remove(params.id)) // 删除会话及其真实磁盘记录
-    .post('/session/:id/rollback/:step', ({ params }) => Session.rollback(params.id, Number(params.step))) // 截断指定工具存档点之后的历史
-    .post('/session/:id/undo-rollback', ({ params }) => Session.undoRollback(params.id)) // 恢复最近一次回滚缓存
+    .post('/session/:id/rollback/:step', ({ params }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.rollback(params.id, Number(params.step))) // 空闲时暂存工具存档点后的历史
+    .post('/session/:id/rollback-message', ({ params, body }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.rollbackMessage(params.id, body.messageId), { body: t.Object({ messageId: t.String() }) }) // 空闲时回退用户消息供编辑重发
+    .post('/session/:id/undo-rollback', ({ params }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.undoRollback(params.id)) // 空闲时恢复最近一次暂存回退
     .get('/tool/list', () => Tool.list())                           // 返回全部已加载工具的公开描述
     .post('/tool/reload', async () => Tool.load([builtInToolsDirectory, customToolsDirectory])) // 重新扫描真实工具目录
     .get('/config', () => redactConfig(Config.get()))                // 返回配置但不暴露真实密钥

@@ -19,11 +19,11 @@ async function request(path, options = {}) {
 
 
 // --- 发送消息并取得 SSE 流 ---
-async function sendMessage({ sessionID, message, signal }) {
+async function sendMessage({ sessionID, messageID, message, signal }) {
   const response = await fetch(`${apiRoot}/chat/send`, { // 启动真实 Agent 循环
     method: 'POST',                                    // 对话触发使用 POST
     headers: { 'content-type': 'application/json' },   // 请求体按 JSON 编码
-    body: JSON.stringify({ sessionId: sessionID || undefined, message }), // 空会话 ID 触发 Server 自动创建
+    body: JSON.stringify({ sessionId: sessionID || undefined, messageId: messageID, message }), // 共享消息 ID 让当前页面可立即回退
     signal,                                            // 允许 stop 与页面卸载中断连接
   })
   if (!response.ok) throw new Error((await response.json()).error ?? '发送失败') // 启动失败时反馈 Server 原因
@@ -41,6 +41,7 @@ export const AgentAPI = {                              // 导出全部 Server �
   getSession: (sessionID) => request(`/session/${sessionID}`), // 读取完整会话
   removeSession: (sessionID) => request(`/session/${sessionID}`, { method: 'DELETE' }), // 删除会话
   rollbackSession: (sessionID, step) => request(`/session/${sessionID}/rollback/${step}`, { method: 'POST' }), // 回滚到工具步骤
+  rollbackMessage: (sessionID, messageID) => request(`/session/${sessionID}/rollback-message`, { method: 'POST', body: JSON.stringify({ messageId: messageID }) }), // 回退用户消息供编辑重发
   undoRollback: (sessionID) => request(`/session/${sessionID}/undo-rollback`, { method: 'POST' }), // 撤销回滚
   listTools: () => request('/tool/list'),             // 读取工具注册表
   reloadTools: () => request('/tool/reload', { method: 'POST' }), // 重新扫描工具

@@ -157,6 +157,22 @@
 }
 ```
 
+### POST /session/:id/rollback-message
+
+回退到指定用户消息之前，并返回原文供输入框编辑重发。展示历史与模型历史会同步暂存，发送新消息前仍可撤销。
+
+```
+请求:
+{ "messageId": "msg_xxx" }
+
+响应:
+{
+  "ok": true,
+  "remainingMessages": 4,
+  "content": "原用户消息"
+}
+```
+
 ## 工具
 
 ### GET /tool/list

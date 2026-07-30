@@ -8,6 +8,9 @@ import { mkdtemp, writeFile } from 'node:fs/promises'                 // 引入�
 import { tmpdir } from 'node:os'                                     // 引入操作系统临时目录位置
 import { join } from 'node:path'                                      // 引入跨平台测试路径拼接能力
 import { createApp } from '../server.js'                             // 引入可直接处理 Request 的真实应用入口
+import { Config } from '../commands/config.js'                       // 引入缓存请求选项供配置行为断言
+import { Session } from '../commands/session.js'                     // 引入两套历史同步回退指令
+import { retry } from '../utils/retry.js'                             // 引入中断不重试行为验证
 
 let app                                                                  // 保存测试使用的真实 Elysia 应用
 let closeApp                                                             // 保存监听器清理动作
@@ -22,7 +25,7 @@ beforeAll(async () => {
   realModel = {                                                                   // 只提取测试需要的真实认证与模型字段
     activeProvider: 'aker',                                                       // 使用 OpenCode 中目标供应商
     activeModel: 'kimi-k2.6',                                                     // 严格使用用户指定的模型名称
-    providers: { aker: { apiKey: provider.options.apiKey, baseURL: provider.options.baseURL, models: ['kimi-k2.6'] } }, // 将真实配置写入测试临时运行配置
+    providers: { aker: { apiKey: provider.options.apiKey, baseURL: provider.options.baseURL, models: ['kimi-k2.6'], setCacheKey: true } }, // 将真实认证、模型和缓存行为写入测试配置
     systemPrompt: '你是测试中的 Agent。收到请求后必须调用 task_done，并在 summary 中写出 REAL_MODEL_OK。', // 让真实模型产生可验证工具调用
     permissions: { task_done: 'allow' },                                          // 测试任务结束工具允许真实执行
     modelLimits: { 'kimi-k2.6': provider.models['kimi-k2.6'].limit },              // 使用 OpenCode 声明的真实上下文限制
@@ -84,6 +87,7 @@ describe('Agent Server API', () => {
     const currentConfig = await current.json()                                 // 解析配置反馈
     expect(currentConfig.activeModel).toBe('kimi-k2.6')                        // 验证测试模型来自 OpenCode 配置
     expect(currentConfig.providers.aker.apiKey).toBe('[REDACTED]')             // 验证 API 不泄漏真实密钥
+    expect(Config.getProviderOptions('ses_cache')).toBeUndefined()                    // Kimi 中转不注入无效缓存字段
 
     const updated = await jsonRequest('/config', 'PUT', { systemPrompt: realModel.systemPrompt }) // 通过真实 API 写入局部配置
     expect(await updated.json()).toEqual({ ok: true })                         // 验证更新真实落盘
@@ -101,6 +105,46 @@ describe('Agent Server API', () => {
     await jsonRequest(`/session/${session.id}/rollback/1`, 'POST')              // 调用不存在存档点，确认错误路径也是真实 API
     const undone = await jsonRequest(`/session/${session.id}/undo-rollback`, 'POST') // 调用撤销回滚 API
     expect((await undone.json()).ok).toBe(false)                                // 没有缓存时必须明确返回失败
+  })
+
+  it('does not report a retry after an intentional abort', async () => {
+    const stopSignal = new AbortController()                             // 创建与 Chat.stop 相同的中断信号
+    let retryCount = 0                                                   // 记录错误重试反馈次数
+    const operation = retry(async () => {                                // 启动会等待中断的模型替身
+      stopSignal.abort()                                                 // 模拟用户在模型请求期间主动停止
+      throw new DOMException('aborted', 'AbortError')                    // 模拟提供商抛出的标准中断错误
+    }, () => { retryCount += 1 }, stopSignal.signal)
+    await expect(operation).rejects.toMatchObject({ name: 'AbortError' }) // 中断应直接退出重试工具
+    expect(retryCount).toBe(0)                                           // 前端不应收到 error-retry 事件
+  })
+
+  it('stages a user message rollback across display and model history', async () => {
+    const created = await Session.create()                                      // 创建独立会话验证内部两套历史
+    const session = Session.getMutable(created.id)                              // 读取 commands 可修改真实对象
+    session.messages = [                                                        // 构造两轮用户可见历史
+      { id: 'msg_first', role: 'user', content: '第一句' },
+      { id: 'msg_answer', role: 'assistant', content: '第一答复' },
+      { id: 'msg_second', role: 'user', content: '第二句' },
+      { id: 'msg_final', role: 'assistant', content: '第二答复' },
+    ]
+    session.modelMessages = [                                                   // 构造与展示历史对应的模型协议历史
+      { role: 'user', content: '第一句' },
+      { role: 'assistant', content: '第一答复' },
+      { role: 'user', content: '第二句' },
+      { role: 'assistant', content: '第二答复' },
+    ]
+    await Session.persist(session)                                               // 保存回退前完整基线
+
+    const rolledBack = await jsonRequest(`/session/${created.id}/rollback-message`, 'POST', { messageId: 'msg_second' }) // 暂存第二轮
+    expect(await rolledBack.json()).toMatchObject({ ok: true, content: '第二句' }) // API 反馈输入框原文
+    expect(Session.getMutable(created.id).messages.map((item) => item.id)).toEqual(['msg_first', 'msg_answer']) // 展示历史隐藏第二轮
+    expect(Session.getMutable(created.id).modelMessages).toHaveLength(2)         // 模型上下文同步隐藏第二轮
+    expect(Session.get(created.id).rollback).toMatchObject({ count: 2, target: { messageID: 'msg_second' } }) // 前端获得撤销摘要
+
+    const restored = await jsonRequest(`/session/${created.id}/undo-rollback`, 'POST') // 撤销暂存边界
+    expect(await restored.json()).toEqual({ ok: true, restoredMessages: 2 })      // 反馈真实恢复数量
+    expect(Session.getMutable(created.id).messages).toHaveLength(4)              // 展示历史完整恢复
+    expect(Session.getMutable(created.id).modelMessages).toHaveLength(4)         // 模型上下文完整恢复
   })
 
   it('handles chat control APIs and real model chat SSE', async () => {

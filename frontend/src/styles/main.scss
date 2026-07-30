@@ -542,6 +542,15 @@ button {
   background: transparent !important;                // 保持单一工具表面
 }
 
+.tool-call__approval {
+  display: flex;                                     // 拒绝和允许动作同排
+  align-items: center;                               // 控件垂直居中
+  justify-content: flex-end;                         // 主要确认动作位于右侧
+  gap: 6px;                                          // 审批动作保持紧密分组
+  padding: 10px 12px;                                // 与工具大圆角边缘留空
+  border-top: 1px solid #333536;                     // 从工具输入中分隔审批区
+}
+
 .tool-call__result {
   border-top: 1px solid #232323 !important;          // 结果与输入明确分隔
   color: #bdbdbd;                                    // 结果保持次级技术文本
@@ -1051,6 +1060,333 @@ button {
   }
 }
 
+/* --- OpenCode 式顶部会话工作区 --- */
+.app-shell {
+  display: grid;                                     // 顶部标签栏与业务内容固定分行
+  grid-template-columns: minmax(0, 1fr);             // 不再保留侧栏轨道
+  grid-template-rows: 44px minmax(0, 1fr);           // 紧凑标题栏下方使用全部空间
+  gap: 0;                                            // 标签栏直接连接工作区
+  padding: 0;                                        // 页面内容使用完整窗口
+  background: #0b0c0d;                              // 保持中性深色外壳
+}
+
+.titlebar {
+  display: flex;                                     // Home、标签、工具动作同排
+  align-items: center;                               // 所有 32px 控件垂直居中
+  min-width: 0;                                      // 标签条允许水平压缩
+  height: 44px;                                      // 对齐桌面工作台紧凑标题栏
+  padding: 5px 8px;                                  // 控件与窗口边缘保持安全距离
+  border-bottom: 1px solid #202224;                  // 细线区分标签和内容
+  background: #101112;                              // 标题栏略高于主内容
+}
+
+.titlebar > mdui-button-icon {
+  width: 32px;                                       // 稳定图标点击尺寸
+  height: 32px;                                      // 标签切换不引发布局跳动
+  flex: 0 0 32px;                                    // 标签过多时工具动作不被挤压
+  color: #9da0a2;                                    // 默认动作保持次级
+}
+
+.titlebar > mdui-button-icon:hover,
+.titlebar > mdui-button-icon.is-active {
+  color: #f2f2f2;                                    // 悬停和当前页面提高对比
+  background: #292b2d;                              // Material 状态层表达选择
+}
+
+.titlebar__tabs {
+  display: flex;                                     // 会话标签按打开顺序水平排列
+  align-items: center;                               // 保持标签高度一致
+  min-width: 0;                                      // 允许条带消费剩余宽度
+  max-width: min(72vw, 1100px);                      // 为右侧工具动作留空间
+  margin-left: 6px;                                  // 与 Home 动作分组
+  padding: 0 2px;                                    // 分隔线不贴边
+  overflow-x: auto;                                  // 多标签时水平滚动
+  scrollbar-width: none;                             // 标题栏保持整洁
+}
+
+.titlebar__tabs::-webkit-scrollbar {
+  display: none;                                     // Chromium 隐藏标签条滚动条
+}
+
+.session-tab {
+  position: relative;                                // 为相邻标签分隔线提供定位
+  display: grid;                                     // 状态、标题、关闭动作三列
+  grid-template-columns: 8px minmax(36px, 1fr) 24px; // 标题自适应且不挤压动作
+  align-items: center;                               // 标签内容垂直居中
+  width: clamp(116px, 14vw, 220px);                  // 多标签时稳定收缩范围
+  height: 32px;                                      // 保持浏览器式紧凑标签
+  flex: 0 1 220px;                                   // 空间不足时均匀压缩
+  gap: 6px;                                          // 内容之间保留辨识距离
+  padding: 0 3px 0 10px;                             // 标题和关闭按钮保持安全边距
+  border: 0;                                         // 使用状态层而非卡片描边
+  border-radius: 7px;                                // Material 小圆角适合工具标签
+  background: transparent;                           // 非活动标签融入标题栏
+  color: #aeb0b2;                                    // 降低后台标签权重
+  cursor: pointer;                                   // 整个标签可选择
+}
+
+.session-tab + .session-tab::before {
+  position: absolute;                                // 创建 OpenCode 式标签分隔线
+  top: 9px;                                          // 与标签内容垂直居中
+  left: -1px;                                        // 位于两个标签之间
+  width: 1px;                                        // 保持克制
+  height: 14px;                                      // 不贯穿完整标题栏
+  background: #303234;                              // 低对比分隔
+  content: '';
+}
+
+.session-tab:hover,
+.session-tab.is-active {
+  background: #27292b;                              // Material 状态层反馈当前标签
+  color: #f3f3f3;                                    // 当前标题提高可读性
+}
+
+.session-tab.is-active::before,
+.session-tab.is-active + .session-tab::before {
+  display: none;                                     // 活动表面已经表达边界
+}
+
+.session-tab__status {
+  width: 6px;                                        // 为运行状态保留稳定位置
+  height: 6px;                                       // 使用细小圆点而非文字
+  border-radius: 50%;                                // 熟悉的状态符号
+  background: #5d6062;                              // 空闲状态降低权重
+}
+
+.session-tab__status.is-running {
+  background: #e7e7e7;                              // 运行中使用高对比中性色
+  animation: pulse 1.4s ease-in-out infinite;        // 提示该标签仍在生成
+}
+
+.session-tab__title {
+  min-width: 0;                                      // 长标题允许省略
+  overflow: hidden;                                  // 不覆盖关闭动作
+  text-overflow: ellipsis;                           // 保持单行标签高度
+  white-space: nowrap;                               // 标题栏不换行
+  font-size: 12px;                                   // 适合密集多会话工作区
+  text-align: left;                                  // 浏览器式标签从左扫描
+}
+
+.session-tab__close {
+  width: 24px;                                       // 固定小型关闭动作
+  height: 24px;                                      // 不改变标签高度
+  opacity: 0;                                        // 后台标签减少视觉噪声
+}
+
+.session-tab:hover .session-tab__close,
+.session-tab.is-active .session-tab__close {
+  opacity: 1;                                        // 悬停或活动时显示关闭入口
+}
+
+.titlebar__new {
+  margin-left: 4px;                                  // 与标签条分离
+}
+
+.titlebar__spacer {
+  min-width: 12px;                                   // 标签和工具动作保持最低距离
+  flex: 1;                                           // 将工具和设置推到右侧
+}
+
+.main-area {
+  min-height: 0;                                     // 业务页面可以内部滚动
+  height: auto;                                      // 使用网格剩余轨道而非整窗高度
+  border: 0;                                         // 页面区域不是浮动卡片
+  border-radius: 0;                                  // 与窗口边界自然衔接
+  background: #151617;                              // 保持 Material 主表面
+  box-shadow: none;                                  // 不制造装饰性外框
+}
+
+.chat-view {
+  grid-template-rows: 46px minmax(0, 1fr) auto auto; // 顶栏缩小以配合外层标签栏
+}
+
+.chat-header {
+  justify-content: flex-start;                       // 会话内容标题靠左便于扫描
+  padding: 0 28px;                                   // 与工作区边缘保持距离
+  border-bottom: 1px solid #202224;                  // 区分会话工具栏与消息
+}
+
+.chat-header > div {
+  width: 100%;                                       // 标题使用完整工具栏宽度
+}
+
+.message--user {
+  padding-right: 16px;                               // 为回退编辑动作保留气泡内空间
+}
+
+.message__retry {
+  position: absolute;                                // 不改变用户气泡布局尺寸
+  top: 50%;                                          // 与用户消息垂直居中
+  left: -38px;                                       // 放在气泡外侧形成消息动作区
+  width: 30px;                                       // 紧凑图标点击区
+  height: 30px;                                      // 保持圆形状态层
+  opacity: 0;                                        // 默认减少重复消息视觉噪声
+  transform: translateY(-50%);                       // 精确垂直居中
+  transition: opacity 120ms ease;                    // 悬停反馈平滑出现
+}
+
+.message--user:hover .message__retry,
+.message__retry:focus-visible {
+  opacity: 1;                                        // 鼠标和键盘都可发现回退编辑
+}
+
+.chat-composer {
+  display: grid;                                     // 撤销栏、输入器和提示垂直排列
+  gap: 7px;                                          // 暂存状态紧贴输入器形成组合
+}
+
+.revert-dock {
+  display: grid;                                     // 图标、摘要、预览、撤销命令同排
+  grid-template-columns: 20px auto minmax(0, 1fr) auto; // 预览消费剩余宽度
+  align-items: center;                               // 保持 40px 高度稳定
+  min-height: 40px;                                  // 提供清晰可点击区域
+  padding: 5px 8px 5px 14px;                         // 与输入器左右边缘协调
+  border: 1px solid #37393b;                         // 暂存状态需要明确边界
+  border-radius: 8px;                                // 工作控件使用克制圆角
+  background: #202224;                              // 位于输入器下方的次级表面
+  color: #c6c8ca;                                    // 摘要保持次级层级
+  font-size: 12px;                                   // 紧凑状态文本
+}
+
+.revert-dock mdui-icon-undo {
+  width: 17px;                                       // 与摘要字号匹配
+  height: 17px;                                      // 保持固定图标尺寸
+}
+
+.revert-dock__preview {
+  min-width: 0;                                      // 长原文可省略
+  overflow: hidden;                                  // 不挤压撤销按钮
+  color: #85888a;                                    // 预览弱于状态摘要
+  text-overflow: ellipsis;                           // 保持单行 dock
+  white-space: nowrap;                               // 不增高输入区
+}
+
+.revert-dock button {
+  min-height: 28px;                                  // 提供可点击文字命令
+  padding: 0 10px;                                   // 文字与边缘分离
+  border: 0;                                         // 使用状态层表达动作
+  border-radius: 6px;                                // 与 dock 形状一致
+  background: #343638;                              // Material 次级命令表面
+  color: #f0f0f0;                                    // 保证撤销动作可见
+  cursor: pointer;                                   // 表明可恢复历史
+}
+
+.home-view {
+  height: 100%;                                      // 主页独立占满工作区
+  overflow-y: auto;                                  // 长会话列表滚动
+}
+
+.home-header {
+  display: flex;                                     // 品牌和主页命令同排
+  align-items: center;                               // 垂直居中
+  justify-content: space-between;                    // 操作靠右
+  min-height: 72px;                                  // 主页顶部保持克制高度
+  padding: 0 32px;                                   // 与内容列对齐
+  border-bottom: 1px solid #242628;                  // 分隔稳定产品栏
+  background: #171819;                              // 略高于内容背景
+}
+
+.home-header__brand,
+.home-header__actions {
+  display: flex;                                     // 品牌或动作水平排列
+  align-items: center;                               // 保持基线稳定
+  gap: 10px;                                         // 元素间留空
+}
+
+.home-header__brand > span {
+  display: grid;                                     // 品牌字母居中
+  place-items: center;                               // 水平垂直居中
+  width: 30px;                                       // 稳定产品标识尺寸
+  height: 30px;                                      // 保持圆形比例
+  border-radius: 50%;                                // 品牌标识使用圆形
+  background: #eeeeee;                              // 黑白高对比信号
+  color: #111111;                                    // 确保字母可读
+  font-weight: 700;                                  // 小尺寸强化识别
+}
+
+.home-content {
+  width: min(920px, calc(100% - 48px));              // 会话列表保持扫描宽度
+  margin: 0 auto;                                    // 在宽屏居中
+  padding: 42px 0 64px;                              // 页面内容保持工作区留白
+}
+
+.home-section-title {
+  display: flex;                                     // 标题区域允许后续动作扩展
+  align-items: end;                                  // 描述与标题形成紧凑组
+  justify-content: space-between;                    // 保留右侧空间
+  margin-bottom: 22px;                               // 与会话行分离
+}
+
+.home-section-title h1 {
+  margin: 0;                                         // 由标题组控制间距
+  font-size: 22px;                                   // 主页页面标题而非英雄字号
+  font-weight: 580;                                  // 保持 Material 温和字重
+}
+
+.home-section-title p {
+  margin: 5px 0 0;                                   // 与标题建立辅助层级
+  color: #85888a;                                    // 降低统计文本权重
+  font-size: 12px;                                   // 适合会话浏览辅助信息
+}
+
+.session-row {
+  min-height: 64px;                                  // 主页行紧凑但可触达
+  border-radius: 8px;                                // 不将页面列表做成大胶囊卡片
+  background: #1d1f20;                              // Material tonal 列表表面
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-rows: 46px minmax(0, 1fr);         // 移动端保留可触达顶部标签
+  }
+
+  .titlebar {
+    height: 46px;                                    // 移动标题栏略增高
+    padding-inline: 4px;                             // 最大化标签可用宽度
+  }
+
+  .titlebar__tabs {
+    max-width: none;                                 // 移动端标签条消费全部剩余空间
+    flex: 1;                                         // 工具动作保持在条带后
+  }
+
+  .session-tab {
+    width: 132px;                                    // 移动端稳定可扫描标签宽度
+    flex: 0 0 132px;                                 // 使用横向滚动而非压成图标
+  }
+
+  .titlebar > mdui-button-icon[aria-label="工具"] {
+    display: none;                                   // 小屏优先主页、标签和设置
+  }
+
+  .chat-header {
+    padding: 0 16px;                                 // 移动会话工具栏减少边距
+  }
+
+  .message__retry {
+    left: -32px;                                     // 适配窄消息阅读列
+    opacity: 1;                                      // 触屏没有 hover，始终显示入口
+  }
+
+  .revert-dock {
+    grid-template-columns: 20px minmax(0, 1fr) auto; // 移动端隐藏单独预览轨道
+  }
+
+  .revert-dock__preview {
+    display: none;                                   // 保留摘要和撤销动作空间
+  }
+
+  .home-header {
+    min-height: 64px;                                // 移动主页保持紧凑
+    padding: 0 14px;                                 // 适配窄视口
+  }
+
+  .home-content {
+    width: calc(100% - 24px);                        // 会话行保留边缘安全距离
+    padding-top: 28px;                               // 减少移动顶部留白
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1460,6 +1796,33 @@ button {
   grid-column: 1 / -1;                               // 密钥使用完整详情宽度
 }
 
+.provider-cache {
+  display: flex;                                     // 缓存说明与开关同排
+  align-items: center;                               // 垂直居中
+  justify-content: space-between;                    // 开关保持右侧操作位置
+  gap: 20px;                                         // 文本与开关保留触控空间
+  min-height: 68px;                                  // 与 Material 输入控件高度一致
+  padding: 10px 16px;                                // 内容远离大圆角边缘
+  border-radius: 20px;                               // 使用 Material tonal 设置行
+  background: #262829;                              // 从提供商详情表面轻微抬升
+}
+
+.provider-cache strong,
+.provider-cache small {
+  display: block;                                    // 设置名称和说明分行
+}
+
+.provider-cache strong {
+  font-size: 13px;                                   // 设置主信息字号
+  font-weight: 560;                                  // 温和强调
+}
+
+.provider-cache small {
+  margin-top: 5px;                                   // 与设置名称分离
+  color: #919394;                                    // 说明保持次级层级
+  font-size: 10px;                                   // 紧凑配置说明
+}
+
 .model-catalog {
   margin-top: 28px;                                  // 与凭据字段分离
   padding-top: 24px;                                 // 标题上方保留空间
@@ -1621,5 +1984,31 @@ button {
 
   .model-add {
     grid-template-columns: 1fr;                      // 模型输入和添加按钮分行
+  }
+}
+
+/* --- 顶部标签布局最终约束 --- */
+.app-shell {
+  grid-template-columns: minmax(0, 1fr);             // 最终覆盖旧侧栏轨道定义
+  grid-template-rows: 44px minmax(0, 1fr);           // 固定标题栏并释放内容空间
+  gap: 0;                                            // 主区域直接连接标题栏
+  padding: 0;                                        // 桌面端也使用完整窗口
+}
+
+.main-area {
+  height: auto;                                      // 使用第二行轨道而非突破窗口
+  border: 0;                                         // 主页面不是浮动卡片
+  border-radius: 0;                                  // 遵循 OpenCode 连续工作区布局
+  box-shadow: none;                                  // 移除旧主画布抬升效果
+}
+
+.session-row {
+  min-height: 64px;                                  // 会话主页保持紧凑扫描密度
+  border-radius: 8px;                                // 列表项使用克制 Material 圆角
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-rows: 46px minmax(0, 1fr);         // 移动端增加标题栏触控高度
   }
 }

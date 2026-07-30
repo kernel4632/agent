@@ -4,7 +4,7 @@
 
 参考 Roo Code 的工具粒度回退机制：每次工具执行完成后标记一个步骤号。用户可以在 UI 中直接在任意工具调用旁边点击"回退到这里"，精确回滚到该步骤。
 
-存档点不需要单独存储，它本质就是 session messages 数组的截断位置。
+存档点不需要单独存储，它本质是展示历史与模型历史中的同步截断位置。回退先暂存被截断内容，用户发送新消息时才正式提交分支。
 
 ## 代码归属
 
@@ -52,9 +52,20 @@ POST /session/:id/rollback/:step
 
 1. 找到消息历史中 `step` 等于指定值的最后一条 tool 消息
 2. 将该消息之后的所有消息截断
-3. 截断的消息临时保留在 session 的 `_rollbackCache` 字段中
-4. 用户可以撤销回退（恢复 `_rollbackCache` 中的消息）
-5. 用户下一次发送消息时，清空 `_rollbackCache`（回退正式生效，无法再撤销）
+3. 截断的展示消息和模型消息临时保留在 session 的 `rollbackCache` 字段中
+4. 用户可以撤销回退（同时恢复 `rollbackCache` 中的展示历史和模型历史）
+5. 用户下一次发送消息时，清空 `rollbackCache`（回退正式生效，无法再撤销）
+
+### 回退用户消息并重发
+
+用户消息使用稳定 `id`。点击用户消息旁的编辑动作后，前端调用：
+
+```
+POST /session/:id/rollback-message
+{ "messageId": "msg_xxx" }
+```
+
+Server 从目标用户消息之前同步暂存展示历史和模型历史，前端把该消息原文恢复到输入框。用户可以修改后发送形成新分支，也可以点击“撤销回退”恢复原历史。该流程参考 OpenCode 的 staged revert，而不是直接覆盖旧消息。
 
 ### 数据流示例
 
@@ -62,25 +73,25 @@ POST /session/:id/rollback/:step
 // 回滚前
 session = {
   messages: [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8],
-  _rollbackCache: null
+  rollbackCache: null
 }
 
 // POST /session/ses_xxx/rollback/1（回滚到步骤 1，即 msg3 是 step:1 的 tool 消息）
 session = {
   messages: [msg1, msg2, msg3],
-  _rollbackCache: [msg4, msg5, msg6, msg7, msg8]   // 临时保留
+  rollbackCache: { messages: [msg4, msg5, msg6, msg7, msg8], modelMessages: [...] } // 临时保留
 }
 
 // 用户撤销回退
 session = {
   messages: [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8],  // 恢复
-  _rollbackCache: null
+  rollbackCache: null
 }
 
 // 或者用户发送新消息（/chat/send）
 session = {
   messages: [msg1, msg2, msg3, newUserMsg, ...],   // 从回滚点继续
-  _rollbackCache: null                              // 清空，无法再撤销
+  rollbackCache: null                               // 清空，无法再撤销
 }
 ```
 
@@ -106,4 +117,4 @@ session = {
 
 会话以 JSON 文件存储在 `~/.agent/sessions/ses_xxx.json`。每次工具执行完成后即时写入磁盘（覆写整个文件），确保进程崩溃后可从最后一个步骤恢复。
 
-`_rollbackCache` 也持久化在同一个文件中（如果存在的话）。
+`rollbackCache` 也持久化在同一个文件中（如果存在的话）。会话 API 仅返回回退数量与目标摘要，不返回隐藏的完整历史。

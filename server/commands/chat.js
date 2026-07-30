@@ -75,14 +75,14 @@ async function executeTool(sessionID, toolCallID, name, input, emit) {
 
 
 // --- 完成一轮真实模型流调用 ---
-async function runModelRound({ model, systemPrompt, modelMessages, tools, abortSignal, streamWriter }) {
-  const result = streamText({ model, system: systemPrompt, messages: modelMessages, tools, abortSignal }) // 发起真实流式模型请求
+async function runModelRound({ model, systemPrompt, modelMessages, tools, providerOptions, abortSignal, streamWriter }) {
+  const result = streamText({ model, system: systemPrompt, messages: modelMessages, tools, providerOptions, abortSignal }) // GPT Responses 由 implicit 模式自动选择最新缓存边界
   const toolCalls = []                                                 // 收集模型声明的工具调用供展示持久化
   const toolResults = []                                               // 收集真实工具执行结果供存档与停止判断
   let text = ''                                                        // 累加本轮助手文本
   let reasoning = ''                                                   // 累加本轮模型推理文本
   for await (const part of result.fullStream) {                        // 流消费错误也交给外层 retry 处理
-    writeEvent(streamWriter, part.type, part)                          // 透传每个 AI SDK 流事件
+    if (part.type !== 'finish') writeEvent(streamWriter, part.type, part) // 中间模型轮结束不冒充整个 Agent 完成
     if (part.type === 'text-delta') text += part.text                  // 合并文本增量供会话展示
     if (part.type === 'reasoning-delta') reasoning += part.text        // 合并 reasoning 增量供折叠展示
     if (part.type === 'tool-call') toolCalls.push(part)                // 保存本轮工具声明
@@ -112,7 +112,7 @@ function writeEvent(streamWriter, event, data) {
 
 
 // --- 启动 Agent 循环并返回 SSE 流 ---
-function startLoop({ sessionID, message, request, initialEvents = [] }) {
+function startLoop({ sessionID, message, messageID, request, initialEvents = [] }) {
   const stream = new ReadableStream({                                  // 使用 Web Stream 让 Elysia 直接返回流式响应
     async start(streamWriter) {
       const stopSignal = new AbortController()                          // 为 stop API 和客户端断开准备中断信号
@@ -121,9 +121,9 @@ function startLoop({ sessionID, message, request, initialEvents = [] }) {
       const emit = (event, data) => writeEvent(streamWriter, event, data) // 将自定义事件统一写入当前响应
       initialEvents.forEach(({ event, data }) => emit(event, data))      // 先反馈入口创建的会话，再输出模型流
       const session = Session.getMutable(sessionID)                      // 读取入口已经创建或确认的目标会话
-      session.rollbackCache = null                                      // 新消息确认回滚正式生效，清空撤销缓存
-      session.messages.push({ role: 'user', content: message })         // 将用户触发写入完整展示历史
+      Session.commitRollback(session)                                   // 新消息确认暂存回退正式生效
       session.modelMessages ??= []                                      // 初始化仅供模型调用的标准消息历史
+      session.messages.push({ id: messageID ?? `msg_${crypto.randomUUID()}`, role: 'user', content: message }) // 将用户触发写入共享稳定 ID 的展示历史
       session.modelMessages.push({ role: 'user', content: message })    // 保持 AI SDK 上下文与展示历史同步
       await Session.persist(session)                                    // 用户消息先落盘，崩溃后仍可恢复
 
@@ -136,14 +136,16 @@ function startLoop({ sessionID, message, request, initialEvents = [] }) {
           const model = Config.getActiveModel()                         // 每一轮重新读取配置，模型切换立即生效
           const modelMessages = compressMessages(session.modelMessages, Config.getContextLimit()) // 压缩仅作用于本轮请求
           const tools = createTools(sessionID, emit)                     // 使用当前注册表构建最新工具集合
-          const round = await retry(() => runModelRound({ model, systemPrompt: Config.get().systemPrompt, modelMessages, tools, abortSignal: stopSignal.signal, streamWriter }), ({ error, attempt, nextRetryIn }) => emit('error-retry', { message: String(error), attempt, nextRetryIn }), stopSignal.signal) // 请求创建和流消费都执行无限退避重试
+          const providerOptions = Config.getProviderOptions(sessionID)            // 同一会话每轮使用稳定缓存键
+          const round = await retry(() => runModelRound({ model, systemPrompt: Config.get().systemPrompt, modelMessages, tools, providerOptions, abortSignal: stopSignal.signal, streamWriter }), ({ error, attempt, nextRetryIn }) => emit('error-retry', { message: String(error), attempt, nextRetryIn }), stopSignal.signal) // 请求创建和流消费都执行无限退避重试
           const previousSteps = session.messages.filter((item) => item.role === 'tool').map((item) => item.step ?? 0) // 读取已持久化的全部工具步骤
           const nextStep = Math.max(0, ...previousSteps) + 1                 // 本轮并行工具共享同一个新步骤号
           shouldStop = round.toolResults.some((part) => part.output?.stop === true) // 任一工具明确 stop 时结束整个循环
           session.modelMessages.push(...round.response.messages)             // 将模型消息加入仅供下一轮使用的上下文
           session.messages.push({ role: 'assistant', content: round.text, reasoning: round.reasoning, toolCalls: round.toolCalls }) // 保存前端可读的助手消息
-          round.toolResults.forEach((part) => session.messages.push({ role: 'tool', toolCallId: part.toolCallId, name: part.toolName, result: part.output, step: nextStep })) // 并行结果使用同一 checkpoint
+          round.toolResults.forEach((part) => session.messages.push({ role: 'tool', toolCallId: part.toolCallId, name: part.toolName, input: round.toolCalls.find((call) => call.toolCallId === part.toolCallId)?.input, result: part.output, step: nextStep })) // 并行结果按调用输入保存并共享同一 checkpoint
           await Session.persist(session)                                     // 每轮模型与工具反馈完成后立即持久化
+          if (round.toolResults.length) emit('checkpoint', { step: nextStep, toolCallIds: round.toolResults.map((part) => part.toolCallId) }) // 让实时工具立即获得回退步骤
           if (round.toolResults.length) textOnlyCount = 0                     // 工具执行成功后重新允许纯文本重试
           else textOnlyCount += 1                                             // 纯文本响应进入兼容性重试计数
           if (textOnlyCount === 2) session.modelMessages.push({ role: 'user', content: '如果任务尚未完成，请使用工具执行；如果已经完成，请调用 task_done 结束。' }) // 第二次纯文本时注入明确提醒
@@ -151,7 +153,7 @@ function startLoop({ sessionID, message, request, initialEvents = [] }) {
         }
         writeEvent(streamWriter, 'finish', { ok: true, sessionID })            // 反馈当前 SSE 流已完成
       } catch (error) {
-        writeEvent(streamWriter, 'error', { message: String(error) })           // 将不可恢复错误反馈给真实客户端
+        if (!stopSignal.signal.aborted && error?.name !== 'AbortError') writeEvent(streamWriter, 'error', { message: String(error) }) // 主动停止不伪装成错误
       } finally {
         runningLoops.delete(sessionID)                                         // 清理运行中状态，允许下一次发送
         streamWriter.close()                                                    // 关闭 SSE 响应流
@@ -209,4 +211,10 @@ function reject(sessionID, toolCallID) {
 }
 
 
-export const Chat = { startLoop, stop, approve, reject }                         // 导出对话循环和交互控制动作
+// --- 判断会话是否正在运行 ---
+function isRunning(sessionID) {
+  return runningLoops.has(sessionID)                                             // 回退和删除可据此避免与流写入竞争
+}
+
+
+export const Chat = { startLoop, stop, approve, reject, isRunning }               // 导出对话循环和交互控制动作

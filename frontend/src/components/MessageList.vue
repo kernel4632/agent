@@ -11,7 +11,7 @@ const props = defineProps({                           // 声明完整消息数�
   messages: { type: Array, required: true },          // 按会话顺序排列的消息
 })
 
-const emit = defineEmits(['rollback'])                // 向 Chat 视图透传 checkpoint 动作
+const emit = defineEmits(['rollback', 'retry', 'approve', 'reject']) // 向 Chat 视图透传回退和工具动作
 const listElement = ref(null)                         // 保存可滚动消息容器元素
 
 
@@ -29,7 +29,7 @@ watch(() => props.messages, scrollToLatest, { deep: true }) // 文本、工具�
 <template>
   <div ref="listElement" class="message-list">
     <div class="message-list__column">
-      <MessageItem v-for="(message, index) in messages" :key="`${message.role}-${index}`" :message="message" @rollback="emit('rollback', $event)" />
+      <MessageItem v-for="(message, index) in messages" :key="message.id || `${message.role}-${index}`" :message="message" @rollback="emit('rollback', $event)" @retry="emit('retry', $event)" @approve="emit('approve', $event)" @reject="emit('reject', $event)" />
     </div>
   </div>
 </template>

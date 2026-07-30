@@ -5,6 +5,7 @@
 */
 import { mkdir } from 'node:fs/promises'                          // 引入创建配置目录的文件能力
 import { dirname } from 'node:path'                               // 引入提取配置父目录的路径能力
+import { createOpenAI } from '@ai-sdk/openai'                     // 引入支持 Responses API 缓存的 OpenAI 提供商
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible' // 引入 OpenAI-compatible 模型提供商
 import { defu } from 'defu'                                      // 引入配置深度合并能力
 import { configStore } from '../store/config.js'                  // 引入唯一配置状态
@@ -75,12 +76,40 @@ function getActiveModel() {
     throw new Error('active provider and model must be configured')
   }
 
+  if (usesOpenAIResponses(providerName, modelName)) {               // GPT 中转需走 Responses API 才会产生缓存命中
+    const provider = createOpenAI({                                 // 创建支持 OpenAI Responses 协议的中转客户端
+      name: providerName,                                           // 保留配置中的供应商名称用于模型元数据
+      apiKey: providerConfig.apiKey,                                // 密钥只在内存中交给供应商
+      baseURL: providerConfig.baseURL,                              // 继续使用用户配置的中转地址
+    })
+    return provider.responses(modelName)                            // 明确选择 /responses，不能回退到 Chat Completions
+  }
+
   const provider = createOpenAICompatible({                         // 根据配置即时创建 OpenAI-compatible 客户端
     name: providerName,                                             // 保留提供商名称用于请求元数据识别
     apiKey: providerConfig.apiKey,                                  // 密钥只在内存中交给提供商，不写日志
     baseURL: providerConfig.baseURL,                                // 使用配置中的真实 API 地址
+    includeUsage: true,                                             // 流式结束事件包含缓存读取和 token 用量
   })
   return provider(modelName)                                        // 返回当前模型，供本轮 Agent 调用
+}
+
+
+// --- 创建当前会话的提供商请求选项 ---
+function getProviderOptions(sessionID) {
+  const providerName = configStore.value.activeProvider            // 读取与当前模型相同的提供商名称
+  const modelName = configStore.value.activeModel                  // 缓存能力同时取决于模型和请求协议
+  const providerConfig = configStore.value.providers[providerName] // 读取提供商缓存能力开关
+  if (!providerConfig?.setCacheKey) return undefined                // 未启用时不注入代理不认识的请求字段
+  if (!usesOpenAIResponses(providerName, modelName)) return undefined // 当前中转的 Kimi 和 GLM 不提供缓存
+
+  return { openai: { promptCacheKey: sessionID, promptCacheOptions: { mode: 'implicit' } } } // GPT-5.6 自动缓存最新稳定前缀
+}
+
+
+// --- 判断当前模型是否应使用 OpenAI Responses API ---
+function usesOpenAIResponses(providerName, modelName) {
+  return providerName.endsWith('openai') && modelName.startsWith('gpt-') // 当前配置用供应商后缀区分 OpenAI 协议族
 }
 
 
@@ -91,4 +120,4 @@ function getContextLimit() {
 }
 
 
-export const Config = { load, save, get, update, getActiveModel, getContextLimit } // 导出全部配置业务动作
+export const Config = { load, save, get, update, getActiveModel, getProviderOptions, getContextLimit } // 导出全部配置业务动作

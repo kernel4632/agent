@@ -9,7 +9,15 @@ const props = defineProps({                          // 声明工具展示所需
   step: { type: Number, default: 0 },                // 持久化历史中的 checkpoint 步骤
 })
 
-const emit = defineEmits(['rollback'])               // 向父视图发出回滚触发
+const emit = defineEmits(['rollback', 'approve', 'reject']) // 向父视图发出工具动作
+const statusLabels = {                                // 将内部状态转换为用户可读反馈
+  waiting: '等待批准',
+  approving: '正在批准',
+  rejecting: '正在拒绝',
+  rejected: '已拒绝',
+  running: '运行中',
+  completed: '已完成',
+}
 
 
 // --- 格式化工具数据 ---
@@ -25,10 +33,14 @@ function formatValue(value) {
     <header class="tool-call__header">
       <span class="tool-call__mark">›_</span>
       <strong>{{ props.toolCall.name }}</strong>
-      <span class="tool-call__status">{{ props.toolCall.output ? '已完成' : '运行中' }}</span>
+      <span class="tool-call__status">{{ statusLabels[props.toolCall.status] || (props.toolCall.output !== null && props.toolCall.output !== undefined ? '已完成' : '运行中') }}</span>
       <button v-if="step" class="tool-call__rollback" type="button" @click="emit('rollback', step)">回滚</button>
     </header>
     <pre class="tool-call__data">{{ formatValue(props.toolCall.input) }}</pre>
-    <pre v-if="props.toolCall.output" class="tool-call__result">{{ formatValue(props.toolCall.output) }}</pre>
+    <pre v-if="props.toolCall.output !== null && props.toolCall.output !== undefined" class="tool-call__result">{{ formatValue(props.toolCall.output) }}</pre>
+    <footer v-if="props.toolCall.status === 'waiting'" class="tool-call__approval">
+      <mdui-button variant="text" @click="emit('reject', props.toolCall.id)">拒绝</mdui-button>
+      <mdui-button variant="filled" @click="emit('approve', props.toolCall.id)">允许</mdui-button>
+    </footer>
   </article>
 </template>

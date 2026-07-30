@@ -8,6 +8,7 @@
     "test:e2e": "bun run test/real-agent.e2e.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.24",
     "@ai-sdk/openai-compatible": "latest",
     "ai": "latest",
     "chokidar": "latest",

@@ -4,7 +4,7 @@ Enter 发送、Shift+Enter 换行；组件只发出 send/stop，不直接调用 
 调用示例：<InputBox :running="chat.isRunning" @send="send" @stop="stop" />。
 -->
 <script setup>
-import { nextTick, ref } from 'vue'                   // 引入输入文本和焦点恢复能力
+import { nextTick, ref } from 'vue'                   // 引入输入焦点恢复能力
 import ModelSelector from './ModelSelector.vue'      // 引入聊天内即时模型切换菜单
 
 const props = defineProps({                           // 声明当前 Agent 状态
@@ -13,7 +13,7 @@ const props = defineProps({                           // 声明当前 Agent 状�
 })
 
 const emit = defineEmits(['send', 'stop', 'select-model']) // 向 Chat 视图发出用户和模型指令
-const content = ref('')                               // 当前尚未发送的任务文本
+const content = defineModel({ type: String, default: '' }) // 当前标签独立保存的任务文本
 const inputElement = ref(null)                        // 保存 textarea 用于发送后恢复焦点
 
 

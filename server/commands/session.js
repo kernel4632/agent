@@ -19,7 +19,9 @@ async function load(directory) {
   const sessionIDs = await sessionStore.storage.getKeys() // 枚举磁盘上已有的全部会话键
   for (const sessionID of sessionIDs) {               // 逐个恢复会话，保证服务重启后历史可用
     const session = await sessionStore.storage.getItem(sessionID) // 读取完整会话数据
-    if (session?.id) sessionStore.items.set(sessionID, session)    // 忽略无效存储项，避免污染列表
+    if (!session?.id) continue                        // 忽略无效存储项，避免污染列表
+    normalizeSession(session)                         // 为旧会话补齐消息 ID 和模型边界
+    sessionStore.items.set(sessionID, session)        // 将可回退的完整会话加入运行时状态
   }
 }
 
@@ -34,6 +36,7 @@ async function create() {
     updatedAt: now,                                   // 最近一次消息或回滚修改时间
     messages: [],                                     // 完整用户、助手与工具消息历史
     rollbackCache: null,                              // 最近一次回滚截断的消息，供撤销使用
+    modelMessages: [],                                // AI SDK 标准历史与展示历史同步回退
   }
   sessionStore.items.set(session.id, session)         // 将新会话加入运行时映射
   await persist(session)                              // 创建成功前保证会话已经写盘
@@ -57,6 +60,8 @@ function get(sessionID) {
   if (!session) return null                            // 不存在时返回空值供入口转换为 404
   const visibleSession = structuredClone(session)     // 返回副本，防止入口直接修改状态
   delete visibleSession.modelMessages                 // 模型协议历史是内部数据，不属于会话 API 展示结构
+  visibleSession.rollback = createRollbackSummary(visibleSession.rollbackCache) // 仅公开撤销栏需要的摘要
+  delete visibleSession.rollbackCache                 // 被截断的完整历史不重复发送到浏览器
   return visibleSession                                // 反馈 README 规定的完整用户可见会话
 }
 
@@ -90,6 +95,7 @@ async function remove(sessionID) {
 async function rollback(sessionID, step) {
   const session = getMutable(sessionID)               // 读取需要截断的真实会话对象
   if (!session) return { ok: false, error: 'session not found' } // 会话不存在时拒绝回滚
+  restoreRollbackCache(session)                       // 已暂存时先恢复完整历史，允许移动回退边界
 
   let lastToolIndex = -1                              // 默认表示没有找到目标存档点
   session.messages.forEach((message, index) => {      // 查找并行工具中目标步骤的最后一条
@@ -97,9 +103,28 @@ async function rollback(sessionID, step) {
   })
   if (lastToolIndex < 0) return { ok: false, error: 'checkpoint not found' } // 无目标步骤时保持数据不变
 
-  session.rollbackCache = session.messages.splice(lastToolIndex + 1) // 截断内容暂存供一次撤销
+  const target = session.messages[lastToolIndex]      // 保存目标工具供模型边界定位
+  const modelBoundary = findToolModelBoundary(session.modelMessages, target.toolCallId) // 找到模型工具结果之后的位置
+  stageRollback(session, lastToolIndex + 1, modelBoundary, { type: 'checkpoint', step }) // 两套历史同步暂存
   await persist(session)                              // 回滚结果与缓存一并写盘
   return { ok: true, remainingMessages: session.messages.length } // 反馈当前剩余消息数
+}
+
+
+// --- 回滚到用户消息并准备重新发送 ---
+async function rollbackMessage(sessionID, messageID) {
+  const session = getMutable(sessionID)               // 读取目标会话的真实历史
+  if (!session) return { ok: false, error: 'session not found' } // 不存在时拒绝回退
+  restoreRollbackCache(session)                       // 支持从当前暂存状态移动到另一条用户消息
+
+  const messageIndex = session.messages.findIndex((item) => item.id === messageID && item.role === 'user') // 定位稳定用户消息
+  if (messageIndex < 0) return { ok: false, error: 'user message not found' } // 只能回退到真实用户轮次
+
+  const target = session.messages[messageIndex]       // 保存原文供前端恢复输入框
+  const modelBoundary = findUserModelBoundary(session, messageIndex) // 找到该用户消息进入模型历史前的位置
+  stageRollback(session, messageIndex, modelBoundary, { type: 'message', messageID, content: target.content }) // 暂存目标消息及后续历史
+  await persist(session)                              // 回退边界和可撤销内容一起持久化
+  return { ok: true, remainingMessages: session.messages.length, content: target.content } // 反馈可重新编辑的原文
 }
 
 
@@ -109,12 +134,77 @@ async function undoRollback(sessionID) {
   if (!session) return { ok: false, error: 'session not found' } // 会话不存在时拒绝操作
   if (!session.rollbackCache) return { ok: false, error: 'no rollback to undo' } // 没有缓存时不能恢复
 
-  const restoredMessages = session.rollbackCache.length // 在清空缓存前记录恢复数量
-  session.messages.push(...session.rollbackCache)     // 按原顺序恢复全部截断消息
-  session.rollbackCache = null                        // 每次回滚只允许撤销一次
+  const restoredMessages = Array.isArray(session.rollbackCache) ? session.rollbackCache.length : session.rollbackCache.messages.length // 兼容旧数组缓存
+  restoreRollbackCache(session)                       // 按原顺序恢复展示和模型历史
   await persist(session)                              // 恢复后的完整历史真实写盘
   return { ok: true, restoredMessages }               // 反馈恢复的消息数量
 }
 
 
-export const Session = { load, create, list, get, getMutable, persist, remove, rollback, undoRollback } // 导出会话业务动作
+// --- 提交暂存回退 ---
+function commitRollback(session) {
+  session.rollbackCache = null                        // 新消息发送后丢弃暂存历史，正式形成分支
+}
+
+
+// --- 统一旧会话结构 ---
+function normalizeSession(session) {
+  session.messages ??= []                             // 旧空会话补齐展示历史
+  session.modelMessages ??= []                        // 旧会话缺少模型历史时保持可继续发送
+  session.messages.forEach((message) => { message.id ??= `msg_${nanoid(10)}` }) // 每条消息获得稳定 UI 动作标识
+  session.rollbackCache ??= null                      // 旧文件补齐可撤销状态
+}
+
+
+// --- 暂存指定边界后的两套历史 ---
+function stageRollback(session, messageIndex, modelIndex, target) {
+  session.rollbackCache = {                           // 保存撤销所需的完整数据和界面摘要
+    messages: session.messages.splice(messageIndex), // 展示历史立即隐藏目标边界之后内容
+    modelMessages: session.modelMessages.splice(modelIndex), // 模型下一轮也看不到已回退内容
+    target,                                           // 前端据此展示撤销状态和编辑原文
+  }
+}
+
+
+// --- 恢复当前暂存历史 ---
+function restoreRollbackCache(session) {
+  if (!session.rollbackCache) return                  // 没有暂存时保持会话不变
+  if (Array.isArray(session.rollbackCache)) {         // 兼容旧版本仅保存展示消息的缓存
+    session.messages.push(...session.rollbackCache)   // 恢复旧展示历史
+  } else {
+    session.messages.push(...session.rollbackCache.messages) // 恢复完整展示时间线
+    session.modelMessages.push(...session.rollbackCache.modelMessages) // 恢复完整模型上下文
+  }
+  session.rollbackCache = null                        // 恢复后清除一次性撤销状态
+}
+
+
+// --- 定位用户消息对应的模型边界 ---
+function findUserModelBoundary(session, messageIndex) {
+  const userNumber = session.messages.slice(0, messageIndex + 1).filter((item) => item.role === 'user').length // 计算目标是第几个用户轮次
+  let seenUsers = 0                                   // 按模型历史顺序匹配同一用户轮次
+  for (let index = 0; index < session.modelMessages.length; index += 1) {
+    if (session.modelMessages[index].role !== 'user') continue // 非用户协议消息不参与计数
+    seenUsers += 1                                    // 找到下一个用户轮次
+    if (seenUsers === userNumber) return index        // 回退边界位于目标用户消息之前
+  }
+  return session.modelMessages.length                 // 旧异常历史回退到安全末尾，避免误删更早上下文
+}
+
+
+// --- 定位工具结果后的模型边界 ---
+function findToolModelBoundary(modelMessages, toolCallID) {
+  const index = modelMessages.findIndex((message) => message.role === 'tool' && message.content?.some?.((part) => part.toolCallId === toolCallID)) // 按稳定调用 ID 匹配协议工具结果
+  return index < 0 ? modelMessages.length : index + 1 // 保留目标工具结果，旧历史找不到时不误删上下文
+}
+
+
+// --- 创建公开回退摘要 ---
+function createRollbackSummary(rollbackCache) {
+  if (!rollbackCache) return null                     // 正常会话不展示撤销栏
+  if (Array.isArray(rollbackCache)) return { count: rollbackCache.length, target: null } // 兼容旧缓存摘要
+  return { count: rollbackCache.messages.length, target: rollbackCache.target } // 隐藏完整消息，仅反馈数量和目标
+}
+
+
+export const Session = { load, create, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback } // 导出会话业务动作

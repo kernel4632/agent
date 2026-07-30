@@ -11,13 +11,29 @@ export async function retry(operation, onRetry, abortSignal) {
     try {
       return await operation()                              // 成功结果立即反馈给调用方
     } catch (error) {
+      if (abortSignal?.aborted || error?.name === 'AbortError') { // 用户中断不是连接故障，禁止反馈重试
+        throw new DOMException('operation aborted', 'AbortError') // 立即将停止状态交回 Agent 循环
+      }
       attempt += 1                                          // 记录即将执行的重试序号
       const exponentialDelay = Math.min(1000 * 2 ** (attempt - 1), 60000) // 延迟最多增长到 60 秒
       const nextRetryIn = exponentialDelay + Math.floor(Math.random() * 1000) // 随机抖动避免并发拥堵
       await onRetry?.({ error, attempt, nextRetryIn })       // 延迟前反馈失败原因和等待时间
-      await Bun.sleep(nextRetryIn)                          // 等待后重新执行同一个操作
+      await waitForRetry(nextRetryIn, abortSignal)          // 等待期间也允许用户立即停止
     }
   }
 
   throw new DOMException('operation aborted', 'AbortError') // 外部中断时结束无限重试
+}
+
+
+// --- 等待下一次重试或外部中断 ---
+function waitForRetry(delay, abortSignal) {
+  if (!abortSignal) return Bun.sleep(delay)                  // 无中断信号时使用普通退避等待
+  return new Promise((resolve, reject) => {                  // 将定时器和中断合并为同一个等待点
+    const timer = setTimeout(resolve, delay)                 // 延迟结束后允许下一次尝试
+    abortSignal.addEventListener('abort', () => {            // 用户停止时立即取消退避
+      clearTimeout(timer)                                    // 防止旧定时器稍后唤醒循环
+      reject(new DOMException('operation aborted', 'AbortError')) // 反馈标准中断结果
+    }, { once: true })
+  })
 }

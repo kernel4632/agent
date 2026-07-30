@@ -1,6 +1,6 @@
 /*
 会话数据仓库：读取摘要列表、创建、获取和删除真实 Server 会话。
-仓库只修改 sessions 与 selectedID，具体对话消息由 chat store 保存和流式更新。
+仓库只管理 Server 会话资源，顶部选择由 tabs store 保存，消息由 chat store 按标签隔离。
 调用示例：await sessions.refresh()、await sessions.select('ses_xxx')。
 */
 import { ref } from 'vue'                           // 引入 Vue 响应式会话数据
@@ -9,7 +9,6 @@ import { AgentAPI } from '../api.js'                // 引入会话 HTTP 指令
 
 export const useSessionStore = defineStore('session', () => { // 导出唯一会话仓库
   const sessions = ref([])                          // 按更新时间倒序保存会话摘要
-  const selectedID = ref('')                        // 当前聊天区域打开的会话 ID
   const isLoading = ref(false)                      // 列表或详情请求进行状态
   const errorMessage = ref('')                      // 最近一次会话请求错误
 
@@ -33,7 +32,6 @@ export const useSessionStore = defineStore('session', () => { // 导出唯一会
   // --- 创建并选中新会话 ---
   async function create() {
     const session = await AgentAPI.createSession()  // 请求 Server 创建真实磁盘会话
-    selectedID.value = session.id                   // 新会话立即成为当前上下文
     await refresh()                                 // 刷新侧栏以展示新条目
     return session                                  // 反馈空会话供聊天 store 加载
   }
@@ -45,7 +43,6 @@ export const useSessionStore = defineStore('session', () => { // 导出唯一会
     errorMessage.value = ''                         // 清除上一次加载错误
     try {
       const session = await AgentAPI.getSession(sessionID) // 从 Server 读取完整历史
-      selectedID.value = sessionID                  // 详情成功后再切换当前 ID
       return session                                // 反馈完整消息给 Chat 视图
     } catch (error) {
       errorMessage.value = error.message            // 保存不存在或网络错误
@@ -60,11 +57,10 @@ export const useSessionStore = defineStore('session', () => { // 导出唯一会
   async function remove(sessionID) {
     const result = await AgentAPI.removeSession(sessionID) // 删除 Server 内存和磁盘数据
     if (!result.ok) return false                    // Server 拒绝时保持当前列表
-    if (selectedID.value === sessionID) selectedID.value = '' // 被删会话不再作为当前上下文
     await refresh()                                 // 用真实 Server 状态更新侧栏
     return true                                     // 反馈删除动作完成
   }
 
 
-  return { sessions, selectedID, isLoading, errorMessage, refresh, create, select, remove } // 暴露会话数据与动作
+  return { sessions, isLoading, errorMessage, refresh, create, select, remove } // 暴露 Server 会话资源与动作
 })

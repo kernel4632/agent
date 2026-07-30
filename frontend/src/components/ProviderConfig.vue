@@ -35,7 +35,7 @@ function addProvider() {
   let index = providerNames.value.length + 1         // 从当前数量生成易理解默认名称
   let name = `provider-${index}`                     // 首个候选提供商键名
   while (props.modelValue.providers?.[name]) name = `provider-${++index}` // 避免覆盖已有配置
-  const providers = { ...props.modelValue.providers, [name]: { apiKey: '', baseURL: '', models: [] } } // 创建完整服务结构
+  const providers = { ...props.modelValue.providers, [name]: { apiKey: '', baseURL: '', models: [], setCacheKey: true } } // 创建默认启用会话缓存的服务结构
   updateProviders(providers)                         // 将新项写入设置草稿
   selectedProvider.value = name                     // 立即打开新项供用户编辑
   providerError.value = ''                          // 清除旧冲突反馈
@@ -140,6 +140,7 @@ function activateModel(modelName) {
         <mdui-text-field label="提供商 ID" variant="outlined" :disabled="currentProvider.apiKey === '[REDACTED]'" :value="selectedProvider" @change="renameProvider($event.target.value)"><mdui-icon-edit slot="icon"></mdui-icon-edit></mdui-text-field>
         <mdui-text-field label="API 地址" variant="outlined" :value="currentProvider.baseURL || ''" placeholder="https://api.example.com/v1" @input="updateProvider('baseURL', $event.target.value)"><mdui-icon-dns slot="icon"></mdui-icon-dns></mdui-text-field>
         <mdui-text-field class="provider-fields__wide" label="API Key" variant="outlined" type="password" :value="currentProvider.apiKey || ''" @input="updateProvider('apiKey', $event.target.value)"><mdui-icon-key slot="icon"></mdui-icon-key></mdui-text-field>
+        <label class="provider-cache provider-fields__wide"><span><strong>会话缓存键</strong><small>为同一会话的模型请求提供稳定缓存亲和键</small></span><mdui-switch :checked="currentProvider.setCacheKey !== false" @change="updateProvider('setCacheKey', $event.target.checked)"></mdui-switch></label>
       </div>
 
       <section class="model-catalog">

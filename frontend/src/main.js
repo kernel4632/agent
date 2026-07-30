@@ -23,6 +23,8 @@ import '@mdui/icons/edit.js'                       // 注册提供商编辑图�
 import '@mdui/icons/key.js'                        // 注册密钥配置图标
 import '@mdui/icons/dns.js'                        // 注册模型服务图标
 import '@mdui/icons/close.js'                      // 注册移除模型图标
+import '@mdui/icons/home.js'                       // 注册顶部主页图标
+import '@mdui/icons/undo.js'                       // 注册撤销回退图标
 import './styles/main.scss'                        // 引入 Agent 黑白视觉主题
 import App from './App.vue'                        // 引入根界面组合组件
 
