@@ -2,6 +2,8 @@
 
 共 13 个接口。Agent Server 基于 Elysia 框架，监听 `127.0.0.1:3210`。
 
+全部路由在 server.js 入口中声明式注册，直接调用 commands/ 中的对应指令。
+
 ## 对话
 
 ### POST /chat/send

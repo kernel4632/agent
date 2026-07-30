@@ -4,37 +4,30 @@
 
 遵循 HOP 规范的架构主线：触发入口 → 指令执行 → 数据修改 → 效果反馈。
 
+路由注册直接在 server.js 入口完成（Elysia 声明式路由足够简洁，不需要拆成独立 route 文件）。
+
 ```
 agent/
-├── server.js                  # 入口：启动 Elysia，注册路由
-├── routes/                    # 路由层：接收 HTTP 请求 → 调用指令
-│   ├── chat.js                # POST /chat/send, /chat/stop, /chat/approve, /chat/reject
-│   ├── session.js             # 会话管理路由
-│   ├── tool.js                # 工具管理路由
-│   └── config.js              # 配置管理路由
-├── commands/                  # 指令层：业务逻辑集中在这里
-│   ├── chat.js                # 对话指令（startLoop, stopLoop, approve, reject）
-│   ├── session.js             # 会话指令（create, list, get, remove, rollback）
-│   ├── tool.js                # 工具指令（load, reload, list）
-│   ├── config.js              # 配置指令（load, save, update）
-│   └── checkpoint.js          # 存档指令（save, load, rollback）
-├── store/                     # 数据层：运行时状态
-│   ├── sessions.js            # 会话数据（Map 结构，sessionId → session）
-│   ├── tools.js               # 工具注册表（Map 结构，toolName → tool）
-│   ├── config.js              # 配置数据（内存缓存 + 文件同步）
-│   └── checkpoints.js         # 存档点索引（sessionId → checkpoints[]）
-├── tools/                     # 工具文件目录（每个文件 = 一组同类工具）
-│   ├── built-in/              # 内置工具集
-│   │   ├── file.js            # 文件操作：read_file, write_file, list_files, search_files
-│   │   ├── shell.js           # 命令执行：run_command
-│   │   ├── web.js             # 网络操作：web_fetch
-│   │   └── agent.js           # Agent 控制：task_done
-│   └── custom/                # 用户/LLM 自定义工具集
-├── utils/                     # 纯工具函数（无业务身份）
-│   ├── retry.js               # 指数退避重试
-│   ├── token.js               # Token 计数
-│   ├── id.js                  # ID 生成
-│   └── wildcard.js            # 通配符匹配
+├── server.js              # 入口：启动 Elysia，注册全部路由 → 调用指令
+├── commands/              # 指令层：所有业务逻辑集中在这里
+│   ├── chat.js            # 对话指令（startLoop, stopLoop, approve, reject）
+│   ├── session.js         # 会话指令（create, list, get, remove, rollback）
+│   ├── tool.js            # 工具指令（load, reload, list）
+│   └── config.js          # 配置指令（load, save, update）
+├── store/                 # 数据层：运行时状态（概念上独立于指令层，必须分离）
+│   ├── sessions.js        # 会话数据（消息历史 + 存档点，Map 结构）
+│   ├── tools.js           # 工具注册表（Map 结构，toolName → tool）
+│   └── config.js          # 配置数据（内存缓存 + 文件同步）
+├── tools/                 # 工具文件目录（每个文件 = 一组同类工具）
+│   ├── built-in/          # 内置工具集
+│   │   ├── file.js        # 文件操作：read_file, write_file, list_files, search_files
+│   │   ├── shell.js       # 命令执行：run_command
+│   │   ├── web.js         # 网络操作：web_fetch
+│   │   └── agent.js       # Agent 控制：task_done
+│   └── custom/            # 用户/LLM 自定义工具集
+├── utils/                 # 纯工具函数（无业务身份，可移植到其他项目）
+│   ├── retry.js           # 指数退避重试（逻辑较复杂，单独保留）
+│   └── match.js           # 通配符匹配、ID 生成等小工具
 ├── package.json
 └── bun.lockb
 ```
@@ -46,6 +39,7 @@ frontend/
 ├── src/
 │   ├── main.js                # 入口
 │   ├── App.vue                # 根组件
+│   ├── api.js                 # API 调用封装（所有接口集中一个文件）
 │   ├── views/                 # 页面组件
 │   │   ├── Chat.vue           # 对话主界面
 │   │   ├── Sessions.vue       # 会话列表
@@ -54,16 +48,11 @@ frontend/
 │   ├── components/            # 子组件
 │   │   ├── MessageList.vue    # 消息列表
 │   │   ├── MessageItem.vue    # 单条消息
-│   │   ├── ToolCall.vue       # 工具调用展示
+│   │   ├── ToolCall.vue       # 工具调用展示（含存档点回退按钮）
 │   │   ├── ReasoningBlock.vue # thinking 折叠块
 │   │   ├── InputBox.vue       # 输入框
 │   │   ├── ProviderConfig.vue # 供应商配置
 │   │   └── PermissionEditor.vue # 权限编辑器
-│   ├── api/                   # API 调用封装
-│   │   ├── chat.js            # 对话相关 API
-│   │   ├── session.js         # 会话相关 API
-│   │   ├── tool.js            # 工具相关 API
-│   │   └── config.js          # 配置相关 API
 │   ├── stores/                # 状态管理（Pinia）
 │   │   ├── chat.js            # 对话状态
 │   │   ├── session.js         # 会话列表
@@ -119,8 +108,19 @@ desktop/
 
 | HOP 层 | 本项目实现 |
 |--------|------------|
-| 触发入口 | routes/ — 接收 HTTP 请求 |
+| 触发入口 | server.js 中的路由注册 → 调用指令 |
 | 指令执行 | commands/ — 业务逻辑 |
 | 数据存储 | store/ — 运行时状态 + ~/.agent/ 持久化 |
 | 副作用响应 | SSE 推送、文件监听（工具热重载） |
 | 通用工具 | utils/ — 无业务身份的纯函数 |
+
+## 追踪验证
+
+以"用户发送消息"为例：
+
+1. **入口** server.js → `POST /chat/send` → 调用 `Chat.startLoop()`
+2. **指令** commands/chat.js → `startLoop()` 读取 session、tools、config → 调用 LLM → 执行工具 → 修改 session.messages
+3. **数据** store/sessions.js → messages 数组被追加 → 持久化到 ~/.agent/sessions/xxx.json
+4. **反馈** SSE 事件流推送到前端 → UI 自动更新
+
+跳转文件数：server.js → commands/chat.js → store/sessions.js = 3 个文件。
