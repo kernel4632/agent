@@ -116,6 +116,30 @@ LLM API 请求失败时的重试策略：
 
 循环中每次调用 LLM 前都重新读取 `config.activeProvider` 和 `config.activeModel`。用户在前端切换模型后，下一次 LLM 调用立即使用新模型，无需等待当前循环结束。
 
+## 上下文压缩
+
+每次调用 LLM 前，估算消息历史 token 总量。超过当前模型上限的 80% 时，自动触发压缩（保留近期消息，将早期消息总结为摘要）。详见 11-context-compression.md。
+
+## 工具执行失败处理
+
+工具 execute() 可能抛异常（文件不存在、命令执行失败、网络超时等）。处理方式：
+
+- 捕获异常，不中断循环
+- 将错误信息格式化为 tool_result 传回 LLM
+- LLM 会自行修正策略（换路径、换命令、告知用户）
+
+```javascript
+async function executeTool(tool, args) {
+  try {
+    return await tool.execute(args)
+  } catch (error) {
+    return { result: `工具执行失败: ${error.message}` }
+  }
+}
+```
+
+工具执行失败不算"需要重试"的错误（那是 LLM API 层的），而是正常的业务反馈。
+
 ## 会话标题自动生成
 
 用户发送第一条消息时，异步调用 LLM 生成会话标题：
