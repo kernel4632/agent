@@ -11,9 +11,9 @@ agent/
 ├── server.js              # 入口：启动 Elysia，注册全部路由 → 调用指令
 ├── commands/              # 指令层：所有业务逻辑集中在这里
 │   ├── chat.js            # 对话指令（startLoop, stopLoop, approve, reject）
-│   ├── session.js         # 会话指令（create, list, get, remove, rollback）
+│   ├── session.js         # 会话指令（create, list, get, remove, rollback, undoRollback）
 │   ├── tool.js            # 工具指令（load, reload, list）
-│   └── config.js          # 配置指令（load, save, update）
+│   └── config.js          # 配置指令（load, save, update, getActiveModel）
 ├── store/                 # 数据层：运行时状态（概念上独立于指令层，必须分离）
 │   ├── sessions.js        # 会话数据（消息历史 + 存档点，Map 结构）
 │   ├── tools.js           # 工具注册表（Map 结构，toolName → tool）
@@ -26,8 +26,8 @@ agent/
 │   │   └── agent.js       # Agent 控制：task_done
 │   └── custom/            # 用户/LLM 自定义工具集
 ├── utils/                 # 纯工具函数（无业务身份，可移植到其他项目）
-│   ├── retry.js           # 指数退避重试（逻辑较复杂，单独保留）
-│   └── match.js           # 通配符匹配、ID 生成等小工具
+│   ├── retry.js           # 指数退避重试
+│   └── compress.js        # 上下文压缩（消息列表 → 压缩后消息列表，纯转换）
 ├── package.json
 └── bun.lockb
 ```
@@ -119,8 +119,8 @@ desktop/
 以"用户发送消息"为例：
 
 1. **入口** server.js → `POST /chat/send` → 调用 `Chat.startLoop()`
-2. **指令** commands/chat.js → `startLoop()` 读取 session、tools、config → 调用 LLM → 执行工具 → 修改 session.messages
+2. **指令** commands/chat.js → `startLoop()` 读取 session、tools、调用 `Config.getActiveModel()` → 调用 `compress()` 准备消息 → 调用 LLM → 执行工具 → 修改 session.messages
 3. **数据** store/sessions.js → messages 数组被追加 → 持久化到 ~/.agent/sessions/xxx.json
 4. **反馈** SSE 事件流推送到前端 → UI 自动更新
 
-跳转文件数：server.js → commands/chat.js → store/sessions.js = 3 个文件。
+跳转文件数：server.js → commands/chat.js → store/sessions.js = 3 个文件（utils/compress.js 和 utils/retry.js 作为无状态工具函数被调用，不增加追踪复杂度）。
