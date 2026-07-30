@@ -1,1 +1,31 @@
+# Dependencies
+node_modules/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+config.local.json
+/server/config.json
+
+# Agent runtime data
+.agent/
+/server/sessions/
+
+# Tests and diagnostics
+coverage/
+*.log
+*.tmp
+
+# Build output
+dist/
+build/
+agent-server
+agent-server.exe
+
+# Editor and operating system files
 .trae/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

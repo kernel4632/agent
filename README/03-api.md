@@ -2,7 +2,7 @@
 
 共 14 个接口。Agent Server 基于 Elysia 框架，默认监听 `127.0.0.1:4632`（端口被占用时自动 +1 直到可用）。
 
-全部路由在 server.js 入口中声明式注册，直接调用 commands/ 中的对应指令。
+全部路由在 `server/server.js` 入口中声明式注册，直接调用 `server/commands/` 中的对应指令。
 
 ## 对话
 

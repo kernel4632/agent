@@ -4,32 +4,35 @@
 
 遵循 HOP 规范的架构主线：触发入口 → 指令执行 → 数据修改 → 效果反馈。
 
-路由注册直接在 server.js 入口完成（Elysia 声明式路由足够简洁，不需要拆成独立 route 文件）。
+路由注册直接在 `server/server.js` 入口完成（Elysia 声明式路由足够简洁，不需要拆成独立 route 文件）。
 
 ```
 agent/
-├── server.js              # 入口：启动 Elysia，注册全部路由 → 调用指令
-├── commands/              # 指令层：所有业务逻辑集中在这里
-│   ├── chat.js            # 对话指令（startLoop, stopLoop, approve, reject）
-│   ├── session.js         # 会话指令（create, list, get, remove, rollback, undoRollback）
-│   ├── tool.js            # 工具指令（load, reload, list）
-│   └── config.js          # 配置指令（load, save, update, getActiveModel）
-├── store/                 # 数据层：运行时状态（概念上独立于指令层，必须分离）
-│   ├── sessions.js        # 会话数据（消息历史 + 存档点，Map 结构）
-│   ├── tools.js           # 工具注册表（Map 结构，toolName → tool）
-│   └── config.js          # 配置数据（内存缓存 + 文件同步）
-├── tools/                 # 工具文件目录（每个文件 = 一组同类工具）
-│   ├── built-in/          # 内置工具集
-│   │   ├── file.js        # 文件操作：read_file, write_file, list_files, search_files
-│   │   ├── shell.js       # 命令执行：run_command
-│   │   ├── web.js         # 网络操作：web_fetch
-│   │   └── agent.js       # Agent 控制：task_done
-│   └── custom/            # 用户/LLM 自定义工具集
-├── utils/                 # 纯工具函数（无业务身份，可移植到其他项目）
-│   ├── retry.js           # 指数退避重试
-│   └── compress.js        # 上下文压缩（消息列表 → 压缩后消息列表，纯转换）
-├── package.json
-└── bun.lockb
+├── server/                # Agent Server 独立 Bun 子项目
+│   ├── server.js          # 入口：启动 Elysia，注册全部路由 → 调用指令
+│   ├── commands/          # 指令层：所有业务逻辑集中在这里
+│   │   ├── chat.js        # 对话指令（startLoop, stopLoop, approve, reject）
+│   │   ├── session.js     # 会话指令（create, list, get, remove, rollback, undoRollback）
+│   │   ├── tool.js        # 工具指令（load, reload, list）
+│   │   └── config.js      # 配置指令（load, save, update, getActiveModel）
+│   ├── store/             # 数据层：运行时状态（概念上独立于指令层，必须分离）
+│   │   ├── sessions.js    # 会话数据（消息历史 + 存档点，Map 结构）
+│   │   ├── tools.js       # 工具注册表（Map 结构，toolName → tool）
+│   │   └── config.js      # 配置数据（内存缓存 + 文件同步）
+│   ├── tools/             # 工具文件目录（每个文件 = 一组同类工具）
+│   │   ├── built-in/      # 内置工具集
+│   │   │   ├── file.js    # 文件操作：read_file, write_file, list_files, search_files
+│   │   │   ├── shell.js   # 命令执行：run_command
+│   │   │   ├── web.js     # 网络操作：web_fetch
+│   │   │   └── agent.js   # Agent 控制：task_done
+│   │   └── custom/        # 用户/LLM 自定义工具集
+│   ├── utils/             # 纯工具函数（无业务身份，可移植到其他项目）
+│   │   ├── retry.js       # 指数退避重试
+│   │   └── compress.js    # 上下文压缩（消息列表 → 压缩后消息列表，纯转换）
+│   ├── package.json
+│   └── bun.lock
+├── frontend/              # Vue 前端子项目
+└── desktop/               # Go 桌面与 CLI 子项目
 ```
 
 ## 前端（Vue 3 + JavaScript）
@@ -108,19 +111,19 @@ desktop/
 
 | HOP 层 | 本项目实现 |
 |--------|------------|
-| 触发入口 | server.js 中的路由注册 → 调用指令 |
-| 指令执行 | commands/ — 业务逻辑 |
-| 数据存储 | store/ — 运行时状态 + ~/.agent/ 持久化 |
+| 触发入口 | `server/server.js` 中的路由注册 → 调用指令 |
+| 指令执行 | `server/commands/` — 业务逻辑 |
+| 数据存储 | `server/store/` — 运行时状态 + ~/.agent/ 持久化 |
 | 副作用响应 | SSE 推送、文件监听（工具热重载） |
-| 通用工具 | utils/ — 无业务身份的纯函数 |
+| 通用工具 | `server/utils/` — 无业务身份的纯函数 |
 
 ## 追踪验证
 
 以"用户发送消息"为例：
 
-1. **入口** server.js → `POST /chat/send` → 调用 `Chat.startLoop()`
-2. **指令** commands/chat.js → `startLoop()` 读取 session、tools、调用 `Config.getActiveModel()` → 调用 `compress()` 准备消息 → 调用 LLM → 执行工具 → 修改 session.messages
-3. **数据** store/sessions.js → messages 数组被追加 → 持久化到 ~/.agent/sessions/xxx.json
+1. **入口** `server/server.js` → `POST /chat/send` → 调用 `Chat.startLoop()`
+2. **指令** `server/commands/chat.js` → `startLoop()` 读取 session、tools、调用 `Config.getActiveModel()` → 调用 `compress()` 准备消息 → 调用 LLM → 执行工具 → 修改 session.messages
+3. **数据** `server/store/sessions.js` → messages 数组被追加 → 持久化到 ~/.agent/sessions/xxx.json
 4. **反馈** SSE 事件流推送到前端 → UI 自动更新
 
-跳转文件数：server.js → commands/chat.js → store/sessions.js = 3 个文件（utils/compress.js 和 utils/retry.js 作为无状态工具函数被调用，不增加追踪复杂度）。
+跳转文件数：`server/server.js` → `server/commands/chat.js` → `server/store/sessions.js` = 3 个文件（`server/utils/compress.js` 和 `server/utils/retry.js` 作为无状态工具函数被调用，不增加追踪复杂度）。

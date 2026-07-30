@@ -1,0 +1,21 @@
+{
+  "name": "agent-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.js",
+    "test": "bun test --timeout 180000"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "latest",
+    "ai": "latest",
+    "chokidar": "latest",
+    "consola": "latest",
+    "defu": "latest",
+    "elysia": "latest",
+    "nanoid": "latest",
+    "tiktoken": "latest",
+    "unstorage": "latest",
+    "zod": "latest"
+  }
+}

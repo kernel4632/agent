@@ -73,7 +73,7 @@ CLI TUI 和桌面窗口共享同一个 Agent Server 进程，通过 HTTP + SSE �
 
 ```bash
 # 启动 Agent Server
-bun run server.js
+cd server && bun run server.js
 
 # 启动 Vue 前端开发服务器（独立）
 cd frontend && bun run dev
@@ -85,7 +85,7 @@ cd frontend && bun run dev
 
 ```
 构建流程：
-1. bun build --compile server.js → agent-server 二进制
+1. `cd server && bun build --compile server.js --outfile agent-server` → agent-server 二进制
 2. go build（Wails 打包，嵌入 agent-server 二进制）→ 最终单文件
 ```
 
