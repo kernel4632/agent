@@ -1,6 +1,6 @@
 # API 接口设计
 
-共 13 个接口。Agent Server 基于 Elysia 框架，默认监听 `127.0.0.1:4632`（端口被占用时自动 +1 直到可用）。
+共 14 个接口。Agent Server 基于 Elysia 框架，默认监听 `127.0.0.1:4632`（端口被占用时自动 +1 直到可用）。
 
 全部路由在 server.js 入口中声明式注册，直接调用 commands/ 中的对应指令。
 
@@ -120,7 +120,7 @@
 
 ### DELETE /session/:id
 
-删除会话及其所有存档点。
+删除会话。
 
 ```
 响应:
@@ -129,13 +129,31 @@
 
 ### POST /session/:id/rollback/:step
 
-回滚到指定步骤。截断该步骤之后的所有消息。
+回滚到指定步骤。截断该步骤之后的所有消息，截断内容临时保留供撤销。
 
 ```
 响应:
 {
   "ok": true,
   "remainingMessages": 5
+}
+```
+
+### POST /session/:id/undo-rollback
+
+撤销上一次回滚操作。将临时保留的截断消息恢复回来。仅在未发送新消息前可用。
+
+```
+响应（成功）:
+{
+  "ok": true,
+  "restoredMessages": 3
+}
+
+响应（无可撤销的回滚）:
+{
+  "ok": false,
+  "error": "no rollback to undo"
 }
 ```
 
