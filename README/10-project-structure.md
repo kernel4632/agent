@@ -23,16 +23,13 @@ agent/
 │   ├── tools.js               # 工具注册表（Map 结构，toolName → tool）
 │   ├── config.js              # 配置数据（内存缓存 + 文件同步）
 │   └── checkpoints.js         # 存档点索引（sessionId → checkpoints[]）
-├── tools/                     # 工具文件目录
-│   ├── built-in/              # 内置工具
-│   │   ├── read-file.js
-│   │   ├── write-file.js
-│   │   ├── run-command.js
-│   │   ├── list-files.js
-│   │   ├── search-files.js
-│   │   ├── web-fetch.js
-│   │   └── task-done.js
-│   └── custom/                # 用户/LLM 自定义工具
+├── tools/                     # 工具文件目录（每个文件 = 一组同类工具）
+│   ├── built-in/              # 内置工具集
+│   │   ├── file.js            # 文件操作：read_file, write_file, list_files, search_files
+│   │   ├── shell.js           # 命令执行：run_command
+│   │   ├── web.js             # 网络操作：web_fetch
+│   │   └── agent.js           # Agent 控制：task_done
+│   └── custom/                # 用户/LLM 自定义工具集
 ├── utils/                     # 纯工具函数（无业务身份）
 │   ├── retry.js               # 指数退避重试
 │   ├── token.js               # Token 计数
@@ -103,9 +100,13 @@ desktop/
 ```
 ~/.agent/                      # Windows: %USERPROFILE%\.agent
 ├── config.json                # 全局配置
-├── tools/                     # 工具目录
-│   ├── built-in/              # 内置工具（从分发包复制）
-│   └── custom/                # 用户自定义工具
+├── tools/                     # 工具目录（每个文件 = 一组同类工具）
+│   ├── built-in/              # 内置工具集（从分发包复制）
+│   │   ├── file.js            # read_file, write_file, list_files, search_files
+│   │   ├── shell.js           # run_command
+│   │   ├── web.js             # web_fetch
+│   │   └── agent.js           # task_done
+│   └── custom/                # 用户自定义工具集
 ├── sessions/                  # 会话持久化存储
 │   ├── ses_a1b2c3.json
 │   ├── ses_d4e5f6.json
