@@ -39,7 +39,6 @@ Elysia 直接将 AI SDK 的 `toDataStream()` 或 `toUIMessageStream()` 透传给
 | `session-title` | `{ "title": "重构登录模块" }` | 异步生成的会话标题 |
 | `tool-approval-request` | `{ "id": "tc_001", "name": "write_file", "args": {...} }` | 权限为 ask，暂停等待用户确认 |
 | `error-retry` | `{ "message": "API 超时", "attempt": 3, "nextRetryIn": 8000 }` | API 请求失败，正在重试 |
-| `checkpoint` | `{ "step": 3 }` | 存档点已保存（前端记录，用于回退按钮） |
 
 ## Elysia 中的实现方式
 
@@ -64,9 +63,6 @@ app.post('/chat/send', async function* ({ body }) {
     yield part  // 直接透传 AI SDK 的流式数据
   }
 
-  // 自定义事件：存档点
-  yield sse({ event: 'checkpoint', data: { step: currentStep } })
-
   // 如果遇到 ask 权限
   yield sse({ event: 'tool-approval-request', data: { id, name, args } })
 })
@@ -85,11 +81,14 @@ eventSource.addEventListener('session-created', (e) => { ... })
 eventSource.addEventListener('session-title', (e) => { ... })
 eventSource.addEventListener('tool-approval-request', (e) => { ... })
 eventSource.addEventListener('error-retry', (e) => { ... })
-eventSource.addEventListener('checkpoint', (e) => { ... })
 ```
+
+## 回退按钮的 step 信息
+
+前端从 AI SDK 标准流中的 tool-result 事件获取 step 字段（在工具执行结果中透传），不需要额外的自定义事件。
 
 ## 与之前设计的区别
 
 之前定义了 `reasoning-start`、`reasoning-delta`、`text-delta`、`tool-call`、`tool-result`、`done` 等事件 — 这些全部由 AI SDK 标准流覆盖，不再需要自定义。我们只负责透传。
 
-自定义事件缩减到 5 个，全部是 AI SDK 流中不包含的业务信息。
+自定义事件缩减到 4 个，全部是 AI SDK 流中不包含的业务信息。

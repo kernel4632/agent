@@ -63,8 +63,8 @@ CLI TUI 和桌面窗口共享同一个 Agent Server 进程，通过 HTTP + SSE �
 1. Go 主程序启动
 2. Go 释放内嵌的 Agent Server 二进制到临时目录
 3. Go 通过 os/exec spawn Agent Server 子进程
-4. Agent Server 监听本地端口（如 127.0.0.1:3210）
-5. Go 启动 TUI 或 Wails 窗口，连接到该端口
+4. Agent Server 监听本地端口（默认 127.0.0.1:4632，被占用时自动 +1 直到可用）
+5. Go 获取 Agent Server 实际监听的端口，启动 TUI 或 Wails 窗口连接到该端口
 6. 用户退出时 Go 发送终止信号给 Agent Server
 
 ## 开发模式
