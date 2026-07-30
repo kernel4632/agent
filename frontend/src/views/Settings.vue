@@ -1,0 +1,72 @@
+<!--
+设置业务视图：加载配置副本，组合模型和权限编辑器，并显式保存用户修改。
+提供商和模型在草稿中完整编辑，Server 保存时负责保留未修改的脱敏密钥。
+调用示例：App 在 activeView === 'settings' 时渲染 <Settings />。
+-->
+<script setup>
+import { onMounted, ref } from 'vue'                  // 引入表单副本和首次加载能力
+import PermissionEditor from '../components/PermissionEditor.vue' // 引入工具权限编辑器
+import ProviderConfig from '../components/ProviderConfig.vue' // 引入模型与提示词编辑器
+import { useConfigStore } from '../stores/config.js' // 引入真实配置读写指令
+
+const config = useConfigStore()                       // 读取配置状态和保存动作
+const draft = ref(null)                               // 用户尚未保存的完整配置副本
+
+
+// --- 复制可编辑配置数据 ---
+function cloneConfig(source) {
+  return JSON.parse(JSON.stringify(source))           // API 数据只含 JSON 值，同时移除 Pinia 响应式代理
+}
+
+
+// --- 加载配置编辑副本 ---
+async function loadConfig() {
+  const current = await config.load()                 // 从 Server 读取脱敏完整配置
+  if (current) draft.value = cloneConfig(current)     // 创建独立副本避免输入即时污染状态
+}
+
+
+// --- 修改权限副本 ---
+function setPermissions(permissions) {
+  draft.value = { ...draft.value, permissions }       // 将权限编辑结果写入当前草稿
+}
+
+
+// --- 保存用户配置 ---
+async function saveConfig() {
+  const changes = {                                   // 只发送本页明确支持的可编辑字段
+    activeProvider: draft.value.activeProvider,       // 保存当前提供商名称
+    activeModel: draft.value.activeModel,             // 保存当前模型名称
+    providers: draft.value.providers,                 // 完整替换提供商和模型清单
+    systemPrompt: draft.value.systemPrompt,           // 保存模型系统指令
+    permissions: draft.value.permissions,             // 保存完整工具权限映射
+  }
+  const saved = await config.save(changes)            // 让 Server 即时生效并持久化
+  if (saved) draft.value = cloneConfig(config.config) // 用 Server 实际结果重置副本
+}
+
+onMounted(loadConfig)                                 // 首次进入读取真实设置
+</script>
+
+<template>
+  <section class="workspace-view settings-view">
+    <header class="view-header">
+      <div>
+        <h1>设置</h1>
+        <p>模型、系统行为与工具执行边界</p>
+      </div>
+      <mdui-button variant="filled" :disabled="!draft || config.isLoading" @click="saveConfig">保存更改</mdui-button>
+    </header>
+    <div v-if="config.isSaved" class="notice notice--success">设置已保存并立即生效</div>
+    <div v-if="config.errorMessage" class="notice notice--error">{{ config.errorMessage }}</div>
+    <div v-if="config.isLoading && !draft" class="view-loading">正在读取设置…</div>
+    <template v-else-if="draft">
+      <ProviderConfig v-model="draft" />
+      <section class="settings-section settings-section--prompt">
+        <header class="settings-section__header"><h2>Agent 行为</h2><p>系统提示词会在下一轮模型调用时生效。</p></header>
+        <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field>
+      </section>
+      <PermissionEditor :permissions="draft.permissions || {}" @update="setPermissions" />
+    </template>
+  </section>
+</template>

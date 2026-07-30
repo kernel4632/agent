@@ -87,6 +87,13 @@ describe('Agent Server API', () => {
 
     const updated = await jsonRequest('/config', 'PUT', { systemPrompt: realModel.systemPrompt }) // 通过真实 API 写入局部配置
     expect(await updated.json()).toEqual({ ok: true })                         // 验证更新真实落盘
+
+    await jsonRequest('/config', 'PUT', { providers: { aker: { ...currentConfig.providers.aker, models: ['kimi-k2.6', 'another-model'] }, temporary: { apiKey: '', baseURL: 'http://localhost', models: ['local-model'] } } }) // 模拟设置页提交带脱敏密钥的多提供商集合
+    expect((await (await request('/config')).json()).providers.aker.models).toContain('another-model') // 验证多模型列表完整替换生效
+    expect((await Bun.file(join(dataDirectory, 'config.json')).json()).providers.aker.apiKey).toBe(realModel.providers.aker.apiKey) // 验证脱敏占位符没有覆盖真实密钥
+
+    await jsonRequest('/config', 'PUT', { providers: { aker: { ...currentConfig.providers.aker, models: ['kimi-k2.6'] } } }) // 模拟设置页删除临时提供商
+    expect((await (await request('/config')).json()).providers.temporary).toBeUndefined() // 验证完整集合替换真正删除提供商
   })
 
   it('handles rollback and undo rollback APIs with real session data', async () => {

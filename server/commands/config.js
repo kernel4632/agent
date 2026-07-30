@@ -51,7 +51,16 @@ function get() {
 
 // --- 合并配置更新 ---
 async function update(changes) {
-  configStore.value = defu(changes, configStore.value)             // 传入字段优先，并深度保留未修改内容
+  const nextChanges = structuredClone(changes)                     // 复制请求，避免密钥修复修改路由输入
+  if (nextChanges.providers) {                                     // 完整提供商编辑需要支持新增、修改和删除
+    for (const [name, provider] of Object.entries(nextChanges.providers)) {
+      const savedKey = configStore.value.providers?.[name]?.apiKey // 读取同名提供商未脱敏的真实密钥
+      if (provider.apiKey === '[REDACTED]') provider.apiKey = savedKey // 未修改的脱敏占位符恢复为真实密钥
+    }
+  }
+
+  configStore.value = defu(nextChanges, configStore.value)         // 普通局部字段继续深度保留未修改内容
+  if ('providers' in nextChanges) configStore.value.providers = nextChanges.providers // 提供商集合按 UI 完整结果替换，删除才能生效
   await save()                                                      // 写盘完成后才向 API 反馈成功
   return { ok: true }                                               // 返回统一成功结果
 }

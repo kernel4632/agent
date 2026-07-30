@@ -1,0 +1,1625 @@
+/*
+全局视觉系统：定义黑白 Material You 工作台、响应式侧栏、对话阅读列和业务表单。
+样式只响应组件中的业务类与状态类，不承担数据修改或隐藏真实功能。
+*/
+
+$background: #0a0a0a;                               // 页面主背景
+$surface: #111111;                                  // 输入器和浮层表面
+$surface-high: #1b1b1b;                             // 激活和悬停表面
+$line: #2b2b2b;                                     // 克制分隔线
+$text: #f3f3f3;                                     // 主文本
+$muted: #9a9a9a;                                    // 次级说明文本
+$danger: #ffb4ab;                                   // 错误和拒绝反馈
+$success: #b7e4c7;                                  // 保存和重载成功反馈
+
+:root {
+  color-scheme: dark;                                // 让浏览器原生控件使用深色语义
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: $text;                                      // 提供应用默认前景色
+  background: $background;                           // 避免加载过程中出现白屏
+  font-synthesis: none;                              // 保持字重渲染稳定
+  --mdui-color-primary: 232, 232, 232;               // MDUI 主色保持中性白
+  --mdui-color-on-primary: 20, 20, 20;               // 填充按钮使用深色文字
+  --mdui-color-surface: 17, 17, 17;                  // MDUI 表面接入应用背景
+  --mdui-color-on-surface: 243, 243, 243;            // MDUI 控件文本接入主文字
+  --mdui-color-outline: 92, 92, 92;                  // MDUI 描边保持低对比
+  --mdui-color-secondary: 220, 220, 220;             // tonal 控件使用中性前景色
+  --mdui-color-on-secondary: 24, 24, 24;             // 中性 secondary 填充保持对比
+  --mdui-color-secondary-container: 62, 64, 65;      // 移除 MDUI 默认紫色 tonal 表面
+  --mdui-color-on-secondary-container: 244, 244, 244; // tonal 按钮使用中性白文字
+  --mdui-color-surface-container: 38, 40, 41;        // 菜单和输入采用中性深灰
+  --mdui-color-surface-container-high: 48, 50, 51;   // 高层表面保持黑白色系
+  --mdui-color-surface-container-highest: 58, 60, 61; // 选中状态不引入品牌色
+}
+
+* {
+  box-sizing: border-box;                            // 尺寸包含内边距，避免固定布局溢出
+}
+
+html,
+body,
+#app {
+  width: 100%;                                       // 应用占满浏览器宽度
+  height: 100%;                                      // 应用占满浏览器高度
+  margin: 0;                                         // 移除浏览器默认页面边距
+  overflow: hidden;                                  // 滚动集中到业务内容区域
+}
+
+button,
+textarea,
+input {
+  font: inherit;                                     // 表单与正文使用统一字体
+  letter-spacing: 0;                                 // 遵循稳定字距要求
+}
+
+button {
+  color: inherit;                                    // 原生按钮继承应用文本色
+}
+
+::selection {
+  color: #111111;                                    // 选中文本保持足够对比
+  background: #e8e8e8;                              // 使用中性高亮而非品牌渐变
+}
+
+.app-shell {
+  display: grid;                                     // 桌面端并排组织侧栏和内容
+  grid-template-columns: 0 minmax(0, 1fr);           // 侧栏关闭时释放全部空间
+  width: 100%;                                       // 占满应用根容器
+  height: 100%;                                      // 占满应用根容器
+  background: $background;                           // 统一深黑工作区背景
+  transition: grid-template-columns 220ms cubic-bezier(.2, 0, 0, 1); // Material 侧栏展开反馈
+}
+
+.app-shell--sidebar {
+  grid-template-columns: 252px minmax(0, 1fr);       // 展开时保留紧凑固定侧栏
+}
+
+.sidebar {
+  position: relative;                                // 桌面端作为网格内固定区域
+  z-index: 20;                                       // 移动端高于遮罩和主内容
+  display: flex;                                     // 垂直组织品牌、导航和历史
+  flex-direction: column;                            // 导航按阅读顺序排列
+  width: 252px;                                      // 与展开网格轨道一致
+  min-width: 0;                                      // 允许收起时被网格裁切
+  height: 100%;                                      // 保持整屏工作台侧栏
+  padding: 12px 10px;                                // 提供紧凑点击区边距
+  overflow: hidden;                                  // 收起时不泄露内部文本
+  border-right: 1px solid #1d1d1d;                  // 用细线区分工作区
+  background: #080808;                              // 与主区形成轻微层级差
+  opacity: 0;                                        // 收起时隐藏内容反馈
+  transform: translateX(-12px);                      // 收起时向左移动
+  transition: opacity 160ms ease, transform 220ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.sidebar--open {
+  opacity: 1;                                        // 展开后显示完整导航
+  transform: translateX(0);                          // 展开后回到稳定位置
+}
+
+.sidebar__brand {
+  display: flex;                                     // 品牌和收起按钮同排
+  align-items: center;                               // 图标垂直居中
+  justify-content: space-between;                    // 将两个动作放在两侧
+  height: 42px;                                      // 固定高度避免图标引发布局跳动
+  padding: 0 4px 8px;                                // 与后续新建按钮形成间隔
+}
+
+.sidebar__brand > button:first-child,
+.chat-empty__symbol {
+  display: grid;                                     // 将品牌字母居中
+  place-items: center;                               // 水平垂直居中
+  width: 32px;                                       // 稳定品牌符号尺寸
+  height: 32px;                                      // 稳定品牌符号尺寸
+  padding: 0;                                        // 避免原生按钮增大尺寸
+  border: 1px solid #505050;                         // 中性描边表达 Agent 标识
+  border-radius: 50%;                                // 品牌符号使用圆形而非文本胶囊
+  color: $text;                                      // 保持高对比字母
+  background: transparent;                           // 不制造额外填充色
+  font-weight: 700;                                  // 强化小尺寸品牌识别
+  cursor: pointer;                                   // 表明可创建新会话
+}
+
+.new-chat,
+.primary-nav button,
+.sidebar__history button {
+  display: flex;                                     // 图标和文本水平排列
+  align-items: center;                               // 保持图标与文本基线稳定
+  width: 100%;                                       // 点击区占满侧栏宽度
+  min-height: 40px;                                  // 保证可用点击尺寸
+  padding: 0 12px;                                   // 提供文本左右呼吸空间
+  overflow: hidden;                                  // 长标题不突破侧栏
+  border: 0;                                         // 导航使用表面变化而非边框
+  border-radius: 6px;                                // 使用克制小圆角
+  background: transparent;                           // 默认融入侧栏背景
+  text-align: left;                                  // 保持列表扫描方向
+  cursor: pointer;                                   // 反馈可点击状态
+  transition: background-color 140ms ease;           // 提供轻量 Material 状态反馈
+}
+
+.new-chat {
+  gap: 12px;                                         // 新建图标与文本保持清晰间距
+  margin-bottom: 8px;                                // 与主导航分组
+  border: 1px solid $line;                           // 新建是主要侧栏命令
+  background: #101010;                              // 比普通导航稍高层级
+}
+
+.new-chat mdui-icon-add,
+.primary-nav mdui-icon-history,
+.primary-nav mdui-icon-build,
+.primary-nav mdui-icon-settings {
+  width: 19px;                                       // 固定导航图标尺寸
+  height: 19px;                                      // 固定导航图标尺寸
+  flex: 0 0 19px;                                    // 文本不会挤压图标
+}
+
+.new-chat:hover,
+.primary-nav button:hover,
+.sidebar__history button:hover,
+.primary-nav button.is-active,
+.sidebar__history button.is-active {
+  background: $surface-high;                         // 悬停和选中共享克制高亮
+}
+
+.primary-nav {
+  display: grid;                                     // 主导航保持稳定纵向节奏
+  gap: 2px;                                          // 项之间只留细微间距
+}
+
+.primary-nav button {
+  gap: 12px;                                         // 图标和标签之间留空
+  color: #c9c9c9;                                   // 非活动项降低视觉权重
+}
+
+.primary-nav button.is-active {
+  color: $text;                                      // 活动项恢复主文字颜色
+}
+
+.nav-agent {
+  display: grid;                                     // 对话图标用紧凑字母标识
+  place-items: center;                               // 字母居中
+  width: 19px;                                       // 与 MDUI 图标占位一致
+  height: 19px;                                      // 与 MDUI 图标占位一致
+  flex: 0 0 19px;                                    // 保持所有标签对齐
+  border: 1px solid #777777;                         // 形成小型 Agent 标记
+  border-radius: 50%;                                // 作为熟悉的身份符号
+  font-size: 10px;                                   // 小尺寸内保持不溢出
+  font-weight: 700;                                  // 增强字母可读性
+}
+
+.sidebar__history {
+  min-height: 0;                                     // 允许历史区域在小屏压缩
+  margin-top: 22px;                                  // 与主导航建立分组层级
+  overflow-y: auto;                                  // 长历史独立滚动
+}
+
+.sidebar__history > small {
+  display: block;                                    // 标题独占一行
+  padding: 0 12px 8px;                               // 与历史标题对齐
+  color: #707070;                                    // 降低辅助分组标题权重
+  font-size: 11px;                                   // 使用紧凑辅助字号
+  text-transform: uppercase;                         // 形成操作面板分组感
+}
+
+.sidebar__history button {
+  min-height: 34px;                                  // 最近会话比主导航更紧凑
+  color: #adadad;                                    // 历史项保持次级层级
+  font-size: 13px;                                   // 适合密集扫描
+}
+
+.sidebar__history button span {
+  overflow: hidden;                                  // 长标题保留在行内
+  text-overflow: ellipsis;                           // 用省略号反馈还有更多内容
+  white-space: nowrap;                               // 每条历史保持固定单行高度
+}
+
+.sidebar-scrim {
+  display: none;                                     // 桌面端不需要遮罩
+}
+
+.main-area {
+  position: relative;                                // 为浮动菜单按钮提供定位上下文
+  min-width: 0;                                      // 防止对话内容撑破网格
+  height: 100%;                                      // 业务视图占满剩余高度
+  overflow: hidden;                                  // 各视图自行管理滚动
+}
+
+.menu-trigger {
+  position: absolute;                                // 侧栏关闭时浮在内容左上角
+  z-index: 10;                                       // 保持在业务顶栏之上
+  top: 10px;                                         // 对齐顶栏纵向位置
+  left: 12px;                                        // 留出浏览器边缘安全距离
+}
+
+.chat-view {
+  display: grid;                                     // 顶栏、消息、反馈和输入器垂直组织
+  grid-template-rows: 54px minmax(0, 1fr) auto auto; // 消息区域消费全部剩余空间
+  height: 100%;                                      // 对话始终占满工作区
+}
+
+.chat-header {
+  display: flex;                                     // 标题和状态水平展示
+  align-items: center;                               // 垂直居中顶栏内容
+  justify-content: center;                           // 标题位于阅读列中心
+  padding: 0 64px;                                   // 避开左侧菜单按钮
+  border-bottom: 1px solid #151515;                  // 仅用细线分隔顶栏
+}
+
+.chat-header > div {
+  display: flex;                                     // 标题与运行状态同排
+  align-items: center;                               // 保持基线稳定
+  gap: 9px;                                          // 状态与标题留空
+  width: min(760px, 100%);                           // 与消息阅读列对齐
+}
+
+.chat-header strong {
+  overflow: hidden;                                  // 长会话标题不覆盖状态
+  text-overflow: ellipsis;                           // 保留单行顶栏高度
+  white-space: nowrap;                               // 保持紧凑工作台顶栏
+  font-size: 14px;                                   // 小型工具栏标题而非英雄字号
+  font-weight: 600;                                  // 适度强化上下文
+}
+
+.chat-header__status {
+  flex: 0 0 auto;                                    // 长标题不挤压运行反馈
+  color: $muted;                                     // 状态保持次级层级
+  font-size: 11px;                                   // 使用辅助字号
+}
+
+.chat-header__status::before {
+  display: inline-block;                             // 创建实时状态点
+  width: 6px;                                        // 保持精细状态尺寸
+  height: 6px;                                       // 保持精细状态尺寸
+  margin-right: 5px;                                 // 与状态文字分离
+  border-radius: 50%;                                // 熟悉的在线状态符号
+  background: #dedede;                              // 中性色匹配整体视觉
+  animation: pulse 1.4s ease-in-out infinite;        // 反馈 Agent 正在运行
+  content: '';
+}
+
+.chat-empty {
+  align-self: center;                                // 空状态位于可用空间视觉中心
+  justify-self: center;                              // 空状态对齐阅读列中心
+  width: min(640px, calc(100% - 40px));              // 在移动和桌面保持安全边距
+  padding-bottom: 7vh;                               // 略向上偏移给输入器留视觉重心
+  text-align: center;                                // 简洁欢迎语居中
+}
+
+.chat-empty__symbol {
+  width: 46px;                                       // 空状态品牌信号稍大于侧栏
+  height: 46px;                                      // 保持圆形比例
+  margin: 0 auto 22px;                               // 与标题建立明确间隔
+  cursor: default;                                   // 空状态符号没有业务触发
+}
+
+.chat-empty h1 {
+  margin: 0;                                         // 标题由容器间距控制
+  font-size: clamp(26px, 4vh, 38px);                 // 根据可用高度而非视口宽度适配
+  font-weight: 520;                                  // 保持 Grok 式克制标题
+  letter-spacing: 0;                                 // 禁止负字距
+}
+
+.chat-empty p {
+  max-width: 480px;                                  // 保持说明可读行长
+  margin: 14px auto 0;                               // 与标题分离并居中
+  color: $muted;                                     // 降低说明视觉权重
+  font-size: 14px;                                   // 不使用营销式大文本
+  line-height: 1.65;                                 // 提供舒适阅读节奏
+}
+
+.message-list {
+  min-height: 0;                                     // 允许网格消息轨道滚动
+  overflow-y: auto;                                  // 历史消息独立滚动
+  scrollbar-color: #343434 transparent;             // 使用低对比滚动条
+}
+
+.message-list__column {
+  width: min(760px, calc(100% - 48px));              // 约束长文本阅读行宽
+  min-height: 100%;                                  // 短对话仍填满消息区域
+  margin: 0 auto;                                    // 居中主阅读列
+  padding: 38px 0 24px;                              // 与顶栏和输入器保持距离
+}
+
+.message {
+  position: relative;                                // 为身份和工具内容提供布局上下文
+  max-width: 100%;                                   // 长内容不超过阅读列
+  margin-bottom: 30px;                               // 区分连续消息轮次
+  overflow-wrap: anywhere;                           // 超长路径和 URL 可换行
+}
+
+.message--user {
+  width: fit-content;                                // 用户消息只占内容宽度
+  max-width: min(80%, 620px);                        // 长问题保持阅读列内
+  margin-left: auto;                                 // 用户消息靠右区别角色
+  padding: 11px 15px;                                // 提供轻量消息气泡空间
+  border-radius: 8px;                                // 卡片圆角不超过 8px
+  background: #202020;                              // 用中性表面区分用户输入
+  font-size: 14px;                                   // 对话正文紧凑可读
+}
+
+.message--assistant {
+  padding-right: 4px;                                // 为滚动条保留少量空间
+}
+
+.message__identity {
+  margin-bottom: 12px;                               // 身份与正文分离
+  color: #d9d9d9;                                   // 接近主文本但不抢正文
+  font-size: 12px;                                   // 紧凑角色标签
+  font-weight: 650;                                  // 强化 Agent 来源识别
+}
+
+.message__content {
+  color: #e7e7e7;                                   // 正文保持舒适高对比
+  font-size: 15px;                                   // 对话正文主字号
+  line-height: 1.72;                                 // 长回答保持可读节奏
+}
+
+.markdown > :first-child {
+  margin-top: 0;                                     // 正文顶部与消息边界对齐
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;                                  // 正文底部不增加轮次空白
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown blockquote {
+  margin: 0 0 14px;                                  // 统一 Markdown 块节奏
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;                                // 保持列表标记可见
+}
+
+.markdown li + li {
+  margin-top: 5px;                                   // 连续列表项便于扫描
+}
+
+.markdown code,
+.tool-call code,
+.tool-parameters code,
+.permission-row code {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: .9em;                                   // 行内代码与正文比例稳定
+}
+
+.markdown :not(pre) > code {
+  padding: 2px 5px;                                  // 行内代码提供轻微表面区分
+  border: 1px solid #303030;                         // 不依赖彩色背景
+  border-radius: 4px;                                // 紧凑代码标签圆角
+  background: #151515;                              // 提升代码辨识度
+}
+
+.markdown pre,
+.tool-call pre,
+.approval pre {
+  max-width: 100%;                                   // 代码和 JSON 不突破父容器
+  padding: 13px 14px;                                // 提供代码阅读空间
+  overflow-x: auto;                                  // 长命令保持原始格式并可滚动
+  border: 1px solid $line;                           // 用细线界定代码块
+  border-radius: 6px;                                // 保持工具界面克制圆角
+  background: #101010;                              // 与普通正文区分
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;                                   // 密集技术数据使用小字号
+  line-height: 1.6;                                  // 代码块保持可读行距
+  white-space: pre-wrap;                             // JSON 和工具输出可自动换行
+  overflow-wrap: anywhere;                           // 超长路径不撑破容器
+}
+
+.markdown blockquote {
+  padding-left: 14px;                                // 引用内容与标线分离
+  border-left: 2px solid #555555;                    // 中性引用标记
+  color: #b8b8b8;                                   // 引用降低视觉权重
+}
+
+.markdown a {
+  color: #f2f2f2;                                   // 链接保持黑白主题
+  text-decoration-color: #777777;                   // 用下划线而非颜色表达链接
+  text-underline-offset: 3px;                        // 提升链接可读性
+}
+
+.reasoning {
+  margin: -2px 0 15px;                               // 紧跟 Agent 身份并与正文分离
+  border-left: 1px solid #333333;                    // 用单线表达次级思考层
+}
+
+.reasoning__trigger {
+  display: flex;                                     // 状态点、标题、箭头同排
+  align-items: center;                               // 保持元素垂直居中
+  gap: 8px;                                          // 各状态元素留空
+  width: 100%;                                       // 提供完整行点击区域
+  padding: 5px 10px;                                 // 紧凑但可点击
+  border: 0;                                         // 避免像独立卡片
+  background: transparent;                           // 保持内联思考样式
+  color: #858585;                                    // 明确低于最终回答层级
+  font-size: 12px;                                   // 辅助信息使用小字号
+  text-align: left;                                  // 与正文阅读方向一致
+  cursor: pointer;                                   // 反馈可展开状态
+}
+
+.reasoning__spark,
+.composer__pulse {
+  width: 6px;                                        // 状态点稳定尺寸
+  height: 6px;                                       // 状态点稳定尺寸
+  flex: 0 0 6px;                                     // 文本不挤压状态点
+  border-radius: 50%;                                // 熟悉的状态符号
+  background: #8d8d8d;                              // 中性次级状态色
+}
+
+.reasoning--active .reasoning__spark {
+  animation: pulse 1.3s ease-in-out infinite;        // 流式生成时反馈活动
+}
+
+.reasoning__chevron {
+  margin-left: auto;                                 // 将展开箭头推到行尾
+  font-size: 15px;                                   // 保持箭头清晰
+  transition: transform 160ms ease;                  // 展开提供方向反馈
+}
+
+.reasoning__chevron--open {
+  transform: rotate(180deg);                         // 展开后箭头指向关闭方向
+}
+
+.reasoning__content {
+  padding: 5px 12px 10px 24px;                       // 与触发标题形成层级缩进
+  color: #8d8d8d;                                   // 思考内容低于最终回答
+  font-size: 13px;                                   // 保持长 reasoning 可扫描
+  line-height: 1.65;                                 // 提升思考文本可读性
+  white-space: pre-wrap;                             // 保留模型思考换行
+}
+
+.message__typing {
+  display: flex;                                     // 三个加载点横向排列
+  gap: 4px;                                          // 点之间保留稳定间距
+  height: 22px;                                      // 避免加载状态导致消息跳动
+  align-items: center;                               // 点垂直居中
+}
+
+.message__typing i {
+  width: 5px;                                        // 小型加载点
+  height: 5px;                                       // 小型加载点
+  border-radius: 50%;                                // 圆形状态点
+  background: #909090;                              // 中性活动反馈
+  animation: typing 1.1s ease-in-out infinite;       // 依次反馈模型等待状态
+}
+
+.message__typing i:nth-child(2) { animation-delay: 120ms; } // 第二个点错开动画
+.message__typing i:nth-child(3) { animation-delay: 240ms; } // 第三个点错开动画
+
+.message__tools {
+  display: grid;                                     // 多个工具调用垂直排列
+  gap: 8px;                                          // 工具项保持清晰间隔
+  margin-top: 16px;                                  // 与回答正文分离
+}
+
+.tool-call {
+  overflow: hidden;                                  // 结果保持在工具边界内
+  border: 1px solid $line;                           // 工具调用是真实可检查的框架内容
+  border-radius: 6px;                                // 克制工具面板圆角
+  background: #0e0e0e;                              // 与消息背景轻微区分
+}
+
+.tool-call__header {
+  display: flex;                                     // 名称、状态和动作同排
+  align-items: center;                               // 保持信息基线稳定
+  gap: 9px;                                          // 工具信息留清晰间距
+  min-height: 39px;                                  // 固定头部避免动态结果跳动
+  padding: 0 12px;                                   // 提供紧凑边距
+  border-bottom: 1px solid #232323;                  // 分离工具参数与头部
+  font-size: 12px;                                   // 技术面板使用紧凑字号
+}
+
+.tool-call__mark,
+.tool-item__icon {
+  color: #9b9b9b;                                   // 命令符号保持辅助层级
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-weight: 700;                                  // 小符号保持清晰
+}
+
+.tool-call__status {
+  margin-left: auto;                                 // 将状态推到右侧
+  color: #777777;                                    // 降低已完成状态权重
+  font-size: 11px;                                   // 使用辅助字号
+}
+
+.tool-call__rollback {
+  padding: 3px 6px;                                  // 提供紧凑文字动作区域
+  border: 0;                                         // 内联动作无需按钮边框
+  background: transparent;                           // 不制造胶囊按钮
+  color: #bdbdbd;                                    // 保持可见但不抢主要内容
+  font-size: 11px;                                   // 与工具状态一致
+  cursor: pointer;                                   // 反馈可执行回滚
+}
+
+.tool-call__data,
+.tool-call__result {
+  margin: 0;                                         // 工具容器控制所有外边距
+  border: 0 !important;                              // 避免嵌套双边框
+  border-radius: 0 !important;                       // 与父容器边缘连续
+  background: transparent !important;                // 保持单一工具表面
+}
+
+.tool-call__result {
+  border-top: 1px solid #232323 !important;          // 结果与输入明确分隔
+  color: #bdbdbd;                                    // 结果保持次级技术文本
+}
+
+.chat-feedback {
+  width: min(760px, calc(100% - 48px));              // 与消息和输入器阅读列对齐
+  margin: 0 auto;                                    // 居中反馈区域
+}
+
+.notice {
+  margin: 8px 0;                                     // 连续反馈之间留空
+  padding: 10px 12px;                                // 提供短消息阅读空间
+  border-left: 2px solid #696969;                    // 用状态线而非装饰卡片
+  background: #131313;                              // 从主背景轻微抬升
+  color: #c8c8c8;                                   // 默认反馈文字
+  font-size: 12px;                                   // 辅助反馈不抢任务内容
+  line-height: 1.5;                                  // 多行错误保持可读
+}
+
+.notice--error {
+  border-left-color: $danger;                        // 错误使用语义色
+  color: $danger;                                    // 立即识别不可恢复问题
+}
+
+.notice--success {
+  border-left-color: $success;                       // 成功反馈使用语义色
+  color: $success;                                   // 区分普通信息
+}
+
+.approval {
+  display: grid;                                     // 审批内容和动作垂直组织
+  grid-template-columns: minmax(0, 1fr) auto;        // 桌面端操作位于右侧
+  gap: 14px;                                         // 内容与动作保持间距
+  margin: 10px 0;                                    // 与其他反馈分离
+  padding: 13px 14px;                                // 提供审批操作空间
+  border: 1px solid #555555;                         // 明确这是需要处理的边界
+  border-radius: 6px;                                // 保持真实操作面板圆角
+  background: #151515;                              // 在对话中突出待处理状态
+}
+
+.approval__body > span {
+  display: block;                                    // 状态标签独占一行
+  margin-bottom: 4px;                                // 与工具名分离
+  color: $muted;                                     // 辅助审批标签
+  font-size: 11px;                                   // 保持紧凑
+}
+
+.approval__body pre {
+  margin: 10px 0 0;                                  // 与工具名分离
+}
+
+.approval__actions {
+  display: flex;                                     // 拒绝和允许同排
+  align-items: flex-end;                             // 靠近审批内容底部
+  gap: 4px;                                          // 动作按钮紧密分组
+}
+
+.chat-composer {
+  width: min(760px, calc(100% - 32px));              // 输入器在移动端保留安全边距
+  margin: 0 auto;                                    // 对齐消息阅读列
+  padding: 9px 0 8px;                                // 与底部和反馈分离
+}
+
+.chat-composer > small {
+  display: block;                                    // 提示独占输入器下方
+  margin-top: 7px;                                   // 与输入器分离
+  color: #555555;                                    // 风险提示保持低权重
+  font-size: 10px;                                   // 使用最小辅助字号
+  text-align: center;                                // 对齐输入器中心
+}
+
+.composer {
+  min-height: 104px;                                 // 空输入时保持稳定尺寸
+  padding: 13px 13px 10px 16px;                      // 提供输入和工具栏空间
+  border: 1px solid #3a3a3a;                         // 明确主要交互边界
+  border-radius: 8px;                                // 遵循卡片最大圆角约束
+  background: $surface;                              // 输入器作为主要工作表面
+  box-shadow: 0 8px 30px rgb(0 0 0 / 28%);          // 轻微抬升但不使用彩色装饰
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.composer:focus-within {
+  border-color: #666666;                             // 聚焦时增强输入边界
+  box-shadow: 0 8px 32px rgb(0 0 0 / 42%);          // 强化当前操作层级
+}
+
+.composer__input {
+  display: block;                                    // 输入框独占完整行
+  width: 100%;                                       // 使用完整输入器宽度
+  min-height: 45px;                                  // 单行时仍有舒适输入空间
+  max-height: 150px;                                 // 长任务超过后内部滚动
+  padding: 2px 0;                                    // 保持文本与容器对齐
+  resize: none;                                      // 稳定固定格式输入器尺寸
+  overflow-y: auto;                                  // 长文本可滚动检查
+  border: 0;                                         // 父容器已经表达输入边界
+  outline: 0;                                        // 使用父容器 focus-within 反馈
+  color: $text;                                      // 主输入高对比
+  background: transparent;                           // 融入输入器表面
+  font-size: 15px;                                   // 任务输入保持舒适字号
+  line-height: 1.55;                                 // 多行输入保持可读
+}
+
+.composer__input::placeholder {
+  color: #777777;                                    // 占位文本明显低于输入内容
+}
+
+.composer__footer {
+  display: flex;                                     // 模式和发送动作同排
+  align-items: center;                               // 控件垂直居中
+  justify-content: space-between;                    // 发送按钮位于右侧
+  height: 36px;                                      // 固定工具栏避免内容跳动
+}
+
+.composer__modes {
+  display: flex;                                     // 附件和工具状态同排
+  align-items: center;                               // 垂直居中
+  gap: 14px;                                         // 两种模式保持间距
+  color: #888888;                                    // 模式控制保持次级层级
+  font-size: 12px;                                   // 适合紧凑工具栏
+}
+
+.composer__plus {
+  display: grid;                                     // 加号在固定图标区域居中
+  place-items: center;                               // 水平垂直居中
+  width: 26px;                                       // 稳定熟悉图标点击视觉
+  height: 26px;                                      // 稳定熟悉图标点击视觉
+  font-size: 20px;                                   // 加号无需文字按钮
+}
+
+.composer__mode {
+  display: flex;                                     // 状态点和工具标签同排
+  align-items: center;                               // 保持小元素基线稳定
+  gap: 6px;                                          // 状态点与文字分离
+}
+
+.composer__send {
+  width: 34px;                                       // 固定发送按钮尺寸
+  height: 34px;                                      // 固定发送按钮尺寸
+  color: #111111;                                    // 白色填充上的高对比图标
+  background: #ececec;                              // 主要命令使用中性高对比填充
+  border-radius: 50%;                                // 熟悉的图标动作形状
+}
+
+.composer__send[disabled] {
+  color: #676767;                                    // 禁用状态降低图标对比
+  background: #252525;                              // 禁用填充融入输入器
+}
+
+.composer__send--stop mdui-icon-stop {
+  width: 17px;                                       // 停止方块保持在圆形内
+  height: 17px;                                      // 停止方块保持在圆形内
+}
+
+.workspace-view {
+  width: min(1040px, calc(100% - 72px));             // 设置与工具在宽屏保持扫描宽度
+  height: 100%;                                      // 占满主工作区域
+  margin: 0 auto;                                    // 内容在主区域居中
+  padding: 0 0 56px;                                 // 滚动底部留安全空间
+  overflow-y: auto;                                  // 业务页面独立滚动
+}
+
+.view-header {
+  position: sticky;                                  // 长列表中保持页面上下文和命令
+  z-index: 4;                                        // 高于滚动内容
+  top: 0;                                            // 固定到工作区顶部
+  display: flex;                                     // 标题和主要命令同排
+  align-items: center;                               // 垂直居中
+  justify-content: space-between;                    // 命令靠右
+  min-height: 104px;                                 // 保持稳定业务页头尺寸
+  padding: 26px 0 18px;                              // 提供工作区标题空间
+  border-bottom: 1px solid $line;                    // 分隔内容而非浮动卡片
+  background: rgb(10 10 10 / 94%);                  // 滚动时保持标题可读
+  backdrop-filter: blur(10px);                       // 轻微材质反馈
+}
+
+.view-header h1 {
+  margin: 0;                                         // 由标题容器控制间距
+  font-size: 24px;                                   // 页面级但非营销式标题
+  font-weight: 570;                                  // 克制强调
+  letter-spacing: 0;                                 // 禁止负字距
+}
+
+.view-header p {
+  margin: 7px 0 0;                                   // 与标题分离
+  color: $muted;                                     // 页面说明保持次级层级
+  font-size: 13px;                                   // 适合工具工作台说明
+}
+
+.view-loading,
+.view-empty {
+  display: grid;                                     // 将状态置于空白区中心
+  place-items: center;                               // 水平垂直居中
+  min-height: 320px;                                 // 留出稳定反馈区域
+  color: $muted;                                     // 空状态保持次级
+  font-size: 13px;                                   // 紧凑工作台状态文字
+}
+
+.session-table {
+  border-bottom: 1px solid $line;                    // 完整列表形成统一表格边界
+}
+
+.session-row {
+  display: grid;                                     // 图标、摘要和操作三列组织
+  grid-template-columns: 34px minmax(0, 1fr) 42px;   // 固定图标和操作，标题自适应
+  align-items: center;                               // 行内元素垂直居中
+  width: 100%;                                       // 整行可点击打开
+  min-height: 76px;                                  // 保持重复操作舒适高度
+  padding: 8px 2px;                                  // 密集列表保持紧凑
+  border: 0;                                         // 使用横向分隔而非独立卡片
+  border-top: 1px solid $line;                       // 明确行边界
+  background: transparent;                           // 列表融入页面
+  text-align: left;                                  // 摘要按扫描方向对齐
+  cursor: pointer;                                   // 整行可打开
+  transition: background-color 140ms ease;           // 提供轻量悬停反馈
+}
+
+.session-row:first-child {
+  border-top: 0;                                     // 避免页头下方重复分隔线
+}
+
+.session-row:hover {
+  background: #101010;                              // 整行悬停反馈
+}
+
+.session-row__icon {
+  display: grid;                                     // 历史图标居中
+  place-items: center;                               // 图标在固定列居中
+  color: #727272;                                    // 图标保持辅助层级
+}
+
+.session-row__icon mdui-icon-history {
+  width: 18px;                                       // 固定列表图标尺寸
+  height: 18px;                                      // 固定列表图标尺寸
+}
+
+.session-row__content {
+  min-width: 0;                                      // 允许标题省略
+  padding: 0 12px;                                   // 与图标和操作分离
+}
+
+.session-row__content strong,
+.session-row__content small {
+  display: block;                                    // 标题和元数据分两行
+  overflow: hidden;                                  // 长内容保持在行内
+  text-overflow: ellipsis;                           // 反馈仍有隐藏内容
+  white-space: nowrap;                               // 保持稳定列表行高
+}
+
+.session-row__content strong {
+  font-size: 14px;                                   // 摘要主信息字号
+  font-weight: 520;                                  // 克制强调标题
+}
+
+.session-row__content small {
+  margin-top: 7px;                                   // 与标题分离
+  color: $muted;                                     // 元数据降低权重
+  font-size: 11px;                                   // 适合密集扫描
+}
+
+.tool-grid {
+  display: grid;                                     // 工具按响应式多列排列
+  grid-template-columns: repeat(2, minmax(0, 1fr));  // 桌面端并排比较工具
+  gap: 1px;                                          // 细缝配合共享边框感
+  margin-top: 28px;                                  // 与页头和反馈分离
+  border: 1px solid $line;                           // 工具注册表形成一个整体
+  background: $line;                                 // 网格缝隙作为分隔线
+}
+
+.tool-item {
+  min-width: 0;                                      // 长参数名不撑破网格
+  padding: 20px;                                     // 提供工具检查空间
+  background: $background;                           // 单项不使用浮动卡片表面
+}
+
+.tool-item header {
+  display: flex;                                     // 命令符号和工具身份同排
+  align-items: flex-start;                           // 多行标题从顶部对齐
+  gap: 12px;                                         // 图标与标题分离
+}
+
+.tool-item h2 {
+  margin: 0;                                         // 由工具头部控制间距
+  overflow-wrap: anywhere;                           // 长工具名允许换行
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 14px;                                   // 工具名紧凑清晰
+  font-weight: 600;                                  // 强化可扫描名称
+}
+
+.tool-item header small {
+  display: block;                                    // 来源位于名称下方
+  margin-top: 4px;                                   // 与名称分离
+  color: #666666;                                    // 来源保持辅助层级
+  font-size: 10px;                                   // 最小元数据字号
+  text-transform: uppercase;                         // 表达注册来源标签
+}
+
+.tool-item > p {
+  min-height: 42px;                                  // 两列工具描述保持稳定基线
+  margin: 16px 0;                                    // 与头部和参数分离
+  color: #adadad;                                    // 描述低于工具名
+  font-size: 13px;                                   // 适合技术说明
+  line-height: 1.6;                                  // 多行保持可读
+}
+
+.tool-parameters {
+  border-top: 1px solid #222222;                     // 参数从工具描述中分隔
+}
+
+.tool-parameters > div {
+  display: flex;                                     // 参数名和类型同排
+  align-items: center;                               // 保持基线稳定
+  justify-content: space-between;                    // 类型靠右便于扫描
+  gap: 12px;                                         // 长内容保持间隔
+  min-height: 34px;                                  // 固定参数行高度
+  border-bottom: 1px solid #1c1c1c;                 // 轻量参数分隔
+  color: #858585;                                    // 类型保持次级层级
+  font-size: 11px;                                   // 密集参数元数据
+}
+
+.tool-parameters > div:last-child {
+  border-bottom: 0;                                  // 避免工具底部重复边线
+}
+
+.tool-parameters code {
+  color: #d2d2d2;                                    // 参数名保持可读
+  overflow-wrap: anywhere;                           // 长参数名可换行
+}
+
+.settings-view {
+  width: min(860px, calc(100% - 72px));              // 表单使用更窄可读列
+}
+
+.settings-section {
+  display: grid;                                     // 标题与字段垂直组织
+  gap: 22px;                                         // 各配置组保持清晰距离
+  padding: 30px 0;                                   // 使用全宽段落而非浮动卡片
+  border-bottom: 1px solid $line;                    // 区分独立设置领域
+}
+
+.settings-section__header h2 {
+  margin: 0;                                         // 段落控制标题间距
+  font-size: 17px;                                   // 设置分组使用紧凑标题
+  font-weight: 570;                                  // 保持层级清晰
+}
+
+.settings-section__header p {
+  margin: 7px 0 0;                                   // 与标题分离
+  color: $muted;                                     // 设置说明保持次级层级
+  font-size: 12px;                                   // 紧凑业务表单说明
+}
+
+.settings-grid {
+  display: grid;                                     // 提供商和模型并排编辑
+  grid-template-columns: repeat(2, minmax(0, 1fr));  // 两字段等宽
+  gap: 14px;                                         // 输入框保持间距
+}
+
+.settings-prompt {
+  width: 100%;                                       // 系统提示词占完整表单宽度
+}
+
+.permission-list {
+  border-top: 1px solid $line;                       // 权限按统一列表展示
+}
+
+.permission-row {
+  display: grid;                                     // 工具身份和权限动作两列
+  grid-template-columns: minmax(150px, 1fr) auto;    // 权限控件保持所需宽度
+  align-items: center;                               // 行内内容垂直居中
+  gap: 20px;                                         // 名称与动作分离
+  min-height: 68px;                                  // 保持重复编辑舒适高度
+  padding: 8px 0;                                    // 细分隔周围留空
+  border-bottom: 1px solid $line;                    // 明确每项权限边界
+}
+
+.permission-row strong,
+.permission-row small {
+  display: block;                                    // 工具名和规则说明分行
+}
+
+.permission-row strong {
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 13px;                                   // 权限键名紧凑易扫
+}
+
+.permission-row small {
+  margin-top: 5px;                                   // 与工具名分离
+  color: $muted;                                     // 规则说明保持次级
+  font-size: 10px;                                   // 最小元数据字号
+}
+
+.permission-row mdui-segmented-button-group {
+  min-width: 250px;                                  // 三态文字保持稳定宽度
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: .35; transform: scale(.85); }  // 活动周期起止保持柔和
+  50% { opacity: 1; transform: scale(1); }           // 中点增强反馈
+}
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: .25; transform: translateY(0); } // 默认点保持低调
+  30% { opacity: 1; transform: translateY(-3px); }   // 当前点轻微上移
+}
+
+@media (max-width: 900px) {
+  .tool-grid {
+    grid-template-columns: 1fr;                      // 窄桌面改为单列工具避免拥挤
+  }
+
+  .tool-item > p {
+    min-height: 0;                                   // 单列无需对齐描述高度
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell,
+  .app-shell--sidebar {
+    display: block;                                  // 移动端主内容始终占满宽度
+  }
+
+  .sidebar {
+    position: fixed;                                 // 移动侧栏覆盖主内容
+    top: 0;                                          // 从视口顶部开始
+    left: 0;                                         // 从视口左侧滑入
+    width: min(84vw, 300px);                         // 留出遮罩可点击区域
+    transform: translateX(-100%);                    // 默认完全移出视口
+    box-shadow: 14px 0 40px rgb(0 0 0 / 48%);       // 与主内容建立浮层关系
+  }
+
+  .sidebar--open {
+    transform: translateX(0);                        // 打开时滑入视口
+  }
+
+  .sidebar-scrim {
+    position: fixed;                                 // 覆盖完整主工作区
+    z-index: 15;                                     // 位于侧栏下方主内容上方
+    inset: 0;                                        // 占满视口
+    display: block;                                  // 移动端开启关闭触发区域
+    border: 0;                                       // 遮罩无需边框
+    background: rgb(0 0 0 / 62%);                   // 降低后方内容干扰
+    backdrop-filter: blur(2px);                      // 强化浮层上下文
+  }
+
+  .chat-header {
+    padding: 0 52px;                                 // 同时避开左侧菜单与右侧安全区
+  }
+
+  .message-list__column {
+    width: calc(100% - 28px);                        // 移动端扩大正文可用宽度
+    padding-top: 26px;                               // 缩短顶栏后空白
+  }
+
+  .message--user {
+    max-width: 88%;                                  // 移动端允许用户长问题使用更多宽度
+  }
+
+  .chat-feedback {
+    width: calc(100% - 28px);                        // 与移动消息列对齐
+  }
+
+  .approval {
+    grid-template-columns: 1fr;                      // 审批动作移到内容下方
+  }
+
+  .approval__actions {
+    justify-content: flex-end;                       // 操作靠右符合确认习惯
+  }
+
+  .chat-composer {
+    width: calc(100% - 20px);                        // 最大化移动输入空间
+    padding-bottom: max(7px, env(safe-area-inset-bottom)); // 适配底部安全区
+  }
+
+  .composer {
+    min-height: 96px;                                // 移动端稍压缩输入器高度
+  }
+
+  .workspace-view,
+  .settings-view {
+    width: calc(100% - 30px);                        // 业务页保留移动安全边距
+  }
+
+  .view-header {
+    min-height: 84px;                                // 移动端使用更紧凑页头
+    padding: 18px 0 14px 42px;                       // 左侧为浮动菜单按钮留位
+  }
+
+  .view-header h1 {
+    font-size: 20px;                                 // 适配紧凑移动工具栏
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;                      // 移动表单改为单列输入
+  }
+
+  .permission-row {
+    grid-template-columns: 1fr;                      // 权限名称与三态控件分行
+    gap: 10px;                                       // 收紧分行后的距离
+    padding: 14px 0;                                 // 保持触控舒适高度
+  }
+
+  .permission-row mdui-segmented-button-group {
+    width: 100%;                                     // 三态控件使用完整移动宽度
+    min-width: 0;                                    // 允许窄屏缩放
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;                // 用户偏好下关闭平滑滚动
+    animation-duration: .01ms !important;            // 保留状态终点但移除动画
+    animation-iteration-count: 1 !important;         // 防止持续脉冲造成不适
+    transition-duration: .01ms !important;           // 侧栏和按钮立即反馈
+  }
+}
+
+/* --- Material You 大圆角形状系统 --- */
+:root {
+  --mdui-shape-corner-extra-small: 10px;             // 紧凑标签仍保留柔和圆角
+  --mdui-shape-corner-small: 14px;                   // 小型控件使用明显圆角
+  --mdui-shape-corner-medium: 18px;                  // 输入和列表使用 Material 中型形状
+  --mdui-shape-corner-large: 24px;                   // 面板和菜单使用大圆角
+  --mdui-shape-corner-extra-large: 32px;             // 对话框和主要表面使用超大圆角
+}
+
+.app-shell {
+  gap: 8px;                                          // 主画布与导航轨道之间留外层背景
+  padding: 8px;                                      // 露出 Grok 参考图中的外层黑色边框
+  background: #050505;                              // 外壳比内容表面更深
+}
+
+.app-shell:not(.app-shell--sidebar) {
+  gap: 0;                                            // 收起侧栏后主画布使用完整宽度
+}
+
+.app-shell--sidebar {
+  grid-template-columns: 244px minmax(0, 1fr);       // Material 导航保持舒适触控宽度
+}
+
+.sidebar {
+  width: 244px;                                      // 与新网格轨道保持一致
+  padding: 10px 8px;                                 // 让胶囊导航与外壳留空
+  border-right: 0;                                   // 不再使用 shadcn 细线分栏
+  background: transparent;                           // 导航成为外层轨道而非独立矩形
+}
+
+.main-area {
+  height: 100%;                                      // 在外壳内填满可用网格高度
+  border: 1px solid #1e1f20;                         // 轻量表达大画布边界
+  border-radius: 30px;                               // 参考 Grok 桌面主画布的大圆角
+  background: #151617;                              // 使用 Material 表面而非纯黑平面
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%);   // 提供克制表面层级
+}
+
+.sidebar__brand > button:first-child,
+.chat-empty__symbol {
+  border: 0;                                         // 品牌符号使用填充表面
+  background: #f0f0f0;                              // 黑白品牌高对比
+  color: #111111;                                    // 保证符号可读
+}
+
+.new-chat,
+.primary-nav button,
+.sidebar__history button {
+  border-radius: 20px;                               // 导航统一 Material 胶囊形状
+}
+
+.new-chat {
+  min-height: 48px;                                  // 强化首要新建操作
+  border: 0;                                         // 不使用 shadcn 描边按钮
+  background: #202122;                              // tonal 表面表达命令层级
+}
+
+.new-chat:hover,
+.primary-nav button:hover,
+.sidebar__history button:hover,
+.primary-nav button.is-active,
+.sidebar__history button.is-active {
+  background: #292a2b;                              // tonal 状态层保持中性
+}
+
+.primary-nav button {
+  min-height: 44px;                                  // 满足 Material 触控高度
+}
+
+.chat-header {
+  border-bottom: 0;                                  // 主画布不再被横线切割
+}
+
+.chat-empty {
+  padding-bottom: 4vh;                               // 品牌位于输入器上方视觉中心
+}
+
+.chat-empty__brand {
+  display: flex;                                     // 品牌符号和产品名组成锁定区
+  align-items: center;                               // 两者垂直对齐
+  justify-content: center;                           // 居中成为首屏主信号
+  gap: 15px;                                         // 保持品牌元素间距
+}
+
+.chat-empty__brand .chat-empty__symbol {
+  width: 58px;                                       // 参考图的大型品牌符号
+  height: 58px;                                      // 保持圆形比例
+  margin: 0;                                         // 锁定区统一控制间距
+  font-size: 24px;                                   // 匹配扩大后的品牌容器
+}
+
+.chat-empty__brand strong {
+  font-size: 40px;                                   // 产品名作为首视口主信号
+  font-weight: 580;                                  // Material 标题保持温和字重
+  letter-spacing: 0;                                 // 禁止紧缩字距
+}
+
+.chat-composer {
+  width: min(820px, calc(100% - 40px));              // 参考图中更宽的中央输入器
+  padding-bottom: 18px;                              // 与大画布底边保留空间
+}
+
+.composer {
+  min-height: 118px;                                 // 提供 Grok 式宽松输入空间
+  padding: 18px 18px 12px 20px;                      // 大圆角内增加舒适留白
+  border: 0;                                         // 由 tonal 表面界定输入器
+  border-radius: 30px;                               // 对话输入器使用 Material 超大圆角
+  background: #262829;                              // 明显高于主画布的输入表面
+  box-shadow: 0 10px 32px rgb(0 0 0 / 22%);         // 柔和抬升而非硬边框
+}
+
+.composer:focus-within {
+  border: 0;                                         // 聚焦不回退到描边风格
+  box-shadow: 0 12px 36px rgb(0 0 0 / 32%), inset 0 0 0 2px #555758; // Material 状态层反馈
+}
+
+.composer__footer {
+  height: 40px;                                      // 为模型胶囊和发送按钮提供稳定轨道
+}
+
+.composer__plus {
+  width: 34px;                                       // 附件图标使用独立圆形状态层
+  height: 34px;                                      // 匹配底栏控件高度
+  border-radius: 50%;                                // 熟悉的图标按钮形状
+  background: #333536;                              // tonal 次级动作
+}
+
+.composer__send {
+  width: 40px;                                       // 主要发送动作更易触达
+  height: 40px;                                      // 保持圆形尺寸
+}
+
+.model-selector__trigger {
+  min-width: 0;                                      // 模型名根据内容自适应
+  height: 36px;                                      // 与输入器底栏保持稳定
+  padding: 0 12px;                                   // 提供胶囊左右空间
+  border-radius: 18px;                               // 模型切换采用 Material 胶囊
+  background: #333536;                              // 在输入表面上形成 tonal 层级
+  color: #eeeeee;                                    // 保持高对比模型名
+  font-size: 12px;                                   // 长模型 ID 不抢输入正文
+}
+
+.model-selector__menu {
+  min-width: 250px;                                  // 提供商和模型名保持可扫描宽度
+  max-width: min(360px, calc(100vw - 32px));         // 移动端不突破视口
+  padding: 8px;                                      // 菜单项与大圆角边缘留空
+  border-radius: 24px;                               // 模型菜单使用 Material 大圆角
+  background: #282a2b;                              // 菜单高于输入器表面
+}
+
+.model-selector__provider {
+  padding: 10px 12px 6px;                            // 分组标题与菜单项对齐
+  color: #969899;                                    // 提供商名称保持次级
+  font-size: 10px;                                   // 紧凑分组标签
+  font-weight: 650;                                  // 增强扫描能力
+  text-transform: uppercase;                         // 区分提供商和模型条目
+}
+
+.model-selector__dot {
+  width: 6px;                                        // 非当前模型保留图标对齐位
+  height: 6px;                                       // 使用轻量圆点
+  margin: auto;                                      // 在图标槽中居中
+  border-radius: 50%;                                // Material 状态点
+  background: #666869;                              // 低对比未选状态
+}
+
+.message--user {
+  padding: 13px 18px;                                // 用户消息增加 Material 留白
+  border-radius: 22px 22px 6px 22px;                 // 大圆角并保留说话方向
+  background: #2c2e2f;                              // tonal 用户消息表面
+}
+
+.reasoning {
+  padding: 4px;                                      // 思考块使用独立 tonal 容器
+  border-left: 0;                                    // 移除 shadcn 竖线表达
+  border-radius: 18px;                               // Material 次级面板形状
+  background: #1e2021;                              // 从主画布轻微抬升
+}
+
+.tool-call,
+.approval {
+  border: 0;                                         // 工具和审批不使用硬描边卡片
+  border-radius: 24px;                               // 真实操作面板使用 Material 大圆角
+  background: #222425;                              // tonal 区分技术内容
+}
+
+.tool-call__header {
+  min-height: 48px;                                  // 大圆角面板内保持舒适头部
+  border-bottom-color: #333536;                      // 分隔线融入 tonal 表面
+}
+
+.workspace-view,
+.settings-view {
+  width: min(1120px, calc(100% - 64px));             // 多提供商布局使用更宽工作区
+}
+
+.view-header {
+  min-height: 112px;                                 // Material 页面顶栏增加呼吸空间
+  border-bottom: 0;                                  // 不以 shadcn 细线切割页面
+  border-radius: 30px 30px 0 0;                      // 跟随主画布顶部形状
+  background: rgb(21 22 23 / 92%);                  // 与主画布保持同一表面
+}
+
+.view-header mdui-button,
+.model-add mdui-button {
+  --mdui-shape-corner-large: 24px;                   // 文字命令使用 Material 胶囊
+}
+
+.session-table {
+  display: grid;                                     // 会话改为 Material 行块列表
+  gap: 8px;                                          // 行块间露出主表面
+  border: 0;                                         // 移除表格式底边
+}
+
+.session-row {
+  min-height: 82px;                                  // 提供大圆角行块空间
+  padding: 8px 12px;                                 // 内容远离圆角边缘
+  border: 0;                                         // 移除硬分隔线
+  border-radius: 22px;                               // 会话采用 Material 列表形状
+  background: #1d1f20;                              // tonal 行表面
+}
+
+.session-row:hover {
+  background: #292b2c;                              // 状态层反馈打开动作
+}
+
+.tool-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));  // 保留工具比较能力
+  gap: 14px;                                         // 卡片之间使用真实空间
+  border: 0;                                         // 移除共享方形外框
+  background: transparent;                           // 主画布作为网格背景
+}
+
+.tool-item {
+  padding: 24px;                                     // 大圆角卡片提供内部留白
+  border-radius: 26px;                               // 工具卡片使用 Material 大形状
+  background: #1e2021;                              // tonal 工具表面
+}
+
+.settings-view {
+  padding-bottom: 48px;                              // 设置内容与画布底部留空
+}
+
+.provider-settings {
+  display: grid;                                     // 左侧提供商与右侧详情主从布局
+  grid-template-columns: 260px minmax(0, 1fr);       // 固定导航，详情自适应
+  gap: 16px;                                         // 两个 Material 表面之间留空
+  min-height: 560px;                                 // 空模型列表仍保持稳定设置结构
+}
+
+.provider-list,
+.provider-detail,
+.settings-section {
+  border: 0;                                         // 设置模块不使用细线框架
+  border-radius: 28px;                               // 统一 Material 超大面板形状
+  background: #1d1f20;                              // 从主设置画布抬升
+}
+
+.provider-list {
+  align-self: start;                                 // 提供商少时不拉伸空白表面
+  padding: 14px 10px;                                // 列表与圆角边缘留空
+}
+
+.provider-list > header,
+.provider-detail__header,
+.model-catalog > header {
+  display: flex;                                     // 标题与动作水平排列
+  align-items: center;                               // 垂直居中
+  justify-content: space-between;                    // 动作靠右
+}
+
+.provider-list > header {
+  min-height: 62px;                                  // 提供商标题保持稳定高度
+  padding: 0 10px 10px;                              // 与列表项对齐
+}
+
+.provider-list h2,
+.provider-detail h2,
+.model-catalog h3 {
+  margin: 0;                                         // 面板负责标题间距
+  letter-spacing: 0;                                 // 保持 Material 正常字距
+}
+
+.provider-list h2,
+.provider-detail h2 {
+  font-size: 16px;                                   // 紧凑设置面板标题
+}
+
+.provider-list p,
+.provider-detail p,
+.model-catalog p {
+  margin: 5px 0 0;                                   // 与对应标题分离
+  color: #919394;                                    // 辅助说明保持次级
+  font-size: 11px;                                   // 适合设置工作台密度
+}
+
+.provider-list > button {
+  display: grid;                                     // 图标与两行身份信息排列
+  grid-template-columns: 38px minmax(0, 1fr);        // 固定头像，文字自适应
+  align-items: center;                               // 垂直居中
+  gap: 11px;                                         // 头像与文字分离
+  width: 100%;                                       // 整行可选择
+  min-height: 62px;                                  // Material 触控列表高度
+  padding: 8px 10px;                                 // 内容远离胶囊边缘
+  overflow: hidden;                                  // 长提供商名称不泄露
+  border: 0;                                         // 通过状态层表达选择
+  border-radius: 20px;                               // 提供商项使用大胶囊形状
+  background: transparent;                           // 默认融入列表面板
+  text-align: left;                                  // 信息按扫描方向对齐
+  cursor: pointer;                                   // 反馈可切换详情
+}
+
+.provider-list > button:hover,
+.provider-list > button.is-active {
+  background: #303233;                              // 当前提供商使用 tonal 状态层
+}
+
+.provider-list > button > span:last-child,
+.model-list button > span:nth-child(2) {
+  min-width: 0;                                      // 长名称允许省略
+}
+
+.provider-list strong,
+.provider-list small,
+.model-list strong,
+.model-list small {
+  display: block;                                    // 主次信息分两行
+  overflow: hidden;                                  // 长模型名保持在容器内
+  text-overflow: ellipsis;                           // 反馈还有隐藏内容
+  white-space: nowrap;                               // 保持稳定列表高度
+}
+
+.provider-list strong,
+.model-list strong {
+  font-size: 13px;                                   // 列表主信息字号
+  font-weight: 560;                                  // 温和强调
+}
+
+.provider-list small,
+.model-list small {
+  margin-top: 5px;                                   // 与主信息分离
+  color: #919394;                                    // 次级说明降低权重
+  font-size: 10px;                                   // 紧凑元数据字号
+}
+
+.provider-list__avatar {
+  display: grid;                                     // 字母在提供商头像内居中
+  place-items: center;                               // 水平垂直居中
+  width: 36px;                                       // 稳定列表头像尺寸
+  height: 36px;                                      // 保持圆形比例
+  border-radius: 50%;                                // 使用熟悉身份符号
+  background: #e6e6e6;                              // 黑白高对比头像
+  color: #151515;                                    // 保持字母可读
+  font-size: 13px;                                   // 匹配头像尺寸
+  font-weight: 750;                                  // 强化单字母识别
+}
+
+.provider-list__avatar--large {
+  width: 48px;                                       // 详情头部强化提供商身份
+  height: 48px;                                      // 保持圆形比例
+  font-size: 17px;                                   // 匹配扩大头像
+}
+
+.provider-list__empty,
+.model-list__empty {
+  padding: 28px 16px;                                // 空状态保持圆角内留白
+  color: #858788;                                    // 辅助提示不抢主要操作
+  font-size: 12px;                                   // 紧凑设置提示
+  line-height: 1.6;                                  // 多行保持可读
+  text-align: center;                                // 空状态居中
+}
+
+.provider-detail {
+  min-width: 0;                                      // 字段和模型不撑破网格
+  padding: 24px;                                     // 详情与圆角边缘留空
+}
+
+.provider-detail__header {
+  min-height: 58px;                                  // 详情标题保持稳定高度
+  margin-bottom: 24px;                               // 与字段区分离
+}
+
+.provider-detail__header > div:first-child {
+  display: flex;                                     // 大头像和身份信息同排
+  align-items: center;                               // 垂直居中
+  gap: 13px;                                         // 头像与标题分离
+}
+
+.provider-fields {
+  display: grid;                                     // 提供商字段按双列组织
+  grid-template-columns: repeat(2, minmax(0, 1fr));  // 名称和地址并排
+  gap: 14px;                                         // 大圆角字段之间留空
+}
+
+.provider-fields__wide {
+  grid-column: 1 / -1;                               // 密钥使用完整详情宽度
+}
+
+.model-catalog {
+  margin-top: 28px;                                  // 与凭据字段分离
+  padding-top: 24px;                                 // 标题上方保留空间
+  border-top: 1px solid #353738;                     // 内容分组使用内部细线
+}
+
+.model-catalog > header > span {
+  display: grid;                                     // 模型数量在圆形内居中
+  place-items: center;                               // 水平垂直居中
+  min-width: 32px;                                   // 稳定计数尺寸
+  height: 32px;                                      // 保持圆形比例
+  border-radius: 16px;                               // Material 计数胶囊
+  background: #303233;                              // tonal 次级表面
+  color: #c8c9ca;                                    // 保持计数可读
+  font-size: 11px;                                   // 紧凑计数
+}
+
+.model-add {
+  display: grid;                                     // 输入和添加命令同排
+  grid-template-columns: minmax(0, 1fr) auto;        // 输入使用剩余宽度
+  gap: 10px;                                         // 控件之间留空
+  margin: 20px 0 12px;                               // 与标题和列表分离
+}
+
+.model-list {
+  display: grid;                                     // 模型行垂直排列
+  gap: 7px;                                          // 行之间露出详情背景
+}
+
+.model-list > button {
+  display: grid;                                     // 状态、身份和删除三列
+  grid-template-columns: 28px minmax(0, 1fr) 44px;   // 固定动作列，名称自适应
+  align-items: center;                               // 垂直居中
+  width: 100%;                                       // 整行切换当前模型
+  min-height: 62px;                                  // Material 触控行高度
+  padding: 7px 6px 7px 12px;                         // 内容远离圆角边缘
+  border: 0;                                         // 使用 tonal 表面表达边界
+  border-radius: 20px;                               // 模型行使用大圆角
+  background: #262829;                              // 默认模型表面
+  color: #eeeeee;                                    // 主信息高对比
+  text-align: left;                                  // 保持列表扫描方向
+  cursor: pointer;                                   // 反馈可设为当前模型
+}
+
+.model-list > button:hover,
+.model-list > button.is-active {
+  background: #353738;                              // 当前模型和悬停使用状态层
+}
+
+.model-list__status {
+  display: grid;                                     // 当前模型勾选居中
+  place-items: center;                               // 水平垂直居中
+  width: 22px;                                       // 稳定状态列
+  height: 22px;                                      // 稳定状态列
+}
+
+.model-list__status mdui-icon-check {
+  width: 17px;                                       // 勾选图标保持紧凑
+  height: 17px;                                      // 勾选图标保持紧凑
+}
+
+.settings-section {
+  gap: 22px;                                         // 保留设置内容阅读节奏
+  margin-top: 16px;                                  // 与提供商主从区域分离
+  padding: 28px;                                     // 大圆角面板内部留白
+}
+
+.settings-section--prompt {
+  margin-top: 16px;                                  // 明确 Agent 设置分组
+}
+
+.permission-list {
+  border-top: 0;                                     // 权限面板不使用表格式顶边
+}
+
+.permission-row {
+  padding: 12px 10px;                                // 权限行增加 Material 留白
+  border-bottom-color: #353738;                      // 分隔线融入面板表面
+}
+
+@media (max-width: 900px) {
+  .provider-settings {
+    grid-template-columns: 1fr;                      // 窄屏将提供商列表放到详情上方
+  }
+
+  .provider-list {
+    display: flex;                                   // 窄屏提供商横向滚动
+    align-items: center;                             // 保持列表项垂直对齐
+    overflow-x: auto;                                // 多提供商不压缩名称
+  }
+
+  .provider-list > header {
+    min-width: 180px;                                // 保留标题和添加动作空间
+  }
+
+  .provider-list > button {
+    width: 190px;                                    // 横向列表项保持可读宽度
+    flex: 0 0 190px;                                 // 防止模型数量挤压项宽
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell,
+  .app-shell--sidebar {
+    padding: 0;                                      // 移动端主画布使用完整屏幕
+  }
+
+  .main-area {
+    border: 0;                                       // 移动端无需双层边界
+    border-radius: 0;                                // 全屏内容服从设备外形
+  }
+
+  .sidebar {
+    padding: 10px;                                   // 抽屉内部保留 Material 边距
+    border-radius: 0 28px 28px 0;                    // 移动抽屉右侧使用大圆角
+    background: #111213;                            // 浮层抽屉使用独立表面
+  }
+
+  .chat-empty__brand .chat-empty__symbol {
+    width: 50px;                                     // 移动品牌保持清晰但不拥挤
+    height: 50px;                                    // 保持圆形比例
+  }
+
+  .chat-empty__brand strong {
+    font-size: 34px;                                 // 移动首屏适配品牌字号
+  }
+
+  .chat-composer {
+    width: calc(100% - 18px);                        // 输入器最大化移动可用宽度
+  }
+
+  .composer {
+    min-height: 108px;                               // 移动仍保留 Grok 式宽松输入器
+    border-radius: 26px;                             // 适配较窄视口的大圆角
+  }
+
+  .workspace-view,
+  .settings-view {
+    width: calc(100% - 24px);                        // 移动设置页保留安全边距
+  }
+
+  .provider-list {
+    border-radius: 24px;                             // 移动横向提供商面板使用大圆角
+  }
+
+  .provider-detail,
+  .settings-section {
+    padding: 20px 16px;                              // 移动详情减少水平留白
+    border-radius: 24px;                             // 保持 Material 大形状
+  }
+
+  .provider-fields {
+    grid-template-columns: 1fr;                      // 提供商字段改为单列
+  }
+
+  .provider-fields__wide {
+    grid-column: auto;                               // 单列无需跨轨道
+  }
+
+  .model-add {
+    grid-template-columns: 1fr;                      // 模型输入和添加按钮分行
+  }
+}
