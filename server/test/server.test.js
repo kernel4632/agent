@@ -98,6 +98,10 @@ describe('Agent Server API', () => {
 
     await jsonRequest('/config', 'PUT', { providers: { aker: { ...currentConfig.providers.aker, models: ['kimi-k2.6'] } } }) // 模拟设置页删除临时提供商
     expect((await (await request('/config')).json()).providers.temporary).toBeUndefined() // 验证完整集合替换真正删除提供商
+
+    await jsonRequest('/config', 'PUT', { activeProvider: 'test-openai', activeModel: 'gpt-test', providers: { aker: currentConfig.providers.aker, 'test-openai': { apiKey: '', baseURL: 'http://localhost', models: ['gpt-test'], setCacheKey: true } } }) // 临时切换到 Responses 协议验证无状态续轮参数
+    expect(Config.getProviderOptions('ses_cache')).toEqual({ openai: { store: false, promptCacheKey: 'ses_cache', promptCacheOptions: { mode: 'implicit' } } }) // 中转不保存 rs_ item 时必须携带完整加密 reasoning
+    await jsonRequest('/config', 'PUT', { activeProvider: 'aker', activeModel: 'kimi-k2.6', providers: { aker: currentConfig.providers.aker } }) // 恢复后续真实 Kimi 测试配置
   })
 
   it('handles rollback and undo rollback APIs with real session data', async () => {

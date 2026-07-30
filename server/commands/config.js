@@ -103,7 +103,7 @@ function getProviderOptions(sessionID) {
   if (!providerConfig?.setCacheKey) return undefined                // 未启用时不注入代理不认识的请求字段
   if (!usesOpenAIResponses(providerName, modelName)) return undefined // 当前中转的 Kimi 和 GLM 不提供缓存
 
-  return { openai: { promptCacheKey: sessionID, promptCacheOptions: { mode: 'implicit' } } } // GPT-5.6 自动缓存最新稳定前缀
+  return { openai: { store: false, promptCacheKey: sessionID, promptCacheOptions: { mode: 'implicit' } } } // 中转不持久化 item，续轮携带加密 reasoning 并缓存稳定前缀
 }
 
 
