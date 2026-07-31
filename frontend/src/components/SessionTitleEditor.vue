@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { nextTick, ref } from 'vue'                    // 引入输入聚焦和本地草稿状态
+import { Session } from '../commands/session.js'      // 引入标题草稿和编辑状态指令
 
 const props = defineProps({                           // 声明当前标题和保存状态
   title: { type: String, default: '' },               // 非编辑态展示的会话标题
@@ -20,9 +21,7 @@ const inputElement = ref(null)                        // 保存原位输入元�
 
 // --- 开始编辑标题 ---
 async function startEditing() {
-  if (props.busy) return                              // 保存期间不创建第二份草稿
-  draft.value = props.title || '未命名会话'           // 以当前标题作为可编辑初值
-  editing.value = true                               // 原位替换文本而不移动布局
+  if (!Session.startTitleEditing(props.title, props.busy, editing, draft)) return // 指令创建标题草稿并切换编辑态
   await nextTick()                                   // 等待输入元素挂载
   inputElement.value?.select()                       // 全选后直接输入新标题
 }
@@ -30,23 +29,25 @@ async function startEditing() {
 
 // --- 放弃标题编辑 ---
 function cancelEditing() {
-  if (props.busy) return                              // 请求中保留稳定反馈
-  editing.value = false                              // 丢弃草稿并恢复原文本
+  Session.cancelTitleEditing(props.busy, editing)     // 指令丢弃草稿并恢复原文本
 }
 
 
 // --- 保存标题编辑 ---
 async function saveEditing() {
-  const title = draft.value.trim()                   // 去除无意义首尾空白
-  if (!title || title === props.title) return cancelEditing() // 空值和未变化不产生请求
-  const saved = await new Promise((resolve) => emit('save', title, resolve)) // 等待业务层反馈
-  if (saved) editing.value = false                   // 只有写盘成功才退出编辑态
+  await Session.saveTitleEditing(props.title, draft, editing, emit) // 指令校验草稿并等待 Server 保存反馈
+}
+
+
+// --- 修改标题输入草稿 ---
+function updateDraft(event) {
+  Session.setTitleDraft(draft, event.target.value)     // 将输入值交给会话指令修改草稿
 }
 </script>
 
 <template>
   <span class="session-title-editor" :class="{ 'session-title-editor--compact': compact, 'is-editing': editing }" @click.stop>
-    <input v-if="editing" ref="inputElement" v-model="draft" maxlength="100" :disabled="busy" aria-label="会话标题" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
+    <input v-if="editing" ref="inputElement" :value="draft" maxlength="100" :disabled="busy" aria-label="会话标题" @input="updateDraft" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
     <button v-else type="button" :title="title || '未命名会话'" aria-label="重命名会话" @click="startEditing">{{ title || '未命名会话' }}</button>
   </span>
 </template>

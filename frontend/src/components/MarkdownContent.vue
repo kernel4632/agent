@@ -4,9 +4,10 @@ Markdown 内容组件：渲染安全富文本，并在 DOM 完成后增强代码
 调用示例：<MarkdownContent :content="message.content" :streaming="message.isStreaming" />。
 -->
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue' // 引入安全 HTML 派生和 DOM 生命周期
+import { computed, nextTick, onMounted, ref } from 'vue'       // 引入安全 HTML 派生和 DOM 生命周期
 import DOMPurify from 'dompurify'                              // 引入 Mermaid SVG 最终清理能力
 import { renderMarkdown } from '../utils/markdown.js'         // 引入 Markdown 静态结构转换
+import { watchMarkdownContent } from '../watchers.js'          // 引入集中管理的内容增强监听
 
 const props = defineProps({                                   // 声明消息正文和流式状态
   content: { type: String, default: '' },                      // 当前需要展示的 Markdown 原文
@@ -100,7 +101,7 @@ async function enhanceContent() {
   }
 }
 
-watch(() => [props.content, props.streaming], enhanceContent, { flush: 'post' }) // 文本和完成状态都驱动对应增强阶段
+watchMarkdownContent(() => [props.content, props.streaming], enhanceContent) // 集中监听文本和完成状态的增强阶段
 onMounted(enhanceContent)                                      // 历史消息首次挂载时立即增强
 </script>
 

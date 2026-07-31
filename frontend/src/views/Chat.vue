@@ -9,50 +9,43 @@ import InputBox from '../components/InputBox.vue'    // 引入任务输入与停
 import MessageList from '../components/MessageList.vue' // 引入完整消息历史组件
 import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入顶栏原位重命名组件
 import TaskPanel from '../components/TaskPanel.vue'   // 引入当前会话任务面板
-import { useChatStore } from '../stores/chat.js'     // 引入对话数据和 Agent 指令
-import { useConfigStore } from '../stores/config.js' // 引入模型列表和即时切换指令
-import { useSessionStore } from '../stores/session.js' // 引入会话详情与列表指令
-import { useTabStore } from '../stores/tabs.js'       // 引入顶部标签标题同步动作
+import { Chat as ChatCommand } from '../commands/chat.js' // 引入对话、审批和回滚指令
+import { Config } from '../commands/config.js'       // 引入模型配置指令
+import { Workspace } from '../commands/workspace.js' // 引入发送和重命名工作区指令
+import { useConfigStore } from '../stores/config.js' // 引入模型配置数据
+import { useSessionStore } from '../stores/session.js' // 引入会话摘要数据
+import { useTabStore } from '../stores/tabs.js'       // 引入顶部标签数据
 
-const chat = useChatStore()                           // 读取当前对话状态
-const config = useConfigStore()                       // 读取全部可切换模型
-const sessions = useSessionStore()                    // 读取当前会话选择状态
-const tabs = useTabStore()                            // 读取当前活动标签
-const currentSession = computed(() => sessions.sessions.find((item) => item.id === chat.sessionID)) // 查找当前摘要
+const chat = computed(() => ChatCommand.getConversation()) // 读取当前标签完整对话数据
+const config = useConfigStore()                       // 只读取全部可切换模型
+const sessions = useSessionStore()                    // 只读取当前会话摘要
+const tabs = useTabStore()                            // 只读取当前活动标签
+const currentSession = computed(() => sessions.sessions.find((item) => item.id === chat.value.sessionID)) // 查找当前摘要
 const activeTab = computed(() => tabs.tabs.find((item) => item.key === tabs.activeKey)) // 读取异步标题已更新的活动标签
-const title = computed(() => currentSession.value?.title || activeTab.value?.title || (chat.hasMessages ? '新会话' : 'Agent')) // 为顶栏反馈最新上下文
+const title = computed(() => currentSession.value?.title || activeTab.value?.title || (chat.value.messages.length ? '新会话' : 'Agent')) // 为顶栏反馈最新上下文
+const draftText = computed({ get: () => chat.value.draftText, set: ChatCommand.setDraftText }) // 输入变化通过对话指令修改当前草稿
 const isRenaming = ref(false)                         // 防止标题保存期间重复提交
 const renameError = ref('')                          // 顶栏原位展示重命名错误
 
 
 // --- 发送任务并同步会话摘要 ---
 async function sendMessage(message) {
-  const completed = await chat.send(message)          // 启动 Agent 并持续消费 SSE
-  await sessions.refresh()                            // 用持久化标题和计数刷新主页
-  tabs.syncTitles(sessions.sessions)                  // 将异步标题同步到全部顶部标签
-  return completed                                    // 保留完成状态供后续扩展反馈
+  return Workspace.sendMessage(message)               // 将发送和摘要同步交给工作区指令
 }
 
 
 // --- 即时切换下一轮模型 ---
 async function selectModel({ providerName, modelName }) {
-  await config.selectModel(providerName, modelName)   // 将选择写入 Server 并更新输入器反馈
+  await Config.selectModel(providerName, modelName)   // 将选择写入 Server 并更新配置数据
 }
 
 
 // --- 保存当前会话标题 ---
 async function renameSession(nextTitle, resolve) {
-  if (!chat.sessionID) return resolve(false)          // 未发送草稿没有可持久化会话
-  isRenaming.value = true                             // 标题动作进入保存反馈
-  renameError.value = ''                             // 清除旧失败信息
-  const result = await sessions.rename(chat.sessionID, nextTitle) // 让 Server 验证并持久化标题
-  if (result) tabs.setTitle(tabs.activeKey, result.title) // 同步当前顶部标签
-  else renameError.value = sessions.errorMessage     // 在编辑器附近保留错误原因
-  isRenaming.value = false                            // 恢复标题编辑动作
-  resolve(Boolean(result))                            // 通知编辑器成功退出或保留草稿
+  await Workspace.renameCurrentSession(chat.value, nextTitle, resolve, isRenaming, renameError) // 指令管理保存状态、错误和编辑器反馈
 }
 
-onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读取模型服务清单
+onMounted(() => { if (!config.config) Config.load() }) // 首次进入对话触发配置读取指令
 </script>
 
 <template>
@@ -67,10 +60,10 @@ onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读�
     </header>
 
     <div class="chat-workspace">
-      <div v-if="!chat.hasMessages" class="chat-empty">
+      <div v-if="!chat.messages.length" class="chat-empty">
         <div class="chat-empty__brand"><span class="chat-empty__symbol">A</span><strong>Agent</strong></div>
       </div>
-      <MessageList v-else :messages="chat.messages" @rollback="chat.rollback" @retry="chat.rollbackMessage" @approval="chat.decide($event.toolCallID, $event.decision)" />
+      <MessageList v-else :messages="chat.messages" @rollback="ChatCommand.rollback" @retry="ChatCommand.rollbackMessage" @approval="ChatCommand.decide($event.toolCallID, $event.decision)" />
     </div>
 
     <div class="chat-feedback">
@@ -79,14 +72,14 @@ onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读�
     </div>
 
     <footer class="chat-composer">
-      <div v-if="chat.rollbackState" class="revert-dock">
+      <div v-if="chat.rollback" class="revert-dock">
         <mdui-icon-undo></mdui-icon-undo>
-        <span>已回退 {{ chat.rollbackState.count }} 条消息</span>
-        <span v-if="chat.rollbackState.target?.content" class="revert-dock__preview">{{ chat.rollbackState.target.content }}</span>
-        <button type="button" @click="chat.undoRollback">撤销回退</button>
+        <span>已回退 {{ chat.rollback.count }} 条消息</span>
+        <span v-if="chat.rollback.target?.content" class="revert-dock__preview">{{ chat.rollback.target.content }}</span>
+        <button type="button" @click="ChatCommand.undoRollback">撤销回退</button>
       </div>
       <TaskPanel :tasks="chat.tasks" />
-      <InputBox v-model="chat.draftText" :running="chat.isRunning" :config="config.config" @send="sendMessage" @stop="chat.stop" @select-model="selectModel" />
+      <InputBox v-model="draftText" :running="chat.isRunning" :config="config.config" @send="sendMessage" @stop="ChatCommand.stop" @select-model="selectModel" />
       <small>Agent 可能会出错，请检查重要操作。</small>
     </footer>
   </section>

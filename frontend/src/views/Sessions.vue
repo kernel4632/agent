@@ -4,12 +4,12 @@
 调用示例：<Sessions @open="openSession" @new="startNewChat" />。
 -->
 <script setup>
-import { onMounted } from 'vue'                       // 引入主页首次刷新能力
 import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入列表原位重命名组件
-import { useSessionStore } from '../stores/session.js' // 引入会话摘要读取指令
+import { Session } from '../commands/session.js'      // 引入会话摘要刷新指令
+import { useSessionStore } from '../stores/session.js' // 引入会话摘要数据
 
 const emit = defineEmits(['open', 'new', 'remove', 'rename']) // 向应用壳层反馈会话动作
-const sessions = useSessionStore()                    // 读取真实会话摘要列表
+const sessions = useSessionStore()                    // 只读取真实会话摘要和反馈
 
 
 // --- 按点击方式打开会话 ---
@@ -32,7 +32,6 @@ function renameSession(sessionID, title, resolve) {
 }
 
 
-onMounted(() => sessions.refresh())                   // 每次回主页读取最新持久化列表
 </script>
 
 <template>
@@ -40,7 +39,7 @@ onMounted(() => sessions.refresh())                   // 每次回主页读取�
     <header class="home-header">
       <div class="home-header__brand"><span>A</span><strong>Agent</strong></div>
       <div class="home-header__actions">
-        <mdui-button-icon aria-label="刷新会话" @click="sessions.refresh"><mdui-icon-refresh></mdui-icon-refresh></mdui-button-icon>
+        <mdui-button-icon aria-label="刷新会话" @click="Session.refresh"><mdui-icon-refresh></mdui-icon-refresh></mdui-button-icon>
         <mdui-button variant="filled" @click="emit('new')"><mdui-icon-add slot="icon"></mdui-icon-add>新会话</mdui-button>
       </div>
     </header>

@@ -1,16 +1,17 @@
 <!--
 顶部服务状态窗：以 OpenCode 式紧凑弹层反馈 MCP、LSP、Skills 运行状态。
 弹层只提供检查、重载和跳转，完整增删改配置统一进入设置页。
-调用示例：<CapabilityPopover @open-settings="ui.openSettings($event)" />。
+调用示例：<CapabilityPopover @open-settings="UI.openSettings($event)" />。
 -->
 <script setup>
 import { computed, onMounted, ref } from 'vue'         // 引入状态统计和弹层引用
 import { storeToRefs } from 'pinia'                    // 保持 Pinia 字段响应性
+import { Capability } from '../commands/capability.js' // 引入能力读取和重载指令
 import { useCapabilityStore } from '../stores/capabilities.js' // 引入共享运行态
 
 const emit = defineEmits(['open-settings'])            // 将完整管理入口交给应用壳层
 const dropdown = ref(null)                             // 保存 MDUI 弹层以便跳转前关闭
-const store = useCapabilityStore()                     // 读取共享能力状态
+const store = useCapabilityStore()                     // 只读取共享能力状态
 const { snapshot, isLoading, errorMessage } = storeToRefs(store) // 解构响应式快照
 const mcpConnected = computed(() => snapshot.value.mcp.filter((item) => item.status === 'connected').length) // MCP 成功连接数
 const lspConnected = computed(() => snapshot.value.lsp.filter((item) => item.status === 'connected').length) // LSP 成功连接数
@@ -41,10 +42,10 @@ function openSettings(section) {
 
 // --- 从顶部立即重载能力 ---
 async function reload() {
-  try { await store.reload() } catch {}               // 错误已进入共享状态并在弹层原位显示
+  try { await Capability.reload() } catch {}          // 错误已进入共享数据并在弹层原位显示
 }
 
-onMounted(() => store.load().catch(() => {}))         // 应用启动即提供真实状态计数
+onMounted(() => Capability.load().catch(() => {}))    // 应用启动触发能力读取指令
 </script>
 
 <template>

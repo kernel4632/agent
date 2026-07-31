@@ -1,0 +1,128 @@
+/*
+会话指令：负责读取、删除、重命名和更新 Server 会话资源。
+请求结果统一写入 stores/session.js，Vue 页面只读取数据并触发这些指令。
+调用示例：await Session.refresh()、await Session.rename('ses_123', '新标题')。
+*/
+import { AgentAPI } from '../api.js'                       // 引入会话 HTTP 指令
+import { useSessionStore } from '../stores/session.js'     // 引入会话数据结构
+
+
+// --- 刷新会话摘要 ---
+async function refresh() {
+  const sessionStore = useSessionStore()                   // 读取会话列表和反馈字段
+  sessionStore.isLoading = true                            // 列表进入加载反馈
+  sessionStore.errorMessage = ''                           // 新请求清除旧错误
+  try {
+    sessionStore.sessions = await AgentAPI.listSessions()  // 用 Server 最新摘要替换当前列表
+    return sessionStore.sessions                           // 返回列表供跨主体指令继续同步
+  } catch (error) {
+    sessionStore.errorMessage = error.message              // 保存网络或 Server 错误
+    return []                                              // 失败时不制造虚假会话
+  } finally {
+    sessionStore.isLoading = false                         // 恢复列表交互
+  }
+}
+
+
+// --- 读取一个会话详情 ---
+async function select(sessionID) {
+  const sessionStore = useSessionStore()                   // 读取详情请求反馈字段
+  sessionStore.isLoading = true                            // 主区域进入加载反馈
+  sessionStore.errorMessage = ''                           // 新请求清除旧错误
+  try {
+    return await AgentAPI.getSession(sessionID)            // 返回完整历史供对话指令写入标签
+  } catch (error) {
+    sessionStore.errorMessage = error.message              // 保存不存在或网络错误
+    return null                                            // 失败时不覆盖当前聊天数据
+  } finally {
+    sessionStore.isLoading = false                         // 恢复会话选择动作
+  }
+}
+
+
+// --- 删除一个会话 ---
+async function remove(sessionID) {
+  const result = await AgentAPI.removeSession(sessionID)   // 删除 Server 内存和磁盘数据
+  if (!result.ok) return false                             // Server 拒绝时保持当前列表
+  await refresh()                                          // 用真实 Server 状态刷新摘要
+  return true                                              // 返回成功供工作区清理标签
+}
+
+
+// --- 重命名一个会话 ---
+async function rename(sessionID, title) {
+  const sessionStore = useSessionStore()                   // 读取摘要和错误字段
+  sessionStore.errorMessage = ''                           // 新请求清除旧错误
+  try {
+    const result = await AgentAPI.renameSession(sessionID, title) // 让 Server 清理并验证标题
+    const summary = sessionStore.sessions.find((item) => item.id === sessionID) // 定位主页中的同一摘要
+    if (summary) Object.assign(summary, { title: result.title, titleSource: result.titleSource }) // 原位同步最终标题
+    return result                                          // 返回最终标题供标签同步
+  } catch (error) {
+    sessionStore.errorMessage = error.message              // 保存失败原因供入口反馈
+    return null                                            // 保持旧标题和编辑草稿
+  }
+}
+
+
+// --- 读取一个会话的任务 ---
+async function readTasks(sessionID) {
+  const sessionStore = useSessionStore()                   // 读取任务错误反馈字段
+  try {
+    return await AgentAPI.getTasks(sessionID)              // 返回 Server 最新任务修订
+  } catch (error) {
+    sessionStore.errorMessage = error.message              // 保存任务读取失败原因
+    return null                                            // 不用空清单覆盖旧任务
+  }
+}
+
+
+// --- 更新一个会话的任务 ---
+async function updateTasks(sessionID, tasks, taskRevision) {
+  const sessionStore = useSessionStore()                   // 读取任务错误反馈字段
+  try {
+    return await AgentAPI.updateTasks(sessionID, tasks, taskRevision) // 由 Server 检测并发修改
+  } catch (error) {
+    sessionStore.errorMessage = error.message              // 保存冲突或校验错误
+    return null                                            // 保持当前清单等待重新读取
+  }
+}
+
+
+// --- 开始编辑会话标题 ---
+function startTitleEditing(title, isBusy, editing, draft) {
+  if (isBusy) return false                               // 保存期间不创建第二份标题草稿
+  draft.value = title || '未命名会话'                   // 以当前标题作为可编辑初值
+  editing.value = true                                  // 原位切换到输入状态
+  return true                                           // 返回组件可以执行 DOM 全选反馈
+}
+
+
+// --- 放弃会话标题编辑 ---
+function cancelTitleEditing(isBusy, editing) {
+  if (isBusy) return false                              // 请求中保持稳定编辑反馈
+  editing.value = false                                 // 丢弃草稿并恢复原文本
+  return true                                           // 返回取消动作完成
+}
+
+
+// --- 修改会话标题草稿 ---
+function setTitleDraft(draft, value) {
+  draft.value = value                                   // 保存输入框中的未提交标题
+}
+
+
+// --- 提交会话标题草稿 ---
+async function saveTitleEditing(currentTitle, draft, editing, emit) {
+  const title = draft.value.trim()                      // 去除无意义首尾空白
+  if (!title || title === currentTitle) {
+    editing.value = false                               // 空值和未变化直接退出编辑态
+    return false                                        // 返回没有产生 Server 请求
+  }
+  const saved = await new Promise((resolve) => emit('save', title, resolve)) // 等待上层会话指令写盘
+  if (saved) editing.value = false                      // 只有写盘成功才退出编辑态
+  return saved                                          // 返回最终保存结果
+}
+
+
+export const Session = { refresh, select, remove, rename, readTasks, updateTasks, startTitleEditing, cancelTitleEditing, setTitleDraft, saveTitleEditing } // 暴露全部会话指令

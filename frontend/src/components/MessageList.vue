@@ -4,8 +4,9 @@
 调用示例：<MessageList :messages="chat.messages" @rollback="rollback" />。
 -->
 <script setup>
-import { nextTick, ref, watch } from 'vue'            // 引入列表引用和更新后滚动能力
+import { nextTick, ref } from 'vue'                   // 引入列表引用和更新后滚动能力
 import MessageItem from './MessageItem.vue'          // 引入单条消息展示组件
+import { watchMessages } from '../watchers.js'       // 引入集中管理的消息变化监听
 
 const props = defineProps({                           // 声明完整消息数组
   messages: { type: Array, required: true },          // 按会话顺序排列的消息
@@ -23,7 +24,7 @@ async function scrollToLatest() {
   element.scrollTop = element.scrollHeight            // 将最新 Agent 反馈保持在视口底部
 }
 
-watch(() => props.messages, scrollToLatest, { deep: true }) // 文本、工具和审批变化均触发滚动
+watchMessages(() => props.messages, scrollToLatest)   // 集中监听文本、工具和审批变化
 </script>
 
 <template>

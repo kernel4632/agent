@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'                       // 引入真实工具与已配置规则合并能力
+import { Settings } from '../commands/settings.js'  // 引入权限草稿修改指令
 
 const props = defineProps({                           // 声明当前权限映射
   permissions: { type: Object, required: true },      // 工具名到权限值或规则对象的映射
@@ -17,7 +18,7 @@ const permissionEntries = computed(() => [...new Set([...props.toolNames, ...Obj
 
 // --- 修改简单权限 ---
 function updatePermission(toolName, permission) {
-  emit('update', { ...props.permissions, [toolName]: permission }) // 只替换用户选择的工具规则
+  Settings.updatePermission(props.permissions, emit, toolName, permission) // 指令返回只替换目标工具的完整映射
 }
 </script>
 

@@ -5,6 +5,7 @@
 */
 import { createApp } from 'vue'                    // 引入 Vue 应用创建能力
 import { createPinia } from 'pinia'                // 引入全局业务数据仓库
+import { startWatchers } from './watchers.js'      // 引入集中管理的数据变化副作用
 import 'mdui/mdui.css'                             // 引入 MDUI 2 Material You 基础样式
 import 'mdui'                                      // 注册全部 MDUI 2 Web Components
 import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
@@ -36,5 +37,7 @@ import './styles/overrides.css'                    // 允许用户最后覆盖 C
 import App from './App.vue'                        // 引入根界面组合组件
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
-app.use(createPinia())                             // 让所有视图共享 Pinia 数据仓库
+const pinia = createPinia()                        // 创建只承载数据结构的 Pinia 容器
+app.use(pinia)                                     // 先注册 Pinia，供指令和监听读取数据
+startWatchers()                                    // 再启动标签持久化等集中副作用
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面

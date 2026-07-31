@@ -8,9 +8,10 @@ import { computed, onMounted, ref } from 'vue'        // 引入表单副本、�
 import PermissionEditor from '../components/PermissionEditor.vue' // 引入工具权限编辑器
 import ProviderConfig from '../components/ProviderConfig.vue' // 引入模型与提示词编辑器
 import CapabilitySettings from '../components/CapabilitySettings.vue' // 引入 MCP、LSP 与 Skills 完整管理器
+import { Settings as SettingsCommand } from '../commands/settings.js' // 引入设置草稿和保存指令
+import { UI } from '../commands/ui.js'               // 引入设置分类导航指令
 import { useConfigStore } from '../stores/config.js' // 引入真实配置读写指令
 import { useUIStore } from '../stores/ui.js'          // 引入设置分类导航状态
-import { AgentAPI } from '../api.js'                  // 引入真实工具注册表读取指令
 
 const config = useConfigStore()                       // 读取配置状态和保存动作
 const ui = useUIStore()                               // 读取顶部小窗指定的设置分类
@@ -29,38 +30,33 @@ const currentSection = computed(() => sections.find((item) => item.id === ui.set
 const savesCoreConfig = computed(() => !['mcp', 'lsp', 'skills'].includes(ui.settingsSection)) // 外部能力页使用自己的保存并应用流程
 
 
-// --- 复制可编辑配置数据 ---
-function cloneConfig(source) {
-  return JSON.parse(JSON.stringify(source))           // API 数据只含 JSON 值，同时移除 Pinia 响应式代理
-}
-
-
 // --- 加载配置编辑副本 ---
 async function loadConfig() {
-  const [current, tools] = await Promise.all([config.load(), AgentAPI.listTools()]) // 并行读取配置和权限目标工具
-  toolNames.value = tools.map((tool) => tool.name)    // 权限编辑器不隐藏未配置的新工具
-  if (current) draft.value = cloneConfig(current)     // 创建独立副本避免输入即时污染状态
+  await SettingsCommand.loadPage(draft, toolNames)    // 指令读取配置并写入页面草稿和工具名称
 }
 
 
 // --- 修改权限副本 ---
 function setPermissions(permissions) {
-  draft.value = { ...draft.value, permissions }       // 将权限编辑结果写入当前草稿
+  SettingsCommand.setPermissions(draft, permissions)  // 指令将权限编辑结果写入当前草稿
+}
+
+
+// --- 修改系统提示词草稿 ---
+function setSystemPrompt(event) {
+  SettingsCommand.setSystemPrompt(draft, event.target.value) // 将输入事件交给设置指令修改草稿
+}
+
+
+// --- 修改提供商校验反馈 ---
+function setProviderValidity(isValid) {
+  SettingsCommand.setProviderValidity(providerValid, isValid) // 将校验结果交给设置指令保存
 }
 
 
 // --- 保存用户配置 ---
 async function saveConfig() {
-  if (!providerValid.value) return                    // 无效提供商字段不能被旧草稿值静默覆盖
-  const changes = {                                   // 只发送本页明确支持的可编辑字段
-    activeProvider: draft.value.activeProvider,       // 保存当前提供商名称
-    activeModel: draft.value.activeModel,             // 保存当前模型名称
-    providers: draft.value.providers,                 // 完整替换提供商和模型清单
-    systemPrompt: draft.value.systemPrompt,           // 保存模型系统指令
-    permissions: draft.value.permissions,             // 保存完整工具权限映射
-  }
-  const saved = await config.save(changes)            // 让 Server 即时生效并持久化
-  if (saved) draft.value = cloneConfig(config.config) // 用 Server 实际结果重置副本
+  await SettingsCommand.savePage(draft, providerValid) // 指令校验、保存并用 Server 结果重置草稿
 }
 
 onMounted(loadConfig)                                 // 首次进入读取真实设置
@@ -79,7 +75,7 @@ onMounted(loadConfig)                                 // 首次进入读取真�
     <div v-if="config.errorMessage" class="notice notice--error">{{ config.errorMessage }}</div>
     <div class="settings-layout">
       <nav class="settings-navigation" aria-label="设置分类">
-        <button v-for="section in sections" :key="section.id" type="button" :class="{ 'is-active': ui.settingsSection === section.id }" @click="ui.settingsSection = section.id">
+        <button v-for="section in sections" :key="section.id" type="button" :class="{ 'is-active': ui.settingsSection === section.id }" @click="UI.openSettings(section.id)">
           <mdui-icon-dns v-if="section.icon === 'dns'"></mdui-icon-dns>
           <mdui-icon-settings v-else-if="section.icon === 'settings'"></mdui-icon-settings>
           <mdui-icon-key v-else-if="section.icon === 'key'"></mdui-icon-key>
@@ -92,10 +88,10 @@ onMounted(loadConfig)                                 // 首次进入读取真�
       <div class="settings-page">
         <div v-if="config.isLoading && !draft" class="view-loading">正在读取设置…</div>
         <template v-else-if="draft">
-          <ProviderConfig v-if="ui.settingsSection === 'models'" v-model="draft" @validity="providerValid = $event" />
+          <ProviderConfig v-if="ui.settingsSection === 'models'" v-model="draft" @validity="setProviderValidity" />
           <section v-else-if="ui.settingsSection === 'agent'" class="settings-section settings-section--prompt">
             <header class="settings-section__header"><h2>Agent 行为</h2><p>系统提示词会在下一轮模型调用时生效。</p></header>
-            <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field>
+            <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="setSystemPrompt"></mdui-text-field>
           </section>
           <PermissionEditor v-else-if="ui.settingsSection === 'permissions'" :permissions="draft.permissions || {}" :tool-names="toolNames" @update="setPermissions" />
           <CapabilitySettings v-else embedded :section="ui.settingsSection" />
