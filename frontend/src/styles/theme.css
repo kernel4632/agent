@@ -1,0 +1,381 @@
+/*
+默认主题最终层：统一落实黑白 Material You 外观，并覆盖历史组件规则。
+用户可以在随后加载的 overrides.css 中覆盖变量或任意业务类。
+*/
+
+.chat-workspace,
+.chat-workspace--tasks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.session-title-editor {
+  display: block;
+}
+
+.session-title-editor > button {
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--agent-text);
+  font-size: 14px;
+  cursor: text;
+}
+
+.session-title-editor > input {
+  height: 28px;
+  padding: 2px 0;
+  border: 0;
+  border-bottom: 1px solid var(--agent-focus);
+  border-radius: 0;
+  background: transparent;
+  color: var(--agent-text);
+}
+
+.task-dock {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--agent-outline);
+  border-radius: 22px;
+  background: var(--agent-surface);
+}
+
+.task-dock__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px 0 16px;
+  color: var(--agent-muted);
+  cursor: pointer;
+}
+
+.task-dock__progress {
+  color: var(--agent-text);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.task-dock__preview {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-dock__chevron {
+  width: 18px;
+  height: 18px;
+  transition: transform 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.task-dock__body {
+  display: grid;
+  gap: 2px;
+  max-height: 168px;
+  padding: 2px 10px 10px;
+  overflow-y: auto;
+}
+
+.task-dock__item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  min-height: 34px;
+  padding: 2px 8px;
+  border-radius: 14px;
+  color: var(--agent-text);
+  font-size: 12px;
+}
+
+.task-dock__item:hover {
+  background: var(--agent-surface);
+}
+
+.task-dock__item mdui-checkbox {
+  transform: scale(.78);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.task-dock__item.is-completed span,
+.task-dock__item.is-cancelled span {
+  color: var(--agent-muted);
+  text-decoration: line-through;
+}
+
+.tool-call {
+  margin: 2px 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.message--tool {
+  margin-bottom: 5px;
+}
+
+.message--tool + .message--tool {
+  margin-top: 0;
+}
+
+.tool-call__collapse {
+  display: block;
+  width: 100%;
+}
+
+.tool-call__header {
+  display: grid;
+  grid-template-columns: 26px auto minmax(0, 1fr) auto auto 20px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--agent-outline) 72%, transparent);
+  border-radius: 21px;
+  background: var(--agent-surface);
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.tool-call__header:hover,
+.tool-call.is-waiting .tool-call__header,
+.tool-call.is-deciding .tool-call__header {
+  background: var(--agent-surface-raised);
+}
+
+.tool-call__icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--agent-text);
+  background: var(--agent-surface-raised);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.tool-call__header > strong {
+  color: var(--agent-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tool-call__summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-muted);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-call__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--agent-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tool-call__status i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--agent-muted);
+  border-radius: 50%;
+}
+
+.tool-call.is-running .tool-call__status i,
+.tool-call.is-waiting .tool-call__status i,
+.tool-call.is-deciding .tool-call__status i,
+.tool-call.is-completed .tool-call__status i {
+  border-color: var(--agent-focus);
+  background: var(--agent-focus);
+}
+
+.tool-call__rollback {
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--agent-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.tool-call__chevron {
+  width: 17px;
+  height: 17px;
+  color: var(--agent-muted);
+  transition: transform 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+mdui-collapse-item[active] .tool-call__chevron,
+mdui-collapse-item[active] .task-dock__chevron {
+  transform: rotate(180deg);
+}
+
+.tool-call__body {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0 8px 34px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--agent-surface);
+}
+
+.tool-call__fields {
+  display: grid;
+  gap: 4px;
+}
+
+.tool-call__field {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: baseline;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.tool-call__field span {
+  color: var(--agent-muted);
+  font-size: 10px;
+}
+
+.tool-call__field code {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--agent-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-call__tasks {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-call__tasks li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  min-height: 32px;
+  color: var(--agent-text);
+  font-size: 12px;
+}
+
+.tool-call__tasks mdui-checkbox {
+  transform: scale(.78);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.tool-call__result-row {
+  min-width: 0;
+  padding: 8px 6px 2px;
+  overflow: hidden;
+  border-top: 1px solid var(--agent-outline);
+  color: var(--agent-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-call__details {
+  border: 0;
+}
+
+.tool-call__details summary {
+  padding: 4px 6px;
+  color: var(--agent-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.tool-call__details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  background: transparent;
+}
+
+.tool-call__details-grid > div {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--agent-surface);
+}
+
+.tool-call__details-grid pre {
+  max-height: 180px;
+  margin: 5px 0 0;
+  overflow: auto;
+  color: var(--agent-text);
+  font-size: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tool-call__approval {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 8px 34px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--agent-surface);
+}
+
+.tool-call__approval-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+@media (max-width: 760px) {
+  .tool-call__header {
+    grid-template-columns: 26px auto minmax(0, 1fr) 18px;
+  }
+
+  .tool-call__status,
+  .tool-call__rollback {
+    display: none;
+  }
+
+  .tool-call__body,
+  .tool-call__approval {
+    margin-left: 0;
+  }
+
+  .tool-call__details-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tool-call__approval-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

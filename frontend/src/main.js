@@ -27,6 +27,8 @@ import '@mdui/icons/close.js'                      // 注册移除模型图标
 import '@mdui/icons/home.js'                       // 注册顶部主页图标
 import '@mdui/icons/undo.js'                       // 注册撤销回退图标
 import './styles/main.scss'                        // 引入 Agent 黑白视觉主题
+import './styles/theme.css'                        // 在历史组件规则之后落实默认主题外观
+import './styles/overrides.css'                    // 允许用户最后覆盖 CSS 变量和组件样式
 import App from './App.vue'                        // 引入根界面组合组件
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例

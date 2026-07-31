@@ -495,65 +495,10 @@ button {
   margin-top: 16px;                                  // 与回答正文分离
 }
 
-.tool-call {
-  overflow: hidden;                                  // 结果保持在工具边界内
-  border: 1px solid $line;                           // 工具调用是真实可检查的框架内容
-  border-radius: 6px;                                // 克制工具面板圆角
-  background: #0e0e0e;                              // 与消息背景轻微区分
-}
-
-.tool-call__header {
-  display: flex;                                     // 名称、状态和动作同排
-  align-items: center;                               // 保持信息基线稳定
-  gap: 9px;                                          // 工具信息留清晰间距
-  min-height: 39px;                                  // 固定头部避免动态结果跳动
-  padding: 0 12px;                                   // 提供紧凑边距
-  border-bottom: 1px solid #232323;                  // 分离工具参数与头部
-  font-size: 12px;                                   // 技术面板使用紧凑字号
-}
-
-.tool-call__mark,
 .tool-item__icon {
   color: #9b9b9b;                                   // 命令符号保持辅助层级
   font-family: "Cascadia Code", Consolas, monospace;
   font-weight: 700;                                  // 小符号保持清晰
-}
-
-.tool-call__status {
-  margin-left: auto;                                 // 将状态推到右侧
-  color: #777777;                                    // 降低已完成状态权重
-  font-size: 11px;                                   // 使用辅助字号
-}
-
-.tool-call__rollback {
-  padding: 3px 6px;                                  // 提供紧凑文字动作区域
-  border: 0;                                         // 内联动作无需按钮边框
-  background: transparent;                           // 不制造胶囊按钮
-  color: #bdbdbd;                                    // 保持可见但不抢主要内容
-  font-size: 11px;                                   // 与工具状态一致
-  cursor: pointer;                                   // 反馈可执行回滚
-}
-
-.tool-call__data,
-.tool-call__result {
-  margin: 0;                                         // 工具容器控制所有外边距
-  border: 0 !important;                              // 避免嵌套双边框
-  border-radius: 0 !important;                       // 与父容器边缘连续
-  background: transparent !important;                // 保持单一工具表面
-}
-
-.tool-call__approval {
-  display: flex;                                     // 拒绝和允许动作同排
-  align-items: center;                               // 控件垂直居中
-  justify-content: flex-end;                         // 主要确认动作位于右侧
-  gap: 6px;                                          // 审批动作保持紧密分组
-  padding: 10px 12px;                                // 与工具大圆角边缘留空
-  border-top: 1px solid #333536;                     // 从工具输入中分隔审批区
-}
-
-.tool-call__result {
-  border-top: 1px solid #232323 !important;          // 结果与输入明确分隔
-  color: #bdbdbd;                                    // 结果保持次级技术文本
 }
 
 .chat-feedback {
@@ -1058,6 +1003,31 @@ button {
     width: 100%;                                     // 三态控件使用完整移动宽度
     min-width: 0;                                    // 允许窄屏缩放
   }
+}
+
+.session-title-editor > button {
+  padding: 3px 0;                                      // 可编辑标题只占文本本身
+  border: 0;                                           // 标题不显示为按钮
+  background: transparent;                             // 默认融入顶栏
+  color: var(--agent-text);                            // 标题使用主文字
+  font-size: 14px;                                     // 与原顶栏尺度一致
+  font-weight: 600;                                    // 保持上下文识别
+  cursor: text;                                        // 文本光标暗示可编辑
+}
+
+.session-title-editor > input {
+  height: 28px;                                        // 编辑态不改变顶栏节奏
+  padding: 2px 0;                                      // 输入与原标题基线对齐
+  border: 0;                                           // 不出现传统表单边框
+  border-bottom: 1px solid var(--agent-focus);         // 只用底线反馈正在编辑
+  border-radius: 0;                                    // 与标题文本保持无感衔接
+  outline: 0;                                          // 聚焦反馈由底线承载
+  background: transparent;                             // 编辑态不跳成另一张卡片
+  color: var(--agent-text);                            // 草稿保持主对比
+}
+
+.session-title-editor > input:focus {
+  border-bottom-width: 2px;                            // 聚焦时增强可见性而不移动外框
 }
 
 /* --- OpenCode 式顶部会话工作区 --- */
@@ -1577,16 +1547,10 @@ button {
   background: #1e2021;                              // 从主画布轻微抬升
 }
 
-.tool-call,
 .approval {
-  border: 0;                                         // 工具和审批不使用硬描边卡片
-  border-radius: 24px;                               // 真实操作面板使用 Material 大圆角
+  border: 0;                                         // 审批不使用硬描边卡片
+  border-radius: 24px;                               // 操作面板使用 Material 大圆角
   background: #222425;                              // tonal 区分技术内容
-}
-
-.tool-call__header {
-  min-height: 48px;                                  // 大圆角面板内保持舒适头部
-  border-bottom-color: #333536;                      // 分隔线融入 tonal 表面
 }
 
 .workspace-view,
@@ -2086,17 +2050,6 @@ button {
   white-space: nowrap;                               // 不推动聊天内容
 }
 
-.chat-workspace {
-  display: grid;                                     // 消息和任务面板共享聊天内容轨道
-  grid-template-columns: minmax(0, 1fr);             // 无任务时消息使用完整宽度
-  min-height: 0;                                     // 允许内部消息列表滚动
-  overflow: hidden;                                  // 滚动限定到消息和任务自身
-}
-
-.chat-workspace--tasks {
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 286px); // 有任务时提供紧凑右侧轨道
-}
-
 .chat-workspace > .chat-empty {
   align-self: center;                                // 空对话品牌保持内容区居中
   justify-self: center;                              // 不受任务轨道影响水平位置
@@ -2106,112 +2059,6 @@ button {
   min-width: 0;                                      // 代码和表格不撑破任务轨道
   height: 100%;                                      // 继续使用独立消息滚动
 }
-
-.task-panel {
-  min-width: 0;                                      // 长任务文字可以换行
-  margin: 14px 14px 14px 0;                          // 与工作区边缘和消息留空
-  overflow: hidden;                                  // 清单滚动不泄露面板
-  border: 1px solid #30363d;                         // 终端式细线界定工作面板
-  border-radius: 8px;                                // 保持工具表面克制
-  background: #11161a;                              // 使用略带冷色的中性技术表面
-}
-
-.task-panel__header {
-  display: flex;                                     // 标题、计数和活动状态同排
-  align-items: center;                               // 保持 42px 工具栏稳定
-  justify-content: space-between;                    // 进度摘要靠右
-  min-height: 42px;                                  // 固定状态栏尺寸
-  padding: 0 11px;                                   // 与任务内容对齐
-  border-bottom: 1px solid #252c31;                  // 分隔摘要和清单
-}
-
-.task-panel__header > div {
-  display: flex;                                     // 标题与完成计数同排
-  align-items: baseline;                             // 数字对齐标题基线
-  gap: 7px;                                          // 避免计数粘连
-}
-
-.task-panel__header strong {
-  font-size: 12px;                                   // 面板标题适合密集工作区
-}
-
-.task-panel__header span,
-.task-panel__header small {
-  color: #8b949e;                                    // 计数保持次级
-  font-family: "Cascadia Code", Consolas, monospace; // 数字使用终端等宽字体
-  font-size: 10px;                                   // 不抢任务正文
-}
-
-.task-panel__progress {
-  height: 2px;                                       // 精细进度线不占垂直空间
-  background: #2b3137;                              // 表达未完成比例
-}
-
-.task-panel__progress span {
-  display: block;                                    // 宽度变化形成真实进度
-  height: 100%;                                      // 填满两像素轨道
-  background: #56d364;                              // 完成使用终端绿色语义
-  transition: width 180ms ease;                      // SSE 更新平滑反馈
-}
-
-.task-panel__list {
-  max-height: calc(100% - 44px);                     // 长清单在聊天高度内独立滚动
-  margin: 0;                                         // 移除有序列表默认外边距
-  padding: 5px;                                      // 条目与面板边缘留空
-  overflow-y: auto;                                  // 多任务保持面板尺寸稳定
-  list-style: none;                                  // 状态点替代数字标记
-}
-
-.task-panel__list li {
-  display: grid;                                     // 状态、内容和优先级三列排列
-  grid-template-columns: 12px minmax(0, 1fr) 18px;   // 内容轨道自适应并可换行
-  align-items: start;                                // 多行任务从顶部对齐
-  gap: 7px;                                          // 避免状态与文字粘连
-  padding: 7px 6px;                                  // 紧凑但可扫描
-  border-radius: 5px;                                // 条目悬停保持小圆角
-  color: #c9d1d9;                                    // 正文使用终端中性前景
-  font-size: 11px;                                   // 适合右侧窄面板密度
-  line-height: 1.45;                                 // 多行仍可读
-}
-
-.task-panel__list li:hover {
-  background: #1b2228;                              // 悬停帮助横向扫描同一任务
-}
-
-.task-panel__state {
-  width: 8px;                                        // 状态点保持稳定尺寸
-  height: 8px;                                       // 与正文首行对齐
-  margin-top: 4px;                                   // 视觉居中首行文字
-  border: 1px solid #6e7681;                         // 待处理使用空心中性状态
-  border-radius: 50%;                                // 熟悉的任务状态符号
-}
-
-.task-panel__list .is-in_progress .task-panel__state {
-  border-color: #58a6ff;                             // 进行中使用终端蓝色
-  background: #58a6ff;                              // 实心反馈当前活动项
-  box-shadow: 0 0 0 3px rgb(88 166 255 / 12%);       // 提升窄面板辨识度
-}
-
-.task-panel__list .is-completed .task-panel__state {
-  border-color: #56d364;                             // 完成状态接入进度绿色
-  background: #56d364;                              // 实心表示已结束
-}
-
-.task-panel__list .is-completed .task-panel__content,
-.task-panel__list .is-cancelled .task-panel__content {
-  color: #6e7681;                                    // 非活动任务降低权重
-  text-decoration: line-through;                     // 明确任务不再待执行
-}
-
-.task-panel__priority {
-  color: #8b949e;                                    // 默认优先级保持次级
-  font-family: "Cascadia Code", Consolas, monospace; // 单字标记稳定对齐
-  font-size: 9px;                                    // 不挤压任务内容
-  text-align: center;                                // 对齐固定窄列
-}
-
-.task-panel__list .priority-high .task-panel__priority { color: #ff7b72; } // 高优先级使用危险红
-.task-panel__list .priority-medium .task-panel__priority { color: #e3b341; } // 中优先级使用警示黄
 
 .tool-call__approval {
   display: grid;                                     // 权限目标、错误和动作垂直组织
@@ -2522,25 +2369,9 @@ button {
   50% { opacity: 1; transform: scale(1.12); }         // 中点明确提示等待决定
 }
 
-@media (max-width: 980px) {
-  .chat-workspace--tasks {
-    grid-template-columns: minmax(0, 1fr) 226px;     // 中等宽度压缩任务轨道而非消息正文
-  }
-}
-
 @media (max-width: 760px) {
   .session-title-editor--compact {
     width: min(54vw, 300px);                         // 移动顶栏给运行状态保留空间
-  }
-
-  .chat-workspace--tasks {
-    grid-template-columns: minmax(0, 1fr);           // 移动端任务与消息改为同一列
-    grid-template-rows: minmax(0, 1fr) auto;         // 消息优先使用可用高度
-  }
-
-  .task-panel {
-    max-height: 34vh;                                // 任务面板不吞没移动消息区
-    margin: 0 8px 8px;                               // 与输入器宽度协调
   }
 
   .tool-call__approval-actions {

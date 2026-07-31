@@ -66,12 +66,11 @@ onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读�
       </div>
     </header>
 
-    <div class="chat-workspace" :class="{ 'chat-workspace--tasks': chat.tasks.length }">
+    <div class="chat-workspace">
       <div v-if="!chat.hasMessages" class="chat-empty">
         <div class="chat-empty__brand"><span class="chat-empty__symbol">A</span><strong>Agent</strong></div>
       </div>
       <MessageList v-else :messages="chat.messages" @rollback="chat.rollback" @retry="chat.rollbackMessage" @approval="chat.decide($event.toolCallID, $event.decision)" />
-      <TaskPanel :tasks="chat.tasks" />
     </div>
 
     <div class="chat-feedback">
@@ -86,6 +85,7 @@ onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读�
         <span v-if="chat.rollbackState.target?.content" class="revert-dock__preview">{{ chat.rollbackState.target.content }}</span>
         <button type="button" @click="chat.undoRollback">撤销回退</button>
       </div>
+      <TaskPanel :tasks="chat.tasks" />
       <InputBox v-model="chat.draftText" :running="chat.isRunning" :config="config.config" @send="sendMessage" @stop="chat.stop" @select-model="selectModel" />
       <small>Agent 可能会出错，请检查重要操作。</small>
     </footer>
