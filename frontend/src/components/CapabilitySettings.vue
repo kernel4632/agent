@@ -7,7 +7,7 @@
 import { computed, onMounted, ref } from 'vue'                   // 引入能力清单、当前分类和首次加载能力
 import { storeToRefs } from 'pinia'                              // 保持共享能力快照响应性
 import { Capability } from '../commands/capability.js'           // 引入能力草稿和生命周期指令
-import { useCapabilityStore } from '../stores/capabilities.js'  // 引入顶部与设置页共享运行态
+import { useCapabilityStore } from '../store.js'                // 引入顶部与设置页共享运行态
 import { watchCapabilitySection } from '../watchers.js'          // 引入集中管理的分类同步监听
 
 const props = defineProps({ embedded: { type: Boolean, default: false }, section: { type: String, default: '' } }) // 设置页可固定到独立 MCP、LSP 或技能分类

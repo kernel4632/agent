@@ -3,9 +3,7 @@
 本文件只编排其他指令，不直接操作 UI；用于保证 App.vue 入口只需调用一个明确动作。
 调用示例：await Workspace.openSession('ses_123')、Workspace.startNewChat()。
 */
-import { useChatStore } from '../stores/chat.js'          // 引入对话映射供启动恢复判断
-import { useSessionStore } from '../stores/session.js'    // 引入会话摘要供标签标题同步
-import { useTabStore } from '../stores/tabs.js'           // 引入标签顺序和当前选择
+import { useChatStore, useSessionStore, useTabStore } from '../store.js' // 引入恢复工作区需要的全部数据
 import { Chat } from './chat.js'                          // 引入对话加载和清理指令
 import { Session } from './session.js'                    // 引入会话资源指令
 import { Tabs } from './tabs.js'                          // 引入顶部标签指令

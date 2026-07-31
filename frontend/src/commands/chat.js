@@ -1,11 +1,10 @@
 /*
 对话指令：负责每个标签的消息、SSE、审批、任务、停止和回滚动作。
-所有对话数据存放在 stores/chat.js；本指令捕获触发时标签，保证后台流不会串写当前页面。
+所有对话数据存放在 store.js；本指令捕获触发时标签，保证后台流不会串写当前页面。
 调用示例：await Chat.send('检查项目')、Chat.loadSession(session, tabKey)、await Chat.rollback(step)。
 */
 import { AgentAPI } from '../api.js'                               // 引入对话与回滚 HTTP 指令
-import { createConversationData, useChatStore } from '../stores/chat.js' // 引入对话默认结构和数据映射
-import { useTabStore } from '../stores/tabs.js'                    // 引入当前标签身份数据
+import { createConversationData, useChatStore, useTabStore } from '../store.js' // 引入对话结构和标签身份数据
 import { readSSE } from '../utils/sse.js'                          // 引入通用 SSE 协议解析工具
 import { Tabs } from './tabs.js'                                   // 引入标签升级和标题指令
 

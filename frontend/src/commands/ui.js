@@ -1,9 +1,9 @@
 /*
 界面指令：负责切换工作台主页面和设置分类。
-所有动作只修改 stores/ui.js 中的数据，不读取 Server，也不操作 DOM。
+所有动作只修改 store.js 中的数据，不读取 Server，也不操作 DOM。
 调用示例：UI.openView('chat')、UI.openSettings('mcp')。
 */
-import { useUIStore } from '../stores/ui.js'             // 引入界面数据结构
+import { useUIStore } from '../store.js'                 // 引入界面数据结构
 
 
 // --- 打开一个工作台页面 ---

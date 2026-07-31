@@ -10,8 +10,7 @@ import ProviderConfig from '../components/ProviderConfig.vue' // 引入模型与
 import CapabilitySettings from '../components/CapabilitySettings.vue' // 引入 MCP、LSP 与 Skills 完整管理器
 import { Settings as SettingsCommand } from '../commands/settings.js' // 引入设置草稿和保存指令
 import { UI } from '../commands/ui.js'               // 引入设置分类导航指令
-import { useConfigStore } from '../stores/config.js' // 引入真实配置读写指令
-import { useUIStore } from '../stores/ui.js'          // 引入设置分类导航状态
+import { useConfigStore, useUIStore } from '../store.js' // 引入配置和设置分类导航数据
 
 const config = useConfigStore()                       // 读取配置状态和保存动作
 const ui = useUIStore()                               // 读取顶部小窗指定的设置分类

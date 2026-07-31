@@ -1,9 +1,9 @@
 /*
 标签指令：负责恢复、创建、选择、升级、关闭和同步顶部会话标签。
-标签数据只存放在 stores/tabs.js；浏览器持久化由 watchers.js 响应数据变化。
+标签数据只存放在 store.js；浏览器持久化由 watchers.js 响应数据变化。
 调用示例：Tabs.createDraft()、Tabs.openSession('ses_123', '标题')。
 */
-import { useTabStore } from '../stores/tabs.js'          // 引入顶部标签数据结构
+import { useTabStore } from '../store.js'                // 引入顶部标签数据结构
 
 const storageKey = 'agent.session-tabs'                  // 使用稳定浏览器键恢复工作区标签
 

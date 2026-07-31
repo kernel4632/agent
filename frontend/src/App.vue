@@ -12,8 +12,7 @@ import CapabilityPopover from './components/CapabilityPopover.vue' // 引入顶�
 import { Chat as ChatCommand } from './commands/chat.js' // 引入标签状态读取指令
 import { UI } from './commands/ui.js'                 // 引入界面导航指令
 import { Workspace } from './commands/workspace.js'   // 引入跨主体工作区指令
-import { useTabStore } from './stores/tabs.js'        // 引入顶部多会话标签状态
-import { useUIStore } from './stores/ui.js'           // 引入主页和业务视图导航
+import { useTabStore, useUIStore } from './store.js' // 引入顶部标签和业务视图导航数据
 
 const tabs = useTabStore()                            // 读取持久化顶部标签
 const ui = useUIStore()                               // 读取当前页面

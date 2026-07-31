@@ -4,7 +4,7 @@
 调用示例：在 Pinia 注册后执行 startWatchers()。
 */
 import { watch } from 'vue'                             // 引入响应式数据监听能力
-import { useTabStore } from './stores/tabs.js'          // 引入需要持久化的标签数据
+import { useTabStore } from './store.js'                // 引入需要持久化的标签数据
 import { Tabs } from './commands/tabs.js'               // 引入稳定浏览器存储键
 import { Settings } from './commands/settings.js'       // 引入提供商反馈同步指令
 

@@ -7,7 +7,7 @@
 import { computed, onMounted, ref } from 'vue'         // 引入状态统计和弹层引用
 import { storeToRefs } from 'pinia'                    // 保持 Pinia 字段响应性
 import { Capability } from '../commands/capability.js' // 引入能力读取和重载指令
-import { useCapabilityStore } from '../stores/capabilities.js' // 引入共享运行态
+import { useCapabilityStore } from '../store.js'               // 引入共享运行态
 
 const emit = defineEmits(['open-settings'])            // 将完整管理入口交给应用壳层
 const dropdown = ref(null)                             // 保存 MDUI 弹层以便跳转前关闭

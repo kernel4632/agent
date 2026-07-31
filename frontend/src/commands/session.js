@@ -1,10 +1,10 @@
 /*
 会话指令：负责读取、删除、重命名和更新 Server 会话资源。
-请求结果统一写入 stores/session.js，Vue 页面只读取数据并触发这些指令。
+请求结果统一写入 store.js，Vue 页面只读取数据并触发这些指令。
 调用示例：await Session.refresh()、await Session.rename('ses_123', '新标题')。
 */
 import { AgentAPI } from '../api.js'                       // 引入会话 HTTP 指令
-import { useSessionStore } from '../stores/session.js'     // 引入会话数据结构
+import { useSessionStore } from '../store.js'              // 引入会话数据结构
 
 
 // --- 刷新会话摘要 ---

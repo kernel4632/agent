@@ -6,7 +6,7 @@
 <script setup>
 import { computed, ref } from 'vue'                    // 引入当前提供商和局部字段反馈
 import { Settings } from '../commands/settings.js'    // 引入提供商、模型和连接测试指令
-import { useConfigStore } from '../stores/config.js'  // 引入已保存配置数据
+import { useConfigStore } from '../store.js'          // 引入已保存配置数据
 import { watchProviderEditor } from '../watchers.js'   // 引入集中管理的提供商反馈监听
 
 const props = defineProps({                           // 声明设置页完整编辑副本

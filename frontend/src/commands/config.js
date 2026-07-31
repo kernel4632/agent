@@ -1,10 +1,10 @@
 /*
 配置指令：负责读取、保存、切换和测试 Agent 配置。
-所有请求反馈写入 stores/config.js，表单草稿操作由 commands/settings.js 负责。
+所有请求反馈写入 store.js，表单草稿操作由 commands/settings.js 负责。
 调用示例：await Config.load()、await Config.selectModel('openai', 'gpt-4.1')。
 */
 import { AgentAPI } from '../api.js'                    // 引入配置 HTTP 指令
-import { useConfigStore } from '../stores/config.js'    // 引入配置数据结构
+import { useConfigStore } from '../store.js'            // 引入配置数据结构
 
 
 // --- 读取当前配置 ---

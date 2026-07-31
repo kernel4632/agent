@@ -4,7 +4,7 @@
 调用示例：await Settings.loadPage()、Settings.addProvider(modelValue, emit, state)。
 */
 import { AgentAPI } from '../api.js'                       // 引入权限目标工具读取指令
-import { useConfigStore } from '../stores/config.js'       // 引入已保存配置数据
+import { useConfigStore } from '../store.js'               // 引入已保存配置数据
 import { Config } from './config.js'                       // 引入配置读取、保存和测试指令
 
 

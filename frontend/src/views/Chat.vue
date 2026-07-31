@@ -12,9 +12,7 @@ import TaskPanel from '../components/TaskPanel.vue'   // 引入当前会话任�
 import { Chat as ChatCommand } from '../commands/chat.js' // 引入对话、审批和回滚指令
 import { Config } from '../commands/config.js'       // 引入模型配置指令
 import { Workspace } from '../commands/workspace.js' // 引入发送和重命名工作区指令
-import { useConfigStore } from '../stores/config.js' // 引入模型配置数据
-import { useSessionStore } from '../stores/session.js' // 引入会话摘要数据
-import { useTabStore } from '../stores/tabs.js'       // 引入顶部标签数据
+import { useConfigStore, useSessionStore, useTabStore } from '../store.js' // 引入聊天页需要的全部数据
 
 const chat = computed(() => ChatCommand.getConversation()) // 读取当前标签完整对话数据
 const config = useConfigStore()                       // 只读取全部可切换模型

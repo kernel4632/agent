@@ -1,10 +1,10 @@
 /*
 能力指令：负责 MCP、LSP、Skills 的运行快照、配置草稿和保存重建动作。
-运行数据写入 stores/capabilities.js；Vue 组件只展示数据并把用户事件交给本指令。
+运行数据写入 store.js；Vue 组件只展示数据并把用户事件交给本指令。
 调用示例：await Capability.load()、Capability.addMCP(draft)、await Capability.save(draft)。
 */
 import { AgentAPI } from '../api.js'                              // 引入能力和配置 HTTP 指令
-import { useCapabilityStore } from '../stores/capabilities.js'    // 引入能力运行数据结构
+import { useCapabilityStore } from '../store.js'                  // 引入能力运行数据结构
 
 
 // --- 复制 JSON 数据 ---
