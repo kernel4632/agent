@@ -26,7 +26,7 @@ function startNewChat() {
 
 // --- 打开一个 Server 会话 ---
 async function openSession(sessionID, activate = true) {
-  const summary = store.session.sessions.find((item) => item.id === sessionID) // 读取当前标题供标签立即展示
+  const summary = store.session.items.find((item) => item.id === sessionID) // 读取当前标题供标签立即展示
   const key = Tabs.openSession(sessionID, summary?.title, activate) // 新增或复用顶部标签
   if (!activate) return                                  // 后台打开只新增标签，不读取当前页面
   UI.openView('chat')                                    // 先反馈标签选择
@@ -51,7 +51,7 @@ async function closeTab(tab) {
   if (!Chat.removeConversation(tab.key)) return false    // 运行中标签保留流和审批入口
   const nextKey = Tabs.close(tab.key)                    // 移除标签并选择相邻项
   if (!nextKey) return openHome()                        // 最后一个标签关闭后回主页
-  const nextTab = store.tabs.tabs.find((item) => item.key === nextKey) // 查找新的活动标签
+  const nextTab = store.tabs.items.find((item) => item.key === nextKey) // 查找新的活动标签
   if (nextTab) await selectTab(nextTab)                  // 未加载历史也进入准确上下文
   return true                                            // 返回关闭动作完成
 }
@@ -61,7 +61,7 @@ async function closeTab(tab) {
 async function removeSession(sessionID) {
   const removed = await Session.remove(sessionID)        // 删除 Server 内存和磁盘数据
   if (!removed) return false                             // 失败时保留标签和列表
-  const tab = store.tabs.tabs.find((item) => item.sessionID === sessionID) // 查找关联标签
+  const tab = store.tabs.items.find((item) => item.sessionID === sessionID) // 查找关联标签
   if (tab) Chat.removeConversation(tab.key)              // 释放非运行对话数据
   Tabs.removeSession(sessionID)                          // 从顶部工作区移除标签
   return true                                            // 返回删除动作完成
@@ -112,7 +112,7 @@ async function restore() {
   const sessions = await Session.refresh()               // 再读取 Server 最新会话摘要
   Tabs.syncTitles(sessions)                              // 更新恢复标签的异步标题
   const tabStore = store.tabs                            // 读取恢复后的当前标签
-  const activeTab = tabStore.tabs.find((tab) => tab.key === tabStore.activeKey) // 查找上次活动会话
+  const activeTab = tabStore.items.find((tab) => tab.key === tabStore.activeKey) // 查找上次活动会话
   if (activeTab) await selectTab(activeTab)              // 恢复窗口关闭前的聊天上下文
 }
 

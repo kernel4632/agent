@@ -18,8 +18,8 @@ const chat = computed(() => ChatCommand.getConversation()) // 读取当前标签
 const config = store.config                            // 只读取全部可切换模型
 const sessions = store.session                         // 只读取当前会话摘要
 const tabs = store.tabs                                // 只读取当前活动标签
-const currentSession = computed(() => sessions.sessions.find((item) => item.id === chat.value.sessionID)) // 查找当前摘要
-const activeTab = computed(() => tabs.tabs.find((item) => item.key === tabs.activeKey)) // 读取异步标题已更新的活动标签
+const currentSession = computed(() => sessions.items.find((item) => item.id === chat.value.sessionID)) // 查找当前摘要
+const activeTab = computed(() => tabs.items.find((item) => item.key === tabs.activeKey)) // 读取异步标题已更新的活动标签
 const title = computed(() => currentSession.value?.title || activeTab.value?.title || (chat.value.messages.length ? '新会话' : 'Agent')) // 为顶栏反馈最新上下文
 const draftText = computed({ get: () => chat.value.draftText, set: ChatCommand.setDraftText }) // 输入变化通过对话指令修改当前草稿
 const isRenaming = ref(false)                         // 防止标题保存期间重复提交
@@ -43,7 +43,7 @@ async function renameSession(nextTitle, resolve) {
   await Workspace.renameCurrentSession(chat.value, nextTitle, resolve, isRenaming, renameError) // 指令管理保存状态、错误和编辑器反馈
 }
 
-onMounted(() => { if (!config.config) Config.load() }) // 首次进入对话触发配置读取指令
+onMounted(() => { if (!config.current) Config.load() }) // 首次进入对话触发配置读取指令
 </script>
 
 <template>
@@ -77,7 +77,7 @@ onMounted(() => { if (!config.config) Config.load() }) // 首次进入对话触�
         <button type="button" @click="ChatCommand.undoRollback">撤销回退</button>
       </div>
       <TaskPanel :tasks="chat.tasks" />
-      <InputBox v-model="draftText" :running="chat.isRunning" :config="config.config" @send="sendMessage" @stop="ChatCommand.stop" @select-model="selectModel" />
+      <InputBox v-model="draftText" :running="chat.isRunning" :config="config.current" @send="sendMessage" @stop="ChatCommand.stop" @select-model="selectModel" />
       <small>Agent 可能会出错，请检查重要操作。</small>
     </footer>
   </section>

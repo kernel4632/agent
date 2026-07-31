@@ -1,7 +1,7 @@
 /*
 工作台数据：集中定义界面、标签、会话、对话、配置和外部能力的完整响应式结构。
 本文件只暴露数据及默认值；所有读取、校验和修改仍由 commands 下对应主体的指令执行。
-调用示例：store.chat.conversations、store.config.config。
+调用示例：store.chat.conversations、store.config.current。
 */
 import { reactive } from 'vue'                                    // 引入单一全局响应式状态容器
 
@@ -32,11 +32,11 @@ export const store = reactive({                                  // 暴露唯一
     settingsSection: 'models',                                   // 当前设置分类：模型、Agent、权限或外部能力
   },
   tabs: {                                                         // 顶部聊天标签和当前选择
-    tabs: [],                                                     // 已打开标签，元素包含 key、sessionID 和 title
+    items: [],                                                    // 已打开标签，元素包含 key、sessionID 和 title
     activeKey: '',                                                // 当前聊天页对应的标签 key
   },
   session: {                                                      // Server 会话摘要和请求反馈
-    sessions: [],                                                // 按更新时间倒序排列的会话摘要
+    items: [],                                                   // 按更新时间倒序排列的会话摘要
     isLoading: false,                                             // 会话列表或详情是否正在读取
     errorMessage: '',                                             // 最近一次会话请求的错误说明
   },
@@ -44,7 +44,7 @@ export const store = reactive({                                  // 暴露唯一
     conversations: {},                                           // 标签 key 到独立对话数据的映射
   },
   config: {                                                       // 脱敏运行配置和保存反馈
-    config: null,                                                 // Server 返回的脱敏完整配置
+    current: null,                                                // Server 返回的脱敏完整配置
     isLoading: false,                                             // 配置是否正在读取或保存
     isSaved: false,                                               // 最近一次保存是否成功
     errorMessage: '',                                             // 最近一次配置请求的错误说明

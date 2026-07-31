@@ -24,7 +24,7 @@ const testState = ref(null)                           // 保存结构化连接�
 const isTesting = ref(false)                          // 防止重复连接测试
 const providerNames = computed(() => Object.keys(props.modelValue.providers ?? {})) // 派生左侧提供商列表
 const currentProvider = computed(() => props.modelValue.providers?.[selectedProvider.value] ?? null) // 派生当前提供商详情
-const savedProvider = computed(() => config.config?.providers?.[selectedProvider.value] ?? null) // 查找同名已保存服务
+const savedProvider = computed(() => config.current?.providers?.[selectedProvider.value] ?? null) // 查找同名已保存服务
 const renameLocked = computed(() => savedProvider.value?.apiKey === '[REDACTED]' && (!currentProvider.value?.apiKey || currentProvider.value.apiKey === '[REDACTED]')) // 密钥仍脱敏时禁止改变保存身份
 
 

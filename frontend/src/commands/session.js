@@ -13,8 +13,8 @@ async function refresh() {
   sessionStore.isLoading = true                            // 列表进入加载反馈
   sessionStore.errorMessage = ''                           // 新请求清除旧错误
   try {
-    sessionStore.sessions = await AgentAPI.listSessions()  // 用 Server 最新摘要替换当前列表
-    return sessionStore.sessions                           // 返回列表供跨主体指令继续同步
+    sessionStore.items = await AgentAPI.listSessions()     // 用 Server 最新摘要替换当前列表
+    return sessionStore.items                              // 返回列表供跨主体指令继续同步
   } catch (error) {
     sessionStore.errorMessage = error.message              // 保存网络或 Server 错误
     return []                                              // 失败时不制造虚假会话
@@ -55,7 +55,7 @@ async function rename(sessionID, title) {
   sessionStore.errorMessage = ''                           // 新请求清除旧错误
   try {
     const result = await AgentAPI.renameSession(sessionID, title) // 让 Server 清理并验证标题
-    const summary = sessionStore.sessions.find((item) => item.id === sessionID) // 定位主页中的同一摘要
+    const summary = sessionStore.items.find((item) => item.id === sessionID) // 定位主页中的同一摘要
     if (summary) Object.assign(summary, { title: result.title, titleSource: result.titleSource }) // 原位同步最终标题
     return result                                          // 返回最终标题供标签同步
   } catch (error) {

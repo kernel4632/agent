@@ -1,7 +1,7 @@
 <!--
 聊天模型选择器：聚合所有提供商模型，并通过 Material 下拉菜单即时切换当前模型。
 组件只发出 provider/model 选择，Chat 视图负责执行配置指令并反馈结果。
-调用示例：<ModelSelector :config="config.config" @select="selectModel" />。
+调用示例：<ModelSelector :config="config.current" @select="selectModel" />。
 -->
 <script setup>
 import { computed, ref } from 'vue'                  // 引入当前模型派生和下拉引用能力

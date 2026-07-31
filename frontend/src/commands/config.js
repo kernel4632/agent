@@ -13,8 +13,8 @@ async function load() {
   configStore.isLoading = true                          // 设置区域进入加载反馈
   configStore.errorMessage = ''                         // 新请求清除旧错误
   try {
-    configStore.config = await AgentAPI.getConfig()     // 用 Server 脱敏配置替换当前数据
-    return configStore.config                           // 返回配置供表单创建草稿
+    configStore.current = await AgentAPI.getConfig()    // 用 Server 脱敏配置替换当前数据
+    return configStore.current                          // 返回配置供表单创建草稿
   } catch (error) {
     configStore.errorMessage = error.message            // 保存连接或解析错误
     return null                                         // 失败时不制造默认配置
@@ -32,7 +32,7 @@ async function save(changes) {
   configStore.errorMessage = ''                         // 新保存清除旧错误
   try {
     await AgentAPI.updateConfig(changes)                // 将入口明确提交的字段写入 Server
-    configStore.config = await AgentAPI.getConfig()     // 重新读取 Server 最终生效配置
+    configStore.current = await AgentAPI.getConfig()    // 重新读取 Server 最终生效配置
     configStore.isSaved = true                          // 向设置页反馈保存完成
     return true                                         // 返回成功供表单重置草稿
   } catch (error) {
@@ -51,7 +51,7 @@ async function selectModel(providerName, modelName) {
   configStore.errorMessage = ''                         // 新切换清除旧配置错误
   try {
     await AgentAPI.updateConfig({ activeProvider: providerName, activeModel: modelName }) // 将选择写入 Server
-    configStore.config = { ...configStore.config, activeProvider: providerName, activeModel: modelName } // 原位反馈当前模型
+    configStore.current = { ...configStore.current, activeProvider: providerName, activeModel: modelName } // 原位反馈当前模型
     return true                                         // 返回 Server 已接受选择
   } catch (error) {
     configStore.errorMessage = error.message            // 保存真实切换失败原因

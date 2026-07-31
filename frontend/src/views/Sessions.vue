@@ -45,13 +45,13 @@ function renameSession(sessionID, title, resolve) {
     </header>
     <div class="home-content">
       <div class="home-section-title">
-        <div><h1>会话</h1><p>{{ sessions.sessions.length }} 个已保存会话</p></div>
+        <div><h1>会话</h1><p>{{ sessions.items.length }} 个已保存会话</p></div>
       </div>
       <div v-if="sessions.errorMessage" class="notice notice--error">{{ sessions.errorMessage }}</div>
-      <div v-if="sessions.isLoading && !sessions.sessions.length" class="view-loading">正在读取会话...</div>
-      <div v-else-if="!sessions.sessions.length" class="view-empty">还没有已保存的会话</div>
+      <div v-if="sessions.isLoading && !sessions.items.length" class="view-loading">正在读取会话...</div>
+      <div v-else-if="!sessions.items.length" class="view-empty">还没有已保存的会话</div>
       <div v-else class="session-table">
-        <div v-for="session in sessions.sessions" :key="session.id" class="session-row" role="button" tabindex="0" @click="openSession($event, session.id)" @keydown.enter.self="openSession($event, session.id)" @auxclick.middle.prevent="openSession($event, session.id)">
+        <div v-for="session in sessions.items" :key="session.id" class="session-row" role="button" tabindex="0" @click="openSession($event, session.id)" @keydown.enter.self="openSession($event, session.id)" @auxclick.middle.prevent="openSession($event, session.id)">
           <span class="session-row__icon"><mdui-icon-history></mdui-icon-history></span>
           <span class="session-row__content">
             <SessionTitleEditor :title="session.title" @save="(title, resolve) => renameSession(session.id, title, resolve)" />

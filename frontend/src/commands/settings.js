@@ -33,7 +33,7 @@ async function savePage(draft, isProviderValid) {
     permissions: draft.value.permissions,              // 保存完整工具权限映射
   }
   const saved = await Config.save(changes)             // 将草稿写入 Server 并刷新运行配置
-  if (saved) draft.value = cloneConfig(store.config.config) // 成功后写入 Server 最终配置草稿
+  if (saved) draft.value = cloneConfig(store.config.current) // 成功后写入 Server 最终配置草稿
   return saved                                         // 返回是否保存完成
 }
 

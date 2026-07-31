@@ -12,8 +12,8 @@ import { Settings } from './commands/settings.js'       // 引入提供商反馈
 // --- 启动全部数据监听 ---
 export function startWatchers() {
   const tabStore = store.tabs                           // 读取全局顶部标签和当前选择
-  watch(() => [tabStore.tabs, tabStore.activeKey], () => {
-    const persistentTabs = tabStore.tabs.filter((tab) => tab.sessionID) // 未发送草稿不写入下次窗口
+  watch(() => [tabStore.items, tabStore.activeKey], () => {
+    const persistentTabs = tabStore.items.filter((tab) => tab.sessionID) // 未发送草稿不写入下次窗口
     const persistentKey = persistentTabs.some((tab) => tab.key === tabStore.activeKey) ? tabStore.activeKey : '' // 只保存仍存在的活动标签
     localStorage.setItem(Tabs.storageKey, JSON.stringify({ tabs: persistentTabs, activeKey: persistentKey })) // 同步标签顺序和选择
   }, { deep: true })                                    // 标题、顺序和选择变化都需要持久化

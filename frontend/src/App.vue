@@ -35,7 +35,7 @@ onMounted(Workspace.restore)                          // 应用挂载后执行�
         <mdui-icon-home></mdui-icon-home>
       </mdui-button-icon>
       <div class="titlebar__tabs" role="tablist" aria-label="已打开会话">
-        <button v-for="tab in tabs.tabs" :key="tab.key" class="session-tab" :class="{ 'is-active': ui.activeView === 'chat' && tabs.activeKey === tab.key }" type="button" role="tab" @click="Workspace.selectTab(tab)">
+        <button v-for="tab in tabs.items" :key="tab.key" class="session-tab" :class="{ 'is-active': ui.activeView === 'chat' && tabs.activeKey === tab.key }" type="button" role="tab" @click="Workspace.selectTab(tab)">
           <span class="session-tab__status" :class="{ 'is-running': ChatCommand.getStatus(tab.key).running, 'is-approval': ChatCommand.getStatus(tab.key).approval }"></span>
           <span class="session-tab__title">{{ tab.title || '未命名会话' }}</span>
           <mdui-button-icon class="session-tab__close" aria-label="关闭会话" @click="closeTab($event, tab)">
