@@ -5,7 +5,6 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'                 // 引入折叠状态和标题派生能力
-import { Chat } from '../commands/chat.js'          // 引入思考内容展开指令
 
 const props = defineProps({                         // 声明父组件传入的思考数据
   text: { type: String, default: '' },              // 完整或流式 reasoning 文本
@@ -16,15 +15,11 @@ const isOpen = ref(false)                           // 思考内容默认折叠�
 const title = computed(() => props.streaming ? '正在思考' : '思考过程') // 根据流状态提供明确反馈
 
 
-// --- 切换思考内容 ---
-function toggleReasoning() {
-  Chat.toggleReasoning(isOpen)                       // 将折叠状态修改交给对话指令
-}
 </script>
 
 <template>
   <section v-if="text || streaming" class="reasoning" :class="{ 'reasoning--active': streaming }">
-    <button class="reasoning__trigger" type="button" @click="toggleReasoning">
+    <button class="reasoning__trigger" type="button" @click="isOpen = !isOpen">
       <span class="reasoning__spark"></span>
       <span>{{ title }}</span>
       <span class="reasoning__chevron" :class="{ 'reasoning__chevron--open': isOpen }">⌄</span>

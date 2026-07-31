@@ -65,53 +65,6 @@ async function rename(sessionID, title) {
 }
 
 
-// --- 读取一个会话的任务 ---
-async function readTasks(sessionID) {
-  const sessionStore = store.session                       // 读取任务错误反馈字段
-  try {
-    return await AgentAPI.getTasks(sessionID)              // 返回 Server 最新任务修订
-  } catch (error) {
-    sessionStore.errorMessage = error.message              // 保存任务读取失败原因
-    return null                                            // 不用空清单覆盖旧任务
-  }
-}
-
-
-// --- 更新一个会话的任务 ---
-async function updateTasks(sessionID, tasks, taskRevision) {
-  const sessionStore = store.session                       // 读取任务错误反馈字段
-  try {
-    return await AgentAPI.updateTasks(sessionID, tasks, taskRevision) // 由 Server 检测并发修改
-  } catch (error) {
-    sessionStore.errorMessage = error.message              // 保存冲突或校验错误
-    return null                                            // 保持当前清单等待重新读取
-  }
-}
-
-
-// --- 开始编辑会话标题 ---
-function startTitleEditing(title, isBusy, editing, draft) {
-  if (isBusy) return false                               // 保存期间不创建第二份标题草稿
-  draft.value = title || '未命名会话'                   // 以当前标题作为可编辑初值
-  editing.value = true                                  // 原位切换到输入状态
-  return true                                           // 返回组件可以执行 DOM 全选反馈
-}
-
-
-// --- 放弃会话标题编辑 ---
-function cancelTitleEditing(isBusy, editing) {
-  if (isBusy) return false                              // 请求中保持稳定编辑反馈
-  editing.value = false                                 // 丢弃草稿并恢复原文本
-  return true                                           // 返回取消动作完成
-}
-
-
-// --- 修改会话标题草稿 ---
-function setTitleDraft(draft, value) {
-  draft.value = value                                   // 保存输入框中的未提交标题
-}
-
-
 // --- 提交会话标题草稿 ---
 async function saveTitleEditing(currentTitle, draft, editing, emit) {
   const title = draft.value.trim()                      // 去除无意义首尾空白
@@ -125,4 +78,4 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 }
 
 
-export const Session = { refresh, select, remove, rename, readTasks, updateTasks, startTitleEditing, cancelTitleEditing, setTitleDraft, saveTitleEditing } // 暴露全部会话指令
+export const Session = { refresh, select, remove, rename, saveTitleEditing } // 暴露包含校验、异步请求或状态同步的会话指令

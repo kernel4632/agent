@@ -31,7 +31,7 @@ onMounted(Workspace.restore)                          // 应用挂载后执行�
 <template>
   <div class="app-shell">
     <header class="titlebar">
-      <mdui-button-icon class="titlebar__home" :class="{ 'is-active': ui.activeView === 'home' }" aria-label="主页" @click="Workspace.openHome">
+      <mdui-button-icon class="titlebar__home" :class="{ 'is-active': ui.activeView === 'home' }" aria-label="主页" @click="ui.activeView = 'home'">
         <mdui-icon-home></mdui-icon-home>
       </mdui-button-icon>
       <div class="titlebar__tabs" role="tablist" aria-label="已打开会话">

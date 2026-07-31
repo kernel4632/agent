@@ -38,42 +38,6 @@ async function savePage(draft, isProviderValid) {
 }
 
 
-// --- 修改权限草稿 ---
-function setPermissions(draft, permissions) {
-  draft.value = { ...draft.value, permissions }        // 将新权限映射写入完整设置草稿
-}
-
-
-// --- 修改系统提示词草稿 ---
-function setSystemPrompt(draft, systemPrompt) {
-  draft.value = { ...draft.value, systemPrompt }        // 将 Agent 指令写入完整设置草稿
-}
-
-
-// --- 修改提供商校验状态 ---
-function setProviderValidity(providerValid, isValid) {
-  providerValid.value = isValid                         // 保存当前表单是否允许提交
-}
-
-
-// --- 选择一个提供商详情 ---
-function selectProvider(selectedProvider, providerName) {
-  selectedProvider.value = providerName                // 将详情区域切换到用户选择的提供商
-}
-
-
-// --- 修改待添加模型名称 ---
-function setNewModelName(newModelName, value) {
-  newModelName.value = value                            // 保存用户尚未提交的模型 ID
-}
-
-
-// --- 修改一个简单权限 ---
-function updatePermission(permissions, emit, toolName, permission) {
-  emit('update', { ...permissions, [toolName]: permission }) // 返回只替换目标工具规则的完整映射
-}
-
-
 // --- 同步有效提供商选择 ---
 function syncSelectedProvider(names, selectedProvider) {
   if (names.includes(selectedProvider.value)) return   // 当前选择仍存在时保持详情上下文
@@ -86,12 +50,6 @@ function syncProviderFeedback(currentProvider, headersText, headersError, testSt
   headersText.value = JSON.stringify(currentProvider?.headers ?? {}, null, 2) // 读取当前服务请求头草稿
   headersError.value = ''                              // 不携带上一服务的校验错误
   testState.value = null                               // 测试反馈只属于触发时服务
-}
-
-
-// --- 替换提供商集合 ---
-function updateProviders(modelValue, emit, providers, activeChanges = {}) {
-  emit('update:modelValue', { ...modelValue, ...activeChanges, providers }) // 向设置页返回完整新草稿
 }
 
 
@@ -110,7 +68,8 @@ function addProvider(modelValue, providerNames, emit, selectedProvider, provider
     models: [],                                        // 模型由用户按真实 ID 添加
     modelSettings: {},                                 // 每模型限制随模型一起维护
   }
-  updateProviders(modelValue, emit, { ...modelValue.providers, [name]: provider }) // 将完整新项写入草稿
+  const providers = { ...modelValue.providers, [name]: provider } // 将新服务加入完整提供商集合
+  emit('update:modelValue', { ...modelValue, providers })         // 向设置页返回完整新草稿
   selectedProvider.value = name                       // 立即打开新提供商详情
   providerError.value = ''                            // 清除旧重命名反馈
 }
@@ -128,7 +87,7 @@ function renameProvider(modelValue, emit, selectedProvider, providerError, renam
   const providers = {}                                 // 按原顺序重建键名映射
   for (const [name, provider] of Object.entries(modelValue.providers)) providers[name === oldName ? newName : name] = provider // 只替换当前服务身份
   const activeChanges = modelValue.activeProvider === oldName ? { activeProvider: newName } : {} // 同步当前模型归属
-  updateProviders(modelValue, emit, providers, activeChanges) // 返回重命名后的完整草稿
+  emit('update:modelValue', { ...modelValue, ...activeChanges, providers }) // 返回重命名后的完整草稿
   selectedProvider.value = newName                    // 保持详情打开
   providerError.value = ''                            // 成功后清除冲突反馈
 }
@@ -140,7 +99,7 @@ function updateProvider(modelValue, emit, selectedName, currentProvider, testSta
     ...modelValue.providers,                           // 保留其他提供商声明
     [selectedName]: { ...currentProvider, [field]: value }, // 只替换目标字段
   }
-  updateProviders(modelValue, emit, providers)         // 将字段变化写入设置草稿
+  emit('update:modelValue', { ...modelValue, providers }) // 将字段变化写入设置草稿
   testState.value = null                               // 草稿变化后旧测试反馈失效
 }
 
@@ -173,7 +132,7 @@ function removeProvider(modelValue, emit, selectedName) {
   const nextName = Object.keys(providers)[0] ?? ''     // 选择剩余首项作为回退
   const nextModel = providers[nextName]?.models?.[0] ?? '' // 读取回退服务首个模型
   const activeChanges = modelValue.activeProvider === selectedName ? { activeProvider: nextName, activeModel: nextModel } : {} // 防止活动模型悬空
-  updateProviders(modelValue, emit, providers, activeChanges) // 返回删除后的完整草稿
+  emit('update:modelValue', { ...modelValue, ...activeChanges, providers }) // 返回删除后的完整草稿
 }
 
 
@@ -195,7 +154,7 @@ function removeModel(modelValue, emit, selectedName, currentProvider, testState,
   const isActive = modelValue.activeProvider === selectedName && modelValue.activeModel === modelName // 判断是否删除当前模型
   const activeChanges = isActive ? { activeModel: models[0] ?? '' } : {} // 活动模型回退到同服务首项
   const providers = { ...modelValue.providers, [selectedName]: { ...currentProvider, models, modelSettings } } // 写入完整新服务声明
-  updateProviders(modelValue, emit, providers, activeChanges) // 返回模型删除后的完整草稿
+  emit('update:modelValue', { ...modelValue, ...activeChanges, providers }) // 返回模型删除后的完整草稿
   testState.value = null                               // 模型变化后旧连接测试反馈失效
 }
 
@@ -207,12 +166,6 @@ function updateModelSetting(modelValue, emit, selectedName, currentProvider, tes
   else settings[field] = Number(rawValue)              // 数字控件转换为 JSON 数值
   const modelSettings = { ...currentProvider.modelSettings, [modelName]: settings } // 写回对应模型 ID
   updateProvider(modelValue, emit, selectedName, currentProvider, testState, 'modelSettings', modelSettings) // 保留其他模型设置
-}
-
-
-// --- 设为当前聊天模型 ---
-function activateModel(modelValue, emit, selectedName, modelName) {
-  emit('update:modelValue', { ...modelValue, activeProvider: selectedName, activeModel: modelName }) // 只更新活动模型草稿
 }
 
 
@@ -228,4 +181,4 @@ async function testSavedConnection(modelValue, selectedName, savedProvider, isTe
 }
 
 
-export const Settings = { cloneConfig, loadPage, savePage, setPermissions, setSystemPrompt, setProviderValidity, selectProvider, setNewModelName, updatePermission, syncSelectedProvider, syncProviderFeedback, addProvider, renameProvider, updateProvider, updateCache, updateHeaders, removeProvider, addModel, removeModel, updateModelSetting, activateModel, testSavedConnection } // 暴露全部设置指令
+export const Settings = { loadPage, savePage, syncSelectedProvider, syncProviderFeedback, addProvider, renameProvider, updateProvider, updateCache, updateHeaders, removeProvider, addModel, removeModel, updateModelSetting, testSavedConnection } // 暴露包含校验、转换或异步行为的设置指令

@@ -1,26 +1,19 @@
 /*
 工作区指令：组合页面、标签、会话和对话主体，完成跨主体用户动作。
-本文件只编排其他指令，不直接操作 UI；用于保证 App.vue 入口只需调用一个明确动作。
+本文件编排其他指令并修改工作区当前页面，用于完成跨主体用户动作。
 调用示例：await Workspace.openSession('ses_123')、Workspace.startNewChat()。
 */
 import { store } from '../store.js' // 引入恢复工作区需要的全部数据
 import { Chat } from './chat.js'                          // 引入对话加载和清理指令
 import { Session } from './session.js'                    // 引入会话资源指令
 import { Tabs } from './tabs.js'                          // 引入顶部标签指令
-import { UI } from './ui.js'                              // 引入工作台页面指令
-
-
-// --- 打开主页 ---
-function openHome() {
-  UI.openView('home')                                    // 保留标签并将主区域切回会话列表
-}
 
 
 // --- 创建新对话标签 ---
 function startNewChat() {
   const key = Tabs.createDraft()                         // 先建立独立标签身份
   Chat.loadSession(null, key)                            // 再建立对应空对话数据
-  UI.openView('chat')                                    // 最后反馈可输入聊天页
+  store.ui.activeView = 'chat'                           // 最后反馈可输入聊天页
 }
 
 
@@ -29,7 +22,7 @@ async function openSession(sessionID, activate = true) {
   const summary = store.session.items.find((item) => item.id === sessionID) // 读取当前标题供标签立即展示
   const key = Tabs.openSession(sessionID, summary?.title, activate) // 新增或复用顶部标签
   if (!activate) return                                  // 后台打开只新增标签，不读取当前页面
-  UI.openView('chat')                                    // 先反馈标签选择
+  store.ui.activeView = 'chat'                           // 先反馈标签选择
   if (Chat.hasConversation(key)) return                  // 已加载上下文保留滚动和流状态
   const session = await Session.select(sessionID)        // 首次打开读取完整 Server 历史
   if (session) Chat.loadSession(session, key)            // 将详情写入准确标签数据
@@ -39,7 +32,7 @@ async function openSession(sessionID, activate = true) {
 // --- 选择一个已打开标签 ---
 async function selectTab(tab) {
   Tabs.select(tab.key)                                   // 修改顶部活动标签
-  UI.openView('chat')                                    // 从主页或设置回到聊天页
+  store.ui.activeView = 'chat'                           // 从主页或设置回到聊天页
   if (!tab.sessionID || Chat.hasConversation(tab.key)) return // 草稿或已加载标签无需请求
   const session = await Session.select(tab.sessionID)    // 读取尚未加载的历史
   if (session) Chat.loadSession(session, tab.key)        // 写入点击时对应标签数据
@@ -50,7 +43,10 @@ async function selectTab(tab) {
 async function closeTab(tab) {
   if (!Chat.removeConversation(tab.key)) return false    // 运行中标签保留流和审批入口
   const nextKey = Tabs.close(tab.key)                    // 移除标签并选择相邻项
-  if (!nextKey) return openHome()                        // 最后一个标签关闭后回主页
+  if (!nextKey) {
+    store.ui.activeView = 'home'                         // 最后一个标签关闭后回主页
+    return true                                          // 返回关闭动作已完成
+  }
   const nextTab = store.tabs.items.find((item) => item.key === nextKey) // 查找新的活动标签
   if (nextTab) await selectTab(nextTab)                  // 未加载历史也进入准确上下文
   return true                                            // 返回关闭动作完成
@@ -117,4 +113,4 @@ async function restore() {
 }
 
 
-export const Workspace = { openHome, startNewChat, openSession, selectTab, closeTab, removeSession, renameSession, renameSessionWithFeedback, renameCurrentSession, sendMessage, restore } // 暴露全部工作区指令
+export const Workspace = { startNewChat, openSession, selectTab, closeTab, removeSession, renameSession, renameSessionWithFeedback, renameCurrentSession, sendMessage, restore } // 暴露全部工作区指令

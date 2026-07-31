@@ -21,7 +21,10 @@ const tabs = store.tabs                                // 只读取当前活动�
 const currentSession = computed(() => sessions.items.find((item) => item.id === chat.value.sessionID)) // 查找当前摘要
 const activeTab = computed(() => tabs.items.find((item) => item.key === tabs.activeKey)) // 读取异步标题已更新的活动标签
 const title = computed(() => currentSession.value?.title || activeTab.value?.title || (chat.value.messages.length ? '新会话' : 'Agent')) // 为顶栏反馈最新上下文
-const draftText = computed({ get: () => chat.value.draftText, set: ChatCommand.setDraftText }) // 输入变化通过对话指令修改当前草稿
+const draftText = computed({                              // 将输入框双向绑定到当前标签草稿
+  get: () => chat.value.draftText,
+  set: (value) => { chat.value.draftText = value },
+})
 const isRenaming = ref(false)                         // 防止标题保存期间重复提交
 const renameError = ref('')                          // 顶栏原位展示重命名错误
 

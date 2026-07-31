@@ -33,49 +33,9 @@ const connectedMCP = computed(() => capabilities.value.mcp.filter((item) => item
 const connectedLSP = computed(() => capabilities.value.lsp.filter((item) => item.status === 'connected').length) // 标题展示真实 LSP 可用数
 const enabledSkills = computed(() => capabilities.value.skills.filter((item) => item.enabled).length) // 标题展示注入模型的 Skill 数
 
-// --- 切换能力分类 ---
-function selectSection(section) {
-  Capability.selectSection(activeTab, section)                      // 将分类触发交给能力指令修改数据
-}
-
-
-watchCapabilitySection(() => props.section, selectSection)          // 集中监听设置一级导航变化
-
-
-// --- 读取真实能力与配置 ---
-async function loadCapabilities() {
-  try { await Capability.loadSettings() } catch {}                 // 指令负责写入运行态、草稿和错误反馈
-}
-
-
-// --- 重载当前能力运行态 ---
-async function reloadCapabilities() {
-  try { await Capability.reload() } catch {}                       // 指令负责重建能力和反馈结果
-}
-
-
-// --- 保存外部能力声明并重连 ---
-async function saveCapabilities() {
-  await Capability.save()                                         // 指令保存声明、重建连接并更新全部数据
-}
-
-
-// --- 新增一个 MCP 服务 ---
-function addMCP() {
-  Capability.addMCP(activeTab)                                     // 指令新增 MCP 并保持对应分类
-}
-
-
-// --- 新增一个 LSP 服务 ---
-function addLSP() {
-  Capability.addLSP(activeTab)                                     // 指令新增 LSP 并保持对应分类
-}
-
-
-// --- 读取服务对应的运行状态 ---
-function serverState(kind, name) {
-  return Capability.getServerState(kind, name)                      // 指令读取真实状态或未保存反馈
-}
+watchCapabilitySection(() => props.section, (section) => {          // 一级设置变化后同步当前能力分类
+  activeTab.value = section
+})
 
 
 // --- 将来源名称转换为可读分组 ---
@@ -84,7 +44,7 @@ function sourceLabel(source) {
 }
 
 
-onMounted(loadCapabilities)                                          // 首次进入读取真实能力
+onMounted(() => Capability.loadSettings().catch(() => {}))          // 首次进入读取真实能力
 </script>
 
 <template>
@@ -95,13 +55,13 @@ onMounted(loadCapabilities)                                          // 首次�
         <p>{{ props.section ? sectionSummary : `${capabilities.tools.length} 个工具 · ${connectedMCP} MCP · ${connectedLSP} LSP · ${enabledSkills} Skills` }}</p>
       </div>
       <div class="capability-actions">
-        <mdui-button variant="text" :loading="isLoading" @click="reloadCapabilities"><mdui-icon-refresh slot="icon"></mdui-icon-refresh>重载</mdui-button>
-        <mdui-button variant="filled" :disabled="!draft || isSaving" :loading="isSaving" @click="saveCapabilities">保存并应用</mdui-button>
+        <mdui-button variant="text" :loading="isLoading" @click="Capability.reload().catch(() => {})"><mdui-icon-refresh slot="icon"></mdui-icon-refresh>重载</mdui-button>
+        <mdui-button variant="filled" :disabled="!draft || isSaving" :loading="isSaving" @click="Capability.save">保存并应用</mdui-button>
       </div>
     </header>
 
     <nav v-if="tabs.length" class="capability-tabs" role="tablist" aria-label="能力分类">
-      <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="activeTab === tab.id" :class="{ 'is-active': activeTab === tab.id }" @click="selectSection(tab.id)">{{ tab.label }}</button>
+      <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="activeTab === tab.id" :class="{ 'is-active': activeTab === tab.id }" @click="activeTab = tab.id">{{ tab.label }}</button>
     </nav>
     <div v-if="feedback" class="notice notice--success">{{ feedback }}</div>
     <div v-if="errorMessage" class="notice notice--error">{{ errorMessage }}</div>
@@ -122,31 +82,31 @@ onMounted(loadCapabilities)                                          // 首次�
       </section>
 
       <section v-else-if="activeTab === 'mcp'" class="capability-content">
-        <header class="capability-content__header"><div><h2>MCP 服务</h2><p>连接本地 stdio 或 Streamable HTTP 服务，将远程工具加入 Agent。</p></div><mdui-button variant="tonal" @click="addMCP"><mdui-icon-add slot="icon"></mdui-icon-add>添加服务</mdui-button></header>
+        <header class="capability-content__header"><div><h2>MCP 服务</h2><p>连接本地 stdio 或 Streamable HTTP 服务，将远程工具加入 Agent。</p></div><mdui-button variant="tonal" @click="Capability.addMCP"><mdui-icon-add slot="icon"></mdui-icon-add>添加服务</mdui-button></header>
         <div v-if="!Object.keys(draft.mcpServers || {}).length" class="capability-empty">尚未配置 MCP 服务</div>
         <mdui-collapse v-else accordion class="service-list">
           <mdui-collapse-item v-for="(server, name) in draft.mcpServers" :key="name">
             <div slot="header" class="service-row__header">
-              <span class="service-status" :class="`is-${serverState('mcp', name).status}`"></span>
-              <div><strong>{{ name }}</strong><small>{{ server.transport }} · {{ serverState('mcp', name).toolCount || 0 }} 个工具</small></div>
-              <span>{{ serverState('mcp', name).status }}</span><mdui-icon-expand-more></mdui-icon-expand-more>
+              <span class="service-status" :class="`is-${Capability.getServerState('mcp', name).status}`"></span>
+              <div><strong>{{ name }}</strong><small>{{ server.transport }} · {{ Capability.getServerState('mcp', name).toolCount || 0 }} 个工具</small></div>
+              <span>{{ Capability.getServerState('mcp', name).status }}</span><mdui-icon-expand-more></mdui-icon-expand-more>
             </div>
             <div class="service-editor">
-              <div v-if="serverState('mcp', name).error" class="notice notice--error">{{ serverState('mcp', name).error }}</div>
-              <div class="service-editor__toolbar"><mdui-switch :checked="server.enabled !== false" @change="Capability.setValue(server, 'enabled', $event.target.checked)"></mdui-switch><span>启用</span><mdui-button-icon aria-label="删除服务" @click="Capability.removeServer('mcpServers', name)"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon></div>
+              <div v-if="Capability.getServerState('mcp', name).error" class="notice notice--error">{{ Capability.getServerState('mcp', name).error }}</div>
+              <div class="service-editor__toolbar"><mdui-switch :checked="server.enabled !== false" @change="server.enabled = $event.target.checked"></mdui-switch><span>启用</span><mdui-button-icon aria-label="删除服务" @click="delete draft.mcpServers[name]"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon></div>
               <div class="service-fields">
                 <mdui-text-field label="服务名称" variant="outlined" :value="name" @change="Capability.renameServer('mcpServers', name, $event.target.value)"></mdui-text-field>
-                <label class="native-field"><span>传输</span><select :value="server.transport" @change="Capability.setValue(server, 'transport', $event.target.value)"><option value="stdio">stdio</option><option value="http">Streamable HTTP</option></select></label>
-                <mdui-text-field v-if="server.transport === 'http'" class="service-fields__wide" label="MCP URL" variant="outlined" :value="server.url || ''" @input="Capability.setValue(server, 'url', $event.target.value)"></mdui-text-field>
+                <label class="native-field"><span>传输</span><select :value="server.transport" @change="server.transport = $event.target.value"><option value="stdio">stdio</option><option value="http">Streamable HTTP</option></select></label>
+                <mdui-text-field v-if="server.transport === 'http'" class="service-fields__wide" label="MCP URL" variant="outlined" :value="server.url || ''" @input="server.url = $event.target.value"></mdui-text-field>
                 <template v-else>
-                  <mdui-text-field label="命令" variant="outlined" :value="server.command || ''" @input="Capability.setValue(server, 'command', $event.target.value)"></mdui-text-field>
-                  <mdui-text-field label="工作目录" variant="outlined" :value="server.cwd || ''" @input="Capability.setValue(server, 'cwd', $event.target.value)"></mdui-text-field>
+                  <mdui-text-field label="命令" variant="outlined" :value="server.command || ''" @input="server.command = $event.target.value"></mdui-text-field>
+                  <mdui-text-field label="工作目录" variant="outlined" :value="server.cwd || ''" @input="server.cwd = $event.target.value"></mdui-text-field>
                   <mdui-text-field class="service-fields__wide" label="参数（每行一个）" variant="outlined" autosize :min-rows="2" :value="(server.args || []).join('\n')" @input="Capability.setLines(server, 'args', $event.target.value)"></mdui-text-field>
                 </template>
               </div>
               <section class="pair-editor">
-                <header><strong>{{ server.transport === 'http' ? '请求头' : '环境变量' }}</strong><mdui-button-icon :aria-label="server.transport === 'http' ? '添加请求头' : '添加环境变量'" @click="Capability.addPair(server, server.transport === 'http' ? 'headers' : 'env')"><mdui-icon-add></mdui-icon-add></mdui-button-icon></header>
-                <div v-for="(row, index) in server[server.transport === 'http' ? '_headersRows' : '_envRows']" :key="index" class="pair-row"><input :value="row.key" aria-label="键名" @input="Capability.setPairValue(row, 'key', $event.target.value)"><input :value="row.value" aria-label="值" :type="/authorization|api[-_]?key|token|cookie|secret|password/i.test(row.key) ? 'password' : 'text'" @input="Capability.setPairValue(row, 'value', $event.target.value)"><mdui-button-icon aria-label="删除键值" @click="Capability.removePair(server, server.transport === 'http' ? 'headers' : 'env', index)"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+                <header><strong>{{ server.transport === 'http' ? '请求头' : '环境变量' }}</strong><mdui-button-icon :aria-label="server.transport === 'http' ? '添加请求头' : '添加环境变量'" @click="server[server.transport === 'http' ? '_headersRows' : '_envRows'].push({ key: '', value: '' })"><mdui-icon-add></mdui-icon-add></mdui-button-icon></header>
+                <div v-for="(row, index) in server[server.transport === 'http' ? '_headersRows' : '_envRows']" :key="index" class="pair-row"><input :value="row.key" aria-label="键名" @input="row.key = $event.target.value"><input :value="row.value" aria-label="值" :type="/authorization|api[-_]?key|token|cookie|secret|password/i.test(row.key) ? 'password' : 'text'" @input="row.value = $event.target.value"><mdui-button-icon aria-label="删除键值" @click="server[server.transport === 'http' ? '_headersRows' : '_envRows'].splice(index, 1)"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
               </section>
             </div>
           </mdui-collapse-item>
@@ -154,29 +114,29 @@ onMounted(loadCapabilities)                                          // 首次�
       </section>
 
       <section v-else-if="activeTab === 'lsp'" class="capability-content">
-        <header class="capability-content__header"><div><h2>语言服务器</h2><p>为 Agent 提供真实代码诊断、定义、引用与悬停信息。</p></div><mdui-button variant="tonal" @click="addLSP"><mdui-icon-add slot="icon"></mdui-icon-add>添加服务</mdui-button></header>
+        <header class="capability-content__header"><div><h2>语言服务器</h2><p>为 Agent 提供真实代码诊断、定义、引用与悬停信息。</p></div><mdui-button variant="tonal" @click="Capability.addLSP"><mdui-icon-add slot="icon"></mdui-icon-add>添加服务</mdui-button></header>
         <div v-if="!Object.keys(draft.lspServers || {}).length" class="capability-empty">尚未配置语言服务器</div>
         <mdui-collapse v-else accordion class="service-list">
           <mdui-collapse-item v-for="(server, name) in draft.lspServers" :key="name">
             <div slot="header" class="service-row__header">
-              <span class="service-status" :class="`is-${serverState('lsp', name).status}`"></span>
+              <span class="service-status" :class="`is-${Capability.getServerState('lsp', name).status}`"></span>
               <div><strong>{{ name }}</strong><small>{{ (server.extensions || []).join(', ') || '未映射扩展名' }}</small></div>
-              <span>{{ serverState('lsp', name).status }}</span><mdui-icon-expand-more></mdui-icon-expand-more>
+              <span>{{ Capability.getServerState('lsp', name).status }}</span><mdui-icon-expand-more></mdui-icon-expand-more>
             </div>
             <div class="service-editor">
-              <div v-if="serverState('lsp', name).error" class="notice notice--error">{{ serverState('lsp', name).error }}</div>
-              <div class="service-editor__toolbar"><mdui-switch :checked="server.enabled !== false" @change="Capability.setValue(server, 'enabled', $event.target.checked)"></mdui-switch><span>启用</span><mdui-button-icon aria-label="删除服务" @click="Capability.removeServer('lspServers', name)"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon></div>
+              <div v-if="Capability.getServerState('lsp', name).error" class="notice notice--error">{{ Capability.getServerState('lsp', name).error }}</div>
+              <div class="service-editor__toolbar"><mdui-switch :checked="server.enabled !== false" @change="server.enabled = $event.target.checked"></mdui-switch><span>启用</span><mdui-button-icon aria-label="删除服务" @click="delete draft.lspServers[name]"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon></div>
               <div class="service-fields">
                 <mdui-text-field label="服务名称" variant="outlined" :value="name" @change="Capability.renameServer('lspServers', name, $event.target.value)"></mdui-text-field>
-                <mdui-text-field label="命令" variant="outlined" :value="server.command || ''" @input="Capability.setValue(server, 'command', $event.target.value)"></mdui-text-field>
-                <mdui-text-field label="语言 ID" variant="outlined" :value="server.languageId || ''" @input="Capability.setValue(server, 'languageId', $event.target.value)"></mdui-text-field>
-                <mdui-text-field label="工作区根目录" variant="outlined" :value="server.root || ''" @input="Capability.setValue(server, 'root', $event.target.value)"></mdui-text-field>
+                <mdui-text-field label="命令" variant="outlined" :value="server.command || ''" @input="server.command = $event.target.value"></mdui-text-field>
+                <mdui-text-field label="语言 ID" variant="outlined" :value="server.languageId || ''" @input="server.languageId = $event.target.value"></mdui-text-field>
+                <mdui-text-field label="工作区根目录" variant="outlined" :value="server.root || ''" @input="server.root = $event.target.value"></mdui-text-field>
                 <mdui-text-field class="service-fields__wide" label="文件扩展名（逗号分隔）" variant="outlined" :value="(server.extensions || []).join(', ')" @input="Capability.setCommaList(server, 'extensions', $event.target.value)"></mdui-text-field>
                 <mdui-text-field class="service-fields__wide" label="参数（每行一个）" variant="outlined" autosize :min-rows="2" :value="(server.args || []).join('\n')" @input="Capability.setLines(server, 'args', $event.target.value)"></mdui-text-field>
               </div>
               <section class="pair-editor">
-                <header><strong>环境变量</strong><mdui-button-icon aria-label="添加环境变量" @click="Capability.addPair(server, 'env')"><mdui-icon-add></mdui-icon-add></mdui-button-icon></header>
-                <div v-for="(row, index) in server._envRows" :key="index" class="pair-row"><input :value="row.key" aria-label="键名" @input="Capability.setPairValue(row, 'key', $event.target.value)"><input :value="row.value" aria-label="值" :type="/api[-_]?key|token|secret|password/i.test(row.key) ? 'password' : 'text'" @input="Capability.setPairValue(row, 'value', $event.target.value)"><mdui-button-icon aria-label="删除键值" @click="Capability.removePair(server, 'env', index)"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+                <header><strong>环境变量</strong><mdui-button-icon aria-label="添加环境变量" @click="server._envRows.push({ key: '', value: '' })"><mdui-icon-add></mdui-icon-add></mdui-button-icon></header>
+                <div v-for="(row, index) in server._envRows" :key="index" class="pair-row"><input :value="row.key" aria-label="键名" @input="row.key = $event.target.value"><input :value="row.value" aria-label="值" :type="/api[-_]?key|token|secret|password/i.test(row.key) ? 'password' : 'text'" @input="row.value = $event.target.value"><mdui-button-icon aria-label="删除键值" @click="server._envRows.splice(index, 1)"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
               </section>
             </div>
           </mdui-collapse-item>
@@ -184,10 +144,10 @@ onMounted(loadCapabilities)                                          // 首次�
       </section>
 
       <section v-else class="capability-content">
-        <header class="capability-content__header"><div><h2>Agent Skills</h2><p>启动只读取元数据，任务匹配时由 Agent 按需加载完整 SKILL.md。</p></div><mdui-switch :checked="draft.skills.enabled !== false" @change="Capability.setSkillsEnabled($event.target.checked)"></mdui-switch></header>
+        <header class="capability-content__header"><div><h2>Agent Skills</h2><p>启动只读取元数据，任务匹配时由 Agent 按需加载完整 SKILL.md。</p></div><mdui-switch :checked="draft.skills.enabled !== false" @change="draft.skills.enabled = $event.target.checked"></mdui-switch></header>
         <div class="skill-directories">
-          <header><strong>附加目录</strong><mdui-button-icon aria-label="添加目录" @click="Capability.addSkillDirectory"><mdui-icon-add></mdui-icon-add></mdui-button-icon></header>
-          <div v-for="(_, index) in draft.skills.directories" :key="index" class="directory-row"><mdui-text-field label="Skill 根目录" variant="outlined" :value="draft.skills.directories[index]" @input="Capability.setSkillDirectory(index, $event.target.value)"></mdui-text-field><mdui-button-icon aria-label="移除目录" @click="Capability.removeSkillDirectory(index)"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+          <header><strong>附加目录</strong><mdui-button-icon aria-label="添加目录" @click="draft.skills.directories.push('')"><mdui-icon-add></mdui-icon-add></mdui-button-icon></header>
+          <div v-for="(_, index) in draft.skills.directories" :key="index" class="directory-row"><mdui-text-field label="Skill 根目录" variant="outlined" :value="draft.skills.directories[index]" @input="draft.skills.directories[index] = $event.target.value"></mdui-text-field><mdui-button-icon aria-label="移除目录" @click="draft.skills.directories.splice(index, 1)"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
         </div>
         <div v-if="capabilities.skillErrors.length" class="skill-errors"><div v-for="item in capabilities.skillErrors" :key="item.directory" class="notice notice--error"><code>{{ item.directory }}</code> · {{ item.error }}</div></div>
         <div v-if="!capabilities.skills.length" class="capability-empty">未发现 Skill。默认扫描用户目录和项目的 .agent/skills。</div>

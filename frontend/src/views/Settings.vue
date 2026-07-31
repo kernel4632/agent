@@ -29,36 +29,7 @@ const currentSection = computed(() => sections.find((item) => item.id === ui.set
 const savesCoreConfig = computed(() => !['mcp', 'lsp', 'skills'].includes(ui.settingsSection)) // 外部能力页使用自己的保存并应用流程
 
 
-// --- 加载配置编辑副本 ---
-async function loadConfig() {
-  await SettingsCommand.loadPage(draft, toolNames)    // 指令读取配置并写入页面草稿和工具名称
-}
-
-
-// --- 修改权限副本 ---
-function setPermissions(permissions) {
-  SettingsCommand.setPermissions(draft, permissions)  // 指令将权限编辑结果写入当前草稿
-}
-
-
-// --- 修改系统提示词草稿 ---
-function setSystemPrompt(event) {
-  SettingsCommand.setSystemPrompt(draft, event.target.value) // 将输入事件交给设置指令修改草稿
-}
-
-
-// --- 修改提供商校验反馈 ---
-function setProviderValidity(isValid) {
-  SettingsCommand.setProviderValidity(providerValid, isValid) // 将校验结果交给设置指令保存
-}
-
-
-// --- 保存用户配置 ---
-async function saveConfig() {
-  await SettingsCommand.savePage(draft, providerValid) // 指令校验、保存并用 Server 结果重置草稿
-}
-
-onMounted(loadConfig)                                 // 首次进入读取真实设置
+onMounted(() => SettingsCommand.loadPage(draft, toolNames)) // 首次进入读取真实设置
 </script>
 
 <template>
@@ -68,7 +39,7 @@ onMounted(loadConfig)                                 // 首次进入读取真�
         <h1>设置</h1>
         <p>{{ currentSection.description }}</p>
       </div>
-      <mdui-button v-if="savesCoreConfig" variant="filled" :disabled="!draft || !providerValid || config.isLoading" @click="saveConfig">保存更改</mdui-button>
+      <mdui-button v-if="savesCoreConfig" variant="filled" :disabled="!draft || !providerValid || config.isLoading" @click="SettingsCommand.savePage(draft, providerValid)">保存更改</mdui-button>
     </header>
     <div v-if="config.isSaved" class="notice notice--success">设置已保存并立即生效</div>
     <div v-if="config.errorMessage" class="notice notice--error">{{ config.errorMessage }}</div>
@@ -87,12 +58,12 @@ onMounted(loadConfig)                                 // 首次进入读取真�
       <div class="settings-page">
         <div v-if="config.isLoading && !draft" class="view-loading">正在读取设置…</div>
         <template v-else-if="draft">
-          <ProviderConfig v-if="ui.settingsSection === 'models'" v-model="draft" @validity="setProviderValidity" />
+          <ProviderConfig v-if="ui.settingsSection === 'models'" v-model="draft" @validity="providerValid = $event" />
           <section v-else-if="ui.settingsSection === 'agent'" class="settings-section settings-section--prompt">
             <header class="settings-section__header"><h2>Agent 行为</h2><p>系统提示词会在下一轮模型调用时生效。</p></header>
-            <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="setSystemPrompt"></mdui-text-field>
+            <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field>
           </section>
-          <PermissionEditor v-else-if="ui.settingsSection === 'permissions'" :permissions="draft.permissions || {}" :tool-names="toolNames" @update="setPermissions" />
+          <PermissionEditor v-else-if="ui.settingsSection === 'permissions'" :permissions="draft.permissions || {}" :tool-names="toolNames" @update="draft = { ...draft, permissions: $event }" />
           <CapabilitySettings v-else embedded :section="ui.settingsSection" />
         </template>
       </div>

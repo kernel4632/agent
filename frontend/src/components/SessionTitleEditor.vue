@@ -21,7 +21,9 @@ const inputElement = ref(null)                        // 保存原位输入元�
 
 // --- 开始编辑标题 ---
 async function startEditing() {
-  if (!Session.startTitleEditing(props.title, props.busy, editing, draft)) return // 指令创建标题草稿并切换编辑态
+  if (props.busy) return                             // 保存期间不创建第二份标题草稿
+  draft.value = props.title || '未命名会话'          // 以当前标题作为可编辑初值
+  editing.value = true                              // 原位切换到输入状态
   await nextTick()                                   // 等待输入元素挂载
   inputElement.value?.select()                       // 全选后直接输入新标题
 }
@@ -29,7 +31,7 @@ async function startEditing() {
 
 // --- 放弃标题编辑 ---
 function cancelEditing() {
-  Session.cancelTitleEditing(props.busy, editing)     // 指令丢弃草稿并恢复原文本
+  if (!props.busy) editing.value = false              // 保存期间忽略失焦和取消事件
 }
 
 
@@ -39,15 +41,11 @@ async function saveEditing() {
 }
 
 
-// --- 修改标题输入草稿 ---
-function updateDraft(event) {
-  Session.setTitleDraft(draft, event.target.value)     // 将输入值交给会话指令修改草稿
-}
 </script>
 
 <template>
   <span class="session-title-editor" :class="{ 'session-title-editor--compact': compact, 'is-editing': editing }" @click.stop>
-    <input v-if="editing" ref="inputElement" :value="draft" maxlength="100" :disabled="busy" aria-label="会话标题" @input="updateDraft" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
+    <input v-if="editing" ref="inputElement" :value="draft" maxlength="100" :disabled="busy" aria-label="会话标题" @input="draft = $event.target.value" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
     <button v-else type="button" :title="title || '未命名会话'" aria-label="重命名会话" @click="startEditing">{{ title || '未命名会话' }}</button>
   </span>
 </template>

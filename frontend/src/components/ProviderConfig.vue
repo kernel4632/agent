@@ -86,28 +86,12 @@ function updateModelSetting(modelName, field, rawValue) {
 }
 
 
-// --- 设为当前聊天模型 ---
-function activateModel(modelName) {
-  Settings.activateModel(props.modelValue, emit, selectedProvider.value, modelName) // 将活动模型修改交给设置指令
-}
-
-
 // --- 测试已保存连接 ---
 async function testSavedConnection() {
   await Settings.testSavedConnection(props.modelValue, selectedProvider.value, savedProvider.value, isTesting, testState) // 将认证测试和反馈交给设置指令
 }
 
 
-// --- 选择提供商详情 ---
-function selectProvider(providerName) {
-  Settings.selectProvider(selectedProvider, providerName) // 将详情选择交给设置指令
-}
-
-
-// --- 修改待添加模型名称 ---
-function setNewModelName(event) {
-  Settings.setNewModelName(newModelName, event.target.value) // 将模型输入交给设置指令
-}
 </script>
 
 <template>
@@ -117,7 +101,7 @@ function setNewModelName(event) {
         <div><h2>模型服务</h2><p>{{ providerNames.length }} 个提供商</p></div>
         <mdui-button-icon aria-label="添加提供商" @click="addProvider"><mdui-icon-add></mdui-icon-add></mdui-button-icon>
       </header>
-      <button v-for="name in providerNames" :key="name" type="button" :class="{ 'is-active': selectedProvider === name }" @click="selectProvider(name)">
+      <button v-for="name in providerNames" :key="name" type="button" :class="{ 'is-active': selectedProvider === name }" @click="selectedProvider = name">
         <span class="provider-list__avatar">{{ name.slice(0, 1).toUpperCase() }}</span>
         <span><strong>{{ name }}</strong><small>{{ modelValue.providers[name].models?.length || 0 }} 个模型</small></span>
       </button>
@@ -156,13 +140,13 @@ function setNewModelName(event) {
       <section class="model-catalog">
         <header><div><h3>模型</h3></div><span>{{ currentProvider.models?.length || 0 }}</span></header>
         <div class="model-add">
-          <mdui-text-field label="模型 ID" variant="outlined" :value="newModelName" @input="setNewModelName" @keydown.enter="addModel"></mdui-text-field>
+          <mdui-text-field label="模型 ID" variant="outlined" :value="newModelName" @input="newModelName = $event.target.value" @keydown.enter="addModel"></mdui-text-field>
           <mdui-button variant="tonal" @click="addModel"><mdui-icon-add slot="icon"></mdui-icon-add>添加</mdui-button>
         </div>
         <div class="model-list">
           <article v-for="modelName in currentProvider.models || []" :key="modelName" class="model-entry" :class="{ 'is-active': modelValue.activeProvider === selectedProvider && modelValue.activeModel === modelName }">
             <header>
-              <button type="button" @click="activateModel(modelName)"><span class="model-list__status"><mdui-icon-check v-if="modelValue.activeProvider === selectedProvider && modelValue.activeModel === modelName"></mdui-icon-check></span><strong>{{ modelName }}</strong></button>
+              <button type="button" @click="emit('update:modelValue', { ...props.modelValue, activeProvider: selectedProvider, activeModel: modelName })"><span class="model-list__status"><mdui-icon-check v-if="modelValue.activeProvider === selectedProvider && modelValue.activeModel === modelName"></mdui-icon-check></span><strong>{{ modelName }}</strong></button>
               <mdui-button-icon aria-label="移除模型" @click="removeModel(modelName)"><mdui-icon-close></mdui-icon-close></mdui-button-icon>
             </header>
             <div class="model-entry__settings">

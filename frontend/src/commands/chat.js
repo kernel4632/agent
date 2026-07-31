@@ -30,13 +30,6 @@ function getStatus(key) {
 }
 
 
-// --- 修改当前标签输入草稿 ---
-function setDraftText(value) {
-  const conversation = getConversation()                           // 读取当前标签对话数据
-  conversation.draftText = value                                   // 只修改当前标签的输入内容
-}
-
-
 // --- 提交输入组件内容 ---
 function submitInput(content, isRunning, emit) {
   const message = content.value.trim()                             // 去除无意义首尾空白
@@ -44,12 +37,6 @@ function submitInput(content, isRunning, emit) {
   content.value = ''                                               // 清空当前标签输入反馈
   emit('send', message)                                            // 将有效消息交给聊天页面入口
   return true                                                      // 返回入口可以恢复输入焦点
-}
-
-
-// --- 切换思考内容展开状态 ---
-function toggleReasoning(isOpen) {
-  isOpen.value = !isOpen.value                                     // 反转当前消息的 reasoning 可见状态
 }
 
 
@@ -252,4 +239,4 @@ async function undoRollback() {
 }
 
 
-export const Chat = { getConversation, hasConversation, getStatus, setDraftText, submitInput, toggleReasoning, loadSession, removeConversation, send, stop, decide, rollback, rollbackMessage, undoRollback } // 暴露全部对话指令
+export const Chat = { getConversation, hasConversation, getStatus, submitInput, loadSession, removeConversation, send, stop, decide, rollback, rollbackMessage, undoRollback } // 暴露全部对话指令

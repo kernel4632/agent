@@ -5,7 +5,6 @@
 -->
 <script setup>
 import { computed } from 'vue'                       // 引入真实工具与已配置规则合并能力
-import { Settings } from '../commands/settings.js'  // 引入权限草稿修改指令
 
 const props = defineProps({                           // 声明当前权限映射
   permissions: { type: Object, required: true },      // 工具名到权限值或规则对象的映射
@@ -16,10 +15,6 @@ const emit = defineEmits(['update'])                  // 将完整权限副本�
 const permissionEntries = computed(() => [...new Set([...props.toolNames, ...Object.keys(props.permissions)])].sort().map((toolName) => [toolName, props.permissions[toolName] ?? 'ask'])) // 未配置工具也以真实默认值显示
 
 
-// --- 修改简单权限 ---
-function updatePermission(toolName, permission) {
-  Settings.updatePermission(props.permissions, emit, toolName, permission) // 指令返回只替换目标工具的完整映射
-}
 </script>
 
 <template>
@@ -34,7 +29,7 @@ function updatePermission(toolName, permission) {
           <strong>{{ toolName }}</strong>
           <small v-if="typeof permission === 'object'">包含参数匹配规则</small>
         </div>
-        <mdui-segmented-button-group v-if="typeof permission === 'string'" selects="single" :value="permission" @change="updatePermission(toolName, $event.target.value)">
+        <mdui-segmented-button-group v-if="typeof permission === 'string'" selects="single" :value="permission" @change="emit('update', { ...props.permissions, [toolName]: $event.target.value })">
           <mdui-segmented-button value="allow">允许</mdui-segmented-button>
           <mdui-segmented-button value="ask">询问</mdui-segmented-button>
           <mdui-segmented-button value="deny">拒绝</mdui-segmented-button>
