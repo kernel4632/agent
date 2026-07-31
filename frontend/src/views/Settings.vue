@@ -10,10 +10,10 @@ import ProviderConfig from '../components/ProviderConfig.vue' // 引入模型与
 import CapabilitySettings from '../components/CapabilitySettings.vue' // 引入 MCP、LSP 与 Skills 完整管理器
 import { Settings as SettingsCommand } from '../commands/settings.js' // 引入设置草稿和保存指令
 import { UI } from '../commands/ui.js'               // 引入设置分类导航指令
-import { useConfigStore, useUIStore } from '../store.js' // 引入配置和设置分类导航数据
+import { store } from '../store.js'                       // 引入唯一全局工作台数据
 
-const config = useConfigStore()                       // 读取配置状态和保存动作
-const ui = useUIStore()                               // 读取顶部小窗指定的设置分类
+const config = store.config                            // 读取配置状态和保存动作
+const ui = store.ui                                    // 读取顶部小窗指定的设置分类
 const draft = ref(null)                               // 用户尚未保存的完整配置副本
 const providerValid = ref(true)                       // 自定义请求头等提供商字段的当前校验状态
 const toolNames = ref([])                             // 设置页展示的当前全部工具名称

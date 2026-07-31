@@ -12,12 +12,12 @@ import TaskPanel from '../components/TaskPanel.vue'   // 引入当前会话任�
 import { Chat as ChatCommand } from '../commands/chat.js' // 引入对话、审批和回滚指令
 import { Config } from '../commands/config.js'       // 引入模型配置指令
 import { Workspace } from '../commands/workspace.js' // 引入发送和重命名工作区指令
-import { useConfigStore, useSessionStore, useTabStore } from '../store.js' // 引入聊天页需要的全部数据
+import { store } from '../store.js' // 引入唯一全局工作台数据
 
 const chat = computed(() => ChatCommand.getConversation()) // 读取当前标签完整对话数据
-const config = useConfigStore()                       // 只读取全部可切换模型
-const sessions = useSessionStore()                    // 只读取当前会话摘要
-const tabs = useTabStore()                            // 只读取当前活动标签
+const config = store.config                            // 只读取全部可切换模型
+const sessions = store.session                         // 只读取当前会话摘要
+const tabs = store.tabs                                // 只读取当前活动标签
 const currentSession = computed(() => sessions.sessions.find((item) => item.id === chat.value.sessionID)) // 查找当前摘要
 const activeTab = computed(() => tabs.tabs.find((item) => item.key === tabs.activeKey)) // 读取异步标题已更新的活动标签
 const title = computed(() => currentSession.value?.title || activeTab.value?.title || (chat.value.messages.length ? '新会话' : 'Agent')) // 为顶栏反馈最新上下文

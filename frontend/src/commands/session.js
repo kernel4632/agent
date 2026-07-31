@@ -4,12 +4,12 @@
 调用示例：await Session.refresh()、await Session.rename('ses_123', '新标题')。
 */
 import { AgentAPI } from '../api.js'                       // 引入会话 HTTP 指令
-import { useSessionStore } from '../store.js'              // 引入会话数据结构
+import { store } from '../store.js'                         // 引入全局会话数据结构
 
 
 // --- 刷新会话摘要 ---
 async function refresh() {
-  const sessionStore = useSessionStore()                   // 读取会话列表和反馈字段
+  const sessionStore = store.session                       // 读取会话列表和反馈字段
   sessionStore.isLoading = true                            // 列表进入加载反馈
   sessionStore.errorMessage = ''                           // 新请求清除旧错误
   try {
@@ -26,7 +26,7 @@ async function refresh() {
 
 // --- 读取一个会话详情 ---
 async function select(sessionID) {
-  const sessionStore = useSessionStore()                   // 读取详情请求反馈字段
+  const sessionStore = store.session                       // 读取详情请求反馈字段
   sessionStore.isLoading = true                            // 主区域进入加载反馈
   sessionStore.errorMessage = ''                           // 新请求清除旧错误
   try {
@@ -51,7 +51,7 @@ async function remove(sessionID) {
 
 // --- 重命名一个会话 ---
 async function rename(sessionID, title) {
-  const sessionStore = useSessionStore()                   // 读取摘要和错误字段
+  const sessionStore = store.session                       // 读取摘要和错误字段
   sessionStore.errorMessage = ''                           // 新请求清除旧错误
   try {
     const result = await AgentAPI.renameSession(sessionID, title) // 让 Server 清理并验证标题
@@ -67,7 +67,7 @@ async function rename(sessionID, title) {
 
 // --- 读取一个会话的任务 ---
 async function readTasks(sessionID) {
-  const sessionStore = useSessionStore()                   // 读取任务错误反馈字段
+  const sessionStore = store.session                       // 读取任务错误反馈字段
   try {
     return await AgentAPI.getTasks(sessionID)              // 返回 Server 最新任务修订
   } catch (error) {
@@ -79,7 +79,7 @@ async function readTasks(sessionID) {
 
 // --- 更新一个会话的任务 ---
 async function updateTasks(sessionID, tasks, taskRevision) {
-  const sessionStore = useSessionStore()                   // 读取任务错误反馈字段
+  const sessionStore = store.session                       // 读取任务错误反馈字段
   try {
     return await AgentAPI.updateTasks(sessionID, tasks, taskRevision) // 由 Server 检测并发修改
   } catch (error) {

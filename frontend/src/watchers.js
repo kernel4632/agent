@@ -1,17 +1,17 @@
 /*
 数据监听：集中响应标签数据变化并保存浏览器工作区状态。
 监听只负责持久化副作用，不处理标签业务；标签修改统一来自 commands/tabs.js。
-调用示例：在 Pinia 注册后执行 startWatchers()。
+调用示例：在 Vue 应用挂载前执行 startWatchers()。
 */
 import { watch } from 'vue'                             // 引入响应式数据监听能力
-import { useTabStore } from './store.js'                // 引入需要持久化的标签数据
+import { store } from './store.js'                      // 引入需要持久化的标签数据
 import { Tabs } from './commands/tabs.js'               // 引入稳定浏览器存储键
 import { Settings } from './commands/settings.js'       // 引入提供商反馈同步指令
 
 
 // --- 启动全部数据监听 ---
 export function startWatchers() {
-  const tabStore = useTabStore()                        // 读取顶部标签和当前选择
+  const tabStore = store.tabs                           // 读取全局顶部标签和当前选择
   watch(() => [tabStore.tabs, tabStore.activeKey], () => {
     const persistentTabs = tabStore.tabs.filter((tab) => tab.sessionID) // 未发送草稿不写入下次窗口
     const persistentKey = persistentTabs.some((tab) => tab.key === tabStore.activeKey) ? tabStore.activeKey : '' // 只保存仍存在的活动标签

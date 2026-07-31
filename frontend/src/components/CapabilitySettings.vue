@@ -5,14 +5,18 @@
 -->
 <script setup>
 import { computed, onMounted, ref } from 'vue'                   // 引入能力清单、当前分类和首次加载能力
-import { storeToRefs } from 'pinia'                              // 保持共享能力快照响应性
 import { Capability } from '../commands/capability.js'           // 引入能力草稿和生命周期指令
-import { useCapabilityStore } from '../store.js'                // 引入顶部与设置页共享运行态
+import { store } from '../store.js'                              // 引入唯一全局工作台数据
 import { watchCapabilitySection } from '../watchers.js'          // 引入集中管理的分类同步监听
 
 const props = defineProps({ embedded: { type: Boolean, default: false }, section: { type: String, default: '' } }) // 设置页可固定到独立 MCP、LSP 或技能分类
-const capabilityStore = useCapabilityStore()                    // 只读取唯一能力数据
-const { snapshot: capabilities, draft, isLoading, isSaving, feedback, errorMessage } = storeToRefs(capabilityStore) // 读取运行态、草稿和反馈数据
+const capabilityStore = store.capabilities                        // 只读取唯一能力数据
+const capabilities = computed(() => capabilityStore.snapshot)       // 读取会被指令替换的运行态数据
+const draft = computed(() => capabilityStore.draft)                 // 读取会被指令替换的可编辑草稿
+const isLoading = computed(() => capabilityStore.isLoading)          // 读取加载反馈
+const isSaving = computed(() => capabilityStore.isSaving)            // 读取保存反馈
+const feedback = computed(() => capabilityStore.feedback)            // 读取成功反馈
+const errorMessage = computed(() => capabilityStore.errorMessage)    // 读取错误反馈
 const activeTab = ref(props.section || (props.embedded ? 'mcp' : 'tools')) // 独立设置分类直接展示目标内容
 const baseTabs = [                                               // 稳定标签顺序支持键盘和测试定位
   { id: 'tools', label: '工具' },

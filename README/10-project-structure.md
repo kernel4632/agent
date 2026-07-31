@@ -56,7 +56,7 @@ frontend/
 │   │   ├── InputBox.vue       # 输入框
 │   │   ├── ProviderConfig.vue # 供应商配置
 │   │   └── PermissionEditor.vue # 权限编辑器
-│   ├── stores/                # 状态管理（Pinia）
+│   ├── store.js               # 全局响应式工作台状态
 │   │   ├── chat.js            # 对话状态
 │   │   ├── session.js         # 会话列表
 │   │   ├── config.js          # 配置状态

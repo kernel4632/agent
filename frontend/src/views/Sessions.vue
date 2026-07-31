@@ -6,10 +6,10 @@
 <script setup>
 import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入列表原位重命名组件
 import { Session } from '../commands/session.js'      // 引入会话摘要刷新指令
-import { useSessionStore } from '../store.js'          // 引入会话摘要数据
+import { store } from '../store.js'                     // 引入唯一全局工作台数据
 
 const emit = defineEmits(['open', 'new', 'remove', 'rename']) // 向应用壳层反馈会话动作
-const sessions = useSessionStore()                    // 只读取真实会话摘要和反馈
+const sessions = store.session                         // 只读取真实会话摘要和反馈
 
 
 // --- 按点击方式打开会话 ---

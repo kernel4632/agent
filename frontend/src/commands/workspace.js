@@ -3,7 +3,7 @@
 本文件只编排其他指令，不直接操作 UI；用于保证 App.vue 入口只需调用一个明确动作。
 调用示例：await Workspace.openSession('ses_123')、Workspace.startNewChat()。
 */
-import { useChatStore, useSessionStore, useTabStore } from '../store.js' // 引入恢复工作区需要的全部数据
+import { store } from '../store.js' // 引入恢复工作区需要的全部数据
 import { Chat } from './chat.js'                          // 引入对话加载和清理指令
 import { Session } from './session.js'                    // 引入会话资源指令
 import { Tabs } from './tabs.js'                          // 引入顶部标签指令
@@ -26,7 +26,7 @@ function startNewChat() {
 
 // --- 打开一个 Server 会话 ---
 async function openSession(sessionID, activate = true) {
-  const summary = useSessionStore().sessions.find((item) => item.id === sessionID) // 读取当前标题供标签立即展示
+  const summary = store.session.sessions.find((item) => item.id === sessionID) // 读取当前标题供标签立即展示
   const key = Tabs.openSession(sessionID, summary?.title, activate) // 新增或复用顶部标签
   if (!activate) return                                  // 后台打开只新增标签，不读取当前页面
   UI.openView('chat')                                    // 先反馈标签选择
@@ -51,7 +51,7 @@ async function closeTab(tab) {
   if (!Chat.removeConversation(tab.key)) return false    // 运行中标签保留流和审批入口
   const nextKey = Tabs.close(tab.key)                    // 移除标签并选择相邻项
   if (!nextKey) return openHome()                        // 最后一个标签关闭后回主页
-  const nextTab = useTabStore().tabs.find((item) => item.key === nextKey) // 查找新的活动标签
+  const nextTab = store.tabs.tabs.find((item) => item.key === nextKey) // 查找新的活动标签
   if (nextTab) await selectTab(nextTab)                  // 未加载历史也进入准确上下文
   return true                                            // 返回关闭动作完成
 }
@@ -61,7 +61,7 @@ async function closeTab(tab) {
 async function removeSession(sessionID) {
   const removed = await Session.remove(sessionID)        // 删除 Server 内存和磁盘数据
   if (!removed) return false                             // 失败时保留标签和列表
-  const tab = useTabStore().tabs.find((item) => item.sessionID === sessionID) // 查找关联标签
+  const tab = store.tabs.tabs.find((item) => item.sessionID === sessionID) // 查找关联标签
   if (tab) Chat.removeConversation(tab.key)              // 释放非运行对话数据
   Tabs.removeSession(sessionID)                          // 从顶部工作区移除标签
   return true                                            // 返回删除动作完成
@@ -90,7 +90,7 @@ async function renameCurrentSession(conversation, title, resolve, isRenaming, re
   isRenaming.value = true                                // 标题动作进入保存反馈
   renameError.value = ''                                 // 清除旧失败信息
   const result = await renameSession(conversation.sessionID, title) // 保存 Server 标题并同步顶部标签
-  if (!result) renameError.value = useSessionStore().errorMessage // 在编辑器附近保存真实错误
+  if (!result) renameError.value = store.session.errorMessage // 在编辑器附近保存真实错误
   isRenaming.value = false                               // 恢复标题编辑动作
   resolve(Boolean(result))                               // 通知编辑器退出或保留草稿
   return result                                          // 返回完整重命名结果
@@ -111,7 +111,7 @@ async function restore() {
   Tabs.restore()                                         // 先恢复浏览器保存的标签身份
   const sessions = await Session.refresh()               // 再读取 Server 最新会话摘要
   Tabs.syncTitles(sessions)                              // 更新恢复标签的异步标题
-  const tabStore = useTabStore()                         // 读取恢复后的当前标签
+  const tabStore = store.tabs                            // 读取恢复后的当前标签
   const activeTab = tabStore.tabs.find((tab) => tab.key === tabStore.activeKey) // 查找上次活动会话
   if (activeTab) await selectTab(activeTab)              // 恢复窗口关闭前的聊天上下文
 }

@@ -4,31 +4,28 @@
 调用示例：await Chat.send('检查项目')、Chat.loadSession(session, tabKey)、await Chat.rollback(step)。
 */
 import { AgentAPI } from '../api.js'                               // 引入对话与回滚 HTTP 指令
-import { createConversationData, useChatStore, useTabStore } from '../store.js' // 引入对话结构和标签身份数据
+import { createConversationData, store } from '../store.js'            // 引入全局对话结构和标签身份数据
 import { readSSE } from '../utils/sse.js'                          // 引入通用 SSE 协议解析工具
 import { Tabs } from './tabs.js'                                   // 引入标签升级和标题指令
 
 
 // --- 取得一个标签的对话数据 ---
-function getConversation(key = useTabStore().activeKey) {
-  const chatStore = useChatStore()                                 // 读取全部标签对话映射
+function getConversation(key = store.tabs.activeKey) {
   const conversationKey = key || 'detached'                        // 主页未选标签时使用不可见占位身份
-  chatStore.conversations[conversationKey] ??= createConversationData() // 首次访问时建立完整默认结构
-  return chatStore.conversations[conversationKey]                  // 返回后续指令修改的同一响应式数据
+  store.chat.conversations[conversationKey] ??= createConversationData() // 首次访问时建立完整默认结构
+  return store.chat.conversations[conversationKey]                  // 返回后续指令修改的同一响应式数据
 }
 
 
 // --- 判断标签是否已有会话详情 ---
 function hasConversation(key) {
-  const chatStore = useChatStore()                                 // 读取全部标签对话映射
-  return Boolean(chatStore.conversations[key]?.loaded)             // 已加载详情的标签无需重复请求
+  return Boolean(store.chat.conversations[key]?.loaded)             // 已加载详情的标签无需重复请求
 }
 
 
 // --- 读取标签后台状态 ---
 function getStatus(key) {
-  const chatStore = useChatStore()                                 // 读取全部标签对话映射
-  const conversation = chatStore.conversations[key]                // 未加载标签不创建无用数据
+  const conversation = store.chat.conversations[key]               // 未加载标签不创建无用数据
   return { running: Boolean(conversation?.isRunning), approval: Boolean(conversation?.approvals.length) } // 返回标签需要的活动反馈
 }
 
@@ -57,7 +54,7 @@ function toggleReasoning(isOpen) {
 
 
 // --- 加载一个会话到指定标签 ---
-function loadSession(session, key = useTabStore().activeKey) {
+function loadSession(session, key = store.tabs.activeKey) {
   const conversation = getConversation(key)                        // 取得目标标签而非假设当前标签未切换
   conversation.sessionID = session?.id ?? ''                       // 使用真实会话 ID 或保持草稿
   conversation.messages = session?.messages ?? []                  // 用 Server 可见历史替换时间线
@@ -74,7 +71,7 @@ function loadSession(session, key = useTabStore().activeKey) {
 
 // --- 删除一个标签的对话数据 ---
 function removeConversation(key) {
-  const chatStore = useChatStore()                                 // 读取全部标签对话映射
+  const chatStore = store.chat                                      // 读取全部标签对话映射
   const conversation = chatStore.conversations[key]                // 查找关闭标签对应的数据
   if (conversation?.isRunning) return false                         // 运行中标签必须保留流和审批入口
   delete chatStore.conversations[key]                              // 释放非运行标签的浏览器数据
@@ -118,8 +115,8 @@ function receiveEvent(conversation, event, streamState) {
     const previousKey = streamState.tabKey                         // 保存迁移前草稿身份
     conversation.sessionID = event.data.id                         // 写入 Server 创建的真实 ID
     const nextKey = Tabs.promote(previousKey, event.data.id)       // 标签原位升级为真实会话
-    useChatStore().conversations[nextKey] = conversation           // 新身份继续指向同一流式数据
-    if (nextKey !== previousKey) delete useChatStore().conversations[previousKey] // 清理旧草稿映射
+    store.chat.conversations[nextKey] = conversation                // 新身份继续指向同一流式数据
+    if (nextKey !== previousKey) delete store.chat.conversations[previousKey] // 清理旧草稿映射
     streamState.tabKey = nextKey                                   // 后续标题事件定位真实标签
   }
   if (event.name === 'session-title') Tabs.setTitle(streamState.tabKey, event.data.title) // 异步标题立即更新顶部标签
@@ -156,7 +153,7 @@ function receiveEvent(conversation, event, streamState) {
 // --- 发送一条用户消息 ---
 async function send(content) {
   const message = content.trim()                                  // 去除输入首尾空白
-  const tabKey = useTabStore().activeKey                           // 捕获触发时标签，切换后仍写回原处
+  const tabKey = store.tabs.activeKey                               // 捕获触发时标签，切换后仍写回原处
   const conversation = getConversation(tabKey)                    // 捕获本轮独立对话数据
   if (!message || conversation.isRunning) return false            // 空消息或同标签运行中拒绝重复触发
 
@@ -224,7 +221,7 @@ async function reloadAfterRollback(conversation, tabKey, draft = '') {
 
 // --- 回退到一个工具步骤 ---
 async function rollback(step) {
-  const tabKey = useTabStore().activeKey                            // 捕获触发标签避免请求期间串写
+  const tabKey = store.tabs.activeKey                                // 捕获触发标签避免请求期间串写
   const conversation = getConversation(tabKey)                     // 读取当前标签对话数据
   if (!conversation.sessionID || conversation.isRunning) return false // 运行中或无会话时拒绝竞争修改
   const result = await AgentAPI.rollbackSession(conversation.sessionID, step) // 暂存 checkpoint 后历史
@@ -235,7 +232,7 @@ async function rollback(step) {
 
 // --- 回退一条用户消息 ---
 async function rollbackMessage(message) {
-  const tabKey = useTabStore().activeKey                             // 捕获触发标签避免请求期间串写
+  const tabKey = store.tabs.activeKey                                 // 捕获触发标签避免请求期间串写
   const conversation = getConversation(tabKey)                      // 读取当前标签对话数据
   if (!message.id || !conversation.sessionID || conversation.isRunning) return false // 无稳定目标或运行中拒绝
   const result = await AgentAPI.rollbackMessage(conversation.sessionID, message.id) // 暂存目标消息及之后历史
@@ -246,7 +243,7 @@ async function rollbackMessage(message) {
 
 // --- 撤销当前暂存回退 ---
 async function undoRollback() {
-  const tabKey = useTabStore().activeKey                             // 捕获触发标签避免请求期间串写
+  const tabKey = store.tabs.activeKey                                // 捕获触发标签避免请求期间串写
   const conversation = getConversation(tabKey)                      // 读取当前可撤销数据
   if (!conversation.rollback || conversation.isRunning) return false // 没有暂存或运行中无需调用
   const result = await AgentAPI.undoRollback(conversation.sessionID) // 恢复 Server 两套历史

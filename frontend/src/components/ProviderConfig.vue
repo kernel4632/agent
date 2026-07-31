@@ -6,7 +6,7 @@
 <script setup>
 import { computed, ref } from 'vue'                    // 引入当前提供商和局部字段反馈
 import { Settings } from '../commands/settings.js'    // 引入提供商、模型和连接测试指令
-import { useConfigStore } from '../store.js'          // 引入已保存配置数据
+import { store } from '../store.js'                   // 引入唯一全局工作台数据
 import { watchProviderEditor } from '../watchers.js'   // 引入集中管理的提供商反馈监听
 
 const props = defineProps({                           // 声明设置页完整编辑副本
@@ -14,7 +14,7 @@ const props = defineProps({                           // 声明设置页完整�
 })
 
 const emit = defineEmits(['update:modelValue', 'validity']) // 将配置草稿和校验状态交回设置页
-const config = useConfigStore()                       // 只读取与草稿隔离的已保存配置
+const config = store.config                            // 只读取与草稿隔离的已保存配置
 const selectedProvider = ref('')                      // 当前详情对应的提供商键名
 const newModelName = ref('')                          // 尚未加入清单的模型 ID
 const providerError = ref('')                         // 重命名冲突等提供商错误

@@ -1,10 +1,9 @@
 /*
-前端入口：加载 Vue、Pinia、MDUI 2 和全局 SCSS，然后挂载根组件。
+前端入口：加载 Vue、MDUI 2 和全局 SCSS，然后挂载根组件。
 入口不处理业务逻辑，所有用户动作由 views 调用 stores 中的指令完成。
 调用方式：Vite 从 index.html 自动执行本文件。
 */
 import { createApp } from 'vue'                    // 引入 Vue 应用创建能力
-import { createPinia } from 'pinia'                // 引入全局业务数据仓库
 import { startWatchers } from './watchers.js'      // 引入集中管理的数据变化副作用
 import 'mdui/mdui.css'                             // 引入 MDUI 2 Material You 基础样式
 import 'mdui'                                      // 注册全部 MDUI 2 Web Components
@@ -37,7 +36,5 @@ import './styles/overrides.css'                    // 允许用户最后覆盖 C
 import App from './App.vue'                        // 引入根界面组合组件
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
-const pinia = createPinia()                        // 创建只承载数据结构的 Pinia 容器
-app.use(pinia)                                     // 先注册 Pinia，供指令和监听读取数据
 startWatchers()                                    // 再启动标签持久化等集中副作用
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面

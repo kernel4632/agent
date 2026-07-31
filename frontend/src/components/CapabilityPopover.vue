@@ -5,30 +5,28 @@
 -->
 <script setup>
 import { computed, onMounted, ref } from 'vue'         // 引入状态统计和弹层引用
-import { storeToRefs } from 'pinia'                    // 保持 Pinia 字段响应性
 import { Capability } from '../commands/capability.js' // 引入能力读取和重载指令
-import { useCapabilityStore } from '../store.js'               // 引入共享运行态
+import { store } from '../store.js'                    // 引入唯一全局工作台数据
 
 const emit = defineEmits(['open-settings'])            // 将完整管理入口交给应用壳层
 const dropdown = ref(null)                             // 保存 MDUI 弹层以便跳转前关闭
-const store = useCapabilityStore()                     // 只读取共享能力状态
-const { snapshot, isLoading, errorMessage } = storeToRefs(store) // 解构响应式快照
-const mcpConnected = computed(() => snapshot.value.mcp.filter((item) => item.status === 'connected').length) // MCP 成功连接数
-const lspConnected = computed(() => snapshot.value.lsp.filter((item) => item.status === 'connected').length) // LSP 成功连接数
-const skillsEnabled = computed(() => snapshot.value.skills.filter((item) => item.enabled).length) // 当前启用 Skill 数
-const runtimeErrors = computed(() => [...snapshot.value.mcp, ...snapshot.value.lsp].filter((item) => item.error).length + snapshot.value.skillErrors.length) // 汇总可排查错误
+const capabilities = store.capabilities                         // 只读取共享能力状态
+const mcpConnected = computed(() => capabilities.snapshot.mcp.filter((item) => item.status === 'connected').length) // MCP 成功连接数
+const lspConnected = computed(() => capabilities.snapshot.lsp.filter((item) => item.status === 'connected').length) // LSP 成功连接数
+const skillsEnabled = computed(() => capabilities.snapshot.skills.filter((item) => item.enabled).length) // 当前启用 Skill 数
+const runtimeErrors = computed(() => [...capabilities.snapshot.mcp, ...capabilities.snapshot.lsp].filter((item) => item.error).length + capabilities.snapshot.skillErrors.length) // 汇总可排查错误
 const capabilityGroups = computed(() => [                 // 将运行快照整理为弹窗可直接扫描的具体条目
   {
-    id: 'mcp', label: 'MCP', summary: `${mcpConnected.value} / ${snapshot.value.mcp.length} 已连接`,
-    items: snapshot.value.mcp.map((item) => ({ name: item.name, detail: `${item.toolCount || 0} 个工具`, status: item.status })),
+    id: 'mcp', label: 'MCP', summary: `${mcpConnected.value} / ${capabilities.snapshot.mcp.length} 已连接`,
+    items: capabilities.snapshot.mcp.map((item) => ({ name: item.name, detail: `${item.toolCount || 0} 个工具`, status: item.status })),
   },
   {
-    id: 'lsp', label: 'LSP', summary: `${lspConnected.value} / ${snapshot.value.lsp.length} 已连接`,
-    items: snapshot.value.lsp.map((item) => ({ name: item.name, detail: item.status, status: item.status })),
+    id: 'lsp', label: 'LSP', summary: `${lspConnected.value} / ${capabilities.snapshot.lsp.length} 已连接`,
+    items: capabilities.snapshot.lsp.map((item) => ({ name: item.name, detail: item.status, status: item.status })),
   },
   {
-    id: 'skills', label: '技能', summary: `${skillsEnabled.value} / ${snapshot.value.skills.length} 已启用`,
-    items: snapshot.value.skills.map((item) => ({ name: item.name, detail: item.enabled ? '已启用' : '已停用', status: item.enabled ? 'connected' : 'disconnected' })),
+    id: 'skills', label: '技能', summary: `${skillsEnabled.value} / ${capabilities.snapshot.skills.length} 已启用`,
+    items: capabilities.snapshot.skills.map((item) => ({ name: item.name, detail: item.enabled ? '已启用' : '已停用', status: item.enabled ? 'connected' : 'disconnected' })),
   },
 ])
 
@@ -50,11 +48,11 @@ onMounted(() => Capability.load().catch(() => {}))    // 应用启动触发能�
 
 <template>
   <mdui-dropdown ref="dropdown" class="capability-popover" placement="bottom-end" trigger="click">
-    <mdui-button-icon slot="trigger" aria-label="服务状态" :disabled="isLoading">
+    <mdui-button-icon slot="trigger" aria-label="服务状态" :disabled="capabilities.isLoading">
       <mdui-icon-build></mdui-icon-build>
     </mdui-button-icon>
     <section class="capability-popover__panel" aria-label="运行状态">
-      <header><div><strong>运行状态</strong><small>{{ snapshot.tools.length }} 个可用工具</small></div><span v-if="runtimeErrors" class="capability-popover__error">{{ runtimeErrors }}</span></header>
+      <header><div><strong>运行状态</strong><small>{{ capabilities.snapshot.tools.length }} 个可用工具</small></div><span v-if="runtimeErrors" class="capability-popover__error">{{ runtimeErrors }}</span></header>
       <div class="capability-popover__list">
         <section v-for="group in capabilityGroups" :key="group.id" class="capability-popover__group">
           <button type="button" class="capability-popover__summary" @click="openSettings(group.id)"><strong>{{ group.label }}</strong><small>{{ group.summary }}</small><mdui-icon-chevron-right></mdui-icon-chevron-right></button>
@@ -66,8 +64,8 @@ onMounted(() => Capability.load().catch(() => {}))    // 应用启动触发能�
           <div v-else class="capability-popover__empty">未配置</div>
         </section>
       </div>
-      <p v-if="errorMessage" class="capability-popover__message">{{ errorMessage }}</p>
-      <footer><mdui-button variant="text" :loading="isLoading" @click="reload"><mdui-icon-refresh slot="icon"></mdui-icon-refresh>重载</mdui-button><mdui-button variant="filled" @click="openSettings('mcp')">管理 MCP</mdui-button></footer>
+      <p v-if="capabilities.errorMessage" class="capability-popover__message">{{ capabilities.errorMessage }}</p>
+      <footer><mdui-button variant="text" :loading="capabilities.isLoading" @click="reload"><mdui-icon-refresh slot="icon"></mdui-icon-refresh>重载</mdui-button><mdui-button variant="filled" @click="openSettings('mcp')">管理 MCP</mdui-button></footer>
     </section>
   </mdui-dropdown>
 </template>

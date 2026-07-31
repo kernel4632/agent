@@ -4,7 +4,7 @@
 调用示例：await Settings.loadPage()、Settings.addProvider(modelValue, emit, state)。
 */
 import { AgentAPI } from '../api.js'                       // 引入权限目标工具读取指令
-import { useConfigStore } from '../store.js'               // 引入已保存配置数据
+import { store } from '../store.js'                        // 引入全局已保存配置数据
 import { Config } from './config.js'                       // 引入配置读取、保存和测试指令
 
 
@@ -33,7 +33,7 @@ async function savePage(draft, isProviderValid) {
     permissions: draft.value.permissions,              // 保存完整工具权限映射
   }
   const saved = await Config.save(changes)             // 将草稿写入 Server 并刷新运行配置
-  if (saved) draft.value = cloneConfig(useConfigStore().config) // 成功后写入 Server 最终配置草稿
+  if (saved) draft.value = cloneConfig(store.config.config) // 成功后写入 Server 最终配置草稿
   return saved                                         // 返回是否保存完成
 }
 

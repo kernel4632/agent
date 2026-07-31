@@ -4,12 +4,12 @@
 调用示例：await Config.load()、await Config.selectModel('openai', 'gpt-4.1')。
 */
 import { AgentAPI } from '../api.js'                    // 引入配置 HTTP 指令
-import { useConfigStore } from '../store.js'            // 引入配置数据结构
+import { store } from '../store.js'                     // 引入全局配置数据结构
 
 
 // --- 读取当前配置 ---
 async function load() {
-  const configStore = useConfigStore()                  // 读取配置和请求反馈字段
+  const configStore = store.config                     // 读取配置和请求反馈字段
   configStore.isLoading = true                          // 设置区域进入加载反馈
   configStore.errorMessage = ''                         // 新请求清除旧错误
   try {
@@ -26,7 +26,7 @@ async function load() {
 
 // --- 保存配置修改 ---
 async function save(changes) {
-  const configStore = useConfigStore()                  // 读取配置和保存反馈字段
+  const configStore = store.config                      // 读取配置和保存反馈字段
   configStore.isLoading = true                          // 保存按钮进入进行状态
   configStore.isSaved = false                           // 新保存清除旧成功反馈
   configStore.errorMessage = ''                         // 新保存清除旧错误
@@ -46,7 +46,7 @@ async function save(changes) {
 
 // --- 切换下一轮聊天模型 ---
 async function selectModel(providerName, modelName) {
-  const configStore = useConfigStore()                  // 读取当前运行配置
+  const configStore = store.config                      // 读取当前运行配置
   if (!providerName || !modelName) return false         // 不完整选择不能覆盖可用模型
   configStore.errorMessage = ''                         // 新切换清除旧配置错误
   try {
