@@ -9,7 +9,9 @@ import { tmpdir } from 'node:os'                                     // 引入�
 import { join } from 'node:path'                                      // 引入跨平台测试路径拼接能力
 import { createApp } from '../server.js'                             // 引入可直接处理 Request 的真实应用入口
 import { Config } from '../commands/config.js'                       // 引入缓存请求选项供配置行为断言
+import { Approval } from '../commands/approval.js'                   // 引入工具审批归属和状态转换断言
 import { Session } from '../commands/session.js'                     // 引入两套历史同步回退指令
+import { Run } from '../commands/run.js'                              // 引入 Run 父子状态断言
 import { store } from '../store.js'                                    // 引入服务端唯一状态根
 
 const toolStore = store.tools                                            // 测试读取动态能力工具注册表
@@ -32,6 +34,7 @@ beforeAll(async () => {
     systemPrompt: '你是测试中的 Agent。收到请求后必须调用 task_done，并在 summary 中写出 REAL_MODEL_OK。', // 让真实模型产生可验证工具调用
     permissions: { task_done: 'allow' },                                          // 测试任务结束工具允许真实执行
     modelLimits: { 'kimi-k2.6': provider.models['kimi-k2.6'].limit },              // 使用 OpenCode 声明的真实上下文限制
+    runTimeoutMs: 270000,                                                          // 真实上游异常时仍保证单个测试 Run 在五分钟内退出
   }
   dataDirectory = await mkdtemp(join(tmpdir(), 'agent-server-real-'))             // 建立只属于本次测试的真实磁盘数据目录
   const configPath = join(dataDirectory, 'config.json')                            // 测试配置与生产用户配置隔离
@@ -54,6 +57,38 @@ async function request(path, options = {}) {
 
 async function jsonRequest(path, method, body) {
   return request(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) // 统一构造 JSON HTTP 请求
+}
+
+
+// --- 读取真实 SSE 并自动处理一次工具审批 ---
+async function readSSEWithApproval(response, initialSessionID = '') {
+  const reader = response.body.getReader()                                  // 使用真实 Web Stream 观察增量事件
+  const decoder = new TextDecoder()                                         // 将网络字节转换为 SSE 文本
+  let buffer = ''                                                           // 保存跨 chunk 的半个事件帧
+  let output = ''                                                           // 保留完整流供断言子 Run 反馈
+  let sessionID = initialSessionID                                           // 复用已有会话时直接使用调用方提供的归属
+
+  while (true) {
+    const next = await reader.read()                                        // 等待模型或工具的下一批真实事件
+    if (next.done) break                                                     // 流关闭代表根 Run 已经结束
+    const chunk = decoder.decode(next.value, { stream: true })               // 每批字节只解码一次，避免破坏跨 chunk 多字节字符
+    buffer += chunk                                                           // 累加可能被网络拆分的 SSE 内容
+    output += chunk                                                           // 保留原始事件文本
+    const frames = buffer.split('\n\n')                                     // 标准 SSE 事件以空行分隔
+    buffer = frames.pop() || ''                                             // 未完成帧留到下一次读取
+    for (const frame of frames) {
+      const event = frame.match(/^event: ([^\n]+)$/m)?.[1]                  // 读取事件名称
+      const dataText = frame.match(/^data: (.+)$/m)?.[1]                     // 读取事件 JSON
+      if (!event || !dataText) continue                                      // 忽略注释或不完整帧
+      const data = JSON.parse(dataText)                                      // 真实 SSE 数据必须可恢复为对象
+      if (event === 'session-created') sessionID = data.id                  // 新会话先反馈身份再允许审批
+      if (event === 'tool-approval-request') {
+        const approval = await jsonRequest('/chat/approval', 'POST', { sessionId: sessionID, runId: data.runID, toolCallId: data.id, decision: 'allow-once' }) // 用子 Run 归属批准真实工具
+        expect((await approval.json()).ok).toBe(true)                        // 审批 API 必须恢复等待中的子 Run
+      }
+    }
+  }
+  return output                                                            // 返回完整父流供调用方检查事件顺序
 }
 
 
@@ -108,6 +143,29 @@ describe('Agent Server API', () => {
 
     const reloaded = await jsonRequest('/tool/reload', 'POST')                 // 通过 API 再次扫描真实工具目录
     expect((await reloaded.json()).ok).toBe(true)                              // 验证真实重载完成
+  })
+
+  it('keeps Agent choices and shared-environment child Runs explicit', async () => {
+    const agents = await request('/agent/list')                              // 读取当前可选模型 Agent
+    expect((await agents.json()).some((agent) => agent.id === 'default')).toBe(true) // 旧配置迁移后必须有默认 Agent
+
+    const session = await Session.create()                                    // 建立只用于 Run 树断言的会话
+    const root = Run.create({ sessionID: session.id, agentID: 'default', input: '根任务' }) // 创建根执行
+    const child = Run.create({ sessionID: session.id, agentID: 'default', parentRunID: root.id, input: '子任务' }) // 创建共享环境子执行
+    expect((await (await request(`/session/${session.id}/runs`)).json()).map((run) => run.id)).toEqual([root.id, child.id]) // API 返回完整父子树
+
+    Run.markRunning(child.id)                                              // 子 Run 开始执行后才能等待工具审批
+    const approvalEvents = []                                              // 收集真实审批指令发出的反馈
+    const waiting = Approval.wait({ runID: child.id, sessionID: session.id, toolCallID: 'tc_child', toolName: 'task_done', input: { summary: 'OK' }, matched: { rule: null, scope: 'default' }, emit: (event, data) => approvalEvents.push({ event, data }), abortSignal: child.abortController.signal }) // 建立子 Run 的真实审批等待点
+    expect(Run.get(child.id).status).toBe('waiting_approval')              // API 和前端可以观察真实等待状态
+    expect(approvalEvents[0]).toMatchObject({ event: 'tool-approval-request', data: { runID: child.id, id: 'tc_child' } }) // 反馈必须携带子 Run 归属
+    expect((await Approval.decide({ sessionID: 'ses_wrong', runID: child.id, toolCallID: 'tc_child', decision: 'allow-once' })).status).toBe(404) // 错误会话不能恢复其他会话的工具
+    expect((await Approval.decide({ sessionID: session.id, toolCallID: 'tc_child', decision: 'allow-once' })).ok).toBe(true) // 兼容入口在唯一匹配时仍能批准
+    expect(await waiting).toBe('allow-once')                              // 等待中的工具收到真实决定
+    expect(Run.get(child.id).status).toBe('running')                       // 审批不会创建新的隐式执行
+
+    Run.cancel(root.id, 'test cancellation')                               // 父 Run 取消必须向下传播
+    expect(Run.get(child.id).status).toBe('cancelled')                     // 子 Run 不能继续悬挂
   })
 
   it('connects real MCP and LSP processes and progressively loads a real Skill', async () => {
@@ -178,6 +236,12 @@ describe('Agent Server API', () => {
     await jsonRequest('/config', 'PUT', { providers: { aker: { ...currentConfig.providers.aker, models: ['kimi-k2.6'] } } }) // 模拟设置页删除临时提供商
     expect((await (await request('/config')).json()).providers.temporary).toBeUndefined() // 验证完整集合替换真正删除提供商
 
+    const temporaryAgent = await (await jsonRequest('/agent', 'POST', { name: '临时 Agent', provider: 'aker', model: 'kimi-k2.6' })).json() // 模拟 Agent 设置页新增定义
+    const configWithAgent = await (await request('/config')).json()               // 读取包含新增 Agent 的完整设置草稿
+    delete configWithAgent.agents[temporaryAgent.id]                              // 模拟设置页删除一个非默认 Agent
+    await jsonRequest('/config', 'PUT', { agents: configWithAgent.agents })        // Agent 集合必须支持完整替换
+    expect((await request(`/agent/${temporaryAgent.id}`)).status).toBe(404)        // 被删定义不能被深合并恢复
+
     await jsonRequest('/config', 'PUT', { activeProvider: 'test-openai', activeModel: 'gpt-test', providers: { aker: currentConfig.providers.aker, 'test-openai': { apiKey: '', baseURL: 'http://localhost', models: ['gpt-test'], setCacheKey: true } } }) // 临时切换到 Responses 协议验证无状态续轮参数
     expect(Config.getProviderOptions('ses_cache')).toEqual({ openai: { store: false, promptCacheKey: 'ses_cache', promptCacheOptions: { mode: 'implicit' } } }) // 中转不保存 rs_ item 时必须携带完整加密 reasoning
     await jsonRequest('/config', 'PUT', { activeProvider: 'aker', activeModel: 'kimi-k2.6', providers: { aker: currentConfig.providers.aker } }) // 恢复后续真实 Kimi 测试配置
@@ -210,6 +274,18 @@ describe('Agent Server API', () => {
     }, () => { retryCount += 1 })
     await expect(operation).rejects.toThrow('invalid API key')            // 不可恢复错误立即交回调用方
     expect(retryCount).toBe(0)                                            // 前端不显示无意义重试倒计时
+  })
+
+  it('stops retrying when a recoverable provider error exhausts its budget', async () => {
+    let calls = 0                                                         // 记录首次调用和后续重试总次数
+    const operation = retry(async () => {
+      calls += 1                                                          // 每次进入都代表一次真实上游尝试
+      const error = new Error('status_code=503, provider unavailable')     // 模拟可恢复但持续存在的服务端错误
+      error.statusCode = 503                                              // 使用真实 HTTP 状态进入重试规则
+      throw error
+    }, () => {}, undefined, { maxRetries: 2, maxElapsedMs: 1000, baseDelayMs: 1, jitterMs: 0 }) // 使用短预算验证确定性终止
+    await expect(operation).rejects.toThrow('provider unavailable')        // 最后一次上游错误必须反馈调用方
+    expect(calls).toBe(3)                                                  // 首次尝试加两次重试后立即结束
   })
 
   it('stages a user message rollback across display and model history', async () => {
@@ -258,15 +334,27 @@ describe('Agent Server API', () => {
     expect(streamText).toContain('REAL_MODEL_OK')                                // 验证模型真实返回测试标记
     const sessionCreated = streamText.match(/event: session-created\ndata: ({[^\n]+})/) // 从真实 SSE 读取自动创建的会话事件
     expect(sessionCreated).not.toBeNull()                                        // 自动创建会话必须先反馈给客户端
-    const realSessionID = JSON.parse(sessionCreated[1]).id                       // 提取真实模型会话 ID 供后续 API 使用
+    expect(JSON.parse(sessionCreated[1]).id).toMatch(/^ses_/)                    // 真实流创建的会话使用稳定业务 ID
+  }, 300000)
 
-    const continuedResponse = await jsonRequest('/chat/send', 'POST', { sessionId: realSessionID, message: '再次完成真实模型测试。' }) // 在同一历史上再跑一次真实模型
-    expect(await continuedResponse.text()).toContain('REAL_MODEL_OK')            // 验证已有会话也走真实 kimi-k2.6
-    const rolledBack = await jsonRequest(`/session/${realSessionID}/rollback/1`, 'POST') // 回滚真实工具产生的第一个 checkpoint
-    expect((await rolledBack.json()).ok).toBe(true)                               // 验证成功截断第二轮真实消息
-    const restored = await jsonRequest(`/session/${realSessionID}/undo-rollback`, 'POST') // 撤销刚才的真实回滚
-    expect((await restored.json()).restoredMessages).toBeGreaterThan(0)           // 验证被截断消息真实恢复
-  }, 180000)
+  it('runs a real kimi-k2.6 child Agent and approves its tool call through the parent SSE', async () => {
+    const worker = await (await jsonRequest('/agent', 'POST', { name: '真实子 Agent', provider: 'aker', model: 'kimi-k2.6', systemPrompt: '你是子 Agent。你必须调用 task_done，summary 必须包含 CHILD_REAL_OK。' })).json() // 创建真实子 Agent 定义
+    const orchestrator = await (await jsonRequest('/agent', 'POST', { name: '真实编排 Agent', provider: 'aker', model: 'kimi-k2.6', systemPrompt: `你是根 Agent。你必须调用 spawn_agent，把任务交给 agentId=${worker.id}，prompt 必须要求子 Agent 调用 task_done；不要自己调用 task_done。等待子 Agent 结果后再结束。` })).json() // 创建强制派生子 Agent 的根定义
+    await jsonRequest('/config', 'PUT', { permissions: { task_done: 'ask', spawn_agent: 'allow' } }) // 让子 Agent 的结束工具真实进入审批状态
+    const session = await (await jsonRequest('/session/create', 'POST', { agentId: orchestrator.id })).json() // 创建使用编排 Agent 的真实会话
+    const response = await jsonRequest('/chat/send', 'POST', { sessionId: session.id, agentId: orchestrator.id, message: '请完成一次真实子 Agent 协作测试。' }) // 触发真实 kimi-k2.6 根 Agent
+    const streamText = await readSSEWithApproval(response, session.id)            // 观察并批准子 Agent 的真实工具调用
+    expect(streamText).toContain('child-run-created')                            // 根流必须公开子 Run 创建事实
+    expect(streamText).toContain('tool-approval-request')                        // 子 Run 审批必须冒泡到父 SSE
+    expect(streamText).toContain('child-run-finished')                           // 根流必须收到子 Run 完成反馈
+    const childCreated = streamText.match(/event: child-run-created\ndata: ({[^\n]+})/) // 从父 SSE 提取真实子 Run 身份
+    expect(childCreated).not.toBeNull()                                           // 模型必须真实调用 spawn_agent
+    const childRunID = JSON.parse(childCreated[1]).runID                         // 使用协议身份而不是随机模型措辞断言
+    const childRun = Run.listForSession(session.id).find((run) => run.id === childRunID) // 从运行状态根读取同一个子执行
+    expect(childRun).toMatchObject({ parentRunID: expect.any(String), status: 'completed', agentID: worker.id }) // 子 Agent 必须使用指定 Agent 并完成
+    expect(streamText).toMatch(new RegExp(`event: tool-approval-request\\ndata: \\{[^\\n]*"runID":"${childRunID}"`)) // 审批事件必须属于这个子 Run
+    await jsonRequest('/config', 'PUT', { permissions: { task_done: 'allow', spawn_agent: 'allow' } }) // 恢复后续真实模型测试的无交互结束工具
+  }, 300000)
 
   it('handles session delete API against real disk storage', async () => {
     const session = (await (await jsonRequest('/session/create', 'POST')).json()) // 创建待删除的真实会话文件

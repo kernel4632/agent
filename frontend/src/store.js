@@ -10,6 +10,9 @@ import { reactive } from 'vue'                                    // 引入单�
 export function createConversationData() {
   return {
     sessionID: '',                                               // Server 会话 ID，草稿首次发送后补齐
+    agentID: '',                                                  // 当前会话选择的 Agent 定义
+    activeRunID: '',                                              // 当前根 Run，停止动作按它精确定位
+    runs: [],                                                      // 当前会话的根 Run 和子 Run 状态
     messages: [],                                                // 用户、助手和工具组成的展示时间线
     approvals: [],                                               // 正在等待用户决定的工具调用
     tasks: [],                                                   // 当前会话任务清单
@@ -27,6 +30,11 @@ export function createConversationData() {
 
 // --- 工作台全局数据 ---
 export const store = reactive({                                  // 暴露唯一全局数据对象，所有页面共享同一引用
+  agents: {                                                       // Server 可选择的 Agent 定义目录
+    items: [],                                                    // Agent ID、名称、供应商和模型
+    isLoading: false,                                             // Agent 目录是否正在读取
+    errorMessage: '',                                             // 最近一次 Agent 目录错误
+  },
   ui: {                                                           // 页面导航和设置分类
     activeView: 'home',                                          // 当前主区域：home、chat 或 settings
     settingsSection: 'models',                                   // 当前设置分类：模型、Agent、权限或外部能力

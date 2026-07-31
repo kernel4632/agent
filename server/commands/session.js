@@ -7,6 +7,7 @@ import { createStorage } from 'unstorage'             // 引入统一键值存�
 import fsDriver from 'unstorage/drivers/fs'           // 引入真实文件系统存储驱动
 import { nanoid } from 'nanoid'                       // 引入紧凑唯一 ID 生成能力
 import { store } from '../store.js'                    // 引入服务端唯一状态根
+import { Config } from './config.js'                   // 引入默认 Agent 选择
 
 const sessionStore = store.sessions                       // 当前指令使用会话领域状态
 
@@ -30,10 +31,11 @@ async function load(directory) {
 
 
 // --- 创建空会话 ---
-async function create() {
+async function create(agentID) {
   const now = Date.now()                              // 创建和更新时间从同一个时刻开始
   const session = {                                   // 显式定义持久化会话的全部字段
     id: `ses_${nanoid(10)}`,                          // 会话唯一标识，用作 API 和磁盘键
+    agentID: agentID || Config.get().defaultAgentId || 'default', // 会话默认 Agent，后续消息可显式校验
     title: '',                                        // 首条消息后由模型异步生成标题
     titleSource: 'generated',                         // 标记标题归属，异步生成不能覆盖用户重命名
     createdAt: now,                                   // 会话创建时间，Unix 毫秒
@@ -99,8 +101,8 @@ function validateTasks(tasks) {
 function list() {
   return [...sessionStore.items.values()]             // 从运行时映射读取全部会话
     .sort((left, right) => right.updatedAt - left.updatedAt) // 最近更新的会话优先展示
-    .map(({ id, title, createdAt, updatedAt, messages }) => ({ // API 列表不泄漏完整消息
-      id, title, createdAt, updatedAt, messageCount: messages.length, // 仅返回设计文档规定的摘要字段
+    .map(({ id, title, agentID, createdAt, updatedAt, messages }) => ({ // API 列表不泄漏完整消息
+      id, title, agentID, createdAt, updatedAt, messageCount: messages.length, // 同时反馈会话使用的 Agent
     }))
 }
 
@@ -206,6 +208,7 @@ function commitRollback(session) {
 
 // --- 统一旧会话结构 ---
 function normalizeSession(session) {
+  session.agentID ??= Config.get().defaultAgentId || 'default' // 旧会话补齐默认 Agent
   session.title ??= ''                                // 旧会话缺少标题时保持可生成状态
   session.titleSource ??= 'generated'                 // 旧标题视为模型生成，后续用户重命名会明确接管
   session.tasks ??= []                                // 旧会话补齐空任务清单

@@ -5,6 +5,7 @@
 */
 import { Elysia } from 'elysia'                       // 引入可组合的路由插件能力
 import { Config } from '../commands/config.js'        // 引入配置读取、更新和连接测试指令
+import { Agent } from '../commands/agent.js'          // 引入配置更新后的 Agent 目录重载指令
 import { Responses } from '../responses.js'           // 引入统一 Command 响应转换器
 import { Schemas } from '../schemas.js'               // 引入配置请求命名模型
 
@@ -34,7 +35,11 @@ export const configRoutes = new Elysia({ name: 'agent.routes.config' }) // 配�
   .get('/config', () => redact(Config.get()))          // 返回脱敏后的当前配置
   .put(
     '/config',                                         // 保存并立即应用配置
-    ({ body }) => Config.update(body),
+    async ({ body }) => {
+      const result = await Config.update(body)           // 先持久化共享配置和 Agent 定义
+      await Agent.load()                                // 让后续 Run 立即看到最新 Agent 选择
+      return result                                     // 返回配置更新结果
+    },
     { body: 'ConfigUpdate' },
   )
   .post(

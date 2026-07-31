@@ -1,18 +1,28 @@
-# 配置文件结构
+# 配置
 
-## 文件位置
+## 位置与加载
 
-```
+默认文件：
+
+```text
 ~/.agent/config.json
 ```
 
-## 完整结构
+Windows 默认是 `%USERPROFILE%\.agent\config.json`。可通过以下方式覆盖：
+
+- `AGENT_DATA_DIR`：覆盖整个用户数据目录。
+- `AGENT_WORKSPACE`：覆盖 MCP/LSP/Skills 使用的共享工作区。
+- Runtime `configPath`、`dataDirectory`、`workspaceDirectory`：宿主和测试注入。
+
+首次启动会生成配置，并把旧字段归一化后写回磁盘。
+
+## 完整示例
 
 ```json
 {
   "activeProvider": "openai",
-  "activeModel": "gpt-4.1",
-
+  "activeModel": "gpt-5",
+  "systemPrompt": "你是一个有用的 AI 助手。",
   "providers": {
     "openai": {
       "apiKey": "sk-xxx",
@@ -21,106 +31,153 @@
       "headers": {},
       "timeoutMs": 120000,
       "cache": { "enabled": true, "mode": "implicit" },
-      "models": ["gpt-4.1"],
+      "models": ["gpt-5"],
       "modelSettings": {
-        "gpt-4.1": {
-          "context": 1048576,
+        "gpt-5": {
+          "context": 400000,
           "maxOutputTokens": 32768,
           "temperature": 0.2
         }
       }
     }
   },
-
-  "systemPrompt": "你是一个有用的 AI 助手，能够通过调用工具来帮助用户完成各种任务。",
-
+  "agents": {
+    "default": {
+      "id": "default",
+      "name": "默认 Agent",
+      "provider": "openai",
+      "model": "gpt-5",
+      "systemPrompt": "你是一个有用的 AI 助手。"
+    },
+    "reviewer": {
+      "id": "reviewer",
+      "name": "Reviewer",
+      "provider": "openai",
+      "model": "gpt-5",
+      "systemPrompt": "只审查缺陷和风险。"
+    }
+  },
+  "defaultAgentId": "default",
   "permissions": {
     "read_file": "allow",
     "write_file": "ask",
+    "spawn_agent": "allow",
     "run_command": {
       "*": "ask",
-      "git log*": "allow",
-      "git diff*": "allow",
       "git status*": "allow",
-      "git show*": "allow",
-      "ls *": "allow",
-      "cat *": "allow",
-      "npm *": "allow",
-      "bun *": "allow",
-      "rm *": "deny",
-      "sudo *": "deny"
-    },
-    "list_files": "allow",
-    "search_files": "allow",
-    "web_fetch": "allow",
-    "task_done": "allow",
-    "task_list_update": "allow"
+      "git diff*": "allow",
+      "rm *": "deny"
+    }
   },
-  "modelLimits": {}
+  "modelLimits": {},
+  "runTimeoutMs": 300000,
+  "mcpServers": {},
+  "lspServers": {},
+  "skills": {
+    "enabled": true,
+    "directories": [],
+    "disabled": []
+  }
 }
 ```
 
-## 字段说明
-
-### 顶层字段
+## 顶层字段
 
 | 字段 | 类型 | 说明 |
-|------|------|------|
-| `activeProvider` | string | 当前使用的供应商名称 |
-| `activeModel` | string | 当前使用的模型名称 |
-| `providers` | object | 所有已配置的供应商 |
-| `systemPrompt` | string | 系统提示词 |
-| `permissions` | object | 工具权限配置 |
-| `modelLimits` | object | 旧版按模型名称保存的上下文限制；新配置优先使用 `modelSettings` |
+|---|---|---|
+| `activeProvider` | string | 旧入口、标题生成和默认 Agent 迁移使用的 Provider |
+| `activeModel` | string | 旧入口、标题生成和默认 Agent 迁移使用的模型 |
+| `systemPrompt` | string | 默认 Agent 迁移和旧入口提示词 |
+| `providers` | object | Provider 网络、协议和模型设置 |
+| `agents` | object | Agent ID 到模型身份定义 |
+| `defaultAgentId` | string | 新 Session 和省略 `agentId` 的 Run 默认选择 |
+| `permissions` | object | 全局工具权限 |
+| `modelLimits` | object | 旧版上下文限制兼容字段 |
+| `runTimeoutMs` | number | 根 Run 和 Child Run 总预算，默认 `300000ms` |
+| `mcpServers` | object | MCP stdio/HTTP 声明 |
+| `lspServers` | object | LSP 进程和扩展名映射 |
+| `skills` | object | Skill 开关、额外目录和禁用列表 |
 
-### providers 中每个供应商
+## Agent
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `apiKey` | string \| null | API 密钥，null 表示不需要（如 ollama） |
-| `baseURL` | string \| null | 自定义 API 地址，null 使用默认 |
-| `protocol` | string | `openai-responses` 或 `openai-compatible`，显式决定调用协议 |
-| `headers` | object | 应用于该供应商请求的自定义 HTTP 请求头 |
-| `timeoutMs` | number | 请求及响应流超时时间，单位毫秒，默认 120000 |
-| `cache` | object | Responses 协议缓存设置：`enabled` 与 `mode` |
-| `models` | string[] | 该供应商可用的模型列表 |
-| `modelSettings` | object | 按模型名配置 `context`、`maxOutputTokens` 和 `temperature` |
+每项包含 `id`、`name`、`provider`、`model` 和 `systemPrompt`。加载旧配置时自动创建 `default` Agent；无效的 `defaultAgentId` 回退到 `default`。
 
-### permissions
+Run 创建时读取 Agent 快照。运行中修改 Agent 定义不会切换该 Run 的 Provider、模型或提示词；下一次新 Run 生效。权限和共享能力仍按全局最新状态执行。
 
-详见 06-permissions.md。
+## Provider
 
-## PUT /config 更新行为
+| 字段 | 说明 |
+|---|---|
+| `protocol` | `openai-responses` 或 `openai-compatible` |
+| `apiKey` / `baseURL` / `headers` | 认证和网络位置 |
+| `timeoutMs` | 单次请求与响应流超时，默认 `120000ms` |
+| `models` | 设置页可选模型目录 |
+| `modelSettings` | 按模型配置 `context`、`maxOutputTokens`、`temperature` |
+| `cache.enabled` | 仅 Responses 协议启用 prompt cache key |
+| `cache.mode` | Responses prompt cache 模式，默认 `implicit` |
 
-普通字段采用深度合并；只更新传入的字段：
+Responses 调用始终设置 `store: false`。启用缓存时使用 `sessionID:runID` 作为稳定 cache key。上下文限制优先读取 `modelSettings[model].context`，再读旧 `modelLimits`，最终回退 `128000`。
 
-```javascript
-// 请求体
-{ "activeModel": "gpt-4o" }
+## MCP
 
-// 效果：只更新 activeModel，其他字段不变
+stdio 示例：
+
+```json
+{
+  "mcpServers": {
+    "local": {
+      "transport": "stdio",
+      "command": "bun",
+      "args": ["run", "mcp-server.js"],
+      "env": {}
+    }
+  }
+}
 ```
 
-```javascript
-// 请求体
-{ "providers": { "openai": { ...完整供应商配置... } } }
+HTTP 示例：
 
-// providers 是例外：传入时按完整集合替换，以支持删除供应商
+```json
+{
+  "mcpServers": {
+    "remote": {
+      "transport": "http",
+      "url": "https://example.test/mcp",
+      "headers": { "Authorization": "Bearer token" }
+    }
+  }
+}
 ```
 
-`GET /config` 会将 API Key 以及名称匹配 authorization、token、cookie、secret 等模式的敏感请求头替换为 `[REDACTED]`。把未修改的占位符原样提交回 `PUT /config` 时，服务端会恢复已保存的真实值。
+## LSP
 
-## 即时生效
+```json
+{
+  "lspServers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "extensions": [".ts", ".tsx"],
+      "env": {}
+    }
+  }
+}
+```
 
-配置修改后立即生效：
+LSP 进程使用 `AGENT_WORKSPACE` 指向的共享工作区。
 
-- `activeProvider` / `activeModel` 修改 → 下一次 LLM 调用使用新模型
-- `systemPrompt` 修改 → 下一次 LLM 调用使用新提示词
-- `permissions` 修改 → 下一次工具执行使用新权限规则
-- `timeoutMs` / `headers` / `cache` / `modelSettings` 修改 → 下一次 LLM 调用使用新请求设置
+## 更新语义
 
-如果 Agent 循环正在运行中，这些改动在下一个循环迭代时自动生效。
+`PUT /config` 的普通字段深度合并。以下集合在请求中出现时按完整集合替换，以支持删除：
 
-## 首次运行
+- `providers`
+- `agents`
+- `mcpServers`
+- `lspServers`
+- `skills`
 
-首次运行时如果 config.json 不存在，自动生成默认配置（providers 为空，需要用户在 UI 中填写 API Key）。
+Agent 设置页可提交完整 `agents` 和 `defaultAgentId`。保存配置后 Agent 目录立即重载。
+
+`GET /config` 会脱敏 Provider 和 MCP 的密钥、认证 Header、敏感环境变量。把 `[REDACTED]` 原样提交回同名记录时，Server 恢复已保存值。
+
+配置保存不会自动重建 MCP/LSP/Skills；能力设置流程保存后应调用 `POST /capability/reload`。

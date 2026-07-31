@@ -1,158 +1,131 @@
-# 权限系统设计
-
-## 设计参考
-
-参考 OpenCode 的权限模型，每个工具的执行权限可配置为三个级别，支持通配符模式匹配。
+# 权限与审批
 
 ## 权限级别
 
-| 级别      | 行为                       |
-| ------- | ------------------------ |
-| `allow` | 直接执行，不询问用户               |
-| `ask`   | 暂停循环，推送确认请求给前端，等待用户批准或拒绝 |
-| `deny`  | 不执行，告知 LLM 该工具被禁止使用      |
+| 值 | 行为 |
+|---|---|
+| `allow` | 直接执行工具 |
+| `ask` | 暂停对应 Run，等待用户决定 |
+| `deny` | 不执行，将禁止结果返回模型 |
 
-## 配置方式
+权限属于全局 Environment，全部 Agent 和 Run 共享。
 
-权限配置位于 config.json 的 `permissions` 字段。
+## 配置
 
-### 简单配置（整个工具一个级别）
+简单规则作用于整个工具：
 
 ```json
 {
   "permissions": {
     "read_file": "allow",
-    "write_file": "ask",
-    "list_files": "allow",
-    "search_files": "allow",
-    "web_fetch": "allow",
-    "task_done": "allow"
+    "write_file": "ask"
   }
 }
 ```
 
-### 模式匹配配置（按参数内容细分）
-
-适用于需要按具体操作内容区分权限的工具（如 run\_command）：
+对象规则匹配工具输入对象的第一个参数值：
 
 ```json
 {
   "permissions": {
     "run_command": {
       "*": "ask",
-      "git *": "allow",
-      "npm *": "allow",
-      "bun *": "allow",
-      "ls *": "allow",
-      "cat *": "allow",
-      "rm *": "deny",
-      "sudo *": "deny"
+      "git status*": "allow",
+      "git diff*": "allow",
+      "rm *": "deny"
     }
   }
 }
 ```
 
-## 匹配规则
+- `*` 匹配任意数量字符，`?` 匹配一个字符。
+- 使用全字符串匹配。
+- 规则按配置顺序评估，最后一个匹配项生效。
+- 对象没有匹配项时为 `ask`。
+- 未配置工具时为 `ask`。
 
-### 通配符语法
+## 执行流程
 
-| 符号  | 含义          |
-| --- | ----------- |
-| `*` | 匹配零个或多个任意字符 |
-| `?` | 匹配恰好一个任意字符  |
-| 其他  | 字面匹配        |
+```text
+tool-call
+-> 读取最新 permissions
+-> 匹配工具或首参数规则
+-> allow: 执行
+-> deny: 不执行，反馈模型
+-> ask: Approval.wait
+       -> Run = waiting_approval
+       -> SSE tool-approval-request
+       -> 用户决定
+       -> Run = running
+       -> 执行、拒绝或持久化权限
+```
 
-### 匹配目标
+配置中的 `deny` 返回普通 tool result，让模型尝试其他方案。用户现场选择 `deny` 返回拒绝结果并带 `stop: true`，结束当前循环。
 
-使用工具的**第一个参数值**作为匹配目标。例如 `run_command` 工具的第一个参数是 `command`，就用命令内容做匹配。
+## 审批身份
 
-### 优先级
+待审批项使用以下组合键：
 
-规则从上到下逐条匹配，**最后一条匹配的规则生效**。
+```text
+runID + toolCallID
+```
 
-示例：命令 `git push origin main`
+每项还记录 `sessionID`。决定执行前同时校验 Run、Session 和工具调用归属，防止：
+
+- Child Run 的审批恢复父 Run。
+- 使用另一个 Session 的请求消费审批。
+- 同一审批被并发请求重复消费。
+- 旧兼容 API 在多个匹配项中任选一个。
+
+## 审批 API
+
+```http
+POST /chat/approval
+```
 
 ```json
 {
-  "*": "ask",        // 匹配 ✓（通配符）
-  "git *": "allow"   // 匹配 ✓（更具体）→ 最终结果: allow
+  "sessionId": "ses_xxx",
+  "runId": "run_xxx",
+  "toolCallId": "call_xxx",
+  "decision": "allow-once"
 }
 ```
 
-示例：命令 `rm -rf /tmp`
+决定值：
+
+- `deny`：拒绝本次调用。
+- `allow-once`：执行本次调用，不改配置。
+- `always-allow`：先将整个工具持久化为 `allow`，写盘成功后再执行。
+
+`always-allow` 当前按工具名持久化，不按本次参数规则持久化。写盘失败返回 `500`，审批保持等待，可重试，不会先执行工具。
+
+`runId` 应始终由新客户端提供。省略时按 `sessionId + toolCallId` 兼容查找：
+
+- 唯一匹配：继续处理。
+- 多个匹配：返回 `409`，要求 `runId`。
+- 无匹配或已消费：返回 `404`。
+
+`POST /chat/approve` 和 `POST /chat/reject` 仅用于旧客户端。
+
+## SSE 请求
 
 ```json
 {
-  "*": "ask",       // 匹配 ✓
-  "rm *": "deny"    // 匹配 ✓ → 最终结果: deny
+  "id": "call_xxx",
+  "runID": "run_xxx",
+  "name": "write_file",
+  "args": { "path": "src/app.js" },
+  "matchedRule": "*",
+  "scope": "argument",
+  "target": "src/app.js"
 }
 ```
 
-### 未配置的工具
+前端必须把审批弹窗绑定到 `runID`，提交后禁用按钮，直到 API 返回结果。
 
-未在 permissions 中出现的工具默认为 `ask`（需要用户确认）。
+## 取消与清理
 
-## ask 权限的交互流程
+审批等待监听 Run 的 `AbortSignal`。停止 Run、父 Run 取消或请求断开时，等待 Promise 自动按 `deny` 恢复并从 pending map 删除，不留下挂起执行。
 
-当工具权限为 ask 时：
-
-1. Agent 循环暂停
-2. 推送 SSE 事件 `tool-approval-request`，携带工具名和参数
-3. 前端展示确认弹窗，显示工具名、参数内容
-4. 用户选择：
-   - `deny` → 拒绝本次执行，并停止当前 Agent 循环
-   - `allow-once` → 仅执行当前工具调用
-   - `always-allow` → 执行当前调用，并将该工具持久化为 `allow`
-
-前端统一调用 `POST /chat/approval`，请求体包含 `sessionId`、`toolCallId` 和上述 `decision`。`POST /chat/approve` 与 `POST /chat/reject` 仅用于兼容旧客户端。
-
-### 内部实现
-
-使用 Promise 实现暂停/恢复：
-
-```javascript
-// 循环中遇到 ask 权限
-const decision = await waitForApproval(toolCallId, toolName, args)
-if (decision !== 'deny') {
-  // 执行工具
-} else {
-  // 告知 LLM: "用户拒绝了该工具的执行"
-}
-```
-
-`waitForApproval` 返回一个 Promise，直到收到 `/chat/approval` 请求或会话被主动停止时才结束。主动停止会中断等待，不留下悬挂审批。
-
-## deny 权限的处理
-
-工具被 deny 时，不执行工具，而是将以下消息作为 tool\_result 传回给 LLM：
-
-```
-该工具已被用户禁止使用。请尝试其他方式完成任务。
-```
-
-LLM 会据此调整策略（比如换一个工具或告知用户无法完成）。如果是用户现场拒绝的直接停止 Agent 循环，如果是自动拒绝的就继续循环。
-
-## 默认权限配置
-
-首次运行时生成的默认配置：
-
-```json
-{
-  "permissions": {
-    "read_file": "allow",
-    "write_file": "ask",
-    "run_command": {
-      "*": "ask",
-      "git log*": "allow",
-      "git diff*": "allow",
-      "git status*": "allow",
-      "ls *": "allow"
-    },
-    "list_files": "allow",
-    "search_files": "allow",
-    "web_fetch": "allow",
-    "task_done": "allow"
-  }
-}
-```
-
+待审批项只存在于进程内，不持久化。Server 重启后旧 Run 和审批都不可恢复。

@@ -28,7 +28,7 @@ function getTasks({ params }) {
 
 export const sessionRoutes = new Elysia({ name: 'agent.routes.session', prefix: '/session' }) // 会话 API 使用独立前缀插件
   .use(Schemas)                                        // 继承集中注册的请求模型
-  .post('/create', () => Session.create())             // 创建新的空会话
+  .post('/create', ({ body }) => Session.create(body?.agentId)) // 创建绑定 Agent 的空会话，兼容无请求体的旧客户端
   .get('/list', () => Session.list())                  // 返回全部会话摘要
   .get('/:id', getSession)                             // 返回单个完整会话
   .patch(

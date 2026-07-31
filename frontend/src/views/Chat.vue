@@ -4,18 +4,19 @@
 调用示例：App 在 activeView === 'chat' 时渲染 <Chat />。
 -->
 <script setup>
-import { computed, onMounted, ref } from 'vue'        // 引入当前标题、请求反馈和配置加载能力
+import { computed, onMounted, ref } from 'vue'        // 引入当前标题、请求反馈和 Agent 目录加载能力
 import InputBox from '../components/InputBox.vue'    // 引入任务输入与停止触发组件
 import MessageList from '../components/MessageList.vue' // 引入完整消息历史组件
 import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入顶栏原位重命名组件
 import TaskPanel from '../components/TaskPanel.vue'   // 引入当前会话任务面板
+import RunTree from '../components/RunTree.vue'       // 引入根 Run 和子 Agent 执行树
 import { Chat as ChatCommand } from '../commands/chat.js' // 引入对话、审批和回滚指令
-import { Config } from '../commands/config.js'       // 引入模型配置指令
+import { Agent } from '../commands/agent.js'          // 引入 Agent 目录指令
 import { Workspace } from '../commands/workspace.js' // 引入发送和重命名工作区指令
 import { store } from '../store.js' // 引入唯一全局工作台数据
 
 const chat = computed(() => ChatCommand.getConversation()) // 读取当前标签完整对话数据
-const config = store.config                            // 只读取全部可切换模型
+const agents = store.agents                          // 只读取可选择 Agent 目录
 const sessions = store.session                         // 只读取当前会话摘要
 const tabs = store.tabs                                // 只读取当前活动标签
 const currentSession = computed(() => sessions.items.find((item) => item.id === chat.value.sessionID)) // 查找当前摘要
@@ -35,9 +36,9 @@ async function sendMessage(message) {
 }
 
 
-// --- 即时切换下一轮模型 ---
-async function selectModel({ providerName, modelName }) {
-  await Config.selectModel(providerName, modelName)   // 将选择写入 Server 并更新配置数据
+// --- 选择当前会话 Agent ---
+function selectAgent(agentID) {
+  if (!chat.value.isRunning) chat.value.agentID = agentID // 运行中由输入组件锁定，避免上下文中途切换
 }
 
 
@@ -46,7 +47,10 @@ async function renameSession(nextTitle, resolve) {
   await Workspace.renameCurrentSession(chat.value, nextTitle, resolve, isRenaming, renameError) // 指令管理保存状态、错误和编辑器反馈
 }
 
-onMounted(() => { if (!config.current) Config.load() }) // 首次进入对话触发配置读取指令
+onMounted(async () => {
+  if (!agents.items.length) await Agent.refresh()       // 首次进入读取可用 Agent 目录
+  if (!chat.value.agentID) chat.value.agentID = agents.items[0]?.id || '' // 草稿默认选择目录首项
+})
 </script>
 
 <template>
@@ -70,6 +74,7 @@ onMounted(() => { if (!config.current) Config.load() }) // 首次进入对话触
     <div class="chat-feedback">
       <div v-if="chat.retryNotice" class="notice notice--muted">连接中断，正在进行第 {{ chat.retryNotice.attempt }} 次重试</div>
       <div v-if="chat.errorMessage" class="notice notice--error">{{ chat.errorMessage }}</div>
+      <RunTree v-if="chat.runs.length" :runs="chat.runs" />
     </div>
 
     <footer class="chat-composer">
@@ -80,7 +85,7 @@ onMounted(() => { if (!config.current) Config.load() }) // 首次进入对话触
         <button type="button" @click="ChatCommand.undoRollback">撤销回退</button>
       </div>
       <TaskPanel :tasks="chat.tasks" />
-      <InputBox v-model="draftText" :running="chat.isRunning" :config="config.current" @send="sendMessage" @stop="ChatCommand.stop" @select-model="selectModel" />
+      <InputBox v-model="draftText" :running="chat.isRunning" :agents="agents.items" :agent-id="chat.agentID" @send="sendMessage" @stop="ChatCommand.stop" @select-agent="selectAgent" />
       <small>Agent 可能会出错，请检查重要操作。</small>
     </footer>
   </section>

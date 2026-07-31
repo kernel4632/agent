@@ -19,11 +19,11 @@ async function request(path, options = {}) {
 
 
 // --- 发送消息并取得 SSE 流 ---
-async function sendMessage({ sessionID, messageID, message, signal }) {
+async function sendMessage({ sessionID, agentID, messageID, message, signal }) {
   const response = await fetch(`${apiRoot}/chat/send`, { // 启动真实 Agent 循环
     method: 'POST',                                    // 对话触发使用 POST
     headers: { 'content-type': 'application/json' },   // 请求体按 JSON 编码
-    body: JSON.stringify({ sessionId: sessionID || undefined, messageId: messageID, message }), // 共享消息 ID 让当前页面可立即回退
+    body: JSON.stringify({ sessionId: sessionID || undefined, agentId: agentID || undefined, messageId: messageID, message }), // 发送明确 Agent 选择和稳定消息 ID
     signal,                                            // 允许 stop 与页面卸载中断连接
   })
   if (!response.ok) throw new Error((await response.json()).error ?? '发送失败') // 启动失败时反馈 Server 原因
@@ -33,8 +33,8 @@ async function sendMessage({ sessionID, messageID, message, signal }) {
 
 export const AgentAPI = {                              // 导出全部 Server 业务指令
   sendMessage,                                         // 启动 Agent SSE 对话
-  stopChat: (sessionID) => request('/chat/stop', { method: 'POST', body: JSON.stringify({ sessionId: sessionID }) }), // 中断运行中循环
-  decideTool: (sessionID, toolCallID, decision) => request('/chat/approval', { method: 'POST', body: JSON.stringify({ sessionId: sessionID, toolCallId: toolCallID, decision }) }), // 提交拒绝、本次允许或永久允许
+  stopChat: (sessionID, runID) => request('/chat/stop', { method: 'POST', body: JSON.stringify({ sessionId: sessionID, runId: runID || undefined }) }), // 优先按 Run 精确中断
+  decideTool: (sessionID, toolCallID, decision, runID) => request('/chat/approval', { method: 'POST', body: JSON.stringify({ sessionId: sessionID, toolCallId: toolCallID, decision, runId: runID || undefined }) }), // 提交带 Run 归属的权限决定
   createSession: () => request('/session/create', { method: 'POST' }), // 创建空会话
   listSessions: () => request('/session/list'),       // 读取会话摘要
   getSession: (sessionID) => request(`/session/${sessionID}`), // 读取完整会话
@@ -52,4 +52,7 @@ export const AgentAPI = {                              // 导出全部 Server �
   getConfig: () => request('/config'),                // 读取脱敏配置
   updateConfig: (changes) => request('/config', { method: 'PUT', body: JSON.stringify(changes) }), // 局部更新配置
   testProvider: (provider, model) => request('/config/test', { method: 'POST', body: JSON.stringify({ provider, model: model || undefined }) }), // 测试已保存提供商连接
+  listAgents: () => request('/agent/list'),              // 读取可选 Agent 目录
+  listRuns: (sessionID) => request(`/session/${sessionID}/runs`), // 读取会话执行树
+  stopRun: (runID) => request(`/run/${runID}/stop`, { method: 'POST' }), // 精确停止一个 Run
 }

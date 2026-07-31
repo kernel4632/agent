@@ -7,6 +7,7 @@
 import { computed, onMounted, ref } from 'vue'        // 引入表单副本、分类标题和首次加载能力
 import PermissionEditor from '../components/PermissionEditor.vue' // 引入工具权限编辑器
 import ProviderConfig from '../components/ProviderConfig.vue' // 引入模型与提示词编辑器
+import AgentProfiles from '../components/AgentProfiles.vue' // 引入多 Agent 模型选择编辑器
 import CapabilitySettings from '../components/CapabilitySettings.vue' // 引入 MCP、LSP 与 Skills 完整管理器
 import { Settings as SettingsCommand } from '../commands/settings.js' // 引入设置草稿和保存指令
 import { UI } from '../commands/ui.js'               // 引入设置分类导航指令
@@ -59,10 +60,7 @@ onMounted(() => SettingsCommand.loadPage(draft, toolNames)) // 首次进入读�
         <div v-if="config.isLoading && !draft" class="view-loading">正在读取设置…</div>
         <template v-else-if="draft">
           <ProviderConfig v-if="ui.settingsSection === 'models'" v-model="draft" @validity="providerValid = $event" />
-          <section v-else-if="ui.settingsSection === 'agent'" class="settings-section settings-section--prompt">
-            <header class="settings-section__header"><h2>Agent 行为</h2><p>系统提示词会在下一轮模型调用时生效。</p></header>
-            <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field>
-          </section>
+          <template v-else-if="ui.settingsSection === 'agent'"><AgentProfiles v-model="draft" /><section class="settings-section settings-section--prompt"><header class="settings-section__header"><h2>全局默认提示词</h2><p>未单独设置提示词的 Agent 使用该默认值。</p></header><mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field></section></template>
           <PermissionEditor v-else-if="ui.settingsSection === 'permissions'" :permissions="draft.permissions || {}" :tool-names="toolNames" @update="draft = { ...draft, permissions: $event }" />
           <CapabilitySettings v-else embedded :section="ui.settingsSection" />
         </template>

@@ -5,6 +5,9 @@
 */
 
 export const store = {
+  agents: {
+    definitions: new Map(),                             // Agent ID 到模型选择和提示词定义
+  },
   config: {
     value: null,
     filePath: '',
@@ -26,5 +29,10 @@ export const store = {
     items: new Map(),
     writes: new Map(),
     storage: null,
+  },
+  runs: {
+    items: new Map(),                                   // Run ID 到执行状态和取消控制器
+    bySession: new Map(),                               // Session ID 到根 Run 集合
+    byParent: new Map(),                                // 父 Run ID 到子 Run 集合
   },
 }

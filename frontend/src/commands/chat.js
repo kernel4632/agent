@@ -44,6 +44,7 @@ function submitInput(content, isRunning, emit) {
 function loadSession(session, key = store.tabs.activeKey) {
   const conversation = getConversation(key)                        // 取得目标标签而非假设当前标签未切换
   conversation.sessionID = session?.id ?? ''                       // 使用真实会话 ID 或保持草稿
+  conversation.agentID = session?.agentID ?? conversation.agentID    // 恢复会话固定的 Agent 选择
   conversation.messages = session?.messages ?? []                  // 用 Server 可见历史替换时间线
   conversation.tasks = session?.tasks ?? []                        // 恢复持久化任务清单
   conversation.taskRevision = session?.taskRevision ?? 0           // 恢复任务并发修订号
@@ -52,6 +53,7 @@ function loadSession(session, key = store.tabs.activeKey) {
   conversation.retryNotice = null                                  // 新上下文清除重试反馈
   conversation.errorMessage = ''                                   // 新上下文清除旧错误
   conversation.loaded = true                                       // 标记详情已经读取
+  if (conversation.sessionID) AgentAPI.listRuns(conversation.sessionID).then((runs) => { conversation.runs = runs }).catch(() => {}) // 后台恢复执行树，不阻塞历史展示
   return conversation                                               // 返回数据供工作区继续使用
 }
 
@@ -106,6 +108,19 @@ function receiveEvent(conversation, event, streamState) {
     if (nextKey !== previousKey) delete store.chat.conversations[previousKey] // 清理旧草稿映射
     streamState.tabKey = nextKey                                   // 后续标题事件定位真实标签
   }
+  if (event.name === 'run-created') {
+    conversation.activeRunID = event.data.runID                    // 保存本次根 Run，停止和审批按它定位
+    conversation.runs.push({ ...event.data, status: 'running', parentRunID: null }) // 将根 Run 纳入当前执行树
+  }
+  if (event.name === 'child-run-created') conversation.runs.push({ ...event.data, status: 'running' }) // 实时加入子 Run 节点
+  if (event.name === 'child-run-finished') {
+    const run = conversation.runs.find((item) => item.runID === event.data.runID) // 定位已完成子 Run
+    if (run) Object.assign(run, event.data)                         // 更新状态和结果摘要
+  }
+  if (event.name === 'finish') {
+    const run = conversation.runs.find((item) => item.runID === event.data.runID) // 定位根 Run 终态
+    if (run) run.status = event.data.ok ? 'completed' : 'cancelled'   // 将停止和成功区别反馈给执行树
+  }
   if (event.name === 'session-title') Tabs.setTitle(streamState.tabKey, event.data.title) // 异步标题立即更新顶部标签
   if (event.name === 'text-delta') getAssistantDraft(conversation, streamState).content += event.data.text ?? event.data.textDelta ?? '' // 文本增量写入当前段落
   if (event.name === 'reasoning-delta') getAssistantDraft(conversation, streamState).reasoning += event.data.text ?? event.data.textDelta ?? '' // 思考增量写入当前段落
@@ -122,7 +137,7 @@ function receiveEvent(conversation, event, streamState) {
     })
   }
   if (event.name === 'tool-approval-request') {                    // ask 权限进入原位用户动作
-    const approval = { id: event.data.id, name: event.data.name, input: event.data.args, matchedRule: event.data.matchedRule, scope: event.data.scope, target: event.data.target } // 保存权限匹配详情
+    const approval = { id: event.data.id, runID: event.data.runID, name: event.data.name, input: event.data.args, matchedRule: event.data.matchedRule, scope: event.data.scope, target: event.data.target } // 保存权限匹配详情和 Run 归属
     conversation.approvals.push(approval)                          // 标签状态据此显示待审批反馈
     const toolMessage = getToolMessage(conversation, event.data.id) // 定位刚插入的工具项
     if (toolMessage) Object.assign(toolMessage, approval, { status: 'waiting', approvalError: '' }) // 工具原位展示审批动作
@@ -154,7 +169,8 @@ async function send(content) {
   conversation.errorMessage = ''                                  // 清除上次错误
   conversation.stopSignal = new AbortController()                 // 创建独立 SSE 中断信号
   try {
-    const response = await AgentAPI.sendMessage({ sessionID: conversation.sessionID, messageID, message, signal: conversation.stopSignal.signal }) // 启动目标会话 Agent
+    conversation.agentID ||= store.agents.items[0]?.id || 'default'             // 首次发送时固定当前目录的默认 Agent
+    const response = await AgentAPI.sendMessage({ sessionID: conversation.sessionID, agentID: conversation.agentID, messageID, message, signal: conversation.stopSignal.signal }) // 启动目标会话 Agent
     await readSSE(response, (event) => receiveEvent(conversation, event, streamState)) // 按网络顺序修改捕获数据
     return true                                                    // 返回完整 SSE 已消费
   } catch (error) {
@@ -164,6 +180,7 @@ async function send(content) {
     conversation.messages.forEach((item) => { item.isStreaming = false }) // 异常或中断后关闭实时状态
     conversation.isRunning = false                                // 恢复当前标签发送动作
     conversation.stopSignal = null                                // 释放本轮中断信号
+    conversation.activeRunID = ''                                  // 根 Run 已进入终态
   }
 }
 
@@ -173,7 +190,7 @@ async function stop() {
   const conversation = getConversation()                           // 读取当前标签运行数据
   if (!conversation.isRunning || !conversation.sessionID) return false // 没有运行任务时无需请求
   conversation.retryNotice = null                                  // 用户主动停止立即清除重试反馈
-  const result = await AgentAPI.stopChat(conversation.sessionID)   // 中断对应 Server 循环
+  const result = await AgentAPI.stopChat(conversation.sessionID, conversation.activeRunID) // 精确中断对应 Run
   conversation.stopSignal?.abort()                                 // 关闭同一标签浏览器 SSE
   return result.ok                                                  // 返回是否命中运行任务
 }
@@ -186,7 +203,8 @@ async function decide(toolCallID, decision) {
   if (!['deny', 'allow-once', 'always-allow'].includes(decision) || !conversation.sessionID) return false // 无效决定不能恢复 Server
   if (toolMessage) Object.assign(toolMessage, { status: 'deciding', approvalError: '' }) // 禁用动作并反馈提交中
   try {
-    const result = await AgentAPI.decideTool(conversation.sessionID, toolCallID, decision) // 提交精确三选一决定
+    const approvalRunID = toolMessage?.runID || conversation.activeRunID // 审批属于工具所在 Run
+    const result = await AgentAPI.decideTool(conversation.sessionID, toolCallID, decision, approvalRunID) // 提交精确三选一决定
     conversation.approvals = conversation.approvals.filter((item) => item.id !== toolCallID) // 清除标签审批提示
     if (toolMessage) toolMessage.status = decision === 'deny' ? 'rejected' : 'running' // 原位反馈拒绝或继续
     return result.ok                                                // 返回审批已被 Server 接受

@@ -1,151 +1,124 @@
-# Agent 循环逻辑
+# Agent 执行循环
 
-## 核心原则
+## 根 Run
 
-- 循环无步数上限，Agent 可以运行任意长时间
-- 不以"LLM 未调用工具"作为终止信号
-- 只有工具返回 `stop: true` 或用户手动中断时才结束循环
-- 对纯文本输出采用重试 + 提示机制，兼容 GPT 系列模型的"先说话后调用"行为
-- 每次 LLM 调用前读取最新配置，模型切换即时生效
-- API 请求失败时指数退避无限重试，永不放弃
+`POST /chat/send` 的执行链：
 
-## 循环流程
-
-```
-POST /chat/send { sessionId?, message }
-        │
-        ▼
-┌─── 准备阶段 ──────────────────────────────────────────┐
-│  sessionId 为空 → 自动创建新会话                        │
-│  加载会话消息历史                                        │
-│  追加 { role: 'user', content: message }               │
-│  异步生成会话标题（首条消息时触发，不阻塞循环）          │
-└──────────────────┬───────────────────────────────────┘
-                   ▼
-        ┌──── 循环开始 ─────────────────────────────┐
-        │                                            │
-        ▼                                            │
-┌─── LLM 调用 ──────────────────────────────────┐   │
-│  读取当前 activeProvider / activeModel           │   │
-│  读取当前 systemPrompt                          │   │
-│  读取已加载工具列表                              │   │
-│  构造请求 → 指数退避无限重试                     │   │
-│  流式接收 LLM 输出 → 推送 SSE 事件给前端        │   │
-└──────────────────┬────────────────────────────┘   │
-                   ▼                                 │
-┌─── 判断分支 ──────────────────────────────────┐   │
-│                                                │   │
-│  有 tool_call？                                │   │
-│  ├── 是 → 进入「工具执行」                      │   │
-│  └── 否 → 进入「纯文本处理」                    │   │
-│                                                │   │
-└──────────────────┬────────────────────────────┘   │
-                   │                                 │
-       ┌───────────┴───────────┐                    │
-       ▼                       ▼                    │
-┌─── 工具执行 ───┐    ┌─── 纯文本处理 ───┐         │
-│                 │    │                    │         │
-│  权限检查       │    │  textOnlyCount++   │         │
-│  ├ allow→执行   │    │                    │         │
-│  ├ ask→暂停等待 │    │  第1次: 重新调用   │─────────│
-│  └ deny→跳过    │    │                    │         │
-│                 │    │  第2次: 注入 tip   │─────────│
-│  并行执行全部   │    │  → 重新调用        │         │
-│  工具调用       │    │                    │         │
-│                 │    │  第3次: 循环结束并提示用户│         │
-│  保存存档点     │    │  (模型状态出现问题) │         │
-│                 │    │                    │         │
-│  检查 stop 字段 │    └────────────────────┘         │
-│  ├ 有→循环结束  │                                   │
-│  └ 无→继续循环 ─│───────────────────────────────────┘
-│                 │
-└─────────────────┘
+```text
+校验或创建 Session
+-> 拒绝同 Session 的并发根 Run
+-> 创建 Run 和 Agent 快照
+-> 发送 session-created / run-created
+-> 追加用户消息
+-> 构造模型上下文
+-> 调用模型并流式发送事件
+-> 执行工具或结束
+-> 持久化 Session
+-> 完成、失败或取消 Run
 ```
 
-## 纯文本重试机制
+根循环位于 `server/commands/chat.js`。Run 创建时解析 Agent，此后全局默认 Agent 或 Provider 配置变化不会切换当前 Run 的模型身份。
 
-处理 GPT 系列模型"先说话、再调用工具"的行为：
+## 模型上下文
 
-| 次数    | 行为          | 说明                            |
-| ----- | ----------- | ----------------------------- |
-| 第 1 次 | 直接重新调用 LLM  | 给模型再一次机会                      |
-| 第 2 次 | 注入提醒消息后重新调用 | 明确告诉模型需要使用工具                  |
-| 第 3 次 | 循环结束并提示用户   | 模型出问题，可能无法调用工具或注意力涣散，无法正常执行任务 |
+每轮请求由以下内容构成：
 
-注入的提醒消息：
-
-```
-你当前没有使用任何工具。如果任务尚未完成，请使用工具来执行操作。
-如果任务已经完成，请调用 task_done 工具来结束本次对话。
+```text
+Agent systemPrompt
++ 当前时间和工作区说明
++ Skills 渐进披露说明
++ Session modelMessages 的压缩副本
++ 统一工具注册表
 ```
 
-当有工具调用被执行后，`textOnlyCount` 重置为 0。
+展示消息 `messages` 和模型消息 `modelMessages` 分开保存。上下文裁剪只作用于模型请求副本。
 
-## 循环终止条件
+## 流处理
 
-| 条件                | 触发方式                               |
-| ----------------- | ---------------------------------- |
-| 工具返回 `stop: true` | 任何工具（内置或自定义）返回结果包含 `stop: true` 字段 |
-| 连续 3 次纯文本         | 经过 1 次重试 + 1 次 tip 注入后仍为纯文本        |
-| 用户中断              | POST /chat/stop                    |
+AI SDK `streamText()` 的事件被映射为 SSE：
 
-## 工具并行执行
+- `text-delta` -> `text-delta`
+- `reasoning-delta` -> `reasoning-delta`
+- `tool-call` -> 工具执行和 `tool-call` / `tool-result`
+- 错误 -> `error` 或有限重试
+- 正常结束 -> `done`
 
-当 LLM 一次返回多个 tool\_call 时，所有工具并行执行（Promise.all），一次性返回全部结果。
+模型输出为空文本、空 reasoning 且没有工具调用时，按 `503` 可恢复错误处理，防止把无内容轮次误判为成功。
 
-```javascript
-// 并行执行所有工具调用
-const results = await Promise.all(
-  toolCalls.map(tc => executeWithPermission(tc))
-)
+## 工具轮次
+
+```text
+model tool-call
+-> Tool.execute
+-> Permission.evaluate
+-> allow: 执行工具
+-> ask: Run 进入 waiting_approval
+-> deny: 返回拒绝结果
+-> 写入 tool result
+-> 下一轮模型调用
 ```
 
-如果其中任何一个工具返回 `stop: true`，整个循环结束。
+同一模型轮次返回多个工具调用时共享同一 `step`，用于历史回退。
 
-## 指数退避无限重试
+根 Run 没有固定工具步数上限，但始终受 Run 总时限、单轮模型时限、有限重试和用户取消约束，因此不是无限循环。
 
-LLM API 请求失败时的重试策略：
+## Child Run
 
-- 基础延迟：1 秒
-- 最大延迟：60 秒
-- 延迟公式：`min(baseDelay * 2^attempt + random(0~1000ms), maxDelay)`
-- 无重试上限，永不放弃
-- 每次重试时推送 SSE `error` 事件通知前端（含当前尝试次数和下次重试时间）
+Agent 调用内置 `spawn_agent` 时：
 
-## 模型即时切换
-
-循环中每次调用 LLM 前都重新读取 `config.activeProvider` 和 `config.activeModel`。用户在前端切换模型后，下一次 LLM 调用立即使用新模型，无需等待当前循环结束。
-
-## 上下文压缩
-
-每次调用 LLM 前，估算消息历史 token 总量。超过当前模型上限的 80% 时，自动触发压缩（保留近期消息，将早期消息总结为摘要）。详见 11-context-compression.md。
-
-## 工具执行失败处理
-
-工具 execute() 可能抛异常（文件不存在、命令执行失败、网络超时等）。处理方式：
-
-- 捕获异常，不中断循环
-- 将错误信息格式化为 tool_result 传回 LLM
-- LLM 会自行修正策略（换路径、换命令、告知用户）
-
-```javascript
-async function executeTool(tool, args) {
-  try {
-    return await tool.execute(args)
-  } catch (error) {
-    return { result: `工具执行失败: ${error.message}` }
-  }
-}
+```text
+父工具调用
+-> 创建 parentRunID 指向父 Run 的 Child Run
+-> 发送 child-run-created
+-> Child Run 使用目标 Agent 的独立模型上下文
+-> 共享工具、权限、MCP、LSP、Skills 和工作区
+-> 最多执行 8 个模型轮次
+-> 结果作为 spawn_agent 工具结果返回父 Agent
+-> 发送 child-run-finished
 ```
 
-工具执行失败不算"需要重试"的错误（那是 LLM API 层的），而是正常的业务反馈。
+约束：
 
-## 会话标题自动生成
+- 最大 Child Run 深度为 4。
+- 子 Run 必须与父 Run 属于同一 Session。
+- 父 Run 取消会递归取消所有后代。
+- Child Run 不直接写入父 Session 的模型历史；父 Agent 只接收最终工具结果。
+- Child Run 审批携带自身 `runID`，不会误消费父 Run 审批。
 
-用户发送第一条消息时，异步调用 LLM 生成会话标题：
+## 重试与时间预算
 
-- 使用便宜/快速模型生成
-- 不阻塞 Agent 主循环
-- 生成完成后通过 SSE `session-title` 事件推送给前端
-- 标题控制在 10 字以内
+模型调用使用 `server/utils/retry.js`：
 
+- 默认最多重试 3 次。
+- 默认单次模型轮次预算为 `120000ms`。
+- 默认根 Run / Child Run 总预算为 `runTimeoutMs = 300000ms`。
+- 重试采用指数退避，并受剩余时间预算限制。
+- HTTP `408`、`429`、全部 `5xx` 和网络瞬断可重试。
+- 请求校验、权限拒绝、模型协议错误和用户取消不盲目重试。
+
+当模型轮次预算耗尽时产生不可恢复超时；根 Run 总预算通过取消信号结束，Child Run 总预算作为失败结果返回父 Agent。所有路径都会释放对应运行资源。重试是容错机制，不是无限等待机制。
+
+## 取消
+
+每个 Run 有独立 `AbortController`。取消来源包括：
+
+- `POST /run/:id/stop`
+- `POST /chat/stop`
+- 父 Run 取消传播
+- HTTP 请求断开
+- Run 时间预算耗尽
+
+终态只写入一次，后续完成或失败回调不能覆盖 `cancelled`。
+
+## 结束条件
+
+Run 在以下情况结束：
+
+- 模型产生最终文本且不再调用工具：`completed`
+- Child Run 返回最终结果：`completed`
+- 模型、工具或持久化产生不可恢复错误：`failed`
+- 用户或父 Run 中止：`cancelled`
+- 根 Run 总预算耗尽：`cancelled`，错误原因记录为 run timeout
+- Child Run 总预算耗尽：`failed`，失败结果返回父 Agent
+
+无论结果如何，都必须清理审批等待项和 Session 运行锁，并发送终态反馈。

@@ -1,98 +1,126 @@
 # SSE 事件协议
 
-## 设计原则
+## 连接
 
-**透传优先**：AI SDK 的 `streamText` 产生的流式数据直接透传给前端，不做自定义包装。只有 AI SDK 流中没有的额外信息才使用自定义事件。
-
-这样做的好处：
-- 前端可以直接使用 `@ai-sdk/vue` 的 `useChat` 解析标准流
-- 减少后端的序列化/反序列化开销
-- AI SDK 未来新增的流事件（如新模型特性）自动兼容
-
-## 连接方式
-
-```
-POST /chat/send → 响应 Content-Type: text/event-stream
+```http
+POST /chat/send
+Accept: text/event-stream
+Content-Type: application/json
 ```
 
-## 透传部分（AI SDK 标准流）
+该接口使用 POST，请求体包含消息和可选 Session/Agent，因此不能使用浏览器 `EventSource`。前端通过 `fetch()` 读取 `ReadableStream`，并由 `frontend/src/utils/sse.js` 解析标准帧：
 
-Elysia 直接将 AI SDK 的 `toDataStream()` 或 `toUIMessageStream()` 透传给前端。AI SDK 的标准流已包含：
+```text
+event: text-delta
+data: {"type":"text-delta","text":"hello"}
 
-- 文本增量（text delta）
-- reasoning/thinking 内容（reasoning delta）
-- 工具调用声明（tool call）
-- 工具调用结果（tool result）
-- 步骤开始/结束标记（step start/finish）
-- 完成标记（finish）
-- token 用量（usage）
+```
 
-前端使用 AI SDK 的客户端库即可解析这些标准事件，无需额外处理。
+所有事件都由 Server 编码为 SSE。AI SDK `fullStream` 的非 `finish` part 使用其 `part.type` 作为事件名；业务事件使用稳定自定义名称。
 
-## 自定义事件（仅限 AI SDK 流中没有的）
+## 归属规则
 
-以下事件是我们的额外业务逻辑，不存在于 AI SDK 标准流中，需要自定义：
+- 根模型流默认属于最近的 `run-created.runID`。
+- Child Run 业务事件显式包含 `runID` 和 `parentRunID`。
+- Child Run 的模型增量当前不透传到父 SSE，只反馈创建、审批/任务等带归属事件和最终结果。
+- 客户端不得只按 Session 聚合工具审批，必须按 Run 分配。
+
+## 启动事件
+
+| 事件 | 数据 | 触发条件 |
+|---|---|---|
+| `session-created` | `{ id }` | 请求未提供 `sessionId` |
+| `run-created` | `{ runID, agentID, parentRunID: null }` | 根 Run 已登记，模型调用前 |
+
+## AI SDK 流事件
+
+Server 转发 AI SDK `fullStream` 中除原生 `finish` 外的 part。常见事件包括：
+
+| 事件 | 关键字段 | 说明 |
+|---|---|---|
+| `text-start` / `text-delta` / `text-end` | AI SDK part 原结构 | 最终文本流 |
+| `reasoning-start` / `reasoning-delta` / `reasoning-end` | AI SDK part 原结构 | reasoning 流 |
+| `tool-input-start` / `tool-input-delta` / `tool-input-end` | AI SDK part 原结构 | 工具参数生成 |
+| `tool-call` | `toolCallId`, `toolName`, `input` | 模型声明调用 |
+| `tool-result` | `toolCallId`, `toolName`, `output` | 工具执行结果 |
+| `source` | AI SDK part 原结构 | Provider 来源信息 |
+| `error` | AI SDK part 原结构 | 流内 Provider 错误 part |
+
+客户端应忽略未知 AI SDK 事件，以兼容 SDK 后续新增 part 类型。
+
+## 业务事件
 
 | 事件 | 数据 | 说明 |
-|------|------|------|
-| `session-created` | `{ "id": "ses_xxx" }` | 自动创建了新会话（sessionId 为空时触发） |
-| `session-title` | `{ "title": "重构登录模块" }` | 异步生成的会话标题 |
-| `tool-approval-request` | `{ "id": "tc_001", "name": "write_file", "args": {...}, "matchedRule": "*", "scope": "tool", "target": "..." }` | 权限为 ask，暂停等待用户确认 |
-| `task-list-updated` | `{ "tasks": [...], "taskRevision": 3 }` | Agent 更新了当前会话任务清单 |
-| `checkpoint` | `{ "step": 2, "toolCallIds": ["tc_001"] }` | 当前工具步骤形成可回退存档点 |
-| `error-retry` | `{ "message": "API 超时", "attempt": 3, "nextRetryIn": 8000 }` | API 请求失败，正在重试 |
+|---|---|---|
+| `session-title` | `{ title }` | 首条消息后异步生成标题 |
+| `task-list-updated` | `{ tasks, taskRevision, runID?, parentRunID? }` | 工具更新任务清单 |
+| `checkpoint` | `{ step, toolCallIds }` | 根 Run 本轮工具形成回退点 |
+| `error-retry` | `{ message, attempt, nextRetryIn }` | 可恢复模型故障即将重试 |
+| `tool-approval-request` | 审批结构 | Run 进入 `waiting_approval` |
+| `child-run-created` | `{ runID, parentRunID, agentID, input }` | 创建 Child Run |
+| `child-run-finished` | `{ runID, parentRunID, status, result? , error? }` | Child Run 终态 |
 
-## Elysia 中的实现方式
+Child Run 内触发的 `task-list-updated` 和 `tool-approval-request` 会补充 Child `runID` 与 `parentRunID`。Child Run 当前不向父 SSE 发送 `error-retry`。
 
-```javascript
-import { Elysia, sse } from 'elysia'
+审批示例：
 
-app.post('/chat/send', async function* ({ body }) {
-  const { sessionId, message } = body
-
-  // 自定义事件：会话创建
-  if (!sessionId) {
-    const newSession = Session.create()
-    yield sse({ event: 'session-created', data: { id: newSession.id } })
-  }
-
-  // Agent 循环内部
-  // ...
-
-  // 透传 AI SDK 流
-  const result = streamText({ model, system, messages, tools })
-  for await (const part of result.fullStream) {
-    yield part  // 直接透传 AI SDK 的流式数据
-  }
-
-  // 如果遇到 ask 权限
-  yield sse({ event: 'tool-approval-request', data: { id, name, args } })
-})
+```json
+{
+  "id": "call_xxx",
+  "runID": "run_child",
+  "parentRunID": "run_root",
+  "name": "write_file",
+  "args": { "path": "src/app.js" },
+  "matchedRule": "*",
+  "scope": "argument",
+  "target": "src/app.js"
+}
 ```
 
-## 前端消费方式
+## 终态事件
 
-前端优先使用 `@ai-sdk/vue` 的 `useChat` 处理 AI SDK 标准流部分，同时监听自定义事件：
+根 Run 使用 Server 自定义 `finish`：
 
-```javascript
-// AI SDK 标准流 — useChat 自动处理
-const { messages, sendMessage } = useChat({ api: '/chat/send' })
-
-// 自定义事件 — 手动监听
-eventSource.addEventListener('session-created', (e) => { ... })
-eventSource.addEventListener('session-title', (e) => { ... })
-eventSource.addEventListener('tool-approval-request', (e) => { ... })
-eventSource.addEventListener('task-list-updated', (e) => { ... })
-eventSource.addEventListener('checkpoint', (e) => { ... })
-eventSource.addEventListener('error-retry', (e) => { ... })
+```json
+{
+  "ok": true,
+  "sessionID": "ses_xxx",
+  "runID": "run_xxx",
+  "agentID": "default"
+}
 ```
 
-## 回退按钮的 step 信息
+取消时：
 
-前端从 AI SDK 标准流中的 tool-result 事件获取 step 字段（在工具执行结果中透传），不需要额外的自定义事件。
+```json
+{
+  "ok": false,
+  "cancelled": true,
+  "sessionID": "ses_xxx",
+  "runID": "run_xxx",
+  "agentID": "default"
+}
+```
 
-## 与之前设计的区别
+未中止异常使用：
 
-之前定义了 `reasoning-start`、`reasoning-delta`、`text-delta`、`tool-call`、`tool-result`、`done` 等事件 — 这些全部由 AI SDK 标准流覆盖，不再需要自定义。我们只负责透传。
+```text
+event: error
+data: {"message":"Error: ..."}
+```
 
-自定义事件只承载 AI SDK 流中不包含的会话、审批、任务、回退和重试业务信息。
+异常流在 `error` 后关闭，当前不会再发送 `finish`。
+
+## 客户端状态更新
+
+```text
+session-created -> 设置活动 Session
+run-created -> 创建根 RunTree 节点并记录当前 runId
+text/reasoning/tool events -> 更新根消息视图
+child-run-created -> 添加子节点
+tool-approval-request -> 在所属 Run 节点显示审批
+child-run-finished -> 写入子节点终态
+finish/error -> 结束根运行态并刷新 Session/Run
+```
+
+网络流关闭不能单独代表成功；客户端以 `finish.ok`、`finish.cancelled` 或 `error` 判断根 Run 结果。

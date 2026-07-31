@@ -10,15 +10,21 @@ export const Schemas = new Elysia({ name: 'agent.schemas' })      // 使用插�
   .model({
     ChatSend: t.Object({
       sessionId: t.Optional(t.String()),                          // 省略会话 ID 时由服务端自动创建
+      agentId: t.Optional(t.String()),                            // 指定本轮使用的 Agent 模型选择
       messageId: t.Optional(t.String()),                          // 客户端消息 ID 支持稳定回退
       message: t.String({ minLength: 1 }),                        // 空消息没有可执行内容
     }),
     SessionControl: t.Object({
       sessionId: t.String(),                                      // 控制动作必须指向现有会话
     }),
+    RunControl: t.Object({
+      sessionId: t.Optional(t.String()),                          // 兼容按会话停止旧入口
+      runId: t.Optional(t.String()),                              // 优先按 Run 精确停止
+    }),
     ToolApproval: t.Object({
       sessionId: t.String(),                                      // 审批所属会话
       toolCallId: t.String(),                                     // 审批对应的工具调用
+      runId: t.Optional(t.String()),                              // 同一会话多个 Run 时精确定位审批
       decision: t.Union([t.Literal('deny'), t.Literal('allow-once'), t.Literal('always-allow')]), // 支持拒绝、单次和永久允许
     }),
     LegacyToolApproval: t.Object({
@@ -39,5 +45,14 @@ export const Schemas = new Elysia({ name: 'agent.schemas' })      // 使用插�
     ConfigTest: t.Object({
       provider: t.String(),                                       // 测试已保存的提供商身份
       model: t.Optional(t.String()),                              // 未指定时使用提供商首个模型
+    }),
+    AgentID: t.Object({
+      agentId: t.Optional(t.String()),                             // 未指定时由服务端选择默认 Agent
+    }),
+    AgentDefinition: t.Object({
+      name: t.String({ minLength: 1 }),                            // Agent 在界面展示的名称
+      provider: t.String({ minLength: 1 }),                        // 使用的全局供应商名称
+      model: t.String({ minLength: 1 }),                           // 使用的模型名称
+      systemPrompt: t.Optional(t.String()),                        // 可选的 Agent 专属系统提示词
     }),
   })

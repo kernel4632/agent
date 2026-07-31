@@ -5,15 +5,17 @@ Enter 发送、Shift+Enter 换行；组件只发出 send/stop，不直接调用 
 -->
 <script setup>
 import { nextTick, ref } from 'vue'                   // 引入输入焦点恢复能力
-import ModelSelector from './ModelSelector.vue'      // 引入聊天内即时模型切换菜单
+import AgentSelector from './AgentSelector.vue'      // 引入当前会话 Agent 选择菜单
 import { Chat } from '../commands/chat.js'            // 引入输入提交和草稿修改指令
 
 const props = defineProps({                           // 声明当前 Agent 状态
   running: { type: Boolean, default: false },         // 运行中显示停止按钮并锁定重复发送
   config: { type: Object, default: null },            // 当前提供商、模型列表和活动模型
+  agents: { type: Array, default: () => [] },         // Server 返回的 Agent 目录
+  agentId: { type: String, default: '' },              // 当前会话选择的 Agent
 })
 
-const emit = defineEmits(['send', 'stop', 'select-model']) // 向 Chat 视图发出用户和模型指令
+const emit = defineEmits(['send', 'stop', 'select-agent']) // 向 Chat 视图发出用户和 Agent 指令
 const content = defineModel({ type: String, default: '' }) // 当前标签独立保存的任务文本
 const inputElement = ref(null)                        // 保存 textarea 用于发送后恢复焦点
 
@@ -40,7 +42,7 @@ function handleKeydown(event) {
     <div class="composer__footer">
       <div class="composer__modes">
         <span class="composer__plus">+</span>
-        <ModelSelector :config="config" :disabled="running" @select="emit('select-model', $event)" />
+        <AgentSelector :agents="agents" :value="agentId" :disabled="running" @select="emit('select-agent', $event)" />
       </div>
       <mdui-button-icon v-if="running" class="composer__send composer__send--stop" aria-label="停止" @click="emit('stop')">
         <mdui-icon-stop></mdui-icon-stop>

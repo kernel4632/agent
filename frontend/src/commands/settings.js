@@ -30,6 +30,8 @@ async function savePage(draft, isProviderValid) {
     activeModel: draft.value.activeModel,              // 保存当前模型名称
     providers: draft.value.providers,                  // 完整替换提供商和模型目录
     systemPrompt: draft.value.systemPrompt,            // 保存 Agent 系统指令
+    agents: draft.value.agents,                        // 保存多个 Agent 的模型和提示词定义
+    defaultAgentId: draft.value.defaultAgentId,        // 保存新会话默认 Agent
     permissions: draft.value.permissions,              // 保存完整工具权限映射
   }
   const saved = await Config.save(changes)             // 将草稿写入 Server 并刷新运行配置

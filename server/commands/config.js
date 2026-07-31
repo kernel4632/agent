@@ -20,9 +20,12 @@ const defaultConfig = {                                          // 首次运行
   systemPrompt: '你是一个有用的 AI 助手，能够通过调用工具帮助用户完成任务。', // 每轮模型调用使用的系统指令
   permissions: {},                                                // 未声明工具按 ask 处理
   modelLimits: {},                                                // 模型上下文限制按模型名称保存
+  runTimeoutMs: 300000,                                           // 单次根或子 Run 默认最多执行五分钟
   mcpServers: {},                                                 // MCP 服务按名称保存 stdio 或 HTTP 声明
   lspServers: {},                                                 // LSP 服务按名称保存命令、语言和扩展名映射
   skills: { enabled: true, directories: [], disabled: [] },       // Skill 默认扫描用户和项目目录
+  agents: {},                                                      // Agent 只保存模型、名称和提示词选择
+  defaultAgentId: 'default',                                      // 新会话默认使用的 Agent
 }
 
 
@@ -36,6 +39,7 @@ async function load(filePath) {
   configStore.value = defu(savedConfig, defaultConfig)             // 补齐缺失字段，同时保留用户值
   normalizeProviders(configStore.value.providers)                  // 将旧供应商记录升级为显式协议和请求设置
   normalizeCapabilities(configStore.value)                         // 补齐外部能力默认结构
+  normalizeAgents(configStore.value)                                // 从旧全局模型配置创建默认 Agent
   await save()                                                     // 将补齐后的完整结构同步到磁盘
   return configStore.value                                        // 向启动流程反馈当前配置
 }
@@ -75,11 +79,13 @@ async function update(changes) {
 
   configStore.value = defu(nextChanges, configStore.value)         // 普通局部字段继续深度保留未修改内容
   if ('providers' in nextChanges) configStore.value.providers = nextChanges.providers // 提供商集合按 UI 完整结果替换，删除才能生效
+  if ('agents' in nextChanges) configStore.value.agents = nextChanges.agents             // Agent 集合按设置页完整结果替换，删除才能生效
   if ('mcpServers' in nextChanges) configStore.value.mcpServers = nextChanges.mcpServers // MCP 集合完整替换才能删除服务
   if ('lspServers' in nextChanges) configStore.value.lspServers = nextChanges.lspServers // LSP 集合完整替换才能删除服务
   if ('skills' in nextChanges) configStore.value.skills = nextChanges.skills             // Skill 配置按页面完整结果替换
   normalizeProviders(configStore.value.providers)                  // 新旧 API 输入统一为完整供应商结构
   normalizeCapabilities(configStore.value)                         // 新旧外部能力输入统一默认值
+  normalizeAgents(configStore.value)                                // 保证 Agent 定义与当前配置结构同步
   await save()                                                      // 写盘完成后才向 API 反馈成功
   return { ok: true }                                               // 返回统一成功结果
 }
@@ -124,7 +130,12 @@ function createModel(providerName, modelName) {
 
 // --- 创建当前会话的提供商请求选项 ---
 function getProviderOptions(sessionID) {
-  const providerName = configStore.value.activeProvider            // 读取与当前模型相同的提供商名称
+  return getProviderOptionsFor(configStore.value.activeProvider, sessionID) // 旧调用继续使用全局当前提供商
+}
+
+
+// --- 创建指定 Agent 的提供商请求选项 ---
+function getProviderOptionsFor(providerName, sessionID) {
   const providerConfig = configStore.value.providers[providerName] // 读取提供商缓存能力开关
   if (providerConfig?.protocol !== 'openai-responses') return undefined // 未配置或 compatible 协议不注入 Responses 专属字段
 
@@ -139,8 +150,14 @@ function getProviderOptions(sessionID) {
 
 // --- 读取当前模型生成设置 ---
 function getGenerationOptions() {
-  const provider = configStore.value.providers[configStore.value.activeProvider] // 读取当前供应商的模型设置集合
-  const settings = provider?.modelSettings?.[configStore.value.activeModel] ?? provider?.modelSettings ?? {} // 兼容按模型和单模型直接设置
+  return getGenerationOptionsFor(configStore.value.activeProvider, configStore.value.activeModel) // 旧调用继续使用全局当前模型
+}
+
+
+// --- 读取指定 Agent 的模型生成设置 ---
+function getGenerationOptionsFor(providerName, modelName) {
+  const provider = configStore.value.providers[providerName] // 读取指定供应商的模型设置集合
+  const settings = provider?.modelSettings?.[modelName] ?? provider?.modelSettings ?? {} // 兼容按模型和单模型直接设置
   return {
     ...(Number.isFinite(settings.maxOutputTokens) ? { maxOutputTokens: settings.maxOutputTokens } : {}), // 只传递明确设置的输出上限
     ...(Number.isFinite(settings.temperature) ? { temperature: settings.temperature } : {}), // 只传递明确设置的采样温度
@@ -150,8 +167,13 @@ function getGenerationOptions() {
 
 // --- 读取当前模型上下文限制 ---
 function getContextLimit() {
-  const modelName = configStore.value.activeModel                  // 限制随当前模型即时切换
-  const provider = configStore.value.providers[configStore.value.activeProvider] // 读取新供应商模型设置
+  return getContextLimitFor(configStore.value.activeProvider, configStore.value.activeModel) // 旧调用继续使用全局当前模型
+}
+
+
+// --- 读取指定 Agent 的上下文限制 ---
+function getContextLimitFor(providerName, modelName) {
+  const provider = configStore.value.providers[providerName] // 读取指定供应商模型设置
   const settings = provider?.modelSettings?.[modelName] ?? provider?.modelSettings ?? {} // 兼容按模型和单模型直接设置
   return settings.context ?? configStore.value.modelLimits[modelName]?.context ?? 128000 // 新设置优先，旧限制继续兼容
 }
@@ -199,6 +221,32 @@ function normalizeProviders(providers) {
 }
 
 
+// --- 统一 Agent 定义 ---
+function normalizeAgents(config) {
+  if (!config.agents || typeof config.agents !== 'object') config.agents = {}
+  if (!config.agents.default) {
+    config.agents.default = {
+      id: 'default',
+      name: '默认 Agent',
+      provider: config.activeProvider,
+      model: config.activeModel,
+      systemPrompt: config.systemPrompt,
+    }
+  }
+  for (const [id, agent] of Object.entries(config.agents)) {
+    if (!agent || typeof agent !== 'object') delete config.agents[id]
+    else {
+      agent.id = id
+      agent.name = agent.name || id
+      agent.provider ??= config.activeProvider
+      agent.model ??= config.activeModel
+      agent.systemPrompt ??= config.systemPrompt
+    }
+  }
+  config.defaultAgentId = config.agents[config.defaultAgentId] ? config.defaultAgentId : 'default'
+}
+
+
 // --- 恢复外部能力中的脱敏配置 ---
 function restoreCapabilitySecrets(nextServers, savedServers = {}) {
   for (const [name, definition] of Object.entries(nextServers)) {
@@ -242,4 +290,4 @@ function createTimeoutFetch(timeoutMs) {
 }
 
 
-export const Config = { load, save, get, update, allowTool, testProvider, createModel, getActiveModel, getProviderOptions, getGenerationOptions, getContextLimit } // 导出全部配置业务动作
+export const Config = { load, save, get, update, allowTool, testProvider, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor } // 导出全局默认和 Agent 指定配置动作
