@@ -28,11 +28,10 @@ try {
   await page.request.put(`${uiURL}/api/config`, { data: { mcpServers: {}, lspServers: {} } }) // 清除上次运行的隔离服务声明
   await page.request.post(`${uiURL}/api/capability/reload`)              // 关闭旧测试进程并刷新运行目录
   await page.goto(uiURL, { waitUntil: 'domcontentloaded' })              // 打开真实 Vite 页面
-  await page.getByLabel('能力状态').click()                               // 打开 OpenCode 式顶部状态小窗
-  await page.getByLabel('运行能力').waitFor()                             // 等待共享能力快照加载
-  await page.getByRole('button', { name: '打开能力设置' }).click()        // 从小窗深链到全局设置
-  await page.getByRole('heading', { name: '扩展能力' }).waitFor()         // 等待 Cherry Studio 式设置分类
-  await page.getByRole('tab', { name: 'MCP' }).click()                    // 切换到 MCP 管理
+  await page.getByLabel('服务状态').click()                               // 打开 OpenCode 式顶部状态小窗
+  await page.getByLabel('运行状态').waitFor()                             // 等待共享运行快照加载
+  await page.getByRole('button', { name: '管理 MCP' }).click()            // 从小窗深链到独立 MCP 设置
+  await page.getByRole('heading', { name: 'MCP', exact: true }).waitFor() // 等待 Cherry Studio 式设置分类
   await page.getByRole('button', { name: '添加服务' }).click()            // 通过 UI 创建声明
   await page.locator('.service-row__header').click()                      // 展开结构化编辑器
   await setField('命令', process.execPath)                                // 使用当前 Node 启动真实夹具
@@ -40,7 +39,7 @@ try {
   await page.locator('mdui-button-icon[aria-label="添加环境变量"]').click() // 覆盖高级键值编辑器
   await page.locator('input[aria-label="键名"]').fill('CAPABILITY_E2E')   // 设置真实子进程环境变量名
   await page.locator('input[aria-label="值"]').fill('enabled')            // 设置真实子进程环境变量值
-  await page.getByRole('tab', { name: 'LSP' }).click()                    // 切换到 LSP 管理
+  await page.locator('.settings-navigation button').filter({ hasText: 'LSP' }).click() // 切换到独立 LSP 设置
   await page.getByRole('button', { name: '添加服务' }).click()            // 通过 UI 创建语言服务器
   await page.locator('.service-row__header').click()                      // 展开 LSP 编辑器
   await setField('命令', process.execPath)                                // 使用当前 Node 启动真实夹具
@@ -51,26 +50,26 @@ try {
   await page.getByRole('button', { name: '保存并应用' }).click()           // 触发配置持久化和连接重建
   await page.getByText('配置已保存，运行能力已更新').waitFor({ timeout: 20000 }) // 等待两个服务完成握手
 
-  await page.getByRole('tab', { name: 'MCP' }).click()                    // 检查 MCP 状态反馈
+  await page.locator('.settings-navigation button').filter({ hasText: 'MCP' }).click() // 检查 MCP 状态反馈
   const mcpText = await page.locator('.service-row__header').innerText()  // 读取连接与工具数量
-  await page.getByRole('tab', { name: 'LSP' }).click()                    // 检查 LSP 状态反馈
+  await page.locator('.settings-navigation button').filter({ hasText: 'LSP' }).click() // 检查 LSP 状态反馈
   const lspText = await page.locator('.service-row__header').innerText()  // 读取语言服务器状态
-  await page.getByRole('tab', { name: 'Skills' }).click()                 // 检查渐进披露目录
+  await page.locator('.settings-navigation button').filter({ hasText: '技能' }).click() // 检查独立技能设置
   const skillVisible = await page.getByText('browser-skill', { exact: true }).isVisible() // 默认用户目录 Skill 应可见
-  await page.getByRole('tab', { name: '工具' }).click()                   // 回到统一工具注册表
-  const dynamicTools = await page.locator('.tool-row').evaluateAll((rows) => rows.map((row) => row.innerText).filter((text) => /mcp_mcp-1_echo-value|lsp_diagnostics|load_skill/.test(text))) // 三类动态工具都应可检查
+  const registry = await (await page.request.get(`${uiURL}/api/capability/list`)).json() // 从页面代理读取统一工具注册表
+  const dynamicTools = registry.tools.filter((tool) => /mcp_mcp-1_echo-value|lsp_diagnostics|load_skill/.test(tool.name)) // 三类动态工具都应真实注册
+  await page.locator('.settings-navigation button').filter({ hasText: 'MCP' }).click() // 桌面截图聚焦 MCP 管理列表
   await page.screenshot({ path: 'C:\\Users\\17137\\AppData\\Local\\Temp\\opencode\\capabilities-desktop.png', fullPage: true }) // 保存桌面视觉证据
-  const desktop = await page.evaluate(() => ({ viewport: innerWidth, scrollWidth: document.documentElement.scrollWidth, tabs: document.querySelectorAll('.capability-tabs button').length, toolRows: document.querySelectorAll('.tool-row').length })) // 检查桌面结构和溢出
+  const desktop = await page.evaluate(() => ({ viewport: innerWidth, scrollWidth: document.documentElement.scrollWidth, settingsOptions: document.querySelectorAll('.settings-navigation button').length })) // 检查独立设置选项和溢出
   await page.reload({ waitUntil: 'domcontentloaded' })                    // 重建页面以验证顶部入口独立可达
-  await page.getByLabel('能力状态').click()                               // 打开同步最终状态的顶部小窗
-  await page.getByLabel('运行能力').waitFor({ state: 'visible' })          // 截图前必须确认真实弹层可见
-  const popoverText = await page.getByLabel('运行能力').innerText()       // 读取三个能力分类的连接统计
+  await page.getByLabel('服务状态').click()                               // 打开同步最终状态的顶部小窗
+  await page.getByLabel('运行状态').waitFor({ state: 'visible' })          // 截图前必须确认真实弹层可见
+  const popoverText = await page.getByLabel('运行状态').innerText()       // 读取三个独立设置分类的连接统计
   await page.waitForTimeout(250)                                          // 等待 MDUI 定位动画完成后采集视觉证据
   await page.screenshot({ path: 'C:\\Users\\17137\\AppData\\Local\\Temp\\opencode\\capabilities-popover.png' }) // 保存顶部小窗视觉证据
-  await page.getByRole('button', { name: '打开能力设置' }).click()        // 从独立小窗再次进入设置
-  await page.getByRole('heading', { name: '扩展能力' }).waitFor()         // 确认深链恢复能力分类
+  await page.getByRole('button', { name: '管理 MCP' }).click()            // 从独立小窗再次进入 MCP 设置
+  await page.getByRole('heading', { name: 'MCP', exact: true }).waitFor() // 确认深链恢复 MCP 分类
   await page.setViewportSize({ width: 390, height: 844 })                  // 切换真实移动视口
-  await page.getByRole('tab', { name: 'MCP' }).click()                    // 验证服务行移动布局
   await page.screenshot({ path: 'C:\\Users\\17137\\AppData\\Local\\Temp\\opencode\\capabilities-mobile.png', fullPage: true }) // 保存移动视觉证据
   const mobile = await page.evaluate(() => ({ viewport: innerWidth, scrollWidth: document.documentElement.scrollWidth, serviceRows: document.querySelectorAll('.service-row__header').length })) // 检查移动横向溢出
   console.log(JSON.stringify({ mcpText, lspText, skillVisible, dynamicTools: dynamicTools.length, popoverText, desktop, mobile, errors })) // 输出机器可验证摘要

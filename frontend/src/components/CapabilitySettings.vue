@@ -4,15 +4,15 @@
 调用示例：Settings 在能力分类中渲染 <CapabilitySettings embedded />。
 -->
 <script setup>
-import { computed, onMounted, ref } from 'vue'                   // 引入能力清单、草稿和首次加载能力
+import { computed, onMounted, ref, watch } from 'vue'            // 引入能力清单、分类同步和首次加载能力
 import { storeToRefs } from 'pinia'                              // 保持共享能力快照响应性
 import { AgentAPI } from '../api.js'                            // 引入配置与能力生命周期指令
 import { useCapabilityStore } from '../stores/capabilities.js'  // 引入顶部与设置页共享运行态
 
-const props = defineProps({ embedded: { type: Boolean, default: false } }) // 设置页嵌入时使用能力优先导航
+const props = defineProps({ embedded: { type: Boolean, default: false }, section: { type: String, default: '' } }) // 设置页可固定到独立 MCP、LSP 或技能分类
 const capabilityStore = useCapabilityStore()                    // 读取唯一能力运行态
 const { snapshot: capabilities } = storeToRefs(capabilityStore) // 保持现有模板读取方式
-const activeTab = ref(props.embedded ? 'mcp' : 'tools')          // 设置页首先展示最常管理的 MCP
+const activeTab = ref(props.section || (props.embedded ? 'mcp' : 'tools')) // 独立设置分类直接展示目标内容
 const draft = ref(null)                                         // MCP、LSP 与 Skill 可编辑配置副本
 const isLoading = ref(false)                                    // 首次读取或重载状态
 const isSaving = ref(false)                                     // 保存并重连状态
@@ -24,12 +24,16 @@ const baseTabs = [                                               // 稳定标签
   { id: 'lsp', label: 'LSP' },
   { id: 'skills', label: 'Skills' },
 ]
-const tabs = computed(() => props.embedded ? [baseTabs[1], baseTabs[2], baseTabs[3], baseTabs[0]] : baseTabs) // 设置内优先展示外部能力
+const tabs = computed(() => props.section ? [] : (props.embedded ? [baseTabs[1], baseTabs[2], baseTabs[3], baseTabs[0]] : baseTabs)) // 独立设置页不重复显示总能力标签
+const sectionTitle = computed(() => ({ mcp: 'MCP', lsp: 'LSP', skills: '技能' }[activeTab.value] || '工具')) // 设置标题对应当前独立分类
+const sectionSummary = computed(() => ({ mcp: `${connectedMCP.value} / ${capabilities.value.mcp.length} 已连接`, lsp: `${connectedLSP.value} / ${capabilities.value.lsp.length} 已连接`, skills: `${enabledSkills.value} / ${capabilities.value.skills.length} 已启用` }[activeTab.value] || `${capabilities.value.tools.length} 个可用工具`)) // 标题只反馈当前页面状态
 
 const toolGroups = computed(() => (capabilities.value.tools || []).reduce((groups, tool) => { const source = tool.kind || tool.source || 'built-in'; (groups[source] ||= []).push(tool); return groups }, {})) // 按来源组织密集工具清单并兼容旧桌面浏览器
 const connectedMCP = computed(() => capabilities.value.mcp.filter((item) => item.status === 'connected').length) // 标题展示真实 MCP 可用数
 const connectedLSP = computed(() => capabilities.value.lsp.filter((item) => item.status === 'connected').length) // 标题展示真实 LSP 可用数
 const enabledSkills = computed(() => capabilities.value.skills.filter((item) => item.enabled).length) // 标题展示注入模型的 Skill 数
+
+watch(() => props.section, (section) => { if (section) activeTab.value = section }) // 设置一级导航切换时复用组件并同步内容
 
 
 // --- 复制 JSON 配置为可编辑草稿 ---
@@ -202,8 +206,8 @@ onMounted(loadCapabilities)                                          // 首次�
   <section class="capability-view" :class="{ 'workspace-view': !embedded, 'capability-view--embedded': embedded }">
     <header class="view-header">
       <div>
-        <h1>{{ embedded ? '扩展能力' : '能力' }}</h1>
-        <p>{{ capabilities.tools.length }} 个工具 · {{ connectedMCP }} MCP · {{ connectedLSP }} LSP · {{ enabledSkills }} Skills</p>
+        <h1>{{ props.section ? sectionTitle : (embedded ? '扩展能力' : '能力') }}</h1>
+        <p>{{ props.section ? sectionSummary : `${capabilities.tools.length} 个工具 · ${connectedMCP} MCP · ${connectedLSP} LSP · ${enabledSkills} Skills` }}</p>
       </div>
       <div class="capability-actions">
         <mdui-button variant="text" :loading="isLoading" @click="reloadCapabilities"><mdui-icon-refresh slot="icon"></mdui-icon-refresh>重载</mdui-button>
@@ -211,7 +215,7 @@ onMounted(loadCapabilities)                                          // 首次�
       </div>
     </header>
 
-    <nav class="capability-tabs" role="tablist" aria-label="能力分类">
+    <nav v-if="tabs.length" class="capability-tabs" role="tablist" aria-label="能力分类">
       <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="activeTab === tab.id" :class="{ 'is-active': activeTab === tab.id }" @click="activeTab = tab.id">{{ tab.label }}</button>
     </nav>
     <div v-if="feedback" class="notice notice--success">{{ feedback }}</div>

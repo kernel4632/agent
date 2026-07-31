@@ -112,7 +112,7 @@ onMounted(async () => {
         <mdui-icon-add></mdui-icon-add>
       </mdui-button-icon>
       <div class="titlebar__spacer"></div>
-      <CapabilityPopover @open-settings="ui.openSettings('capabilities')" />
+      <CapabilityPopover @open-settings="ui.openSettings($event)" />
       <mdui-button-icon :class="{ 'is-active': ui.activeView === 'settings' }" aria-label="设置" @click="ui.openSettings('models')">
         <mdui-icon-settings></mdui-icon-settings>
       </mdui-button-icon>

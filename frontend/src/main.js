@@ -19,10 +19,14 @@ import '@mdui/icons/refresh.js'                    // 注册重载工具图标
 import '@mdui/icons/history.js'                    // 注册会话历史图标
 import '@mdui/icons/more-vert.js'                  // 注册更多操作图标
 import '@mdui/icons/expand-more.js'                // 注册模型下拉图标
+import '@mdui/icons/chevron-right.js'              // 注册运行能力设置入口图标
 import '@mdui/icons/check.js'                      // 注册当前模型状态图标
 import '@mdui/icons/edit.js'                       // 注册提供商编辑图标
 import '@mdui/icons/key.js'                        // 注册密钥配置图标
 import '@mdui/icons/dns.js'                        // 注册模型服务图标
+import '@mdui/icons/hub.js'                        // 注册 MCP 设置图标
+import '@mdui/icons/code.js'                       // 注册 LSP 设置图标
+import '@mdui/icons/extension.js'                  // 注册 Agent Skills 设置图标
 import '@mdui/icons/close.js'                      // 注册移除模型图标
 import '@mdui/icons/home.js'                       // 注册顶部主页图标
 import '@mdui/icons/undo.js'                       // 注册撤销回退图标

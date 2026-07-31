@@ -21,10 +21,12 @@ const sections = [                                    // Cherry Studio 式全局
   { id: 'models', label: '模型', description: '供应商、协议与模型目录', icon: 'dns' },
   { id: 'agent', label: 'Agent', description: '系统行为与默认指令', icon: 'settings' },
   { id: 'permissions', label: '权限', description: '工具调用边界与审批策略', icon: 'key' },
-  { id: 'capabilities', label: '能力', description: 'MCP、LSP 与 Agent Skills', icon: 'build' },
+  { id: 'mcp', label: 'MCP', description: '连接和管理 MCP 服务', icon: 'hub' },
+  { id: 'lsp', label: 'LSP', description: '语言服务器与文件映射', icon: 'code' },
+  { id: 'skills', label: '技能', description: 'Agent Skills 安装与开关', icon: 'extension' },
 ]
 const currentSection = computed(() => sections.find((item) => item.id === ui.settingsSection) || sections[0]) // 标题跟随当前分类
-const savesCoreConfig = computed(() => ui.settingsSection !== 'capabilities') // 能力页使用自己的保存并应用流程
+const savesCoreConfig = computed(() => !['mcp', 'lsp', 'skills'].includes(ui.settingsSection)) // 外部能力页使用自己的保存并应用流程
 
 
 // --- 复制可编辑配置数据 ---
@@ -81,7 +83,9 @@ onMounted(loadConfig)                                 // 首次进入读取真�
           <mdui-icon-dns v-if="section.icon === 'dns'"></mdui-icon-dns>
           <mdui-icon-settings v-else-if="section.icon === 'settings'"></mdui-icon-settings>
           <mdui-icon-key v-else-if="section.icon === 'key'"></mdui-icon-key>
-          <mdui-icon-build v-else></mdui-icon-build>
+          <mdui-icon-hub v-else-if="section.icon === 'hub'"></mdui-icon-hub>
+          <mdui-icon-code v-else-if="section.icon === 'code'"></mdui-icon-code>
+          <mdui-icon-extension v-else></mdui-icon-extension>
           <span><strong>{{ section.label }}</strong><small>{{ section.description }}</small></span>
         </button>
       </nav>
@@ -94,7 +98,7 @@ onMounted(loadConfig)                                 // 首次进入读取真�
             <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field>
           </section>
           <PermissionEditor v-else-if="ui.settingsSection === 'permissions'" :permissions="draft.permissions || {}" :tool-names="toolNames" @update="setPermissions" />
-          <CapabilitySettings v-else embedded />
+          <CapabilitySettings v-else embedded :section="ui.settingsSection" />
         </template>
       </div>
     </div>

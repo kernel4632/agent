@@ -1041,6 +1041,8 @@ button {
 }
 
 .titlebar {
+  position: relative;                                // 为顶部状态窗建立独立层叠上下文
+  z-index: 30;                                       // 保证弹窗覆盖会话列表和业务操作按钮
   display: flex;                                     // Home、标签、工具动作同排
   align-items: center;                               // 所有 32px 控件垂直居中
   min-width: 0;                                      // 标签条允许水平压缩

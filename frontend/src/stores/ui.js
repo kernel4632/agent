@@ -1,7 +1,7 @@
 /*
 界面数据仓库：保存当前业务视图、侧栏展开状态和移动布局状态。
 组件通过公开动作修改这些字段，避免导航状态分散在多个页面中。
-调用示例：const ui = useUIStore(); ui.openSettings('capabilities')。
+调用示例：const ui = useUIStore(); ui.openSettings('mcp')。
 */
 import { ref } from 'vue'                           // 引入 Vue 响应式基础数据
 import { defineStore } from 'pinia'                 // 引入 Pinia 数据仓库定义能力
