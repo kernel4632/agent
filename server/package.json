@@ -10,6 +10,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.24",
     "@ai-sdk/openai-compatible": "latest",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "ai": "latest",
     "chokidar": "latest",
     "consola": "latest",
@@ -18,6 +19,8 @@
     "nanoid": "latest",
     "tiktoken": "latest",
     "unstorage": "latest",
+    "vscode-jsonrpc": "^9.0.1",
+    "yaml": "^2.9.0",
     "zod": "latest"
   },
   "devDependencies": {

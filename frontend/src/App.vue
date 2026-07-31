@@ -8,7 +8,7 @@ import { onMounted } from 'vue'                       // 引入应用启动数�
 import Chat from './views/Chat.vue'                   // 引入当前标签对话工作区
 import Sessions from './views/Sessions.vue'           // 引入独立主页会话选择区
 import Settings from './views/Settings.vue'           // 引入配置管理区
-import Tools from './views/Tools.vue'                 // 引入工具注册表区
+import CapabilityPopover from './components/CapabilityPopover.vue' // 引入顶部运行能力状态窗
 import { useChatStore } from './stores/chat.js'       // 引入按标签对话上下文
 import { useSessionStore } from './stores/session.js' // 引入会话摘要和详情指令
 import { useTabStore } from './stores/tabs.js'        // 引入顶部多会话标签状态
@@ -85,12 +85,6 @@ async function renameSession(sessionID, title, resolve) {
 }
 
 
-// --- 打开工具或设置页面 ---
-function openUtility(viewName) {
-  ui.openView(viewName)                               // 顶部会话标签保留，便于随时返回
-}
-
-
 onMounted(async () => {
   await sessions.refresh()                            // 启动时读取真实会话摘要
   tabs.syncTitles(sessions.sessions)                  // 更新恢复标签的异步标题
@@ -118,10 +112,8 @@ onMounted(async () => {
         <mdui-icon-add></mdui-icon-add>
       </mdui-button-icon>
       <div class="titlebar__spacer"></div>
-      <mdui-button-icon :class="{ 'is-active': ui.activeView === 'tools' }" aria-label="工具" @click="openUtility('tools')">
-        <mdui-icon-build></mdui-icon-build>
-      </mdui-button-icon>
-      <mdui-button-icon :class="{ 'is-active': ui.activeView === 'settings' }" aria-label="设置" @click="openUtility('settings')">
+      <CapabilityPopover @open-settings="ui.openSettings('capabilities')" />
+      <mdui-button-icon :class="{ 'is-active': ui.activeView === 'settings' }" aria-label="设置" @click="ui.openSettings('models')">
         <mdui-icon-settings></mdui-icon-settings>
       </mdui-button-icon>
     </header>
@@ -129,7 +121,6 @@ onMounted(async () => {
     <main class="main-area">
       <Sessions v-if="ui.activeView === 'home'" @open="openSession" @new="startNewChat" @remove="removeSession" @rename="renameSession" />
       <Chat v-else-if="ui.activeView === 'chat'" />
-      <Tools v-else-if="ui.activeView === 'tools'" />
       <Settings v-else />
     </main>
   </div>

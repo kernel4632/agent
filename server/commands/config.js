@@ -18,6 +18,9 @@ const defaultConfig = {                                          // 首次运行
   systemPrompt: '你是一个有用的 AI 助手，能够通过调用工具帮助用户完成任务。', // 每轮模型调用使用的系统指令
   permissions: {},                                                // 未声明工具按 ask 处理
   modelLimits: {},                                                // 模型上下文限制按模型名称保存
+  mcpServers: {},                                                 // MCP 服务按名称保存 stdio 或 HTTP 声明
+  lspServers: {},                                                 // LSP 服务按名称保存命令、语言和扩展名映射
+  skills: { enabled: true, directories: [], disabled: [] },       // Skill 默认扫描用户和项目目录
 }
 
 
@@ -30,6 +33,7 @@ async function load(filePath) {
   const savedConfig = await file.exists() ? await file.json() : {} // 文件不存在时从默认配置开始
   configStore.value = defu(savedConfig, defaultConfig)             // 补齐缺失字段，同时保留用户值
   normalizeProviders(configStore.value.providers)                  // 将旧供应商记录升级为显式协议和请求设置
+  normalizeCapabilities(configStore.value)                         // 补齐外部能力默认结构
   await save()                                                     // 将补齐后的完整结构同步到磁盘
   return configStore.value                                        // 向启动流程反馈当前配置
 }
@@ -65,10 +69,15 @@ async function update(changes) {
       }
     }
   }
+  if (nextChanges.mcpServers) restoreCapabilitySecrets(nextChanges.mcpServers, configStore.value.mcpServers) // 恢复 MCP 敏感环境变量和请求头
 
   configStore.value = defu(nextChanges, configStore.value)         // 普通局部字段继续深度保留未修改内容
   if ('providers' in nextChanges) configStore.value.providers = nextChanges.providers // 提供商集合按 UI 完整结果替换，删除才能生效
+  if ('mcpServers' in nextChanges) configStore.value.mcpServers = nextChanges.mcpServers // MCP 集合完整替换才能删除服务
+  if ('lspServers' in nextChanges) configStore.value.lspServers = nextChanges.lspServers // LSP 集合完整替换才能删除服务
+  if ('skills' in nextChanges) configStore.value.skills = nextChanges.skills             // Skill 配置按页面完整结果替换
   normalizeProviders(configStore.value.providers)                  // 新旧 API 输入统一为完整供应商结构
+  normalizeCapabilities(configStore.value)                         // 新旧外部能力输入统一默认值
   await save()                                                      // 写盘完成后才向 API 反馈成功
   return { ok: true }                                               // 返回统一成功结果
 }
@@ -185,6 +194,39 @@ function normalizeProviders(providers) {
     provider.cache = { enabled: cache.enabled ?? Boolean(provider.setCacheKey), mode: cache.mode ?? 'implicit' } // 旧 setCacheKey 继续决定迁移后的默认值
     provider.modelSettings = provider.modelSettings && typeof provider.modelSettings === 'object' ? provider.modelSettings : {} // 模型生成设置统一为对象
   }
+}
+
+
+// --- 恢复外部能力中的脱敏配置 ---
+function restoreCapabilitySecrets(nextServers, savedServers = {}) {
+  for (const [name, definition] of Object.entries(nextServers)) {
+    const saved = savedServers?.[name] || {}                                      // 同名服务才允许恢复原认证值
+    for (const field of ['headers', 'env']) {
+      for (const [key, value] of Object.entries(definition[field] || {})) {
+        if (value === '[REDACTED]') definition[field][key] = saved[field]?.[key]    // 未编辑占位符不能覆盖真实值
+      }
+    }
+  }
+}
+
+
+// --- 统一 MCP、LSP 与 Skill 配置 ---
+function normalizeCapabilities(config) {
+  config.mcpServers = config.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : {} // MCP 声明统一为对象
+  config.lspServers = config.lspServers && typeof config.lspServers === 'object' ? config.lspServers : {} // LSP 声明统一为对象
+  for (const definition of Object.values(config.mcpServers)) {
+    definition.transport = definition.transport === 'http' ? 'http' : 'stdio'       // 只接受两个官方传输类型
+    definition.args = Array.isArray(definition.args) ? definition.args : []         // stdio 参数统一为数组
+    definition.headers = definition.headers && typeof definition.headers === 'object' ? definition.headers : {} // HTTP 头统一为对象
+    definition.env = definition.env && typeof definition.env === 'object' ? definition.env : {} // 子进程环境统一为对象
+  }
+  for (const definition of Object.values(config.lspServers)) {
+    definition.args = Array.isArray(definition.args) ? definition.args : []         // LSP 命令参数统一为数组
+    definition.extensions = Array.isArray(definition.extensions) ? definition.extensions : [] // 文件映射统一为数组
+    definition.env = definition.env && typeof definition.env === 'object' ? definition.env : {} // 子进程环境统一为对象
+  }
+  const skills = config.skills && typeof config.skills === 'object' ? config.skills : {} // 接受旧配置缺失 Skill 字段
+  config.skills = { enabled: skills.enabled !== false, directories: Array.isArray(skills.directories) ? skills.directories.flat(Infinity).filter((directory) => typeof directory === 'string') : [], disabled: Array.isArray(skills.disabled) ? skills.disabled.flat(Infinity).filter((name) => typeof name === 'string') : [] } // 保存稳定完整结构
 }
 
 

@@ -4,12 +4,13 @@ Agent Server 真实 API 测试：所有请求都通过 Elysia.app.handle 进入�
 调用方式：bun test --timeout 180000。
 */
 import { beforeAll, afterAll, describe, expect, it } from 'bun:test' // 引入 Bun 测试生命周期和断言能力
-import { mkdtemp, writeFile } from 'node:fs/promises'                 // 引入真实临时目录和配置写入能力
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'          // 引入真实临时目录、Skill 和配置写入能力
 import { tmpdir } from 'node:os'                                     // 引入操作系统临时目录位置
 import { join } from 'node:path'                                      // 引入跨平台测试路径拼接能力
 import { createApp } from '../server.js'                             // 引入可直接处理 Request 的真实应用入口
 import { Config } from '../commands/config.js'                       // 引入缓存请求选项供配置行为断言
 import { Session } from '../commands/session.js'                     // 引入两套历史同步回退指令
+import { toolStore } from '../store/tools.js'                         // 引入动态能力工具供协议级调用断言
 import { retry } from '../utils/retry.js'                             // 引入中断不重试行为验证
 
 let app                                                                  // 保存测试使用的真实 Elysia 应用
@@ -106,6 +107,47 @@ describe('Agent Server API', () => {
     const reloaded = await jsonRequest('/tool/reload', 'POST')                 // 通过 API 再次扫描真实工具目录
     expect((await reloaded.json()).ok).toBe(true)                              // 验证真实重载完成
   })
+
+  it('connects real MCP and LSP processes and progressively loads a real Skill', async () => {
+    const fixtureDirectory = join(import.meta.dir, 'fixtures')                     // 定位随测试分发的协议服务脚本
+    const skillDirectory = join(dataDirectory, 'skills', 'fixture-skill')          // 使用 Agent 默认用户 Skill 根目录
+    const sourcePath = join(dataDirectory, 'fixture.js')                            // 创建 LSP 将读取的真实磁盘文件
+    await mkdir(skillDirectory, { recursive: true })                                // 创建规范 Skill 父目录
+    await writeFile(join(skillDirectory, 'SKILL.md'), '---\nname: fixture-skill\ndescription: Loads a real test workflow when fixture validation is requested.\nmetadata:\n  version: "1.0"\n---\n\nReturn SKILL_REAL_OK after following this workflow.\n') // 写入有效 YAML frontmatter 和按需正文
+    await writeFile(sourcePath, 'BROKEN fixtureSymbol\n')                           // 写入能触发测试诊断的文本
+
+    const updated = await jsonRequest('/config', 'PUT', {
+      mcpServers: { fixture: { enabled: true, transport: 'stdio', command: process.execPath, args: [join(fixtureDirectory, 'mcp-server.js')], env: { TEST_SECRET: 'hidden-value' } } }, // 声明真实 MCP 子进程
+      lspServers: { fixture: { enabled: true, command: process.execPath, args: [join(fixtureDirectory, 'lsp-server.js')], root: dataDirectory, languageId: 'javascript', extensions: ['js'] } }, // 声明真实 LSP 子进程
+      skills: { enabled: true, directories: [], disabled: [] },                    // 启用默认 Skill 扫描
+    })
+    expect(await updated.json()).toEqual({ ok: true })                              // 配置先真实持久化
+    const reloaded = await jsonRequest('/capability/reload', 'POST')                // 通过 HTTP 触发完整关闭、扫描与握手
+    expect((await reloaded.json()).ok).toBe(true)                                   // 三类能力均完成重载指令
+
+    const listed = await (await request('/capability/list')).json()                 // 读取运行状态而不是仅看配置
+    expect(listed.mcp[0]).toMatchObject({ name: 'fixture', status: 'connected', toolCount: 1 }) // MCP 完成握手与工具发现
+    expect(listed.lsp[0]).toMatchObject({ name: 'fixture', status: 'connected' })    // LSP 完成 initialize 生命周期
+    expect(listed.skills[0]).toMatchObject({ name: 'fixture-skill', enabled: true }) // Skill 元数据完成发现
+    expect(listed.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['mcp_fixture_echo-value', 'lsp_diagnostics', 'load_skill'])) // 三类能力进入统一工具注册表
+
+    const mcpResult = await toolStore.items.get('mcp_fixture_echo-value').execute({ value: 'OK' }) // 通过官方客户端调用真实子进程工具
+    expect(mcpResult.structuredContent).toEqual({ echoed: 'OK' })                    // 结构化内容跨协议返回
+    expect(mcpResult.content[0].text).toBe('MCP_REAL:OK')                            // 文本内容也跨协议返回
+    const diagnosticResult = await toolStore.items.get('lsp_diagnostics').execute({ path: sourcePath }) // 同步文档并等待 publishDiagnostics
+    expect(diagnosticResult.diagnostics[0]).toMatchObject({ message: '真实 LSP 诊断', line: 1, character: 1 }) // LSP 坐标转换为公开 1-based
+    const definitionResult = await toolStore.items.get('lsp_definition').execute({ path: sourcePath, line: 1, character: 2 }) // 发起真实定义请求
+    expect(definitionResult.locations[0]).toMatchObject({ path: sourcePath, line: 1 }) // 定义位置完成 URI 到路径转换
+    const skillResult = await toolStore.items.get('load_skill').execute({ name: 'fixture-skill' }) // 通过工具进入第二层披露
+    expect(skillResult.instructions).toContain('SKILL_REAL_OK')                    // 完整正文只在激活后返回
+
+    const redacted = await (await request('/config')).json()                       // 检查能力配置安全边界
+    expect(redacted.mcpServers.fixture.env.TEST_SECRET).toBe('[REDACTED]')          // API 不泄漏 MCP 子进程密钥
+    expect((await Bun.file(join(dataDirectory, 'config.json')).json()).mcpServers.fixture.env.TEST_SECRET).toBe('hidden-value') // 磁盘仍保留真实值
+
+    await jsonRequest('/config', 'PUT', { mcpServers: {}, lspServers: {}, skills: { enabled: true, directories: [], disabled: [] } }) // 清空夹具声明
+    await jsonRequest('/capability/reload', 'POST')                                // 真实关闭两个子进程，避免影响后续模型测试
+  }, 30000)
 
   it('handles config get and update APIs', async () => {
     const current = await request('/config')                                   // 读取脱敏后的真实配置

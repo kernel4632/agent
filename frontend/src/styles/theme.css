@@ -379,3 +379,624 @@ mdui-collapse-item[active] .task-dock__chevron {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* 能力中心使用同一黑白 Material You 表面，服务状态只通过明度和实心程度表达。 */
+.capability-view {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+}
+
+.capability-view--embedded {
+  height: auto;
+  min-height: 620px;
+  overflow: visible;
+}
+
+.capability-view--embedded .view-header {
+  padding-top: 0;
+}
+
+.capability-view--embedded .capability-content {
+  overflow: visible;
+}
+
+/* 顶部只反馈运行态和快捷动作，完整配置留在设置页。 */
+.capability-popover__panel {
+  display: grid;
+  width: min(330px, calc(100vw - 24px));
+  padding: 14px;
+  border: 1px solid var(--agent-outline);
+  border-radius: 20px;
+  background: var(--agent-surface-raised);
+  box-shadow: 0 18px 48px #0008;
+  color: var(--agent-text);
+}
+
+.capability-popover__panel > header,
+.capability-popover__panel > footer,
+.capability-popover__list > div {
+  display: flex;
+  align-items: center;
+}
+
+.capability-popover__panel > header {
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 6px 10px;
+}
+
+.capability-popover__panel strong,
+.capability-popover__panel small {
+  display: block;
+}
+
+.capability-popover__panel > header strong {
+  font-size: 14px;
+}
+
+.capability-popover__panel small {
+  margin-top: 3px;
+  color: var(--agent-muted);
+  font-size: 10px;
+}
+
+.capability-popover__error {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--agent-text);
+  color: var(--agent-background);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.capability-popover__list {
+  display: grid;
+  gap: 5px;
+}
+
+.capability-popover__list > div {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  min-height: 46px;
+  padding: 7px 10px;
+  border-radius: 14px;
+  background: var(--agent-surface);
+}
+
+.capability-popover__list > div strong {
+  font-size: 12px;
+}
+
+.capability-popover__list > div small {
+  margin: 0;
+}
+
+.capability-popover__message {
+  margin: 8px 5px 0;
+  overflow: hidden;
+  color: var(--agent-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capability-popover__panel > footer {
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+/* 设置页采用全局分类导航，能力管理与模型、权限处于同一层级。 */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.settings-navigation {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.settings-navigation button {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 58px;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--agent-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-navigation button:hover,
+.settings-navigation button.is-active {
+  background: var(--agent-surface-raised);
+  color: var(--agent-text);
+}
+
+.settings-navigation mdui-icon-dns,
+.settings-navigation mdui-icon-settings,
+.settings-navigation mdui-icon-key,
+.settings-navigation mdui-icon-build {
+  width: 19px;
+  height: 19px;
+  margin: auto;
+}
+
+.settings-navigation strong,
+.settings-navigation small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-navigation strong {
+  font-size: 12px;
+}
+
+.settings-navigation small {
+  margin-top: 4px;
+  color: var(--agent-muted);
+  font-size: 9px;
+}
+
+.settings-page {
+  min-width: 0;
+}
+
+.settings-page > .settings-section {
+  margin-top: 0;
+}
+
+.capability-actions,
+.capability-content__header,
+.service-editor__toolbar,
+.skill-directories > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.capability-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--agent-outline);
+}
+
+.capability-tabs button {
+  position: relative;
+  min-width: 78px;
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--agent-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.capability-tabs button::after {
+  position: absolute;
+  right: 14px;
+  bottom: -1px;
+  left: 14px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+  content: "";
+}
+
+.capability-tabs button.is-active {
+  color: var(--agent-text);
+}
+
+.capability-tabs button.is-active::after {
+  background: var(--agent-focus);
+}
+
+.capability-content {
+  min-height: 0;
+  padding: 18px 2px 40px;
+  overflow-y: auto;
+}
+
+.capability-content__header {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.capability-content__header h2,
+.capability-group h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.capability-content__header p,
+.capability-group p,
+.skill-row p,
+.tool-row p {
+  margin: 3px 0 0;
+  color: var(--agent-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.capability-group + .capability-group {
+  margin-top: 22px;
+}
+
+.capability-group > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.capability-group > header span {
+  color: var(--agent-muted);
+  font: 11px "Cascadia Code", Consolas, monospace;
+}
+
+.tool-list,
+.skill-list,
+.service-list,
+.skill-directories {
+  display: grid;
+  gap: 7px;
+}
+
+.tool-row,
+.skill-row,
+.service-row__header {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--agent-outline);
+  border-radius: 20px;
+  background: var(--agent-surface);
+}
+
+.tool-row {
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 66px;
+  padding: 9px 14px;
+}
+
+.tool-row > div,
+.skill-row > div,
+.service-row__header > div {
+  min-width: 0;
+}
+
+.tool-row strong,
+.skill-row strong,
+.service-row__header strong {
+  display: block;
+  overflow: hidden;
+  color: var(--agent-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-row code,
+.skill-row code,
+.tool-row > small,
+.skill-row > small,
+.service-row__header small,
+.service-row__header > span {
+  color: var(--agent-muted);
+  font-size: 10px;
+}
+
+.tool-row code {
+  margin-left: 7px;
+}
+
+.service-list mdui-collapse-item {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.service-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.service-row__header {
+  grid-template-columns: 10px minmax(0, 1fr) auto 20px;
+  gap: 11px;
+  width: 100%;
+  min-height: 58px;
+  padding: 6px 12px 6px 16px;
+  cursor: pointer;
+}
+
+.service-status {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--agent-muted);
+  border-radius: 50%;
+}
+
+.service-status.is-connected {
+  border-color: var(--agent-focus);
+  background: var(--agent-focus);
+}
+
+.service-status.is-connecting,
+.service-status.is-starting {
+  background: var(--agent-muted);
+}
+
+.service-status.is-error,
+.service-status.is-disconnected {
+  border-style: double;
+  border-width: 2px;
+}
+
+.service-editor {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 10px 24px;
+  padding: 14px;
+  border-radius: 22px;
+  background: var(--agent-surface);
+}
+
+.service-editor__toolbar {
+  color: var(--agent-muted);
+  font-size: 11px;
+}
+
+.service-editor__toolbar mdui-button-icon {
+  margin-left: auto;
+}
+
+.service-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.service-fields__wide {
+  grid-column: 1 / -1;
+}
+
+.native-field {
+  display: grid;
+  gap: 5px;
+}
+
+.native-field > span {
+  color: var(--agent-muted);
+  font-size: 10px;
+}
+
+.native-field select {
+  width: 100%;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--agent-outline);
+  border-radius: 12px;
+  outline: 0;
+  background: var(--agent-surface-raised);
+  color: var(--agent-text);
+}
+
+.pair-editor {
+  display: grid;
+  gap: 7px;
+  padding-top: 4px;
+  border-top: 1px solid var(--agent-outline);
+}
+
+.pair-editor > header {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  color: var(--agent-muted);
+  font-size: 11px;
+}
+
+.pair-editor > header mdui-button-icon {
+  margin-left: auto;
+}
+
+.pair-row {
+  display: grid;
+  grid-template-columns: minmax(120px, .45fr) minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 7px;
+}
+
+.pair-row input {
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--agent-outline);
+  border-radius: 12px;
+  outline: 0;
+  background: var(--agent-surface-raised);
+  color: var(--agent-text);
+  font: 11px "Cascadia Code", Consolas, monospace;
+}
+
+.pair-row input:focus {
+  border-color: var(--agent-focus);
+}
+
+.capability-empty {
+  display: grid;
+  place-items: center;
+  min-height: 130px;
+  border: 1px dashed var(--agent-outline);
+  border-radius: 22px;
+  color: var(--agent-muted);
+  font-size: 12px;
+}
+
+.skill-directories {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: var(--agent-surface);
+}
+
+.skill-directories > header mdui-button-icon {
+  margin-left: auto;
+}
+
+.directory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-errors {
+  margin-bottom: 12px;
+}
+
+.skill-row {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 72px;
+  padding: 9px 14px 9px 8px;
+}
+
+.skill-row code {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--agent-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .settings-navigation {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-bottom: 5px;
+  }
+
+  .settings-navigation button {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 20px auto;
+    gap: 2px;
+    min-height: 52px;
+    padding: 5px 3px;
+    border-radius: 14px;
+    text-align: center;
+  }
+
+  .settings-navigation button span {
+    min-width: 0;
+  }
+
+  .settings-navigation button small {
+    display: none;
+  }
+
+  .capability-view--embedded {
+    min-height: 560px;
+  }
+
+  .capability-view--embedded .view-header {
+    align-items: flex-start;
+  }
+
+  .capability-actions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
+  }
+
+  .capability-tabs {
+    overflow-x: auto;
+  }
+
+  .capability-tabs button {
+    flex: 1 0 76px;
+    min-width: 76px;
+    padding: 0 10px;
+  }
+
+  .capability-content__header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .tool-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .tool-row > small,
+  .skill-row > small,
+  .service-row__header > span:not(.service-status) {
+    display: none;
+  }
+
+  .service-row__header {
+    grid-template-columns: 10px minmax(0, 1fr) 20px;
+  }
+
+  .service-editor {
+    margin-left: 0;
+  }
+
+  .service-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pair-row {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .pair-row input:first-child {
+    grid-column: 1;
+  }
+
+  .pair-row input:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .pair-row mdui-button-icon {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .service-fields__wide {
+    grid-column: auto;
+  }
+
+  .skill-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+}

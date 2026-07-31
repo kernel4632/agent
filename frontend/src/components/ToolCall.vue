@@ -24,9 +24,18 @@ const toolMeta = {                                    // 根据工具动作提�
   search_web: { label: '搜索网页', icon: 'globe' },
   task_list_update: { label: '更新任务计划', icon: 'plan' },
   task_done: { label: '完成任务', icon: 'check' },
+  load_skill: { label: '加载技能', icon: 'skill' },
+  lsp_diagnostics: { label: '检查代码诊断', icon: 'lsp' },
+  lsp_definition: { label: '查找定义', icon: 'lsp' },
+  lsp_references: { label: '查找引用', icon: 'lsp' },
+  lsp_hover: { label: '查看符号信息', icon: 'lsp' },
 }
 
-const meta = computed(() => toolMeta[props.toolCall.name] || { label: '工具调用', icon: 'tool' }) // 未知工具仍保持可读身份
+const meta = computed(() => {
+  if (toolMeta[props.toolCall.name]) return toolMeta[props.toolCall.name]           // 内置、LSP 和 Skill 使用明确语义
+  if (props.toolCall.name?.startsWith('mcp_')) return { label: `MCP · ${props.toolCall.name.split('_').slice(2).join('_')}`, icon: 'mcp' } // MCP 动态工具保留远程动作名称
+  return { label: '工具调用', icon: 'tool' }                                      // 未知自定义工具仍保持可读身份
+})
 const status = computed(() => statusLabels[props.toolCall.status] || (props.toolCall.output !== null && props.toolCall.output !== undefined ? '已完成' : '执行中')) // 从状态或结果推导反馈
 const input = computed(() => props.toolCall.input && typeof props.toolCall.input === 'object' ? props.toolCall.input : {}) // 保持参数遍历安全
 const entries = computed(() => Object.entries(input.value).filter(([name]) => name !== 'tasks' && input.value[name] !== undefined && input.value[name] !== null && input.value[name] !== '')) // 将普通参数转为信息条
@@ -67,7 +76,7 @@ function decide(decision) {
     <mdui-collapse class="tool-call__collapse">
       <mdui-collapse-item :active="expanded">
         <div slot="header" class="tool-call__header">
-          <span class="tool-call__icon" aria-hidden="true">{{ meta.icon === 'terminal' ? '>_' : meta.icon === 'plan' ? '☷' : meta.icon === 'check' ? '✓' : '◇' }}</span>
+          <span class="tool-call__icon" aria-hidden="true">{{ meta.icon === 'terminal' ? '>_' : meta.icon === 'plan' ? '☷' : meta.icon === 'check' ? '✓' : meta.icon === 'mcp' ? 'M' : meta.icon === 'lsp' ? 'L' : meta.icon === 'skill' ? 'S' : '◇' }}</span>
           <strong>{{ meta.label }}</strong>
           <code v-if="primaryValue" class="tool-call__summary">{{ primaryValue }}</code>
           <span class="tool-call__status"><i></i>{{ status }}</span>

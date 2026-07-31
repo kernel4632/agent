@@ -74,7 +74,7 @@ async function close() {
 
 // --- 列出模型可用工具 ---
 function list() {
-  return [...toolStore.items.values()].map(({ name, description, parameters, source }) => ({ name, description, parameters, source })) // 隐藏执行函数与磁盘绝对路径
+  return [...toolStore.items.values()].map(({ name, label, description, parameters, inputSchema, source, kind, server, originalName }) => ({ name, label: label || name, description, parameters: parameters || inputSchema?.properties || {}, source, kind: kind || source, server: server || '', originalName: originalName || '' })) // 隐藏执行函数，同时保留能力来源与 JSON Schema 字段
 }
 
 

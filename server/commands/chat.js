@@ -3,10 +3,11 @@
 入口只把 HTTP 请求交给 startLoop；本文件按“读取配置 → 调用模型 → 修改会话 → SSE 反馈”推进流程。
 调用示例：Chat.startLoop({ sessionID, message, request })、Chat.approve(sessionID, toolCallID)。
 */
-import { generateText, streamText, tool } from 'ai'                   // 引入真实模型生成、流式输出和工具协议
+import { generateText, jsonSchema, streamText, tool } from 'ai'       // 引入真实模型生成、JSON Schema 和工具协议
 import { z } from 'zod'                                               // 引入工具参数 schema 转换能力
 import { Config } from './config.js'                                  // 引入即时配置与模型创建动作
 import { Session } from './session.js'                                // 引入会话读取、修改和持久化动作
+import { Skill } from './skill.js'                                    // 引入渐进披露技能目录
 import { toolStore } from '../store/tools.js'                        // 引入当前工具注册表
 import { compressMessages } from '../utils/compress.js'              // 引入只作用于模型请求的上下文压缩
 import { retry } from '../utils/retry.js'                             // 引入模型失败后的无限退避重试
@@ -22,7 +23,7 @@ function createSchema(parameters = {}) {
   const fields = {}                                                   // 为 AI SDK 工具协议准备字段映射
   for (const [name, definition] of Object.entries(parameters)) {
     const field = createSchemaField(definition)                        // 递归支持基础值、数组和对象
-    fields[name] = definition.required ? field : field.optional().default(definition.default) // 非必填字段使用默认值
+    fields[name] = definition.required ? field : definition.default !== undefined ? field.optional().default(definition.default) : field.optional() // 未声明默认值时只使用 optional，避免 Zod 4 序列化 undefined
   }
   return z.object(fields)                                             // 返回 AI SDK 可以校验模型参数的对象 schema
 }
@@ -126,7 +127,7 @@ async function runModelRound({ model, systemPrompt, modelMessages, tools, provid
 function createTools(sessionID, emit, abortSignal) {
   return Object.fromEntries([...toolStore.items].map(([name, definition]) => [name, tool({ // 每个注册项转换为 AI SDK 工具
     description: definition.description,                                // 透传工具用途说明给真实模型
-    inputSchema: createSchema(definition.parameters),                    // 使用项目参数定义约束模型输入
+    inputSchema: definition.inputSchema ? jsonSchema(definition.inputSchema) : createSchema(definition.parameters), // MCP 原生 JSON Schema 与本地简化 schema 共用执行链
     execute: (input, { toolCallId }) => executeTool(sessionID, toolCallId, name, input, emit, abortSignal), // 将执行交回统一权限指令
   })]))
 }
@@ -172,7 +173,8 @@ function startLoop({ sessionID, message, messageID, request, initialEvents = [] 
           const tools = createTools(sessionID, emit, stopSignal.signal)  // 使用当前注册表并让审批等待响应中断
           const providerOptions = Config.getProviderOptions(sessionID)            // 同一会话每轮使用稳定缓存键
           const generationOptions = Config.getGenerationOptions()                 // 每轮读取当前模型输出上限和温度
-          const systemPrompt = `${Config.get().systemPrompt}\n\n${taskInstruction}` // 在用户系统指令后追加工作台任务协议
+          const skillCatalog = Skill.catalogPrompt()                             // 每轮读取最新 Skill 元数据目录
+          const systemPrompt = `${Config.get().systemPrompt}\n\n${taskInstruction}${skillCatalog ? `\n\n${skillCatalog}` : ''}` // 只常驻技能名称和描述，完整正文按需加载
           const round = await retry(() => runModelRound({ model, systemPrompt, modelMessages, tools, providerOptions, generationOptions, abortSignal: stopSignal.signal, streamWriter }), ({ error, attempt, nextRetryIn }) => emit('error-retry', { message: String(error), attempt, nextRetryIn }), stopSignal.signal) // 只对可恢复请求执行退避重试
           const previousSteps = session.messages.filter((item) => item.role === 'tool').map((item) => item.step ?? 0) // 读取已持久化的全部工具步骤
           const nextStep = Math.max(0, ...previousSteps) + 1                 // 本轮并行工具共享同一个新步骤号

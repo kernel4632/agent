@@ -8,8 +8,12 @@ import { dirname, join, resolve } from 'node:path'               // 引入跨平
 import { Elysia, t } from 'elysia'                                // 引入 HTTP 路由和请求体校验能力
 import { Chat } from './commands/chat.js'                         // 引入对话循环与用户控制指令
 import { Config } from './commands/config.js'                     // 引入配置读写指令
+import { LSP } from './commands/lsp.js'                           // 引入语言服务器生命周期与状态指令
+import { MCP } from './commands/mcp.js'                           // 引入 MCP 连接和工具发现指令
 import { Session } from './commands/session.js'                    // 引入会话增删改查指令
+import { Skill } from './commands/skill.js'                       // 引入 Agent Skill 扫描与目录指令
 import { Tool } from './commands/tool.js'                          // 引入工具加载与查询指令
+import { capabilityStore } from './store/capabilities.js'         // 引入能力目录运行上下文
 
 
 // --- 创建并初始化 Agent Server ---
@@ -20,12 +24,17 @@ export async function createApp(options = {}) {
   const customToolsDirectory = join(toolsDirectory, 'custom')     // 自定义工具目录可由用户或模型写入
   const configPath = resolve(options.configPath ?? join(dataDirectory, 'config.json')) // 配置文件默认位于用户数据根目录
   const builtInToolsDirectory = resolve(options.builtInToolsDirectory ?? join(import.meta.dir, 'tools', 'built-in')) // 内置工具随服务代码分发
+  const workspaceDirectory = resolve(options.workspaceDirectory ?? process.env.AGENT_WORKSPACE ?? join(import.meta.dir, '..')) // LSP 与项目 Skill 默认面向工作区根目录
   await mkdir(customToolsDirectory, { recursive: true })           // 确保自定义工具可被扫描和写入
   await mkdir(sessionsDirectory, { recursive: true })              // 确保会话可被加载和持久化
   await Config.load(configPath)                                    // 先加载配置，后续模型和权限读取才有数据
   await Session.load(sessionsDirectory)                            // 从真实文件恢复历史会话
   await Tool.load([builtInToolsDirectory, customToolsDirectory])   // 启动时扫描全部内置与自定义工具
   await Tool.watch()                                                // 集中启动工具热重载副作用
+  capabilityStore.workspaceDirectory = workspaceDirectory           // 外部能力使用同一项目根目录
+  capabilityStore.dataDirectory = dataDirectory                     // 用户 Skill 从当前 Agent 数据目录发现
+  await Skill.reload()                                               // 先注册技能加载工具和元数据目录
+  await Promise.all([MCP.reload(), LSP.reload()])                     // 并行连接 MCP 与语言服务器并注册工具
 
   const app = new Elysia()                                         // 创建可被监听或直接 handle 测试的 Elysia 实例
     .get('/health', () => ({ ok: true }))                           // 提供进程存活检查，不参与业务状态修改
@@ -72,11 +81,16 @@ export async function createApp(options = {}) {
     .post('/session/:id/undo-rollback', ({ params }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.undoRollback(params.id)) // 空闲时恢复最近一次暂存回退
     .get('/tool/list', () => Tool.list())                           // 返回全部已加载工具的公开描述
     .post('/tool/reload', async () => Tool.load([builtInToolsDirectory, customToolsDirectory])) // 重新扫描真实工具目录
+    .get('/capability/list', () => ({ tools: Tool.list(), mcp: MCP.list(), lsp: LSP.list(), skills: Skill.list(), skillErrors: capabilityStore.skillErrors })) // 返回外部能力配置与真实运行状态
+    .post('/capability/reload', async () => {                            // 配置保存后重建全部外部连接和扫描结果
+      const [mcp, lsp, skills] = await Promise.all([MCP.reload(), LSP.reload(), Skill.reload()]) // 三类能力独立重载
+      return { ok: true, mcp: mcp.servers, lsp: lsp.servers, skills: skills.skills, skillErrors: skills.errors || [] } // 返回本次真实结果
+    })
     .get('/config', () => redactConfig(Config.get()))                // 返回配置但不暴露真实密钥
     .put('/config', ({ body }) => Config.update(body), { body: t.Record(t.String(), t.Any()) }) // 局部更新配置并立即写盘
     .post('/config/test', async ({ body }) => createCommandResponse(await Config.testProvider(body.provider, body.model)), { body: t.Object({ provider: t.String(), model: t.Optional(t.String()) }) }) // 用已保存认证发起最小连通性测试
 
-  return { app, close: async () => Tool.close() }                   // 将测试和宿主需要的资源清理集中暴露
+  return { app, close: async () => { await Promise.all([MCP.close(), LSP.close()]); await Tool.close() } } // 集中关闭外部连接、子进程和文件监听
 }
 
 
@@ -127,6 +141,13 @@ function redactConfig(config) {
     if (provider && 'apiKey' in provider) provider.apiKey = provider.apiKey ? '[REDACTED]' : provider.apiKey // 对外只展示存在性
     for (const header of Object.keys(provider?.headers ?? {})) {       // 检查用户配置的全部自定义请求头
       if (/authorization|api[-_]?key|token|cookie|secret/i.test(header) && provider.headers[header]) provider.headers[header] = '[REDACTED]' // 认证类请求头只展示存在性
+    }
+  }
+  for (const server of Object.values(safeConfig.mcpServers ?? {})) {   // MCP 认证和子进程密钥使用同一脱敏规则
+    for (const field of ['headers', 'env']) {
+      for (const key of Object.keys(server?.[field] ?? {})) {
+        if (/authorization|api[-_]?key|token|cookie|secret|password/i.test(key) && server[field][key]) server[field][key] = '[REDACTED]' // 认证字段只展示存在性
+      }
     }
   }
   return safeConfig                                                       // 反馈可安全展示给前端的配置副本
