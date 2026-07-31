@@ -8,7 +8,7 @@
 
 ## 代码归属
 
-回滚操作在 `server/commands/session.js` 的 rollback 方法中完成（截断 messages 数组 + 临时保留截断数据）。数据全部在 `server/store/sessions.js` 的会话结构里。
+回滚操作在 `server/commands/session.js` 的 rollback 方法中完成（截断 messages 数组 + 临时保留截断数据）。数据全部在 `server/store.js` 的 `store.sessions` 结构里。
 
 ## 数据结构
 
