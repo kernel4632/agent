@@ -5,9 +5,10 @@
 -->
 <script setup>
 import { onMounted } from 'vue'                       // 引入主页首次刷新能力
+import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入列表原位重命名组件
 import { useSessionStore } from '../stores/session.js' // 引入会话摘要读取指令
 
-const emit = defineEmits(['open', 'new', 'remove'])  // 向应用壳层反馈会话动作
+const emit = defineEmits(['open', 'new', 'remove', 'rename']) // 向应用壳层反馈会话动作
 const sessions = useSessionStore()                    // 读取真实会话摘要列表
 
 
@@ -22,6 +23,12 @@ function openSession(event, sessionID) {
 function removeSession(event, sessionID) {
   event.stopPropagation()                             // 删除按钮不触发行级打开
   emit('remove', sessionID)                           // 交给 App 同步 Server、标签和上下文
+}
+
+
+// --- 重命名会话 ---
+function renameSession(sessionID, title, resolve) {
+  emit('rename', sessionID, title, resolve)            // 交给 App 同步 Server 摘要和顶部标签
 }
 
 
@@ -45,14 +52,14 @@ onMounted(() => sessions.refresh())                   // 每次回主页读取�
       <div v-if="sessions.isLoading && !sessions.sessions.length" class="view-loading">正在读取会话...</div>
       <div v-else-if="!sessions.sessions.length" class="view-empty">还没有已保存的会话</div>
       <div v-else class="session-table">
-        <button v-for="session in sessions.sessions" :key="session.id" class="session-row" type="button" @click="openSession($event, session.id)" @auxclick.middle.prevent="openSession($event, session.id)">
+        <div v-for="session in sessions.sessions" :key="session.id" class="session-row" role="button" tabindex="0" @click="openSession($event, session.id)" @keydown.enter.self="openSession($event, session.id)" @auxclick.middle.prevent="openSession($event, session.id)">
           <span class="session-row__icon"><mdui-icon-history></mdui-icon-history></span>
           <span class="session-row__content">
-            <strong>{{ session.title || '未命名会话' }}</strong>
+            <SessionTitleEditor :title="session.title" @save="(title, resolve) => renameSession(session.id, title, resolve)" />
             <small>{{ new Date(session.updatedAt || session.createdAt).toLocaleString() }} · {{ session.messageCount }} 条消息</small>
           </span>
           <mdui-button-icon aria-label="删除会话" @click="removeSession($event, session.id)"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon>
-        </button>
+        </div>
       </div>
     </div>
   </section>

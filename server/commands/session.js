@@ -15,6 +15,7 @@ async function load(directory) {
     driver: fsDriver({ base: directory }),            // 使用当前应用数据目录，测试与用户数据相互隔离
   })
   sessionStore.items.clear()                          // 重载前清除旧运行时状态
+  sessionStore.writes.clear()                         // 启动加载时不存在尚未完成的旧进程写入
 
   const sessionIDs = await sessionStore.storage.getKeys() // 枚举磁盘上已有的全部会话键
   for (const sessionID of sessionIDs) {               // 逐个恢复会话，保证服务重启后历史可用
@@ -32,8 +33,11 @@ async function create() {
   const session = {                                   // 显式定义持久化会话的全部字段
     id: `ses_${nanoid(10)}`,                          // 会话唯一标识，用作 API 和磁盘键
     title: '',                                        // 首条消息后由模型异步生成标题
+    titleSource: 'generated',                         // 标记标题归属，异步生成不能覆盖用户重命名
     createdAt: now,                                   // 会话创建时间，Unix 毫秒
     updatedAt: now,                                   // 最近一次消息或回滚修改时间
+    tasks: [],                                        // 当前会话的持久化任务清单
+    taskRevision: 0,                                  // 每次任务修改递增，供客户端检测并发覆盖
     messages: [],                                     // 完整用户、助手与工具消息历史
     rollbackCache: null,                              // 最近一次回滚截断的消息，供撤销使用
     modelMessages: [],                                // AI SDK 标准历史与展示历史同步回退
@@ -41,6 +45,51 @@ async function create() {
   sessionStore.items.set(session.id, session)         // 将新会话加入运行时映射
   await persist(session)                              // 创建成功前保证会话已经写盘
   return structuredClone(session)                    // 返回副本，避免入口直接改状态
+}
+
+
+// --- 重命名会话 ---
+async function rename(sessionID, title) {
+  const session = getMutable(sessionID)               // 从运行时状态读取目标会话
+  if (!session) return { ok: false, status: 404, error: 'session not found' } // 不存在时反馈明确资源错误
+
+  const nextTitle = typeof title === 'string' ? title.trim() : '' // 统一去除用户输入首尾空白
+  if (!nextTitle) return { ok: false, status: 400, error: 'title must not be empty' } // 空标题无法用于会话列表
+  if (nextTitle.length > 100) return { ok: false, status: 400, error: 'title must be at most 100 characters' } // 限制持久化和界面展示长度
+
+  session.title = nextTitle                           // 保存通过验证的用户标题
+  session.titleSource = 'user'                        // 阻止稍后完成的模型标题覆盖它
+  await persist(session)                              // 写盘完成后才反馈重命名成功
+  return { ok: true, title: nextTitle, titleSource: session.titleSource } // 返回客户端需要更新的字段
+}
+
+
+// --- 更新会话任务清单 ---
+async function updateTasks(sessionID, tasks, expectedRevision) {
+  const session = getMutable(sessionID)               // 从运行时状态读取目标会话
+  if (!session) return { ok: false, status: 404, error: 'session not found' } // 不存在时不能创建游离任务
+  if (expectedRevision !== undefined && expectedRevision !== session.taskRevision) return { ok: false, status: 409, error: 'task revision conflict', taskRevision: session.taskRevision } // 旧客户端不能覆盖较新清单
+
+  const error = validateTasks(tasks)                  // 在修改共享状态前完整验证任务结构
+  if (error) return { ok: false, status: 400, error } // 无效任务保持原清单和修订号不变
+
+  session.tasks = structuredClone(tasks)              // 保存副本，避免工具输入随后修改共享状态
+  session.taskRevision += 1                           // 每次成功替换都产生新的并发版本
+  await persist(session)                              // 任务与修订号作为一个会话记录原子写盘
+  return { ok: true, tasks: structuredClone(session.tasks), taskRevision: session.taskRevision } // 反馈最新持久化状态
+}
+
+
+// --- 验证任务清单 ---
+function validateTasks(tasks) {
+  if (!Array.isArray(tasks)) return 'tasks must be an array' // API 和工具都必须提交完整数组
+  for (const task of tasks) {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) return 'each task must be an object' // 拒绝空值和嵌套数组
+    if (typeof task.content !== 'string' || !task.content.trim()) return 'task content must not be empty' // 每项必须说明可执行内容
+    if (!['pending', 'in_progress', 'completed', 'cancelled'].includes(task.status)) return 'invalid task status' // 状态只允许工作台定义值
+    if (!['high', 'medium', 'low'].includes(task.priority)) return 'invalid task priority' // 优先级只允许工作台定义值
+  }
+  return null                                         // 全部任务通过验证后允许替换
 }
 
 
@@ -75,7 +124,12 @@ function getMutable(sessionID) {
 // --- 持久化会话 ---
 async function persist(session) {
   session.updatedAt = Date.now()                      // 每次成功修改都刷新列表排序时间
-  await sessionStore.storage.setItem(session.id, session) // 将完整结构真实写入文件系统
+  const snapshot = structuredClone(session)           // 保存调用时快照，后续内存修改不能改变本次写入内容
+  const previousWrite = sessionStore.writes.get(session.id) ?? Promise.resolve() // 读取该会话前一次写入
+  const currentWrite = previousWrite.catch(() => {}).then(() => sessionStore.storage.setItem(session.id, snapshot)) // 即使旧写入失败也按调用顺序继续最新保存
+  sessionStore.writes.set(session.id, currentWrite)   // 后续保存排在本次写入之后
+  try { await currentWrite }                          // 调用方等待自己的持久化完成
+  finally { if (sessionStore.writes.get(session.id) === currentWrite) sessionStore.writes.delete(session.id) } // 最后一笔完成后释放队列
 }
 
 
@@ -85,7 +139,8 @@ async function remove(sessionID) {
     return { ok: false, error: 'session not found' }
   }
 
-  sessionStore.items.delete(sessionID)                // 先移除运行时数据，立即停止后续访问
+  sessionStore.items.delete(sessionID)                // 先移除运行时数据，阻止删除期间出现新的正常修改
+  await sessionStore.writes.get(sessionID)?.catch(() => {}) // 等待较早保存结束，避免删除后旧写入重建文件
   await sessionStore.storage.removeItem(sessionID)    // 再移除对应磁盘记录
   return { ok: true }                                 // 向 HTTP 入口反馈删除完成
 }
@@ -149,6 +204,10 @@ function commitRollback(session) {
 
 // --- 统一旧会话结构 ---
 function normalizeSession(session) {
+  session.title ??= ''                                // 旧会话缺少标题时保持可生成状态
+  session.titleSource ??= 'generated'                 // 旧标题视为模型生成，后续用户重命名会明确接管
+  session.tasks ??= []                                // 旧会话补齐空任务清单
+  session.taskRevision ??= 0                          // 旧任务清单从初始修订开始
   session.messages ??= []                             // 旧空会话补齐展示历史
   session.modelMessages ??= []                        // 旧会话缺少模型历史时保持可继续发送
   session.messages.forEach((message) => { message.id ??= `msg_${nanoid(10)}` }) // 每条消息获得稳定 UI 动作标识
@@ -207,4 +266,4 @@ function createRollbackSummary(rollbackCache) {
 }
 
 
-export const Session = { load, create, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback } // 导出会话业务动作
+export const Session = { load, create, rename, updateTasks, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback } // 导出会话业务动作

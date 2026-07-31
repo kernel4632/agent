@@ -62,5 +62,42 @@ export const useSessionStore = defineStore('session', () => { // 导出唯一会
   }
 
 
-  return { sessions, isLoading, errorMessage, refresh, create, select, remove } // 暴露 Server 会话资源与动作
+  // --- 重命名一个会话 ---
+  async function rename(sessionID, title) {
+    errorMessage.value = ''                         // 新的标题请求清除旧列表错误
+    try {
+      const result = await AgentAPI.renameSession(sessionID, title) // 将清理和长度校验交给 Server
+      const summary = sessions.value.find((item) => item.id === sessionID) // 定位主页使用的同一摘要
+      if (summary) Object.assign(summary, { title: result.title, titleSource: result.titleSource }) // 原位同步主页标题
+      return result                                  // 反馈标题供标签和聊天顶栏同步
+    } catch (error) {
+      errorMessage.value = error.message             // 在触发重命名的页面展示失败原因
+      return null                                    // 保持旧标题并让编辑器继续打开
+    }
+  }
+
+
+  // --- 读取一个会话的任务 ---
+  async function readTasks(sessionID) {
+    try {
+      return await AgentAPI.getTasks(sessionID)      // 独立刷新任务时读取最新修订
+    } catch (error) {
+      errorMessage.value = error.message             // 任务读取失败复用会话错误反馈
+      return null                                    // 不用空清单覆盖仍可见的旧任务
+    }
+  }
+
+
+  // --- 按修订号更新一个会话的任务 ---
+  async function updateTasks(sessionID, tasks, taskRevision) {
+    try {
+      return await AgentAPI.updateTasks(sessionID, tasks, taskRevision) // Server 检测并发修改
+    } catch (error) {
+      errorMessage.value = error.message             // 冲突或验证错误交给视图展示
+      return null                                    // 保持当前清单等待重新读取
+    }
+  }
+
+
+  return { sessions, isLoading, errorMessage, refresh, create, select, remove, rename, readTasks, updateTasks } // 暴露 Server 会话资源与动作
 })

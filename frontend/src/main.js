@@ -7,6 +7,7 @@ import { createApp } from 'vue'                    // 引入 Vue 应用创建能
 import { createPinia } from 'pinia'                // 引入全局业务数据仓库
 import 'mdui/mdui.css'                             // 引入 MDUI 2 Material You 基础样式
 import 'mdui'                                      // 注册全部 MDUI 2 Web Components
+import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
 import '@mdui/icons/menu.js'                       // 注册侧栏菜单图标
 import '@mdui/icons/add.js'                        // 注册新建会话图标
 import '@mdui/icons/send.js'                       // 注册发送消息图标

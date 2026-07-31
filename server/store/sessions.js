@@ -7,5 +7,6 @@
 // --- 保存会话状态 ---
 export const sessionStore = {                      // 会话指令共享的唯一运行时数据源
   items: new Map(),                                // sessionID 到完整会话对象的映射
+  writes: new Map(),                               // sessionID 到最后一次磁盘写入，保证同会话保存顺序
   storage: null,                                   // unstorage 实例，启动加载前为空
 }

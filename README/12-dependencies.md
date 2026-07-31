@@ -21,3 +21,12 @@ AI SDK 供应商包全装。
 | `chokidar`  | 文件监听                | 工具目录热重载（新增/修改/删除自动加载）        |
 | `tiktoken`  | Token 计数            | 精确估算消息历史 token 量，触发上下文压缩     |
 
+## 前端渲染
+
+| 库 | 用途 |
+| --- | --- |
+| `marked` / `marked-highlight` | GFM Markdown 解析与代码块高亮接入 |
+| `highlight.js` | 代码语法高亮 |
+| `marked-katex-extension` / `katex` | 行内和块级数学公式 |
+| `mermaid` | 按需加载并渲染图表 |
+| `dompurify` | 清理 Markdown 生成的 HTML |

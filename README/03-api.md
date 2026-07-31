@@ -1,6 +1,6 @@
 # API 接口设计
 
-共 14 个接口。Agent Server 基于 Elysia 框架，默认监听 `127.0.0.1:4632`（端口被占用时自动 +1 直到可用）。
+共 21 个接口（含健康检查）。Agent Server 基于 Elysia 框架，默认监听 `127.0.0.1:4632`（端口被占用时自动 +1 直到可用）。
 
 全部路由在 `server/server.js` 入口中声明式注册，直接调用 `server/commands/` 中的对应指令。
 
@@ -34,35 +34,31 @@
 { "ok": true }
 ```
 
-### POST /chat/approve
+### POST /chat/approval
 
-批准工具执行（当工具权限为 ask 时，循环暂停等待此请求）。
+处理工具执行审批（当工具权限为 `ask` 时，循环暂停等待此请求）。
 
 ```
 请求体:
 {
   "sessionId": "ses_xxx",
-  "toolCallId": "tc_001"
+  "toolCallId": "tc_001",
+  "decision": "allow-once"
 }
 
 响应:
 { "ok": true }
 ```
 
-### POST /chat/reject
+`decision` 可选值：
 
-拒绝工具执行。Agent 会告知 LLM 该工具被用户拒绝，并停止 Agent 循环。
+- `deny`：拒绝本次执行，并停止当前 Agent 循环。
+- `allow-once`：仅批准当前工具调用。
+- `always-allow`：批准当前调用，并将该工具的权限持久化为 `allow`。
 
-```
-请求体:
-{
-  "sessionId": "ses_xxx",
-  "toolCallId": "tc_001"
-}
+### POST /chat/approve、POST /chat/reject
 
-响应:
-{ "ok": true }
-```
+兼容旧客户端的审批入口，分别等价于 `allow-once` 和 `deny`。
 
 ## 会话
 
@@ -107,8 +103,13 @@
 {
   "id": "ses_a1b2c3",
   "title": "重构登录模块",
+  "titleSource": "user",
   "createdAt": 1722345678000,
   "updatedAt": 1722345900000,
+  "tasks": [
+    { "content": "补充测试", "status": "in_progress", "priority": "high" }
+  ],
+  "taskRevision": 3,
   "messages": [
     { "role": "user", "content": "帮我重构登录模块" },
     { "role": "assistant", "content": "...", "reasoning": "...", "toolCalls": [...] },
@@ -156,6 +157,51 @@
   "error": "no rollback to undo"
 }
 ```
+
+### PATCH /session/:id
+
+重命名会话。标题会去除首尾空白，不能为空且最长 100 个字符。用户标题不会被稍后完成的异步标题生成覆盖。
+
+```
+请求体:
+{ "title": "新的会话名称" }
+
+响应:
+{ "ok": true, "title": "新的会话名称", "titleSource": "user" }
+```
+
+### GET /session/:id/tasks
+
+读取会话的持久任务清单和当前修订号。
+
+```
+响应:
+{
+  "tasks": [
+    { "content": "补充测试", "status": "in_progress", "priority": "high" }
+  ],
+  "taskRevision": 3
+}
+```
+
+### PUT /session/:id/tasks
+
+完整替换任务清单。提交 `taskRevision` 可防止旧客户端覆盖较新版本；冲突时返回 HTTP 409。
+
+```
+请求体:
+{
+  "tasks": [
+    { "content": "补充测试", "status": "completed", "priority": "high" }
+  ],
+  "taskRevision": 3
+}
+
+响应:
+{ "ok": true, "tasks": [...], "taskRevision": 4 }
+```
+
+任务状态可为 `pending`、`in_progress`、`completed`、`cancelled`，优先级可为 `high`、`medium`、`low`。
 
 ### POST /session/:id/rollback-message
 
@@ -252,3 +298,17 @@
 ```
 
 PUT /config 的修改即时生效。如果当前正在执行 Agent 循环，下一次 LLM 调用将使用新配置（模型切换即时生效）。
+
+### POST /config/test
+
+使用已保存的供应商认证和协议执行最小模型请求，不接受临时密钥。
+
+```
+请求体:
+{ "provider": "openai", "model": "gpt-4.1" }
+
+响应:
+{ "ok": true, "provider": "openai", "model": "gpt-4.1", "latencyMs": 842 }
+```
+
+省略 `model` 时使用该供应商模型列表中的第一个模型。上游失败返回 HTTP 502。

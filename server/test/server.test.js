@@ -73,10 +73,35 @@ describe('Agent Server API', () => {
     expect((await detail.json()).messages).toEqual([])                         // 新会话历史应为空
   })
 
+  it('persists validated session titles and revisioned task lists', async () => {
+    const session = await (await jsonRequest('/session/create', 'POST')).json() // 创建独立会话验证元数据写入
+    const renamed = await jsonRequest(`/session/${session.id}`, 'PATCH', { title: '  手动标题  ' }) // 提交包含首尾空白的用户标题
+    expect(await renamed.json()).toEqual({ ok: true, title: '手动标题', titleSource: 'user' }) // API 返回清理后的用户标题来源
+    expect(Session.get(session.id).titleSource).toBe('user')                    // 运行时持久化结构阻止异步标题覆盖
+
+    const emptyTitle = await jsonRequest(`/session/${session.id}`, 'PATCH', { title: '   ' }) // 尝试写入空标题
+    expect(emptyTitle.status).toBe(400)                                         // 标题验证错误使用真实 HTTP 状态
+    const longTitle = await jsonRequest(`/session/${session.id}`, 'PATCH', { title: 'x'.repeat(101) }) // 尝试超过持久化上限
+    expect(longTitle.status).toBe(400)                                          // 超长标题保持原值
+
+    const tasks = [{ content: '实现后端任务清单', status: 'in_progress', priority: 'high' }] // 构造工作台任务结构
+    const updated = await jsonRequest(`/session/${session.id}/tasks`, 'PUT', { tasks, taskRevision: 0 }) // 按初始修订替换完整清单
+    expect(await updated.json()).toEqual({ ok: true, tasks, taskRevision: 1 })   // 成功更新递增任务修订
+    const listed = await request(`/session/${session.id}/tasks`)                 // 从独立任务 API 重新读取
+    expect(await listed.json()).toEqual({ tasks, taskRevision: 1 })              // 读取结果来自持久化会话状态
+
+    const conflict = await jsonRequest(`/session/${session.id}/tasks`, 'PUT', { tasks: [], taskRevision: 0 }) // 用旧修订覆盖新清单
+    expect(conflict.status).toBe(409)                                            // 并发覆盖反馈真实冲突状态
+    const invalid = await jsonRequest(`/session/${session.id}/tasks`, 'PUT', { tasks: [{ content: '错误状态', status: 'done', priority: 'high' }] }) // 提交非法状态
+    expect(invalid.status).toBe(400)                                             // 非法任务不修改持久化清单
+    expect(Session.get(session.id).tasks).toEqual(tasks)                         // 冲突和验证失败后原任务保持不变
+  })
+
   it('handles tool list and reload APIs', async () => {
     const listed = await request('/tool/list')                                 // 读取启动时扫描出的真实工具
     const names = (await listed.json()).map((tool) => tool.name)               // 提取工具业务名称
     expect(names).toContain('task_done')                                       // 内置结束工具必须可见
+    expect(names).toContain('task_list_update')                                // 内置持久化任务工具必须可见
 
     const reloaded = await jsonRequest('/tool/reload', 'POST')                 // 通过 API 再次扫描真实工具目录
     expect((await reloaded.json()).ok).toBe(true)                              // 验证真实重载完成
@@ -87,10 +112,20 @@ describe('Agent Server API', () => {
     const currentConfig = await current.json()                                 // 解析配置反馈
     expect(currentConfig.activeModel).toBe('kimi-k2.6')                        // 验证测试模型来自 OpenCode 配置
     expect(currentConfig.providers.aker.apiKey).toBe('[REDACTED]')             // 验证 API 不泄漏真实密钥
+    expect(currentConfig.providers.aker).toMatchObject({ protocol: 'openai-compatible', headers: {}, timeoutMs: 120000, cache: { enabled: true, mode: 'implicit' }, modelSettings: {} }) // 旧供应商记录已迁移为显式结构
     expect(Config.getProviderOptions('ses_cache')).toBeUndefined()                    // Kimi 中转不注入无效缓存字段
 
     const updated = await jsonRequest('/config', 'PUT', { systemPrompt: realModel.systemPrompt }) // 通过真实 API 写入局部配置
     expect(await updated.json()).toEqual({ ok: true })                         // 验证更新真实落盘
+    const missingProvider = await jsonRequest('/config/test', 'POST', { provider: 'missing-provider' }) // 测试不存在的已保存供应商
+    expect(missingProvider.status).toBe(404)                                   // 连通性测试不接受请求携带的临时认证
+
+    await jsonRequest('/config', 'PUT', { providers: { aker: { ...currentConfig.providers.aker, headers: { Authorization: 'Bearer saved-secret', 'X-Trace': 'visible' }, modelSettings: { 'kimi-k2.6': { context: 64000, maxOutputTokens: 2048, temperature: 0.2 } } } } }) // 写入自定义请求头和模型设置
+    const configured = await (await request('/config')).json()                  // 读取脱敏后的显式供应商配置
+    expect(configured.providers.aker.headers).toEqual({ Authorization: '[REDACTED]', 'X-Trace': 'visible' }) // 只隐藏敏感请求头
+    expect(Config.getGenerationOptions()).toEqual({ maxOutputTokens: 2048, temperature: 0.2 }) // 生成设置可直接传给 AI SDK
+    expect(Config.getContextLimit()).toBe(64000)                                 // 新上下文设置优先于旧 modelLimits
+    expect((await Bun.file(join(dataDirectory, 'config.json')).json()).providers.aker.headers.Authorization).toBe('Bearer saved-secret') // 磁盘保留真实请求头而非脱敏占位符
 
     await jsonRequest('/config', 'PUT', { providers: { aker: { ...currentConfig.providers.aker, models: ['kimi-k2.6', 'another-model'] }, temporary: { apiKey: '', baseURL: 'http://localhost', models: ['local-model'] } } }) // 模拟设置页提交带脱敏密钥的多提供商集合
     expect((await (await request('/config')).json()).providers.aker.models).toContain('another-model') // 验证多模型列表完整替换生效
@@ -120,6 +155,17 @@ describe('Agent Server API', () => {
     }, () => { retryCount += 1 }, stopSignal.signal)
     await expect(operation).rejects.toMatchObject({ name: 'AbortError' }) // 中断应直接退出重试工具
     expect(retryCount).toBe(0)                                           // 前端不应收到 error-retry 事件
+  })
+
+  it('does not retry a non-recoverable provider error', async () => {
+    let retryCount = 0                                                   // 记录配置错误是否错误进入退避
+    const operation = retry(async () => {                                // 模拟 AI SDK 返回认证失败
+      const error = new Error('status_code=401, invalid API key')         // 保留真实中转常见错误格式
+      error.statusCode = 401                                              // 同时覆盖结构化状态字段
+      throw error
+    }, () => { retryCount += 1 })
+    await expect(operation).rejects.toThrow('invalid API key')            // 不可恢复错误立即交回调用方
+    expect(retryCount).toBe(0)                                            // 前端不显示无意义重试倒计时
   })
 
   it('stages a user message rollback across display and model history', async () => {
@@ -158,6 +204,8 @@ describe('Agent Server API', () => {
     expect((await unknownApprove.json()).ok).toBe(false)                         // 没有待批准调用时必须失败
     const unknownReject = await jsonRequest('/chat/reject', 'POST', { sessionId: 'ses_missing', toolCallId: 'tc_missing' }) // 调用拒绝 API 的无等待分支
     expect((await unknownReject.json()).ok).toBe(false)                          // 没有待拒绝调用时必须失败
+    const unknownApproval = await jsonRequest('/chat/approval', 'POST', { sessionId: 'ses_missing', toolCallId: 'tc_missing', decision: 'always-allow' }) // 调用三选一审批的无等待分支
+    expect(unknownApproval.status).toBe(404)                                     // 新审批入口使用真实未找到状态
 
     const streamResponse = await jsonRequest('/chat/send', 'POST', { message: '请完成真实模型连通性测试。' }) // 触发真实 kimi-k2.6 Agent 调用
     expect(streamResponse.headers.get('content-type')).toContain('text/event-stream') // 验证 API 返回真实 SSE

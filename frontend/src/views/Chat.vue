@@ -4,9 +4,11 @@
 调用示例：App 在 activeView === 'chat' 时渲染 <Chat />。
 -->
 <script setup>
-import { computed, onMounted } from 'vue'             // 引入当前标题派生和配置加载能力
+import { computed, onMounted, ref } from 'vue'        // 引入当前标题、请求反馈和配置加载能力
 import InputBox from '../components/InputBox.vue'    // 引入任务输入与停止触发组件
 import MessageList from '../components/MessageList.vue' // 引入完整消息历史组件
+import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入顶栏原位重命名组件
+import TaskPanel from '../components/TaskPanel.vue'   // 引入当前会话任务面板
 import { useChatStore } from '../stores/chat.js'     // 引入对话数据和 Agent 指令
 import { useConfigStore } from '../stores/config.js' // 引入模型列表和即时切换指令
 import { useSessionStore } from '../stores/session.js' // 引入会话详情与列表指令
@@ -17,7 +19,10 @@ const config = useConfigStore()                       // 读取全部可切换�
 const sessions = useSessionStore()                    // 读取当前会话选择状态
 const tabs = useTabStore()                            // 读取当前活动标签
 const currentSession = computed(() => sessions.sessions.find((item) => item.id === chat.sessionID)) // 查找当前摘要
-const title = computed(() => currentSession.value?.title || (chat.hasMessages ? '新会话' : 'Agent')) // 为顶栏反馈上下文
+const activeTab = computed(() => tabs.tabs.find((item) => item.key === tabs.activeKey)) // 读取异步标题已更新的活动标签
+const title = computed(() => currentSession.value?.title || activeTab.value?.title || (chat.hasMessages ? '新会话' : 'Agent')) // 为顶栏反馈最新上下文
+const isRenaming = ref(false)                         // 防止标题保存期间重复提交
+const renameError = ref('')                          // 顶栏原位展示重命名错误
 
 
 // --- 发送任务并同步会话摘要 ---
@@ -34,6 +39,19 @@ async function selectModel({ providerName, modelName }) {
   await config.selectModel(providerName, modelName)   // 将选择写入 Server 并更新输入器反馈
 }
 
+
+// --- 保存当前会话标题 ---
+async function renameSession(nextTitle, resolve) {
+  if (!chat.sessionID) return resolve(false)          // 未发送草稿没有可持久化会话
+  isRenaming.value = true                             // 标题动作进入保存反馈
+  renameError.value = ''                             // 清除旧失败信息
+  const result = await sessions.rename(chat.sessionID, nextTitle) // 让 Server 验证并持久化标题
+  if (result) tabs.setTitle(tabs.activeKey, result.title) // 同步当前顶部标签
+  else renameError.value = sessions.errorMessage     // 在编辑器附近保留错误原因
+  isRenaming.value = false                            // 恢复标题编辑动作
+  resolve(Boolean(result))                            // 通知编辑器成功退出或保留草稿
+}
+
 onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读取模型服务清单
 </script>
 
@@ -41,15 +59,20 @@ onMounted(() => { if (!config.config) config.load() }) // 首次进入对话读�
   <section class="chat-view">
     <header class="chat-header">
       <div>
-        <strong>{{ title }}</strong>
+        <SessionTitleEditor v-if="chat.sessionID" :title="title" :busy="isRenaming" compact @save="renameSession" />
+        <strong v-else>{{ title }}</strong>
         <span v-if="chat.isRunning" class="chat-header__status">运行中</span>
+        <span v-if="renameError" class="chat-header__error">{{ renameError }}</span>
       </div>
     </header>
 
-    <div v-if="!chat.hasMessages" class="chat-empty">
-      <div class="chat-empty__brand"><span class="chat-empty__symbol">A</span><strong>Agent</strong></div>
+    <div class="chat-workspace" :class="{ 'chat-workspace--tasks': chat.tasks.length }">
+      <div v-if="!chat.hasMessages" class="chat-empty">
+        <div class="chat-empty__brand"><span class="chat-empty__symbol">A</span><strong>Agent</strong></div>
+      </div>
+      <MessageList v-else :messages="chat.messages" @rollback="chat.rollback" @retry="chat.rollbackMessage" @approval="chat.decide($event.toolCallID, $event.decision)" />
+      <TaskPanel :tasks="chat.tasks" />
     </div>
-    <MessageList v-else :messages="chat.messages" @rollback="chat.rollback" @retry="chat.rollbackMessage" @approve="chat.approve" @reject="chat.reject" />
 
     <div class="chat-feedback">
       <div v-if="chat.retryNotice" class="notice notice--muted">连接中断，正在进行第 {{ chat.retryNotice.attempt }} 次重试</div>

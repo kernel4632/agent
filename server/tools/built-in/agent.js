@@ -14,3 +14,26 @@ export const task_done = {                                 // 导出模型可调
     return { result: summary, stop: true }                  // 将摘要反馈给模型并通知循环停止
   },
 }
+
+
+// --- 替换当前会话任务清单 ---
+export const task_list_update = {                          // 导出模型可调用的任务规划工具
+  description: '更新当前会话的完整任务清单，用于记录任务状态和优先级。', // 告诉模型每次提交完整清单
+  parameters: {                                           // 数组对象结构由对话指令递归转换为 Zod schema
+    tasks: {
+      type: 'array',                                      // 顶层参数是完整任务数组
+      required: true,                                     // 每次调用必须明确提供清单
+      items: {
+        type: 'object',                                   // 每个数组元素是一项任务
+        properties: {
+          content: { type: 'string', description: '任务内容', required: true }, // 任务必须说明要完成的动作
+          status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled'], required: true }, // 状态使用稳定枚举
+          priority: { type: 'string', enum: ['high', 'medium', 'low'], required: true }, // 优先级使用稳定枚举
+        },
+      },
+    },
+  },
+  async execute({ tasks }, context) {
+    return context.updateTasks(tasks)                     // 由 Chat 注入当前会话持久化动作并发送 SSE 反馈
+  },
+}

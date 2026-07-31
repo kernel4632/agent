@@ -8,9 +8,12 @@ import { onMounted, ref } from 'vue'                  // 引入表单副本和�
 import PermissionEditor from '../components/PermissionEditor.vue' // 引入工具权限编辑器
 import ProviderConfig from '../components/ProviderConfig.vue' // 引入模型与提示词编辑器
 import { useConfigStore } from '../stores/config.js' // 引入真实配置读写指令
+import { AgentAPI } from '../api.js'                  // 引入真实工具注册表读取指令
 
 const config = useConfigStore()                       // 读取配置状态和保存动作
 const draft = ref(null)                               // 用户尚未保存的完整配置副本
+const providerValid = ref(true)                       // 自定义请求头等提供商字段的当前校验状态
+const toolNames = ref([])                             // 设置页展示的当前全部工具名称
 
 
 // --- 复制可编辑配置数据 ---
@@ -21,7 +24,8 @@ function cloneConfig(source) {
 
 // --- 加载配置编辑副本 ---
 async function loadConfig() {
-  const current = await config.load()                 // 从 Server 读取脱敏完整配置
+  const [current, tools] = await Promise.all([config.load(), AgentAPI.listTools()]) // 并行读取配置和权限目标工具
+  toolNames.value = tools.map((tool) => tool.name)    // 权限编辑器不隐藏未配置的新工具
   if (current) draft.value = cloneConfig(current)     // 创建独立副本避免输入即时污染状态
 }
 
@@ -34,6 +38,7 @@ function setPermissions(permissions) {
 
 // --- 保存用户配置 ---
 async function saveConfig() {
+  if (!providerValid.value) return                    // 无效提供商字段不能被旧草稿值静默覆盖
   const changes = {                                   // 只发送本页明确支持的可编辑字段
     activeProvider: draft.value.activeProvider,       // 保存当前提供商名称
     activeModel: draft.value.activeModel,             // 保存当前模型名称
@@ -55,18 +60,18 @@ onMounted(loadConfig)                                 // 首次进入读取真�
         <h1>设置</h1>
         <p>模型、系统行为与工具执行边界</p>
       </div>
-      <mdui-button variant="filled" :disabled="!draft || config.isLoading" @click="saveConfig">保存更改</mdui-button>
+      <mdui-button variant="filled" :disabled="!draft || !providerValid || config.isLoading" @click="saveConfig">保存更改</mdui-button>
     </header>
     <div v-if="config.isSaved" class="notice notice--success">设置已保存并立即生效</div>
     <div v-if="config.errorMessage" class="notice notice--error">{{ config.errorMessage }}</div>
     <div v-if="config.isLoading && !draft" class="view-loading">正在读取设置…</div>
     <template v-else-if="draft">
-      <ProviderConfig v-model="draft" />
+      <ProviderConfig v-model="draft" @validity="providerValid = $event" />
       <section class="settings-section settings-section--prompt">
         <header class="settings-section__header"><h2>Agent 行为</h2><p>系统提示词会在下一轮模型调用时生效。</p></header>
         <mdui-text-field class="settings-prompt" label="系统提示词" variant="outlined" autosize :min-rows="5" :value="draft.systemPrompt" @input="draft = { ...draft, systemPrompt: $event.target.value }"></mdui-text-field>
       </section>
-      <PermissionEditor :permissions="draft.permissions || {}" @update="setPermissions" />
+      <PermissionEditor :permissions="draft.permissions || {}" :tool-names="toolNames" @update="setPermissions" />
     </template>
   </section>
 </template>

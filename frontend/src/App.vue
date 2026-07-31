@@ -77,6 +77,14 @@ async function removeSession(sessionID) {
 }
 
 
+// --- 重命名主页会话 ---
+async function renameSession(sessionID, title, resolve) {
+  const result = await sessions.rename(sessionID, title) // 将用户标题保存到 Server 并更新主页摘要
+  if (result) tabs.setTitle(`session:${sessionID}`, result.title) // 同步可能在前台或后台的顶部标签
+  resolve(Boolean(result))                             // 通知列表编辑器退出或保留草稿
+}
+
+
 // --- 打开工具或设置页面 ---
 function openUtility(viewName) {
   ui.openView(viewName)                               // 顶部会话标签保留，便于随时返回
@@ -99,7 +107,7 @@ onMounted(async () => {
       </mdui-button-icon>
       <div class="titlebar__tabs" role="tablist" aria-label="已打开会话">
         <button v-for="tab in tabs.tabs" :key="tab.key" class="session-tab" :class="{ 'is-active': ui.activeView === 'chat' && tabs.activeKey === tab.key }" type="button" role="tab" @click="selectTab(tab)">
-          <span class="session-tab__status" :class="{ 'is-running': chat.hasConversation(tab.key) && tab.key === tabs.activeKey && chat.isRunning }"></span>
+          <span class="session-tab__status" :class="{ 'is-running': chat.getStatus(tab.key).running, 'is-approval': chat.getStatus(tab.key).approval }"></span>
           <span class="session-tab__title">{{ tab.title || '未命名会话' }}</span>
           <mdui-button-icon class="session-tab__close" aria-label="关闭会话" @click="closeTab($event, tab)">
             <mdui-icon-close></mdui-icon-close>
@@ -119,7 +127,7 @@ onMounted(async () => {
     </header>
 
     <main class="main-area">
-      <Sessions v-if="ui.activeView === 'home'" @open="openSession" @new="startNewChat" @remove="removeSession" />
+      <Sessions v-if="ui.activeView === 'home'" @open="openSession" @new="startNewChat" @remove="removeSession" @rename="renameSession" />
       <Chat v-else-if="ui.activeView === 'chat'" />
       <Tools v-else-if="ui.activeView === 'tools'" />
       <Settings v-else />

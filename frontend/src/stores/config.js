@@ -64,5 +64,15 @@ export const useConfigStore = defineStore('config', () => { // 导出唯一配�
   }
 
 
-  return { config, isLoading, isSaved, errorMessage, load, save, selectModel } // 暴露配置数据与读写动作
+  // --- 测试已保存的模型连接 ---
+  async function testConnection(providerName, modelName) {
+    try {
+      return await AgentAPI.testProvider(providerName, modelName) // 只使用 Server 已保存的认证信息
+    } catch (error) {
+      return { ok: false, provider: providerName, model: modelName, error: error.message } // 返回结构化失败反馈而不污染保存错误
+    }
+  }
+
+
+  return { config, isLoading, isSaved, errorMessage, load, save, selectModel, testConnection } // 暴露配置数据与读写动作
 })

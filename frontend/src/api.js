@@ -1,5 +1,5 @@
 /*
-Agent HTTP 指令集：集中声明前端会调用的 14 个 Server API。
+Agent HTTP 指令集：集中声明前端会调用的 Server API。
 普通请求返回 JSON；sendMessage 保留原始 SSE Response，由 utils/sse.js 持续消费。
 调用示例：await AgentAPI.listSessions()、await AgentAPI.sendMessage({ message: '你好' })。
 */
@@ -34,11 +34,13 @@ async function sendMessage({ sessionID, messageID, message, signal }) {
 export const AgentAPI = {                              // 导出全部 Server 业务指令
   sendMessage,                                         // 启动 Agent SSE 对话
   stopChat: (sessionID) => request('/chat/stop', { method: 'POST', body: JSON.stringify({ sessionId: sessionID }) }), // 中断运行中循环
-  approveTool: (sessionID, toolCallID) => request('/chat/approve', { method: 'POST', body: JSON.stringify({ sessionId: sessionID, toolCallId: toolCallID }) }), // 批准工具
-  rejectTool: (sessionID, toolCallID) => request('/chat/reject', { method: 'POST', body: JSON.stringify({ sessionId: sessionID, toolCallId: toolCallID }) }), // 拒绝工具
+  decideTool: (sessionID, toolCallID, decision) => request('/chat/approval', { method: 'POST', body: JSON.stringify({ sessionId: sessionID, toolCallId: toolCallID, decision }) }), // 提交拒绝、本次允许或永久允许
   createSession: () => request('/session/create', { method: 'POST' }), // 创建空会话
   listSessions: () => request('/session/list'),       // 读取会话摘要
   getSession: (sessionID) => request(`/session/${sessionID}`), // 读取完整会话
+  renameSession: (sessionID, title) => request(`/session/${sessionID}`, { method: 'PATCH', body: JSON.stringify({ title }) }), // 保存用户会话标题
+  getTasks: (sessionID) => request(`/session/${sessionID}/tasks`), // 读取修订化任务清单
+  updateTasks: (sessionID, tasks, taskRevision) => request(`/session/${sessionID}/tasks`, { method: 'PUT', body: JSON.stringify({ tasks, taskRevision }) }), // 按修订号替换任务清单
   removeSession: (sessionID) => request(`/session/${sessionID}`, { method: 'DELETE' }), // 删除会话
   rollbackSession: (sessionID, step) => request(`/session/${sessionID}/rollback/${step}`, { method: 'POST' }), // 回滚到工具步骤
   rollbackMessage: (sessionID, messageID) => request(`/session/${sessionID}/rollback-message`, { method: 'POST', body: JSON.stringify({ messageId: messageID }) }), // 回退用户消息供编辑重发
@@ -47,4 +49,5 @@ export const AgentAPI = {                              // 导出全部 Server �
   reloadTools: () => request('/tool/reload', { method: 'POST' }), // 重新扫描工具
   getConfig: () => request('/config'),                // 读取脱敏配置
   updateConfig: (changes) => request('/config', { method: 'PUT', body: JSON.stringify(changes) }), // 局部更新配置
+  testProvider: (provider, model) => request('/config/test', { method: 'POST', body: JSON.stringify({ provider, model: model || undefined }) }), // 测试已保存提供商连接
 }

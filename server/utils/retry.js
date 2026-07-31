@@ -14,6 +14,7 @@ export async function retry(operation, onRetry, abortSignal) {
       if (abortSignal?.aborted || error?.name === 'AbortError') { // 用户中断不是连接故障，禁止反馈重试
         throw new DOMException('operation aborted', 'AbortError') // 立即将停止状态交回 Agent 循环
       }
+      if (!isRetryableError(error)) throw error                    // 认证、参数和资源错误必须立即反馈用户修正
       attempt += 1                                          // 记录即将执行的重试序号
       const exponentialDelay = Math.min(1000 * 2 ** (attempt - 1), 60000) // 延迟最多增长到 60 秒
       const nextRetryIn = exponentialDelay + Math.floor(Math.random() * 1000) // 随机抖动避免并发拥堵
@@ -30,10 +31,23 @@ export async function retry(operation, onRetry, abortSignal) {
 function waitForRetry(delay, abortSignal) {
   if (!abortSignal) return Bun.sleep(delay)                  // 无中断信号时使用普通退避等待
   return new Promise((resolve, reject) => {                  // 将定时器和中断合并为同一个等待点
-    const timer = setTimeout(resolve, delay)                 // 延迟结束后允许下一次尝试
-    abortSignal.addEventListener('abort', () => {            // 用户停止时立即取消退避
+    const finishWait = () => {                               // 正常完成时同时释放中断监听
+      abortSignal.removeEventListener('abort', abortWait)    // 已完成等待不保留会话信号引用
+      resolve()                                              // 允许循环进入下一次尝试
+    }
+    const timer = setTimeout(finishWait, delay)              // 延迟结束后允许下一次尝试
+    const abortWait = () => {                                // 用户停止时立即取消退避
       clearTimeout(timer)                                    // 防止旧定时器稍后唤醒循环
       reject(new DOMException('operation aborted', 'AbortError')) // 反馈标准中断结果
-    }, { once: true })
+    }
+    abortSignal.addEventListener('abort', abortWait, { once: true }) // 当前退避只监听一次中断
   })
+}
+
+
+// --- 判断错误是否值得重试 ---
+function isRetryableError(error) {
+  const status = Number(error?.statusCode ?? error?.status ?? error?.response?.status ?? String(error?.message ?? error).match(/status(?:_code)?[=: ]+(\d{3})/i)?.[1]) // 兼容 AI SDK 和中转错误结构
+  if (!Number.isFinite(status)) return true                   // 无 HTTP 状态的断网和连接重置通常可恢复
+  return status === 408 || status === 429 || status >= 500   // 超时、限流和服务端错误进入退避
 }

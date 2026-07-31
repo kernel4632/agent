@@ -38,7 +38,10 @@ export async function createApp(options = {}) {
         initialEvents = [{ event: 'session-created', data: { id: sessionID } }] // 准备首个 SSE 业务事件
       }
       if (!Session.get(sessionID)) return createJSONError(404, 'session not found') // 已有会话不存在时拒绝写入
-      const stream = Chat.startLoop({ sessionID, message: body.message, messageID: body.messageId, request, initialEvents }) // 使用客户端消息 ID 启动或继续会话
+      if (Chat.isRunning(sessionID)) return createJSONError(409, 'session is running') // 同一会话不能并发修改消息历史
+      let stream                                                        // 保存成功预留运行状态后的 SSE 流
+      try { stream = Chat.startLoop({ sessionID, message: body.message, messageID: body.messageId, request, initialEvents }) } // 使用客户端消息 ID 启动或继续会话
+      catch (error) { if (error.code === 'SESSION_RUNNING') return createJSONError(409, error.message); throw error } // 处理检查与预留之间的竞争
       return createSSEResponse(stream)                               // 显式声明标准 SSE 响应类型
     }, {
       body: t.Object({
@@ -48,15 +51,22 @@ export async function createApp(options = {}) {
       }),
     })
     .post('/chat/stop', ({ body }) => Chat.stop(body.sessionId), { body: t.Object({ sessionId: t.String() }) }) // 中断指定会话循环
-    .post('/chat/approve', ({ body }) => Chat.approve(body.sessionId, body.toolCallId), { body: t.Object({ sessionId: t.String(), toolCallId: t.String() }) }) // 批准所属会话等待中的工具调用
-    .post('/chat/reject', ({ body }) => Chat.reject(body.sessionId, body.toolCallId), { body: t.Object({ sessionId: t.String(), toolCallId: t.String() }) }) // 拒绝所属会话等待中的工具调用
+    .post('/chat/approval', async ({ body }) => createCommandResponse(await Chat.approval(body.sessionId, body.toolCallId, body.decision)), { body: t.Object({ sessionId: t.String(), toolCallId: t.String(), decision: t.Union([t.Literal('deny'), t.Literal('allow-once'), t.Literal('always-allow')]) }) }) // 处理拒绝、本次允许或永久允许
+    .post('/chat/approve', async ({ body }) => createCommandResponse(await Chat.approve(body.sessionId, body.toolCallId)), { body: t.Object({ sessionId: t.String(), toolCallId: t.String() }) }) // 旧批准入口映射为本次允许
+    .post('/chat/reject', async ({ body }) => createCommandResponse(await Chat.reject(body.sessionId, body.toolCallId)), { body: t.Object({ sessionId: t.String(), toolCallId: t.String() }) }) // 旧拒绝入口映射为现场拒绝
     .post('/session/create', () => Session.create())                // 创建新的空会话并返回完整摘要
     .get('/session/list', () => Session.list())                     // 返回所有会话摘要
     .get('/session/:id', ({ params }) => {                          // 读取单个会话完整历史
       const session = Session.get(params.id)                       // 从会话指令读取真实数据副本
       return session ?? createJSONError(404, 'session not found')   // 不存在时返回明确 HTTP 404
     })
-    .delete('/session/:id', ({ params }) => Session.remove(params.id)) // 删除会话及其真实磁盘记录
+    .patch('/session/:id', async ({ params, body }) => createCommandResponse(await Session.rename(params.id, body.title)), { body: t.Object({ title: t.String() }) }) // 验证、持久化用户会话标题
+    .get('/session/:id/tasks', ({ params }) => {                       // 读取独立任务清单视图
+      const session = Session.get(params.id)                           // 从公开会话副本读取任务状态
+      return session ? { tasks: session.tasks, taskRevision: session.taskRevision } : createJSONError(404, 'session not found') // 不存在时反馈资源错误
+    })
+    .put('/session/:id/tasks', async ({ params, body }) => createCommandResponse(await Session.updateTasks(params.id, body.tasks, body.taskRevision)), { body: t.Object({ tasks: t.Array(t.Any()), taskRevision: t.Optional(t.Number({ minimum: 0 })) }) }) // 完整替换任务并检测可选修订冲突
+    .delete('/session/:id', async ({ params }) => Chat.isRunning(params.id) ? createJSONError(409, 'session is running') : createCommandResponse(await Session.remove(params.id), 404)) // 运行中拒绝删除，空闲时删除磁盘记录
     .post('/session/:id/rollback/:step', ({ params }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.rollback(params.id, Number(params.step))) // 空闲时暂存工具存档点后的历史
     .post('/session/:id/rollback-message', ({ params, body }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.rollbackMessage(params.id, body.messageId), { body: t.Object({ messageId: t.String() }) }) // 空闲时回退用户消息供编辑重发
     .post('/session/:id/undo-rollback', ({ params }) => Chat.isRunning(params.id) ? { ok: false, error: 'session is running' } : Session.undoRollback(params.id)) // 空闲时恢复最近一次暂存回退
@@ -64,6 +74,7 @@ export async function createApp(options = {}) {
     .post('/tool/reload', async () => Tool.load([builtInToolsDirectory, customToolsDirectory])) // 重新扫描真实工具目录
     .get('/config', () => redactConfig(Config.get()))                // 返回配置但不暴露真实密钥
     .put('/config', ({ body }) => Config.update(body), { body: t.Record(t.String(), t.Any()) }) // 局部更新配置并立即写盘
+    .post('/config/test', async ({ body }) => createCommandResponse(await Config.testProvider(body.provider, body.model)), { body: t.Object({ provider: t.String(), model: t.Optional(t.String()) }) }) // 用已保存认证发起最小连通性测试
 
   return { app, close: async () => Tool.close() }                   // 将测试和宿主需要的资源清理集中暴露
 }
@@ -101,11 +112,22 @@ function createJSONError(status, message) {
 }
 
 
+// --- 将指令结果转换为 HTTP 响应 ---
+function createCommandResponse(result, fallbackStatus = 400) {
+  if (result.ok) return result                                          // 成功结果保持普通 JSON 响应
+  const { status, ...body } = result                                    // 内部状态码不重复出现在 JSON 正文
+  return Response.json(body, { status: status ?? fallbackStatus })      // 失败结果使用命令声明或路由默认状态
+}
+
+
 // --- 隐藏配置中的密钥 ---
 function redactConfig(config) {
   const safeConfig = structuredClone(config)                       // 复制配置，保证 API 脱敏不修改运行时模型配置
   for (const provider of Object.values(safeConfig.providers ?? {})) { // 遍历每个供应商的认证字段
     if (provider && 'apiKey' in provider) provider.apiKey = provider.apiKey ? '[REDACTED]' : provider.apiKey // 对外只展示存在性
+    for (const header of Object.keys(provider?.headers ?? {})) {       // 检查用户配置的全部自定义请求头
+      if (/authorization|api[-_]?key|token|cookie|secret/i.test(header) && provider.headers[header]) provider.headers[header] = '[REDACTED]' // 认证类请求头只展示存在性
+    }
   }
   return safeConfig                                                       // 反馈可安全展示给前端的配置副本
 }

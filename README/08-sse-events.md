@@ -37,7 +37,9 @@ Elysia 直接将 AI SDK 的 `toDataStream()` 或 `toUIMessageStream()` 透传给
 |------|------|------|
 | `session-created` | `{ "id": "ses_xxx" }` | 自动创建了新会话（sessionId 为空时触发） |
 | `session-title` | `{ "title": "重构登录模块" }` | 异步生成的会话标题 |
-| `tool-approval-request` | `{ "id": "tc_001", "name": "write_file", "args": {...} }` | 权限为 ask，暂停等待用户确认 |
+| `tool-approval-request` | `{ "id": "tc_001", "name": "write_file", "args": {...}, "matchedRule": "*", "scope": "tool", "target": "..." }` | 权限为 ask，暂停等待用户确认 |
+| `task-list-updated` | `{ "tasks": [...], "taskRevision": 3 }` | Agent 更新了当前会话任务清单 |
+| `checkpoint` | `{ "step": 2, "toolCallIds": ["tc_001"] }` | 当前工具步骤形成可回退存档点 |
 | `error-retry` | `{ "message": "API 超时", "attempt": 3, "nextRetryIn": 8000 }` | API 请求失败，正在重试 |
 
 ## Elysia 中的实现方式
@@ -80,6 +82,8 @@ const { messages, sendMessage } = useChat({ api: '/chat/send' })
 eventSource.addEventListener('session-created', (e) => { ... })
 eventSource.addEventListener('session-title', (e) => { ... })
 eventSource.addEventListener('tool-approval-request', (e) => { ... })
+eventSource.addEventListener('task-list-updated', (e) => { ... })
+eventSource.addEventListener('checkpoint', (e) => { ... })
 eventSource.addEventListener('error-retry', (e) => { ... })
 ```
 
@@ -91,4 +95,4 @@ eventSource.addEventListener('error-retry', (e) => { ... })
 
 之前定义了 `reasoning-start`、`reasoning-delta`、`text-delta`、`tool-call`、`tool-result`、`done` 等事件 — 这些全部由 AI SDK 标准流覆盖，不再需要自定义。我们只负责透传。
 
-自定义事件缩减到 4 个，全部是 AI SDK 流中不包含的业务信息。
+自定义事件只承载 AI SDK 流中不包含的会话、审批、任务、回退和重试业务信息。

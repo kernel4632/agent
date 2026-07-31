@@ -100,8 +100,11 @@
 2. 推送 SSE 事件 `tool-approval-request`，携带工具名和参数
 3. 前端展示确认弹窗，显示工具名、参数内容
 4. 用户选择：
-   - 批准 → 前端 POST /chat/approve → 循环继续执行该工具
-   - 拒绝 → 前端 POST /chat/reject → 跳过执行，告知 LLM 被拒绝
+   - `deny` → 拒绝本次执行，并停止当前 Agent 循环
+   - `allow-once` → 仅执行当前工具调用
+   - `always-allow` → 执行当前调用，并将该工具持久化为 `allow`
+
+前端统一调用 `POST /chat/approval`，请求体包含 `sessionId`、`toolCallId` 和上述 `decision`。`POST /chat/approve` 与 `POST /chat/reject` 仅用于兼容旧客户端。
 
 ### 内部实现
 
@@ -109,15 +112,15 @@
 
 ```javascript
 // 循环中遇到 ask 权限
-const approved = await waitForApproval(toolCallId, toolName, args)
-if (approved) {
+const decision = await waitForApproval(toolCallId, toolName, args)
+if (decision !== 'deny') {
   // 执行工具
 } else {
   // 告知 LLM: "用户拒绝了该工具的执行"
 }
 ```
 
-`waitForApproval` 返回一个 Promise，直到收到 `/chat/approve` 或 `/chat/reject` 请求时才 resolve。
+`waitForApproval` 返回一个 Promise，直到收到 `/chat/approval` 请求或会话被主动停止时才结束。主动停止会中断等待，不留下悬挂审批。
 
 ## deny 权限的处理
 

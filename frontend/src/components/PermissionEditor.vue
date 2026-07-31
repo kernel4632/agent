@@ -4,11 +4,15 @@
 调用示例：<PermissionEditor :permissions="draft.permissions" @update="setPermissions" />。
 -->
 <script setup>
+import { computed } from 'vue'                       // 引入真实工具与已配置规则合并能力
+
 const props = defineProps({                           // 声明当前权限映射
   permissions: { type: Object, required: true },      // 工具名到权限值或规则对象的映射
+  toolNames: { type: Array, default: () => [] },       // Server 当前注册的全部工具名称
 })
 
 const emit = defineEmits(['update'])                  // 将完整权限副本交回设置页
+const permissionEntries = computed(() => [...new Set([...props.toolNames, ...Object.keys(props.permissions)])].sort().map((toolName) => [toolName, props.permissions[toolName] ?? 'ask'])) // 未配置工具也以真实默认值显示
 
 
 // --- 修改简单权限 ---
@@ -24,7 +28,7 @@ function updatePermission(toolName, permission) {
       <p>未配置工具默认为每次询问。</p>
     </header>
     <div class="permission-list">
-      <div v-for="(permission, toolName) in permissions" :key="toolName" class="permission-row">
+      <div v-for="[toolName, permission] in permissionEntries" :key="toolName" class="permission-row">
         <div>
           <strong>{{ toolName }}</strong>
           <small v-if="typeof permission === 'object'">包含参数匹配规则</small>

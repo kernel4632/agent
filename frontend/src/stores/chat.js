@@ -16,6 +16,8 @@ function createConversation() {
     sessionID: '',                                    // Server 会话 ID，草稿发送后补齐
     messages: [],                                     // 用户、助手和工具展示时间线
     approvals: [],                                    // 正在等待决定的工具调用
+    tasks: [],                                        // 当前会话任务清单
+    taskRevision: 0,                                  // 任务并发更新修订号
     rollback: null,                                   // 暂存回退摘要控制撤销栏
     draftText: '',                                    // 切换标签时保留输入内容
     isRunning: false,                                 // 当前标签 Agent 循环状态
@@ -44,6 +46,8 @@ export const useChatStore = defineStore('chat', () => { // 导出唯一对话仓
   const sessionID = computed(() => activeConversation.value.sessionID) // 当前 Server 会话 ID
   const messages = computed(() => activeConversation.value.messages)   // 当前展示时间线
   const approvals = computed(() => activeConversation.value.approvals) // 当前审批集合
+  const tasks = computed(() => activeConversation.value.tasks)         // 当前任务清单
+  const taskRevision = computed(() => activeConversation.value.taskRevision) // 当前任务修订号
   const rollbackState = computed(() => activeConversation.value.rollback) // 当前可撤销回退
   const isRunning = computed(() => activeConversation.value.isRunning) // 当前运行状态
   const retryNotice = computed(() => activeConversation.value.retryNotice) // 当前重试反馈
@@ -61,11 +65,20 @@ export const useChatStore = defineStore('chat', () => { // 导出唯一对话仓
   }
 
 
+  // --- 读取一个标签的后台状态 ---
+  function getStatus(key) {
+    const conversation = conversations[key]           // 未加载标签不创建无用运行时上下文
+    return { running: Boolean(conversation?.isRunning), approval: Boolean(conversation?.approvals.length) } // 反馈标签需要显示的两种活动状态
+  }
+
+
   // --- 加载已有会话 ---
   function loadSession(session, key = tabs.activeKey) {
     const conversation = getConversation(key)         // 取得目标标签而非假设当前标签未切换
     conversation.sessionID = session?.id ?? ''        // 使用选中会话 ID 或保持草稿
     conversation.messages = session?.messages ?? []   // 用 Server 可见历史替换当前展示
+    conversation.tasks = session?.tasks ?? []         // 用详情内持久化任务恢复工作面板
+    conversation.taskRevision = session?.taskRevision ?? 0 // 恢复后续可选手动编辑需要的修订
     conversation.rollback = session?.rollback ?? null // 恢复服务重启后仍可撤销的回退
     conversation.approvals = []                       // 历史加载不恢复已失效审批
     conversation.retryNotice = null                   // 新上下文清除重试反馈
@@ -130,7 +143,7 @@ export const useChatStore = defineStore('chat', () => { // 导出唯一对话仓
     if (event.name === 'tool-call') addToolMessage(conversation, event.data, streamState) // 工具按发生顺序插入
     if (event.name === 'tool-result') {                // 工具执行后补充对应结果
       const toolMessage = getToolMessage(conversation, event.data.toolCallId) // 定位同一调用
-      if (toolMessage) Object.assign(toolMessage, { result: event.data.output, status: 'completed', isStreaming: false }) // 原位完成工具反馈
+      if (toolMessage) Object.assign(toolMessage, { result: event.data.output, status: event.data.output?.denied ? 'rejected' : 'completed', isStreaming: false }) // 原位保留拒绝或完成语义
       conversation.approvals = conversation.approvals.filter((item) => item.id !== event.data.toolCallId) // 清理审批
     }
     if (event.name === 'checkpoint') {                 // Server 持久化后下发真实步骤
@@ -140,9 +153,14 @@ export const useChatStore = defineStore('chat', () => { // 导出唯一对话仓
       })
     }
     if (event.name === 'tool-approval-request') {      // ask 权限原位展示用户动作
-      conversation.approvals.push({ id: event.data.id, name: event.data.name, input: event.data.args }) // 保存待处理项
+      const approval = { id: event.data.id, name: event.data.name, input: event.data.args, matchedRule: event.data.matchedRule, scope: event.data.scope, target: event.data.target } // 保存精确工具和权限匹配信息
+      conversation.approvals.push(approval)            // 标签状态据此显示待审批反馈
       const toolMessage = getToolMessage(conversation, event.data.id) // 定位刚插入工具
-      if (toolMessage) toolMessage.status = 'waiting' // 切换为等待批准
+      if (toolMessage) Object.assign(toolMessage, approval, { status: 'waiting', approvalError: '' }) // 工具原位展示三选一审批
+    }
+    if (event.name === 'task-list-updated') {          // 工具更新后立即刷新任务面板
+      conversation.tasks = event.data.tasks ?? []      // 使用 Server 验证后的完整清单
+      conversation.taskRevision = event.data.taskRevision ?? conversation.taskRevision // 保存同一事件的并发修订
     }
     if (event.name === 'error-retry') conversation.retryNotice = event.data // 展示无限重试进度
     if (event.name === 'error') conversation.errorMessage = event.data.message // 展示不可恢复错误
@@ -192,31 +210,21 @@ export const useChatStore = defineStore('chat', () => { // 导出唯一对话仓
   }
 
 
-  // --- 批准当前标签工具 ---
-  async function approve(toolCallID) {
+  // --- 决定当前标签工具权限 ---
+  async function decide(toolCallID, decision) {
     const conversation = getConversation()            // 捕获审批所属当前标签
     const toolMessage = getToolMessage(conversation, toolCallID) // 查找原位工具项
-    if (toolMessage) toolMessage.status = 'approving' // 立即反馈提交状态
-    const result = await AgentAPI.approveTool(conversation.sessionID, toolCallID) // 恢复 Server 工具
-    if (result.ok) {
-      conversation.approvals = conversation.approvals.filter((item) => item.id !== toolCallID) // 消费审批
-      if (toolMessage) toolMessage.status = 'running' // 反馈真实执行中
-    } else if (toolMessage) toolMessage.status = 'waiting' // 失败恢复可重试状态
-    return result.ok                                  // 反馈审批结果
-  }
-
-
-  // --- 拒绝当前标签工具 ---
-  async function reject(toolCallID) {
-    const conversation = getConversation()            // 捕获拒绝所属当前标签
-    const toolMessage = getToolMessage(conversation, toolCallID) // 查找原位工具项
-    if (toolMessage) toolMessage.status = 'rejecting' // 立即反馈提交状态
-    const result = await AgentAPI.rejectTool(conversation.sessionID, toolCallID) // 拒绝 Server 工具
-    if (result.ok) {
-      conversation.approvals = conversation.approvals.filter((item) => item.id !== toolCallID) // 消费审批
-      if (toolMessage) toolMessage.status = 'rejected' // 保留拒绝结果位置
-    } else if (toolMessage) toolMessage.status = 'waiting' // 失败恢复可重试状态
-    return result.ok                                  // 反馈拒绝结果
+    if (!['deny', 'allow-once', 'always-allow'].includes(decision) || !conversation.sessionID) return false // 无效决定不能恢复 Server 循环
+    if (toolMessage) Object.assign(toolMessage, { status: 'deciding', approvalError: '' }) // 禁用按钮并反馈正在提交
+    try {
+      const result = await AgentAPI.decideTool(conversation.sessionID, toolCallID, decision) // 提交精确三选一决定
+      conversation.approvals = conversation.approvals.filter((item) => item.id !== toolCallID) // 成功后清除标签审批指示
+      if (toolMessage) toolMessage.status = decision === 'deny' ? 'rejected' : 'running' // 原位反馈拒绝或继续执行
+      return result.ok                                // 反馈审批已由 Server 接受
+    } catch (error) {
+      if (toolMessage) Object.assign(toolMessage, { status: 'waiting', approvalError: error.message }) // 请求失败恢复等待和可重试按钮
+      return false                                    // 保持 SSE 等待用户再次决定
+    }
   }
 
 
@@ -262,5 +270,5 @@ export const useChatStore = defineStore('chat', () => { // 导出唯一对话仓
   }
 
 
-  return { sessionID, messages, approvals, rollbackState, draftText, isRunning, retryNotice, errorMessage, hasMessages, hasConversation, loadSession, removeConversation, send, stop, approve, reject, rollback, rollbackMessage, undoRollback } // 暴露当前标签数据与指令
+  return { sessionID, messages, approvals, tasks, taskRevision, rollbackState, draftText, isRunning, retryNotice, errorMessage, hasMessages, hasConversation, getStatus, loadSession, removeConversation, send, stop, decide, rollback, rollbackMessage, undoRollback } // 暴露当前标签数据与指令
 })
