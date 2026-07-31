@@ -9,8 +9,10 @@ import { extname, isAbsolute, resolve } from 'node:path'                  // 引
 import { fileURLToPath, pathToFileURL } from 'node:url'                   // 引入 LSP DocumentUri 转换能力
 import { createMessageConnection } from 'vscode-jsonrpc/node'            // 引入官方 VS Code JSON-RPC 流实现
 import { Config } from './config.js'                                     // 引入语言服务器声明
-import { capabilityStore } from '../store/capabilities.js'               // 引入进程、诊断和文档运行状态
-import { toolStore } from '../store/tools.js'                            // 引入 Agent 统一工具注册表
+import { store } from '../store.js'                                       // 引入服务端唯一状态根
+
+const capabilityStore = store.capabilities                                 // 当前指令使用能力领域状态
+const toolStore = store.tools                                              // 当前指令使用工具领域状态
 
 
 // --- 创建语言服务器公开状态 ---

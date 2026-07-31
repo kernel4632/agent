@@ -8,7 +8,9 @@ import { z } from 'zod'                                               // 引入�
 import { Config } from './config.js'                                  // 引入即时配置与模型创建动作
 import { Session } from './session.js'                                // 引入会话读取、修改和持久化动作
 import { Skill } from './skill.js'                                    // 引入渐进披露技能目录
-import { toolStore } from '../store/tools.js'                        // 引入当前工具注册表
+import { store } from '../store.js'                                   // 引入服务端唯一状态根
+
+const toolStore = store.tools                                            // 当前指令使用工具领域状态
 import { compressMessages } from '../utils/compress.js'              // 引入只作用于模型请求的上下文压缩
 import { retry } from '../utils/retry.js'                             // 引入模型失败后的无限退避重试
 

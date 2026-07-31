@@ -8,8 +8,10 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js' // 引入当前 HTTP 传输
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js' // 引入远程工具变化通知协议
 import { Config } from './config.js'                                            // 引入最新 MCP 服务声明
-import { capabilityStore } from '../store/capabilities.js'                      // 引入连接运行状态
-import { toolStore } from '../store/tools.js'                                   // 引入 Agent 统一工具注册表
+import { store } from '../store.js'                                             // 引入服务端唯一状态根
+
+const capabilityStore = store.capabilities                                        // 当前指令使用能力领域状态
+const toolStore = store.tools                                                     // 当前指令使用工具领域状态
 
 
 // --- 创建稳定的 Agent 工具名称 ---

@@ -6,7 +6,9 @@
 import { createStorage } from 'unstorage'             // 引入统一键值存储能力
 import fsDriver from 'unstorage/drivers/fs'           // 引入真实文件系统存储驱动
 import { nanoid } from 'nanoid'                       // 引入紧凑唯一 ID 生成能力
-import { sessionStore } from '../store/sessions.js'   // 引入唯一会话状态
+import { store } from '../store.js'                    // 引入服务端唯一状态根
+
+const sessionStore = store.sessions                       // 当前指令使用会话领域状态
 
 
 // --- 加载磁盘会话 ---

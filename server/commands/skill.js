@@ -7,8 +7,10 @@ import { readdir, readFile } from 'node:fs/promises'                  // 引入�
 import { basename, join, resolve } from 'node:path'                   // 引入目录名称校验和绝对路径定位
 import { parseDocument } from 'yaml'                                  // 引入标准 YAML frontmatter 解析能力
 import { Config } from './config.js'                                  // 引入技能开关和附加目录配置
-import { capabilityStore } from '../store/capabilities.js'            // 引入技能元数据运行仓库
-import { toolStore } from '../store/tools.js'                          // 引入按需加载工具注册表
+import { store } from '../store.js'                                      // 引入服务端唯一状态根
+
+const capabilityStore = store.capabilities                                // 当前指令使用能力领域状态
+const toolStore = store.tools                                             // 当前指令使用工具领域状态
 
 const skillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/                 // 官方名称只允许小写字母、数字和单连字符
 

@@ -13,7 +13,9 @@ import { MCP } from './commands/mcp.js'                           // 引入 MCP 
 import { Session } from './commands/session.js'                    // 引入会话增删改查指令
 import { Skill } from './commands/skill.js'                       // 引入 Agent Skill 扫描与目录指令
 import { Tool } from './commands/tool.js'                          // 引入工具加载与查询指令
-import { capabilityStore } from './store/capabilities.js'         // 引入能力目录运行上下文
+import { store } from './store.js'                                // 引入服务端唯一状态根
+
+const capabilityStore = store.capabilities                         // 启动流程使用能力领域状态
 
 
 // --- 创建并初始化 Agent Server ---

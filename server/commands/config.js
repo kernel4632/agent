@@ -1,6 +1,6 @@
 /*
 配置指令集：加载、读取、更新配置，并按当前选择创建真实模型。
-配置只在此处读写磁盘，store/config.js 仅保存当前值和文件位置。
+配置只在此处读写磁盘，store.js 仅保存当前值和文件位置。
 调用示例：await Config.load('C:/Users/me/.agent/config.json')、Config.getActiveModel()。
 */
 import { mkdir } from 'node:fs/promises'                          // 引入创建配置目录的文件能力
@@ -9,7 +9,9 @@ import { createOpenAI } from '@ai-sdk/openai'                     // 引入支�
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible' // 引入 OpenAI-compatible 模型提供商
 import { generateText } from 'ai'                                  // 引入供应商连通性测试所需的最小生成调用
 import { defu } from 'defu'                                      // 引入配置深度合并能力
-import { configStore } from '../store/config.js'                  // 引入唯一配置状态
+import { store } from '../store.js'                                // 引入服务端唯一状态根
+
+const configStore = store.config                                      // 当前指令使用配置领域状态
 
 const defaultConfig = {                                          // 首次运行时写入的可编辑默认配置
   activeProvider: '',                                             // 未配置供应商时不猜测用户选择

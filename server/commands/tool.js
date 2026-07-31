@@ -7,7 +7,9 @@ import { readdir } from 'node:fs/promises'                 // 引入目录扫描
 import { join, resolve } from 'node:path'                  // 引入跨平台路径拼接能力
 import { pathToFileURL } from 'node:url'                  // 引入动态导入所需的文件 URL 转换能力
 import chokidar from 'chokidar'                            // 引入工具文件热重载监听能力
-import { toolStore } from '../store/tools.js'              // 引入唯一工具注册表
+import { store } from '../store.js'                         // 引入服务端唯一状态根
+
+const toolStore = store.tools                                  // 当前指令使用工具领域状态
 
 
 // --- 扫描一个目录中的工具文件 ---

@@ -10,7 +10,9 @@ import { join } from 'node:path'                                      // 引入�
 import { createApp } from '../server.js'                             // 引入可直接处理 Request 的真实应用入口
 import { Config } from '../commands/config.js'                       // 引入缓存请求选项供配置行为断言
 import { Session } from '../commands/session.js'                     // 引入两套历史同步回退指令
-import { toolStore } from '../store/tools.js'                         // 引入动态能力工具供协议级调用断言
+import { store } from '../store.js'                                    // 引入服务端唯一状态根
+
+const toolStore = store.tools                                            // 测试读取动态能力工具注册表
 import { retry } from '../utils/retry.js'                             // 引入中断不重试行为验证
 
 let app                                                                  // 保存测试使用的真实 Elysia 应用
