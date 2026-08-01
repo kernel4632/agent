@@ -11,6 +11,7 @@ import { t } from '../i18n.js'                                       // 引入�
 const props = defineProps({ config: { type: Object, required: true } }) // 当前完整设置草稿
 const selectedName = ref('')                                        // 当前右侧提供商
 const modelDialogOpen = ref(false)                                  // 控制远程模型选择窗
+const modelsLoading = ref(false)                                    // 表示模型发现请求正在反馈
 const modelSettingsName = ref('')                                   // 控制模型设置窗
 const renameDraft = ref('')                                         // 保存尚未提交的提供商名称
 
@@ -56,6 +57,15 @@ function addDiscoveredModel(modelName) {
 function openModelSettings(modelName) {
   modelSettingsName.value = modelName                                 // 弹窗定位目标模型
 }
+
+
+// --- 获取并展示模型目录 ---
+async function openModelPicker() {
+  modelDialogOpen.value = true                                        // 先打开弹窗展示明确加载反馈
+  modelsLoading.value = true                                          // 按钮和弹窗共享请求状态
+  await new Promise((resolve) => setTimeout(resolve, 650))             // TODO(API): 替换为真实模型发现请求
+  modelsLoading.value = false                                         // 候选目录就绪后显示可选项
+}
 </script>
 
 <template>
@@ -80,9 +90,9 @@ function openModelSettings(modelName) {
       <mdui-text-field variant="outlined" label="API Key" type="password" toggle-password :value="provider.apiKey" placeholder="sk-..." @input="Settings.updateProvider(selectedName, 'apiKey', $event.target.value)"></mdui-text-field>
 
       <section class="provider-models">
-        <header><div><h3>{{ t('modelList') }}</h3><p>{{ t('modelListDescription') }}</p></div><mdui-button variant="tonal" @click="modelDialogOpen = true"><mdui-icon-download slot="icon"></mdui-icon-download>{{ t('fetchModels') }}</mdui-button></header>
+        <header><div><h3>{{ t('modelList') }}</h3><p>{{ t('modelListDescription') }}</p></div><mdui-button variant="tonal" :loading="modelsLoading" @click="openModelPicker"><mdui-icon-download slot="icon"></mdui-icon-download>{{ t('fetchModels') }}</mdui-button></header>
         <div class="provider-model-list">
-          <mdui-card v-for="modelName in provider.models" :key="modelName" variant="outlined">
+          <mdui-card v-for="modelName in provider.models" :key="modelName" variant="filled">
             <mdui-avatar class="model-symbol">M</mdui-avatar>
             <div><strong>{{ modelName }}</strong><small><span v-if="provider.modelSettings?.[modelName]?.reasoning">{{ t('reasoningCapability') }}</span><span v-if="provider.modelSettings?.[modelName]?.tools">{{ t('toolCapability') }}</span><span>{{ (provider.modelSettings?.[modelName]?.context || 128000).toLocaleString() }} ctx</span></small></div>
             <mdui-button-icon class="icon-command" :aria-label="t('modelSettings')" :title="t('modelSettings')" @click="openModelSettings(modelName)"><mdui-icon-tune></mdui-icon-tune></mdui-button-icon>
@@ -104,16 +114,19 @@ function openModelSettings(modelName) {
     </div>
 
     <mdui-dialog class="model-dialog" :open="modelDialogOpen" close-on-overlay-click @closed="modelDialogOpen = false">
-        <div class="dialog-heading"><div><h2>{{ t('selectModel') }}</h2><p>{{ t('availableModels', { provider: selectedName }) }}</p></div><mdui-button-icon class="icon-command" :aria-label="t('close')" @click="modelDialogOpen = false"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+        <span slot="headline">{{ t('selectModel') }}</span>
+        <span slot="description">{{ t('availableModels', { provider: selectedName }) }}</span>
+        <div v-if="modelsLoading" class="model-picker-loading"><mdui-circular-progress></mdui-circular-progress></div>
         <div class="model-picker">
-          <mdui-card v-for="modelName in candidates" :key="modelName" clickable variant="outlined" @click="addDiscoveredModel(modelName)"><mdui-avatar>M</mdui-avatar><strong>{{ modelName }}</strong><mdui-icon-add></mdui-icon-add></mdui-card>
-          <div v-if="!candidates.length" class="empty-state compact">{{ t('allModelsAdded') }}</div>
+          <template v-if="!modelsLoading"><mdui-card v-for="modelName in candidates" :key="modelName" clickable variant="filled" @click="addDiscoveredModel(modelName)"><mdui-avatar>M</mdui-avatar><strong>{{ modelName }}</strong><mdui-icon-add></mdui-icon-add></mdui-card></template>
+          <div v-if="!modelsLoading && !candidates.length" class="empty-state compact">{{ t('allModelsAdded') }}</div>
         </div>
         <mdui-button slot="action" variant="filled" @click="modelDialogOpen = false">{{ t('done') }}</mdui-button>
     </mdui-dialog>
 
     <mdui-dialog class="model-settings-dialog" :open="Boolean(modelSettingsName)" close-on-overlay-click @closed="modelSettingsName = ''">
-        <div class="dialog-heading"><div><h2>{{ modelSettingsName }}</h2><p>{{ t('modelLimits') }}</p></div><mdui-button-icon class="icon-command" :aria-label="t('close')" @click="modelSettingsName = ''"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+        <span slot="headline">{{ modelSettingsName }}</span>
+        <span slot="description">{{ t('modelLimits') }}</span>
         <div class="setting-grid">
           <mdui-text-field variant="outlined" :label="t('contextLength')" type="number" :value="currentModelSettings.context || 128000" @input="Settings.updateModel(selectedName, modelSettingsName, { context: Number($event.target.value) })"></mdui-text-field>
           <mdui-text-field variant="outlined" :label="t('maxOutput')" type="number" :value="currentModelSettings.output || 16000" @input="Settings.updateModel(selectedName, modelSettingsName, { output: Number($event.target.value) })"></mdui-text-field>

@@ -21,7 +21,7 @@ function decide(decision) {
 </script>
 
 <template>
-  <mdui-card variant="outlined" class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
+  <mdui-card variant="filled" class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
     <div class="tool-strip__line" @click="open = !open">
       <span class="tool-strip__icon"><mdui-icon-code v-if="tool.name === 'run_command'"></mdui-icon-code><mdui-icon-build v-else></mdui-icon-build></span>
       <strong>{{ tool.title || tool.name }}</strong>

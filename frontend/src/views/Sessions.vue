@@ -78,7 +78,7 @@ function formatTime(timestamp) {
 
 <template>
   <section class="home-view">
-    <mdui-text-field class="home-search" variant="filled" clearable :value="store.ui.search" type="search" :placeholder="t('search')" :label="t('search')" @input="UI.setSearch($event.target.value)"><mdui-icon-search slot="icon"></mdui-icon-search><kbd slot="end-icon">Ctrl K</kbd></mdui-text-field>
+    <mdui-text-field class="home-search" variant="filled" clearable :value="store.ui.search" type="search" :placeholder="t('search')" :aria-label="t('search')" @input="UI.setSearch($event.target.value)"><mdui-icon-search slot="icon"></mdui-icon-search><kbd slot="end-icon">Ctrl K</kbd></mdui-text-field>
 
     <div class="home-body">
       <aside class="workspace-panel">
@@ -105,7 +105,7 @@ function formatTime(timestamp) {
         <div v-if="groups.length" class="session-groups">
           <section v-for="group in groups" :key="group.id" class="session-group">
             <h2>{{ group.label }}</h2>
-            <mdui-card v-for="session in group.items" :key="session.id" clickable variant="outlined" class="home-session" @click="Session.open(session.id)">
+            <mdui-card v-for="session in group.items" :key="session.id" clickable variant="filled" class="home-session" @click="Session.open(session.id)">
               <mdui-avatar class="home-session__model">{{ session.model.slice(0, 1).toUpperCase() }}</mdui-avatar>
               <div class="home-session__main">
                 <mdui-text-field v-if="editingSessionID === session.id" variant="outlined" :value="editingTitle" maxlength="100" :label="t('sessionTitle')" @input="editingTitle = $event.target.value" @click.stop @keydown.enter.prevent="saveRename" @keydown.esc="editingSessionID = ''" @blur="saveRename"></mdui-text-field>
@@ -128,12 +128,13 @@ function formatTime(timestamp) {
     </div>
 
     <mdui-dialog class="workspace-dialog" :open="addWorkspaceOpen" close-on-overlay-click @closed="addWorkspaceOpen = false">
-      <div class="dialog-heading"><div><h2>{{ t('addWorkspace') }}</h2><p>{{ t('workspaceDescription') }}</p></div><mdui-button-icon :aria-label="t('close')" @click="addWorkspaceOpen = false"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+      <span slot="headline">{{ t('addWorkspace') }}</span>
+      <span slot="description">{{ t('workspaceDescription') }}</span>
       <div class="dialog-fields"><mdui-text-field variant="outlined" :value="workspaceName" :label="t('name')" :placeholder="t('workspaceNameExample')" @input="workspaceName = $event.target.value"></mdui-text-field><mdui-text-field variant="outlined" :value="workspacePath" :label="t('path')" :placeholder="t('workspacePathExample')" @input="workspacePath = $event.target.value" @keydown.enter="addWorkspace"></mdui-text-field></div>
       <mdui-button slot="action" variant="text" @click="addWorkspaceOpen = false">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" :disabled="!workspaceName.trim() || !workspacePath.trim()" @click="addWorkspace">{{ t('add') }}</mdui-button>
     </mdui-dialog>
 
-    <mdui-dialog class="delete-session-dialog" :open="Boolean(deleteTarget)" close-on-overlay-click @closed="deleteTarget = null"><h2>{{ t('deleteSession') }}</h2><p>{{ deleteTarget ? t('deleteSessionDescription', { title: deleteTarget.title }) : '' }}</p><mdui-button slot="action" variant="text" @click="deleteTarget = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" class="danger-command" @click="confirmDelete">{{ t('delete') }}</mdui-button></mdui-dialog>
+    <mdui-dialog class="delete-session-dialog" :open="Boolean(deleteTarget)" close-on-overlay-click @closed="deleteTarget = null"><span slot="headline">{{ t('deleteSession') }}</span><span slot="description">{{ deleteTarget ? t('deleteSessionDescription', { title: deleteTarget.title }) : '' }}</span><mdui-button slot="action" variant="text" @click="deleteTarget = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" class="danger-command" @click="confirmDelete">{{ t('delete') }}</mdui-button></mdui-dialog>
   </section>
 </template>
 

@@ -67,7 +67,8 @@ function jumpAdjacent(direction) {
   <section v-if="session" class="chat-view">
     <header class="chat-header">
       <div class="chat-header__title"><SessionTitleEditor :title="session.title" compact @save="renameTitle" /><small>{{ t('doubleClickRename') }}</small></div>
-      <div class="context-meter" :style="{ '--context': `${contextPercent * 3.6}deg` }" tabindex="0" :aria-label="t('contextStats')">
+      <div class="context-meter" tabindex="0" :aria-label="t('contextStats')">
+        <mdui-circular-progress :value="contextPercent" max="100"></mdui-circular-progress>
         <span>{{ contextPercent }}</span>
         <div class="context-popover">
           <strong>{{ t('context') }}</strong>
@@ -77,6 +78,7 @@ function jumpAdjacent(direction) {
         </div>
       </div>
     </header>
+    <mdui-linear-progress v-if="session.status === 'running'" class="chat-progress"></mdui-linear-progress>
 
     <div class="chat-body">
       <div v-if="!session.messages.length" class="chat-empty"><span>A</span><h1>{{ t('startTask') }}</h1></div>
@@ -99,7 +101,7 @@ function jumpAdjacent(direction) {
       <InputBox v-model="session.draft" :session="session" :models="models" @send="ChatCommand.send(session.id, $event)" @stop="ChatCommand.stop(session.id)" @select-model="selectModel" @attach="ChatCommand.attach(session.id, $event)" @remove-file="ChatCommand.removeFile(session.id, $event)" />
     </footer>
 
-    <mdui-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" close-on-overlay-click @closed="pendingRollback = null"><h2>{{ t('rollbackTool') }}</h2><p>{{ t('rollbackDescription', { step: pendingRollback }) }}</p><mdui-button slot="action" variant="text" @click="pendingRollback = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" @click="confirmRollback">{{ t('confirmRollback') }}</mdui-button></mdui-dialog>
+    <mdui-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" close-on-overlay-click @closed="pendingRollback = null"><span slot="headline">{{ t('rollbackTool') }}</span><span slot="description">{{ t('rollbackDescription', { step: pendingRollback }) }}</span><mdui-button slot="action" variant="text" @click="pendingRollback = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" @click="confirmRollback">{{ t('confirmRollback') }}</mdui-button></mdui-dialog>
   </section>
 </template>
 

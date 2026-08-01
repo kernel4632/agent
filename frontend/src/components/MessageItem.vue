@@ -48,7 +48,9 @@ function formatTokens(value) {
       </div>
 
       <div v-if="message.request" class="request-strip" :class="`is-${message.request.status}`">
-        <span class="request-strip__spinner"></span>
+        <mdui-circular-progress v-if="message.request.status === 'running'" class="request-strip__progress"></mdui-circular-progress>
+        <mdui-icon-check-circle v-else-if="message.request.status === 'completed'"></mdui-icon-check-circle>
+        <mdui-icon-pause-circle v-else></mdui-icon-pause-circle>
         <strong>{{ t('apiRequest') }}</strong>
         <template v-if="message.request.status === 'running'"><span>{{ t('receiving') }}</span></template>
         <template v-else-if="message.request.status === 'cancelled'"><span>{{ t('paused') }}</span></template>

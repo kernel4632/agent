@@ -15,6 +15,8 @@ config.local.json
 
 # Tests and diagnostics
 coverage/
+test-results/
+playwright-report/
 *.log
 *.tmp
 

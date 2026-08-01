@@ -47,12 +47,12 @@ function selectFiles(event) {
     <div v-if="session.files.length" class="composer__files">
       <mdui-chip v-for="file in session.files" :key="file.id" deletable :aria-label="t('removeFile', { name: file.name })" @delete="emit('remove-file', file.id)"><mdui-icon-attach-file slot="icon"></mdui-icon-attach-file>{{ file.name }}</mdui-chip>
     </div>
-    <mdui-text-field ref="inputElement" class="composer__input" variant="filled" autosize :min-rows="1" :max-rows="8" :value="content" :placeholder="t('messagePlaceholder')" :label="t('message')" @input="content = $event.target.value" @keydown="handleKeydown"></mdui-text-field>
+    <mdui-text-field ref="inputElement" class="composer__input" variant="filled" autosize :min-rows="1" :max-rows="8" :value="content" :placeholder="t('messagePlaceholder')" :aria-label="t('message')" @input="content = $event.target.value" @keydown="handleKeydown"></mdui-text-field>
     <div class="composer__bar">
       <div class="composer__left">
         <input ref="fileInput" class="visually-hidden" type="file" multiple @change="selectFiles" />
         <mdui-button-icon class="icon-command" :aria-label="t('uploadFile')" :title="t('uploadFile')" @click="fileInput.click()"><mdui-icon-attach-file></mdui-icon-attach-file></mdui-button-icon>
-        <mdui-select class="model-select" variant="filled" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :label="t('switchModel')" @change="emit('select-model', $event.target.value)"><mdui-menu-item v-for="item in models" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.model }} · {{ item.provider }}</mdui-menu-item></mdui-select>
+        <mdui-select class="model-select" variant="filled" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :aria-label="t('switchModel')" @change="emit('select-model', $event.target.value)"><mdui-menu-item v-for="item in models" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.model }} · {{ item.provider }}</mdui-menu-item></mdui-select>
       </div>
       <mdui-button-icon v-if="session.status === 'running'" class="send-command is-stop" variant="filled" :aria-label="t('pauseGeneration')" :title="t('pauseGeneration')" @click="emit('stop')"><mdui-icon-stop></mdui-icon-stop></mdui-button-icon>
       <mdui-button-icon v-else class="send-command" variant="filled" :disabled="!content.trim()" :aria-label="t('send')" :title="t('send')" @click="submit"><mdui-icon-arrow-upward></mdui-icon-arrow-upward></mdui-button-icon>

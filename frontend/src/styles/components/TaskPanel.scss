@@ -1,11 +1,11 @@
-.task-dock { display: block; margin-bottom: 10px; overflow: hidden; border-radius: 22px; background: rgb(var(--mdui-color-surface-container-low)); }
-.task-dock__header { display: grid; grid-template-columns: 42px minmax(0, 1fr) 24px; align-items: center; min-height: 48px; padding: 0 14px; color: #999; cursor: pointer; }
-.task-dock__progress { color: #fff; font: 11px Consolas, monospace; }
-.task-dock__preview { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.task-dock__chevron { width: 18px; height: 18px; transition: transform 160ms ease; }
+.task-dock { display: block; margin-bottom: 10px; overflow: hidden; border-radius: 16px; color: rgb(var(--mdui-color-on-secondary-container)); background: rgb(var(--mdui-color-secondary-container)); }
+.task-dock__header { display: grid; grid-template-columns: 48px minmax(0, 1fr) 24px; align-items: center; min-height: 52px; padding: 0 14px; cursor: pointer; }
+.task-dock__progress { color: rgb(var(--mdui-color-primary)); font: 11px "Cascadia Code", Consolas, monospace; }
+.task-dock__preview { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.task-dock__chevron { width: 18px; height: 18px; transition: transform 220ms cubic-bezier(.2, 0, 0, 1); }
 mdui-collapse-item[active] .task-dock__chevron { transform: rotate(180deg); }
-.task-dock__body { display: grid; gap: 4px; max-height: 170px; padding: 4px 12px 12px; overflow-y: auto; }
-.task-dock__item { display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; min-height: 34px; color: #bbb; font-size: 10px; }
-.task-dock__item mdui-checkbox { transform: scale(.78); transform-origin: left center; pointer-events: none; }
-.task-dock__item.is-completed span,
-.task-dock__item.is-cancelled span { color: #777; text-decoration: line-through; }
+.task-dock__body { display: grid; gap: 4px; max-height: 180px; padding: 4px 12px 12px; overflow-y: auto; animation: tasks-in 180ms cubic-bezier(.2, 0, 0, 1); }
+.task-dock__item { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; min-height: 38px; font-size: 11px; }
+.task-dock__item mdui-checkbox { pointer-events: none; }
+.task-dock__item.is-completed span, .task-dock__item.is-cancelled span { opacity: .58; text-decoration: line-through; }
+@keyframes tasks-in { from { opacity: 0; transform: translateY(-4px); } }

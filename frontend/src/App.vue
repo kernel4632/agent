@@ -26,23 +26,28 @@ function openSession(sessionID) {
   Session.open(sessionID)                                          // 指令同步 Workspace 归属和对话页
   if (window.innerWidth <= 760) UI.toggleSidebar(false)            // 移动端选择后释放主内容空间
 }
+
+function navigate(action) {
+  action()
+  if (window.innerWidth <= 760) UI.toggleSidebar(false)
+}
 </script>
 
 <template>
   <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
     <aside class="sidebar" :class="{ 'sidebar--open': store.ui.sidebarOpen }">
       <div class="sidebar__first">
-        <mdui-button-icon class="product-logo" :aria-label="t('agentHome')" title="Agent" @click="UI.openHome"><mdui-avatar>A</mdui-avatar></mdui-button-icon>
+        <mdui-button-icon class="product-logo" :aria-label="t('agentHome')" title="Agent" @click="navigate(UI.openHome)"><mdui-avatar>A</mdui-avatar></mdui-button-icon>
         <mdui-button-icon v-if="store.ui.sidebarOpen" class="icon-command" :aria-label="t('collapseSidebar')" :title="t('collapseSidebar')" @click="UI.toggleSidebar(false)">
           <mdui-icon-keyboard-double-arrow-left></mdui-icon-keyboard-double-arrow-left>
         </mdui-button-icon>
       </div>
 
       <nav class="sidebar__second" :aria-label="t('mainNav')">
-        <mdui-button variant="text" full-width :class="{ 'is-active': store.ui.view === 'home' }" :title="t('home')" @click="UI.openHome">
+        <mdui-button variant="text" full-width :class="{ 'is-active': store.ui.view === 'home' }" :title="t('home')" @click="navigate(UI.openHome)">
           <mdui-icon-home slot="icon"></mdui-icon-home><span v-if="store.ui.sidebarOpen">{{ t('home') }}</span>
         </mdui-button>
-        <mdui-button variant="text" full-width :title="t('newChat')" @click="Session.create()">
+        <mdui-button variant="text" full-width :title="t('newChat')" @click="navigate(() => Session.create())">
           <mdui-icon-add slot="icon"></mdui-icon-add><span v-if="store.ui.sidebarOpen">{{ t('newChat') }}</span>
         </mdui-button>
       </nav>
@@ -63,21 +68,23 @@ function openSession(sessionID) {
       </div>
 
       <div class="sidebar__fifth">
-        <mdui-button variant="text" full-width :class="{ 'is-active': store.ui.view === 'settings' }" :title="t('settings')" @click="UI.openSettings()">
+        <mdui-button variant="text" full-width :class="{ 'is-active': store.ui.view === 'settings' }" :title="t('settings')" @click="navigate(() => { UI.toggleSidebar(false); UI.openSettings() })">
           <mdui-icon-settings slot="icon"></mdui-icon-settings><span v-if="store.ui.sidebarOpen">{{ t('settings') }}</span>
         </mdui-button>
       </div>
     </aside>
 
-    <mdui-button-icon v-if="store.ui.sidebarOpen" class="sidebar-scrim" :aria-label="t('closeSidebar')" @click="UI.toggleSidebar(false)"></mdui-button-icon>
+    <div v-if="store.ui.sidebarOpen" class="sidebar-scrim" @click="UI.toggleSidebar(false)"></div>
 
     <main class="main-area">
-      <Sessions v-if="store.ui.view === 'home'" />
-      <Chat v-else-if="store.ui.view === 'chat'" />
-      <Settings v-else />
+      <Transition name="view-change" mode="out-in">
+        <Sessions v-if="store.ui.view === 'home'" key="home" />
+        <Chat v-else-if="store.ui.view === 'chat'" key="chat" />
+        <Settings v-else key="settings" />
+      </Transition>
     </main>
 
-    <div v-if="store.ui.toast" class="toast" role="status">{{ store.ui.toast }}</div>
+    <mdui-snackbar placement="bottom-end" :open="Boolean(store.ui.toast)" :message="store.ui.toast"></mdui-snackbar>
   </div>
 </template>
 
