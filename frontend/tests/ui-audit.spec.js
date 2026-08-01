@@ -73,6 +73,9 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.goto('/')
 
   await capture(page, testInfo, '01-home')
+  await page.locator('.icon-command[aria-label="收起侧边栏"]').click()
+  await capture(page, testInfo, '01-home-collapsed-rail')
+  await page.locator('.icon-command[aria-label="展开侧边栏"]').click()
   await page.locator('.panel-heading mdui-button-icon').first().click()
   await capture(page, testInfo, '02-add-workspace-dialog')
   await page.locator('mdui-dialog[open] mdui-button[slot="action"]').first().click()
