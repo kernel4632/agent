@@ -27,7 +27,7 @@ function formatTokens(value) {
 </script>
 
 <template>
-  <m3e-card class="message" :class="`message--${message.role}`" :data-message-id="message.id">
+  <component :is="message.role === 'user' ? 'm3e-card' : 'article'" class="message" :class="`message--${message.role}`" :data-message-id="message.id">
     <template v-if="message.role === 'user'">
       <div class="user-message__content">{{ message.content }}</div>
       <div v-if="message.files?.length" class="user-message__files"><span v-for="file in message.files" :key="file.id"><m3e-icon name="attach_file"></m3e-icon>{{ file.name }}</span></div>
@@ -59,7 +59,7 @@ function formatTokens(value) {
 
       <div v-if="message.error" class="message-error"><m3e-icon name="error"></m3e-icon><span>{{ message.error }}</span></div>
     </template>
-  </m3e-card>
+  </component>
 </template>
 
 <style lang="scss" src="../styles/components/MessageItem.scss"></style>

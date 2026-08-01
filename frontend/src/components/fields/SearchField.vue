@@ -20,6 +20,6 @@ const inputAttrs = computed(() => { const { class: _class, style: _style, ...res
   <m3e-search-bar :class="$attrs.class" :style="$attrs.style" clearable :clear-label="label" @clear="emit('update:modelValue', '')">
     <m3e-icon slot="leading" name="search"></m3e-icon>
     <input slot="input" v-bind="inputAttrs" type="search" :aria-label="label" :placeholder="label" :value="modelValue" @input="emit('update:modelValue', $event.target.value)" />
-    <slot name="trailing" slot="trailing"></slot>
+    <span slot="trailing"><slot name="trailing"></slot></span>
   </m3e-search-bar>
 </template>

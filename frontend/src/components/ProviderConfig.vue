@@ -64,7 +64,7 @@ function openModelSettings(modelName) {
 async function openModelPicker() {
   modelDialogOpen.value = true                                        // 先打开弹窗展示明确加载反馈
   modelsLoading.value = true                                          // 按钮和弹窗共享请求状态
-  await new Promise((resolve) => setTimeout(resolve, 650))             // TODO(API): 替换为真实模型发现请求
+  await new Promise((resolve) => setTimeout(resolve, 1800))            // TODO(API): 替换为真实模型发现请求
   modelsLoading.value = false                                         // 候选目录就绪后显示可选项
 }
 </script>
@@ -123,7 +123,7 @@ async function openModelPicker() {
           <template v-if="!modelsLoading"><m3e-card v-for="modelName in candidates" :key="modelName" actionable @click="addDiscoveredModel(modelName)"><div class="model-picker-row"><m3e-avatar>M</m3e-avatar><strong>{{ modelName }}</strong><m3e-icon name="add"></m3e-icon></div></m3e-card></template>
           <div v-if="!modelsLoading && !candidates.length" class="empty-state compact">{{ t('allModelsAdded') }}</div>
         </div>
-        <m3e-button slot="actions"><m3e-dialog-action @click="modelDialogOpen = false">{{ t('done') }}</m3e-dialog-action></m3e-button>
+        <div slot="actions" end><m3e-button variant="filled"><m3e-dialog-action @click="modelDialogOpen = false">{{ t('done') }}</m3e-dialog-action></m3e-button></div>
     </m3e-dialog>
 
     <m3e-dialog class="model-settings-dialog" :open="Boolean(modelSettingsName)" @closed="modelSettingsName = ''">
@@ -135,7 +135,7 @@ async function openModelPicker() {
           <label class="switch-field"><span><strong>{{ t('reasoningFeature') }}</strong><small>{{ t('reasoningDescription') }}</small></span><m3e-switch :checked="currentModelSettings.reasoning === true" @change="Settings.updateModel(selectedName, modelSettingsName, { reasoning: $event.target.checked })"></m3e-switch></label>
           <label class="switch-field"><span><strong>{{ t('toolFeature') }}</strong><small>{{ t('toolDescription') }}</small></span><m3e-switch :checked="currentModelSettings.tools === true" @change="Settings.updateModel(selectedName, modelSettingsName, { tools: $event.target.checked })"></m3e-switch></label>
         </div>
-        <m3e-button slot="actions"><m3e-dialog-action @click="modelSettingsName = ''">{{ t('done') }}</m3e-dialog-action></m3e-button>
+        <div slot="actions" end><m3e-button variant="filled"><m3e-dialog-action @click="modelSettingsName = ''">{{ t('done') }}</m3e-dialog-action></m3e-button></div>
     </m3e-dialog>
   </section>
 </template>

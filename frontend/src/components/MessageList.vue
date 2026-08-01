@@ -36,7 +36,10 @@ function scrollAdjacent(messageID, direction) {
   return target?.id || messageID                                        // 地图保存新的活动身份
 }
 
-watchMessages(() => props.messages, scrollToLatest)                     // 流式文本和工具状态变化后跟随最新反馈
+watchMessages(() => {                                                   // 只跟随时间线末端，不让历史工具审批把阅读位置拉到底部
+  const latest = props.messages.at(-1)                                 // 读取当前最后一条消息的流式状态
+  return `${props.messages.length}|${latest?.content || ''}|${latest?.request?.status || ''}|${latest?.isStreaming || false}`
+}, scrollToLatest)
 defineExpose({ scrollToMessage, scrollAdjacent, scrollToLatest })        // 对话页快速地图使用这些命令
 </script>
 

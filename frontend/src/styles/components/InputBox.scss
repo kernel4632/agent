@@ -1,14 +1,13 @@
-.composer { width: 100%; max-width: 100%; min-width: 0; overflow: visible; border-radius: 28px; background: var(--md-sys-color-surface-container-high); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: background-color 180ms ease, box-shadow 220ms cubic-bezier(.2, 0, 0, 1), transform 220ms cubic-bezier(.2, 0, 0, 1); }
+.composer { width: 100%; max-width: 100%; min-width: 0; overflow: visible; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 26px; background: var(--md-sys-color-surface-container); box-shadow: 0 1px 2px rgba(0, 0, 0, .22); transition: background-color 180ms ease, box-shadow 220ms cubic-bezier(.2, 0, 0, 1); }
 .composer:focus-within { background: var(--md-sys-color-surface-container-highest); box-shadow: 0 4px 12px rgba(0, 0, 0, .35); }
-.composer__input { display: block; width: 100%; }
-.composer__input { min-height: 64px; }
+.composer__input { display: block; width: 100%; min-height: 46px; --m3e-form-field-container-color: transparent; --m3e-form-field-hover-container-color: transparent; --m3e-form-field-container-shape: 26px 26px 0 0; }
 .composer__input textarea { font-size: 14px; line-height: 1.55; }
 .composer__files { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 0; animation: chips-in 180ms cubic-bezier(.2, 0, 0, 1); }
 .composer__files m3e-input-chip { max-width: 240px; }
-.composer__bar { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 6px 12px 10px; }
+.composer__bar { display: flex; align-items: center; justify-content: space-between; min-height: 46px; padding: 4px 8px 7px; }
 .composer__left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.model-select { width: min(250px, 46vw); --shape-corner: 18px; }
-.send-command { width: 48px; height: 48px; flex: 0 0 48px; transition: transform 180ms cubic-bezier(.2, 0, 0, 1); }
+.model-select { width: min(220px, 46vw); --shape-corner: 18px; }
+.send-command { width: 40px; height: 40px; flex: 0 0 40px; transition: transform 180ms cubic-bezier(.2, 0, 0, 1); }
 .send-command:not([disabled]):hover { transform: scale(1.04); }
 .send-command:active { transform: scale(.94); }
 @media (max-width: 480px) { .model-select { width: min(210px, 54vw); } .composer__bar { padding-inline: 8px; } }

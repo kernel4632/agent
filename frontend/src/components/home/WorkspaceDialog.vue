@@ -32,7 +32,9 @@ function submit() {
       <TextField v-model="name" :label="t('name')" :placeholder="t('workspaceNameExample')" />
       <TextField v-model="path" :label="t('path')" :placeholder="t('workspacePathExample')" @keydown.enter="submit" />
     </div>
-    <m3e-button slot="actions"><m3e-dialog-action @click="emit('close')">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
-    <m3e-button slot="actions" :disabled="!name.trim() || !path.trim()"><m3e-dialog-action @click="submit">{{ t('add') }}</m3e-dialog-action></m3e-button>
+    <div slot="actions" end>
+      <m3e-button><m3e-dialog-action @click="emit('close')">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
+      <m3e-button variant="filled" :disabled="!name.trim() || !path.trim()"><m3e-dialog-action @click="submit">{{ t('add') }}</m3e-dialog-action></m3e-button>
+    </div>
   </m3e-dialog>
 </template>

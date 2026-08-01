@@ -4,7 +4,7 @@ Session 分组：按主页给出的时间组渲染行，并管理原位标题草
 调用示例：<SessionGroups :groups="groups" @open="openSession" />。
 -->
 <script setup>
-import { ref } from 'vue'                                              // 保存当前行尚未提交的标题草稿
+import { nextTick, ref } from 'vue'                                    // 保存标题草稿并在切换后聚焦字段
 import { formatDateTime, t } from '../../i18n.js'                      // 提供 Session 摘要和时间格式
 import TextField from '../fields/TextField.vue'                       // 使用 M3E 标准标题字段
 
@@ -17,12 +17,15 @@ defineProps({
 const emit = defineEmits(['open', 'rename', 'delete', 'create'])       // 将所有业务动作交回主页
 const editingSessionID = ref('')                                      // 当前原位编辑行身份
 const editingTitle = ref('')                                          // 当前标题草稿
+const editingField = ref(null)                                        // 当前唯一可见的标题输入字段
 
 
 // --- 进入标题编辑 ---
-function startRename(session) {
+async function startRename(session) {
   editingSessionID.value = session.id                                 // 只切换目标行呈现状态
   editingTitle.value = session.title                                  // 从响应式事实复制局部草稿
+  await nextTick()                                                     // 等待目标行替换为输入字段
+  editingField.value?.[0]?.select?.()                                  // v-for 模板 ref 返回数组，选中唯一可见字段
 }
 
 
@@ -49,11 +52,11 @@ function formatTime(timestamp) {
     <div v-if="groups.length" class="session-groups">
       <section v-for="group in groups" :key="group.id" class="session-group">
         <h2>{{ group.label }}</h2>
-        <m3e-card v-for="session in group.items" :key="session.id" actionable class="home-session" @click="emit('open', session.id)">
+        <m3e-card v-for="session in group.items" :key="session.id" actionable class="home-session" :class="{ 'is-editing': editingSessionID === session.id }" @click="emit('open', session.id)">
           <div class="home-session__layout">
             <m3e-avatar class="home-session__model">{{ session.model.slice(0, 1).toUpperCase() }}</m3e-avatar>
             <div class="home-session__main">
-              <TextField v-if="editingSessionID === session.id" v-model="editingTitle" maxlength="100" :label="t('sessionTitle')" @click.stop @keydown.enter.prevent="saveRename" @keydown.esc="editingSessionID = ''" @blur="saveRename" />
+              <TextField v-if="editingSessionID === session.id" ref="editingField" v-model="editingTitle" maxlength="100" :label="t('sessionTitle')" @click.stop @keydown.enter.prevent="saveRename" @keydown.esc.stop="editingSessionID = ''" @blur="saveRename" />
               <strong v-else>{{ session.title }}</strong>
               <small>{{ session.model }} · {{ t('messageCount', { count: session.messageCount }) }} · {{ formatTime(session.updatedAt) }}</small>
             </div>

@@ -33,9 +33,11 @@ import '@m3e/icons/outlined/close'                  // 注册关闭动作图标
 import '@m3e/icons/outlined/code'                   // 注册命令工具图标
 import '@m3e/icons/outlined/content_copy'           // 注册复制动作图标
 import '@m3e/icons/outlined/delete'                 // 注册删除动作图标
+import '@m3e/icons/outlined/description'            // 注册读取文件图标
 import '@m3e/icons/outlined/dns'                    // 注册供应商图标
 import '@m3e/icons/outlined/download'               // 注册下载动作图标
 import '@m3e/icons/outlined/edit'                   // 注册重命名动作图标
+import '@m3e/icons/outlined/edit_document'          // 注册写入文件图标
 import '@m3e/icons/outlined/error'                  // 注册错误状态图标
 import '@m3e/icons/outlined/keyboard_arrow_down'    // 注册展开状态图标
 import '@m3e/icons/outlined/folder'                 // 注册工作区图标
@@ -44,6 +46,7 @@ import '@m3e/icons/outlined/home'                   // 注册主页图标
 import '@m3e/icons/outlined/hub'                    // 注册 MCP 图标
 import '@m3e/icons/outlined/keyboard_double_arrow_left' // 注册收起侧边栏图标
 import '@m3e/icons/outlined/keyboard_arrow_right'   // 注册列表导航图标
+import '@m3e/icons/outlined/language'               // 注册网络访问图标
 import '@m3e/icons/outlined/menu_open'              // 注册展开侧边栏图标
 import '@m3e/icons/outlined/palette'                // 注册外观图标
 import '@m3e/icons/outlined/pause_circle'           // 注册暂停状态图标
@@ -52,6 +55,7 @@ import '@m3e/icons/outlined/settings'               // 注册设置图标
 import '@m3e/icons/outlined/smart_toy'              // 注册提示词图标
 import '@m3e/icons/outlined/stop'                   // 注册停止动作图标
 import '@m3e/icons/outlined/storage'                // 注册数据管理图标
+import '@m3e/icons/outlined/terminal'               // 注册命令执行图标
 import '@m3e/icons/outlined/tune'                   // 注册模型设置图标
 import '@m3e/icons/outlined/undo'                   // 注册回退动作图标
 import '@m3e/icons/outlined/upload'                 // 注册上传动作图标

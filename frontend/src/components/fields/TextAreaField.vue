@@ -10,6 +10,7 @@ defineOptions({ inheritAttrs: false })                               // 外部�
 defineProps({
   modelValue: { type: String, default: '' },                          // 当前多行文本
   label: { type: String, default: '' },                               // 输入框浮动标签
+  variant: { type: String, default: 'outlined' },                     // 普通表单描边，对话输入可使用融合填充面
   minRows: { type: Number, default: 1 },                              // 初始最少可见行数
   maxRows: { type: Number, default: 0 },                              // 自动增长上限，0 表示不限制
 })
@@ -22,7 +23,7 @@ defineExpose({ focus: () => inputElement.value?.focus() })             // 只开
 </script>
 
 <template>
-  <m3e-form-field :class="$attrs.class" :style="$attrs.style">
+  <m3e-form-field :class="$attrs.class" :style="$attrs.style" :variant="variant" hide-subscript="always">
     <label slot="label" :for="fieldID">{{ label }}</label>
     <textarea :id="fieldID" ref="inputElement" v-bind="inputAttrs" :value="modelValue" @input="emit('update:modelValue', $event.target.value)" @keydown="emit('keydown', $event)"></textarea>
   </m3e-form-field>

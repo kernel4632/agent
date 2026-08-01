@@ -82,8 +82,10 @@ function confirmRollback() {
     <m3e-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" @closed="pendingRollback = null">
       <span slot="header">{{ t('rollbackTool') }}</span>
       <span>{{ t('rollbackDescription', { step: pendingRollback }) }}</span>
-      <m3e-button slot="actions"><m3e-dialog-action @click="pendingRollback = null">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
-      <m3e-button slot="actions"><m3e-dialog-action @click="confirmRollback">{{ t('confirmRollback') }}</m3e-dialog-action></m3e-button>
+      <div slot="actions" end>
+        <m3e-button><m3e-dialog-action @click="pendingRollback = null">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
+        <m3e-button variant="filled"><m3e-dialog-action @click="confirmRollback">{{ t('confirmRollback') }}</m3e-dialog-action></m3e-button>
+      </div>
     </m3e-dialog>
   </section>
 </template>

@@ -12,6 +12,7 @@ const emit = defineEmits(['rollback', 'approval'])                    // 向对�
 const open = ref(props.tool.status === 'waiting')                     // 待审批工具默认展开
 const labels = { waiting: 'waiting', running: 'running', completed: 'completed', rejected: 'rejected' } // 状态映射到翻译键
 const status = computed(() => t(labels[props.tool.status] || 'completed')) // 未知终态使用稳定完成反馈
+const icons = { read_file: 'description', write_file: 'edit_document', run_command: 'terminal', web_fetch: 'language', delegate_task: 'hub' } // 每类工具使用可快速辨认的语义图标
 
 
 // --- 提交审批决定 ---
@@ -22,13 +23,15 @@ function decide(decision) {
 
 <template>
   <m3e-card class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
-    <div class="tool-strip__line" @click="open = !open">
-      <span class="tool-strip__icon"><m3e-icon :name="tool.name === 'run_command' ? 'code' : 'build'"></m3e-icon></span>
-      <strong>{{ tool.title || tool.name }}</strong>
-      <span class="tool-strip__preview">{{ tool.preview }}</span>
-      <span class="tool-strip__status"><i></i>{{ status }}</span>
-      <m3e-icon-button v-if="tool.checkpoint" :title="t('rollbackHere')" @click.stop="emit('rollback', tool.checkpoint)"><m3e-icon name="undo"></m3e-icon></m3e-icon-button>
-      <m3e-icon-button :aria-label="t(open ? 'collapseTool' : 'expandTool')" @click.stop="open = !open"><m3e-icon name="keyboard_arrow_down"></m3e-icon></m3e-icon-button>
+    <div class="tool-strip__line">
+      <div class="tool-strip__summary" role="button" tabindex="0" :aria-expanded="open" @click="open = !open" @keydown.enter="open = !open" @keydown.space.prevent="open = !open">
+        <span class="tool-strip__icon"><m3e-icon :name="icons[tool.name] || 'build'"></m3e-icon></span>
+        <strong>{{ tool.title || tool.name }}</strong>
+        <span class="tool-strip__preview">{{ tool.preview }}</span>
+        <span class="tool-strip__status"><i></i>{{ status }}</span>
+      </div>
+      <m3e-icon-button v-if="tool.checkpoint" :aria-label="t('rollbackHere')" :title="t('rollbackHere')" @click="emit('rollback', tool.checkpoint)"><m3e-icon name="undo"></m3e-icon></m3e-icon-button>
+      <m3e-icon-button :aria-label="t(open ? 'collapseTool' : 'expandTool')" :title="t(open ? 'collapseTool' : 'expandTool')" @click="open = !open"><m3e-icon name="keyboard_arrow_down"></m3e-icon></m3e-icon-button>
     </div>
 
     <div v-if="open" class="tool-strip__detail">
@@ -37,9 +40,9 @@ function decide(decision) {
     </div>
 
     <footer v-if="tool.status === 'waiting'" class="tool-strip__approval">
-      <m3e-button @click="decide('deny')">{{ t('deny') }}</m3e-button>
-      <m3e-button @click="decide('allow-once')">{{ t('allow') }}</m3e-button>
-      <m3e-button @click="decide('always-allow')">{{ t('alwaysAllow') }}</m3e-button>
+      <m3e-button class="approval-deny" @click="decide('deny')">{{ t('deny') }}</m3e-button>
+      <m3e-button variant="tonal" @click="decide('allow-once')">{{ t('allow') }}</m3e-button>
+      <m3e-button variant="filled" @click="decide('always-allow')">{{ t('alwaysAllow') }}</m3e-button>
     </footer>
   </m3e-card>
 </template>

@@ -10,7 +10,7 @@ const permissionOptions = [{ value: 'allow', label: 'allow' }, { value: 'ask', l
 
 <template>
   <section class="simple-settings">
-    <header class="simple-settings__heading"><div><h3>{{ t('tools') }}</h3><p>{{ t('toolsDescription') }}</p></div><span>{{ tools.length }}</span></header>
+    <header class="simple-settings__heading"><div><h3>{{ t('tools') }} <span class="settings-count">{{ tools.length }}</span></h3><p>{{ t('toolsDescription') }}</p></div></header>
     <m3e-card v-for="tool in tools" :key="tool.name" class="tool-setting-row">
       <div class="tool-setting-row__layout">
         <m3e-avatar class="tool-setting-row__symbol"><m3e-icon name="build"></m3e-icon></m3e-avatar>

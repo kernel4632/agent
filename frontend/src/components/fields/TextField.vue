@@ -21,7 +21,7 @@ defineExpose({ focus: () => inputElement.value?.focus(), select: () => inputElem
 </script>
 
 <template>
-  <m3e-form-field :class="$attrs.class" :style="$attrs.style">
+  <m3e-form-field :class="$attrs.class" :style="$attrs.style" hide-subscript="always">
     <label slot="label" :for="fieldID">{{ label }}</label>
     <input :id="fieldID" ref="inputElement" v-bind="inputAttrs" :type="type" :value="modelValue" @input="emit('update:modelValue', $event.target.value)" @blur="emit('blur', $event)" @keydown="emit('keydown', $event)" />
   </m3e-form-field>

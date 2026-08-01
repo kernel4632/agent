@@ -4,7 +4,7 @@
 调用示例：App 在 ui.view === 'settings' 时渲染 <Settings />。
 -->
 <script setup>
-import { computed, nextTick, ref } from 'vue'                        // 引入当前设置分类标题和移动端滚动反馈
+import { computed, nextTick, ref } from 'vue'                        // 引入设置草稿和移动端滚动反馈
 import ProviderConfig from '../components/ProviderConfig.vue'        // 引入双栏供应商管理
 import AppearanceSettings from '../components/settings/AppearanceSettings.vue' // 引入外观分类
 import DataSettings from '../components/settings/DataSettings.vue'   // 引入数据分类
@@ -21,13 +21,12 @@ const sections = [                                                    // 严格�
   { id: 'providers', label: 'providerConfig', icon: 'dns' },
   { id: 'tools', label: 'toolManagement', icon: 'build' },
   { id: 'mcp', label: 'mcpManagement', icon: 'hub' },
-  { id: 'prompt', label: 'promptDefinition', icon: 'smart-toy' },
+  { id: 'prompt', label: 'promptDefinition', icon: 'smart_toy' },
   { id: 'appearance', label: 'appearance', icon: 'palette' },
   { id: 'data', label: 'dataManagement', icon: 'storage' },
 ]
 const draft = computed(() => store.settings.draft)                    // 当前设置页只消费隔离草稿
 const settingsView = ref(null)                                        // 设置分类切换后恢复页面顶部
-const currentSection = computed(() => sections.find((section) => section.id === store.ui.settingsSection) || sections[0]) // 顶栏标题跟随导航
 const defaultToolTitles = { read_file: 'readFile', write_file: 'writeFile', run_command: 'runCommand', web_fetch: 'webFetch', delegate_task: 'delegateTask' } // 默认别名跟随界面语言
 
 function toolTitle(tool) {
@@ -49,8 +48,6 @@ async function openSection(sectionID) {
     <SettingsNavigation :sections="sections" :active="store.ui.settingsSection" :saved="Boolean(store.settings.savedAt)" @select="openSection" />
 
     <main class="settings-content">
-      <header class="settings-content__header"><div><h2>{{ t(currentSection.label) }}</h2><p>{{ t('draftFeedback') }}</p></div></header>
-
       <ProviderConfig v-if="store.ui.settingsSection === 'providers'" :config="draft" />
 
       <ToolSettings v-else-if="store.ui.settingsSection === 'tools'" :tools="draft.tools" :title-for="toolTitle" @update="SettingsCommand.updateTool" />

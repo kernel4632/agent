@@ -50,7 +50,7 @@ function selectFiles(event) {
     <div v-if="session.files.length" class="composer__files">
       <m3e-input-chip v-for="file in session.files" :key="file.id" removable :remove-label="t('removeFile', { name: file.name })" @remove="emit('remove-file', file.id)"><m3e-icon slot="icon" name="attach_file"></m3e-icon>{{ file.name }}</m3e-input-chip>
     </div>
-    <TextAreaField ref="inputElement" v-model="content" class="composer__input" :min-rows="1" :max-rows="8" :label="t('message')" :placeholder="t('messagePlaceholder')" @keydown="handleKeydown" />
+    <TextAreaField ref="inputElement" v-model="content" class="composer__input" variant="filled" :min-rows="1" :max-rows="8" :label="t('message')" :placeholder="t('messagePlaceholder')" @keydown="handleKeydown" />
     <div class="composer__bar">
       <div class="composer__left">
         <input ref="fileInput" class="visually-hidden" type="file" multiple @change="selectFiles" />

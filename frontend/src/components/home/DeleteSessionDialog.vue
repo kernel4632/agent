@@ -14,7 +14,9 @@ defineEmits(['close', 'confirm'])                                      // 将最
   <m3e-dialog class="delete-session-dialog" :open="Boolean(session)" @closed="$emit('close')">
     <span slot="header">{{ t('deleteSession') }}</span>
     <span>{{ session ? t('deleteSessionDescription', { title: session.title }) : '' }}</span>
-    <m3e-button slot="actions"><m3e-dialog-action @click="$emit('close')">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
-    <m3e-button slot="actions" class="danger-command"><m3e-dialog-action @click="$emit('confirm')">{{ t('delete') }}</m3e-dialog-action></m3e-button>
+    <div slot="actions" end>
+      <m3e-button><m3e-dialog-action @click="$emit('close')">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
+      <m3e-button variant="filled" class="danger-command"><m3e-dialog-action @click="$emit('confirm')">{{ t('delete') }}</m3e-dialog-action></m3e-button>
+    </div>
   </m3e-dialog>
 </template>

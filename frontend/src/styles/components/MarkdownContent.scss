@@ -12,9 +12,9 @@
 .markdown h2,
 .markdown h3 { margin: 24px 0 11px; font-size: 16px; letter-spacing: 0; }
 .markdown code { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
-.markdown :not(pre) > code { padding: 3px 7px; border-radius: 10px; background: var(--md-sys-color-surface-container); font-size: .9em; }
-.markdown pre { position: relative; max-width: 100%; padding: 16px; overflow-x: auto; border-radius: 20px; background: var(--md-sys-color-surface-container-low); font-size: 12px; line-height: 1.6; }
+.markdown :not(pre) > code { padding: 2px 6px; border-radius: 8px; background: var(--md-sys-color-surface-container); font-size: .9em; }
+.markdown pre { position: relative; max-width: 100%; padding: 14px; overflow-x: auto; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 16px; background: var(--md-sys-color-surface-container-low); font-size: 13px; line-height: 1.6; }
 .markdown blockquote { padding: 12px 16px; border-radius: 0 12px 12px 0; border-left: 3px solid var(--md-sys-color-primary); color: var(--md-sys-color-on-surface-variant); background: var(--md-sys-color-surface-container-low); }
 .markdown a { color: var(--md-sys-color-primary); text-decoration-color: var(--md-sys-color-outline); text-underline-offset: 4px; }
 .markdown-code__copy { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; }
-.markdown-mermaid { margin: 16px 0; padding: 16px; overflow-x: auto; border-radius: 20px; background: var(--md-sys-color-surface-container-low); }
+.markdown-mermaid { margin: 16px 0; padding: 16px; overflow-x: auto; border-radius: 16px; background: var(--md-sys-color-surface-container-low); }

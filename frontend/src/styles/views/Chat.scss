@@ -1,14 +1,15 @@
-.chat-view { position: relative; display: grid; grid-template-rows: 72px minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; overflow: hidden; }
-.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 0 max(32px, calc((100% - 880px) / 2)); background: var(--md-sys-color-surface-container-lowest); }
+.chat-view { position: relative; display: grid; grid-template-rows: 58px minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; overflow: hidden; }
+.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 0 max(36px, calc((100% - 900px) / 2)); border-bottom: 1px solid var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container-lowest); }
 .chat-header__title { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.chat-header__title small { color: var(--md-sys-color-on-surface-variant); font-size: 10px; opacity: 0; transition: opacity 160ms ease; }
+.chat-header__title small { color: var(--md-sys-color-on-surface-variant); font-size: 12px; opacity: 0; transition: opacity 160ms ease; }
 .chat-header__title:hover small { opacity: 1; }
-.chat-progress { position: absolute; z-index: 12; top: 70px; left: 0; width: 100%; }
+.chat-progress { position: absolute; z-index: 12; top: 58px; left: 0; width: 100%; }
 
-.context-meter { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 48px; border-radius: 50%; outline: none; }
-.context-meter > m3e-circular-progress-indicator { position: absolute; inset: 4px; width: 40px; height: 40px; }
+.context-meter { position: relative; display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; outline: none; }
+.context-meter:focus-visible { box-shadow: 0 0 0 2px var(--md-sys-color-primary); }
+.context-meter > m3e-circular-progress-indicator { position: absolute; inset: 3px; width: 34px; height: 34px; }
 .context-meter > span { position: relative; z-index: 1; color: var(--md-sys-color-on-surface); font-size: 10px; font-weight: 700; }
-.context-popover { position: absolute; z-index: 30; top: 52px; right: 0; display: none; width: 220px; padding: 18px; border-radius: 16px; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high); box-shadow: 0 4px 12px rgba(0, 0, 0, .35); }
+.context-popover { position: absolute; z-index: 30; top: 44px; right: 0; display: none; width: 220px; padding: 14px; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 16px; color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high); box-shadow: 0 8px 24px rgba(0, 0, 0, .32); }
 .context-meter:hover .context-popover, .context-meter:focus .context-popover { display: block; animation: popover-in 160ms cubic-bezier(.2, 0, 0, 1); }
 .context-popover strong { display: block; margin-bottom: 10px; }
 .context-popover div { display: flex; justify-content: space-between; padding: 6px 0; color: var(--md-sys-color-on-surface-variant); font-size: 11px; }
@@ -18,12 +19,12 @@
 .chat-empty { display: grid; place-items: center; align-content: center; height: 100%; padding-bottom: 8vh; }
 .chat-empty > span { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px; color: var(--md-sys-color-on-primary-container); background: var(--md-sys-color-primary-container); font-weight: 700; }
 .chat-empty h1 { margin: 18px 0 0; font-size: 24px; font-weight: 500; }
-.chat-footer { position: relative; z-index: 20; width: min(840px, calc(100% - 40px)); max-width: 100%; min-width: 0; margin: 0 auto; padding: 0 0 18px; }
+.chat-footer { position: relative; z-index: 20; width: min(900px, calc(100% - 48px)); max-width: 100%; min-width: 0; margin: 0 auto; padding: 0 0 12px; }
 .rollback-preview { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 56px; margin-bottom: 10px; padding: 8px 14px; border-radius: 16px; color: var(--md-sys-color-on-tertiary-container); background: var(--md-sys-color-tertiary-container); animation: surface-in 220ms cubic-bezier(.2, 0, 0, 1); }
 .rollback-preview span { min-width: 0; }
 .rollback-preview strong, .rollback-preview small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rollback-preview strong { font-size: 11px; }
-.rollback-preview small { margin-top: 3px; color: inherit; font-size: 9px; opacity: .72; }
+.rollback-preview strong { font-size: 13px; }
+.rollback-preview small { margin-top: 3px; color: inherit; font-size: 11px; opacity: .72; }
 
 @media (max-width: 760px) {
   .chat-header { padding: 0 18px; }

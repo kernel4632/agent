@@ -25,10 +25,10 @@ function selectValue(event) {
 </script>
 
 <template>
-  <m3e-form-field>
+  <m3e-form-field hide-subscript="always">
     <label slot="label" :for="fieldID">{{ label }}</label>
-    <m3e-select :id="fieldID" :value="modelValue" :disabled="disabled" @change="selectValue">
-      <m3e-option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">{{ option.label }}</m3e-option>
+    <m3e-select :id="fieldID" :disabled="disabled" @change="selectValue">
+      <m3e-option v-for="option in options" :key="option.value" :value="option.value" :selected="Array.isArray(modelValue) ? modelValue.includes(option.value) : modelValue === option.value" :disabled="option.disabled">{{ option.label }}</m3e-option>
     </m3e-select>
   </m3e-form-field>
 </template>

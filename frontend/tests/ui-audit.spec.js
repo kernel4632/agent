@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 async function capture(page, testInfo, name) {
-  await page.waitForTimeout(700)
+  await page.waitForTimeout(1250)
   const path = testInfo.outputPath(`${name}.png`)
   await page.screenshot({ path, fullPage: true })
   await testInfo.attach(name, { path, contentType: 'image/png' })
@@ -85,7 +85,7 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.locator('.icon-command[aria-label="展开侧边栏"]').click()
   await page.locator('.panel-heading m3e-icon-button').first().click()
   await capture(page, testInfo, '02-add-workspace-dialog')
-  await page.locator('m3e-dialog[open] m3e-button[slot="actions"]').first().click()
+  await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').first().click()
 
   await page.locator('.home-session__actions m3e-icon-button').first().click()
   await capture(page, testInfo, '03-session-rename')
@@ -97,6 +97,7 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.reload()
   await page.locator('.home-session').first().click()
   await capture(page, testInfo, '05-chat')
+  await expect(page.locator('.model-select m3e-select')).toContainText('kimi-k2.6')
 
   const waitingTool = page.locator('.tool-strip.is-waiting')
   await waitingTool.scrollIntoViewIfNeeded()
@@ -104,7 +105,8 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await waitingTool.locator('m3e-button').filter({ hasText: '始终允许' }).click()
   await capture(page, testInfo, '07-tool-approved')
 
-  await page.locator('.tool-strip').first().click()
+  await page.locator('.tool-strip__summary').first().focus()
+  await page.keyboard.press('Enter')
   await capture(page, testInfo, '08-tool-expanded')
   await page.locator('.tool-strip m3e-icon-button[title]').first().click()
   await capture(page, testInfo, '09-rollback-dialog')
@@ -123,13 +125,14 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.locator('.sidebar__fifth m3e-button').click()
   await capture(page, testInfo, '13-settings-providers')
   await page.locator('.provider-models m3e-button').click()
+  await expect(page.locator('.model-picker-loading')).toBeVisible()
   await capture(page, testInfo, '14-model-picker-loading')
   await page.waitForTimeout(700)
   await capture(page, testInfo, '15-model-picker-dialog')
-  await page.locator('m3e-dialog[open] m3e-button[slot="actions"]').click()
+  await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
   await page.locator('.provider-model-list m3e-icon-button').first().click()
   await capture(page, testInfo, '16-model-settings-dialog')
-  await page.locator('m3e-dialog[open] m3e-button[slot="actions"]').click()
+  await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
 
   for (const [label, name] of [
     ['工具管理', '16-settings-tools'],
@@ -141,6 +144,7 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
     await openSettingsSection(page, label)
     await capture(page, testInfo, name)
     if (label === '工具管理') {
+      await expect(page.locator('.tool-setting-row m3e-select').first()).toContainText('允许')
       await page.locator('.tool-setting-row m3e-select').first().click()
       await capture(page, testInfo, '16-settings-tool-permission-menu')
       await page.keyboard.press('Escape')
@@ -155,6 +159,8 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
     }
   }
 
+  await expect(page.locator('.simple-settings > m3e-form-field m3e-select').first()).toContainText('简体中文')
+  await expect(page.locator('.simple-settings > m3e-form-field m3e-select').nth(1)).toContainText('舒适')
   await page.locator('.simple-settings > m3e-form-field m3e-select').first().click()
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
