@@ -73,6 +73,7 @@ async function openModelPicker() {
   <section class="provider-settings">
     <aside class="provider-list">
       <header><div><h2>{{ t('providers') }}</h2><span>{{ providerNames.length }}</span></div></header>
+      <div class="provider-search"><m3e-icon name="search"></m3e-icon><span>搜索模型平台...</span><m3e-icon name="tune"></m3e-icon></div>
       <div class="provider-list__items">
         <m3e-card v-for="name in providerNames" :key="name" actionable :variant="selectedName === name ? 'filled' : 'outlined'" :class="{ 'is-active': selectedName === name }" @click="selectedName = name">
           <div class="provider-list-item"><m3e-avatar>{{ name.slice(0, 1).toUpperCase() }}</m3e-avatar><strong>{{ name }}</strong><i :class="{ 'is-on': config.providers[name].enabled }"></i></div>
@@ -82,9 +83,10 @@ async function openModelPicker() {
     </aside>
 
     <div v-if="provider" class="provider-detail">
+      <header class="provider-detail__heading"><div><m3e-avatar>{{ selectedName.slice(0, 1).toUpperCase() }}</m3e-avatar><h2>{{ selectedName }}</h2></div><m3e-switch :checked="provider.enabled" @change="Settings.updateProvider(selectedName, 'enabled', $event.target.checked)"></m3e-switch></header>
       <div class="setting-row provider-identity">
         <TextField v-model="renameDraft" :label="t('providerName')" @keydown.enter="saveName" @blur="saveName" />
-        <label class="switch-field"><span><strong>{{ t('enableProvider') }}</strong><small>{{ t('enableProviderDescription') }}</small></span><m3e-switch :checked="provider.enabled" @change="Settings.updateProvider(selectedName, 'enabled', $event.target.checked)"></m3e-switch></label>
+        <label class="switch-field"><span><strong>{{ t('enableProvider') }}</strong><small>{{ t('enableProviderDescription') }}</small></span></label>
       </div>
 
       <TextField :label="t('apiAddress')" :model-value="provider.baseURL" placeholder="https://api.example.com/v1" @update:model-value="Settings.updateProvider(selectedName, 'baseURL', $event)" />

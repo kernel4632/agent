@@ -1,13 +1,17 @@
-.settings-view { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100%; }
-.settings-nav { display: grid; grid-template-rows: 80px repeat(6, 46px) minmax(0, 1fr) 44px; gap: 4px; padding: 14px 12px; border-right: 1px solid var(--app-line); background: #0b0b0b; }
+.settings-view { display: grid; grid-template-columns: 72px 290px minmax(0, 1fr); height: 100%; background: #111; }
+.settings-rail { display: grid; grid-template-rows: repeat(6, 58px) minmax(0, 1fr) 58px; justify-items: center; padding: 12px 0; border-right: 1px solid #282828; background: #1b1b1b; }
+.settings-rail m3e-icon-button { width: 48px; height: 48px; color: #b6b6b6; }
+.settings-rail m3e-icon-button.is-active { border-radius: 16px; color: #fff; background: #2b2b2b; }
+.settings-rail__bottom { align-self: end; }
+.settings-nav { display: grid; grid-template-rows: 98px repeat(6, 58px) minmax(0, 1fr) 44px; gap: 8px; padding: 22px 20px; border-right: 1px solid #282828; background: #1b1b1b; }
 .settings-nav header { padding: 10px 12px; }
 .settings-nav h1 { margin: 0; font-size: 24px; font-weight: 600; }
 .settings-nav header small { display: block; margin-top: 6px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; }
-.settings-nav > m3e-button { justify-content: flex-start; width: 100%; height: 46px; }
+.settings-nav > m3e-button { width: 100%; height: 58px; --shape-corner: 18px; }
 .settings-nav > m3e-button span { font-size: 14px; }
 .settings-nav footer { align-self: end; padding: 0 12px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; }
 
-.settings-content { min-width: 0; height: 100%; overflow: hidden; background: var(--app-canvas); }
+.settings-content { min-width: 0; height: 100%; overflow: hidden; background: #111; }
 .simple-settings { width: min(960px, calc(100% - 64px)); height: 100%; margin: 0 auto; padding-bottom: 48px; overflow-y: auto; animation: settings-section-in 220ms cubic-bezier(.2, 0, 0, 1); }
 .simple-settings__heading { display: flex; align-items: center; justify-content: space-between; min-height: 72px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
 .simple-settings h3 { margin: 0; font-size: 22px; font-weight: 600; }
@@ -36,9 +40,10 @@
 .data-settings small { margin-top: 5px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; }
 .settings-view .empty-state { display: grid; place-items: center; min-height: 180px; color: var(--md-sys-color-on-surface-variant); }
 
-@media (max-width: 1100px) { .settings-view { grid-template-columns: 208px minmax(0, 1fr); } .tool-setting-row__layout { grid-template-columns: 42px minmax(200px, 1fr) 190px 48px; } .mcp-setting__layout { grid-template-columns: minmax(160px, .7fr) minmax(220px, 1.3fr) 48px 40px; } }
+@media (max-width: 1100px) { .settings-view { grid-template-columns: 64px 228px minmax(0, 1fr); } .tool-setting-row__layout { grid-template-columns: 42px minmax(200px, 1fr) 190px 48px; } .mcp-setting__layout { grid-template-columns: minmax(160px, .7fr) minmax(220px, 1.3fr) 48px 40px; } }
 @media (max-width: 760px) {
   .settings-view { display: block; overflow-y: auto; }
+  .settings-rail { display: none; }
   .settings-nav { position: sticky; z-index: 12; top: 0; display: flex; width: 100%; height: 72px; gap: 4px; padding: 10px 12px; overflow-x: auto; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
   .settings-nav header, .settings-nav footer { display: none; }
   .settings-nav > m3e-button { width: auto; flex: 0 0 auto; }

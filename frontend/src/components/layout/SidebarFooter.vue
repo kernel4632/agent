@@ -15,5 +15,5 @@ defineEmits(['expand', 'settings'])                                   // 将底�
 
 <template>
   <div v-if="!open" class="sidebar__fourth"><m3e-icon-button class="icon-command" :aria-label="t('expandSidebar')" :title="t('expandSidebar')" @click="$emit('expand')"><m3e-icon name="menu_open"></m3e-icon></m3e-icon-button></div>
-  <div class="sidebar__fifth"><m3e-button :variant="view === 'settings' ? 'tonal' : 'text'" :class="{ 'is-active': view === 'settings' }" :title="t('settings')" @click="$emit('settings')"><m3e-icon slot="icon" name="settings"></m3e-icon><span v-if="open">{{ t('settings') }}</span></m3e-button></div>
+  <div class="sidebar__fifth"><div class="sidebar-nav-item" :class="{ 'is-active': view === 'settings' }"><m3e-button :variant="view === 'settings' ? 'tonal' : 'text'" :title="t('settings')" @click="$emit('settings')"></m3e-button><m3e-icon name="settings"></m3e-icon><span v-if="open">{{ t('settings') }}</span></div></div>
 </template>

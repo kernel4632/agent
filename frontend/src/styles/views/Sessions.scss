@@ -1,10 +1,10 @@
-.home-view { display: grid; grid-template-rows: 104px minmax(0, 1fr); height: 100%; animation: content-arrive 280ms var(--app-easing); }
-.home-search { align-self: end; width: min(760px, calc(100% - 64px)); margin: 0 auto 18px; --shape-corner: 16px; --m3e-search-bar-container-color: #202020; }
+.home-view { display: grid; grid-template-rows: 132px minmax(0, 1fr); height: 100%; animation: content-arrive 280ms var(--app-easing); }
+.home-search { align-self: end; width: min(920px, calc(100% - 96px)); margin: 0 auto 24px; --shape-corner: 12px; --m3e-search-bar-container-color: #242329; }
 .home-search kbd { padding: 3px 7px; border-radius: 5px; color: var(--md-sys-color-on-surface-variant); background: var(--md-sys-color-surface-container-highest); font: 11px "Cascadia Code", Consolas, monospace; }
 
-.home-body { display: grid; grid-template-columns: clamp(240px, 25vw, 320px) minmax(0, 1fr); width: min(1160px, calc(100% - 64px)); min-height: 0; margin: 0 auto; overflow: hidden; background: transparent; }
+.home-body { display: grid; grid-template-columns: clamp(300px, 34vw, 430px) minmax(0, 1fr); width: min(1320px, calc(100% - 72px)); min-height: 0; margin: 0 auto; overflow: hidden; background: transparent; }
 .workspace-panel, .session-panel { min-width: 0; min-height: 0; overflow: hidden; }
-.workspace-panel { border-right: 1px solid var(--app-line); }
+.workspace-panel { border-right: 0; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: 10px 18px; }
 .panel-heading > div { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .panel-heading h1 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; }
@@ -12,7 +12,7 @@
 .panel-heading p { max-width: 50%; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace-list { height: calc(100% - 60px); padding: 0 10px 14px; overflow-y: auto; }
-.workspace-list > m3e-card { display: block; width: 100%; min-height: 56px; margin-bottom: 3px; border-radius: 13px; --m3e-filled-card-container-color: #262626; --m3e-outlined-card-container-color: transparent; transition: background-color 160ms ease; }
+.workspace-list > m3e-card { display: block; width: 100%; min-height: 58px; margin-bottom: 3px; border-radius: 8px; --m3e-filled-card-container-color: #3b3941; --m3e-outlined-card-container-color: transparent; transition: background-color 160ms ease; }
 .workspace-list > m3e-card:hover { transform: translateY(-1px); }
 .workspace-card__layout { display: grid; grid-template-columns: 38px minmax(0, 1fr) 20px; align-items: center; gap: 10px; min-height: 60px; padding: 8px 12px; }
 .workspace-icon { justify-self: center; width: 34px; height: 34px; }
@@ -23,11 +23,11 @@
 .workspace-list small { margin-top: 3px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; }
 
 .session-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.session-panel__heading { padding-inline: 20px; }
-.session-groups { padding: 0 20px 32px; overflow-y: auto; }
+.session-panel__heading { padding-inline: 48px 20px; }
+.session-groups { padding: 0 20px 32px 48px; overflow-y: auto; }
 .session-group { margin-bottom: 18px; }
 .session-group h2 { margin: 10px 8px 7px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; font-weight: 600; }
-.home-session { display: block; width: 100%; min-height: 58px; margin-bottom: 3px; border-radius: 13px; --m3e-filled-card-container-color: #202020; --m3e-elevated-card-container-color: #171717; cursor: pointer; transition: background-color 160ms ease; }
+.home-session { display: block; width: 100%; min-height: 58px; margin-bottom: 3px; border-radius: 8px; --m3e-filled-card-container-color: #19181d; --m3e-elevated-card-container-color: transparent; cursor: pointer; transition: background-color 160ms ease; }
 .home-session:hover { --m3e-filled-card-container-color: #292929; --m3e-elevated-card-container-color: #202020; }
 .home-session:hover { transform: translateY(-1px); }
 .home-session__layout { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-height: 62px; padding: 8px 10px; }

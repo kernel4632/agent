@@ -18,7 +18,11 @@ defineEmits(['open'])                                                 // 将 Ses
   <section class="sidebar__third">
     <div class="sidebar__label"><span>{{ t('sessions') }}</span><small>{{ sessions.length }}</small></div>
     <div class="sidebar__sessions">
-      <m3e-button v-for="session in sessions" :key="session.id" :variant="view === 'chat' && activeId === session.id ? 'tonal' : 'text'" :class="{ 'is-active': view === 'chat' && activeId === session.id }" :title="session.title || t('unnamedSession')" @click="$emit('open', session.id)"><m3e-circular-progress-indicator v-if="session.status === 'running'" slot="icon" variant="wavy" indeterminate aria-label="正在运行"></m3e-circular-progress-indicator>{{ session.title || t('unnamedSession') }}</m3e-button>
+      <div v-for="session in sessions" :key="session.id" class="sidebar-session-item" :class="{ 'is-active': view === 'chat' && activeId === session.id }">
+        <m3e-button :variant="view === 'chat' && activeId === session.id ? 'tonal' : 'text'" :title="session.title || t('unnamedSession')" @click="$emit('open', session.id)"></m3e-button>
+        <m3e-circular-progress-indicator v-if="session.status === 'running'" variant="wavy" indeterminate aria-label="正在运行"></m3e-circular-progress-indicator>
+        <span>{{ session.title || t('unnamedSession') }}</span>
+      </div>
     </div>
   </section>
 </template>

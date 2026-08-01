@@ -69,6 +69,7 @@ h1, h2, h3, strong, p, small { font-style: normal; }
 }
 
 .app-shell--open { grid-template-columns: 320px minmax(0, 1fr); }
+.app-shell--settings { display: block; }
 
 .sidebar {
   position: relative;
@@ -91,17 +92,21 @@ h1, h2, h3, strong, p, small { font-style: normal; }
 .product-logo m3e-icon { width: 30px; height: 30px; }
 .icon-command { width: 40px; height: 40px; flex: 0 0 40px; color: var(--md-sys-color-on-surface-variant); }
 .sidebar__second { display: grid; gap: 6px; padding-top: 18px; }
-.sidebar__second m3e-button, .sidebar__fifth > m3e-button { justify-content: flex-start; width: 100%; height: 48px; overflow: hidden; white-space: nowrap; --shape-corner: 14px; }
-.sidebar__second m3e-button span, .sidebar__fifth m3e-button span { font-size: 16px; font-weight: 600; }
-.sidebar__second m3e-icon, .sidebar__fifth m3e-icon { width: 23px; height: 23px; }
+.sidebar-nav-item, .sidebar-session-item { position: relative; display: flex; align-items: center; min-width: 0; height: 48px; padding: 0 16px; border-radius: 14px; }
+.sidebar-nav-item > m3e-button, .sidebar-session-item > m3e-button { position: absolute; inset: 0; width: 100%; height: 100%; --shape-corner: 14px; }
+.sidebar-nav-item > m3e-icon { width: 23px; height: 23px; flex: 0 0 23px; color: #f0f0f0; pointer-events: none; }
+.sidebar-nav-item > span { min-width: 0; margin-left: 16px; color: #f0f0f0; font-size: 16px; font-weight: 600; pointer-events: none; }
+.sidebar-nav-item.is-active > span { color: #fff; }
 .sidebar m3e-button { --m3e-tonal-button-container-color: #262626; --m3e-tonal-button-label-text-color: #f2f2f2; }
 .app-shell:not(.app-shell--open) .sidebar__second m3e-button, .app-shell:not(.app-shell--open) .sidebar__fifth > m3e-button { justify-content: center; }
 .sidebar__third { min-height: 0; margin-top: 26px; overflow: hidden; border-top: 1px solid var(--app-line); }
 .sidebar__label { display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 8px 12px 0; color: #777; font-size: 12px; font-weight: 600; }
 .sidebar__label small { font-size: 12px; }
 .sidebar__sessions { height: calc(100% - 32px); overflow-y: auto; }
-.sidebar__sessions m3e-button { justify-content: flex-start; width: 100%; height: 42px; margin-bottom: 3px; padding-inline: 14px; --shape-corner: 14px; font-size: 14px; }
-.sidebar__sessions m3e-circular-progress-indicator { width: 17px; height: 17px; }
+.sidebar__sessions { display: grid; gap: 3px; }
+.sidebar-session-item { height: 42px; padding: 0 14px; }
+.sidebar-session-item > span { display: block; min-width: 0; overflow: hidden; color: #e7e7e7; font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.sidebar-session-item > m3e-circular-progress-indicator { width: 17px; height: 17px; margin-right: 9px; flex: 0 0 17px; pointer-events: none; }
 .sidebar__sessions m3e-icon { width: 16px; height: 16px; color: var(--md-sys-color-on-surface-variant); }
 .sidebar__sessions m3e-icon.is-running { color: var(--md-sys-color-primary); animation: pulse 1.2s ease-in-out infinite; }
 .sidebar__fourth { align-items: flex-end; justify-content: center; }
