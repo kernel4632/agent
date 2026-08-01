@@ -36,8 +36,8 @@ async function navigate(action) {
 
 <template>
   <m3e-theme color="#a0a0a0" scheme="dark" density="0" class="app-theme">
-    <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen, 'app-shell--settings': store.ui.view === 'settings' }">
-      <AppSidebar v-if="store.ui.view !== 'settings'" :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => { UI.toggleSidebar(false); return UI.openSettings() })" />
+    <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
+      <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => UI.openSettings())" />
       <div v-if="store.ui.sidebarOpen" class="sidebar-scrim" @click="UI.toggleSidebar(false)"></div>
       <main class="main-area">
         <div v-if="store.ui.isLoading" class="app-status"><m3e-circular-progress-indicator variant="wavy" indeterminate aria-label="正在连接 Agent Server"></m3e-circular-progress-indicator><strong>正在连接 Agent Server</strong></div>

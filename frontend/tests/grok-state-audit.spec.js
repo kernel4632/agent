@@ -60,3 +60,16 @@ test('grok interaction state screenshots', async ({ page }, testInfo) => {
 
   await testInfo.attach('geometry', { body: JSON.stringify(await readGeometry(page), null, 2), contentType: 'application/json' }) // 附加尺寸数据
 })
+
+
+test('settings keeps global navigation available', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop')                       // 桌面设置页验证常驻 Grok 侧栏
+  await page.goto('/')                                                 // 从主页开始验证完整返回路径
+  await page.locator('.sidebar__fifth m3e-button').click()             // 打开设置内容区
+  await expect(page.locator('.settings-content')).toBeVisible()        // 设置内容应替换主区域
+  await expect(page.locator('.sidebar')).toBeVisible()                 // 全局侧栏必须继续可用
+  await capture(page, testInfo, '08-settings-with-sidebar')            // 保存设置和全局导航共存状态
+  await page.locator('.sidebar__second m3e-button').first().click()     // 使用常驻导航返回主页
+  await expect(page.locator('.home-view')).toBeVisible()               // 验证用户不被困在设置页
+  await capture(page, testInfo, '09-returned-home')                    // 保存真实返回结果
+})

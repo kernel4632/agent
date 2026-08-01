@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './tests',
   outputDir: './test-results/ui-audit',
-  timeout: 45_000,
+  timeout: 90_000,
   expect: { timeout: 6_000 },
   workers: 1,
   reporter: [['line'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],

@@ -84,13 +84,8 @@ async function openModelPicker() {
 
     <div v-if="provider" class="provider-detail">
       <header class="provider-detail__heading"><div><m3e-avatar>{{ selectedName.slice(0, 1).toUpperCase() }}</m3e-avatar><h2>{{ selectedName }}</h2></div><m3e-switch :checked="provider.enabled" @change="Settings.updateProvider(selectedName, 'enabled', $event.target.checked)"></m3e-switch></header>
-      <div class="setting-row provider-identity">
-        <TextField v-model="renameDraft" :label="t('providerName')" @keydown.enter="saveName" @blur="saveName" />
-        <label class="switch-field"><span><strong>{{ t('enableProvider') }}</strong><small>{{ t('enableProviderDescription') }}</small></span></label>
-      </div>
-
-      <TextField :label="t('apiAddress')" :model-value="provider.baseURL" placeholder="https://api.example.com/v1" @update:model-value="Settings.updateProvider(selectedName, 'baseURL', $event)" />
       <TextField label="API Key" type="password" :model-value="provider.apiKey" placeholder="sk-..." @update:model-value="Settings.updateProvider(selectedName, 'apiKey', $event)" />
+      <TextField :label="t('apiAddress')" :model-value="provider.baseURL" placeholder="https://api.example.com/v1" @update:model-value="Settings.updateProvider(selectedName, 'baseURL', $event)" />
 
       <section class="provider-models">
         <header><div><h3>{{ t('modelList') }}</h3><p>{{ t('modelListDescription') }}</p></div><m3e-button :disabled="modelsLoading" @click="openModelPicker"><m3e-icon slot="icon" name="download"></m3e-icon>{{ t('fetchModels') }}</m3e-button></header>
