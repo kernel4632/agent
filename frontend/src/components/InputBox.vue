@@ -1,55 +1,66 @@
 <!--
-对话输入组件：接收多行任务描述，并用发送或停止按钮反馈 Agent 状态。
-Enter 发送、Shift+Enter 换行；组件只发出 send/stop，不直接调用 API。
-调用示例：<InputBox :running="chat.isRunning" @send="send" @stop="stop" />。
+对话操作框：组合附件、输入、Session 模型选择和发送/暂停动作。
+组件只发出用户意图；附件、模型和消息都由 Chat 或 Session 指令修改。
+调用示例：<InputBox :session="session" :models="models" @send="send" />。
 -->
 <script setup>
-import { nextTick, ref } from 'vue'                   // 引入输入焦点恢复能力
-import AgentSelector from './AgentSelector.vue'      // 引入当前会话 Agent 选择菜单
-import { Chat } from '../commands/chat.js'            // 引入输入提交和草稿修改指令
+import { nextTick, ref } from 'vue'                                  // 引入文件选择和发送后聚焦
+import { Chat } from '../commands/chat.js'                           // 引入输入校验动作
+import { t } from '../i18n.js'                                       // 引入响应式界面翻译
 
-const props = defineProps({                           // 声明当前 Agent 状态
-  running: { type: Boolean, default: false },         // 运行中显示停止按钮并锁定重复发送
-  config: { type: Object, default: null },            // 当前提供商、模型列表和活动模型
-  agents: { type: Array, default: () => [] },         // Server 返回的 Agent 目录
-  agentId: { type: String, default: '' },              // 当前会话选择的 Agent
+const props = defineProps({
+  session: { type: Object, required: true },                         // 当前完整 Session
+  models: { type: Array, default: () => [] },                        // 全局启用模型目录
 })
-
-const emit = defineEmits(['send', 'stop', 'select-agent']) // 向 Chat 视图发出用户和 Agent 指令
-const content = defineModel({ type: String, default: '' }) // 当前标签独立保存的任务文本
-const inputElement = ref(null)                        // 保存 textarea 用于发送后恢复焦点
+const emit = defineEmits(['send', 'stop', 'select-model', 'attach', 'remove-file']) // 向对话页反馈全部用户动作
+const content = defineModel({ type: String, default: '' })           // 当前 Session 输入草稿
+const inputElement = ref(null)                                       // 发送后恢复键盘焦点
+const fileInput = ref(null)                                          // 隐藏原生文件选择器
 
 
 // --- 提交当前消息 ---
 async function submit() {
-  if (!Chat.submitInput(content, props.running, emit)) return // 指令校验、清空并提交有效消息
-  await nextTick()                                    // 等待输入器恢复空状态
-  inputElement.value?.focus()                         // 保持连续对话键盘效率
+  if (!Chat.submitInput(content, props.session.status === 'running', emit)) return // 指令拒绝空文本和重复发送
+  await nextTick()                                                    // 等待输入框清空
+  inputElement.value?.focus()                                        // 保持连续对话效率
 }
 
 
-// --- 处理输入键盘动作 ---
+// --- 处理键盘发送 ---
 function handleKeydown(event) {
-  if (event.key !== 'Enter' || event.shiftKey) return // 其他按键和 Shift+Enter 保持文本输入
-  event.preventDefault()                              // Enter 不插入换行
-  submit()                                            // 触发与发送按钮相同的指令
+  if (event.key !== 'Enter' || event.shiftKey) return                 // Shift+Enter 和其他按键保留输入行为
+  event.preventDefault()                                              // Enter 不插入换行
+  submit()                                                            // 触发与发送按钮一致的动作
+}
+
+
+// --- 处理附件选择 ---
+function selectFiles(event) {
+  const files = [...event.target.files]                               // 将浏览器 FileList 转为普通数组
+  if (files.length) emit('attach', files)                             // 只提交真实选择结果
+  event.target.value = ''                                             // 允许稍后重复选择同一文件
 }
 </script>
 
 <template>
   <div class="composer">
-    <textarea ref="inputElement" v-model="content" class="composer__input" rows="1" placeholder="问任何问题，或交给 Agent 一个任务" aria-label="消息" @keydown="handleKeydown"></textarea>
-    <div class="composer__footer">
-      <div class="composer__modes">
-        <span class="composer__plus">+</span>
-        <AgentSelector :agents="agents" :value="agentId" :disabled="running" @select="emit('select-agent', $event)" />
+    <div v-if="session.files.length" class="composer__files">
+      <span v-for="file in session.files" :key="file.id"><mdui-icon-attach-file></mdui-icon-attach-file>{{ file.name }}<button type="button" :aria-label="t('removeFile', { name: file.name })" @click="emit('remove-file', file.id)"><mdui-icon-close></mdui-icon-close></button></span>
+    </div>
+    <textarea ref="inputElement" v-model="content" rows="1" :placeholder="t('messagePlaceholder')" :aria-label="t('message')" @keydown="handleKeydown"></textarea>
+    <div class="composer__bar">
+      <div class="composer__left">
+        <input ref="fileInput" class="visually-hidden" type="file" multiple @change="selectFiles" />
+        <button class="icon-command" type="button" :aria-label="t('uploadFile')" :title="t('uploadFile')" @click="fileInput.click()"><mdui-icon-attach-file></mdui-icon-attach-file></button>
+        <label class="model-select">
+          <select :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :aria-label="t('switchModel')" @change="emit('select-model', $event.target.value)">
+            <option v-for="item in models" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.model }} · {{ item.provider }}</option>
+          </select>
+          <mdui-icon-expand-more></mdui-icon-expand-more>
+        </label>
       </div>
-      <mdui-button-icon v-if="running" class="composer__send composer__send--stop" aria-label="停止" @click="emit('stop')">
-        <mdui-icon-stop></mdui-icon-stop>
-      </mdui-button-icon>
-      <mdui-button-icon v-else class="composer__send" :disabled="!content.trim()" aria-label="发送" @click="submit">
-        <mdui-icon-send></mdui-icon-send>
-      </mdui-button-icon>
+      <button v-if="session.status === 'running'" class="send-command is-stop" type="button" :aria-label="t('pauseGeneration')" :title="t('pauseGeneration')" @click="emit('stop')"><mdui-icon-stop></mdui-icon-stop></button>
+      <button v-else class="send-command" type="button" :disabled="!content.trim()" :aria-label="t('send')" :title="t('send')" @click="submit"><mdui-icon-arrow-upward></mdui-icon-arrow-upward></button>
     </div>
   </div>
 </template>

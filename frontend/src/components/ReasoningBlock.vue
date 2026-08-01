@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'                 // 引入折叠状态和标题派生能力
+import { t } from '../i18n.js'                      // 引入响应式界面翻译
 
 const props = defineProps({                         // 声明父组件传入的思考数据
   text: { type: String, default: '' },              // 完整或流式 reasoning 文本
@@ -12,7 +13,7 @@ const props = defineProps({                         // 声明父组件传入的�
 })
 
 const isOpen = ref(false)                           // 思考内容默认折叠，减少对正文干扰
-const title = computed(() => props.streaming ? '正在思考' : '思考过程') // 根据流状态提供明确反馈
+const title = computed(() => t(props.streaming ? 'thinking' : 'reasoning')) // 根据流状态提供明确反馈
 
 
 </script>
@@ -24,6 +25,6 @@ const title = computed(() => props.streaming ? '正在思考' : '思考过程') 
       <span>{{ title }}</span>
       <span class="reasoning__chevron" :class="{ 'reasoning__chevron--open': isOpen }">⌄</span>
     </button>
-    <div v-if="isOpen" class="reasoning__content">{{ text || '模型正在组织下一步行动…' }}</div>
+    <div v-if="isOpen" class="reasoning__content">{{ text || t('thinkingPlaceholder') }}</div>
   </section>
 </template>

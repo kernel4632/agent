@@ -1,41 +1,61 @@
 <!--
-单条消息组件：区分用户、助手和工具消息，并组合 Markdown、reasoning 与工具调用。
-组件不读取 store，所有业务动作通过 rollback 事件交回 Chat 视图。
-调用示例：<MessageItem :message="message" @rollback="rollback" />。
+单条消息：用户消息展示时间与操作，助手消息组合 Markdown、工具和请求状态。
+组件不读取 Store，所有动作通过事件交回 Chat 页面。
+调用示例：<MessageItem :message="message" @retry="rollbackMessage" />。
 -->
 <script setup>
-import { computed } from 'vue'                       // 引入工具消息结构派生能力
-import MarkdownContent from './MarkdownContent.vue' // 引入安全 Markdown、代码和图表展示组件
-import ReasoningBlock from './ReasoningBlock.vue'   // 引入模型思考折叠组件
-import ToolCall from './ToolCall.vue'                // 引入工具调用展示组件
+import MarkdownContent from './MarkdownContent.vue'                    // 引入安全 Markdown 渲染
+import ReasoningBlock from './ReasoningBlock.vue'                      // 引入推理折叠显示
+import ToolCall from './ToolCall.vue'                                  // 引入工具展示条
+import { formatDateTime, t } from '../i18n.js'                         // 引入响应式翻译和时间格式
 
-const props = defineProps({                          // 声明当前消息数据
-  message: { type: Object, required: true },         // Server 或流式 store 中的一条消息
-})
+defineProps({ message: { type: Object, required: true } })             // 当前用户或助手消息
+const emit = defineEmits(['rollback', 'retry', 'approval', 'copy'])     // 向对话页反馈消息动作
 
-const emit = defineEmits(['rollback', 'retry', 'approval']) // 将回退和三选一工具动作交回业务视图
-const toolResult = computed(() => ({                 // 将持久化 tool 消息适配到 ToolCall 结构
-  id: props.message.toolCallId,                      // 工具调用唯一 ID
-  name: props.message.name,                          // 工具业务名称
-  input: props.message.input ?? null,                // 新历史和实时工具展示真实输入
-  output: props.message.result,                      // 真实执行结果
-  status: props.message.status,                      // 实时工具的运行或审批状态
-  matchedRule: props.message.matchedRule,            // 权限编辑器命中的规则
-  scope: props.message.scope,                        // 权限判断使用的范围
-  target: props.message.target,                      // 工具实际申请访问的目标
-  approvalError: props.message.approvalError,        // 审批请求失败后的原位反馈
-}))
+
+// --- 格式化发送时间 ---
+function formatTime(timestamp) {
+  return formatDateTime(timestamp, { hour: '2-digit', minute: '2-digit' }) // 仅展示当前对话需要的时间
+}
+
+
+// --- 格式化 Token 数量 ---
+function formatTokens(value) {
+  if (!value) return '0'                                                // 空用量保持稳定宽度
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value) // 大数使用紧凑 k 单位
+}
 </script>
 
 <template>
-  <article class="message" :class="`message--${message.role}`">
-    <mdui-button-icon v-if="message.role === 'user' && message.id" class="message__retry" aria-label="回退并编辑这条消息" @click="emit('retry', message)">
-      <mdui-icon-edit></mdui-icon-edit>
-    </mdui-button-icon>
-    <div v-if="message.role === 'assistant'" class="message__identity">Agent</div>
-    <ReasoningBlock v-if="message.role === 'assistant'" :text="message.reasoning" :streaming="message.isStreaming" />
-    <MarkdownContent v-if="message.content" class="message__content" :content="message.content" :streaming="message.isStreaming" />
-    <span v-if="message.isStreaming && !message.content" class="message__typing"><i></i><i></i><i></i></span>
-    <ToolCall v-if="message.role === 'tool'" :tool-call="toolResult" :step="message.step" @rollback="emit('rollback', $event)" @approval="emit('approval', $event)" />
+  <article class="message" :class="`message--${message.role}`" :data-message-id="message.id">
+    <template v-if="message.role === 'user'">
+      <div class="user-message__content">{{ message.content }}</div>
+      <div v-if="message.files?.length" class="user-message__files"><span v-for="file in message.files" :key="file.id"><mdui-icon-attach-file></mdui-icon-attach-file>{{ file.name }}</span></div>
+      <footer class="user-message__meta">
+        <time>{{ formatTime(message.createdAt) }}</time>
+        <button type="button" :aria-label="t('recallEdit')" :title="t('recallEditTitle')" @click="emit('retry', message)"><mdui-icon-undo></mdui-icon-undo></button>
+        <button type="button" :aria-label="t('copyMessage')" :title="t('copy')" @click="emit('copy', message.content)"><mdui-icon-content-copy></mdui-icon-content-copy></button>
+      </footer>
+    </template>
+
+    <template v-else>
+      <ReasoningBlock v-if="message.reasoning" :text="message.reasoning" :streaming="message.isStreaming" />
+      <MarkdownContent v-if="message.content" class="message__content" :content="message.content" :streaming="message.isStreaming" />
+      <span v-if="message.isStreaming && !message.content" class="message__typing"><i></i><i></i><i></i></span>
+
+      <div v-if="message.tools?.length" class="message__tools">
+        <ToolCall v-for="tool in message.tools" :key="tool.id" :tool="tool" @rollback="emit('rollback', $event)" @approval="emit('approval', $event)" />
+      </div>
+
+      <div v-if="message.request" class="request-strip" :class="`is-${message.request.status}`">
+        <span class="request-strip__spinner"></span>
+        <strong>{{ t('apiRequest') }}</strong>
+        <template v-if="message.request.status === 'running'"><span>{{ t('receiving') }}</span></template>
+        <template v-else-if="message.request.status === 'cancelled'"><span>{{ t('paused') }}</span></template>
+        <template v-else><span>{{ t('inputTokens', { count: formatTokens(message.request.input) }) }}</span><span>{{ t('outputTokens', { count: formatTokens(message.request.output) }) }}</span><span v-if="message.request.cache">{{ t('cacheTokens', { count: formatTokens(message.request.cache) }) }}</span><span>{{ message.request.duration }}s</span></template>
+      </div>
+
+      <div v-if="message.error" class="message-error"><mdui-icon-error-outline></mdui-icon-error-outline><span>{{ message.error }}</span></div>
+    </template>
   </article>
 </template>

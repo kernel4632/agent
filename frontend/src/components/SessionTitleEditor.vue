@@ -1,11 +1,12 @@
 <!--
-会话标题编辑器：点击标题进入无感输入态，回车保存，Escape 放弃。
+会话标题编辑器：双击标题进入无感输入态，回车或失焦保存，Escape 放弃。
 输入态不提供额外勾叉按钮，避免把一个短编辑动作变成显式表单流程。
 调用示例：<SessionTitleEditor :title="title" @save="rename" />。
 -->
 <script setup>
 import { nextTick, ref } from 'vue'                    // 引入输入聚焦和本地草稿状态
 import { Session } from '../commands/session.js'      // 引入标题草稿和编辑状态指令
+import { t } from '../i18n.js'                        // 引入响应式界面翻译
 
 const props = defineProps({                           // 声明当前标题和保存状态
   title: { type: String, default: '' },               // 非编辑态展示的会话标题
@@ -22,7 +23,7 @@ const inputElement = ref(null)                        // 保存原位输入元�
 // --- 开始编辑标题 ---
 async function startEditing() {
   if (props.busy) return                             // 保存期间不创建第二份标题草稿
-  draft.value = props.title || '未命名会话'          // 以当前标题作为可编辑初值
+  draft.value = props.title || t('unnamedSession')    // 以当前标题作为可编辑初值
   editing.value = true                              // 原位切换到输入状态
   await nextTick()                                   // 等待输入元素挂载
   inputElement.value?.select()                       // 全选后直接输入新标题
@@ -45,7 +46,7 @@ async function saveEditing() {
 
 <template>
   <span class="session-title-editor" :class="{ 'session-title-editor--compact': compact, 'is-editing': editing }" @click.stop>
-    <input v-if="editing" ref="inputElement" :value="draft" maxlength="100" :disabled="busy" aria-label="会话标题" @input="draft = $event.target.value" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
-    <button v-else type="button" :title="title || '未命名会话'" aria-label="重命名会话" @click="startEditing">{{ title || '未命名会话' }}</button>
+    <input v-if="editing" ref="inputElement" :value="draft" maxlength="100" :disabled="busy" :aria-label="t('sessionTitle')" @input="draft = $event.target.value" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
+    <button v-else type="button" :title="title || t('unnamedSession')" :aria-label="t('doubleClickRenameSession')" @dblclick="startEditing">{{ title || t('unnamedSession') }}</button>
   </span>
 </template>

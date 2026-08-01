@@ -1,2401 +1,764 @@
 /*
-全局视觉系统：定义黑白 Material You 工作台、响应式侧栏、对话阅读列和业务表单。
-样式只响应组件中的业务类与状态类，不承担数据修改或隐藏真实功能。
+全局视觉系统：黑白 MDUI Agent 工作台，覆盖侧边栏、主页、对话和设置全部状态。
+样式只响应语义类和状态类，不修改业务数据；固定尺寸防止流式内容引发布局跳动。
 */
-
-$background: #0a0a0a;                               // 页面主背景
-$surface: #111111;                                  // 输入器和浮层表面
-$surface-high: #1b1b1b;                             // 激活和悬停表面
-$line: #2b2b2b;                                     // 克制分隔线
-$text: #f3f3f3;                                     // 主文本
-$muted: #9a9a9a;                                    // 次级说明文本
-$danger: #ffb4ab;                                   // 错误和拒绝反馈
-$success: #b7e4c7;                                  // 保存和重载成功反馈
+$bg: #090909;
+$panel: #0e0e0e;
+$surface: #151515;
+$raised: #1d1d1d;
+$line: #292929;
+$line-soft: #1d1d1d;
+$text: #f2f2f2;
+$muted: #929292;
+$faint: #656565;
+$danger: #ef9a9a;
 
 :root {
-  color-scheme: dark;                                // 让浏览器原生控件使用深色语义
+  color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: $text;                                      // 提供应用默认前景色
-  background: $background;                           // 避免加载过程中出现白屏
-  font-synthesis: none;                              // 保持字重渲染稳定
-  --mdui-color-primary: 232, 232, 232;               // MDUI 主色保持中性白
-  --mdui-color-on-primary: 20, 20, 20;               // 填充按钮使用深色文字
-  --mdui-color-surface: 17, 17, 17;                  // MDUI 表面接入应用背景
-  --mdui-color-on-surface: 243, 243, 243;            // MDUI 控件文本接入主文字
-  --mdui-color-outline: 92, 92, 92;                  // MDUI 描边保持低对比
-  --mdui-color-secondary: 220, 220, 220;             // tonal 控件使用中性前景色
-  --mdui-color-on-secondary: 24, 24, 24;             // 中性 secondary 填充保持对比
-  --mdui-color-secondary-container: 62, 64, 65;      // 移除 MDUI 默认紫色 tonal 表面
-  --mdui-color-on-secondary-container: 244, 244, 244; // tonal 按钮使用中性白文字
-  --mdui-color-surface-container: 38, 40, 41;        // 菜单和输入采用中性深灰
-  --mdui-color-surface-container-high: 48, 50, 51;   // 高层表面保持黑白色系
-  --mdui-color-surface-container-highest: 58, 60, 61; // 选中状态不引入品牌色
+  color: $text;
+  background: $bg;
+  font-synthesis: none;
+  --mdui-color-primary: 238, 238, 238;
+  --mdui-color-on-primary: 18, 18, 18;
+  --mdui-color-surface: 14, 14, 14;
+  --mdui-color-on-surface: 242, 242, 242;
+  --mdui-color-outline: 80, 80, 80;
+  --mdui-color-secondary-container: 42, 42, 42;
+  --mdui-color-on-secondary-container: 242, 242, 242;
 }
 
-* {
-  box-sizing: border-box;                            // 尺寸包含内边距，避免固定布局溢出
-}
+* { box-sizing: border-box; }
 
 html,
 body,
 #app {
-  width: 100%;                                       // 应用占满浏览器宽度
-  height: 100%;                                      // 应用占满浏览器高度
-  margin: 0;                                         // 移除浏览器默认页面边距
-  overflow: hidden;                                  // 滚动集中到业务内容区域
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
 }
+
+body { background: $bg; }
 
 button,
+input,
 textarea,
-input {
-  font: inherit;                                     // 表单与正文使用统一字体
-  letter-spacing: 0;                                 // 遵循稳定字距要求
+select {
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0;
 }
 
-button {
-  color: inherit;                                    // 原生按钮继承应用文本色
-}
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .42; }
 
 ::selection {
-  color: #111111;                                    // 选中文本保持足够对比
-  background: #e8e8e8;                              // 使用中性高亮而非品牌渐变
+  color: #111;
+  background: #eee;
 }
 
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { border-radius: 8px; background: #333; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- 应用与侧边栏 --- */
 .app-shell {
-  display: grid;                                     // 桌面端并排组织侧栏和内容
-  grid-template-columns: 0 minmax(0, 1fr);           // 侧栏关闭时释放全部空间
-  width: 100%;                                       // 占满应用根容器
-  height: 100%;                                      // 占满应用根容器
-  background: $background;                           // 统一深黑工作区背景
-  transition: grid-template-columns 220ms cubic-bezier(.2, 0, 0, 1); // Material 侧栏展开反馈
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  background: $bg;
+  transition: grid-template-columns 190ms cubic-bezier(.2, 0, 0, 1);
 }
 
-.app-shell--sidebar {
-  grid-template-columns: 252px minmax(0, 1fr);       // 展开时保留紧凑固定侧栏
-}
+.app-shell--open { grid-template-columns: 236px minmax(0, 1fr); }
 
 .sidebar {
-  position: relative;                                // 桌面端作为网格内固定区域
-  z-index: 20;                                       // 移动端高于遮罩和主内容
-  display: flex;                                     // 垂直组织品牌、导航和历史
-  flex-direction: column;                            // 导航按阅读顺序排列
-  width: 252px;                                      // 与展开网格轨道一致
-  min-width: 0;                                      // 允许收起时被网格裁切
-  height: 100%;                                      // 保持整屏工作台侧栏
-  padding: 12px 10px;                                // 提供紧凑点击区边距
-  overflow: hidden;                                  // 收起时不泄露内部文本
-  border-right: 1px solid #1d1d1d;                  // 用细线区分工作区
-  background: #080808;                              // 与主区形成轻微层级差
-  opacity: 0;                                        // 收起时隐藏内容反馈
-  transform: translateX(-12px);                      // 收起时向左移动
-  transition: opacity 160ms ease, transform 220ms cubic-bezier(.2, 0, 0, 1);
+  position: relative;
+  z-index: 40;
+  display: grid;
+  grid-template-rows: 48px auto minmax(0, 1fr) auto 48px;
+  width: 64px;
+  height: 100%;
+  padding: 8px;
+  overflow: hidden;
+  border-right: 1px solid $line-soft;
+  background: #080808;
+  transition: width 190ms cubic-bezier(.2, 0, 0, 1);
 }
 
-.sidebar--open {
-  opacity: 1;                                        // 展开后显示完整导航
-  transform: translateX(0);                          // 展开后回到稳定位置
+.sidebar--open { width: 236px; }
+
+.sidebar__first,
+.sidebar__fifth,
+.sidebar__fourth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
 }
 
-.sidebar__brand {
-  display: flex;                                     // 品牌和收起按钮同排
-  align-items: center;                               // 图标垂直居中
-  justify-content: space-between;                    // 将两个动作放在两侧
-  height: 42px;                                      // 固定高度避免图标引发布局跳动
-  padding: 0 4px 8px;                                // 与后续新建按钮形成间隔
+.product-logo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  border: 1px solid #5a5a5a;
+  border-radius: 50%;
+  color: #fff;
+  background: #111;
+  font-weight: 760;
 }
 
-.sidebar__brand > button:first-child,
-.chat-empty__symbol {
-  display: grid;                                     // 将品牌字母居中
-  place-items: center;                               // 水平垂直居中
-  width: 32px;                                       // 稳定品牌符号尺寸
-  height: 32px;                                      // 稳定品牌符号尺寸
-  padding: 0;                                        // 避免原生按钮增大尺寸
-  border: 1px solid #505050;                         // 中性描边表达 Agent 标识
-  border-radius: 50%;                                // 品牌符号使用圆形而非文本胶囊
-  color: $text;                                      // 保持高对比字母
-  background: transparent;                           // 不制造额外填充色
-  font-weight: 700;                                  // 强化小尺寸品牌识别
-  cursor: pointer;                                   // 表明可创建新会话
+.icon-command {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: $muted;
+  background: transparent;
 }
 
-.new-chat,
-.primary-nav button,
-.sidebar__history button {
-  display: flex;                                     // 图标和文本水平排列
-  align-items: center;                               // 保持图标与文本基线稳定
-  width: 100%;                                       // 点击区占满侧栏宽度
-  min-height: 40px;                                  // 保证可用点击尺寸
-  padding: 0 12px;                                   // 提供文本左右呼吸空间
-  overflow: hidden;                                  // 长标题不突破侧栏
-  border: 0;                                         // 导航使用表面变化而非边框
-  border-radius: 6px;                                // 使用克制小圆角
-  background: transparent;                           // 默认融入侧栏背景
-  text-align: left;                                  // 保持列表扫描方向
-  cursor: pointer;                                   // 反馈可点击状态
-  transition: background-color 140ms ease;           // 提供轻量 Material 状态反馈
+.icon-command:hover { color: $text; background: $raised; }
+.icon-command mdui-icon-menu-open,
+.icon-command mdui-icon-keyboard-double-arrow-left,
+.icon-command mdui-icon-close,
+.icon-command mdui-icon-add,
+.icon-command mdui-icon-edit,
+.icon-command mdui-icon-delete,
+.icon-command mdui-icon-tune { width: 19px; height: 19px; }
+
+.sidebar__second {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
 }
 
-.new-chat {
-  gap: 12px;                                         // 新建图标与文本保持清晰间距
-  margin-bottom: 8px;                                // 与主导航分组
-  border: 1px solid $line;                           // 新建是主要侧栏命令
-  background: #101010;                              // 比普通导航稍高层级
+.sidebar__second button,
+.sidebar__fifth > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 40px;
+  padding: 0 11px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  color: #bcbcbc;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
 }
 
-.new-chat mdui-icon-add,
-.primary-nav mdui-icon-history,
-.primary-nav mdui-icon-build,
-.primary-nav mdui-icon-settings {
-  width: 19px;                                       // 固定导航图标尺寸
-  height: 19px;                                      // 固定导航图标尺寸
-  flex: 0 0 19px;                                    // 文本不会挤压图标
+.sidebar__second button:hover,
+.sidebar__second button.is-active,
+.sidebar__fifth > button:hover,
+.sidebar__fifth > button.is-active { color: $text; background: $raised; }
+
+.sidebar__second mdui-icon-home,
+.sidebar__second mdui-icon-add,
+.sidebar__fifth mdui-icon-settings { width: 19px; height: 19px; flex: 0 0 19px; }
+
+.sidebar__third {
+  min-height: 0;
+  margin-top: 20px;
+  overflow: hidden;
 }
 
-.new-chat:hover,
-.primary-nav button:hover,
-.sidebar__history button:hover,
-.primary-nav button.is-active,
-.sidebar__history button.is-active {
-  background: $surface-high;                         // 悬停和选中共享克制高亮
+.sidebar__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 10px;
+  color: $faint;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
 }
 
-.primary-nav {
-  display: grid;                                     // 主导航保持稳定纵向节奏
-  gap: 2px;                                          // 项之间只留细微间距
+.sidebar__label small { font-size: 10px; }
+
+.sidebar__sessions {
+  height: calc(100% - 28px);
+  overflow-y: auto;
 }
 
-.primary-nav button {
-  gap: 12px;                                         // 图标和标签之间留空
-  color: #c9c9c9;                                   // 非活动项降低视觉权重
+.sidebar__sessions button {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  color: #a8a8a8;
+  background: transparent;
+  text-align: left;
 }
 
-.primary-nav button.is-active {
-  color: $text;                                      // 活动项恢复主文字颜色
+.sidebar__sessions button:hover,
+.sidebar__sessions button.is-active { color: $text; background: $surface; }
+
+.sidebar__sessions button > span:last-child {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.nav-agent {
-  display: grid;                                     // 对话图标用紧凑字母标识
-  place-items: center;                               // 字母居中
-  width: 19px;                                       // 与 MDUI 图标占位一致
-  height: 19px;                                      // 与 MDUI 图标占位一致
-  flex: 0 0 19px;                                    // 保持所有标签对齐
-  border: 1px solid #777777;                         // 形成小型 Agent 标记
-  border-radius: 50%;                                // 作为熟悉的身份符号
-  font-size: 10px;                                   // 小尺寸内保持不溢出
-  font-weight: 700;                                  // 增强字母可读性
+.session-indicator {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #555;
 }
 
-.sidebar__history {
-  min-height: 0;                                     // 允许历史区域在小屏压缩
-  margin-top: 22px;                                  // 与主导航建立分组层级
-  overflow-y: auto;                                  // 长历史独立滚动
-}
-
-.sidebar__history > small {
-  display: block;                                    // 标题独占一行
-  padding: 0 12px 8px;                               // 与历史标题对齐
-  color: #707070;                                    // 降低辅助分组标题权重
-  font-size: 11px;                                   // 使用紧凑辅助字号
-  text-transform: uppercase;                         // 形成操作面板分组感
-}
-
-.sidebar__history button {
-  min-height: 34px;                                  // 最近会话比主导航更紧凑
-  color: #adadad;                                    // 历史项保持次级层级
-  font-size: 13px;                                   // 适合密集扫描
-}
-
-.sidebar__history button span {
-  overflow: hidden;                                  // 长标题保留在行内
-  text-overflow: ellipsis;                           // 用省略号反馈还有更多内容
-  white-space: nowrap;                               // 每条历史保持固定单行高度
-}
-
-.sidebar-scrim {
-  display: none;                                     // 桌面端不需要遮罩
-}
+.session-indicator.is-running { background: #eee; animation: pulse 1.2s ease-in-out infinite; }
+.sidebar__fourth { align-items: flex-end; justify-content: center; }
+.sidebar__fifth { align-items: flex-end; }
+.sidebar-scrim { display: none; }
 
 .main-area {
-  position: relative;                                // 为浮动菜单按钮提供定位上下文
-  min-width: 0;                                      // 防止对话内容撑破网格
-  height: 100%;                                      // 业务视图占满剩余高度
-  overflow: hidden;                                  // 各视图自行管理滚动
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
-.menu-trigger {
-  position: absolute;                                // 侧栏关闭时浮在内容左上角
-  z-index: 10;                                       // 保持在业务顶栏之上
-  top: 10px;                                         // 对齐顶栏纵向位置
-  left: 12px;                                        // 留出浏览器边缘安全距离
+.toast {
+  position: fixed;
+  z-index: 100;
+  right: 22px;
+  bottom: 22px;
+  min-width: 120px;
+  padding: 10px 14px;
+  border: 1px solid #3b3b3b;
+  border-radius: 6px;
+  color: $text;
+  background: #1a1a1a;
+  box-shadow: 0 16px 45px #0009;
+  font-size: 12px;
+  text-align: center;
+  animation: rise 160ms ease-out;
 }
 
-.chat-view {
-  display: grid;                                     // 顶栏、消息、反馈和输入器垂直组织
-  grid-template-rows: 54px minmax(0, 1fr) auto auto; // 消息区域消费全部剩余空间
-  height: 100%;                                      // 对话始终占满工作区
+/* --- 主页 --- */
+.home-view {
+  display: grid;
+  grid-template-rows: 66px minmax(0, 1fr);
+  height: 100%;
 }
 
-.chat-header {
-  display: flex;                                     // 标题和状态水平展示
-  align-items: center;                               // 垂直居中顶栏内容
-  justify-content: center;                           // 标题位于阅读列中心
-  padding: 0 64px;                                   // 避开左侧菜单按钮
-  border-bottom: 1px solid #151515;                  // 仅用细线分隔顶栏
+.home-search {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 620px) auto;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 28px;
+  border-bottom: 1px solid $line-soft;
 }
 
-.chat-header > div {
-  display: flex;                                     // 标题与运行状态同排
-  align-items: center;                               // 保持基线稳定
-  gap: 9px;                                          // 状态与标题留空
-  width: min(760px, 100%);                           // 与消息阅读列对齐
+.home-search mdui-icon-search { width: 19px; height: 19px; color: $muted; }
+.home-search input { width: 100%; height: 40px; padding: 0 4px; border: 0; outline: 0; color: $text; background: transparent; font-size: 14px; }
+.home-search kbd { padding: 4px 7px; border: 1px solid $line; border-radius: 4px; color: $faint; background: $surface; font-size: 10px; }
+
+.home-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 32%) minmax(0, 1fr);
+  min-height: 0;
 }
 
-.chat-header strong {
-  overflow: hidden;                                  // 长会话标题不覆盖状态
-  text-overflow: ellipsis;                           // 保留单行顶栏高度
-  white-space: nowrap;                               // 保持紧凑工作台顶栏
-  font-size: 14px;                                   // 小型工具栏标题而非英雄字号
-  font-weight: 600;                                  // 适度强化上下文
+.workspace-panel,
+.session-panel { min-width: 0; min-height: 0; overflow: hidden; }
+.workspace-panel { border-right: 1px solid $line-soft; }
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 66px;
+  padding: 14px 20px;
+  border-bottom: 1px solid $line-soft;
 }
 
-.chat-header__status {
-  flex: 0 0 auto;                                    // 长标题不挤压运行反馈
-  color: $muted;                                     // 状态保持次级层级
-  font-size: 11px;                                   // 使用辅助字号
+.panel-heading > div { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.panel-heading h1 { margin: 0; font-size: 15px; font-weight: 650; }
+.panel-heading span { color: $faint; font-size: 11px; }
+.panel-heading p { max-width: 50%; margin: 0; overflow: hidden; color: $faint; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-list { height: calc(100% - 66px); padding: 8px; overflow-y: auto; }
+
+.workspace-list > button {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: #bdbdbd;
+  background: transparent;
+  text-align: left;
 }
 
-.chat-header__status::before {
-  display: inline-block;                             // 创建实时状态点
-  width: 6px;                                        // 保持精细状态尺寸
-  height: 6px;                                       // 保持精细状态尺寸
-  margin-right: 5px;                                 // 与状态文字分离
-  border-radius: 50%;                                // 熟悉的在线状态符号
-  background: #dedede;                              // 中性色匹配整体视觉
-  animation: pulse 1.4s ease-in-out infinite;        // 反馈 Agent 正在运行
-  content: '';
+.workspace-list > button:hover,
+.workspace-list > button.is-active { color: $text; background: $surface; }
+.workspace-icon { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid $line; border-radius: 6px; background: #101010; }
+.workspace-icon mdui-icon-folder { width: 18px; height: 18px; }
+.workspace-list button > span:nth-child(2) { min-width: 0; }
+.workspace-list strong,
+.workspace-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-list strong { font-size: 13px; font-weight: 610; }
+.workspace-list small { margin-top: 3px; color: $faint; font-size: 10px; }
+.workspace-list mdui-icon-keyboard-arrow-right { width: 18px; color: $faint; }
+
+.session-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.session-panel__heading { padding-inline: 26px; }
+.session-groups { padding: 8px 18px 40px; overflow-y: auto; }
+.session-group { margin-bottom: 22px; }
+.session-group h2 { margin: 12px 8px 7px; color: $faint; font-size: 11px; font-weight: 650; }
+
+.home-session {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 9px 10px;
+  border-bottom: 1px solid #181818;
+  border-radius: 6px;
+  cursor: pointer;
 }
 
-.chat-empty {
-  align-self: center;                                // 空状态位于可用空间视觉中心
-  justify-self: center;                              // 空状态对齐阅读列中心
-  width: min(640px, calc(100% - 40px));              // 在移动和桌面保持安全边距
-  padding-bottom: 7vh;                               // 略向上偏移给输入器留视觉重心
-  text-align: center;                                // 简洁欢迎语居中
+.home-session:hover { background: $surface; }
+.home-session__model { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #404040; border-radius: 50%; color: #ddd; font-size: 11px; font-weight: 700; }
+.home-session__main { min-width: 0; }
+.home-session__main strong,
+.home-session__main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-session__main strong { font-size: 13px; font-weight: 580; }
+.home-session__main small { margin-top: 5px; color: $faint; font-size: 10px; }
+.home-session__main input { width: min(440px, 100%); height: 30px; padding: 0 6px; border: 1px solid #565656; border-radius: 4px; outline: 0; background: #111; }
+.home-session__actions { display: flex; opacity: 0; transition: opacity 120ms ease; }
+.home-session:hover .home-session__actions,
+.home-session:focus-within .home-session__actions { opacity: 1; }
+
+.empty-state { display: grid; place-items: center; align-content: center; gap: 12px; min-height: 220px; color: $muted; font-size: 13px; text-align: center; }
+.empty-state.compact { min-height: 100px; }
+.empty-state mdui-icon-history { width: 28px; height: 28px; }
+.empty-state button { padding: 7px 12px; border: 1px solid $line; border-radius: 5px; background: $surface; }
+
+/* --- 对话页 --- */
+.chat-view { display: grid; grid-template-rows: 58px minmax(0, 1fr) auto; height: 100%; }
+.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 0 max(72px, calc((100% - 820px) / 2)); border-bottom: 1px solid $line-soft; }
+.chat-header__title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.chat-header__title small { color: $faint; font-size: 10px; opacity: 0; transition: opacity 120ms ease; }
+.chat-header__title:hover small { opacity: 1; }
+.session-title-editor { display: block; min-width: 0; }
+.session-title-editor button { max-width: 520px; padding: 3px 0; overflow: hidden; border: 0; background: transparent; font-size: 13px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.session-title-editor input { width: min(520px, 52vw); height: 30px; padding: 0 4px; border: 0; border-bottom: 1px solid #777; outline: 0; background: transparent; font-size: 13px; }
+
+.context-meter {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  background: conic-gradient(#e7e7e7 var(--context), #262626 0);
+  cursor: default;
 }
 
-.chat-empty__symbol {
-  width: 46px;                                       // 空状态品牌信号稍大于侧栏
-  height: 46px;                                      // 保持圆形比例
-  margin: 0 auto 22px;                               // 与标题建立明确间隔
-  cursor: default;                                   // 空状态符号没有业务触发
-}
+.context-meter::before { position: absolute; inset: 3px; border-radius: 50%; background: #0d0d0d; content: ''; }
+.context-meter > span { position: relative; z-index: 1; font-size: 9px; font-weight: 700; }
+.context-popover { position: absolute; z-index: 30; top: 42px; right: 0; display: none; width: 190px; padding: 12px; border: 1px solid $line; border-radius: 6px; background: #171717; box-shadow: 0 18px 45px #000a; }
+.context-meter:hover .context-popover,
+.context-meter:focus .context-popover { display: block; }
+.context-popover strong { display: block; margin-bottom: 9px; font-size: 11px; }
+.context-popover div { display: flex; justify-content: space-between; padding: 5px 0; color: $muted; font-size: 10px; }
+.context-popover b { color: $text; font-weight: 600; }
 
-.chat-empty h1 {
-  margin: 0;                                         // 标题由容器间距控制
-  font-size: clamp(26px, 4vh, 38px);                 // 根据可用高度而非视口宽度适配
-  font-weight: 520;                                  // 保持 Grok 式克制标题
-  letter-spacing: 0;                                 // 禁止负字距
-}
+.chat-body { position: relative; min-height: 0; overflow: hidden; }
+.chat-empty { display: grid; place-items: center; align-content: center; height: 100%; padding-bottom: 8vh; }
+.chat-empty > span { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid #555; border-radius: 50%; font-weight: 750; }
+.chat-empty h1 { margin: 16px 0 0; font-size: 20px; font-weight: 520; }
+.message-list { height: 100%; overflow-y: auto; scrollbar-color: #333 transparent; }
+.message-list__column { width: min(780px, calc(100% - 80px)); min-height: 100%; margin: 0 auto; padding: 32px 0 42px; }
+.message { position: relative; margin-bottom: 30px; overflow-wrap: anywhere; }
+.message--user { width: fit-content; max-width: min(78%, 620px); margin-left: auto; padding: 11px 14px 8px; border: 1px solid #292929; border-radius: 8px; background: #1b1b1b; }
+.user-message__content { font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.user-message__files { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.user-message__files span { display: flex; align-items: center; gap: 4px; padding: 4px 7px; border: 1px solid #343434; border-radius: 4px; color: $muted; font-size: 10px; }
+.user-message__files mdui-icon-attach-file { width: 12px; height: 12px; }
+.user-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-height: 22px; margin-top: 4px; opacity: .5; transition: opacity 120ms ease; }
+.message--user:hover .user-message__meta { opacity: 1; }
+.user-message__meta time { margin-right: 4px; color: $faint; font-size: 9px; }
+.user-message__meta button { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; color: $muted; background: transparent; }
+.user-message__meta button:hover { color: $text; background: #292929; }
+.user-message__meta mdui-icon-undo,
+.user-message__meta mdui-icon-content-copy { width: 14px; height: 14px; }
+.message--assistant { padding-right: 2px; }
+.message__content { color: #e6e6e6; font-size: 14px; line-height: 1.7; }
 
-.chat-empty p {
-  max-width: 480px;                                  // 保持说明可读行长
-  margin: 14px auto 0;                               // 与标题分离并居中
-  color: $muted;                                     // 降低说明视觉权重
-  font-size: 14px;                                   // 不使用营销式大文本
-  line-height: 1.65;                                 // 提供舒适阅读节奏
-}
-
-.message-list {
-  min-height: 0;                                     // 允许网格消息轨道滚动
-  overflow-y: auto;                                  // 历史消息独立滚动
-  scrollbar-color: #343434 transparent;             // 使用低对比滚动条
-}
-
-.message-list__column {
-  width: min(760px, calc(100% - 48px));              // 约束长文本阅读行宽
-  min-height: 100%;                                  // 短对话仍填满消息区域
-  margin: 0 auto;                                    // 居中主阅读列
-  padding: 38px 0 24px;                              // 与顶栏和输入器保持距离
-}
-
-.message {
-  position: relative;                                // 为身份和工具内容提供布局上下文
-  max-width: 100%;                                   // 长内容不超过阅读列
-  margin-bottom: 30px;                               // 区分连续消息轮次
-  overflow-wrap: anywhere;                           // 超长路径和 URL 可换行
-}
-
-.message--user {
-  width: fit-content;                                // 用户消息只占内容宽度
-  max-width: min(80%, 620px);                        // 长问题保持阅读列内
-  margin-left: auto;                                 // 用户消息靠右区别角色
-  padding: 11px 15px;                                // 提供轻量消息气泡空间
-  border-radius: 8px;                                // 卡片圆角不超过 8px
-  background: #202020;                              // 用中性表面区分用户输入
-  font-size: 14px;                                   // 对话正文紧凑可读
-}
-
-.message--assistant {
-  padding-right: 4px;                                // 为滚动条保留少量空间
-}
-
-.message__identity {
-  margin-bottom: 12px;                               // 身份与正文分离
-  color: #d9d9d9;                                   // 接近主文本但不抢正文
-  font-size: 12px;                                   // 紧凑角色标签
-  font-weight: 650;                                  // 强化 Agent 来源识别
-}
-
-.message__content {
-  color: #e7e7e7;                                   // 正文保持舒适高对比
-  font-size: 15px;                                   // 对话正文主字号
-  line-height: 1.72;                                 // 长回答保持可读节奏
-}
-
-.markdown > :first-child {
-  margin-top: 0;                                     // 正文顶部与消息边界对齐
-}
-
-.markdown > :last-child {
-  margin-bottom: 0;                                  // 正文底部不增加轮次空白
-}
-
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
 .markdown p,
 .markdown ul,
 .markdown ol,
 .markdown pre,
-.markdown blockquote {
-  margin: 0 0 14px;                                  // 统一 Markdown 块节奏
-}
-
+.markdown blockquote { margin: 0 0 13px; }
 .markdown ul,
-.markdown ol {
-  padding-left: 22px;                                // 保持列表标记可见
-}
-
-.markdown li + li {
-  margin-top: 5px;                                   // 连续列表项便于扫描
-}
-
-.markdown code,
-.tool-call code,
-.tool-parameters code,
-.permission-row code {
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: .9em;                                   // 行内代码与正文比例稳定
-}
-
-.markdown :not(pre) > code {
-  padding: 2px 5px;                                  // 行内代码提供轻微表面区分
-  border: 1px solid #303030;                         // 不依赖彩色背景
-  border-radius: 4px;                                // 紧凑代码标签圆角
-  background: #151515;                              // 提升代码辨识度
-}
-
-.markdown pre,
-.tool-call pre,
-.approval pre {
-  max-width: 100%;                                   // 代码和 JSON 不突破父容器
-  padding: 13px 14px;                                // 提供代码阅读空间
-  overflow-x: auto;                                  // 长命令保持原始格式并可滚动
-  border: 1px solid $line;                           // 用细线界定代码块
-  border-radius: 6px;                                // 保持工具界面克制圆角
-  background: #101010;                              // 与普通正文区分
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;                                   // 密集技术数据使用小字号
-  line-height: 1.6;                                  // 代码块保持可读行距
-  white-space: pre-wrap;                             // JSON 和工具输出可自动换行
-  overflow-wrap: anywhere;                           // 超长路径不撑破容器
-}
-
-.markdown blockquote {
-  padding-left: 14px;                                // 引用内容与标线分离
-  border-left: 2px solid #555555;                    // 中性引用标记
-  color: #b8b8b8;                                   // 引用降低视觉权重
-}
-
-.markdown a {
-  color: #f2f2f2;                                   // 链接保持黑白主题
-  text-decoration-color: #777777;                   // 用下划线而非颜色表达链接
-  text-underline-offset: 3px;                        // 提升链接可读性
-}
-
-.reasoning {
-  margin: -2px 0 15px;                               // 紧跟 Agent 身份并与正文分离
-  border-left: 1px solid #333333;                    // 用单线表达次级思考层
-}
-
-.reasoning__trigger {
-  display: flex;                                     // 状态点、标题、箭头同排
-  align-items: center;                               // 保持元素垂直居中
-  gap: 8px;                                          // 各状态元素留空
-  width: 100%;                                       // 提供完整行点击区域
-  padding: 5px 10px;                                 // 紧凑但可点击
-  border: 0;                                         // 避免像独立卡片
-  background: transparent;                           // 保持内联思考样式
-  color: #858585;                                    // 明确低于最终回答层级
-  font-size: 12px;                                   // 辅助信息使用小字号
-  text-align: left;                                  // 与正文阅读方向一致
-  cursor: pointer;                                   // 反馈可展开状态
-}
-
-.reasoning__spark,
-.composer__pulse {
-  width: 6px;                                        // 状态点稳定尺寸
-  height: 6px;                                       // 状态点稳定尺寸
-  flex: 0 0 6px;                                     // 文本不挤压状态点
-  border-radius: 50%;                                // 熟悉的状态符号
-  background: #8d8d8d;                              // 中性次级状态色
-}
-
-.reasoning--active .reasoning__spark {
-  animation: pulse 1.3s ease-in-out infinite;        // 流式生成时反馈活动
-}
-
-.reasoning__chevron {
-  margin-left: auto;                                 // 将展开箭头推到行尾
-  font-size: 15px;                                   // 保持箭头清晰
-  transition: transform 160ms ease;                  // 展开提供方向反馈
-}
-
-.reasoning__chevron--open {
-  transform: rotate(180deg);                         // 展开后箭头指向关闭方向
-}
-
-.reasoning__content {
-  padding: 5px 12px 10px 24px;                       // 与触发标题形成层级缩进
-  color: #8d8d8d;                                   // 思考内容低于最终回答
-  font-size: 13px;                                   // 保持长 reasoning 可扫描
-  line-height: 1.65;                                 // 提升思考文本可读性
-  white-space: pre-wrap;                             // 保留模型思考换行
-}
-
-.message__typing {
-  display: flex;                                     // 三个加载点横向排列
-  gap: 4px;                                          // 点之间保留稳定间距
-  height: 22px;                                      // 避免加载状态导致消息跳动
-  align-items: center;                               // 点垂直居中
-}
-
-.message__typing i {
-  width: 5px;                                        // 小型加载点
-  height: 5px;                                       // 小型加载点
-  border-radius: 50%;                                // 圆形状态点
-  background: #909090;                              // 中性活动反馈
-  animation: typing 1.1s ease-in-out infinite;       // 依次反馈模型等待状态
-}
-
-.message__typing i:nth-child(2) { animation-delay: 120ms; } // 第二个点错开动画
-.message__typing i:nth-child(3) { animation-delay: 240ms; } // 第三个点错开动画
-
-.message__tools {
-  display: grid;                                     // 多个工具调用垂直排列
-  gap: 8px;                                          // 工具项保持清晰间隔
-  margin-top: 16px;                                  // 与回答正文分离
-}
-
-.tool-item__icon {
-  color: #9b9b9b;                                   // 命令符号保持辅助层级
-  font-family: "Cascadia Code", Consolas, monospace;
-  font-weight: 700;                                  // 小符号保持清晰
-}
-
-.chat-feedback {
-  width: min(760px, calc(100% - 48px));              // 与消息和输入器阅读列对齐
-  margin: 0 auto;                                    // 居中反馈区域
-}
-
-.notice {
-  margin: 8px 0;                                     // 连续反馈之间留空
-  padding: 10px 12px;                                // 提供短消息阅读空间
-  border-left: 2px solid #696969;                    // 用状态线而非装饰卡片
-  background: #131313;                              // 从主背景轻微抬升
-  color: #c8c8c8;                                   // 默认反馈文字
-  font-size: 12px;                                   // 辅助反馈不抢任务内容
-  line-height: 1.5;                                  // 多行错误保持可读
-}
-
-.notice--error {
-  border-left-color: $danger;                        // 错误使用语义色
-  color: $danger;                                    // 立即识别不可恢复问题
-}
-
-.notice--success {
-  border-left-color: $success;                       // 成功反馈使用语义色
-  color: $success;                                   // 区分普通信息
-}
-
-.approval {
-  display: grid;                                     // 审批内容和动作垂直组织
-  grid-template-columns: minmax(0, 1fr) auto;        // 桌面端操作位于右侧
-  gap: 14px;                                         // 内容与动作保持间距
-  margin: 10px 0;                                    // 与其他反馈分离
-  padding: 13px 14px;                                // 提供审批操作空间
-  border: 1px solid #555555;                         // 明确这是需要处理的边界
-  border-radius: 6px;                                // 保持真实操作面板圆角
-  background: #151515;                              // 在对话中突出待处理状态
-}
-
-.approval__body > span {
-  display: block;                                    // 状态标签独占一行
-  margin-bottom: 4px;                                // 与工具名分离
-  color: $muted;                                     // 辅助审批标签
-  font-size: 11px;                                   // 保持紧凑
-}
-
-.approval__body pre {
-  margin: 10px 0 0;                                  // 与工具名分离
-}
-
-.approval__actions {
-  display: flex;                                     // 拒绝和允许同排
-  align-items: flex-end;                             // 靠近审批内容底部
-  gap: 4px;                                          // 动作按钮紧密分组
-}
-
-.chat-composer {
-  width: min(760px, calc(100% - 32px));              // 输入器在移动端保留安全边距
-  margin: 0 auto;                                    // 对齐消息阅读列
-  padding: 9px 0 8px;                                // 与底部和反馈分离
-}
-
-.chat-composer > small {
-  display: block;                                    // 提示独占输入器下方
-  margin-top: 7px;                                   // 与输入器分离
-  color: #555555;                                    // 风险提示保持低权重
-  font-size: 10px;                                   // 使用最小辅助字号
-  text-align: center;                                // 对齐输入器中心
-}
-
-.composer {
-  min-height: 104px;                                 // 空输入时保持稳定尺寸
-  padding: 13px 13px 10px 16px;                      // 提供输入和工具栏空间
-  border: 1px solid #3a3a3a;                         // 明确主要交互边界
-  border-radius: 8px;                                // 遵循卡片最大圆角约束
-  background: $surface;                              // 输入器作为主要工作表面
-  box-shadow: 0 8px 30px rgb(0 0 0 / 28%);          // 轻微抬升但不使用彩色装饰
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-
-.composer:focus-within {
-  border-color: #666666;                             // 聚焦时增强输入边界
-  box-shadow: 0 8px 32px rgb(0 0 0 / 42%);          // 强化当前操作层级
-}
-
-.composer__input {
-  display: block;                                    // 输入框独占完整行
-  width: 100%;                                       // 使用完整输入器宽度
-  min-height: 45px;                                  // 单行时仍有舒适输入空间
-  max-height: 150px;                                 // 长任务超过后内部滚动
-  padding: 2px 0;                                    // 保持文本与容器对齐
-  resize: none;                                      // 稳定固定格式输入器尺寸
-  overflow-y: auto;                                  // 长文本可滚动检查
-  border: 0;                                         // 父容器已经表达输入边界
-  outline: 0;                                        // 使用父容器 focus-within 反馈
-  color: $text;                                      // 主输入高对比
-  background: transparent;                           // 融入输入器表面
-  font-size: 15px;                                   // 任务输入保持舒适字号
-  line-height: 1.55;                                 // 多行输入保持可读
-}
-
-.composer__input::placeholder {
-  color: #777777;                                    // 占位文本明显低于输入内容
-}
-
-.composer__footer {
-  display: flex;                                     // 模式和发送动作同排
-  align-items: center;                               // 控件垂直居中
-  justify-content: space-between;                    // 发送按钮位于右侧
-  height: 36px;                                      // 固定工具栏避免内容跳动
-}
-
-.composer__modes {
-  display: flex;                                     // 附件和工具状态同排
-  align-items: center;                               // 垂直居中
-  gap: 14px;                                         // 两种模式保持间距
-  color: #888888;                                    // 模式控制保持次级层级
-  font-size: 12px;                                   // 适合紧凑工具栏
-}
-
-.composer__plus {
-  display: grid;                                     // 加号在固定图标区域居中
-  place-items: center;                               // 水平垂直居中
-  width: 26px;                                       // 稳定熟悉图标点击视觉
-  height: 26px;                                      // 稳定熟悉图标点击视觉
-  font-size: 20px;                                   // 加号无需文字按钮
-}
-
-.composer__mode {
-  display: flex;                                     // 状态点和工具标签同排
-  align-items: center;                               // 保持小元素基线稳定
-  gap: 6px;                                          // 状态点与文字分离
-}
-
-.composer__send {
-  width: 34px;                                       // 固定发送按钮尺寸
-  height: 34px;                                      // 固定发送按钮尺寸
-  color: #111111;                                    // 白色填充上的高对比图标
-  background: #ececec;                              // 主要命令使用中性高对比填充
-  border-radius: 50%;                                // 熟悉的图标动作形状
-}
-
-.composer__send[disabled] {
-  color: #676767;                                    // 禁用状态降低图标对比
-  background: #252525;                              // 禁用填充融入输入器
-}
-
-.composer__send--stop mdui-icon-stop {
-  width: 17px;                                       // 停止方块保持在圆形内
-  height: 17px;                                      // 停止方块保持在圆形内
-}
-
-.workspace-view {
-  width: min(1040px, calc(100% - 72px));             // 设置与工具在宽屏保持扫描宽度
-  height: 100%;                                      // 占满主工作区域
-  margin: 0 auto;                                    // 内容在主区域居中
-  padding: 0 0 56px;                                 // 滚动底部留安全空间
-  overflow-y: auto;                                  // 业务页面独立滚动
-}
-
-.view-header {
-  position: sticky;                                  // 长列表中保持页面上下文和命令
-  z-index: 4;                                        // 高于滚动内容
-  top: 0;                                            // 固定到工作区顶部
-  display: flex;                                     // 标题和主要命令同排
-  align-items: center;                               // 垂直居中
-  justify-content: space-between;                    // 命令靠右
-  min-height: 104px;                                 // 保持稳定业务页头尺寸
-  padding: 26px 0 18px;                              // 提供工作区标题空间
-  border-bottom: 1px solid $line;                    // 分隔内容而非浮动卡片
-  background: rgb(10 10 10 / 94%);                  // 滚动时保持标题可读
-  backdrop-filter: blur(10px);                       // 轻微材质反馈
-}
-
-.view-header h1 {
-  margin: 0;                                         // 由标题容器控制间距
-  font-size: 24px;                                   // 页面级但非营销式标题
-  font-weight: 570;                                  // 克制强调
-  letter-spacing: 0;                                 // 禁止负字距
-}
-
-.view-header p {
-  margin: 7px 0 0;                                   // 与标题分离
-  color: $muted;                                     // 页面说明保持次级层级
-  font-size: 13px;                                   // 适合工具工作台说明
-}
-
-.view-loading,
-.view-empty {
-  display: grid;                                     // 将状态置于空白区中心
-  place-items: center;                               // 水平垂直居中
-  min-height: 320px;                                 // 留出稳定反馈区域
-  color: $muted;                                     // 空状态保持次级
-  font-size: 13px;                                   // 紧凑工作台状态文字
-}
-
-.session-table {
-  border-bottom: 1px solid $line;                    // 完整列表形成统一表格边界
-}
-
-.session-row {
-  display: grid;                                     // 图标、摘要和操作三列组织
-  grid-template-columns: 34px minmax(0, 1fr) 42px;   // 固定图标和操作，标题自适应
-  align-items: center;                               // 行内元素垂直居中
-  width: 100%;                                       // 整行可点击打开
-  min-height: 76px;                                  // 保持重复操作舒适高度
-  padding: 8px 2px;                                  // 密集列表保持紧凑
-  border: 0;                                         // 使用横向分隔而非独立卡片
-  border-top: 1px solid $line;                       // 明确行边界
-  background: transparent;                           // 列表融入页面
-  text-align: left;                                  // 摘要按扫描方向对齐
-  cursor: pointer;                                   // 整行可打开
-  transition: background-color 140ms ease;           // 提供轻量悬停反馈
-}
-
-.session-row:first-child {
-  border-top: 0;                                     // 避免页头下方重复分隔线
-}
-
-.session-row:hover {
-  background: #101010;                              // 整行悬停反馈
-}
-
-.session-row__icon {
-  display: grid;                                     // 历史图标居中
-  place-items: center;                               // 图标在固定列居中
-  color: #727272;                                    // 图标保持辅助层级
-}
-
-.session-row__icon mdui-icon-history {
-  width: 18px;                                       // 固定列表图标尺寸
-  height: 18px;                                      // 固定列表图标尺寸
-}
-
-.session-row__content {
-  min-width: 0;                                      // 允许标题省略
-  padding: 0 12px;                                   // 与图标和操作分离
-}
-
-.session-row__content strong,
-.session-row__content small {
-  display: block;                                    // 标题和元数据分两行
-  overflow: hidden;                                  // 长内容保持在行内
-  text-overflow: ellipsis;                           // 反馈仍有隐藏内容
-  white-space: nowrap;                               // 保持稳定列表行高
-}
-
-.session-row__content strong {
-  font-size: 14px;                                   // 摘要主信息字号
-  font-weight: 520;                                  // 克制强调标题
-}
-
-.session-row__content small {
-  margin-top: 7px;                                   // 与标题分离
-  color: $muted;                                     // 元数据降低权重
-  font-size: 11px;                                   // 适合密集扫描
-}
-
-.tool-grid {
-  display: grid;                                     // 工具按响应式多列排列
-  grid-template-columns: repeat(2, minmax(0, 1fr));  // 桌面端并排比较工具
-  gap: 1px;                                          // 细缝配合共享边框感
-  margin-top: 28px;                                  // 与页头和反馈分离
-  border: 1px solid $line;                           // 工具注册表形成一个整体
-  background: $line;                                 // 网格缝隙作为分隔线
-}
-
-.tool-item {
-  min-width: 0;                                      // 长参数名不撑破网格
-  padding: 20px;                                     // 提供工具检查空间
-  background: $background;                           // 单项不使用浮动卡片表面
-}
-
-.tool-item header {
-  display: flex;                                     // 命令符号和工具身份同排
-  align-items: flex-start;                           // 多行标题从顶部对齐
-  gap: 12px;                                         // 图标与标题分离
-}
-
-.tool-item h2 {
-  margin: 0;                                         // 由工具头部控制间距
-  overflow-wrap: anywhere;                           // 长工具名允许换行
-  font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 14px;                                   // 工具名紧凑清晰
-  font-weight: 600;                                  // 强化可扫描名称
-}
-
-.tool-item header small {
-  display: block;                                    // 来源位于名称下方
-  margin-top: 4px;                                   // 与名称分离
-  color: #666666;                                    // 来源保持辅助层级
-  font-size: 10px;                                   // 最小元数据字号
-  text-transform: uppercase;                         // 表达注册来源标签
-}
-
-.tool-item > p {
-  min-height: 42px;                                  // 两列工具描述保持稳定基线
-  margin: 16px 0;                                    // 与头部和参数分离
-  color: #adadad;                                    // 描述低于工具名
-  font-size: 13px;                                   // 适合技术说明
-  line-height: 1.6;                                  // 多行保持可读
-}
-
-.tool-parameters {
-  border-top: 1px solid #222222;                     // 参数从工具描述中分隔
-}
-
-.tool-parameters > div {
-  display: flex;                                     // 参数名和类型同排
-  align-items: center;                               // 保持基线稳定
-  justify-content: space-between;                    // 类型靠右便于扫描
-  gap: 12px;                                         // 长内容保持间隔
-  min-height: 34px;                                  // 固定参数行高度
-  border-bottom: 1px solid #1c1c1c;                 // 轻量参数分隔
-  color: #858585;                                    // 类型保持次级层级
-  font-size: 11px;                                   // 密集参数元数据
-}
-
-.tool-parameters > div:last-child {
-  border-bottom: 0;                                  // 避免工具底部重复边线
-}
-
-.tool-parameters code {
-  color: #d2d2d2;                                    // 参数名保持可读
-  overflow-wrap: anywhere;                           // 长参数名可换行
-}
-
-.settings-view {
-  width: min(860px, calc(100% - 72px));              // 表单使用更窄可读列
-}
-
-.settings-section {
-  display: grid;                                     // 标题与字段垂直组织
-  gap: 22px;                                         // 各配置组保持清晰距离
-  padding: 30px 0;                                   // 使用全宽段落而非浮动卡片
-  border-bottom: 1px solid $line;                    // 区分独立设置领域
-}
-
-.settings-section__header h2 {
-  margin: 0;                                         // 段落控制标题间距
-  font-size: 17px;                                   // 设置分组使用紧凑标题
-  font-weight: 570;                                  // 保持层级清晰
-}
-
-.settings-section__header p {
-  margin: 7px 0 0;                                   // 与标题分离
-  color: $muted;                                     // 设置说明保持次级层级
-  font-size: 12px;                                   // 紧凑业务表单说明
-}
-
-.settings-grid {
-  display: grid;                                     // 提供商和模型并排编辑
-  grid-template-columns: repeat(2, minmax(0, 1fr));  // 两字段等宽
-  gap: 14px;                                         // 输入框保持间距
-}
-
-.settings-prompt {
-  width: 100%;                                       // 系统提示词占完整表单宽度
-}
-
-.permission-list {
-  border-top: 1px solid $line;                       // 权限按统一列表展示
-}
-
-.permission-row {
-  display: grid;                                     // 工具身份和权限动作两列
-  grid-template-columns: minmax(150px, 1fr) auto;    // 权限控件保持所需宽度
-  align-items: center;                               // 行内内容垂直居中
-  gap: 20px;                                         // 名称与动作分离
-  min-height: 68px;                                  // 保持重复编辑舒适高度
-  padding: 8px 0;                                    // 细分隔周围留空
-  border-bottom: 1px solid $line;                    // 明确每项权限边界
-}
-
-.permission-row strong,
-.permission-row small {
-  display: block;                                    // 工具名和规则说明分行
-}
-
-.permission-row strong {
-  font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 13px;                                   // 权限键名紧凑易扫
-}
-
-.permission-row small {
-  margin-top: 5px;                                   // 与工具名分离
-  color: $muted;                                     // 规则说明保持次级
-  font-size: 10px;                                   // 最小元数据字号
-}
-
-.permission-row mdui-segmented-button-group {
-  min-width: 250px;                                  // 三态文字保持稳定宽度
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: .35; transform: scale(.85); }  // 活动周期起止保持柔和
-  50% { opacity: 1; transform: scale(1); }           // 中点增强反馈
-}
-
-@keyframes typing {
-  0%, 60%, 100% { opacity: .25; transform: translateY(0); } // 默认点保持低调
-  30% { opacity: 1; transform: translateY(-3px); }   // 当前点轻微上移
-}
-
-@media (max-width: 900px) {
-  .tool-grid {
-    grid-template-columns: 1fr;                      // 窄桌面改为单列工具避免拥挤
-  }
-
-  .tool-item > p {
-    min-height: 0;                                   // 单列无需对齐描述高度
-  }
-}
-
-@media (max-width: 760px) {
-  .app-shell,
-  .app-shell--sidebar {
-    display: block;                                  // 移动端主内容始终占满宽度
-  }
-
-  .sidebar {
-    position: fixed;                                 // 移动侧栏覆盖主内容
-    top: 0;                                          // 从视口顶部开始
-    left: 0;                                         // 从视口左侧滑入
-    width: min(84vw, 300px);                         // 留出遮罩可点击区域
-    transform: translateX(-100%);                    // 默认完全移出视口
-    box-shadow: 14px 0 40px rgb(0 0 0 / 48%);       // 与主内容建立浮层关系
-  }
-
-  .sidebar--open {
-    transform: translateX(0);                        // 打开时滑入视口
-  }
-
-  .sidebar-scrim {
-    position: fixed;                                 // 覆盖完整主工作区
-    z-index: 15;                                     // 位于侧栏下方主内容上方
-    inset: 0;                                        // 占满视口
-    display: block;                                  // 移动端开启关闭触发区域
-    border: 0;                                       // 遮罩无需边框
-    background: rgb(0 0 0 / 62%);                   // 降低后方内容干扰
-    backdrop-filter: blur(2px);                      // 强化浮层上下文
-  }
-
-  .chat-header {
-    padding: 0 52px;                                 // 同时避开左侧菜单与右侧安全区
-  }
-
-  .message-list__column {
-    width: calc(100% - 28px);                        // 移动端扩大正文可用宽度
-    padding-top: 26px;                               // 缩短顶栏后空白
-  }
-
-  .message--user {
-    max-width: 88%;                                  // 移动端允许用户长问题使用更多宽度
-  }
-
-  .chat-feedback {
-    width: calc(100% - 28px);                        // 与移动消息列对齐
-  }
-
-  .approval {
-    grid-template-columns: 1fr;                      // 审批动作移到内容下方
-  }
-
-  .approval__actions {
-    justify-content: flex-end;                       // 操作靠右符合确认习惯
-  }
-
-  .chat-composer {
-    width: calc(100% - 20px);                        // 最大化移动输入空间
-    padding-bottom: max(7px, env(safe-area-inset-bottom)); // 适配底部安全区
-  }
-
-  .composer {
-    min-height: 96px;                                // 移动端稍压缩输入器高度
-  }
-
-  .workspace-view,
-  .settings-view {
-    width: calc(100% - 30px);                        // 业务页保留移动安全边距
-  }
-
-  .view-header {
-    min-height: 84px;                                // 移动端使用更紧凑页头
-    padding: 18px 0 14px 42px;                       // 左侧为浮动菜单按钮留位
-  }
-
-  .view-header h1 {
-    font-size: 20px;                                 // 适配紧凑移动工具栏
-  }
-
-  .settings-grid {
-    grid-template-columns: 1fr;                      // 移动表单改为单列输入
-  }
-
-  .permission-row {
-    grid-template-columns: 1fr;                      // 权限名称与三态控件分行
-    gap: 10px;                                       // 收紧分行后的距离
-    padding: 14px 0;                                 // 保持触控舒适高度
-  }
-
-  .permission-row mdui-segmented-button-group {
-    width: 100%;                                     // 三态控件使用完整移动宽度
-    min-width: 0;                                    // 允许窄屏缩放
-  }
-}
-
-.session-title-editor > button {
-  padding: 3px 0;                                      // 可编辑标题只占文本本身
-  border: 0;                                           // 标题不显示为按钮
-  background: transparent;                             // 默认融入顶栏
-  color: var(--agent-text);                            // 标题使用主文字
-  font-size: 14px;                                     // 与原顶栏尺度一致
-  font-weight: 600;                                    // 保持上下文识别
-  cursor: text;                                        // 文本光标暗示可编辑
-}
-
-.session-title-editor > input {
-  height: 28px;                                        // 编辑态不改变顶栏节奏
-  padding: 2px 0;                                      // 输入与原标题基线对齐
-  border: 0;                                           // 不出现传统表单边框
-  border-bottom: 1px solid var(--agent-focus);         // 只用底线反馈正在编辑
-  border-radius: 0;                                    // 与标题文本保持无感衔接
-  outline: 0;                                          // 聚焦反馈由底线承载
-  background: transparent;                             // 编辑态不跳成另一张卡片
-  color: var(--agent-text);                            // 草稿保持主对比
-}
-
-.session-title-editor > input:focus {
-  border-bottom-width: 2px;                            // 聚焦时增强可见性而不移动外框
-}
-
-/* --- OpenCode 式顶部会话工作区 --- */
-.app-shell {
-  display: grid;                                     // 顶部标签栏与业务内容固定分行
-  grid-template-columns: minmax(0, 1fr);             // 不再保留侧栏轨道
-  grid-template-rows: 44px minmax(0, 1fr);           // 紧凑标题栏下方使用全部空间
-  gap: 0;                                            // 标签栏直接连接工作区
-  padding: 0;                                        // 页面内容使用完整窗口
-  background: #0b0c0d;                              // 保持中性深色外壳
-}
-
-.titlebar {
-  position: relative;                                // 为顶部状态窗建立独立层叠上下文
-  z-index: 30;                                       // 保证弹窗覆盖会话列表和业务操作按钮
-  display: flex;                                     // Home、标签、工具动作同排
-  align-items: center;                               // 所有 32px 控件垂直居中
-  min-width: 0;                                      // 标签条允许水平压缩
-  height: 44px;                                      // 对齐桌面工作台紧凑标题栏
-  padding: 5px 8px;                                  // 控件与窗口边缘保持安全距离
-  border-bottom: 1px solid #202224;                  // 细线区分标签和内容
-  background: #101112;                              // 标题栏略高于主内容
-}
-
-.titlebar > mdui-button-icon {
-  width: 32px;                                       // 稳定图标点击尺寸
-  height: 32px;                                      // 标签切换不引发布局跳动
-  flex: 0 0 32px;                                    // 标签过多时工具动作不被挤压
-  color: #9da0a2;                                    // 默认动作保持次级
-}
-
-.titlebar > mdui-button-icon:hover,
-.titlebar > mdui-button-icon.is-active {
-  color: #f2f2f2;                                    // 悬停和当前页面提高对比
-  background: #292b2d;                              // Material 状态层表达选择
-}
-
-.titlebar__tabs {
-  display: flex;                                     // 会话标签按打开顺序水平排列
-  align-items: center;                               // 保持标签高度一致
-  min-width: 0;                                      // 允许条带消费剩余宽度
-  max-width: min(72vw, 1100px);                      // 为右侧工具动作留空间
-  margin-left: 6px;                                  // 与 Home 动作分组
-  padding: 0 2px;                                    // 分隔线不贴边
-  overflow-x: auto;                                  // 多标签时水平滚动
-  scrollbar-width: none;                             // 标题栏保持整洁
-}
-
-.titlebar__tabs::-webkit-scrollbar {
-  display: none;                                     // Chromium 隐藏标签条滚动条
-}
-
-.session-tab {
-  position: relative;                                // 为相邻标签分隔线提供定位
-  display: grid;                                     // 状态、标题、关闭动作三列
-  grid-template-columns: 8px minmax(36px, 1fr) 24px; // 标题自适应且不挤压动作
-  align-items: center;                               // 标签内容垂直居中
-  width: clamp(116px, 14vw, 220px);                  // 多标签时稳定收缩范围
-  height: 32px;                                      // 保持浏览器式紧凑标签
-  flex: 0 1 220px;                                   // 空间不足时均匀压缩
-  gap: 6px;                                          // 内容之间保留辨识距离
-  padding: 0 3px 0 10px;                             // 标题和关闭按钮保持安全边距
-  border: 0;                                         // 使用状态层而非卡片描边
-  border-radius: 7px;                                // Material 小圆角适合工具标签
-  background: transparent;                           // 非活动标签融入标题栏
-  color: #aeb0b2;                                    // 降低后台标签权重
-  cursor: pointer;                                   // 整个标签可选择
-}
-
-.session-tab + .session-tab::before {
-  position: absolute;                                // 创建 OpenCode 式标签分隔线
-  top: 9px;                                          // 与标签内容垂直居中
-  left: -1px;                                        // 位于两个标签之间
-  width: 1px;                                        // 保持克制
-  height: 14px;                                      // 不贯穿完整标题栏
-  background: #303234;                              // 低对比分隔
-  content: '';
-}
-
-.session-tab:hover,
-.session-tab.is-active {
-  background: #27292b;                              // Material 状态层反馈当前标签
-  color: #f3f3f3;                                    // 当前标题提高可读性
-}
-
-.session-tab.is-active::before,
-.session-tab.is-active + .session-tab::before {
-  display: none;                                     // 活动表面已经表达边界
-}
-
-.session-tab__status {
-  width: 6px;                                        // 为运行状态保留稳定位置
-  height: 6px;                                       // 使用细小圆点而非文字
-  border-radius: 50%;                                // 熟悉的状态符号
-  background: #5d6062;                              // 空闲状态降低权重
-}
-
-.session-tab__status.is-running {
-  background: #e7e7e7;                              // 运行中使用高对比中性色
-  animation: pulse 1.4s ease-in-out infinite;        // 提示该标签仍在生成
-}
-
-.session-tab__title {
-  min-width: 0;                                      // 长标题允许省略
-  overflow: hidden;                                  // 不覆盖关闭动作
-  text-overflow: ellipsis;                           // 保持单行标签高度
-  white-space: nowrap;                               // 标题栏不换行
-  font-size: 12px;                                   // 适合密集多会话工作区
-  text-align: left;                                  // 浏览器式标签从左扫描
-}
-
-.session-tab__close {
-  width: 24px;                                       // 固定小型关闭动作
-  height: 24px;                                      // 不改变标签高度
-  opacity: 0;                                        // 后台标签减少视觉噪声
-}
-
-.session-tab:hover .session-tab__close,
-.session-tab.is-active .session-tab__close {
-  opacity: 1;                                        // 悬停或活动时显示关闭入口
-}
-
-.titlebar__new {
-  margin-left: 4px;                                  // 与标签条分离
-}
-
-.titlebar__spacer {
-  min-width: 12px;                                   // 标签和工具动作保持最低距离
-  flex: 1;                                           // 将工具和设置推到右侧
-}
-
-.main-area {
-  min-height: 0;                                     // 业务页面可以内部滚动
-  height: auto;                                      // 使用网格剩余轨道而非整窗高度
-  border: 0;                                         // 页面区域不是浮动卡片
-  border-radius: 0;                                  // 与窗口边界自然衔接
-  background: #151617;                              // 保持 Material 主表面
-  box-shadow: none;                                  // 不制造装饰性外框
-}
-
-.chat-view {
-  grid-template-rows: 46px minmax(0, 1fr) auto auto; // 顶栏缩小以配合外层标签栏
-}
-
-.chat-header {
-  justify-content: flex-start;                       // 会话内容标题靠左便于扫描
-  padding: 0 28px;                                   // 与工作区边缘保持距离
-  border-bottom: 1px solid #202224;                  // 区分会话工具栏与消息
-}
-
-.chat-header > div {
-  width: 100%;                                       // 标题使用完整工具栏宽度
-}
-
-.message--user {
-  padding-right: 16px;                               // 为回退编辑动作保留气泡内空间
-}
-
-.message__retry {
-  position: absolute;                                // 不改变用户气泡布局尺寸
-  top: 50%;                                          // 与用户消息垂直居中
-  left: -38px;                                       // 放在气泡外侧形成消息动作区
-  width: 30px;                                       // 紧凑图标点击区
-  height: 30px;                                      // 保持圆形状态层
-  opacity: 0;                                        // 默认减少重复消息视觉噪声
-  transform: translateY(-50%);                       // 精确垂直居中
-  transition: opacity 120ms ease;                    // 悬停反馈平滑出现
-}
-
-.message--user:hover .message__retry,
-.message__retry:focus-visible {
-  opacity: 1;                                        // 鼠标和键盘都可发现回退编辑
-}
-
-.chat-composer {
-  display: grid;                                     // 撤销栏、输入器和提示垂直排列
-  gap: 7px;                                          // 暂存状态紧贴输入器形成组合
-}
-
-.revert-dock {
-  display: grid;                                     // 图标、摘要、预览、撤销命令同排
-  grid-template-columns: 20px auto minmax(0, 1fr) auto; // 预览消费剩余宽度
-  align-items: center;                               // 保持 40px 高度稳定
-  min-height: 40px;                                  // 提供清晰可点击区域
-  padding: 5px 8px 5px 14px;                         // 与输入器左右边缘协调
-  border: 1px solid #37393b;                         // 暂存状态需要明确边界
-  border-radius: 8px;                                // 工作控件使用克制圆角
-  background: #202224;                              // 位于输入器下方的次级表面
-  color: #c6c8ca;                                    // 摘要保持次级层级
-  font-size: 12px;                                   // 紧凑状态文本
-}
-
-.revert-dock mdui-icon-undo {
-  width: 17px;                                       // 与摘要字号匹配
-  height: 17px;                                      // 保持固定图标尺寸
-}
-
-.revert-dock__preview {
-  min-width: 0;                                      // 长原文可省略
-  overflow: hidden;                                  // 不挤压撤销按钮
-  color: #85888a;                                    // 预览弱于状态摘要
-  text-overflow: ellipsis;                           // 保持单行 dock
-  white-space: nowrap;                               // 不增高输入区
-}
-
-.revert-dock button {
-  min-height: 28px;                                  // 提供可点击文字命令
-  padding: 0 10px;                                   // 文字与边缘分离
-  border: 0;                                         // 使用状态层表达动作
-  border-radius: 6px;                                // 与 dock 形状一致
-  background: #343638;                              // Material 次级命令表面
-  color: #f0f0f0;                                    // 保证撤销动作可见
-  cursor: pointer;                                   // 表明可恢复历史
-}
-
-.home-view {
-  height: 100%;                                      // 主页独立占满工作区
-  overflow-y: auto;                                  // 长会话列表滚动
-}
-
-.home-header {
-  display: flex;                                     // 品牌和主页命令同排
-  align-items: center;                               // 垂直居中
-  justify-content: space-between;                    // 操作靠右
-  min-height: 72px;                                  // 主页顶部保持克制高度
-  padding: 0 32px;                                   // 与内容列对齐
-  border-bottom: 1px solid #242628;                  // 分隔稳定产品栏
-  background: #171819;                              // 略高于内容背景
-}
-
-.home-header__brand,
-.home-header__actions {
-  display: flex;                                     // 品牌或动作水平排列
-  align-items: center;                               // 保持基线稳定
-  gap: 10px;                                         // 元素间留空
-}
-
-.home-header__brand > span {
-  display: grid;                                     // 品牌字母居中
-  place-items: center;                               // 水平垂直居中
-  width: 30px;                                       // 稳定产品标识尺寸
-  height: 30px;                                      // 保持圆形比例
-  border-radius: 50%;                                // 品牌标识使用圆形
-  background: #eeeeee;                              // 黑白高对比信号
-  color: #111111;                                    // 确保字母可读
-  font-weight: 700;                                  // 小尺寸强化识别
-}
-
-.home-content {
-  width: min(920px, calc(100% - 48px));              // 会话列表保持扫描宽度
-  margin: 0 auto;                                    // 在宽屏居中
-  padding: 42px 0 64px;                              // 页面内容保持工作区留白
-}
-
-.home-section-title {
-  display: flex;                                     // 标题区域允许后续动作扩展
-  align-items: end;                                  // 描述与标题形成紧凑组
-  justify-content: space-between;                    // 保留右侧空间
-  margin-bottom: 22px;                               // 与会话行分离
-}
-
-.home-section-title h1 {
-  margin: 0;                                         // 由标题组控制间距
-  font-size: 22px;                                   // 主页页面标题而非英雄字号
-  font-weight: 580;                                  // 保持 Material 温和字重
-}
-
-.home-section-title p {
-  margin: 5px 0 0;                                   // 与标题建立辅助层级
-  color: #85888a;                                    // 降低统计文本权重
-  font-size: 12px;                                   // 适合会话浏览辅助信息
-}
-
-.session-row {
-  min-height: 64px;                                  // 主页行紧凑但可触达
-  border-radius: 8px;                                // 不将页面列表做成大胶囊卡片
-  background: #1d1f20;                              // Material tonal 列表表面
-}
-
-@media (max-width: 760px) {
-  .app-shell {
-    grid-template-rows: 46px minmax(0, 1fr);         // 移动端保留可触达顶部标签
-  }
-
-  .titlebar {
-    height: 46px;                                    // 移动标题栏略增高
-    padding-inline: 4px;                             // 最大化标签可用宽度
-  }
-
-  .titlebar__tabs {
-    max-width: none;                                 // 移动端标签条消费全部剩余空间
-    flex: 1;                                         // 工具动作保持在条带后
-  }
-
-  .session-tab {
-    width: 132px;                                    // 移动端稳定可扫描标签宽度
-    flex: 0 0 132px;                                 // 使用横向滚动而非压成图标
-  }
-
-  .titlebar > mdui-button-icon[aria-label="工具"] {
-    display: none;                                   // 小屏优先主页、标签和设置
-  }
-
-  .chat-header {
-    padding: 0 16px;                                 // 移动会话工具栏减少边距
-  }
-
-  .message__retry {
-    left: -32px;                                     // 适配窄消息阅读列
-    opacity: 1;                                      // 触屏没有 hover，始终显示入口
-  }
-
-  .revert-dock {
-    grid-template-columns: 20px minmax(0, 1fr) auto; // 移动端隐藏单独预览轨道
-  }
-
-  .revert-dock__preview {
-    display: none;                                   // 保留摘要和撤销动作空间
-  }
-
-  .home-header {
-    min-height: 64px;                                // 移动主页保持紧凑
-    padding: 0 14px;                                 // 适配窄视口
-  }
-
-  .home-content {
-    width: calc(100% - 24px);                        // 会话行保留边缘安全距离
-    padding-top: 28px;                               // 减少移动顶部留白
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;                // 用户偏好下关闭平滑滚动
-    animation-duration: .01ms !important;            // 保留状态终点但移除动画
-    animation-iteration-count: 1 !important;         // 防止持续脉冲造成不适
-    transition-duration: .01ms !important;           // 侧栏和按钮立即反馈
-  }
-}
-
-/* --- Material You 大圆角形状系统 --- */
-:root {
-  --mdui-shape-corner-extra-small: 10px;             // 紧凑标签仍保留柔和圆角
-  --mdui-shape-corner-small: 14px;                   // 小型控件使用明显圆角
-  --mdui-shape-corner-medium: 18px;                  // 输入和列表使用 Material 中型形状
-  --mdui-shape-corner-large: 24px;                   // 面板和菜单使用大圆角
-  --mdui-shape-corner-extra-large: 32px;             // 对话框和主要表面使用超大圆角
-}
-
-.app-shell {
-  gap: 8px;                                          // 主画布与导航轨道之间留外层背景
-  padding: 8px;                                      // 露出 Grok 参考图中的外层黑色边框
-  background: #050505;                              // 外壳比内容表面更深
-}
-
-.app-shell:not(.app-shell--sidebar) {
-  gap: 0;                                            // 收起侧栏后主画布使用完整宽度
-}
-
-.app-shell--sidebar {
-  grid-template-columns: 244px minmax(0, 1fr);       // Material 导航保持舒适触控宽度
-}
-
-.sidebar {
-  width: 244px;                                      // 与新网格轨道保持一致
-  padding: 10px 8px;                                 // 让胶囊导航与外壳留空
-  border-right: 0;                                   // 不再使用 shadcn 细线分栏
-  background: transparent;                           // 导航成为外层轨道而非独立矩形
-}
-
-.main-area {
-  height: 100%;                                      // 在外壳内填满可用网格高度
-  border: 1px solid #1e1f20;                         // 轻量表达大画布边界
-  border-radius: 30px;                               // 参考 Grok 桌面主画布的大圆角
-  background: #151617;                              // 使用 Material 表面而非纯黑平面
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%);   // 提供克制表面层级
-}
-
-.sidebar__brand > button:first-child,
-.chat-empty__symbol {
-  border: 0;                                         // 品牌符号使用填充表面
-  background: #f0f0f0;                              // 黑白品牌高对比
-  color: #111111;                                    // 保证符号可读
-}
-
-.new-chat,
-.primary-nav button,
-.sidebar__history button {
-  border-radius: 20px;                               // 导航统一 Material 胶囊形状
-}
-
-.new-chat {
-  min-height: 48px;                                  // 强化首要新建操作
-  border: 0;                                         // 不使用 shadcn 描边按钮
-  background: #202122;                              // tonal 表面表达命令层级
-}
-
-.new-chat:hover,
-.primary-nav button:hover,
-.sidebar__history button:hover,
-.primary-nav button.is-active,
-.sidebar__history button.is-active {
-  background: #292a2b;                              // tonal 状态层保持中性
-}
-
-.primary-nav button {
-  min-height: 44px;                                  // 满足 Material 触控高度
-}
-
-.chat-header {
-  border-bottom: 0;                                  // 主画布不再被横线切割
-}
-
-.chat-empty {
-  padding-bottom: 4vh;                               // 品牌位于输入器上方视觉中心
-}
-
-.chat-empty__brand {
-  display: flex;                                     // 品牌符号和产品名组成锁定区
-  align-items: center;                               // 两者垂直对齐
-  justify-content: center;                           // 居中成为首屏主信号
-  gap: 15px;                                         // 保持品牌元素间距
-}
-
-.chat-empty__brand .chat-empty__symbol {
-  width: 58px;                                       // 参考图的大型品牌符号
-  height: 58px;                                      // 保持圆形比例
-  margin: 0;                                         // 锁定区统一控制间距
-  font-size: 24px;                                   // 匹配扩大后的品牌容器
-}
-
-.chat-empty__brand strong {
-  font-size: 40px;                                   // 产品名作为首视口主信号
-  font-weight: 580;                                  // Material 标题保持温和字重
-  letter-spacing: 0;                                 // 禁止紧缩字距
-}
-
-.chat-composer {
-  width: min(820px, calc(100% - 40px));              // 参考图中更宽的中央输入器
-  padding-bottom: 18px;                              // 与大画布底边保留空间
-}
-
-.composer {
-  min-height: 118px;                                 // 提供 Grok 式宽松输入空间
-  padding: 18px 18px 12px 20px;                      // 大圆角内增加舒适留白
-  border: 0;                                         // 由 tonal 表面界定输入器
-  border-radius: 30px;                               // 对话输入器使用 Material 超大圆角
-  background: #262829;                              // 明显高于主画布的输入表面
-  box-shadow: 0 10px 32px rgb(0 0 0 / 22%);         // 柔和抬升而非硬边框
-}
-
-.composer:focus-within {
-  border: 0;                                         // 聚焦不回退到描边风格
-  box-shadow: 0 12px 36px rgb(0 0 0 / 32%), inset 0 0 0 2px #555758; // Material 状态层反馈
-}
-
-.composer__footer {
-  height: 40px;                                      // 为模型胶囊和发送按钮提供稳定轨道
-}
-
-.composer__plus {
-  width: 34px;                                       // 附件图标使用独立圆形状态层
-  height: 34px;                                      // 匹配底栏控件高度
-  border-radius: 50%;                                // 熟悉的图标按钮形状
-  background: #333536;                              // tonal 次级动作
-}
-
-.composer__send {
-  width: 40px;                                       // 主要发送动作更易触达
-  height: 40px;                                      // 保持圆形尺寸
-}
-
-.model-selector__trigger {
-  min-width: 0;                                      // 模型名根据内容自适应
-  height: 36px;                                      // 与输入器底栏保持稳定
-  padding: 0 12px;                                   // 提供胶囊左右空间
-  border-radius: 18px;                               // 模型切换采用 Material 胶囊
-  background: #333536;                              // 在输入表面上形成 tonal 层级
-  color: #eeeeee;                                    // 保持高对比模型名
-  font-size: 12px;                                   // 长模型 ID 不抢输入正文
-}
-
-.model-selector__menu {
-  min-width: 250px;                                  // 提供商和模型名保持可扫描宽度
-  max-width: min(360px, calc(100vw - 32px));         // 移动端不突破视口
-  padding: 8px;                                      // 菜单项与大圆角边缘留空
-  border-radius: 24px;                               // 模型菜单使用 Material 大圆角
-  background: #282a2b;                              // 菜单高于输入器表面
-}
-
-.model-selector__provider {
-  padding: 10px 12px 6px;                            // 分组标题与菜单项对齐
-  color: #969899;                                    // 提供商名称保持次级
-  font-size: 10px;                                   // 紧凑分组标签
-  font-weight: 650;                                  // 增强扫描能力
-  text-transform: uppercase;                         // 区分提供商和模型条目
-}
-
-.model-selector__dot {
-  width: 6px;                                        // 非当前模型保留图标对齐位
-  height: 6px;                                       // 使用轻量圆点
-  margin: auto;                                      // 在图标槽中居中
-  border-radius: 50%;                                // Material 状态点
-  background: #666869;                              // 低对比未选状态
-}
-
-.message--user {
-  padding: 13px 18px;                                // 用户消息增加 Material 留白
-  border-radius: 22px 22px 6px 22px;                 // 大圆角并保留说话方向
-  background: #2c2e2f;                              // tonal 用户消息表面
-}
-
-.reasoning {
-  padding: 4px;                                      // 思考块使用独立 tonal 容器
-  border-left: 0;                                    // 移除 shadcn 竖线表达
-  border-radius: 18px;                               // Material 次级面板形状
-  background: #1e2021;                              // 从主画布轻微抬升
-}
-
-.approval {
-  border: 0;                                         // 审批不使用硬描边卡片
-  border-radius: 24px;                               // 操作面板使用 Material 大圆角
-  background: #222425;                              // tonal 区分技术内容
-}
-
-.workspace-view,
-.settings-view {
-  width: min(1120px, calc(100% - 64px));             // 多提供商布局使用更宽工作区
-}
-
-.view-header {
-  min-height: 112px;                                 // Material 页面顶栏增加呼吸空间
-  border-bottom: 0;                                  // 不以 shadcn 细线切割页面
-  border-radius: 30px 30px 0 0;                      // 跟随主画布顶部形状
-  background: rgb(21 22 23 / 92%);                  // 与主画布保持同一表面
-}
-
-.view-header mdui-button,
-.model-add mdui-button {
-  --mdui-shape-corner-large: 24px;                   // 文字命令使用 Material 胶囊
-}
-
-.session-table {
-  display: grid;                                     // 会话改为 Material 行块列表
-  gap: 8px;                                          // 行块间露出主表面
-  border: 0;                                         // 移除表格式底边
-}
-
-.session-row {
-  min-height: 82px;                                  // 提供大圆角行块空间
-  padding: 8px 12px;                                 // 内容远离圆角边缘
-  border: 0;                                         // 移除硬分隔线
-  border-radius: 22px;                               // 会话采用 Material 列表形状
-  background: #1d1f20;                              // tonal 行表面
-}
-
-.session-row:hover {
-  background: #292b2c;                              // 状态层反馈打开动作
-}
-
-.tool-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));  // 保留工具比较能力
-  gap: 14px;                                         // 卡片之间使用真实空间
-  border: 0;                                         // 移除共享方形外框
-  background: transparent;                           // 主画布作为网格背景
-}
-
-.tool-item {
-  padding: 24px;                                     // 大圆角卡片提供内部留白
-  border-radius: 26px;                               // 工具卡片使用 Material 大形状
-  background: #1e2021;                              // tonal 工具表面
-}
-
-.settings-view {
-  padding-bottom: 48px;                              // 设置内容与画布底部留空
-}
-
-.provider-settings {
-  display: grid;                                     // 左侧提供商与右侧详情主从布局
-  grid-template-columns: 260px minmax(0, 1fr);       // 固定导航，详情自适应
-  gap: 16px;                                         // 两个 Material 表面之间留空
-  min-height: 560px;                                 // 空模型列表仍保持稳定设置结构
-}
-
-.provider-list,
-.provider-detail,
-.settings-section {
-  border: 0;                                         // 设置模块不使用细线框架
-  border-radius: 28px;                               // 统一 Material 超大面板形状
-  background: #1d1f20;                              // 从主设置画布抬升
-}
-
-.provider-list {
-  align-self: start;                                 // 提供商少时不拉伸空白表面
-  padding: 14px 10px;                                // 列表与圆角边缘留空
-}
-
-.provider-list > header,
-.provider-detail__header,
-.model-catalog > header {
-  display: flex;                                     // 标题与动作水平排列
-  align-items: center;                               // 垂直居中
-  justify-content: space-between;                    // 动作靠右
-}
-
-.provider-list > header {
-  min-height: 62px;                                  // 提供商标题保持稳定高度
-  padding: 0 10px 10px;                              // 与列表项对齐
-}
-
-.provider-list h2,
-.provider-detail h2,
-.model-catalog h3 {
-  margin: 0;                                         // 面板负责标题间距
-  letter-spacing: 0;                                 // 保持 Material 正常字距
-}
-
-.provider-list h2,
-.provider-detail h2 {
-  font-size: 16px;                                   // 紧凑设置面板标题
-}
-
-.provider-list p,
-.provider-detail p,
-.model-catalog p {
-  margin: 5px 0 0;                                   // 与对应标题分离
-  color: #919394;                                    // 辅助说明保持次级
-  font-size: 11px;                                   // 适合设置工作台密度
-}
-
-.provider-list > button {
-  display: grid;                                     // 图标与两行身份信息排列
-  grid-template-columns: 38px minmax(0, 1fr);        // 固定头像，文字自适应
-  align-items: center;                               // 垂直居中
-  gap: 11px;                                         // 头像与文字分离
-  width: 100%;                                       // 整行可选择
-  min-height: 62px;                                  // Material 触控列表高度
-  padding: 8px 10px;                                 // 内容远离胶囊边缘
-  overflow: hidden;                                  // 长提供商名称不泄露
-  border: 0;                                         // 通过状态层表达选择
-  border-radius: 20px;                               // 提供商项使用大胶囊形状
-  background: transparent;                           // 默认融入列表面板
-  text-align: left;                                  // 信息按扫描方向对齐
-  cursor: pointer;                                   // 反馈可切换详情
-}
-
-.provider-list > button:hover,
-.provider-list > button.is-active {
-  background: #303233;                              // 当前提供商使用 tonal 状态层
-}
-
-.provider-list > button > span:last-child,
-.model-list button > span:nth-child(2) {
-  min-width: 0;                                      // 长名称允许省略
-}
-
-.provider-list strong,
-.provider-list small,
-.model-list strong,
-.model-list small {
-  display: block;                                    // 主次信息分两行
-  overflow: hidden;                                  // 长模型名保持在容器内
-  text-overflow: ellipsis;                           // 反馈还有隐藏内容
-  white-space: nowrap;                               // 保持稳定列表高度
-}
-
-.provider-list strong,
-.model-list strong {
-  font-size: 13px;                                   // 列表主信息字号
-  font-weight: 560;                                  // 温和强调
-}
-
-.provider-list small,
-.model-list small {
-  margin-top: 5px;                                   // 与主信息分离
-  color: #919394;                                    // 次级说明降低权重
-  font-size: 10px;                                   // 紧凑元数据字号
-}
-
-.provider-list__avatar {
-  display: grid;                                     // 字母在提供商头像内居中
-  place-items: center;                               // 水平垂直居中
-  width: 36px;                                       // 稳定列表头像尺寸
-  height: 36px;                                      // 保持圆形比例
-  border-radius: 50%;                                // 使用熟悉身份符号
-  background: #e6e6e6;                              // 黑白高对比头像
-  color: #151515;                                    // 保持字母可读
-  font-size: 13px;                                   // 匹配头像尺寸
-  font-weight: 750;                                  // 强化单字母识别
-}
-
-.provider-list__avatar--large {
-  width: 48px;                                       // 详情头部强化提供商身份
-  height: 48px;                                      // 保持圆形比例
-  font-size: 17px;                                   // 匹配扩大头像
-}
-
-.provider-list__empty,
-.model-list__empty {
-  padding: 28px 16px;                                // 空状态保持圆角内留白
-  color: #858788;                                    // 辅助提示不抢主要操作
-  font-size: 12px;                                   // 紧凑设置提示
-  line-height: 1.6;                                  // 多行保持可读
-  text-align: center;                                // 空状态居中
-}
-
-.provider-detail {
-  min-width: 0;                                      // 字段和模型不撑破网格
-  padding: 24px;                                     // 详情与圆角边缘留空
-}
-
-.provider-detail__header {
-  min-height: 58px;                                  // 详情标题保持稳定高度
-  margin-bottom: 24px;                               // 与字段区分离
-}
-
-.provider-detail__header > div:first-child {
-  display: flex;                                     // 大头像和身份信息同排
-  align-items: center;                               // 垂直居中
-  gap: 13px;                                         // 头像与标题分离
-}
-
-.provider-fields {
-  display: grid;                                     // 提供商字段按双列组织
-  grid-template-columns: repeat(2, minmax(0, 1fr));  // 名称和地址并排
-  gap: 14px;                                         // 大圆角字段之间留空
-}
-
-.provider-fields__wide {
-  grid-column: 1 / -1;                               // 密钥使用完整详情宽度
-}
-
-.provider-cache {
-  display: flex;                                     // 缓存说明与开关同排
-  align-items: center;                               // 垂直居中
-  justify-content: space-between;                    // 开关保持右侧操作位置
-  gap: 20px;                                         // 文本与开关保留触控空间
-  min-height: 68px;                                  // 与 Material 输入控件高度一致
-  padding: 10px 16px;                                // 内容远离大圆角边缘
-  border-radius: 20px;                               // 使用 Material tonal 设置行
-  background: #262829;                              // 从提供商详情表面轻微抬升
-}
-
-.provider-cache strong,
-.provider-cache small {
-  display: block;                                    // 设置名称和说明分行
-}
-
-.provider-cache strong {
-  font-size: 13px;                                   // 设置主信息字号
-  font-weight: 560;                                  // 温和强调
-}
-
-.provider-cache small {
-  margin-top: 5px;                                   // 与设置名称分离
-  color: #919394;                                    // 说明保持次级层级
-  font-size: 10px;                                   // 紧凑配置说明
-}
-
-.model-catalog {
-  margin-top: 28px;                                  // 与凭据字段分离
-  padding-top: 24px;                                 // 标题上方保留空间
-  border-top: 1px solid #353738;                     // 内容分组使用内部细线
-}
-
-.model-catalog > header > span {
-  display: grid;                                     // 模型数量在圆形内居中
-  place-items: center;                               // 水平垂直居中
-  min-width: 32px;                                   // 稳定计数尺寸
-  height: 32px;                                      // 保持圆形比例
-  border-radius: 16px;                               // Material 计数胶囊
-  background: #303233;                              // tonal 次级表面
-  color: #c8c9ca;                                    // 保持计数可读
-  font-size: 11px;                                   // 紧凑计数
-}
-
-.model-add {
-  display: grid;                                     // 输入和添加命令同排
-  grid-template-columns: minmax(0, 1fr) auto;        // 输入使用剩余宽度
-  gap: 10px;                                         // 控件之间留空
-  margin: 20px 0 12px;                               // 与标题和列表分离
-}
-
-.model-list {
-  display: grid;                                     // 模型行垂直排列
-  gap: 7px;                                          // 行之间露出详情背景
-}
-
-.model-list > button {
-  display: grid;                                     // 状态、身份和删除三列
-  grid-template-columns: 28px minmax(0, 1fr) 44px;   // 固定动作列，名称自适应
-  align-items: center;                               // 垂直居中
-  width: 100%;                                       // 整行切换当前模型
-  min-height: 62px;                                  // Material 触控行高度
-  padding: 7px 6px 7px 12px;                         // 内容远离圆角边缘
-  border: 0;                                         // 使用 tonal 表面表达边界
-  border-radius: 20px;                               // 模型行使用大圆角
-  background: #262829;                              // 默认模型表面
-  color: #eeeeee;                                    // 主信息高对比
-  text-align: left;                                  // 保持列表扫描方向
-  cursor: pointer;                                   // 反馈可设为当前模型
-}
-
-.model-list > button:hover,
-.model-list > button.is-active {
-  background: #353738;                              // 当前模型和悬停使用状态层
-}
-
-.model-list__status {
-  display: grid;                                     // 当前模型勾选居中
-  place-items: center;                               // 水平垂直居中
-  width: 22px;                                       // 稳定状态列
-  height: 22px;                                      // 稳定状态列
-}
-
-.model-list__status mdui-icon-check {
-  width: 17px;                                       // 勾选图标保持紧凑
-  height: 17px;                                      // 勾选图标保持紧凑
-}
-
-.settings-section {
-  gap: 22px;                                         // 保留设置内容阅读节奏
-  margin-top: 16px;                                  // 与提供商主从区域分离
-  padding: 28px;                                     // 大圆角面板内部留白
-}
-
-.settings-section--prompt {
-  margin-top: 16px;                                  // 明确 Agent 设置分组
-}
-
-.permission-list {
-  border-top: 0;                                     // 权限面板不使用表格式顶边
-}
-
-.permission-row {
-  padding: 12px 10px;                                // 权限行增加 Material 留白
-  border-bottom-color: #353738;                      // 分隔线融入面板表面
-}
-
-@media (max-width: 900px) {
-  .provider-settings {
-    grid-template-columns: 1fr;                      // 窄屏将提供商列表放到详情上方
-  }
-
-  .provider-list {
-    display: flex;                                   // 窄屏提供商横向滚动
-    align-items: center;                             // 保持列表项垂直对齐
-    overflow-x: auto;                                // 多提供商不压缩名称
-  }
-
-  .provider-list > header {
-    min-width: 180px;                                // 保留标题和添加动作空间
-  }
-
-  .provider-list > button {
-    width: 190px;                                    // 横向列表项保持可读宽度
-    flex: 0 0 190px;                                 // 防止模型数量挤压项宽
-  }
-}
-
-@media (max-width: 760px) {
-  .app-shell,
-  .app-shell--sidebar {
-    padding: 0;                                      // 移动端主画布使用完整屏幕
-  }
-
-  .main-area {
-    border: 0;                                       // 移动端无需双层边界
-    border-radius: 0;                                // 全屏内容服从设备外形
-  }
-
-  .sidebar {
-    padding: 10px;                                   // 抽屉内部保留 Material 边距
-    border-radius: 0 28px 28px 0;                    // 移动抽屉右侧使用大圆角
-    background: #111213;                            // 浮层抽屉使用独立表面
-  }
-
-  .chat-empty__brand .chat-empty__symbol {
-    width: 50px;                                     // 移动品牌保持清晰但不拥挤
-    height: 50px;                                    // 保持圆形比例
-  }
-
-  .chat-empty__brand strong {
-    font-size: 34px;                                 // 移动首屏适配品牌字号
-  }
-
-  .chat-composer {
-    width: calc(100% - 18px);                        // 输入器最大化移动可用宽度
-  }
-
-  .composer {
-    min-height: 108px;                               // 移动仍保留 Grok 式宽松输入器
-    border-radius: 26px;                             // 适配较窄视口的大圆角
-  }
-
-  .workspace-view,
-  .settings-view {
-    width: calc(100% - 24px);                        // 移动设置页保留安全边距
-  }
-
-  .provider-list {
-    border-radius: 24px;                             // 移动横向提供商面板使用大圆角
-  }
-
-  .provider-detail,
-  .settings-section {
-    padding: 20px 16px;                              // 移动详情减少水平留白
-    border-radius: 24px;                             // 保持 Material 大形状
-  }
-
-  .provider-fields {
-    grid-template-columns: 1fr;                      // 提供商字段改为单列
-  }
-
-  .provider-fields__wide {
-    grid-column: auto;                               // 单列无需跨轨道
-  }
-
-  .model-add {
-    grid-template-columns: 1fr;                      // 模型输入和添加按钮分行
-  }
-}
-
-/* --- 顶部标签布局最终约束 --- */
-.app-shell {
-  grid-template-columns: minmax(0, 1fr);             // 最终覆盖旧侧栏轨道定义
-  grid-template-rows: 44px minmax(0, 1fr);           // 固定标题栏并释放内容空间
-  gap: 0;                                            // 主区域直接连接标题栏
-  padding: 0;                                        // 桌面端也使用完整窗口
-}
-
-.main-area {
-  height: auto;                                      // 使用第二行轨道而非突破窗口
-  border: 0;                                         // 主页面不是浮动卡片
-  border-radius: 0;                                  // 遵循 OpenCode 连续工作区布局
-  box-shadow: none;                                  // 移除旧主画布抬升效果
-}
-
-.session-row {
-  min-height: 64px;                                  // 会话主页保持紧凑扫描密度
-  border-radius: 8px;                                // 列表项使用克制 Material 圆角
-}
-
-@media (max-width: 760px) {
-  .app-shell {
-    grid-template-rows: 46px minmax(0, 1fr);         // 移动端增加标题栏触控高度
-  }
-}
-
-/* --- 最终工作台功能层：标题、任务、审批、Markdown 与高级模型配置 --- */
-.session-tab__status.is-approval {
-  background: #f1c75b;                               // 待审批标签使用警示黄区别运行状态
-  box-shadow: 0 0 0 3px rgb(241 199 91 / 14%);       // 在后台标签中保持清晰但克制
-}
-
-.session-tab__status.is-running.is-approval {
-  animation: approval-pulse 1.2s ease-in-out infinite; // 同时运行和等待审批时强调需用户介入
-}
-
-.session-title-editor {
-  display: grid;                                     // 标题和编辑动作原位排列
-  grid-template-columns: minmax(0, 1fr) auto;         // 输入消费剩余宽度，动作保持稳定
-  align-items: center;                               // 与会话行文字垂直对齐
-  min-width: 0;                                      // 长标题允许省略
-  max-width: 100%;                                   // 不突破列表内容列
-}
-
-.session-title-editor > button {
-  min-width: 0;                                      // 标题允许在行内收缩
-  padding: 2px 0;                                    // 保持列表原有密度
-  overflow: hidden;                                  // 长标题不覆盖右侧动作
-  border: 0;                                         // 标题命令融入列表而非独立卡片
-  background: transparent;                           // 默认保持当前表面
-  color: inherit;                                    // 继承会话主文字
-  font-size: 13px;                                   // 与会话列表信息层级一致
-  font-weight: 600;                                  // 强化会话身份
-  text-align: left;                                  // 沿列表扫描方向对齐
-  text-overflow: ellipsis;                           // 超长标题保留单行布局
-  white-space: nowrap;                               // 不改变会话行高度
-  cursor: text;                                      // 表明标题可原位编辑
-}
-
-.session-title-editor > input {
-  width: 100%;                                       // 输入覆盖原标题可用宽度
-  min-width: 0;                                      // 防止长草稿撑破行
-  height: 30px;                                      // 保持紧凑行高
-  padding: 0 8px;                                    // 文本远离焦点边框
-  border: 1px solid #58a6ff;                         // 使用终端蓝色表达当前编辑焦点
-  border-radius: 5px;                                // 工作控件保持克制圆角
-  outline: 0;                                        // 自定义边框承担焦点反馈
-  background: #101416;                              // 输入从列表表面轻微下沉
-  color: #f4f5f5;                                    // 草稿保持高对比
-  font-size: 13px;                                   // 切换时文本尺寸稳定
-}
-
-.session-title-editor__actions {
-  display: flex;                                     // 取消和保存命令紧邻输入
-  align-items: center;                               // 图标垂直居中
-}
-
-.session-title-editor__actions mdui-button-icon {
-  width: 28px;                                       // 限制行内图标尺寸
-  height: 28px;                                      // 不增大会话行
-}
-
-.session-title-editor--compact {
-  width: min(420px, 48vw);                           // 顶栏标题为状态和错误留空间
-}
-
-.session-title-editor--compact > button {
-  font-size: 14px;                                   // 顶栏标题保持现有字号
-}
-
-.chat-header__error {
-  min-width: 0;                                      // 长错误允许收缩
-  overflow: hidden;                                  // 不覆盖运行状态
-  color: #ff8f88;                                    // 错误使用终端红色语义
-  font-size: 11px;                                   // 顶栏反馈保持紧凑
-  text-overflow: ellipsis;                           // 单行保留工具栏高度
-  white-space: nowrap;                               // 不推动聊天内容
-}
-
-.chat-workspace > .chat-empty {
-  align-self: center;                                // 空对话品牌保持内容区居中
-  justify-self: center;                              // 不受任务轨道影响水平位置
-}
-
-.chat-workspace > .message-list {
-  min-width: 0;                                      // 代码和表格不撑破任务轨道
-  height: 100%;                                      // 继续使用独立消息滚动
-}
-
-.tool-call__approval {
-  display: grid;                                     // 权限目标、错误和动作垂直组织
-  gap: 10px;                                         // 各反馈层清晰分离
-  padding: 12px;                                     // 与工具数据边缘对齐
-  border-top: 1px solid #343a40;                     // 审批区属于同一工具而非嵌套卡片
-}
-
-.tool-call__permission {
-  display: grid;                                     // 目标和规则按行展示
-  gap: 5px;                                          // 保持技术信息紧凑
-}
-
-.tool-call__permission > span {
-  display: grid;                                     // 标签和实际值形成两列
-  grid-template-columns: 42px minmax(0, 1fr);        // 值允许长路径换行
-  align-items: baseline;                             // 首行基线稳定
-  gap: 8px;                                          // 标签与目标分离
-}
-
-.tool-call__permission small {
-  color: #8b949e;                                    // 字段名称降低权重
-  font-size: 10px;                                   // 紧凑技术元数据
-}
-
-.tool-call__permission code {
-  color: #79c0ff;                                    // 实际目标使用终端青蓝语义
-  font-size: 11px;                                   // 长路径保持可扫描
-  overflow-wrap: anywhere;                           // 任意路径不撑破工具面板
-}
-
-.tool-call__approval-actions {
-  display: flex;                                     // 三个明确决定同排
-  flex-wrap: wrap;                                   // 窄工具面板允许自然换行
-  justify-content: flex-end;                         // 决策命令靠右符合现有动作位置
-  gap: 6px;                                          // 防止相邻触控误操作
-}
-
-.markdown {
-  min-width: 0;                                      // 表格和代码服从消息列宽
-}
-
+.markdown ol { padding-left: 22px; }
+.markdown li + li { margin-top: 4px; }
 .markdown h1,
 .markdown h2,
-.markdown h3,
-.markdown h4 {
-  margin: 22px 0 10px;                               // 标题与上下正文建立结构
-  letter-spacing: 0;                                 // 保持应用字距要求
-  line-height: 1.35;                                 // 长标题安全换行
-}
+.markdown h3 { margin: 22px 0 10px; font-size: 15px; letter-spacing: 0; }
+.markdown code,
+.tool-strip code,
+.tool-strip pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
+.markdown :not(pre) > code { padding: 2px 5px; border: 1px solid #303030; border-radius: 4px; background: #151515; font-size: .9em; }
+.markdown pre { position: relative; max-width: 100%; padding: 13px; overflow-x: auto; border: 1px solid $line; border-radius: 6px; background: #101010; font-size: 12px; line-height: 1.55; }
+.markdown blockquote { padding-left: 13px; border-left: 2px solid #555; color: #aaa; }
+.markdown a { color: #eee; text-decoration-color: #777; text-underline-offset: 3px; }
+.markdown-code__copy { position: absolute; top: 7px; right: 7px; padding: 4px 7px; border: 1px solid #343434; border-radius: 4px; color: $muted; background: #171717; font-size: 9px; }
+.markdown-mermaid { margin: 14px 0; padding: 12px; overflow-x: auto; border: 1px solid $line; border-radius: 6px; background: #111; }
 
-.markdown h1 { font-size: 21px; }                    // 回答内一级标题保持内容尺度
-.markdown h2 { font-size: 18px; }                    // 二级标题适合技术段落
-.markdown h3,
-.markdown h4 { font-size: 15px; }                    // 深层标题不制造英雄字号
+.reasoning { margin-bottom: 12px; border-left: 1px solid #333; }
+.reasoning__trigger { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 10px; border: 0; color: #858585; background: transparent; font-size: 11px; text-align: left; }
+.reasoning__spark { width: 5px; height: 5px; border-radius: 50%; background: #888; }
+.reasoning--active .reasoning__spark { animation: pulse 1.2s ease-in-out infinite; }
+.reasoning__chevron { width: 15px; height: 15px; margin-left: auto; transition: transform 150ms ease; }
+.reasoning__chevron--open { transform: rotate(180deg); }
+.reasoning__content { padding: 4px 14px 9px 24px; color: #858585; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+.message__typing { display: flex; align-items: center; gap: 4px; height: 24px; }
+.message__typing i { width: 5px; height: 5px; border-radius: 50%; background: #999; animation: typing 1.1s ease-in-out infinite; }
+.message__typing i:nth-child(2) { animation-delay: 120ms; }
+.message__typing i:nth-child(3) { animation-delay: 240ms; }
+.message__tools { display: grid; gap: 7px; margin-top: 15px; }
 
-.markdown pre {
-  position: relative;                                // 为复制按钮提供定位上下文
-  padding-top: 36px;                                 // 代码首行避开复制命令
-  white-space: pre;                                  // 代码保持原始缩进并横向滚动
-  background: #0d1117;                              // 使用 OpenCode 启发的终端表面
-}
+.tool-strip { overflow: hidden; border: 1px solid #282828; border-radius: 6px; background: #111; }
+.tool-strip__line { display: grid; grid-template-columns: 26px auto minmax(0, 1fr) auto 28px 28px; align-items: center; gap: 8px; min-height: 42px; padding: 4px 7px 4px 9px; cursor: pointer; }
+.tool-strip__line:hover { background: #171717; }
+.tool-strip__icon { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid #353535; border-radius: 50%; color: #ccc; font-family: Consolas, monospace; font-size: 9px; }
+.tool-strip__line strong { font-size: 11px; white-space: nowrap; }
+.tool-strip__preview { min-width: 0; overflow: hidden; color: $muted; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.tool-strip__status { display: flex; align-items: center; gap: 5px; color: $faint; font-size: 9px; white-space: nowrap; }
+.tool-strip__status i { width: 5px; height: 5px; border-radius: 50%; background: #666; }
+.tool-strip.is-waiting .tool-strip__status i,
+.tool-strip.is-running .tool-strip__status i { background: #eee; animation: pulse 1.2s ease-in-out infinite; }
+.tool-strip.is-rejected .tool-strip__status i { background: $danger; }
+.tool-strip__line button { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 4px; color: $muted; background: transparent; }
+.tool-strip__line button:hover { color: $text; background: $raised; }
+.tool-strip__line button mdui-icon-undo,
+.tool-strip__line button mdui-icon-expand-more { width: 15px; height: 15px; }
+.tool-strip.is-open .tool-strip__line button:last-child { transform: rotate(180deg); }
+.tool-strip__detail { display: grid; gap: 8px; padding: 10px 42px 12px; border-top: 1px solid #222; color: $muted; font-size: 10px; }
+.tool-strip__detail > div > span { display: block; margin-bottom: 5px; color: $faint; }
+.tool-strip__detail pre { max-height: 160px; margin: 0; padding: 9px; overflow: auto; border-radius: 4px; background: #0b0b0b; white-space: pre-wrap; }
+.tool-strip__detail p { margin: 0; }
+.tool-strip__approval { display: flex; justify-content: flex-end; gap: 6px; padding: 8px 10px; border-top: 1px solid #282828; }
+.tool-strip__approval button { min-height: 30px; padding: 0 10px; border: 1px solid $line; border-radius: 5px; background: transparent; font-size: 10px; }
+.tool-strip__approval button:hover { background: $raised; }
 
-.markdown pre code {
-  display: block;                                    // 高亮内容使用完整代码宽度
-  min-width: max-content;                            // 长行通过容器滚动而不软换行
-}
+.request-strip { display: flex; align-items: center; gap: 9px; min-height: 30px; margin-top: 10px; padding: 0 8px; border-left: 1px solid #343434; color: $faint; font-size: 9px; }
+.request-strip strong { color: #a9a9a9; font-size: 10px; font-weight: 550; }
+.request-strip__spinner { width: 8px; height: 8px; border: 1px solid #555; border-radius: 50%; }
+.request-strip.is-running .request-strip__spinner { border-top-color: #eee; animation: spin .8s linear infinite; }
+.request-strip.is-completed .request-strip__spinner { border-color: #bbb; background: #bbb; }
+.message-error { display: flex; gap: 8px; margin-top: 10px; padding: 9px; border: 1px solid #5a3030; border-radius: 5px; color: $danger; background: #1d1111; font-size: 11px; }
+.message-error mdui-icon-error-outline { width: 16px; height: 16px; }
 
-.markdown-code__copy {
-  position: absolute;                                // 固定在代码块右上工具区
-  top: 6px;                                          // 与代码边缘保持安全距离
-  right: 7px;                                        // 靠右不遮挡语言内容
-  min-width: 46px;                                   // 状态文本切换不引发布局跳动
-  height: 24px;                                      // 紧凑代码命令尺寸
-  padding: 0 7px;                                    // 文本与边缘分离
-  border: 1px solid #30363d;                         // 使用终端细线边界
-  border-radius: 4px;                                // 避免胶囊形按钮
-  background: #161b22;                              // 从代码背景轻微抬升
-  color: #b1bac4;                                    // 次级命令不抢代码
-  font-size: 10px;                                   // 匹配代码元数据密度
-  cursor: pointer;                                   // 反馈可复制动作
-}
+.message-map { position: absolute; z-index: 8; top: 50%; right: 14px; display: grid; gap: 6px; width: 30px; padding: 6px 0; transform: translateY(-50%); }
+.message-map > button { display: grid; place-items: center; width: 28px; height: 24px; padding: 0; border: 0; color: $faint; background: transparent; }
+.message-map mdui-icon-keyboard-arrow-up,
+.message-map mdui-icon-keyboard-arrow-down { width: 18px; height: 18px; }
+.message-map > div { display: grid; justify-items: end; gap: 5px; max-height: 48vh; overflow: hidden; }
+.message-map > div button { width: 10px; height: 3px; padding: 0; border: 0; border-radius: 2px; background: #4a4a4a; transition: width 120ms ease, background-color 120ms ease; }
+.message-map > div button.is-assistant { width: 18px; }
+.message-map > div button:hover,
+.message-map > div button.is-active { width: 23px; background: #eee; }
 
-.markdown-code__copy:hover,
-.markdown-code__copy:focus-visible {
-  border-color: #58a6ff;                             // 鼠标和键盘共享蓝色焦点
-  color: #f0f6fc;                                    // 提高命令对比
-}
+.chat-footer { width: min(780px, calc(100% - 80px)); margin: 0 auto; padding: 0 0 14px; }
+.rollback-preview { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 46px; margin-bottom: 7px; padding: 6px 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: #151515; }
+.rollback-preview mdui-icon-undo { width: 16px; height: 16px; color: $muted; }
+.rollback-preview span { min-width: 0; }
+.rollback-preview strong,
+.rollback-preview small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rollback-preview strong { font-size: 10px; }
+.rollback-preview small { margin-top: 2px; color: $muted; font-size: 9px; }
+.rollback-preview button { padding: 5px 7px; border: 0; color: #ddd; background: transparent; font-size: 10px; }
 
-.markdown table {
-  display: block;                                    // 窄屏表格允许自身横向滚动
-  width: max-content;                                // 列宽按内容稳定计算
-  max-width: 100%;                                   // 不突破消息列
-  margin: 0 0 16px;                                  // 与后续正文分离
-  overflow-x: auto;                                  // 保留全部数据列
-  border-collapse: collapse;                         // 使用紧凑数据网格
-  font-size: 13px;                                   // 表格比正文略紧凑
-}
+.task-dock { display: block; margin-bottom: 7px; overflow: hidden; border: 1px solid $line; border-radius: 6px; background: #111; }
+.task-dock__header { display: grid; grid-template-columns: 36px minmax(0, 1fr) 22px; align-items: center; min-height: 38px; padding: 0 9px; color: $muted; cursor: pointer; }
+.task-dock__progress { color: $text; font-family: Consolas, monospace; font-size: 10px; }
+.task-dock__preview { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.task-dock__chevron { width: 16px; height: 16px; transition: transform 150ms ease; }
+mdui-collapse-item[active] .task-dock__chevron { transform: rotate(180deg); }
+.task-dock__body { display: grid; gap: 2px; max-height: 150px; padding: 3px 9px 9px; overflow-y: auto; }
+.task-dock__item { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; min-height: 30px; color: #bbb; font-size: 10px; }
+.task-dock__item mdui-checkbox { transform: scale(.7); transform-origin: left center; pointer-events: none; }
+.task-dock__item.is-completed span,
+.task-dock__item.is-cancelled span { color: $faint; text-decoration: line-through; }
 
-.markdown th,
-.markdown td {
-  padding: 7px 10px;                                 // 单元格保持可扫描密度
-  border: 1px solid #30363d;                         // 终端式表格分隔线
-  text-align: left;                                  // 默认数据沿阅读方向对齐
-}
+.composer { overflow: hidden; border: 1px solid #363636; border-radius: 8px; background: #151515; box-shadow: 0 12px 35px #0004; transition: border-color 120ms ease; }
+.composer:focus-within { border-color: #696969; }
+.composer > textarea { display: block; width: 100%; min-height: 58px; max-height: 180px; padding: 14px 14px 6px; resize: none; border: 0; outline: 0; background: transparent; font-size: 13px; line-height: 1.5; }
+.composer__files { display: flex; flex-wrap: wrap; gap: 5px; padding: 9px 10px 0; }
+.composer__files > span { display: flex; align-items: center; gap: 5px; max-width: 220px; padding: 5px 7px; overflow: hidden; border: 1px solid #343434; border-radius: 5px; color: $muted; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.composer__files mdui-icon-attach-file { width: 12px; height: 12px; }
+.composer__files button { display: grid; place-items: center; width: 14px; height: 14px; padding: 0; border: 0; color: $muted; background: transparent; }
+.composer__files mdui-icon-close { width: 12px; height: 12px; }
+.composer__bar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 5px 8px; }
+.composer__left { display: flex; align-items: center; gap: 4px; }
+.model-select { position: relative; display: flex; align-items: center; }
+.model-select select { height: 30px; max-width: 230px; padding: 0 26px 0 8px; overflow: hidden; appearance: none; border: 0; border-radius: 5px; outline: 0; color: #bbb; background: transparent; font-size: 10px; text-overflow: ellipsis; }
+.model-select select:hover { color: $text; background: $raised; }
+.model-select mdui-icon-expand-more { position: absolute; right: 5px; width: 14px; height: 14px; pointer-events: none; }
+.send-command { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; color: #111; background: #eee; }
+.send-command.is-stop { color: #eee; background: #383838; }
+.send-command mdui-icon-arrow-upward,
+.send-command mdui-icon-stop { width: 17px; height: 17px; }
 
-.markdown th {
-  background: #161b22;                              // 表头从数据行抬升
-  color: #f0f6fc;                                    // 强化字段名
-}
+/* --- 设置页 --- */
+.settings-view { display: grid; grid-template-columns: 218px minmax(0, 1fr); height: 100%; }
+.settings-nav { display: grid; grid-template-rows: 76px auto minmax(0, 1fr) 36px; gap: 3px; padding: 12px 10px; border-right: 1px solid $line-soft; background: #0b0b0b; }
+.settings-nav header { padding: 8px 10px; }
+.settings-nav h1 { margin: 0; font-size: 17px; }
+.settings-nav header small { display: block; margin-top: 5px; color: $faint; font-size: 9px; }
+.settings-nav > button { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 10px; border: 0; border-radius: 6px; color: #aaa; background: transparent; text-align: left; }
+.settings-nav > button:hover,
+.settings-nav > button.is-active { color: $text; background: $raised; }
+.settings-nav > button mdui-icon-dns,
+.settings-nav > button mdui-icon-build,
+.settings-nav > button mdui-icon-hub,
+.settings-nav > button mdui-icon-smart-toy,
+.settings-nav > button mdui-icon-palette,
+.settings-nav > button mdui-icon-storage { width: 17px; height: 17px; }
+.settings-nav > button span { font-size: 11px; }
+.settings-nav footer { align-self: end; padding: 0 10px; color: $faint; font-size: 9px; }
+.settings-content { min-width: 0; height: 100%; overflow: hidden; }
+.settings-content__header { display: flex; align-items: center; height: 64px; padding: 0 26px; border-bottom: 1px solid $line-soft; }
+.settings-content__header h2 { margin: 0; font-size: 15px; }
+.settings-content__header p { margin: 4px 0 0; color: $faint; font-size: 9px; }
 
-.markdown input[type="checkbox"] {
-  accent-color: #56d364;                             // GFM 任务列表接入完成语义
-}
+.provider-settings { display: grid; grid-template-columns: 210px minmax(0, 1fr); height: calc(100% - 64px); }
+.provider-list { display: grid; grid-template-rows: 54px minmax(0, 1fr) 42px; min-height: 0; padding: 10px; border-right: 1px solid $line-soft; }
+.provider-list > header { display: flex; align-items: center; padding: 0 8px; }
+.provider-list > header div { display: flex; align-items: baseline; gap: 7px; }
+.provider-list h2 { margin: 0; font-size: 13px; }
+.provider-list header span { color: $faint; font-size: 9px; }
+.provider-list__items { min-height: 0; overflow-y: auto; }
+.provider-list__items button { display: grid; grid-template-columns: 28px minmax(0, 1fr) 7px; align-items: center; gap: 8px; width: 100%; height: 42px; padding: 0 8px; border: 0; border-radius: 5px; color: #aaa; background: transparent; text-align: left; }
+.provider-list__items button:hover,
+.provider-list__items button.is-active { color: $text; background: $surface; }
+.provider-list__items button > span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #3c3c3c; border-radius: 50%; font-size: 9px; font-weight: 700; }
+.provider-list__items strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.provider-list__items i { width: 5px; height: 5px; border-radius: 50%; background: #444; }
+.provider-list__items i.is-on { background: #ddd; }
+.provider-list__add { display: flex; align-items: center; justify-content: center; gap: 7px; height: 34px; border: 1px solid $line; border-radius: 5px; color: #bbb; background: transparent; font-size: 10px; }
+.provider-list__add:hover { color: $text; background: $surface; }
+.provider-list__add mdui-icon-add { width: 15px; height: 15px; }
+.provider-detail { height: 100%; padding: 22px min(4vw, 46px) 50px; overflow-y: auto; }
+.setting-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .75fr); gap: 14px; }
+.setting-field,
+.provider-identity > label:first-child { display: grid; gap: 7px; margin-bottom: 16px; }
+.setting-field > span,
+.provider-identity > label:first-child > span { color: #aaa; font-size: 10px; }
+.setting-field input,
+.setting-field select,
+.provider-identity input,
+.prompt-settings textarea { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid $line; border-radius: 5px; outline: 0; color: $text; background: #111; font-size: 11px; }
+.setting-field input:focus,
+.setting-field select:focus,
+.provider-identity input:focus,
+.prompt-settings textarea:focus { border-color: #666; }
+.switch-field { display: flex; align-items: center; justify-content: space-between; min-height: 56px; margin-bottom: 16px; padding: 8px 11px; border: 1px solid $line; border-radius: 5px; background: #111; }
+.switch-field strong,
+.switch-field small { display: block; }
+.switch-field strong { font-size: 10px; }
+.switch-field small { margin-top: 4px; color: $faint; font-size: 9px; }
 
-.markdown details {
-  margin: 0 0 14px;                                  // 折叠块保持段落节奏
-  padding: 8px 10px;                                 // 内容与边界分离
-  border-left: 2px solid #58a6ff;                    // 用语义线而非嵌套卡片表达结构
-  background: #12171c;                              // 轻量区分可展开内容
-}
+.provider-models { margin: 16px 0 24px; border-top: 1px solid $line-soft; }
+.provider-models > header,
+.simple-settings__heading { display: flex; align-items: center; justify-content: space-between; min-height: 68px; }
+.provider-models h3,
+.custom-provider-settings h3,
+.simple-settings h3 { margin: 0; font-size: 13px; }
+.provider-models p,
+.simple-settings__heading p { margin: 4px 0 0; color: $faint; font-size: 9px; }
+.provider-models > header button,
+.simple-settings__heading button,
+.data-settings article button { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid $line; border-radius: 5px; color: #bbb; background: $surface; font-size: 9px; }
+.provider-models > header button:hover,
+.simple-settings__heading button:hover { color: $text; background: $raised; }
+.provider-models mdui-icon-download,
+.simple-settings__heading mdui-icon-add { width: 14px; height: 14px; }
+.provider-model-list { display: grid; gap: 5px; }
+.provider-model-list article { display: grid; grid-template-columns: 32px minmax(0, 1fr) 34px 34px; align-items: center; gap: 9px; min-height: 54px; padding: 6px 8px; border: 1px solid $line-soft; border-radius: 6px; background: #101010; }
+.model-symbol { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #3f3f3f; border-radius: 50%; font-size: 9px; font-weight: 700; }
+.provider-model-list article strong,
+.provider-model-list article small { display: block; }
+.provider-model-list article strong { font-size: 10px; }
+.provider-model-list article small { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; color: $faint; font-size: 8px; }
+.provider-model-list article small span { padding: 2px 4px; border: 1px solid #2b2b2b; border-radius: 3px; }
+.custom-provider-settings { padding-top: 14px; border-top: 1px solid $line-soft; }
+.custom-provider-settings h3 { margin-bottom: 16px; }
+.setting-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.text-danger { display: flex; align-items: center; gap: 7px; margin-top: 12px; padding: 6px 0; border: 0; color: $danger; background: transparent; font-size: 10px; }
+.text-danger mdui-icon-delete { width: 15px; height: 15px; }
 
-.markdown summary {
-  color: #d2a8ff;                                    // 可展开命令使用第二语义色
-  cursor: pointer;                                   // 表明原生 details 可操作
-}
+.simple-settings { width: min(820px, calc(100% - 52px)); height: calc(100% - 64px); margin: 0 auto; padding-bottom: 50px; overflow-y: auto; }
+.simple-settings__heading { border-bottom: 1px solid $line-soft; }
+.tool-setting-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 100px 46px; align-items: center; gap: 10px; min-height: 62px; border-bottom: 1px solid #191919; }
+.tool-setting-row__symbol { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #383838; border-radius: 50%; }
+.tool-setting-row input { width: 100%; padding: 3px 0; border: 0; outline: 0; background: transparent; font-size: 11px; font-weight: 600; }
+.tool-setting-row small { display: block; color: $faint; font-size: 8px; }
+.tool-setting-row select { height: 30px; padding: 0 7px; border: 1px solid $line; border-radius: 4px; background: #111; font-size: 9px; }
+.mcp-setting { margin: 8px 0; padding: 12px; border: 1px solid $line; border-radius: 6px; background: #101010; }
+.mcp-setting__top { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto 46px 34px; align-items: center; gap: 10px; margin-bottom: 12px; }
+.mcp-setting__top > span { width: 6px; height: 6px; border-radius: 50%; background: #555; }
+.mcp-setting__top > span.is-connected { background: #ddd; }
+.mcp-setting__top input { min-width: 0; padding: 4px 0; border: 0; outline: 0; background: transparent; font-size: 11px; font-weight: 600; }
+.mcp-setting__top small { color: $faint; font-size: 8px; }
+.prompt-settings textarea { min-height: 300px; padding: 14px; resize: vertical; font-family: "Cascadia Code", Consolas, monospace; line-height: 1.6; }
+.prompt-settings > small { display: block; margin-top: 7px; color: $faint; font-size: 9px; text-align: right; }
+.data-settings article { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 70px; border-bottom: 1px solid #1d1d1d; }
+.data-settings article > span { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #333; border-radius: 50%; }
+.data-settings article mdui-icon-download,
+.data-settings article mdui-icon-upload,
+.data-settings article mdui-icon-delete { width: 16px; height: 16px; }
+.data-settings article strong,
+.data-settings article small { display: block; }
+.data-settings article strong { font-size: 11px; }
+.data-settings article small { margin-top: 4px; color: $faint; font-size: 9px; }
+.data-settings article.is-danger { color: $danger; }
+.inline-feedback { margin-top: 14px; padding: 9px 11px; border: 1px solid $line; border-radius: 5px; color: #bbb; background: $surface; font-size: 10px; }
 
-.markdown-mermaid {
-  max-width: 100%;                                   // 图表服从消息列
-  margin: 0 0 16px;                                  // 与正文分离
-  padding: 12px;                                     // SVG 不贴近边缘
-  overflow-x: auto;                                  // 宽图表可完整检查
-  border: 1px solid #30363d;                         // 使用终端边界
-  border-radius: 6px;                                // 图表工具面保持克制
-  background: #0d1117;                              // 与代码来源保持一致
-}
+/* --- 弹窗与通用按钮 --- */
+.modal-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; padding: 20px; background: #000a; backdrop-filter: blur(3px); animation: fade 130ms ease-out; }
+.modal { width: min(480px, 100%); max-height: min(680px, calc(100vh - 40px)); padding: 18px; overflow-y: auto; border: 1px solid #383838; border-radius: 8px; background: #151515; box-shadow: 0 28px 80px #000c; animation: rise 160ms ease-out; }
+.modal--small { width: min(390px, 100%); }
+.modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.modal h2 { margin: 0; font-size: 15px; }
+.modal header p { margin: 6px 0 0; color: $muted; font-size: 10px; line-height: 1.5; }
+.modal > label { display: grid; gap: 7px; margin-bottom: 13px; }
+.modal > label span { color: #aaa; font-size: 10px; }
+.modal > label input { height: 40px; padding: 0 10px; border: 1px solid $line; border-radius: 5px; outline: 0; background: #0f0f0f; }
+.modal > label input:focus { border-color: #666; }
+.modal > footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.modal > footer button,
+.primary-button,
+.danger-button { min-height: 34px; padding: 0 13px; border: 1px solid $line; border-radius: 5px; background: transparent; font-size: 10px; }
+.modal > footer button:hover { background: $raised; }
+.primary-button { border-color: #ddd !important; color: #111; background: #eee !important; }
+.danger-button { border-color: #6b3636 !important; color: $danger; background: #231313 !important; }
+.model-picker { display: grid; gap: 5px; max-height: 360px; overflow-y: auto; }
+.model-picker button { display: grid; grid-template-columns: 30px minmax(0, 1fr) 20px; align-items: center; gap: 9px; min-height: 46px; padding: 5px 8px; border: 1px solid $line-soft; border-radius: 5px; color: #bbb; background: #101010; text-align: left; }
+.model-picker button:hover { color: $text; border-color: #444; }
+.model-picker button > span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #3b3b3b; border-radius: 50%; font-size: 9px; }
+.model-picker button strong { font-size: 10px; }
+.model-picker mdui-icon-add { width: 15px; height: 15px; }
 
-.markdown-mermaid svg {
-  display: block;                                    // 移除行内 SVG 基线空隙
-  max-width: 100%;                                   // 小图表自适应消息列
-  height: auto;                                      // 保持 Mermaid 原始比例
-  margin: 0 auto;                                    // 图表居中便于阅读
-}
-
-.markdown-mermaid--error {
-  border-color: #8e3b3b !important;                  // 无额外说明文字时仍表达解析失败
-}
-
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal { color: #ff7b72; }                    // 关键语法使用终端红
-.hljs-title,
-.hljs-title.function_,
-.hljs-section { color: #d2a8ff; }                    // 声明和函数使用紫色
-.hljs-string,
-.hljs-attribute { color: #a5d6ff; }                  // 字符串使用浅蓝
-.hljs-number,
-.hljs-symbol { color: #79c0ff; }                     // 数字和符号使用亮蓝
-.hljs-comment,
-.hljs-quote { color: #8b949e; font-style: italic; }   // 注释降低权重
-.hljs-variable,
-.hljs-template-variable { color: #ffa657; }           // 变量使用橙色区别关键字
-
-.provider-detail__actions {
-  display: flex;                                     // 连接测试和删除动作同排
-  align-items: center;                               // 与提供商身份垂直居中
-  gap: 6px;                                          // 防止相邻命令误触
-}
-
-.provider-test {
-  display: flex;                                     // 状态、提供商、模型和错误可换行排列
-  align-items: center;                               // 单行反馈保持紧凑
-  flex-wrap: wrap;                                   // 长上游错误安全换行
-  gap: 8px;                                          // 结构化字段清晰分离
-  margin-bottom: 14px;                               // 与编辑字段分组
-  padding: 9px 11px;                                 // 状态不贴边
-  border-left: 3px solid #56d364;                    // 成功使用绿色语义线
-  background: #151c18;                              // 成功表面保持低饱和
-  font-size: 11px;                                   // 适合设置反馈密度
-}
-
-.provider-test.is-error {
-  border-left-color: #ff7b72;                        // 失败使用红色语义线
-  background: #201516;                              // 与成功表面明确区分
-}
-
-.provider-test code {
-  color: #79c0ff;                                    // 服务和模型作为技术标识
-}
-
-.provider-test span {
-  flex-basis: 100%;                                  // 错误原因在下一行完整展示
-  color: #ffb4ad;                                    // 保持错误可读性
-  overflow-wrap: anywhere;                           // 上游长错误不撑破面板
-}
-
-.provider-native-field,
-.provider-json {
-  display: grid;                                     // 标签、输入和错误垂直组织
-  gap: 6px;                                          // 原生控件与标签分离
-  min-width: 0;                                      // JSON 内容不撑破详情
-}
-
-.provider-native-field > span,
-.provider-json > span,
-.model-entry__settings span {
-  color: #a6a9ac;                                    // 字段名保持次级
-  font-size: 11px;                                   // 与 MDUI 浮动标签协调
-}
-
-.provider-native-field select,
-.provider-json textarea,
-.model-entry__settings input {
-  width: 100%;                                       // 原生控件使用所属网格宽度
-  border: 1px solid #484c50;                         // 接入 MDUI outlined 控件边界
-  border-radius: 6px;                                // 保持工作台克制形状
-  outline: 0;                                        // 自定义焦点边界承担反馈
-  background: #17191a;                              // 与详情表面形成输入层级
-  color: #f0f1f1;                                    // 输入值保持高对比
-}
-
-.provider-native-field select {
-  height: 42px;                                      // 与紧凑 MDUI 字段接近
-  padding: 0 10px;                                   // 选项文字远离边缘
-}
-
-.provider-json textarea {
-  min-height: 104px;                                 // 请求头 JSON 保留多行编辑空间
-  padding: 10px;                                     // 代码文字不贴边
-  resize: vertical;                                  // 用户可按请求头数量扩展
-  font-family: "Cascadia Code", Consolas, monospace; // JSON 使用等宽字体
-  font-size: 11px;                                   // 提高结构扫描密度
-  line-height: 1.5;                                  // 多行 JSON 保持可读
-}
-
-.provider-native-field select:focus,
-.provider-json textarea:focus,
-.model-entry__settings input:focus {
-  border-color: #58a6ff;                             // 原生控件使用统一键盘焦点色
-}
-
-.field-error {
-  color: #ff8f88;                                    // JSON 校验错误原位展示
-  font-size: 10px;                                   // 不扩大设置表单节奏
-}
-
-.model-entry {
-  overflow: hidden;                                  // 设置保持在模型行边界内
-  border: 1px solid #34383b;                         // 单个模型是真实重复配置项
-  border-radius: 8px;                                // 卡片不超过克制圆角
-  background: #222526;                              // 与提供商详情区分
-}
-
-.model-entry.is-active {
-  border-color: #58a6ff;                             // 当前模型使用蓝色边界
-}
-
-.model-entry > header {
-  display: grid;                                     // 模型选择和删除动作两列排列
-  grid-template-columns: minmax(0, 1fr) 38px;        // 名称自适应，删除保持稳定
-  align-items: center;                               // 头部控件垂直居中
-  min-height: 46px;                                  // 保持紧凑可触达高度
-  border-bottom: 1px solid #34383b;                  // 分隔身份和生成限制
-}
-
-.model-entry > header > button {
-  display: grid;                                     // 勾选和模型 ID 同排
-  grid-template-columns: 26px minmax(0, 1fr);        // 名称允许省略
-  align-items: center;                               // 勾选与文字对齐
-  height: 45px;                                      // 整个身份区可设为当前模型
-  padding: 0 8px;                                    // 名称远离边界
-  overflow: hidden;                                  // 超长 ID 不覆盖删除动作
-  border: 0;                                         // 使用父项边界
-  background: transparent;                           // 选择动作融入模型项
-  text-align: left;                                  // ID 从左扫描
-  cursor: pointer;                                   // 表明可切换当前模型
-}
-
-.model-entry > header strong {
-  overflow: hidden;                                  // 长模型 ID 保持单行
-  font-size: 12px;                                   // 技术标识紧凑展示
-  text-overflow: ellipsis;                           // 反馈隐藏内容
-  white-space: nowrap;                               // 不改变头部高度
-}
-
-.model-entry__settings {
-  display: grid;                                     // 三个限制并排方便比较
-  grid-template-columns: repeat(3, minmax(0, 1fr));  // 每个字段均匀分配宽度
-  gap: 8px;                                          // 输入之间保留辨识空间
-  padding: 9px;                                      // 与模型项边界分离
-}
-
-.model-entry__settings label {
-  display: grid;                                     // 标签位于数字输入上方
-  gap: 4px;                                          // 保持高密度
-  min-width: 0;                                      // 数字控件允许收缩
-}
-
-.model-entry__settings input {
-  height: 32px;                                      // 数值编辑保持紧凑
-  padding: 0 7px;                                    // 数字远离边框
-  font-family: "Cascadia Code", Consolas, monospace; // 限制值稳定对齐
-  font-size: 11px;                                   // 适合三列布局
-}
-
-@keyframes approval-pulse {
-  0%, 100% { opacity: .55; transform: scale(.9); }    // 呼吸起点保持克制
-  50% { opacity: 1; transform: scale(1.12); }         // 中点明确提示等待决定
+/* --- 响应式 --- */
+@media (max-width: 900px) {
+  .home-body { grid-template-columns: 280px minmax(0, 1fr); }
+  .settings-view { grid-template-columns: 188px minmax(0, 1fr); }
+  .provider-settings { grid-template-columns: 180px minmax(0, 1fr); }
+  .setting-row,
+  .setting-grid { grid-template-columns: minmax(0, 1fr); }
+  .message-list__column,
+  .chat-footer { width: calc(100% - 64px); }
 }
 
 @media (max-width: 760px) {
-  .session-title-editor--compact {
-    width: min(54vw, 300px);                         // 移动顶栏给运行状态保留空间
-  }
+  .app-shell,
+  .app-shell--open { grid-template-columns: 58px minmax(0, 1fr); }
+  .sidebar { width: 58px; padding: 7px; }
+  .sidebar--open { position: fixed; inset: 0 auto 0 0; width: min(276px, calc(100vw - 48px)); box-shadow: 20px 0 60px #000b; }
+  .sidebar-scrim { position: fixed; z-index: 35; inset: 0; display: block; border: 0; background: #0008; }
+  .home-search { grid-template-columns: 20px minmax(0, 1fr); padding-inline: 16px; }
+  .home-search kbd { display: none; }
+  .home-body { grid-template-columns: 1fr; overflow-y: auto; }
+  .workspace-panel { min-height: 270px; border-right: 0; border-bottom: 1px solid $line-soft; overflow: visible; }
+  .workspace-list { height: auto; max-height: 250px; }
+  .session-panel { min-height: 420px; overflow: visible; }
+  .session-groups { overflow: visible; }
+  .chat-header { padding: 0 18px; }
+  .chat-header__title small { display: none; }
+  .session-title-editor button { max-width: 56vw; }
+  .message-list__column,
+  .chat-footer { width: calc(100% - 30px); }
+  .message-list__column { padding-top: 22px; }
+  .message--user { max-width: 90%; }
+  .message-map { right: 2px; opacity: .72; }
+  .tool-strip__line { grid-template-columns: 24px minmax(0, 1fr) auto 26px; }
+  .tool-strip__preview,
+  .tool-strip__line > button:nth-last-child(2) { display: none; }
+  .tool-strip__detail { padding-inline: 12px; }
+  .settings-view { display: block; overflow-y: auto; }
+  .settings-nav { position: sticky; z-index: 12; top: 0; display: flex; width: 100%; height: 58px; padding: 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid $line-soft; background: #0b0b0b; }
+  .settings-nav header,
+  .settings-nav footer { display: none; }
+  .settings-nav > button { width: auto; flex: 0 0 auto; padding-inline: 10px; }
+  .settings-content { height: auto; overflow: visible; }
+  .settings-content__header { padding-inline: 16px; }
+  .provider-settings { display: block; height: auto; }
+  .provider-list { display: grid; grid-template-rows: 45px auto 40px; height: auto; border-right: 0; border-bottom: 1px solid $line-soft; }
+  .provider-list__items { display: flex; overflow-x: auto; }
+  .provider-list__items button { min-width: 150px; }
+  .provider-detail { height: auto; padding: 20px 16px 50px; overflow: visible; }
+  .simple-settings { width: calc(100% - 30px); height: auto; overflow: visible; }
+  .tool-setting-row { grid-template-columns: 32px minmax(0, 1fr) 84px 40px; }
+}
 
-  .tool-call__approval-actions {
-    display: grid;                                   // 三个长审批标签在窄屏稳定排列
-    grid-template-columns: 1fr;                      // 每行一个决定避免文字截断
-  }
+@media (max-width: 480px) {
+  .home-session { grid-template-columns: 34px minmax(0, 1fr); }
+  .home-session__actions { grid-column: 2; justify-content: flex-end; opacity: 1; }
+  .panel-heading { padding-inline: 14px; }
+  .session-groups { padding-inline: 8px; }
+  .chat-footer { padding-bottom: 8px; }
+  .model-select select { max-width: 170px; }
+  .tool-strip__approval { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .tool-strip__approval button { padding-inline: 5px; }
+  .settings-nav > button span { display: none; }
+  .settings-nav > button { width: 40px; justify-content: center; padding: 0; }
+  .tool-setting-row { grid-template-columns: 30px minmax(0, 1fr) 40px; }
+  .tool-setting-row select { grid-column: 2; width: 90px; }
+  .mcp-setting__top { grid-template-columns: 7px minmax(0, 1fr) 42px 32px; }
+  .mcp-setting__top small { display: none; }
+  .modal { padding: 15px; }
+}
 
-  .provider-detail__header {
-    align-items: flex-start;                         // 动作较多时从顶部对齐
-    gap: 10px;                                       // 身份与命令分离
-  }
+@keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes typing { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(7px); } }
 
-  .provider-detail__actions {
-    align-items: flex-end;                           // 删除图标靠右
-    flex-direction: column-reverse;                  // 测试按钮位于更易触达位置
-  }
-
-  .model-entry__settings {
-    grid-template-columns: 1fr;                      // 窄屏数值字段分行避免溢出
-  }
-
-  .markdown table {
-    font-size: 12px;                                 // 移动表格提高同屏列容量
-  }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

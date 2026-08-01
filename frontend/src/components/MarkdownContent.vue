@@ -8,6 +8,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'       // 引入安全 H
 import DOMPurify from 'dompurify'                              // 引入 Mermaid SVG 最终清理能力
 import { renderMarkdown } from '../utils/markdown.js'         // 引入 Markdown 静态结构转换
 import { watchMarkdownContent } from '../watchers.js'          // 引入集中管理的内容增强监听
+import { currentLanguage, t } from '../i18n.js'                // 引入响应式复制文案和语言依赖
 
 const props = defineProps({                                   // 声明消息正文和流式状态
   content: { type: String, default: '' },                      // 当前需要展示的 Markdown 原文
@@ -40,11 +41,11 @@ async function copyCode(button) {
   if (!code) return                                            // 结构已更新时不执行失效动作
   try {
     await navigator.clipboard.writeText(code.textContent ?? '') // 使用浏览器权限受控剪贴板写入
-    button.textContent = '已复制'                               // 原位反馈命令完成
+    button.textContent = t('copied')                            // 原位反馈命令完成
   } catch {
-    button.textContent = '复制失败'                             // 权限拒绝时保留可理解反馈
+    button.textContent = t('copyFailed')                        // 权限拒绝时保留可理解反馈
   }
-  window.setTimeout(() => { button.textContent = '复制' }, 1400) // 短暂反馈后恢复可重复命令
+  window.setTimeout(() => { button.textContent = t('copy') }, 1400) // 短暂反馈后恢复可重复命令
 }
 
 
@@ -68,11 +69,17 @@ async function enhanceContent() {
   })
 
   root.querySelectorAll('pre').forEach((block) => {            // 为每个普通代码块加入稳定复制命令
-    if (block.querySelector('.language-mermaid') || block.dataset.enhanced) return // Mermaid 和已增强结构另行处理
+    if (block.querySelector('.language-mermaid')) return       // Mermaid 结构另行处理
+    const existingButton = block.querySelector('.markdown-code__copy') // 语言切换时更新现有命令
+    if (existingButton) {
+      Object.assign(existingButton, { textContent: t('copy'), title: t('copyCode') })
+      existingButton.setAttribute('aria-label', t('copyCode'))
+      return
+    }
     block.dataset.enhanced = 'true'                             // 防止同一次 DOM 生命周期重复加按钮
     const button = document.createElement('button')             // 创建不依赖 Vue 重渲染的轻量命令
-    Object.assign(button, { type: 'button', className: 'markdown-code__copy', textContent: '复制', title: '复制代码' }) // 提供可见反馈和悬停说明
-    button.setAttribute('aria-label', '复制代码')               // 为辅助技术声明按钮用途
+    Object.assign(button, { type: 'button', className: 'markdown-code__copy', textContent: t('copy'), title: t('copyCode') }) // 提供可见反馈和悬停说明
+    button.setAttribute('aria-label', t('copyCode'))            // 为辅助技术声明按钮用途
     block.append(button)                                       // 命令固定在所属代码块内
   })
 
@@ -101,7 +108,7 @@ async function enhanceContent() {
   }
 }
 
-watchMarkdownContent(() => [props.content, props.streaming], enhanceContent) // 集中监听文本和完成状态的增强阶段
+watchMarkdownContent(() => [props.content, props.streaming, currentLanguage()], enhanceContent) // 文本、状态和语言变化后增强
 onMounted(enhanceContent)                                      // 历史消息首次挂载时立即增强
 </script>
 

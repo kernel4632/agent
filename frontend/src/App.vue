@@ -1,62 +1,83 @@
 <!--
-应用壳层：提供 OpenCode 式固定顶部标签栏，并在主页、会话、工具和设置之间切换。
-顶部标签只触发导航；会话读取交给 stores，业务页面只消费当前上下文。
+应用壳层：严格实现五段式侧边栏，并在主页、对话页和设置页之间切换。
+组件只触发 UI 与 Session 指令；全局数据变化由 Vue 自动反馈到全部入口。
 调用示例：createApp(App).mount('#app')。
 -->
 <script setup>
-import { onMounted } from 'vue'                       // 引入应用启动指令触发时机
-import Chat from './views/Chat.vue'                   // 引入当前标签对话工作区
-import Sessions from './views/Sessions.vue'           // 引入独立主页会话选择区
-import Settings from './views/Settings.vue'           // 引入配置管理区
-import CapabilityPopover from './components/CapabilityPopover.vue' // 引入顶部运行能力状态窗
-import { Chat as ChatCommand } from './commands/chat.js' // 引入标签状态读取指令
-import { UI } from './commands/ui.js'                 // 引入界面导航指令
-import { Workspace } from './commands/workspace.js'   // 引入跨主体工作区指令
-import { store } from './store.js'                  // 引入唯一全局工作台数据
+import { computed, watchEffect } from 'vue'                         // 引入最近会话目录和语言副作用
+import Chat from './views/Chat.vue'                                // 引入 Session 对话页
+import Sessions from './views/Sessions.vue'                        // 引入 Workspace 主页
+import Settings from './views/Settings.vue'                        // 引入全局设置页
+import { Session } from './commands/session.js'                    // 引入新建和打开 Session 指令
+import { UI } from './commands/ui.js'                              // 引入页面和侧栏指令
+import { currentLanguage, t } from './i18n.js'                     // 引入响应式界面翻译
+import { store } from './store.js'                                 // 引入唯一全局数据根
 
-const tabs = store.tabs                               // 读取持久化顶部标签
-const ui = store.ui                                    // 读取当前页面
+const recentSessions = computed(() => store.workspaces             // 汇总侧边栏需要的全部 Session 摘要
+  .flatMap((workspace) => workspace.sessions.map((session) => ({ ...session, workspaceID: workspace.id })))
+  .sort((left, right) => right.updatedAt - left.updatedAt)
+  .slice(0, 12))                                                   // 侧边栏保持紧凑，不复制主页完整目录
+
+watchEffect(() => { document.documentElement.lang = currentLanguage() }) // 同步辅助技术和浏览器语言
 
 
-// --- 关闭一个顶部标签 ---
-function closeTab(event, tab) {
-  event.stopPropagation()                             // 关闭按钮不触发标签选择
-  Workspace.closeTab(tab)                             // 将完整关闭流程交给工作区指令
+// --- 打开侧边栏 Session ---
+function openSession(sessionID) {
+  Session.open(sessionID)                                          // 指令同步 Workspace 归属和对话页
+  if (window.innerWidth <= 760) UI.toggleSidebar(false)            // 移动端选择后释放主内容空间
 }
-
-
-onMounted(Workspace.restore)                          // 应用挂载后执行唯一工作区恢复指令
 </script>
 
 <template>
-  <div class="app-shell">
-    <header class="titlebar">
-      <mdui-button-icon class="titlebar__home" :class="{ 'is-active': ui.activeView === 'home' }" aria-label="主页" @click="ui.activeView = 'home'">
-        <mdui-icon-home></mdui-icon-home>
-      </mdui-button-icon>
-      <div class="titlebar__tabs" role="tablist" aria-label="已打开会话">
-        <button v-for="tab in tabs.items" :key="tab.key" class="session-tab" :class="{ 'is-active': ui.activeView === 'chat' && tabs.activeKey === tab.key }" type="button" role="tab" @click="Workspace.selectTab(tab)">
-          <span class="session-tab__status" :class="{ 'is-running': ChatCommand.getStatus(tab.key).running, 'is-approval': ChatCommand.getStatus(tab.key).approval }"></span>
-          <span class="session-tab__title">{{ tab.title || '未命名会话' }}</span>
-          <mdui-button-icon class="session-tab__close" aria-label="关闭会话" @click="closeTab($event, tab)">
-            <mdui-icon-close></mdui-icon-close>
-          </mdui-button-icon>
+  <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
+    <aside class="sidebar" :class="{ 'sidebar--open': store.ui.sidebarOpen }">
+      <div class="sidebar__first">
+        <button class="product-logo" type="button" :aria-label="t('agentHome')" title="Agent" @click="UI.openHome">A</button>
+        <button v-if="store.ui.sidebarOpen" class="icon-command" type="button" :aria-label="t('collapseSidebar')" :title="t('collapseSidebar')" @click="UI.toggleSidebar(false)">
+          <mdui-icon-keyboard-double-arrow-left></mdui-icon-keyboard-double-arrow-left>
         </button>
       </div>
-      <mdui-button-icon class="titlebar__new" aria-label="新建会话" @click="Workspace.startNewChat">
-        <mdui-icon-add></mdui-icon-add>
-      </mdui-button-icon>
-      <div class="titlebar__spacer"></div>
-      <CapabilityPopover @open-settings="UI.openSettings($event)" />
-      <mdui-button-icon :class="{ 'is-active': ui.activeView === 'settings' }" aria-label="设置" @click="UI.openSettings('models')">
-        <mdui-icon-settings></mdui-icon-settings>
-      </mdui-button-icon>
-    </header>
+
+      <nav class="sidebar__second" :aria-label="t('mainNav')">
+        <button type="button" :class="{ 'is-active': store.ui.view === 'home' }" :title="t('home')" @click="UI.openHome">
+          <mdui-icon-home></mdui-icon-home><span v-if="store.ui.sidebarOpen">{{ t('home') }}</span>
+        </button>
+        <button type="button" :title="t('newChat')" @click="Session.create()">
+          <mdui-icon-add></mdui-icon-add><span v-if="store.ui.sidebarOpen">{{ t('newChat') }}</span>
+        </button>
+      </nav>
+
+      <section v-if="store.ui.sidebarOpen" class="sidebar__third">
+        <div class="sidebar__label"><span>{{ t('sessions') }}</span><small>{{ recentSessions.length }}</small></div>
+        <div class="sidebar__sessions">
+          <button v-for="session in recentSessions" :key="session.id" type="button" :class="{ 'is-active': store.ui.view === 'chat' && store.ui.activeSessionID === session.id }" :title="session.title" @click="openSession(session.id)">
+            <span class="session-indicator" :class="{ 'is-running': store.sessions[session.id]?.status === 'running' }"></span>
+            <span>{{ session.title }}</span>
+          </button>
+        </div>
+      </section>
+
+      <div v-else class="sidebar__fourth">
+        <button class="icon-command" type="button" :aria-label="t('expandSidebar')" :title="t('expandSidebar')" @click="UI.toggleSidebar(true)">
+          <mdui-icon-menu-open></mdui-icon-menu-open>
+        </button>
+      </div>
+
+      <div class="sidebar__fifth">
+        <button type="button" :class="{ 'is-active': store.ui.view === 'settings' }" :title="t('settings')" @click="UI.openSettings()">
+          <mdui-icon-settings></mdui-icon-settings><span v-if="store.ui.sidebarOpen">{{ t('settings') }}</span>
+        </button>
+      </div>
+    </aside>
+
+    <button v-if="store.ui.sidebarOpen" class="sidebar-scrim" type="button" :aria-label="t('closeSidebar')" @click="UI.toggleSidebar(false)"></button>
 
     <main class="main-area">
-      <Sessions v-if="ui.activeView === 'home'" @open="Workspace.openSession" @new="Workspace.startNewChat" @remove="Workspace.removeSession" @rename="Workspace.renameSessionWithFeedback" />
-      <Chat v-else-if="ui.activeView === 'chat'" />
+      <Sessions v-if="store.ui.view === 'home'" />
+      <Chat v-else-if="store.ui.view === 'chat'" />
       <Settings v-else />
     </main>
+
+    <div v-if="store.ui.toast" class="toast" role="status">{{ store.ui.toast }}</div>
   </div>
 </template>
