@@ -81,6 +81,9 @@ h1, h2, h3, strong, p, small { font-style: normal; }
 
 .main-area { position: relative; min-width: 0; height: 100%; overflow: hidden; border-radius: 28px; background: var(--md-sys-color-surface-container-lowest); }
 .main-area > * { height: 100%; }
+.app-status { display: grid; place-content: center; justify-items: center; gap: 14px; min-height: 100%; color: var(--md-sys-color-on-surface-variant); }
+.app-status.is-error { color: var(--md-sys-color-error); }
+.app-status span { max-width: 520px; text-align: center; }
 .view-change-enter-active, .view-change-leave-active { transition: opacity 180ms ease, transform 220ms cubic-bezier(.2, 0, 0, 1); }
 .view-change-enter-from { opacity: 0; transform: translateY(8px); }
 .view-change-leave-to { opacity: 0; transform: translateY(-6px); }

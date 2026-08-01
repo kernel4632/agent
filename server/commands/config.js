@@ -36,7 +36,9 @@ async function load(filePath) {
 
   const file = Bun.file(filePath)                                 // 从传入路径定位用户配置文件
   const savedConfig = await file.exists() ? await file.json() : {} // 文件不存在时从默认配置开始
-  configStore.value = defu(savedConfig, defaultConfig)             // 补齐缺失字段，同时保留用户值
+  configStore.sourceValue = defu(savedConfig, defaultConfig)        // 保存磁盘原文结构，环境密钥继续保留占位符
+  configStore.value = structuredClone(configStore.sourceValue)      // 运行态副本允许展开环境变量
+  resolveEnvironmentSecrets(configStore.value)                     // 运行时展开环境占位符，磁盘继续保存占位符
   normalizeProviders(configStore.value.providers)                  // 将旧供应商记录升级为显式协议和请求设置
   normalizeCapabilities(configStore.value)                         // 补齐外部能力默认结构
   normalizeAgents(configStore.value)                                // 从旧全局模型配置创建默认 Agent
@@ -51,7 +53,9 @@ async function save() {
     throw new Error('configuration has not been loaded')
   }
 
-  const json = `${JSON.stringify(configStore.value, null, 2)}\n`   // 使用稳定缩进便于用户直接编辑
+  const persisted = restoreEnvironmentSecrets(configStore.value, configStore.sourceValue) // 保存前恢复未被编辑的环境占位符
+  configStore.sourceValue = structuredClone(persisted)              // 后续保存继续以最新磁盘结构为比较基线
+  const json = `${JSON.stringify(persisted, null, 2)}\n`             // 使用稳定缩进便于用户直接编辑
   await Bun.write(configStore.filePath, json)                       // 集中完成配置持久化副作用
 }
 
@@ -257,6 +261,29 @@ function restoreCapabilitySecrets(nextServers, savedServers = {}) {
       }
     }
   }
+}
+
+
+// --- 展开运行时环境密钥 ---
+function resolveEnvironmentSecrets(config) {
+  const resolveValue = (value) => {
+    if (typeof value === 'string') return value.replace(/\$\{([A-Z0-9_]+)\}/g, (match, name) => process.env[name] ?? match) // 只展开明确的大写环境变量占位符
+    if (Array.isArray(value)) return value.map(resolveValue)             // 数组中的请求参数也支持环境引用
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolveValue(item)])) // 递归处理供应商与能力定义
+    return value                                                           // 数字、布尔和空值保持原样
+  }
+  for (const [name, provider] of Object.entries(config.providers ?? {})) config.providers[name] = resolveValue(provider) // 展开 API Key、请求头和模型地址
+  for (const [name, server] of Object.entries(config.mcpServers ?? {})) config.mcpServers[name] = resolveValue(server) // 展开 MCP 子进程环境和认证头
+  for (const [name, server] of Object.entries(config.lspServers ?? {})) config.lspServers[name] = resolveValue(server) // 展开 LSP 子进程环境
+}
+
+
+// --- 保存前恢复环境占位符 ---
+function restoreEnvironmentSecrets(value, source) {
+  if (typeof source === 'string' && /^\$\{[A-Z0-9_]+\}$/.test(source) && process.env[source.slice(2, -1)] === value) return source // 未被编辑的环境值继续以占位符写盘
+  if (Array.isArray(value)) return value.map((item, index) => restoreEnvironmentSecrets(item, source?.[index])) // 递归恢复数组字段
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, restoreEnvironmentSecrets(item, source?.[key])])) // 递归恢复配置对象
+  return value                                                               // 非环境字段保持运行态值
 }
 
 

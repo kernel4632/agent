@@ -83,3 +83,19 @@ Skills 默认扫描 `<data-directory>/skills` 和 `<workspace>/.agent/skills`。
 
 - `GET /capability/list` 返回工具、MCP、LSP、Skills 及连接错误。
 - `POST /capability/reload` 重新连接 MCP/LSP 并重新扫描 Skills。
+
+## 正式 HTTP 契约
+
+服务端按 `架构设计.txt` 提供工作区和会话资源：`/health`、`/config`、`/workspace`、`/session`。
+消息发送使用 `POST /session/send`，该请求只登记后台 Run；实时文本、推理、工具、审批、任务、usage、终态事件通过 `GET /session/events?sessionId=...` 以带递增 `id` 的 SSE 返回。停止、审批和历史回退分别使用 `/session/stop`、`/session/approval` 和 `/session/history`。
+
+## 验证命令
+
+```text
+cd server && bun run test
+cd server && bun run test:glm
+cd frontend && bun run build
+cd frontend && bun run test:ui
+```
+
+真实模型配置支持 `apiKey`、请求头和 MCP/LSP 环境字段使用 `${ENV_NAME}` 占位符。运行时从环境读取，配置 API 始终脱敏，不把真实密钥反馈给前端。

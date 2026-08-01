@@ -39,7 +39,11 @@ function navigate(action) {
     <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
       <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => { UI.toggleSidebar(false); UI.openSettings() })" />
       <div v-if="store.ui.sidebarOpen" class="sidebar-scrim" @click="UI.toggleSidebar(false)"></div>
-      <main class="main-area"><Transition name="view-change" mode="out-in"><Sessions v-if="store.ui.view === 'home'" key="home" /><Chat v-else-if="store.ui.view === 'chat'" key="chat" /><Settings v-else key="settings" /></Transition></main>
+      <main class="main-area">
+        <div v-if="store.ui.isLoading" class="app-status"><m3e-circular-progress-indicator></m3e-circular-progress-indicator><strong>正在连接 Agent Server</strong></div>
+        <div v-else-if="store.ui.errorMessage && !store.workspaces.length" class="app-status is-error"><m3e-icon name="error"></m3e-icon><strong>Agent Server 不可用</strong><span>{{ store.ui.errorMessage }}</span></div>
+        <Transition v-else name="view-change" mode="out-in"><Sessions v-if="store.ui.view === 'home'" key="home" /><Chat v-else-if="store.ui.view === 'chat'" key="chat" /><Settings v-else key="settings" /></Transition>
+      </main>
       <m3e-snackbar v-if="store.ui.toast">{{ store.ui.toast }}</m3e-snackbar>
     </div>
   </m3e-theme>

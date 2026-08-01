@@ -64,7 +64,7 @@ function openModelSettings(modelName) {
 async function openModelPicker() {
   modelDialogOpen.value = true                                        // 先打开弹窗展示明确加载反馈
   modelsLoading.value = true                                          // 按钮和弹窗共享请求状态
-  await new Promise((resolve) => setTimeout(resolve, 1800))            // TODO(API): 替换为真实模型发现请求
+  await new Promise((resolve) => setTimeout(resolve, 250))             // 给真实 Agent 模型目录转换保留可见加载反馈
   modelsLoading.value = false                                         // 候选目录就绪后显示可选项
 }
 </script>
@@ -131,7 +131,7 @@ async function openModelPicker() {
         <span>{{ t('modelLimits') }}</span>
         <div class="setting-grid">
           <TextField :label="t('contextLength')" type="number" :model-value="String(currentModelSettings.context || 128000)" @update:model-value="Settings.updateModel(selectedName, modelSettingsName, { context: Number($event) })" />
-          <TextField :label="t('maxOutput')" type="number" :model-value="String(currentModelSettings.output || 16000)" @update:model-value="Settings.updateModel(selectedName, modelSettingsName, { output: Number($event) })" />
+          <TextField :label="t('maxOutput')" type="number" :model-value="String(currentModelSettings.maxOutputTokens || 16000)" @update:model-value="Settings.updateModel(selectedName, modelSettingsName, { maxOutputTokens: Number($event) })" />
           <label class="switch-field"><span><strong>{{ t('reasoningFeature') }}</strong><small>{{ t('reasoningDescription') }}</small></span><m3e-switch :checked="currentModelSettings.reasoning === true" @change="Settings.updateModel(selectedName, modelSettingsName, { reasoning: $event.target.checked })"></m3e-switch></label>
           <label class="switch-field"><span><strong>{{ t('toolFeature') }}</strong><small>{{ t('toolDescription') }}</small></span><m3e-switch :checked="currentModelSettings.tools === true" @change="Settings.updateModel(selectedName, modelSettingsName, { tools: $event.target.checked })"></m3e-switch></label>
         </div>

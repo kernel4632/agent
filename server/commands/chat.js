@@ -12,6 +12,7 @@ import { Run } from './run.js'                                        // 引入�
 import { Session } from './session.js'                                // 引入会话读取、修改和持久化动作
 import { Skill } from './skill.js'                                    // 引入渐进披露技能目录
 import { store } from '../store.js'                                   // 引入服务端唯一状态根
+import { Event } from './event.js'                                    // 引入独立会话事件广播指令
 
 const toolStore = store.tools                                            // 当前指令使用工具领域状态
 import { compressMessages } from '../utils/compress.js'              // 引入只作用于模型请求的上下文压缩
@@ -211,7 +212,8 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
         const session = Session.getMutable(sessionID)                      // 读取入口已经创建或确认的目标会话
         Session.commitRollback(session)                                   // 新消息确认暂存回退正式生效
         session.modelMessages ??= []                                      // 初始化仅供模型调用的标准消息历史
-        session.messages.push({ id: messageID ?? `msg_${crypto.randomUUID()}`, role: 'user', content: message }) // 将用户触发写入共享稳定 ID 的展示历史
+        const userMessage = { id: messageID ?? `msg_${crypto.randomUUID()}`, role: 'user', content: message, contentBlocks: [{ type: 'text', text: { text: message } }], checkpoint: null, rolledBack: false, createdAt: Date.now() } // 将用户触发写入完整公开消息结构
+        session.messages.push(userMessage)                                // 用户消息加入展示历史
         session.modelMessages.push({ role: 'user', content: message })    // 保持 AI SDK 上下文与展示历史同步
         await Session.persist(session)                                    // 用户消息先落盘，崩溃后仍可恢复
 
@@ -232,8 +234,12 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
           const nextStep = Math.max(0, ...previousSteps) + 1                 // 本轮并行工具共享同一个新步骤号
           shouldStop = round.toolResults.some((part) => part.output?.stop === true) // 任一工具明确 stop 时结束整个循环
           session.modelMessages.push(...round.response.messages)             // 将模型消息加入仅供下一轮使用的上下文
-          session.messages.push({ role: 'assistant', content: round.text, reasoning: round.reasoning, toolCalls: round.toolCalls }) // 保存前端可读的助手消息
-          round.toolResults.forEach((part) => session.messages.push({ role: 'tool', toolCallId: part.toolCallId, name: part.toolName, input: round.toolCalls.find((call) => call.toolCallId === part.toolCallId)?.input, result: part.output, status: part.output?.denied ? 'rejected' : 'completed', step: nextStep })) // 并行结果保存真实拒绝或完成状态
+          const assistantMessage = { id: `msg_${crypto.randomUUID()}`, role: 'assistant', content: round.text, reasoning: round.reasoning, toolCalls: round.toolCalls, contentBlocks: [], checkpoint: round.toolResults.length ? nextStep : null, rolledBack: false, createdAt: Date.now() } // 构建前端可直接渲染的助手消息
+          if (round.reasoning) assistantMessage.contentBlocks.push({ type: 'thinking', thinking: { thinking: round.reasoning } }) // 推理进入可折叠内容块
+          if (round.text) assistantMessage.contentBlocks.push({ type: 'text', text: { text: round.text } }) // 正文进入 Markdown 文本块
+          round.toolCalls.forEach((call) => assistantMessage.contentBlocks.push({ type: 'tool_call', tool_call: { toolCallId: call.toolCallId, toolName: call.toolName, input: call.input, status: 'completed' } })) // 工具声明进入展示条
+          session.messages.push(assistantMessage)                          // 完整助手消息一次加入展示历史
+          round.toolResults.forEach((part) => session.messages.push({ id: `msg_${crypto.randomUUID()}`, role: 'tool', content: '', contentBlocks: [{ type: 'tool_result', tool_result: { toolCallId: part.toolCallId, output: part.output, isError: Boolean(part.output?.failed) } }], toolCallId: part.toolCallId, name: part.toolName, input: round.toolCalls.find((call) => call.toolCallId === part.toolCallId)?.input, result: part.output, status: part.output?.denied ? 'rejected' : 'completed', step: nextStep, checkpoint: nextStep, rolledBack: false, createdAt: Date.now() })) // 并行结果保存真实拒绝或完成状态
           await Session.persist(session)                                     // 每轮模型与工具反馈完成后立即持久化
           if (round.toolResults.length) emit('checkpoint', { step: nextStep, toolCallIds: round.toolResults.map((part) => part.toolCallId) }) // 让实时工具立即获得回退步骤
           if (round.toolResults.length) textOnlyCount = 0                     // 工具执行成功后重新允许纯文本重试
@@ -249,9 +255,13 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
           writeEvent(streamWriter, 'finish', { ok: true, sessionID, runID: run.id, agentID: run.agentID }) // 反馈完整执行归属
         }
       } catch (error) {
-        if (stopSignal.signal.aborted) Run.cancel(run.id, String(stopSignal.signal.reason || 'cancelled')) // 主动停止进入取消态
-        else Run.fail(run.id, error)                                           // 未知故障进入失败态
-        if (!stopSignal.signal.aborted && error?.name !== 'AbortError') writeEvent(streamWriter, 'error', { message: String(error) }) // 主动停止不伪装成错误
+        if (stopSignal.signal.aborted) {
+          Run.cancel(run.id, String(stopSignal.signal.reason || 'cancelled')) // 主动停止进入取消态
+          writeEvent(streamWriter, 'finish', { ok: false, cancelled: true, sessionID, runID: run.id, agentID: run.agentID }) // 任意中断路径都提供统一终态反馈
+        } else {
+          Run.fail(run.id, error)                                             // 未知故障进入失败态
+          if (error?.name !== 'AbortError') writeEvent(streamWriter, 'error', { message: String(error) }) // 非主动错误反馈真实原因
+        }
       } finally {
         clearTimeout(runDeadline)                                               // 成功、失败和中断都释放 Run 总预算
         if (runningLoops.get(sessionID) === run.id) runningLoops.delete(sessionID) // 只清理当前主 Run，不能覆盖后来注册的状态
@@ -261,6 +271,45 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
     cancel() { stopSignal.abort() },                                            // 客户端断开只停止本响应所属循环
   })
   return stream
+}
+
+
+// --- 在后台启动 Agent 循环 ---
+function startBackground({ runID, sessionID, message, messageID, initialEvents = [] }) {
+  const requestController = new AbortController()                         // 后台执行不绑定发送请求的网络连接
+  const stream = startLoop({ runID, sessionID, message, messageID, request: { signal: requestController.signal }, initialEvents }) // 复用稳定模型循环产生事件
+  const session = Session.getMutable(sessionID)                           // 读取需要公开运行状态的真实会话
+  session.status = 'running'                                              // `/session/send` 返回前先进入运行态
+  Session.persist(session).catch(() => {})                                // 状态持久化失败由最终 Run 错误继续暴露
+
+  void (async () => {
+    const reader = stream.getReader()                                     // 后台消费原模型流，避免依赖任何 HTTP 客户端
+    const decoder = new TextDecoder()                                     // 将模型事件字节恢复为标准 SSE 文本
+    let pending = ''                                                      // 保存跨数据块的不完整事件帧
+    try {
+      while (true) {
+        const { done, value } = await reader.read()                        // 持续读取直到 Run 进入终态
+        pending += decoder.decode(value, { stream: !done })                // 合并可能拆开的 UTF-8 字符
+        const frames = pending.split('\n\n')                              // 标准 SSE 空行分隔完整事件
+        pending = frames.pop() ?? ''                                       // 未完成帧留给下一批网络字节
+        for (const frame of frames) {
+          const name = frame.match(/^event: (.+)$/m)?.[1]                  // 提取原循环事件名称
+          const dataText = frame.match(/^data: (.+)$/m)?.[1]               // 提取原循环 JSON 数据
+          if (!name || !dataText) continue                                 // 忽略空帧或非业务行
+          const data = JSON.parse(dataText)                                // 原循环保证所有数据可 JSON 序列化
+          Event.emit(sessionID, name, data)                                // 写入递增历史并广播独立订阅者
+        }
+        if (done) break                                                    // Run 流关闭后结束后台消费
+      }
+    } finally {
+      const current = Session.getMutable(sessionID)                        // 会话可能在极端情况下已被删除
+      if (current) {
+        current.status = 'idle'                                            // 任意终态都退出运行状态
+        await Session.persist(current).catch(() => {})                      // 最终状态尽力同步到磁盘
+      }
+    }
+  })()
+  return Run.toPublicRun(Run.get(runID))                                   // 发送接口立即反馈可停止的 Run 身份
 }
 
 
@@ -292,4 +341,4 @@ function isRunning(sessionID) {
 }
 
 
-export const Chat = { startLoop, stop, isRunning }                                 // 导出对话循环和停止状态动作
+export const Chat = { startLoop, startBackground, stop, isRunning }                 // 导出前台兼容流、后台正式执行和停止动作

@@ -10,7 +10,12 @@ export const store = {
   },
   config: {
     value: null,
+    sourceValue: null,                                  // 保留磁盘中的环境占位符，避免保存时写回真实密钥
     filePath: '',
+  },
+  workspaces: {
+    items: new Map(),                                  // Workspace ID 到可持久化工作区定义
+    filePath: '',                                      // workspace.json 的真实磁盘位置
   },
   tools: {
     items: new Map(),
@@ -29,6 +34,11 @@ export const store = {
     items: new Map(),
     writes: new Map(),
     storage: null,
+  },
+  events: {
+    bySession: new Map(),                              // Session ID 到有序事件历史
+    listeners: new Map(),                              // Session ID 到当前 SSE 订阅者集合
+    nextID: new Map(),                                 // Session ID 到下一个递增事件 ID
   },
   runs: {
     items: new Map(),                                   // Run ID 到执行状态和取消控制器

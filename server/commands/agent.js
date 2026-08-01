@@ -20,6 +20,13 @@ async function load() {
       systemPrompt: definition.systemPrompt || config.systemPrompt,
     })
   }
+  for (const [provider, providerConfig] of Object.entries(config.providers ?? {})) {
+    for (const model of providerConfig.models ?? []) {
+      const id = `${provider}:${model}`                         // 未单独配置的模型仍需要一个可选择 Agent 身份
+      if (store.agents.definitions.has(id)) continue             // 用户自定义 Agent 优先保留自己的提示词
+      store.agents.definitions.set(id, { id, name: model, provider, model, systemPrompt: config.systemPrompt }) // 将设置页模型目录接入正式 Run 解析
+    }
+  }
   return list()                                        // 返回可展示的 Agent 目录
 }
 

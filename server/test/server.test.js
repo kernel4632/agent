@@ -97,7 +97,7 @@ describe('Agent Server API', () => {
 
   it('handles health and session creation/list/get APIs', async () => {
     const health = await request('/health')                                    // 调用进程健康 API
-    expect(await health.json()).toEqual({ ok: true })                          // 验证真实路由反馈
+    expect(await health.json()).toMatchObject({ ok: true, service: 'agent-server', version: '0.1.0' }) // 验证真实路由反馈和版本信息
 
     const created = await jsonRequest('/session/create', 'POST')               // 通过真实 API 创建磁盘会话
     const session = await created.json()                                       // 读取服务返回的会话数据

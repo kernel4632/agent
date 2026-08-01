@@ -4,7 +4,8 @@
 调用示例：App 在 ui.view === 'chat' 时渲染 <Chat />。
 -->
 <script setup>
-import { computed, ref } from 'vue'                                  // 引入当前会话、模型目录和弹窗状态
+import { computed, ref } from 'vue'                                  // 引入当前会话、模型目录、滚动和弹窗状态
+import ChatScrollMap from '../components/ChatScrollMap.vue'            // 引入架构要求的对话快速跳转地图
 import InputBox from '../components/InputBox.vue'                    // 引入对话操作框
 import MessageList from '../components/MessageList.vue'              // 引入消息时间线和跳转动作
 import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入双击标题编辑器
@@ -19,6 +20,7 @@ const pendingRollback = ref(null)                                    // 控制�
 const session = computed(() => store.sessions[store.ui.activeSessionID] || null) // 当前完整会话
 const models = computed(() => Object.entries(store.config.providers).flatMap(([provider, config]) => config.enabled ? config.models.map((model) => ({ provider, model })) : [])) // 只展示启用供应商模型
 const contextPercent = computed(() => Math.min(100, Math.round((session.value?.contextTokens || 0) / Math.max(1, session.value?.contextLimit || 1) * 100))) // 圆环和悬浮详情共享百分比
+const messageList = ref(null)                                          // 保存消息列表暴露的滚动指令
 
 
 // --- 保存当前标题 ---
@@ -68,7 +70,8 @@ function confirmRollback() {
 
     <div class="chat-body">
       <div v-if="!session.messages.length" class="chat-empty"><span>A</span><h1>{{ t('startTask') }}</h1></div>
-      <MessageList v-else :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
+       <MessageList v-else ref="messageList" :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
+       <ChatScrollMap v-if="session.messages.length" :messages="session.messages" @jump="messageList?.scrollToMessage($event)" />
     </div>
 
     <footer class="chat-footer">

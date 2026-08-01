@@ -8,6 +8,8 @@ import fsDriver from 'unstorage/drivers/fs'           // 引入真实文件系�
 import { nanoid } from 'nanoid'                       // 引入紧凑唯一 ID 生成能力
 import { store } from '../store.js'                    // 引入服务端唯一状态根
 import { Config } from './config.js'                   // 引入默认 Agent 选择
+import { Event } from './event.js'                     // 引入会话事件生命周期
+import { Workspace } from './workspace.js'             // 引入工作区归属校验
 
 const sessionStore = store.sessions                       // 当前指令使用会话领域状态
 
@@ -31,15 +33,23 @@ async function load(directory) {
 
 
 // --- 创建空会话 ---
-async function create(agentID) {
+async function create(options = {}) {
+  if (typeof options === 'string') options = { agentID: options } // 兼容旧指令调用的单个 Agent ID
+  const workspaceID = options.workspaceID || Workspace.getDefaultID() // 未指定时绑定首次启动创建的默认工作区
+  if (!Workspace.get(workspaceID)) return { ok: false, status: 404, error: 'workspace not found' } // 会话不能引用不存在的工作区
+
   const now = Date.now()                              // 创建和更新时间从同一个时刻开始
   const session = {                                   // 显式定义持久化会话的全部字段
     id: `ses_${nanoid(10)}`,                          // 会话唯一标识，用作 API 和磁盘键
-    agentID: agentID || Config.get().defaultAgentId || 'default', // 会话默认 Agent，后续消息可显式校验
+    workspaceID,                                      // 所属工作区决定主页归类和工具执行目录
+    agentID: options.agentID || Config.get().defaultAgentId || 'default', // 会话默认 Agent，后续消息可显式覆盖
+    model: options.model || Config.get().activeModel || '', // 保存设置页和操作框选择的模型名称
+    status: 'idle',                                   // 会话当前执行状态供列表和顶部栏展示
     title: '',                                        // 首条消息后由模型异步生成标题
     titleSource: 'generated',                         // 标记标题归属，异步生成不能覆盖用户重命名
     createdAt: now,                                   // 会话创建时间，Unix 毫秒
     updatedAt: now,                                   // 最近一次消息或回滚修改时间
+    lastActiveAt: now,                                // 最近交互时间用于设计要求的时间分组
     tasks: [],                                        // 当前会话的持久化任务清单
     taskRevision: 0,                                  // 每次任务修改递增，供客户端检测并发覆盖
     messages: [],                                     // 完整用户、助手与工具消息历史
@@ -47,8 +57,31 @@ async function create(agentID) {
     modelMessages: [],                                // AI SDK 标准历史与展示历史同步回退
   }
   sessionStore.items.set(session.id, session)         // 将新会话加入运行时映射
+  Event.initialize(session.id)                        // 新会话立即可以建立独立 SSE 订阅
   await persist(session)                              // 创建成功前保证会话已经写盘
+  Event.emit(session.id, 'session-created', { id: session.id, workspaceID: session.workspaceID }) // 事件订阅可观察会话创建身份
   return structuredClone(session)                    // 返回副本，避免入口直接改状态
+}
+
+
+// --- 修改会话配置 ---
+async function update(sessionID, changes = {}) {
+  const session = getMutable(sessionID)               // 从运行时状态读取目标会话
+  if (!session) return { ok: false, status: 404, error: 'session not found' } // 不存在时拒绝隐式创建
+
+  if ('title' in changes) return rename(sessionID, changes.title) // 标题复用完整长度和空白验证
+  if ('model' in changes) {
+    const model = typeof changes.model === 'string' ? changes.model.trim() : '' // 清理操作框选择的模型名称
+    if (!model) return { ok: false, status: 400, error: 'model must not be empty' } // 空模型无法启动真实请求
+    session.model = model                               // 保存会话级模型选择
+  }
+  if ('agentID' in changes || 'agentId' in changes) {
+    const agentID = changes.agentID ?? changes.agentId  // 接受正式缩写和 HTTP 常见字段形式
+    if (typeof agentID !== 'string' || !agentID.trim()) return { ok: false, status: 400, error: 'agent ID must not be empty' } // 空 Agent 无法解析
+    session.agentID = agentID.trim()                    // 后续未显式选择时复用会话 Agent
+  }
+  await persist(session)                                // 配置修改完成后统一写盘
+  return { ok: true, session: get(sessionID) }          // 反馈公开会话结构
 }
 
 
@@ -98,11 +131,12 @@ function validateTasks(tasks) {
 
 
 // --- 列出会话摘要 ---
-function list() {
+function list(workspaceID) {
   return [...sessionStore.items.values()]             // 从运行时映射读取全部会话
+    .filter((session) => !workspaceID || session.workspaceID === workspaceID) // 工作区主页只读取自己的会话
     .sort((left, right) => right.updatedAt - left.updatedAt) // 最近更新的会话优先展示
-    .map(({ id, title, agentID, createdAt, updatedAt, messages }) => ({ // API 列表不泄漏完整消息
-      id, title, agentID, createdAt, updatedAt, messageCount: messages.length, // 同时反馈会话使用的 Agent
+    .map(({ id, workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messages }) => ({ // API 列表不泄漏完整消息
+      id, workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messageCount: messages.length, // 反馈主页和侧栏需要的摘要
     }))
 }
 
@@ -128,6 +162,7 @@ function getMutable(sessionID) {
 // --- 持久化会话 ---
 async function persist(session) {
   session.updatedAt = Date.now()                      // 每次成功修改都刷新列表排序时间
+  session.lastActiveAt = session.updatedAt            // 设计中的最近活动时间与真实修改保持一致
   const snapshot = structuredClone(session)           // 保存调用时快照，后续内存修改不能改变本次写入内容
   const previousWrite = sessionStore.writes.get(session.id) ?? Promise.resolve() // 读取该会话前一次写入
   const currentWrite = previousWrite.catch(() => {}).then(() => sessionStore.storage.setItem(session.id, snapshot)) // 即使旧写入失败也按调用顺序继续最新保存
@@ -144,6 +179,7 @@ async function remove(sessionID) {
   }
 
   sessionStore.items.delete(sessionID)                // 先移除运行时数据，阻止删除期间出现新的正常修改
+  Event.remove(sessionID)                             // 同步清理该会话的事件历史和订阅状态
   await sessionStore.writes.get(sessionID)?.catch(() => {}) // 等待较早保存结束，避免删除后旧写入重建文件
   await sessionStore.storage.removeItem(sessionID)    // 再移除对应磁盘记录
   return { ok: true }                                 // 向 HTTP 入口反馈删除完成
@@ -208,15 +244,33 @@ function commitRollback(session) {
 
 // --- 统一旧会话结构 ---
 function normalizeSession(session) {
+  session.workspaceID ??= Workspace.getDefaultID()    // 旧会话归入默认工作区以保持可访问
   session.agentID ??= Config.get().defaultAgentId || 'default' // 旧会话补齐默认 Agent
+  session.model ??= Config.get().activeModel || ''     // 旧会话补齐当前默认模型
+  session.status = 'idle'                              // 服务重启后旧执行不可能仍在运行
   session.title ??= ''                                // 旧会话缺少标题时保持可生成状态
   session.titleSource ??= 'generated'                 // 旧标题视为模型生成，后续用户重命名会明确接管
   session.tasks ??= []                                // 旧会话补齐空任务清单
   session.taskRevision ??= 0                          // 旧任务清单从初始修订开始
   session.messages ??= []                             // 旧空会话补齐展示历史
+  session.lastActiveAt ??= session.updatedAt ?? session.createdAt ?? Date.now() // 旧会话补齐时间分组字段
   session.modelMessages ??= []                        // 旧会话缺少模型历史时保持可继续发送
   session.messages.forEach((message) => { message.id ??= `msg_${nanoid(10)}` }) // 每条消息获得稳定 UI 动作标识
   session.rollbackCache ??= null                      // 旧文件补齐可撤销状态
+  session.messages.forEach(normalizeMessage)          // 旧展示消息升级为统一 contentBlocks 结构
+  Event.initialize(session.id)                        // 恢复会话同时建立递增事件状态
+}
+
+
+// --- 统一公开消息结构 ---
+function normalizeMessage(message) {
+  message.id ??= `msg_${nanoid(10)}`                  // 每条消息必须有稳定回退和复制身份
+  message.contentBlocks ??= []                        // 内容块是前端唯一的复合渲染入口
+  if (message.content && message.contentBlocks.length === 0) message.contentBlocks.push({ type: 'text', text: { text: message.content } }) // 旧纯文本升级为文本块
+  if (message.reasoning && !message.contentBlocks.some((block) => block.type === 'thinking')) message.contentBlocks.unshift({ type: 'thinking', thinking: { thinking: message.reasoning } }) // 旧推理升级为折叠块
+  message.checkpoint ??= null                         // 非工具消息默认没有存档点
+  message.rolledBack ??= false                        // 当前可见历史默认未被回退
+  message.createdAt ??= Date.now()                    // 旧消息补齐发送时间供界面展示
 }
 
 
@@ -271,4 +325,4 @@ function createRollbackSummary(rollbackCache) {
 }
 
 
-export const Session = { load, create, rename, updateTasks, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback } // 导出会话业务动作
+export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage } // 导出会话业务动作

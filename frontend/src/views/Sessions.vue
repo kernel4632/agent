@@ -42,22 +42,22 @@ const groups = computed(() => {                                     // 按今天
 
 
 // --- 提交新工作区 ---
-function addWorkspace(name, path, resolve) {
-  const saved = Workspace.add(name, path)                              // 指令验证并新增响应式事实
+async function addWorkspace(name, path, resolve) {
+  const saved = await Workspace.add(name, path)                        // 指令通过 Server 验证并新增事实
   resolve(saved)                                                       // 将结果反馈给局部草稿组件
   if (saved) addWorkspaceOpen.value = false                            // 成功后关闭弹窗
 }
 
 
 // --- 开始重命名 Session ---
-function renameSession(sessionID, title, resolve) {
-  resolve(Session.rename(sessionID, title))                            // Command 结果反馈给原位编辑组件
+async function renameSession(sessionID, title, resolve) {
+  resolve(await Session.rename(sessionID, title))                      // API 结果反馈给原位编辑组件
 }
 
 
 // --- 确认删除 Session ---
-function confirmDelete() {
-  if (deleteTarget.value) Session.remove(deleteTarget.value.id)       // 指令同步摘要和完整会话
+async function confirmDelete() {
+  if (deleteTarget.value) await Session.remove(deleteTarget.value.id) // 指令同步 Server、摘要和完整会话
   deleteTarget.value = null                                           // 无论结果都关闭确认弹窗
 }
 

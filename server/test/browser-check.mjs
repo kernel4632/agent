@@ -68,10 +68,20 @@ try {
   await mobile.goto(websiteURL, { waitUntil: 'networkidle' }) // 通过真实 HTTP 加载移动页面
   const mobileOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth) // 检查移动横向溢出
   if (mobileOverflow) throw new Error('mobile page has horizontal overflow') // 移动布局不得超出视口
-  await mobile.locator('#navToggle').click()             // 打开移动导航菜单
-  const menuIsVisible = await mobile.locator('nav ul').first().evaluate((element) => getComputedStyle(element).display !== 'none') // 读取模型生成的导航列表真实状态
+  const navigationToggle = mobile.locator('#navToggle, [aria-label*="导航"], [aria-label*="菜单"]').first() // 接受不同语义标签实现的移动菜单按钮
+  if (await navigationToggle.count() === 0) throw new Error('website has no mobile navigation toggle') // 移动端必须提供可发现菜单入口
+  await navigationToggle.click()                         // 打开移动导航菜单
+  const navigationMenu = mobile.locator('#navMenu, nav').filter({ has: mobile.locator('a[href^="#"]') }).first() // 按业务链接而非固定 ul 标签定位菜单
+  const menuIsVisible = await navigationMenu.evaluate((element) => { // 读取导航容器及其链接的真实可见状态
+    const style = getComputedStyle(element)               // 检查容器是否参与布局
+    const visibleLink = [...element.querySelectorAll('a[href^="#"]')].some((link) => { // 至少一个站内导航链接必须可见
+      const linkStyle = getComputedStyle(link)             // 读取链接自身显示状态
+      return linkStyle.display !== 'none' && linkStyle.visibility !== 'hidden' && link.getBoundingClientRect().height > 0 // 尺寸和样式共同证明可交互
+    })
+    return style.display !== 'none' && style.visibility !== 'hidden' && visibleLink // 容器与业务链接都必须可见
+  })
   if (!menuIsVisible) throw new Error('mobile navigation did not open') // 菜单点击必须产生可见效果
-  await mobile.locator('#navToggle').click()                 // 检查完成后关闭菜单，避免遮挡页面截图
+  await navigationToggle.click()                             // 检查完成后关闭菜单，避免遮挡页面截图
   await revealPage(mobile)                                   // 模拟移动用户滚动并确认渐入内容显示
   await mobile.screenshot({ path: join(outputDirectory, 'website-mobile.png'), fullPage: true }) // 保存移动全页截图
   if (errors.length) throw new Error(`browser errors: ${errors.join('; ')}`) // 页面不得产生控制台或脚本错误

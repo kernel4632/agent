@@ -15,9 +15,10 @@ const listElement = ref(null)                                           // 保�
 
 // --- 滚动到最新消息 ---
 async function scrollToLatest() {
+  const element = listElement.value                                     // 读取滚动容器当前阅读位置
+  if (element && element.scrollHeight - element.scrollTop - element.clientHeight > 180) return // 用户正在看历史时不强行夺回滚动位置
   await nextTick()                                                       // 等待文本增量进入 DOM
-  const element = listElement.value                                     // 读取滚动容器
-  if (element) element.scrollTop = element.scrollHeight                 // 将最新反馈保持在视口底部
+  if (element) element.scrollTop = element.scrollHeight                 // 用户贴近底部时保持最新反馈可见
 }
 
 

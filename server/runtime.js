@@ -13,6 +13,7 @@ import { Session } from './commands/session.js'      // 引入会话恢复指令
 import { Skill } from './commands/skill.js'          // 引入 Skill 扫描指令
 import { Tool } from './commands/tool.js'            // 引入工具扫描和监听指令
 import { Run } from './commands/run.js'              // 引入进程内 Run 生命周期指令
+import { Workspace } from './commands/workspace.js'  // 引入工作区目录恢复指令
 import { store } from './store.js'                   // 引入服务端唯一状态根
 
 
@@ -23,6 +24,7 @@ async function start(options = {}) {
   const toolsDirectory = join(dataDirectory, 'tools')             // 用户工具位于数据目录内部
   const customToolsDirectory = join(toolsDirectory, 'custom')     // 模型和用户只写入自定义工具目录
   const configPath = resolve(options.configPath ?? join(dataDirectory, 'config.json')) // 配置默认位于数据根目录
+  const workspacePath = resolve(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 工作区目录使用独立设计文件
   const builtInToolsDirectory = resolve(options.builtInToolsDirectory ?? join(import.meta.dir, 'tools', 'built-in')) // 内置工具随服务代码分发
   const workspaceDirectory = resolve(options.workspaceDirectory ?? process.env.AGENT_WORKSPACE ?? join(import.meta.dir, '..')) // LSP 和项目 Skill 使用同一工作区
 
@@ -30,6 +32,7 @@ async function start(options = {}) {
     await mkdir(customToolsDirectory, { recursive: true })          // 工具扫描前确保自定义目录存在
     await mkdir(sessionsDirectory, { recursive: true })             // 会话恢复前确保持久化目录存在
     await Config.load(configPath)                                   // 后续能力初始化依赖当前配置
+    await Workspace.load(workspacePath, workspaceDirectory)         // 会话恢复前先建立可引用的工作区目录
     await Agent.load()                                               // 将可选模型定义加载到运行时目录
     Run.reset()                                                       // 清除上一次进程遗留的不可恢复 Run
     await Session.load(sessionsDirectory)                           // 将磁盘会话恢复到运行时状态

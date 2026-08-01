@@ -42,6 +42,15 @@ export const configRoutes = new Elysia({ name: 'agent.routes.config' }) // 配�
     },
     { body: 'ConfigUpdate' },
   )
+  .patch(
+    '/config',                                         // 设计契约使用 PATCH 保存局部配置
+    async ({ body }) => {
+      const result = await Config.update(body)         // 先持久化配置数据
+      await Agent.load()                               // 再让后续 Run 使用最新 Agent 目录
+      return result                                    // 反馈配置保存完成
+    },
+    { body: 'ConfigUpdate' },
+  )
   .post(
     '/config/test',                                    // 测试已保存认证的最小请求
     async ({ body }) => Responses.command(await Config.testProvider(body.provider, body.model)),

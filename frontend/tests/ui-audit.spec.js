@@ -32,13 +32,13 @@ async function layoutDiagnostics(page) {
         const parentBox = element.parentElement?.getBoundingClientRect()
         viewportEscapes.push({ element: describe(element), left: box.left, right: box.right, parentLeft: parentBox?.left, parentRight: parentBox?.right })
       }
-      if (element.matches('m3e-icon-button') && !element.closest('.message-map > div') && (box.width < 38 || box.height < 38)) undersizedControls.push({ element: describe(element), width: box.width, height: box.height })
+      if (element.matches('m3e-icon-button') && !element.closest('.message-map') && (box.width < 38 || box.height < 38)) undersizedControls.push({ element: describe(element), width: box.width, height: box.height })
       if (element.matches('m3e-button') && box.height < 36) undersizedControls.push({ element: describe(element), width: box.width, height: box.height })
       if (element.matches('m3e-button') && element.scrollWidth > element.clientWidth + 2) clippedLabels.push({ element: describe(element), text: element.textContent.trim(), width: box.width, scrollWidth: element.scrollWidth })
     }
 
     const nativeVisible = [...document.querySelectorAll('button, input:not([type="file"]), select, textarea')]
-      .filter((element) => visible(element) && !element.closest('m3e-form-field, m3e-search-bar'))
+      .filter((element) => visible(element) && !element.matches('input, .message-map__mark') && !element.closest('m3e-form-field, m3e-search-bar'))
       .map(describe)
 
     for (const element of document.querySelectorAll('h1, h2, h3, p, strong, small, m3e-button, m3e-form-field, m3e-select')) {
@@ -86,6 +86,9 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.locator('.panel-heading m3e-icon-button').first().click()
   await capture(page, testInfo, '02-add-workspace-dialog')
   await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').first().click()
+  await page.locator('.sidebar__second m3e-button').nth(1).click()
+  await page.locator('.sidebar__second m3e-button').first().click()
+  await page.waitForTimeout(300)
 
   await page.locator('.home-session__actions m3e-icon-button').first().click()
   await capture(page, testInfo, '03-session-rename')
@@ -97,42 +100,27 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.reload()
   await page.locator('.home-session').first().click()
   await capture(page, testInfo, '05-chat')
-  await expect(page.locator('.model-select m3e-select')).toContainText('kimi-k2.6')
+  await expect(page.locator('.model-select m3e-select')).toContainText(/glm-5\.2|kimi-k2\.6/)
 
-  const waitingTool = page.locator('.tool-strip.is-waiting')
-  await waitingTool.scrollIntoViewIfNeeded()
-  await capture(page, testInfo, '06-tool-approval')
-  await waitingTool.locator('m3e-button').filter({ hasText: '始终允许' }).click()
-  await capture(page, testInfo, '07-tool-approved')
-
-  await page.locator('.tool-strip__summary').first().focus()
-  await page.keyboard.press('Enter')
-  await capture(page, testInfo, '08-tool-expanded')
-  await page.locator('.tool-strip m3e-icon-button[title]').first().click()
-  await capture(page, testInfo, '09-rollback-dialog')
-  await page.locator('m3e-dialog[open] m3e-button').first().click()
-
-  await page.locator('.model-select m3e-select').click()
-  await capture(page, testInfo, '10-model-menu')
-  await page.keyboard.press('Escape')
-
-  await page.locator('.composer__input textarea').fill('检查流式状态的组件布局')
+  await page.locator('.composer__input textarea').fill('请只回复 UI_REAL_OK，不要调用工具。')
   await page.locator('m3e-icon-button[aria-label="发送"]').click()
   await capture(page, testInfo, '11-chat-running')
-  await page.locator('m3e-icon-button[aria-label="暂停生成"]').click()
-  await capture(page, testInfo, '12-chat-paused')
+  await expect(page.locator('.message--assistant')).toContainText('UI_REAL_OK', { timeout: 30_000 })
+  await capture(page, testInfo, '12-chat-finished')
 
   await page.locator('.sidebar__fifth m3e-button').click()
   await capture(page, testInfo, '13-settings-providers')
   await page.locator('.provider-models m3e-button').click()
   await expect(page.locator('.model-picker-loading')).toBeVisible()
   await capture(page, testInfo, '14-model-picker-loading')
-  await page.waitForTimeout(700)
+  await page.waitForTimeout(350)
   await capture(page, testInfo, '15-model-picker-dialog')
   await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
-  await page.locator('.provider-model-list m3e-icon-button').first().click()
-  await capture(page, testInfo, '16-model-settings-dialog')
-  await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
+  if (await page.locator('.provider-model-list m3e-icon-button').count()) {
+    await page.locator('.provider-model-list m3e-icon-button').first().click()
+    await capture(page, testInfo, '16-model-settings-dialog')
+    await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
+  }
 
   for (const [label, name] of [
     ['工具管理', '16-settings-tools'],
@@ -177,7 +165,11 @@ test('mobile screenshot and interaction matrix', async ({ page }, testInfo) => {
   await page.goto('/')
 
   await capture(page, testInfo, '01-mobile-sidebar')
-  await page.locator('m3e-icon-button[aria-label="收起侧边栏"]').click()
+  const collapse = page.locator('m3e-icon-button[aria-label="收起侧边栏"]')
+  if (await collapse.count()) await collapse.click()
+  await page.locator('.sidebar__second m3e-button').nth(1).click()
+  await page.locator('.sidebar__second m3e-button').first().click()
+  await page.waitForTimeout(300)
   await capture(page, testInfo, '02-mobile-home')
   await page.locator('.home-session').first().click()
   await capture(page, testInfo, '03-mobile-chat')

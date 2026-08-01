@@ -5,6 +5,9 @@
 */
 import { createApp } from 'vue'                    // 引入 Vue 应用创建能力
 import { startWatchers } from './watchers.js'      // 引入集中管理的数据变化副作用
+import { Config } from './commands/config.js'      // 引入应用配置和能力加载指令
+import { Workspace } from './commands/workspace.js' // 引入主页工作区加载指令
+import { store } from './store.js'                 // 引入启动状态反馈数据
 import '@m3e/web/avatar'                            // 注册身份头像
 import '@m3e/web/button'                            // 注册文本命令
 import '@m3e/web/card'                              // 注册内容容器
@@ -63,4 +66,6 @@ import App from './App.vue'                        // 引入根界面组合组�
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
 startWatchers()                                    // 再启动标签持久化等集中副作用
+await Promise.all([Workspace.load(), Config.load()]) // 页面挂载前并行恢复 Server 事实
+store.ui.isLoading = false                         // 首次资源加载完成后开放工作台
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面

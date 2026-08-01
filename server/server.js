@@ -11,6 +11,7 @@ import { configRoutes } from './routes/config.js'      // 引入配置路由插�
 import { sessionRoutes } from './routes/session.js'    // 引入会话路由插件
 import { toolRoutes } from './routes/tool.js'          // 引入工具路由插件
 import { runRoutes } from './routes/run.js'            // 引入 Run 查询和取消路由插件
+import { workspaceRoutes } from './routes/workspace.js' // 引入工作区资源路由插件
 import { Runtime } from './runtime.js'                 // 引入服务端资源生命周期
 
 
@@ -22,7 +23,8 @@ export async function createApp(options = {}) {
       builtInTools: runtime.directories.builtInToolsDirectory,
       customTools: runtime.directories.customToolsDirectory,
     })
-    .get('/health', () => ({ ok: true }))              // 健康检查不触碰任何业务状态
+    .get('/health', () => ({ ok: true, service: 'agent-server', version: '0.1.0' })) // 健康检查反馈服务身份和版本
+    .use(workspaceRoutes)                               // 组合主页工作区资源入口
     .use(agentRoutes)                                   // 组合 Agent 定义目录入口
     .use(chatRoutes)                                   // 组合消息、停止和审批入口
     .use(sessionRoutes)                                // 组合会话、任务和历史回退入口

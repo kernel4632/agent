@@ -1,110 +1,189 @@
 /*
-Session 指令：负责创建、打开、重命名、删除和切换当前模型。
-Workspace 只保存摘要，完整 Session 保存在 store.sessions 中。
-调用示例：Session.create(workspaceID)、Session.rename(sessionID, title)。
+Session 指令：负责创建、读取、打开、重命名、删除和切换会话模型。
+Server 会话会被归一化为现有 M3E 组件可直接渲染的消息与工具结构。
+调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
 */
-import { store } from '../store.js'                                  // 引入工作区摘要与完整 Session
-import { UI } from './ui.js'                                         // 引入导航和反馈指令
-import { t } from '../i18n.js'                                       // 引入当前语言默认文案
+import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约
+import { store } from '../store.js'                     // 引入工作区摘要与完整会话
+import { UI } from './ui.js'                            // 引入导航和反馈指令
+import { t } from '../i18n.js'                          // 引入当前语言默认文案
 
 
-// --- 查找 Session 摘要和所属工作区 ---
+// --- 查找会话摘要和所属工作区 ---
 function locate(sessionID) {
   for (const workspace of store.workspaces) {
-    const summary = workspace.sessions.find((session) => session.id === sessionID) // 在当前工作区摘要中查找
-    if (summary) return { workspace, summary }                         // 返回后续修改需要的同一引用
+    const summary = workspace.sessions.find((session) => session.id === sessionID) // 在工作区摘要中查找
+    if (summary) return { workspace, summary }          // 返回后续修改需要的同一引用
   }
-  return null                                                         // 未找到时由调用动作决定反馈
+  return null                                           // 未找到时由调用动作决定反馈
 }
 
 
-// --- 创建 Session ---
-function create(workspaceID = store.ui.activeWorkspaceID) {
+// --- 创建会话 ---
+async function create(workspaceID = store.ui.activeWorkspaceID) {
   const workspace = store.workspaces.find((item) => item.id === workspaceID) || store.workspaces[0] // 没有选择时使用首个工作区
-  if (!workspace) return null                                         // 没有任何工作区时不能创建归属不明的会话
-
-  const provider = Object.entries(store.config.providers).find(([, value]) => value.enabled)?.[0] || '' // 使用首个启用服务
-  const model = store.config.providers[provider]?.models?.[0] || ''   // 使用该服务首个模型
-  const id = `session-${crypto.randomUUID().slice(0, 8)}`             // 创建稳定 Session 身份
-  const currentTime = Date.now()                                      // 摘要和详情共享创建时间
-  const session = {
-    id, title: t('newConversation'), provider, model, modelOptions: {}, prompt: store.config.prompt, permissions: {}, messages: [], tasks: [], files: [], rollback: null,
-    contextTokens: 0, contextLimit: store.config.providers[provider]?.modelSettings?.[model]?.context || 128000,
-    inputTokens: 0, outputTokens: 0, cacheTokens: 0, status: 'idle', draft: '', createdAt: currentTime, updatedAt: currentTime,
+  if (!workspace) return null                           // 没有工作区时不能创建归属不明的会话
+  try {
+    const created = await AgentAPI.createSession(workspace.id, store.config.activeModel) // Server 创建并持久化完整会话
+    const session = normalize(created)                  // 补齐仅前端使用的草稿和用量字段
+    store.sessions[session.id] = session                // 完整会话进入响应式目录
+    workspace.sessions.unshift(summaryOf(session))      // 摘要进入当前工作区首位
+    UI.openChat(session.id)                             // 新建后立即进入对话页
+    return session                                      // 返回新会话供组合动作使用
+  } catch (error) {
+    UI.notify(error.message)                            // 反馈真实创建失败原因
+    return null                                         // 保持当前页面和目录不变
   }
-
-  // TODO(API): POST /session，提交 title 与 workspaceId，并用响应覆盖本地 Session。
-  store.sessions[id] = session                                        // 完整会话进入当前内存数据
-  workspace.sessions.unshift({ id, title: session.title, model, messageCount: 0, createdAt: currentTime, updatedAt: currentTime }) // 摘要进入工作区首位
-  UI.openChat(id)                                                      // 新建按钮立即进入可输入对话页
-  return session                                                       // 返回新会话供组合动作使用
 }
 
 
-// --- 打开 Session ---
-function open(sessionID) {
-  const found = locate(sessionID)                                      // 确认目录中存在目标 Session
-  if (!found) return false                                             // 无效点击保持当前页面
-
-  // TODO(API): GET /session?sessionId=...；本地没有详情时读取完整 Session 并写入 store.sessions。
-  store.ui.activeWorkspaceID = found.workspace.id                      // 侧边栏与主页保持正确工作区归属
-  UI.openChat(sessionID)                                               // 打开对应对话页
-  return true                                                          // 反馈页面已经切换
+// --- 打开会话 ---
+async function open(sessionID) {
+  const found = locate(sessionID)                       // 确认目录中存在目标会话
+  if (!found) return false                              // 无效点击保持当前页面
+  try {
+    const loaded = await AgentAPI.getSession(sessionID) // 每次打开读取 Server 最新历史和状态
+    store.sessions[sessionID] = normalize(loaded, store.sessions[sessionID]) // 保留当前草稿并替换服务数据
+    store.ui.activeWorkspaceID = found.workspace.id     // 侧边栏与主页保持正确工作区归属
+    UI.openChat(sessionID)                              // 数据就绪后再打开对话页
+    return true                                         // 反馈页面已经切换
+  } catch (error) {
+    UI.notify(error.message)                            // 展示会话读取错误
+    return false                                        // 不进入无数据对话页
+  }
 }
 
 
-// --- 重命名 Session ---
-function rename(sessionID, title) {
-  const cleanTitle = title.trim()                                      // 标题不保留首尾空白
-  const found = locate(sessionID)                                      // 查找摘要归属
-  const session = store.sessions[sessionID]                            // 查找完整会话
-  if (!cleanTitle || !found || !session) return false                  // 无效输入不改变两份数据
-
-  // TODO(API): PATCH /session，提交 sessionId 与 title。
-  found.summary.title = cleanTitle                                     // 更新侧边栏和主页摘要
-  found.summary.updatedAt = Date.now()                                 // 重命名计入最近活动
-  session.title = cleanTitle                                           // 更新对话页完整会话
-  session.updatedAt = found.summary.updatedAt                          // 两份更新时间保持一致
-  return true                                                          // 标题编辑器据此退出编辑
+// --- 刷新完整会话 ---
+async function refresh(sessionID) {
+  const previous = store.sessions[sessionID]            // 保存当前输入草稿和附件
+  const loaded = await AgentAPI.getSession(sessionID)   // 从 Server 读取最终持久化历史
+  store.sessions[sessionID] = normalize(loaded, previous) // 写回统一前端结构
+  syncSummary(store.sessions[sessionID])                // 同步主页和侧栏摘要
+  return store.sessions[sessionID]                      // 反馈最新会话供事件终态使用
 }
 
 
-// --- 删除 Session ---
-function remove(sessionID) {
-  const found = locate(sessionID)                                      // 查找工作区摘要
-  if (!found) return false                                             // 已删除会话无需重复动作
-
-  // TODO(API): DELETE /session，请求体携带 sessionId。
-  found.workspace.sessions.splice(found.workspace.sessions.indexOf(found.summary), 1) // 删除目录摘要
-  delete store.sessions[sessionID]                                     // 删除当前已加载详情
-  if (store.ui.activeSessionID === sessionID) UI.openHome()            // 删除当前页后回主页
-  UI.notify(t('sessionDeleted'))                                       // 反馈用户动作完成
-  return true                                                          // 通知确认弹窗关闭
+// --- 重命名会话 ---
+async function rename(sessionID, title) {
+  const cleanTitle = title.trim()                       // 标题不保留首尾空白
+  const found = locate(sessionID)                       // 查找摘要归属
+  const session = store.sessions[sessionID]             // 查找完整会话
+  if (!cleanTitle || !found || !session) return false   // 无效输入不改变两份数据
+  try {
+    const result = await AgentAPI.updateSession(sessionID, { title: cleanTitle }) // Server 完成验证和持久化
+    found.summary.title = result.title                  // 更新侧边栏和主页摘要
+    session.title = result.title                        // 更新对话页完整会话
+    return true                                         // 标题编辑器退出编辑
+  } catch (error) {
+    UI.notify(error.message)                            // 保留编辑器内容并显示错误
+    return false                                        // 不伪造保存成功
+  }
 }
 
 
-// --- 切换 Session 模型 ---
-function selectModel(sessionID, provider, model) {
-  const session = store.sessions[sessionID]                            // 读取当前会话
-  const found = locate(sessionID)                                      // 读取摘要
-  if (!session || !found || !store.config.providers[provider]?.models.includes(model)) return false // 只接受已配置模型
+// --- 删除会话 ---
+async function remove(sessionID) {
+  const found = locate(sessionID)                       // 查找工作区摘要
+  if (!found) return false                              // 已删除会话无需重复动作
+  try {
+    await AgentAPI.removeSession(sessionID)             // Server 删除内存和磁盘会话
+    found.workspace.sessions.splice(found.workspace.sessions.indexOf(found.summary), 1) // 删除目录摘要
+    delete store.sessions[sessionID]                    // 删除当前已加载详情
+    if (store.ui.activeSessionID === sessionID) UI.openHome() // 删除当前页后回主页
+    UI.notify(t('sessionDeleted'))                      // 反馈用户动作完成
+    return true                                         // 通知确认弹窗关闭
+  } catch (error) {
+    UI.notify(error.message)                            // 运行中冲突等错误直接展示
+    return false                                        // 保持本地数据与 Server 一致
+  }
+}
 
-  // TODO(API): PATCH /session，提交 sessionId、provider 和 model。
-  session.provider = provider                                          // Session 独立保存供应商
-  session.model = model                                                // Session 独立保存模型
-  session.contextLimit = store.config.providers[provider].modelSettings?.[model]?.context || 128000 // 同步上下文上限
-  found.summary.model = model                                          // 列表摘要即时反馈选择
-  return true                                                          // 通知模型菜单选择成功
+
+// --- 切换会话模型 ---
+async function selectModel(sessionID, provider, model) {
+  const session = store.sessions[sessionID]             // 读取当前会话
+  const found = locate(sessionID)                       // 读取摘要
+  const agent = store.agents.find((item) => item.provider === provider && item.model === model) // 找到模型对应 Agent
+  if (!session || !found || !agent) return false        // 只接受 Server 已配置 Agent 模型
+  try {
+    await AgentAPI.updateSession(sessionID, { model, agentId: agent.id }) // 持久化本会话模型选择
+    session.provider = provider                         // 操作框即时反馈供应商
+    session.model = model                               // 操作框即时反馈模型
+    session.agentID = agent.id                          // 后续发送使用准确 Agent
+    session.contextLimit = store.config.providers[provider]?.modelSettings?.[model]?.context || 128000 // 同步上下文上限
+    found.summary.model = model                         // 列表摘要即时反馈选择
+    return true                                         // 通知选择成功
+  } catch (error) {
+    UI.notify(error.message)                            // 展示 Server 配置错误
+    return false                                        // 保持旧选择
+  }
+}
+
+
+// --- 归一化 Server 会话 ---
+function normalize(source, previous = {}) {
+  const agent = store.agents.find((item) => item.id === source.agentID) // 解析会话供应商显示名称
+  const messages = []                                   // 将工具结果合并到所属助手消息
+  for (const item of source.messages ?? []) {
+    if (item.role === 'tool') {
+      const assistant = [...messages].reverse().find((message) => message.role === 'assistant') // 工具结果归入最近助手轮次
+      const tool = assistant?.tools?.find((entry) => entry.id === item.toolCallId) // 查找同一工具声明
+      if (tool) Object.assign(tool, { status: item.status || 'completed', preview: formatToolOutput(item.result), checkpoint: item.checkpoint || item.step }) // 补齐真实结果和存档点
+      continue                                           // 工具协议消息不单独占用聊天气泡
+    }
+    const message = { ...item }                         // 复制 Server 消息避免修改响应对象
+    message.reasoning = item.reasoning || item.contentBlocks?.find((block) => block.type === 'thinking')?.thinking?.thinking || '' // 读取统一推理块
+    message.content = item.content || item.contentBlocks?.filter((block) => block.type === 'text').map((block) => block.text?.text || '').join('') || '' // 合并文本块
+    message.tools = (item.toolCalls ?? []).map((call) => ({ id: call.toolCallId, runID: call.runID, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: item.checkpoint })) // 将工具声明转换为展示条
+    messages.push(message)                               // 用户和助手消息进入可见时间线
+  }
+  return {
+    ...source,                                           // 保留 Server 的身份、工作区、状态和任务
+    provider: agent?.provider || store.config.activeProvider, // 模型选择器显示供应商
+    model: source.model || agent?.model || store.config.activeModel, // 模型选择器显示模型
+    messages,                                            // 使用合并后的可见消息
+    draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
+    files: previous.files || [],                         // 刷新历史不丢失附件元数据
+    contextTokens: previous.contextTokens || 0,          // SSE usage 更新累计上下文
+    contextLimit: store.config.providers[agent?.provider]?.modelSettings?.[source.model || agent?.model]?.context || previous.contextLimit || 128000, // 读取模型上下文限制
+    inputTokens: previous.inputTokens || 0,              // 保留当前页面累计输入
+    outputTokens: previous.outputTokens || 0,            // 保留当前页面累计输出
+    cacheTokens: previous.cacheTokens || 0,              // 保留当前页面缓存用量
+    rollback: source.rollback ? { ...source.rollback, preview: source.rollback.target?.content || (source.rollback.target?.step ? t('toolStep', { step: source.rollback.target.step }) : '') } : null, // 转换回退预览
+  }
+}
+
+
+// --- 格式化工具结果预览 ---
+function formatToolOutput(output) {
+  if (output == null) return ''                          // 尚无结果时保持空预览
+  if (typeof output === 'string') return output          // 文本结果直接展示
+  return output.result || JSON.stringify(output)         // 优先展示工具业务结果
+}
+
+
+// --- 创建会话摘要 ---
+function summaryOf(session) {
+  return { id: session.id, workspaceID: session.workspaceID, title: session.title || t('newConversation'), model: session.model, status: session.status, messageCount: session.messages.length, createdAt: session.createdAt, updatedAt: session.updatedAt, lastActiveAt: session.lastActiveAt } // 主页只保存扫描字段
+}
+
+
+// --- 同步会话摘要 ---
+function syncSummary(session) {
+  const found = locate(session.id)                       // 查找工作区内摘要
+  if (!found) return                                     // 异常游离会话不制造目录项
+  Object.assign(found.summary, summaryOf(session))       // 将最新标题、状态、计数和时间写回列表
 }
 
 
 // --- 完成标题编辑器保存 ---
 async function saveTitleEditing(currentTitle, draft, editing, emit) {
-  const nextTitle = draft.value.trim()                                 // 编辑器草稿转换为业务标题
-  if (!nextTitle) return                                                // 空标题保持编辑状态
-  if (nextTitle === currentTitle) return void (editing.value = false)  // 未变化时直接退出
-  emit('save', nextTitle, (saved) => { if (saved) editing.value = false }) // 将最终结果交给页面 Command
+  const nextTitle = draft.value.trim()                   // 编辑器草稿转换为业务标题
+  if (!nextTitle) return                                 // 空标题保持编辑状态
+  if (nextTitle === currentTitle) return void (editing.value = false) // 未变化时直接退出
+  emit('save', nextTitle, (saved) => { if (saved) editing.value = false }) // 页面 Command 决定是否退出
 }
 
 
-export const Session = { locate, create, open, rename, remove, selectModel, saveTitleEditing } // 暴露 Session 业务动作
+export const Session = { locate, create, open, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing } // 暴露会话全部业务动作

@@ -14,6 +14,45 @@ export const Schemas = new Elysia({ name: 'agent.schemas' })      // 使用插�
       messageId: t.Optional(t.String()),                          // 客户端消息 ID 支持稳定回退
       message: t.String({ minLength: 1 }),                        // 空消息没有可执行内容
     }),
+    WorkspaceCreate: t.Object({
+      path: t.String({ minLength: 1 }),                            // 工作区必须绑定真实目录
+      name: t.Optional(t.String()),                                // 展示名称可省略并使用目录名
+    }),
+    WorkspaceUpdate: t.Object({
+      workspaceId: t.String(),                                     // 修改动作必须指向稳定工作区身份
+      path: t.Optional(t.String()),                                // 可选修改真实目录
+      name: t.Optional(t.String()),                                // 可选修改展示名称
+    }),
+    WorkspaceRemove: t.Object({
+      workspaceId: t.String(),                                     // 只移除列表定义，不删除本地目录
+    }),
+    SessionCreate: t.Object({
+      workspaceId: t.Optional(t.String()),                         // 旧客户端省略时使用默认工作区
+      agentId: t.Optional(t.String()),                             // 可选会话 Agent
+      model: t.Optional(t.String()),                               // 可选会话模型
+    }),
+    SessionUpdate: t.Object({
+      sessionId: t.String(),                                       // 修改动作必须指向现有会话
+      title: t.Optional(t.String()),                               // 可选修改会话标题
+      agentId: t.Optional(t.String()),                             // 可选修改默认 Agent
+      model: t.Optional(t.String()),                               // 可选修改默认模型
+    }),
+    SessionRemove: t.Object({
+      sessionId: t.String(),                                       // 删除动作必须指向现有会话
+    }),
+    SessionSend: t.Object({
+      sessionId: t.String(),                                       // 消息只能发送到已创建会话
+      content: t.String({ minLength: 1 }),                         // 用户消息不能为空
+      messageId: t.Optional(t.String()),                           // 客户端可提供稳定消息身份
+      agentId: t.Optional(t.String()),                             // 本轮可覆盖会话 Agent
+      model: t.Optional(t.String()),                               // 本轮可覆盖会话模型
+    }),
+    SessionHistory: t.Object({
+      sessionId: t.String(),                                       // 历史动作必须指向现有会话
+      action: t.Union([t.Literal('rollback-checkpoint'), t.Literal('rollback-message'), t.Literal('undo')]), // 只接受设计规定的三类动作
+      checkpoint: t.Optional(t.Number({ minimum: 1 })),            // 工具回退需要存档点编号
+      messageId: t.Optional(t.String()),                           // 消息回退需要用户消息身份
+    }),
     SessionControl: t.Object({
       sessionId: t.String(),                                      // 控制动作必须指向现有会话
     }),

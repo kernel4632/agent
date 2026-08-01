@@ -1,197 +1,271 @@
 /*
-对话指令：负责本地消息、流式演示、停止、审批、附件和回退。
-所有动作先形成完整前端反馈；未来 API 只替换对应 TODO 段落。
-调用示例：Chat.send(sessionID)、Chat.stop(sessionID)、Chat.decide(sessionID, toolCallID, decision)。
+对话指令：负责发送消息、归约 SSE、停止、审批、附件和历史回退。
+用户触发先调用正式 API，事件按递增 ID 修改当前会话，终态再读取持久化历史校准。
+调用示例：await Chat.send(sessionID, content)、await Chat.decide(sessionID, toolCallID, decision)。
 */
-import { store } from '../store.js'                                  // 引入完整 Session 和配置目录
-import { Session } from './session.js'                               // 引入摘要同步与模型选择
-import { UI } from './ui.js'                                         // 引入复制和轻反馈
-import { t } from '../i18n.js'                                       // 引入当前语言演示和反馈文案
+import { AgentAPI } from '../api.js'                    // 引入正式会话和审批 HTTP 契约
+import { store } from '../store.js'                     // 引入完整会话和事件位置
+import { readSSE } from '../utils/sse.js'               // 引入标准递增 SSE 解析能力
+import { Session } from './session.js'                  // 引入终态刷新和摘要同步
+import { UI } from './ui.js'                            // 引入复制和轻反馈
+import { t } from '../i18n.js'                          // 引入当前语言反馈文案
 
-const simulations = new Map()                                        // Session ID 到本地流式演示计时器
 
-
-// --- 读取当前 Session ---
+// --- 读取当前会话 ---
 function current() {
-  return store.sessions[store.ui.activeSessionID] || null             // 页面只消费当前活动会话
+  return store.sessions[store.ui.activeSessionID] || null // 页面只消费当前活动会话
 }
 
 
 // --- 提交输入内容 ---
 function submitInput(content, isRunning, emit) {
-  const text = content.value.trim()                                   // 空白输入没有业务含义
-  if (!text || isRunning) return false                                // 运行中拒绝重复发送
-  content.value = ''                                                  // 触发成功后立即清空输入
-  emit('send', text)                                                  // 把有效消息交给页面指令
-  return true                                                         // 输入组件恢复焦点
+  const text = content.value.trim()                       // 空白输入没有业务含义
+  if (!text || isRunning) return false                    // 运行中拒绝重复发送
+  content.value = ''                                      // 触发成功后立即清空输入
+  emit('send', text)                                      // 把有效消息交给页面指令
+  return true                                             // 输入组件恢复焦点
 }
 
 
-// --- 发送用户消息 ---
-function send(sessionID, content) {
-  const session = store.sessions[sessionID]                           // 读取目标会话
-  const text = content.trim()                                         // 消息不保留无意义首尾空白
+// --- 发送用户消息并启动事件订阅 ---
+async function send(sessionID, content) {
+  const session = store.sessions[sessionID]               // 读取目标会话
+  const text = content.trim()                              // 消息不保留无意义首尾空白
   if (!session || !text || session.status === 'running') return false // 无会话、空文本和重复发送均拒绝
 
-  // TODO(API): POST /session/chat，提交 sessionId、content、messageId 和 files；实时反馈改由 /session/events 写入同一 Store。
-  const userMessage = { id: `message-${crypto.randomUUID()}`, role: 'user', content: text, files: [...session.files], createdAt: Date.now() }
-  const assistant = {
-    id: `message-${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true,
-    request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 },
+  const messageID = `msg_${crypto.randomUUID()}`          // 客户端身份与 Server 持久化保持一致
+  const userMessage = { id: messageID, role: 'user', content: text, contentBlocks: [{ type: 'text', text: { text } }], files: [...session.files], createdAt: Date.now() } // 输入立即进入时间线
+  const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前 Run 的响应占位
+  session.rollback = null                                // 新消息正式提交当前回退分支
+  session.files = []                                     // 附件归属用户消息后清空输入区
+  session.messages.push(userMessage, assistant)          // 输入和请求状态即时反馈
+  session.status = 'running'                             // 输入器切换为停止按钮
+  session.updatedAt = Date.now()                         // 会话进入最近活动
+  Session.syncSummary(session)                           // 侧边栏和主页同步运行状态
+
+  const previousController = store.events.controllers[sessionID] // 读取旧订阅控制器
+  previousController?.abort()                            // 同一会话只保留一个事件读取循环
+  const controller = new AbortController()               // 当前 Run 使用独立订阅中断信号
+  store.events.controllers[sessionID] = controller       // 停止和终态可以释放订阅
+  const afterID = store.events.lastIDs[sessionID] || 0   // 从最后确认事件继续读取
+  const eventResponse = AgentAPI.subscribeSession(sessionID, afterID, controller.signal) // 并发建立订阅，空历史时等待首事件
+
+  try {
+    const started = await AgentAPI.sendMessage(sessionID, text, messageID, session.model, session.agentID) // 启动后台真实模型请求
+    assistant.runID = started.run.id                     // 审批和停止使用准确 Run 归属
+    const response = await eventResponse                  // Run 已启动后取得事件流响应
+    void consume(sessionID, response, controller)         // 后台持续归约事件，不阻塞输入事件栈
+    return true                                           // 反馈发送动作已接受
+  } catch (error) {
+    controller.abort()                                    // 启动失败释放尚未建立的订阅
+    assistant.isStreaming = false                         // 关闭响应打字状态
+    assistant.request.status = 'failed'                   // 请求条进入错误状态
+    assistant.error = error.message                       // 原位展示真实 API 错误
+    session.status = 'idle'                               // 恢复输入器
+    Session.syncSummary(session)                          // 主页状态同步恢复
+    return false                                          // 反馈发送失败
   }
-  session.rollback = null                                             // 新消息正式提交当前回退分支
-  session.files = []                                                  // 附件归属用户消息后清空输入区
-  session.messages.push(userMessage, assistant)                       // 用户输入和响应占位即时进入时间线
-  session.status = 'running'                                          // 输入器切换为停止按钮
-  session.updatedAt = Date.now()                                      // 会话进入最近活动
-  syncSummary(session)                                                 // 侧边栏和主页同步计数
-  simulateResponse(session, assistant)                                 // 使用本地数据演示完整流式响应
-  return true                                                          // 反馈发送动作已接受
 }
 
 
-// --- 演示流式 Agent 响应 ---
-function simulateResponse(session, assistant) {
-  const chunks = [
-    t('simulationStart'),
-    t('simulationState'),
-    t('simulationApi'),
-  ]
-  const startedAt = performance.now()                                  // 请求状态条使用真实演示耗时
-  let index = 0                                                        // 记录下一段文本位置
-  const timer = window.setInterval(() => {
-    if (index < chunks.length) {
-      assistant.content += chunks[index]                               // 增量文本触发 Markdown 和滚动反馈
-      assistant.request.output += 96 + index * 44                      // 模拟 usage 持续增长
-      index += 1                                                       // 推进到下一段
-      return                                                           // 等待下一次流式更新
+// --- 消费当前 Run 的事件流 ---
+async function consume(sessionID, response, controller) {
+  try {
+    await readSSE(response, (event) => receive(sessionID, event, controller)) // 事件严格按网络顺序修改会话
+  } catch (error) {
+    if (controller.signal.aborted) return                 // 终态和用户停止造成的中断不是错误
+    const session = store.sessions[sessionID]             // 读取仍在页面中的会话
+    if (!session) return                                  // 会话被删除后无需反馈
+    session.status = 'idle'                               // 网络失败不能让输入器永久锁定
+    const assistant = getStreamingAssistant(session)      // 找到当前响应占位
+    if (assistant) {
+      assistant.isStreaming = false                       // 关闭打字状态
+      assistant.request.status = 'failed'                 // 请求条进入故障状态
+      assistant.error = error.message                     // 原位展示订阅错误
     }
+    Session.syncSummary(session)                          // 侧栏同步故障终态
+  }
+}
 
-    window.clearInterval(timer)                                        // 文本完成后结束计时器
-    simulations.delete(session.id)                                     // 释放当前 Session 演示控制
-    assistant.isStreaming = false                                      // 关闭打字和请求旋转状态
-    assistant.request.status = 'completed'                              // 请求条展示 usage
-    assistant.request.input = Math.max(620, Math.round(assistant.content.length * 1.8)) // 提供可读估算
-    assistant.request.cache = Math.round(assistant.request.input * 0.35) // 模拟缓存读取
-    assistant.request.duration = Number(((performance.now() - startedAt) / 1000).toFixed(1)) // 反馈完整耗时
-    session.contextTokens += assistant.request.input + assistant.request.output // 更新上下文圆环
-    session.inputTokens += assistant.request.input                      // 更新累计输入
-    session.outputTokens += assistant.request.output                    // 更新累计输出
-    session.cacheTokens += assistant.request.cache                      // 更新累计缓存
-    session.status = 'idle'                                             // 输入器恢复发送动作
-    syncSummary(session)                                                 // 同步列表摘要
-  }, 520)
-  simulations.set(session.id, timer)                                    // 停止按钮据此取消流式演示
+
+// --- 归约一个 Server 事件 ---
+async function receive(sessionID, event, controller) {
+  const session = store.sessions[sessionID]               // 读取事件所属完整会话
+  if (!session) return                                    // 已删除或未加载会话忽略旧事件
+  if (event.id && event.id <= (store.events.lastIDs[sessionID] || 0)) return // 重放重复事件不能二次修改页面
+  if (event.id) store.events.lastIDs[sessionID] = event.id // 成功接收后推进断线位置
+  const assistant = getStreamingAssistant(session)        // 当前增量统一写入最新响应占位
+
+  if (event.name === 'text-delta' && assistant) assistant.content += event.data.text || '' // 追加模型正文增量
+  if (event.name === 'reasoning-delta' && assistant) assistant.reasoning += event.data.text || '' // 追加模型推理增量
+  if (event.name === 'tool-call' && assistant) upsertTool(assistant, event.data, 'running') // 展示模型工具声明
+  if (event.name === 'tool-approval-request' && assistant) upsertTool(assistant, { toolCallId: event.data.id, toolName: event.data.name, input: event.data.args, runID: event.data.runID }, 'waiting') // 展示三选一审批
+  if (event.name === 'tool-result' && assistant) upsertTool(assistant, event.data, event.data.output?.denied ? 'rejected' : 'completed') // 展示真实工具结果
+  if (event.name === 'task-list-updated') {
+    session.tasks = event.data.tasks || []                // 任务面板使用 Server 持久化清单
+    session.taskRevision = event.data.taskRevision        // 保存并发修订号
+  }
+  if (event.name === 'session-title') {
+    session.title = event.data.title                      // 异步模型标题更新对话页
+    Session.syncSummary(session)                          // 同步主页与侧栏标题
+  }
+  if ((event.name === 'finish-step' || event.name === 'finish') && assistant && event.data.usage) applyUsage(session, assistant, event.data.usage) // 处理 AI SDK 用量结构
+  if (event.name === 'error-retry' && assistant) assistant.error = `${event.data.message} · ${event.data.nextRetryIn}ms` // 原位展示重试反馈
+  if (event.name === 'error' && assistant) {
+    assistant.error = event.data.message                 // 展示不可恢复错误
+    assistant.request.status = 'failed'                  // 请求条进入故障状态
+  }
+
+  if (!['finish', 'error'].includes(event.name)) return  // 普通增量继续保持订阅
+  if (assistant) {
+    assistant.isStreaming = false                        // 终态关闭打字状态
+    assistant.request.status = event.data.cancelled ? 'cancelled' : event.name === 'error' ? 'failed' : 'completed' // 映射真实终态
+  }
+  session.status = 'idle'                                // 输入器恢复发送动作
+  Session.syncSummary(session)                           // 列表同步终态
+  try { await Session.refresh(sessionID) }               // 用 Server 最终持久化历史校准增量占位
+  catch (error) { UI.notify(error.message) }             // 刷新失败保留当前已显示增量
+  controller.abort()                                     // 当前 Run 结束后释放持续 SSE
+  if (store.events.controllers[sessionID] === controller) delete store.events.controllers[sessionID] // 清除当前控制器引用
+}
+
+
+// --- 创建或更新工具展示条 ---
+function upsertTool(assistant, data, status) {
+  const toolCallID = data.toolCallId || data.id           // 兼容 AI SDK 和审批自定义事件字段
+  let tool = assistant.tools.find((item) => item.id === toolCallID) // 定位同一次工具调用
+  if (!tool) {
+    tool = { id: toolCallID, runID: data.runID || assistant.runID, name: data.toolName || data.name, title: data.toolName || data.name, input: data.input || data.args || {}, preview: '', status, checkpoint: null } // 建立完整展示结构
+    assistant.tools.push(tool)                            // 工具原位进入当前助手消息
+  }
+  tool.status = status                                    // 最新事件更新运行或审批状态
+  tool.runID = data.runID || tool.runID                   // 保留子 Run 精确审批归属
+  tool.input = data.input || data.args || tool.input      // 工具调用事件补齐真实输入
+  if (data.output !== undefined) tool.preview = formatOutput(data.output) // 工具结果转换为紧凑预览
+}
+
+
+// --- 格式化工具结果 ---
+function formatOutput(output) {
+  if (typeof output === 'string') return output           // 文本结果直接展示
+  return output?.result || JSON.stringify(output ?? '')   // 优先显示工具业务结果
+}
+
+
+// --- 应用模型用量反馈 ---
+function applyUsage(session, assistant, usage) {
+  const input = Number(usage.inputTokens ?? usage.promptTokens ?? 0)     // 兼容 AI SDK 不同供应商字段
+  const output = Number(usage.outputTokens ?? usage.completionTokens ?? 0) // 读取真实输出 token
+  const cache = Number(usage.cachedInputTokens ?? 0)                      // 读取可用缓存 token
+  Object.assign(assistant.request, { input, output, cache })              // 请求条展示本轮用量
+  session.inputTokens += input                                             // 累计会话输入
+  session.outputTokens += output                                           // 累计会话输出
+  session.cacheTokens += cache                                             // 累计缓存读取
+  session.contextTokens = input + output                                   // 圆环展示最近请求上下文
+}
+
+
+// --- 读取当前流式助手消息 ---
+function getStreamingAssistant(session) {
+  return [...session.messages].reverse().find((message) => message.role === 'assistant' && message.isStreaming) // 最新 Run 只修改自己的占位消息
 }
 
 
 // --- 停止当前执行 ---
-function stop(sessionID) {
-  const session = store.sessions[sessionID]                             // 读取目标会话
-  if (!session || session.status !== 'running') return false            // 非运行状态无需停止
-
-  // TODO(API): POST /session/stop，请求体携带 sessionId；SSE 最终事件负责写入终态。
-  window.clearInterval(simulations.get(sessionID))                      // 停止本地流式演示
-  simulations.delete(sessionID)                                         // 释放控制句柄
-  const assistant = [...session.messages].reverse().find((item) => item.role === 'assistant' && item.isStreaming) // 找到当前响应
-  if (assistant) {
-    assistant.isStreaming = false                                       // 关闭打字状态
-    assistant.request.status = 'cancelled'                               // 请求条反馈主动暂停
+async function stop(sessionID) {
+  const session = store.sessions[sessionID]               // 读取目标会话
+  if (!session || session.status !== 'running') return false // 非运行状态无需停止
+  try {
+    await AgentAPI.stopSession(sessionID)                  // Server 中断模型、工具和审批等待
+    UI.notify(t('generationPaused'))                       // 终态 SSE 会恢复输入器
+    return true                                            // 反馈停止信号已接受
+  } catch (error) {
+    UI.notify(error.message)                               // 展示未找到 Run 等真实错误
+    return false                                           // 保持当前运行状态等待事件
   }
-  session.status = 'idle'                                                // 输入器恢复发送按钮
-  UI.notify(t('generationPaused'))                                     // 明确反馈停止动作
-  return true                                                            // 反馈命中当前执行
 }
 
 
 // --- 处理工具审批 ---
-function decide(sessionID, toolCallID, decision) {
-  const session = store.sessions[sessionID]                              // 读取审批所属会话
+async function decide(sessionID, toolCallID, decision) {
+  const session = store.sessions[sessionID]                // 读取审批所属会话
   const tool = session?.messages.flatMap((item) => item.tools || []).find((item) => item.id === toolCallID) // 定位原位工具条
   if (!tool || !['deny', 'allow-once', 'always-allow'].includes(decision)) return false // 无效决定不修改数据
-
-  // TODO(API): POST /session/approval，提交 sessionId、toolCallId 和 decision。
-  tool.decision = decision                                               // 保存本次用户决定
-  tool.status = decision === 'deny' ? 'rejected' : 'completed'          // 原位切换拒绝或完成反馈
-  tool.preview = t(decision === 'deny' ? 'operationDenied' : decision === 'always-allow' ? 'operationAllowedAlways' : 'operationAllowed') // 预览反馈结果
-  UI.notify(t(decision === 'deny' ? 'toolDenied' : 'toolAllowed'))     // 全局短反馈确认点击生效
-  return true                                                            // 通知工具条退出审批状态
+  try {
+    await AgentAPI.decideTool(sessionID, toolCallID, decision, tool.runID) // 按 Run 精确恢复等待工具
+    tool.decision = decision                             // 保存本次用户决定
+    tool.status = decision === 'deny' ? 'rejected' : 'running' // 允许后等待真实工具结果
+    UI.notify(t(decision === 'deny' ? 'toolDenied' : 'toolAllowed')) // 确认点击已提交
+    return true                                          // 通知工具条退出审批状态
+  } catch (error) {
+    UI.notify(error.message)                             // 审批竞争或过期时展示 Server 反馈
+    return false                                         // 保持当前条供刷新校准
+  }
 }
 
 
 // --- 添加输入附件 ---
 function attach(sessionID, files) {
-  const session = store.sessions[sessionID]                              // 读取附件所属会话
-  if (!session) return false                                             // 无会话不能保存附件草稿
+  const session = store.sessions[sessionID]              // 读取附件所属会话
+  if (!session) return false                              // 无会话不能保存附件草稿
   for (const file of files) {
     if (session.files.some((item) => item.name === file.name && item.size === file.size)) continue // 避免重复选择同一文件
-    session.files.push({ id: `file-${crypto.randomUUID()}`, name: file.name, size: file.size, type: file.type || 'application/octet-stream' }) // 只保存页面需要的元数据
+    session.files.push({ id: `file-${crypto.randomUUID()}`, name: file.name, size: file.size, type: file.type || 'application/octet-stream' }) // 保存操作框展示元数据
   }
-  return true                                                            // 输入框即时展示附件
+  return true                                            // 输入框即时展示附件
 }
 
 
 // --- 移除输入附件 ---
 function removeFile(sessionID, fileID) {
-  const session = store.sessions[sessionID]                              // 读取附件草稿
-  if (!session) return false                                             // 无会话保持页面不变
-  const index = session.files.findIndex((file) => file.id === fileID)    // 找到对应附件
-  if (index < 0) return false                                            // 已移除附件无需重复动作
-  session.files.splice(index, 1)                                         // 从输入区移除附件
-  return true                                                            // 反馈动作完成
+  const session = store.sessions[sessionID]              // 读取附件草稿
+  if (!session) return false                              // 无会话保持页面不变
+  const index = session.files.findIndex((file) => file.id === fileID) // 找到对应附件
+  if (index < 0) return false                             // 已移除附件无需重复动作
+  session.files.splice(index, 1)                         // 从输入区移除附件
+  return true                                            // 反馈动作完成
 }
 
 
 // --- 回退到工具步骤 ---
-function rollback(sessionID, checkpoint) {
-  const session = store.sessions[sessionID]                              // 读取目标会话
-  if (!session || session.status === 'running') return false             // 运行中不能竞争修改历史
-  const index = session.messages.findIndex((message) => message.tools?.some((tool) => tool.checkpoint === checkpoint)) // 定位工具所属助手消息
-  if (index < 0) return false                                             // 不存在步骤保持历史
-
-  // TODO(API): POST /session/history，action=rollback-checkpoint。
-  session.rollback = { type: 'checkpoint', checkpoint, messages: session.messages.splice(index + 1), preview: t('toolStep', { step: checkpoint }) } // 暂存后续消息
-  syncSummary(session)                                                    // 列表计数立即更新
-  return true                                                             // 显示回退预览条
+async function rollback(sessionID, checkpoint) {
+  try {
+    await AgentAPI.changeHistory(sessionID, 'rollback-checkpoint', { checkpoint }) // Server 同步截断展示和模型历史
+    await Session.refresh(sessionID)                     // 重新读取回退预览和可见消息
+    return true                                          // 显示回退预览条
+  } catch (error) {
+    UI.notify(error.message)                             // 展示无存档点或运行冲突
+    return false                                         // 保持当前历史
+  }
 }
 
 
 // --- 回退用户消息并填回输入框 ---
-function rollbackMessage(sessionID, messageID) {
-  const session = store.sessions[sessionID]                              // 读取目标会话
-  if (!session || session.status === 'running') return false             // 运行中不能编辑旧分支
-  const index = session.messages.findIndex((message) => message.id === messageID && message.role === 'user') // 定位用户消息
-  if (index < 0) return false                                             // 目标不存在保持历史
-
-  // TODO(API): POST /session/history，action=rollback-message。
-  const target = session.messages[index]                                  // 保存原文供输入框恢复
-  session.rollback = { type: 'message', messageID, messages: session.messages.splice(index), preview: target.content } // 暂存目标及后续历史
-  session.draft = target.content                                          // 把原用户消息填回输入框
-  syncSummary(session)                                                     // 列表计数立即更新
-  return true                                                              // 显示撤销回退动作
+async function rollbackMessage(sessionID, messageID) {
+  try {
+    const result = await AgentAPI.changeHistory(sessionID, 'rollback-message', { messageId: messageID }) // Server 暂存目标消息及后续历史
+    await Session.refresh(sessionID)                     // 刷新可见历史和撤销摘要
+    store.sessions[sessionID].draft = result.content     // 把原用户消息填回输入框
+    return true                                          // 显示撤销回退动作
+  } catch (error) {
+    UI.notify(error.message)                             // 展示目标不存在或运行冲突
+    return false                                         // 保持当前历史
+  }
 }
 
 
 // --- 撤销最近回退 ---
-function undoRollback(sessionID) {
-  const session = store.sessions[sessionID]                               // 读取回退状态
-  if (!session?.rollback) return false                                    // 没有暂存内容无需恢复
-
-  // TODO(API): POST /session/history，action=undo。
-  session.messages.push(...session.rollback.messages)                     // 按原顺序恢复隐藏历史
-  session.rollback = null                                                  // 清除一次性回退状态
-  session.draft = ''                                                       // 撤销用户消息回退时清除输入原文
-  syncSummary(session)                                                      // 列表计数恢复
-  return true                                                               // 反馈恢复完成
+async function undoRollback(sessionID) {
+  try {
+    await AgentAPI.changeHistory(sessionID, 'undo')      // Server 恢复暂存的两套历史
+    await Session.refresh(sessionID)                     // 刷新完整时间线
+    store.sessions[sessionID].draft = ''                 // 撤销消息回退时清除输入原文
+    return true                                          // 反馈恢复完成
+  } catch (error) {
+    UI.notify(error.message)                             // 展示没有可撤销回退等错误
+    return false                                         // 保持当前状态
+  }
 }
 
 
-// --- 同步 Session 摘要 ---
-function syncSummary(session) {
-  const found = Session.locate(session.id)                                 // 查找工作区内摘要
-  if (!found) return                                                       // 草稿异常时不产生游离摘要
-  Object.assign(found.summary, { title: session.title, model: session.model, messageCount: session.messages.length, updatedAt: session.updatedAt || Date.now() }) // 同步列表需要的最小字段
-}
-
-
-export const Chat = { current, submitInput, send, stop, decide, attach, removeFile, rollback, rollbackMessage, undoRollback } // 暴露全部对话动作
+export const Chat = { current, submitInput, send, receive, stop, decide, attach, removeFile, rollback, rollbackMessage, undoRollback } // 暴露全部对话动作
