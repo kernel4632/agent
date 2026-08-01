@@ -126,6 +126,26 @@ function normalize(workspace) {
 }
 
 
+// --- 验证完整工作区备份 ---
+function validateAll(workspaces) {
+  if (!Array.isArray(workspaces)) return { ok: false, status: 400, error: 'workspaces must be an array' } // 备份必须提供完整数组
+  const normalized = []                                      // 修改共享状态前先构建独立候选值
+  const identities = new Set()                               // 工作区身份不能重复覆盖
+  const paths = new Set()                                    // 同一路径不能在导入后分裂成多个工作区
+  for (const workspace of workspaces) {
+    if (!workspace?.id || !workspace?.path) return { ok: false, status: 400, error: 'invalid workspace backup' } // 每项必须保留身份和路径
+    const value = normalize(workspace)                       // 统一旧备份字段和绝对路径
+    const pathKey = value.path.toLowerCase()                 // Windows 和常见工作区语义按大小写不敏感检查
+    if (identities.has(value.id)) return { ok: false, status: 400, error: 'duplicate workspace ID' } // 重复身份会覆盖数据
+    if (paths.has(pathKey)) return { ok: false, status: 400, error: 'duplicate workspace path' } // 重复目录会产生歧义
+    identities.add(value.id)
+    paths.add(pathKey)
+    normalized.push(value)
+  }
+  return { ok: true, workspaces: normalized }
+}
+
+
 // --- 保存工作区目录 ---
 async function persist() {
   const document = { workspaces: list() }                 // 独立文件只包含完整工作区数组
@@ -133,4 +153,16 @@ async function persist() {
 }
 
 
-export const Workspace = { load, create, update, remove, list, get, getDefaultID } // 暴露工作区全部业务动作
+// --- 替换完整工作区目录 ---
+async function replaceAll(workspaces) {
+  const validated = validateAll(workspaces)                  // 复用无副作用验证，导入可先检查全部领域
+  if (!validated.ok) return validated                        // 无效备份保持当前状态不变
+  const normalized = validated.workspaces                    // 使用已经归一化的独立候选值
+  workspaceStore.items.clear()                              // 验证通过后替换运行时目录
+  normalized.forEach((workspace) => workspaceStore.items.set(workspace.id, workspace)) // 恢复备份顺序和身份
+  await persist()                                           // 一次写入 workspace.json
+  return { ok: true, workspaces: list() }                   // 反馈最终持久化目录
+}
+
+
+export const Workspace = { load, create, update, remove, validateAll, replaceAll, list, get, getDefaultID } // 暴露工作区全部业务动作

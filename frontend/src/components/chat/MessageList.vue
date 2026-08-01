@@ -5,8 +5,8 @@
 -->
 <script setup>
 import { nextTick, ref } from 'vue'                                  // 引入列表 DOM 和更新后滚动
-import MessageItem from './MessageItem.vue'                          // 引入单条消息显示
-import { watchMessages } from '../watchers.js'                       // 引入集中消息监听
+import MessageAssistant from './MessageAssistant.vue'                // 引入单条消息显示
+import { watchMessages } from '../../watchers.js'                    // 引入集中消息监听
 
 const props = defineProps({ messages: { type: Array, required: true } }) // 当前完整可见历史
 const emit = defineEmits(['rollback', 'retry', 'approval', 'copy'])      // 向 Chat 透传用户动作
@@ -47,9 +47,9 @@ defineExpose({ scrollToMessage, scrollAdjacent, scrollToLatest })        // 对�
 <template>
   <div ref="listElement" class="message-list">
     <div class="message-list__column">
-      <MessageItem v-for="message in messages" :key="message.id" :message="message" @rollback="emit('rollback', $event)" @retry="emit('retry', $event)" @approval="emit('approval', $event)" @copy="emit('copy', $event)" />
+      <MessageAssistant v-for="message in messages" :key="message.id" :message="message" @rollback="emit('rollback', $event)" @retry="emit('retry', $event)" @approval="emit('approval', $event)" @copy="emit('copy', $event)" />
     </div>
   </div>
 </template>
 
-<style lang="scss" src="../styles/components/MessageList.scss"></style>
+<style lang="scss" src="../../styles/components/MessageList.scss"></style>

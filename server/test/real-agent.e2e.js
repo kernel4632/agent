@@ -170,6 +170,8 @@ async function testConfigAndTools() {
   const current = await api('/config')                                    // 从独立 Server 读取当前配置
   check(current.data.activeModel === 'glm-5.2', 'active model is not glm-5.2') // 验证真实模型选择
   check(current.data.providers.aker.apiKey === '[REDACTED]', 'config API exposed API key') // 验证密钥脱敏
+  const discovered = await api('/config/models', 'POST', { provider: 'aker' }) // 通过真实供应商 models 接口读取模型目录
+  check(discovered.data.models.includes('glm-5.2'), 'real provider model discovery missed glm-5.2') // 真实设置页模型发现必须包含目标模型
 
   const updated = await api('/config', 'PATCH', { systemPrompt: '你是自主执行任务的 Agent。必须使用工具完成用户要求并检查结果，不能只解释。完成后调用 task_done。' }) // 走正式配置写入 API
   check(updated.data.ok, 'config update failed')                           // 配置必须成功写入磁盘

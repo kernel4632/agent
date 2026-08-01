@@ -12,6 +12,8 @@ export const store = {
     value: null,
     sourceValue: null,                                  // 保留磁盘中的环境占位符，避免保存时写回真实密钥
     filePath: '',
+    mcpSourceValue: null,                               // 保留 mcp.json 中的环境占位符
+    mcpFilePath: '',                                    // 独立 MCP 配置文件位置
   },
   workspaces: {
     items: new Map(),                                  // Workspace ID 到可持久化工作区定义

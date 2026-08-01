@@ -11,31 +11,35 @@ let toastTimer = null                                                // 同一�
 
 
 // --- 离开当前页面 ---
-function leaveCurrentView() {
-  if (store.ui.view === 'settings') Settings.save()                 // 设置页离开时自动提交本地草稿
+async function leaveCurrentView() {
+  if (store.ui.view !== 'settings') return true                     // 非设置页无需执行保存
+  return Settings.save()                                            // 等待设置真实持久化后再导航
 }
 
 
 // --- 打开主页 ---
-function openHome() {
-  leaveCurrentView()                                                 // 先保存当前设置草稿
+async function openHome() {
+  if (!await leaveCurrentView()) return false                        // 保存失败时保留设置页和草稿
   store.ui.view = 'home'                                             // 再反馈主页内容
+  return true                                                        // 反馈导航完成
 }
 
 
 // --- 打开对话页 ---
-function openChat(sessionID) {
-  leaveCurrentView()                                                 // 从设置进入会话前保存草稿
+async function openChat(sessionID) {
+  if (!await leaveCurrentView()) return false                        // 保存失败时不离开设置页
   store.ui.activeSessionID = sessionID                               // 先固定目标 Session
   store.ui.view = 'chat'                                             // 再显示对话页
+  return true                                                        // 反馈导航完成
 }
 
 
 // --- 打开设置页 ---
-function openSettings(section = 'providers') {
+async function openSettings(section = 'providers') {
   if (store.ui.view !== 'settings') Settings.open()                  // 首次进入时创建隔离草稿
   store.ui.settingsSection = section                                 // 选择对应设置项
   store.ui.view = 'settings'                                         // 显示设置主页面
+  return true                                                        // 反馈设置页已经打开
 }
 
 

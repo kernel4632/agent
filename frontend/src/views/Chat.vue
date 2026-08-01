@@ -5,11 +5,11 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'                                  // 引入当前会话、模型目录、滚动和弹窗状态
-import ChatScrollMap from '../components/ChatScrollMap.vue'            // 引入架构要求的对话快速跳转地图
-import InputBox from '../components/InputBox.vue'                    // 引入对话操作框
-import MessageList from '../components/MessageList.vue'              // 引入消息时间线和跳转动作
-import SessionTitleEditor from '../components/SessionTitleEditor.vue' // 引入双击标题编辑器
-import TaskPanel from '../components/TaskPanel.vue'                   // 引入当前任务列表
+import ChatScrollMap from '../components/chat/ChatScrollMap.vue'      // 引入架构要求的对话快速跳转地图
+import InputBox from '../components/chat/InputBox.vue'                // 引入对话操作框
+import MessageList from '../components/chat/MessageList.vue'          // 引入消息时间线和跳转动作
+import SessionTitleEditor from '../components/chat/SessionTitleEditor.vue' // 引入双击标题编辑器
+import TaskList from '../components/chat/TaskList.vue'                // 引入当前任务列表
 import { Chat as ChatCommand } from '../commands/chat.js'             // 引入发送、停止、审批和回退
 import { Session } from '../commands/session.js'                      // 引入重命名和模型切换
 import { UI } from '../commands/ui.js'                                // 引入复制反馈
@@ -78,7 +78,7 @@ function confirmRollback() {
       <div v-if="session.rollback" class="rollback-preview">
         <m3e-icon name="undo"></m3e-icon><span><strong>{{ t('rolledBack') }}</strong><small>{{ session.rollback.preview }}</small></span><m3e-button @click="ChatCommand.undoRollback(session.id)">{{ t('undoRollback') }}</m3e-button>
       </div>
-      <TaskPanel :tasks="session.tasks" />
+      <TaskList :tasks="session.tasks" />
       <InputBox v-model="session.draft" :session="session" :models="models" @send="ChatCommand.send(session.id, $event)" @stop="ChatCommand.stop(session.id)" @select-model="selectModel" @attach="ChatCommand.attach(session.id, $event)" @remove-file="ChatCommand.removeFile(session.id, $event)" />
     </footer>
 

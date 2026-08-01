@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'                           // 引入提供商选择和弹窗状态
-import { Settings } from '../commands/settings.js'                   // 引入提供商与模型指令
-import { t } from '../i18n.js'                                       // 引入响应式界面翻译
-import TextField from './fields/TextField.vue'                       // 引入 M3E 标准文本字段
+import { Settings } from '../../commands/settings.js'                // 引入提供商与模型指令
+import { t } from '../../i18n.js'                                    // 引入响应式界面翻译
+import TextField from '../shared/TextField.vue'                       // 引入 M3E 标准文本字段
 
 const props = defineProps({ config: { type: Object, required: true } }) // 当前完整设置草稿
 const selectedName = ref('')                                        // 当前右侧提供商
@@ -18,7 +18,7 @@ const renameDraft = ref('')                                         // 保存尚
 
 const providerNames = computed(() => Object.keys(props.config.providers || {})) // 左侧提供商目录
 const provider = computed(() => props.config.providers?.[selectedName.value] || null) // 当前详情
-const candidates = computed(() => Settings.fetchModels(selectedName.value)) // 本地模型发现候选
+const candidates = ref([])                                             // Server 返回的真实未添加模型候选
 const currentModelSettings = computed(() => provider.value?.modelSettings?.[modelSettingsName.value] || {}) // 当前模型设置
 
 watch(providerNames, (names) => {
@@ -64,7 +64,7 @@ function openModelSettings(modelName) {
 async function openModelPicker() {
   modelDialogOpen.value = true                                        // 先打开弹窗展示明确加载反馈
   modelsLoading.value = true                                          // 按钮和弹窗共享请求状态
-  await new Promise((resolve) => setTimeout(resolve, 250))             // 给真实 Agent 模型目录转换保留可见加载反馈
+  candidates.value = await Settings.fetchModels(selectedName.value)     // 读取供应商真实模型目录
   modelsLoading.value = false                                         // 候选目录就绪后显示可选项
 }
 </script>
@@ -140,4 +140,4 @@ async function openModelPicker() {
   </section>
 </template>
 
-<style lang="scss" src="../styles/components/ProviderConfig.scss"></style>
+<style lang="scss" src="../../styles/components/ProviderConfig.scss"></style>

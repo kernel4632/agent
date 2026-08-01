@@ -6,9 +6,9 @@ Markdown 内容组件：渲染安全富文本，并在 DOM 完成后增强代码
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'       // 引入安全 HTML 派生和 DOM 生命周期
 import DOMPurify from 'dompurify'                              // 引入 Mermaid SVG 最终清理能力
-import { renderMarkdown } from '../utils/markdown.js'         // 引入 Markdown 静态结构转换
-import { watchMarkdownContent } from '../watchers.js'          // 引入集中管理的内容增强监听
-import { currentLanguage, t } from '../i18n.js'                // 引入响应式复制文案和语言依赖
+import { renderMarkdown } from '../../utils/markdown.js'        // 引入 Markdown 静态结构转换
+import { watchMarkdownContent } from '../../watchers.js'        // 引入集中管理的内容增强监听
+import { currentLanguage, t } from '../../i18n.js'              // 引入响应式复制文案和语言依赖
 
 const props = defineProps({                                   // 声明消息正文和流式状态
   content: { type: String, default: '' },                      // 当前需要展示的 Markdown 原文
@@ -125,4 +125,4 @@ onMounted(enhanceContent)                                      // 历史消息�
   <div ref="rootElement" class="markdown" @click="handleClick" v-html="html"></div>
 </template>
 
-<style lang="scss" src="../styles/components/MarkdownContent.scss"></style>
+<style lang="scss" src="../../styles/components/MarkdownContent.scss"></style>

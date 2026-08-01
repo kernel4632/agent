@@ -1,7 +1,7 @@
 <!-- MCP 设置：展示服务状态并发出新增、修改和删除意图。 -->
 <script setup>
 import { t } from '../../i18n.js'                                      // 提供 MCP 配置文案
-import TextField from '../fields/TextField.vue'                       // 使用 M3E 服务字段
+import TextField from '../shared/TextField.vue'                       // 使用 M3E 服务字段
 defineProps({ servers: { type: Array, default: () => [] } })
 defineEmits(['add', 'update', 'remove'])                               // 将 MCP 动作交回设置页 Command
 </script>

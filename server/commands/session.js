@@ -42,6 +42,7 @@ async function create(options = {}) {
   const session = {                                   // 显式定义持久化会话的全部字段
     id: `ses_${nanoid(10)}`,                          // 会话唯一标识，用作 API 和磁盘键
     workspaceID,                                      // 所属工作区决定主页归类和工具执行目录
+    workspaceId: workspaceID,                          // 架构契约字段，保留 camelCase HTTP 数据形状
     agentID: options.agentID || Config.get().defaultAgentId || 'default', // 会话默认 Agent，后续消息可显式覆盖
     model: options.model || Config.get().activeModel || '', // 保存设置页和操作框选择的模型名称
     status: 'idle',                                   // 会话当前执行状态供列表和顶部栏展示
@@ -136,7 +137,7 @@ function list(workspaceID) {
     .filter((session) => !workspaceID || session.workspaceID === workspaceID) // 工作区主页只读取自己的会话
     .sort((left, right) => right.updatedAt - left.updatedAt) // 最近更新的会话优先展示
     .map(({ id, workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messages }) => ({ // API 列表不泄漏完整消息
-      id, workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messageCount: messages.length, // 反馈主页和侧栏需要的摘要
+      id, sessionId: id, workspaceID, workspaceId: workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messageCount: messages.length, // 同时反馈设计字段和兼容字段
     }))
 }
 
@@ -243,8 +244,9 @@ function commitRollback(session) {
 
 
 // --- 统一旧会话结构 ---
-function normalizeSession(session) {
-  session.workspaceID ??= Workspace.getDefaultID()    // 旧会话归入默认工作区以保持可访问
+function normalizeSession(session, initializeEvents = true) {
+  session.workspaceID ??= session.workspaceId ?? Workspace.getDefaultID() // 优先保留备份中的正式 camelCase 归属，旧会话才使用默认工作区
+  session.workspaceId = session.workspaceID             // 两种兼容字段始终指向同一工作区
   session.agentID ??= Config.get().defaultAgentId || 'default' // 旧会话补齐默认 Agent
   session.model ??= Config.get().activeModel || ''     // 旧会话补齐当前默认模型
   session.status = 'idle'                              // 服务重启后旧执行不可能仍在运行
@@ -258,7 +260,7 @@ function normalizeSession(session) {
   session.messages.forEach((message) => { message.id ??= `msg_${nanoid(10)}` }) // 每条消息获得稳定 UI 动作标识
   session.rollbackCache ??= null                      // 旧文件补齐可撤销状态
   session.messages.forEach(normalizeMessage)          // 旧展示消息升级为统一 contentBlocks 结构
-  Event.initialize(session.id)                        // 恢复会话同时建立递增事件状态
+  if (initializeEvents) Event.initialize(session.id)  // 真实恢复时建立事件状态，纯验证保持无副作用
 }
 
 
@@ -325,4 +327,45 @@ function createRollbackSummary(rollbackCache) {
 }
 
 
-export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage } // 导出会话业务动作
+// --- 导出全部完整会话 ---
+function exportAll() {
+  return [...sessionStore.items.values()].map((session) => structuredClone(session)) // 备份保留模型历史和回退缓存
+}
+
+
+// --- 替换全部会话 ---
+function validateAll(sessions, workspaceIDs = new Set(Workspace.list().map((workspace) => workspace.id))) {
+  if (!Array.isArray(sessions)) return { ok: false, status: 400, error: 'sessions must be an array' } // 备份必须提供完整数组
+  const normalized = sessions.map((session) => structuredClone(session)) // 验证和归一化不修改请求对象
+  const identities = new Set()                                      // 会话身份必须唯一，避免磁盘键互相覆盖
+  for (const session of normalized) {
+    if (!session?.id || !(session.workspaceId || session.workspaceID)) return { ok: false, status: 400, error: 'invalid session backup' } // 每个会话必须有身份和工作区归属
+    normalizeSession(session, false)                           // 补齐字段但不提前创建事件状态
+    if (identities.has(session.id)) return { ok: false, status: 400, error: 'duplicate session ID' } // 重复 ID 会丢失一条会话
+    if (!workspaceIDs.has(session.workspaceID)) return { ok: false, status: 400, error: 'session references unknown workspace' } // 禁止导入孤立会话
+    identities.add(session.id)
+  }
+  return { ok: true, sessions: normalized }
+}
+
+
+// --- 替换全部会话 ---
+async function replaceAll(sessions) {
+  const validated = validateAll(sessions)                         // 在删除现有磁盘记录前完成全部验证
+  if (!validated.ok) return validated                             // 无效数据不产生任何副作用
+  const normalized = validated.sessions                           // 使用独立归一化候选值
+
+  await Promise.all([...sessionStore.writes.values()].map((write) => write.catch(() => {}))) // 等待旧会话写入完成
+  const savedIDs = await sessionStore.storage.getKeys()         // 枚举磁盘旧会话
+  await Promise.all(savedIDs.map((sessionID) => sessionStore.storage.removeItem(sessionID))) // 先清空旧持久化记录
+  sessionStore.items.clear()                                    // 清空运行时会话目录
+  for (const session of normalized) {
+    sessionStore.items.set(session.id, session)                 // 按备份身份恢复运行时数据
+    Event.initialize(session.id)                                // 数据正式进入目录后才建立事件状态
+    await persist(session)                                      // 逐个写回完整会话
+  }
+  return { ok: true, sessions: normalized.length }              // 反馈恢复数量
+}
+
+
+export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage, exportAll, validateAll, replaceAll } // 导出会话业务动作

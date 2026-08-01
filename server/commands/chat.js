@@ -21,6 +21,7 @@ import { retry } from '../utils/retry.js'                             // 引入�
 const runningLoops = new Map()                                        // sessionID 到根 Run ID，保证同一会话只有一个主循环
 const sseEncoder = new TextEncoder()                                   // 将 SSE 文本转换为真实 HTTP socket 接受的 UTF-8 字节
 const taskInstruction = '任务包含三个及以上明确步骤时，先调用 task_list_update 建立清单；每完成或开始一项时再次提交完整清单。简单问答不要创建任务清单。' // 让任务工具成为复杂工作流而非装饰
+const publicModelEvents = new Set(['text-delta', 'reasoning-delta', 'tool-call', 'tool-result', 'finish-step']) // 只广播界面真实消费的稳定模型事件
 
 
 // --- 读取单次 Run 的总执行预算 ---
@@ -43,12 +44,18 @@ function createSchema(parameters = {}) {
 
 // --- 转换一个工具参数字段 ---
 function createSchemaField(definition = {}) {
-  if (definition.enum) return z.enum(definition.enum)                  // 枚举字段限制到配置允许的字符串值
-  if (definition.type === 'number') return z.number()                  // 数值字段拒绝模型生成的字符串
-  if (definition.type === 'boolean') return z.boolean()                // 布尔字段拒绝模糊真值
-  if (definition.type === 'array') return z.array(createSchemaField(definition.items)) // 数组递归验证每个元素
-  if (definition.type === 'object') return createSchema(definition.properties) // 对象递归验证全部属性
-  return z.string()                                                    // 未声明类型时保持原有字符串默认行为
+  let field
+  if (definition.enum) field = z.enum(definition.enum)                  // 枚举字段限制到配置允许的字符串值
+  else if (definition.type === 'number') field = z.number()             // 数值字段拒绝模型生成的字符串
+  else if (definition.type === 'boolean') field = z.boolean()           // 布尔字段拒绝模糊真值
+  else if (definition.type === 'array') field = z.array(createSchemaField(definition.items)) // 数组递归验证每个元素
+  else if (definition.type === 'object') field = createSchema(definition.properties) // 对象递归验证全部属性
+  else {
+    field = z.string()                                                   // 未声明类型时保持原有字符串默认行为
+    if (Number.isFinite(definition.minLength)) field = field.min(definition.minLength) // 将工具声明的字符串边界交给模型协议
+    if (Number.isFinite(definition.maxLength)) field = field.max(definition.maxLength) // 防止单次工具参数无限膨胀
+  }
+  return definition.description ? field.describe(definition.description) : field // JSON Schema 保留参数语义，减少模型畸形调用
 }
 
 
@@ -107,11 +114,12 @@ async function runModelRound({ model, systemPrompt, modelMessages, tools, provid
   let text = ''                                                        // 累加本轮助手文本
   let reasoning = ''                                                   // 累加本轮模型推理文本
   for await (const part of result.fullStream) {                        // 流消费错误也交给外层 retry 处理
-    if (part.type !== 'finish' && streamWriter) writeEvent(streamWriter, part.type, part) // 子 Run 不占用父级 SSE，根 Run 才反馈增量
+    if (publicModelEvents.has(part.type) && streamWriter) writeEvent(streamWriter, part.type, part) // 工具参数字符流不进入有界事件历史
     if (part.type === 'text-delta') text += part.text                  // 合并文本增量供会话展示
     if (part.type === 'reasoning-delta') reasoning += part.text        // 合并 reasoning 增量供折叠展示
     if (part.type === 'tool-call') toolCalls.push(part)                // 保存本轮工具声明
     if (part.type === 'tool-result') toolResults.push(part)            // 保存本轮工具结果
+    if (part.type === 'error' || part.type === 'tool-error') throw normalizeStreamError(part.error) // SDK 协议和工具流错误不能伪装成成功轮次
   }
   if (!text.trim() && !reasoning.trim() && toolCalls.length === 0) {
     const error = new Error('model returned an empty response')         // 空成功无法推进任务，应按上游临时故障处理
@@ -119,7 +127,21 @@ async function runModelRound({ model, systemPrompt, modelMessages, tools, provid
     throw error
   }
   const response = await result.response                               // 取得 AI SDK 为下一轮构造的标准消息
-  return { response, toolCalls, toolResults, text, reasoning }         // 将一轮完整数据反馈给循环
+  const usage = await result.usage                                     // 取得本轮真实输入、输出和缓存用量
+  const finishReason = await result.finishReason                        // 读取上游是否因长度截断工具 JSON
+  if (finishReason === 'length' && toolCalls.length === 0) {
+    const error = new Error('model output was truncated before completing a tool call') // 不持久化不可执行的半截参数
+    error.statusCode = 422                                              // 相同请求重试无法修复输出边界，直接反馈明确错误
+    throw error
+  }
+  return { response, toolCalls, toolResults, text, reasoning, usage, finishReason } // 将一轮完整数据反馈给循环
+}
+
+
+// --- 统一 SDK 流错误 ---
+function normalizeStreamError(error) {
+  if (error instanceof Error) return error                              // 保留 AI SDK 原始状态和堆栈
+  return new Error(typeof error === 'string' ? error : JSON.stringify(error)) // 非 Error 协议值转换为稳定异常
 }
 
 
@@ -161,7 +183,9 @@ async function runChild(parentRunID, sessionID, prompt, agentID, emit) {
       }), () => {}, child.abortController.signal)                                 // 子 Run 重用模型重试和取消规则
       messages.push(...round.response.messages)                                // 只在子 Run 私有上下文中追加模型消息
       text += round.text                                                        // 保留子 Agent 的文本产出
-      if (round.toolResults.some((part) => part.output?.stop === true)) break    // 明确完成工具结束子任务
+      const childCompletion = getRoundCompletion(round)                          // 完成工具必须在独立轮次确认全部副作用
+      if (childCompletion.shouldStop) break                                       // 单独 task_done 或审批拒绝结束子任务
+      if (childCompletion.premature) messages.push({ role: 'user', content: 'task_done 不能与其他工具并行作为完成确认。请检查刚才的工具结果，继续完成剩余工作，最后在单独一轮调用 task_done。' }) // 防止部分工作被并行完成调用截断
       if (round.toolResults.length) textOnlyCount = 0                            // 工具调用后重新允许模型继续说明
       else textOnlyCount += 1                                                    // 纯文本不能立即伪装成已完成任务
       if (textOnlyCount >= 3) break                                              // 连续三轮仍无工具时按模型能力边界交付文字
@@ -190,7 +214,7 @@ function writeEvent(streamWriter, event, data) {
 
 
 // --- 启动 Agent 循环并返回 SSE 流 ---
-function startLoop({ runID, sessionID, agentID, message, messageID, request, initialEvents = [] }) {
+function startLoop({ runID, sessionID, agentID, message, messageID, files = [], request, initialEvents = [] }) {
   if (runningLoops.has(sessionID)) {                                    // 同一会话只能存在一个修改历史的循环
     const error = new Error('session is running')                       // 路由可将竞争反馈为 HTTP 409
     error.code = 'SESSION_RUNNING'                                      // 稳定错误码避免依赖文本匹配
@@ -212,9 +236,11 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
         const session = Session.getMutable(sessionID)                      // 读取入口已经创建或确认的目标会话
         Session.commitRollback(session)                                   // 新消息确认暂存回退正式生效
         session.modelMessages ??= []                                      // 初始化仅供模型调用的标准消息历史
-        const userMessage = { id: messageID ?? `msg_${crypto.randomUUID()}`, role: 'user', content: message, contentBlocks: [{ type: 'text', text: { text: message } }], checkpoint: null, rolledBack: false, createdAt: Date.now() } // 将用户触发写入完整公开消息结构
+        const attachmentText = files.map((file) => `\n\n[附件: ${file.name}; ${file.type || 'application/octet-stream'}]\n${decodeAttachment(file)}`).join('') // 将真实附件内容加入模型可读上下文
+        const modelInput = `${message}${attachmentText}`                   // 用户正文与附件形成同一轮明确输入
+        const userMessage = { id: messageID ?? `msg_${crypto.randomUUID()}`, role: 'user', content: message, contentBlocks: [{ type: 'text', text: { text: message } }], files: files.map(({ content, ...file }) => file), checkpoint: null, rolledBack: false, createdAt: Date.now() } // 展示历史只保存附件元数据
         session.messages.push(userMessage)                                // 用户消息加入展示历史
-        session.modelMessages.push({ role: 'user', content: message })    // 保持 AI SDK 上下文与展示历史同步
+        session.modelMessages.push({ role: 'user', content: modelInput })  // 模型历史包含真实附件内容
         await Session.persist(session)                                    // 用户消息先落盘，崩溃后仍可恢复
 
         if (session.messages.length === 1) createTitle(sessionID, message, emit).catch(() => {}) // 首条消息异步生成标题，不阻塞主循环
@@ -232,8 +258,10 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
           const round = await retry((attemptSignal) => runModelRound({ model, systemPrompt, modelMessages, tools, providerOptions, generationOptions, abortSignal: attemptSignal, streamWriter }), ({ error, attempt, nextRetryIn }) => emit('error-retry', { message: String(error), attempt, nextRetryIn }), stopSignal.signal) // 可恢复请求受次数、总时长和用户停止三重约束
           const previousSteps = session.messages.filter((item) => item.role === 'tool').map((item) => item.step ?? 0) // 读取已持久化的全部工具步骤
           const nextStep = Math.max(0, ...previousSteps) + 1                 // 本轮并行工具共享同一个新步骤号
-          shouldStop = round.toolResults.some((part) => part.output?.stop === true) // 任一工具明确 stop 时结束整个循环
+          const completion = getRoundCompletion(round)                       // 区分独立完成确认、审批拒绝和过早并行完成
+          shouldStop = completion.shouldStop                                  // 只有可靠终态才能结束整个循环
           session.modelMessages.push(...round.response.messages)             // 将模型消息加入仅供下一轮使用的上下文
+          if (completion.premature) session.modelMessages.push({ role: 'user', content: 'task_done 不能与其他工具并行作为完成确认。请检查刚才的工具结果，继续完成用户要求的剩余工作，最后在单独一轮调用 task_done。' }) // 让模型修正尚未验证的完成声明
           const assistantMessage = { id: `msg_${crypto.randomUUID()}`, role: 'assistant', content: round.text, reasoning: round.reasoning, toolCalls: round.toolCalls, contentBlocks: [], checkpoint: round.toolResults.length ? nextStep : null, rolledBack: false, createdAt: Date.now() } // 构建前端可直接渲染的助手消息
           if (round.reasoning) assistantMessage.contentBlocks.push({ type: 'thinking', thinking: { thinking: round.reasoning } }) // 推理进入可折叠内容块
           if (round.text) assistantMessage.contentBlocks.push({ type: 'text', text: { text: round.text } }) // 正文进入 Markdown 文本块
@@ -241,6 +269,8 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
           session.messages.push(assistantMessage)                          // 完整助手消息一次加入展示历史
           round.toolResults.forEach((part) => session.messages.push({ id: `msg_${crypto.randomUUID()}`, role: 'tool', content: '', contentBlocks: [{ type: 'tool_result', tool_result: { toolCallId: part.toolCallId, output: part.output, isError: Boolean(part.output?.failed) } }], toolCallId: part.toolCallId, name: part.toolName, input: round.toolCalls.find((call) => call.toolCallId === part.toolCallId)?.input, result: part.output, status: part.output?.denied ? 'rejected' : 'completed', step: nextStep, checkpoint: nextStep, rolledBack: false, createdAt: Date.now() })) // 并行结果保存真实拒绝或完成状态
           await Session.persist(session)                                     // 每轮模型与工具反馈完成后立即持久化
+          emit('usage', round.usage)                                          // 独立反馈本轮真实 token 用量
+          emit('context', { used: Number(round.usage?.inputTokens ?? 0) + Number(round.usage?.outputTokens ?? 0), limit: Config.getContextLimitFor(agent.provider, agent.model), ratio: (Number(round.usage?.inputTokens ?? 0) + Number(round.usage?.outputTokens ?? 0)) / Config.getContextLimitFor(agent.provider, agent.model) }) // 反馈上下文 token 和占比
           if (round.toolResults.length) emit('checkpoint', { step: nextStep, toolCallIds: round.toolResults.map((part) => part.toolCallId) }) // 让实时工具立即获得回退步骤
           if (round.toolResults.length) textOnlyCount = 0                     // 工具执行成功后重新允许纯文本重试
           else textOnlyCount += 1                                             // 纯文本响应进入兼容性重试计数
@@ -274,10 +304,20 @@ function startLoop({ runID, sessionID, agentID, message, messageID, request, ini
 }
 
 
+// --- 判断一轮工具结果是否可以结束任务 ---
+function getRoundCompletion(round) {
+  const stopped = round.toolResults.filter((part) => part.output?.stop === true) // 收集明确要求终止循环的工具结果
+  const denied = stopped.some((part) => part.output?.denied === true)             // 用户拒绝必须立即终止，不能诱导模型绕过权限
+  const taskDone = stopped.some((part) => part.toolName === 'task_done')           // 正常完成只能由任务结束工具声明
+  const taskDoneOnly = taskDone && round.toolCalls.length === 1 && round.toolCalls[0]?.toolName === 'task_done' // 完成确认必须独占一轮
+  return { shouldStop: denied || taskDoneOnly, premature: taskDone && !taskDoneOnly } // 并行 task_done 只触发继续检查
+}
+
+
 // --- 在后台启动 Agent 循环 ---
-function startBackground({ runID, sessionID, message, messageID, initialEvents = [] }) {
+function startBackground({ runID, sessionID, message, messageID, files = [], initialEvents = [] }) {
   const requestController = new AbortController()                         // 后台执行不绑定发送请求的网络连接
-  const stream = startLoop({ runID, sessionID, message, messageID, request: { signal: requestController.signal }, initialEvents }) // 复用稳定模型循环产生事件
+  const stream = startLoop({ runID, sessionID, message, messageID, files, request: { signal: requestController.signal }, initialEvents }) // 复用稳定模型循环产生事件
   const session = Session.getMutable(sessionID)                           // 读取需要公开运行状态的真实会话
   session.status = 'running'                                              // `/session/send` 返回前先进入运行态
   Session.persist(session).catch(() => {})                                // 状态持久化失败由最终 Run 错误继续暴露
@@ -310,6 +350,13 @@ function startBackground({ runID, sessionID, message, messageID, initialEvents =
     }
   })()
   return Run.toPublicRun(Run.get(runID))                                   // 发送接口立即反馈可停止的 Run 身份
+}
+
+
+// --- 解码一个消息附件 ---
+function decodeAttachment(file) {
+  try { return Buffer.from(file.content || '', 'base64').toString('utf-8') } // 文本与代码附件恢复为模型可读正文
+  catch { return '[附件内容无法解码]' }                                    // 损坏附件保留明确反馈而不中断整轮消息
 }
 
 

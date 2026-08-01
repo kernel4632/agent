@@ -1,8 +1,8 @@
 <!-- 工具设置：渲染工具目录并发出单项配置变化。 -->
 <script setup>
 import { t } from '../../i18n.js'                                      // 提供工具配置文案
-import SelectField from '../fields/SelectField.vue'                   // 使用 M3E 权限选择字段
-import TextField from '../fields/TextField.vue'                       // 使用 M3E 工具别名字段
+import SelectField from '../shared/SelectField.vue'                   // 使用 M3E 权限选择字段
+import TextField from '../shared/TextField.vue'                       // 使用 M3E 工具别名字段
 defineProps({ tools: { type: Array, default: () => [] }, titleFor: { type: Function, required: true } })
 defineEmits(['update'])                                                // 将字段变化交回设置页 Command
 const permissionOptions = [{ value: 'allow', label: 'allow' }, { value: 'ask', label: 'ask' }, { value: 'deny', label: 'deny' }]

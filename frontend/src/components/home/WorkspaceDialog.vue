@@ -6,7 +6,7 @@
 <script setup>
 import { ref } from 'vue'                                              // 保存弹窗内尚未提交的字段草稿
 import { t } from '../../i18n.js'                                      // 提供弹窗与字段文案
-import TextField from '../fields/TextField.vue'                       // 使用 M3E 标准输入字段
+import TextField from '../shared/TextField.vue'                       // 使用 M3E 标准输入字段
 
 defineProps({ open: { type: Boolean, default: false } })              // 由主页控制弹窗可见状态
 const emit = defineEmits(['add', 'close'])                             // 反馈新增和关闭意图

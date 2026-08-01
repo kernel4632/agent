@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'                                  // 引入状态文案和展开状态
-import { t } from '../i18n.js'                                       // 引入响应式界面翻译
+import { t } from '../../i18n.js'                                    // 引入响应式界面翻译
 
 const props = defineProps({ tool: { type: Object, required: true } }) // 当前工具的输入、预览和状态
 const emit = defineEmits(['rollback', 'approval'])                    // 向对话页反馈用户动作
@@ -47,4 +47,4 @@ function decide(decision) {
   </m3e-card>
 </template>
 
-<style lang="scss" src="../styles/components/ToolCall.scss"></style>
+<style lang="scss" src="../../styles/components/ToolCall.scss"></style>

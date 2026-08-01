@@ -7,6 +7,7 @@ import { AgentAPI } from '../api.js'                    // 引入正式配置和
 import { store } from '../store.js'                     // 引入已保存配置和设置反馈
 import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
 import { UI } from './ui.js'                            // 引入保存错误轻反馈
+import { Workspace } from './workspace.js'              // 引入数据变更后的工作区重载
 import { t } from '../i18n.js'                          // 引入当前语言默认和反馈文案
 
 
@@ -132,10 +133,16 @@ function updateModel(providerName, modelName, changes) {
 
 
 // --- 获取可添加模型目录 ---
-function fetchModels(providerName) {
+async function fetchModels(providerName) {
   const provider = store.settings.draft?.providers?.[providerName] // 读取目标供应商现有模型
-  const agents = store.agents.filter((agent) => agent.provider === providerName).map((agent) => agent.model) // 使用 Server Agent 目录作为已知模型来源
-  return [...new Set(agents)].filter((model) => !provider?.models.includes(model)) // 只展示尚未添加的真实模型
+  if (!provider) return []                                // 当前供应商被删除时不产生发现请求
+  try {
+    const result = await AgentAPI.listProviderModels(providerName) // 通过 Server 使用已保存认证读取真实目录
+    return (result.models || []).filter((model) => !provider.models.includes(model)) // 只展示尚未添加的真实模型
+  } catch (error) {
+    UI.notify(error.message)                              // 发现失败原位反馈真实上游错误
+    return []                                             // 失败时保持弹窗可关闭
+  }
 }
 
 
@@ -196,9 +203,38 @@ function updateAppearance(field, value) {
 
 
 // --- 数据管理反馈 ---
-function dataAction(action) {
-  const labels = { export: 'exportReady', import: 'chooseBackup', clear: 'demoNotCleared' } // 尚无 Server 数据管理 API 时给出明确反馈
-  store.settings.feedback = labels[action] ? t(labels[action]) : '' // 设置页原位展示结果
+async function dataAction(action, file) {
+  try {
+    if (action === 'export') {
+      const document = await AgentAPI.exportData()        // 从 Server 读取完整备份
+      const url = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' })) // 创建浏览器下载资源
+      const link = window.document.createElement('a')     // 使用临时链接触发真实文件下载
+      link.href = url                                      // 指向内存中的备份正文
+      link.download = `agent-backup-${new Date().toISOString().slice(0, 10)}.json` // 使用稳定可读文件名
+      link.click()                                         // 执行用户请求的下载
+      URL.revokeObjectURL(url)                             // 下载触发后释放内存资源
+      store.settings.feedback = t('exportReady')          // 原位反馈导出完成
+      return true                                          // 反馈组件动作成功
+    }
+    if (action === 'import') {
+      if (!file) return false                              // 用户取消文件选择时保持页面
+      const document = JSON.parse(await file.text())       // 读取并解析真实备份文件
+      await AgentAPI.importData(document)                  // Server 验证并恢复三类数据
+      await Promise.all([Workspace.load(), Config.load()]) // 重新加载最终持久化状态
+      store.settings.feedback = '备份已导入'               // 原位反馈恢复完成
+      return true                                          // 反馈导入成功
+    }
+    if (action === 'clear') {
+      await AgentAPI.clearData()                           // Server 删除会话与工作区索引
+      await Workspace.load()                               // 主页立即进入空状态
+      store.settings.feedback = '数据已清除，本地工作区目录未删除' // 明确真实影响边界
+      return true                                          // 反馈清理成功
+    }
+    return false                                           // 未知动作不产生副作用
+  } catch (error) {
+    store.settings.feedback = error.message                // JSON 和 Server 错误在原位展示
+    return false                                           // 保持页面可继续操作
+  }
 }
 
 

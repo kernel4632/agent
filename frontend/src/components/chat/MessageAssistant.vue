@@ -4,10 +4,10 @@
 调用示例：<MessageItem :message="message" @retry="rollbackMessage" />。
 -->
 <script setup>
-import MarkdownContent from './MarkdownContent.vue'                    // 引入安全 Markdown 渲染
+import MarkdownContent from '../shared/MarkdownContent.vue'            // 引入安全 Markdown 渲染
 import ReasoningBlock from './ReasoningBlock.vue'                      // 引入推理折叠显示
-import ToolCall from './ToolCall.vue'                                  // 引入工具展示条
-import { formatDateTime, t } from '../i18n.js'                         // 引入响应式翻译和时间格式
+import ToolCall from './ToolCallBlock.vue'                              // 引入工具展示条
+import { formatDateTime, t } from '../../i18n.js'                      // 引入响应式翻译和时间格式
 
 defineProps({ message: { type: Object, required: true } })             // 当前用户或助手消息
 const emit = defineEmits(['rollback', 'retry', 'approval', 'copy'])     // 向对话页反馈消息动作
@@ -62,4 +62,4 @@ function formatTokens(value) {
   </component>
 </template>
 
-<style lang="scss" src="../styles/components/MessageItem.scss"></style>
+<style lang="scss" src="../../styles/components/MessageItem.scss"></style>

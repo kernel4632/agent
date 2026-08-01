@@ -25,13 +25,14 @@ async function start(options = {}) {
   const customToolsDirectory = join(toolsDirectory, 'custom')     // 模型和用户只写入自定义工具目录
   const configPath = resolve(options.configPath ?? join(dataDirectory, 'config.json')) // 配置默认位于数据根目录
   const workspacePath = resolve(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 工作区目录使用独立设计文件
+  const mcpPath = resolve(options.mcpPath ?? join(dataDirectory, 'mcp.json')) // MCP 定义使用独立设计文件
   const builtInToolsDirectory = resolve(options.builtInToolsDirectory ?? join(import.meta.dir, 'tools', 'built-in')) // 内置工具随服务代码分发
   const workspaceDirectory = resolve(options.workspaceDirectory ?? process.env.AGENT_WORKSPACE ?? join(import.meta.dir, '..')) // LSP 和项目 Skill 使用同一工作区
 
   try {
     await mkdir(customToolsDirectory, { recursive: true })          // 工具扫描前确保自定义目录存在
     await mkdir(sessionsDirectory, { recursive: true })             // 会话恢复前确保持久化目录存在
-    await Config.load(configPath)                                   // 后续能力初始化依赖当前配置
+    await Config.load(configPath, mcpPath)                          // 后续能力初始化依赖当前配置和独立 MCP 定义
     await Workspace.load(workspacePath, workspaceDirectory)         // 会话恢复前先建立可引用的工作区目录
     await Agent.load()                                               // 将可选模型定义加载到运行时目录
     Run.reset()                                                       // 清除上一次进程遗留的不可恢复 Run

@@ -1,7 +1,7 @@
 <!-- 外观设置：展示语言、密度和动画开关，并发出字段变化。 -->
 <script setup>
 import { t } from '../../i18n.js'                                      // 提供外观配置文案
-import SelectField from '../fields/SelectField.vue'                   // 使用 M3E 选择字段
+import SelectField from '../shared/SelectField.vue'                   // 使用 M3E 选择字段
 defineProps({ appearance: { type: Object, required: true } })
 defineEmits(['update'])                                                // 将外观字段变化交回 Command
 const languageOptions = [{ value: 'zh-CN', label: '简体中文' }, { value: 'en-US', label: 'English' }]

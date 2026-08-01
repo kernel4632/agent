@@ -46,6 +46,12 @@ export const Schemas = new Elysia({ name: 'agent.schemas' })      // 使用插�
       messageId: t.Optional(t.String()),                           // 客户端可提供稳定消息身份
       agentId: t.Optional(t.String()),                             // 本轮可覆盖会话 Agent
       model: t.Optional(t.String()),                               // 本轮可覆盖会话模型
+      files: t.Optional(t.Array(t.Object({
+        name: t.String({ minLength: 1 }),                          // 附件显示名称
+        type: t.String(),                                          // 浏览器识别的媒体类型
+        size: t.Number({ minimum: 0, maximum: 1048576 }),          // 单文件限制一 MiB，避免请求无限膨胀
+        content: t.String({ maxLength: 1398104 }),                  // Base64 正文包含编码膨胀空间
+      }), { maxItems: 8 })),                                      // 单次消息最多八个附件
     }),
     SessionHistory: t.Object({
       sessionId: t.String(),                                       // 历史动作必须指向现有会话
@@ -84,6 +90,9 @@ export const Schemas = new Elysia({ name: 'agent.schemas' })      // 使用插�
     ConfigTest: t.Object({
       provider: t.String(),                                       // 测试已保存的提供商身份
       model: t.Optional(t.String()),                              // 未指定时使用提供商首个模型
+    }),
+    ConfigModels: t.Object({
+      provider: t.String(),                                       // 模型发现只允许读取已保存供应商
     }),
     AgentID: t.Object({
       agentId: t.Optional(t.String()),                             // 未指定时由服务端选择默认 Agent

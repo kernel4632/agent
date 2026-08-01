@@ -34,7 +34,8 @@ async function send(sessionID, content) {
   if (!session || !text || session.status === 'running') return false // 无会话、空文本和重复发送均拒绝
 
   const messageID = `msg_${crypto.randomUUID()}`          // 客户端身份与 Server 持久化保持一致
-  const userMessage = { id: messageID, role: 'user', content: text, contentBlocks: [{ type: 'text', text: { text } }], files: [...session.files], createdAt: Date.now() } // 输入立即进入时间线
+  const files = [...session.files]                         // 保存本轮真实附件，清空输入区后仍可发送
+  const userMessage = { id: messageID, role: 'user', content: text, contentBlocks: [{ type: 'text', text: { text } }], files: files.map(({ content: _content, ...file }) => file), createdAt: Date.now() } // 输入立即进入时间线且不把正文重复放入 UI
   const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前 Run 的响应占位
   session.rollback = null                                // 新消息正式提交当前回退分支
   session.files = []                                     // 附件归属用户消息后清空输入区
@@ -51,7 +52,7 @@ async function send(sessionID, content) {
   const eventResponse = AgentAPI.subscribeSession(sessionID, afterID, controller.signal) // 并发建立订阅，空历史时等待首事件
 
   try {
-    const started = await AgentAPI.sendMessage(sessionID, text, messageID, session.model, session.agentID) // 启动后台真实模型请求
+    const started = await AgentAPI.sendMessage(sessionID, text, messageID, session.model, session.agentID, files) // 启动带附件的后台真实模型请求
     assistant.runID = started.run.id                     // 审批和停止使用准确 Run 归属
     const response = await eventResponse                  // Run 已启动后取得事件流响应
     void consume(sessionID, response, controller)         // 后台持续归约事件，不阻塞输入事件栈
@@ -110,6 +111,11 @@ async function receive(sessionID, event, controller) {
     Session.syncSummary(session)                          // 同步主页与侧栏标题
   }
   if ((event.name === 'finish-step' || event.name === 'finish') && assistant && event.data.usage) applyUsage(session, assistant, event.data.usage) // 处理 AI SDK 用量结构
+  if (event.name === 'usage' && assistant) applyUsage(session, assistant, event.data) // 处理 Server 显式用量事件
+  if (event.name === 'context') {
+    session.contextTokens = event.data.used || 0          // 使用 Server 反馈的真实上下文 token
+    session.contextLimit = event.data.limit || session.contextLimit // 使用当前模型真实上下文上限
+  }
   if (event.name === 'error-retry' && assistant) assistant.error = `${event.data.message} · ${event.data.nextRetryIn}ms` // 原位展示重试反馈
   if (event.name === 'error' && assistant) {
     assistant.error = event.data.message                 // 展示不可恢复错误
@@ -205,12 +211,16 @@ async function decide(sessionID, toolCallID, decision) {
 
 
 // --- 添加输入附件 ---
-function attach(sessionID, files) {
+async function attach(sessionID, files) {
   const session = store.sessions[sessionID]              // 读取附件所属会话
   if (!session) return false                              // 无会话不能保存附件草稿
   for (const file of files) {
     if (session.files.some((item) => item.name === file.name && item.size === file.size)) continue // 避免重复选择同一文件
-    session.files.push({ id: `file-${crypto.randomUUID()}`, name: file.name, size: file.size, type: file.type || 'application/octet-stream' }) // 保存操作框展示元数据
+    if (file.size > 1048576) { UI.notify(`${file.name} 超过 1 MiB`); continue } // 与 Server 请求上限保持一致
+    const bytes = new Uint8Array(await file.arrayBuffer())              // 读取用户真实选择的附件内容
+    let binary = ''                                                     // Base64 编码前建立字节字符串
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte) })     // 保持任意文本和二进制字节不丢失
+    session.files.push({ id: `file-${crypto.randomUUID()}`, name: file.name, size: file.size, type: file.type || 'application/octet-stream', content: btoa(binary) }) // 保存可发送的附件正文
   }
   return true                                            // 输入框即时展示附件
 }

@@ -3,7 +3,7 @@
 所有路径由模型明确传入，权限判断统一在 commands/chat.js 执行。
 调用示例：await read_file.execute({ path: 'README.md', encoding: 'utf-8' })。
 */
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises' // 引入真实文件读写与目录访问能力
+import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises' // 引入真实文件读写与目录访问能力
 import { dirname, join } from 'node:path'                              // 引入安全拼接和父目录提取能力
 
 
@@ -23,14 +23,16 @@ export const read_file = {                                            // 导出�
 
 // --- 写入文本文件 ---
 export const write_file = {                                           // 导出模型可调用的写入工具
-  description: '将文本写入指定文件，不存在时创建父目录。',            // 明确该动作会修改磁盘
+  description: '将文本写入指定文件，不存在时创建父目录。长文件必须分块：首块使用 overwrite，后续块使用 append。', // 明确该动作会修改磁盘
   parameters: {                                                       // 定义模型生成参数的业务结构
     path: { type: 'string', description: '文件路径', required: true }, // 目标位置必须明确提供
-    content: { type: 'string', description: '要写入的文本', required: true }, // 写入正文不能为空参数
+    content: { type: 'string', description: '本次写入的文本块，最多 16000 个字符；更长内容必须分多次调用', required: true, minLength: 1, maxLength: 16000 }, // 限制单次参数规模，避免模型生成无限工具输入
+    mode: { type: 'string', enum: ['overwrite', 'append'], description: '覆盖文件或追加到文件末尾', default: 'overwrite' }, // 分块写入时显式选择行为
   },
-  async execute({ path, content }) {
+  async execute({ path, content, mode = 'overwrite' }) {
     await mkdir(dirname(path), { recursive: true })                    // 写文件前确保目标父目录存在
-    await writeFile(path, content, 'utf-8')                            // 将正文真实写入目标文件
+    if (mode === 'append') await appendFile(path, content, 'utf-8')    // 后续文本块追加而不覆盖首块
+    else await writeFile(path, content, 'utf-8')                       // 首块或普通文件使用覆盖写入
     return { result: `文件已写入: ${path}` }                           // 向模型反馈实际修改位置
   },
 }

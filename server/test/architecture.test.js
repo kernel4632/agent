@@ -8,6 +8,10 @@ import { mkdtemp, writeFile } from 'node:fs/promises'                // 引入�
 import { tmpdir } from 'node:os'                                    // 引入操作系统临时目录位置
 import { join } from 'node:path'                                    // 引入跨平台路径拼接能力
 import { createApp } from '../server.js'                            // 引入完整 HTTP 应用创建入口
+import { Data } from '../commands/data.js'                          // 引入备份原子性指令断言
+import { Session } from '../commands/session.js'                    // 引入会话状态基线断言
+import { Workspace } from '../commands/workspace.js'                // 引入工作区状态基线断言
+import { write_file } from '../tools/built-in/file.js'              // 引入分块文件写入协议断言
 
 let app                                                              // 保存测试使用的真实 Elysia 应用
 let closeApp                                                         // 保存资源统一关闭动作
@@ -100,7 +104,7 @@ describe('architecture contract', () => {
 
   it('reports versioned health and persists workspaces', async () => {
     const health = await (await request('/health')).json()               // 调用无需业务状态的健康入口
-    expect(health).toEqual({ ok: true, service: 'agent-server', version: '0.1.0' }) // 服务身份和版本符合设计
+    expect(health).toMatchObject({ ok: true, service: 'agent-server', version: '0.1.0', engine: { version: '0.1.0' } }) // 服务身份和版本符合设计
 
     const workspaces = await (await request('/workspace')).json()        // 读取 Runtime 创建的默认项目
     workspaceID = workspaces[0].id                                       // 保存真实工作区身份
@@ -160,5 +164,27 @@ describe('architecture contract', () => {
     expect(workspaceConflict.status).toBe(409)                              // 防止产生孤立会话
     expect((await jsonRequest('/session', 'DELETE', { sessionId: sessionID })).status).toBe(200) // 先删除会话记录
     expect((await jsonRequest('/workspace', 'DELETE', { workspaceId: workspaceID })).status).toBe(200) // 再移除工作区定义
+  })
+
+  it('rejects invalid backups without partially replacing live data', async () => {
+    const liveWorkspaces = Workspace.list()                               // 保存导入前完整工作区基线
+    const liveSessions = Session.exportAll()                              // 保存导入前完整会话基线
+    const result = await Data.importBackup({                              // 构造工作区合法但会话引用不存在工作区的备份
+      format: 'agent-backup',
+      version: 1,
+      config: { systemPrompt: '不应生效' },
+      workspaces: [{ id: 'wrk_imported', path: dataDirectory, name: '导入候选' }],
+      sessions: [{ id: 'ses_orphan', workspaceId: 'wrk_missing', messages: [] }],
+    })
+    expect(result).toMatchObject({ ok: false, status: 400, error: 'session references unknown workspace' }) // 跨领域引用必须在修改前失败
+    expect(Workspace.list()).toEqual(liveWorkspaces)                      // 工作区不能被先行替换
+    expect(Session.exportAll()).toEqual(liveSessions)                     // 会话不能产生部分恢复
+  })
+
+  it('writes large files in explicit bounded chunks', async () => {
+    const path = join(dataDirectory, 'chunked.txt')                       // 使用隔离目录验证真实磁盘效果
+    await write_file.execute({ path, content: 'FIRST', mode: 'overwrite' }) // 首块创建文件
+    await write_file.execute({ path, content: '_SECOND', mode: 'append' }) // 后续块追加内容
+    expect(await Bun.file(path).text()).toBe('FIRST_SECOND')              // 工具协议不能覆盖前一块
   })
 })

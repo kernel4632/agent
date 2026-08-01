@@ -5,10 +5,10 @@
 -->
 <script setup>
 import { computed, nextTick, ref } from 'vue'                        // 引入模型目录、文件选择和发送后聚焦
-import { Chat } from '../commands/chat.js'                           // 引入输入校验动作
-import { t } from '../i18n.js'                                       // 引入响应式界面翻译
-import SelectField from './fields/SelectField.vue'                   // 引入 M3E 模型选择字段
-import TextAreaField from './fields/TextAreaField.vue'               // 引入 M3E 自适应消息字段
+import { Chat } from '../../commands/chat.js'                        // 引入输入校验动作
+import { t } from '../../i18n.js'                                    // 引入响应式界面翻译
+import SelectField from '../shared/SelectField.vue'                  // 引入 M3E 模型选择字段
+import TextAreaField from '../shared/TextAreaField.vue'              // 引入 M3E 自适应消息字段
 
 const props = defineProps({
   session: { type: Object, required: true },                         // 当前完整 Session
@@ -63,4 +63,4 @@ function selectFiles(event) {
   </div>
 </template>
 
-<style lang="scss" src="../styles/components/InputBox.scss"></style>
+<style lang="scss" src="../../styles/components/InputBox.scss"></style>

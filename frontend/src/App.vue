@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed, watchEffect } from 'vue'                         // 引入最近会话目录和语言副作用
-import AppSidebar from './components/app/AppSidebar.vue'             // 引入五段式应用侧边栏
+import AppSidebar from './components/layout/AppSidebar.vue'          // 引入五段式应用侧边栏
 import Chat from './views/Chat.vue'                                // 引入 Session 对话页
-import Sessions from './views/Sessions.vue'                        // 引入 Workspace 主页
+import Home from './views/Home.vue'                                 // 引入 Workspace 主页
 import Settings from './views/Settings.vue'                        // 引入全局设置页
 import { Session } from './commands/session.js'                    // 引入新建和打开 Session 指令
 import { UI } from './commands/ui.js'                              // 引入页面和侧栏指令
@@ -17,19 +17,19 @@ import { store } from './store.js'                                 // 引入唯�
 const recentSessions = computed(() => store.workspaces             // 汇总侧边栏需要的全部 Session 摘要
   .flatMap((workspace) => workspace.sessions.map((session) => ({ ...session, workspaceID: workspace.id, status: store.sessions[session.id]?.status })))
   .sort((left, right) => right.updatedAt - left.updatedAt)
-  .slice(0, 12))                                                   // 侧边栏保持紧凑，不复制主页完整目录
+  )                                                                  // 侧边栏展示全部会话，滚动容器负责填满高度
 
 watchEffect(() => { document.documentElement.lang = currentLanguage() }) // 同步辅助技术和浏览器语言
 
 
 // --- 打开侧边栏 Session ---
-function openSession(sessionID) {
-  Session.open(sessionID)                                          // 指令同步 Workspace 归属和对话页
+async function openSession(sessionID) {
+  await Session.open(sessionID)                                    // 等待读取 Session 并切换对话页
   if (window.innerWidth <= 760) UI.toggleSidebar(false)            // 移动端选择后释放主内容空间
 }
 
-function navigate(action) {
-  action()
+async function navigate(action) {
+  await action()                                                        // 等待创建、保存等异步业务完成后再执行后续导航
   if (window.innerWidth <= 760) UI.toggleSidebar(false)
 }
 </script>
@@ -37,12 +37,12 @@ function navigate(action) {
 <template>
   <m3e-theme scheme="dark" density="-1" class="app-theme">
     <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
-      <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => { UI.toggleSidebar(false); UI.openSettings() })" />
+      <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => { UI.toggleSidebar(false); return UI.openSettings() })" />
       <div v-if="store.ui.sidebarOpen" class="sidebar-scrim" @click="UI.toggleSidebar(false)"></div>
       <main class="main-area">
         <div v-if="store.ui.isLoading" class="app-status"><m3e-circular-progress-indicator></m3e-circular-progress-indicator><strong>正在连接 Agent Server</strong></div>
         <div v-else-if="store.ui.errorMessage && !store.workspaces.length" class="app-status is-error"><m3e-icon name="error"></m3e-icon><strong>Agent Server 不可用</strong><span>{{ store.ui.errorMessage }}</span></div>
-        <Transition v-else name="view-change" mode="out-in"><Sessions v-if="store.ui.view === 'home'" key="home" /><Chat v-else-if="store.ui.view === 'chat'" key="chat" /><Settings v-else key="settings" /></Transition>
+        <Transition v-else name="view-change" mode="out-in"><Home v-if="store.ui.view === 'home'" key="home" /><Chat v-else-if="store.ui.view === 'chat'" key="chat" /><Settings v-else key="settings" /></Transition>
       </main>
       <m3e-snackbar v-if="store.ui.toast">{{ store.ui.toast }}</m3e-snackbar>
     </div>

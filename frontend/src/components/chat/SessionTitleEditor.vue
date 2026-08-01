@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { nextTick, ref } from 'vue'                    // 引入输入聚焦和本地草稿状态
-import { Session } from '../commands/session.js'      // 引入标题草稿和编辑状态指令
-import { t } from '../i18n.js'                        // 引入响应式界面翻译
-import TextField from './fields/TextField.vue'        // 引入 M3E 标准文本字段
+import { Session } from '../../commands/session.js'   // 引入标题草稿和编辑状态指令
+import { t } from '../../i18n.js'                     // 引入响应式界面翻译
+import TextField from '../shared/TextField.vue'       // 引入 M3E 标准文本字段
 
 const props = defineProps({                           // 声明当前标题和保存状态
   title: { type: String, default: '' },               // 非编辑态展示的会话标题
@@ -52,4 +52,4 @@ async function saveEditing() {
   </span>
 </template>
 
-<style lang="scss" src="../styles/components/SessionTitleEditor.scss"></style>
+<style lang="scss" src="../../styles/components/SessionTitleEditor.scss"></style>

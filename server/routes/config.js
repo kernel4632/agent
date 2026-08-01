@@ -56,3 +56,8 @@ export const configRoutes = new Elysia({ name: 'agent.routes.config' }) // 配�
     async ({ body }) => Responses.command(await Config.testProvider(body.provider, body.model)),
     { body: 'ConfigTest' },
   )
+  .post(
+    '/config/models',                                  // 从已保存供应商读取真实模型目录
+    async ({ body }) => Responses.command(await Config.listModels(body.provider)),
+    { body: 'ConfigModels' },
+  )

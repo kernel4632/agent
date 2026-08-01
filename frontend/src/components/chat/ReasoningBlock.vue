@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'                 // 引入折叠状态和标题派生能力
-import { t } from '../i18n.js'                      // 引入响应式界面翻译
+import { t } from '../../i18n.js'                   // 引入响应式界面翻译
 
 const props = defineProps({                         // 声明父组件传入的思考数据
   text: { type: String, default: '' },              // 完整或流式 reasoning 文本
@@ -30,4 +30,4 @@ const title = computed(() => t(props.streaming ? 'thinking' : 'reasoning')) // �
   </m3e-card>
 </template>
 
-<style lang="scss" src="../styles/components/ReasoningBlock.scss"></style>
+<style lang="scss" src="../../styles/components/ReasoningBlock.scss"></style>

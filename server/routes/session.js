@@ -55,7 +55,7 @@ async function sendMessage({ body }) {
   const agentID = body.agentId || modelAgent?.id || session.agentID // 本轮显式选择优先，其次复用会话选择
   const run = Run.create({ sessionID: session.id, agentID, input: body.content }) // 在后台开始前登记可查询 Run
   try {
-    const started = Chat.startBackground({ runID: run.id, sessionID: session.id, message: body.content, messageID: body.messageId, initialEvents: [{ event: 'run-created', data: { runID: run.id, agentID: run.agentID, parentRunID: null } }] }) // 模型输出统一进入独立事件历史
+    const started = Chat.startBackground({ runID: run.id, sessionID: session.id, message: body.content, messageID: body.messageId, files: body.files || [], initialEvents: [{ event: 'run-created', data: { runID: run.id, agentID: run.agentID, parentRunID: null } }] }) // 模型输出统一进入独立事件历史
     return { ok: true, sessionId: session.id, run: started } // 发送请求立即反馈启动状态
   } catch (error) {
     Run.fail(run.id, error)                              // 启动失败时关闭已经登记的 Run

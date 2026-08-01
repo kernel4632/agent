@@ -9,7 +9,7 @@ import DeleteSessionDialog from '../components/home/DeleteSessionDialog.vue' // 
 import SessionGroups from '../components/home/SessionGroups.vue'    // 引入 Session 分组列表
 import WorkspaceDialog from '../components/home/WorkspaceDialog.vue' // 引入添加 Workspace 弹窗
 import WorkspacePanel from '../components/home/WorkspacePanel.vue'  // 引入 Workspace 列表
-import SearchField from '../components/fields/SearchField.vue'      // 引入 M3E 搜索字段
+import SearchField from '../components/shared/SearchField.vue'      // 引入 M3E 搜索字段
 import { Session } from '../commands/session.js'                    // 引入打开、重命名和删除动作
 import { UI } from '../commands/ui.js'                              // 引入搜索和反馈动作
 import { Workspace } from '../commands/workspace.js'                // 引入工作区动作

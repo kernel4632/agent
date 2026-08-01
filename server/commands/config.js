@@ -30,14 +30,23 @@ const defaultConfig = {                                          // 首次运行
 
 
 // --- 加载磁盘配置 ---
-async function load(filePath) {
+async function load(filePath, mcpFilePath = `${dirname(filePath)}/mcp.json`) {
   configStore.filePath = filePath                                 // 记录后续保存使用的同一配置路径
+  configStore.mcpFilePath = mcpFilePath                           // 记录独立 MCP 配置路径
   await mkdir(dirname(filePath), { recursive: true })              // 确保首次运行时配置目录存在
 
   const file = Bun.file(filePath)                                 // 从传入路径定位用户配置文件
   const savedConfig = await file.exists() ? await file.json() : {} // 文件不存在时从默认配置开始
-  configStore.sourceValue = defu(savedConfig, defaultConfig)        // 保存磁盘原文结构，环境密钥继续保留占位符
+  const mcpFile = Bun.file(mcpFilePath)                            // 定位独立 MCP 配置文件
+  const savedMCPDocument = await mcpFile.exists() ? await mcpFile.json() : null // 优先读取已经迁移的独立定义
+  const savedMCPServers = savedMCPDocument?.mcpServers ?? savedConfig.mcpServers ?? {} // 首次启动兼容旧 config.json
+  delete savedConfig.mcpServers                                   // 主配置不再持久化 MCP 定义
+  const configDefaults = structuredClone(defaultConfig)           // 建立不含 MCP 的主配置默认值
+  delete configDefaults.mcpServers                                 // 避免默认字段重新写回 config.json
+  configStore.sourceValue = defu(savedConfig, configDefaults)      // 保存磁盘原文结构，环境密钥继续保留占位符
+  configStore.mcpSourceValue = { mcpServers: structuredClone(savedMCPServers) } // 保存 mcp.json 原文结构
   configStore.value = structuredClone(configStore.sourceValue)      // 运行态副本允许展开环境变量
+  configStore.value.mcpServers = structuredClone(savedMCPServers)   // API 和运行时继续消费统一配置视图
   resolveEnvironmentSecrets(configStore.value)                     // 运行时展开环境占位符，磁盘继续保存占位符
   normalizeProviders(configStore.value.providers)                  // 将旧供应商记录升级为显式协议和请求设置
   normalizeCapabilities(configStore.value)                         // 补齐外部能力默认结构
@@ -48,15 +57,19 @@ async function load(filePath) {
 
 
 // --- 保存当前配置 ---
-async function save() {
-  if (!configStore.value || !configStore.filePath) {               // 尚未加载时拒绝产生位置不明的文件
+async function save(value = configStore.value) {
+  if (!value || !configStore.filePath) {                            // 尚未加载时拒绝产生位置不明的文件
     throw new Error('configuration has not been loaded')
   }
 
-  const persisted = restoreEnvironmentSecrets(configStore.value, configStore.sourceValue) // 保存前恢复未被编辑的环境占位符
-  configStore.sourceValue = structuredClone(persisted)              // 后续保存继续以最新磁盘结构为比较基线
-  const json = `${JSON.stringify(persisted, null, 2)}\n`             // 使用稳定缩进便于用户直接编辑
-  await Bun.write(configStore.filePath, json)                       // 集中完成配置持久化副作用
+  const persisted = restoreEnvironmentSecrets(value, { ...configStore.sourceValue, mcpServers: configStore.mcpSourceValue?.mcpServers }) // 保存前恢复全部环境占位符
+  const { mcpServers, ...mainConfig } = persisted                    // MCP 定义只写入独立文件
+  await Promise.all([
+    Bun.write(configStore.filePath, `${JSON.stringify(mainConfig, null, 2)}\n`), // 写入不含 MCP 的主配置
+    Bun.write(configStore.mcpFilePath, `${JSON.stringify({ mcpServers: mcpServers || {} }, null, 2)}\n`), // 写入独立 MCP 配置
+  ])
+  configStore.sourceValue = structuredClone(mainConfig)             // 两个文件都成功后才推进环境占位符基线
+  configStore.mcpSourceValue = { mcpServers: structuredClone(mcpServers || {}) } // 写入失败时保留原基线和运行态
 }
 
 
@@ -81,16 +94,17 @@ async function update(changes) {
   }
   if (nextChanges.mcpServers) restoreCapabilitySecrets(nextChanges.mcpServers, configStore.value.mcpServers) // 恢复 MCP 敏感环境变量和请求头
 
-  configStore.value = defu(nextChanges, configStore.value)         // 普通局部字段继续深度保留未修改内容
-  if ('providers' in nextChanges) configStore.value.providers = nextChanges.providers // 提供商集合按 UI 完整结果替换，删除才能生效
-  if ('agents' in nextChanges) configStore.value.agents = nextChanges.agents             // Agent 集合按设置页完整结果替换，删除才能生效
-  if ('mcpServers' in nextChanges) configStore.value.mcpServers = nextChanges.mcpServers // MCP 集合完整替换才能删除服务
-  if ('lspServers' in nextChanges) configStore.value.lspServers = nextChanges.lspServers // LSP 集合完整替换才能删除服务
-  if ('skills' in nextChanges) configStore.value.skills = nextChanges.skills             // Skill 配置按页面完整结果替换
-  normalizeProviders(configStore.value.providers)                  // 新旧 API 输入统一为完整供应商结构
-  normalizeCapabilities(configStore.value)                         // 新旧外部能力输入统一默认值
-  normalizeAgents(configStore.value)                                // 保证 Agent 定义与当前配置结构同步
-  await save()                                                      // 写盘完成后才向 API 反馈成功
+  const nextValue = defu(nextChanges, configStore.value)            // 在独立候选值中深度保留未修改内容
+  if ('providers' in nextChanges) nextValue.providers = nextChanges.providers // 提供商集合按 UI 完整结果替换，删除才能生效
+  if ('agents' in nextChanges) nextValue.agents = nextChanges.agents             // Agent 集合按设置页完整结果替换，删除才能生效
+  if ('mcpServers' in nextChanges) nextValue.mcpServers = nextChanges.mcpServers // MCP 集合完整替换才能删除服务
+  if ('lspServers' in nextChanges) nextValue.lspServers = nextChanges.lspServers // LSP 集合完整替换才能删除服务
+  if ('skills' in nextChanges) nextValue.skills = nextChanges.skills             // Skill 配置按页面完整结果替换
+  normalizeProviders(nextValue.providers)                           // 新旧 API 输入统一为完整供应商结构
+  normalizeCapabilities(nextValue)                                  // 新旧外部能力输入统一默认值
+  normalizeAgents(nextValue)                                        // 保证 Agent 定义与当前配置结构同步
+  await save(nextValue)                                              // 候选值完整写盘后才替换运行态
+  configStore.value = nextValue                                      // 保存失败不能让模型看到未持久化配置
   return { ok: true }                                               // 返回统一成功结果
 }
 
@@ -185,8 +199,10 @@ function getContextLimitFor(providerName, modelName) {
 
 // --- 永久允许一个工具 ---
 async function allowTool(toolName) {
-  configStore.value.permissions[toolName] = 'allow'                  // 将工具级权限改为直接允许
-  await save()                                                       // 工具执行前保证选择已经持久化
+  const nextValue = structuredClone(configStore.value)               // 永久审批先创建独立候选配置
+  nextValue.permissions[toolName] = 'allow'                           // 将工具级权限改为直接允许
+  await save(nextValue)                                               // 工具执行前保证选择已经持久化
+  configStore.value = nextValue                                       // 保存成功后再让后续工具读取新权限
   return { ok: true }                                                // 向审批指令反馈写盘完成
 }
 
@@ -204,6 +220,24 @@ async function testProvider(providerName, modelName) {
     return { ok: true, provider: providerName, model: selectedModel, latencyMs: Date.now() - startedAt } // 反馈真实模型和延迟
   } catch (error) {
     return { ok: false, status: 502, error: `provider test failed: ${error.message}` } // 隐藏请求配置，仅反馈上游错误
+  }
+}
+
+
+// --- 从已保存供应商读取模型目录 ---
+async function listModels(providerName) {
+  const provider = configStore.value.providers[providerName] // 只允许使用已保存认证请求上游模型目录
+  if (!provider) return { ok: false, status: 404, error: 'provider not found' } // 未保存供应商不能执行发现
+  const baseURL = String(provider.baseURL || '').replace(/\/$/, '') // 去掉尾部斜杠避免形成双斜杠路径
+  if (!baseURL) return { ok: false, status: 400, error: 'provider baseURL is empty' } // 没有地址无法发现模型
+  try {
+    const response = await fetch(`${baseURL}/models`, { headers: { Authorization: `Bearer ${provider.apiKey}`, ...(provider.headers || {}) }, signal: AbortSignal.timeout(provider.timeoutMs) }) // 通过真实 OpenAI-compatible models 接口读取目录
+    if (!response.ok) return { ok: false, status: 502, error: `model discovery failed with status ${response.status}` } // 上游失败转换为网关错误
+    const payload = await response.json()                  // 读取供应商返回的模型集合
+    const models = Array.isArray(payload.data) ? payload.data.map((item) => item.id).filter((id) => typeof id === 'string') : [] // 兼容 OpenAI models 数据结构
+    return { ok: true, provider: providerName, models }      // 返回设置页可选择的真实模型 ID
+  } catch (error) {
+    return { ok: false, status: 502, error: `model discovery failed: ${error.message}` } // 隐藏认证细节，只反馈连接失败
   }
 }
 
@@ -317,4 +351,4 @@ function createTimeoutFetch(timeoutMs) {
 }
 
 
-export const Config = { load, save, get, update, allowTool, testProvider, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor } // 导出全局默认和 Agent 指定配置动作
+export const Config = { load, save, get, update, allowTool, testProvider, listModels, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor } // 导出配置、模型发现和 Agent 指定配置动作

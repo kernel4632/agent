@@ -6,7 +6,7 @@ Session 分组：按主页给出的时间组渲染行，并管理原位标题草
 <script setup>
 import { nextTick, ref } from 'vue'                                    // 保存标题草稿并在切换后聚焦字段
 import { formatDateTime, t } from '../../i18n.js'                      // 提供 Session 摘要和时间格式
-import TextField from '../fields/TextField.vue'                       // 使用 M3E 标准标题字段
+import TextField from '../shared/TextField.vue'                       // 使用 M3E 标准标题字段
 
 defineProps({
   groups: { type: Array, default: () => [] },                          // 非空时间分组

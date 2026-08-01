@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, nextTick, ref } from 'vue'                        // 引入设置草稿和移动端滚动反馈
-import ProviderConfig from '../components/ProviderConfig.vue'        // 引入双栏供应商管理
+import ProviderSettings from '../components/settings/ProviderSettings.vue' // 引入双栏供应商管理
 import AppearanceSettings from '../components/settings/AppearanceSettings.vue' // 引入外观分类
 import DataSettings from '../components/settings/DataSettings.vue'   // 引入数据分类
 import McpSettings from '../components/settings/McpSettings.vue'     // 引入 MCP 分类
@@ -48,7 +48,7 @@ async function openSection(sectionID) {
     <SettingsNavigation :sections="sections" :active="store.ui.settingsSection" :saved="Boolean(store.settings.savedAt)" @select="openSection" />
 
     <main class="settings-content">
-      <ProviderConfig v-if="store.ui.settingsSection === 'providers'" :config="draft" />
+       <ProviderSettings v-if="store.ui.settingsSection === 'providers'" :config="draft" />
 
       <ToolSettings v-else-if="store.ui.settingsSection === 'tools'" :tools="draft.tools" :title-for="toolTitle" @update="SettingsCommand.updateTool" />
       <McpSettings v-else-if="store.ui.settingsSection === 'mcp'" :servers="draft.mcp" @add="SettingsCommand.addMCP" @update="SettingsCommand.updateMCP" @remove="SettingsCommand.removeMCP" />

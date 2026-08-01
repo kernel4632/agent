@@ -32,7 +32,7 @@ beforeAll(async () => {
     activeModel: 'kimi-k2.6',                                                     // 严格使用用户指定的模型名称
     providers: { aker: { apiKey: provider.options.apiKey, baseURL: provider.options.baseURL, models: ['kimi-k2.6'], setCacheKey: true } }, // 将真实认证、模型和缓存行为写入测试配置
     systemPrompt: '你是测试中的 Agent。收到请求后必须调用 task_done，并在 summary 中写出 REAL_MODEL_OK。', // 让真实模型产生可验证工具调用
-    permissions: { task_done: 'allow' },                                          // 测试任务结束工具允许真实执行
+    permissions: { task_done: 'allow', load_skill: 'allow' },                     // 模型可先加载测试 Skill，再执行其真实工作流和结束工具
     modelLimits: { 'kimi-k2.6': provider.models['kimi-k2.6'].limit },              // 使用 OpenCode 声明的真实上下文限制
     runTimeoutMs: 270000,                                                          // 真实上游异常时仍保证单个测试 Run 在五分钟内退出
   }
@@ -97,7 +97,7 @@ describe('Agent Server API', () => {
 
   it('handles health and session creation/list/get APIs', async () => {
     const health = await request('/health')                                    // 调用进程健康 API
-    expect(await health.json()).toMatchObject({ ok: true, service: 'agent-server', version: '0.1.0' }) // 验证真实路由反馈和版本信息
+    expect(await health.json()).toMatchObject({ ok: true, service: 'agent-server', version: '0.1.0', engine: { version: '0.1.0' } }) // 验证真实路由反馈和版本信息
 
     const created = await jsonRequest('/session/create', 'POST')               // 通过真实 API 创建磁盘会话
     const session = await created.json()                                       // 读取服务返回的会话数据
@@ -203,7 +203,8 @@ describe('Agent Server API', () => {
 
     const redacted = await (await request('/config')).json()                       // 检查能力配置安全边界
     expect(redacted.mcpServers.fixture.env.TEST_SECRET).toBe('[REDACTED]')          // API 不泄漏 MCP 子进程密钥
-    expect((await Bun.file(join(dataDirectory, 'config.json')).json()).mcpServers.fixture.env.TEST_SECRET).toBe('hidden-value') // 磁盘仍保留真实值
+    expect((await Bun.file(join(dataDirectory, 'mcp.json')).json()).mcpServers.fixture.env.TEST_SECRET).toBe('hidden-value') // 独立 MCP 文件保留真实值
+    expect((await Bun.file(join(dataDirectory, 'config.json')).json()).mcpServers).toBeUndefined() // 主配置不再重复保存 MCP 定义
 
     await jsonRequest('/config', 'PUT', { mcpServers: {}, lspServers: {}, skills: { enabled: true, directories: [], disabled: [] } }) // 清空夹具声明
     await jsonRequest('/capability/reload', 'POST')                                // 真实关闭两个子进程，避免影响后续模型测试

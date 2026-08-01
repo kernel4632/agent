@@ -30,4 +30,4 @@ const progressLabel = computed(() => `${completedCount.value}/${props.tasks.leng
   </m3e-expansion-panel>
 </template>
 
-<style lang="scss" src="../styles/components/TaskPanel.scss"></style>
+<style lang="scss" src="../../styles/components/TaskPanel.scss"></style>
