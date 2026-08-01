@@ -1,3 +1,57 @@
 store.js这个文件是全局数据中心，里面只定义数据结构，不能写任何逻辑
 
 
+store
+│
+├── engine
+│   └── version: "0.1.0"
+│
+├── config                              ← .agent/config.json
+│   ├── provider                        供应商列表配置
+│   ├── tools                           工具权限配置
+│   ├── systemPrompt                    系统提示词
+│   └── defaultModel                    默认模型
+│
+├── workspaces                          ← .agent/workspace.json
+│   └── [
+│         {
+│           id,
+│           path,
+│           sessions: [{ sessionId, title }]
+│         }
+│       ]
+│
+└── sessions: Map<sessionId, session>   ← 按需从 sessions/{id}.json 加载
+
+
+
+session
+│
+│── 持久化（写入文件的字段）
+│   ├── id
+│   ├── workspaceId
+│   ├── title
+│   ├── lastActiveAt
+│   ├── model
+│   ├── status                  "idle" | "running" | "waiting" | "error"
+│   ├── messages: [message, ...]
+│   └── rolledBack: [message, ...] | null
+│
+└── 运行时（仅内存，不写入文件，加载时初始化空值）
+    ├── listeners : Set<controller>             谁在听这个会话的 SSE
+    ├── eventId   : number                      SSE 事件编号，递增
+    ├── runner    : AbortController | null       Agent 循环的开关（abort 就停）
+    ├── waits     : Map<toolCallId, resolve>     哪些工具在等用户点批准
+    └── processes : Set<子进程引用>              哪些工具正在跑
+
+
+message
+├── id
+├── role            "user" | "assistant" | "tool"
+├── content         纯文本（快速展示用）
+├── contentBlocks
+│   ├── { id, type: "text",        text }
+│   ├── { id, type: "thinking",    thinking }
+│   ├── { id, type: "tool_call",   toolCallId, toolName, input, status }
+│   └── { id, type: "tool_result", toolCallId, output, isError }
+└── timestamp
