@@ -249,30 +249,309 @@ Agent
         server
             routes
                 health.js
+                    当 收到 GET /health 时：
+                        返回 200 { status: "ok", version: store.engine.version }
                 config.js
+                    当 收到 GET /config 时：
+                        result = Config.get()
+                        返回 200 result
+                    当 收到 PATCH /config 时：
+                        result = Config.update(body)
+                        返回 200 result
                 workspace.js
+                    当 收到 GET /workspace 时：
+                        result = Workspace.list()
+                        返回 200 result
+                    当 收到 POST /workspace 时：
+                        result = Workspace.add(body.path)
+                        返回 201 result
+                    当 收到 PATCH /workspace 时：
+                        result = Workspace.update(body.workspaceId, body 中除 workspaceId 外的字段)
+                        返回 200 result
+                    当 收到 DELETE /workspace 时：
+                        result = Workspace.remove(body.workspaceId)
+                        返回 200 result
                 session.js
+                    当 收到 GET /session 时：
+                        result = Session.get(query.sessionId)
+                        返回 200 result
+                    当 收到 POST /session 时：
+                        result = Session.create(body.workspaceId)
+                        返回 201 result
+                    当 收到 PATCH /session 时：
+                        result = Session.update(body.sessionId, body 中除 sessionId 外的字段)
+                        返回 200 result
+                    当 收到 DELETE /session 时：
+                        result = Session.delete(body.sessionId)
+                        返回 200 result
+                    当 收到 GET /session/events 时：
+                        return Session.subscribe(sessionId)
+                        SSE 长连接
+                    当 收到 POST /session/send 时：
+                        result = Agent.send(body.sessionId, body.content)
+                        返回 200 result
+                    当 收到 POST /session/stop 时：
+                        result = Agent.stop(body.sessionId)
+                        返回 200 result
+                    当 收到 POST /session/approval 时：
+                        result = Approval.handle(body.sessionId, body.toolCallId, body.decision)
+                        返回 200 result
+                    当 收到 POST /session/history 时：
+                        result = History.handle(body.sessionId, body.action, { checkpoint: body.checkpoint })
+                        返回 200 result
             commands
                 config.js
+                    Config.get()：
+                        返回 store.config 的深拷贝
+                    Config.update(partialConfig)：
+                        将 partialConfig 的每个字段合并覆盖到 store.config
+                        将 store.config 写入 .agent/config.json
+                        返回更新后的 store.config
                 workspace.js
+                    Workspace.list()：
+                        返回 store.workspaces
+                    Workspace.add(path)：
+                        生成唯一 id
+                        创建工作区对象 { id, path, sessions: [] }
+                        推入 store.workspaces
+                        写入 .agent/workspace.json
+                        返回新建的工作区对象
+                    Workspace.update(workspaceId, fields)：
+                        在 store.workspaces 中找到 id === workspaceId 的项
+                        如果 找不到 → 抛错 "工作区不存在"
+                        将 fields 合并覆盖到该项
+                        写入 .agent/workspace.json
+                        返回更新后的工作区对象
+                    Workspace.remove(workspaceId)：
+                        在 store.workspaces 中找到 id === workspaceId 的项
+                        如果 找不到 → 抛错 "工作区不存在"
+                        从数组中移除该项（不删本地目录）
+                        写入 .agent/workspace.json
+                        返回 { ok: true }
                 session.js
+                    Session.get(sessionId)：
+                        如果 store.sessions 中有缓存 → 返回缓存
+                        否则：
+                            从 .agent/sessions/{sessionId}.json 读取
+                            如果 文件不存在 → 抛错 "会话不存在"
+                            存入 store.sessions 缓存
+                            返回 session 数据
+                    Session.create(workspaceId)：
+                        在 store.workspaces 中找到对应工作区
+                        如果 找不到 → 抛错 "工作区不存在"
+                        生成唯一 sessionId
+                        创建 session
+                            id: sessionId,
+                            workspaceId,
+                            title: "新对话",
+                            lastActiveAt: 当前时间戳,
+                            model: store.config.defaultModel,
+                            status: "idle",
+                            messages: []
+                        存入 store.sessions 缓存
+                        写入 .agent/sessions/{sessionId}.json
+                        在工作区的 sessions 数组中添加 { sessionId, title: "新对话" }
+                        写入 .agent/workspace.json
+                        返回 session
+                    Session.update(sessionId, fields)：
+                        session = Session.get(sessionId)
+                        将 fields 合并覆盖（只允许 title、model 等配置字段）
+                        session.lastActiveAt = 当前时间戳
+                        写入 .agent/sessions/{sessionId}.json
+                        如果 fields 中有 title：
+                            同步更新 store.workspaces 中对应的 session 摘要的 title
+                            写入 .agent/workspace.json
+                        返回更新后的 session
+                    Session.delete(sessionId)：
+                        session = Session.get(sessionId)
+                        如果 session.status !== "idle"：
+                            先调用 Agent.stop(sessionId)
+                        关闭该 sessionId 的所有 SSE 连接
+                        从 store.sessions 缓存中移除
+                        删除 .agent/sessions/{sessionId}.json
+                        从 store.workspaces 中对应工作区的 sessions 数组移除
+                        写入 .agent/workspace.json
+                        返回 { ok: true }
+                    Session.subscribe待定
+                        返回 new Stream(...)
+                    Session.save(sessionId)
+                        保存逻辑
                 agent.js
+                    Agent.send(sessionId, content)：
+                        session = Session.get(sessionId)
+                        如果 session.status !== "idle"：
+                            抛错 "该会话正在执行中"
+                        创建 userMessage
+                            id: 生成唯一ID,
+                            role: "user",
+                            content,
+                            contentBlocks: [{ type: "text", text: content }],
+                            timestamp: 当前时间戳,
+                            checkpoint: 生成检查点ID
+                        推入 session.messages
+                        session.status = "running"
+                        session.lastActiveAt = 当前时间戳
+                        如果 存在 session.rolledBack 就清空
+                        sseEmit(sessionId, "status", { status: "running" })
+                        sseEmit(sessionId, "user-message", { message: userMessage })
+                        保存 session
+                        Agent.run(sessionId)  ← 异步启动，不 await
+                        返回 { ok: true, messageId: userMessage.id }
+                    Agent.stop(sessionId)：
+                        session = Session.get(sessionId)
+                        如果 session.status === "idle"：
+                            返回 { ok: true, message: "已经是空闲状态" }
+                        打断LLM API请求
+                        遍历并拒绝未决策的工具调用
+                        终止该 session 下的所有工具运行进程
+                        session.status = "idle"
+                        sseEmit(sessionId, "status", { status: "stopped" })
+                        保存 session
+                        返回 { ok: true }
+                    Agent.run(sessionId)：
+                        session = Session.get(sessionId)
+                        未调用工具次数计数=0
+                        无限循环
+                            尝试：
+                                构建上下文store.config.systemPrompt, session.messages
+                                根据 session.model 在 store.config.provider 中找到对应 provider
+                                如果 找不到或未启用 → 抛错
+                                sseEmit(sessionId, "api-request", { status: "started" })
+                                发起请求（provider.apiURL, provider.apiKey, store.config.systemPrompt, session.messages, model, 工具定义, 打断信号）
+                                创建 assistantMessage
+                                    id, role: "assistant", content: "", contentBlocks: [],
+                                    timestamp, checkpoint: 生成检查点ID
+                                当前文本块 = null
+                                当前思考块 = null
+                                当 收到 chunk 时：
+                                    如果 是 text_delta：
+                                        如果 当前文本块 === null → 新建 textBlock 推入 contentBlocks
+                                        追加文本
+                                        sseEmit "text-delta"
+                                    如果 是 thinking_delta：
+                                        如果 当前思考块 === null → 新建 thinkingBlock 推入 contentBlocks
+                                        追加思考文本
+                                        sseEmit "thinking-delta"
+                                    如果 是 tool_use_start：
+                                        重置 当前文本块 和 当前思考块 = null
+                                        新建 toolCallBlock 推入 contentBlocks
+                                        sseEmit "tool-call-start"
+                                    如果 是 tool_input_delta：
+                                        累积 JSON 片段
+                                        sseEmit "tool-input-delta"
+                                    如果 是 tool_use_end：
+                                        解析完整 input
+                                        sseEmit "tool-call-ready"
+                                    如果 是 usage：
+                                        记录 usage
+                                推入 assistantMessage 到 session.messages
+                                sseEmit "api-request" { status: "completed", usage }
+                                保存 session
+                                toolCalls = contentBlocks.filter(type === "tool_call")
+                                如果本次没有调用工具，未调用工具次数计数+1
+                                如果未调用工具次数为2，要提示llm调用工具
+                                如果未调用工具次数为3，显示普通回复文本后跳出循环
+                                toolResults = []
+                                对于每个 toolCall （并行工具调用）：
+                                    从 store.config.tools 里获取该工具名的permission
+                                    如果 permission === "always-allow"：
+                                        结果，是否错误 = 运行工具（工具名）
+                                        推入 resultBlock
+                                    如果 permission === "auto-deny"：
+                                        toolCall.status = "denied"
+                                        推入 resultBlock { output: "自动拒绝", isError: true }
+                                        sseEmit "tool-result"
+                                    如果 permission === "ask"：
+                                        sseEmit "status" 等待批准
+                                        保存 session
+                                        decision = 等待 Promise（store的批准列表出现对应的批准）
+                                        移除 批准列表 对应条目
+                                        如果 decision === "allow-once"：
+                                            执行工具，推入结果
+                                        如果 decision === "always-allow"：
+                                            更新工具权限为 auto-allow，保存 config
+                                            执行工具，推入结果
+                                        如果 decision === "deny"：
+                                            推入 { output: "用户拒绝", isError: true }
+                                等待工具全部完成
+                                创建 toolResultMessage 推入 session.messages
+                                如果工具result里有stop:true
+                                    跳出循环
+                                保存 session
+                                继续循环
+                            捕获错误：
+                                如果 AbortError：
+                                    session.status = "idle"
+                                    sseEmit "status" stopped
+                                    跳出循环
+                                否则：
+                                    session.status = "error"
+                                    sseEmit "error" { message }
+                                    sseEmit "status" error
+                                    如果 是可重试的错误（网络超时、5xx）：
+                                        无限指数退避重试
+                                    否则（4xx、配置错误）：
+                                        session.status = "idle"
+                                        跳出循环
+                        保存 session
                 approval.js
+                    Approval.handle(sessionId, toolCallId, decision)：
+                        验证 decision 在 ["deny", "allow-once", "always-allow"] 中
+                        如果 不在 → 抛错 "无效的 decision"
+                        决策工具
+                        返回 { ok: true }
                 history.js
-                skills.js
+                    History.handle(sessionId, action, params)：
+                        session = Session.get(sessionId)
+                        如果 session.status !== "idle" → 抛错 "会话执行中，无法操作"
+                        如果 action === "rollback-checkpoint"：
+                            在 messages 中找 checkpoint === params.checkpoint 的消息
+                            如果 找不到 → 抛错
+                            截断后续消息并将后续被截断的消息临时存储
+                            保存 session
+                            sseEmit "history" { action, rolledBackMessages }
+                            返回结果
+                        如果 action === "rollback-message"：
+                            在 messages 中找 id === params.messageId 的消息
+                            如果 找不到 → 抛错
+                            如果 role !== "user" → 抛错 "只能回退用户消息"
+                            截断用户消息和后续消息并将后续被截断的消息临时存储
+                            保存 session
+                            sseEmit "history" { action, rolledBackMessages, originalContent }
+                            返回结果
+                        如果 action === "undo"：
+                            临时存储的截断消息拼回session上下文
+                            保存 session
+                            sseEmit "history" { action, restoredMessages }
+                            返回结果
             tools
                 built-in
                     file.js
                     shell.js
                     web.js
                     agent.js
-                custom（~/.agent/tools/）
+                custom（在~/.agent/tools/）
             utils
                 sse.js
                 compress.js
+                    上下文压缩逻辑
                 retry.js
+                    无限退避重试
+                context.js
+                    构建上下文
             store.js
-            server.js
+            server.js（Elysia框架）
+                当 服务器启动时：
+                    从 .agent/config.json 读取内容 → 存入 store.config
+                    从 .agent/workspace.json 读取内容 → 存入 store.workspaces
+                    注册路由组：health、config、workspace、session
+                    监听端口 4632
+                    打印启动日志
+                当 服务器收到未知路由请求时：
+                    返回 404 { error: "Not Found" }
+                当 进程收到终止信号时：
+                    遍历 sseClients 中所有连接 → 逐个关闭
+                    退出进程
             package.json
             bun.lock
     API
