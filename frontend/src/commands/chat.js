@@ -36,7 +36,7 @@ async function send(sessionID, content) {
   const messageID = `msg_${crypto.randomUUID()}`          // 客户端身份与 Server 持久化保持一致
   const files = [...session.files]                         // 保存本轮真实附件，清空输入区后仍可发送
   const userMessage = { id: messageID, role: 'user', content: text, contentBlocks: [{ type: 'text', text: { text } }], files: files.map(({ content: _content, ...file }) => file), createdAt: Date.now() } // 输入立即进入时间线且不把正文重复放入 UI
-  const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前 Run 的响应占位
+  const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前响应占位
   session.rollback = null                                // 新消息正式提交当前回退分支
   session.files = []                                     // 附件归属用户消息后清空输入区
   session.messages.push(userMessage, assistant)          // 输入和请求状态即时反馈
@@ -46,15 +46,14 @@ async function send(sessionID, content) {
 
   const previousController = store.events.controllers[sessionID] // 读取旧订阅控制器
   previousController?.abort()                            // 同一会话只保留一个事件读取循环
-  const controller = new AbortController()               // 当前 Run 使用独立订阅中断信号
+  const controller = new AbortController()               // 当前执行使用独立订阅中断信号
   store.events.controllers[sessionID] = controller       // 停止和终态可以释放订阅
   const afterID = store.events.lastIDs[sessionID] || 0   // 从最后确认事件继续读取
   const eventResponse = AgentAPI.subscribeSession(sessionID, afterID, controller.signal) // 并发建立订阅，空历史时等待首事件
 
   try {
-    const started = await AgentAPI.sendMessage(sessionID, text, messageID, session.model, session.agentID, files) // 启动带附件的后台真实模型请求
-    assistant.runID = started.run.id                     // 审批和停止使用准确 Run 归属
-    const response = await eventResponse                  // Run 已启动后取得事件流响应
+    await AgentAPI.sendMessage(sessionID, text, messageID, files) // 会话模型已在创建或切换时持久化
+    const response = await eventResponse                  // 执行已启动后取得事件流响应
     void consume(sessionID, response, controller)         // 后台持续归约事件，不阻塞输入事件栈
     return true                                           // 反馈发送动作已接受
   } catch (error) {
@@ -69,7 +68,7 @@ async function send(sessionID, content) {
 }
 
 
-// --- 消费当前 Run 的事件流 ---
+// --- 消费当前执行的事件流 ---
 async function consume(sessionID, response, controller) {
   try {
     await readSSE(response, (event) => receive(sessionID, event, controller)) // 事件严格按网络顺序修改会话
@@ -100,7 +99,7 @@ async function receive(sessionID, event, controller) {
   if (event.name === 'text-delta' && assistant) assistant.content += event.data.text || '' // 追加模型正文增量
   if (event.name === 'reasoning-delta' && assistant) assistant.reasoning += event.data.text || '' // 追加模型推理增量
   if (event.name === 'tool-call' && assistant) upsertTool(assistant, event.data, 'running') // 展示模型工具声明
-  if (event.name === 'tool-approval-request' && assistant) upsertTool(assistant, { toolCallId: event.data.id, toolName: event.data.name, input: event.data.args, runID: event.data.runID }, 'waiting') // 展示三选一审批
+  if (event.name === 'tool-approval-request' && assistant) upsertTool(assistant, { toolCallId: event.data.id, toolName: event.data.name, input: event.data.args }, 'waiting') // 展示三选一审批
   if (event.name === 'tool-result' && assistant) upsertTool(assistant, event.data, event.data.output?.denied ? 'rejected' : 'completed') // 展示真实工具结果
   if (event.name === 'task-list-updated') {
     session.tasks = event.data.tasks || []                // 任务面板使用 Server 持久化清单
@@ -131,7 +130,7 @@ async function receive(sessionID, event, controller) {
   Session.syncSummary(session)                           // 列表同步终态
   try { await Session.refresh(sessionID) }               // 用 Server 最终持久化历史校准增量占位
   catch (error) { UI.notify(error.message) }             // 刷新失败保留当前已显示增量
-  controller.abort()                                     // 当前 Run 结束后释放持续 SSE
+  controller.abort()                                     // 当前执行结束后释放持续 SSE
   if (store.events.controllers[sessionID] === controller) delete store.events.controllers[sessionID] // 清除当前控制器引用
 }
 
@@ -141,11 +140,10 @@ function upsertTool(assistant, data, status) {
   const toolCallID = data.toolCallId || data.id           // 兼容 AI SDK 和审批自定义事件字段
   let tool = assistant.tools.find((item) => item.id === toolCallID) // 定位同一次工具调用
   if (!tool) {
-    tool = { id: toolCallID, runID: data.runID || assistant.runID, name: data.toolName || data.name, title: data.toolName || data.name, input: data.input || data.args || {}, preview: '', status, checkpoint: null } // 建立完整展示结构
+    tool = { id: toolCallID, name: data.toolName || data.name, title: data.toolName || data.name, input: data.input || data.args || {}, preview: '', status, checkpoint: null } // 建立完整展示结构
     assistant.tools.push(tool)                            // 工具原位进入当前助手消息
   }
   tool.status = status                                    // 最新事件更新运行或审批状态
-  tool.runID = data.runID || tool.runID                   // 保留子 Run 精确审批归属
   tool.input = data.input || data.args || tool.input      // 工具调用事件补齐真实输入
   if (data.output !== undefined) tool.preview = formatOutput(data.output) // 工具结果转换为紧凑预览
 }
@@ -173,7 +171,7 @@ function applyUsage(session, assistant, usage) {
 
 // --- 读取当前流式助手消息 ---
 function getStreamingAssistant(session) {
-  return [...session.messages].reverse().find((message) => message.role === 'assistant' && message.isStreaming) // 最新 Run 只修改自己的占位消息
+  return [...session.messages].reverse().find((message) => message.role === 'assistant' && message.isStreaming) // 最新执行只修改自己的占位消息
 }
 
 
@@ -186,7 +184,7 @@ async function stop(sessionID) {
     UI.notify(t('generationPaused'))                       // 终态 SSE 会恢复输入器
     return true                                            // 反馈停止信号已接受
   } catch (error) {
-    UI.notify(error.message)                               // 展示未找到 Run 等真实错误
+    UI.notify(error.message)                               // 展示停止失败的真实错误
     return false                                           // 保持当前运行状态等待事件
   }
 }
@@ -198,7 +196,7 @@ async function decide(sessionID, toolCallID, decision) {
   const tool = session?.messages.flatMap((item) => item.tools || []).find((item) => item.id === toolCallID) // 定位原位工具条
   if (!tool || !['deny', 'allow-once', 'always-allow'].includes(decision)) return false // 无效决定不修改数据
   try {
-    await AgentAPI.decideTool(sessionID, toolCallID, decision, tool.runID) // 按 Run 精确恢复等待工具
+    await AgentAPI.decideTool(sessionID, toolCallID, decision) // 恢复等待中的工具
     tool.decision = decision                             // 保存本次用户决定
     tool.status = decision === 'deny' ? 'rejected' : 'running' // 允许后等待真实工具结果
     UI.notify(t(decision === 'deny' ? 'toolDenied' : 'toolAllowed')) // 确认点击已提交

@@ -27,10 +27,10 @@ const sections = [                                                    // 严格�
 ]
 const draft = computed(() => store.settings.draft)                    // 当前设置页只消费隔离草稿
 const settingsView = ref(null)                                        // 设置分类切换后恢复页面顶部
-const defaultToolTitles = { read_file: 'readFile', write_file: 'writeFile', run_command: 'runCommand', web_fetch: 'webFetch', delegate_task: 'delegateTask' } // 默认别名跟随界面语言
+const defaultToolTitles = { read_file: 'readFile', write_file: 'writeFile', run_command: 'runCommand', web_fetch: 'webFetch' } // 默认别名跟随界面语言
 
 function toolTitle(tool) {
-  const defaults = { read_file: '读取文件', write_file: '写入文件', run_command: '执行命令', web_fetch: '读取网页', delegate_task: '委派任务' }
+  const defaults = { read_file: '读取文件', write_file: '写入文件', run_command: '执行命令', web_fetch: '读取网页' }
   return tool.title === defaults[tool.name] ? t(defaultToolTitles[tool.name]) : tool.title // 用户自定义别名始终保留原文
 }
 
@@ -54,7 +54,7 @@ async function openSection(sectionID) {
       <McpSettings v-else-if="store.ui.settingsSection === 'mcp'" :servers="draft.mcp" @add="SettingsCommand.addMCP" @update="SettingsCommand.updateMCP" @remove="SettingsCommand.removeMCP" />
       <PromptSettings v-else-if="store.ui.settingsSection === 'prompt'" :value="draft.prompt" @update="SettingsCommand.updatePrompt" />
       <AppearanceSettings v-else-if="store.ui.settingsSection === 'appearance'" :appearance="draft.appearance" @update="SettingsCommand.updateAppearance" />
-      <DataSettings v-else :feedback="store.settings.feedback" @action="SettingsCommand.dataAction" />
+       <DataSettings v-else />
     </main>
   </section>
 </template>

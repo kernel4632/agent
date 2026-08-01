@@ -5,14 +5,9 @@ HTTP 层只消费这里返回的目录上下文，不参与文件系统、进程
 */
 import { mkdir } from 'node:fs/promises'            // 引入创建会话和自定义工具目录的能力
 import { join, resolve } from 'node:path'            // 引入跨平台目录定位能力
-import { Config } from './commands/config.js'        // 引入配置加载指令
-import { Agent } from './commands/agent.js'          // 引入 Agent 定义加载指令
-import { LSP } from './commands/lsp.js'              // 引入语言服务器生命周期指令
-import { MCP } from './commands/mcp.js'              // 引入 MCP 连接生命周期指令
-import { Session } from './commands/session.js'      // 引入会话恢复指令
+import { Config } from './commands/config.js'         // 引入配置与能力生命周期指令
+import { Session } from './commands/session.js'       // 引入会话与 Run 生命周期指令
 import { Skill } from './commands/skills.js'         // 引入 Skill 扫描指令
-import { Tool } from './commands/tool.js'            // 引入工具扫描和监听指令
-import { Run } from './commands/run.js'              // 引入进程内 Run 生命周期指令
 import { Workspace } from './commands/workspace.js'  // 引入工作区目录恢复指令
 import { store } from './store.js'                   // 引入服务端唯一状态根
 
@@ -27,24 +22,23 @@ async function start(options = {}) {
   const workspacePath = resolve(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 工作区目录使用独立设计文件
   const mcpPath = resolve(options.mcpPath ?? join(dataDirectory, 'mcp.json')) // MCP 定义使用独立设计文件
   const builtInToolsDirectory = resolve(options.builtInToolsDirectory ?? join(import.meta.dir, 'tools', 'built-in')) // 内置工具随服务代码分发
-  const workspaceDirectory = resolve(options.workspaceDirectory ?? process.env.AGENT_WORKSPACE ?? join(import.meta.dir, '..')) // LSP 和项目 Skill 使用同一工作区
+  const workspaceDirectory = resolve(options.workspaceDirectory ?? process.env.AGENT_WORKSPACE ?? join(import.meta.dir, '..')) // 项目 Skill 和 MCP 使用同一工作区
 
   try {
     await mkdir(customToolsDirectory, { recursive: true })          // 工具扫描前确保自定义目录存在
     await mkdir(sessionsDirectory, { recursive: true })             // 会话恢复前确保持久化目录存在
     await Config.load(configPath, mcpPath)                          // 后续能力初始化依赖当前配置和独立 MCP 定义
     await Workspace.load(workspacePath, workspaceDirectory)         // 会话恢复前先建立可引用的工作区目录
-    await Agent.load()                                               // 将可选模型定义加载到运行时目录
-    Run.reset()                                                       // 清除上一次进程遗留的不可恢复 Run
+    Session.resetRuns()                                               // 清除上一次进程遗留的不可恢复 Run
     await Session.load(sessionsDirectory)                           // 将磁盘会话恢复到运行时状态
-    await Tool.load([builtInToolsDirectory, customToolsDirectory])  // 注册内置和用户工具
-    await Tool.watch()                                              // 启动自定义工具热重载
+    await Config.loadTools([builtInToolsDirectory, customToolsDirectory]) // 注册内置和用户工具
+    await Config.watchTools()                                       // 启动自定义工具热重载
     await options.lifecycle?.afterTools?.({ dataDirectory, workspaceDirectory }) // 测试或宿主可在资源阶段注入可控失败
 
     store.capabilities.workspaceDirectory = workspaceDirectory     // 外部能力共享当前项目根目录
     store.capabilities.dataDirectory = dataDirectory               // Skill 扫描使用当前用户数据目录
     await Skill.reload()                                            // 先注册 Skill 元数据和按需加载工具
-    await Promise.all([MCP.reload(), LSP.reload()])                  // 再并行连接两类外部服务
+    await Config.reloadMCP()                                        // 最后连接配置声明的 MCP 服务
 
     return {
       directories: { builtInToolsDirectory, customToolsDirectory }, // HTTP 工具重载只需要这两个目录
@@ -59,8 +53,8 @@ async function start(options = {}) {
 
 // --- 关闭全部服务端资源 ---
 async function close() {
-  await Promise.all([MCP.close(), LSP.close()])                    // 并行释放网络连接和语言服务器进程
-  await Tool.close()                                              // 最后关闭工具目录监听器
+  await Config.closeMCP()                                          // 释放 MCP 网络连接和子进程
+  await Config.closeTools()                                        // 最后关闭工具目录监听器
 }
 
 

@@ -104,14 +104,13 @@ async function remove(sessionID) {
 async function selectModel(sessionID, provider, model) {
   const session = store.sessions[sessionID]             // 读取当前会话
   const found = locate(sessionID)                       // 读取摘要
-  const agent = store.agents.find((item) => item.provider === provider && item.model === model) // 找到模型对应 Agent
-  if (!session || !found || !agent) return false        // 只接受 Server 已配置 Agent 模型
+  const providerConfig = store.config.providers[provider] // 读取 `/config` 中的供应商模型目录
+  if (!session || !found || providerConfig?.enabled === false || !providerConfig?.models?.includes(model)) return false // 只接受已配置模型
   try {
-    await AgentAPI.updateSession(sessionID, { model, agentId: agent.id }) // 持久化本会话模型选择
+    await AgentAPI.updateSession(sessionID, { model })    // 持久化本会话模型选择
     session.provider = provider                         // 操作框即时反馈供应商
     session.model = model                               // 操作框即时反馈模型
-    session.agentID = agent.id                          // 后续发送使用准确 Agent
-    session.contextLimit = store.config.providers[provider]?.modelSettings?.[model]?.context || 128000 // 同步上下文上限
+    session.contextLimit = providerConfig.modelSettings?.[model]?.context || 128000 // 同步上下文上限
     found.summary.model = model                         // 列表摘要即时反馈选择
     return true                                         // 通知选择成功
   } catch (error) {
@@ -123,7 +122,8 @@ async function selectModel(sessionID, provider, model) {
 
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
-  const agent = store.agents.find((item) => item.id === source.agentID) // 解析会话供应商显示名称
+  const provider = findModelProvider(source.model)       // 从 `/config` 模型目录解析供应商
+  const sessionData = structuredClone(source)              // Server 返回的 Session 即为前端公开结构
   const messages = []                                   // 将工具结果合并到所属助手消息
   for (const item of source.messages ?? []) {
     if (item.role === 'tool') {
@@ -132,26 +132,34 @@ function normalize(source, previous = {}) {
       if (tool) Object.assign(tool, { status: item.status || 'completed', preview: formatToolOutput(item.result), checkpoint: item.checkpoint || item.step }) // 补齐真实结果和存档点
       continue                                           // 工具协议消息不单独占用聊天气泡
     }
-    const message = { ...item }                         // 复制 Server 消息避免修改响应对象
+    const message = structuredClone(item)                   // 复制消息避免归一化修改 Server 响应
     message.reasoning = item.reasoning || item.contentBlocks?.find((block) => block.type === 'thinking')?.thinking?.thinking || '' // 读取统一推理块
     message.content = item.content || item.contentBlocks?.filter((block) => block.type === 'text').map((block) => block.text?.text || '').join('') || '' // 合并文本块
-    message.tools = (item.toolCalls ?? []).map((call) => ({ id: call.toolCallId, runID: call.runID, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: item.checkpoint })) // 将工具声明转换为展示条
+    message.tools = (item.toolCalls ?? []).map((call) => ({ id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: item.checkpoint })) // 将工具声明转换为展示条
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }
   return {
-    ...source,                                           // 保留 Server 的身份、工作区、状态和任务
-    provider: agent?.provider || store.config.activeProvider, // 模型选择器显示供应商
-    model: source.model || agent?.model || store.config.activeModel, // 模型选择器显示模型
+    ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
+    provider,                                           // 模型选择器显示供应商
+    model: source.model || store.config.activeModel,    // 模型选择器显示模型
     messages,                                            // 使用合并后的可见消息
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
     contextTokens: previous.contextTokens || 0,          // SSE usage 更新累计上下文
-    contextLimit: store.config.providers[agent?.provider]?.modelSettings?.[source.model || agent?.model]?.context || previous.contextLimit || 128000, // 读取模型上下文限制
+    contextLimit: store.config.providers[provider]?.modelSettings?.[source.model]?.context || previous.contextLimit || 128000, // 读取模型上下文限制
     inputTokens: previous.inputTokens || 0,              // 保留当前页面累计输入
     outputTokens: previous.outputTokens || 0,            // 保留当前页面累计输出
     cacheTokens: previous.cacheTokens || 0,              // 保留当前页面缓存用量
     rollback: source.rollback ? { ...source.rollback, preview: source.rollback.target?.content || (source.rollback.target?.step ? t('toolStep', { step: source.rollback.target.step }) : '') } : null, // 转换回退预览
   }
+}
+
+
+// --- 从配置模型目录解析供应商 ---
+function findModelProvider(model) {
+  const activeProvider = store.config.activeProvider
+  if (store.config.providers[activeProvider]?.models?.includes(model)) return activeProvider // 同名模型优先使用当前供应商
+  return Object.entries(store.config.providers).find(([, config]) => config.models?.includes(model))?.[0] || activeProvider // 再查找首个配置来源
 }
 
 

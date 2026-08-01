@@ -22,8 +22,6 @@ export const store = reactive({
 
   workspaces: [],                                      // Server `/workspace` 返回的目录和会话摘要
   sessions: {},                                       // 已读取的完整会话，以 Session ID 为键
-  agents: [],                                         // 可选 Agent 与模型目录
-
   config: {
     providers: {},                                    // 设置页可编辑供应商目录
     tools: [],                                        // 工具运行目录与权限
@@ -43,7 +41,6 @@ export const store = reactive({
   settings: {
     draft: null,                                      // 进入设置后创建的隔离草稿
     savedAt: null,                                    // 最近成功自动保存时间
-    feedback: '',                                     // 数据操作和连接反馈
     isSaving: false,                                  // 离开设置时的 API 保存状态
   },
 })

@@ -141,10 +141,6 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
       await page.locator('.simple-settings__heading m3e-button').click()
       await capture(page, testInfo, '18-settings-mcp-added')
     }
-    if (label === '数据管理') {
-      await page.locator('.data-settings m3e-button').first().click()
-      await capture(page, testInfo, '21-settings-data-feedback')
-    }
   }
 
   await expect(page.locator('.simple-settings > m3e-form-field m3e-select').first()).toContainText('简体中文')

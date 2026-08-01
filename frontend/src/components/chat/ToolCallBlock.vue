@@ -12,7 +12,7 @@ const emit = defineEmits(['rollback', 'approval'])                    // 向对�
 const open = ref(props.tool.status === 'waiting')                     // 待审批工具默认展开
 const labels = { waiting: 'waiting', running: 'running', completed: 'completed', rejected: 'rejected' } // 状态映射到翻译键
 const status = computed(() => t(labels[props.tool.status] || 'completed')) // 未知终态使用稳定完成反馈
-const icons = { read_file: 'description', write_file: 'edit_document', run_command: 'terminal', web_fetch: 'language', delegate_task: 'hub' } // 每类工具使用可快速辨认的语义图标
+const icons = { read_file: 'description', write_file: 'edit_document', run_command: 'terminal', web_fetch: 'language' } // 每类工具使用可快速辨认的语义图标
 
 
 // --- 提交审批决定 ---

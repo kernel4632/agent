@@ -97,7 +97,7 @@ function listWithSessions() {
   const sessions = [...store.sessions.items.values()]                       // 一次读取当前完整会话目录
   return list().map((workspace) => ({
     ...workspace,                                                           // 保留工作区身份、路径和时间
-    sessions: sessions.filter((session) => session.workspaceID === workspace.id).sort((left, right) => right.updatedAt - left.updatedAt).map((session) => ({ id: session.id, sessionId: session.id, workspaceID: session.workspaceID, workspaceId: session.workspaceID, title: session.title, agentID: session.agentID, model: session.model, status: session.status, createdAt: session.createdAt, updatedAt: session.updatedAt, lastActiveAt: session.lastActiveAt, messageCount: session.messages.length })), // 设计要求工作区直接包含 Session 摘要
+    sessions: sessions.filter((session) => session.workspaceID === workspace.id).sort((left, right) => right.updatedAt - left.updatedAt).map((session) => ({ id: session.id, sessionId: session.id, workspaceID: session.workspaceID, workspaceId: session.workspaceID, title: session.title, model: session.model, status: session.status, createdAt: session.createdAt, updatedAt: session.updatedAt, lastActiveAt: session.lastActiveAt, messageCount: session.messages.length })), // 设计要求工作区直接包含 Session 摘要
   }))
 }
 

@@ -3,13 +3,12 @@
 HTTP 入口只提交动作和目标；本指令负责运行冲突、参数要求与 Session 修改反馈。
 调用示例：await History.change({ sessionId, action, checkpoint })。
 */
-import { Run } from './run.js'         // 引入会话执行状态检查
 import { Session } from './session.js' // 引入三类历史修改动作
 
 
 // --- 执行一个历史动作 ---
 async function change(request) {
-  if (Run.isSessionRunning(request.sessionId)) return { ok: false, status: 409, error: 'session is running' } // 执行期间不能修改模型历史
+  if (Session.isSessionRunning(request.sessionId)) return { ok: false, status: 409, error: 'session is running' } // 执行期间不能修改模型历史
 
   if (request.action === 'rollback-checkpoint') {
     if (!request.checkpoint) return { ok: false, status: 400, error: 'checkpoint is required' } // checkpoint 回退必须提供步骤

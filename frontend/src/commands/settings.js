@@ -7,7 +7,6 @@ import { AgentAPI } from '../api.js'                    // 引入正式配置和
 import { store } from '../store.js'                     // 引入已保存配置和设置反馈
 import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
 import { UI } from './ui.js'                            // 引入保存错误轻反馈
-import { Workspace } from './workspace.js'              // 引入数据变更后的工作区重载
 import { t } from '../i18n.js'                          // 引入当前语言默认和反馈文案
 
 
@@ -26,7 +25,6 @@ function open() {
     prompt: store.config.prompt,                        // 提示词使用独立字段
     appearance: store.config.appearance,                // 外观偏好只在前端持久化
   })
-  store.settings.feedback = ''                          // 清除旧数据管理反馈
 }
 
 
@@ -150,7 +148,7 @@ async function fetchModels(providerName) {
 function addMCP() {
   const mcp = store.settings.draft?.mcp                 // 读取 MCP 草稿
   if (!mcp) return null                                  // 设置未加载时保持页面
-  const item = { id: `mcp-${crypto.randomUUID().slice(0, 8)}`, name: t('newMcp'), command: '', enabled: false, status: 'stopped', toolCount: 0, definition: { transport: 'stdio', args: [], env: {} } } // 建立完整 stdio 默认定义
+  const item = { id: `mcp-${crypto.randomUUID().slice(0, 8)}`, name: t('newMcp'), command: '', enabled: false, definition: { transport: 'stdio', args: [], env: {} } } // 建立完整 stdio 默认定义
   mcp.push(item)                                         // 新连接进入列表
   return item                                            // 页面可继续编辑新项
 }
@@ -202,40 +200,4 @@ function updateAppearance(field, value) {
 }
 
 
-// --- 数据管理反馈 ---
-async function dataAction(action, file) {
-  try {
-    if (action === 'export') {
-      const document = await AgentAPI.exportData()        // 从 Server 读取完整备份
-      const url = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' })) // 创建浏览器下载资源
-      const link = window.document.createElement('a')     // 使用临时链接触发真实文件下载
-      link.href = url                                      // 指向内存中的备份正文
-      link.download = `agent-backup-${new Date().toISOString().slice(0, 10)}.json` // 使用稳定可读文件名
-      link.click()                                         // 执行用户请求的下载
-      URL.revokeObjectURL(url)                             // 下载触发后释放内存资源
-      store.settings.feedback = t('exportReady')          // 原位反馈导出完成
-      return true                                          // 反馈组件动作成功
-    }
-    if (action === 'import') {
-      if (!file) return false                              // 用户取消文件选择时保持页面
-      const document = JSON.parse(await file.text())       // 读取并解析真实备份文件
-      await AgentAPI.importData(document)                  // Server 验证并恢复三类数据
-      await Promise.all([Workspace.load(), Config.load()]) // 重新加载最终持久化状态
-      store.settings.feedback = '备份已导入'               // 原位反馈恢复完成
-      return true                                          // 反馈导入成功
-    }
-    if (action === 'clear') {
-      await AgentAPI.clearData()                           // Server 删除会话与工作区索引
-      await Workspace.load()                               // 主页立即进入空状态
-      store.settings.feedback = '数据已清除，本地工作区目录未删除' // 明确真实影响边界
-      return true                                          // 反馈清理成功
-    }
-    return false                                           // 未知动作不产生副作用
-  } catch (error) {
-    store.settings.feedback = error.message                // JSON 和 Server 错误在原位展示
-    return false                                           // 保持页面可继续操作
-  }
-}
-
-
-export const Settings = { open, save, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance, dataAction } // 暴露设置全部动作
+export const Settings = { open, save, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance } // 暴露设置全部动作

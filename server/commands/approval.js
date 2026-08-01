@@ -4,7 +4,7 @@
 调用示例：await Approval.wait({...})、await Approval.decide({...})。
 */
 import { Config } from './config.js'                    // 引入永久允许规则的持久化动作
-import { Run } from './run.js'                          // 引入审批等待和恢复状态转换
+import { Session } from './session.js'                  // 引入审批等待和恢复状态转换
 
 const pendingApprovals = new Map()                      // Run 与 toolCallID 组合键到一次性审批等待项
 
@@ -17,7 +17,7 @@ function createKey(runID, toolCallID) {
 
 // --- 等待用户批准工具 ---
 function wait({ runID, sessionID, toolCallID, toolName, input, matched, emit, abortSignal }) {
-  Run.markWaitingApproval(runID)                        // 工具等待用户决定时公开准确的 Run 状态
+  Session.markWaitingApproval(runID)                    // 工具等待用户决定时公开准确的 Run 状态
   return new Promise((resolve) => {
     const key = createKey(runID, toolCallID)            // 同一会话的不同 Run 保持审批隔离
     let finished = false                                // 审批、拒绝和中断只能恢复一次
@@ -26,7 +26,7 @@ function wait({ runID, sessionID, toolCallID, toolName, input, matched, emit, ab
       finished = true                                   // 首个决定取得当前等待点
       pendingApprovals.delete(key)                      // 移除一次性等待项
       abortSignal.removeEventListener('abort', abortWait) // 审批完成后释放中断监听
-      Run.resume(runID)                                 // 决定完成后恢复仍在等待的 Run
+      Session.resume(runID)                             // 决定完成后恢复仍在等待的 Run
       resolve(decision)                                 // 将三选一决定反馈给工具执行
     }
     const abortWait = () => finish('deny')              // 停止 Run 时按拒绝恢复，不留下挂起 Promise
@@ -38,23 +38,15 @@ function wait({ runID, sessionID, toolCallID, toolName, input, matched, emit, ab
 }
 
 
-// --- 查找一个明确的待审批工具调用 ---
-function find(sessionID, toolCallID, runID) {
-  if (runID) {
-    const pending = pendingApprovals.get(createKey(runID, toolCallID)) // 新入口按 Run 精确定位
-    return pending?.sessionID === sessionID ? { pending } : {}         // Session 不匹配时拒绝跨会话恢复
-  }
-  const matches = [...pendingApprovals.values()].filter((item) => item.sessionID === sessionID && item.toolCallID === toolCallID) // 兼容入口按会话查找
-  if (matches.length > 1) return { ambiguous: true }                    // 多个子 Run 重名时必须要求精确 Run ID
-  return { pending: matches[0] }                                        // 零个或唯一匹配交给决定动作处理
+// --- 查找 Session 当前待审批工具调用 ---
+function find(sessionID, toolCallID) {
+  return [...pendingApprovals.values()].find((item) => item.sessionID === sessionID && item.toolCallID === toolCallID) // 单 Session 执行保证结果唯一
 }
 
 
 // --- 处理一次工具审批决定 ---
-async function decide({ sessionID, toolCallID, decision, runID }) {
-  const found = find(sessionID, toolCallID, runID)                       // 先验证 Run、Session 和工具调用归属
-  if (found.ambiguous) return { ok: false, status: 409, error: 'multiple tool calls match; runId is required' } // 拒绝模糊审批
-  const pending = found.pending                                           // 读取唯一等待项
+async function decide({ sessionID, toolCallID, decision }) {
+  const pending = find(sessionID, toolCallID)                              // 按正式 Session 契约读取唯一等待项
   if (!pending || pending.deciding) return { ok: false, status: 404, error: 'tool call is not waiting for approval' } // 一次审批只能消费一次
 
   pending.deciding = true                                                // 持久化期间阻止第二个决定竞争

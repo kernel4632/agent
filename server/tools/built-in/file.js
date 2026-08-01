@@ -1,6 +1,6 @@
 /*
 文件工具集：提供读取、写入、列目录和按名称搜索四个真实文件操作。
-所有路径由模型明确传入，权限判断统一在 commands/chat.js 执行。
+所有路径由模型明确传入，权限判断统一在 commands/session.js 执行。
 调用示例：await read_file.execute({ path: 'README.md', encoding: 'utf-8' })。
 */
 import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises' // 引入真实文件读写与目录访问能力

@@ -6,11 +6,12 @@
 import { createStorage } from 'unstorage'             // 引入统一键值存储能力
 import fsDriver from 'unstorage/drivers/fs'           // 引入真实文件系统存储驱动
 import { nanoid } from 'nanoid'                       // 引入紧凑唯一 ID 生成能力
+import { streamText } from 'ai'                        // 引入真实模型流调用
 import { store } from '../store.js'                    // 引入服务端唯一状态根
-import { Config } from './config.js'                   // 引入默认 Agent 选择
-import { Event } from './event.js'                     // 引入会话事件生命周期
+import { Config } from './config.js'                   // 引入当前模型配置
+import { Agent } from './agent.js'                     // 引入本轮模型快照解析
+import { SSE } from '../utils/sse.js'                  // 引入事件帧编码
 import { Workspace } from './workspace.js'             // 引入工作区归属校验
-import { Run as RunState } from './run.js'              // 引入会话执行冲突检查
 
 const sessionStore = store.sessions                       // 当前指令使用会话领域状态
 
@@ -35,7 +36,6 @@ async function load(directory) {
 
 // --- 创建空会话 ---
 async function create(options = {}) {
-  if (typeof options === 'string') options = { agentID: options } // 兼容旧指令调用的单个 Agent ID
   const workspaceID = options.workspaceID || Workspace.getDefaultID() // 未指定时绑定首次启动创建的默认工作区
   if (!Workspace.get(workspaceID)) return { ok: false, status: 404, error: 'workspace not found' } // 会话不能引用不存在的工作区
 
@@ -44,7 +44,6 @@ async function create(options = {}) {
     id: `ses_${nanoid(10)}`,                          // 会话唯一标识，用作 API 和磁盘键
     workspaceID,                                      // 所属工作区决定主页归类和工具执行目录
     workspaceId: workspaceID,                          // 架构契约字段，保留 camelCase HTTP 数据形状
-    agentID: options.agentID || Config.get().defaultAgentId || 'default', // 会话默认 Agent，后续消息可显式覆盖
     model: options.model || Config.get().activeModel || '', // 保存设置页和操作框选择的模型名称
     status: 'idle',                                   // 会话当前执行状态供列表和顶部栏展示
     title: '',                                        // 首条消息后由模型异步生成标题
@@ -60,8 +59,8 @@ async function create(options = {}) {
   }
   await persist(session)                              // 候选会话先写盘，失败时不污染运行时目录
   sessionStore.items.set(session.id, session)         // 持久化成功后将新会话加入运行时映射
-  Event.initialize(session.id)                        // 正式提交后建立独立 SSE 订阅
-  Event.emit(session.id, 'session-created', { id: session.id, workspaceID: session.workspaceID }) // 事件订阅可观察会话创建身份
+  initialize(session.id)                              // 正式提交后建立独立 SSE 订阅
+  emit(session.id, 'session-created', { id: session.id, workspaceID: session.workspaceID }) // 事件订阅可观察会话创建身份
   return structuredClone(session)                    // 返回副本，避免入口直接改状态
 }
 
@@ -84,14 +83,9 @@ async function update(sessionID, changes = {}) {
     if (!model) return { ok: false, status: 400, error: 'model must not be empty' } // 空模型无法启动真实请求
     candidate.model = model                             // 候选会话保存模型选择
   }
-  if ('agentID' in changes || 'agentId' in changes) {
-    const agentID = changes.agentID ?? changes.agentId  // 接受正式缩写和 HTTP 常见字段形式
-    if (typeof agentID !== 'string' || !agentID.trim()) return { ok: false, status: 400, error: 'agent ID must not be empty' } // 空 Agent 无法解析
-    candidate.agentID = agentID.trim()                  // 候选会话保存 Agent 选择
-  }
   await persist(candidate)                              // 全部字段验证后先持久化候选值
   Object.assign(session, candidate)                     // 写盘成功后原位提交，保持运行循环持有的会话引用有效
-  return { ok: true, ...(changes.title !== undefined ? { title: candidate.title, titleSource: candidate.titleSource } : {}), ...(changes.model !== undefined ? { model: candidate.model } : {}), ...((changes.agentID !== undefined || changes.agentId !== undefined) ? { agentID: candidate.agentID } : {}), session: get(sessionID) } // 同时反馈兼容字段和完整会话
+  return { ok: true, ...(changes.title !== undefined ? { title: candidate.title, titleSource: candidate.titleSource } : {}), ...(changes.model !== undefined ? { model: candidate.model } : {}), session: get(sessionID) } // 反馈修改字段和完整会话
 }
 
 
@@ -139,8 +133,8 @@ function list(workspaceID) {
   return [...sessionStore.items.values()]             // 从运行时映射读取全部会话
     .filter((session) => !workspaceID || session.workspaceID === workspaceID) // 工作区主页只读取自己的会话
     .sort((left, right) => right.updatedAt - left.updatedAt) // 最近更新的会话优先展示
-    .map(({ id, workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messages }) => ({ // API 列表不泄漏完整消息
-      id, sessionId: id, workspaceID, workspaceId: workspaceID, title, agentID, model, status, createdAt, updatedAt, lastActiveAt, messageCount: messages.length, // 同时反馈设计字段和兼容字段
+    .map(({ id, workspaceID, title, model, status, createdAt, updatedAt, lastActiveAt, messages }) => ({ // API 列表不泄漏完整消息
+      id, sessionId: id, workspaceID, workspaceId: workspaceID, title, model, status, createdAt, updatedAt, lastActiveAt, messageCount: messages.length, // 同时反馈设计字段和兼容字段
     }))
 }
 
@@ -185,14 +179,14 @@ async function remove(sessionID) {
   await sessionStore.writes.get(sessionID)?.catch(() => {}) // 等待较早保存结束，避免删除后旧写入重建文件
   await sessionStore.storage.removeItem(sessionID)    // 先移除磁盘记录，失败时保留可访问的运行时状态
   sessionStore.items.delete(sessionID)                // 磁盘删除成功后移除运行时数据
-  Event.remove(sessionID)                             // 同步清理该会话的事件历史和订阅状态
+  removeEvents(sessionID)                             // 同步清理该会话的事件历史和订阅状态
   return { ok: true }                                 // 向 HTTP 入口反馈删除完成
 }
 
 
 // --- 安全删除一个非运行会话 ---
 async function removeSafely(sessionID) {
-  if (RunState.isSessionRunning(sessionID)) return { ok: false, status: 409, error: 'session is running' } // 执行期间不能删除历史
+  if (isSessionRunning(sessionID)) return { ok: false, status: 409, error: 'session is running' } // 执行期间不能删除历史
   return remove(sessionID)                                               // 空闲会话进入原子磁盘删除路径
 }
 
@@ -263,7 +257,6 @@ function commitRollback(session) {
 function normalizeSession(session, initializeEvents = true) {
   session.workspaceID ??= session.workspaceId ?? Workspace.getDefaultID() // 优先保留备份中的正式 camelCase 归属，旧会话才使用默认工作区
   session.workspaceId = session.workspaceID             // 两种兼容字段始终指向同一工作区
-  session.agentID ??= Config.get().defaultAgentId || 'default' // 旧会话补齐默认 Agent
   session.model ??= Config.get().activeModel || ''     // 旧会话补齐当前默认模型
   session.status = 'idle'                              // 服务重启后旧执行不可能仍在运行
   session.title ??= ''                                // 旧会话缺少标题时保持可生成状态
@@ -276,7 +269,7 @@ function normalizeSession(session, initializeEvents = true) {
   session.messages.forEach((message) => { message.id ??= `msg_${nanoid(10)}` }) // 每条消息获得稳定 UI 动作标识
   session.rollbackCache ??= null                      // 旧文件补齐可撤销状态
   session.messages.forEach(normalizeMessage)          // 旧展示消息升级为统一 contentBlocks 结构
-  if (initializeEvents) Event.initialize(session.id)  // 真实恢复时建立事件状态，纯验证保持无副作用
+  if (initializeEvents) initialize(session.id)        // 真实恢复时建立事件状态，纯验证保持无副作用
 }
 
 
@@ -377,11 +370,58 @@ async function replaceAll(sessions) {
   sessionStore.items.clear()                                    // 清空运行时会话目录
   for (const session of normalized) {
     sessionStore.items.set(session.id, session)                 // 按备份身份恢复运行时数据
-    Event.initialize(session.id)                                // 数据正式进入目录后才建立事件状态
+    initialize(session.id)                                      // 数据正式进入目录后才建立事件状态
     await persist(session)                                      // 逐个写回完整会话
   }
   return { ok: true, sessions: normalized.length }              // 反馈恢复数量
 }
 
 
-export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, removeSafely, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage, exportAll, validateAll, replaceAll } // 导出会话业务动作
+function initialize(sessionID) {
+  if (!store.events.bySession.has(sessionID)) store.events.bySession.set(sessionID, [])
+  if (!store.events.listeners.has(sessionID)) store.events.listeners.set(sessionID, new Set())
+  if (!store.events.nextID.has(sessionID)) store.events.nextID.set(sessionID, 1)
+}
+function emit(sessionID, name, data) {
+  initialize(sessionID)
+  const event = { id: store.events.nextID.get(sessionID), name, data: structuredClone(data), createdAt: Date.now() }
+  store.events.nextID.set(sessionID, event.id + 1)
+  const history = store.events.bySession.get(sessionID); history.push(event)
+  if (history.length > 1000) history.splice(0, history.length - 1000)
+  for (const listener of store.events.listeners.get(sessionID)) listener(event)
+  return structuredClone(event)
+}
+function subscribe(sessionID, afterID = 0) {
+  initialize(sessionID); let remove = () => {}
+  return new ReadableStream({ start(writer) { const send = (event) => writer.enqueue(SSE.encode(event.name, event.data, event.id)); store.events.bySession.get(sessionID).filter((event) => event.id > afterID).forEach(send); store.events.listeners.get(sessionID).add(send); remove = () => store.events.listeners.get(sessionID)?.delete(send) }, cancel() { remove() } })
+}
+function removeEvents(sessionID) { store.events.bySession.delete(sessionID); store.events.listeners.delete(sessionID); store.events.nextID.delete(sessionID) }
+function resetRuns() { store.runs.items.clear(); store.runs.bySession.clear() }
+function getRun(id) { return store.runs.items.get(id) ?? null }
+function isSessionRunning(sessionID) { const run = getRun(store.runs.bySession.get(sessionID)); return Boolean(run && ['queued', 'running', 'waiting_approval'].includes(run.status)) }
+function markWaitingApproval(id) { const run = getRun(id); if (run?.status === 'running') run.status = 'waiting_approval'; return run }
+function resume(id) { const run = getRun(id); if (run?.status === 'waiting_approval') run.status = 'running'; return run }
+function publicRun(run) { const { abortController, ...value } = run; return structuredClone(value) }
+function createRun({ sessionID, model, input }) {
+  if (isSessionRunning(sessionID)) throw new Error('session is running')
+  const modelSnapshot = Agent.resolve(model)
+  const run = { id: `run_${nanoid(10)}`, sessionID, ...modelSnapshot, input, status: 'running', result: null, error: '', createdAt: Date.now(), startedAt: Date.now(), finishedAt: null, abortController: new AbortController() }
+  store.runs.items.set(run.id, run); store.runs.bySession.set(sessionID, run.id); return run
+}
+async function runSession(run, sessionID, content, files) {
+  const session = getMutable(sessionID); session.status = 'running'; session.modelMessages.push({ role: 'user', content }); session.messages.push({ id: `msg_${crypto.randomUUID()}`, role: 'user', content, contentBlocks: [{ type: 'text', text: { text: content } }], files, checkpoint: null, rolledBack: false, createdAt: Date.now() }); await persist(session)
+  try {
+    const result = streamText({ model: Config.createModel(run.provider, run.model), system: run.systemPrompt, messages: session.modelMessages, abortSignal: run.abortController.signal, providerOptions: Config.getProviderOptionsFor(run.provider, `${sessionID}:${run.id}`), ...Config.getGenerationOptionsFor(run.provider, run.model) })
+    let text = ''; for await (const part of result.fullStream) { if (part.type === 'text-delta') { text += part.text; emit(sessionID, part.type, part) } }
+    session.modelMessages.push(...(await result.response).messages); session.messages.push({ id: `msg_${crypto.randomUUID()}`, role: 'assistant', content: text, contentBlocks: [{ type: 'text', text: { text } }], checkpoint: null, rolledBack: false, createdAt: Date.now() }); await persist(session)
+    run.status = 'completed'; run.result = { sessionID }; run.finishedAt = Date.now(); emit(sessionID, 'finish', { ok: true, sessionID, runID: run.id })
+  } catch (error) { run.status = run.abortController.signal.aborted ? 'cancelled' : 'failed'; run.error = String(error); run.finishedAt = Date.now(); emit(sessionID, run.status === 'cancelled' ? 'finish' : 'error', run.status === 'cancelled' ? { ok: false, cancelled: true, sessionID, runID: run.id } : { message: String(error) }) }
+  finally { const current = getMutable(sessionID); if (current) { current.status = 'idle'; await persist(current).catch(() => {}) } }
+}
+function sendSession(request) {
+  const session = get(request.sessionId); if (!session) return { ok: false, status: 404, error: 'session not found' }; if (isSessionRunning(session.id)) return { ok: false, status: 409, error: 'session is running' }
+  const run = createRun({ sessionID: session.id, model: session.model || Config.get().activeModel, input: request.content }); emit(session.id, 'run-created', { runID: run.id }); void runSession(run, session.id, request.content, (request.files || []).map(({ content, ...file }) => file)); return { ok: true, sessionId: session.id, run: publicRun(run) }
+}
+function stop(sessionID) { const run = getRun(store.runs.bySession.get(sessionID)); if (!run || !isSessionRunning(sessionID)) return { ok: false, status: 404, error: 'session is not running' }; run.abortController.abort('stopped by user'); return { ok: true } }
+
+export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, removeSafely, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage, exportAll, validateAll, replaceAll, initialize, emit, subscribe, resetRuns, isSessionRunning, markWaitingApproval, resume, sendSession, stop } // 导出会话、事件和执行动作

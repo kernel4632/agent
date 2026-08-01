@@ -37,16 +37,3 @@ export const task_list_update = {                          // 导出模型可调
     return context.updateTasks(tasks)                     // 由 Chat 注入当前会话持久化动作并发送 SSE 反馈
   },
 }
-
-
-// --- 派生一个共享环境中的子 Agent ---
-export const spawn_agent = {                                // 导出模型可调用的子智能体工具
-  description: '将一个明确的独立子任务交给另一个 Agent。子 Agent 与当前任务共享工具、权限、MCP、LSP、Skills 和工作区，只返回结果，不直接写入父模型历史。',
-  parameters: {
-    prompt: { type: 'string', description: '子 Agent 要独立完成的明确任务', required: true },
-    agentId: { type: 'string', description: '可选的 Agent ID；省略时使用默认 Agent' },
-  },
-  async execute({ prompt, agentId }, context) {
-    return context.spawnAgent(prompt, agentId)              // 由 Chat 创建独立 Child Run 并等待结果
-  },
-}

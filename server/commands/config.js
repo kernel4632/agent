@@ -3,8 +3,14 @@
 配置只在此处读写磁盘，store.js 仅保存当前值和文件位置。
 调用示例：await Config.load('C:/Users/me/.agent/config.json')、Config.getActiveModel()。
 */
-import { mkdir } from 'node:fs/promises'                          // 引入创建配置目录的文件能力
-import { dirname } from 'node:path'                               // 引入提取配置父目录的路径能力
+import { mkdir, readdir } from 'node:fs/promises'                 // 引入创建配置目录和工具扫描能力
+import { dirname, join, resolve } from 'node:path'                // 引入路径和工具目录定位能力
+import { pathToFileURL } from 'node:url'
+import chokidar from 'chokidar'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { createOpenAI } from '@ai-sdk/openai'                     // 引入支持 Responses API 缓存的 OpenAI 提供商
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible' // 引入 OpenAI-compatible 模型提供商
 import { generateText } from 'ai'                                  // 引入供应商连通性测试所需的最小生成调用
@@ -12,6 +18,8 @@ import { defu } from 'defu'                                      // 引入配置
 import { store } from '../store.js'                                // 引入服务端唯一状态根
 
 const configStore = store.config                                      // 当前指令使用配置领域状态
+const toolStore = store.tools
+const capabilityStore = store.capabilities
 
 const defaultConfig = {                                          // 首次运行时写入的可编辑默认配置
   activeProvider: '',                                             // 未配置供应商时不猜测用户选择
@@ -22,10 +30,8 @@ const defaultConfig = {                                          // 首次运行
   modelLimits: {},                                                // 模型上下文限制按模型名称保存
   runTimeoutMs: 300000,                                           // 单次根或子 Run 默认最多执行五分钟
   mcpServers: {},                                                 // MCP 服务按名称保存 stdio 或 HTTP 声明
-  lspServers: {},                                                 // LSP 服务按名称保存命令、语言和扩展名映射
+                                                                    // 外部能力只保留 MCP 与 Skills
   skills: { enabled: true, directories: [], disabled: [] },       // Skill 默认扫描用户和项目目录
-  agents: {},                                                      // Agent 只保存模型、名称和提示词选择
-  defaultAgentId: 'default',                                      // 新会话默认使用的 Agent
 }
 
 
@@ -50,7 +56,6 @@ async function load(filePath, mcpFilePath = `${dirname(filePath)}/mcp.json`) {
   resolveEnvironmentSecrets(configStore.value)                     // 运行时展开环境占位符，磁盘继续保存占位符
   normalizeProviders(configStore.value.providers)                  // 将旧供应商记录升级为显式协议和请求设置
   normalizeCapabilities(configStore.value)                         // 补齐外部能力默认结构
-  normalizeAgents(configStore.value)                                // 从旧全局模型配置创建默认 Agent
   await save()                                                     // 将补齐后的完整结构同步到磁盘
   return configStore.value                                        // 向启动流程反馈当前配置
 }
@@ -125,13 +130,10 @@ async function update(changes) {
 
   const nextValue = defu(nextChanges, configStore.value)            // 在独立候选值中深度保留未修改内容
   if ('providers' in nextChanges) nextValue.providers = nextChanges.providers // 提供商集合按 UI 完整结果替换，删除才能生效
-  if ('agents' in nextChanges) nextValue.agents = nextChanges.agents             // Agent 集合按设置页完整结果替换，删除才能生效
   if ('mcpServers' in nextChanges) nextValue.mcpServers = nextChanges.mcpServers // MCP 集合完整替换才能删除服务
-  if ('lspServers' in nextChanges) nextValue.lspServers = nextChanges.lspServers // LSP 集合完整替换才能删除服务
   if ('skills' in nextChanges) nextValue.skills = nextChanges.skills             // Skill 配置按页面完整结果替换
   normalizeProviders(nextValue.providers)                           // 新旧 API 输入统一为完整供应商结构
   normalizeCapabilities(nextValue)                                  // 新旧外部能力输入统一默认值
-  normalizeAgents(nextValue)                                        // 保证 Agent 定义与当前配置结构同步
   await save(nextValue)                                              // 候选值完整写盘后才替换运行态
   configStore.value = nextValue                                      // 保存失败不能让模型看到未持久化配置
   return { ok: true }                                               // 返回统一成功结果
@@ -288,32 +290,6 @@ function normalizeProviders(providers) {
 }
 
 
-// --- 统一 Agent 定义 ---
-function normalizeAgents(config) {
-  if (!config.agents || typeof config.agents !== 'object') config.agents = {}
-  if (!config.agents.default) {
-    config.agents.default = {
-      id: 'default',
-      name: '默认 Agent',
-      provider: config.activeProvider,
-      model: config.activeModel,
-      systemPrompt: config.systemPrompt,
-    }
-  }
-  for (const [id, agent] of Object.entries(config.agents)) {
-    if (!agent || typeof agent !== 'object') delete config.agents[id]
-    else {
-      agent.id = id
-      agent.name = agent.name || id
-      agent.provider ??= config.activeProvider
-      agent.model ??= config.activeModel
-      agent.systemPrompt ??= config.systemPrompt
-    }
-  }
-  config.defaultAgentId = config.agents[config.defaultAgentId] ? config.defaultAgentId : 'default'
-}
-
-
 // --- 恢复外部能力中的脱敏配置 ---
 function restoreCapabilitySecrets(nextServers, savedServers = {}) {
   for (const [name, definition] of Object.entries(nextServers)) {
@@ -337,7 +313,6 @@ function resolveEnvironmentSecrets(config) {
   }
   for (const [name, provider] of Object.entries(config.providers ?? {})) config.providers[name] = resolveValue(provider) // 展开 API Key、请求头和模型地址
   for (const [name, server] of Object.entries(config.mcpServers ?? {})) config.mcpServers[name] = resolveValue(server) // 展开 MCP 子进程环境和认证头
-  for (const [name, server] of Object.entries(config.lspServers ?? {})) config.lspServers[name] = resolveValue(server) // 展开 LSP 子进程环境
 }
 
 
@@ -350,19 +325,13 @@ function restoreEnvironmentSecrets(value, source) {
 }
 
 
-// --- 统一 MCP、LSP 与 Skill 配置 ---
+// --- 统一 MCP 与 Skill 配置 ---
 function normalizeCapabilities(config) {
   config.mcpServers = config.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : {} // MCP 声明统一为对象
-  config.lspServers = config.lspServers && typeof config.lspServers === 'object' ? config.lspServers : {} // LSP 声明统一为对象
   for (const definition of Object.values(config.mcpServers)) {
     definition.transport = definition.transport === 'http' ? 'http' : 'stdio'       // 只接受两个官方传输类型
     definition.args = Array.isArray(definition.args) ? definition.args : []         // stdio 参数统一为数组
     definition.headers = definition.headers && typeof definition.headers === 'object' ? definition.headers : {} // HTTP 头统一为对象
-    definition.env = definition.env && typeof definition.env === 'object' ? definition.env : {} // 子进程环境统一为对象
-  }
-  for (const definition of Object.values(config.lspServers)) {
-    definition.args = Array.isArray(definition.args) ? definition.args : []         // LSP 命令参数统一为数组
-    definition.extensions = Array.isArray(definition.extensions) ? definition.extensions : [] // 文件映射统一为数组
     definition.env = definition.env && typeof definition.env === 'object' ? definition.env : {} // 子进程环境统一为对象
   }
   const skills = config.skills && typeof config.skills === 'object' ? config.skills : {} // 接受旧配置缺失 Skill 字段
@@ -379,5 +348,41 @@ function createTimeoutFetch(timeoutMs) {
   }
 }
 
+// --- 工具目录加载与热重载 ---
+async function loadToolFile(filePath) {
+  const absolutePath = resolve(filePath)
+  for (const [name, item] of toolStore.items) if (item.filePath === absolutePath) toolStore.items.delete(name)
+  const module = await import(`${pathToFileURL(absolutePath).href}?updated=${Date.now()}`)
+  for (const [name, definition] of Object.entries(module)) if (definition?.description && typeof definition.execute === 'function') toolStore.items.set(name, { ...definition, name, filePath: absolutePath, source: absolutePath.includes(`${join('tools', 'custom')}${process.platform === 'win32' ? '\\' : '/'}`) ? 'custom' : 'built-in' })
+}
+async function loadTools(directories) {
+  toolStore.directories = directories.map((directory) => resolve(directory)); const errors = []; const files = []
+  for (const directory of toolStore.directories) { try { files.push(...(await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith('.js')).map((entry) => join(directory, entry.name))) } catch (error) { if (error.code !== 'ENOENT') throw error } }
+  for (const file of files) try { await loadToolFile(file) } catch (error) { errors.push({ file, error: String(error) }) }
+  return { ok: true, loaded: toolStore.items.size, files: files.length, errors }
+}
+async function watchTools() {
+  if (toolStore.watcher) return
+  toolStore.watcher = chokidar.watch(toolStore.directories.map((directory) => join(directory, '*.js')), { ignoreInitial: true })
+  toolStore.watcher.on('add', (path) => loadToolFile(path).catch(() => {})).on('change', (path) => loadToolFile(path).catch(() => {})).on('unlink', (path) => { const filePath = resolve(path); for (const [name, item] of toolStore.items) if (item.filePath === filePath) toolStore.items.delete(name) })
+}
+async function closeTools() { if (toolStore.watcher) { await toolStore.watcher.close(); toolStore.watcher = null } }
 
-export const Config = { load, save, get, getPublic, update, allowTool, testProvider, listModels, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor } // 导出配置、模型发现和 Agent 指定配置动作
+// --- MCP 连接生命周期 ---
+function removeMCPTools(server) { for (const [name, item] of toolStore.items) if (item.kind === 'mcp' && item.server === server) toolStore.items.delete(name) }
+async function connectMCP(name, definition) {
+  const runtime = { name, status: 'connecting', error: '', toolCount: 0, transport: definition.transport || 'stdio' }; capabilityStore.mcp.set(name, runtime)
+  if (definition.enabled === false) { runtime.status = 'disabled'; return runtime }
+  try {
+    const client = new Client({ name: 'agent-workbench', version: '0.1.0' }); const transport = runtime.transport === 'http' ? new StreamableHTTPClientTransport(new URL(definition.url), { requestInit: { headers: definition.headers || {} } }) : new StdioClientTransport({ command: definition.command, args: definition.args || [], cwd: definition.cwd || capabilityStore.workspaceDirectory, env: { ...process.env, ...(definition.env || {}) }, stderr: 'pipe' })
+    runtime.client = client; await client.connect(transport); const response = await client.listTools(); runtime.status = 'connected'; runtime.toolCount = response.tools.length
+    for (const remote of response.tools) { const toolName = `mcp_${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_${remote.name.replace(/[^a-zA-Z0-9_-]/g, '_')}`; toolStore.items.set(toolName, { name: toolName, label: remote.title || remote.name, description: remote.description || `MCP ${name} ${remote.name}`, inputSchema: remote.inputSchema || { type: 'object', properties: {} }, source: `mcp:${name}`, kind: 'mcp', server: name, originalName: remote.name, execute: (input, context = {}) => client.callTool({ name: remote.name, arguments: input }, CallToolResultSchema, { signal: context.abortSignal }) }) }
+  } catch (error) { runtime.status = 'error'; runtime.error = error.message; removeMCPTools(name) }
+  return runtime
+}
+async function closeMCP() { await Promise.all([...capabilityStore.mcp.values()].map(async (runtime) => { try { await runtime.client?.close() } catch {} })); for (const name of capabilityStore.mcp.keys()) removeMCPTools(name); capabilityStore.mcp.clear() }
+async function reloadMCP() { await closeMCP(); await Promise.all(Object.entries(configStore.value.mcpServers || {}).map(([name, definition]) => connectMCP(name, definition))); return { ok: true, servers: listMCP() } }
+function listMCP() { return Object.entries(configStore.value.mcpServers || {}).map(([name, definition]) => { const runtime = capabilityStore.mcp.get(name); return { name, transport: definition.transport || 'stdio', enabled: definition.enabled !== false, status: runtime?.status || 'configured', error: runtime?.error || '', toolCount: runtime?.toolCount || 0, updatedAt: runtime?.updatedAt || '' } }) }
+
+
+export const Config = { load, save, get, getPublic, update, allowTool, testProvider, listModels, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor, loadTools, watchTools, closeTools, reloadMCP, closeMCP, listMCP } // 导出配置与能力动作

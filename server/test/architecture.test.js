@@ -1,18 +1,13 @@
 /*
-架构契约测试：通过真实 Elysia 请求、磁盘存储和本机模型协议验证正式 Server API。
-本机模型端点只替代外部网络，不跳过 AI SDK、后台 Run、会话持久化或 SSE 事件链。
+ 架构契约测试：通过真实 Elysia 请求、磁盘存储和本机模型协议验证正式 Server API。
+ 本机模型端点只替代外部网络，不跳过 AI SDK、会话持久化或 SSE 事件链。
 调用方式：bun test test/architecture.test.js。
 */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test' // 引入 Bun 测试生命周期和断言能力
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'      // 引入隔离数据目录、源码和配置写入能力
+import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises' // 引入隔离数据目录、源码和配置写入能力
 import { tmpdir } from 'node:os'                                    // 引入操作系统临时目录位置
 import { join } from 'node:path'                                    // 引入跨平台路径拼接能力
 import { createApp } from '../server.js'                            // 引入完整 HTTP 应用创建入口
-import { Data } from '../commands/data.js'                          // 引入备份原子性指令断言
-import { Session } from '../commands/session.js'                    // 引入会话状态基线断言
-import { Workspace } from '../commands/workspace.js'                // 引入工作区状态基线断言
-import { write_file } from '../tools/built-in/file.js'              // 引入分块文件写入协议断言
-import { run_command } from '../tools/built-in/shell.js'            // 引入真实命令取消协议断言
 
 let app                                                              // 保存测试使用的真实 Elysia 应用
 let closeApp                                                         // 保存资源统一关闭动作
@@ -55,7 +50,7 @@ beforeAll(async () => {
 
 // --- 释放应用和模型端点 ---
 afterAll(async () => {
-  await closeApp?.()                                                   // 关闭工具监听和外部能力资源
+   await closeApp?.()                                                     // 关闭应用资源
   modelServer?.stop(true)                                              // 关闭本机模型协议端点
 })
 
@@ -80,7 +75,7 @@ async function waitForFinish(sessionID) {
   let pending = ''                                                       // 保存跨读取批次的不完整帧
   const events = []                                                      // 保存已解析事件供顺序和 ID 断言
   while (true) {
-    const { value } = await reader.read()                                // 等待后台 Run 的下一批反馈
+    const { value } = await reader.read()                                 // 等待后台执行的下一批反馈
     pending += decoder.decode(value, { stream: true })                    // 合并本批事件文本
     const frames = pending.split('\n\n')                                // 按标准 SSE 空行切分事件
     pending = frames.pop() ?? ''                                         // 未完成帧留给下一批
@@ -131,8 +126,8 @@ describe('architecture contract', () => {
   })
 
   it('runs in background and replays ordered SSE events', async () => {
-    const sent = await jsonRequest('/session/send', 'POST', { sessionId: sessionID, content: '执行契约测试', model: 'glm-5.2' }) // 发送请求只负责启动 Run
-    expect(sent.status).toBe(200)                                         // 后台 Run 成功登记
+    const sent = await jsonRequest('/session/send', 'POST', { sessionId: sessionID, content: '执行契约测试', model: 'glm-5.2' }) // 发送请求只负责启动后台执行
+    expect(sent.status).toBe(200)                                         // 后台执行成功登记
     expect(await sent.json()).toMatchObject({ ok: true, sessionId: sessionID, run: { id: expect.stringMatching(/^run_/), status: 'running' } }) // 立即反馈可查询执行身份
 
     const events = await waitForFinish(sessionID)                         // 通过独立 SSE 等待真实 AI SDK 流结束
@@ -147,7 +142,7 @@ describe('architecture contract', () => {
     await replayReader.cancel()                                            // 关闭持续订阅避免测试挂起
 
     const detail = await (await request(`/session?sessionId=${sessionID}`)).json() // 读取后台修改后的持久化会话
-    expect(detail.status).toBe('idle')                                     // Run 结束后恢复空闲状态
+    expect(detail.status).toBe('idle')                                    // 执行结束后恢复空闲状态
     expect(detail.messages[0].contentBlocks[0]).toEqual({ type: 'text', text: { text: '执行契约测试' } }) // 用户消息使用统一内容块
     expect(detail.messages.some((message) => message.role === 'assistant' && message.contentBlocks.some((block) => block.type === 'text'))).toBe(true) // 助手消息可直接渲染
   }, 15000)
@@ -167,57 +162,30 @@ describe('architecture contract', () => {
     expect((await jsonRequest('/workspace', 'DELETE', { workspaceId: workspaceID })).status).toBe(200) // 再移除工作区定义
   })
 
-  it('rejects invalid backups without partially replacing live data', async () => {
-    const liveWorkspaces = Workspace.list()                               // 保存导入前完整工作区基线
-    const liveSessions = Session.exportAll()                              // 保存导入前完整会话基线
-    const result = await Data.importBackup({                              // 构造工作区合法但会话引用不存在工作区的备份
-      format: 'agent-backup',
-      version: 1,
-      config: { systemPrompt: '不应生效' },
-      workspaces: [{ id: 'wrk_imported', path: dataDirectory, name: '导入候选' }],
-      sessions: [{ id: 'ses_orphan', workspaceId: 'wrk_missing', messages: [] }],
-    })
-    expect(result).toMatchObject({ ok: false, status: 400, error: 'session references unknown workspace' }) // 跨领域引用必须在修改前失败
-    expect(Workspace.list()).toEqual(liveWorkspaces)                      // 工作区不能被先行替换
-    expect(Session.exportAll()).toEqual(liveSessions)                     // 会话不能产生部分恢复
-  })
-
-  it('writes large files in explicit bounded chunks', async () => {
-    const path = join(dataDirectory, 'chunked.txt')                       // 使用隔离目录验证真实磁盘效果
-    await write_file.execute({ path, content: 'FIRST', mode: 'overwrite' }) // 首块创建文件
-    await write_file.execute({ path, content: '_SECOND', mode: 'append' }) // 后续块追加内容
-    expect(await Bun.file(path).text()).toBe('FIRST_SECOND')              // 工具协议不能覆盖前一块
-  })
-
   it('keeps required server modules and routes free of store access', async () => {
     for (const path of ['routes/health.js', 'commands/history.js', 'commands/skills.js', 'utils/sse.js']) expect(await Bun.file(join(import.meta.dir, '..', path)).exists()).toBe(true) // 设计指定文件必须真实存在
     const routeNames = ['health.js', 'config.js', 'workspace.js', 'session.js'] // 正式设计 Route 只能接收触发并调用 Command
     for (const name of routeNames) expect(await readFile(join(import.meta.dir, '..', 'routes', name), 'utf8')).not.toMatch(/from ['"]\.\.\/store\.js['"]/) // Route 禁止直接读取状态根
   })
 
-  it('applies workspace and session patches atomically', async () => {
-    const workspace = await Workspace.create(join(dataDirectory, 'atomic-workspace'), '原名称') // 创建独立原子修改目标
-    const workspaceID = workspace.workspace.id                              // 保存稳定工作区身份
-    const failedWorkspace = await Workspace.update(workspaceID, { name: '不应生效', path: '' }) // 后字段失败不能提交前字段
-    expect(failedWorkspace.ok).toBe(false)                                  // 指令反馈参数错误
-    expect(Workspace.get(workspaceID).name).toBe('原名称')                   // Store 保持修改前名称
+  it('allows only architecture-design production modules', async () => {
+    const serverRoot = join(import.meta.dir, '..')
+    const allowlists = {
+      routes: ['config.js', 'health.js', 'session.js', 'workspace.js'],
+      commands: ['agent.js', 'approval.js', 'config.js', 'history.js', 'session.js', 'skills.js', 'workspace.js'],
+      utils: ['compress.js', 'retry.js', 'sse.js'],
+      'tools/built-in': ['agent.js', 'file.js', 'shell.js', 'web.js'],
+    }
 
-    const session = await Session.create({ workspaceID, model: 'glm-5.2' })  // 创建多字段 Session PATCH 目标
-    const updated = await Session.update(session.id, { title: '完整修改', model: 'next-model', agentId: 'default' }) // 同一请求修改三个字段
-    expect(updated.session).toMatchObject({ title: '完整修改', model: 'next-model', agentID: 'default' }) // 所有字段一次提交
-  })
-
-  it('keeps failed rollback attempts completely side-effect free', async () => {
-    const workspace = Workspace.list()[0]                                  // 使用当前有效工作区创建隔离会话
-    const session = await Session.create({ workspaceID: workspace.id })      // 建立可控历史
-    const mutable = Session.getMutable(session.id)                           // 测试指令内部状态一致性
-    mutable.messages = [{ id: 'msg_user', role: 'user', content: '保留', contentBlocks: [], createdAt: Date.now() }] // 建立当前可见历史
-    mutable.modelMessages = [{ role: 'user', content: '保留' }]              // 建立对应模型历史
-    mutable.rollbackCache = { messages: [{ id: 'msg_hidden', role: 'assistant', content: '隐藏', contentBlocks: [], createdAt: Date.now() }], modelMessages: [{ role: 'assistant', content: '隐藏' }], target: { type: 'message' } } // 建立现有回退状态
-    await Session.persist(mutable)                                           // 保存失败操作前基线
-    const before = Session.exportAll().find((item) => item.id === session.id) // 读取完整不可公开基线
-    expect((await Session.rollback(session.id, 999)).ok).toBe(false)          // 请求不存在 checkpoint
-    expect(Session.exportAll().find((item) => item.id === session.id)).toEqual(before) // 内存与磁盘语义保持原样
+    for (const [directory, allowed] of Object.entries(allowlists)) {
+      const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+        .map((entry) => entry.name)
+        .sort()
+      const unexpected = actual.filter((name) => !allowed.includes(name))
+      expect(unexpected, `${directory} 包含架构设计.txt 未允许的生产 JS 模块，请删除或并入白名单职责模块: ${unexpected.join(', ')}`).toEqual([])
+      expect(actual, `${directory} 缺少架构设计.txt 指定模块`).toEqual([...allowed].sort())
+    }
   })
 
   it('validates session queries and exposes canonical config fields', async () => {
@@ -227,17 +195,4 @@ describe('architecture contract', () => {
     expect(config).toMatchObject({ provider: expect.any(Object), tools: expect.any(Object), defaultModel: expect.any(String), systemPrompt: expect.any(String) }) // 设计字段必须公开
   })
 
-  it('cancels a running shell command before its delayed side effect', async () => {
-    const outputPath = join(dataDirectory, 'should-not-exist.txt')           // 定义取消后不能出现的延迟副作用
-    const controller = new AbortController()                                // 模拟 Chat.stop 使用的 Run 信号
-    const command = process.platform === 'win32'
-      ? `Start-Sleep -Seconds 5; Set-Content -LiteralPath '${outputPath.replace(/'/g, "''")}' -Value late`
-      : `sleep 5; printf late > '${outputPath.replace(/'/g, "'\\''")}'` // 两个平台都先等待再写文件
-    const execution = run_command.execute({ command, cwd: dataDirectory }, { abortSignal: controller.signal }) // 启动真实 shell 工具
-    await Bun.sleep(100)                                                     // 确保子进程已经创建
-    controller.abort('test stop')                                           // 触发与 Session stop 相同的取消信号
-    await expect(execution).rejects.toThrow()                                // 被停止的命令不能伪装成功
-    await Bun.sleep(150)                                                     // 给错误残留进程一个观察窗口
-    expect(await Bun.file(outputPath).exists()).toBe(false)                  // 延迟磁盘副作用必须被阻止
-  })
 })

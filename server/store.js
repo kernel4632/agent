@@ -5,9 +5,6 @@
 */
 
 export const store = {
-  agents: {
-    definitions: new Map(),                             // Agent ID 到模型选择和提示词定义
-  },
   config: {
     value: null,
     sourceValue: null,                                  // 保留磁盘中的环境占位符，避免保存时写回真实密钥
@@ -26,7 +23,6 @@ export const store = {
   },
   capabilities: {
     mcp: new Map(),
-    lsp: new Map(),
     skills: new Map(),
     skillErrors: [],
     workspaceDirectory: '',
@@ -44,7 +40,6 @@ export const store = {
   },
   runs: {
     items: new Map(),                                   // Run ID 到执行状态和取消控制器
-    bySession: new Map(),                               // Session ID 到根 Run 集合
-    byParent: new Map(),                                // 父 Run ID 到子 Run 集合
+    bySession: new Map(),                               // Session ID 到当前内部 Run
   },
 }
