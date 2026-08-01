@@ -8,7 +8,7 @@
 .composer__bar { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 6px 12px 10px; }
 .composer__left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .model-select { width: min(250px, 46vw); --shape-corner: 18px; }
-.model-select::part(container) { background: rgb(var(--mdui-color-surface-container)); }
+.model-select::part(text-field__container) { border-radius: 18px; background: rgb(var(--mdui-color-surface-container)); box-shadow: none; }
 .model-select::part(menu) { border-radius: 16px; background: rgb(var(--mdui-color-surface-container-high)); box-shadow: var(--mdui-elevation-level2); }
 .send-command { width: 48px; height: 48px; flex: 0 0 48px; color: rgb(var(--mdui-color-on-primary)); background: rgb(var(--mdui-color-primary)); transition: transform 180ms cubic-bezier(.2, 0, 0, 1); }
 .send-command:not([disabled]):hover { transform: scale(1.04); }

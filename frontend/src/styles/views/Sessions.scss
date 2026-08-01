@@ -1,6 +1,6 @@
 .home-view { display: grid; grid-template-rows: 88px minmax(0, 1fr); height: 100%; animation: content-arrive 280ms cubic-bezier(.2, 0, 0, 1); }
 .home-search { align-self: center; width: min(720px, calc(100% - 48px)); margin: 0 auto; --shape-corner: 28px; }
-.home-search::part(container) { background: rgb(var(--mdui-color-surface-container-high)); }
+.home-search::part(container) { border-radius: 28px; background: rgb(var(--mdui-color-surface-container-high)); box-shadow: none; }
 .home-search kbd { padding: 5px 9px; border-radius: 8px; color: rgb(var(--mdui-color-on-surface-variant)); background: rgb(var(--mdui-color-surface-container-highest)); font: 10px "Cascadia Code", Consolas, monospace; }
 
 .home-body { display: grid; grid-template-columns: minmax(280px, 32%) minmax(0, 1fr); min-height: 0; margin: 0 16px 16px; overflow: hidden; border-radius: 28px; background: rgb(var(--mdui-color-surface-container-low)); }
