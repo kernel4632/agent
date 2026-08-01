@@ -24,7 +24,7 @@ defineExpose({ focus: () => inputElement.value?.focus() })             // 只开
 
 <template>
   <m3e-form-field :class="$attrs.class" :style="$attrs.style" :variant="variant" hide-subscript="always">
-    <label slot="label" :for="fieldID">{{ label }}</label>
+    <label v-if="label" slot="label" :for="fieldID">{{ label }}</label>
     <textarea :id="fieldID" ref="inputElement" v-bind="inputAttrs" :value="modelValue" @input="emit('update:modelValue', $event.target.value)" @keydown="emit('keydown', $event)"></textarea>
   </m3e-form-field>
   <m3e-textarea-autosize :for="fieldID" :min-rows="minRows" :max-rows="maxRows"></m3e-textarea-autosize>

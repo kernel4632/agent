@@ -49,27 +49,35 @@ function confirmRollback() {
 }
 
 
+// --- 复制当前会话链接 ---
+function copySessionLink() {
+  UI.copy(window.location.href)                                      // 使用现有全局反馈展示复制结果
+}
+
+
 </script>
 
 <template>
   <section v-if="session" class="chat-view">
     <header class="chat-header">
       <div class="chat-header__title"><SessionTitleEditor :title="session.title" compact @save="renameTitle" /><small>{{ t('doubleClickRename') }}</small></div>
-      <div class="context-meter" tabindex="0" :aria-label="t('contextStats')">
-        <m3e-circular-progress-indicator variant="wavy" :value="contextPercent" max="100" :aria-label="t('contextStats')"></m3e-circular-progress-indicator>
-        <span>{{ contextPercent }}</span>
-        <div class="context-popover">
-          <strong>{{ t('context') }}</strong>
-          <div><span>{{ t('used') }}</span><b>{{ session.contextTokens.toLocaleString() }}</b></div>
-          <div><span>{{ t('limit') }}</span><b>{{ session.contextLimit.toLocaleString() }}</b></div>
-          <div><span>{{ t('ratio') }}</span><b>{{ contextPercent }}%</b></div>
+      <div class="chat-header__tools">
+        <m3e-icon-button aria-label="更多操作" title="更多操作"><m3e-icon name="more_horiz"></m3e-icon></m3e-icon-button>
+        <m3e-icon-button aria-label="复制会话链接" title="复制会话链接" @click="copySessionLink"><m3e-icon name="link"></m3e-icon></m3e-icon-button>
+        <div class="context-meter" tabindex="0" :aria-label="t('contextStats')">
+          <m3e-circular-progress-indicator variant="wavy" :value="contextPercent" max="100" :aria-label="t('contextStats')"></m3e-circular-progress-indicator>
+          <div class="context-popover">
+            <div><span>成本</span><b>US$0.00</b></div>
+            <div><span>使用率</span><b>{{ contextPercent }}%</b></div>
+            <div><span>Token</span><b>{{ session.contextTokens.toLocaleString() }}</b></div>
+          </div>
         </div>
       </div>
     </header>
     <m3e-linear-progress-indicator v-if="session.status === 'running'" class="chat-progress" variant="wavy" mode="indeterminate" aria-label="Agent 正在运行"></m3e-linear-progress-indicator>
 
     <div class="chat-body">
-      <div v-if="!session.messages.length" class="chat-empty"><span>A</span><h1>{{ t('startTask') }}</h1></div>
+      <div v-if="!session.messages.length" class="chat-empty"><h1>有什么我能帮你的吗？</h1></div>
        <MessageList v-else ref="messageList" :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
        <ChatScrollMap v-if="session.messages.length" :messages="session.messages" @jump="messageList?.scrollToMessage($event)" />
     </div>

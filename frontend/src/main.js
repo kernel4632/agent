@@ -18,6 +18,7 @@ import '@m3e/web/expansion-panel'                   // 注册任务折叠面板
 import '@m3e/web/form-field'                        // 注册原生输入字段外观
 import '@m3e/web/icon'                              // 与图标包共享 SVG Registry
 import '@m3e/web/icon-button'                       // 注册图标命令
+import '@m3e/web/menu'                              // 注册 Grok 风格模型浮层
 import '@m3e/web/progress-indicator'                // 注册请求进度反馈
 import '@m3e/web/search'                            // 注册主页搜索框
 import '@m3e/web/select'                            // 注册模型和权限选择器
@@ -27,10 +28,13 @@ import '@m3e/web/textarea-autosize'                 // 注册自适应长文本�
 import '@m3e/web/theme'                             // 注册 Material 3 暗色主题
 import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
 import '@m3e/icons/outlined/add'                    // 注册新建动作图标
+import '@m3e/icons/outlined/account_tree'           // 注册多专家模式图标
 import '@m3e/icons/outlined/arrow_upward'           // 注册发送动作图标
 import '@m3e/icons/outlined/attach_file'            // 注册附件图标
 import '@m3e/icons/outlined/award_star'             // 注册推理状态图标
 import '@m3e/icons/outlined/build'                  // 注册工具图标
+import '@m3e/icons/outlined/bolt'                   // 注册快速模型图标
+import '@m3e/icons/outlined/check'                  // 注册模型选中图标
 import '@m3e/icons/outlined/check_circle'           // 注册完成状态图标
 import '@m3e/icons/outlined/close'                  // 注册关闭动作图标
 import '@m3e/icons/outlined/code'                   // 注册命令工具图标
@@ -50,10 +54,17 @@ import '@m3e/icons/outlined/hub'                    // 注册 MCP 图标
 import '@m3e/icons/outlined/keyboard_double_arrow_left' // 注册收起侧边栏图标
 import '@m3e/icons/outlined/keyboard_arrow_right'   // 注册列表导航图标
 import '@m3e/icons/outlined/language'               // 注册网络访问图标
+import '@m3e/icons/outlined/lightbulb'              // 注册深度思考模式图标
+import '@m3e/icons/outlined/link'                   // 注册会话链接图标
 import '@m3e/icons/outlined/menu_open'              // 注册展开侧边栏图标
+import '@m3e/icons/outlined/mic'                    // 注册语音输入图标
+import '@m3e/icons/outlined/more_horiz'             // 注册对话更多操作图标
+import '@m3e/icons/outlined/orbit'                  // 注册产品轨道标识图标
+import '@m3e/icons/outlined/rocket_launch'          // 注册自动模式图标
 import '@m3e/icons/outlined/palette'                // 注册外观图标
 import '@m3e/icons/outlined/pause_circle'           // 注册暂停状态图标
 import '@m3e/icons/outlined/search'                 // 注册搜索图标
+import '@m3e/icons/outlined/edit_square'            // 注册 Grok 风格新建对话图标
 import '@m3e/icons/outlined/settings'               // 注册设置图标
 import '@m3e/icons/outlined/smart_toy'              // 注册提示词图标
 import '@m3e/icons/outlined/stop'                   // 注册停止动作图标

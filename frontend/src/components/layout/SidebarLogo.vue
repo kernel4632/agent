@@ -12,7 +12,7 @@ defineEmits(['home', 'collapse'])                                     // 将顶�
 
 <template>
   <div class="sidebar__first">
-    <m3e-icon-button class="product-logo" :aria-label="t('agentHome')" title="Agent" @click="$emit('home')"><m3e-avatar>A</m3e-avatar></m3e-icon-button>
+    <m3e-icon-button class="product-logo" :aria-label="t('agentHome')" title="Agent" @click="$emit('home')"><m3e-icon name="orbit"></m3e-icon></m3e-icon-button>
     <m3e-icon-button v-if="open" class="icon-command" :aria-label="t('collapseSidebar')" :title="t('collapseSidebar')" @click="$emit('collapse')"><m3e-icon name="keyboard_double_arrow_left"></m3e-icon></m3e-icon-button>
   </div>
 </template>

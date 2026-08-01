@@ -35,7 +35,7 @@ async function navigate(action) {
 </script>
 
 <template>
-  <m3e-theme scheme="dark" density="0" class="app-theme">
+  <m3e-theme color="#a0a0a0" scheme="dark" density="0" class="app-theme">
     <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
       <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => { UI.toggleSidebar(false); return UI.openSettings() })" />
       <div v-if="store.ui.sidebarOpen" class="sidebar-scrim" @click="UI.toggleSidebar(false)"></div>
