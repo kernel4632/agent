@@ -18,7 +18,7 @@
 .simple-settings h3 { margin: 0; font-size: 18px; font-weight: 500; }
 .simple-settings__heading p { margin: 5px 0 0; color: rgb(var(--mdui-color-on-surface-variant)); font-size: 10px; }
 .tool-setting-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 160px 52px; align-items: center; gap: 14px; min-height: 88px; margin-bottom: 10px; padding: 10px 16px; border-radius: 16px; background: rgb(var(--mdui-color-surface-container-low)); transition: background-color 160ms ease, transform 180ms cubic-bezier(.2, 0, 0, 1); }
-.tool-setting-row:hover { transform: translateY(-1px); background: rgb(var(--mdui-color-surface-container)); }
+.tool-setting-row:hover { background: rgb(var(--mdui-color-surface-container)); }
 .tool-setting-row__symbol { width: 40px; height: 40px; color: rgb(var(--mdui-color-on-tertiary-container)); background: rgb(var(--mdui-color-tertiary-container)); }
 .tool-setting-row mdui-text-field { width: 100%; }
 .tool-setting-row small { display: block; margin-top: 3px; color: rgb(var(--mdui-color-on-surface-variant)); font-size: 9px; }

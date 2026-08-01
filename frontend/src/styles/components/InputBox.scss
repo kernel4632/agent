@@ -1,5 +1,5 @@
-.composer { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; border-radius: 28px; background: rgb(var(--mdui-color-surface-container-high)); box-shadow: var(--mdui-elevation-level1); transition: background-color 180ms ease, box-shadow 220ms cubic-bezier(.2, 0, 0, 1), transform 220ms cubic-bezier(.2, 0, 0, 1); }
-.composer:focus-within { background: rgb(var(--mdui-color-surface-container-highest)); box-shadow: var(--mdui-elevation-level3); transform: translateY(-1px); }
+.composer { width: 100%; max-width: 100%; min-width: 0; overflow: visible; border-radius: 28px; background: rgb(var(--mdui-color-surface-container-high)); box-shadow: var(--mdui-elevation-level1); transition: background-color 180ms ease, box-shadow 220ms cubic-bezier(.2, 0, 0, 1), transform 220ms cubic-bezier(.2, 0, 0, 1); }
+.composer:focus-within { background: rgb(var(--mdui-color-surface-container-highest)); box-shadow: var(--mdui-elevation-level3); }
 .composer__input { display: block; width: 100%; }
 .composer__input::part(container) { min-height: 64px; padding: 12px 16px 4px; border-radius: 28px 28px 0 0; background: transparent; box-shadow: none; }
 .composer__input::part(input) { font-size: 14px; line-height: 1.55; }
@@ -9,6 +9,7 @@
 .composer__left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .model-select { width: min(250px, 46vw); --shape-corner: 18px; }
 .model-select::part(container) { background: rgb(var(--mdui-color-surface-container)); }
+.model-select::part(menu) { border-radius: 16px; background: rgb(var(--mdui-color-surface-container-high)); box-shadow: var(--mdui-elevation-level2); }
 .send-command { width: 48px; height: 48px; flex: 0 0 48px; color: rgb(var(--mdui-color-on-primary)); background: rgb(var(--mdui-color-primary)); transition: transform 180ms cubic-bezier(.2, 0, 0, 1); }
 .send-command:not([disabled]):hover { transform: scale(1.04); }
 .send-command:active { transform: scale(.94); }

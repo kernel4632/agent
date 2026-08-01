@@ -15,8 +15,6 @@ import { UI } from '../commands/ui.js'                                // 引入�
 import { t } from '../i18n.js'                                        // 引入响应式界面翻译
 import { store } from '../store.js'                                  // 引入当前 Session 和全局模型目录
 
-const messageList = ref(null)                                        // 快速地图调用消息滚动动作
-const activeMarkerID = ref('')                                       // 保存最近点击的消息标记
 const pendingRollback = ref(null)                                    // 控制工具回退确认弹窗
 const session = computed(() => store.sessions[store.ui.activeSessionID] || null) // 当前完整会话
 const models = computed(() => Object.entries(store.config.providers).flatMap(([provider, config]) => config.enabled ? config.models.map((model) => ({ provider, model })) : [])) // 只展示启用供应商模型
@@ -49,18 +47,6 @@ function confirmRollback() {
 }
 
 
-// --- 跳转消息地图 ---
-function jump(messageID) {
-  activeMarkerID.value = messageID                                   // 高亮最近选择的标记
-  messageList.value?.scrollToMessage(messageID)                      // 将对应消息带到阅读区
-}
-
-
-// --- 跳转相邻消息 ---
-function jumpAdjacent(direction) {
-  const currentID = activeMarkerID.value || (direction > 0 ? session.value.messages[0]?.id : session.value.messages.at(-1)?.id) // 没有选择时从边界开始
-  activeMarkerID.value = messageList.value?.scrollAdjacent(currentID, direction) || currentID // 保存实际目标身份
-}
 </script>
 
 <template>
@@ -82,15 +68,7 @@ function jumpAdjacent(direction) {
 
     <div class="chat-body">
       <div v-if="!session.messages.length" class="chat-empty"><span>A</span><h1>{{ t('startTask') }}</h1></div>
-      <MessageList v-else ref="messageList" :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
-
-      <nav v-if="session.messages.length" class="message-map" :aria-label="t('quickJump')">
-        <mdui-button-icon :aria-label="t('previousMessage')" :title="t('previousMessage')" @click="jumpAdjacent(-1)"><mdui-icon-keyboard-arrow-up></mdui-icon-keyboard-arrow-up></mdui-button-icon>
-        <div>
-          <mdui-button-icon v-for="message in session.messages" :key="message.id" :class="[`is-${message.role}`, { 'is-active': activeMarkerID === message.id }]" :aria-label="t(message.role === 'user' ? 'jumpUser' : 'jumpAssistant')" @click="jump(message.id)"></mdui-button-icon>
-        </div>
-        <mdui-button-icon :aria-label="t('nextMessage')" :title="t('nextMessage')" @click="jumpAdjacent(1)"><mdui-icon-keyboard-arrow-down></mdui-icon-keyboard-arrow-down></mdui-button-icon>
-      </nav>
+      <MessageList v-else :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
     </div>
 
     <footer class="chat-footer">

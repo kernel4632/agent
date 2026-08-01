@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 async function capture(page, testInfo, name) {
-  await page.waitForTimeout(400)
+  await page.waitForTimeout(700)
   const path = testInfo.outputPath(`${name}.png`)
   await page.screenshot({ path, fullPage: true })
   await testInfo.attach(name, { path, contentType: 'image/png' })
@@ -104,6 +104,7 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   await page.locator('mdui-dialog[open] mdui-button').first().click()
 
   await page.locator('.model-select').click()
+  await expect(page.locator('.model-select mdui-menu')).toBeVisible()
   await capture(page, testInfo, '10-model-menu')
   await page.keyboard.press('Escape')
 
@@ -133,6 +134,12 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
   ]) {
     await openSettingsSection(page, label)
     await capture(page, testInfo, name)
+    if (label === '工具管理') {
+      await page.locator('.tool-setting-row mdui-select').first().click()
+      await expect(page.locator('.tool-setting-row mdui-select mdui-menu').first()).toBeVisible()
+      await capture(page, testInfo, '16-settings-tool-permission-menu')
+      await page.keyboard.press('Escape')
+    }
     if (label === 'MCP 管理') {
       await page.locator('.simple-settings__heading mdui-button').click()
       await capture(page, testInfo, '18-settings-mcp-added')
@@ -166,6 +173,14 @@ test('mobile screenshot and interaction matrix', async ({ page }, testInfo) => {
   await page.locator('.sidebar__fifth mdui-button').click()
   await expect(page.locator('.settings-content')).toBeVisible()
   await capture(page, testInfo, '04-mobile-settings')
+  await page.locator('.provider-models').scrollIntoViewIfNeeded()
+  await capture(page, testInfo, '05-mobile-provider-models')
+  await openSettingsSection(page, '工具管理')
+  await capture(page, testInfo, '06-mobile-settings-tools')
+  await openSettingsSection(page, 'MCP 管理')
+  await capture(page, testInfo, '07-mobile-settings-mcp')
+  await openSettingsSection(page, '语言与外观')
+  await capture(page, testInfo, '08-mobile-settings-appearance')
 
   await expectHealthyLayout(page)
   expect(runtimeErrors).toEqual([])

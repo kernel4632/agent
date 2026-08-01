@@ -18,14 +18,7 @@
 .chat-empty { display: grid; place-items: center; align-content: center; height: 100%; padding-bottom: 8vh; }
 .chat-empty > span { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px; color: rgb(var(--mdui-color-on-primary-container)); background: rgb(var(--mdui-color-primary-container)); font-weight: 700; }
 .chat-empty h1 { margin: 18px 0 0; font-size: 24px; font-weight: 500; }
-.message-map { position: absolute; z-index: 8; top: 50%; right: 14px; display: grid; gap: 4px; width: 40px; padding: 6px 0; border-radius: 20px; background: rgba(var(--mdui-color-surface-container), .72); transform: translateY(-50%); backdrop-filter: blur(12px); }
-.message-map > mdui-button-icon { width: 40px; height: 40px; color: rgb(var(--mdui-color-on-surface-variant)); }
-.message-map > div { display: grid; justify-items: center; gap: 7px; max-height: 46vh; overflow: hidden; }
-.message-map > div mdui-button-icon { width: 8px; height: 8px; min-width: 0; border-radius: 50%; background: rgb(var(--mdui-color-outline)); transition: width 180ms cubic-bezier(.2, 0, 0, 1), border-radius 180ms ease, background-color 180ms ease; }
-.message-map > div mdui-button-icon.is-assistant { width: 14px; border-radius: 4px; }
-.message-map > div mdui-button-icon:hover, .message-map > div mdui-button-icon.is-active { width: 24px; border-radius: 4px; background: rgb(var(--mdui-color-primary)); }
-
-.chat-footer { width: min(840px, calc(100% - 96px)); max-width: 100%; min-width: 0; margin: 0 auto; padding: 0 0 18px; }
+.chat-footer { position: relative; z-index: 20; width: min(840px, calc(100% - 40px)); max-width: 100%; min-width: 0; margin: 0 auto; padding: 0 0 18px; }
 .rollback-preview { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 56px; margin-bottom: 10px; padding: 8px 14px; border-radius: 16px; color: rgb(var(--mdui-color-on-tertiary-container)); background: rgb(var(--mdui-color-tertiary-container)); animation: surface-in 220ms cubic-bezier(.2, 0, 0, 1); }
 .rollback-preview span { min-width: 0; }
 .rollback-preview strong, .rollback-preview small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -35,7 +28,6 @@
 @media (max-width: 760px) {
   .chat-header { padding: 0 18px; }
   .chat-header__title small { display: none; }
-  .message-map { display: none; }
   .chat-footer { width: calc(100% - 20px); padding-bottom: 10px; }
 }
 

@@ -4,7 +4,7 @@
 调用示例：App 在 ui.view === 'settings' 时渲染 <Settings />。
 -->
 <script setup>
-import { computed } from 'vue'                                       // 引入当前设置分类标题
+import { computed, nextTick, ref } from 'vue'                        // 引入当前设置分类标题和移动端滚动反馈
 import ProviderConfig from '../components/ProviderConfig.vue'        // 引入双栏供应商管理
 import { Settings as SettingsCommand } from '../commands/settings.js' // 引入设置业务动作
 import { UI } from '../commands/ui.js'                               // 引入分类导航
@@ -20,6 +20,7 @@ const sections = [                                                    // 严格�
   { id: 'data', label: 'dataManagement', icon: 'storage' },
 ]
 const draft = computed(() => store.settings.draft)                    // 当前设置页只消费隔离草稿
+const settingsView = ref(null)                                        // 设置分类切换后恢复页面顶部
 const currentSection = computed(() => sections.find((section) => section.id === store.ui.settingsSection) || sections[0]) // 顶栏标题跟随导航
 const defaultToolTitles = { read_file: 'readFile', write_file: 'writeFile', run_command: 'runCommand', web_fetch: 'webFetch', delegate_task: 'delegateTask' } // 默认别名跟随界面语言
 
@@ -33,13 +34,21 @@ function toolTitle(tool) {
 function addMCP() {
   SettingsCommand.addMCP()                                            // 新连接直接进入草稿列表末尾
 }
+
+
+// --- 切换设置分类 ---
+async function openSection(sectionID) {
+  UI.openSettings(sectionID)                                          // 指令修改当前分类
+  await nextTick()                                                     // 等待新分类内容替换完成
+  settingsView.value?.scrollTo({ top: 0, behavior: 'smooth' })         // 移动端不继承上一分类的滚动位置
+}
 </script>
 
 <template>
-  <section v-if="draft" class="settings-view">
+  <section v-if="draft" ref="settingsView" class="settings-view">
     <aside class="settings-nav">
       <header><h1>{{ t('settings') }}</h1><small v-if="store.settings.savedAt">{{ t('autoSaved') }}</small></header>
-      <mdui-button v-for="section in sections" :key="section.id" variant="text" full-width :class="{ 'is-active': store.ui.settingsSection === section.id }" @click="UI.openSettings(section.id)">
+      <mdui-button v-for="section in sections" :key="section.id" variant="text" full-width :class="{ 'is-active': store.ui.settingsSection === section.id }" @click="openSection(section.id)">
         <mdui-icon-dns v-if="section.icon === 'dns'" slot="icon"></mdui-icon-dns>
         <mdui-icon-build v-else-if="section.icon === 'build'" slot="icon"></mdui-icon-build>
         <mdui-icon-hub v-else-if="section.icon === 'hub'" slot="icon"></mdui-icon-hub>
@@ -61,7 +70,7 @@ function addMCP() {
         <mdui-card v-for="tool in draft.tools" :key="tool.name" variant="filled" class="tool-setting-row">
           <mdui-avatar class="tool-setting-row__symbol"><mdui-icon-build></mdui-icon-build></mdui-avatar>
           <div><mdui-text-field variant="filled" :value="toolTitle(tool)" :label="t('toolAlias')" @input="SettingsCommand.updateTool(tool.name, { title: $event.target.value })"></mdui-text-field><small>{{ tool.name }} · {{ tool.source === '内置' ? t('builtIn') : tool.source }}</small></div>
-          <mdui-select variant="filled" :value="tool.permission" :label="t('toolPermission')" @change="SettingsCommand.updateTool(tool.name, { permission: $event.target.value })"><mdui-menu-item value="allow">{{ t('allow') }}</mdui-menu-item><mdui-menu-item value="ask">{{ t('ask') }}</mdui-menu-item><mdui-menu-item value="deny">{{ t('deny') }}</mdui-menu-item></mdui-select>
+          <mdui-select variant="filled" placement="bottom" :value="tool.permission" :label="t('toolPermission')" @change="SettingsCommand.updateTool(tool.name, { permission: $event.target.value })"><mdui-menu-item value="allow">{{ t('allow') }}</mdui-menu-item><mdui-menu-item value="ask">{{ t('ask') }}</mdui-menu-item><mdui-menu-item value="deny">{{ t('deny') }}</mdui-menu-item></mdui-select>
           <mdui-switch :checked="tool.enabled" @change="SettingsCommand.updateTool(tool.name, { enabled: $event.target.checked })"></mdui-switch>
         </mdui-card>
       </section>

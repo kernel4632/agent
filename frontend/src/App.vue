@@ -84,7 +84,7 @@ function navigate(action) {
       </Transition>
     </main>
 
-    <mdui-snackbar placement="bottom-end" :open="Boolean(store.ui.toast)" :message="store.ui.toast"></mdui-snackbar>
+    <mdui-snackbar v-if="store.ui.toast" placement="bottom-end" open>{{ store.ui.toast }}</mdui-snackbar>
   </div>
 </template>
 
