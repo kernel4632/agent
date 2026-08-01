@@ -41,14 +41,14 @@ function formatTokens(value) {
     <template v-else>
       <ReasoningBlock v-if="message.reasoning" :text="message.reasoning" :streaming="message.isStreaming" />
       <MarkdownContent v-if="message.content" class="message__content" :content="message.content" :streaming="message.isStreaming" />
-      <span v-if="message.isStreaming && !message.content" class="message__typing"><i></i><i></i><i></i></span>
+        <span v-if="message.isStreaming && !message.content" class="message__typing"><m3e-circular-progress-indicator variant="wavy" indeterminate aria-label="Agent 正在生成"></m3e-circular-progress-indicator><span>{{ t('thinking') }}</span></span>
 
       <div v-if="message.tools?.length" class="message__tools">
         <ToolCall v-for="tool in message.tools" :key="tool.id" :tool="tool" @rollback="emit('rollback', $event)" @approval="emit('approval', $event)" />
       </div>
 
       <div v-if="message.request" class="request-strip" :class="`is-${message.request.status}`">
-        <m3e-circular-progress-indicator v-if="message.request.status === 'running'" class="request-strip__progress"></m3e-circular-progress-indicator>
+        <m3e-circular-progress-indicator v-if="message.request.status === 'running'" class="request-strip__progress" variant="wavy" indeterminate :aria-label="t('receiving')"></m3e-circular-progress-indicator>
         <m3e-icon v-else-if="message.request.status === 'completed'" name="check_circle"></m3e-icon>
         <m3e-icon v-else name="pause_circle"></m3e-icon>
         <strong>{{ t('apiRequest') }}</strong>

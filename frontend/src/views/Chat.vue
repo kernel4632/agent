@@ -56,7 +56,7 @@ function confirmRollback() {
     <header class="chat-header">
       <div class="chat-header__title"><SessionTitleEditor :title="session.title" compact @save="renameTitle" /><small>{{ t('doubleClickRename') }}</small></div>
       <div class="context-meter" tabindex="0" :aria-label="t('contextStats')">
-        <m3e-circular-progress-indicator :value="contextPercent" max="100"></m3e-circular-progress-indicator>
+        <m3e-circular-progress-indicator variant="wavy" :value="contextPercent" max="100" :aria-label="t('contextStats')"></m3e-circular-progress-indicator>
         <span>{{ contextPercent }}</span>
         <div class="context-popover">
           <strong>{{ t('context') }}</strong>
@@ -66,7 +66,7 @@ function confirmRollback() {
         </div>
       </div>
     </header>
-    <m3e-linear-progress-indicator v-if="session.status === 'running'" class="chat-progress"></m3e-linear-progress-indicator>
+    <m3e-linear-progress-indicator v-if="session.status === 'running'" class="chat-progress" variant="wavy" mode="indeterminate" aria-label="Agent 正在运行"></m3e-linear-progress-indicator>
 
     <div class="chat-body">
       <div v-if="!session.messages.length" class="chat-empty"><span>A</span><h1>{{ t('startTask') }}</h1></div>

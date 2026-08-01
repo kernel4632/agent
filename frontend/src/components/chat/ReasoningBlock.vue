@@ -21,7 +21,7 @@ const title = computed(() => t(props.streaming ? 'thinking' : 'reasoning')) // æ
 <template>
   <m3e-card v-if="text || streaming" class="reasoning" :class="{ 'reasoning--active': streaming }">
     <m3e-button class="reasoning__trigger" @click="isOpen = !isOpen">
-      <m3e-circular-progress-indicator v-if="streaming" class="reasoning__progress"></m3e-circular-progress-indicator>
+      <m3e-circular-progress-indicator v-if="streaming" class="reasoning__progress" variant="wavy" indeterminate :aria-label="title"></m3e-circular-progress-indicator>
       <m3e-icon v-else class="reasoning__spark" name="award_star"></m3e-icon>
       <span>{{ title }}</span>
       <m3e-icon class="reasoning__chevron" name="keyboard_arrow_down" :class="{ 'reasoning__chevron--open': isOpen }"></m3e-icon>

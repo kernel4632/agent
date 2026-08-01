@@ -1,5 +1,5 @@
-.settings-view { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: 100%; }
-.settings-nav { display: grid; grid-template-rows: 80px repeat(6, 46px) minmax(0, 1fr) 44px; gap: 4px; padding: 14px 12px; background: var(--md-sys-color-surface-container); }
+.settings-view { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100%; }
+.settings-nav { display: grid; grid-template-rows: 80px repeat(6, 46px) minmax(0, 1fr) 44px; gap: 4px; padding: 14px 12px; border-right: 1px solid var(--app-line); background: #0b0b0b; }
 .settings-nav header { padding: 10px 12px; }
 .settings-nav h1 { margin: 0; font-size: 24px; font-weight: 600; }
 .settings-nav header small { display: block; margin-top: 6px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; }
@@ -7,7 +7,7 @@
 .settings-nav > m3e-button span { font-size: 14px; }
 .settings-nav footer { align-self: end; padding: 0 12px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; }
 
-.settings-content { min-width: 0; height: 100%; overflow: hidden; background: var(--md-sys-color-surface-container-lowest); }
+.settings-content { min-width: 0; height: 100%; overflow: hidden; background: var(--app-canvas); }
 .simple-settings { width: min(960px, calc(100% - 64px)); height: 100%; margin: 0 auto; padding-bottom: 48px; overflow-y: auto; animation: settings-section-in 220ms cubic-bezier(.2, 0, 0, 1); }
 .simple-settings__heading { display: flex; align-items: center; justify-content: space-between; min-height: 72px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
 .simple-settings h3 { margin: 0; font-size: 22px; font-weight: 600; }

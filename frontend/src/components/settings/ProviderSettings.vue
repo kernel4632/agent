@@ -118,7 +118,7 @@ async function openModelPicker() {
     <m3e-dialog class="model-dialog" :open="modelDialogOpen" @closed="modelDialogOpen = false">
         <span slot="header">{{ t('selectModel') }}</span>
         <span>{{ t('availableModels', { provider: selectedName }) }}</span>
-        <div v-if="modelsLoading" class="model-picker-loading"><m3e-circular-progress-indicator></m3e-circular-progress-indicator></div>
+        <div v-if="modelsLoading" class="model-picker-loading"><m3e-circular-progress-indicator variant="wavy" indeterminate aria-label="正在获取模型列表"></m3e-circular-progress-indicator></div>
         <div class="model-picker">
           <template v-if="!modelsLoading"><m3e-card v-for="modelName in candidates" :key="modelName" actionable @click="addDiscoveredModel(modelName)"><div class="model-picker-row"><m3e-avatar>M</m3e-avatar><strong>{{ modelName }}</strong><m3e-icon name="add"></m3e-icon></div></m3e-card></template>
           <div v-if="!modelsLoading && !candidates.length" class="empty-state compact">{{ t('allModelsAdded') }}</div>
