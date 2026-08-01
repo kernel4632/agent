@@ -1,0 +1,103 @@
+前端请求
+  │
+  ▼
+routes ────────────────────────────────────────────────────────
+  │
+  ├─ GET    /health ──────────→ 直接读 store
+  │
+  ├─ GET    /config ──────────→ Config.get()
+  ├─ PATCH  /config ──────────→ Config.update()
+  │                                 └→ store.config ←→ config.json
+  │
+  ├─ GET    /workspace ───────→ Workspace.list()
+  ├─ POST   /workspace ───────→ Workspace.add()
+  ├─ PATCH  /workspace ───────→ Workspace.update()
+  ├─ DELETE /workspace ───────→ Workspace.remove()
+  │                                 └→ store.workspaces ←→ workspace.json
+  │
+  ├─ GET    /session ─────────→ Session.get()
+  ├─ POST   /session ─────────→ Session.create()
+  ├─ PATCH  /session ─────────→ Session.update()
+  ├─ DELETE /session ─────────→ Session.delete() ─→ Agent.stop() 如果在运行
+  │                                 └→ store.sessions ←→ sessions/{id}.json
+  │
+  ├─ GET    /session/events ──→ Session.listen()
+  │                                 └→ 返回 Stream
+  │                                    SSE.add() → store.connections
+  │
+  ├─ POST   /session/send ───→ Agent.send()
+  │                                 ├→ 创建 userMessage → session.messages
+  │                                 ├→ SSE.emit "status" + "user-message"
+  │                                 ├→ Session.save()
+  │                                 └→ Agent.run()（异步）
+  │                                      │
+  │                         ┌────────────┘
+  │                         ▼
+  │                  Agent.run 循环
+  │                  ┌─────────────────────────────────────────────┐
+  │                  │                                             │
+  │                  │  A. Context.build()                         │
+  │                  │     SSE.emit "context"                      │
+  │                  │                                             │
+  │                  │  B. 找 provider                             │
+  │                  │     SSE.emit "api-request" started          │
+  │                  │                                             │
+  │                  │  C. 流式 LLM 请求                           │
+  │                  │     SSE.emit text-delta / thinking-delta    │
+  │                  │     SSE.emit tool-call-start / ready        │
+  │                  │                                             │
+  │                  │  D. 流结束 → assistantMessage → messages    │
+  │                  │     SSE.emit "api-request" completed        │
+  │                  │     Session.save()                          │
+  │                  │                                             │
+  │                  │  E. 无工具调用？                             │
+  │                  │     第1次 → 继续循环                        │
+  │                  │     第2次 → 插入提示消息 → 继续循环          │
+  │                  │     第3次 → 退出循环                        │
+  │                  │                                             │
+  │                  │  F. 有工具调用 → 并行处理                    │
+  │                  │     ├─ always-allow → Tool.execute()        │
+  │                  │     ├─ auto-deny → 返回拒绝                 │
+  │                  │     └─ ask → SSE.emit "approval-needed"     │
+  │                  │              等待 Promise ←─────────────────┼── POST /approval
+  │                  │              └→ Approval.handle()           │     → toolWaits
+  │                  │                 → resolve(decision)         │        .resolve()
+  │                  │                                             │
+  │                  │  G. 全部工具完成                             │
+  │                  │     toolResultMessage → messages             │
+  │                  │     如果有 stop:true → 退出循环              │
+  │                  │     Session.save() → 继续循环 → 回到 A      │
+  │                  │                                             │
+  │                  │  错误处理：                                   │
+  │                  │     AbortError → 退出                       │
+  │                  │     可重试 → SSE.emit "error" willRetry      │
+  │                  │              等待退避 → 继续循环             │
+  │                  │     不可重试 → SSE.emit "error" → 退出      │
+  │                  └─────────────────────────────────────────────┘
+  │                         │
+  │                         ▼ 循环退出后
+  │                  清理 runners / toolWaits / activeTools
+  │                  设 status = idle 或 error
+  │                  SSE.emit "status"
+  │                  Session.save()
+  │
+  ├─ POST /session/stop ─────→ Agent.stop()
+  │                                 ├→ abort runner（触发 AbortError）
+  │                                 ├→ resolve 所有 toolWaits 为 "deny"
+  │                                 ├→ kill 所有 activeTools
+  │                                 ├→ status = idle
+  │                                 ├→ SSE.emit "status" stopped
+  │                                 └→ Session.save()
+  │
+  ├─ POST /session/approval ─→ Approval.handle()
+  │                                 └→ store.toolWaits.get(toolCallId).resolve(decision)
+  │                                    （唤醒 Agent.run 中等待的 Promise）
+  │
+  └─ POST /session/history ──→ History.handle()
+                                    ├─ rollback：
+                                    │    target 匹配 messageId 或 blockId
+                                    │    截断 → session.rolledBack
+                                    │    SSE.emit "history"
+                                    └─ undo：
+                                         rolledBack 拼回 messages
+                                         SSE.emit "history"
