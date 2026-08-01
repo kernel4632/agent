@@ -46,7 +46,9 @@ async function saveEditing() {
 
 <template>
   <span class="session-title-editor" :class="{ 'session-title-editor--compact': compact, 'is-editing': editing }" @click.stop>
-    <input v-if="editing" ref="inputElement" :value="draft" maxlength="100" :disabled="busy" :aria-label="t('sessionTitle')" @input="draft = $event.target.value" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
-    <button v-else type="button" :title="title || t('unnamedSession')" :aria-label="t('doubleClickRenameSession')" @dblclick="startEditing">{{ title || t('unnamedSession') }}</button>
+    <mdui-text-field v-if="editing" ref="inputElement" variant="outlined" :value="draft" maxlength="100" :disabled="busy" :label="t('sessionTitle')" @input="draft = $event.target.value" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing"></mdui-text-field>
+    <mdui-button v-else variant="text" :title="title || t('unnamedSession')" :aria-label="t('doubleClickRenameSession')" @dblclick="startEditing">{{ title || t('unnamedSession') }}</mdui-button>
   </span>
 </template>
+
+<style lang="scss" src="../styles/components/SessionTitleEditor.scss"></style>

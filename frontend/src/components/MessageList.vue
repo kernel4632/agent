@@ -47,3 +47,5 @@ defineExpose({ scrollToMessage, scrollAdjacent, scrollToLatest })        // å¯¹è
     </div>
   </div>
 </template>
+
+<style lang="scss" src="../styles/components/MessageList.scss"></style>

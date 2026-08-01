@@ -63,31 +63,31 @@ function openModelSettings(modelName) {
     <aside class="provider-list">
       <header><div><h2>{{ t('providers') }}</h2><span>{{ providerNames.length }}</span></div></header>
       <div class="provider-list__items">
-        <button v-for="name in providerNames" :key="name" type="button" :class="{ 'is-active': selectedName === name }" @click="selectedName = name">
-          <span>{{ name.slice(0, 1).toUpperCase() }}</span><strong>{{ name }}</strong><i :class="{ 'is-on': config.providers[name].enabled }"></i>
-        </button>
+        <mdui-card v-for="name in providerNames" :key="name" clickable variant="filled" :class="{ 'is-active': selectedName === name }" @click="selectedName = name">
+          <mdui-avatar>{{ name.slice(0, 1).toUpperCase() }}</mdui-avatar><strong>{{ name }}</strong><i :class="{ 'is-on': config.providers[name].enabled }"></i>
+        </mdui-card>
       </div>
-      <button class="provider-list__add" type="button" @click="addProvider"><mdui-icon-add></mdui-icon-add>{{ t('addProvider') }}</button>
+      <mdui-button class="provider-list__add" variant="tonal" full-width @click="addProvider"><mdui-icon-add slot="icon"></mdui-icon-add>{{ t('addProvider') }}</mdui-button>
     </aside>
 
     <div v-if="provider" class="provider-detail">
       <div class="setting-row provider-identity">
-        <label><span>{{ t('providerName') }}</span><input v-model="renameDraft" @keydown.enter="saveName" @blur="saveName" /></label>
+        <mdui-text-field variant="outlined" :value="renameDraft" :label="t('providerName')" @input="renameDraft = $event.target.value" @keydown.enter="saveName" @blur="saveName"></mdui-text-field>
         <label class="switch-field"><span><strong>{{ t('enableProvider') }}</strong><small>{{ t('enableProviderDescription') }}</small></span><mdui-switch :checked="provider.enabled" @change="Settings.updateProvider(selectedName, 'enabled', $event.target.checked)"></mdui-switch></label>
       </div>
 
-      <label class="setting-field"><span>{{ t('apiAddress') }}</span><input :value="provider.baseURL" placeholder="https://api.example.com/v1" @input="Settings.updateProvider(selectedName, 'baseURL', $event.target.value)" /></label>
-      <label class="setting-field"><span>API Key</span><input type="password" :value="provider.apiKey" placeholder="sk-..." @input="Settings.updateProvider(selectedName, 'apiKey', $event.target.value)" /></label>
+      <mdui-text-field variant="outlined" :label="t('apiAddress')" :value="provider.baseURL" placeholder="https://api.example.com/v1" @input="Settings.updateProvider(selectedName, 'baseURL', $event.target.value)"></mdui-text-field>
+      <mdui-text-field variant="outlined" label="API Key" type="password" toggle-password :value="provider.apiKey" placeholder="sk-..." @input="Settings.updateProvider(selectedName, 'apiKey', $event.target.value)"></mdui-text-field>
 
       <section class="provider-models">
-        <header><div><h3>{{ t('modelList') }}</h3><p>{{ t('modelListDescription') }}</p></div><button type="button" @click="modelDialogOpen = true"><mdui-icon-download></mdui-icon-download>{{ t('fetchModels') }}</button></header>
+        <header><div><h3>{{ t('modelList') }}</h3><p>{{ t('modelListDescription') }}</p></div><mdui-button variant="tonal" @click="modelDialogOpen = true"><mdui-icon-download slot="icon"></mdui-icon-download>{{ t('fetchModels') }}</mdui-button></header>
         <div class="provider-model-list">
-          <article v-for="modelName in provider.models" :key="modelName">
-            <span class="model-symbol">M</span>
+          <mdui-card v-for="modelName in provider.models" :key="modelName" variant="outlined">
+            <mdui-avatar class="model-symbol">M</mdui-avatar>
             <div><strong>{{ modelName }}</strong><small><span v-if="provider.modelSettings?.[modelName]?.reasoning">{{ t('reasoningCapability') }}</span><span v-if="provider.modelSettings?.[modelName]?.tools">{{ t('toolCapability') }}</span><span>{{ (provider.modelSettings?.[modelName]?.context || 128000).toLocaleString() }} ctx</span></small></div>
-            <button class="icon-command" type="button" :aria-label="t('modelSettings')" :title="t('modelSettings')" @click="openModelSettings(modelName)"><mdui-icon-tune></mdui-icon-tune></button>
-            <button class="icon-command" type="button" :aria-label="t('removeModel')" :title="t('removeModel')" @click="Settings.removeModel(selectedName, modelName)"><mdui-icon-close></mdui-icon-close></button>
-          </article>
+            <mdui-button-icon class="icon-command" :aria-label="t('modelSettings')" :title="t('modelSettings')" @click="openModelSettings(modelName)"><mdui-icon-tune></mdui-icon-tune></mdui-button-icon>
+            <mdui-button-icon class="icon-command" :aria-label="t('removeModel')" :title="t('removeModel')" @click="Settings.removeModel(selectedName, modelName)"><mdui-icon-close></mdui-icon-close></mdui-button-icon>
+          </mdui-card>
           <div v-if="!provider.models.length" class="empty-state compact">{{ t('noModels') }}</div>
         </div>
       </section>
@@ -95,36 +95,34 @@ function openModelSettings(modelName) {
       <section class="custom-provider-settings">
         <h3>{{ t('customConfig') }}</h3>
         <div class="setting-grid">
-          <label class="setting-field"><span>{{ t('requestTimeout') }}</span><input type="number" :value="provider.timeout" @input="Settings.updateProvider(selectedName, 'timeout', Number($event.target.value))" /></label>
-          <label class="setting-field"><span>{{ t('customHeaders') }}</span><input :value="provider.headers" @input="Settings.updateProvider(selectedName, 'headers', $event.target.value)" /></label>
+          <mdui-text-field variant="outlined" :label="t('requestTimeout')" type="number" :value="provider.timeout" @input="Settings.updateProvider(selectedName, 'timeout', Number($event.target.value))"></mdui-text-field>
+          <mdui-text-field variant="outlined" :label="t('customHeaders')" :value="provider.headers" @input="Settings.updateProvider(selectedName, 'headers', $event.target.value)"></mdui-text-field>
         </div>
       </section>
 
-      <button class="text-danger" type="button" @click="removeProvider"><mdui-icon-delete></mdui-icon-delete>{{ t('deleteProvider') }}</button>
+      <mdui-button class="text-danger" variant="text" @click="removeProvider"><mdui-icon-delete slot="icon"></mdui-icon-delete>{{ t('deleteProvider') }}</mdui-button>
     </div>
 
-    <div v-if="modelDialogOpen" class="modal-backdrop" @mousedown.self="modelDialogOpen = false">
-      <section class="modal" role="dialog" aria-modal="true">
-        <header><div><h2>{{ t('selectModel') }}</h2><p>{{ t('availableModels', { provider: selectedName }) }}</p></div><button class="icon-command" type="button" :aria-label="t('close')" @click="modelDialogOpen = false"><mdui-icon-close></mdui-icon-close></button></header>
+    <mdui-dialog class="model-dialog" :open="modelDialogOpen" close-on-overlay-click @closed="modelDialogOpen = false">
+        <div class="dialog-heading"><div><h2>{{ t('selectModel') }}</h2><p>{{ t('availableModels', { provider: selectedName }) }}</p></div><mdui-button-icon class="icon-command" :aria-label="t('close')" @click="modelDialogOpen = false"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
         <div class="model-picker">
-          <button v-for="modelName in candidates" :key="modelName" type="button" @click="addDiscoveredModel(modelName)"><span>M</span><strong>{{ modelName }}</strong><mdui-icon-add></mdui-icon-add></button>
+          <mdui-card v-for="modelName in candidates" :key="modelName" clickable variant="outlined" @click="addDiscoveredModel(modelName)"><mdui-avatar>M</mdui-avatar><strong>{{ modelName }}</strong><mdui-icon-add></mdui-icon-add></mdui-card>
           <div v-if="!candidates.length" class="empty-state compact">{{ t('allModelsAdded') }}</div>
         </div>
-        <footer><button class="primary-button" type="button" @click="modelDialogOpen = false">{{ t('done') }}</button></footer>
-      </section>
-    </div>
+        <mdui-button slot="action" variant="filled" @click="modelDialogOpen = false">{{ t('done') }}</mdui-button>
+    </mdui-dialog>
 
-    <div v-if="modelSettingsName" class="modal-backdrop" @mousedown.self="modelSettingsName = ''">
-      <section class="modal" role="dialog" aria-modal="true">
-        <header><div><h2>{{ modelSettingsName }}</h2><p>{{ t('modelLimits') }}</p></div><button class="icon-command" type="button" :aria-label="t('close')" @click="modelSettingsName = ''"><mdui-icon-close></mdui-icon-close></button></header>
+    <mdui-dialog class="model-settings-dialog" :open="Boolean(modelSettingsName)" close-on-overlay-click @closed="modelSettingsName = ''">
+        <div class="dialog-heading"><div><h2>{{ modelSettingsName }}</h2><p>{{ t('modelLimits') }}</p></div><mdui-button-icon class="icon-command" :aria-label="t('close')" @click="modelSettingsName = ''"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
         <div class="setting-grid">
-          <label class="setting-field"><span>{{ t('contextLength') }}</span><input type="number" :value="currentModelSettings.context || 128000" @input="Settings.updateModel(selectedName, modelSettingsName, { context: Number($event.target.value) })" /></label>
-          <label class="setting-field"><span>{{ t('maxOutput') }}</span><input type="number" :value="currentModelSettings.output || 16000" @input="Settings.updateModel(selectedName, modelSettingsName, { output: Number($event.target.value) })" /></label>
+          <mdui-text-field variant="outlined" :label="t('contextLength')" type="number" :value="currentModelSettings.context || 128000" @input="Settings.updateModel(selectedName, modelSettingsName, { context: Number($event.target.value) })"></mdui-text-field>
+          <mdui-text-field variant="outlined" :label="t('maxOutput')" type="number" :value="currentModelSettings.output || 16000" @input="Settings.updateModel(selectedName, modelSettingsName, { output: Number($event.target.value) })"></mdui-text-field>
           <label class="switch-field"><span><strong>{{ t('reasoningFeature') }}</strong><small>{{ t('reasoningDescription') }}</small></span><mdui-switch :checked="currentModelSettings.reasoning === true" @change="Settings.updateModel(selectedName, modelSettingsName, { reasoning: $event.target.checked })"></mdui-switch></label>
           <label class="switch-field"><span><strong>{{ t('toolFeature') }}</strong><small>{{ t('toolDescription') }}</small></span><mdui-switch :checked="currentModelSettings.tools === true" @change="Settings.updateModel(selectedName, modelSettingsName, { tools: $event.target.checked })"></mdui-switch></label>
         </div>
-        <footer><button class="primary-button" type="button" @click="modelSettingsName = ''">{{ t('done') }}</button></footer>
-      </section>
-    </div>
+        <mdui-button slot="action" variant="filled" @click="modelSettingsName = ''">{{ t('done') }}</mdui-button>
+    </mdui-dialog>
   </section>
 </template>
+
+<style lang="scss" src="../styles/components/ProviderConfig.scss"></style>

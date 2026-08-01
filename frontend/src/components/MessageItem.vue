@@ -27,14 +27,14 @@ function formatTokens(value) {
 </script>
 
 <template>
-  <article class="message" :class="`message--${message.role}`" :data-message-id="message.id">
+  <mdui-card variant="filled" class="message" :class="`message--${message.role}`" :data-message-id="message.id">
     <template v-if="message.role === 'user'">
       <div class="user-message__content">{{ message.content }}</div>
       <div v-if="message.files?.length" class="user-message__files"><span v-for="file in message.files" :key="file.id"><mdui-icon-attach-file></mdui-icon-attach-file>{{ file.name }}</span></div>
       <footer class="user-message__meta">
         <time>{{ formatTime(message.createdAt) }}</time>
-        <button type="button" :aria-label="t('recallEdit')" :title="t('recallEditTitle')" @click="emit('retry', message)"><mdui-icon-undo></mdui-icon-undo></button>
-        <button type="button" :aria-label="t('copyMessage')" :title="t('copy')" @click="emit('copy', message.content)"><mdui-icon-content-copy></mdui-icon-content-copy></button>
+        <mdui-button-icon :aria-label="t('recallEdit')" :title="t('recallEditTitle')" @click="emit('retry', message)"><mdui-icon-undo></mdui-icon-undo></mdui-button-icon>
+        <mdui-button-icon :aria-label="t('copyMessage')" :title="t('copy')" @click="emit('copy', message.content)"><mdui-icon-content-copy></mdui-icon-content-copy></mdui-button-icon>
       </footer>
     </template>
 
@@ -57,5 +57,7 @@ function formatTokens(value) {
 
       <div v-if="message.error" class="message-error"><mdui-icon-error-outline></mdui-icon-error-outline><span>{{ message.error }}</span></div>
     </template>
-  </article>
+  </mdui-card>
 </template>
+
+<style lang="scss" src="../styles/components/MessageItem.scss"></style>

@@ -32,3 +32,5 @@ const progressLabel = computed(() => `${completedCount.value}/${props.tasks.leng
     </mdui-collapse-item>
   </mdui-collapse>
 </template>
+
+<style lang="scss" src="../styles/components/TaskPanel.scss"></style>

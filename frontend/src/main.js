@@ -7,6 +7,7 @@ import { createApp } from 'vue'                    // 引入 Vue 应用创建能
 import { startWatchers } from './watchers.js'      // 引入集中管理的数据变化副作用
 import 'mdui/mdui.css'                             // 引入 MDUI 2 Material You 基础样式
 import 'mdui'                                      // 注册全部 MDUI 2 Web Components
+import { setTheme } from 'mdui/functions/setTheme.js' // 使用 MDUI 官方主题状态
 import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
 import '@mdui/icons/menu.js'                       // 注册侧栏菜单图标
 import '@mdui/icons/menu-open.js'                  // 注册侧栏展开图标
@@ -49,10 +50,9 @@ import '@mdui/icons/tune.js'                       // 注册模型设置图标
 import '@mdui/icons/smart-toy.js'                  // 注册系统提示词图标
 import '@mdui/icons/palette.js'                    // 注册外观设置图标
 import '@mdui/icons/storage.js'                    // 注册数据管理图标
-import './styles/main.scss'                        // 引入 Agent 黑白视觉主题
-import './styles/overrides.css'                    // 允许用户最后覆盖 CSS 变量和组件样式
 import App from './App.vue'                        // 引入根界面组合组件
 
+setTheme('dark')                                   // 固定黑白 Material You 暗色基线
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
 startWatchers()                                    // 再启动标签持久化等集中副作用
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面

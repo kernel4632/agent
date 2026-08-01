@@ -41,11 +41,19 @@ async function copyCode(button) {
   if (!code) return                                            // 结构已更新时不执行失效动作
   try {
     await navigator.clipboard.writeText(code.textContent ?? '') // 使用浏览器权限受控剪贴板写入
-    button.textContent = t('copied')                            // 原位反馈命令完成
+    button.title = t('copied')                                  // 原位反馈命令完成
+    button.setAttribute('aria-label', t('copied'))
+    button.innerHTML = '<mdui-icon-check></mdui-icon-check>'
   } catch {
-    button.textContent = t('copyFailed')                        // 权限拒绝时保留可理解反馈
+    button.title = t('copyFailed')                              // 权限拒绝时保留可理解反馈
+    button.setAttribute('aria-label', t('copyFailed'))
+    button.innerHTML = '<mdui-icon-error-outline></mdui-icon-error-outline>'
   }
-  window.setTimeout(() => { button.textContent = t('copy') }, 1400) // 短暂反馈后恢复可重复命令
+  window.setTimeout(() => {
+    button.title = t('copyCode')
+    button.setAttribute('aria-label', t('copyCode'))
+    button.innerHTML = '<mdui-icon-content-copy></mdui-icon-content-copy>'
+  }, 1400) // 短暂反馈后恢复可重复命令
 }
 
 
@@ -72,14 +80,15 @@ async function enhanceContent() {
     if (block.querySelector('.language-mermaid')) return       // Mermaid 结构另行处理
     const existingButton = block.querySelector('.markdown-code__copy') // 语言切换时更新现有命令
     if (existingButton) {
-      Object.assign(existingButton, { textContent: t('copy'), title: t('copyCode') })
+      existingButton.title = t('copyCode')
       existingButton.setAttribute('aria-label', t('copyCode'))
       return
     }
     block.dataset.enhanced = 'true'                             // 防止同一次 DOM 生命周期重复加按钮
-    const button = document.createElement('button')             // 创建不依赖 Vue 重渲染的轻量命令
-    Object.assign(button, { type: 'button', className: 'markdown-code__copy', textContent: t('copy'), title: t('copyCode') }) // 提供可见反馈和悬停说明
+    const button = document.createElement('mdui-button-icon')    // 创建 MDUI 图标命令
+    Object.assign(button, { className: 'markdown-code__copy', title: t('copyCode') }) // 提供悬停说明
     button.setAttribute('aria-label', t('copyCode'))            // 为辅助技术声明按钮用途
+    button.innerHTML = '<mdui-icon-content-copy></mdui-icon-content-copy>' // 使用已注册 MDUI 图标
     block.append(button)                                       // 命令固定在所属代码块内
   })
 
@@ -115,3 +124,5 @@ onMounted(enhanceContent)                                      // 历史消息�
 <template>
   <div ref="rootElement" class="markdown" @click="handleClick" v-html="html"></div>
 </template>
+
+<style lang="scss" src="../styles/components/MarkdownContent.scss"></style>

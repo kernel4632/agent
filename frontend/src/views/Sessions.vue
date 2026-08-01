@@ -78,24 +78,20 @@ function formatTime(timestamp) {
 
 <template>
   <section class="home-view">
-    <header class="home-search">
-      <mdui-icon-search></mdui-icon-search>
-      <input :value="store.ui.search" type="search" :placeholder="t('search')" :aria-label="t('search')" @input="UI.setSearch($event.target.value)" />
-      <kbd>Ctrl K</kbd>
-    </header>
+    <mdui-text-field class="home-search" variant="filled" clearable :value="store.ui.search" type="search" :placeholder="t('search')" :label="t('search')" @input="UI.setSearch($event.target.value)"><mdui-icon-search slot="icon"></mdui-icon-search><kbd slot="end-icon">Ctrl K</kbd></mdui-text-field>
 
     <div class="home-body">
       <aside class="workspace-panel">
         <header class="panel-heading">
           <div><h1>{{ t('workspace') }}</h1><span>{{ store.workspaces.length }}</span></div>
-          <button class="icon-command" type="button" :aria-label="t('addWorkspace')" :title="t('addWorkspace')" @click="addWorkspaceOpen = true"><mdui-icon-add></mdui-icon-add></button>
+          <mdui-button-icon class="icon-command" :aria-label="t('addWorkspace')" :title="t('addWorkspace')" @click="addWorkspaceOpen = true"><mdui-icon-add></mdui-icon-add></mdui-button-icon>
         </header>
         <div class="workspace-list">
-          <button v-for="workspace in visibleWorkspaces" :key="workspace.id" type="button" :class="{ 'is-active': activeWorkspace?.id === workspace.id }" @click="Workspace.select(workspace.id)">
-            <span class="workspace-icon"><mdui-icon-folder></mdui-icon-folder></span>
+          <mdui-card v-for="workspace in visibleWorkspaces" :key="workspace.id" clickable variant="filled" :class="{ 'is-active': activeWorkspace?.id === workspace.id }" @click="Workspace.select(workspace.id)">
+            <mdui-avatar class="workspace-icon"><mdui-icon-folder></mdui-icon-folder></mdui-avatar>
             <span><strong>{{ workspace.name }}</strong><small>{{ t('sessionCount', { count: workspace.sessions.length }) }} · {{ workspace.path }}</small></span>
             <mdui-icon-keyboard-arrow-right></mdui-icon-keyboard-arrow-right>
-          </button>
+          </mdui-card>
           <div v-if="!visibleWorkspaces.length" class="empty-state compact">{{ t('noWorkspace') }}</div>
         </div>
       </aside>
@@ -109,42 +105,36 @@ function formatTime(timestamp) {
         <div v-if="groups.length" class="session-groups">
           <section v-for="group in groups" :key="group.id" class="session-group">
             <h2>{{ group.label }}</h2>
-            <article v-for="session in group.items" :key="session.id" class="home-session" @click="Session.open(session.id)">
-              <span class="home-session__model">{{ session.model.slice(0, 1).toUpperCase() }}</span>
+            <mdui-card v-for="session in group.items" :key="session.id" clickable variant="outlined" class="home-session" @click="Session.open(session.id)">
+              <mdui-avatar class="home-session__model">{{ session.model.slice(0, 1).toUpperCase() }}</mdui-avatar>
               <div class="home-session__main">
-                <input v-if="editingSessionID === session.id" v-model="editingTitle" maxlength="100" :aria-label="t('sessionTitle')" @click.stop @keydown.enter.prevent="saveRename" @keydown.esc="editingSessionID = ''" @blur="saveRename" />
+                <mdui-text-field v-if="editingSessionID === session.id" variant="outlined" :value="editingTitle" maxlength="100" :label="t('sessionTitle')" @input="editingTitle = $event.target.value" @click.stop @keydown.enter.prevent="saveRename" @keydown.esc="editingSessionID = ''" @blur="saveRename"></mdui-text-field>
                 <strong v-else>{{ session.title }}</strong>
                 <small>{{ session.model }} · {{ t('messageCount', { count: session.messageCount }) }} · {{ formatTime(session.updatedAt) }}</small>
               </div>
               <div class="home-session__actions">
-                <button class="icon-command" type="button" :aria-label="t('renameSession')" :title="t('rename')" @click.stop="startRename(session)"><mdui-icon-edit></mdui-icon-edit></button>
-                <button class="icon-command" type="button" :aria-label="t('deleteSession')" :title="t('delete')" @click.stop="deleteTarget = session"><mdui-icon-delete></mdui-icon-delete></button>
+                <mdui-button-icon class="icon-command" :aria-label="t('renameSession')" :title="t('rename')" @click.stop="startRename(session)"><mdui-icon-edit></mdui-icon-edit></mdui-button-icon>
+                <mdui-button-icon class="icon-command" :aria-label="t('deleteSession')" :title="t('delete')" @click.stop="deleteTarget = session"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon>
               </div>
-            </article>
+            </mdui-card>
           </section>
         </div>
         <div v-else class="empty-state">
           <mdui-icon-history></mdui-icon-history>
           <strong>{{ query ? t('noMatchingSessions') : t('noSessions') }}</strong>
-          <button v-if="!query" type="button" @click="Session.create(activeWorkspace?.id)">{{ t('newChat') }}</button>
+          <mdui-button v-if="!query" variant="tonal" @click="Session.create(activeWorkspace?.id)"><mdui-icon-add slot="icon"></mdui-icon-add>{{ t('newChat') }}</mdui-button>
         </div>
       </section>
     </div>
 
-    <div v-if="addWorkspaceOpen" class="modal-backdrop" @mousedown.self="addWorkspaceOpen = false">
-      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="workspace-dialog-title">
-        <header><div><h2 id="workspace-dialog-title">{{ t('addWorkspace') }}</h2><p>{{ t('workspaceDescription') }}</p></div><button class="icon-command" type="button" :aria-label="t('close')" @click="addWorkspaceOpen = false"><mdui-icon-close></mdui-icon-close></button></header>
-        <label><span>{{ t('name') }}</span><input v-model="workspaceName" autofocus :placeholder="t('workspaceNameExample')" /></label>
-        <label><span>{{ t('path') }}</span><input v-model="workspacePath" :placeholder="t('workspacePathExample')" @keydown.enter="addWorkspace" /></label>
-        <footer><button type="button" @click="addWorkspaceOpen = false">{{ t('cancel') }}</button><button class="primary-button" type="button" :disabled="!workspaceName.trim() || !workspacePath.trim()" @click="addWorkspace">{{ t('add') }}</button></footer>
-      </section>
-    </div>
+    <mdui-dialog class="workspace-dialog" :open="addWorkspaceOpen" close-on-overlay-click @closed="addWorkspaceOpen = false">
+      <div class="dialog-heading"><div><h2>{{ t('addWorkspace') }}</h2><p>{{ t('workspaceDescription') }}</p></div><mdui-button-icon :aria-label="t('close')" @click="addWorkspaceOpen = false"><mdui-icon-close></mdui-icon-close></mdui-button-icon></div>
+      <div class="dialog-fields"><mdui-text-field variant="outlined" :value="workspaceName" :label="t('name')" :placeholder="t('workspaceNameExample')" @input="workspaceName = $event.target.value"></mdui-text-field><mdui-text-field variant="outlined" :value="workspacePath" :label="t('path')" :placeholder="t('workspacePathExample')" @input="workspacePath = $event.target.value" @keydown.enter="addWorkspace"></mdui-text-field></div>
+      <mdui-button slot="action" variant="text" @click="addWorkspaceOpen = false">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" :disabled="!workspaceName.trim() || !workspacePath.trim()" @click="addWorkspace">{{ t('add') }}</mdui-button>
+    </mdui-dialog>
 
-    <div v-if="deleteTarget" class="modal-backdrop" @mousedown.self="deleteTarget = null">
-      <section class="modal modal--small" role="alertdialog" aria-modal="true">
-        <header><div><h2>{{ t('deleteSession') }}</h2><p>{{ t('deleteSessionDescription', { title: deleteTarget.title }) }}</p></div></header>
-        <footer><button type="button" @click="deleteTarget = null">{{ t('cancel') }}</button><button class="danger-button" type="button" @click="confirmDelete">{{ t('delete') }}</button></footer>
-      </section>
-    </div>
+    <mdui-dialog class="delete-session-dialog" :open="Boolean(deleteTarget)" close-on-overlay-click @closed="deleteTarget = null"><h2>{{ t('deleteSession') }}</h2><p>{{ deleteTarget ? t('deleteSessionDescription', { title: deleteTarget.title }) : '' }}</p><mdui-button slot="action" variant="text" @click="deleteTarget = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" class="danger-command" @click="confirmDelete">{{ t('delete') }}</mdui-button></mdui-dialog>
   </section>
 </template>
+
+<style lang="scss" src="../styles/views/Sessions.scss"></style>

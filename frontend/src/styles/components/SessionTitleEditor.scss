@@ -1,0 +1,4 @@
+.session-title-editor { display: block; min-width: 0; }
+.session-title-editor mdui-button { justify-content: flex-start; max-width: 560px; height: 42px; overflow: hidden; font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.session-title-editor mdui-text-field { width: min(560px, 52vw); }
+@media (max-width: 760px) { .session-title-editor mdui-button { max-width: 58vw; } }

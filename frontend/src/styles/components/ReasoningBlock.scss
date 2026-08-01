@@ -1,0 +1,8 @@
+.reasoning { display: block; margin-bottom: 14px; border-radius: 20px; background: rgb(var(--mdui-color-surface-container-low)); }
+.reasoning__trigger { justify-content: flex-start; width: 100%; min-height: 44px; color: #999; }
+.reasoning__spark { width: 6px; height: 6px; border-radius: 50%; background: #aaa; }
+.reasoning--active .reasoning__spark { animation: reasoning-pulse 1.2s ease-in-out infinite; }
+.reasoning__chevron { width: 16px; height: 16px; margin-left: auto; transition: transform 160ms ease; }
+.reasoning__chevron--open { transform: rotate(180deg); }
+.reasoning__content { padding: 2px 18px 14px 28px; color: #999; font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
+@keyframes reasoning-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }

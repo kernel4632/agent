@@ -19,12 +19,14 @@ const title = computed(() => t(props.streaming ? 'thinking' : 'reasoning')) // æ
 </script>
 
 <template>
-  <section v-if="text || streaming" class="reasoning" :class="{ 'reasoning--active': streaming }">
-    <button class="reasoning__trigger" type="button" @click="isOpen = !isOpen">
+  <mdui-card v-if="text || streaming" variant="filled" class="reasoning" :class="{ 'reasoning--active': streaming }">
+    <mdui-button class="reasoning__trigger" variant="text" full-width @click="isOpen = !isOpen">
       <span class="reasoning__spark"></span>
       <span>{{ title }}</span>
       <span class="reasoning__chevron" :class="{ 'reasoning__chevron--open': isOpen }">âŒ„</span>
-    </button>
+    </mdui-button>
     <div v-if="isOpen" class="reasoning__content">{{ text || t('thinkingPlaceholder') }}</div>
-  </section>
+  </mdui-card>
 </template>
+
+<style lang="scss" src="../styles/components/ReasoningBlock.scss"></style>

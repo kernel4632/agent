@@ -21,14 +21,14 @@ function decide(decision) {
 </script>
 
 <template>
-  <article class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
+  <mdui-card variant="outlined" class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
     <div class="tool-strip__line" @click="open = !open">
-      <span class="tool-strip__icon">{{ tool.name === 'run_command' ? '>_' : '◇' }}</span>
+      <span class="tool-strip__icon"><mdui-icon-code v-if="tool.name === 'run_command'"></mdui-icon-code><mdui-icon-build v-else></mdui-icon-build></span>
       <strong>{{ tool.title || tool.name }}</strong>
       <span class="tool-strip__preview">{{ tool.preview }}</span>
       <span class="tool-strip__status"><i></i>{{ status }}</span>
-      <button v-if="tool.checkpoint" type="button" :title="t('rollbackHere')" @click.stop="emit('rollback', tool.checkpoint)"><mdui-icon-undo></mdui-icon-undo></button>
-      <button type="button" :aria-label="t(open ? 'collapseTool' : 'expandTool')" @click.stop="open = !open"><mdui-icon-expand-more></mdui-icon-expand-more></button>
+      <mdui-button-icon v-if="tool.checkpoint" :title="t('rollbackHere')" @click.stop="emit('rollback', tool.checkpoint)"><mdui-icon-undo></mdui-icon-undo></mdui-button-icon>
+      <mdui-button-icon :aria-label="t(open ? 'collapseTool' : 'expandTool')" @click.stop="open = !open"><mdui-icon-expand-more></mdui-icon-expand-more></mdui-button-icon>
     </div>
 
     <div v-if="open" class="tool-strip__detail">
@@ -37,9 +37,11 @@ function decide(decision) {
     </div>
 
     <footer v-if="tool.status === 'waiting'" class="tool-strip__approval">
-      <button type="button" @click="decide('deny')">{{ t('deny') }}</button>
-      <button type="button" @click="decide('allow-once')">{{ t('allow') }}</button>
-      <button class="primary-button" type="button" @click="decide('always-allow')">{{ t('alwaysAllow') }}</button>
+      <mdui-button variant="text" @click="decide('deny')">{{ t('deny') }}</mdui-button>
+      <mdui-button variant="tonal" @click="decide('allow-once')">{{ t('allow') }}</mdui-button>
+      <mdui-button variant="filled" @click="decide('always-allow')">{{ t('alwaysAllow') }}</mdui-button>
     </footer>
-  </article>
+  </mdui-card>
 </template>
+
+<style lang="scss" src="../styles/components/ToolCall.scss"></style>

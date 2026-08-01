@@ -39,7 +39,7 @@ function addMCP() {
   <section v-if="draft" class="settings-view">
     <aside class="settings-nav">
       <header><h1>{{ t('settings') }}</h1><small v-if="store.settings.savedAt">{{ t('autoSaved') }}</small></header>
-      <button v-for="section in sections" :key="section.id" type="button" :class="{ 'is-active': store.ui.settingsSection === section.id }" @click="UI.openSettings(section.id)">
+      <mdui-button v-for="section in sections" :key="section.id" variant="text" full-width :class="{ 'is-active': store.ui.settingsSection === section.id }" @click="UI.openSettings(section.id)">
         <mdui-icon-dns v-if="section.icon === 'dns'"></mdui-icon-dns>
         <mdui-icon-build v-else-if="section.icon === 'build'"></mdui-icon-build>
         <mdui-icon-hub v-else-if="section.icon === 'hub'"></mdui-icon-hub>
@@ -47,7 +47,7 @@ function addMCP() {
         <mdui-icon-palette v-else-if="section.icon === 'palette'"></mdui-icon-palette>
         <mdui-icon-storage v-else></mdui-icon-storage>
         <span>{{ t(section.label) }}</span>
-      </button>
+      </mdui-button>
       <footer>{{ t('autoSaveOnLeave') }}</footer>
     </aside>
 
@@ -58,43 +58,45 @@ function addMCP() {
 
       <section v-else-if="store.ui.settingsSection === 'tools'" class="simple-settings">
         <header class="simple-settings__heading"><div><h3>{{ t('tools') }}</h3><p>{{ t('toolsDescription') }}</p></div><span>{{ draft.tools.length }}</span></header>
-        <article v-for="tool in draft.tools" :key="tool.name" class="tool-setting-row">
-          <span class="tool-setting-row__symbol">◇</span>
-          <div><input :value="toolTitle(tool)" :aria-label="t('toolAlias')" @input="SettingsCommand.updateTool(tool.name, { title: $event.target.value })" /><small>{{ tool.name }} · {{ tool.source === '内置' ? t('builtIn') : tool.source }}</small></div>
-          <select :value="tool.permission" :aria-label="t('toolPermission')" @change="SettingsCommand.updateTool(tool.name, { permission: $event.target.value })"><option value="allow">{{ t('allow') }}</option><option value="ask">{{ t('ask') }}</option><option value="deny">{{ t('deny') }}</option></select>
+        <mdui-card v-for="tool in draft.tools" :key="tool.name" variant="outlined" class="tool-setting-row">
+          <mdui-avatar class="tool-setting-row__symbol"><mdui-icon-build></mdui-icon-build></mdui-avatar>
+          <div><mdui-text-field variant="filled" :value="toolTitle(tool)" :label="t('toolAlias')" @input="SettingsCommand.updateTool(tool.name, { title: $event.target.value })"></mdui-text-field><small>{{ tool.name }} · {{ tool.source === '内置' ? t('builtIn') : tool.source }}</small></div>
+          <mdui-select variant="filled" :value="tool.permission" :label="t('toolPermission')" @change="SettingsCommand.updateTool(tool.name, { permission: $event.target.value })"><mdui-menu-item value="allow">{{ t('allow') }}</mdui-menu-item><mdui-menu-item value="ask">{{ t('ask') }}</mdui-menu-item><mdui-menu-item value="deny">{{ t('deny') }}</mdui-menu-item></mdui-select>
           <mdui-switch :checked="tool.enabled" @change="SettingsCommand.updateTool(tool.name, { enabled: $event.target.checked })"></mdui-switch>
-        </article>
+        </mdui-card>
       </section>
 
       <section v-else-if="store.ui.settingsSection === 'mcp'" class="simple-settings">
-        <header class="simple-settings__heading"><div><h3>{{ t('mcpServices') }}</h3><p>{{ t('mcpDescription') }}</p></div><button type="button" @click="addMCP"><mdui-icon-add></mdui-icon-add>{{ t('addMcp') }}</button></header>
-        <article v-for="server in draft.mcp" :key="server.id" class="mcp-setting">
-          <div class="mcp-setting__top"><span :class="`is-${server.status}`"></span><input :value="server.name" :aria-label="t('mcpName')" @input="SettingsCommand.updateMCP(server.id, { name: $event.target.value })" /><small>{{ t('toolCount', { count: server.toolCount }) }}</small><mdui-switch :checked="server.enabled" @change="SettingsCommand.updateMCP(server.id, { enabled: $event.target.checked })"></mdui-switch><button class="icon-command" type="button" :aria-label="t('deleteMcp')" @click="SettingsCommand.removeMCP(server.id)"><mdui-icon-delete></mdui-icon-delete></button></div>
-          <label class="setting-field"><span>{{ t('launchCommand') }}</span><input :value="server.command" @input="SettingsCommand.updateMCP(server.id, { command: $event.target.value })" /></label>
-        </article>
+        <header class="simple-settings__heading"><div><h3>{{ t('mcpServices') }}</h3><p>{{ t('mcpDescription') }}</p></div><mdui-button variant="tonal" @click="addMCP"><mdui-icon-add slot="icon"></mdui-icon-add>{{ t('addMcp') }}</mdui-button></header>
+        <mdui-card v-for="server in draft.mcp" :key="server.id" variant="outlined" class="mcp-setting">
+          <div class="mcp-setting__top"><span :class="`is-${server.status}`"></span><mdui-text-field variant="filled" :value="server.name" :label="t('mcpName')" @input="SettingsCommand.updateMCP(server.id, { name: $event.target.value })"></mdui-text-field><small>{{ t('toolCount', { count: server.toolCount }) }}</small><mdui-switch :checked="server.enabled" @change="SettingsCommand.updateMCP(server.id, { enabled: $event.target.checked })"></mdui-switch><mdui-button-icon class="icon-command" :aria-label="t('deleteMcp')" @click="SettingsCommand.removeMCP(server.id)"><mdui-icon-delete></mdui-icon-delete></mdui-button-icon></div>
+          <mdui-text-field variant="outlined" :value="server.command" :label="t('launchCommand')" @input="SettingsCommand.updateMCP(server.id, { command: $event.target.value })"></mdui-text-field>
+        </mdui-card>
         <div v-if="!draft.mcp.length" class="empty-state">{{ t('noMcp') }}</div>
       </section>
 
       <section v-else-if="store.ui.settingsSection === 'prompt'" class="simple-settings prompt-settings">
         <header class="simple-settings__heading"><div><h3>{{ t('globalPrompt') }}</h3><p>{{ t('promptDescription') }}</p></div></header>
-        <textarea :value="draft.prompt" rows="14" spellcheck="false" @input="draft.prompt = $event.target.value"></textarea>
+        <mdui-text-field variant="outlined" autosize :min-rows="10" :max-rows="20" :value="draft.prompt" :label="t('globalPrompt')" @input="draft.prompt = $event.target.value"></mdui-text-field>
         <small>{{ t('characterCount', { count: draft.prompt.length }) }}</small>
       </section>
 
       <section v-else-if="store.ui.settingsSection === 'appearance'" class="simple-settings">
         <header class="simple-settings__heading"><div><h3>{{ t('appearance') }}</h3><p>{{ t('appearanceDescription') }}</p></div></header>
-        <label class="setting-field"><span>{{ t('interfaceLanguage') }}</span><select :value="draft.appearance.language" @change="draft.appearance.language = $event.target.value"><option value="zh-CN">{{ t('simplifiedChinese') }}</option><option value="en-US">English</option></select></label>
-        <label class="setting-field"><span>{{ t('interfaceDensity') }}</span><select :value="draft.appearance.density" @change="draft.appearance.density = $event.target.value"><option value="comfortable">{{ t('comfortable') }}</option><option value="compact">{{ t('compact') }}</option></select></label>
+        <mdui-select variant="outlined" :value="draft.appearance.language" :label="t('interfaceLanguage')" @change="draft.appearance.language = $event.target.value"><mdui-menu-item value="zh-CN">{{ t('simplifiedChinese') }}</mdui-menu-item><mdui-menu-item value="en-US">English</mdui-menu-item></mdui-select>
+        <mdui-select variant="outlined" :value="draft.appearance.density" :label="t('interfaceDensity')" @change="draft.appearance.density = $event.target.value"><mdui-menu-item value="comfortable">{{ t('comfortable') }}</mdui-menu-item><mdui-menu-item value="compact">{{ t('compact') }}</mdui-menu-item></mdui-select>
         <label class="switch-field"><span><strong>{{ t('animations') }}</strong><small>{{ t('animationsDescription') }}</small></span><mdui-switch :checked="draft.appearance.animations" @change="draft.appearance.animations = $event.target.checked"></mdui-switch></label>
       </section>
 
       <section v-else class="simple-settings data-settings">
         <header class="simple-settings__heading"><div><h3>{{ t('dataManagement') }}</h3><p>{{ t('dataDescription') }}</p></div></header>
-        <article><span><mdui-icon-download></mdui-icon-download></span><div><strong>{{ t('exportData') }}</strong><small>{{ t('exportDescription') }}</small></div><button type="button" @click="SettingsCommand.dataAction('export')">{{ t('export') }}</button></article>
-        <article><span><mdui-icon-upload></mdui-icon-upload></span><div><strong>{{ t('importData') }}</strong><small>{{ t('importDescription') }}</small></div><button type="button" @click="SettingsCommand.dataAction('import')">{{ t('import') }}</button></article>
-        <article class="is-danger"><span><mdui-icon-delete></mdui-icon-delete></span><div><strong>{{ t('clearData') }}</strong><small>{{ t('clearDescription') }}</small></div><button type="button" @click="SettingsCommand.dataAction('clear')">{{ t('clear') }}</button></article>
+        <mdui-card variant="outlined"><mdui-avatar><mdui-icon-download></mdui-icon-download></mdui-avatar><div><strong>{{ t('exportData') }}</strong><small>{{ t('exportDescription') }}</small></div><mdui-button variant="tonal" @click="SettingsCommand.dataAction('export')">{{ t('export') }}</mdui-button></mdui-card>
+        <mdui-card variant="outlined"><mdui-avatar><mdui-icon-upload></mdui-icon-upload></mdui-avatar><div><strong>{{ t('importData') }}</strong><small>{{ t('importDescription') }}</small></div><mdui-button variant="tonal" @click="SettingsCommand.dataAction('import')">{{ t('import') }}</mdui-button></mdui-card>
+        <mdui-card variant="outlined" class="is-danger"><mdui-avatar><mdui-icon-delete></mdui-icon-delete></mdui-avatar><div><strong>{{ t('clearData') }}</strong><small>{{ t('clearDescription') }}</small></div><mdui-button variant="outlined" @click="SettingsCommand.dataAction('clear')">{{ t('clear') }}</mdui-button></mdui-card>
         <div v-if="store.settings.feedback" class="inline-feedback">{{ store.settings.feedback }}</div>
       </section>
     </main>
   </section>
 </template>
+
+<style lang="scss" src="../styles/views/Settings.scss"></style>

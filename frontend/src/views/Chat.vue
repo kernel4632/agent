@@ -83,27 +83,24 @@ function jumpAdjacent(direction) {
       <MessageList v-else ref="messageList" :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
 
       <nav v-if="session.messages.length" class="message-map" :aria-label="t('quickJump')">
-        <button type="button" :aria-label="t('previousMessage')" :title="t('previousMessage')" @click="jumpAdjacent(-1)"><mdui-icon-keyboard-arrow-up></mdui-icon-keyboard-arrow-up></button>
+        <mdui-button-icon :aria-label="t('previousMessage')" :title="t('previousMessage')" @click="jumpAdjacent(-1)"><mdui-icon-keyboard-arrow-up></mdui-icon-keyboard-arrow-up></mdui-button-icon>
         <div>
-          <button v-for="message in session.messages" :key="message.id" type="button" :class="[`is-${message.role}`, { 'is-active': activeMarkerID === message.id }]" :aria-label="t(message.role === 'user' ? 'jumpUser' : 'jumpAssistant')" @click="jump(message.id)"></button>
+          <mdui-button-icon v-for="message in session.messages" :key="message.id" :class="[`is-${message.role}`, { 'is-active': activeMarkerID === message.id }]" :aria-label="t(message.role === 'user' ? 'jumpUser' : 'jumpAssistant')" @click="jump(message.id)"></mdui-button-icon>
         </div>
-        <button type="button" :aria-label="t('nextMessage')" :title="t('nextMessage')" @click="jumpAdjacent(1)"><mdui-icon-keyboard-arrow-down></mdui-icon-keyboard-arrow-down></button>
+        <mdui-button-icon :aria-label="t('nextMessage')" :title="t('nextMessage')" @click="jumpAdjacent(1)"><mdui-icon-keyboard-arrow-down></mdui-icon-keyboard-arrow-down></mdui-button-icon>
       </nav>
     </div>
 
     <footer class="chat-footer">
       <div v-if="session.rollback" class="rollback-preview">
-        <mdui-icon-undo></mdui-icon-undo><span><strong>{{ t('rolledBack') }}</strong><small>{{ session.rollback.preview }}</small></span><button type="button" @click="ChatCommand.undoRollback(session.id)">{{ t('undoRollback') }}</button>
+        <mdui-icon-undo></mdui-icon-undo><span><strong>{{ t('rolledBack') }}</strong><small>{{ session.rollback.preview }}</small></span><mdui-button variant="text" @click="ChatCommand.undoRollback(session.id)">{{ t('undoRollback') }}</mdui-button>
       </div>
       <TaskPanel :tasks="session.tasks" />
       <InputBox v-model="session.draft" :session="session" :models="models" @send="ChatCommand.send(session.id, $event)" @stop="ChatCommand.stop(session.id)" @select-model="selectModel" @attach="ChatCommand.attach(session.id, $event)" @remove-file="ChatCommand.removeFile(session.id, $event)" />
     </footer>
 
-    <div v-if="pendingRollback" class="modal-backdrop" @mousedown.self="pendingRollback = null">
-      <section class="modal modal--small" role="alertdialog" aria-modal="true">
-        <header><div><h2>{{ t('rollbackTool') }}</h2><p>{{ t('rollbackDescription', { step: pendingRollback }) }}</p></div></header>
-        <footer><button type="button" @click="pendingRollback = null">{{ t('cancel') }}</button><button class="primary-button" type="button" @click="confirmRollback">{{ t('confirmRollback') }}</button></footer>
-      </section>
-    </div>
+    <mdui-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" close-on-overlay-click @closed="pendingRollback = null"><h2>{{ t('rollbackTool') }}</h2><p>{{ t('rollbackDescription', { step: pendingRollback }) }}</p><mdui-button slot="action" variant="text" @click="pendingRollback = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" @click="confirmRollback">{{ t('confirmRollback') }}</mdui-button></mdui-dialog>
   </section>
 </template>
+
+<style lang="scss" src="../styles/views/Chat.scss"></style>
