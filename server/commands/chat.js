@@ -10,7 +10,7 @@ import { Agent } from './agent.js'                                    // 引入�
 import { Approval } from './approval.js'                              // 引入工具审批等待指令
 import { Run } from './run.js'                                        // 引入每次执行的生命周期状态
 import { Session } from './session.js'                                // 引入会话读取、修改和持久化动作
-import { Skill } from './skill.js'                                    // 引入渐进披露技能目录
+import { Skill } from './skills.js'                                   // 引入渐进披露技能目录
 import { store } from '../store.js'                                   // 引入服务端唯一状态根
 import { Event } from './event.js'                                    // 引入独立会话事件广播指令
 
@@ -19,8 +19,8 @@ import { compressMessages } from '../utils/compress.js'              // 引入�
 import { retry } from '../utils/retry.js'                             // 引入模型失败后的无限退避重试
 
 const runningLoops = new Map()                                        // sessionID 到根 Run ID，保证同一会话只有一个主循环
-const sseEncoder = new TextEncoder()                                   // 将 SSE 文本转换为真实 HTTP socket 接受的 UTF-8 字节
-const taskInstruction = '任务包含三个及以上明确步骤时，先调用 task_list_update 建立清单；每完成或开始一项时再次提交完整清单。简单问答不要创建任务清单。' // 让任务工具成为复杂工作流而非装饰
+import { SSE } from '../utils/sse.js'                                  // 引入标准 SSE 字节编码工具
+const taskInstruction = '任务包含三个及以上明确步骤时，先调用 task_list_update 建立清单；每完成或开始一项时再次提交完整清单。简单问答不要创建任务清单。一旦开始使用工具，就必须完成并检查所有要求，最后在单独一轮调用 task_done；task_done 不得与其他工具并行。' // 明确复杂任务规划和可靠完成协议
 const publicModelEvents = new Set(['text-delta', 'reasoning-delta', 'tool-call', 'tool-result', 'finish-step']) // 只广播界面真实消费的稳定模型事件
 
 
@@ -80,10 +80,10 @@ function getPermission(name, input) {
 // --- 执行一个受权限保护的工具 ---
 async function executeTool(runID, sessionID, toolCallID, name, input, emit, abortSignal) {
   const definition = toolStore.items.get(name)                          // 从注册表读取模型请求时使用的同一工具
-  if (!definition) return { result: `工具不存在: ${name}` }              // 工具被热删除时返回业务错误而不中断循环
+  if (!definition) return { result: `工具不存在: ${name}`, failed: true } // 工具被热删除时返回可持久化失败结果
 
   const matched = getPermission(name, input)                             // 每次执行前重新读取权限和命中范围
-  if (matched.permission === 'deny') return { result: '该工具已被用户禁止使用。请尝试其他方式完成任务。' } // deny 不产生副作用
+  if (matched.permission === 'deny') return { result: '该工具已被用户禁止使用。请尝试其他方式完成任务。', denied: true } // deny 不产生副作用并显示拒绝状态
   if (matched.permission === 'ask') {                                    // ask 必须等待三选一审批
     const decision = await Approval.wait({ runID, sessionID, toolCallID, toolName: name, input, matched, emit, abortSignal }) // 暂停直到用户决定或 Run 中断
     if (decision === 'deny') return { result: '用户拒绝了该工具的执行。', stop: true, denied: true } // 现场拒绝作为持久语义反馈并停止循环
@@ -98,10 +98,12 @@ async function executeTool(runID, sessionID, toolCallID, name, input, emit, abor
         emit('task-list-updated', { tasks: updated.tasks, taskRevision: updated.taskRevision }) // 实时通知客户端最新任务清单
         return { result: '任务清单已更新。', tasks: updated.tasks, taskRevision: updated.taskRevision } // 将持久化结果反馈给模型
       },
+      abortSignal,                                                       // 内置、自定义、MCP 和 LSP 工具共享当前 Run 取消信号
       spawnAgent: (prompt, agentID) => runChild(runID, sessionID, prompt, agentID, emit), // 子 Agent 共享环境但使用独立 Run 和模型上下文
     })
   } catch (error) {
-    return { result: `工具执行失败: ${error.message}` }                   // 工具业务错误变成模型可恢复的正常反馈
+    if (abortSignal.aborted) throw new DOMException('tool execution aborted', 'AbortError') // 用户停止立即退出整个 Run
+    return { result: `工具执行失败: ${error.message}`, failed: true }      // 工具业务错误变成可恢复且可展示的失败反馈
   }
 }
 
@@ -207,9 +209,7 @@ async function runChild(parentRunID, sessionID, prompt, agentID, emit) {
 
 // --- 向 SSE 客户端写入事件 ---
 function writeEvent(streamWriter, event, data) {
-  const payload = JSON.stringify(data, (_, value) => typeof value === 'bigint' ? Number(value) : value) // 保证 token 数等值可序列化
-  const frame = `event: ${event}\ndata: ${payload}\n\n`               // 组装一个完整标准 SSE 事件帧
-  streamWriter.enqueue(sseEncoder.encode(frame))                        // 网络 Response 必须写入字节，避免真实 socket 被 Bun 重置
+  streamWriter.enqueue(SSE.encode(event, data))                         // 模型内部流使用无 ID 标准帧，Session 广播随后分配递增 ID
 }
 
 
@@ -246,6 +246,7 @@ function startLoop({ runID, sessionID, agentID, message, messageID, files = [], 
         if (session.messages.length === 1) createTitle(sessionID, message, emit).catch(() => {}) // 首条消息异步生成标题，不阻塞主循环
         let textOnlyCount = 0                                             // 连续无工具响应计数，用于兼容模型先说话行为
         let shouldStop = false                                            // 记录工具 stop 或用户中断导致的终止状态
+        let usedTools = false                                             // 一旦产生工具调用，本次 Run 必须由 task_done 明确结束
 
         while (!shouldStop && !stopSignal.signal.aborted) {              // 只有明确 stop、中断或纯文本上限才结束
           const model = Config.createModel(agent.provider, agent.model)   // 每轮使用 Run 固定的模型选择
@@ -260,22 +261,29 @@ function startLoop({ runID, sessionID, agentID, message, messageID, files = [], 
           const nextStep = Math.max(0, ...previousSteps) + 1                 // 本轮并行工具共享同一个新步骤号
           const completion = getRoundCompletion(round)                       // 区分独立完成确认、审批拒绝和过早并行完成
           shouldStop = completion.shouldStop                                  // 只有可靠终态才能结束整个循环
+          usedTools ||= round.toolCalls.length > 0                             // 记录任务已经进入真实执行阶段
           session.modelMessages.push(...round.response.messages)             // 将模型消息加入仅供下一轮使用的上下文
           if (completion.premature) session.modelMessages.push({ role: 'user', content: 'task_done 不能与其他工具并行作为完成确认。请检查刚才的工具结果，继续完成用户要求的剩余工作，最后在单独一轮调用 task_done。' }) // 让模型修正尚未验证的完成声明
           const assistantMessage = { id: `msg_${crypto.randomUUID()}`, role: 'assistant', content: round.text, reasoning: round.reasoning, toolCalls: round.toolCalls, contentBlocks: [], checkpoint: round.toolResults.length ? nextStep : null, rolledBack: false, createdAt: Date.now() } // 构建前端可直接渲染的助手消息
           if (round.reasoning) assistantMessage.contentBlocks.push({ type: 'thinking', thinking: { thinking: round.reasoning } }) // 推理进入可折叠内容块
           if (round.text) assistantMessage.contentBlocks.push({ type: 'text', text: { text: round.text } }) // 正文进入 Markdown 文本块
-          round.toolCalls.forEach((call) => assistantMessage.contentBlocks.push({ type: 'tool_call', tool_call: { toolCallId: call.toolCallId, toolName: call.toolName, input: call.input, status: 'completed' } })) // 工具声明进入展示条
+          round.toolCalls.forEach((call) => {
+            const output = round.toolResults.find((part) => part.toolCallId === call.toolCallId)?.output // 查找同一次工具调用的真实结果
+            const status = output?.denied ? 'rejected' : output?.failed ? 'failed' : 'completed' // 按拒绝、失败或成功保存准确状态
+            assistantMessage.contentBlocks.push({ type: 'tool_call', tool_call: { toolCallId: call.toolCallId, toolName: call.toolName, input: call.input, status } }) // 工具声明进入展示条
+          })
           session.messages.push(assistantMessage)                          // 完整助手消息一次加入展示历史
           round.toolResults.forEach((part) => session.messages.push({ id: `msg_${crypto.randomUUID()}`, role: 'tool', content: '', contentBlocks: [{ type: 'tool_result', tool_result: { toolCallId: part.toolCallId, output: part.output, isError: Boolean(part.output?.failed) } }], toolCallId: part.toolCallId, name: part.toolName, input: round.toolCalls.find((call) => call.toolCallId === part.toolCallId)?.input, result: part.output, status: part.output?.denied ? 'rejected' : 'completed', step: nextStep, checkpoint: nextStep, rolledBack: false, createdAt: Date.now() })) // 并行结果保存真实拒绝或完成状态
           await Session.persist(session)                                     // 每轮模型与工具反馈完成后立即持久化
           emit('usage', round.usage)                                          // 独立反馈本轮真实 token 用量
           emit('context', { used: Number(round.usage?.inputTokens ?? 0) + Number(round.usage?.outputTokens ?? 0), limit: Config.getContextLimitFor(agent.provider, agent.model), ratio: (Number(round.usage?.inputTokens ?? 0) + Number(round.usage?.outputTokens ?? 0)) / Config.getContextLimitFor(agent.provider, agent.model) }) // 反馈上下文 token 和占比
           if (round.toolResults.length) emit('checkpoint', { step: nextStep, toolCallIds: round.toolResults.map((part) => part.toolCallId) }) // 让实时工具立即获得回退步骤
-          if (round.toolResults.length) textOnlyCount = 0                     // 工具执行成功后重新允许纯文本重试
-          else textOnlyCount += 1                                             // 纯文本响应进入兼容性重试计数
-          if (textOnlyCount === 2) session.modelMessages.push({ role: 'user', content: '如果任务尚未完成，请使用工具执行；如果已经完成，请调用 task_done 结束。' }) // 第二次纯文本时注入明确提醒
-          if (textOnlyCount >= 3) shouldStop = true                           // 连续三次纯文本后按设计停止异常循环
+          if (round.toolResults.length) textOnlyCount = 0                     // 工具执行后重新计算纯文本偏离次数
+          else textOnlyCount += 1                                             // 纯文本响应进入协议偏离计数
+          if (textOnlyCount && usedTools) session.modelMessages.push({ role: 'user', content: '你已经开始使用工具，任务尚未通过 task_done 明确完成。请检查用户要求和已有工具结果，继续执行剩余工作；全部完成后在单独一轮调用 task_done。' }) // 每次偏离都推动 Agent 返回执行链
+          else if (textOnlyCount === 2) session.modelMessages.push({ role: 'user', content: '如果任务尚未完成，请使用工具执行；如果只是简单问答，请直接给出最终答案。' }) // 未使用工具的普通问答允许自然结束
+          if (textOnlyCount >= 3 && usedTools) throw new Error('agent stopped using tools before task_done confirmed completion') // 已执行任务不能伪装成成功
+          if (textOnlyCount >= 3) shouldStop = true                           // 普通纯文本问答连续稳定后正常结束
         }
         if (stopSignal.signal.aborted) {
           Run.cancel(run.id, String(stopSignal.signal.reason || 'cancelled')) // 循环因用户停止退出时保持取消语义
@@ -353,6 +361,52 @@ function startBackground({ runID, sessionID, message, messageID, files = [], ini
 }
 
 
+// --- 从兼容入口发送消息并返回模型流 ---
+async function sendLegacy({ sessionID, agentID, message, messageID, request }) {
+  let targetSessionID = sessionID                                          // 已有会话继续原消息历史
+  const initialEvents = []                                                 // 新会话和新 Run 按顺序反馈身份
+  if (!targetSessionID) {
+    const created = await Session.create({ agentID })                       // 兼容入口省略会话时创建默认工作区会话
+    if (created.ok === false) return created                               // 默认工作区异常时反馈指令错误
+    targetSessionID = created.id                                           // 后续循环使用真实会话身份
+    initialEvents.push({ event: 'session-created', data: { id: targetSessionID } }) // 首个事件通知客户端保存身份
+  }
+  if (!Session.get(targetSessionID)) return { ok: false, status: 404, error: 'session not found' } // 不存在的会话不能写入
+  if (isRunning(targetSessionID)) return { ok: false, status: 409, error: 'session is running' } // 同一历史禁止并发修改
+
+  const run = Run.create({ sessionID: targetSessionID, agentID, input: message }) // 登记本轮固定 Agent 快照
+  initialEvents.push({ event: 'run-created', data: { runID: run.id, agentID: run.agentID, parentRunID: null } }) // 在模型增量前反馈 Run
+  try {
+    return { ok: true, stream: startLoop({ runID: run.id, sessionID: targetSessionID, message, messageID, request, initialEvents }) } // 返回可由响应层包装的模型流
+  } catch (error) {
+    Run.fail(run.id, error)                                               // 流创建失败关闭已登记 Run
+    if (error.code === 'SESSION_RUNNING') return { ok: false, status: 409, error: error.message } // 处理并发预留竞争
+    throw error                                                           // 未知故障保留真实堆栈
+  }
+}
+
+
+// --- 向正式 Session 启动后台执行 ---
+function sendSession(request) {
+  const session = Session.get(request.sessionId)                           // 读取用户指定会话
+  if (!session) return { ok: false, status: 404, error: 'session not found' } // 正式入口不能隐式创建会话
+  if (isRunning(session.id)) return { ok: false, status: 409, error: 'session is running' } // 同一历史禁止并发写入
+
+  const modelAgent = request.model ? Agent.list().find((agent) => agent.model === request.model) : null // 将显式模型解析为配置 Agent
+  if (request.model && !modelAgent) return { ok: false, status: 400, error: 'model is not configured for an agent' } // 未配置模型不能绕过供应商定义
+  const agentID = request.agentId || modelAgent?.id || session.agentID     // 本轮显式选择优先，其次复用会话选择
+  const run = Run.create({ sessionID: session.id, agentID, input: request.content }) // 先登记可查询 Run
+  try {
+    const started = startBackground({ runID: run.id, sessionID: session.id, message: request.content, messageID: request.messageId, files: request.files || [], initialEvents: [{ event: 'run-created', data: { runID: run.id, agentID: run.agentID, parentRunID: null } }] }) // 模型输出进入独立事件历史
+    return { ok: true, sessionId: session.id, run: started }               // 发送请求立即反馈启动状态
+  } catch (error) {
+    Run.fail(run.id, error)                                                // 启动失败关闭已经登记的 Run
+    if (error.code === 'SESSION_RUNNING') return { ok: false, status: 409, error: error.message } // 处理并发预留竞争
+    throw error                                                            // 未知故障交给服务错误边界
+  }
+}
+
+
 // --- 解码一个消息附件 ---
 function decodeAttachment(file) {
   try { return Buffer.from(file.content || '', 'base64').toString('utf-8') } // 文本与代码附件恢复为模型可读正文
@@ -376,7 +430,7 @@ async function createTitle(sessionID, message, emit) {
 // --- 停止运行中的循环 ---
 function stop(targetID) {
   const runID = Run.get(targetID) ? targetID : runningLoops.get(targetID)          // 兼容按 Run ID 和旧 Session ID 停止
-  if (!runID) return { ok: false, error: 'session is not running' }                // 没有运行循环时反馈明确状态
+  if (!runID) return { ok: false, status: 404, error: 'session is not running' }   // 没有运行循环时反馈真实未找到状态
   Run.cancel(runID, 'stopped by user')                                             // 中断目标 Run 并向下传播到子 Run
   return { ok: true }                                                             // 反馈停止信号已发出
 }
@@ -388,4 +442,4 @@ function isRunning(sessionID) {
 }
 
 
-export const Chat = { startLoop, startBackground, stop, isRunning }                 // 导出前台兼容流、后台正式执行和停止动作
+export const Chat = { startLoop, startBackground, sendLegacy, sendSession, stop, isRunning } // 导出兼容流、正式后台发送和停止动作

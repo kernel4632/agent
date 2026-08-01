@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'                               // 引�
 import { readFile } from 'node:fs/promises'                              // 引入磁盘文档同步能力
 import { extname, isAbsolute, resolve } from 'node:path'                  // 引入扩展名匹配和工作区路径解析
 import { fileURLToPath, pathToFileURL } from 'node:url'                   // 引入 LSP DocumentUri 转换能力
-import { createMessageConnection } from 'vscode-jsonrpc/node'            // 引入官方 VS Code JSON-RPC 流实现
+import { CancellationTokenSource, createMessageConnection } from 'vscode-jsonrpc/node' // 引入 JSON-RPC 流和请求取消令牌
 import { Config } from './config.js'                                     // 引入语言服务器声明
 import { store } from '../store.js'                                       // 引入服务端唯一状态根
 
@@ -108,8 +108,8 @@ async function ensureConnected(serverName, definition) {
 
 
 // --- 将磁盘文档同步给语言服务器 ---
-async function openDocument(runtime, document, languageId) {
-  const text = await readFile(document.absolutePath, 'utf8')                       // 每次请求读取最新磁盘内容
+async function openDocument(runtime, document, languageId, abortSignal) {
+  const text = await readFile(document.absolutePath, { encoding: 'utf8', signal: abortSignal }) // 每次请求读取最新磁盘内容并接受停止
   const previous = runtime.documents.get(document.uri)                            // 查找服务器已知版本
   if (!previous) {
     runtime.documents.set(document.uri, { version: 1, text })                      // 建立首个同步版本
@@ -124,11 +124,12 @@ async function openDocument(runtime, document, languageId) {
 
 
 // --- 准备一次 LSP 工具请求 ---
-async function prepareRequest({ path, server }) {
+async function prepareRequest({ path, server }, abortSignal) {
+  abortSignal?.throwIfAborted()                                                   // 已停止 Run 不再连接语言服务器
   const [serverName, definition] = findServer(path, server)                       // 按显式名称或扩展名选择服务
   const document = resolveDocument(path, serverName, definition)                  // 创建绝对路径和 URI
   const runtime = await ensureConnected(serverName, definition)                   // 保证握手完成
-  await openDocument(runtime, document, definition.languageId || document.absolutePath.slice(document.absolutePath.lastIndexOf('.') + 1)) // 同步当前文件
+  await openDocument(runtime, document, definition.languageId || document.absolutePath.slice(document.absolutePath.lastIndexOf('.') + 1), abortSignal) // 同步当前文件
   return { runtime, document, serverName }                                         // 返回请求所需完整上下文
 }
 
@@ -144,46 +145,72 @@ function normalizeLocation(location) {
 }
 
 
+// --- 发送一个可取消 LSP 请求 ---
+async function sendRequest(runtime, method, params, abortSignal) {
+  const cancellation = new CancellationTokenSource()                            // 将 Web AbortSignal 转成 JSON-RPC CancellationToken
+  const abortRequest = () => cancellation.cancel()                              // Run 停止时发送标准 $/cancelRequest
+  abortSignal?.addEventListener('abort', abortRequest, { once: true })           // 当前请求只监听一次停止
+  if (abortSignal?.aborted) abortRequest()                                       // 处理监听建立前已经停止的竞争
+  try { return await runtime.connection.sendRequest(method, params, cancellation.token) } // 发送带取消令牌的真实请求
+  finally {
+    abortSignal?.removeEventListener('abort', abortRequest)                      // 请求结束后释放 Run 信号引用
+    cancellation.dispose()                                                       // 释放 JSON-RPC 令牌资源
+  }
+}
+
+
 // --- 注册 Agent 可调用的 LSP 工具 ---
 function registerTools() {
   const positionParameters = { path: { type: 'string', required: true, description: '工作区相对或绝对文件路径' }, line: { type: 'number', required: true, description: '从 1 开始的行号' }, character: { type: 'number', required: true, description: '从 1 开始的 UTF-16 列号' }, server: { type: 'string', required: false, description: '可选 LSP 服务名' } } // 三个导航工具共享坐标协议
-  toolStore.items.set('lsp_diagnostics', { name: 'lsp_diagnostics', label: '检查代码诊断', description: '使用已配置的语言服务器检查文件错误、警告和提示。', parameters: { path: positionParameters.path, server: positionParameters.server }, source: 'lsp', kind: 'lsp', execute: diagnostics }) // 注册诊断能力
-  toolStore.items.set('lsp_definition', { name: 'lsp_definition', label: '查找定义', description: '通过语言服务器查找符号定义位置。行号和列号从 1 开始。', parameters: positionParameters, source: 'lsp', kind: 'lsp', execute: (input) => locations('textDocument/definition', input) }) // 注册定义跳转
-  toolStore.items.set('lsp_references', { name: 'lsp_references', label: '查找引用', description: '通过语言服务器查找符号的全部引用。行号和列号从 1 开始。', parameters: positionParameters, source: 'lsp', kind: 'lsp', execute: (input) => locations('textDocument/references', input, { context: { includeDeclaration: true } }) }) // 注册引用查询
-  toolStore.items.set('lsp_hover', { name: 'lsp_hover', label: '查看符号信息', description: '通过语言服务器读取符号类型、签名和文档。行号和列号从 1 开始。', parameters: positionParameters, source: 'lsp', kind: 'lsp', execute: hover }) // 注册悬停信息
+  toolStore.items.set('lsp_diagnostics', { name: 'lsp_diagnostics', label: '检查代码诊断', description: '使用已配置的语言服务器检查文件错误、警告和提示。', parameters: { path: positionParameters.path, server: positionParameters.server }, source: 'lsp', kind: 'lsp', execute: (input, context) => diagnostics(input, context) }) // 注册诊断能力
+  toolStore.items.set('lsp_definition', { name: 'lsp_definition', label: '查找定义', description: '通过语言服务器查找符号定义位置。行号和列号从 1 开始。', parameters: positionParameters, source: 'lsp', kind: 'lsp', execute: (input, context) => locations('textDocument/definition', input, {}, context) }) // 注册定义跳转
+  toolStore.items.set('lsp_references', { name: 'lsp_references', label: '查找引用', description: '通过语言服务器查找符号的全部引用。行号和列号从 1 开始。', parameters: positionParameters, source: 'lsp', kind: 'lsp', execute: (input, context) => locations('textDocument/references', input, { context: { includeDeclaration: true } }, context) }) // 注册引用查询
+  toolStore.items.set('lsp_hover', { name: 'lsp_hover', label: '查看符号信息', description: '通过语言服务器读取符号类型、签名和文档。行号和列号从 1 开始。', parameters: positionParameters, source: 'lsp', kind: 'lsp', execute: (input, context) => hover(input, context) }) // 注册悬停信息
 }
 
 
 // --- 获取文件诊断 ---
-async function diagnostics(input) {
-  const { runtime, document, serverName } = await prepareRequest(input)            // 同步文件并选择服务
+async function diagnostics(input, context = {}) {
+  const { runtime, document, serverName } = await prepareRequest(input, context.abortSignal) // 同步文件并选择服务
   let items = runtime.diagnostics.get(document.uri) || []                          // 先读取 push diagnostics
   if (runtime.capabilities.diagnosticProvider) {
     try {
-      const result = await runtime.connection.sendRequest('textDocument/diagnostic', { textDocument: { uri: document.uri } }) // 支持 LSP 3.17 pull diagnostics
+      const result = await sendRequest(runtime, 'textDocument/diagnostic', { textDocument: { uri: document.uri } }, context.abortSignal) // 支持可取消 LSP 3.17 pull diagnostics
       if (result?.kind === 'full') items = result.items || []                       // 完整报告替换缓存
     } catch {}                                                                      // 部分服务声明但未实现时仍可使用 push 结果
   } else {
-    await new Promise((resolveWait) => setTimeout(resolveWait, 350))                // 给异步 publishDiagnostics 一个短窗口
+    await waitForDiagnostics(context.abortSignal)                                // 给 push diagnostics 短窗口并接受停止
     items = runtime.diagnostics.get(document.uri) || items                          // 读取通知后的最新结果
   }
   return { server: serverName, path: document.absolutePath, diagnostics: items.map((item) => ({ severity: ['unknown', 'error', 'warning', 'information', 'hint'][item.severity || 1], message: item.message, source: item.source || '', code: item.code ?? '', line: (item.range?.start?.line ?? 0) + 1, character: (item.range?.start?.character ?? 0) + 1 })) } // 返回紧凑可操作诊断
 }
 
 
+// --- 等待诊断通知或 Run 停止 ---
+function waitForDiagnostics(abortSignal) {
+  if (!abortSignal) return new Promise((resolveWait) => setTimeout(resolveWait, 350)) // 非 Agent 调用保持普通短等待
+  return new Promise((resolveWait, reject) => {
+    const timer = setTimeout(() => { abortSignal.removeEventListener('abort', abortWait); resolveWait() }, 350) // 正常完成释放监听
+    const abortWait = () => { clearTimeout(timer); reject(new DOMException('LSP diagnostics aborted', 'AbortError')) } // 停止时立即退出
+    abortSignal.addEventListener('abort', abortWait, { once: true })               // 当前等待只监听一次停止
+    if (abortSignal.aborted) abortWait()                                            // 处理已经停止的竞争
+  })
+}
+
+
 // --- 获取定义或引用位置 ---
-async function locations(method, input, extra = {}) {
-  const { runtime, document, serverName } = await prepareRequest(input)            // 准备标准文本位置请求
-  const result = await runtime.connection.sendRequest(method, { textDocument: { uri: document.uri }, position: { line: Math.max(0, input.line - 1), character: Math.max(0, input.character - 1) }, ...extra }) // 将公开 1-based 坐标转为 LSP 0-based
+async function locations(method, input, extra = {}, context = {}) {
+  const { runtime, document, serverName } = await prepareRequest(input, context.abortSignal) // 准备标准文本位置请求
+  const result = await sendRequest(runtime, method, { textDocument: { uri: document.uri }, position: { line: Math.max(0, input.line - 1), character: Math.max(0, input.character - 1) }, ...extra }, context.abortSignal) // 将公开坐标转为可取消请求
   const values = Array.isArray(result) ? result : result ? [result] : []            // 定义可能返回单项、数组或 null
   return { server: serverName, locations: values.map(normalizeLocation).filter(Boolean) } // 统一位置结构反馈模型
 }
 
 
 // --- 获取符号悬停信息 ---
-async function hover(input) {
-  const { runtime, document, serverName } = await prepareRequest(input)            // 准备标准文本位置请求
-  const result = await runtime.connection.sendRequest('textDocument/hover', { textDocument: { uri: document.uri }, position: { line: Math.max(0, input.line - 1), character: Math.max(0, input.character - 1) } }) // 请求真实类型与文档
+async function hover(input, context = {}) {
+  const { runtime, document, serverName } = await prepareRequest(input, context.abortSignal) // 准备标准文本位置请求
+  const result = await sendRequest(runtime, 'textDocument/hover', { textDocument: { uri: document.uri }, position: { line: Math.max(0, input.line - 1), character: Math.max(0, input.character - 1) } }, context.abortSignal) // 请求可取消的真实类型与文档
   return { server: serverName, hover: result || null }                              // 保留 MarkupContent 结构给模型理解
 }
 

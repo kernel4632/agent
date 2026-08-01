@@ -79,9 +79,38 @@ function get() {
 }
 
 
+// --- 读取可公开的设计配置 ---
+function getPublic() {
+  const config = get()                                               // 从运行态创建独立公开副本
+  for (const provider of Object.values(config.providers ?? {})) {
+    if (provider && 'apiKey' in provider) provider.apiKey = provider.apiKey ? '[REDACTED]' : provider.apiKey // API Key 只反馈是否存在
+    for (const header of Object.keys(provider?.headers ?? {})) {
+      if (/authorization|api[-_]?key|token|cookie|secret/i.test(header) && provider.headers[header]) provider.headers[header] = '[REDACTED]' // 认证请求头不返回明文
+    }
+  }
+  for (const server of Object.values(config.mcpServers ?? {})) {
+    for (const field of ['headers', 'env']) {
+      for (const key of Object.keys(server?.[field] ?? {})) {
+        if (/authorization|api[-_]?key|token|cookie|secret|password/i.test(key) && server[field][key]) server[field][key] = '[REDACTED]' // MCP 密钥使用同一规则
+      }
+    }
+  }
+  config.provider = structuredClone(config.providers)               // 公开设计规定的供应商字段
+  config.tools = structuredClone(config.permissions)                 // 公开设计规定的工具配置字段
+  config.defaultModel = config.activeModel                           // 公开设计规定的默认模型字段
+  return config                                                       // 反馈安全且符合设计的数据结构
+}
+
+
 // --- 合并配置更新 ---
 async function update(changes) {
   const nextChanges = structuredClone(changes)                     // 复制请求，避免密钥修复修改路由输入
+  if ('provider' in nextChanges && !('providers' in nextChanges)) nextChanges.providers = nextChanges.provider // 设计字段映射到内部供应商集合
+  if ('tools' in nextChanges && !('permissions' in nextChanges)) nextChanges.permissions = nextChanges.tools // 设计字段映射到工具权限
+  if ('defaultModel' in nextChanges && !('activeModel' in nextChanges)) nextChanges.activeModel = nextChanges.defaultModel // 设计默认模型映射到运行选择
+  delete nextChanges.provider                                      // 兼容别名不写入内部配置文件
+  delete nextChanges.tools                                         // 工具别名不形成第二份状态
+  delete nextChanges.defaultModel                                  // 模型别名不形成第二份状态
   if (nextChanges.providers) {                                     // 完整提供商编辑需要支持新增、修改和删除
     for (const [name, provider] of Object.entries(nextChanges.providers)) {
       const savedProvider = configStore.value.providers?.[name]    // 读取同名提供商未脱敏的认证配置
@@ -351,4 +380,4 @@ function createTimeoutFetch(timeoutMs) {
 }
 
 
-export const Config = { load, save, get, update, allowTool, testProvider, listModels, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor } // 导出配置、模型发现和 Agent 指定配置动作
+export const Config = { load, save, get, getPublic, update, allowTool, testProvider, listModels, createModel, getActiveModel, getProviderOptions, getProviderOptionsFor, getGenerationOptions, getGenerationOptionsFor, getContextLimit, getContextLimitFor } // 导出配置、模型发现和 Agent 指定配置动作

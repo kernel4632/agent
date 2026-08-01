@@ -53,6 +53,13 @@ export const Schemas = new Elysia({ name: 'agent.schemas' })      // 使用插�
         content: t.String({ maxLength: 1398104 }),                  // Base64 正文包含编码膨胀空间
       }), { maxItems: 8 })),                                      // 单次消息最多八个附件
     }),
+    SessionQuery: t.Object({
+      sessionId: t.String({ minLength: 1 }),                         // Session GET 必须提供稳定身份
+    }),
+    SessionEventsQuery: t.Object({
+      sessionId: t.String({ minLength: 1 }),                         // SSE 订阅必须明确所属会话
+      afterId: t.Optional(t.Numeric({ minimum: 0 })),                // 恢复位置必须是非负递增事件 ID
+    }),
     SessionHistory: t.Object({
       sessionId: t.String(),                                       // 历史动作必须指向现有会话
       action: t.Union([t.Literal('rollback-checkpoint'), t.Literal('rollback-message'), t.Literal('undo')]), // 只接受设计规定的三类动作

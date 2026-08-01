@@ -4,7 +4,7 @@
 调用方式：bun test test/architecture.test.js。
 */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test' // 引入 Bun 测试生命周期和断言能力
-import { mkdtemp, writeFile } from 'node:fs/promises'                // 引入隔离数据目录和配置写入能力
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'      // 引入隔离数据目录、源码和配置写入能力
 import { tmpdir } from 'node:os'                                    // 引入操作系统临时目录位置
 import { join } from 'node:path'                                    // 引入跨平台路径拼接能力
 import { createApp } from '../server.js'                            // 引入完整 HTTP 应用创建入口
@@ -12,6 +12,7 @@ import { Data } from '../commands/data.js'                          // 引入备
 import { Session } from '../commands/session.js'                    // 引入会话状态基线断言
 import { Workspace } from '../commands/workspace.js'                // 引入工作区状态基线断言
 import { write_file } from '../tools/built-in/file.js'              // 引入分块文件写入协议断言
+import { run_command } from '../tools/built-in/shell.js'            // 引入真实命令取消协议断言
 
 let app                                                              // 保存测试使用的真实 Elysia 应用
 let closeApp                                                         // 保存资源统一关闭动作
@@ -186,5 +187,57 @@ describe('architecture contract', () => {
     await write_file.execute({ path, content: 'FIRST', mode: 'overwrite' }) // 首块创建文件
     await write_file.execute({ path, content: '_SECOND', mode: 'append' }) // 后续块追加内容
     expect(await Bun.file(path).text()).toBe('FIRST_SECOND')              // 工具协议不能覆盖前一块
+  })
+
+  it('keeps required server modules and routes free of store access', async () => {
+    for (const path of ['routes/health.js', 'commands/history.js', 'commands/skills.js', 'utils/sse.js']) expect(await Bun.file(join(import.meta.dir, '..', path)).exists()).toBe(true) // 设计指定文件必须真实存在
+    const routeNames = ['health.js', 'config.js', 'workspace.js', 'session.js'] // 正式设计 Route 只能接收触发并调用 Command
+    for (const name of routeNames) expect(await readFile(join(import.meta.dir, '..', 'routes', name), 'utf8')).not.toMatch(/from ['"]\.\.\/store\.js['"]/) // Route 禁止直接读取状态根
+  })
+
+  it('applies workspace and session patches atomically', async () => {
+    const workspace = await Workspace.create(join(dataDirectory, 'atomic-workspace'), '原名称') // 创建独立原子修改目标
+    const workspaceID = workspace.workspace.id                              // 保存稳定工作区身份
+    const failedWorkspace = await Workspace.update(workspaceID, { name: '不应生效', path: '' }) // 后字段失败不能提交前字段
+    expect(failedWorkspace.ok).toBe(false)                                  // 指令反馈参数错误
+    expect(Workspace.get(workspaceID).name).toBe('原名称')                   // Store 保持修改前名称
+
+    const session = await Session.create({ workspaceID, model: 'glm-5.2' })  // 创建多字段 Session PATCH 目标
+    const updated = await Session.update(session.id, { title: '完整修改', model: 'next-model', agentId: 'default' }) // 同一请求修改三个字段
+    expect(updated.session).toMatchObject({ title: '完整修改', model: 'next-model', agentID: 'default' }) // 所有字段一次提交
+  })
+
+  it('keeps failed rollback attempts completely side-effect free', async () => {
+    const workspace = Workspace.list()[0]                                  // 使用当前有效工作区创建隔离会话
+    const session = await Session.create({ workspaceID: workspace.id })      // 建立可控历史
+    const mutable = Session.getMutable(session.id)                           // 测试指令内部状态一致性
+    mutable.messages = [{ id: 'msg_user', role: 'user', content: '保留', contentBlocks: [], createdAt: Date.now() }] // 建立当前可见历史
+    mutable.modelMessages = [{ role: 'user', content: '保留' }]              // 建立对应模型历史
+    mutable.rollbackCache = { messages: [{ id: 'msg_hidden', role: 'assistant', content: '隐藏', contentBlocks: [], createdAt: Date.now() }], modelMessages: [{ role: 'assistant', content: '隐藏' }], target: { type: 'message' } } // 建立现有回退状态
+    await Session.persist(mutable)                                           // 保存失败操作前基线
+    const before = Session.exportAll().find((item) => item.id === session.id) // 读取完整不可公开基线
+    expect((await Session.rollback(session.id, 999)).ok).toBe(false)          // 请求不存在 checkpoint
+    expect(Session.exportAll().find((item) => item.id === session.id)).toEqual(before) // 内存与磁盘语义保持原样
+  })
+
+  it('validates session queries and exposes canonical config fields', async () => {
+    expect((await request('/session')).status).toBe(422)                     // 缺失 sessionId 在 schema 边界拒绝
+    expect((await request('/session/events?sessionId=x&afterId=invalid')).status).toBe(422) // 非法事件 ID 不得退化为完整重放
+    const config = await (await request('/config')).json()                   // 获取脱敏后的正式配置结构
+    expect(config).toMatchObject({ provider: expect.any(Object), tools: expect.any(Object), defaultModel: expect.any(String), systemPrompt: expect.any(String) }) // 设计字段必须公开
+  })
+
+  it('cancels a running shell command before its delayed side effect', async () => {
+    const outputPath = join(dataDirectory, 'should-not-exist.txt')           // 定义取消后不能出现的延迟副作用
+    const controller = new AbortController()                                // 模拟 Chat.stop 使用的 Run 信号
+    const command = process.platform === 'win32'
+      ? `Start-Sleep -Seconds 5; Set-Content -LiteralPath '${outputPath.replace(/'/g, "''")}' -Value late`
+      : `sleep 5; printf late > '${outputPath.replace(/'/g, "'\\''")}'` // 两个平台都先等待再写文件
+    const execution = run_command.execute({ command, cwd: dataDirectory }, { abortSignal: controller.signal }) // 启动真实 shell 工具
+    await Bun.sleep(100)                                                     // 确保子进程已经创建
+    controller.abort('test stop')                                           // 触发与 Session stop 相同的取消信号
+    await expect(execution).rejects.toThrow()                                // 被停止的命令不能伪装成功
+    await Bun.sleep(150)                                                     // 给错误残留进程一个观察窗口
+    expect(await Bun.file(outputPath).exists()).toBe(false)                  // 延迟磁盘副作用必须被阻止
   })
 })

@@ -59,6 +59,26 @@ function listForSession(sessionID) {
 }
 
 
+// --- 判断会话是否存在活动 Run ---
+function isSessionRunning(sessionID) {
+  return [...store.runs.items.values()].some((run) => run.sessionID === sessionID && isRunning(run.id)) // 根 Run 和子 Run 任一活动都阻止历史修改
+}
+
+
+// --- 读取公开 Run 结果 ---
+function getPublic(runID) {
+  const run = get(runID)                                            // 读取内部运行记录
+  return run ? { ok: true, run: toPublicRun(run) } : { ok: false, status: 404, error: 'run not found' } // 未知身份使用真实 404
+}
+
+
+// --- 安全取消一个 Run ---
+function cancelPublic(runID) {
+  if (!get(runID)) return { ok: false, status: 404, error: 'run not found' } // 未知 Run 不能抛出通用 500
+  return { ok: true, run: cancel(runID) }                            // 反馈取消后的公开状态
+}
+
+
 // --- 标记 Run 开始执行 ---
 function markRunning(runID) {
   const run = requireRun(runID)
@@ -145,4 +165,4 @@ function toPublicRun(run) {
 }
 
 
-export const Run = { reset, create, get, listForSession, markRunning, markWaitingApproval, resume, complete, fail, cancel, isRunning, toPublicRun } // 暴露 Run 生命周期和查询指令
+export const Run = { reset, create, get, getPublic, listForSession, isSessionRunning, markRunning, markWaitingApproval, resume, complete, fail, cancel, cancelPublic, isRunning, toPublicRun } // 暴露 Run 生命周期和查询指令

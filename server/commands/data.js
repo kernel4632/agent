@@ -32,20 +32,40 @@ async function importBackup(document) {
   const sessionValidation = Session.validateAll(document.sessions, workspaceIDs) // 跨领域验证所有会话引用
   if (!sessionValidation.ok) return sessionValidation                      // 孤立或重复会话不能部分覆盖工作区
 
-  const workspaceResult = await Workspace.replaceAll(workspaceValidation.workspaces) // 全部验证后才开始恢复工作区
-  if (!workspaceResult.ok) return workspaceResult                        // 工作区验证失败时停止导入
-  const sessionResult = await Session.replaceAll(sessionValidation.sessions) // 再恢复已验证的完整会话
-  if (!sessionResult.ok) return sessionResult                            // 会话验证失败时反馈原因
-  await Config.update(document.config)                                   // 最后保存配置并保留脱敏恢复规则
-  return { ok: true, workspaces: document.workspaces.length, sessions: document.sessions.length } // 反馈恢复统计
+  const previous = exportBackup()                                        // 保存三个领域的完整回滚基线
+  try {
+    const workspaceResult = await Workspace.replaceAll(workspaceValidation.workspaces) // 全部验证后恢复工作区
+    if (!workspaceResult.ok) return workspaceResult                      // 指令验证错误不进入后续领域
+    const sessionResult = await Session.replaceAll(sessionValidation.sessions) // 恢复已验证的完整会话
+    if (!sessionResult.ok) throw new Error(sessionResult.error)          // 意外失败进入跨领域回滚
+    await Config.update(document.config)                                 // 最后保存配置并保留环境占位符
+    return { ok: true, workspaces: document.workspaces.length, sessions: document.sessions.length } // 反馈恢复统计
+  } catch (error) {
+    await restore(previous)                                              // 任一持久化失败恢复完整旧状态
+    return { ok: false, status: 500, error: `backup import failed: ${error.message}` } // 明确反馈导入没有提交
+  }
 }
 
 
 // --- 清理索引与会话 ---
 async function clear() {
-  await Session.replaceAll([])                         // 删除全部会话内存和磁盘记录
-  await Workspace.replaceAll([])                       // 删除工作区索引但不触碰真实目录
-  return { ok: true }                                  // 反馈数据清理完成
+  const previous = exportBackup()                      // 保存清理失败时需要恢复的完整数据
+  try {
+    await Session.replaceAll([])                       // 删除全部会话内存和磁盘记录
+    await Workspace.replaceAll([])                     // 删除工作区索引但不触碰真实目录
+    return { ok: true }                                // 两个领域均成功后反馈完成
+  } catch (error) {
+    await restore(previous)                            // 清理失败恢复原工作区、会话和配置
+    return { ok: false, status: 500, error: `data clear failed: ${error.message}` } // 反馈清理没有提交
+  }
+}
+
+
+// --- 恢复一次数据操作的旧基线 ---
+async function restore(backup) {
+  await Workspace.replaceAll(backup.workspaces)        // 先恢复会话引用的工作区
+  await Session.replaceAll(backup.sessions)            // 再恢复完整会话历史
+  await Config.update(backup.config)                   // 最后恢复运行配置
 }
 
 

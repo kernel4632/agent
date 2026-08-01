@@ -6,7 +6,7 @@ MCP 指令集：按配置连接 stdio 或 Streamable HTTP 服务，并把远程�
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'                // 引入官方 MCP 客户端握手与工具调用能力
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'  // 引入本地子进程 stdio 传输
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js' // 引入当前 HTTP 传输
-import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js' // 引入远程工具变化通知协议
+import { CallToolResultSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js' // 引入远程调用结果和工具变化协议
 import { Config } from './config.js'                                            // 引入最新 MCP 服务声明
 import { store } from '../store.js'                                             // 引入服务端唯一状态根
 
@@ -45,10 +45,10 @@ async function syncTools(serverName, runtime) {
       kind: 'mcp',                                                                 // 对话 UI 可使用 MCP 视觉身份
       server: serverName,                                                          // 记录连接归属用于重载清理
       originalName: remoteTool.name,                                               // 调用远端时恢复原始名称
-      async execute(input) {
+      async execute(input, context = {}) {
         const current = capabilityStore.mcp.get(serverName)                       // 每次调用读取最新重连后的客户端
         if (current?.status !== 'connected') throw new Error(`MCP 服务 ${serverName} 未连接`) // 断线时不调用陈旧对象
-        return current.client.callTool({ name: remoteTool.name, arguments: input }) // 将真实结构化结果反馈给模型
+        return current.client.callTool({ name: remoteTool.name, arguments: input }, CallToolResultSchema, { signal: context.abortSignal }) // 将取消信号传给 MCP 协议请求
       },
     })
   }

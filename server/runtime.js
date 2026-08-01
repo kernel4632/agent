@@ -10,7 +10,7 @@ import { Agent } from './commands/agent.js'          // 引入 Agent 定义加�
 import { LSP } from './commands/lsp.js'              // 引入语言服务器生命周期指令
 import { MCP } from './commands/mcp.js'              // 引入 MCP 连接生命周期指令
 import { Session } from './commands/session.js'      // 引入会话恢复指令
-import { Skill } from './commands/skill.js'          // 引入 Skill 扫描指令
+import { Skill } from './commands/skills.js'         // 引入 Skill 扫描指令
 import { Tool } from './commands/tool.js'            // 引入工具扫描和监听指令
 import { Run } from './commands/run.js'              // 引入进程内 Run 生命周期指令
 import { Workspace } from './commands/workspace.js'  // 引入工作区目录恢复指令

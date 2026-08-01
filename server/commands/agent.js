@@ -75,4 +75,13 @@ async function save(agentID, changes) {
 }
 
 
-export const Agent = { load, list, get, resolve, save }                  // 暴露 Agent 目录、快照和保存指令
+// --- 应用配置并刷新 Agent 目录 ---
+async function applyConfig(changes) {
+  const result = await Config.update(changes)                        // 配置先完成原子持久化
+  if (!result.ok) return result                                      // 保存失败时保持现有 Agent 目录
+  await load()                                                       // 保存成功后让新 Run 使用最新模型选择
+  return result                                                      // 向配置入口反馈修改完成
+}
+
+
+export const Agent = { load, list, get, resolve, save, applyConfig }     // 暴露 Agent 目录、快照和配置应用指令

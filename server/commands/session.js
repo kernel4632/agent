@@ -10,6 +10,7 @@ import { store } from '../store.js'                    // 引入服务端唯一�
 import { Config } from './config.js'                   // 引入默认 Agent 选择
 import { Event } from './event.js'                     // 引入会话事件生命周期
 import { Workspace } from './workspace.js'             // 引入工作区归属校验
+import { Run as RunState } from './run.js'              // 引入会话执行冲突检查
 
 const sessionStore = store.sessions                       // 当前指令使用会话领域状态
 
@@ -57,9 +58,9 @@ async function create(options = {}) {
     rollbackCache: null,                              // 最近一次回滚截断的消息，供撤销使用
     modelMessages: [],                                // AI SDK 标准历史与展示历史同步回退
   }
-  sessionStore.items.set(session.id, session)         // 将新会话加入运行时映射
-  Event.initialize(session.id)                        // 新会话立即可以建立独立 SSE 订阅
-  await persist(session)                              // 创建成功前保证会话已经写盘
+  await persist(session)                              // 候选会话先写盘，失败时不污染运行时目录
+  sessionStore.items.set(session.id, session)         // 持久化成功后将新会话加入运行时映射
+  Event.initialize(session.id)                        // 正式提交后建立独立 SSE 订阅
   Event.emit(session.id, 'session-created', { id: session.id, workspaceID: session.workspaceID }) // 事件订阅可观察会话创建身份
   return structuredClone(session)                    // 返回副本，避免入口直接改状态
 }
@@ -70,35 +71,35 @@ async function update(sessionID, changes = {}) {
   const session = getMutable(sessionID)               // 从运行时状态读取目标会话
   if (!session) return { ok: false, status: 404, error: 'session not found' } // 不存在时拒绝隐式创建
 
-  if ('title' in changes) return rename(sessionID, changes.title) // 标题复用完整长度和空白验证
+  const candidate = structuredClone(session)           // 多字段修改先在独立候选值上完整验证
+  if ('title' in changes) {
+    const title = typeof changes.title === 'string' ? changes.title.trim() : '' // 清理标题首尾空白
+    if (!title) return { ok: false, status: 400, error: 'title must not be empty' } // 空标题保持当前会话不变
+    if (title.length > 100) return { ok: false, status: 400, error: 'title must be at most 100 characters' } // 限制列表布局
+    candidate.title = title                              // 候选会话保存用户标题
+    candidate.titleSource = 'user'                       // 用户标题阻止异步模型覆盖
+  }
   if ('model' in changes) {
     const model = typeof changes.model === 'string' ? changes.model.trim() : '' // 清理操作框选择的模型名称
     if (!model) return { ok: false, status: 400, error: 'model must not be empty' } // 空模型无法启动真实请求
-    session.model = model                               // 保存会话级模型选择
+    candidate.model = model                             // 候选会话保存模型选择
   }
   if ('agentID' in changes || 'agentId' in changes) {
     const agentID = changes.agentID ?? changes.agentId  // 接受正式缩写和 HTTP 常见字段形式
     if (typeof agentID !== 'string' || !agentID.trim()) return { ok: false, status: 400, error: 'agent ID must not be empty' } // 空 Agent 无法解析
-    session.agentID = agentID.trim()                    // 后续未显式选择时复用会话 Agent
+    candidate.agentID = agentID.trim()                  // 候选会话保存 Agent 选择
   }
-  await persist(session)                                // 配置修改完成后统一写盘
-  return { ok: true, session: get(sessionID) }          // 反馈公开会话结构
+  await persist(candidate)                              // 全部字段验证后先持久化候选值
+  Object.assign(session, candidate)                     // 写盘成功后原位提交，保持运行循环持有的会话引用有效
+  return { ok: true, ...(changes.title !== undefined ? { title: candidate.title, titleSource: candidate.titleSource } : {}), ...(changes.model !== undefined ? { model: candidate.model } : {}), ...((changes.agentID !== undefined || changes.agentId !== undefined) ? { agentID: candidate.agentID } : {}), session: get(sessionID) } // 同时反馈兼容字段和完整会话
 }
 
 
 // --- 重命名会话 ---
 async function rename(sessionID, title) {
-  const session = getMutable(sessionID)               // 从运行时状态读取目标会话
-  if (!session) return { ok: false, status: 404, error: 'session not found' } // 不存在时反馈明确资源错误
-
-  const nextTitle = typeof title === 'string' ? title.trim() : '' // 统一去除用户输入首尾空白
-  if (!nextTitle) return { ok: false, status: 400, error: 'title must not be empty' } // 空标题无法用于会话列表
-  if (nextTitle.length > 100) return { ok: false, status: 400, error: 'title must be at most 100 characters' } // 限制持久化和界面展示长度
-
-  session.title = nextTitle                           // 保存通过验证的用户标题
-  session.titleSource = 'user'                        // 阻止稍后完成的模型标题覆盖它
-  await persist(session)                              // 写盘完成后才反馈重命名成功
-  return { ok: true, title: nextTitle, titleSource: session.titleSource } // 返回客户端需要更新的字段
+  const result = await update(sessionID, { title })    // 复用多字段原子验证和持久化路径
+  if (!result.ok) return result                        // 将明确验证错误原样反馈入口
+  return { ok: true, title: result.session.title, titleSource: result.session.titleSource } // 返回标题编辑器需要的字段
 }
 
 
@@ -111,10 +112,12 @@ async function updateTasks(sessionID, tasks, expectedRevision) {
   const error = validateTasks(tasks)                  // 在修改共享状态前完整验证任务结构
   if (error) return { ok: false, status: 400, error } // 无效任务保持原清单和修订号不变
 
-  session.tasks = structuredClone(tasks)              // 保存副本，避免工具输入随后修改共享状态
-  session.taskRevision += 1                           // 每次成功替换都产生新的并发版本
-  await persist(session)                              // 任务与修订号作为一个会话记录原子写盘
-  return { ok: true, tasks: structuredClone(session.tasks), taskRevision: session.taskRevision } // 反馈最新持久化状态
+  const candidate = structuredClone(session)          // 在独立候选会话中修改任务和修订号
+  candidate.tasks = structuredClone(tasks)            // 保存副本，避免工具输入随后修改共享状态
+  candidate.taskRevision += 1                         // 每次成功替换都产生新的并发版本
+  await persist(candidate)                            // 任务与修订号作为一个候选记录写盘
+  Object.assign(session, candidate)                    // 原位提交，避免运行循环继续持有过期对象
+  return { ok: true, tasks: structuredClone(candidate.tasks), taskRevision: candidate.taskRevision } // 反馈最新持久化状态
 }
 
 
@@ -179,11 +182,18 @@ async function remove(sessionID) {
     return { ok: false, error: 'session not found' }
   }
 
-  sessionStore.items.delete(sessionID)                // 先移除运行时数据，阻止删除期间出现新的正常修改
-  Event.remove(sessionID)                             // 同步清理该会话的事件历史和订阅状态
   await sessionStore.writes.get(sessionID)?.catch(() => {}) // 等待较早保存结束，避免删除后旧写入重建文件
-  await sessionStore.storage.removeItem(sessionID)    // 再移除对应磁盘记录
+  await sessionStore.storage.removeItem(sessionID)    // 先移除磁盘记录，失败时保留可访问的运行时状态
+  sessionStore.items.delete(sessionID)                // 磁盘删除成功后移除运行时数据
+  Event.remove(sessionID)                             // 同步清理该会话的事件历史和订阅状态
   return { ok: true }                                 // 向 HTTP 入口反馈删除完成
+}
+
+
+// --- 安全删除一个非运行会话 ---
+async function removeSafely(sessionID) {
+  if (RunState.isSessionRunning(sessionID)) return { ok: false, status: 409, error: 'session is running' } // 执行期间不能删除历史
+  return remove(sessionID)                                               // 空闲会话进入原子磁盘删除路径
 }
 
 
@@ -191,19 +201,21 @@ async function remove(sessionID) {
 async function rollback(sessionID, step) {
   const session = getMutable(sessionID)               // 读取需要截断的真实会话对象
   if (!session) return { ok: false, error: 'session not found' } // 会话不存在时拒绝回滚
-  restoreRollbackCache(session)                       // 已暂存时先恢复完整历史，允许移动回退边界
+  const candidate = structuredClone(session)          // 旧回退恢复和新边界都只修改候选值
+  restoreRollbackCache(candidate)                     // 候选历史先恢复完整状态以移动回退边界
 
   let lastToolIndex = -1                              // 默认表示没有找到目标存档点
-  session.messages.forEach((message, index) => {      // 查找并行工具中目标步骤的最后一条
+  candidate.messages.forEach((message, index) => {    // 查找并行工具中目标步骤的最后一条
     if (message.role === 'tool' && message.step === step) lastToolIndex = index // 同步骤工具应整体保留
   })
   if (lastToolIndex < 0) return { ok: false, error: 'checkpoint not found' } // 无目标步骤时保持数据不变
 
-  const target = session.messages[lastToolIndex]      // 保存目标工具供模型边界定位
-  const modelBoundary = findToolModelBoundary(session.modelMessages, target.toolCallId) // 找到模型工具结果之后的位置
-  stageRollback(session, lastToolIndex + 1, modelBoundary, { type: 'checkpoint', step }) // 两套历史同步暂存
-  await persist(session)                              // 回滚结果与缓存一并写盘
-  return { ok: true, remainingMessages: session.messages.length } // 反馈当前剩余消息数
+  const target = candidate.messages[lastToolIndex]    // 保存目标工具供模型边界定位
+  const modelBoundary = findToolModelBoundary(candidate.modelMessages, target.toolCallId) // 找到模型工具结果之后的位置
+  stageRollback(candidate, lastToolIndex + 1, modelBoundary, { type: 'checkpoint', step }) // 两套候选历史同步暂存
+  await persist(candidate)                            // 回滚候选值与缓存一并写盘
+  Object.assign(session, candidate)                    // 写盘成功后原位提交回退状态
+  return { ok: true, remainingMessages: candidate.messages.length } // 反馈当前剩余消息数
 }
 
 
@@ -211,16 +223,18 @@ async function rollback(sessionID, step) {
 async function rollbackMessage(sessionID, messageID) {
   const session = getMutable(sessionID)               // 读取目标会话的真实历史
   if (!session) return { ok: false, error: 'session not found' } // 不存在时拒绝回退
-  restoreRollbackCache(session)                       // 支持从当前暂存状态移动到另一条用户消息
+  const candidate = structuredClone(session)          // 候选值支持移动回退且不污染失败路径
+  restoreRollbackCache(candidate)                     // 在候选历史中恢复完整状态
 
-  const messageIndex = session.messages.findIndex((item) => item.id === messageID && item.role === 'user') // 定位稳定用户消息
+  const messageIndex = candidate.messages.findIndex((item) => item.id === messageID && item.role === 'user') // 定位稳定用户消息
   if (messageIndex < 0) return { ok: false, error: 'user message not found' } // 只能回退到真实用户轮次
 
-  const target = session.messages[messageIndex]       // 保存原文供前端恢复输入框
-  const modelBoundary = findUserModelBoundary(session, messageIndex) // 找到该用户消息进入模型历史前的位置
-  stageRollback(session, messageIndex, modelBoundary, { type: 'message', messageID, content: target.content }) // 暂存目标消息及后续历史
-  await persist(session)                              // 回退边界和可撤销内容一起持久化
-  return { ok: true, remainingMessages: session.messages.length, content: target.content } // 反馈可重新编辑的原文
+  const target = candidate.messages[messageIndex]     // 保存原文供前端恢复输入框
+  const modelBoundary = findUserModelBoundary(candidate, messageIndex) // 找到该用户消息进入模型历史前的位置
+  stageRollback(candidate, messageIndex, modelBoundary, { type: 'message', messageID, content: target.content }) // 暂存目标消息及后续历史
+  await persist(candidate)                            // 回退候选值真实写盘
+  Object.assign(session, candidate)                    // 写盘成功后原位提交回退状态
+  return { ok: true, remainingMessages: candidate.messages.length, content: target.content } // 反馈可重新编辑的原文
 }
 
 
@@ -231,8 +245,10 @@ async function undoRollback(sessionID) {
   if (!session.rollbackCache) return { ok: false, error: 'no rollback to undo' } // 没有缓存时不能恢复
 
   const restoredMessages = Array.isArray(session.rollbackCache) ? session.rollbackCache.length : session.rollbackCache.messages.length // 兼容旧数组缓存
-  restoreRollbackCache(session)                       // 按原顺序恢复展示和模型历史
-  await persist(session)                              // 恢复后的完整历史真实写盘
+  const candidate = structuredClone(session)          // 撤销也通过独立候选值保持失败原子性
+  restoreRollbackCache(candidate)                     // 按原顺序恢复展示和模型历史
+  await persist(candidate)                            // 恢复后的完整候选历史真实写盘
+  Object.assign(session, candidate)                    // 写盘成功后原位提交恢复状态
   return { ok: true, restoredMessages }               // 反馈恢复的消息数量
 }
 
@@ -368,4 +384,4 @@ async function replaceAll(sessions) {
 }
 
 
-export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage, exportAll, validateAll, replaceAll } // 导出会话业务动作
+export const Session = { load, create, update, rename, updateTasks, list, get, getMutable, persist, remove, removeSafely, rollback, rollbackMessage, undoRollback, commitRollback, normalizeMessage, exportAll, validateAll, replaceAll } // 导出会话业务动作

@@ -13,6 +13,7 @@ import { toolRoutes } from './routes/tool.js'          // 引入工具路由插�
 import { runRoutes } from './routes/run.js'            // 引入 Run 查询和取消路由插件
 import { workspaceRoutes } from './routes/workspace.js' // 引入工作区资源路由插件
 import { dataRoutes } from './routes/data.js'          // 引入数据备份与清理路由插件
+import { healthRoutes } from './routes/health.js'      // 引入独立健康检查入口
 import { Runtime } from './runtime.js'                 // 引入服务端资源生命周期
 
 
@@ -24,7 +25,7 @@ export async function createApp(options = {}) {
       builtInTools: runtime.directories.builtInToolsDirectory,
       customTools: runtime.directories.customToolsDirectory,
     })
-    .get('/health', () => ({ ok: true, service: 'agent-server', version: '0.1.0', engine: { version: '0.1.0' } })) // 健康检查同时反馈架构要求的引擎版本
+    .use(healthRoutes)                                  // 组合设计规定的健康检查入口
     .use(workspaceRoutes)                               // 组合主页工作区资源入口
     .use(dataRoutes)                                    // 组合设置页数据管理入口
     .use(agentRoutes)                                   // 组合 Agent 定义目录入口

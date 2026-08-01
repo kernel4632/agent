@@ -41,8 +41,8 @@ async function create(path, name) {
   if (duplicate) return { ok: false, status: 409, error: 'workspace path already exists', workspaceID: duplicate.id } // 避免会话被重复工作区分割
 
   const workspace = createValue(normalizedPath, name)     // 构建完整持久化工作区记录
-  workspaceStore.items.set(workspace.id, workspace)       // 先更新内存目录供随后会话使用
-  await persist()                                         // 写盘完成后才反馈创建成功
+  await persist([...workspaceStore.items.values(), workspace]) // 候选目录先写盘，失败时当前 Store 保持不变
+  workspaceStore.items.set(workspace.id, workspace)       // 持久化成功后提交运行时目录
   return { ok: true, workspace: structuredClone(workspace) } // 返回副本阻止入口直接修改状态
 }
 
@@ -52,19 +52,24 @@ async function update(workspaceID, changes = {}) {
   const workspace = workspaceStore.items.get(workspaceID) // 根据稳定 ID 读取目标工作区
   if (!workspace) return { ok: false, status: 404, error: 'workspace not found' } // 不允许通过修改动作隐式创建
 
+  const candidate = structuredClone(workspace)             // 所有字段在独立候选值上验证和修改
   if ('name' in changes) {
     const name = typeof changes.name === 'string' ? changes.name.trim() : '' // 清理用户提供的展示名称
     if (!name) return { ok: false, status: 400, error: 'workspace name must not be empty' } // 空名称不能用于主页列表
-    workspace.name = name                                   // 保存通过验证的展示名称
+    candidate.name = name                                   // 候选值保存通过验证的名称
   }
   if ('path' in changes) {
     const path = typeof changes.path === 'string' ? changes.path.trim() : '' // 清理用户提供的新目录
     if (!path) return { ok: false, status: 400, error: 'workspace path must not be empty' } // 空目录不能成为执行边界
-    workspace.path = resolve(path)                         // 保存稳定绝对路径
+    candidate.path = resolve(path)                         // 候选值保存稳定绝对路径
+    const duplicate = [...workspaceStore.items.values()].find((item) => item.id !== workspaceID && item.path.toLowerCase() === candidate.path.toLowerCase()) // 修改路径也不能产生重复工作区
+    if (duplicate) return { ok: false, status: 409, error: 'workspace path already exists', workspaceID: duplicate.id } // 冲突保持当前记录不变
   }
-  workspace.updatedAt = Date.now()                         // 记录设置最近修改时间
-  await persist()                                         // 修改完成后同步独立工作区文件
-  return { ok: true, workspace: structuredClone(workspace) } // 反馈最新持久化定义
+  candidate.updatedAt = Date.now()                         // 候选值记录设置最近修改时间
+  const values = [...workspaceStore.items.values()].map((item) => item.id === workspaceID ? candidate : item) // 构造完整候选目录
+  await persist(values)                                    // 完整目录写盘成功前不修改 Store
+  workspaceStore.items.set(workspaceID, candidate)         // 持久化成功后一次提交候选值
+  return { ok: true, workspace: structuredClone(candidate) } // 反馈最新持久化定义
 }
 
 
@@ -74,8 +79,9 @@ async function remove(workspaceID) {
   const hasSessions = [...store.sessions.items.values()].some((session) => session.workspaceID === workspaceID) // 检查是否仍有会话引用
   if (hasSessions) return { ok: false, status: 409, error: 'workspace still has sessions' } // 防止产生无法归类的会话
 
-  workspaceStore.items.delete(workspaceID)               // 只移除列表定义，不触碰用户本地目录
-  await persist()                                         // 将移除结果同步到 workspace.json
+  const values = [...workspaceStore.items.values()].filter((workspace) => workspace.id !== workspaceID) // 构造不含目标的候选目录
+  await persist(values)                                    // 先保存候选目录，不触碰用户本地内容
+  workspaceStore.items.delete(workspaceID)                 // 写盘成功后移除运行时定义
   return { ok: true }                                     // 反馈列表定义已经删除
 }
 
@@ -83,6 +89,16 @@ async function remove(workspaceID) {
 // --- 列出工作区定义 ---
 function list() {
   return [...workspaceStore.items.values()].map((workspace) => structuredClone(workspace)) // 返回稳定顺序的独立副本
+}
+
+
+// --- 列出工作区与下属会话摘要 ---
+function listWithSessions() {
+  const sessions = [...store.sessions.items.values()]                       // 一次读取当前完整会话目录
+  return list().map((workspace) => ({
+    ...workspace,                                                           // 保留工作区身份、路径和时间
+    sessions: sessions.filter((session) => session.workspaceID === workspace.id).sort((left, right) => right.updatedAt - left.updatedAt).map((session) => ({ id: session.id, sessionId: session.id, workspaceID: session.workspaceID, workspaceId: session.workspaceID, title: session.title, agentID: session.agentID, model: session.model, status: session.status, createdAt: session.createdAt, updatedAt: session.updatedAt, lastActiveAt: session.lastActiveAt, messageCount: session.messages.length })), // 设计要求工作区直接包含 Session 摘要
+  }))
 }
 
 
@@ -147,8 +163,8 @@ function validateAll(workspaces) {
 
 
 // --- 保存工作区目录 ---
-async function persist() {
-  const document = { workspaces: list() }                 // 独立文件只包含完整工作区数组
+async function persist(workspaces = list()) {
+  const document = { workspaces: structuredClone(workspaces) } // 独立文件只包含调用方确认的完整候选数组
   await Bun.write(workspaceStore.filePath, `${JSON.stringify(document, null, 2)}\n`) // 稳定格式便于用户检查和备份
 }
 
@@ -158,11 +174,11 @@ async function replaceAll(workspaces) {
   const validated = validateAll(workspaces)                  // 复用无副作用验证，导入可先检查全部领域
   if (!validated.ok) return validated                        // 无效备份保持当前状态不变
   const normalized = validated.workspaces                    // 使用已经归一化的独立候选值
-  workspaceStore.items.clear()                              // 验证通过后替换运行时目录
+  await persist(normalized)                                  // 候选目录先一次写入 workspace.json
+  workspaceStore.items.clear()                              // 写盘成功后替换运行时目录
   normalized.forEach((workspace) => workspaceStore.items.set(workspace.id, workspace)) // 恢复备份顺序和身份
-  await persist()                                           // 一次写入 workspace.json
   return { ok: true, workspaces: list() }                   // 反馈最终持久化目录
 }
 
 
-export const Workspace = { load, create, update, remove, validateAll, replaceAll, list, get, getDefaultID } // 暴露工作区全部业务动作
+export const Workspace = { load, create, update, remove, validateAll, replaceAll, list, listWithSessions, get, getDefaultID } // 暴露工作区全部业务动作

@@ -4,8 +4,8 @@
 调用示例：Event.emit('ses_1', 'status', { status: 'running' })、Event.subscribe('ses_1', 12)。
 */
 import { store } from '../store.js'                     // 引入事件历史和订阅者状态根
+import { SSE } from '../utils/sse.js'                   // 引入标准 SSE 帧编码工具
 
-const encoder = new TextEncoder()                       // 将标准 SSE 帧转换为网络字节
 const maximumHistory = 1000                             // 每个会话保留最近一千个事件防止内存无限增长
 
 
@@ -38,7 +38,7 @@ function subscribe(sessionID, afterID = 0, options = {}) {
   let removeListener = () => {}                          // 流关闭前提供统一清理动作
   const stream = new ReadableStream({
     start(streamWriter) {
-      const send = (event) => streamWriter.enqueue(encoder.encode(format(event))) // 每个业务事件编码成完整 SSE 帧
+      const send = (event) => streamWriter.enqueue(SSE.encode(event.name, event.data, event.id)) // 每个业务事件携带递增 ID
       const history = store.events.bySession.get(sessionID)                       // 读取可用于断线恢复的有序历史
       history.filter((event) => event.id > afterID).forEach(send)                  // 只重放客户端尚未确认的事件
       store.events.listeners.get(sessionID).add(send)                              // 重放完成后订阅未来事件，保持顺序
@@ -61,13 +61,6 @@ function subscribe(sessionID, afterID = 0, options = {}) {
     cancel() { removeListener() },                          // 浏览器断开只移除监听，不停止后台 Run
   })
   return stream                                            // 由 HTTP 响应层添加 SSE 头
-}
-
-
-// --- 编码标准 SSE 帧 ---
-function format(event) {
-  const data = JSON.stringify(event.data, (_, value) => typeof value === 'bigint' ? Number(value) : value) // BigInt token 数转换为 JSON 数值
-  return `id: ${event.id}\nevent: ${event.name}\ndata: ${data}\n\n` // 同时携带递增 ID、事件名和 JSON 数据
 }
 
 

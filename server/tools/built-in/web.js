@@ -10,8 +10,8 @@ export const web_fetch = {                                      // 导出模型�
   parameters: {                                                 // 定义模型生成参数的业务结构
     url: { type: 'string', description: '完整网页地址', required: true }, // 请求地址必须明确提供
   },
-  async execute({ url }) {
-    const response = await fetch(url)                            // 向目标地址发起真实网络请求
+  async execute({ url }, context = {}) {
+    const response = await fetch(url, { signal: context.abortSignal }) // 向目标地址发起可取消网络请求
     const content = await response.text()                        // 读取完整响应正文供模型分析
     return { result: content }                                   // 将网页文本反馈给模型
   },
