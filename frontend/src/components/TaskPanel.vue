@@ -1,6 +1,6 @@
 <!--
 会话任务坞：参考 OpenCode 将计划放在输入框正上方，收起时展示当前任务。
-MDUI Collapse 负责展开交互，组件只消费 Server 已持久化的任务数据。
+M3E Expansion Panel 负责展开交互，组件只消费 Server 已持久化的任务数据。
 调用示例：<TaskPanel :tasks="chat.tasks" />。
 -->
 <script setup>
@@ -16,21 +16,18 @@ const progressLabel = computed(() => `${completedCount.value}/${props.tasks.leng
 </script>
 
 <template>
-  <mdui-collapse v-if="tasks.length" class="task-dock" accordion>
-    <mdui-collapse-item active>
+  <m3e-expansion-panel v-if="tasks.length" class="task-dock" open>
       <div slot="header" class="task-dock__header">
         <span class="task-dock__progress">{{ progressLabel }}</span>
         <span class="task-dock__preview">{{ activeTask?.content }}</span>
-        <mdui-icon-expand-more class="task-dock__chevron"></mdui-icon-expand-more>
       </div>
       <div class="task-dock__body">
         <div v-for="(task, index) in tasks" :key="task.id || `${task.content}-${index}`" class="task-dock__item" :class="`is-${task.status}`">
-          <mdui-checkbox :checked="task.status === 'completed'" :indeterminate="task.status === 'in_progress'" tabindex="-1" @click.prevent></mdui-checkbox>
+          <m3e-checkbox :checked="task.status === 'completed'" :indeterminate="task.status === 'in_progress'" tabindex="-1" @click.prevent></m3e-checkbox>
           <span>{{ task.content }}</span>
         </div>
       </div>
-    </mdui-collapse-item>
-  </mdui-collapse>
+  </m3e-expansion-panel>
 </template>
 
 <style lang="scss" src="../styles/components/TaskPanel.scss"></style>

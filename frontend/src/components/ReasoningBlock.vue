@@ -19,15 +19,15 @@ const title = computed(() => t(props.streaming ? 'thinking' : 'reasoning')) // æ
 </script>
 
 <template>
-  <mdui-card v-if="text || streaming" variant="filled" class="reasoning" :class="{ 'reasoning--active': streaming }">
-    <mdui-button class="reasoning__trigger" variant="text" full-width @click="isOpen = !isOpen">
-      <mdui-circular-progress v-if="streaming" class="reasoning__progress"></mdui-circular-progress>
-      <mdui-icon-auto-awesome v-else class="reasoning__spark"></mdui-icon-auto-awesome>
+  <m3e-card v-if="text || streaming" class="reasoning" :class="{ 'reasoning--active': streaming }">
+    <m3e-button class="reasoning__trigger" @click="isOpen = !isOpen">
+      <m3e-circular-progress-indicator v-if="streaming" class="reasoning__progress"></m3e-circular-progress-indicator>
+      <m3e-icon v-else class="reasoning__spark" name="award_star"></m3e-icon>
       <span>{{ title }}</span>
-      <mdui-icon-expand-more class="reasoning__chevron" :class="{ 'reasoning__chevron--open': isOpen }"></mdui-icon-expand-more>
-    </mdui-button>
+      <m3e-icon class="reasoning__chevron" name="keyboard_arrow_down" :class="{ 'reasoning__chevron--open': isOpen }"></m3e-icon>
+    </m3e-button>
     <div v-if="isOpen" class="reasoning__content">{{ text || t('thinkingPlaceholder') }}</div>
-  </mdui-card>
+  </m3e-card>
 </template>
 
 <style lang="scss" src="../styles/components/ReasoningBlock.scss"></style>

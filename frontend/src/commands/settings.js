@@ -153,6 +153,23 @@ function removeMCP(id) {
 }
 
 
+// --- 修改全局提示词 ---
+function updatePrompt(value) {
+  if (!store.settings.draft) return false                              // 无草稿时拒绝修改
+  store.settings.draft.prompt = value                                 // 提示词变化立即反馈编辑器
+  return true
+}
+
+
+// --- 修改外观字段 ---
+function updateAppearance(field, value) {
+  const appearance = store.settings.draft?.appearance                 // 读取外观设置草稿
+  if (!appearance || !['language', 'density', 'animations'].includes(field)) return false // 仅允许既定外观字段
+  appearance[field] = value                                           // 单字段变化进入隔离草稿
+  return true
+}
+
+
 // --- 数据管理反馈 ---
 function dataAction(action) {
   // TODO(API): 根据 action 调用数据导出、导入或清理接口。
@@ -161,4 +178,4 @@ function dataAction(action) {
 }
 
 
-export const Settings = { open, save, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, dataAction } // 暴露设置动作
+export const Settings = { open, save, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance, dataAction } // 暴露设置动作

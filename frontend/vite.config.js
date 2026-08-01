@@ -1,5 +1,5 @@
 /*
-Vite 开发配置：编译 Vue 单文件组件、识别 MDUI Web Components，并代理真实 Agent Server API。
+ Vite 开发配置：编译 Vue 单文件组件、识别 M3E Web Components，并代理真实 Agent Server API。
 代理地址可通过 AGENT_SERVER_URL 覆盖，默认连接 README 规定的 127.0.0.1:4632。
 调用示例：AGENT_SERVER_URL=http://127.0.0.1:4633 bun run dev。
 */
@@ -12,8 +12,8 @@ export default defineConfig({                       // 导出前端开发与构�
   plugins: [                                        // 注册项目需要的编译插件
     vue({                                           // 编译 Vue 3 单文件组件
       template: {                                   // 配置模板标签识别规则
-        compilerOptions: {                          // 将 MDUI 交给浏览器自定义元素处理
-          isCustomElement: (tag) => tag.startsWith('mdui-'), // 所有 mdui-* 标签均不是 Vue 组件
+        compilerOptions: {                          // 将 M3E 交给浏览器自定义元素处理
+          isCustomElement: (tag) => tag.startsWith('m3e-'), // 所有 m3e-* 标签均不是 Vue 组件
         },
       },
     }),

@@ -7,6 +7,7 @@
 import { nextTick, ref } from 'vue'                    // 引入输入聚焦和本地草稿状态
 import { Session } from '../commands/session.js'      // 引入标题草稿和编辑状态指令
 import { t } from '../i18n.js'                        // 引入响应式界面翻译
+import TextField from './fields/TextField.vue'        // 引入 M3E 标准文本字段
 
 const props = defineProps({                           // 声明当前标题和保存状态
   title: { type: String, default: '' },               // 非编辑态展示的会话标题
@@ -46,8 +47,8 @@ async function saveEditing() {
 
 <template>
   <span class="session-title-editor" :class="{ 'session-title-editor--compact': compact, 'is-editing': editing }" @click.stop>
-    <mdui-text-field v-if="editing" ref="inputElement" variant="outlined" :value="draft" maxlength="100" :disabled="busy" :label="t('sessionTitle')" @input="draft = $event.target.value" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing"></mdui-text-field>
-    <mdui-button v-else variant="text" :title="title || t('unnamedSession')" :aria-label="t('doubleClickRenameSession')" @dblclick="startEditing">{{ title || t('unnamedSession') }}</mdui-button>
+    <TextField v-if="editing" ref="inputElement" v-model="draft" maxlength="100" :disabled="busy" :label="t('sessionTitle')" @keydown.enter.prevent="saveEditing" @keydown.esc.prevent="cancelEditing" @blur="saveEditing" />
+    <m3e-button v-else :title="title || t('unnamedSession')" :aria-label="t('doubleClickRenameSession')" @dblclick="startEditing">{{ title || t('unnamedSession') }}</m3e-button>
   </span>
 </template>
 

@@ -21,14 +21,14 @@ function decide(decision) {
 </script>
 
 <template>
-  <mdui-card variant="filled" class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
+  <m3e-card class="tool-strip" :class="[`is-${tool.status}`, { 'is-open': open }]">
     <div class="tool-strip__line" @click="open = !open">
-      <span class="tool-strip__icon"><mdui-icon-code v-if="tool.name === 'run_command'"></mdui-icon-code><mdui-icon-build v-else></mdui-icon-build></span>
+      <span class="tool-strip__icon"><m3e-icon :name="tool.name === 'run_command' ? 'code' : 'build'"></m3e-icon></span>
       <strong>{{ tool.title || tool.name }}</strong>
       <span class="tool-strip__preview">{{ tool.preview }}</span>
       <span class="tool-strip__status"><i></i>{{ status }}</span>
-      <mdui-button-icon v-if="tool.checkpoint" :title="t('rollbackHere')" @click.stop="emit('rollback', tool.checkpoint)"><mdui-icon-undo></mdui-icon-undo></mdui-button-icon>
-      <mdui-button-icon :aria-label="t(open ? 'collapseTool' : 'expandTool')" @click.stop="open = !open"><mdui-icon-expand-more></mdui-icon-expand-more></mdui-button-icon>
+      <m3e-icon-button v-if="tool.checkpoint" :title="t('rollbackHere')" @click.stop="emit('rollback', tool.checkpoint)"><m3e-icon name="undo"></m3e-icon></m3e-icon-button>
+      <m3e-icon-button :aria-label="t(open ? 'collapseTool' : 'expandTool')" @click.stop="open = !open"><m3e-icon name="keyboard_arrow_down"></m3e-icon></m3e-icon-button>
     </div>
 
     <div v-if="open" class="tool-strip__detail">
@@ -37,11 +37,11 @@ function decide(decision) {
     </div>
 
     <footer v-if="tool.status === 'waiting'" class="tool-strip__approval">
-      <mdui-button variant="text" @click="decide('deny')">{{ t('deny') }}</mdui-button>
-      <mdui-button variant="tonal" @click="decide('allow-once')">{{ t('allow') }}</mdui-button>
-      <mdui-button variant="filled" @click="decide('always-allow')">{{ t('alwaysAllow') }}</mdui-button>
+      <m3e-button @click="decide('deny')">{{ t('deny') }}</m3e-button>
+      <m3e-button @click="decide('allow-once')">{{ t('allow') }}</m3e-button>
+      <m3e-button @click="decide('always-allow')">{{ t('alwaysAllow') }}</m3e-button>
     </footer>
-  </mdui-card>
+  </m3e-card>
 </template>
 
 <style lang="scss" src="../styles/components/ToolCall.scss"></style>

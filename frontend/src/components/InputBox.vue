@@ -4,9 +4,11 @@
 调用示例：<InputBox :session="session" :models="models" @send="send" />。
 -->
 <script setup>
-import { nextTick, ref } from 'vue'                                  // 引入文件选择和发送后聚焦
+import { computed, nextTick, ref } from 'vue'                        // 引入模型目录、文件选择和发送后聚焦
 import { Chat } from '../commands/chat.js'                           // 引入输入校验动作
 import { t } from '../i18n.js'                                       // 引入响应式界面翻译
+import SelectField from './fields/SelectField.vue'                   // 引入 M3E 模型选择字段
+import TextAreaField from './fields/TextAreaField.vue'               // 引入 M3E 自适应消息字段
 
 const props = defineProps({
   session: { type: Object, required: true },                         // 当前完整 Session
@@ -16,6 +18,7 @@ const emit = defineEmits(['send', 'stop', 'select-model', 'attach', 'remove-file
 const content = defineModel({ type: String, default: '' })           // 当前 Session 输入草稿
 const inputElement = ref(null)                                       // 发送后恢复键盘焦点
 const fileInput = ref(null)                                          // 隐藏原生文件选择器
+const modelOptions = computed(() => props.models.map((item) => ({ value: `${item.provider}/${item.model}`, label: `${item.model} · ${item.provider}` }))) // 转换为通用选择目录
 
 
 // --- 提交当前消息 ---
@@ -45,17 +48,17 @@ function selectFiles(event) {
 <template>
   <div class="composer">
     <div v-if="session.files.length" class="composer__files">
-      <mdui-chip v-for="file in session.files" :key="file.id" deletable :aria-label="t('removeFile', { name: file.name })" @delete="emit('remove-file', file.id)"><mdui-icon-attach-file slot="icon"></mdui-icon-attach-file>{{ file.name }}</mdui-chip>
+      <m3e-input-chip v-for="file in session.files" :key="file.id" removable :remove-label="t('removeFile', { name: file.name })" @remove="emit('remove-file', file.id)"><m3e-icon slot="icon" name="attach_file"></m3e-icon>{{ file.name }}</m3e-input-chip>
     </div>
-    <mdui-text-field ref="inputElement" class="composer__input" variant="filled" autosize :min-rows="1" :max-rows="8" :value="content" :placeholder="t('messagePlaceholder')" :aria-label="t('message')" @input="content = $event.target.value" @keydown="handleKeydown"></mdui-text-field>
+    <TextAreaField ref="inputElement" v-model="content" class="composer__input" :min-rows="1" :max-rows="8" :label="t('message')" :placeholder="t('messagePlaceholder')" @keydown="handleKeydown" />
     <div class="composer__bar">
       <div class="composer__left">
         <input ref="fileInput" class="visually-hidden" type="file" multiple @change="selectFiles" />
-        <mdui-button-icon class="icon-command" :aria-label="t('uploadFile')" :title="t('uploadFile')" @click="fileInput.click()"><mdui-icon-attach-file></mdui-icon-attach-file></mdui-button-icon>
-        <mdui-select class="model-select" variant="filled" placement="top" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :aria-label="t('switchModel')" @change="emit('select-model', $event.target.value)"><mdui-menu-item v-for="item in models" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.model }} · {{ item.provider }}</mdui-menu-item></mdui-select>
+        <m3e-icon-button class="icon-command" :aria-label="t('uploadFile')" :title="t('uploadFile')" @click="fileInput.click()"><m3e-icon name="attach_file"></m3e-icon></m3e-icon-button>
+        <SelectField class="model-select" :model-value="`${session.provider}/${session.model}`" :options="modelOptions" :disabled="session.status === 'running'" :label="t('switchModel')" @change="emit('select-model', $event)" />
       </div>
-      <mdui-button-icon v-if="session.status === 'running'" class="send-command is-stop" variant="filled" :aria-label="t('pauseGeneration')" :title="t('pauseGeneration')" @click="emit('stop')"><mdui-icon-stop></mdui-icon-stop></mdui-button-icon>
-      <mdui-button-icon v-else class="send-command" variant="filled" :disabled="!content.trim()" :aria-label="t('send')" :title="t('send')" @click="submit"><mdui-icon-arrow-upward></mdui-icon-arrow-upward></mdui-button-icon>
+      <m3e-icon-button v-if="session.status === 'running'" class="send-command is-stop" variant="tonal" :aria-label="t('pauseGeneration')" :title="t('pauseGeneration')" @click="emit('stop')"><m3e-icon name="stop"></m3e-icon></m3e-icon-button>
+      <m3e-icon-button v-else class="send-command" variant="filled" :disabled="!content.trim()" :aria-label="t('send')" :title="t('send')" @click="submit"><m3e-icon name="arrow_upward"></m3e-icon></m3e-icon-button>
     </div>
   </div>
 </template>

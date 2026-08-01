@@ -54,7 +54,7 @@ function confirmRollback() {
     <header class="chat-header">
       <div class="chat-header__title"><SessionTitleEditor :title="session.title" compact @save="renameTitle" /><small>{{ t('doubleClickRename') }}</small></div>
       <div class="context-meter" tabindex="0" :aria-label="t('contextStats')">
-        <mdui-circular-progress :value="contextPercent" max="100"></mdui-circular-progress>
+        <m3e-circular-progress-indicator :value="contextPercent" max="100"></m3e-circular-progress-indicator>
         <span>{{ contextPercent }}</span>
         <div class="context-popover">
           <strong>{{ t('context') }}</strong>
@@ -64,7 +64,7 @@ function confirmRollback() {
         </div>
       </div>
     </header>
-    <mdui-linear-progress v-if="session.status === 'running'" class="chat-progress"></mdui-linear-progress>
+    <m3e-linear-progress-indicator v-if="session.status === 'running'" class="chat-progress"></m3e-linear-progress-indicator>
 
     <div class="chat-body">
       <div v-if="!session.messages.length" class="chat-empty"><span>A</span><h1>{{ t('startTask') }}</h1></div>
@@ -73,13 +73,18 @@ function confirmRollback() {
 
     <footer class="chat-footer">
       <div v-if="session.rollback" class="rollback-preview">
-        <mdui-icon-undo></mdui-icon-undo><span><strong>{{ t('rolledBack') }}</strong><small>{{ session.rollback.preview }}</small></span><mdui-button variant="text" @click="ChatCommand.undoRollback(session.id)">{{ t('undoRollback') }}</mdui-button>
+        <m3e-icon name="undo"></m3e-icon><span><strong>{{ t('rolledBack') }}</strong><small>{{ session.rollback.preview }}</small></span><m3e-button @click="ChatCommand.undoRollback(session.id)">{{ t('undoRollback') }}</m3e-button>
       </div>
       <TaskPanel :tasks="session.tasks" />
       <InputBox v-model="session.draft" :session="session" :models="models" @send="ChatCommand.send(session.id, $event)" @stop="ChatCommand.stop(session.id)" @select-model="selectModel" @attach="ChatCommand.attach(session.id, $event)" @remove-file="ChatCommand.removeFile(session.id, $event)" />
     </footer>
 
-    <mdui-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" close-on-overlay-click @closed="pendingRollback = null"><span slot="headline">{{ t('rollbackTool') }}</span><span slot="description">{{ t('rollbackDescription', { step: pendingRollback }) }}</span><mdui-button slot="action" variant="text" @click="pendingRollback = null">{{ t('cancel') }}</mdui-button><mdui-button slot="action" variant="filled" @click="confirmRollback">{{ t('confirmRollback') }}</mdui-button></mdui-dialog>
+    <m3e-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" @closed="pendingRollback = null">
+      <span slot="header">{{ t('rollbackTool') }}</span>
+      <span>{{ t('rollbackDescription', { step: pendingRollback }) }}</span>
+      <m3e-button slot="actions"><m3e-dialog-action @click="pendingRollback = null">{{ t('cancel') }}</m3e-dialog-action></m3e-button>
+      <m3e-button slot="actions"><m3e-dialog-action @click="confirmRollback">{{ t('confirmRollback') }}</m3e-dialog-action></m3e-button>
+    </m3e-dialog>
   </section>
 </template>
 

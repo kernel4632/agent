@@ -27,14 +27,14 @@ function formatTokens(value) {
 </script>
 
 <template>
-  <mdui-card variant="filled" class="message" :class="`message--${message.role}`" :data-message-id="message.id">
+  <m3e-card class="message" :class="`message--${message.role}`" :data-message-id="message.id">
     <template v-if="message.role === 'user'">
       <div class="user-message__content">{{ message.content }}</div>
-      <div v-if="message.files?.length" class="user-message__files"><span v-for="file in message.files" :key="file.id"><mdui-icon-attach-file></mdui-icon-attach-file>{{ file.name }}</span></div>
+      <div v-if="message.files?.length" class="user-message__files"><span v-for="file in message.files" :key="file.id"><m3e-icon name="attach_file"></m3e-icon>{{ file.name }}</span></div>
       <footer class="user-message__meta">
         <time>{{ formatTime(message.createdAt) }}</time>
-        <mdui-button-icon :aria-label="t('recallEdit')" :title="t('recallEditTitle')" @click="emit('retry', message)"><mdui-icon-undo></mdui-icon-undo></mdui-button-icon>
-        <mdui-button-icon :aria-label="t('copyMessage')" :title="t('copy')" @click="emit('copy', message.content)"><mdui-icon-content-copy></mdui-icon-content-copy></mdui-button-icon>
+        <m3e-icon-button :aria-label="t('recallEdit')" :title="t('recallEditTitle')" @click="emit('retry', message)"><m3e-icon name="undo"></m3e-icon></m3e-icon-button>
+        <m3e-icon-button :aria-label="t('copyMessage')" :title="t('copy')" @click="emit('copy', message.content)"><m3e-icon name="content_copy"></m3e-icon></m3e-icon-button>
       </footer>
     </template>
 
@@ -48,18 +48,18 @@ function formatTokens(value) {
       </div>
 
       <div v-if="message.request" class="request-strip" :class="`is-${message.request.status}`">
-        <mdui-circular-progress v-if="message.request.status === 'running'" class="request-strip__progress"></mdui-circular-progress>
-        <mdui-icon-check-circle v-else-if="message.request.status === 'completed'"></mdui-icon-check-circle>
-        <mdui-icon-pause-circle v-else></mdui-icon-pause-circle>
+        <m3e-circular-progress-indicator v-if="message.request.status === 'running'" class="request-strip__progress"></m3e-circular-progress-indicator>
+        <m3e-icon v-else-if="message.request.status === 'completed'" name="check_circle"></m3e-icon>
+        <m3e-icon v-else name="pause_circle"></m3e-icon>
         <strong>{{ t('apiRequest') }}</strong>
         <template v-if="message.request.status === 'running'"><span>{{ t('receiving') }}</span></template>
         <template v-else-if="message.request.status === 'cancelled'"><span>{{ t('paused') }}</span></template>
         <template v-else><span>{{ t('inputTokens', { count: formatTokens(message.request.input) }) }}</span><span>{{ t('outputTokens', { count: formatTokens(message.request.output) }) }}</span><span v-if="message.request.cache">{{ t('cacheTokens', { count: formatTokens(message.request.cache) }) }}</span><span>{{ message.request.duration }}s</span></template>
       </div>
 
-      <div v-if="message.error" class="message-error"><mdui-icon-error-outline></mdui-icon-error-outline><span>{{ message.error }}</span></div>
+      <div v-if="message.error" class="message-error"><m3e-icon name="error"></m3e-icon><span>{{ message.error }}</span></div>
     </template>
-  </mdui-card>
+  </m3e-card>
 </template>
 
 <style lang="scss" src="../styles/components/MessageItem.scss"></style>

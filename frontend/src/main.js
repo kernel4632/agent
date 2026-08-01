@@ -1,63 +1,62 @@
 /*
-前端入口：加载 Vue、MDUI 2 和全局 SCSS，然后挂载根组件。
+前端入口：加载 Vue、M3E 组件和全局 SCSS，然后挂载根组件。
 入口不处理业务逻辑，所有用户动作由 views 调用 stores 中的指令完成。
 调用方式：Vite 从 index.html 自动执行本文件。
 */
 import { createApp } from 'vue'                    // 引入 Vue 应用创建能力
 import { startWatchers } from './watchers.js'      // 引入集中管理的数据变化副作用
-import 'mdui/mdui.css'                             // 引入 MDUI 2 Material You 基础样式
-import 'mdui'                                      // 注册全部 MDUI 2 Web Components
-import { setColorScheme } from 'mdui/functions/setColorScheme.js' // 从品牌种子生成完整 Material 3 色板
-import { setTheme } from 'mdui/functions/setTheme.js' // 使用 MDUI 官方主题状态
+import '@m3e/web/avatar'                            // 注册身份头像
+import '@m3e/web/button'                            // 注册文本命令
+import '@m3e/web/card'                              // 注册内容容器
+import '@m3e/web/checkbox'                          // 注册任务状态控件
+import '@m3e/web/chips'                             // 注册附件 Chip
+import '@m3e/web/dialog'                            // 注册确认和模型弹窗
+import '@m3e/web/expansion-panel'                   // 注册任务折叠面板
+import '@m3e/web/form-field'                        // 注册原生输入字段外观
+import '@m3e/web/icon'                              // 与图标包共享 SVG Registry
+import '@m3e/web/icon-button'                       // 注册图标命令
+import '@m3e/web/progress-indicator'                // 注册请求进度反馈
+import '@m3e/web/search'                            // 注册主页搜索框
+import '@m3e/web/select'                            // 注册模型和权限选择器
+import '@m3e/web/snackbar'                          // 注册全局即时反馈
+import '@m3e/web/switch'                            // 注册设置开关
+import '@m3e/web/textarea-autosize'                 // 注册自适应长文本能力
+import '@m3e/web/theme'                             // 注册 Material 3 暗色主题
 import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
-import '@mdui/icons/menu.js'                       // 注册侧栏菜单图标
-import '@mdui/icons/menu-open.js'                  // 注册侧栏展开图标
-import '@mdui/icons/keyboard-double-arrow-left.js' // 注册侧栏收起图标
-import '@mdui/icons/add.js'                        // 注册新建会话图标
-import '@mdui/icons/send.js'                       // 注册发送消息图标
-import '@mdui/icons/arrow-upward.js'               // 注册输入器发送图标
-import '@mdui/icons/stop.js'                       // 注册停止任务图标
-import '@mdui/icons/settings.js'                   // 注册设置视图图标
-import '@mdui/icons/build.js'                      // 注册工具视图图标
-import '@mdui/icons/delete.js'                     // 注册删除会话图标
-import '@mdui/icons/refresh.js'                    // 注册重载工具图标
-import '@mdui/icons/history.js'                    // 注册会话历史图标
-import '@mdui/icons/more-vert.js'                  // 注册更多操作图标
-import '@mdui/icons/expand-more.js'                // 注册模型下拉图标
-import '@mdui/icons/chevron-right.js'              // 注册运行能力设置入口图标
-import '@mdui/icons/check.js'                      // 注册当前模型状态图标
-import '@mdui/icons/edit.js'                       // 注册提供商编辑图标
-import '@mdui/icons/key.js'                        // 注册密钥配置图标
-import '@mdui/icons/dns.js'                        // 注册模型服务图标
-import '@mdui/icons/hub.js'                        // 注册 MCP 设置图标
-import '@mdui/icons/code.js'                       // 注册 LSP 设置图标
-import '@mdui/icons/extension.js'                  // 注册 Agent Skills 设置图标
-import '@mdui/icons/close.js'                      // 注册移除模型图标
-import '@mdui/icons/home.js'                       // 注册顶部主页图标
-import '@mdui/icons/undo.js'                       // 注册撤销回退图标
-import '@mdui/icons/search.js'                     // 注册主页搜索图标
-import '@mdui/icons/folder.js'                     // 注册工作区图标
-import '@mdui/icons/folder-open.js'                // 注册已选工作区图标
-import '@mdui/icons/keyboard-arrow-left.js'        // 注册返回方向图标
-import '@mdui/icons/keyboard-arrow-right.js'       // 注册列表方向图标
-import '@mdui/icons/keyboard-arrow-up.js'          // 注册消息向上跳转图标
-import '@mdui/icons/keyboard-arrow-down.js'        // 注册消息向下跳转图标
-import '@mdui/icons/attach-file.js'                // 注册消息附件图标
-import '@mdui/icons/content-copy.js'               // 注册消息复制图标
-import '@mdui/icons/error-outline.js'              // 注册消息错误图标
-import '@mdui/icons/download.js'                   // 注册模型发现和导出图标
-import '@mdui/icons/upload.js'                     // 注册数据导入图标
-import '@mdui/icons/tune.js'                       // 注册模型设置图标
-import '@mdui/icons/smart-toy.js'                  // 注册系统提示词图标
-import '@mdui/icons/palette.js'                    // 注册外观设置图标
-import '@mdui/icons/storage.js'                    // 注册数据管理图标
-import '@mdui/icons/auto-awesome.js'               // 注册推理状态图标
-import '@mdui/icons/check-circle.js'               // 注册请求完成图标
-import '@mdui/icons/pause-circle.js'               // 注册请求暂停图标
+import '@m3e/icons/outlined/add'                    // 注册新建动作图标
+import '@m3e/icons/outlined/arrow_upward'           // 注册发送动作图标
+import '@m3e/icons/outlined/attach_file'            // 注册附件图标
+import '@m3e/icons/outlined/award_star'             // 注册推理状态图标
+import '@m3e/icons/outlined/build'                  // 注册工具图标
+import '@m3e/icons/outlined/check_circle'           // 注册完成状态图标
+import '@m3e/icons/outlined/close'                  // 注册关闭动作图标
+import '@m3e/icons/outlined/code'                   // 注册命令工具图标
+import '@m3e/icons/outlined/content_copy'           // 注册复制动作图标
+import '@m3e/icons/outlined/delete'                 // 注册删除动作图标
+import '@m3e/icons/outlined/dns'                    // 注册供应商图标
+import '@m3e/icons/outlined/download'               // 注册下载动作图标
+import '@m3e/icons/outlined/edit'                   // 注册重命名动作图标
+import '@m3e/icons/outlined/error'                  // 注册错误状态图标
+import '@m3e/icons/outlined/keyboard_arrow_down'    // 注册展开状态图标
+import '@m3e/icons/outlined/folder'                 // 注册工作区图标
+import '@m3e/icons/outlined/history'                // 注册历史会话图标
+import '@m3e/icons/outlined/home'                   // 注册主页图标
+import '@m3e/icons/outlined/hub'                    // 注册 MCP 图标
+import '@m3e/icons/outlined/keyboard_double_arrow_left' // 注册收起侧边栏图标
+import '@m3e/icons/outlined/keyboard_arrow_right'   // 注册列表导航图标
+import '@m3e/icons/outlined/menu_open'              // 注册展开侧边栏图标
+import '@m3e/icons/outlined/palette'                // 注册外观图标
+import '@m3e/icons/outlined/pause_circle'           // 注册暂停状态图标
+import '@m3e/icons/outlined/search'                 // 注册搜索图标
+import '@m3e/icons/outlined/settings'               // 注册设置图标
+import '@m3e/icons/outlined/smart_toy'              // 注册提示词图标
+import '@m3e/icons/outlined/stop'                   // 注册停止动作图标
+import '@m3e/icons/outlined/storage'                // 注册数据管理图标
+import '@m3e/icons/outlined/tune'                   // 注册模型设置图标
+import '@m3e/icons/outlined/undo'                   // 注册回退动作图标
+import '@m3e/icons/outlined/upload'                 // 注册上传动作图标
 import App from './App.vue'                        // 引入根界面组合组件
 
-setColorScheme('#006A6A')                          // 使用 Material 3 算法生成主色、容器色和状态色
-setTheme('dark')                                   // 当前工作台使用 Material 3 暗色模式
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
 startWatchers()                                    // 再启动标签持久化等集中副作用
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面
