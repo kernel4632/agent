@@ -4,11 +4,10 @@
 调用示例：<HomePage />。
 -->
 <script setup>
-import { computed, ref, useId } from 'vue'                    // 管理搜索、工作区选择和唯一菜单 ID
+import { computed, ref } from 'vue'                           // 管理搜索和工作区选择
 
 const searchTerm = ref('')                                   // 保存主页搜索关键词
 const selectedWorkspaceId = ref('personal')                  // 决定右侧展示哪个工作区的会话
-const pageId = useId()                                       // 避免会话菜单在多实例页面中冲突
 
 const workspaces = [                                         // 左侧工作区样例数据
   { id: 'personal', name: '个人工作区', description: '8 个会话' },
@@ -34,12 +33,6 @@ const conversationsByWorkspace = {                           // 右侧按工作�
 
 const selectedWorkspace = computed(() => workspaces.find(workspace => workspace.id === selectedWorkspaceId.value)) // 提供右侧标题
 const conversationGroups = computed(() => conversationsByWorkspace[selectedWorkspaceId.value] || [])              // 提供右侧分组
-
-
-// --- 为每条会话生成稳定的操作菜单 ID ---
-function conversationMenuId(conversationId) {
-  return `conversation-menu-${pageId}-${conversationId}`      // 连接菜单触发器与对应菜单
-}
 </script>
 
 <template>
@@ -94,23 +87,15 @@ function conversationMenuId(conversationId) {
                     {{ conversation.title }}
                     <span slot="supporting-text">{{ conversation.time }}</span>
 
-                    <m3e-icon-button slot="trailing" type="button" shape="rounded" :aria-label="`${conversation.title} 操作`">
-                      <m3e-menu-trigger :for="conversationMenuId(conversation.id)">
-                        <m3e-icon name="more_vert" filled="1"></m3e-icon>
-                      </m3e-menu-trigger>
-                    </m3e-icon-button>
+                    <span slot="trailing" class="home-page__conversation-actions">
+                      <m3e-icon-button type="button" shape="rounded" :aria-label="`重命名 ${conversation.title}`" title="重命名" @click.stop>
+                        <m3e-icon name="edit" filled="1"></m3e-icon>
+                      </m3e-icon-button>
+                      <m3e-icon-button type="button" shape="rounded" :aria-label="`删除 ${conversation.title}`" title="删除" @click.stop>
+                        <m3e-icon name="delete" filled="1"></m3e-icon>
+                      </m3e-icon-button>
+                    </span>
                   </m3e-list-action>
-
-                  <m3e-menu :id="conversationMenuId(conversation.id)" placement="bottom-end">
-                    <m3e-menu-item>
-                      <m3e-icon slot="icon" name="edit" filled="1"></m3e-icon>
-                      重命名
-                    </m3e-menu-item>
-                    <m3e-menu-item>
-                      <m3e-icon slot="icon" name="delete" filled="1"></m3e-icon>
-                      删除
-                    </m3e-menu-item>
-                  </m3e-menu>
                 </template>
               </m3e-action-list>
             </section>
@@ -130,22 +115,44 @@ function conversationMenuId(conversationId) {
   width: 100%;
   height: 100%;
   padding: 24px;
+  overflow: hidden;
 }
 
 .home-page__search {
   align-self: center;
   width: min(720px, 100%);
+  transform: scale(1);
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
+
+  &:hover {
+    filter: brightness(1.04);
+    transform: scale(1.01);
+  }
+
+  &:focus-within {
+    filter: brightness(1.04);
+    transform: scale(1.015);
+  }
+
+  &:active {
+    filter: brightness(.98);
+    transform: scale(.985);
+    transition-duration: var(--motion-duration-press);
+    transition-timing-function: ease-out;
+  }
 }
 
 .home-page__body {
   display: flex;
-  flex: 1 1 auto;
+  overflow: hidden;
+  flex: 1 1 0;
   gap: 24px;
   min-height: 0;
 }
 
 .home-page__workspace-pane,
 .home-page__conversation-pane {
+  height: 100%;
   min-width: 0;
   min-height: 0;
 }
@@ -167,6 +174,33 @@ function conversationMenuId(conversationId) {
   gap: 16px;
 }
 
+.home-page__pane-content {
+  height: 100%;
+  min-height: 0;
+}
+
+.home-page__conversation-groups {
+  min-height: 0;
+  padding-right: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  scrollbar-width: thin;
+  scrollbar-color: #555555 transparent;
+
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+
+  &::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: #555555;
+    background-clip: padding-box;
+  }
+
+  &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+}
+
 .home-page__pane-header {
   display: flex;
   align-items: center;
@@ -174,11 +208,42 @@ function conversationMenuId(conversationId) {
   gap: 16px;
 }
 
+.home-page__conversation-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.home-page m3e-button,
+.home-page m3e-icon-button,
+.home-page m3e-list-action {
+  transform: scale(1);
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
+
+  &:hover {
+    filter: brightness(1.08);
+    transform: translateY(-.5px) scale(1.01);
+  }
+
+  &:active {
+    filter: brightness(.94);
+    transform: scale(.96);
+    transition-duration: var(--motion-duration-press);
+    transition-timing-function: ease-out;
+  }
+}
+
+.home-page m3e-action-list {
+  padding: 8px;
+}
+
 @media (max-width: 760px) {
   .home-page {
     height: auto;
     min-height: 100%;
     padding: 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .home-page__body {
