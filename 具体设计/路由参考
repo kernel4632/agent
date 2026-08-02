@@ -1,0 +1,62 @@
+import { Elysia } from 'elysia'
+import { store, load } from './store'
+import { Config } from './commands/config'
+import { Workspace } from './commands/workspace'
+import { Session } from './commands/session'
+import { Agent } from './commands/agent'
+import { Approval } from './commands/approval'
+import { History } from './commands/history'
+
+// ── 启动加载 ──
+await load()
+
+// ── 路由 ──
+new Elysia()
+
+  .get('/health', () => ({
+    status: 'ok',
+    version: store.engine.version
+  }))
+
+  .group('/config', app => app
+    .get   ('/', () => Config.get())
+    .patch ('/', ({ body }) => Config.update(body))
+  )
+
+  .group('/workspace', app => app
+    .get   ('/', () => Workspace.list())
+    .post  ('/', ({ body }) => Workspace.add(body.path))
+    .patch ('/', ({ body: { workspaceId, ...fields } }) =>
+                    Workspace.update(workspaceId, fields))
+    .delete('/', ({ body }) => Workspace.remove(body.workspaceId))
+  )
+
+  .group('/session', app => app
+    .get   ('/', ({ query }) => Session.get(query.sessionId))
+    .post  ('/', ({ body })  => Session.create(body.workspaceId))
+    .patch ('/', ({ body: { sessionId, ...fields } }) =>
+                    Session.update(sessionId, fields))
+    .delete('/', ({ body })  => Session.delete(body.sessionId))
+
+    .get ('/events',    ({ query }) => Session.listen(query.sessionId))
+    .post('/send',      ({ body })  => Agent.send(body.sessionId, body.content))
+    .post('/stop',      ({ body })  => Agent.stop(body.sessionId))
+    .post('/approval',  ({ body })  => Approval.handle(body.sessionId, body.toolCallId, body.decision))
+    .post('/history',   ({ body })  => History.handle(body.sessionId, body.action, body.target))
+  )
+
+  .onError(({ error }) => ({ ok: false, error: error.message }))
+
+  .listen(4632)
+
+// ── 退出清理 ──
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    for (const session of store.sessions.values()) {
+      session.runner?.abort()
+      for (const ctrl of session.listeners) ctrl.close()
+      Session.save(session.id)
+    }
+    process.exit(0)
+  })
+}

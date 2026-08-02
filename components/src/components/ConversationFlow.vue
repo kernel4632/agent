@@ -4,25 +4,25 @@
 调用示例：<ConversationFlow />。
 -->
 <script setup>
-import { ref } from 'vue'
-import ToolExpansion from './ToolExpansion.vue'
+import { ref } from 'vue'                              // 保存静态预览中两个工具的展开状态
+import ToolExpansion from './ToolExpansion.vue'       // 复用工具标题、详情折叠与回退确认
 
-const emit = defineEmits(['rollback-tool'])
-const fileDetailsOpen = ref(false)
-const commandDetailsOpen = ref(true)
+const emit = defineEmits(['copy-message', 'rollback-message', 'rollback-tool']) // 将消息和工具操作交给业务层
+const fileDetailsOpen = ref(false)                     // 文件差异默认收起，避免占用消息流高度
+const commandDetailsOpen = ref(true)                   // 当前运行命令默认展开，直接展示执行反馈
 </script>
 
 <template>
   <main class="conversation-flow" aria-label="对话内容">
-    <!-- 用户消息：紧凑气泡与版本切换。 -->
+    <!-- 用户消息：紧凑气泡；悬停或聚焦时展示时间与操作。 -->
     <section class="conversation-flow__user-turn" aria-label="用户消息">
       <p class="conversation-flow__user-message">检查消息流组件的结构，并修复会话操作按钮的交互问题。</p>
       <div class="conversation-flow__message-actions" aria-label="用户消息操作">
         <span class="conversation-flow__message-time">刚刚</span>
-        <m3e-icon-button type="button" shape="rounded" aria-label="回退" title="回退">
+        <m3e-icon-button type="button" shape="rounded" aria-label="回退" title="回退" @click="emit('rollback-message')">
           <m3e-icon name="undo" filled="1"></m3e-icon>
         </m3e-icon-button>
-        <m3e-icon-button type="button" shape="rounded" aria-label="复制" title="复制">
+        <m3e-icon-button type="button" shape="rounded" aria-label="复制" title="复制" @click="emit('copy-message')">
           <m3e-icon name="content_copy" filled="1"></m3e-icon>
         </m3e-icon-button>
       </div>
@@ -71,7 +71,7 @@ const commandDetailsOpen = ref(true)
         </m3e-card>
 
         <m3e-card class="conversation-flow__activity-card" variant="filled">
-          <div slot="content" class="conversation-flow__message-block conversation-flow__result-block">
+          <div slot="content" class="conversation-flow__message-block">
             <p>会话项与内部操作按钮的交互已经隔离。点击重命名或删除时，父级保持稳定，只有目标图标按钮执行按压、ripple 和弹性回弹。</p>
           </div>
         </m3e-card>
@@ -126,7 +126,6 @@ const commandDetailsOpen = ref(true)
   line-height: 1.55;
 }
 
-.conversation-flow__activity-header,
 .conversation-flow__api-row {
   display: flex;
   align-items: center;
@@ -161,34 +160,13 @@ const commandDetailsOpen = ref(true)
   --m3e-card-padding: 0;
   --m3e-filled-card-container-color: transparent;
   --m3e-filled-card-container-elevation: none;
+  min-width: 0;
 }
-
-.conversation-flow__activity-card { min-width: 0; }
 
 .conversation-flow__message-block {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.conversation-flow__activity-header {
-  width: 100%;
-  min-width: 0;
-  gap: 18px;
-
-  > m3e-icon {
-    flex: 0 0 28px;
-    color: #c8cbd3;
-    font-size: 28px;
-  }
-}
-
-.conversation-flow__activity-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  color: #d8dbe3;
-  font-size: 20px;
-  line-height: 28px;
 }
 
 .conversation-flow__api-row {
@@ -278,8 +256,7 @@ const commandDetailsOpen = ref(true)
 .code-command { color: #68a9ff; }
 .code-output { color: #a8a8a8; }
 
-.conversation-flow m3e-icon-button,
-.conversation-flow m3e-assist-chip {
+.conversation-flow m3e-icon-button {
   transform: scale(1);
   transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
 
@@ -312,20 +289,6 @@ const commandDetailsOpen = ref(true)
   .conversation-flow__api-row,
   .conversation-flow__message-block {
     padding-inline: 2px;
-  }
-
-  .conversation-flow__activity-header {
-    gap: 12px;
-
-    > m3e-icon {
-      flex-basis: 24px;
-      font-size: 24px;
-    }
-  }
-
-  .conversation-flow__activity-title {
-    font-size: 18px;
-    line-height: 24px;
   }
 
   .conversation-flow__message-block p { font-size: 16px; }

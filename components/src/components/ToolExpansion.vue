@@ -4,7 +4,7 @@
 调用示例：<ToolExpansion icon="terminal" label="正在运行" parameter="bun run build">...</ToolExpansion>。
 -->
 <script setup>
-import { ref } from 'vue'
+import { ref } from 'vue'                              // 保存回退按钮与确认菜单的元素引用
 
 const props = defineProps({
   icon: { type: String, required: true },
@@ -16,17 +16,20 @@ const props = defineProps({
   rollbackLabel: { type: String, default: '回退此工具操作' },
 })
 
-const emit = defineEmits(['update:open', 'rollback'])
-const rollbackMenu = ref(null)
-const rollbackButton = ref(null)
+const emit = defineEmits(['update:open', 'rollback'])  // 同步展开状态，并在确认后发出回退意图
+const rollbackMenu = ref(null)                        // M3E 菜单负责锚定显示和关闭确认提示
+const rollbackButton = ref(null)                      // Undo 按钮是确认菜单的定位锚点
 
+// --- 在 Undo 按钮旁显示二次确认 ---
 function showRollbackConfirmation() {
   rollbackMenu.value?.show(rollbackButton.value)
 }
 
+
+// --- 确认后关闭提示并通知调用方 ---
 function confirmRollback() {
-  rollbackMenu.value?.hide()
-  emit('rollback')
+  rollbackMenu.value?.hide()                          // 先收起浮层，立即反馈当前点击
+  emit('rollback')                                    // 业务层根据工具 ID 执行真实回退
 }
 </script>
 
