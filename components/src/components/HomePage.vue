@@ -214,6 +214,13 @@ const conversationGroups = computed(() => conversationsByWorkspace[selectedWorks
   gap: 4px;
 }
 
+.home-page m3e-list-action:has(.home-page__conversation-actions:hover),
+.home-page m3e-list-action:has(.home-page__conversation-actions:focus-within) {
+  filter: none;
+  transform: scale(1);
+  transition: none;
+}
+
 .home-page m3e-button,
 .home-page m3e-icon-button,
 .home-page m3e-list-action {
