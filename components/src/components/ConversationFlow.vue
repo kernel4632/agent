@@ -7,6 +7,7 @@
 import { ref } from 'vue'
 import ToolExpansion from './ToolExpansion.vue'
 
+const emit = defineEmits(['rollback-tool'])
 const fileDetailsOpen = ref(false)
 const commandDetailsOpen = ref(true)
 </script>
@@ -16,13 +17,13 @@ const commandDetailsOpen = ref(true)
     <!-- 用户消息：紧凑气泡与版本切换。 -->
     <section class="conversation-flow__user-turn" aria-label="用户消息">
       <p class="conversation-flow__user-message">检查消息流组件的结构，并修复会话操作按钮的交互问题。</p>
-      <div class="conversation-flow__message-version" aria-label="消息版本 2，共 2 个版本">
-        <m3e-icon-button type="button" shape="rounded" aria-label="上一个版本">
-          <m3e-icon name="chevron_left" filled="1"></m3e-icon>
+      <div class="conversation-flow__message-actions" aria-label="用户消息操作">
+        <span class="conversation-flow__message-time">刚刚</span>
+        <m3e-icon-button type="button" shape="rounded" aria-label="回退" title="回退">
+          <m3e-icon name="undo" filled="1"></m3e-icon>
         </m3e-icon-button>
-        <span>2 / 2</span>
-        <m3e-icon-button type="button" shape="rounded" aria-label="下一个版本" disabled>
-          <m3e-icon name="chevron_right" filled="1"></m3e-icon>
+        <m3e-icon-button type="button" shape="rounded" aria-label="复制" title="复制">
+          <m3e-icon name="content_copy" filled="1"></m3e-icon>
         </m3e-icon-button>
       </div>
     </section>
@@ -32,17 +33,11 @@ const commandDetailsOpen = ref(true)
       <div class="conversation-flow__activity-list">
         <m3e-card class="conversation-flow__activity-card" variant="filled">
           <div slot="content">
-            <ToolExpansion v-model:open="fileDetailsOpen" icon="dashboard_customize" label="需要编辑文件" parameter="components/src/components/HomePage.vue">
-              <div class="conversation-flow__file-details">
-                <span class="conversation-flow__change-stats" aria-label="增加 30 行，删除 0 行">
-                  <span class="is-addition">+30</span>
-                  <span class="is-deletion">-0</span>
-                </span>
+            <ToolExpansion v-model:open="fileDetailsOpen" icon="dashboard_customize" label="需要编辑文件" parameter="components/src/components/HomePage.vue" @rollback="emit('rollback-tool', 'edit-file')">
               <pre class="conversation-flow__code"><code><span class="code-add">+ @click.stop="openRenameDialog(conversation)"</span>
 <span class="code-add">+ :has(.conversation-actions:hover) {</span>
 <span class="code-add">+   transform: scale(1);</span>
 <span class="code-add">+ }</span></code></pre>
-              </div>
             </ToolExpansion>
           </div>
         </m3e-card>
@@ -67,7 +62,7 @@ const commandDetailsOpen = ref(true)
 
         <m3e-card class="conversation-flow__activity-card" variant="filled">
           <div slot="content">
-            <ToolExpansion v-model:open="commandDetailsOpen" icon="terminal" label="正在运行" parameter="bun run build" :icon-filled="false">
+            <ToolExpansion v-model:open="commandDetailsOpen" icon="terminal" label="正在运行" parameter="bun run build" :icon-filled="false" @rollback="emit('rollback-tool', 'run-command')">
               <pre class="conversation-flow__terminal"><code><span class="code-prompt">›</span> <span class="code-command">bun run build</span>
 <span class="code-output">✓ 54 modules transformed</span>
 <span class="code-output">✓ built in 369ms</span></code></pre>
@@ -131,17 +126,27 @@ const commandDetailsOpen = ref(true)
   line-height: 1.55;
 }
 
-.conversation-flow__message-version,
 .conversation-flow__activity-header,
 .conversation-flow__api-row {
   display: flex;
   align-items: center;
 }
 
-.conversation-flow__message-version {
+.conversation-flow__message-actions {
+  display: flex;
+  align-items: center;
   gap: 4px;
   color: #b5b5b5;
   font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.conversation-flow__user-turn:hover .conversation-flow__message-actions,
+.conversation-flow__user-turn:focus-within .conversation-flow__message-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .conversation-flow__assistant-turn { min-width: 0; }
@@ -149,7 +154,7 @@ const commandDetailsOpen = ref(true)
 .conversation-flow__activity-list {
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 12px;
 }
 
 .conversation-flow__activity-card {
@@ -184,21 +189,6 @@ const commandDetailsOpen = ref(true)
   color: #d8dbe3;
   font-size: 20px;
   line-height: 28px;
-}
-
-.conversation-flow__file-details {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.conversation-flow__change-stats {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 14px;
-
-  .is-addition { color: #80d987; }
-  .is-deletion { color: #ff5b63; }
 }
 
 .conversation-flow__api-row {
@@ -317,7 +307,7 @@ const commandDetailsOpen = ref(true)
     font-size: 16px;
   }
 
-  .conversation-flow__activity-list { gap: 26px; }
+  .conversation-flow__activity-list { gap: 12px; }
 
   .conversation-flow__api-row,
   .conversation-flow__message-block {

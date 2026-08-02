@@ -1,9 +1,11 @@
 <!--
-通用工具折叠条：左侧展示图标、工具名和参数，右侧由 M3E 提供展开箭头。
-整条标题区域负责展开详细信息，调用方只需提供展示数据和默认插槽。
+通用工具折叠条：左侧展示图标、工具名和参数，右侧提供回退按钮和展开箭头。
+整条标题区域负责展开详细信息；回退按钮隔离折叠事件并向调用方发出 rollback。
 调用示例：<ToolExpansion icon="terminal" label="正在运行" parameter="bun run build">...</ToolExpansion>。
 -->
 <script setup>
+import { ref } from 'vue'
+
 const props = defineProps({
   icon: { type: String, required: true },
   label: { type: String, required: true },
@@ -11,9 +13,21 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   muted: { type: Boolean, default: false },
   iconFilled: { type: Boolean, default: true },
+  rollbackLabel: { type: String, default: '回退此工具操作' },
 })
 
-const emit = defineEmits(['update:open'])
+const emit = defineEmits(['update:open', 'rollback'])
+const rollbackMenu = ref(null)
+const rollbackButton = ref(null)
+
+function showRollbackConfirmation() {
+  rollbackMenu.value?.show(rollbackButton.value)
+}
+
+function confirmRollback() {
+  rollbackMenu.value?.hide()
+  emit('rollback')
+}
 </script>
 
 <template>
@@ -31,11 +45,31 @@ const emit = defineEmits(['update:open'])
       <span v-if="props.parameter || $slots.parameter" class="tool-expansion__parameter">
         <slot name="parameter">{{ props.parameter }}</slot>
       </span>
+      <m3e-icon-button
+        class="tool-expansion__rollback"
+        ref="rollbackButton"
+        type="button"
+        shape="rounded"
+        size="extra-small"
+        :aria-label="props.rollbackLabel"
+        :title="props.rollbackLabel"
+        @pointerdown.stop
+        @click.stop="showRollbackConfirmation"
+        @keydown.stop
+      >
+        <m3e-icon name="undo" filled="1"></m3e-icon>
+      </m3e-icon-button>
     </div>
     <div class="tool-expansion__details">
       <slot></slot>
     </div>
   </m3e-expansion-panel>
+  <m3e-menu ref="rollbackMenu" class="tool-expansion__confirm-menu" position-x="before" position-y="below">
+    <div class="tool-expansion__confirm-content">
+      <span>确定回退吗？</span>
+      <m3e-button class="tool-expansion__confirm-button" type="button" variant="filled" width="wide" @click.stop="confirmRollback">确定</m3e-button>
+    </div>
+  </m3e-menu>
 </template>
 
 <style scoped lang="scss">
@@ -105,9 +139,49 @@ const emit = defineEmits(['update:open'])
   white-space: nowrap;
 }
 
+.tool-expansion__rollback {
+  flex: 0 0 auto;
+  --m3e-icon-button-shape: var(--md-sys-shape-corner-full);
+}
+
+.tool-expansion__rollback,
+.tool-expansion__confirm-button {
+  transform: scale(1);
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
+
+  &:hover {
+    filter: brightness(1.08);
+    transform: translateY(-.5px) scale(1.01);
+  }
+
+  &:active {
+    filter: brightness(.94);
+    transform: scale(.94);
+    transition-duration: var(--motion-duration-press);
+    transition-timing-function: ease-out;
+  }
+}
+
+.tool-expansion__confirm-menu {
+  --m3e-menu-container-min-width: 168px;
+  --m3e-menu-container-padding-block: 0;
+  --m3e-menu-container-padding-inline: 0;
+}
+
+.tool-expansion__confirm-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  color: #e5e5e5;
+  font-size: 14px;
+
+  m3e-button { width: 100%; }
+}
+
 .tool-expansion__details {
   min-width: 0;
-  padding: 4px 12px 14px 54px;
+  padding: 4px 12px 14px;
 }
 
 @media (max-width: 640px) {
@@ -127,6 +201,6 @@ const emit = defineEmits(['update:open'])
 
   .tool-expansion__label { font-size: 17px; }
   .tool-expansion__parameter { font-size: 13px; }
-  .tool-expansion__details { padding-left: 36px; }
+  .tool-expansion__details { padding: 4px 6px 12px 2px; }
 }
 </style>
