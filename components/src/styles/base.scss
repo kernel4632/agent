@@ -101,11 +101,11 @@ body {
   align-items: stretch;
   width: 100%;
   height: 100vh;
-  padding: 8px;
+  padding: 0;
 }
 
 @media (max-width: 620px) {
   .preview-page {
-    padding: 4px;
+    padding: 0;
   }
 }
