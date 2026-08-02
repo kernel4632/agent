@@ -134,7 +134,7 @@ function toggleSidebar() {
   width: 34px;
   height: 34px;
   border: 3px solid currentcolor;
-  border-radius: 12px 50% 50%;
+  border-radius: 50% 50%;
   font-size: 16px;
   font-weight: 800;
   transform: rotate(-8deg);
