@@ -40,14 +40,14 @@ function toggleSidebar() {
 
     <!-- 第二排：主页和新建对话按钮组。 -->
     <nav class="sidebar__actions" aria-label="主要操作">
-      <m3e-button class="sidebar__action" type="button" shape="rounded" aria-label="主页" :title="collapsed ? '主页' : undefined" @click="emit('home')">
+      <m3e-button class="sidebar__action" type="button" shape="square" aria-label="主页" :title="collapsed ? '主页' : undefined" @click="emit('home')">
         <span class="sidebar__action-content">
           <m3e-icon name="home" filled="1"></m3e-icon>
           <span class="sidebar__label">主页</span>
         </span>
       </m3e-button>
 
-      <m3e-button class="sidebar__action is-primary" type="button" variant="tonal" shape="rounded" aria-label="新建对话" :title="collapsed ? '新建对话' : undefined" @click="emit('new-conversation')">
+      <m3e-button class="sidebar__action is-primary" type="button" variant="tonal" shape="square" aria-label="新建对话" :title="collapsed ? '新建对话' : undefined" @click="emit('new-conversation')">
         <span class="sidebar__action-content">
           <m3e-icon name="edit_square" filled="1"></m3e-icon>
           <span class="sidebar__label">新建对话</span>
@@ -75,7 +75,7 @@ function toggleSidebar() {
     </m3e-icon-button>
 
     <!-- 第五排：始终固定在侧边栏底部。 -->
-    <m3e-button class="sidebar__settings" type="button" shape="rounded" aria-label="设置" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
+    <m3e-button class="sidebar__settings" type="button" shape="square" aria-label="设置" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
       <span class="sidebar__action-content">
         <m3e-icon name="settings" filled="1"></m3e-icon>
         <span class="sidebar__label">设置</span>
@@ -86,7 +86,7 @@ function toggleSidebar() {
 
 <style scoped lang="scss">
 .sidebar {
-  --sidebar-width: 312px;
+  --sidebar-width: 270px;
   --sidebar-inset: 14px;
   --sidebar-item-height: 48px;
   display: flex;
@@ -144,11 +144,10 @@ function toggleSidebar() {
 .sidebar__expand {
   --m3e-icon-button-icon-color: #969696;
   --m3e-icon-button-hover-icon-color: #f0f0f0;
-  --m3e-icon-button-shape-pressed-morph: var(--md-sys-shape-corner-full);
   width: 40px;
   height: 40px;
 
-  m3e-icon { font-size: 28px; }
+  m3e-icon { font-size: 24px; }
 }
 
 .sidebar__actions {
@@ -161,8 +160,6 @@ function toggleSidebar() {
 .sidebar__action,
 .sidebar__settings {
   --m3e-button-container-height: var(--sidebar-item-height);
-  --m3e-button-shape-round: 16px;
-  --m3e-button-shape-pressed-morph: 16px;
   --m3e-text-button-label-text-color: #eeeeee;
   --m3e-button-leading-space: 15px;
   --m3e-button-trailing-space: 15px;
@@ -256,6 +253,9 @@ function toggleSidebar() {
     --m3e-button-trailing-space: 0;
     display: grid;
     place-items: center;
+    width: 48px;
+    height: 48px;
+    justify-self: center;
   }
 
   .sidebar__action-content {
@@ -264,6 +264,11 @@ function toggleSidebar() {
   }
 
   .sidebar__label { display: none; }
+
+  .sidebar__settings {
+    margin-right: auto;
+    margin-left: auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
