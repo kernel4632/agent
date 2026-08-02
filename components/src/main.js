@@ -8,6 +8,8 @@ import 'material-symbols/outlined.css'                  // 为 M3E 图标提供�
 import '@m3e/web/button'                                // 注册模型选择按钮
 import '@m3e/web/content-pane'                          // 注册主页左右内容面板
 import '@m3e/web/divider'                               // 注册侧边栏内容分割线
+import '@m3e/web/dialog'                                // 注册会话重命名弹窗
+import '@m3e/web/form-field'                            // 注册会话名称输入框
 import '@m3e/web/heading'                               // 注册主页层级标题
 import '@m3e/web/icon-button'                           // 注册附件和提交图标按钮
 import '@m3e/web/icon'                                  // 注册 M3E Material Symbols 图标
