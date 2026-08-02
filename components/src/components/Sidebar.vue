@@ -8,11 +8,7 @@ const collapsed = defineModel('collapsed', { type: Boolean, default: false }) //
 const props = defineProps({                                                   // 接收会话列表和当前选中项
   conversations: {
     type: Array,
-    default: () => [
-      { id: 'conversation-1', title: '欢迎使用 Agent' },
-      { id: 'conversation-2', title: '设计一个新的工作流' },
-      { id: 'conversation-3', title: '整理项目开发计划' },
-    ],
+    default: () => [],
   },
   activeConversationId: { type: [String, Number], default: null },
 })
@@ -33,7 +29,7 @@ function toggleSidebar() {
         <slot name="logo"><span class="sidebar__logo-mark">A</span></slot>
       </button>
 
-      <m3e-icon-button v-if="!collapsed" class="sidebar__toggle" type="button" shape="rounded" aria-label="收起侧边栏" title="收起侧边栏" @click="toggleSidebar">
+      <m3e-icon-button v-if="!collapsed" class="sidebar__toggle" type="button" shape="rounded" aria-label="收起侧边栏" aria-expanded="true" title="收起侧边栏" @click="toggleSidebar">
         <m3e-icon name="keyboard_double_arrow_left" filled="1"></m3e-icon>
       </m3e-icon-button>
     </header>
@@ -57,30 +53,36 @@ function toggleSidebar() {
 
     <!-- 第三排：仅在展开时显示，并占满剩余高度。 -->
     <section v-if="!collapsed" class="sidebar__conversations" aria-label="会话列表">
-      <button
+      <m3e-button
         v-for="conversation in props.conversations"
         :key="conversation.id"
         class="sidebar__conversation"
         :class="{ 'is-active': conversation.id === props.activeConversationId }"
+        :variant="conversation.id === props.activeConversationId ? 'tonal' : 'text'"
+        :aria-current="conversation.id === props.activeConversationId ? 'page' : undefined"
         type="button"
+        shape="square"
         @click="emit('select-conversation', conversation.id)"
       >
-        {{ conversation.title }}
-      </button>
+        <span class="sidebar__conversation-content">{{ conversation.title }}</span>
+      </m3e-button>
     </section>
 
     <!-- 第四排：仅在收起时显示。 -->
-    <m3e-icon-button v-if="collapsed" class="sidebar__expand" type="button" shape="rounded" aria-label="展开侧边栏" title="展开侧边栏" @click="toggleSidebar">
+    <m3e-icon-button v-if="collapsed" class="sidebar__expand" type="button" shape="rounded" aria-label="展开侧边栏" aria-expanded="false" title="展开侧边栏" @click="toggleSidebar">
       <m3e-icon name="keyboard_double_arrow_right" filled="1"></m3e-icon>
     </m3e-icon-button>
 
-    <!-- 第五排：始终固定在侧边栏底部。 -->
-    <m3e-button class="sidebar__settings" type="button" shape="square" aria-label="设置" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
-      <span class="sidebar__action-content">
-        <m3e-icon name="settings" filled="1"></m3e-icon>
-        <span class="sidebar__label">设置</span>
-      </span>
-    </m3e-button>
+    <!-- 第五排：Flex 尾部区通过分割线和间距与上方内容分开。 -->
+    <footer class="sidebar__footer">
+      <m3e-divider></m3e-divider>
+      <m3e-button class="sidebar__settings" type="button" shape="square" aria-label="设置" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
+        <span class="sidebar__action-content">
+          <m3e-icon name="settings" filled="1"></m3e-icon>
+          <span class="sidebar__label">设置</span>
+        </span>
+      </m3e-button>
+    </footer>
   </aside>
 </template>
 
@@ -126,6 +128,28 @@ function toggleSidebar() {
   background: transparent;
   color: #f5f5f5;
   cursor: pointer;
+}
+
+.sidebar__logo,
+.sidebar__toggle,
+.sidebar__action,
+.sidebar__conversation,
+.sidebar__expand,
+.sidebar__settings {
+  transform: scale(1);
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease, background-color 120ms ease, color 120ms ease;
+
+  &:hover {
+    filter: brightness(1.08);
+    transform: translateY(-.5px) scale(1.01);
+  }
+
+  &:active {
+    filter: brightness(.94);
+    transform: scale(.96);
+    transition-duration: var(--motion-duration-press);
+    transition-timing-function: ease-out;
+  }
 }
 
 .sidebar__logo-mark {
@@ -196,6 +220,9 @@ function toggleSidebar() {
 }
 
 .sidebar__conversations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-height: 0;
   padding: 16px 18px;
   overflow-x: hidden;
@@ -206,27 +233,29 @@ function toggleSidebar() {
 }
 
 .sidebar__conversation {
+  --m3e-button-container-height: 40px;
+  --m3e-button-leading-space: 15px;
+  --m3e-button-trailing-space: 15px;
+  --m3e-text-button-label-text-color: #d8d8d8;
   display: block;
   width: 100%;
-  padding: 11px 12px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: #d8d8d8;
-  font: inherit;
+  min-width: 0;
   font-size: 15px;
+  text-align: left;
+
+  &.is-active {
+    --m3e-tonal-button-container-color: #171717;
+    --m3e-tonal-button-label-text-color: #ffffff;
+  }
+}
+
+.sidebar__conversation-content {
+  display: block;
+  width: calc(var(--sidebar-width) - 66px);
+  overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
-
-  &:hover,
-  &.is-active {
-    background: #171717;
-    color: #ffffff;
-  }
 }
 
 .sidebar__expand {
@@ -234,11 +263,21 @@ function toggleSidebar() {
   margin: auto auto 16px;
 }
 
+.sidebar__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 0 var(--sidebar-inset) 12px;
+
+  m3e-divider {
+    --m3e-divider-color: #202020;
+  }
+}
+
 .sidebar__settings {
   width: auto;
   flex: 0 0 var(--sidebar-item-height);
-  margin: 0 var(--sidebar-inset) 12px;
-  border-top: 1px solid #202020;
 }
 
 .sidebar.is-collapsed {

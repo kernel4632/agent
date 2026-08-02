@@ -2,6 +2,7 @@
 :root {
   --motion-spring-bouncy: linear(0, .018 1.6%, .075 3.5%, .306 7.4%, .708 12.2%, .982 16.4%, 1.118 20.6%, 1.156 24.4%, 1.129 28.5%, 1.055 34.4%, .986 41.3%, .965 46.8%, .978 54.6%, 1.012 65.2%, 1.015 71.1%, .998 87%, 1);
   --motion-duration-spring: 520ms;
+  --motion-duration-press: 60ms;
   color: #f3f3f3;
   background: #090909;
   font-family: Inter, "Segoe UI", sans-serif;
