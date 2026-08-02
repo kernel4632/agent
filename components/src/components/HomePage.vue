@@ -1,43 +1,36 @@
 <!--
-主页原型：使用 M3E 原生组件展示搜索、工作区和按时间分组的会话列表。
-当前只验证组件库默认外观与信息结构，不覆盖 M3E 的视觉 token。
-调用示例：<HomePage />。
+主页组件：使用 M3E 展示搜索、工作区和按时间分组的会话列表。
+调用方提供数据并处理添加、打开、重命名和删除意图，组件不依赖具体 Store 或路由。
+调用示例：<HomePage :workspaces="workspaces" :conversations-by-workspace="conversations" />。
 -->
 <script setup>
-import { computed, reactive, ref, useId } from 'vue'          // 管理页面数据和重命名弹窗
+import { computed, ref, useId } from 'vue'                    // 管理页面选择、过滤和重命名弹窗
+
+const props = defineProps({                                   // 接收工作区与分组会话数据
+  workspaces: { type: Array, default: () => [] },
+  conversationsByWorkspace: { type: Object, default: () => ({}) },
+})
+const selectedWorkspaceId = defineModel('workspaceId', { type: [String, Number], default: null }) // 同步当前工作区
+const emit = defineEmits(['add-workspace', 'select-conversation', 'rename-conversation', 'delete-conversation']) // 输出业务意图
 
 const searchTerm = ref('')                                   // 保存主页搜索关键词
-const selectedWorkspaceId = ref('personal')                  // 决定右侧展示哪个工作区的会话
 const renameDialog = ref(null)                               // 打开和关闭 M3E 重命名弹窗
 const renameInput = ref(null)                                // 弹窗打开后聚焦名称输入框
 const renameTarget = ref(null)                               // 保存当前准备重命名的会话
 const renameDraft = ref('')                                  // 保存输入中的新会话名称
 const renameInputId = `rename-conversation-${useId()}`       // 连接字段标签与输入框
 
-const workspaces = [                                         // 左侧工作区样例数据
-  { id: 'personal', name: '个人工作区', description: '8 个会话' },
-  { id: 'product', name: '产品团队', description: '5 个会话' },
-  { id: 'research', name: '研究项目', description: '3 个会话' },
-]
+const effectiveWorkspaceId = computed(() => selectedWorkspaceId.value ?? props.workspaces[0]?.id ?? null)           // 无外部选中值时使用首项
+const selectedWorkspace = computed(() => props.workspaces.find(workspace => workspace.id === effectiveWorkspaceId.value)) // 提供右侧标题
+const conversationGroups = computed(() => {                 // 按当前工作区和搜索词生成可见分组
+  const groups = props.conversationsByWorkspace[effectiveWorkspaceId.value] || []
+  const term = searchTerm.value.trim().toLocaleLowerCase()
+  if (!term) return groups
 
-const conversationsByWorkspace = reactive({                 // 右侧按工作区和时间组织会话
-  personal: [
-    { group: '今天', items: [{ id: 'p-1', title: '整理主页信息架构', time: '14:32' }, { id: 'p-2', title: '侧边栏组件验收', time: '10:18' }] },
-    { group: '昨天', items: [{ id: 'p-3', title: 'Agent 输入框交互', time: '昨天' }] },
-    { group: '更早', items: [{ id: 'p-4', title: '建立组件预览工程', time: '7 月 30 日' }] },
-  ],
-  product: [
-    { group: '今天', items: [{ id: 't-1', title: '产品需求评审', time: '09:45' }] },
-    { group: '更早', items: [{ id: 't-2', title: '版本发布计划', time: '7 月 28 日' }] },
-  ],
-  research: [
-    { group: '昨天', items: [{ id: 'r-1', title: '模型能力对比', time: '昨天' }] },
-    { group: '更早', items: [{ id: 'r-2', title: '上下文策略实验', time: '7 月 25 日' }] },
-  ],
+  return groups
+    .map(group => ({ ...group, items: group.items.filter(conversation => conversation.title.toLocaleLowerCase().includes(term)) }))
+    .filter(group => group.items.length > 0)
 })
-
-const selectedWorkspace = computed(() => workspaces.find(workspace => workspace.id === selectedWorkspaceId.value)) // 提供右侧标题
-const conversationGroups = computed(() => conversationsByWorkspace[selectedWorkspaceId.value] || [])              // 提供右侧分组
 
 
 // --- 打开重命名弹窗并预填当前标题 ---
@@ -55,8 +48,19 @@ async function confirmRename() {
   const nextTitle = renameDraft.value.trim()                  // 移除用户误输入的首尾空格
   if (!nextTitle || !renameTarget.value) return               // 空标题或无目标时不修改数据
 
-  renameTarget.value.title = nextTitle                        // 更新响应式会话数据
+  emit('rename-conversation', {                               // 将修改交给调用方的 Store 或请求层
+    workspaceId: effectiveWorkspaceId.value,
+    conversationId: renameTarget.value.id,
+    title: nextTitle,
+  })
   await renameDialog.value?.hide('confirm')                   // 提交后关闭弹窗并返回确认结果
+}
+
+
+// --- 关闭弹窗后清理临时编辑状态 ---
+function resetRenameDialog() {
+  renameTarget.value = null                                   // 避免保留已经失效的会话引用
+  renameDraft.value = ''                                      // 下次打开时只使用新的目标标题
 }
 </script>
 
@@ -74,7 +78,7 @@ async function confirmRename() {
         <div class="home-page__pane-content">
           <div class="home-page__pane-header">
             <m3e-heading variant="title" size="large" level="2">工作区</m3e-heading>
-            <m3e-button type="button" variant="tonal" shape="square">
+            <m3e-button type="button" variant="tonal" shape="square" @click="emit('add-workspace')">
               <m3e-icon slot="icon" name="add" filled="1"></m3e-icon>
               添加工作区
             </m3e-button>
@@ -82,9 +86,9 @@ async function confirmRename() {
 
           <m3e-action-list variant="segmented" aria-label="工作区列表">
             <m3e-list-action
-              v-for="workspace in workspaces"
+              v-for="workspace in props.workspaces"
               :key="workspace.id"
-              :aria-current="workspace.id === selectedWorkspaceId ? 'page' : undefined"
+              :aria-current="workspace.id === effectiveWorkspaceId ? 'page' : undefined"
               @click="selectedWorkspaceId = workspace.id"
             >
               <m3e-icon slot="leading" name="workspaces" filled="1"></m3e-icon>
@@ -107,7 +111,7 @@ async function confirmRename() {
 
               <m3e-action-list aria-label="会话列表">
                 <template v-for="conversation in group.items" :key="conversation.id">
-                  <m3e-list-action>
+                  <m3e-list-action @click="emit('select-conversation', { workspaceId: effectiveWorkspaceId, conversationId: conversation.id })">
                     <m3e-icon slot="leading" name="chat" filled="1"></m3e-icon>
                     {{ conversation.title }}
                     <span slot="supporting-text">{{ conversation.time }}</span>
@@ -116,7 +120,7 @@ async function confirmRename() {
                       <m3e-icon-button type="button" shape="rounded" :aria-label="`重命名 ${conversation.title}`" title="重命名" @click.stop="openRenameDialog(conversation)">
                         <m3e-icon name="edit" filled="1"></m3e-icon>
                       </m3e-icon-button>
-                      <m3e-icon-button type="button" shape="rounded" :aria-label="`删除 ${conversation.title}`" title="删除" @click.stop>
+                      <m3e-icon-button type="button" shape="rounded" :aria-label="`删除 ${conversation.title}`" title="删除" @click.stop="emit('delete-conversation', { workspaceId: effectiveWorkspaceId, conversationId: conversation.id })">
                         <m3e-icon name="delete" filled="1"></m3e-icon>
                       </m3e-icon-button>
                     </span>
@@ -129,7 +133,7 @@ async function confirmRename() {
       </m3e-content-pane>
     </div>
 
-    <m3e-dialog ref="renameDialog" dismissible aria-label="重命名会话">
+    <m3e-dialog ref="renameDialog" dismissible aria-label="重命名会话" @closed="resetRenameDialog">
       <m3e-heading slot="header" variant="headline" size="small" level="2">重命名会话</m3e-heading>
 
       <div class="home-page__rename-content">
@@ -150,7 +154,7 @@ async function confirmRename() {
 </template>
 
 <style scoped lang="scss">
-/* 只定义页面空间关系，所有可见组件样式由 M3E 默认主题提供。 */
+/* 页面布局、全局弹簧交互与会话滚动条；组件主体外观仍由 M3E 主题提供。 */
 .home-page {
   display: flex;
   flex-direction: column;
