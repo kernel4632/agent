@@ -126,11 +126,6 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   line-height: 1.55;
 }
 
-.conversation-flow__api-row {
-  display: flex;
-  align-items: center;
-}
-
 .conversation-flow__message-actions {
   display: flex;
   align-items: center;
@@ -163,13 +158,9 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   min-width: 0;
 }
 
-.conversation-flow__message-block {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
 .conversation-flow__api-row {
+  display: flex;
+  align-items: center;
   min-width: 0;
   gap: 12px;
   padding-inline: 12px;
@@ -200,6 +191,9 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
 }
 
 .conversation-flow__message-block {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   padding-inline: 12px;
 
   p {
