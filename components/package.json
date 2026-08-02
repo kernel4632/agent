@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "latest",
+    "sass": "^1.102.0",
     "vite": "latest"
   }
 }

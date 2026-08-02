@@ -9,16 +9,25 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue' // 观察 textar
 const editor = ref(null)                                      // 原生 textarea 元素
 const message = ref('')                                       // 保存输入文本
 const expanded = ref(false)                                   // 第二行出现后切换为上下结构
+const composerHeight = ref('64px')                            // 根据 textarea 实际高度驱动外框过渡
 const emit = defineEmits(['submit'])                           // 将提交意图交给未来接入的业务层
 let resizeObserver
 
 
 function observeEditorSize() {
   const element = editor.value
-  if (!element || expanded.value) return
+  if (!element) return
 
   const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
-  expanded.value = element.getBoundingClientRect().height > lineHeight + 1
+  const editorHeight = element.getBoundingClientRect().height
+
+  if (expanded.value) {
+    composerHeight.value = `${editorHeight + 68}px`           // 正文加底排、间距、padding 与边框
+    return
+  }
+
+  expanded.value = editorHeight > lineHeight + 1
+  composerHeight.value = expanded.value ? `${editorHeight + 68}px` : '64px'
 }
 
 async function handleInput() {
@@ -45,7 +54,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 </script>
 
 <template>
-  <form class="chat-composer" :class="{ 'is-expanded': expanded }" aria-label="对话编辑器" @submit.prevent="emit('submit', message)">
+  <form class="chat-composer" :class="{ 'is-expanded': expanded }" :style="{ '--composer-height': composerHeight }" aria-label="对话编辑器" @submit.prevent="emit('submit', message)">
     <!-- 单行时三部分横排；出现第二行后，输入区独占上排，控件进入底排。 -->
     <m3e-icon-button class="chat-composer__icon-button" type="button" shape="rounded" aria-label="附件" title="附件">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12"></path></svg>
@@ -76,16 +85,16 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   </form>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 /* --- 单行横排，多行通过 Flex 换行切成正文和工具栏两层 --- */
 .chat-composer {
   --control-size: 40px;
-  --composer-spring: linear(0, .006, .025 2.8%, .101 6.1%, .539 18.9%, .721 25.3%, .849 31.5%, .937 38.1%, .991 45.7%, 1.015 55%, 1.017 63.9%, 1.001 86.7%, 1);
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-end;
   gap: 4px;
   width: 100%;
+  height: var(--composer-height);
   min-height: 64px;
   margin: 0;
   padding: 11px;
@@ -95,7 +104,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   background: rgb(28 28 28 / 82%);
   box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
   backdrop-filter: blur(20px);
-  transition: border-color 100ms ease, background-color 100ms ease;
+  transition: height var(--motion-duration-spring) var(--motion-spring-bouncy), border-color 100ms ease, background-color 100ms ease;
 }
 
 .chat-composer:focus-within {
@@ -168,7 +177,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .chat-composer__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   flex: 0 0 auto;
   margin-left: auto;
 }
@@ -178,7 +187,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .chat-composer__model {
   will-change: transform;
   transform: scale(1);
-  transition: transform 360ms var(--composer-spring), filter 120ms ease;
+  transition: transform 360ms var(--motion-spring-bouncy), filter 120ms ease;
 }
 
 .chat-composer__icon-button,

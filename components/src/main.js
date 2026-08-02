@@ -9,6 +9,6 @@ import '@m3e/web/icon-button'                           // 注册附件和提交
 import '@m3e/web/menu'                                  // 注册模型选择菜单和展开动画
 import '@m3e/web/theme'                                 // 注册 Material You 主题变量
 import App from './App.vue'                             // 引入组件展示页
-import './styles/base.css'                              // 引入预览页基础样式
+import './styles/base.scss'                             // 引入全局主题与预览页 SCSS
 
 createApp(App).mount('#app')                             // 挂载静态组件预览

@@ -1,0 +1,72 @@
+/* --- 预览画布 --- */
+:root {
+  --motion-spring-bouncy: linear(0, .018 1.6%, .075 3.5%, .306 7.4%, .708 12.2%, .982 16.4%, 1.118 20.6%, 1.156 24.4%, 1.129 28.5%, 1.055 34.4%, .986 41.3%, .965 46.8%, .978 54.6%, 1.012 65.2%, 1.015 71.1%, .998 87%, 1);
+  --motion-duration-spring: 520ms;
+  color: #f3f3f3;
+  background: #090909;
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+/* M3E 的动态 seed 会产生带色相的色阶；应用主题在此固定为中性灰阶。 */
+m3e-theme {
+  --md-sys-color-primary: #f1f1f1;
+  --md-sys-color-on-primary: #111111;
+  --md-sys-color-primary-container: #d8d8d8;
+  --md-sys-color-on-primary-container: #181818;
+  --md-sys-color-secondary: #c8c8c8;
+  --md-sys-color-on-secondary: #1b1b1b;
+  --md-sys-color-secondary-container: #383838;
+  --md-sys-color-on-secondary-container: #ededed;
+  --md-sys-color-tertiary: #b8b8b8;
+  --md-sys-color-on-tertiary: #171717;
+  --md-sys-color-surface: #111111;
+  --md-sys-color-on-surface: #ededed;
+  --md-sys-color-surface-variant: #303030;
+  --md-sys-color-on-surface-variant: #c6c6c6;
+  --md-sys-color-outline: #8a8a8a;
+  --md-sys-color-outline-variant: #454545;
+
+  --m3e-button-hover-state-layer-color: #ffffff;
+  --m3e-button-focus-state-layer-color: #ffffff;
+  --m3e-button-pressed-state-layer-color: #ffffff;
+  --m3e-icon-button-hover-state-layer-color: #ffffff;
+  --m3e-icon-button-focus-state-layer-color: #ffffff;
+  --m3e-icon-button-pressed-state-layer-color: #ffffff;
+  --m3e-filled-icon-button-hover-state-layer-color: #111111;
+  --m3e-filled-icon-button-focus-state-layer-color: #111111;
+  --m3e-filled-icon-button-pressed-state-layer-color: #111111;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: #090909;
+}
+
+.preview-page {
+  display: flex;
+  align-items: flex-end;
+  width: min(980px, calc(100% - 48px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding-bottom: 42px;
+}
+
+@media (max-width: 620px) {
+  .preview-page {
+    width: calc(100% - 20px);
+    padding-bottom: 16px;
+  }
+}
