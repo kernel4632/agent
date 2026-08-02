@@ -11,20 +11,18 @@ const emit = defineEmits(['select'])
 <template>
   <nav class="settings-navigation" aria-label="设置分类">
     <m3e-heading variant="title" size="large" level="1">设置</m3e-heading>
-    <div class="settings-navigation__items">
-      <m3e-button
+    <m3e-action-list class="settings-navigation__items" aria-label="设置分类">
+      <m3e-list-action
         v-for="item in props.items"
         :key="item.id"
         class="settings-navigation__item"
         :class="{ 'is-selected': item.id === props.selectedId }"
-        type="button"
-        shape="rounded"
         @click="emit('select', item.id)"
       >
-        <m3e-icon slot="icon" :name="item.icon" filled="1"></m3e-icon>
+        <m3e-icon slot="leading" :name="item.icon" filled="1"></m3e-icon>
         {{ item.label }}
-      </m3e-button>
-    </div>
+      </m3e-list-action>
+    </m3e-action-list>
   </nav>
 </template>
 
@@ -43,17 +41,17 @@ const emit = defineEmits(['select'])
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 4px;
 }
 
 .settings-navigation__item {
-  --m3e-button-container-color: transparent;
-  --m3e-button-label-text-color: #a9a9a9;
-  justify-content: flex-start;
+  --m3e-list-item-container-color: transparent;
+  --m3e-list-item-label-text-color: #a9a9a9;
   width: 100%;
 
   &.is-selected {
-    --m3e-button-container-color: #2d2d2d;
-    --m3e-button-label-text-color: #f2f2f2;
+    --m3e-list-item-container-color: #2d2d2d;
+    --m3e-list-item-label-text-color: #f2f2f2;
   }
 }
 
@@ -63,8 +61,11 @@ const emit = defineEmits(['select'])
     width: 100%;
     padding: 18px 16px;
     overflow-x: auto;
+    scrollbar-width: none;
     border-right: 0;
     border-bottom: 1px solid #242424;
+
+    &::-webkit-scrollbar { display: none; }
   }
 
   .settings-navigation__items {

@@ -15,22 +15,21 @@ const emit = defineEmits(['add', 'select'])
       <span>{{ props.providers.length }}</span>
     </div>
 
-    <div class="provider-list__items">
-      <button
+    <m3e-action-list class="provider-list__items" aria-label="供应商">
+      <m3e-list-action
         v-for="provider in props.providers"
         :key="provider.id"
         class="provider-list__item"
         :class="{ 'is-selected': provider.id === props.selectedId }"
-        type="button"
         @click="emit('select', provider.id)"
       >
-        <span class="provider-list__mark">{{ provider.name.slice(0, 1).toUpperCase() }}</span>
+        <span slot="leading" class="provider-list__mark">{{ provider.name.slice(0, 1).toUpperCase() }}</span>
         <span class="provider-list__name">{{ provider.name }}</span>
-        <span class="provider-list__status" :class="{ 'is-enabled': provider.enabled }"></span>
-      </button>
-    </div>
+        <span slot="trailing" class="provider-list__status" :class="{ 'is-enabled': provider.enabled }"></span>
+      </m3e-list-action>
+    </m3e-action-list>
 
-    <m3e-button class="provider-list__add" type="button" variant="outlined" shape="rounded" @click="emit('add')">
+    <m3e-button class="provider-list__add" type="button" variant="outlined" @click="emit('add')">
       <m3e-icon slot="icon" name="add" filled="1"></m3e-icon>
       添加供应商
     </m3e-button>
@@ -60,35 +59,30 @@ const emit = defineEmits(['add', 'select'])
 
 .provider-list__items {
   display: flex;
+  overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
   flex-direction: column;
   gap: 4px;
+  padding: 4px;
 }
 
 .provider-list__item {
-  display: flex;
-  align-items: center;
+  --m3e-list-item-container-color: transparent;
+  --m3e-list-item-label-text-color: #b7b7b7;
   width: 100%;
   min-height: 48px;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #b7b7b7;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
 
-  &:hover { background: #202020; color: #eeeeee; }
-  &.is-selected { background: #2b2b2b; color: #ffffff; }
+  &.is-selected {
+    --m3e-list-item-container-color: #2b2b2b;
+    --m3e-list-item-label-text-color: #ffffff;
+  }
 }
 
 .provider-list__mark {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
   height: 30px;
   flex: 0 0 30px;
@@ -135,6 +129,9 @@ const emit = defineEmits(['add', 'select'])
   .provider-list__items {
     overflow-x: auto;
     flex-direction: row;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar { display: none; }
   }
 
   .provider-list__item { min-width: 170px; }

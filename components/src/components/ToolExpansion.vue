@@ -147,24 +147,6 @@ function confirmRollback() {
   --m3e-icon-button-shape: var(--md-sys-shape-corner-full);
 }
 
-.tool-expansion__rollback,
-.tool-expansion__confirm-button {
-  transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover {
-    filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);
-  }
-
-  &:active {
-    filter: brightness(.94);
-    transform: scale(.94);
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
-  }
-}
-
 .tool-expansion__confirm-menu {
   --m3e-menu-container-min-width: 168px;
   --m3e-menu-container-padding-block: 0;

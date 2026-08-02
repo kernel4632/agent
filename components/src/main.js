@@ -7,6 +7,7 @@ import { createApp } from 'vue'                         // 创建独立 Vue 应�
 import 'material-symbols/outlined.css'                  // 为 M3E 图标提供本地可填充 Material Symbols 字形
 import '@m3e/web/button'                                // 注册通用命令按钮
 import '@m3e/web/card'                                  // 注册 Agent 活动卡片
+import '@m3e/web/checkbox'                              // 注册模型能力复选框
 import '@m3e/web/content-pane'                          // 注册滚动内容面板
 import '@m3e/web/divider'                               // 注册内容分割线
 import '@m3e/web/dialog'                                // 注册模态弹窗
@@ -18,6 +19,7 @@ import '@m3e/web/icon'                                  // 注册 Material Symbo
 import '@m3e/web/list'                                  // 注册交互列表
 import '@m3e/web/menu'                                  // 注册弹出菜单
 import '@m3e/web/search'                                // 注册搜索框
+import '@m3e/web/slider'                                // 注册模型温度滑杆
 import '@m3e/web/switch'                                // 注册供应商启用开关
 import '@m3e/web/theme'                                 // 注册 Material You 主题变量
 import App from './App.vue'                             // 引入组件展示页

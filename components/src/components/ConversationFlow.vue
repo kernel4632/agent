@@ -250,23 +250,6 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
 .code-command { color: #68a9ff; }
 .code-output { color: #a8a8a8; }
 
-.conversation-flow m3e-icon-button {
-  transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover {
-    filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);
-  }
-
-  &:active {
-    filter: brightness(.94);
-    transform: scale(.96);
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
-  }
-}
-
 @media (max-width: 640px) {
   .conversation-flow {
     gap: 36px;
