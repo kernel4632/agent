@@ -19,6 +19,30 @@ function locate(sessionID) {
 }
 
 
+// --- 记录已打开会话 ---
+function rememberOpened(sessionID) {
+  const previousIndex = store.ui.openedSessionIDs.indexOf(sessionID) // 查找会话是否已经出现在侧边栏
+  if (previousIndex >= 0) store.ui.openedSessionIDs.splice(previousIndex, 1) // 再次打开时先移除旧位置
+  store.ui.openedSessionIDs.unshift(sessionID)                        // 最近打开的会话放在侧边栏最前
+}
+
+
+// --- 关闭已打开会话 ---
+async function closeOpened(sessionID) {
+  const closingIndex = store.ui.openedSessionIDs.indexOf(sessionID)   // 查找要关闭的侧边栏标签位置
+  if (closingIndex < 0) return false                                  // 未打开会话无需改变任何页面状态
+  const closingActiveChat = store.ui.view === 'chat' && store.ui.activeSessionID === sessionID // 只有当前对话需要切换页面
+
+  store.ui.openedSessionIDs.splice(closingIndex, 1)                   // 关闭标签，不删除 Server 会话和主页摘要
+  if (!closingActiveChat) return true                                 // 关闭后台标签时保留当前页面
+
+  const adjacentSessionID = store.ui.openedSessionIDs[closingIndex] || store.ui.openedSessionIDs[closingIndex - 1] // 优先选择右侧标签，再选择左侧标签
+  if (adjacentSessionID) await UI.openChat(adjacentSessionID)         // 相邻完整会话已加载，可直接切换
+  else await UI.openHome()                                            // 最后一个标签关闭后返回主页
+  return true                                                         // 反馈标签关闭与页面切换完成
+}
+
+
 // --- 创建会话 ---
 async function create(workspaceID = store.ui.activeWorkspaceID) {
   const workspace = store.workspaces.find((item) => item.id === workspaceID) || store.workspaces[0] // 没有选择时使用首个工作区
@@ -28,6 +52,7 @@ async function create(workspaceID = store.ui.activeWorkspaceID) {
     const session = normalize(created)                  // 补齐仅前端使用的草稿和用量字段
     store.sessions[session.id] = session                // 完整会话进入响应式目录
     workspace.sessions.unshift(summaryOf(session))      // 摘要进入当前工作区首位
+    rememberOpened(session.id)                          // 新会话已经加载，应立即出现在侧边栏
     await UI.openChat(session.id)                       // 新建后等待进入对话页
     return session                                      // 返回新会话供组合动作使用
   } catch (error) {
@@ -45,6 +70,7 @@ async function open(sessionID) {
     const loaded = await AgentAPI.getSession(sessionID) // 每次打开读取 Server 最新历史和状态
     store.sessions[sessionID] = normalize(loaded, store.sessions[sessionID]) // 保留当前草稿并替换服务数据
     store.ui.activeWorkspaceID = found.workspace.id     // 侧边栏与主页保持正确工作区归属
+    rememberOpened(sessionID)                           // 读取成功后才加入侧边栏，失败时不制造空标签
     await UI.openChat(sessionID)                        // 数据就绪后再打开对话页
     return true                                         // 反馈页面已经切换
   } catch (error) {
@@ -90,6 +116,8 @@ async function remove(sessionID) {
     await AgentAPI.removeSession(sessionID)             // Server 删除内存和磁盘会话
     found.workspace.sessions.splice(found.workspace.sessions.indexOf(found.summary), 1) // 删除目录摘要
     delete store.sessions[sessionID]                    // 删除当前已加载详情
+    const openedIndex = store.ui.openedSessionIDs.indexOf(sessionID) // 查找侧边栏中的已打开会话
+    if (openedIndex >= 0) store.ui.openedSessionIDs.splice(openedIndex, 1) // 删除后同步关闭对应侧边栏项
     if (store.ui.activeSessionID === sessionID) await UI.openHome() // 删除当前页后等待返回主页
     UI.notify(t('sessionDeleted'))                      // 反馈用户动作完成
     return true                                         // 通知确认弹窗关闭
@@ -194,4 +222,4 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 }
 
 
-export const Session = { locate, create, open, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing } // 暴露会话全部业务动作
+export const Session = { locate, create, open, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing } // 暴露会话全部业务动作

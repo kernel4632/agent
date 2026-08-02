@@ -4,7 +4,7 @@
 调用示例：createApp(App).mount('#app')。
 -->
 <script setup>
-import { computed, watchEffect } from 'vue'                         // 引入最近会话目录和语言副作用
+import { computed, watchEffect } from 'vue'                         // 引入已打开会话目录和语言副作用
 import AppSidebar from './components/layout/AppSidebar.vue'          // 引入五段式应用侧边栏
 import Chat from './views/Chat.vue'                                // 引入 Session 对话页
 import Home from './views/Home.vue'                                 // 引入 Workspace 主页
@@ -14,10 +14,9 @@ import { UI } from './commands/ui.js'                              // 引入页�
 import { currentLanguage, t } from './i18n.js'                     // 引入响应式界面翻译
 import { store } from './store.js'                                 // 引入唯一全局数据根
 
-const recentSessions = computed(() => store.workspaces             // 汇总侧边栏需要的全部 Session 摘要
-  .flatMap((workspace) => workspace.sessions.map((session) => ({ ...session, workspaceID: workspace.id, status: store.sessions[session.id]?.status })))
-  .sort((left, right) => right.updatedAt - left.updatedAt)
-  )                                                                  // 侧边栏展示全部会话，滚动容器负责填满高度
+const openedSessions = computed(() => store.ui.openedSessionIDs      // 侧边栏只消费用户主动打开的会话顺序
+  .map((sessionID) => store.sessions[sessionID])                      // 已打开会话必须已经从 Server 加载完整数据
+  .filter(Boolean))                                                   // 删除或失效会话不生成空白侧边栏项
 
 watchEffect(() => { document.documentElement.lang = currentLanguage() }) // 同步辅助技术和浏览器语言
 
@@ -37,7 +36,7 @@ async function navigate(action) {
 <template>
   <m3e-theme color="#a0a0a0" scheme="dark" density="0" class="app-theme">
     <div class="app-shell" :class="{ 'app-shell--open': store.ui.sidebarOpen }">
-      <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="recentSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => UI.openSettings())" />
+      <AppSidebar :open="store.ui.sidebarOpen" :view="store.ui.view" :active-session-id="store.ui.activeSessionID" :sessions="openedSessions" @home="navigate(UI.openHome)" @create="navigate(() => Session.create())" @open-session="openSession" @close-session="Session.closeOpened" @collapse="UI.toggleSidebar(false)" @expand="UI.toggleSidebar(true)" @settings="navigate(() => UI.openSettings())" />
       <div v-if="store.ui.sidebarOpen" class="sidebar-scrim" @click="UI.toggleSidebar(false)"></div>
       <main class="main-area">
         <div v-if="store.ui.isLoading" class="app-status"><m3e-circular-progress-indicator variant="wavy" indeterminate aria-label="正在连接 Agent Server"></m3e-circular-progress-indicator><strong>正在连接 Agent Server</strong></div>

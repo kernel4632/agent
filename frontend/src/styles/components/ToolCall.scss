@@ -1,13 +1,14 @@
 .tool-strip { display: block; overflow: hidden; border-left: 1px solid #333; border-radius: 0; color: #aaa; background: transparent; transition: border-color 180ms ease, transform 180ms ease; }
 .tool-strip:hover { border-left-color: #747474; }
-.tool-strip__line { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: center; gap: 4px; min-height: 58px; padding: 4px 8px; }
-.tool-strip__summary { display: grid; grid-template-columns: 36px auto minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; min-height: 48px; padding: 0 4px; color: inherit; }
-.tool-strip__icon { display: grid; place-items: center; width: 36px; height: 36px; color: #aaa; background: transparent; }
+.tool-strip__line { display: flex; align-items: center; gap: 4px; min-height: 58px; padding: 4px 8px; }
+.tool-strip__summary { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 48px; padding: 0 4px; color: inherit; flex: 1 1 auto; }
+.tool-strip__icon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; color: #aaa; background: transparent; flex: 0 0 36px; }
+.tool-strip__preview { flex: 1 1 auto; }
 .tool-strip__icon m3e-icon { width: 18px; height: 18px; }
 .tool-strip__summary strong { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .tool-strip__preview { min-width: 0; overflow: hidden; color: var(--md-sys-color-on-surface-variant); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .tool-strip__line m3e-icon-button { width: 40px; height: 40px; color: var(--md-sys-color-on-surface-variant); }
 .tool-strip__approval { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--md-sys-color-outline-variant); }
 .tool-strip__approval .approval-deny { color: var(--md-sys-color-error); }
-@media (max-width: 760px) { .tool-strip__summary { grid-template-columns: 36px minmax(0, 1fr); } .tool-strip__preview { display: none; } }
-@media (max-width: 480px) { .tool-strip__approval { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .tool-strip__preview { display: none; } }
+@media (max-width: 480px) { .tool-strip__approval > m3e-button { min-width: 0; flex: 1 1 0; } }

@@ -13,6 +13,7 @@ export const store = reactive({
     sidebarOpen: window.innerWidth > 760,              // 移动端首次进入时优先展示主内容
     activeWorkspaceID: '',                             // 主页当前工作区身份
     activeSessionID: '',                               // 对话页当前会话身份
+    openedSessionIDs: [],                              // 用户本次运行中主动打开的会话，顺序即侧边栏顺序
     settingsSection: 'providers',                      // 设置页当前分类
     search: '',                                        // 主页搜索文本
     toast: '',                                         // 短时全局反馈

@@ -9,7 +9,7 @@
 .message__content { color: #e9e9e9; font-size: 16px; line-height: 1.72; }
 .message__typing { display: flex; align-items: center; gap: 10px; height: 36px; color: #929292; font-size: 13px; }
 .message__typing m3e-circular-progress-indicator { width: 20px; height: 20px; }
-.message__tools { display: grid; gap: 10px; margin-top: 16px; }
+.message__tools { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .request-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 38px; margin-top: 14px; padding: 6px 0; border-top: 1px solid #242424; color: #888; background: transparent; font-size: 11px; }
 .request-strip strong { color: inherit; font-size: 12px; }
 .request-strip > m3e-icon, .request-strip__progress { width: 18px; height: 18px; }

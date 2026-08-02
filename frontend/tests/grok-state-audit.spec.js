@@ -72,3 +72,41 @@ test('settings keeps global navigation available', async ({ page }, testInfo) =>
   await expect(page.locator('.home-view')).toBeVisible()               // 验证用户不被困在设置页
   await capture(page, testInfo, '09-returned-home')                    // 保存真实返回结果
 })
+
+
+test('sidebar lists only sessions opened from home', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop')                     // 桌面展开侧边栏便于直接检查标题列表
+  await page.goto('/')                                                  // 新页面运行时尚未打开任何完整会话
+  await expect(page.locator('.sidebar-session-item')).toHaveCount(0)    // 工作区历史摘要不能直接进入侧边栏
+
+  const homeSessions = page.locator('.home-session')                    // 主页仍展示当前工作区全部会话
+  const firstTitle = (await homeSessions.nth(0).locator('.home-session__main strong').textContent())?.trim() // 记录第一个历史标题
+  const secondTitle = (await homeSessions.nth(1).locator('.home-session__main strong').textContent())?.trim() // 记录第二个历史标题
+  await homeSessions.nth(0).click()                                     // 点击后从 Server 加载第一个完整会话
+  await expect(page.locator('.sidebar-session-item')).toHaveCount(1)    // 只有已加载会话加入侧边栏
+  await expect(page.locator('.sidebar-session-item').first()).toContainText(firstTitle) // 第一个打开项显示真实标题
+
+  await page.locator('.sidebar__second m3e-button').first().click()      // 返回主页选择另一个历史会话
+  await page.locator('.home-session').nth(1).click()                     // 从 Server 加载第二个完整会话
+  await expect(page.locator('.sidebar-session-item')).toHaveCount(2)    // 两个已打开会话组成当前侧边栏列表
+  await expect(page.locator('.sidebar-session-item').first()).toContainText(secondTitle) // 最近打开项排在最前
+})
+
+
+test('opened session tabs close without deleting history', async ({ page }) => {
+  test.skip(test.info().project.name !== 'desktop')                     // 展开侧边栏用于验证标签关闭行为
+  await page.goto('/')                                                  // 从全部历史仍可见的主页开始
+  const historyCount = await page.locator('.home-session').count()      // 记录关闭标签前的后端历史数量
+  await page.locator('.home-session').nth(0).click()                     // 打开第一个标签
+  await page.locator('.sidebar__second m3e-button').first().click()      // 回主页继续打开另一个标签
+  await page.locator('.home-session').nth(1).click()                     // 第二个标签成为当前对话
+
+  await page.locator('.sidebar-session-item').nth(1).locator('.sidebar-session-close').click() // 最近标签在前，第二项是后台标签
+  await expect(page.locator('.chat-view')).toBeVisible()                 // 关闭后台标签时当前对话保持不变
+  await expect(page.locator('.sidebar-session-item')).toHaveCount(1)    // 只移除对应打开标签
+
+  await page.locator('.sidebar-session-close').click()                   // 关闭最后一个当前标签
+  await expect(page.locator('.home-view')).toBeVisible()                 // 没有相邻标签时返回主页
+  await expect(page.locator('.sidebar-session-item')).toHaveCount(0)    // 已打开列表清空
+  await expect(page.locator('.home-session')).toHaveCount(historyCount) // 关闭标签不会删除主页历史
+})
