@@ -18,6 +18,7 @@ import '@m3e/web/icon'                                  // 注册 Material Symbo
 import '@m3e/web/list'                                  // 注册交互列表
 import '@m3e/web/menu'                                  // 注册弹出菜单
 import '@m3e/web/search'                                // 注册搜索框
+import '@m3e/web/switch'                                // 注册供应商启用开关
 import '@m3e/web/theme'                                 // 注册 Material You 主题变量
 import App from './App.vue'                             // 引入组件展示页
 import './styles/base.scss'                             // 引入全局主题与预览页 SCSS
