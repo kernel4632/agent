@@ -6,10 +6,13 @@
 import { createApp } from 'vue'                         // 创建独立 Vue 应用
 import 'material-symbols/outlined.css'                  // 为 M3E 图标提供本地可填充 Material Symbols 字形
 import '@m3e/web/button'                                // 注册通用命令按钮
+import '@m3e/web/card'                                  // 注册 Agent 活动卡片
+import '@m3e/web/chips'                                 // 注册活动状态与统计标签
 import '@m3e/web/content-pane'                          // 注册滚动内容面板
 import '@m3e/web/divider'                               // 注册内容分割线
 import '@m3e/web/dialog'                                // 注册模态弹窗
 import '@m3e/web/form-field'                            // 注册表单输入外框
+import '@m3e/web/expansion-panel'                       // 注册可展开的 Agent 活动步骤
 import '@m3e/web/heading'                               // 注册标题层级组件
 import '@m3e/web/icon-button'                           // 注册图标命令按钮
 import '@m3e/web/icon'                                  // 注册 Material Symbols 图标
