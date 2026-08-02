@@ -104,8 +104,7 @@ body {
 /* 所有离散操作控件共享按压缩放与弹簧回弹；输入表面保持稳定，避免打断编辑。 */
 m3e-button,
 m3e-icon-button,
-m3e-switch,
-m3e-checkbox {
+m3e-switch {
   transform: scale(1);
   transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
 
@@ -141,7 +140,6 @@ m3e-list-action {
   m3e-button,
   m3e-icon-button,
   m3e-switch,
-  m3e-checkbox,
   m3e-list-action {
     transition: none;
   }

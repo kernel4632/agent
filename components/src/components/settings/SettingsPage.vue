@@ -27,15 +27,13 @@ const settingsDraft = reactive({           // 所有分类共享同一份显式�
       id: 'openai', name: 'OpenAI', enabled: true,
       apiUrl: 'https://api.openai.com/v1', apiKey: 'sk-proj-••••••••••••',
       models: [
-        { id: 'gpt-5.2', name: 'gpt-5.2', capabilities: ['文本', '视觉', '工具'], temperature: 0.7 },
-        { id: 'gpt-5-mini', name: 'gpt-5-mini', capabilities: ['文本', '工具'], temperature: 0.4 },
+        { id: 'gpt-5.2', name: 'gpt-5.2', capabilities: ['文本', '视觉', '工具'] },
+        { id: 'gpt-5-mini', name: 'gpt-5-mini', capabilities: ['文本', '工具'] },
       ],
-      custom: { organization: '', project: '', timeout: 120 },
     },
     {
       id: 'anthropic', name: 'Anthropic', enabled: false,
       apiUrl: 'https://api.anthropic.com', apiKey: '', models: [],
-      custom: { organization: '', project: '', timeout: 120 },
     },
   ],
 })

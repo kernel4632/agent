@@ -20,7 +20,6 @@ function addProvider() {
     apiUrl: '',
     apiKey: '',
     models: [],
-    custom: { organization: '', project: '', timeout: 120, maxRetries: 2, headers: '' },
   }
 
   emit('update:providers', [...props.providers, newProvider])
