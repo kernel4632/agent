@@ -1,16 +1,16 @@
 <!--
-组件预览页：只展示一个 Grok 输入框，不放页面导航、业务数据或其他组件。
-组件确认视觉后，可以把 ChatComposer.vue 直接迁移到正式前端。
-调用示例：<ChatComposer />。
+组件预览页：展示当前正在制作的通用应用侧边栏。
+展开与收起状态由组件内部预览交互控制。
+调用示例：<Sidebar />。
 -->
 <script setup>
-import ChatComposer from './components/ChatComposer.vue'     // 引入待确认的对话编辑器
+import Sidebar from './components/Sidebar.vue'               // 引入待确认的侧边栏
 </script>
 
 <template>
   <m3e-theme color="#a0a0a0" scheme="dark" density="0">
     <main class="preview-page">
-      <ChatComposer />                                         <!-- 只展示一个待确认组件 -->
+      <Sidebar />                                               <!-- 只展示一个待确认组件 -->
     </main>
   </m3e-theme>
 </template>

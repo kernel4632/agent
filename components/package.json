@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@m3e/web": "^2.7.1",
+    "material-symbols": "^0.45.10",
     "vue": "latest"
   },
   "devDependencies": {

@@ -85,6 +85,11 @@ body,
   margin: 0;
 }
 
+m3e-theme {
+  display: block;
+  min-height: 100vh;
+}
+
 body {
   min-height: 100vh;
   background: #090909;
@@ -92,16 +97,14 @@ body {
 
 .preview-page {
   display: flex;
-  align-items: flex-end;
-  width: min(980px, calc(100% - 48px));
-  min-height: 100vh;
-  margin: 0 auto;
-  padding-bottom: 42px;
+  align-items: stretch;
+  width: 100%;
+  height: 100vh;
+  padding: 8px;
 }
 
 @media (max-width: 620px) {
   .preview-page {
-    width: calc(100% - 20px);
-    padding-bottom: 16px;
+    padding: 4px;
   }
 }

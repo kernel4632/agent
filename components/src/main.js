@@ -4,8 +4,10 @@
 调用方式：Vite 自动执行本文件并挂载到 index.html 的 #app。
 */
 import { createApp } from 'vue'                         // 创建独立 Vue 应用
+import 'material-symbols/outlined.css'                  // 为 M3E 图标提供本地可填充 Material Symbols 字形
 import '@m3e/web/button'                                // 注册模型选择按钮
 import '@m3e/web/icon-button'                           // 注册附件和提交图标按钮
+import '@m3e/web/icon'                                  // 注册 M3E Material Symbols 图标
 import '@m3e/web/menu'                                  // 注册模型选择菜单和展开动画
 import '@m3e/web/theme'                                 // 注册 Material You 主题变量
 import App from './App.vue'                             // 引入组件展示页
