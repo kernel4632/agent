@@ -1,39 +1,59 @@
 <!--
-对话编辑器：复刻通用 Agent 对话框的视觉结构，不包含发送、上传或模型切换业务逻辑。
-编辑区负责承载可增长文本，底部工具栏始终贴住容器底边，空状态时两者自然叠成单行胶囊。
-调用示例：<ChatComposer />。
+对话编辑器：封装输入、附件、模型选择和提交意图，不包含具体业务逻辑。
+调用方通过 props 提供文案与模型，通过事件接收用户操作。
+调用示例：<ChatComposer :models="models" @submit="sendMessage" />。
 -->
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue' // 观察 textarea 的原生内容尺寸
+import { nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue' // 管理草稿与原生尺寸观察
 
-const editor = ref(null)                                      // 原生 textarea 元素
-const message = ref('')                                       // 保存输入文本
+const props = defineProps({                                   // 由调用方提供可复用的展示数据
+  placeholder: { type: String, default: '问 Agent' },
+  selectedModel: { type: String, default: 'kimi-k2.6' },
+  models: { type: Array, default: () => ['kimi-k2.6', 'glm-5.2', 'claude-sonnet-4.5'] },
+})
+const emit = defineEmits(['attach', 'select-model', 'submit']) // 将业务意图交给组件外部处理
+
+const composer = ref(null)                                    // 外框提供实际 padding 与边框尺寸
+const editor = ref(null)                                      // textarea 提供浏览器计算后的内容高度
+const actions = ref(null)                                     // 底排提供实际控件高度
+const message = ref('')                                       // 保存尚未提交的输入文本
 const expanded = ref(false)                                   // 第二行出现后切换为上下结构
-const composerHeight = ref('64px')                            // 根据 textarea 实际高度驱动外框过渡
-const emit = defineEmits(['submit'])                           // 将提交意图交给未来接入的业务层
-let resizeObserver
+const composerHeight = ref('64px')                            // 根据实际布局尺寸驱动外框过渡
+const modelMenuId = `chat-composer-models-${useId()}`         // 避免多个组件实例共享菜单 ID
+let editorResizeObserver                                      // 卸载时停止尺寸观察
+let layoutFrame                                               // 新输入会取消上一帧过期测量
 
 
+// --- 根据浏览器计算出的真实尺寸更新布局 ---
 function observeEditorSize() {
   const element = editor.value
-  if (!element) return
+  const shell = composer.value
+  const toolbar = actions.value
+  if (!element || !shell || !toolbar) return                  // 节点未挂载时没有可用尺寸
 
   const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
   const editorHeight = element.getBoundingClientRect().height
+  const shellStyle = getComputedStyle(shell)                  // 读取 CSS 中真实的间距，不在脚本重复魔数
+  const blockPadding = Number.parseFloat(shellStyle.paddingTop) + Number.parseFloat(shellStyle.paddingBottom)
+  const blockBorder = Number.parseFloat(shellStyle.borderTopWidth) + Number.parseFloat(shellStyle.borderBottomWidth)
+  const rowGap = Number.parseFloat(shellStyle.rowGap) || 0
+  const toolbarHeight = toolbar.getBoundingClientRect().height
+  const expandedHeight = editorHeight + toolbarHeight + blockPadding + blockBorder + rowGap
 
   if (expanded.value) {
-    composerHeight.value = `${editorHeight + 68}px`           // 正文加底排、间距、padding 与边框
+    composerHeight.value = `${expandedHeight}px`
     return
   }
 
   expanded.value = editorHeight > lineHeight + 1
-  composerHeight.value = expanded.value ? `${editorHeight + 68}px` : '64px'
+  composerHeight.value = expanded.value ? `${expandedHeight}px` : '64px'
 }
 
 async function handleInput() {
-  expanded.value = false                                    // 先回到横排，让 textarea 按真实可用宽度排版
+  expanded.value = false                                      // 先回到横排，让 textarea 按真实可用宽度排版
   await nextTick()
-  window.requestAnimationFrame(observeEditorSize)            // field-sizing 完成尺寸计算后读取实际高度
+  window.cancelAnimationFrame(layoutFrame)                    // 快速输入时只保留最后一次布局请求
+  layoutFrame = window.requestAnimationFrame(observeEditorSize) // field-sizing 完成后读取实际高度
 }
 
 
@@ -45,37 +65,38 @@ function handleKeydown(event) {
 }
 
 onMounted(() => {
-  resizeObserver = new ResizeObserver(observeEditorSize)
-  resizeObserver.observe(editor.value)
+  editorResizeObserver = new ResizeObserver(observeEditorSize) // 内容、字体或宽度变化都会更新高度
+  editorResizeObserver.observe(editor.value)
   nextTick(observeEditorSize)
 })
 
-onBeforeUnmount(() => resizeObserver?.disconnect())
+onBeforeUnmount(() => {
+  editorResizeObserver?.disconnect()                          // 停止浏览器尺寸回调
+  window.cancelAnimationFrame(layoutFrame)                    // 丢弃尚未执行的布局请求
+})
 </script>
 
 <template>
-  <form class="chat-composer" :class="{ 'is-expanded': expanded }" :style="{ '--composer-height': composerHeight }" aria-label="对话编辑器" @submit.prevent="emit('submit', message)">
+  <form ref="composer" class="chat-composer" :class="{ 'is-expanded': expanded }" :style="{ '--composer-height': composerHeight }" aria-label="对话编辑器" @submit.prevent="emit('submit', message)">
     <!-- 单行时三部分横排；出现第二行后，输入区独占上排，控件进入底排。 -->
-    <m3e-icon-button class="chat-composer__icon-button" type="button" shape="rounded" aria-label="附件" title="附件">
+    <m3e-icon-button class="chat-composer__icon-button" type="button" shape="rounded" aria-label="附件" title="附件" @click="emit('attach')">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12"></path></svg>
     </m3e-icon-button>
 
     <div class="chat-composer__viewport">
-      <textarea ref="editor" v-model="message" class="chat-composer__editor" aria-label="消息" placeholder="问 Agent" rows="1" @input="handleInput" @keydown="handleKeydown"></textarea>
+      <textarea ref="editor" v-model="message" class="chat-composer__editor" aria-label="消息" :placeholder="props.placeholder" rows="1" @input="handleInput" @keydown="handleKeydown"></textarea>
     </div>
 
-    <div class="chat-composer__actions">
-      <m3e-button class="chat-composer__model" shape="rounded" aria-label="模型选择">
-        <m3e-menu-trigger for="chat-composer-models">
-          <span>kimi-k2.6</span>
+    <div ref="actions" class="chat-composer__actions">
+      <m3e-button class="chat-composer__model" type="button" shape="rounded" aria-label="模型选择">
+        <m3e-menu-trigger :for="modelMenuId">
+          <span>{{ props.selectedModel }}</span>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
         </m3e-menu-trigger>
       </m3e-button>
 
-      <m3e-menu id="chat-composer-models" class="chat-composer__menu" placement="top-end">
-        <m3e-menu-item>kimi-k2.6</m3e-menu-item>
-        <m3e-menu-item>glm-5.2</m3e-menu-item>
-        <m3e-menu-item>claude-sonnet-4.5</m3e-menu-item>
+      <m3e-menu :id="modelMenuId" class="chat-composer__menu" placement="top-end">
+        <m3e-menu-item v-for="model in props.models" :key="model" @click="emit('select-model', model)">{{ model }}</m3e-menu-item>
       </m3e-menu>
 
       <m3e-icon-button class="chat-composer__submit" type="submit" variant="filled" shape="rounded" aria-label="提交" title="提交">
@@ -185,7 +206,6 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .chat-composer__icon-button,
 .chat-composer__submit,
 .chat-composer__model {
-  will-change: transform;
   transform: scale(1);
   transition: transform 360ms var(--motion-spring-bouncy), filter 120ms ease;
 }
@@ -227,7 +247,6 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .chat-composer__model {
   --m3e-button-shape-round: var(--md-sys-shape-corner-full);
   --m3e-button-shape-pressed-morph: var(--md-sys-shape-corner-full);
-  --shape-corner: 20px;
   --m3e-text-button-label-text-color: #ededed;
   height: var(--control-size);
   font-size: 14px;
