@@ -1,62 +1,77 @@
-import { Elysia } from 'elysia'
-import { store, load } from './store'
-import { Config } from './commands/config'
-import { Workspace } from './commands/workspace'
-import { Session } from './commands/session'
-import { Agent } from './commands/agent'
-import { Approval } from './commands/approval'
-import { History } from './commands/history'
+/*
+server.js 路由参考：启动时加载配置与工作区，并在当前文件直接注册全部 Elysia 路由。
+路由只识别请求动作、提取参数和调用业务指令；commands 负责业务数据，SessionWatcher 负责 SSE 反馈。
+这份参考不建立 routes 文件夹。调用示例：bun run server.js。
+*/
+import { Elysia } from 'elysia'                    // 引入 HTTP 服务和路由能力
+import { store } from './store'                   // 引入健康检查和退出清理所需的全局数据
+import { Config } from './commands/config'        // 引入配置加载、读取和修改指令
+import { Workspace } from './commands/workspace'  // 引入工作区加载和管理指令
+import { Session } from './commands/session'      // 引入会话读取、管理和 SSE 订阅指令
+import { Agent } from './commands/agent'          // 引入消息发送和执行停止指令
+import { Approval } from './commands/approval'    // 引入三个明确的工具批准动作
+import { History } from './commands/history'      // 引入消息、内容块回退和撤销动作
 
-// ── 启动加载 ──
-await load()
+// --- 加载持久化数据 ---
+await Config.load()                               // 先加载配置，保证新会话能取得默认模型
+await Workspace.load()                            // 再加载工作区及其会话摘要
 
-// ── 路由 ──
-new Elysia()
 
-  .get('/health', () => ({
-    status: 'ok',
-    version: store.engine.version
-  }))
+// --- 选择工具批准动作 ---
+const approveTool = (body) => {
+    if (body.decision === 'once') return Approval.once(body.sessionID, body.toolCallID)       // 只允许当前调用
+    if (body.decision === 'always') return Approval.always(body.sessionID, body.toolCallID)   // 允许当前调用并保存长期权限
+    if (body.decision === 'reject') return Approval.reject(body.sessionID, body.toolCallID)   // 拒绝当前调用
+    throw { status: 400, code: 'INVALID_PARAM', message: '无效的批准决定' }                    // 未知决定无法对应业务动作
+}
 
-  .group('/config', app => app
-    .get   ('/', () => Config.get())
-    .patch ('/', ({ body }) => Config.update(body))
-  )
 
-  .group('/workspace', app => app
-    .get   ('/', () => Workspace.list())
-    .post  ('/', ({ body }) => Workspace.add(body.path))
-    .patch ('/', ({ body: { workspaceId, ...fields } }) =>
-                    Workspace.update(workspaceId, fields))
-    .delete('/', ({ body }) => Workspace.remove(body.workspaceId))
-  )
+// --- 选择历史操作 ---
+const changeHistory = (body) => {
+    if (body.action === 'rollback-message') return History.rollbackMessage(body.sessionID, body.messageID) // 撤回用户消息及后续内容
+    if (body.action === 'rollback-block') return History.rollbackBlock(body.sessionID, body.blockID)       // 回退目标内容块及后续内容
+    if (body.action === 'undo') return History.undo(body.sessionID)                                        // 恢复最近一次回退
+    throw { status: 400, code: 'INVALID_PARAM', message: '无效的历史操作' }                                 // 未知动作不能修改会话历史
+}
 
-  .group('/session', app => app
-    .get   ('/', ({ query }) => Session.get(query.sessionId))
-    .post  ('/', ({ body })  => Session.create(body.workspaceId))
-    .patch ('/', ({ body: { sessionId, ...fields } }) =>
-                    Session.update(sessionId, fields))
-    .delete('/', ({ body })  => Session.delete(body.sessionId))
 
-    .get ('/events',    ({ query }) => Session.listen(query.sessionId))
-    .post('/send',      ({ body })  => Agent.send(body.sessionId, body.content))
-    .post('/stop',      ({ body })  => Agent.stop(body.sessionId))
-    .post('/approval',  ({ body })  => Approval.handle(body.sessionId, body.toolCallId, body.decision))
-    .post('/history',   ({ body })  => History.handle(body.sessionId, body.action, body.target))
-  )
+// --- 注册全部路由并启动服务 ---
+const server = new Elysia()                                                                       // 创建唯一的 HTTP 服务入口
+    .get('/health', () => ({ status: 'ok', version: store.engine.version }))                      // 健康检查直接读取只读版本字段
+    .group('/config', app => app                                                                  // 将配置动作归在同一路径下
+        .get('/', () => Config.get())                                                             // 返回完整配置原值
+        .patch('/', ({ body }) => Config.update(body)))                                           // 递归合并并保存配置
+    .group('/workspace', app => app                                                               // 将工作区动作归在同一路径下
+        .get('/', () => Workspace.list())                                                         // 返回全部工作区和会话摘要
+        .post('/', ({ body, set }) => { set.status = 201; return Workspace.add(body.path) })      // 添加工作区并返回 201
+        .patch('/', ({ body: { workspaceID, ...fields } }) => Workspace.update(workspaceID, fields)) // 合并工作区字段
+        .delete('/', ({ query }) => Workspace.remove(query.workspaceID)))                        // DELETE 参数统一从 query 读取
+    .group('/session', app => app                                                                 // 将会话及执行动作归在同一路径下
+        .get('/', ({ query }) => Session.get(query.sessionID))                                    // 返回指定会话的完整持久化数据
+        .post('/', ({ body, set }) => { set.status = 201; return Session.create(body.workspaceID) }) // 创建会话并返回 201
+        .patch('/', ({ body: { sessionID, ...fields } }) => Session.update(sessionID, fields))   // 合并会话字段
+        .delete('/', ({ query }) => Session.delete(query.sessionID))                              // 删除指定会话
+        .get('/events', ({ query, headers }) => Session.listen(query.sessionID, headers['last-event-id'])) // 建立 SSE 并按需补发事件
+        .post('/send', ({ body, set }) => { set.status = 202; return Agent.send(body.sessionID, body.content) }) // 保存消息并后台启动 Agent
+        .post('/stop', ({ body }) => Agent.stop(body.sessionID))                                  // 停止模型、重试、批准等待和工具进程
+        .post('/approval', ({ body }) => approveTool(body))                                       // 根据明确决定调用对应批准指令
+        .post('/history', ({ body }) => changeHistory(body)))                                     // 根据明确动作调用对应历史指令
+    .onError(({ error, set }) => {                                                                // 把业务错误统一转换为 HTTP 错误契约
+        set.status = error.status || 500                                                          // 已知错误保留状态，未知错误返回 500
+        return { error: { code: error.code || 'INTERNAL', message: error.message } }              // 返回稳定错误码和可读文案
+    })
+    .listen(4632)                                                                                 // 在固定端口接受前端请求
 
-  .onError(({ error }) => ({ ok: false, error: error.message }))
 
-  .listen(4632)
-
-// ── 退出清理 ──
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    for (const session of store.sessions.values()) {
-      session.runner?.abort()
-      for (const ctrl of session.listeners) ctrl.close()
-      Session.save(session.id)
-    }
-    process.exit(0)
-  })
+// --- 停止服务并保存会话 ---
+for (const signal of ['SIGINT', 'SIGTERM']) {                                                      // 同时处理手动终止和系统终止
+    process.on(signal, async () => {
+        for (const session of store.sessions.values()) {                                          // 逐个清理已经加载到内存的会话
+            await Agent.stop(session.id)                                                          // 停止模型请求、批准等待和工具进程
+            for (const listener of session.runtime.listeners) listener.close()                    // 关闭该会话全部 SSE 连接
+            await Session.save(session.id)                                                        // 保存会话最终状态和工作区摘要
+        }
+        server.stop()                                                                             // 停止接受新的 HTTP 请求
+        process.exit(0)                                                                           // 完成数据和连接清理后退出进程
+    })
 }

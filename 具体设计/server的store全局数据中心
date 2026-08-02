@@ -7,7 +7,7 @@ store
 │   └── version: "0.1.0"
 │
 ├── config                              ← .agent/config.json
-│   ├── provider                        供应商列表配置
+│   ├── providers                       供应商列表配置
 │   ├── tools                           工具权限配置
 │   ├── systemPrompt                    系统提示词
 │   └── defaultModel                    默认模型
@@ -17,11 +17,11 @@ store
 │         {
 │           id,
 │           path,
-│           sessions: [{ sessionId, title }]
+│           sessions: [{ sessionID, title, lastActiveAt }]
 │         }
 │       ]
 │
-└── sessions: Map<sessionId, session>   ← 按需从 sessions/{id}.json 加载
+└── sessions: Map<sessionID, session>   ← 按需从 sessions/{id}.json 加载
 
 
 
@@ -29,19 +29,21 @@ session
 │
 │── 持久化（写入文件的字段）
 │   ├── id
-│   ├── workspaceId
+│   ├── workspaceID
 │   ├── title
 │   ├── lastActiveAt
 │   ├── model
-│   ├── status                  "idle" | "running" | "waiting" | "error"
+│   ├── status                  "idle" | "running" | "waiting" | "retrying" | "error"
 │   ├── messages: [message, ...]
-│   └── rolledBack: [message, ...] | null
+│   ├── rolledBack: rollbackData | null
+│   └── usage: usage | null
 │
 └── 运行时（仅内存，不写入文件，加载时初始化空值）
-    ├── listeners : Set<controller>             谁在听这个会话的 SSE
-    ├── eventId   : number                      SSE 事件编号，递增
+    ├── listeners   : Set<listener>               谁在听这个会话的 SSE
+    ├── nextEventID : number                      下一条 SSE 事件编号，递增
+    ├── events      : event[]                     最近 500 条 SSE 事件，用于断线补发
     ├── runner    : AbortController | null       Agent 循环的开关（abort 就停）
-    ├── waits     : Map<toolCallId, resolve>     哪些工具在等用户点批准
+    ├── waits     : Map<toolCallID, resolve>     哪些工具在等用户点批准
     └── processes : Set<子进程引用>              哪些工具正在跑
 
 
@@ -52,6 +54,6 @@ message
 ├── contentBlocks
 │   ├── { id, type: "text",        text }
 │   ├── { id, type: "thinking",    thinking }
-│   ├── { id, type: "tool_call",   toolCallId, toolName, input, status }
-│   └── { id, type: "tool_result", toolCallId, output, isError }
+│   ├── { id, type: "tool_call",   toolCallID, toolName, input, status }
+│   └── { id, type: "tool_result", toolCallID, output, isError }
 └── timestamp
