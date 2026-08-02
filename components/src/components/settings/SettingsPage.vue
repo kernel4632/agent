@@ -25,7 +25,7 @@ const settingsDraft = reactive({           // 所有分类共享同一份显式�
   providers: [
     {
       id: 'openai', name: 'OpenAI', enabled: true,
-      apiUrl: 'https://api.openai.com/v1', apiKey: 'sk-proj-••••••••••••',
+      apiType: 'openai-compatible', apiUrl: 'https://api.openai.com/v1', apiKey: 'sk-proj-••••••••••••',
       models: [
         { id: 'gpt-5.2', name: 'gpt-5.2', capabilities: ['文本', '视觉', '工具'] },
         { id: 'gpt-5-mini', name: 'gpt-5-mini', capabilities: ['文本', '工具'] },
@@ -33,7 +33,7 @@ const settingsDraft = reactive({           // 所有分类共享同一份显式�
     },
     {
       id: 'anthropic', name: 'Anthropic', enabled: false,
-      apiUrl: 'https://api.anthropic.com', apiKey: '', models: [],
+      apiType: 'anthropic', apiUrl: 'https://api.anthropic.com', apiKey: '', models: [],
     },
   ],
 })

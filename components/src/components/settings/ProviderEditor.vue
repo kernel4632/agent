@@ -34,10 +34,21 @@ function updateProvider(patch) {
     </header>
 
     <section class="provider-editor__section">
-      <m3e-form-field class="provider-editor__field" variant="outlined" hide-subscript="always">
-        <label slot="label" :for="`${fieldId}-api-url`">请求地址（API）</label>
-        <input :id="`${fieldId}-api-url`" :value="props.provider.apiUrl" type="url" placeholder="https://api.example.com/v1" @input="updateProvider({ apiUrl: $event.currentTarget.value })" />
-      </m3e-form-field>
+      <div class="provider-editor__connection">
+        <m3e-form-field class="provider-editor__type-field" variant="outlined" hide-subscript="always">
+          <label slot="label" :for="`${fieldId}-api-type`">接口类型</label>
+          <m3e-select :id="`${fieldId}-api-type`" @change="updateProvider({ apiType: $event.currentTarget.value })">
+            <m3e-option value="openai-compatible" :selected="props.provider.apiType === 'openai-compatible'">OpenAI 兼容</m3e-option>
+            <m3e-option value="anthropic" :selected="props.provider.apiType === 'anthropic'">Anthropic</m3e-option>
+            <m3e-option value="gemini" :selected="props.provider.apiType === 'gemini'">Google Gemini</m3e-option>
+            <m3e-option value="ollama" :selected="props.provider.apiType === 'ollama'">Ollama</m3e-option>
+          </m3e-select>
+        </m3e-form-field>
+        <m3e-form-field class="provider-editor__field" variant="outlined" hide-subscript="always">
+          <label slot="label" :for="`${fieldId}-api-url`">请求地址（API）</label>
+          <input :id="`${fieldId}-api-url`" :value="props.provider.apiUrl" type="url" placeholder="https://api.example.com/v1" @input="updateProvider({ apiUrl: $event.currentTarget.value })" />
+        </m3e-form-field>
+      </div>
     </section>
 
     <section class="provider-editor__section">
@@ -77,9 +88,11 @@ function updateProvider(patch) {
 }
 
 .provider-editor__name-field { width: min(420px, 100%); }
-.provider-editor__enabled { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; color: #b2b2b2; font-size: 14px; }
+.provider-editor__enabled { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; color: #a6a6a6; font-size: 13px; }
 .provider-editor__section { padding: 0; }
 .provider-editor__field { width: 100%; min-width: 0; }
+.provider-editor__connection { display: flex; align-items: center; gap: 12px; }
+.provider-editor__type-field { width: 220px; flex: 0 0 220px; }
 .provider-editor__secret { display: flex; align-items: center; gap: 8px; }
 .provider-editor__secret .provider-editor__field { flex: 1 1 auto; }
 
@@ -89,5 +102,7 @@ function updateProvider(patch) {
 
 @media (max-width: 520px) {
   .provider-editor__title-row { align-items: stretch; flex-direction: column; }
+  .provider-editor__connection { align-items: stretch; flex-direction: column; }
+  .provider-editor__type-field { width: 100%; flex-basis: auto; }
 }
 </style>

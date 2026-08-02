@@ -5,16 +5,11 @@ const props = defineProps({
   selectedId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['add', 'select'])
+const emit = defineEmits(['select'])
 </script>
 
 <template>
   <aside class="provider-list" aria-label="供应商列表">
-    <div class="provider-list__header">
-      <m3e-heading variant="title" size="medium" level="2">供应商</m3e-heading>
-      <span>{{ props.providers.length }}</span>
-    </div>
-
     <m3e-action-list class="provider-list__items" aria-label="供应商">
       <m3e-list-action
         v-for="provider in props.providers"
@@ -23,16 +18,13 @@ const emit = defineEmits(['add', 'select'])
         :class="{ 'is-selected': provider.id === props.selectedId }"
         @click="emit('select', provider.id)"
       >
-        <span slot="leading" class="provider-list__mark">{{ provider.name.slice(0, 1).toUpperCase() }}</span>
         <span class="provider-list__name">{{ provider.name }}</span>
-        <span slot="trailing" class="provider-list__status" :class="{ 'is-enabled': provider.enabled }"></span>
+        <span slot="supporting-text" class="provider-list__endpoint">{{ provider.apiUrl || '未配置请求地址' }}</span>
+        <span slot="trailing" class="provider-list__state" :class="{ 'is-enabled': provider.enabled }">
+          {{ provider.enabled ? '启用' : '停用' }}
+        </span>
       </m3e-list-action>
     </m3e-action-list>
-
-    <m3e-button class="provider-list__add" type="button" variant="outlined" @click="emit('add')">
-      <m3e-icon slot="icon" name="add" filled="1"></m3e-icon>
-      添加供应商
-    </m3e-button>
   </aside>
 </template>
 
@@ -42,19 +34,9 @@ const emit = defineEmits(['add', 'select'])
   flex: 0 0 236px;
   flex-direction: column;
   min-height: 0;
-  gap: 16px;
-  padding: 28px 16px 20px;
+  padding: 12px 14px 20px;
   border-right: 1px solid #242424;
   background: #101010;
-}
-
-.provider-list__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-inline: 8px;
-  color: #858585;
-  font-size: 13px;
 }
 
 .provider-list__items {
@@ -71,25 +53,11 @@ const emit = defineEmits(['add', 'select'])
   --m3e-list-item-container-color: transparent;
   --m3e-list-item-label-text-color: #b7b7b7;
   width: 100%;
-  min-height: 48px;
 
   &.is-selected {
     --m3e-list-item-container-color: #2b2b2b;
     --m3e-list-item-label-text-color: #ffffff;
   }
-}
-
-.provider-list__mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  border-radius: 8px;
-  background: #3a3a3a;
-  color: #f2f2f2;
-  font-weight: 700;
 }
 
 .provider-list__name {
@@ -100,17 +68,20 @@ const emit = defineEmits(['add', 'select'])
   white-space: nowrap;
 }
 
-.provider-list__status {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 7px;
-  border-radius: 50%;
-  background: #555555;
-
-  &.is-enabled { background: #d9d9d9; }
+.provider-list__endpoint {
+  display: block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.provider-list__add { width: 100%; }
+.provider-list__state {
+  color: #777777;
+  font-size: 12px;
+
+  &.is-enabled { color: #d3d3d3; }
+}
 
 @media (max-width: 980px) {
   .provider-list { flex-basis: 200px; }
@@ -121,7 +92,7 @@ const emit = defineEmits(['add', 'select'])
     flex: none;
     width: 100%;
     min-height: auto;
-    padding: 16px;
+    padding: 8px 12px 12px;
     border-right: 0;
     border-bottom: 1px solid #242424;
   }
@@ -135,6 +106,5 @@ const emit = defineEmits(['add', 'select'])
   }
 
   .provider-list__item { min-width: 170px; }
-  .provider-list__add { align-self: flex-start; width: auto; }
 }
 </style>
