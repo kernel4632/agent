@@ -30,7 +30,6 @@ function formatTokens(value) {
   <component :is="message.role === 'user' ? 'm3e-card' : 'article'" class="message" :class="`message--${message.role}`" :data-message-id="message.id">
     <template v-if="message.role === 'user'">
       <div class="user-message__content">{{ message.content }}</div>
-      <div v-if="message.files?.length" class="user-message__files"><span v-for="file in message.files" :key="file.id"><m3e-icon name="attach_file"></m3e-icon>{{ file.name }}</span></div>
       <footer class="user-message__meta">
         <time>{{ formatTime(message.createdAt) }}</time>
         <m3e-icon-button :aria-label="t('recallEdit')" :title="t('recallEditTitle')" @click="emit('retry', message)"><m3e-icon name="undo"></m3e-icon></m3e-icon-button>

@@ -17,7 +17,7 @@ defineEmits(['home', 'create'])                                       // 将主�
   <nav class="sidebar__second" :aria-label="t('mainNav')">
     <div class="sidebar-nav-item" :class="{ 'is-active': view === 'home' }">
       <m3e-button :variant="view === 'home' ? 'tonal' : 'text'" :title="t('home')" @click="$emit('home')"></m3e-button>
-      <m3e-icon name="search"></m3e-icon><span v-if="open">搜索</span>
+      <m3e-icon name="home"></m3e-icon><span v-if="open">{{ t('home') }}</span>
     </div>
     <div class="sidebar-nav-item">
       <m3e-button variant="text" :title="t('newChat')" @click="$emit('create')"></m3e-button>

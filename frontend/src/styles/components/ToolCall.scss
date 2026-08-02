@@ -1,28 +1,13 @@
 .tool-strip { display: block; overflow: hidden; border-left: 1px solid #333; border-radius: 0; color: #aaa; background: transparent; transition: border-color 180ms ease, transform 180ms ease; }
 .tool-strip:hover { border-left-color: #747474; }
-.tool-strip.is-open { transform: translateY(-1px); }
-.tool-strip__line { display: grid; grid-template-columns: minmax(0, 1fr) 40px 40px; align-items: center; gap: 4px; min-height: 58px; padding: 4px 8px; }
-.tool-strip__summary { display: grid; grid-template-columns: 36px auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; min-height: 48px; padding: 0 4px; border: 0; border-radius: 16px; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
-.tool-strip__summary:hover { background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent); }
-.tool-strip__summary:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: -2px; }
+.tool-strip__line { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: center; gap: 4px; min-height: 58px; padding: 4px 8px; }
+.tool-strip__summary { display: grid; grid-template-columns: 36px auto minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; min-height: 48px; padding: 0 4px; color: inherit; }
 .tool-strip__icon { display: grid; place-items: center; width: 36px; height: 36px; color: #aaa; background: transparent; }
 .tool-strip__icon m3e-icon { width: 18px; height: 18px; }
 .tool-strip__summary strong { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .tool-strip__preview { min-width: 0; overflow: hidden; color: var(--md-sys-color-on-surface-variant); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.tool-strip__status { display: flex; align-items: center; gap: 6px; padding: 4px 8px; color: #888; background: transparent; font-size: 12px; white-space: nowrap; }
-.tool-strip__status i { width: 7px; height: 7px; border-radius: 50%; background: var(--md-sys-color-outline); }
-.tool-strip.is-waiting .tool-strip__status i, .tool-strip.is-running .tool-strip__status i { background: var(--md-sys-color-primary); animation: tool-pulse 1.2s ease-in-out infinite; }
-.tool-strip.is-waiting .tool-strip__status { color: var(--md-sys-color-primary); background: transparent; }
-.tool-strip.is-rejected .tool-strip__status i { background: var(--md-sys-color-error); }
 .tool-strip__line m3e-icon-button { width: 40px; height: 40px; color: var(--md-sys-color-on-surface-variant); }
-.tool-strip.is-open .tool-strip__line m3e-icon-button:last-child { transform: rotate(180deg); }
-.tool-strip__detail { display: grid; gap: 10px; padding: 10px 18px 18px 54px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; animation: tool-detail-in 180ms cubic-bezier(.2, 0, 0, 1); }
-.tool-strip__detail > div > span { display: block; margin-bottom: 6px; }
-.tool-strip__detail pre { max-height: 180px; margin: 0; padding: 12px; overflow: auto; border: 1px solid #292929; border-radius: 12px; color: #ddd; background: #0c0c0c; white-space: pre-wrap; }
-.tool-strip__detail p { margin: 0; }
 .tool-strip__approval { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--md-sys-color-outline-variant); }
 .tool-strip__approval .approval-deny { color: var(--md-sys-color-error); }
-@media (max-width: 760px) { .tool-strip__line { grid-template-columns: minmax(0, 1fr) 40px; } .tool-strip__summary { grid-template-columns: 36px minmax(0, 1fr) auto; } .tool-strip__preview, .tool-strip__line > m3e-icon-button:nth-last-child(2) { display: none; } .tool-strip__detail { padding-inline: 16px; } }
+@media (max-width: 760px) { .tool-strip__summary { grid-template-columns: 36px minmax(0, 1fr); } .tool-strip__preview { display: none; } }
 @media (max-width: 480px) { .tool-strip__approval { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@keyframes tool-pulse { 0%, 100% { opacity: .4; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
-@keyframes tool-detail-in { from { opacity: 0; transform: translateY(-6px); } }

@@ -1,4 +1,8 @@
-<!-- MCP 设置：编辑 `/config` 中的服务声明并发出新增、修改和删除意图。 -->
+<!--
+MCP 管理：编辑服务名称、启动命令和启用状态。
+组件只发出新增、修改和删除意图，不直接修改设置草稿。
+调用示例：<McpSettings :servers="servers" @add="Settings.addMCP" />
+-->
 <script setup>
 import { t } from '../../i18n.js'                                      // 提供 MCP 配置文案
 import TextField from '../shared/TextField.vue'                       // 使用 M3E 服务字段
@@ -8,7 +12,7 @@ defineEmits(['add', 'update', 'remove'])                               // 将 MC
 
 <template>
   <section class="simple-settings">
-    <header class="simple-settings__heading"><div><h3>{{ t('mcpServices') }}</h3><p>{{ t('mcpDescription') }}</p></div><m3e-button @click="$emit('add')"><m3e-icon slot="icon" name="add"></m3e-icon>{{ t('addMcp') }}</m3e-button></header>
+    <header class="simple-settings__heading"><h3>{{ t('mcpServices') }}</h3><m3e-button @click="$emit('add')"><m3e-icon slot="icon" name="add"></m3e-icon>{{ t('addMcp') }}</m3e-button></header>
     <m3e-card v-for="server in servers" :key="server.id" class="mcp-setting">
       <div class="mcp-setting__layout">
         <TextField :model-value="server.name" :label="t('mcpName')" @update:model-value="$emit('update', server.id, { name: $event })" />

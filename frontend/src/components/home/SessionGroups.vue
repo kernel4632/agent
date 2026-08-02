@@ -5,16 +5,13 @@ Session 分组：按主页给出的时间组渲染行，并管理原位标题草
 -->
 <script setup>
 import { nextTick, ref } from 'vue'                                    // 保存标题草稿并在切换后聚焦字段
-import { formatDateTime, t } from '../../i18n.js'                      // 提供 Session 摘要和时间格式
+import { t } from '../../i18n.js'                                      // 提供分组和操作文案
 import TextField from '../shared/TextField.vue'                       // 使用 M3E 标准标题字段
 
 defineProps({
   groups: { type: Array, default: () => [] },                          // 非空时间分组
-  workspace: { type: Object, default: null },                         // 当前 Workspace 标题和路径
-  sessionCount: { type: Number, default: 0 },                          // 当前筛选结果数量
-  searching: { type: Boolean, default: false },                       // 决定空状态文案和新建入口
 })
-const emit = defineEmits(['open', 'rename', 'delete', 'create'])       // 将所有业务动作交回主页
+const emit = defineEmits(['open', 'rename', 'delete'])                 // 将会话业务动作交回主页
 const editingSessionID = ref('')                                      // 当前原位编辑行身份
 const editingTitle = ref('')                                          // 当前标题草稿
 const editingField = ref(null)                                        // 当前唯一可见的标题输入字段
@@ -34,31 +31,18 @@ function saveRename() {
   if (!editingSessionID.value) return                                 // 失焦重复事件无需再次提交
   emit('rename', editingSessionID.value, editingTitle.value, (saved) => { if (saved) editingSessionID.value = '' }) // Command 成功后才退出编辑
 }
-
-
-// --- 格式化最近活动时间 ---
-function formatTime(timestamp) {
-  return formatDateTime(timestamp, { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) // 保持列表时间紧凑
-}
 </script>
 
 <template>
   <section class="session-panel">
-    <header class="panel-heading session-panel__heading">
-      <div><h1>{{ workspace?.name || t('sessions') }}</h1><span>{{ sessionCount }}</span></div>
-      <p v-if="workspace">{{ workspace.path }}</p>
-    </header>
-
-    <div v-if="groups.length" class="session-groups">
+    <div class="session-groups">
       <section v-for="group in groups" :key="group.id" class="session-group">
         <h2>{{ group.label }}</h2>
         <m3e-card v-for="session in group.items" :key="session.id" actionable class="home-session" :class="{ 'is-editing': editingSessionID === session.id }" @click="emit('open', session.id)">
           <div class="home-session__layout">
-            <m3e-avatar class="home-session__model">{{ session.model.slice(0, 1).toUpperCase() }}</m3e-avatar>
             <div class="home-session__main">
               <TextField v-if="editingSessionID === session.id" ref="editingField" v-model="editingTitle" maxlength="100" :label="t('sessionTitle')" @click.stop @keydown.enter.prevent="saveRename" @keydown.esc.stop="editingSessionID = ''" @blur="saveRename" />
               <strong v-else>{{ session.title }}</strong>
-              <small>{{ session.model }} · {{ t('messageCount', { count: session.messageCount }) }} · {{ formatTime(session.updatedAt) }}</small>
             </div>
             <div class="home-session__actions">
               <m3e-icon-button class="icon-command" :aria-label="t('renameSession')" :title="t('rename')" @click.stop="startRename(session)"><m3e-icon name="edit"></m3e-icon></m3e-icon-button>
@@ -67,11 +51,6 @@ function formatTime(timestamp) {
           </div>
         </m3e-card>
       </section>
-    </div>
-    <div v-else class="empty-state">
-      <m3e-icon name="history"></m3e-icon>
-      <strong>{{ searching ? t('noMatchingSessions') : t('noSessions') }}</strong>
-      <m3e-button v-if="!searching" @click="emit('create')"><m3e-icon slot="icon" name="add"></m3e-icon>{{ t('newChat') }}</m3e-button>
     </div>
   </section>
 </template>

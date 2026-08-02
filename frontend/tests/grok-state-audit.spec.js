@@ -1,5 +1,5 @@
 /*
-Grok 状态审计：逐一保存输入框、模型菜单、上下文浮层和对话跳转条的真实交互状态。
+界面状态审计：逐一保存操作框、上下文浮层、对话跳转条和设置页的真实状态。
 测试只使用现有页面动作，不修改服务端数据，截图用于与参考图逐状态比较。
 调用方式：bunx playwright test tests/grok-state-audit.spec.js --project=desktop。
 */
@@ -19,14 +19,14 @@ async function readGeometry(page) {
     ['sidebar', document.querySelector('.sidebar')],                   // 左侧导航边界
     ['composer', document.querySelector('.composer')],                 // 输入胶囊边界
     ['textarea', document.querySelector('.composer textarea')],        // 真实文本输入边界
-    ['model', document.querySelector('.model-trigger')],               // 模型胶囊边界
-    ['voice', document.querySelector('.composer__voice')],             // 语音按钮边界
+    ['upload', document.querySelector('.composer__add')],               // 上传文件按钮边界
+    ['model', document.querySelector('.model-select')],                 // 模型下拉框边界
     ['send', document.querySelector('.send-command')],                 // 发送按钮边界
   ].map(([name, element]) => [name, element?.getBoundingClientRect().toJSON()]))) // 转换为可附加的纯数据
 }
 
 
-test('grok interaction state screenshots', async ({ page }, testInfo) => {
+test('designed interaction state screenshots', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop')                       // 参考图以桌面比例为基准
   await page.goto('/')                                                 // 打开真实应用和 Server 数据
   await page.locator('.home-session').first().click()                  // 进入一个可交互会话
@@ -41,10 +41,8 @@ test('grok interaction state screenshots', async ({ page }, testInfo) => {
   await page.locator('.composer textarea').fill('你好\nhi')            // 输入参考图多行文本
   await capture(page, testInfo, '04-multi-line')                       // 多行展开状态
 
-  await page.locator('.model-trigger').click()                         // 打开 M3E 模型菜单
-  await expect(page.locator('.model-menu')).toBeVisible()              // 确认浮层真实打开
-  await capture(page, testInfo, '05-model-menu')                       // 模型菜单展开状态
-  await page.keyboard.press('Escape')                                  // 关闭菜单释放后续交互
+  await expect(page.locator('.model-select')).toBeVisible()             // 模型下拉框必须直接可操作
+  await capture(page, testInfo, '05-model-selector')                    // 保存架构规定的模型选择状态
 
   await page.locator('.context-meter').hover()                         // 触发上下文消耗悬浮反馈
   await expect(page.locator('.context-popover')).toBeVisible()         // 确认悬浮详情真实显示
@@ -68,6 +66,7 @@ test('settings keeps global navigation available', async ({ page }, testInfo) =>
   await page.locator('.sidebar__fifth m3e-button').click()             // 打开设置内容区
   await expect(page.locator('.settings-content')).toBeVisible()        // 设置内容应替换主区域
   await expect(page.locator('.sidebar')).toBeVisible()                 // 全局侧栏必须继续可用
+  await expect(page.locator('.settings-rail')).toHaveCount(0)          // 设置内容只保留一层分类侧栏
   await capture(page, testInfo, '08-settings-with-sidebar')            // 保存设置和全局导航共存状态
   await page.locator('.sidebar__second m3e-button').first().click()     // 使用常驻导航返回主页
   await expect(page.locator('.home-view')).toBeVisible()               // 验证用户不被困在设置页

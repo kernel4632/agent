@@ -1,4 +1,8 @@
-<!-- 外观设置：展示语言、密度和动画开关，并发出字段变化。 -->
+<!--
+语言与外观：展示语言、密度和动画开关。
+组件只反馈字段变化，设置指令负责写入草稿。
+调用示例：<AppearanceSettings :appearance="appearance" @update="Settings.updateAppearance" />
+-->
 <script setup>
 import { t } from '../../i18n.js'                                      // 提供外观配置文案
 import SelectField from '../shared/SelectField.vue'                   // 使用 M3E 选择字段
@@ -9,7 +13,7 @@ const languageOptions = [{ value: 'zh-CN', label: '简体中文' }, { value: 'en
 
 <template>
   <section class="simple-settings">
-    <header class="simple-settings__heading"><div><h3>{{ t('appearance') }}</h3><p>{{ t('appearanceDescription') }}</p></div></header>
+    <header class="simple-settings__heading"><h3>{{ t('appearance') }}</h3></header>
     <SelectField :model-value="appearance.language" :options="languageOptions" :label="t('interfaceLanguage')" @change="$emit('update', 'language', $event)" />
     <SelectField :model-value="appearance.density" :options="[{ value: 'comfortable', label: t('comfortable') }, { value: 'compact', label: t('compact') }]" :label="t('interfaceDensity')" @change="$emit('update', 'density', $event)" />
     <label class="switch-field"><span><strong>{{ t('animations') }}</strong><small>{{ t('animationsDescription') }}</small></span><m3e-switch :checked="appearance.animations" @change="$emit('update', 'animations', $event.target.checked)"></m3e-switch></label>

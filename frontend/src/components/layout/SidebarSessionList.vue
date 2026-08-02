@@ -4,7 +4,7 @@
 调用示例：<RecentSessions :sessions="recentSessions" :active-id="sessionID" @open="openSession" />。
 -->
 <script setup>
-import { t } from '../../i18n.js'                                     // 提供会话目录标题
+import { t } from '../../i18n.js'                                     // 提供无标题会话的替代文案
 
 defineProps({
   sessions: { type: Array, default: () => [] },                       // 已排序且限制数量的 Session 摘要
@@ -16,11 +16,10 @@ defineEmits(['open'])                                                 // 将 Ses
 
 <template>
   <section class="sidebar__third">
-    <div class="sidebar__label"><span>{{ t('sessions') }}</span><small>{{ sessions.length }}</small></div>
+    <!-- 侧边栏第三排只显示会话标题，点击后由应用壳切换页面。 -->
     <div class="sidebar__sessions">
       <div v-for="session in sessions" :key="session.id" class="sidebar-session-item" :class="{ 'is-active': view === 'chat' && activeId === session.id }">
         <m3e-button :variant="view === 'chat' && activeId === session.id ? 'tonal' : 'text'" :title="session.title || t('unnamedSession')" @click="$emit('open', session.id)"></m3e-button>
-        <m3e-circular-progress-indicator v-if="session.status === 'running'" variant="wavy" indeterminate aria-label="正在运行"></m3e-circular-progress-indicator>
         <span>{{ session.title || t('unnamedSession') }}</span>
       </div>
     </div>

@@ -49,12 +49,6 @@ function confirmRollback() {
 }
 
 
-// --- 复制当前会话链接 ---
-function copySessionLink() {
-  UI.copy(window.location.href)                                      // 使用现有全局反馈展示复制结果
-}
-
-
 </script>
 
 <template>
@@ -62,23 +56,18 @@ function copySessionLink() {
     <header class="chat-header">
       <div class="chat-header__title"><SessionTitleEditor :title="session.title" compact @save="renameTitle" /><small>{{ t('doubleClickRename') }}</small></div>
       <div class="chat-header__tools">
-        <m3e-icon-button aria-label="更多操作" title="更多操作"><m3e-icon name="more_horiz"></m3e-icon></m3e-icon-button>
-        <m3e-icon-button aria-label="复制会话链接" title="复制会话链接" @click="copySessionLink"><m3e-icon name="link"></m3e-icon></m3e-icon-button>
         <div class="context-meter" tabindex="0" :aria-label="t('contextStats')">
           <m3e-circular-progress-indicator variant="wavy" :value="contextPercent" max="100" :aria-label="t('contextStats')"></m3e-circular-progress-indicator>
           <div class="context-popover">
-            <div><span>成本</span><b>US$0.00</b></div>
             <div><span>使用率</span><b>{{ contextPercent }}%</b></div>
             <div><span>Token</span><b>{{ session.contextTokens.toLocaleString() }}</b></div>
           </div>
         </div>
       </div>
     </header>
-    <m3e-linear-progress-indicator v-if="session.status === 'running'" class="chat-progress" variant="wavy" mode="indeterminate" aria-label="Agent 正在运行"></m3e-linear-progress-indicator>
 
     <div class="chat-body">
-      <div v-if="!session.messages.length" class="chat-empty"><h1>有什么我能帮你的吗？</h1></div>
-       <MessageList v-else ref="messageList" :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
+       <MessageList ref="messageList" :messages="session.messages" @rollback="requestRollback" @retry="ChatCommand.rollbackMessage(session.id, $event.id)" @approval="ChatCommand.decide(session.id, $event.toolCallID, $event.decision)" @copy="UI.copy" />
        <ChatScrollMap v-if="session.messages.length" :messages="session.messages" @jump="messageList?.scrollToMessage($event)" />
     </div>
 
@@ -87,7 +76,7 @@ function copySessionLink() {
         <m3e-icon name="undo"></m3e-icon><span><strong>{{ t('rolledBack') }}</strong><small>{{ session.rollback.preview }}</small></span><m3e-button @click="ChatCommand.undoRollback(session.id)">{{ t('undoRollback') }}</m3e-button>
       </div>
       <TaskList :tasks="session.tasks" />
-      <InputBox v-model="session.draft" :session="session" :models="models" @send="ChatCommand.send(session.id, $event)" @stop="ChatCommand.stop(session.id)" @select-model="selectModel" @attach="ChatCommand.attach(session.id, $event)" @remove-file="ChatCommand.removeFile(session.id, $event)" />
+      <InputBox v-model="session.draft" :session="session" :models="models" @send="ChatCommand.send(session.id, $event)" @stop="ChatCommand.stop(session.id)" @select-model="selectModel" @attach="ChatCommand.attach(session.id, $event)" />
     </footer>
 
     <m3e-dialog class="rollback-dialog" :open="Boolean(pendingRollback)" @closed="pendingRollback = null">

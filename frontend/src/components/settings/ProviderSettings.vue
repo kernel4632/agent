@@ -41,13 +41,6 @@ function saveName() {
 }
 
 
-// --- 删除当前提供商 ---
-function removeProvider() {
-  if (!selectedName.value) return                                    // 无选择无需动作
-  Settings.removeProvider(selectedName.value)                         // 从草稿删除当前提供商
-}
-
-
 // --- 添加发现模型 ---
 function addDiscoveredModel(modelName) {
   Settings.addModel(selectedName.value, modelName)                    // 模型和默认能力一起进入草稿
@@ -72,35 +65,41 @@ async function openModelPicker() {
 <template>
   <section class="provider-settings">
     <aside class="provider-list">
-      <header><div><h2>{{ t('providers') }}</h2><span>{{ providerNames.length }}</span></div></header>
-      <div class="provider-search"><m3e-icon name="search"></m3e-icon><span>搜索模型平台...</span><m3e-icon name="tune"></m3e-icon></div>
+      <header><h2>{{ t('providers') }}</h2></header>
       <div class="provider-list__items">
         <m3e-card v-for="name in providerNames" :key="name" actionable :variant="selectedName === name ? 'filled' : 'outlined'" :class="{ 'is-active': selectedName === name }" @click="selectedName = name">
-          <div class="provider-list-item"><m3e-avatar>{{ name.slice(0, 1).toUpperCase() }}</m3e-avatar><strong>{{ name }}</strong><i :class="{ 'is-on': config.providers[name].enabled }"></i></div>
+          <div class="provider-list-item"><strong>{{ name }}</strong></div>
         </m3e-card>
       </div>
       <m3e-button class="provider-list__add" @click="addProvider"><m3e-icon slot="icon" name="add"></m3e-icon>{{ t('addProvider') }}</m3e-button>
     </aside>
 
     <div v-if="provider" class="provider-detail">
-      <header class="provider-detail__heading"><div><m3e-avatar>{{ selectedName.slice(0, 1).toUpperCase() }}</m3e-avatar><h2>{{ selectedName }}</h2></div><m3e-switch :checked="provider.enabled" @change="Settings.updateProvider(selectedName, 'enabled', $event.target.checked)"></m3e-switch></header>
-      <TextField label="API Key" type="password" :model-value="provider.apiKey" placeholder="sk-..." @update:model-value="Settings.updateProvider(selectedName, 'apiKey', $event)" />
-      <TextField :label="t('apiAddress')" :model-value="provider.baseURL" placeholder="https://api.example.com/v1" @update:model-value="Settings.updateProvider(selectedName, 'baseURL', $event)" />
+      <!-- 第一排同时编辑供应商名称和启用状态。 -->
+      <header class="provider-detail__heading">
+        <TextField :label="t('providerName')" :model-value="renameDraft" @update:model-value="renameDraft = $event" @blur="saveName" @keydown.enter="saveName" />
+        <m3e-switch :checked="provider.enabled" @change="Settings.updateProvider(selectedName, 'enabled', $event.target.checked)"></m3e-switch>
+      </header>
 
+      <!-- 第二、三排严格按架构设计排列 API 地址和 API Key。 -->
+      <TextField :label="t('apiAddress')" :model-value="provider.baseURL" placeholder="https://api.example.com/v1" @update:model-value="Settings.updateProvider(selectedName, 'baseURL', $event)" />
+      <TextField label="API Key" type="password" :model-value="provider.apiKey" placeholder="sk-..." @update:model-value="Settings.updateProvider(selectedName, 'apiKey', $event)" />
+
+      <!-- 第四排管理模型名称、能力、设置入口和移除入口。 -->
       <section class="provider-models">
-        <header><div><h3>{{ t('modelList') }}</h3><p>{{ t('modelListDescription') }}</p></div><m3e-button :disabled="modelsLoading" @click="openModelPicker"><m3e-icon slot="icon" name="download"></m3e-icon>{{ t('fetchModels') }}</m3e-button></header>
+        <header><h3>{{ t('modelList') }}</h3><m3e-button :disabled="modelsLoading" @click="openModelPicker"><m3e-icon slot="icon" name="download"></m3e-icon>{{ t('fetchModels') }}</m3e-button></header>
         <div class="provider-model-list">
           <m3e-card v-for="modelName in provider.models" :key="modelName">
-            <div class="provider-model-row"><m3e-avatar class="model-symbol">M</m3e-avatar>
+            <div class="provider-model-row">
               <div><strong>{{ modelName }}</strong><small><span v-if="provider.modelSettings?.[modelName]?.reasoning">{{ t('reasoningCapability') }}</span><span v-if="provider.modelSettings?.[modelName]?.tools">{{ t('toolCapability') }}</span><span>{{ (provider.modelSettings?.[modelName]?.context || 128000).toLocaleString() }} ctx</span></small></div>
               <m3e-icon-button class="icon-command" :aria-label="t('modelSettings')" :title="t('modelSettings')" @click="openModelSettings(modelName)"><m3e-icon name="tune"></m3e-icon></m3e-icon-button>
               <m3e-icon-button class="icon-command" :aria-label="t('removeModel')" :title="t('removeModel')" @click="Settings.removeModel(selectedName, modelName)"><m3e-icon name="close"></m3e-icon></m3e-icon-button>
             </div>
           </m3e-card>
-          <div v-if="!provider.models.length" class="empty-state compact">{{ t('noModels') }}</div>
         </div>
       </section>
 
+      <!-- 第五排集中展示供应商自定义参数。 -->
       <section class="custom-provider-settings">
         <h3>{{ t('customConfig') }}</h3>
         <div class="setting-grid">
@@ -108,13 +107,10 @@ async function openModelPicker() {
           <TextField :label="t('customHeaders')" :model-value="provider.headers" @update:model-value="Settings.updateProvider(selectedName, 'headers', $event)" />
         </div>
       </section>
-
-      <m3e-button class="text-danger" @click="removeProvider"><m3e-icon slot="icon" name="delete"></m3e-icon>{{ t('deleteProvider') }}</m3e-button>
     </div>
 
     <m3e-dialog class="model-dialog" :open="modelDialogOpen" @closed="modelDialogOpen = false">
         <span slot="header">{{ t('selectModel') }}</span>
-        <span>{{ t('availableModels', { provider: selectedName }) }}</span>
         <div v-if="modelsLoading" class="model-picker-loading"><m3e-circular-progress-indicator variant="wavy" indeterminate aria-label="正在获取模型列表"></m3e-circular-progress-indicator></div>
         <div class="model-picker">
           <template v-if="!modelsLoading"><m3e-card v-for="modelName in candidates" :key="modelName" actionable @click="addDiscoveredModel(modelName)"><div class="model-picker-row"><m3e-avatar>M</m3e-avatar><strong>{{ modelName }}</strong><m3e-icon name="add"></m3e-icon></div></m3e-card></template>
@@ -125,7 +121,6 @@ async function openModelPicker() {
 
     <m3e-dialog class="model-settings-dialog" :open="Boolean(modelSettingsName)" @closed="modelSettingsName = ''">
         <span slot="header">{{ modelSettingsName }}</span>
-        <span>{{ t('modelLimits') }}</span>
         <div class="setting-grid">
           <TextField :label="t('contextLength')" type="number" :model-value="String(currentModelSettings.context || 128000)" @update:model-value="Settings.updateModel(selectedName, modelSettingsName, { context: Number($event) })" />
           <TextField :label="t('maxOutput')" type="number" :model-value="String(currentModelSettings.maxOutputTokens || 16000)" @update:model-value="Settings.updateModel(selectedName, modelSettingsName, { maxOutputTokens: Number($event) })" />

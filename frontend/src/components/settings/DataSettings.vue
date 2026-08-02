@@ -1,11 +1,14 @@
-<!-- 数据设置：保留数据管理入口，说明当前 Server 未提供数据操作。 -->
+<!--
+数据管理：作为设置分类内容区域，不虚构尚未设计的数据操作。
+后续有明确的数据管理功能时，再在此区域加入对应触发入口。
+调用示例：<DataSettings />
+-->
 <script setup>
-import { t } from '../../i18n.js'                                      // 提供数据管理状态文案
+import { t } from '../../i18n.js'                                      // 提供数据管理标题
 </script>
 
 <template>
   <section class="simple-settings data-settings">
-    <header class="simple-settings__heading"><div><h3>{{ t('dataManagement') }}</h3><p>{{ t('dataDescription') }}</p></div></header>
-    <m3e-card><div class="data-setting-row"><m3e-avatar><m3e-icon name="storage"></m3e-icon></m3e-avatar><div><strong>{{ t('dataActionsUnavailable') }}</strong><small>{{ t('dataActionsUnavailableDescription') }}</small></div></div></m3e-card>
+    <header class="simple-settings__heading"><h3>{{ t('dataManagement') }}</h3></header>
   </section>
 </template>

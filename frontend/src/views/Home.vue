@@ -66,11 +66,11 @@ async function confirmDelete() {
 
 <template>
   <section class="home-view">
-    <SearchField class="home-search" :model-value="store.ui.search" :label="t('search')" @update:model-value="UI.setSearch"><template #trailing><kbd>Ctrl K</kbd></template></SearchField>
+    <SearchField class="home-search" :model-value="store.ui.search" :label="t('search')" @update:model-value="UI.setSearch" />
 
     <div class="home-body">
-      <WorkspacePanel :workspaces="visibleWorkspaces" :active-workspace-id="activeWorkspace?.id" :total="store.workspaces.length" @add="addWorkspaceOpen = true" @select="Workspace.select" />
-      <SessionGroups :groups="groups" :workspace="activeWorkspace" :session-count="visibleSessions.length" :searching="Boolean(query)" @open="Session.open" @rename="renameSession" @delete="deleteTarget = $event" @create="Session.create(activeWorkspace?.id)" />
+      <WorkspacePanel :workspaces="visibleWorkspaces" :active-workspace-id="activeWorkspace?.id" @add="addWorkspaceOpen = true" @select="Workspace.select" />
+      <SessionGroups :groups="groups" @open="Session.open" @rename="renameSession" @delete="deleteTarget = $event" />
     </div>
 
     <WorkspaceDialog :open="addWorkspaceOpen" @close="addWorkspaceOpen = false" @add="addWorkspace" />
