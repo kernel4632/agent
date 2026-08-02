@@ -86,7 +86,7 @@ function toggleSidebar() {
 
 <style scoped lang="scss">
 .sidebar {
-  --sidebar-width: 336px;
+  --sidebar-width: 312px;
   --sidebar-inset: 14px;
   --sidebar-item-height: 48px;
   display: flex;
