@@ -1,104 +1,67 @@
 前端请求
   │
   ▼
-server.js 中直接注册的路由 ─────────────────────────────────────
+server.js 中直接注册的路由
   │
-  ├─ GET    /health ──────────→ 直接读 store
+  ├─ GET    /health ───────────────→ 返回 { status: "ok" }
   │
-  ├─ GET    /config ──────────→ Config.get()
-  ├─ PATCH  /config ──────────→ Config.update()
-  │                                 └→ store.config ←→ config.json
+  ├─ GET    /config ───────────────→ Config.get()
+  ├─ PATCH  /config ───────────────→ Config.update()
+  │                                      └→ store.config ←→ config.json
   │
-  ├─ GET    /workspace ───────→ Workspace.list()
-  ├─ POST   /workspace ───────→ Workspace.add()
-  ├─ PATCH  /workspace ───────→ Workspace.update()
-  ├─ DELETE /workspace?workspaceID ─→ Workspace.remove()
-  │                                 └→ store.workspaces ←→ workspace.json
+  ├─ GET    /workspace ────────────→ Workspace.list()
+  ├─ POST   /workspace ────────────→ Workspace.add(path)
+  ├─ DELETE /workspace?id=... ─────→ Workspace.remove(id)
+  │                                      └→ store.workspaces ←→ workspace.json
   │
-  ├─ GET    /session ─────────→ Session.get()
-  ├─ POST   /session ─────────→ Session.create()
-  ├─ PATCH  /session ─────────→ Session.update()
-  ├─ DELETE /session?sessionID ─→ Session.delete() ─→ Agent.stop() 如果在运行
-  │                                 └→ store.sessions ←→ sessions/{id}.json
+  ├─ GET    /session?id=... ───────→ Session.get(id)
+  ├─ POST   /session ──────────────→ Session.create(workspaceId, provider, model)
+  ├─ PATCH  /session ──────────────→ Session.update(id, title, provider, model)
+  ├─ DELETE /session?id=... ───────→ Session.remove(id)
+  │                                      └→ store.sessions ←→ sessions/{id}.json
   │
-  ├─ GET    /session/events ──→ Session.listen(sessionID, Last-Event-ID)
-  │                                 └→ 返回 Stream
-  │                                    listener → session.runtime.listeners
-  │                                    events → 补发或发送 resync
+  ├─ GET /session/events?id=... ───→ Session.listen(id)
+  │                                      ├→ client 加入 session.clients
+  │                                      └→ 断开时从 session.clients 移除
   │
-  ├─ POST   /session/send ───→ Agent.send()
-  │                                 ├→ 创建 userMessage → session.messages
-  │                                 ├→ SessionWatcher.publish "status" + "message-start"
-  │                                 ├→ Session.save()
-  │                                 └→ Agent.run()（异步）
-  │                                      │
-  │                         ┌────────────┘
-  │                         ▼
-  │                  Agent.run 只控制循环，Turn.run 完成单轮
-  │                  ┌─────────────────────────────────────────────┐
-  │                  │                                             │
-  │                  │  A. Context.build()                         │
-  │                  │     SessionWatcher.publish "context"       │
-  │                  │                                             │
-  │                  │  B. 找 provider                             │
-  │                  │     SessionWatcher.publish "api-request" started │
-  │                  │                                             │
-  │                  │  C. 流式 LLM 请求                           │
-  │                  │     SessionWatcher.publish text-delta / thinking-delta │
-  │                  │     SessionWatcher.publish tool-call-start / ready     │
-  │                  │                                             │
-  │                  │  D. 流结束 → assistantMessage → messages    │
-  │                  │     SessionWatcher.publish "api-request" completed │
-  │                  │     Session.save()                          │
-  │                  │                                             │
-  │                  │  E. 无工具调用？                             │
-  │                  │     第1次 → 继续循环                        │
-  │                  │     第2次 → 下一轮加入临时工具提醒 → 继续循环 │
-  │                  │     第3次 → 退出循环                        │
-  │                  │                                             │
-  │                  │  F. 有工具调用 → Tool.runAll 全部并行        │
-  │                  │     ├─ allow → Tool.execute()               │
-  │                  │     ├─ deny → 返回拒绝                      │
-  │                  │     └─ ask → SessionWatcher.publish "approval-needed" │
-  │                  │              等待 Promise ←─────────────────┼── POST /approval
-  │                  │              └→ Approval.wait()             │     → session.runtime.waits
-  │                  │                 → resolve(decision)         │        .resolve()
-  │                  │                                             │
-  │                  │  G. 全部工具完成                             │
-  │                  │     toolResultMessage → messages             │
-  │                  │     如果有 stop:true → 退出循环              │
-  │                  │     Session.save() → 继续循环 → 回到 A      │
-  │                  │                                             │
-  │                  │  错误处理：                                   │
-  │                  │     AbortError → 退出                       │
-  │                  │     可重试 → SessionWatcher.publish "error" willRetry │
-  │                  │              等待退避 → 继续循环             │
-  │                  │     不可重试 → SessionWatcher.publish "error" → 退出 │
-  │                  └─────────────────────────────────────────────┘
-  │                         │
-  │                         ▼ 循环退出后
-  │                  清理 session.runtime.runner / waits / processes
-  │                  设 status = idle 或 error
-  │                  SessionWatcher.publish "status"
-  │                  Session.save()
+  ├─ POST /session/send ───────────→ Agent.send(id, content)
+  │                                      ├→ 创建 user message
+  │                                      ├→ session.status = "running"
+  │                                      ├→ 创建 session.abortController
+  │                                      ├→ 保存 session
+  │                                      └→ 异步启动 Agent.run(id)
   │
-  ├─ POST /session/stop ─────→ Agent.stop()
-  │                                 ├→ abort runner（触发 AbortError）
-  │                                 ├→ resolve 所有 runtime.waits 为 "reject"
-  │                                 ├→ kill 所有 runtime.processes
-  │                                 ├→ status = idle
-  │                                 ├→ SessionWatcher.publish "status" { idle, stopped }
-  │                                 └→ Session.save()
+  │                  Agent.run 循环
+  │                  ┌──────────────────────────────────────────┐
+  │                  │ 1. 用 session.messages 构建上下文        │
+  │                  │ 2. 从 store.config.provider 读 api 和 key │
+  │                  │ 3. 流式请求 session.model                │
+  │                  │ 4. text/thinking/tool_call 写入 content  │
+  │                  │ 5. 同轮 tool_call 全部并行执行            │
+  │                  │ 6. tool_result 写入新消息                 │
+  │                  │ 7. 有工具调用 → textOnlyCount = 0         │
+  │                  │ 8. 无工具调用 → textOnlyCount += 1        │
+  │                  │ 9. 第 2 次纯文本 → 下轮提醒模型调用工具    │
+  │                  │ 10. 第 3 次纯文本 → 保留回复并退出         │
+  │                  │ 11. 网络、限流和 5xx → 无限退避重试       │
+  │                  └──────────────────────────────────────────┘
+  │                                      └→ 退出后 status = "idle"
   │
-  ├─ POST /session/approval ─→ Approval.once() / always() / reject()
-  │                                 └→ session.runtime.waits.get(toolCallID).resolve(decision)
-  │                                    （唤醒 Agent.run 中等待的 Promise；30 分钟超时自动 reject）
-  │
-  └─ POST /session/history ──→ History.rollbackMessage() / rollbackBlock() / undo()
-                                    ├─ rollback：
-                                    │    target 匹配 messageID 或 blockID
-                                    │    截断 → session.rolledBack
-                                    │    SessionWatcher.publish "history"
-                                    └─ undo：
-                                         rolledBack 拼回 messages
-                                         SessionWatcher.publish "history"
+  └─ POST /session/stop ───────────→ Agent.stop(id)
+                                         ├→ abort abortController
+                                         ├→ 终止 processes 中全部进程
+                                         ├→ 清空运行时状态
+                                         └→ status = "idle"
+
+
+SSE 最小事件
+├── status
+├── message
+├── text-delta
+├── thinking-delta
+├── tool-call
+├── tool-result
+└── error
+
+
+当前阶段没有 approval、history、usage、context、task、事件重放和 resync 调用链。

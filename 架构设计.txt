@@ -1,578 +1,231 @@
-Agent
-    后端详细设计
-        数据字段与枚举以 设计/数据.md 为准
-        HTTP 与 SSE 契约以 设计/接口.md 为准
-        指令职责与调用顺序以 设计/流程.md、设计/调用链.md 为准
-    前端（使用M3E组件库）
-        侧边栏
-            第一排
-                产品LOGO
-                收起侧边栏按钮（仅在侧边栏张开时显示）
-            第二排
-                按钮组
-                    主页按钮
-                    新建对话按钮
-            第三排（仅在侧边栏展开时显示）
-                会话列表（填满高度）
-                    会话标题（点击切换到对应会话页面）
-            第四排
-                展开按钮（仅在侧边栏收起时显示）
-            第五排
-                设置按钮
-        界面（填满宽度）
-            主页
-                顶部
-                    搜索框
-                主体
-                    左边
-                        工作区列表
-                            第一排
-                                工作区
-                                添加工作区 按钮
-                            第二排
-                                具体的工作区列表项
-                    右边
-                        所选工作区拥有的会话列表
-                            一排下去，按时间归类
-                                今天
-                                会话1
-                                昨天
-                                会话2
-                                更早
-                                会话n
-                            会话
-                                删除
-                                重命名
-            对话页
-                顶部栏
-                    左边
-                        会话标题（双击重命名，失焦或回车确认）
-                    右边
-                        上下文统计显示（一个圈，鼠标放上去小窗显示具体的上下文token与占比）
-                对话列表
-                    用户消息
-                        消息内容
-                        展示信息（发送时间）
-                        撤回消息按钮（回退并填充输入框）
-                        复制按钮
-                    助手消息
-                        思考推理条（折叠可展开）
-                        纯文本消息（markdown渲染后）
-                        工具展示条
-                            工具标题（易读别名）
-                            回退按钮（点击弹窗确认）
-                            预览内容
-                            操作按钮组（当工具权限为询问时显示）
-                                拒绝
-                                允许
-                                始终允许
-                        请求状态条
-                            文本：API请求
-                            旋转条（请求中显示）
-                            usage展示或tiktoken估算
-                        错误提示条
-                当前任务列表（有则显示）
-                回退后的预览消息和取消回退的按钮（回退后显示，发送消息后隐藏）
-                操作框
-                    上传文件按钮
-                    输入框
-                    切换模型下拉框
-                    发送和暂停按钮
-                对话快速跳转地图条（固定右侧）
-                    跳转上一个对话按钮
-                    每个消息一个小白横条（用户短，助手长，点击跳转）
-                    跳转下一个对话按钮
-            设置页（离开设置页自动保存）
-                侧边栏+对应的设置项
-                    供应商配置
-                        左边
-                            供应商列表
-                            底部是添加供应商按钮
-                        右边
-                            第一排
-                                供应商名
-                                供应商启用开关
-                            第二排
-                                请求地址（API）
-                            第三排
-                                API Key
-                            第四排
-                                模型列表
-                                    获取模型列表按钮（点击弹出选择模型窗）
-                                    已添加模型项
-                                        模型名
-                                        能力
-                                        模型设置（点击弹出小窗）
-                                        模型移除按钮
-                            第五排
-                                一堆供应商自定义配置
-                    工具管理
-                    MCP管理
-                    系统提示词定义
-                    语言与外观
-                    数据管理
-    文件结构
-        .agent/
-            config.json
-            workspace.json
-            mcp.json
-            sessions/
-            skills/
-            tools/
-        frontend/
-            src
-                views
-                    Home.vue
-                    Chat.vue
-                    Settings.vue
-                components
-                    layout
-                        AppSidebar.vue
-                        SidebarLogo.vue
-                        SidebarNavButtons.vue
-                        SidebarSessionList.vue
-                        SidebarFooter.vue
-                    home
-                        SearchBox.vue
-                        WorkspaceList.vue
-                        WorkspaceItem.vue
-                        WorkspaceAddButton.vue
-                        WorkspaceDialog.vue
-                        SessionList.vue
-                        SessionGroup.vue
-                        SessionItem.vue
-                        DeleteSessionDialog.vue
-                    chat
-                        ChatTopBar.vue
-                        SessionTitleEditor.vue
-                        ContextUsage.vue
-                        MessageList.vue
-                        MessageUser.vue
-                        MessageAssistant.vue
-                        ReasoningBlock.vue
-                        ToolCallBlock.vue
-                        ToolApprovalButtons.vue
-                        ApiRequestStatus.vue
-                        ErrorAlert.vue
-                        TaskList.vue
-                        RollbackPreview.vue
-                        InputBox.vue
-                        ModelSelector.vue
-                        ChatScrollMap.vue
-                    settings
-                        SettingsLayout.vue
-                        SettingsNavigation.vue
-                        ProviderSettings.vue
-                        ProviderList.vue
-                        ProviderDetail.vue
-                        ModelListManager.vue
-                        ModelSettingsDialog.vue
-                        ModelPickerDialog.vue
-                        ToolSettings.vue
-                        McpSettings.vue
-                        PromptSettings.vue
-                        AppearanceSettings.vue
-                        DataSettings.vue
-                    shared
-                        MarkdownContent.vue
-                        ConfirmDialog.vue
-                        SearchField.vue
-                        SelectField.vue
-                        TextAreaField.vue
-                        TextField.vue
-                styles
-                    layout
-                        AppSidebar.scss
-                        SidebarLogo.scss
-                        SidebarNavButtons.scss
-                        SidebarSessionList.scss
-                        SidebarFooter.scss
-                    home
-                        SearchBox.scss
-                        WorkspaceList.scss
-                        WorkspaceItem.scss
-                        WorkspaceDialog.scss
-                        SessionList.scss
-                        SessionGroup.scss
-                        SessionItem.scss
-                        DeleteSessionDialog.scss
-                    chat
-                        ChatTopBar.scss
-                        SessionTitleEditor.scss
-                        ContextUsage.scss
-                        MessageList.scss
-                        MessageUser.scss
-                        MessageAssistant.scss
-                        ReasoningBlock.scss
-                        ToolCallBlock.scss
-                        ToolApprovalButtons.scss
-                        ApiRequestStatus.scss
-                        ErrorAlert.scss
-                        TaskList.scss
-                        RollbackPreview.scss
-                        InputBox.scss
-                        ModelSelector.scss
-                        ChatScrollMap.scss
-                    settings
-                        SettingsLayout.scss
-                        SettingsNavigation.scss
-                        ProviderSettings.scss
-                        ProviderList.scss
-                        ProviderDetail.scss
-                        ModelListManager.scss
-                        ModelSettingsDialog.scss
-                        ToolSettings.scss
-                        McpSettings.scss
-                        PromptSettings.scss
-                        AppearanceSettings.scss
-                        DataSettings.scss
-                    shared
-                        MarkdownContent.scss
-                        ConfirmDialog.scss
-                        SearchField.scss
-                        SelectField.scss
-                        TextAreaField.scss
-                        TextField.scss
-                    App.scss
-                commands
-                    workspace.js
-                    session.js
-                    chat.js
-                    agent.js
-                    config.js
-                    settings.js
-                    ui.js
-                utils
-                    markdown.js
-                    sse.js
-                api.js
-                store.js
-                i18n.js
-                main.js
-                App.vue
-        server
-            commands
-                config.js
-                    Config.get()：
-                        返回 store.config 的深拷贝
-                    Config.update(partialConfig)：
-                        将 partialConfig 的每个字段合并覆盖到 store.config
-                        将 store.config 写入 .agent/config.json
-                        返回更新后的 store.config
-                workspace.js
-                    Workspace.list()：
-                        返回 store.workspaces
-                    Workspace.add(path)：
-                        生成唯一 id
-                        创建工作区对象 { id, path, sessions: [] }
-                        推入 store.workspaces
-                        写入 .agent/workspace.json
-                        返回新建的工作区对象
-                    Workspace.update(workspaceID, fields)：
-                        在 store.workspaces 中找到 id === workspaceID 的项
-                        如果 找不到 → 抛错 "工作区不存在"
-                        将 fields 合并覆盖到该项
-                        写入 .agent/workspace.json
-                        返回更新后的工作区对象
-                    Workspace.remove(workspaceID)：
-                        在 store.workspaces 中找到 id === workspaceID 的项
-                        如果 找不到 → 抛错 "工作区不存在"
-                        从数组中移除该项（不删本地目录）
-                        写入 .agent/workspace.json
-                        返回 { ok: true }
-                session.js
-                    Session.get(sessionID)：
-                        如果 store.sessions 中有缓存 → 返回缓存
-                        否则：
-                            从 .agent/sessions/{sessionID}.json 读取
-                            如果 文件不存在 → 抛错 "会话不存在"
-                            存入 store.sessions 缓存
-                            返回 session 数据
-                    Session.create(workspaceID)：
-                        在 store.workspaces 中找到对应工作区
-                        如果 找不到 → 抛错 "工作区不存在"
-                        生成唯一 sessionID
-                        创建 session
-                            id: sessionID,
-                            workspaceID,
-                            title: "新对话",
-                            lastActiveAt: 当前时间戳,
-                            model: store.config.defaultModel,
-                            status: "idle",
-                            messages: []
-                        存入 store.sessions 缓存
-                        写入 .agent/sessions/{sessionID}.json
-                        在工作区的 sessions 数组中添加 { sessionID, title: "新对话" }
-                        写入 .agent/workspace.json
-                        返回 session
-                    Session.update(sessionID, fields)：
-                        session = Session.get(sessionID)
-                        将 fields 合并覆盖（只允许 title、model 等配置字段）
-                        session.lastActiveAt = 当前时间戳
-                        写入 .agent/sessions/{sessionID}.json
-                        如果 fields 中有 title：
-                            同步更新 store.workspaces 中对应的 session 摘要的 title
-                            写入 .agent/workspace.json
-                        返回更新后的 session
-                    Session.delete(sessionID)：
-                        session = Session.get(sessionID)
-                        如果 session.status !== "idle"：
-                            先调用 Agent.stop(sessionID)
-                        关闭该 sessionID 的所有 SSE 连接
-                        从 store.sessions 缓存中移除
-                        删除 .agent/sessions/{sessionID}.json
-                        从 store.workspaces 中对应工作区的 sessions 数组移除
-                        写入 .agent/workspace.json
-                        返回 { ok: true }
-                    Session.listen(sessionID, lastEventID)
-                        返回 SSE Stream，并按 lastEventID 补发或发送 resync
-                    Session.save(sessionID)
-                        保存逻辑
-                agent.js
-                    Agent.send(sessionID, content)：
-                        session = Session.get(sessionID)
-                        如果 session.status 是 "running"、"waiting" 或 "retrying"：
-                            抛错 "该会话正在执行中"
-                        创建 userMessage
-                            id: 生成唯一ID,
-                            role: "user",
-                            content,
-                            contentBlocks: [{ id: 生成唯一ID, type: "text", text: content }],
-                            timestamp: 当前时间戳
-                        推入 session.messages
-                        session.status = "running"
-                        session.lastActiveAt = 当前时间戳
-                        如果 存在 session.rolledBack 就清空
-                        SessionWatcher.publish(sessionID, "status", { status: "running" })
-                        SessionWatcher.publish(sessionID, "message-start", { message: userMessage })
-                        保存 session
-                        Agent.run(sessionID)  ← 异步启动，不 await
-                        返回 { messageID: userMessage.id }
-                    Agent.stop(sessionID)：
-                        session = Session.get(sessionID)
-                        如果 session.status === "idle"：
-                            返回 { ok: true, message: "已经是空闲状态" }
-                        打断LLM API请求
-                        遍历并拒绝未决策的工具调用
-                        终止该 session 下的所有工具运行进程
-                        session.status = "idle"
-                        SessionWatcher.publish(sessionID, "status", { status: "idle", reason: "stopped" })
-                        保存 session
-                        返回 { ok: true }
-                    Agent.run(sessionID)：
-                        未调用工具次数计数=0
-                        无限循环
-                            turnResult = Turn.run(sessionID, reminder)
-                            如果 turnResult.shouldStop → 跳出循环
-                            如果 turnResult.hasToolCalls：
-                                未调用工具次数计数=0
-                                继续循环
-                            未调用工具次数计数+1
-                            如果计数为1 → 继续循环
-                            如果计数为2 → 下一轮加入临时工具提醒后继续循环
-                            如果计数为3 → 保留普通回复并跳出循环
-                        清理 runtime，设置最终状态并保存 session
-                turn.js
-                    Turn.run(sessionID, reminder)：
-                        Context.build 构建当前轮上下文
-                        找到模型对应的已启用供应商
-                        发起模型请求；可重试错误无限退避，不限制重试次数
-                        Stream.consume 将流写入助手消息
-                        保存完整助手消息和 usage
-                        收集 tool_call blocks
-                        有工具调用时交给 Tool.runAll 并保存 tool message
-                        返回 hasToolCalls 和 shouldStop
-                stream.js
-                    Stream.consume(sessionID, messageID, stream)：
-                        将 text、thinking、tool_call 和 usage 流片段写入助手消息
-                        每个新 block 生成会话内唯一 id
-                        每个 delta 通过 SessionWatcher.publish 反馈，不逐片落盘
-                tool.js
-                    Tool.runAll(sessionID, toolCalls)：
-                        同一轮所有工具完全并行执行
-                        permission 为 allow 时执行、deny 时拒绝、ask 时等待 Approval
-                        结果按 toolCalls 原顺序组成 tool message
-                    Tool.abortAll(sessionID)：
-                        并行终止该会话的所有工具进程
-                approval.js
-                    Approval.once(sessionID, toolCallID)：仅允许当前工具调用
-                    Approval.always(sessionID, toolCallID)：允许当前调用并将 permission 保存为 allow
-                    Approval.reject(sessionID, toolCallID)：拒绝当前工具调用
-                    Approval.wait(sessionID, toolCallID)：最多等待 30 分钟，超时按 reject 处理
-                history.js
-                    History.rollbackMessage(sessionID, messageID)：
-                        截断目标用户消息及后续消息，存入 session.rolledBack
-                    History.rollbackBlock(sessionID, blockID)：
-                        截断目标 block、同消息后续 blocks 和后续 messages，存入 session.rolledBack
-                    History.undo(sessionID)：
-                        从 session.rolledBack 恢复最近一次回退并清空临时数据
-                context.js
-                    Context.build(sessionID, reminder)：构建模型上下文
-                    Context.compress(sessionID)：执行上下文压缩
-            watchers
-                session.js
-                    SessionWatcher.publish(sessionID, event, data)：统一分配 eventID、缓存并发送 SSE
-            tools
-                built-in
-                    file.js
-                    shell.js
-                    web.js
-                    agent.js
-                custom（在~/.agent/tools/）
-            utils
-                sse.js
-                retry.js
-                    可被停止信号中断的无限退避重试，不限制重试次数
-                id.js
-                    生成无业务身份的唯一 ID
-            store.js
-            server.js（Elysia框架，直接注册全部路由，不建立 routes 文件夹）
-                当 服务器启动时：
-                    Config.load() → 从 .agent/config.json 读取内容 → 存入 store.config
-                    Workspace.load() → 从 .agent/workspace.json 读取内容 → 存入 store.workspaces
-                    在当前文件直接注册路由组：health、config、workspace、session
-                    监听端口 4632
-                    打印启动日志
-                当 收到 GET /health 时：
-                    直接返回 200 { status: "ok", version: store.engine.version }
-                当 收到 GET /config 时：
-                    返回 200 Config.get()
-                当 收到 PATCH /config 时：
-                    返回 200 Config.update(body)
-                当 收到 GET /workspace 时：
-                    返回 200 Workspace.list()
-                当 收到 POST /workspace 时：
-                    返回 201 Workspace.add(body.path)
-                当 收到 PATCH /workspace 时：
-                    返回 200 Workspace.update(body.workspaceID, body 中除 workspaceID 外的字段)
-                当 收到 DELETE /workspace?workspaceID={workspaceID} 时：
-                    返回 200 Workspace.remove(query.workspaceID)
-                当 收到 GET /session?sessionID={sessionID} 时：
-                    返回 200 Session.get(query.sessionID)
-                当 收到 POST /session 时：
-                    返回 201 Session.create(body.workspaceID)
-                当 收到 PATCH /session 时：
-                    返回 200 Session.update(body.sessionID, body 中除 sessionID 外的字段)
-                当 收到 DELETE /session?sessionID={sessionID} 时：
-                    返回 200 Session.delete(query.sessionID)
-                当 收到 GET /session/events?sessionID={sessionID} 时：
-                    返回 Session.listen(query.sessionID, Last-Event-ID) SSE 长连接
-                当 收到 POST /session/send 时：
-                    返回 202 Agent.send(body.sessionID, body.content)
-                当 收到 POST /session/stop 时：
-                    返回 200 Agent.stop(body.sessionID)
-                当 收到 POST /session/approval 时：
-                    根据 decision 直接调用 Approval.once、Approval.always 或 Approval.reject
-                当 收到 POST /session/history 时：
-                    根据 action 直接调用 History.rollbackMessage、History.rollbackBlock 或 History.undo
-                当 服务器收到未知路由请求时：
-                    返回 404 { error: { code: "NOT_FOUND", message: "Not Found" } }
-                当 进程收到终止信号时：
-                    遍历 store.sessions → Agent.stop → 关闭 session.runtime.listeners → Session.save
-                    退出进程
-            package.json
-            bun.lock
-    API
-        /health
-            GET
-                服务状态、版本号
-        /config
-            GET
-                获取所有配置
-            PATCH
-                修改配置
-        /workspace
-            GET
-                获取工作区列表及其下属 Session 列表
-            POST
-                添加工作区
-                path
-            PATCH
-                修改工作区定义
-                workspaceID、需要修改的字段
-            DELETE
-                从工作区列表移除工作区
-                workspaceID（query）
-                不删除本地目录内容
-        /session
-            GET
-                单个 Session 的全部数据
-                sessionID（query）
-            POST
-                创建 Session
-                workspaceID
-            PATCH
-                修改 Session 配置
-                sessionID、需要修改的字段
-            DELETE
-                删除 Session
-                sessionID（query）
-            /send
-                POST
-                    发送用户消息并启动执行
-                    sessionID、content
-                    返回状态，实时内容通过 Session SSE 接收
-            /stop
-                POST
-                    停止 Session 当前执行
-                    sessionID
-                    终止该会话的API请求与正在进行的工具和工具等待
-            /events
-                GET
-                    订阅 Session 的 SSE 事件
-                    sessionID
-                    每个事件需要携带递增的 eventID
-                    返回文本、推理、工具、审批、任务、usage、上下文和执行状态
-            /approval
-                POST
-                    处理工具权限请求
-                    sessionID、toolCallID、decision
-                    decision：once、always、reject
-            /history
-                POST
-                    回退工具步骤、回退用户消息或撤销回退
-                    sessionID、action、对应目标
-                    action：rollback-block、rollback-message、undo
-                    rollback-block 提供 blockID
-                    rollback-message 提供 messageID
-    数据结构
-        engine
-            version
-        config
-            providers
-            tools（permission：allow | ask | deny）
-            systemPrompt
-            defaultModel
-        workspaces列表
+Agent 最小版本架构设计
+
+当前目标
+    先完成一个能够配置模型、管理工作区和会话、流式对话、调用工具及停止执行的本地 Agent。
+    审批、回退、usage、上下文统计、任务列表、MCP、skills 和附件后续再增加。
+
+
+后端技术
+    Bun
+    Elysia
+    server.js 直接注册全部路由，不建立 routes 文件夹
+    监听端口 4632
+
+
+最小文件结构
+    .agent/
+        config.json
+        workspace.json
+        sessions/
+    server/
+        commands/
+            config.js
+            workspace.js
+            session.js
+            agent.js
+            tool.js
+        tools/
+            file.js
+            shell.js
+            web.js
+            agent.js
+        utils/
+            retry.js
+        store.js
+        server.js
+        package.json
+        bun.lock
+
+
+store
+    config
+        provider
+            api
+            key
+            models
+        tools
+    workspaces
+        id
+        path
+        sessions
             id
-            path
-            sessions
-                sessionID
-                title
-                lastActiveAt
-        session
-            id
-            workspaceID
+            title
             lastActiveAt
-            model
-            status：idle | running | waiting | retrying | error
-            messages
-                id
-                role
-                content
-                contentBlocks
-                    id
-                    type
-                    text: { id, text }
-                    thinking: { id, thinking }
-                    tool_call: { id, toolCallID, toolName, input, status }
-                    tool_result: { id, toolCallID, output, isError }
-            rolledBack（会话级回退临时数据）
-            usage
-            runtime（仅内存，不持久化）
-                listeners
-                nextEventID
-                events（最近 500 条）
-                runner
-                waits
-                processes
+    sessions
+        id
+        status
+        messages
+            id
+            role
+            content
+                type
+                text: { text }
+                thinking: { thinking }
+                tool_call: { toolCallId, toolName, input, status }
+                tool_result: { toolCallId, output, isError }
+        provider
+        model
+        processes
+        abortController
+        clients
+        textOnlyCount
+
+
+持久化
+    config → .agent/config.json
+    workspaces → .agent/workspace.json
+    session 的 id、status、messages、provider、model → .agent/sessions/{id}.json
+    processes、abortController、clients、textOnlyCount 只在内存中使用
+
+
+server.js
+    启动时
+        Config.load() 读取 config.json
+        Workspace.load() 读取 workspace.json
+        直接注册全部 Elysia 路由
+        监听 4632
+    GET /health
+        返回 { status: "ok" }
+    GET /config
+        返回 Config.get()
+    PATCH /config
+        返回 Config.update(body)
+    GET /workspace
+        返回 Workspace.list()
+    POST /workspace
+        返回 Workspace.add(body.path)
+    DELETE /workspace?id={workspaceId}
+        返回 Workspace.remove(query.id)
+    GET /session?id={sessionId}
+        返回 Session.get(query.id)
+    POST /session
+        返回 Session.create(body.workspaceId, body.provider, body.model)
+    PATCH /session
+        返回 Session.update(body.id, body.title, body.provider, body.model)
+    DELETE /session?id={sessionId}
+        返回 Session.remove(query.id)
+    GET /session/events?id={sessionId}
+        返回 Session.listen(query.id) 的 SSE Stream
+    POST /session/send
+        返回 Agent.send(body.id, body.content)
+    POST /session/stop
+        返回 Agent.stop(body.id)
+
+
+commands/config.js
+    Config.load()
+        读取 .agent/config.json 到 store.config
+    Config.get()
+        返回完整 store.config，包括 key 原值
+    Config.update(partialConfig)
+        将 partialConfig 合并到 store.config
+        保存 config.json
+        返回完整配置
+
+
+commands/workspace.js
+    Workspace.load()
+        读取 workspace.json 到 store.workspaces
+    Workspace.list()
+        返回全部工作区和会话摘要
+    Workspace.add(path)
+        创建 { id, path, sessions: [] }
+        加入 store.workspaces 并保存
+    Workspace.remove(id)
+        从 store.workspaces 移除记录并保存
+        不删除本地目录和会话文件
+
+
+commands/session.js
+    Session.get(id)
+        优先返回 store.sessions 中的会话
+        未加载时读取 sessions/{id}.json
+        初始化 processes、abortController、clients、textOnlyCount
+    Session.create(workspaceId, provider, model)
+        创建完整 session
+        在工作区 sessions 添加 { id, title: "新对话", lastActiveAt }
+        保存 session 和 workspace.json
+    Session.update(id, title, provider, model)
+        title 修改工作区中的会话摘要
+        provider 和 model 修改完整 session
+        更新摘要 lastActiveAt 并保存
+    Session.remove(id)
+        运行中先调用 Agent.stop(id)
+        删除 session 文件和 store.sessions 中的会话
+        删除工作区中的会话摘要
+    Session.save(id)
+        只保存 session 的持久化字段
+    Session.listen(id)
+        建立 SSE Stream
+        连接加入 session.clients
+        断开时从 clients 移除
+    Session.emit(id, event, data)
+        向 session.clients 中全部连接发送事件
+
+
+commands/agent.js
+    Agent.send(id, content)
+        会话不为空闲时拒绝发送
+        创建 user message 并加入 messages
+        status 改为 running
+        textOnlyCount 归零
+        创建 abortController
+        保存 session
+        异步启动 Agent.run(id)
+        返回 { messageId }
+    Agent.run(id)
+        使用 session.messages 构建模型上下文
+        从 store.config.provider 读取 api、key、models
+        流式请求 session.model
+        将 text、thinking 和 tool_call 按顺序写入 assistant message.content
+        通过 Session.emit 发送增量事件
+        有工具调用时交给 Tool.runAll，并将 tool_result 写入 tool message
+        有工具调用时 textOnlyCount 归零
+        没有工具调用时 textOnlyCount 加一
+        第一次没有工具调用时继续下一轮
+        第二次没有工具调用时为下一轮加入临时工具提醒
+        第三次没有工具调用时保留普通回复并退出
+        网络超时、限流和 5xx 无限指数退避重试，不限制次数
+        正常结束后 status 改为 idle
+        不可重试错误时 status 改为 error
+    Agent.stop(id)
+        abort 当前 abortController
+        终止 processes 中全部工具进程
+        清空运行时执行状态
+        status 改为 idle
+        保存 session
+
+
+commands/tool.js
+    Tool.runAll(id, toolCalls)
+        同一轮所有工具完全并行执行
+        config.tools[toolName] 为 allow 时执行
+        config.tools[toolName] 为 deny 或未配置时拒绝
+        每个工具生成 tool_result
+        结果保持 toolCalls 原顺序
+    Tool.run(id, toolCall)
+        启动工具后将进程加入 session.processes
+        工具结束后从 processes 移除
+        返回 output 和 isError
+    Tool.stopAll(id)
+        并行终止 session.processes 中全部进程
+
+
+SSE 事件
+    status          { status }
+    message         { message }
+    text-delta      { messageId, text }
+    thinking-delta  { messageId, thinking }
+    tool-call       { messageId, toolCall }
+    tool-result     { messageId, toolResult }
+    error           { message }
+
+
+当前不实现
+    工具询问与审批
+    历史回退
+    block id 和 checkpoint
+    usage 和上下文统计
+    任务列表
+    SSE 事件 ID、断线补发和 resync
+    MCP、skills、附件和模型发现

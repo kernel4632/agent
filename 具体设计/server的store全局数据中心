@@ -1,59 +1,35 @@
-store.js这个文件是全局数据中心，里面只定义数据结构，不能写任何逻辑
+store.js 是全局数据中心，里面只定义以下数据结构，不能写任何逻辑。
 
 
 store
-│
-├── engine
-│   └── version: "0.1.0"
-│
-├── config                              ← .agent/config.json
-│   ├── providers                       供应商列表配置
-│   ├── tools                           工具权限配置
-│   ├── systemPrompt                    系统提示词
-│   └── defaultModel                    默认模型
-│
-├── workspaces                          ← .agent/workspace.json
-│   └── [
-│         {
-│           id,
-│           path,
-│           sessions: [{ sessionID, title, lastActiveAt }]
-│         }
-│       ]
-│
-└── sessions: Map<sessionID, session>   ← 按需从 sessions/{id}.json 加载
-
-
-
-session
-│
-│── 持久化（写入文件的字段）
-│   ├── id
-│   ├── workspaceID
-│   ├── title
-│   ├── lastActiveAt
-│   ├── model
-│   ├── status                  "idle" | "running" | "waiting" | "retrying" | "error"
-│   ├── messages: [message, ...]
-│   ├── rolledBack: rollbackData | null
-│   └── usage: usage | null
-│
-└── 运行时（仅内存，不写入文件，加载时初始化空值）
-    ├── listeners   : Set<listener>               谁在听这个会话的 SSE
-    ├── nextEventID : number                      下一条 SSE 事件编号，递增
-    ├── events      : event[]                     最近 500 条 SSE 事件，用于断线补发
-    ├── runner    : AbortController | null       Agent 循环的开关（abort 就停）
-    ├── waits     : Map<toolCallID, resolve>     哪些工具在等用户点批准
-    └── processes : Set<子进程引用>              哪些工具正在跑
-
-
-message
-├── id
-├── role            "user" | "assistant" | "tool"
-├── content         纯文本（快速展示用）
-├── contentBlocks
-│   ├── { id, type: "text",        text }
-│   ├── { id, type: "thinking",    thinking }
-│   ├── { id, type: "tool_call",   toolCallID, toolName, input, status }
-│   └── { id, type: "tool_result", toolCallID, output, isError }
-└── timestamp
+    config
+        provider
+            api
+            key
+            models
+        tools
+    workspaces
+        id
+        path
+        sessions
+            id
+            title
+            lastActiveAt
+    sessions
+        id
+        status
+        messages
+            id
+            role
+            content
+                type
+                text: { text }
+                thinking: { thinking }
+                tool_call: { toolCallId, toolName, input, status }
+                tool_result: { toolCallId, output, isError }
+        provider
+        model
+        processes
+        abortController
+        clients
+        textOnlyCount
