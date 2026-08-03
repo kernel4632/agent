@@ -1,61 +1,36 @@
-/* 
-LLM模块，可以用chat方法调用LLM
-调用示例
-const result = await LLM.chat({
-  apiURL: provider.apiURL,
-  apiKey: provider.apiKey,
-  model: session.model,
-  systemPrompt,
-  messages,
-  tools: toolDefinitions,
-  signal: session.runner.signal,
-
-  onEvent(type, data) {
-    SSE.emit(session, type, { messageId: assistantMessage.id, ...data })
-  }
-})
-
-result.content       → 完整文本
-result.contentBlocks → 完整的 blocks 数组，直接塞进 assistantMessage
-result.toolCalls     → 需要执行的工具列表
-result.usage         → token 用量
+/*
+LLM 流工具：请求 OpenAI-compatible 模型，处理单轮超时，并返回完整内容块和工具调用。
+本文件只依赖调用参数和模型 SDK，不读取 store、会话或 SSE 客户端。
+调用示例：await LLM.chat({ apiURL, apiKey, model, messages, tools, signal, onEvent })。
 */
+import { dynamicTool, jsonSchema, streamText } from 'ai' // 引入 AI SDK 流式文本和动态工具能力
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible' // 引入 OpenAI-compatible 模型客户端
 
-import { dynamicTool, jsonSchema, streamText } from "ai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+const defaultTimeoutMS = 120000                          // 单轮模型请求默认最多等待两分钟
 
-export const LLM = {
-	/**
-	 * @param {object} options
-	 * @param {string} options.apiURL
-	 * @param {string} options.apiKey
-	 * @param {string} options.model
-	 * @param {string} options.systemPrompt
-	 * @param {array}  options.messages
-	 * @param {object} options.tools
-	 * @param {AbortSignal} options.signal
-	 * @param {function} options.onEvent - 每个流式事件的回调 (type, data) => void
-	 *
-	 * @returns {Promise<{ content, contentBlocks, toolCalls, usage }>}
-	 */
-	async chat({ apiURL, apiKey, model, systemPrompt, messages, tools, signal, onEvent }) {
-		const provider = createOpenAICompatible({ name: "agent", baseURL: apiURL, apiKey });
-		const modelTools = Object.fromEntries(
-			Object.entries(tools ?? {}).map(([name, tool]) => [
-				name,
-				dynamicTool({ description: tool.description, inputSchema: jsonSchema(tool.parameters) }),
-			]),
-		);
 
-		const stream = streamText({
+// --- 请求一轮 LLM ---
+async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, signal, onEvent }) {
+  const configuredTimeout = Number(process.env.AGENT_REQUEST_TIMEOUT_MS ?? defaultTimeoutMS) // 读取可选单轮请求预算
+  const timeoutMS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.floor(configuredTimeout) : defaultTimeoutMS // 非法值回退默认预算
+  const timeoutSignal = AbortSignal.timeout(timeoutMS)   // 超时只结束本轮，外层可以决定是否重试
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal // 调用方停止和超时共享底层请求
+  const provider = createOpenAICompatible({ name: 'agent', baseURL: apiURL, apiKey }) // 为当前配置创建模型供应商
+  const modelTools = Object.fromEntries(Object.entries(tools ?? {}).map(([name, tool]) => [
+    name,
+    dynamicTool({ description: tool.description, inputSchema: jsonSchema(tool.parameters) }), // 把通用 JSON Schema 转成 SDK 工具
+  ]))
+
+  try {
+    const stream = streamText({
 			model: provider(model),
 			system: systemPrompt,
 			messages,
 			tools: modelTools,
 			maxRetries: 0,
-			abortSignal: signal,
+			abortSignal: requestSignal,
 			onError: () => {},
-		});
+		})
 
 		// ── 结果容器 ──
 		const contentBlocks = [];
@@ -192,11 +167,22 @@ export const LLM = {
 		}
 
 		// ── 返回完整结果给 agent.js ──
+    requestSignal.throwIfAborted()                       // 供应商未抛中止事件时也不能吞掉停止
 		return {
 			content: fullText,
 			contentBlocks,
 			toolCalls,
 			usage,
-		};
-	},
-};
+		}
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('operation aborted', 'AbortError') // 用户停止保持原始中止语义
+    if (timeoutSignal.aborted) throw Object.assign(new Error(`model request timed out after ${timeoutMS}ms`), { status: 408 }) // 超时提供可重试状态
+    const failure = error instanceof Error ? error : Object.assign(new Error(String(error)), error) // 任意 SDK 抛出值转成 Error
+    if (failure.status === undefined && failure.statusCode !== undefined) failure.status = failure.statusCode // 统一 SDK HTTP 状态字段
+    if (failure.code === undefined && failure.cause?.code !== undefined) failure.code = failure.cause.code // 统一底层网络错误代码
+    throw failure                                        // 调用方决定最终状态或重试
+  }
+}
+
+
+export const LLM = { chat }                              // 导出完整单轮模型请求能力

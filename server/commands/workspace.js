@@ -3,7 +3,7 @@
 工作区只保存 id、path 和 sessions 摘要；移除记录不会删除用户目录或会话文件。
 调用示例：await Workspace.load('C:/Users/me/.agent/workspace.json')、await Workspace.add('C:/project')。
 */
-import { mkdir, stat } from 'node:fs/promises'          // 引入目录验证和数据目录创建能力
+import { mkdir } from 'node:fs/promises'                // 引入数据目录创建能力
 import { dirname, resolve } from 'node:path'            // 引入稳定绝对路径和父目录定位能力
 import { nanoid } from 'nanoid'                         // 引入工作区唯一 ID 生成能力
 import { store } from '../store.js'                     // 引入工作区数据列表
@@ -34,10 +34,7 @@ function list() {
 
 // --- 添加工作区 ---
 async function add(path) {
-  if (typeof path !== 'string' || !path.trim()) throw businessError(400, 'workspace path must not be empty') // 空路径无法成为工具工作目录
-  const normalizedPath = resolve(path.trim())           // 相对路径转换为稳定绝对路径
-  const pathInfo = await stat(normalizedPath).catch(() => null) // 检查目标是否真实存在
-  if (!pathInfo?.isDirectory()) throw businessError(400, 'workspace path must be a directory') // 文件不能作为工作区
+  const normalizedPath = resolve(path)                  // 相对路径转换为稳定绝对路径
   if (store.workspaces.some((item) => item.path.toLowerCase() === normalizedPath.toLowerCase())) throw businessError(409, 'workspace path already exists') // 同一路径只保存一次
 
   const workspace = {                                   // 创建严格符合 store 的工作区结构

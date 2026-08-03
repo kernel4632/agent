@@ -1,8 +1,57 @@
 /*
-消息转换工具：把持久化会话消息转换成 LLM 可以接收的消息格式。
-本文件只处理传入数据，不读取 store、不修改会话，也不发送任何事件。
-调用示例：const messages = createLLMMessages(session.messages)。
+消息格式工具：创建持久化消息、实时事件和 LLM 上下文。
+本文件只转换传入数据，不读取 store、不修改会话，也不发送事件。
+调用示例：const message = createUserMessage(id, '分析项目')。
 */
+
+
+// --- 创建用户消息 ---
+export function createUserMessage(id, text) {
+  return {
+    id,                                                   // 使用调用方生成的消息身份
+    role: 'user',                                         // 标记消息来自用户
+    content: [{ type: 'text', text: { text } }],          // 按 store 格式保存原始正文
+  }
+}
+
+
+// --- 创建助手消息 ---
+export function createAssistantMessage(id, blocks) {
+  return {
+    id,                                                   // 沿用流式反馈使用的消息身份
+    role: 'assistant',                                    // 标记消息来自 LLM
+    content: blocks.map((block) => {
+      if (block.type === 'text') return { type: 'text', text: { text: block.text } } // 文本转成 store 内容块
+      if (block.type === 'thinking') return { type: 'thinking', thinking: { thinking: block.thinking } } // 思考转成 store 内容块
+      return { type: 'tool_call', toolCallId: block.toolCallId, toolName: block.toolName, input: block.input, status: block.status } // 保留完整工具调用
+    }),
+  }
+}
+
+
+// --- 创建工具消息 ---
+export function createToolMessage(id, results) {
+  return { id, role: 'tool', content: results }           // 同轮工具结果组成一条观察消息
+}
+
+
+// --- 创建工具结果 ---
+export function createToolResult(toolCall, output, isError) {
+  return { type: 'tool_result', toolCallId: toolCall.toolCallId, output, isError } // 结果通过调用身份匹配原工具请求
+}
+
+
+// --- 创建 Agent 实时事件 ---
+export function createAgentEvent(messageId, type, data) {
+  if (type === 'text-delta') return { name: 'text-delta', data: { messageId, text: data.delta } } // 正文增量使用公开 text 字段
+  if (type === 'thinking-delta') return { name: 'thinking-delta', data: { messageId, thinking: data.delta } } // 思考增量使用公开 thinking 字段
+  if (type === 'tool-call-ready') {
+    const toolCall = { type: 'tool_call', toolCallId: data.toolCallId, toolName: data.toolName, input: data.input, status: 'pending' } // 完整参数到达后创建公开工具调用
+    return { name: 'tool-call', data: { messageId, toolCall } } // 工具事件和其他流事件共享消息身份
+  }
+  return null                                             // 起始和参数碎片事件当前不需要对外发送
+}
+
 
 // --- 创建 LLM 消息 ---
 export function createLLMMessages(messages) {

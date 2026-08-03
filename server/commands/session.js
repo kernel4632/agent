@@ -69,15 +69,14 @@ async function loadSavedSession(id) {
 async function create(workspaceId, provider, model) {
   const workspace = Workspace.getMutable(workspaceId)  // 会话摘要必须归入现有工作区
   if (!workspace) throw businessError(404, 'workspace not found') // 不创建游离会话
-  if (typeof model !== 'string' || !model.trim()) throw businessError(400, 'model must not be empty') // 模型为空无法请求 LLM
 
   const now = Date.now()                                // 摘要时间使用统一基准
   const session = withRuntime({                         // 创建严格符合 store 的完整会话
     id: `session-${nanoid(10)}`,                        // 生成会话唯一身份
     status: 'idle',                                     // 新会话默认空闲
     messages: [],                                       // 新会话没有历史消息
-    provider: typeof provider === 'string' ? provider : '', // 原样保存调用方选择的供应商
-    model: model.trim(),                                // 保存当前模型名称
+    provider,                                            // 原样保存调用方选择的供应商
+    model,                                               // 保存当前模型名称
   })
   workspace.sessions.push({ id: session.id, title: '新对话', lastActiveAt: now }) // 工作区只保存会话摘要
   store.sessions.push(session)                          // 完整会话进入内存列表
@@ -94,14 +93,10 @@ async function update(id, title, provider, model) {
 
   if (title !== undefined) {
     if (!summary) throw businessError(404, 'session workspace not found') // 标题没有摘要时无法确定写入位置
-    if (typeof title !== 'string' || !title.trim()) throw businessError(400, 'title must not be empty') // 空标题不能用于会话列表
-    summary.title = title.trim()                         // 更新工作区中的会话标题
+    summary.title = title                                // 更新工作区中的会话标题
   }
   if (provider !== undefined) session.provider = provider // 原样更新会话供应商字段
-  if (model !== undefined) {
-    if (typeof model !== 'string' || !model.trim()) throw businessError(400, 'model must not be empty') // 空模型无法执行
-    session.model = model.trim()                         // 更新会话模型
-  }
+  if (model !== undefined) session.model = model         // 更新会话模型
   if (summary) summary.lastActiveAt = Date.now()        // 摘要存在时刷新列表时间
   await Promise.all([save(id), Workspace.save()])       // 两类数据一起持久化
   return publicValue(session)                           // 返回修改后的完整会话

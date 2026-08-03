@@ -245,19 +245,16 @@ describe('minimal agent backend', () => {
     const saved = JSON.parse(await readFile(join(dataDirectory, 'config.json'), 'utf8')) // 读取真实配置文件
     expect(saved).toEqual(config)                       // 磁盘结构与 store.config 完全相同
 
-    const invalid = await jsonRequest('/config', 'PATCH', { tools: {} }) // 尝试破坏工具列表形状
-    expect(invalid.status).toBe(400)                    // 无效工具配置在 HTTP 边界拒绝
-    expect(await (await request('/config')).json()).toEqual(config) // 失败更新不污染配置
+    const unrelated = await jsonRequest('/config', 'PATCH', { tools: {} }) // 额外领域不参与供应商配置
+    expect(unrelated.status).toBe(200)                  // command 默认信任输入并只读取所需字段
+    expect(await (await request('/config')).json()).toEqual(config) // 无关字段不进入配置
   })
 
-  it('validates missing resources and invalid request data', async () => {
+  it('reports missing routes and business resources', async () => {
     expect((await request('/missing-route')).status).toBe(404) // 未注册路由返回明确资源错误
     expect((await request('/session?id=missing')).status).toBe(404) // 未知会话不能读取
     expect((await request('/session/events?id=missing')).status).toBe(404) // 未知会话不能订阅
-    expect((await jsonRequest('/workspace', 'POST', { path: '' })).status).toBe(400) // 空工作区路径被拒绝
-    expect((await jsonRequest('/workspace', 'POST', { path: join(dataDirectory, 'missing') })).status).toBe(400) // 不存在目录被拒绝
     expect((await jsonRequest('/session', 'POST', { workspaceId: 'missing', model: 'unit-model' })).status).toBe(404) // 未知工作区不能创建会话
-    expect((await jsonRequest('/session', 'POST', { workspaceId: 'missing', model: '' })).status).toBe(404) // 资源验证保持稳定优先级
     expect((await jsonRequest('/session/send', 'POST', { id: 'missing', content: 'hello' })).status).toBe(404) // 未知会话不能发送
     expect((await jsonRequest('/session/stop', 'POST', { id: 'missing' })).status).toBe(404) // 未知会话不能停止
   })
@@ -322,7 +319,7 @@ describe('minimal agent backend', () => {
     }
   })
 
-  it('rejects duplicate tool names during startup scanning', async () => {
+  it('uses one stable definition for duplicate tool names', async () => {
     const duplicateRoot = await mkdtemp(join(dataDirectory, 'duplicate-tools-')) // 创建重复工具隔离目录
     const toolsDirectory = join(duplicateRoot, 'tools')  // 创建本次启动专属工具目录
     await mkdir(toolsDirectory, { recursive: true })     // 确保扫描目录存在
@@ -331,10 +328,15 @@ describe('minimal agent backend', () => {
       Bun.write(join(toolsDirectory, 'first.js'), source), // 写入第一个同名工具
       Bun.write(join(toolsDirectory, 'second.js'), source), // 写入第二个同名工具
     ])
-    await expect(createApp({ dataDirectory: duplicateRoot, toolsDirectory })).rejects.toThrow('duplicate tool name: duplicate') // 重名阻止应用启动
-    const restored = await createApp({ dataDirectory }) // 失败扫描已替换私有索引，必须恢复正式工具
-    app = restored.app                                   // 后续测试继续使用恢复入口
-    closeApp = restored.close                            // afterAll 关闭恢复应用
+    const duplicate = await createApp({ dataDirectory: duplicateRoot, toolsDirectory }) // 默认信任工具模块并完成启动
+    try {
+      expect(store.tools).toEqual([{ name: 'duplicate', description: 'duplicate', inputSchema: { type: 'object' } }]) // 同名定义只占一个注册位置
+    } finally {
+      await duplicate.close()                            // 关闭重复工具应用
+      const restored = await createApp({ dataDirectory }) // 恢复正式工具目录和主测试数据
+      app = restored.app                                 // 后续测试继续使用恢复入口
+      closeApp = restored.close                          // afterAll 关闭恢复应用
+    }
   })
 
   it('manages workspace and session persistence through the minimal API', async () => {
@@ -361,13 +363,10 @@ describe('minimal agent backend', () => {
     expect(savedSession).toEqual(session)               // 会话文件不持久化四个运行字段
   })
 
-  it('rejects invalid workspace and session mutations', async () => {
+  it('protects workspace and session ownership conflicts', async () => {
     const duplicate = await jsonRequest('/workspace', 'POST', { path: dataDirectory }) // 尝试重复添加同一路径
     expect(duplicate.status).toBe(409)                  // 路径大小写归一后保持唯一
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建独立验证会话
-    expect((await jsonRequest('/session', 'PATCH', { id: session.id, title: '   ' })).status).toBe(400) // 空标题被拒绝
-    expect((await jsonRequest('/session', 'PATCH', { id: session.id, model: '' })).status).toBe(400) // 空模型被拒绝
-    expect((await jsonRequest('/session/send', 'POST', { id: session.id, content: '   ' })).status).toBe(400) // 空消息被拒绝
     expect((await request(`/workspace?id=${workspaceId}`, { method: 'DELETE' })).status).toBe(409) // 有会话的工作区不能被删除
     expect((await (await request(`/session?id=${session.id}`, { method: 'DELETE' })).json()).id).toBe(session.id) // 清理验证会话
   })
