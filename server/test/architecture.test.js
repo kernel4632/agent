@@ -164,6 +164,17 @@ describe('minimal agent backend', () => {
     for (const tool of store.config.tools) expect(Object.keys(tool).sort()).toEqual(['description', 'inputSchema', 'name']) // 每项只保存 LLM 工具信息
   })
 
+  it('flushes an SSE connection before the first business event', async () => {
+    const directory = await mkdtemp(join(dataDirectory, 'sse-workspace-')) // 使用独立目录避免占用后续主工作区
+    const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 创建独立 SSE 测试工作区
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建独立 SSE 会话
+    const response = await request(`/session/events?id=${session.id}`) // 建立尚未执行任务的 SSE 连接
+    const reader = response.body.getReader()             // 读取首次网络数据
+    const first = new TextDecoder().decode((await reader.read()).value) // 首帧必须立即可读
+    expect(first).toBe(': connected\n\n')               // 注释帧只刷新连接，不伪造业务状态
+    await reader.cancel()                                 // 释放 SSE 客户端
+  })
+
   it('exposes minimal health and persists raw config', async () => {
     expect(await (await request('/health')).json()).toEqual({ status: 'ok' }) // 健康接口不增加版本或引擎字段
     const patched = await jsonRequest('/config', 'PATCH', {
@@ -200,7 +211,8 @@ describe('minimal agent backend', () => {
     const renamed = await jsonRequest('/session', 'PATCH', { id: session.id, title: '测试会话' }) // 只修改摘要标题
     expect(renamed.status).toBe(200)                    // 标题修改成功
     const workspaces = await (await request('/workspace')).json() // 重新读取工作区摘要
-    expect(workspaces[0].sessions[0]).toMatchObject({ id: session.id, title: '测试会话', lastActiveAt: expect.any(Number) }) // 摘要包含严格三个字段
+    const summary = workspaces.find((item) => item.id === workspaceId).sessions.find((item) => item.id === session.id) // 按身份定位目标摘要
+    expect(summary).toMatchObject({ id: session.id, title: '测试会话', lastActiveAt: expect.any(Number) }) // 摘要包含严格三个字段
 
     const detail = await (await request(`/session?id=${session.id}`)).json() // 按 query id 读取会话
     expect(detail).toEqual(session)                     // 修改标题不向完整 session 添加 title
@@ -249,6 +261,16 @@ describe('minimal agent backend', () => {
     ])
     expect(Date.now() - startedAt).toBeLessThan(350)    // 并行约 200ms，串行约 400ms
     expect(result.results.map((item) => item.output)).toEqual(['SLOW_OK', 'SLOW_OK']) // 结果保持调用顺序
+  })
+
+  it('marks a non-zero shell exit as an error result', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建 Shell 工具上下文
+    const command = process.platform === 'win32' ? 'exit 7' : 'exit 7' // 两个平台都使用非零退出命令
+    const result = await Tool.runAll(session.id, [
+      { type: 'tool_call', toolCallId: 'shell-error', toolName: 'shell', input: { command }, status: 'pending' }, // 执行必定失败的命令
+    ])
+    expect(result.results[0].isError).toBe(true)         // 非零退出码不能伪装成成功工具结果
+    expect(result.results[0].output).toContain('exitCode') // 错误仍保留输出和退出码供模型修正
   })
 
   it('keeps retrying recoverable errors until stop aborts the wait', async () => {

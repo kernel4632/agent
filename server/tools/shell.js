@@ -32,6 +32,7 @@ export const shellTool = {
         child.exited,                                    // 等待真实退出码
       ])
       context.abortSignal?.throwIfAborted()             // 被停止的命令不能伪装成正常完成
+      if (exitCode !== 0) throw new Error(JSON.stringify({ stdout, stderr, exitCode })) // 非零退出码必须成为 isError 工具结果
       return { output: { stdout, stderr, exitCode } }    // 返回结构化命令结果
     } finally {
       context.removeProcess(child)                      // 无论成功失败都移除进程引用

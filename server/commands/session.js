@@ -123,6 +123,7 @@ async function listen(id) {
     start(controller) {
       client = controller                                // 记录本连接的写入控制器
       session.clients.add(client)                        // 新客户端加入会话集合
+      client.enqueue(encoder.encode(': connected\n\n')) // 立即刷新真实网络响应，前端随后才能发送消息
     },
     cancel() {
       session.clients.delete(client)                     // 浏览器断开后释放控制器引用

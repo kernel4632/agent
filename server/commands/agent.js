@@ -94,6 +94,9 @@ async function requestTurn(session, reminder, abortSignal) {
   const provider = store.config.provider                  // 每轮读取最新 API 配置
   if (!provider?.api || !provider?.key) throw businessError(400, 'provider api and key must be configured') // 缺少认证不能请求
   if (!session.model) throw businessError(400, 'session model must be configured') // 会话必须明确模型
+  const timeoutMs = Number(process.env.AGENT_REQUEST_TIMEOUT_MS ?? 120000) // 单次请求默认最多等待两分钟
+  const timeoutSignal = AbortSignal.timeout(timeoutMs)    // 超时让挂起请求进入无限重试
+  const requestSignal = AbortSignal.any([abortSignal, timeoutSignal]) // 用户停止和单次超时任一都中断请求
 
   const client = createOpenAICompatible({                 // 根据最小 provider 配置创建模型客户端
     name: session.provider || 'agent',                     // provider 字段作为客户端名称
@@ -107,7 +110,7 @@ async function requestTurn(session, reminder, abortSignal) {
     messages,                                             // 发送完整会话上下文
     tools: Tool.forModel(),                               // 工具信息只来自 store.config.tools
     maxRetries: 0,                                        // 关闭 SDK 次数预算，统一交给无限 retry
-    abortSignal,                                          // 用户停止可中断网络和流读取
+    abortSignal: requestSignal,                           // 用户停止或单次超时可中断网络和流读取
     onError: () => {},                                    // 流错误由下方 fullStream 和 retry 统一处理，不重复打印
   })
 
@@ -134,8 +137,10 @@ async function requestTurn(session, reminder, abortSignal) {
     }
     if (part.type === 'tool-error') throw part.error       // 工具参数解析失败按模型错误处理
     if (part.type === 'error') throw normalizeError(part.error) // 流内错误交给重试判断
-    abortSignal.throwIfAborted()                           // 每个流片段后检查用户停止
+    if (part.type === 'abort') throwRequestAbort(abortSignal, timeoutSignal, timeoutMs) // 流中断必须区分停止和超时
+    requestSignal.throwIfAborted()                         // 每个流片段后检查停止或超时
   }
+  if (requestSignal.aborted) throwRequestAbort(abortSignal, timeoutSignal, timeoutMs) // 无 abort 事件的供应商也不能吞掉超时
 
   const toolCalls = message.content.filter((block) => block.type === 'tool_call') // 收集本轮工具调用供并行执行
   return { message, toolCalls }                           // 返回完整助手消息和工具调用
@@ -198,6 +203,14 @@ function stringifyOutput(output) {
 // --- 统一流错误 ---
 function normalizeError(error) {
   return error instanceof Error ? error : new Error(String(error)) // retry 只接收稳定 Error 对象
+}
+
+
+// --- 区分用户停止和请求超时 ---
+function throwRequestAbort(abortSignal, timeoutSignal, timeoutMs) {
+  if (abortSignal.aborted) throw abortSignal.reason ?? new DOMException('operation aborted', 'AbortError') // 用户停止保持 AbortError
+  if (timeoutSignal.aborted) throw Object.assign(new Error(`model request timed out after ${timeoutMs}ms`), { status: 408 }) // 超时作为可重试错误
+  throw new DOMException('model request aborted', 'AbortError') // 其他中断不自动重试
 }
 
 
