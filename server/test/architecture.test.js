@@ -4,9 +4,10 @@
 调用方式：bun test test/architecture.test.js。
 */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test' // 引入 Bun 测试生命周期和断言
-import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises' // 引入隔离目录、结构检查和清理能力
+import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises' // 引入隔离目录、结构检查和清理能力
 import { tmpdir } from 'node:os'                         // 引入系统临时目录
 import { join } from 'node:path'                        // 引入跨平台路径拼接
+import { Session } from '../commands/session.js'        // 引入会话运行时身份和删除动作供回归验证
 import { Tool } from '../commands/tool.js'              // 引入并行工具指令供独立验证
 import { createApp } from '../server.js'                // 引入完整单文件路由应用
 import { store } from '../store.js'                     // 引入严格 store 结构供契约断言
@@ -17,6 +18,7 @@ let closeApp                                             // 保存应用关闭�
 let dataDirectory                                       // 保存测试专属 .agent 目录
 let modelServer                                         // 保存本机 OpenAI-compatible 服务
 const modelRequests = []                                // 保存模型收到的真实请求体
+let retryOnceFailures = 0                               // 记录一次失败后恢复场景是否已经失败
 
 
 // --- 启动隔离后端和模型服务 ---
@@ -29,11 +31,27 @@ beforeAll(async () => {
         await Bun.sleep(200)                             // 固定延迟用于验证两个工具并行
         return new Response('SLOW_OK')                   // 返回 Web 工具可读取文本
       }
+      if (url.pathname === '/web-ok') return new Response('WEB_OK') // 返回 Web 工具成功文本
+      if (url.pathname === '/web-error') return new Response('WEB_ERROR', { status: 503 }) // 返回 Web 工具错误状态
 
       const body = await request.json()                  // 读取真实 OpenAI-compatible 请求
       modelRequests.push(body)                           // 保存工具定义和消息供断言
       const prompt = JSON.stringify(body.messages)      // 简单识别测试消息，不参与生产代码
       if (prompt.includes('RETRY_FOREVER')) return Response.json({ error: { message: 'temporary outage' } }, { status: 500 }) // 持续可重试错误
+      if (prompt.includes('RETRY_ONCE') && retryOnceFailures++ === 0) return Response.json({ error: { message: 'temporary once' } }, { status: 500 }) // 首次失败验证自动恢复
+      if (prompt.includes('INVALID_REQUEST')) return Response.json({ error: { message: 'invalid request' } }, { status: 400 }) // 不可重试错误验证终态
+      if (prompt.includes('SLOW_MODEL')) {
+        await Bun.sleep(200)                             // 超过测试请求预算以触发超时重试
+        return textStream('TOO_LATE')                    // 请求通常已由 Agent 中断
+      }
+      if (prompt.includes('SHELL_STOP')) return namedToolCallStream('call_sleep', 'shell', { command: process.platform === 'win32' ? 'Start-Sleep -Seconds 10' : 'sleep 10' }) // 启动可验证停止的长进程
+      if (prompt.includes('REASONING_STREAM')) return reasoningStream() // 同轮返回思考和正文
+      if (prompt.includes('TOOL_CHAIN')) {
+        const hasToolResult = body.messages.some((message) => message.role === 'tool') // 工具结果出现后进入完成轮
+        return hasToolResult
+          ? toolCallStream()                             // 第二轮调用 finish 结束
+          : namedToolCallStream('call_write', 'write_file', { path: 'chain.txt', content: 'CHAIN_OK' }) // 第一轮写入真实文件
+      }
       if (prompt.includes('FINISH_TOOL')) return toolCallStream() // 返回 finish 工具调用
 
       const completedRounds = body.messages.filter((message) => message.role === 'assistant').length // 根据上下文确定当前纯文本轮次
@@ -69,19 +87,37 @@ function textStream(text) {
 
 // --- 创建工具调用模型流 ---
 function toolCallStream() {
+  return namedToolCallStream('call_finish', 'finish', { summary: 'DONE' }) // 使用通用工具流返回完成调用
+}
+
+
+// --- 创建指定工具调用模型流 ---
+function namedToolCallStream(id, name, input) {
   const toolCall = {
     role: 'assistant',                                  // 首个增量声明助手角色
     tool_calls: [{
       index: 0,                                         // 当前响应中的第一个工具调用
-      id: 'call_finish',                                // 工具结果匹配使用的稳定 ID
+      id,                                               // 工具结果匹配使用的稳定 ID
       type: 'function',                                 // OpenAI-compatible 函数工具类型
-      function: { name: 'finish', arguments: '{"summary":"DONE"}' }, // 请求 Agent 完成工具
+      function: { name, arguments: JSON.stringify(input) }, // 请求 Agent 执行指定工具
     }],
   }
   const frames = [
     completionFrame(toolCall, null),                    // 输出完整工具调用增量
     completionFrame({}, 'tool_calls'),                  // 以工具调用原因结束模型轮次
     'data: [DONE]\n\n',                               // 关闭流
+  ]
+  return new Response(frames.join(''), { headers: { 'content-type': 'text/event-stream' } }) // 交给 AI SDK 真实解析
+}
+
+
+// --- 创建思考和正文模型流 ---
+function reasoningStream() {
+  const frames = [
+    completionFrame({ role: 'assistant', reasoning_content: 'THINKING' }, null), // 先输出思考增量
+    completionFrame({ content: 'ANSWER' }, null),       // 再输出可见正文
+    completionFrame({}, 'stop'),                        // 正常结束本轮
+    'data: [DONE]\n\n',                                // 关闭 OpenAI-compatible 流
   ]
   return new Response(frames.join(''), { headers: { 'content-type': 'text/event-stream' } }) // 交给 AI SDK 真实解析
 }
@@ -156,12 +192,12 @@ describe('minimal agent backend', () => {
   let workspaceId                                      // 保存工作区供会话测试复用
 
   it('uses the exact minimal store shape and tool list', () => {
-    expect(Object.keys(store).sort()).toEqual(['config', 'sessions', 'workspaces']) // store 根节点不能出现额外领域
-    expect(Object.keys(store.config).sort()).toEqual(['provider', 'tools']) // config 只包含 provider 和 tools
+    expect(Object.keys(store).sort()).toEqual(['config', 'sessions', 'tools', 'workspaces']) // tools 与 config 并列且根节点没有额外领域
+    expect(Object.keys(store.config)).toEqual(['provider']) // config 只包含持久化供应商
     expect(Object.keys(store.config.provider).sort()).toEqual(['api', 'key', 'models']) // provider 结构严格匹配设计
-    expect(Array.isArray(store.config.tools)).toBe(true) // 工具定义必须是列表
-    expect(store.config.tools.length).toBeGreaterThan(0) // 默认内置工具必须可发送给模型
-    for (const tool of store.config.tools) expect(Object.keys(tool).sort()).toEqual(['description', 'inputSchema', 'name']) // 每项只保存 LLM 工具信息
+    expect(Array.isArray(store.tools)).toBe(true)        // 启动扫描结果必须是列表
+    expect(store.tools.length).toBeGreaterThan(0)        // 内置工具必须在启动时被发现
+    for (const tool of store.tools) expect(Object.keys(tool).sort()).toEqual(['description', 'inputSchema', 'name']) // 每项只保存 LLM 工具信息
   })
 
   it('flushes an SSE connection before the first business event', async () => {
@@ -187,13 +223,99 @@ describe('minimal agent backend', () => {
     expect(patched.status).toBe(200)                    // 配置更新成功
     const config = await patched.json()                 // 读取完整更新结果
     expect(config.provider.key).toBe('unit-secret')     // API Key 不脱敏
-    expect(config.tools).toEqual(store.config.tools)    // 未修改工具列表保持完整
+    expect(config.tools).toBeUndefined()                // 工具不属于配置响应
     const saved = JSON.parse(await readFile(join(dataDirectory, 'config.json'), 'utf8')) // 读取真实配置文件
     expect(saved).toEqual(config)                       // 磁盘结构与 store.config 完全相同
 
     const invalid = await jsonRequest('/config', 'PATCH', { tools: {} }) // 尝试破坏工具列表形状
     expect(invalid.status).toBe(400)                    // 无效工具配置在 HTTP 边界拒绝
-    expect((await (await request('/config')).json()).tools).toEqual(config.tools) // 失败更新不污染 store
+    expect(await (await request('/config')).json()).toEqual(config) // 失败更新不污染配置
+  })
+
+  it('validates missing resources and invalid request data', async () => {
+    expect((await request('/missing-route')).status).toBe(404) // 未注册路由返回明确资源错误
+    expect((await request('/session?id=missing')).status).toBe(404) // 未知会话不能读取
+    expect((await request('/session/events?id=missing')).status).toBe(404) // 未知会话不能订阅
+    expect((await jsonRequest('/workspace', 'POST', { path: '' })).status).toBe(400) // 空工作区路径被拒绝
+    expect((await jsonRequest('/workspace', 'POST', { path: join(dataDirectory, 'missing') })).status).toBe(400) // 不存在目录被拒绝
+    expect((await jsonRequest('/session', 'POST', { workspaceId: 'missing', model: 'unit-model' })).status).toBe(404) // 未知工作区不能创建会话
+    expect((await jsonRequest('/session', 'POST', { workspaceId: 'missing', model: '' })).status).toBe(404) // 资源验证保持稳定优先级
+    expect((await jsonRequest('/session/send', 'POST', { id: 'missing', content: 'hello' })).status).toBe(404) // 未知会话不能发送
+    expect((await jsonRequest('/session/stop', 'POST', { id: 'missing' })).status).toBe(404) // 未知会话不能停止
+  })
+
+  it('serializes concurrent config updates without losing fields', async () => {
+    const [apiUpdate, keyUpdate, modelsUpdate] = await Promise.all([
+      jsonRequest('/config', 'PATCH', { provider: { api: `http://127.0.0.1:${modelServer.port}/v1` } }), // 并发更新 API
+      jsonRequest('/config', 'PATCH', { provider: { key: 'concurrent-secret' } }), // 并发更新 Key
+      jsonRequest('/config', 'PATCH', { provider: { models: ['unit-model', 'backup-model'] } }), // 并发更新模型列表
+    ])
+    expect([apiUpdate.status, keyUpdate.status, modelsUpdate.status]).toEqual([200, 200, 200]) // 三个修改都被接受
+    const config = await (await request('/config')).json() // 读取全部排队修改后的状态
+    expect(config.provider).toEqual({ api: `http://127.0.0.1:${modelServer.port}/v1`, key: 'concurrent-secret', models: ['unit-model', 'backup-model'] }) // 不丢失任何字段
+    expect(JSON.parse(await readFile(join(dataDirectory, 'config.json'), 'utf8'))).toEqual(config) // 磁盘与内存保持一致
+    await jsonRequest('/config', 'PATCH', { provider: { key: 'unit-secret', models: ['unit-model'] } }) // 恢复后续模型测试配置
+  })
+
+  it('migrates tools out of an old config file on startup', async () => {
+    const migrationRoot = await mkdtemp(join(dataDirectory, 'config-migration-')) // 创建旧配置隔离目录
+    const oldConfig = {
+      provider: { api: 'https://example.invalid/v1', key: 'old-key', models: ['old-model'] }, // 保留供应商配置
+      tools: [{ name: 'old-tool', description: 'obsolete', inputSchema: { type: 'object' } }], // 模拟旧版持久化工具
+    }
+    await Bun.write(join(migrationRoot, 'config.json'), `${JSON.stringify(oldConfig)}\n`) // 写入真实旧格式文件
+    const migrated = await createApp({ dataDirectory: migrationRoot }) // 启动流程执行自动迁移
+    try {
+      const config = await migrated.app.handle(new Request('http://localhost/config')).then((response) => response.json()) // 读取迁移后配置
+      expect(config).toEqual({ provider: oldConfig.provider }) // 供应商数据完整保留
+      expect(JSON.parse(await readFile(join(migrationRoot, 'config.json'), 'utf8'))).toEqual(config) // 磁盘删除旧 tools 字段
+      expect(store.tools.some((tool) => tool.name === 'read_file')).toBe(true) // 工具仍来自正式目录扫描
+    } finally {
+      await migrated.close()                             // 关闭迁移应用
+      const restored = await createApp({ dataDirectory }) // 恢复主测试应用的全局 store
+      app = restored.app                                 // 后续测试继续使用主数据目录
+      closeApp = restored.close                          // afterAll 关闭恢复后的应用
+    }
+  })
+
+  it('discovers tools from a supplied startup directory', async () => {
+    const dynamicRoot = await mkdtemp(join(dataDirectory, 'dynamic-tools-')) // 创建动态工具应用数据目录
+    const toolsDirectory = join(dynamicRoot, 'tools')    // 创建本次启动专属工具目录
+    await mkdir(toolsDirectory, { recursive: true })     // 确保扫描目录存在
+    await Bun.write(join(toolsDirectory, 'custom.js'), [
+      'export const customTool = {',                     // 定义最小合法动态工具
+      "  name: 'custom_echo',",
+      "  description: 'Echo dynamic input.',",
+      "  inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },",
+      '  async execute({ text }) { return { output: text } },',
+      '}',
+      '',
+    ].join('\n'))
+    const dynamic = await createApp({ dataDirectory: dynamicRoot, toolsDirectory }) // 启动时只扫描临时工具
+    try {
+      expect(store.tools).toEqual([{ name: 'custom_echo', description: 'Echo dynamic input.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false } }]) // store 反映动态目录
+      expect(Tool.list()).toEqual(store.tools)           // 指令公开列表与 store 一致
+    } finally {
+      await dynamic.close()                              // 关闭动态工具应用
+      const restored = await createApp({ dataDirectory }) // 恢复正式工具目录和主测试数据
+      app = restored.app                                 // 后续测试继续使用恢复入口
+      closeApp = restored.close                          // afterAll 关闭恢复应用
+    }
+  })
+
+  it('rejects duplicate tool names during startup scanning', async () => {
+    const duplicateRoot = await mkdtemp(join(dataDirectory, 'duplicate-tools-')) // 创建重复工具隔离目录
+    const toolsDirectory = join(duplicateRoot, 'tools')  // 创建本次启动专属工具目录
+    await mkdir(toolsDirectory, { recursive: true })     // 确保扫描目录存在
+    const source = "export const tool = { name: 'duplicate', description: 'duplicate', inputSchema: { type: 'object' }, async execute() { return { output: 'ok' } } }\n" // 两个文件导出同名合法工具
+    await Promise.all([
+      Bun.write(join(toolsDirectory, 'first.js'), source), // 写入第一个同名工具
+      Bun.write(join(toolsDirectory, 'second.js'), source), // 写入第二个同名工具
+    ])
+    await expect(createApp({ dataDirectory: duplicateRoot, toolsDirectory })).rejects.toThrow('duplicate tool name: duplicate') // 重名阻止应用启动
+    const restored = await createApp({ dataDirectory }) // 失败扫描已替换私有索引，必须恢复正式工具
+    app = restored.app                                   // 后续测试继续使用恢复入口
+    closeApp = restored.close                            // afterAll 关闭恢复应用
   })
 
   it('manages workspace and session persistence through the minimal API', async () => {
@@ -220,7 +342,37 @@ describe('minimal agent backend', () => {
     expect(savedSession).toEqual(session)               // 会话文件不持久化四个运行字段
   })
 
-  it('streams three text-only rounds and sends config.tools to the LLM', async () => {
+  it('rejects invalid workspace and session mutations', async () => {
+    const duplicate = await jsonRequest('/workspace', 'POST', { path: dataDirectory }) // 尝试重复添加同一路径
+    expect(duplicate.status).toBe(409)                  // 路径大小写归一后保持唯一
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建独立验证会话
+    expect((await jsonRequest('/session', 'PATCH', { id: session.id, title: '   ' })).status).toBe(400) // 空标题被拒绝
+    expect((await jsonRequest('/session', 'PATCH', { id: session.id, model: '' })).status).toBe(400) // 空模型被拒绝
+    expect((await jsonRequest('/session/send', 'POST', { id: session.id, content: '   ' })).status).toBe(400) // 空消息被拒绝
+    expect((await request(`/workspace?id=${workspaceId}`, { method: 'DELETE' })).status).toBe(409) // 有会话的工作区不能被删除
+    expect((await (await request(`/session?id=${session.id}`, { method: 'DELETE' })).json()).id).toBe(session.id) // 清理验证会话
+  })
+
+  it('shares one runtime object across concurrent cold session loads', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建可从磁盘重新加载的会话
+    store.sessions = store.sessions.filter((item) => item.id !== session.id) // 模拟进程尚未加载该会话
+    const loaded = await Promise.all(Array.from({ length: 8 }, () => Session.getMutable(session.id))) // 同时触发多个首次读取
+    expect(loaded.every((item) => item === loaded[0])).toBe(true) // 所有调用方必须共享 Set 和控制器所在对象
+    expect(store.sessions.filter((item) => item.id === session.id)).toHaveLength(1) // store 中不能产生重复会话
+  })
+
+  it('rejects tools when a session has lost its workspace', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建正常归属的会话
+    const workspace = store.workspaces.find((item) => item.id === workspaceId) // 定位真实工作区摘要
+    workspace.sessions = workspace.sessions.filter((summary) => summary.id !== session.id) // 模拟损坏数据中的孤立会话
+    const outcome = await Tool.runAll(session.id, [
+      { type: 'tool_call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' }, status: 'pending' }, // 尝试读取相对文件
+    ])
+    expect(outcome.results[0]).toMatchObject({ isError: true, output: 'session workspace not found' }) // 工具不能回退到服务端当前目录
+    await Session.remove(session.id)                    // 清理不再属于工作区的测试会话
+  })
+
+  it('streams three text-only rounds and sends store.tools to the LLM', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建独立执行会话
     const subscription = await subscribe(session.id)    // 发送前先建立 SSE 防止丢失实时事件
     const requestStart = modelRequests.length           // 记录本测试新增的模型请求边界
@@ -231,7 +383,7 @@ describe('minimal agent backend', () => {
     const requests = modelRequests.slice(requestStart)  // 读取本会话三轮模型请求
     expect(requests).toHaveLength(3)                    // 第三次纯文本后才退出
     const sentTools = requests[0].tools.map((tool) => ({ name: tool.function.name, description: tool.function.description, inputSchema: tool.function.parameters })) // 读取协议实际发送的全部工具信息
-    expect(sentTools).toEqual(store.config.tools)       // 名称、描述和输入 schema 逐项来自 config.tools
+    expect(sentTools).toEqual(store.tools)              // 名称、描述和输入 schema 逐项来自启动扫描结果
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取执行后的会话
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant', 'assistant']) // 保留三轮普通回复
     expect(detail.messages.at(-1).content).toEqual([{ type: 'text', text: { text: 'ROUND_3' } }]) // 内容结构严格匹配 store
@@ -252,6 +404,59 @@ describe('minimal agent backend', () => {
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 10000)
 
+  it('streams reasoning and visible text in their store order', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建思考流会话
+    const subscription = await subscribe(session.id)    // 监听思考、正文和终态
+    await jsonRequest('/session/send', 'POST', { id: session.id, content: 'REASONING_STREAM' }) // 请求模型返回思考内容
+    await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 等待三轮文本规则结束
+    expect(subscription.events.some((event) => event.name === 'thinking-delta' && event.data.thinking === 'THINKING')).toBe(true) // SSE 实时反馈思考
+    expect(subscription.events.some((event) => event.name === 'text-delta' && event.data.text === 'ANSWER')).toBe(true) // SSE 实时反馈正文
+    const detail = await (await request(`/session?id=${session.id}`)).json() // 读取持久化输出顺序
+    expect(detail.messages[1].content).toEqual([
+      { type: 'thinking', thinking: { thinking: 'THINKING' } }, // 思考块保持模型原始顺序
+      { type: 'text', text: { text: 'ANSWER' } },        // 正文块紧随其后
+    ])
+    await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 10000)
+
+  it('continues after a tool result and lets finish end the chain', async () => {
+    const directory = await mkdtemp(join(dataDirectory, 'tool-chain-')) // 创建独立真实工具工作区
+    const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 登记工具工作区
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建工具续轮会话
+    const subscription = await subscribe(session.id)    // 监听两个工具轮次
+    await jsonRequest('/session/send', 'POST', { id: session.id, content: 'TOOL_CHAIN' }) // 首轮写文件，次轮 finish
+    await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 等待 finish 结束
+    expect(await readFile(join(directory, 'chain.txt'), 'utf8')).toBe('CHAIN_OK') // write_file 真实修改工作区
+    const detail = await (await request(`/session?id=${session.id}`)).json() // 读取完整工具上下文
+    expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'tool']) // 工具结果确实发送到下一轮
+    expect(detail.messages[2].content[0].output).toContain('chain.txt') // 第一轮保存写入反馈
+    expect(detail.messages[4].content[0].output).toBe('DONE') // 第二轮 finish 保存摘要
+    await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 10000)
+
+  it('recovers after one retryable provider failure', async () => {
+    retryOnceFailures = 0                               // 每次测试重新允许一次临时失败
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建重试恢复会话
+    const subscription = await subscribe(session.id)    // 监听重试错误和最终状态
+    await jsonRequest('/session/send', 'POST', { id: session.id, content: 'RETRY_ONCE' }) // 首次请求返回 500
+    const retryEvent = await readUntil(subscription, (event) => event.name === 'error' && event.data.attempt === 1) // 等待退避反馈
+    expect(retryEvent.data.nextRetryIn).toBeGreaterThanOrEqual(1000) // 使用正式退避预算
+    await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 后续请求恢复并完成
+    expect((await (await request(`/session?id=${session.id}`)).json()).messages.length).toBe(4) // 恢复后仍遵循三轮文本规则
+    await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 15000)
+
+  it('marks a non-retryable provider error as final', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建最终错误会话
+    const subscription = await subscribe(session.id)    // 监听错误终态
+    const requestStart = modelRequests.length           // 记录本测试请求边界
+    await jsonRequest('/session/send', 'POST', { id: session.id, content: 'INVALID_REQUEST' }) // 触发供应商 400
+    await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'error') // 不可重试错误进入 error
+    expect(modelRequests.slice(requestStart)).toHaveLength(1) // 400 只请求一次
+    expect((await (await request(`/session?id=${session.id}`)).json()).status).toBe('error') // 错误状态持久化
+    await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 10000)
+
   it('runs every tool call in the same turn concurrently', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建工具运行上下文
     const startedAt = Date.now()                        // 记录两个固定延迟请求的总耗时
@@ -261,6 +466,59 @@ describe('minimal agent backend', () => {
     ])
     expect(Date.now() - startedAt).toBeLessThan(350)    // 并行约 200ms，串行约 400ms
     expect(result.results.map((item) => item.output)).toEqual(['SLOW_OK', 'SLOW_OK']) // 结果保持调用顺序
+  })
+
+  it('executes every built-in tool through the command boundary', async () => {
+    const directory = await mkdtemp(join(dataDirectory, 'all-tools-')) // 创建隔离工具工作区
+    await mkdir(join(directory, 'nested'), { recursive: true }) // 创建搜索所需子目录
+    const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 登记真实工具目录
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建工具上下文
+
+    const overwrite = await Tool.runAll(session.id, [
+      { type: 'tool_call', toolCallId: 'write-overwrite', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'A' }, status: 'pending' }, // 覆盖创建文件
+    ])
+    const append = await Tool.runAll(session.id, [
+      { type: 'tool_call', toolCallId: 'write-append', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'B', mode: 'append' }, status: 'pending' }, // 追加文件
+    ])
+    const reads = await Tool.runAll(session.id, [
+      { type: 'tool_call', toolCallId: 'read', toolName: 'read_file', input: { path: 'nested/note.txt' }, status: 'pending' }, // 读取完整文本
+      { type: 'tool_call', toolCallId: 'list', toolName: 'list_files', input: { path: 'nested' }, status: 'pending' }, // 列出当前目录
+      { type: 'tool_call', toolCallId: 'search', toolName: 'search_files', input: { path: '.', keyword: 'note' }, status: 'pending' }, // 递归搜索文件名
+      { type: 'tool_call', toolCallId: 'web-ok', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-ok` }, status: 'pending' }, // 获取成功网页
+      { type: 'tool_call', toolCallId: 'web-error', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-error` }, status: 'pending' }, // 获取错误网页
+      { type: 'tool_call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' }, status: 'pending' }, // 明确结束任务
+      { type: 'tool_call', toolCallId: 'missing', toolName: 'missing_tool', input: {}, status: 'pending' }, // 未配置工具返回错误
+    ])
+    const shell = await Tool.runAll(session.id, [
+      { type: 'tool_call', toolCallId: 'shell-ok', toolName: 'shell', input: { command: process.platform === 'win32' ? "[Console]::Write('SHELL_OK')" : "printf 'SHELL_OK'", cwd: 'nested' }, status: 'pending' }, // 在相对工作目录执行成功命令
+    ])
+
+    expect(overwrite.results[0].isError).toBe(false)    // 覆盖写入成功
+    expect(append.results[0].isError).toBe(false)       // 追加写入成功
+    expect(reads.results[0].output).toBe('AB')          // 读取返回覆盖和追加后的完整内容
+    expect(reads.results[1].output).toContain('file: note.txt') // 目录列出真实文件
+    expect(reads.results[2].output).toContain(join('nested', 'note.txt')) // 搜索返回真实路径
+    expect(reads.results[3].output).toBe('WEB_OK')      // Web 成功内容返回模型
+    expect(reads.results[4]).toMatchObject({ isError: true, output: 'web request failed with status 503' }) // Web 非成功状态变成错误结果
+    expect(reads.results[5]).toMatchObject({ isError: false, output: 'TOOLS_DONE' }) // finish 返回摘要
+    expect(reads.shouldStop).toBe(true)                 // finish 控制 Agent 退出
+    expect(reads.results[6]).toMatchObject({ isError: true, output: 'tool not found: missing_tool' }) // 未声明工具不执行
+    expect(shell.results[0].output).toMatchObject({ stdout: 'SHELL_OK', exitCode: 0 }) // Shell 使用工作区相对 cwd
+  }, 10000)
+
+  it('broadcasts one event to every SSE client and cleans disconnects', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建多客户端会话
+    const first = await subscribe(session.id)           // 建立第一个 SSE 客户端
+    const second = await subscribe(session.id)          // 建立第二个 SSE 客户端
+    Session.emit(session.id, 'status', { status: 'manual-check' }) // 直接通过正式反馈指令广播
+    const [firstEvent, secondEvent] = await Promise.all([
+      readUntil(first, (event) => event.name === 'status'), // 第一个客户端读取同一事件
+      readUntil(second, (event) => event.name === 'status'), // 第二个客户端读取同一事件
+    ])
+    expect(firstEvent.data).toEqual({ status: 'manual-check' }) // 第一个客户端数据完整
+    expect(secondEvent.data).toEqual({ status: 'manual-check' }) // 第二个客户端数据完整
+    await Promise.all([unsubscribe(first), unsubscribe(second)]) // 同时断开两个客户端
+    expect((await Session.getMutable(session.id)).clients.size).toBe(0) // cancel 清理全部控制器引用
   })
 
   it('marks a non-zero shell exit as an error result', async () => {
@@ -278,11 +536,61 @@ describe('minimal agent backend', () => {
     const subscription = await subscribe(session.id)    // 建立错误和状态事件监听
     await jsonRequest('/session/send', 'POST', { id: session.id, content: 'RETRY_FOREVER' }) // 触发持续 500 错误
     await readUntil(subscription, (event) => event.name === 'error') // 确认已经进入重试退避
+    const controller = (await Session.getMutable(session.id)).abortController // 读取本轮标准停止控制器
+    expect(Object.hasOwn(controller, 'finished')).toBe(false) // 后台完成时刻不能污染 AbortController
     const stopped = await jsonRequest('/session/stop', 'POST', { id: session.id }) // 在退避期间停止
     expect(await stopped.json()).toEqual({ status: 'idle' }) // stop 立即恢复空闲
     await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // SSE 同步反馈停止
     expect((await (await request(`/session?id=${session.id}`)).json()).status).toBe('idle') // 会话最终持久化为空闲
     await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 10000)
+
+  it('times out a hanging model request and remains stoppable', async () => {
+    const previousTimeout = process.env.AGENT_REQUEST_TIMEOUT_MS // 保存外部测试环境原值
+    process.env.AGENT_REQUEST_TIMEOUT_MS = '30'          // 使用短预算触发至少一次真实超时
+    try {
+      const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建超时会话
+      const subscription = await subscribe(session.id)  // 监听超时重试
+      await jsonRequest('/session/send', 'POST', { id: session.id, content: 'SLOW_MODEL' }) // 模型响应超过单次预算
+      const timeoutEvent = await readUntil(subscription, (event) => event.name === 'error' && event.data.message.includes('timed out')) // 等待超时反馈
+      expect(timeoutEvent.data.attempt).toBe(1)          // 首次超时进入第一轮退避
+      expect(await (await jsonRequest('/session/stop', 'POST', { id: session.id })).json()).toEqual({ status: 'idle' }) // 退避期间可立即停止
+      await unsubscribe(subscription)                   // 释放 SSE 客户端
+    } finally {
+      if (previousTimeout === undefined) delete process.env.AGENT_REQUEST_TIMEOUT_MS // 恢复未设置状态
+      else process.env.AGENT_REQUEST_TIMEOUT_MS = previousTimeout // 恢复调用方原值
+    }
+  }, 10000)
+
+  it('kills a running shell process when the Agent stops', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建长 Shell 会话
+    const subscription = await subscribe(session.id)    // 监听工具调用和停止终态
+    await jsonRequest('/session/send', 'POST', { id: session.id, content: 'SHELL_STOP' }) // 让模型启动十秒子进程
+    await readUntil(subscription, (event) => event.name === 'tool-call' && event.data.toolCall.toolName === 'shell') // 确认模型已经声明 Shell
+    const mutable = await Session.getMutable(session.id) // 读取真实工具进程集合
+    const deadline = Date.now() + 3000                   // 等待工具进程实际加入 store
+    while (mutable.processes.size === 0 && Date.now() < deadline) await Bun.sleep(10) // 模型消息保存后工具才启动
+    expect(mutable.processes.size).toBe(1)              // 长 Shell 已由会话追踪
+    const stoppedAt = Date.now()                         // 记录停止耗时
+    expect(await (await jsonRequest('/session/stop', 'POST', { id: session.id })).json()).toEqual({ status: 'idle' }) // 中断模型和进程
+    expect(Date.now() - stoppedAt).toBeLessThan(3000)   // 不等待原始十秒命令自然结束
+    expect(mutable.processes.size).toBe(0)              // 子进程引用已清空
+    await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 10000)
+
+  it('falls back to the default model timeout for invalid environment values', async () => {
+    const previousTimeout = process.env.AGENT_REQUEST_TIMEOUT_MS // 保存外部测试环境原值
+    process.env.AGENT_REQUEST_TIMEOUT_MS = 'invalid'     // 模拟错误环境配置
+    try {
+      const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建正常完成会话
+      const subscription = await subscribe(session.id)  // 监听 finish 终态
+      await jsonRequest('/session/send', 'POST', { id: session.id, content: 'FINISH_TOOL' }) // 非法环境值不能阻止请求
+      await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 正常完成证明使用默认预算
+      await unsubscribe(subscription)                   // 释放 SSE 客户端
+    } finally {
+      if (previousTimeout === undefined) delete process.env.AGENT_REQUEST_TIMEOUT_MS // 恢复未设置状态
+      else process.env.AGENT_REQUEST_TIMEOUT_MS = previousTimeout // 恢复调用方原值
+    }
   }, 10000)
 
   it('does not impose a retry count limit', async () => {
@@ -296,6 +604,32 @@ describe('minimal agent backend', () => {
     expect(attempts).toBe(6)                            // 没有隐藏重试次数上限
   })
 
+  it('does not retry protocol or explicitly final errors', async () => {
+    let protocolAttempts = 0                            // 记录普通代码或协议错误执行次数
+    const protocolFailure = retry(async () => {
+      protocolAttempts += 1                             // 每次进入操作都递增
+      throw new Error('invalid stream protocol')        // 无网络标记的错误必须立即失败
+    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 })
+    await expect(protocolFailure).rejects.toThrow('invalid stream protocol') // 错误原样交给调用方
+    expect(protocolAttempts).toBe(1)                    // 未分类错误不能被无限吞掉
+
+    let finalAttempts = 0                               // 记录供应商明确禁止重试的次数
+    const finalFailure = retry(async () => {
+      finalAttempts += 1                                // 每次进入操作都递增
+      throw Object.assign(new Error('final server response'), { status: 500, isRetryable: false }) // 显式分类优先于状态码
+    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 })
+    await expect(finalFailure).rejects.toThrow('final server response') // 保留供应商最终错误
+    expect(finalAttempts).toBe(1)                       // 显式不可重试错误只执行一次
+
+    let conflictAttempts = 0                            // 记录不在项目恢复范围内的 HTTP 冲突
+    const conflictFailure = retry(async () => {
+      conflictAttempts += 1                             // 每次进入操作都递增
+      throw Object.assign(new Error('request conflict'), { status: 409, isRetryable: true }) // SDK 默认可能认为冲突可重试
+    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 })
+    await expect(conflictFailure).rejects.toThrow('request conflict') // 项目重试规则优先于 SDK 宽松默认值
+    expect(conflictAttempts).toBe(1)                    // HTTP 409 不进入无限重试
+  })
+
   it('rejects sends until an error session is explicitly stopped', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建状态控制会话
     const mutable = store.sessions.find((item) => item.id === session.id) // 测试直接模拟不可重试错误结束状态
@@ -304,6 +638,25 @@ describe('minimal agent backend', () => {
     expect(rejected.status).toBe(409)                     // 非 idle 会话必须拒绝新 Agent
     expect(await (await jsonRequest('/session/stop', 'POST', { id: session.id })).json()).toEqual({ status: 'idle' }) // 显式停止恢复空闲
   })
+
+  it('serializes session and workspace snapshots under rapid updates', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建并发更新会话
+    const updates = Array.from({ length: 20 }, (_, index) => jsonRequest('/session', 'PATCH', {
+      id: session.id,                                    // 所有请求修改同一完整会话
+      title: `title-${index}`,                           // 同时修改工作区摘要
+      provider: `provider-${index}`,                     // 修改会话供应商字段
+      model: `model-${index}`,                           // 修改会话模型字段
+    }))
+    const responses = await Promise.all(updates)         // 并发发出并等待全部业务保存
+    expect(responses.every((response) => response.status === 200)).toBe(true) // 所有更新完成
+    const currentSession = await (await request(`/session?id=${session.id}`)).json() // 读取内存最终状态
+    const currentWorkspace = (await (await request('/workspace')).json()).find((item) => item.id === workspaceId) // 读取摘要最终状态
+    const savedSession = JSON.parse(await readFile(join(dataDirectory, 'sessions', `${session.id}.json`), 'utf8')) // 读取磁盘会话
+    const savedWorkspaces = JSON.parse(await readFile(join(dataDirectory, 'workspace.json'), 'utf8')) // 读取磁盘工作区
+    const savedSummary = savedWorkspaces.find((item) => item.id === workspaceId).sessions.find((item) => item.id === session.id) // 定位磁盘摘要
+    expect(savedSession).toEqual(currentSession)         // 磁盘会话不能回退到旧快照
+    expect(savedSummary).toEqual(currentWorkspace.sessions.find((item) => item.id === session.id)) // 磁盘摘要不能回退到旧快照
+  }, 10000)
 
   it('deletes a running session without recreating its file', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建待删除会话
@@ -324,12 +677,39 @@ describe('minimal agent backend', () => {
     expect((await stat(directory)).isDirectory()).toBe(true) // 工作区删除不碰本地目录
   })
 
+  it('reloads persisted config, workspaces and sessions after restart', async () => {
+    const directory = await mkdtemp(join(dataDirectory, 'restart-workspace-')) // 创建重启验证工作区
+    const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 保存工作区记录
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 保存会话记录
+    const subscription = await subscribe(session.id)    // 建立执行事件监听
+    await jsonRequest('/session/send', 'POST', { id: session.id, content: 'FINISH_TOOL' }) // 写入用户、助手和工具消息
+    await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 等待所有最终保存结束
+    await unsubscribe(subscription)                     // 关闭旧应用 SSE
+    await closeApp()                                     // 模拟应用完整退出
+
+    const restarted = await createApp({ dataDirectory }) // 从同一磁盘目录重新创建应用
+    app = restarted.app                                  // 后续测试使用重启后的 HTTP 入口
+    closeApp = restarted.close                          // afterAll 关闭新应用
+    const config = await (await request('/config')).json() // 读取重启恢复配置
+    const workspaces = await (await request('/workspace')).json() // 读取重启恢复摘要
+    const detail = await (await request(`/session?id=${session.id}`)).json() // 首次按需加载完整会话
+    expect(config.provider.key).toBe('unit-secret')     // 配置原值已恢复
+    expect(workspaces.find((item) => item.id === workspace.id)?.sessions[0].id).toBe(session.id) // 工作区摘要已恢复
+    expect(detail.status).toBe('idle')                  // 已完成会话恢复为空闲
+    expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool']) // 完整上下文已恢复
+    const runtime = await Session.getMutable(session.id) // 读取恢复后的真实运行时字段
+    expect(runtime.processes.size).toBe(0)              // 重启后没有遗留子进程
+    expect(runtime.abortController).toBeNull()          // 重启后没有遗留停止控制器
+    expect(runtime.clients.size).toBe(0)                // 重启后没有遗留 SSE 客户端
+    expect(runtime.textOnlyCount).toBe(0)               // 重启后纯文本计数归零
+  }, 10000)
+
   it('contains only the designed production files', async () => {
     const serverRoot = join(import.meta.dir, '..')      // 定位后端根目录
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
       tools: ['agent.js', 'file.js', 'shell.js', 'web.js'], // 四个平铺工具模块
-      utils: ['retry.js'],                              // 仅保留无限重试工具
+      utils: ['json.js', 'retry.js'],                   // 仅保留原子 JSON 保存和无限重试工具
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))

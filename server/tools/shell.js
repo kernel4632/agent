@@ -9,7 +9,9 @@ import { isAbsolute, resolve } from 'node:path'          // 引入工作目录�
 // --- 执行系统命令 ---
 export const shellTool = {
   name: 'shell',                                        // LLM 调用使用的稳定工具名
-  description: '在指定工作目录执行系统命令并返回标准输出、错误输出和退出码。', // 明确返回完整命令结果
+  description: process.platform === 'win32'
+    ? '在 Windows PowerShell 5.1 中执行命令并返回标准输出、错误输出和退出码。command 会直接传给 powershell -NoProfile -Command，不要再次嵌套 powershell，不要使用 sed、grep 或 &&；多个命令请用分号连接。' // Windows 模型必须使用当前真实 Shell 语法
+    : '在 POSIX sh 中执行命令并返回标准输出、错误输出和退出码。command 会直接传给 sh -lc。', // Unix 模型使用标准 Shell 语法
   inputSchema: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {

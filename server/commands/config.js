@@ -1,28 +1,26 @@
 /*
-配置指令集：加载、读取、合并并保存模型与工具配置。
-store.config.tools 是发送给 LLM 的完整工具信息列表，每项包含 name、description 和 inputSchema。
+配置指令集：加载、读取、合并并保存模型供应商配置。
+工具由 Tool.load 在启动时扫描，既不读取也不写入 config.json。
 调用示例：await Config.load('C:/Users/me/.agent/config.json')、await Config.update({ provider: { key: 'sk-...' } })。
 */
-import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建数据目录的能力
+import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建配置目录的能力
 import { dirname } from 'node:path'                   // 引入配置文件父目录定位能力
 import { store } from '../store.js'                   // 引入唯一配置数据
-import { Tool } from './tool.js'                      // 引入内置工具的 LLM 定义
+import { writeJSON } from '../utils/json.js'          // 引入完整 JSON 文件替换能力
 
 let configPath = ''                                   // 保存当前进程使用的配置文件位置
+let lastConfigUpdate = Promise.resolve()              // 后一个配置修改等待前一个修改完成
 
 
 // --- 加载配置 ---
 async function load(filePath) {
   configPath = filePath                               // 后续保存始终写回同一个文件
+  lastConfigUpdate = Promise.resolve()               // 新应用实例不等待旧配置目录的修改
   await mkdir(dirname(configPath), { recursive: true }) // 首次启动时创建 .agent 目录
   const file = Bun.file(configPath)                   // 定位配置文件
   const saved = await file.exists() ? await file.json() : {} // 文件不存在时使用空配置
-
-  const candidate = mergeConfig({                     // 只补齐最小配置结构
-    provider: { api: '', key: '', models: [] },       // 未配置模型时保持空值
-    tools: Tool.list(),                               // 首次运行默认注册全部内置工具信息
-  }, saved)
-  validate(candidate)                                 // 损坏配置不能进入 store 或无限模型重试
+  const candidate = completeConfig(saved)             // 补齐 provider 并自然忽略旧版工具字段
+  validate(candidate)                                 // 损坏供应商配置不能进入 store 或无限模型重试
   await save(candidate)                               // 首次运行和缺省字段补齐后写回磁盘
   store.config = candidate                            // 写盘成功后提交全局配置
   return get()                                        // 返回独立副本供启动流程使用
@@ -36,9 +34,21 @@ function get() {
 
 
 // --- 更新配置 ---
-async function update(partialConfig = {}) {
-  const candidate = mergeConfig(store.config, partialConfig) // 在独立候选值中递归合并配置
-  validate(candidate)                                 // 无效 provider 或工具列表保持现有配置不变
+function update(partialConfig = {}) {
+  const changes = structuredClone(partialConfig)      // 调用方后续修改请求体不能影响排队内容
+  const currentUpdate = lastConfigUpdate.then(() => applyUpdate(changes)) // 排到前一修改之后再读取最新配置
+  lastConfigUpdate = currentUpdate.catch(() => {})    // 单次失败不能阻塞后续合法修改
+  return currentUpdate                                // 返回当前修改自己的完成结果
+}
+
+
+// --- 提交配置修改 ---
+async function applyUpdate(partialConfig) {
+  validateChanges(partialConfig)                      // 配置边界只接受 provider 修改
+  const candidate = {                                  // 在独立候选值中合并供应商字段
+    provider: { ...store.config.provider, ...structuredClone(partialConfig.provider ?? {}) },
+  }
+  validate(candidate)                                 // 无效 provider 保持现有配置不变
   await save(candidate)                               // 候选配置先持久化
   store.config = candidate                            // 写盘成功后替换全局配置
   return get()                                        // 返回修改后的完整配置
@@ -48,41 +58,34 @@ async function update(partialConfig = {}) {
 // --- 保存配置 ---
 async function save(value = store.config) {
   if (!configPath) throw new Error('configuration has not been loaded') // 未加载时没有合法写入位置
-  await Bun.write(configPath, `${JSON.stringify(value, null, 2)}\n`) // 保存调用方确认的完整配置
+  await writeJSON(configPath, value)                   // 使用完整文件替换保存配置
 }
 
 
 // --- 验证最小配置结构 ---
 function validate(config) {
+  if (!isPlainObject(config) || Object.keys(config).some((key) => key !== 'provider')) throw businessError(400, 'config may only contain provider') // 工具和其他领域不能写入配置
   const provider = config?.provider                   // 读取严格的单个供应商配置
   if (!isPlainObject(provider)) throw businessError(400, 'config.provider must be an object') // provider 不能增加集合层级
   if (typeof provider.api !== 'string' || typeof provider.key !== 'string') throw businessError(400, 'provider api and key must be strings') // 网络参数必须是字符串
   if (!Array.isArray(provider.models) || provider.models.some((model) => typeof model !== 'string')) throw businessError(400, 'provider models must be a string list') // 模型必须是名称列表
-  if (!Array.isArray(config.tools)) throw businessError(400, 'config.tools must be a list') // 工具必须保持设计规定的列表形状
-
-  const names = new Set()                              // 工具名称不能重复覆盖 AI SDK 对象键
-  for (const definition of config.tools) {
-    const isValid = isPlainObject(definition)
-      && typeof definition.name === 'string'
-      && typeof definition.description === 'string'
-      && isPlainObject(definition.inputSchema)
-    if (!isValid) throw businessError(400, 'each tool must contain name, description and inputSchema') // 每项必须是完整 LLM 工具信息
-    if (names.has(definition.name)) throw businessError(400, 'tool names must be unique') // 重名会让发送和执行定义不一致
-    names.add(definition.name)                          // 记录已经出现的工具名称
-  }
 }
 
 
-// --- 合并配置对象 ---
-function mergeConfig(current, changes) {
-  if (!isPlainObject(current) || !isPlainObject(changes)) return structuredClone(changes) // 数组和基础值由新值整体替换
-  const merged = structuredClone(current)               // 候选对象避免修改调用方数据
-  for (const [key, value] of Object.entries(changes)) {
-    merged[key] = isPlainObject(value) && isPlainObject(merged[key])
-      ? mergeConfig(merged[key], value)                  // 嵌套配置继续递归合并
-      : structuredClone(value)                           // 数组和基础值直接使用新值
-  }
-  return merged                                          // 反馈完整候选配置
+// --- 补齐加载配置 ---
+function completeConfig(saved) {
+  if (!isPlainObject(saved)) return saved               // 损坏根数据交给 validate 明确拒绝
+  const defaults = { api: '', key: '', models: [] }    // 未配置供应商时使用最小空值
+  if (saved.provider === undefined) return { provider: defaults } // 首次运行补齐完整 provider
+  if (!isPlainObject(saved.provider)) return { provider: saved.provider } // 损坏 provider 保留给 validate 报错
+  return { provider: { ...defaults, ...structuredClone(saved.provider) } } // 只读取当前配置领域
+}
+
+
+// --- 验证配置修改范围 ---
+function validateChanges(changes) {
+  if (!isPlainObject(changes) || Object.keys(changes).some((key) => key !== 'provider')) throw businessError(400, 'config may only contain provider') // 工具和其他领域不能通过配置修改
+  if (changes.provider !== undefined && !isPlainObject(changes.provider)) throw businessError(400, 'config.provider must be an object') // 部分 provider 也必须是普通对象
 }
 
 

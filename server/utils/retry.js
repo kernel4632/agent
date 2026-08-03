@@ -4,6 +4,12 @@
 调用示例：await retry((signal) => fetch(url, { signal }), onRetry, abortSignal)。
 */
 
+const networkErrorCodes = new Set([                    // 只有明确的网络故障才能在没有 HTTP 状态时重试
+  'ConnectionRefused', 'ConnectionClosed', 'FailedToOpenSocket', // Bun 网络错误代码
+  'ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'ETIMEDOUT', 'EPIPE', // 常见连接错误代码
+  'EAI_AGAIN', 'ENETDOWN', 'ENETUNREACH', 'EHOSTUNREACH', // 常见 DNS 和网络可达性错误代码
+])
+
 // --- 无限重试可恢复操作 ---
 export async function retry(operation, onRetry, abortSignal, options = {}) {
   const baseDelay = options.baseDelay ?? 1000           // 第一次重试默认等待一秒
@@ -31,10 +37,14 @@ export async function retry(operation, onRetry, abortSignal, options = {}) {
 // --- 判断错误是否可恢复 ---
 function isRetryable(error) {
   if (error?.name === 'AbortError') return false        // 主动中断不能重新发起请求
+  if (error?.isRetryable === false) return false        // 供应商明确判定最终错误时禁止任何状态码重试
   const message = String(error?.message ?? error)       // 兼容 AI SDK 包装错误
   const status = Number(error?.statusCode ?? error?.status ?? error?.response?.status ?? message.match(/(?:status|status_code)[=: ]+(\d{3})/i)?.[1]) // 提取常见 HTTP 状态
-  if (!Number.isFinite(status)) return true             // 断网和连接重置通常没有状态码
-  return status === 408 || status === 429 || status >= 500 // 超时、限流和服务端错误持续重试
+  if (Number.isFinite(status)) return status === 408 || status === 429 || status >= 500 // 超时、限流和服务端错误持续重试
+  if (error?.isRetryable === true) return true          // 无状态网络错误使用 AI SDK 的明确可恢复分类
+
+  const code = error?.code ?? error?.cause?.code         // 未包装网络错误通过稳定错误代码识别
+  return networkErrorCodes.has(code)                     // 协议、解析和代码错误不进入无限循环
 }
 
 

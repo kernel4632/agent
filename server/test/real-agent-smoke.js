@@ -3,7 +3,7 @@
 脚本不修改用户配置，只把当前供应商的 api、key 和 models 写入临时数据目录。
 调用示例：bun run test/real-agent-smoke.js。
 */
-import { mkdir, mkdtemp, readFile, readdir } from 'node:fs/promises' // 引入临时目录和网站文件检查能力
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises' // 引入临时目录、网站检查和成功清理能力
 import { tmpdir } from 'node:os'                         // 引入系统临时目录
 import { basename, extname, join } from 'node:path'     // 引入配置、网站和静态资源路径处理能力
 import { createApp } from '../server.js'                // 引入真实 Agent HTTP 应用
@@ -19,7 +19,9 @@ await mkdir(websiteDirectory, { recursive: true })       // 添加工作区前�
 let app                                                   // 保存真实监听中的 Agent 应用
 let closeApp                                              // 保存 Agent 资源关闭动作
 let websiteServer                                         // 保存网站验证 HTTP 服务
+let requirementsServer                                    // 保存 Web 工具读取的本地需求服务
 let subscriptionReader                                    // 保存 SSE 读取器供最终清理
+let succeeded = false                                     // 成功时删除含临时供应商配置的完整目录
 
 
 // --- 执行真实 Agent 网站任务 ---
@@ -30,6 +32,19 @@ try {
   closeApp = created.close                               // 保存执行结束后的资源清理动作
   app.listen({ hostname: '127.0.0.1', port: 0, idleTimeout: 255 }) // 使用系统分配端口建立真实网络服务
   const apiRoot = `http://127.0.0.1:${app.server.port}`  // 后续操作全部通过 HTTP API
+  requirementsServer = Bun.serve({                       // 提供真实 Web 工具必须读取的项目验收要求
+    port: 0,                                             // 使用系统分配端口避免冲突
+    fetch() {
+      return new Response([
+        'Sprint Console acceptance requirements:',      // 返回清晰可执行的项目需求
+        '- Build a complete responsive page with sprint metrics and at least six task cards.',
+        '- Each task card must use class="task-card" and carry a data-status value.',
+        '- Provide visible buttons with data-filter values that change which task cards are shown.',
+        '- Keep all implementation in index.html, styles.css and script.js.',
+      ].join('\n'))
+    },
+  })
+  const requirementsURL = `http://127.0.0.1:${requirementsServer.port}/requirements` // 构造 Web 工具读取地址
 
   await api(apiRoot, '/config', 'PATCH', {               // 把真实供应商写入临时配置
     provider: { api: selected.api, key: selected.key, models: selected.models },
@@ -42,8 +57,11 @@ try {
   const task = [
     '在当前工作区创建一个完整、可直接运行的静态网站。',
     '主题：软件团队的 Sprint 控制台。页面必须包含项目标题、当前冲刺指标、任务看板和一个可交互的筛选按钮。',
+    `第一步必须调用 web 工具读取项目验收要求：${requirementsURL}`,
     '必须使用 write_file 工具创建且只创建 index.html、styles.css、script.js 三个文件。',
-    'index.html 必须正确引用 styles.css 和 script.js；不得只回复代码或方案。',
+    'index.html 必须正确引用 styles.css 和 script.js；不得只回复代码或方案。页面至少包含六个带 data-status 的任务卡。',
+    '创建后必须调用 list_files、search_files，并分别调用 read_file 检查三个文件。',
+    '随后必须调用 shell 检查工作区恰好包含三个目标文件，且 script.js 不是空文件。',
     '完成并检查文件后调用 finish 工具。',
   ].join('\n')
   const sent = await api(apiRoot, '/session/send', 'POST', { id: session.id, content: task }) // 通过正式 API 启动 Agent
@@ -53,9 +71,21 @@ try {
   const files = (await readdir(websiteDirectory)).sort() // 检查 Agent 实际写入的工作区
   const expectedFiles = ['index.html', 'script.js', 'styles.css'] // 任务明确要求的最小网站文件
   if (JSON.stringify(files) !== JSON.stringify(expectedFiles)) throw new Error(`unexpected website files: ${files.join(', ')}`) // 多文件或缺文件都说明任务未按要求完成
-  const [html, css, script] = await Promise.all(expectedFiles.map((name) => readFile(join(websiteDirectory, name), 'utf8'))) // 读取真实产物
+  const [html, script, css] = await Promise.all(expectedFiles.map((name) => readFile(join(websiteDirectory, name), 'utf8'))) // 按排序后的文件名读取真实产物
   if (!/<html[\s>]/i.test(html) || !html.includes('styles.css') || !html.includes('script.js')) throw new Error('index.html is not a complete linked page') // 验证页面和资源引用
+  if ((html.match(/data-status=/g) ?? []).length < 6) throw new Error('generated page does not contain six task cards') // 验收真实任务卡数量
   if (css.trim().length < 100 || script.trim().length < 50) throw new Error('generated CSS or JavaScript is unexpectedly small') // 排除空壳网站
+
+  const detail = await api(apiRoot, `/session?id=${encodeURIComponent(session.id)}`) // 从正式 API 读取持久化工具时间线
+  const blocks = detail.messages.flatMap((message) => message.content ?? []) // 收集完整消息内容块
+  const toolCalls = blocks.filter((block) => block.type === 'tool_call') // 收集模型真实工具调用
+  const toolResults = blocks.filter((block) => block.type === 'tool_result') // 收集后端真实工具结果
+  const toolNames = toolCalls.map((block) => block.toolName) // 收集模型真实调用名称
+  const requiredTools = ['web', 'write_file', 'list_files', 'search_files', 'read_file', 'shell', 'finish'] // 完整项目必须覆盖的工具链
+  const missingTools = requiredTools.filter((name) => !toolNames.includes(name)) // 找出模型跳过的后端功能
+  if (missingTools.length > 0) throw new Error(`Agent skipped required tools: ${missingTools.join(', ')}`) // 工具链不完整视为 smoke 失败
+  const failedTools = requiredTools.filter((name) => !toolCalls.some((call) => call.toolName === name && toolResults.some((result) => result.toolCallId === call.toolCallId && !result.isError))) // 每类工具至少成功一次
+  if (failedTools.length > 0) throw new Error(`Agent never completed required tools: ${failedTools.join(', ')}`) // 只有失败调用不能算功能通过
 
   websiteServer = Bun.serve({                           // 使用真实 HTTP 服务加载生成网站
     port: 0,                                             // 使用系统分配端口避免冲突
@@ -76,17 +106,22 @@ try {
   const pageText = await pageResponse.text()             // 读取 HTTP 返回页面而不是磁盘原文
   if (!pageText.includes('styles.css') || !pageText.includes('script.js')) throw new Error('HTTP page lost required asset links') // 验证服务返回正确主页
 
+  const browserResult = await inspectWebsite(websiteRoot) // 由独立 Node 进程执行真实 Chromium 验收
+
+  succeeded = true                                       // 所有 Agent、HTTP 和浏览器验收已经通过
   console.log(JSON.stringify({                           // 只输出非敏感测试结果
     ok: true,
     provider: selected.name,
     model: selected.model,
     apiStatus: outcome.status,
     eventCounts: countEvents(subscription.events),
+    toolCalls: Object.fromEntries([...new Set(toolNames)].map((name) => [name, toolNames.filter((item) => item === name).length])), // 输出不敏感的工具覆盖统计
     websiteFiles: files,
-    websiteBytes: { html: html.length, css: css.length, script: script.length },
+    websiteBytes: { html: Buffer.byteLength(html), css: Buffer.byteLength(css), script: Buffer.byteLength(script) }, // 输出真实 UTF-8 字节数
+    browser: browserResult,                              // 输出真实页面交互结果
     pageStatus: pageResponse.status,
     assetStatuses: [cssResponse.status, scriptResponse.status],
-    temporaryRoot,
+    temporaryArtifacts: process.env.KEEP_REAL_AGENT_ARTIFACTS === '1' ? temporaryRoot : 'removed after success', // 默认不保留密钥副本
   }, null, 2))
 } catch (error) {
   if (app?.server) {
@@ -99,8 +134,10 @@ try {
 } finally {
   await subscriptionReader?.cancel().catch(() => {})    // 关闭 SSE 客户端
   websiteServer?.stop(true)                             // 关闭生成网站 HTTP 服务
+  requirementsServer?.stop(true)                        // 关闭本地需求服务
   await closeApp?.().catch(() => {})                    // 停止 Agent 后台任务和连接
   app?.stop()                                            // 停止 Agent HTTP 监听
+  if (succeeded && process.env.KEEP_REAL_AGENT_ARTIFACTS !== '1') await rm(temporaryRoot, { recursive: true, force: true }).catch(() => {}) // 失败现场保留，成功数据默认清理
 }
 
 
@@ -108,7 +145,7 @@ try {
 async function readCurrentProvider(path) {
   const config = await Bun.file(path).json()             // Bun 直接按 UTF-8 读取现有 JSON
   if (config.provider?.api && config.provider?.key) {
-    const model = config.provider.models?.[0]            // 新最小格式使用首个可用模型
+    const model = process.env.REAL_AGENT_MODEL ?? config.provider.models?.[0] // 新最小格式也允许显式选择模型
     if (!model) throw new Error('existing provider has no model') // 没有模型无法测试
     return { name: 'provider', model, api: config.provider.api, key: config.provider.key, models: config.provider.models } // 返回最小格式
   }
@@ -198,4 +235,17 @@ function contentType(name) {
   if (extension === '.html') return 'text/html; charset=utf-8' // HTML 页面类型
   if (extension === '.css') return 'text/css; charset=utf-8' // CSS 资源类型
   return 'text/javascript; charset=utf-8'               // 剩余唯一文件是 JavaScript
+}
+
+
+// --- 使用真实浏览器验收网站 ---
+async function inspectWebsite(root) {
+  const child = Bun.spawn(['node', join(import.meta.dir, 'browser-smoke.cjs'), root], { stdout: 'pipe', stderr: 'pipe' }) // Node 独立运行 Playwright
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),                   // 读取结构化成功结果
+    new Response(child.stderr).text(),                   // 读取浏览器失败诊断
+    child.exited,                                        // 等待真实退出码
+  ])
+  if (exitCode !== 0) throw new Error(`browser smoke failed: ${stderr.trim() || stdout.trim()}`) // 浏览器错误中断真实项目验收
+  return JSON.parse(stdout)                              // 返回任务卡和筛选交互统计
 }

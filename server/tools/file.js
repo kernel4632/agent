@@ -1,6 +1,6 @@
 /*
 文件工具集：读取、写入、列出和搜索本地文件。
-工具元数据会进入 store.config.tools，执行函数只由 commands/tool.js 调用。
+工具元数据会在启动扫描后进入 store.tools，执行函数只由 commands/tool.js 调用。
 调用示例：await readFileTool.execute({ path: 'README.md' }, context)。
 */
 import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises' // 引入真实文件读写能力

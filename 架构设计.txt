@@ -43,10 +43,10 @@ store
             api
             key
             models
-        tools
-            name
-            description
-            inputSchema
+    tools
+        name
+        description
+        inputSchema
     workspaces
         id
         path
@@ -76,6 +76,7 @@ store
 
 持久化
     config → .agent/config.json
+    tools → 每次启动扫描 server/tools/*.js，不持久化
     workspaces → .agent/workspace.json
     session 的 id、status、messages、provider、model → .agent/sessions/{id}.json
     processes、abortController、clients、textOnlyCount 只在内存中使用
@@ -83,6 +84,7 @@ store
 
 server.js
     启动时
+        Tool.load() 扫描 server/tools/*.js 到 store.tools
         Config.load() 读取 config.json
         Workspace.load() 读取 workspace.json
         直接注册全部 Elysia 路由
@@ -106,7 +108,7 @@ server.js
     PATCH /session
         返回 Session.update(body.id, body.title, body.provider, body.model)
     DELETE /session?id={sessionId}
-        返回 Session.remove(query.id)
+        返回 Session.remove(query.id, Agent.stop)
     GET /session/events?id={sessionId}
         返回 Session.listen(query.id) 的 SSE Stream
     POST /session/send
@@ -126,6 +128,14 @@ commands/config.js
         返回完整配置
 
 
+commands/tool.js
+    Tool.load(directory)
+        每次启动扫描 directory/*.js
+        校验工具名称唯一且定义完整
+        将 name、description、inputSchema 写入 store.tools
+        执行函数只保留在 Tool 私有索引
+
+
 commands/workspace.js
     Workspace.load()
         读取 workspace.json 到 store.workspaces
@@ -135,7 +145,8 @@ commands/workspace.js
         创建 { id, path, sessions: [] }
         加入 store.workspaces 并保存
     Workspace.remove(id)
-        从 store.workspaces 移除记录并保存
+        工作区仍有会话时拒绝移除
+        空工作区从 store.workspaces 移除记录并保存
         不删除本地目录和会话文件
 
 
@@ -152,12 +163,13 @@ commands/session.js
         title 修改工作区中的会话摘要
         provider 和 model 修改完整 session
         更新摘要 lastActiveAt 并保存
-    Session.remove(id)
-        运行中先调用 Agent.stop(id)
+    Session.remove(id, Agent.stop)
+        运行中先通过入口传入的 Agent.stop(id) 停止
         删除 session 文件和 store.sessions 中的会话
         删除工作区中的会话摘要
     Session.save(id)
         只保存 session 的持久化字段
+        先写同目录临时文件，再原子替换正式 JSON
     Session.listen(id)
         建立 SSE Stream
         连接加入 session.clients
@@ -203,9 +215,9 @@ commands/agent.js
 commands/tool.js
     Tool.runAll(id, toolCalls)
         同一轮所有工具完全并行执行
-        根据 toolName 从 config.tools 列表读取发送给 LLM 的工具信息
+        根据 toolName 从 store.tools 列表读取发送给 LLM 的工具信息
         根据 toolName 调用 tools/ 中对应的本地实现
-        未在 config.tools 列表中的工具拒绝执行
+        未在 store.tools 列表中的工具拒绝执行
         每个工具生成 tool_result
         结果保持 toolCalls 原顺序
     Tool.run(id, toolCall)

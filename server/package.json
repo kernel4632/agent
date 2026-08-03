@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
-    "test": "bun test test/architecture.test.js --timeout 30000"
+    "test": "bun test test/architecture.test.js --timeout 30000",
+    "test:real": "bun run test/real-agent-smoke.js"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "latest",

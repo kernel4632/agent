@@ -9,6 +9,7 @@ import { Elysia } from 'elysia'                        // 引入单文件 HTTP �
 import { Agent } from './commands/agent.js'            // 引入发送和停止指令
 import { Config } from './commands/config.js'          // 引入配置加载与修改指令
 import { Session } from './commands/session.js'        // 引入会话和 SSE 指令
+import { Tool } from './commands/tool.js'              // 引入启动工具扫描指令
 import { Workspace } from './commands/workspace.js'    // 引入工作区指令
 import { store } from './store.js'                     // 引入退出清理所需的会话列表
 
@@ -17,7 +18,8 @@ import { store } from './store.js'                     // 引入退出清理所�
 export async function createApp(options = {}) {
   const dataDirectory = resolve(options.dataDirectory ?? process.env.AGENT_DATA_DIR ?? join(process.env.USERPROFILE ?? '.', '.agent')) // 确定唯一数据目录
   await mkdir(join(dataDirectory, 'sessions'), { recursive: true }) // 启动前确保会话目录存在
-  await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 先加载模型和工具配置
+  await Tool.load(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 每次启动重新扫描工具模块
+  await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 再加载模型供应商配置
   await Workspace.load(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 再加载工作区摘要
   await Session.load(join(dataDirectory, 'sessions'))   // 最后准备会话按需加载目录
 
@@ -31,7 +33,7 @@ export async function createApp(options = {}) {
     .get('/session', ({ query }) => Session.get(query.id)) // 返回会话持久化数据
     .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model)) // 创建完整会话和摘要
     .patch('/session', ({ body }) => Session.update(body?.id, body?.title, body?.provider, body?.model)) // 修改标题、供应商或模型
-    .delete('/session', ({ query }) => Session.remove(query.id)) // 停止并删除会话
+    .delete('/session', ({ query }) => Session.remove(query.id, Agent.stop)) // 运行中先停止，再删除会话
     .get('/session/events', ({ query }) => Session.listen(query.id)) // 建立会话 SSE 连接
     .post('/session/send', ({ body }) => Agent.send(body?.id, body?.content)) // 保存用户消息并后台启动 Agent
     .post('/session/stop', ({ body }) => Agent.stop(body?.id)) // 停止模型和全部工具进程
@@ -42,7 +44,7 @@ export async function createApp(options = {}) {
 
   async function close() {
     for (const session of [...store.sessions]) {
-      if (session.status === 'running') await Agent.stop(session.id).catch(() => {}) // 关闭应用前停止后台执行
+      if (session.status === 'running' || session.abortController) await Agent.stop(session.id).catch(() => {}) // 关闭前等待模型、工具和最终保存
       Session.closeClients(session)                   // 关闭该会话全部 SSE 连接
     }
   }
