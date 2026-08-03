@@ -19,6 +19,7 @@ let dataDirectory                                       // 保存测试专属 .a
 let modelServer                                         // 保存本机 OpenAI-compatible 服务
 const modelRequests = []                                // 保存模型收到的真实请求体
 let retryOnceFailures = 0                               // 记录一次失败后恢复场景是否已经失败
+let interruptedStreams = 0                              // 记录流式响应是否收到真实网络中断
 
 
 // --- 启动隔离后端和模型服务 ---
@@ -44,6 +45,7 @@ beforeAll(async () => {
         await Bun.sleep(200)                             // 超过测试请求预算以触发超时重试
         return textStream('TOO_LATE')                    // 请求通常已由 Agent 中断
       }
+      if (prompt.includes('STREAM_STOP')) return interruptedTextStream(request) // 输出首段文本后保持流打开，等待用户停止
       if (prompt.includes('SHELL_STOP')) return namedToolCallStream('call_sleep', 'shell', { command: process.platform === 'win32' ? 'Start-Sleep -Seconds 10' : 'sleep 10' }) // 启动可验证停止的长进程
       if (prompt.includes('REASONING_STREAM')) return reasoningStream() // 同轮返回思考和正文
       if (prompt.includes('TOOL_CHAIN')) {
@@ -120,6 +122,22 @@ function reasoningStream() {
     'data: [DONE]\n\n',                                // 关闭 OpenAI-compatible 流
   ]
   return new Response(frames.join(''), { headers: { 'content-type': 'text/event-stream' } }) // 交给 AI SDK 真实解析
+}
+
+
+// --- 创建等待用户停止的模型流 ---
+function interruptedTextStream(request) {
+  const firstFrame = completionFrame({ role: 'assistant', content: 'PARTIAL' }, null) // 先输出可被客户端观察的真实文本
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(firstFrame)) // 首段到达后保持连接打开，不发送结束帧
+      request.signal.addEventListener('abort', () => {
+        interruptedStreams += 1                          // AI SDK 中止底层请求后记录真实网络信号
+        try { controller.close() } catch {}              // 释放本机测试响应流
+      }, { once: true })
+    },
+  })
+  return new Response(stream, { headers: { 'content-type': 'text/event-stream' } }) // 使用正式模型 SSE 协议
 }
 
 
@@ -546,6 +564,35 @@ describe('minimal agent backend', () => {
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 10000)
 
+  it('aborts an active LLM stream and discards its partial assistant message', async () => {
+    const configured = await jsonRequest('/config', 'PATCH', { provider: { api: `http://127.0.0.1:${modelServer.port}/v1`, key: 'unit-secret', models: ['unit-model'] } }) // 独立运行时也配置本机模型
+    expect(configured.status).toBe(200)                  // 模型端点配置成功
+    const directory = await mkdtemp(join(dataDirectory, 'stream-stop-')) // 创建可独立运行的测试工作区
+    const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 登记本测试专属工作区
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建流式中断会话
+    const subscription = await subscribe(session.id)    // 监听首段文本和停止终态
+    const abortCountBefore = interruptedStreams         // 记录本测试开始前的网络中断次数
+    const sent = await jsonRequest('/session/send', 'POST', { id: session.id, content: 'STREAM_STOP' }) // 让模型输出首段后保持连接
+    expect(sent.status).toBe(200)                        // Agent 已经成功进入流式请求
+    const partial = await readUntil(subscription, (event) => event.name === 'text-delta' && event.data.text === 'PARTIAL') // 确认 Agent 正在消费真实流
+    const mutable = await Session.getMutable(session.id) // 读取本轮实际控制器
+    const controller = mutable.abortController           // 保存停止前的控制器引用供事后断言
+    expect(partial.data.messageId).toBeString()          // 首段文本已经获得本轮助手消息身份
+    expect(controller.signal.aborted).toBe(false)        // 停止前请求仍在活跃读取
+
+    const stoppedAt = Date.now()                         // 记录流式中断耗时
+    const stopped = await jsonRequest('/session/stop', 'POST', { id: session.id }) // 通过正式停止接口中断 LLM
+    expect(await stopped.json()).toEqual({ status: 'idle' }) // 停止完成后会话恢复空闲
+    expect(Date.now() - stoppedAt).toBeLessThan(1000)    // 不等待模型流或请求超时自然结束
+    expect(controller.signal.aborted).toBe(true)         // 原始控制器确实收到 abort
+    expect(mutable.abortController).toBeNull()           // Agent finally 已释放会话控制器
+    expect(interruptedStreams).toBe(abortCountBefore + 1) // 中断已经传递到模型服务的 Request.signal
+    const detail = await (await request(`/session?id=${session.id}`)).json() // 读取停止后的持久化会话
+    expect(detail.messages.map((message) => message.role)).toEqual(['user']) // 未完成助手消息不能进入历史
+    expect(detail.messages.some((message) => message.id === partial.data.messageId)).toBe(false) // 流式临时身份没有残留
+    await unsubscribe(subscription)                     // 释放 SSE 客户端
+  }, 10000)
+
   it('times out a hanging model request and remains stoppable', async () => {
     const previousTimeout = process.env.AGENT_REQUEST_TIMEOUT_MS // 保存外部测试环境原值
     process.env.AGENT_REQUEST_TIMEOUT_MS = '30'          // 使用短预算触发至少一次真实超时
@@ -702,7 +749,7 @@ describe('minimal agent backend', () => {
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
       tools: ['agent.js', 'file.js', 'shell.js', 'web.js'], // 四个平铺工具模块
-      utils: ['json.js', 'llm.js', 'retry.js', 'tool.js'], // 保留 LLM、工具、重试和原子 JSON 封装
+      utils: ['json.js', 'llm.js', 'message.js', 'retry.js', 'tool.js'], // 保留消息、LLM、工具、重试和原子 JSON 封装
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))
