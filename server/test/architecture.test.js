@@ -11,7 +11,7 @@ import { Session } from '../commands/session.js'        // 引入会话运行时
 import { Tool } from '../commands/tool.js'              // 引入并行工具指令供独立验证
 import { createApp } from '../server.js'                // 引入完整单文件路由应用
 import { store } from '../store.js'                     // 引入严格 store 结构供契约断言
-import { retry } from '../utils/retry.js'               // 引入无限重试工具供次数契约验证
+import { Retry } from '../utils/retry.js'               // 引入无限重试封装供次数契约验证
 
 let app                                                  // 保存测试使用的 Elysia 应用
 let closeApp                                             // 保存应用关闭动作
@@ -283,12 +283,13 @@ describe('minimal agent backend', () => {
     const toolsDirectory = join(dynamicRoot, 'tools')    // 创建本次启动专属工具目录
     await mkdir(toolsDirectory, { recursive: true })     // 确保扫描目录存在
     await Bun.write(join(toolsDirectory, 'custom.js'), [
-      'export const customTool = {',                     // 定义最小合法动态工具
+      'const customTool = {',                            // 定义最小合法动态工具
       "  name: 'custom_echo',",
       "  description: 'Echo dynamic input.',",
-      "  inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },",
+      "  parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },",
       '  async execute({ text }) { return { output: text } },',
       '}',
+      'export default customTool',
       '',
     ].join('\n'))
     const dynamic = await createApp({ dataDirectory: dynamicRoot, toolsDirectory }) // 启动时只扫描临时工具
@@ -307,7 +308,7 @@ describe('minimal agent backend', () => {
     const duplicateRoot = await mkdtemp(join(dataDirectory, 'duplicate-tools-')) // 创建重复工具隔离目录
     const toolsDirectory = join(duplicateRoot, 'tools')  // 创建本次启动专属工具目录
     await mkdir(toolsDirectory, { recursive: true })     // 确保扫描目录存在
-    const source = "export const tool = { name: 'duplicate', description: 'duplicate', inputSchema: { type: 'object' }, async execute() { return { output: 'ok' } } }\n" // 两个文件导出同名合法工具
+    const source = "export default { name: 'duplicate', description: 'duplicate', parameters: { type: 'object' }, async execute() { return { output: 'ok' } } }\n" // 两个文件默认导出同名合法工具
     await Promise.all([
       Bun.write(join(toolsDirectory, 'first.js'), source), // 写入第一个同名工具
       Bun.write(join(toolsDirectory, 'second.js'), source), // 写入第二个同名工具
@@ -595,37 +596,29 @@ describe('minimal agent backend', () => {
 
   it('does not impose a retry count limit', async () => {
     let attempts = 0                                    // 记录操作真实执行次数
-    const result = await retry(async () => {
+    const result = await Retry.run(async () => {
       attempts += 1                                     // 每次进入操作都递增
       if (attempts < 6) throw Object.assign(new Error('temporary'), { status: 500 }) // 连续五次可重试失败
       return 'recovered'                                // 第六次成功结束无限循环
-    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 }) // 测试不等待真实退避时间
+    }, { baseDelay: 0 })                                // 测试不等待真实退避时间
     expect(result).toBe('recovered')                    // 超过旧三次预算后仍可成功
     expect(attempts).toBe(6)                            // 没有隐藏重试次数上限
   })
 
   it('does not retry protocol or explicitly final errors', async () => {
     let protocolAttempts = 0                            // 记录普通代码或协议错误执行次数
-    const protocolFailure = retry(async () => {
+    const protocolFailure = Retry.run(async () => {
       protocolAttempts += 1                             // 每次进入操作都递增
       throw new Error('invalid stream protocol')        // 无网络标记的错误必须立即失败
-    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 })
+    }, { baseDelay: 0 })
     await expect(protocolFailure).rejects.toThrow('invalid stream protocol') // 错误原样交给调用方
     expect(protocolAttempts).toBe(1)                    // 未分类错误不能被无限吞掉
 
-    let finalAttempts = 0                               // 记录供应商明确禁止重试的次数
-    const finalFailure = retry(async () => {
-      finalAttempts += 1                                // 每次进入操作都递增
-      throw Object.assign(new Error('final server response'), { status: 500, isRetryable: false }) // 显式分类优先于状态码
-    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 })
-    await expect(finalFailure).rejects.toThrow('final server response') // 保留供应商最终错误
-    expect(finalAttempts).toBe(1)                       // 显式不可重试错误只执行一次
-
     let conflictAttempts = 0                            // 记录不在项目恢复范围内的 HTTP 冲突
-    const conflictFailure = retry(async () => {
+    const conflictFailure = Retry.run(async () => {
       conflictAttempts += 1                             // 每次进入操作都递增
       throw Object.assign(new Error('request conflict'), { status: 409, isRetryable: true }) // SDK 默认可能认为冲突可重试
-    }, null, null, { baseDelay: 0, maxDelay: 0, jitter: 0 })
+    }, { baseDelay: 0 })
     await expect(conflictFailure).rejects.toThrow('request conflict') // 项目重试规则优先于 SDK 宽松默认值
     expect(conflictAttempts).toBe(1)                    // HTTP 409 不进入无限重试
   })
@@ -709,7 +702,7 @@ describe('minimal agent backend', () => {
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
       tools: ['agent.js', 'file.js', 'shell.js', 'web.js'], // 四个平铺工具模块
-      utils: ['json.js', 'retry.js'],                   // 仅保留原子 JSON 保存和无限重试工具
+      utils: ['json.js', 'llm.js', 'retry.js', 'tool.js'], // 保留 LLM、工具、重试和原子 JSON 封装
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))

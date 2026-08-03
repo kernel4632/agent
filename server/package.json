@@ -8,8 +8,8 @@
     "test:real": "bun run test/real-agent-smoke.js"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "latest",
-    "ai": "latest",
+    "@ai-sdk/openai-compatible": "^3.0.20",
+    "ai": "^7.0.48",
     "elysia": "latest",
     "nanoid": "latest"
   },

@@ -8,7 +8,7 @@ stop 只反馈给 Agent 循环，不写入 store 的工具结果结构。
 export const finishTool = {
   name: 'finish',                                       // LLM 调用使用的稳定工具名
   description: '当用户任务已经完成时调用，并简要说明完成结果。', // 告诉模型何时结束循环
-  inputSchema: {
+  parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       summary: { type: 'string', description: '任务完成摘要' }, // 最终结果说明
@@ -20,3 +20,5 @@ export const finishTool = {
     return { output: summary, stop: true }              // 返回摘要并通知 Agent 退出
   },
 }
+
+export default finishTool                            // 让 utils/Tool.scan 自动注册完成工具

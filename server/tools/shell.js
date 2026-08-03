@@ -12,7 +12,7 @@ export const shellTool = {
   description: process.platform === 'win32'
     ? '在 Windows PowerShell 5.1 中执行命令并返回标准输出、错误输出和退出码。command 会直接传给 powershell -NoProfile -Command，不要再次嵌套 powershell，不要使用 sed、grep 或 &&；多个命令请用分号连接。' // Windows 模型必须使用当前真实 Shell 语法
     : '在 POSIX sh 中执行命令并返回标准输出、错误输出和退出码。command 会直接传给 sh -lc。', // Unix 模型使用标准 Shell 语法
-  inputSchema: {
+  parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       command: { type: 'string', description: '完整命令' }, // 要交给系统 Shell 的正文
@@ -21,7 +21,7 @@ export const shellTool = {
     required: ['command'],                              // 命令正文必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ command, cwd }, context) {
+  async execute({ command, cwd, __context: context }) {
     context.abortSignal?.throwIfAborted()               // 已停止会话不再启动子进程
     const directory = cwd ? (isAbsolute(cwd) ? cwd : resolve(context.cwd, cwd)) : context.cwd // 相对 cwd 绑定会话工作区
     const shell = process.platform === 'win32' ? ['powershell', '-NoProfile', '-Command'] : ['sh', '-lc'] // 按平台选择 Shell
@@ -41,3 +41,5 @@ export const shellTool = {
     }
   },
 }
+
+export default shellTool                             // 让 utils/Tool.scan 自动注册 Shell 工具

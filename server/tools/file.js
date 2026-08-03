@@ -11,7 +11,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path' // 引入工作�
 export const readFileTool = {
   name: 'read_file',                                    // LLM 调用使用的稳定工具名
   description: '读取指定路径的文本文件内容。',         // 说明该工具用于读取文本
-  inputSchema: {
+  parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       path: { type: 'string', description: '文件路径' }, // 支持绝对路径和工作区相对路径
@@ -19,7 +19,7 @@ export const readFileTool = {
     required: ['path'],                                 // 读取必须明确目标文件
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path }, context) {
+  async execute({ path, __context: context }) {
     context.abortSignal?.throwIfAborted()               // 已停止会话不再读取文件
     const filePath = resolvePath(context.cwd, path)     // 相对路径从会话工作区解析
     return { output: await readFile(filePath, { encoding: 'utf-8', signal: context.abortSignal }) } // 返回完整文本
@@ -31,7 +31,7 @@ export const readFileTool = {
 export const writeFileTool = {
   name: 'write_file',                                   // LLM 调用使用的稳定工具名
   description: '覆盖或追加写入文本文件，不存在时创建父目录。', // 明确该工具会修改磁盘
-  inputSchema: {
+  parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       path: { type: 'string', description: '文件路径' }, // 目标文件位置
@@ -41,7 +41,7 @@ export const writeFileTool = {
     required: ['path', 'content'],                      // 路径和正文都必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, content, mode = 'overwrite' }, context) {
+  async execute({ path, content, mode = 'overwrite', __context: context }) {
     context.abortSignal?.throwIfAborted()               // 已停止会话不再修改文件
     const filePath = resolvePath(context.cwd, path)     // 相对路径从会话工作区解析
     await mkdir(dirname(filePath), { recursive: true }) // 写入前创建父目录
@@ -56,7 +56,7 @@ export const writeFileTool = {
 export const listFilesTool = {
   name: 'list_files',                                   // LLM 调用使用的稳定工具名
   description: '列出目录中的文件和子目录。',           // 说明只列出当前一层
-  inputSchema: {
+  parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       path: { type: 'string', description: '目录路径' }, // 目标目录位置
@@ -64,7 +64,7 @@ export const listFilesTool = {
     required: ['path'],                                 // 必须明确目标目录
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path }, context) {
+  async execute({ path, __context: context }) {
     context.abortSignal?.throwIfAborted()               // 已停止会话不再读取目录
     const directory = resolvePath(context.cwd, path)    // 相对路径从会话工作区解析
     const entries = await readdir(directory, { withFileTypes: true }) // 读取当前目录条目
@@ -78,7 +78,7 @@ export const listFilesTool = {
 export const searchFilesTool = {
   name: 'search_files',                                 // LLM 调用使用的稳定工具名
   description: '递归查找目录中名称包含关键词的文件。', // 搜索只匹配文件名
-  inputSchema: {
+  parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       path: { type: 'string', description: '起始目录' }, // 搜索根目录
@@ -87,7 +87,7 @@ export const searchFilesTool = {
     required: ['path', 'keyword'],                      // 根目录和关键词都必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, keyword }, context) {
+  async execute({ path, keyword, __context: context }) {
     const matches = []                                  // 按发现顺序保存匹配路径
     const directories = [resolvePath(context.cwd, path)] // 从目标目录开始广度遍历
     while (directories.length > 0) {
@@ -109,3 +109,6 @@ export const searchFilesTool = {
 function resolvePath(cwd, path) {
   return isAbsolute(path) ? path : resolve(cwd, path)    // 绝对路径保持原值，相对路径绑定会话工作区
 }
+
+
+export default [readFileTool, writeFileTool, listFilesTool, searchFilesTool] // 让 utils/Tool.scan 自动注册全部文件工具
