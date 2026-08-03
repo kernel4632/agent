@@ -44,6 +44,9 @@ store
             key
             models
         tools
+            name
+            description
+            inputSchema
     workspaces
         id
         path
@@ -199,8 +202,9 @@ commands/agent.js
 commands/tool.js
     Tool.runAll(id, toolCalls)
         同一轮所有工具完全并行执行
-        config.tools[toolName] 为 allow 时执行
-        config.tools[toolName] 为 deny 或未配置时拒绝
+        根据 toolName 从 config.tools 列表读取发送给 LLM 的工具信息
+        根据 toolName 调用 tools/ 中对应的本地实现
+        未在 config.tools 列表中的工具拒绝执行
         每个工具生成 tool_result
         结果保持 toolCalls 原顺序
     Tool.run(id, toolCall)

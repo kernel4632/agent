@@ -8,6 +8,9 @@ store
             key
             models
         tools
+            name
+            description
+            inputSchema
     workspaces
         id
         path

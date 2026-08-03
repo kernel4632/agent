@@ -37,7 +37,7 @@ server.js 中直接注册的路由
   │                  │ 2. 从 store.config.provider 读 api 和 key │
   │                  │ 3. 流式请求 session.model                │
   │                  │ 4. text/thinking/tool_call 写入 content  │
-  │                  │ 5. 同轮 tool_call 全部并行执行            │
+  │                  │ 5. config.tools 中的 tool_call 全部并行执行 │
   │                  │ 6. tool_result 写入新消息                 │
   │                  │ 7. 有工具调用 → textOnlyCount = 0         │
   │                  │ 8. 无工具调用 → textOnlyCount += 1        │

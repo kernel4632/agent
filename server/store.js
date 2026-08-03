@@ -1,45 +1,18 @@
 /*
-服务端唯一运行时状态仓库。
-配置、工具、外部能力和会话都属于同一个进程级状态根，按领域分组避免散落多个入口。
-调用示例：store.config.value、store.tools.items.get('task_done')。
+服务端全局数据中心：只定义配置、工作区和会话三类数据。
+所有读写、持久化和执行逻辑都放在 commands 中，本文件不提供任何方法。
+调用示例：store.config.provider.api、store.workspaces、store.sessions。
 */
 
 export const store = {
   config: {
-    value: null,
-    sourceValue: null,                                  // 保留磁盘中的环境占位符，避免保存时写回真实密钥
-    filePath: '',
-    mcpSourceValue: null,                               // 保留 mcp.json 中的环境占位符
-    mcpFilePath: '',                                    // 独立 MCP 配置文件位置
+    provider: {
+      api: '',                                              // 模型 API 地址
+      key: '',                                              // 模型 API Key
+      models: [],                                           // 当前供应商可用模型
+    },
+    tools: [],                                              // 每轮请求原样转换为 LLM 工具定义的列表
   },
-  workspaces: {
-    items: new Map(),                                  // Workspace ID 到可持久化工作区定义
-    filePath: '',                                      // workspace.json 的真实磁盘位置
-  },
-  tools: {
-    items: new Map(),
-    watcher: null,
-    directories: [],
-  },
-  capabilities: {
-    mcp: new Map(),
-    skills: new Map(),
-    skillErrors: [],
-    workspaceDirectory: '',
-    dataDirectory: '',
-  },
-  sessions: {
-    items: new Map(),
-    writes: new Map(),
-    storage: null,
-  },
-  events: {
-    bySession: new Map(),                              // Session ID 到有序事件历史
-    listeners: new Map(),                              // Session ID 到当前 SSE 订阅者集合
-    nextID: new Map(),                                 // Session ID 到下一个递增事件 ID
-  },
-  runs: {
-    items: new Map(),                                   // Run ID 到执行状态和取消控制器
-    bySession: new Map(),                               // Session ID 到当前内部 Run
-  },
+  workspaces: [],                                           // 工作区及其会话摘要
+  sessions: [],                                             // 已加载的完整会话和运行时状态
 }

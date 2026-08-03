@@ -1,51 +1,66 @@
 /*
-Agent Server 入口：启动运行时资源，并将独立 Elysia 路由插件组合成完整 HTTP 应用。
-业务处理、请求模型、响应转换和资源生命周期均由对应模块负责，入口只表达应用结构。
-调用示例：const { app, close } = await createApp(); app.listen({ hostname: '127.0.0.1', port: 4632 })。
+Agent Server 入口：加载最小持久化数据，并在当前文件直接注册全部 Elysia 路由。
+路由只提取请求参数和调用 commands；业务数据统一保存在 store。
+调用示例：const { app, close } = await createApp({ dataDirectory }); app.listen(4632)。
 */
-import { Elysia } from 'elysia'                        // 引入 Elysia 应用和插件组合能力
-import { configRoutes } from './routes/config.js'      // 引入配置路由插件
-import { sessionRoutes } from './routes/session.js'    // 引入会话路由插件
-import { workspaceRoutes } from './routes/workspace.js' // 引入工作区资源路由插件
-import { healthRoutes } from './routes/health.js'      // 引入独立健康检查入口
-import { Runtime } from './runtime.js'                 // 引入服务端资源生命周期
+import { mkdir } from 'node:fs/promises'               // 引入数据目录创建能力
+import { join, resolve } from 'node:path'               // 引入数据文件路径定位能力
+import { Elysia } from 'elysia'                        // 引入单文件 HTTP 服务能力
+import { Agent } from './commands/agent.js'            // 引入发送和停止指令
+import { Config } from './commands/config.js'          // 引入配置加载与修改指令
+import { Session } from './commands/session.js'        // 引入会话和 SSE 指令
+import { Workspace } from './commands/workspace.js'    // 引入工作区指令
+import { store } from './store.js'                     // 引入退出清理所需的会话列表
 
 
-// --- 创建并初始化 Agent Server ---
+// --- 创建 Agent 应用 ---
 export async function createApp(options = {}) {
-  const runtime = await Runtime.start(options)         // 路由可用前先恢复状态并连接外部能力
-  const app = new Elysia({ name: 'agent.server' })     // 创建可监听或直接 handle 测试的应用
-    .decorate('directories', {                         // 将工具目录注入全部后续路由上下文
-      builtInTools: runtime.directories.builtInToolsDirectory,
-      customTools: runtime.directories.customToolsDirectory,
+  const dataDirectory = resolve(options.dataDirectory ?? process.env.AGENT_DATA_DIR ?? join(process.env.USERPROFILE ?? '.', '.agent')) // 确定唯一数据目录
+  await mkdir(join(dataDirectory, 'sessions'), { recursive: true }) // 启动前确保会话目录存在
+  await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 先加载模型和工具配置
+  await Workspace.load(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 再加载工作区摘要
+  await Session.load(join(dataDirectory, 'sessions'))   // 最后准备会话按需加载目录
+
+  const app = new Elysia({ name: 'agent.server' })
+    .get('/health', () => ({ status: 'ok' }))           // 健康检查直接返回最小状态
+    .get('/config', () => Config.get())                 // 返回完整配置和原始 Key
+    .patch('/config', ({ body }) => Config.update(body)) // 合并并保存配置
+    .get('/workspace', () => Workspace.list())          // 返回工作区与会话摘要
+    .post('/workspace', ({ body }) => Workspace.add(body?.path)) // 添加本地工作区
+    .delete('/workspace', ({ query }) => Workspace.remove(query.id)) // query id 移除工作区记录
+    .get('/session', ({ query }) => Session.get(query.id)) // 返回会话持久化数据
+    .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model)) // 创建完整会话和摘要
+    .patch('/session', ({ body }) => Session.update(body?.id, body?.title, body?.provider, body?.model)) // 修改标题、供应商或模型
+    .delete('/session', ({ query }) => Session.remove(query.id)) // 停止并删除会话
+    .get('/session/events', ({ query }) => Session.listen(query.id)) // 建立会话 SSE 连接
+    .post('/session/send', ({ body }) => Agent.send(body?.id, body?.content)) // 保存用户消息并后台启动 Agent
+    .post('/session/stop', ({ body }) => Agent.stop(body?.id)) // 停止模型和全部工具进程
+    .onError(({ code, error, status }) => {
+      if (code === 'NOT_FOUND') return status(404, { error: 'Not Found' }) // 未知路由明确返回 404
+      return status(error.status ?? 500, { error: error.message }) // 业务错误保留状态，未知错误返回 500
     })
-    .use(healthRoutes)                                  // 组合设计规定的健康检查入口
-    .use(workspaceRoutes)                               // 组合主页工作区资源入口
-    .use(sessionRoutes)                                 // 组合正式会话执行与历史入口
-    .use(configRoutes)                                  // 组合设计规定的配置读写入口
 
-  return { app, close: runtime.close }                 // 宿主统一接收请求入口和资源关闭动作
-}
-
-
-// --- 从首选端口启动本地服务 ---
-export function listenOnAvailablePort(app, preferredPort = 4632) {
-  for (let port = preferredPort; port <= 65535; port += 1) { // 从默认端口开始逐个尝试
-    try {
-      app.listen({ hostname: '127.0.0.1', port, idleTimeout: 255 }) // 长模型轮次允许最多 255 秒无网络数据
-      return port                                       // 反馈宿主实际监听端口
-    } catch (error) {
-      if (error.code !== 'EADDRINUSE') throw error      // 非端口占用错误必须立即暴露
+  async function close() {
+    for (const session of [...store.sessions]) {
+      if (session.status === 'running') await Agent.stop(session.id).catch(() => {}) // 关闭应用前停止后台执行
+      Session.closeClients(session)                   // 关闭该会话全部 SSE 连接
     }
   }
-  throw new Error('no local port is available')        // 全部端口占用时停止启动
+  return { app, close, dataDirectory }                // 测试和宿主共享同一个应用入口
 }
 
 
-// --- 直接运行入口 ---
+// --- 直接启动本地服务 ---
 if (import.meta.main) {
-  const { app } = await createApp()                    // 使用默认用户目录初始化真实服务
-  const preferredPort = Number(process.env.PORT ?? 4632) // 允许宿主覆盖 README 默认端口
-  const port = listenOnAvailablePort(app, preferredPort) // 端口占用时自动递增
-  console.log(`Agent Server listening on http://127.0.0.1:${port}`) // 反馈实际连接地址
+  const { app, close } = await createApp()            // 使用默认 .agent 数据目录创建应用
+  const port = Number(process.env.PORT ?? 4632)       // 默认监听设计指定端口
+  app.listen({ hostname: '127.0.0.1', port, idleTimeout: 255 }) // 只允许本机访问并支持长模型请求
+  console.log(`Agent Server listening on http://127.0.0.1:${port}`) // 反馈实际地址
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.once(signal, async () => {
+      await close()                                    // 退出前停止模型、工具进程和 SSE 客户端
+      app.stop()                                       // 完成业务清理后停止 HTTP 监听
+      process.exit(0)                                  // 明确结束当前服务进程
+    })
+  }
 }
