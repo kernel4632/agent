@@ -214,8 +214,9 @@ describe('minimal agent backend', () => {
 
   it('uses the exact minimal store shape and tool list', () => {
     expect(Object.keys(store).sort()).toEqual(['config', 'sessions', 'tools', 'workspaces']) // tools 与 config 并列且根节点没有额外领域
-    expect(Object.keys(store.config)).toEqual(['provider']) // config 只包含持久化供应商
+    expect(Object.keys(store.config)).toEqual(['provider', 'prompts']) // config 只包含持久化供应商和提示词
     expect(Object.keys(store.config.provider).sort()).toEqual(['api', 'key', 'models']) // provider 结构严格匹配设计
+    expect(Object.keys(store.config.prompts)).toEqual(['system', 'tool']) // prompts 只包含系统提示和工具提醒
     expect(Array.isArray(store.tools)).toBe(true)        // 启动扫描结果必须是列表
     expect(store.tools.length).toBeGreaterThan(0)        // 内置工具必须在启动时被发现
     for (const tool of store.tools) expect(Object.keys(tool).sort()).toEqual(['description', 'inputSchema', 'name']) // 每项只保存 LLM 工具信息
@@ -239,6 +240,10 @@ describe('minimal agent backend', () => {
         api: `http://127.0.0.1:${modelServer.port}/v1`, // 指向本机模型端点
         key: 'unit-secret',                             // 使用可验证原始 Key
         models: ['unit-model'],                         // 声明可选测试模型
+      },
+      prompts: {
+        system: 'UNIT_SYSTEM_PROMPT',                   // 使用可验证系统提示词
+        tool: 'UNIT_TOOL_PROMPT',                       // 使用可验证工具提醒
       },
     })
     expect(patched.status).toBe(200)                    // 配置更新成功
@@ -292,7 +297,13 @@ describe('minimal agent backend', () => {
     const migrated = await createApp({ dataDirectory: migrationRoot }) // 启动流程执行自动迁移
     try {
       const config = await migrated.app.handle(new Request('http://localhost/config')).then((response) => response.json()) // 读取迁移后配置
-      expect(config).toEqual({ provider: oldConfig.provider }) // 供应商数据完整保留
+      expect(config).toEqual({
+        provider: oldConfig.provider,                   // 供应商数据完整保留
+        prompts: {
+          system: '你是一个编程助手。',                 // 旧配置补齐默认系统提示
+          tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 旧配置补齐默认工具提醒
+        },
+      })
       expect(JSON.parse(await readFile(join(migrationRoot, 'config.json'), 'utf8'))).toEqual(config) // 磁盘删除旧 tools 字段
       expect(store.tools.some((tool) => tool.name === 'read_file')).toBe(true) // 工具仍来自正式目录扫描
     } finally {
@@ -374,7 +385,7 @@ describe('minimal agent backend', () => {
     const detail = await (await request(`/session?id=${session.id}`)).json() // 按 query id 读取会话
     expect(detail).toEqual(session)                     // 修改标题不向完整 session 添加 title
     const savedSession = JSON.parse(await readFile(join(dataDirectory, 'sessions', `${session.id}.json`), 'utf8')) // 读取真实会话文件
-    expect(savedSession).toEqual(session)               // 会话文件不持久化三个运行字段
+    expect(savedSession).toEqual(session)               // 会话文件不持久化两个运行字段
   })
 
   it('protects workspace and session ownership conflicts', async () => {
@@ -414,6 +425,9 @@ describe('minimal agent backend', () => {
 
     const requests = modelRequests.slice(requestStart)  // 读取本会话三轮模型请求
     expect(requests).toHaveLength(3)                    // 第三次纯文本后才退出
+    expect(requests.every((body) => body.messages[0].role === 'system' && body.messages[0].content === 'UNIT_SYSTEM_PROMPT')).toBe(true) // 每轮使用配置中的系统提示
+    expect(requests[1].messages.some((message) => JSON.stringify(message).includes('UNIT_TOOL_PROMPT'))).toBe(false) // 第二轮还没有工具提醒
+    expect(requests[2].messages.some((message) => JSON.stringify(message).includes('UNIT_TOOL_PROMPT'))).toBe(true) // 第三轮临时加入配置中的工具提醒
     const sentTools = requests[0].tools.map((tool) => ({ name: tool.function.name, description: tool.function.description, inputSchema: tool.function.parameters })) // 读取协议实际发送的全部工具信息
     expect(sentTools).toEqual(store.tools)              // 名称、描述和输入 schema 逐项来自启动扫描结果
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取执行后的会话
@@ -767,7 +781,6 @@ describe('minimal agent backend', () => {
     const runtime = await Session.getMutable(session.id) // 读取恢复后的真实运行时字段
     expect(runtime.abortController).toBeNull()          // 重启后没有遗留停止控制器
     expect(runtime.clients.size).toBe(0)                // 重启后没有遗留 SSE 客户端
-    expect(runtime.textOnlyCount).toBe(0)               // 重启后纯文本计数归零
   }, 10000)
 
   it('contains only the designed production files', async () => {

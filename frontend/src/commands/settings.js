@@ -43,7 +43,7 @@ async function save() {
     }))
     const permissions = Object.fromEntries(draft.tools.map((tool) => [tool.name, tool.permission])) // 工具选择转换为权限映射
     const mcpServers = Object.fromEntries(draft.mcp.map((server) => [server.name, { ...(server.definition || {}), enabled: server.enabled, command: server.definition?.command || server.command }])) // 保存完整 MCP 定义
-    await AgentAPI.updateConfig({ providers, permissions, mcpServers, systemPrompt: draft.prompt }) // 一次性提交配置业务字段
+    await AgentAPI.updateConfig({ providers, permissions, mcpServers, prompts: { system: draft.prompt } }) // 提交系统提示并保留 Server 工具提醒
     store.config.appearance = clone(draft.appearance)    // 外观设置在当前前端会话即时生效
     await Config.load()                                  // 重新读取脱敏最终配置和运行能力
     store.settings.savedAt = Date.now()                  // 设置页再次进入可展示保存时间

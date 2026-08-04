@@ -45,7 +45,7 @@ function apply(raw) {
     providers,                                            // 替换供应商编辑目录
     tools: toolSettings,                                  // 替换工具权限目录
     mcp,                                                  // 替换 MCP 编辑和状态目录
-    prompt: raw.systemPrompt || '',                       // 适配提示词编辑字段
+    prompt: raw.prompts?.system || '',                    // 读取 Server 系统提示词
     appearance: store.config.appearance,                  // 外观偏好保持前端本地状态
     activeProvider: raw.activeProvider || Object.keys(providers)[0] || '', // 保存当前供应商选择
     activeModel: raw.activeModel || raw.defaultModel || '', // 保存当前模型选择

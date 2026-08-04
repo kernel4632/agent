@@ -22,9 +22,9 @@ const result = await LLM.chat({
   },
   signal: controller.signal,
   onEvent(type, data) {
-    if (type === 'text-delta') console.log(data.delta)
-    if (type === 'reasoning-delta') console.log(data.delta)
-    if (type === 'tool-call') console.log(data.toolName, data.input)
+    if (type === 'text-delta') console.log(data.text)
+    if (type === 'reasoning-delta') console.log(data.text)
+    if (type === 'tool-call') console.log(data.toolCall.toolName, data.toolCall.input)
   },
 })
 
@@ -65,9 +65,9 @@ async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, sign
     })
 
     for await (const part of stream.fullStream) {
-      if (part.type === 'text-delta') onEvent?.('text-delta', { delta: part.text }) // 实时反馈正文增量
-      if (part.type === 'reasoning-delta') onEvent?.('reasoning-delta', { delta: part.text }) // 实时反馈推理增量
-      if (part.type === 'tool-call') onEvent?.('tool-call', { type: 'tool-call', toolCallId: part.toolCallId, toolName: part.toolName, input: part.input }) // 反馈完整 AI SDK ToolCallPart
+      if (part.type === 'text-delta') onEvent?.('text-delta', { text: part.text }) // 正文事件可由调用方直接转发
+      if (part.type === 'reasoning-delta') onEvent?.('reasoning-delta', { text: part.text }) // 推理事件可由调用方直接转发
+      if (part.type === 'tool-call') onEvent?.('tool-call', { toolCall: { type: 'tool-call', toolCallId: part.toolCallId, toolName: part.toolName, input: part.input } }) // 工具事件可由调用方直接转发
       if (part.type === 'tool-error' || part.type === 'error') throw part.error // 模型和工具协议错误结束本轮
       if (part.type === 'abort') throw new DOMException('LLM request aborted', 'AbortError') // SDK 中止事件保持标准语义
     }

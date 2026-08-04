@@ -1,7 +1,7 @@
 /*
-配置指令集：加载、读取、合并并保存模型供应商配置。
+配置指令集：加载、读取、合并并保存模型供应商和提示词配置。
 工具由 Tool.scan 在启动时扫描，既不读取也不写入 config.json。
-调用示例：await Config.load('C:/Users/me/.agent/config.json')、await Config.update({ provider: { key: 'sk-...' } })。
+调用示例：await Config.load('C:/Users/me/.agent/config.json')、await Config.update({ prompts: { system: '你是编程助手' } })。
 */
 import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建配置目录的能力
 import { dirname } from 'node:path'                   // 引入配置文件父目录定位能力
@@ -21,6 +21,11 @@ async function load(filePath) {
   const saved = await file.exists() ? await file.json() : {} // 文件不存在时使用空配置
   const candidate = {
     provider: { api: '', key: '', models: [], ...structuredClone(saved.provider ?? {}) }, // 补齐 provider 并忽略旧版工具字段
+    prompts: {
+      system: '你是一个编程助手。',                     // 没有保存值时使用稳定系统提示
+      tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 没有保存值时使用稳定工具提醒
+      ...structuredClone(saved.prompts ?? {}),
+    },
   }
   await save(candidate)                               // 首次运行和缺省字段补齐后写回磁盘
   store.config = candidate                            // 写盘成功后提交全局配置
@@ -45,8 +50,9 @@ function update(partialConfig = {}) {
 
 // --- 提交配置修改 ---
 async function applyUpdate(partialConfig) {
-  const candidate = {                                  // 在独立候选值中合并供应商字段
+  const candidate = {                                  // 在独立候选值中合并配置字段
     provider: { ...store.config.provider, ...structuredClone(partialConfig.provider ?? {}) },
+    prompts: { ...store.config.prompts, ...structuredClone(partialConfig.prompts ?? {}) },
   }
   await save(candidate)                               // 候选配置先持久化
   store.config = candidate                            // 写盘成功后替换全局配置
