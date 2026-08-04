@@ -21,7 +21,7 @@ export async function createApp(options = {}) {
   await loadTools(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 每次启动重新扫描工具模块
   await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 再加载模型供应商配置
   await Workspace.load(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 再加载工作区摘要
-  await Session.load(join(dataDirectory, 'sessions'))   // 最后准备会话按需加载目录
+  await Session.load(join(dataDirectory, 'sessions'))   // 最后加载全部会话
 
   const app = new Elysia({ name: 'agent.server' })
     .get('/health', () => ({ status: 'ok' }))           // 健康检查直接返回最小状态
@@ -45,7 +45,8 @@ export async function createApp(options = {}) {
   async function close() {
     for (const session of [...store.sessions]) {
       if (session.status === 'running' || session.abortController) await Agent.stop(session.id).catch(() => {}) // 关闭前等待模型、工具和最终保存
-      Session.closeClients(session)                   // 关闭该会话全部 SSE 连接
+      for (const client of session.clients) try { client.close() } catch {} // 关闭该会话全部 SSE 连接
+      session.clients.clear()                         // 释放全部 SSE 控制器引用
     }
   }
   return { app, close, dataDirectory }                // 测试和宿主共享同一个应用入口

@@ -24,7 +24,7 @@ function list() {
 
 // --- 并行执行全部工具 ---
 async function run(sessionID, toolCalls) {
-  const session = await Session.getMutable(sessionID)    // 当前会话直接保存本轮 execution
+  const session = store.sessions.find((item) => item.id === sessionID) // 当前会话直接保存本轮 execution
   if (!session) return { results: toolCalls.map((toolCall) => toolResult(toolCall, 'session not found', true)), shouldStop: false } // 会话删除后不执行外部动作
   const outcomes = await Promise.all(toolCalls.map((toolCall) => execute(session, toolCall))) // 同轮工具全部同时执行
   return {
@@ -39,7 +39,9 @@ async function execute(session, toolCall) {
   const input = structuredClone(toolCall.input)          // 工具获得独立输入，路径展开不修改模型消息
   try {
     if (toolCall.toolName === 'shell' || typeof input.path === 'string') {
-      const path = Session.path(session.id)               // 只有使用路径的工具需要读取会话工作区
+      const workspace = store.workspaces.find((item) => item.sessions.some((summary) => summary.id === session.id)) // 通过摘要确定会话工作区
+      if (!workspace) throw Object.assign(new Error('session workspace not found'), { status: 409 }) // 归属损坏时禁止回退到服务端目录
+      const path = workspace.path                         // 工具只使用明确登记的工作区
       if (input.path === undefined) input.path = path     // Shell 默认在当前工作区执行
       else if (!isAbsolute(input.path)) input.path = resolve(path, input.path) // 相对工具路径从工作区展开
     }
@@ -69,7 +71,7 @@ function toolResult(toolCall, output, isError) {
 
 // --- 停止全部工具 ---
 async function stop(sessionID) {
-  const session = await Session.getMutable(sessionID)    // 读取会话当前工具任务
+  const session = store.sessions.find((item) => item.id === sessionID) // 直接读取会话当前工具任务
   if (!session) return                                   // 会话已删除时无需停止
   const executions = [...session.tools]                  // 快照当前会话全部运行任务
   for (const execution of executions) execution.abort() // 每个 execution 自行响应停止信号

@@ -5,6 +5,7 @@ run() 从上到下完整展示“请求 LLM、保存回复、执行工具、带�
 */
 import { LLM } from '../utils/llm.js'                    // 引入完整单轮 LLM 请求能力
 import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
+import { nanoid } from 'nanoid'                          // 引入消息唯一 ID 生成能力
 import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
 import { list as listTools, run as runTools, stop as stopTools } from './tool.js' // 引入工具定义、运行和停止能力
@@ -14,10 +15,10 @@ const runs = new WeakMap()                               // 当前停止控制�
 
 // --- 接收用户消息 ---
 async function send(sessionID, content) {
-  const session = await Session.getMutable(sessionID)    // 读取当前会话真实对象
+  const session = store.sessions.find((item) => item.id === sessionID) // 直接读取当前会话真实对象
   if (!session) throw Object.assign(new Error('session not found'), { status: 404 }) // 未知会话不能启动 Agent
   if (session.status !== 'idle' || session.abortController) throw Object.assign(new Error('session is not idle'), { status: 409 }) // 上一轮彻底结束前拒绝重叠执行
-  const message = { id: Session.createMessageId(), role: 'user', content: [{ type: 'text', text: content }] } // 项目只给 AI SDK 用户消息增加持久化身份
+  const message = { id: `message-${nanoid(12)}`, role: 'user', content: [{ type: 'text', text: content }] } // 项目只给 AI SDK 用户消息增加持久化身份
   session.messages.push(message)                         // 用户消息进入后续模型上下文
   session.status = 'running'                             // 会话立即进入执行状态
   const controller = new AbortController()               // 本轮 LLM、重试和工具共享停止信号
@@ -35,8 +36,8 @@ async function send(sessionID, content) {
   Session.emit(sessionID, 'status', { status: 'running' }) // 告知客户端 Agent 已经开始
 
   const running = run(session, controller).then(
-    () => Session.finish(session, controller),           // 正常结束交给会话生命周期收尾
-    (error) => Session.finish(session, controller, error), // 停止或失败也走同一收尾动作
+    () => finish(session, controller),                   // 正常结束统一保存和释放状态
+    (error) => finish(session, controller, error),       // 停止或失败也走同一收尾动作
   ).finally(() => runs.delete(controller))               // 释放本轮后台任务引用
   runs.set(controller, running)                          // stop 和删除可以等待本轮彻底完成
   return { messageId: message.id }                       // 返回前端可追踪的消息身份
@@ -53,7 +54,7 @@ async function run(session, controller) {
     const answer = await Retry.run(async () => {         // 每轮 LLM 请求对可恢复错误无限重试
       const provider = store.config.provider             // 每次重试都读取最新供应商配置
       const messages = nextPrompt ? [...session.messages, { role: 'user', content: nextPrompt }] : session.messages // 临时提醒只扩展本轮数组
-      const messageID = Session.createMessageId()        // 每次重试使用独立的流式消息身份
+      const messageID = `message-${nanoid(12)}`          // 每次重试使用独立的流式消息身份
 
       const result = await LLM.chat({                    // 请求一轮完整模型回复
         apiURL: provider.api,
@@ -74,7 +75,10 @@ async function run(session, controller) {
     })
     nextPrompt = ''                                      // 临时提醒只参与紧接着的一轮
 
-    await Session.add(sessionID, { id: answer.messageID, role: 'assistant', content: answer.contentBlocks }) // 保存完整助手回复
+    const assistant = { id: answer.messageID, role: 'assistant', content: answer.contentBlocks } // 完整回复直接成为会话消息
+    session.messages.push(assistant)                     // 助手回复进入后续模型上下文
+    Session.emit(sessionID, 'message', { message: structuredClone(assistant) }) // 反馈完整助手消息
+    await Session.save(sessionID)                        // 保存当前完整历史
 
     if (answer.toolCalls.length === 0) {
       textOnlyCount += 1                                 // 没有行动时累计纯文本轮次
@@ -86,17 +90,34 @@ async function run(session, controller) {
     textOnlyCount = 0                                    // 工具行动后重新统计纯文本轮次
     const tools = await runTools(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
     controller.signal.throwIfAborted()                   // 停止期间完成的结果不能写回会话
-    const message = { id: Session.createMessageId(), role: 'tool', content: tools.results } // 工具结果组成 AI SDK 消息
+    const message = { id: `message-${nanoid(12)}`, role: 'tool', content: tools.results } // 工具结果组成 AI SDK 消息
     for (const toolResult of tools.results) Session.emit(sessionID, 'tool-result', { messageId: message.id, toolResult: structuredClone(toolResult) }) // 逐个反馈工具结果
-    await Session.add(sessionID, message)                // 保存全部工具结果
+    session.messages.push(message)                       // 工具结果进入下一轮模型上下文
+    Session.emit(sessionID, 'message', { message: structuredClone(message) }) // 反馈完整工具消息
+    await Session.save(sessionID)                        // 保存全部工具结果
     if (tools.shouldStop) return                         // finish 工具结束当前任务
   }
 }
 
 
+// --- 完成当前任务 ---
+async function finish(session, controller, error) {
+  const stopped = controller.signal.aborted || error?.name === 'AbortError' // 用户停止不属于执行错误
+  session.status = error && !stopped ? 'error' : 'idle'  // 记录本轮最终状态
+  if (error && !stopped) Session.emit(session.id, 'error', { message: error instanceof Error ? error.message : String(error) }) // 反馈不可恢复错误
+  try { await Session.save(session.id) }                 // 最终状态必须真实写入磁盘
+  catch (saveError) {
+    session.status = 'error'                             // 保存失败不能伪报成功
+    Session.emit(session.id, 'error', { message: saveError instanceof Error ? saveError.message : String(saveError) }) // 反馈保存错误
+  }
+  if (session.abortController === controller) session.abortController = null // 释放本轮停止控制器
+  Session.emit(session.id, 'status', { status: session.status }) // 反馈最终状态
+}
+
+
 // --- 停止当前任务 ---
 async function stop(sessionID) {
-  const session = await Session.getMutable(sessionID)    // 读取目标会话运行状态
+  const session = store.sessions.find((item) => item.id === sessionID) // 直接读取目标会话运行状态
   if (!session) throw Object.assign(new Error('session not found'), { status: 404 }) // 未知会话不能停止
   const controller = session.abortController             // 保存当前控制器供等待后台结束
   const running = controller && runs.get(controller)     // 定位当前完整 Agent 任务
