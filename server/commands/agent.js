@@ -15,8 +15,7 @@ const runs = new WeakMap()                               // 当前停止控制�
 
 // --- 接收用户消息 ---
 async function send(sessionID, content) {
-  const session = store.sessions.find((item) => item.id === sessionID) // 直接读取当前会话真实对象
-  if (!session) throw Object.assign(new Error('session not found'), { status: 404 }) // 未知会话不能启动 Agent
+  const session = Session.get(sessionID) ?? await Session.load(sessionID) // 明确按需加载当前会话真实对象
   if (session.status !== 'idle' || session.abortController) throw Object.assign(new Error('session is not idle'), { status: 409 }) // 上一轮彻底结束前拒绝重叠执行
   const message = { id: `message-${nanoid(12)}`, role: 'user', content: [{ type: 'text', text: content }] } // 项目只给 AI SDK 用户消息增加持久化身份
   session.messages.push(message)                         // 用户消息进入后续模型上下文
@@ -117,8 +116,7 @@ async function finish(session, controller, error) {
 
 // --- 停止当前任务 ---
 async function stop(sessionID) {
-  const session = store.sessions.find((item) => item.id === sessionID) // 直接读取目标会话运行状态
-  if (!session) throw Object.assign(new Error('session not found'), { status: 404 }) // 未知会话不能停止
+  const session = Session.get(sessionID) ?? await Session.load(sessionID) // 明确按需加载目标会话运行状态
   const controller = session.abortController             // 保存当前控制器供等待后台结束
   const running = controller && runs.get(controller)     // 定位当前完整 Agent 任务
 

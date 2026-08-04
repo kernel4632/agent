@@ -18,5 +18,5 @@ export const store = {
   },
   tools: {},                                                // 启动时扫描得到的 LLM 工具定义
   workspaces: [],                                           // 工作区及其会话摘要
-  sessions: [],                                             // 已加载的完整会话和运行时状态
+  sessions: {},                                             // 按 ID 保存已加载的完整会话和运行时状态
 }

@@ -1,38 +1,56 @@
 /*
-会话指令集：加载、读取、创建、修改、删除和保存会话，并收发 SSE 事件。
+会话指令集：初始化目录，按 ID 加载、读取、创建、修改、删除和保存会话，并收发 SSE 事件。
 完整会话不保存工作区 ID；工作区与会话的关系只存在 workspaces.sessions 摘要中。
 调用示例：await Session.create(workspaceId, provider, model)、await Session.emit(id, 'status', { status: 'running' })。
 */
-import { mkdir, readdir, rm } from 'node:fs/promises'   // 引入会话目录创建、读取和文件删除能力
+import { mkdir, rm } from 'node:fs/promises'            // 引入会话目录创建和文件删除能力
 import { join } from 'node:path'                        // 引入会话文件路径拼接能力
-import { nanoid } from 'nanoid'                         // 引入会话和消息唯一 ID 生成能力
+import { nanoid } from 'nanoid'                         // 引入会话唯一 ID 生成能力
 import { store } from '../store.js'                     // 引入会话与工作区数据
 import { File } from '../utils/file.js'                 // 引入完整文件替换能力
 import { Workspace } from './workspace.js'              // 引入工作区摘要保存动作
 
 const encoder = new TextEncoder()                       // 所有 SSE 客户端共用 UTF-8 编码器
 let sessionsDirectory = ''                              // 保存会话文件所在目录
+const loadingSessions = new Map()                       // 同一会话的并发读取共享一个任务
 const lastSessionSaves = new Map()                      // 每个会话的后一次保存等待前一次完成
 const removingSessions = new Set()                      // 删除期间拒绝重新加载或保存目标会话
 
 
-// --- 准备会话目录 ---
-async function load(directory) {
+// --- 初始化会话目录 ---
+async function init(directory) {
   sessionsDirectory = directory                        // 后续保存和删除从该目录定位会话文件
   await mkdir(sessionsDirectory, { recursive: true })   // 首次启动时创建 sessions 目录
-  const files = (await readdir(sessionsDirectory, { withFileTypes: true })).filter((entry) => entry.isFile() && entry.name.endsWith('.json')) // 找出全部会话文件
-  const saved = await Promise.all(files.map((entry) => Bun.file(join(sessionsDirectory, entry.name)).json())) // 启动时一次读取全部会话
-  store.sessions = saved.map(withRuntime)                // 内存直接保存所有可运行会话
+  store.sessions = {}                                   // 新应用从空的按需缓存开始
+  loadingSessions.clear()                               // 新目录不能复用旧目录的读取任务
   lastSessionSaves.clear()                              // 新目录不能等待上次启动中的保存任务
   removingSessions.clear()                              // 新目录没有正在删除的旧会话
 }
 
 
-// --- 获取公开会话 ---
+// --- 加载会话 ---
+async function load(id) {
+  if (removingSessions.has(id)) throw businessError(404, 'session not found') // 删除期间不能重新加载会话
+  if (store.sessions[id]) return store.sessions[id]     // 已加载时直接返回同一个真实对象
+  const loading = loadingSessions.get(id)               // 检查是否已有调用方正在读取同一文件
+  if (loading) return loading                            // 并发调用共享读取结果
+
+  const pending = (async () => {
+    const file = Bun.file(join(sessionsDirectory, `${id}.json`)) // 按 ID 定位会话文件
+    if (!await file.exists()) throw businessError(404, 'session not found') // 文件不存在时返回资源错误
+    const session = withRuntime(await file.json())      // 恢复持久化数据和运行字段
+    store.sessions[id] = session                        // 按 session ID 写入内存缓存
+    return session                                      // 返回可直接操作的真实会话
+  })()
+  loadingSessions.set(id, pending)                      // 后续并发调用等待同一任务
+  try { return await pending }                          // 反馈加载后的真实会话
+  finally { loadingSessions.delete(id) }                // 读取结束后释放任务引用
+}
+
+
+// --- 获取会话 ---
 function get(id) {
-  const session = store.sessions.find((item) => item.id === id) // 直接读取启动时已加载的会话
-  if (!session) throw businessError(404, 'session not found') // 未找到时返回资源错误
-  return publicValue(session)                           // API 只返回可持久化字段
+  return store.sessions[id] ?? null                     // 只读取内存，不隐式访问磁盘
 }
 
 
@@ -50,7 +68,7 @@ async function create(workspaceId, provider, model) {
     model,                                               // 保存当前模型名称
   })
   workspace.sessions.push({ id: session.id, title: '新对话', lastActiveAt: now }) // 工作区只保存会话摘要
-  store.sessions.push(session)                          // 完整会话进入内存列表
+  store.sessions[session.id] = session                  // 完整会话按 ID 进入内存缓存
   await Promise.all([save(session.id), Workspace.save()]) // 同时保存完整会话和摘要
   return publicValue(session)                           // 返回新会话持久化数据
 }
@@ -58,8 +76,7 @@ async function create(workspaceId, provider, model) {
 
 // --- 修改会话 ---
 async function update(id, title, provider, model) {
-  const session = store.sessions.find((item) => item.id === id) // 读取完整会话供供应商和模型修改
-  if (!session) throw businessError(404, 'session not found') // 不允许修改不存在的会话
+  const session = get(id) ?? await load(id)             // 明确按需加载完整会话供修改
   const summary = findSummary(id)                       // 标题和最近时间只保存在工作区摘要
 
   if (title !== undefined) {
@@ -76,8 +93,7 @@ async function update(id, title, provider, model) {
 
 // --- 删除会话 ---
 async function remove(id, stopRunningSession) {
-  const session = store.sessions.find((item) => item.id === id) // 读取运行状态以决定是否先停止
-  if (!session) throw businessError(404, 'session not found') // 不存在时返回资源错误
+  const session = get(id) ?? await load(id)             // 明确按需加载运行状态
   const hasActiveRun = session.status === 'running' || session.abortController // 最终保存期间也属于活跃执行
   if (hasActiveRun && typeof stopRunningSession !== 'function') throw businessError(409, 'running session must be stopped before removal') // 直接调用不能跳过执行清理
   if (hasActiveRun) await stopRunningSession(id)         // 等待运行和最终保存结束，避免删除后文件重建
@@ -89,7 +105,7 @@ async function remove(id, stopRunningSession) {
     for (const client of session.clients) try { client.close() } catch {} // 删除前关闭全部 SSE 连接
     session.clients.clear()                             // 释放全部客户端引用
     await rm(join(sessionsDirectory, `${id}.json`), { force: true }) // 删除持久化会话文件
-    store.sessions = store.sessions.filter((item) => item.id !== id) // 从内存列表移除完整会话
+    delete store.sessions[id]                           // 从内存缓存移除完整会话
     for (const workspace of store.workspaces) workspace.sessions = workspace.sessions.filter((summary) => summary.id !== id) // 从所有工作区移除摘要
     await Workspace.save()                             // 保存摘要删除结果
     return { id }                                      // 返回被删除会话 ID
@@ -103,7 +119,7 @@ async function remove(id, stopRunningSession) {
 // --- 保存会话 ---
 async function save(id) {
   if (removingSessions.has(id)) throw businessError(409, 'session is being removed') // 删除开始后禁止迟到写入重建文件
-  const session = store.sessions.find((item) => item.id === id) // 保存只接受已经加载的会话
+  const session = store.sessions[id]                    // 保存只接受已经加载的会话
   if (!session) throw businessError(404, 'session not found') // 未加载会话没有可保存数据
   const snapshot = publicValue(session)                 // 排除三个运行时字段
   const sessionPath = join(sessionsDirectory, `${id}.json`) // 确定最终会话文件位置
@@ -119,9 +135,8 @@ async function save(id) {
 
 
 // --- 建立 SSE 连接 ---
-function listen(id) {
-  const session = store.sessions.find((item) => item.id === id) // SSE 客户端直接挂在目标会话上
-  if (!session) throw businessError(404, 'session not found') // 不为未知会话建立连接
+async function listen(id) {
+  const session = get(id) ?? await load(id)             // SSE 连接明确按需加载目标会话
   let client                                             // 保存当前流控制器供断开清理
   const stream = new ReadableStream({
     start(controller) {
@@ -145,7 +160,7 @@ function listen(id) {
 
 // --- 发送 SSE 事件 ---
 function emit(id, event, data) {
-  const session = store.sessions.find((item) => item.id === id) // 事件只发给已加载会话
+  const session = store.sessions[id]                    // 事件只发给已加载会话
   if (!session) return                                  // 会话已删除时忽略迟到事件
   const frame = encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) // 编码最小 SSE 帧
   for (const client of [...session.clients]) {
@@ -198,4 +213,4 @@ function businessError(status, message) {
 }
 
 
-export const Session = { load, get, create, update, remove, save, listen, emit } // 导出会话数据和 SSE 指令
+export const Session = { init, load, get, create, update, remove, save, listen, emit } // 导出会话数据和 SSE 指令

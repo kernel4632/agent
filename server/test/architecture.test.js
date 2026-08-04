@@ -396,12 +396,13 @@ describe('minimal agent backend', () => {
     expect((await (await request(`/session?id=${session.id}`, { method: 'DELETE' })).json()).id).toBe(session.id) // 清理验证会话
   })
 
-  it('keeps one runtime object for each loaded session', async () => {
-    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建内存和磁盘共享身份的会话
-    const loaded = store.sessions.filter((item) => item.id === session.id) // command 直接从 store 读取真实运行对象
-    expect(loaded).toHaveLength(1)                       // 每个会话只存在一个运行时对象
-    expect(loaded[0].clients).toBeInstanceOf(Set)        // SSE 客户端直接保存在该对象
-    expect(loaded[0].tools).toBeInstanceOf(Set)          // 工具 execution 直接保存在该对象
+  it('shares one runtime object across concurrent lazy session loads', async () => {
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建可从磁盘按需恢复的会话
+    delete store.sessions[session.id]                    // 模拟当前会话尚未进入内存缓存
+    expect(Session.get(session.id)).toBeNull()           // get 只读 store，不隐式访问文件
+    const loaded = await Promise.all(Array.from({ length: 8 }, () => Session.load(session.id))) // 并发触发同一会话文件加载
+    expect(loaded.every((item) => item === loaded[0])).toBe(true) // 所有调用方共享同一个运行时对象
+    expect(store.sessions[session.id]).toBe(loaded[0])   // KV 缓存按 session ID 保存该对象
   })
 
   it('rejects tools when a session has lost its workspace', async () => {
@@ -579,7 +580,7 @@ describe('minimal agent backend', () => {
     expect(firstEvent.data).toEqual({ status: 'manual-check' }) // 第一个客户端数据完整
     expect(secondEvent.data).toEqual({ status: 'manual-check' }) // 第二个客户端数据完整
     await Promise.all([unsubscribe(first), unsubscribe(second)]) // 同时断开两个客户端
-    expect(store.sessions.find((item) => item.id === session.id).clients.size).toBe(0) // cancel 清理全部控制器引用
+    expect(store.sessions[session.id].clients.size).toBe(0) // cancel 清理全部控制器引用
   })
 
   it('marks a non-zero shell exit as an error result', async () => {
@@ -597,7 +598,7 @@ describe('minimal agent backend', () => {
     const subscription = await subscribe(session.id)    // 建立错误和状态事件监听
     await jsonRequest('/session/send', 'POST', { id: session.id, content: 'RETRY_FOREVER' }) // 触发持续 500 错误
     await readUntil(subscription, (event) => event.name === 'error') // 确认已经进入重试退避
-    const controller = store.sessions.find((item) => item.id === session.id).abortController // 直接读取本轮标准停止控制器
+    const controller = store.sessions[session.id].abortController // 直接读取本轮标准停止控制器
     expect(Object.hasOwn(controller, 'finished')).toBe(false) // 后台完成时刻不能污染 AbortController
     const stopped = await jsonRequest('/session/stop', 'POST', { id: session.id }) // 在退避期间停止
     expect(await stopped.json()).toEqual({ status: 'idle' }) // stop 立即恢复空闲
@@ -617,7 +618,7 @@ describe('minimal agent backend', () => {
     const sent = await jsonRequest('/session/send', 'POST', { id: session.id, content: 'STREAM_STOP' }) // 让模型输出首段后保持连接
     expect(sent.status).toBe(200)                        // Agent 已经成功进入流式请求
     const partial = await readUntil(subscription, (event) => event.name === 'text-delta' && event.data.text === 'PARTIAL') // 确认 Agent 正在消费真实流
-    const mutable = store.sessions.find((item) => item.id === session.id) // 直接读取本轮实际控制器
+    const mutable = store.sessions[session.id]           // 直接读取本轮实际控制器
     const controller = mutable.abortController           // 保存停止前的控制器引用供事后断言
     expect(partial.data.messageId).toBeString()          // 首段文本已经获得本轮助手消息身份
     expect(controller.signal.aborted).toBe(false)        // 停止前请求仍在活跃读取
@@ -713,7 +714,7 @@ describe('minimal agent backend', () => {
 
   it('rejects sends until an error session is explicitly stopped', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建状态控制会话
-    const mutable = store.sessions.find((item) => item.id === session.id) // 测试直接模拟不可重试错误结束状态
+    const mutable = store.sessions[session.id]           // 测试直接模拟不可重试错误结束状态
     mutable.status = 'error'                              // error 不是可直接发送的空闲状态
     const rejected = await jsonRequest('/session/send', 'POST', { id: session.id, content: '不能直接发送' }) // 尝试绕过停止恢复
     expect(rejected.status).toBe(409)                     // 非 idle 会话必须拒绝新 Agent
@@ -778,7 +779,7 @@ describe('minimal agent backend', () => {
     expect(workspaces.find((item) => item.id === workspace.id)?.sessions[0].id).toBe(session.id) // 工作区摘要已恢复
     expect(detail.status).toBe('idle')                  // 已完成会话恢复为空闲
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool']) // 完整上下文已恢复
-    const runtime = store.sessions.find((item) => item.id === session.id) // 直接读取恢复后的真实运行时字段
+    const runtime = store.sessions[session.id]           // 读取请求已按需恢复的真实运行时字段
     expect(runtime.abortController).toBeNull()          // 重启后没有遗留停止控制器
     expect(runtime.clients.size).toBe(0)                // 重启后没有遗留 SSE 客户端
     expect(runtime.tools.size).toBe(0)                  // 重启后没有遗留工具 execution

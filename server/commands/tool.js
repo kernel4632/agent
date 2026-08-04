@@ -24,8 +24,12 @@ function list() {
 
 // --- 并行执行全部工具 ---
 async function run(sessionID, toolCalls) {
-  const session = store.sessions.find((item) => item.id === sessionID) // 当前会话直接保存本轮 execution
-  if (!session) return { results: toolCalls.map((toolCall) => toolResult(toolCall, 'session not found', true)), shouldStop: false } // 会话删除后不执行外部动作
+  let session                                             // 当前会话直接保存本轮 execution
+  try { session = Session.get(sessionID) ?? await Session.load(sessionID) } // 工具明确从缓存或文件读取会话
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error) // 会话错误转成工具结果
+    return { results: toolCalls.map((toolCall) => toolResult(toolCall, message, true)), shouldStop: false } // 不执行外部动作
+  }
   const outcomes = await Promise.all(toolCalls.map((toolCall) => execute(session, toolCall))) // 同轮工具全部同时执行
   return {
     results: outcomes.map((outcome) => outcome.result),  // 结果保持模型调用顺序
@@ -71,8 +75,8 @@ function toolResult(toolCall, output, isError) {
 
 // --- 停止全部工具 ---
 async function stop(sessionID) {
-  const session = store.sessions.find((item) => item.id === sessionID) // 直接读取会话当前工具任务
-  if (!session) return                                   // 会话已删除时无需停止
+  const session = store.sessions[sessionID]              // 只停止已经加载并运行的会话
+  if (!session) return                                   // 未加载会话不可能有运行工具
   const executions = [...session.tools]                  // 快照当前会话全部运行任务
   for (const execution of executions) execution.abort() // 每个 execution 自行响应停止信号
   await Promise.allSettled(executions.map((execution) => execution.result)) // 等待全部工具结束

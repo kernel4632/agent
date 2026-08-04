@@ -21,7 +21,7 @@ export async function createApp(options = {}) {
   await loadTools(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 每次启动重新扫描工具模块
   await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 再加载模型供应商配置
   await Workspace.load(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 再加载工作区摘要
-  await Session.load(join(dataDirectory, 'sessions'))   // 最后加载全部会话
+  await Session.init(join(dataDirectory, 'sessions'))   // 最后准备会话文件目录
 
   const app = new Elysia({ name: 'agent.server' })
     .get('/health', () => ({ status: 'ok' }))           // 健康检查直接返回最小状态
@@ -30,7 +30,11 @@ export async function createApp(options = {}) {
     .get('/workspace', () => Workspace.list())          // 返回工作区与会话摘要
     .post('/workspace', ({ body }) => Workspace.add(body?.path)) // 添加本地工作区
     .delete('/workspace', ({ query }) => Workspace.remove(query.id)) // query id 移除工作区记录
-    .get('/session', ({ query }) => Session.get(query.id)) // 返回会话持久化数据
+    .get('/session', async ({ query }) => {
+      const loaded = Session.get(query.id) ?? await Session.load(query.id) // 明确从缓存或文件读取会话
+      const { abortController, clients, tools, ...session } = loaded // 路由只排除三个运行字段
+      return structuredClone(session)                    // 返回可公开、可序列化的会话数据
+    })
     .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model)) // 创建完整会话和摘要
     .patch('/session', ({ body }) => Session.update(body?.id, body?.title, body?.provider, body?.model)) // 修改标题、供应商或模型
     .delete('/session', ({ query }) => Session.remove(query.id, Agent.stop)) // 运行中先停止，再删除会话
@@ -43,7 +47,7 @@ export async function createApp(options = {}) {
     })
 
   async function close() {
-    for (const session of [...store.sessions]) {
+    for (const session of Object.values(store.sessions)) {
       if (session.status === 'running' || session.abortController) await Agent.stop(session.id).catch(() => {}) // 关闭前等待模型、工具和最终保存
       for (const client of session.clients) try { client.close() } catch {} // 关闭该会话全部 SSE 连接
       session.clients.clear()                         // 释放全部 SSE 控制器引用
