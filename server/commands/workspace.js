@@ -19,10 +19,9 @@ async function load(filePath) {
   lastWorkspaceSave = Promise.resolve()                // 新应用实例不等待旧工作区文件写入
   await mkdir(dirname(workspacePath), { recursive: true }) // 首次启动时创建数据目录
   const file = Bun.file(workspacePath)                  // 定位工作区文件
-  const exists = await file.exists()                    // 记录是否需要创建或迁移配置
-  const saved = exists ? await file.json() : {}         // 文件不存在时从空 KV 开始
-  store.workspaces = Array.isArray(saved) ? Object.fromEntries(saved.map((workspace) => [workspace.id, workspace])) : saved // 旧数组一次迁移为 ID 键值
-  if (!exists || Array.isArray(saved)) await save()      // 首次运行或旧格式迁移后写回 KV
+  const exists = await file.exists()                    // 记录是否需要创建工作区文件
+  store.workspaces = exists ? await file.json() : {}    // 文件不存在时从空 KV 开始
+  if (!exists) await save()                              // 首次运行创建当前格式的 workspace.json
   return list()                                         // 反馈恢复后的工作区
 }
 

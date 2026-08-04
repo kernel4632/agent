@@ -287,33 +287,6 @@ describe('minimal agent backend', () => {
     await jsonRequest('/config', 'PATCH', { provider: { key: 'unit-secret', models: ['unit-model'] } }) // 恢复后续模型测试配置
   })
 
-  it('migrates tools out of an old config file on startup', async () => {
-    const migrationRoot = await mkdtemp(join(dataDirectory, 'config-migration-')) // 创建旧配置隔离目录
-    const oldConfig = {
-      provider: { api: 'https://example.invalid/v1', key: 'old-key', models: ['old-model'] }, // 保留供应商配置
-      tools: [{ name: 'old-tool', description: 'obsolete', inputSchema: { type: 'object' } }], // 模拟旧版持久化工具
-    }
-    await Bun.write(join(migrationRoot, 'config.json'), `${JSON.stringify(oldConfig)}\n`) // 写入真实旧格式文件
-    const migrated = await createApp({ dataDirectory: migrationRoot }) // 启动流程执行自动迁移
-    try {
-      const config = await migrated.app.handle(new Request('http://localhost/config')).then((response) => response.json()) // 读取迁移后配置
-      expect(config).toEqual({
-        provider: oldConfig.provider,                   // 供应商数据完整保留
-        prompts: {
-          system: '你是一个编程助手。',                 // 旧配置补齐默认系统提示
-          tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 旧配置补齐默认工具提醒
-        },
-      })
-      expect(JSON.parse(await readFile(join(migrationRoot, 'config.json'), 'utf8'))).toEqual(config) // 磁盘删除旧 tools 字段
-      expect(store.tools.file_read).toBeObject()         // 工具仍来自正式目录扫描
-    } finally {
-      await migrated.close()                             // 关闭迁移应用
-      const restored = await createApp({ dataDirectory }) // 恢复主测试应用的全局 store
-      app = restored.app                                 // 后续测试继续使用主数据目录
-      closeApp = restored.close                          // afterAll 关闭恢复后的应用
-    }
-  })
-
   it('discovers tools from a supplied startup directory', async () => {
     const dynamicRoot = await mkdtemp(join(dataDirectory, 'dynamic-tools-')) // 创建动态工具应用数据目录
     const toolsDirectory = join(dynamicRoot, 'tools')    // 创建本次启动专属工具目录

@@ -18,17 +18,10 @@ async function load(filePath) {
   lastConfigUpdate = Promise.resolve()               // 新应用实例不等待旧配置目录的修改
   await mkdir(dirname(configPath), { recursive: true }) // 首次启动时创建 .agent 目录
   const file = Bun.file(configPath)                   // 定位配置文件
-  const saved = await file.exists() ? await file.json() : {} // 文件不存在时使用空配置
-  const candidate = {
-    provider: { api: '', key: '', models: [], ...structuredClone(saved.provider ?? {}) }, // 补齐 provider 并忽略旧版工具字段
-    prompts: {
-      system: '你是一个编程助手。',                     // 没有保存值时使用稳定系统提示
-      tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 没有保存值时使用稳定工具提醒
-      ...structuredClone(saved.prompts ?? {}),
-    },
-  }
-  await save(candidate)                               // 首次运行和缺省字段补齐后写回磁盘
-  store.config = candidate                            // 写盘成功后提交全局配置
+  const exists = await file.exists()                  // 记录是否需要创建配置文件
+  const candidate = exists ? await file.json() : structuredClone(store.config) // 首次启动复制 store 中的唯一默认配置
+  if (!exists) await save(candidate)                  // 首次运行只写入一份默认配置
+  store.config = candidate                            // 加载成功后提交全局配置
   return get()                                        // 返回独立副本供启动流程使用
 }
 
