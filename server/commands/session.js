@@ -59,7 +59,7 @@ async function loadSavedSession(id) {
   const saved = await file.json()                       // 读取严格的持久化字段
   const loaded = store.sessions.find((session) => session.id === id) // 读取期间可能已有调用方创建了同 ID 对象
   if (loaded) return loaded                             // 已存在对象保留其运行时引用
-  const session = withRuntime(saved)                    // 补上两个内存字段
+  const session = withRuntime(saved)                    // 补上三个内存字段
   store.sessions.push(session)                          // 加入已加载会话列表
   return session                                        // 返回可修改真实对象
 }
@@ -133,7 +133,7 @@ async function save(id) {
   if (removingSessions.has(id)) throw businessError(409, 'session is being removed') // 删除开始后禁止迟到写入重建文件
   const session = store.sessions.find((item) => item.id === id) // 保存只接受已经加载的会话
   if (!session) throw businessError(404, 'session not found') // 未加载会话没有可保存数据
-  const snapshot = publicValue(session)                 // 排除两个运行时字段
+  const snapshot = publicValue(session)                 // 排除三个运行时字段
   const sessionPath = join(sessionsDirectory, `${id}.json`) // 确定最终会话文件位置
   const previousSave = lastSessionSaves.get(id) ?? Promise.resolve() // 只等待当前会话的前一次保存
   const currentSave = previousSave.catch(() => {}).then(() => File.write(sessionPath, `${JSON.stringify(snapshot, null, 2)}\n`)) // 较新状态可以修复前一次失败
@@ -244,6 +244,7 @@ function withRuntime(saved) {
     model: saved.model ?? '',                           // 恢复模型名称
     abortController: null,                              // 新进程没有模型请求
     clients: new Set(),                                 // 新进程没有 SSE 客户端
+    tools: new Set(),                                   // 新进程没有正在运行的工具
   }
 }
 

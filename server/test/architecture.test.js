@@ -217,9 +217,9 @@ describe('minimal agent backend', () => {
     expect(Object.keys(store.config)).toEqual(['provider', 'prompts']) // config 只包含持久化供应商和提示词
     expect(Object.keys(store.config.provider).sort()).toEqual(['api', 'key', 'models']) // provider 结构严格匹配设计
     expect(Object.keys(store.config.prompts)).toEqual(['system', 'tool']) // prompts 只包含系统提示和工具提醒
-    expect(Array.isArray(store.tools)).toBe(true)        // 启动扫描结果必须是列表
-    expect(store.tools.length).toBeGreaterThan(0)        // 内置工具必须在启动时被发现
-    for (const tool of store.tools) expect(Object.keys(tool).sort()).toEqual(['description', 'inputSchema', 'name']) // 每项只保存 LLM 工具信息
+    expect(store.tools).toBeObject()                     // 启动扫描结果直接使用 LLM 工具定义格式
+    expect(Object.keys(store.tools).length).toBeGreaterThan(0) // 内置工具必须在启动时被发现
+    for (const tool of Object.values(store.tools)) expect(Object.keys(tool).sort()).toEqual(['description', 'parameters']) // 每项只保存描述和参数定义
   })
 
   it('flushes an SSE connection before the first business event', async () => {
@@ -305,7 +305,7 @@ describe('minimal agent backend', () => {
         },
       })
       expect(JSON.parse(await readFile(join(migrationRoot, 'config.json'), 'utf8'))).toEqual(config) // 磁盘删除旧 tools 字段
-      expect(store.tools.some((tool) => tool.name === 'read_file')).toBe(true) // 工具仍来自正式目录扫描
+      expect(store.tools.read_file).toBeObject()         // 工具仍来自正式目录扫描
     } finally {
       await migrated.close()                             // 关闭迁移应用
       const restored = await createApp({ dataDirectory }) // 恢复主测试应用的全局 store
@@ -330,7 +330,7 @@ describe('minimal agent backend', () => {
     ].join('\n'))
     const dynamic = await createApp({ dataDirectory: dynamicRoot, toolsDirectory }) // 启动时只扫描临时工具
     try {
-      expect(store.tools).toEqual([{ name: 'custom_echo', description: 'Echo dynamic input.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false } }]) // store 反映动态目录
+      expect(store.tools).toEqual({ custom_echo: { description: 'Echo dynamic input.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false } } }) // store 直接保存 LLM 工具定义
       expect(listTools()).toEqual(store.tools)           // 指令公开列表与 store 一致
       let directOutput = ''                              // 记录公开回调收到的工具输出
       const tool = Tool.execute('custom_echo', { text: 'DIRECT_OK' }, { onOutput: (chunk) => { directOutput += chunk } }) // 使用名称、输入和可选回调直接执行
@@ -355,7 +355,7 @@ describe('minimal agent backend', () => {
     ])
     const duplicate = await createApp({ dataDirectory: duplicateRoot, toolsDirectory }) // 默认信任工具模块并完成启动
     try {
-      expect(store.tools).toEqual([{ name: 'duplicate', description: 'duplicate', inputSchema: { type: 'object' } }]) // 同名定义只占一个注册位置
+      expect(store.tools).toEqual({ duplicate: { description: 'duplicate', parameters: { type: 'object' } } }) // 同名定义只占一个注册位置
     } finally {
       await duplicate.close()                            // 关闭重复工具应用
       const restored = await createApp({ dataDirectory }) // 恢复正式工具目录和主测试数据
@@ -385,7 +385,7 @@ describe('minimal agent backend', () => {
     const detail = await (await request(`/session?id=${session.id}`)).json() // 按 query id 读取会话
     expect(detail).toEqual(session)                     // 修改标题不向完整 session 添加 title
     const savedSession = JSON.parse(await readFile(join(dataDirectory, 'sessions', `${session.id}.json`), 'utf8')) // 读取真实会话文件
-    expect(savedSession).toEqual(session)               // 会话文件不持久化两个运行字段
+    expect(savedSession).toEqual(session)               // 会话文件不持久化三个运行字段
   })
 
   it('protects workspace and session ownership conflicts', async () => {
@@ -428,7 +428,7 @@ describe('minimal agent backend', () => {
     expect(requests.every((body) => body.messages[0].role === 'system' && body.messages[0].content === 'UNIT_SYSTEM_PROMPT')).toBe(true) // 每轮使用配置中的系统提示
     expect(requests[1].messages.some((message) => JSON.stringify(message).includes('UNIT_TOOL_PROMPT'))).toBe(false) // 第二轮还没有工具提醒
     expect(requests[2].messages.some((message) => JSON.stringify(message).includes('UNIT_TOOL_PROMPT'))).toBe(true) // 第三轮临时加入配置中的工具提醒
-    const sentTools = requests[0].tools.map((tool) => ({ name: tool.function.name, description: tool.function.description, inputSchema: tool.function.parameters })) // 读取协议实际发送的全部工具信息
+    const sentTools = Object.fromEntries(requests[0].tools.map((tool) => [tool.function.name, { description: tool.function.description, parameters: tool.function.parameters }])) // 读取协议实际发送的全部工具信息
     expect(sentTools).toEqual(store.tools)              // 名称、描述和输入 schema 逐项来自启动扫描结果
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取执行后的会话
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant', 'assistant']) // 保留三轮普通回复
@@ -781,13 +781,14 @@ describe('minimal agent backend', () => {
     const runtime = await Session.getMutable(session.id) // 读取恢复后的真实运行时字段
     expect(runtime.abortController).toBeNull()          // 重启后没有遗留停止控制器
     expect(runtime.clients.size).toBe(0)                // 重启后没有遗留 SSE 客户端
+    expect(runtime.tools.size).toBe(0)                  // 重启后没有遗留工具 execution
   }, 10000)
 
   it('contains only the designed production files', async () => {
     const serverRoot = join(import.meta.dir, '..')      // 定位后端根目录
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
-      tools: ['agent.js', 'file.js', 'shell.js', 'web.js'], // 四个平铺工具模块
+      tools: ['file.js', 'finish.js', 'shell.js', 'web.js'], // 四个平铺工具模块
       utils: ['file.js', 'llm.js', 'retry.js', 'tool.js'], // 保留文件、LLM、工具和重试封装
     }
     for (const [directory, files] of Object.entries(expected)) {

@@ -7,7 +7,7 @@ import { LLM } from '../utils/llm.js'                    // 引入完整单轮 L
 import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
 import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
-import { definitions, runAll, stopAll } from './tool.js' // 引入工具定义、执行和停止能力
+import { list as listTools, runAll, stopAll } from './tool.js' // 引入工具定义、执行和停止能力
 
 const runs = new WeakMap()                               // 当前停止控制器对应的完整 Agent 任务
 
@@ -61,7 +61,7 @@ async function run(session, controller) {
         model: session.model,
         systemPrompt: store.config.prompts.system,
         messages,
-        tools: definitions(),
+        tools: listTools(),
         signal: controller.signal,
         onEvent(type, data) {
           Session.emit(sessionID, type, { messageId: messageID, ...data }) // 模型事件直接反馈给当前会话
