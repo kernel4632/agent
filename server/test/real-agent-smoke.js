@@ -78,13 +78,13 @@ try {
 
   const detail = await api(apiRoot, `/session?id=${encodeURIComponent(session.id)}`) // 从正式 API 读取持久化工具时间线
   const blocks = detail.messages.flatMap((message) => message.content ?? []) // 收集完整消息内容块
-  const toolCalls = blocks.filter((block) => block.type === 'tool_call') // 收集模型真实工具调用
-  const toolResults = blocks.filter((block) => block.type === 'tool_result') // 收集后端真实工具结果
+  const toolCalls = blocks.filter((block) => block.type === 'tool-call') // 收集模型真实工具调用
+  const toolResults = blocks.filter((block) => block.type === 'tool-result') // 收集后端真实工具结果
   const toolNames = toolCalls.map((block) => block.toolName) // 收集模型真实调用名称
   const requiredTools = ['web', 'write_file', 'list_files', 'search_files', 'read_file', 'shell', 'finish'] // 完整项目必须覆盖的工具链
   const missingTools = requiredTools.filter((name) => !toolNames.includes(name)) // 找出模型跳过的后端功能
   if (missingTools.length > 0) throw new Error(`Agent skipped required tools: ${missingTools.join(', ')}`) // 工具链不完整视为 smoke 失败
-  const failedTools = requiredTools.filter((name) => !toolCalls.some((call) => call.toolName === name && toolResults.some((result) => result.toolCallId === call.toolCallId && !result.isError))) // 每类工具至少成功一次
+  const failedTools = requiredTools.filter((name) => !toolCalls.some((call) => call.toolName === name && toolResults.some((result) => result.toolCallId === call.toolCallId && !result.output.type.startsWith('error-')))) // 每类工具至少成功一次
   if (failedTools.length > 0) throw new Error(`Agent never completed required tools: ${failedTools.join(', ')}`) // 只有失败调用不能算功能通过
 
   websiteServer = Bun.serve({                           // 使用真实 HTTP 服务加载生成网站
@@ -223,7 +223,7 @@ function countEvents(events) {
 // --- 创建安全事件摘要 ---
 function summarizeEvent(event) {
   if (event.name === 'tool-call') return event.data.toolCall?.toolName ?? 'unknown' // 工具调用只输出名称
-  if (event.name === 'tool-result') return `${event.data.toolResult?.isError ? 'error' : 'ok'}:${event.data.toolResult?.toolCallId ?? ''}` // 工具结果只输出状态和 ID
+  if (event.name === 'tool-result') return `${event.data.toolResult?.output?.type?.startsWith('error-') ? 'error' : 'ok'}:${event.data.toolResult?.toolCallId ?? ''}` // 工具结果只输出状态和 ID
   if (event.name === 'status') return event.data.status ?? 'unknown' // 状态事件只输出状态值
   return event.data.message ?? 'error'                  // 错误事件输出供应商错误文案
 }

@@ -384,9 +384,9 @@ describe('minimal agent backend', () => {
     const workspace = store.workspaces.find((item) => item.id === workspaceId) // 定位真实工作区摘要
     workspace.sessions = workspace.sessions.filter((summary) => summary.id !== session.id) // 模拟损坏数据中的孤立会话
     const outcome = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' }, status: 'pending' }, // 尝试读取相对文件
+      { type: 'tool-call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' } }, // 尝试读取相对文件
     ])
-    expect(outcome.results[0]).toMatchObject({ isError: true, output: 'session workspace not found' }) // 工具不能回退到服务端当前目录
+    expect(outcome.results[0]).toEqual({ type: 'tool-result', toolCallId: 'orphan-read', toolName: 'read_file', output: { type: 'error-text', value: 'session workspace not found' } }) // 工具不能回退到服务端当前目录
     await Session.remove(session.id)                    // 清理不再属于工作区的测试会话
   })
 
@@ -404,7 +404,7 @@ describe('minimal agent backend', () => {
     expect(sentTools).toEqual(store.tools)              // 名称、描述和输入 schema 逐项来自启动扫描结果
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取执行后的会话
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant', 'assistant']) // 保留三轮普通回复
-    expect(detail.messages.at(-1).content).toEqual([{ type: 'text', text: { text: 'ROUND_3' } }]) // 内容结构严格匹配 store
+    expect(detail.messages.at(-1).content).toEqual([{ type: 'text', text: 'ROUND_3' }]) // 持久化内容直接符合 AI SDK TextPart
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 15000)
 
@@ -415,10 +415,10 @@ describe('minimal agent backend', () => {
     await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // finish 工具结束循环
 
     expect(subscription.events.some((event) => event.name === 'tool-call' && event.data.toolCall.toolName === 'finish')).toBe(true) // SSE 展示工具调用
-    expect(subscription.events.some((event) => event.name === 'tool-result' && event.data.toolResult.output === 'DONE')).toBe(true) // SSE 展示工具结果
+    expect(subscription.events.some((event) => event.name === 'tool-result' && event.data.toolResult.output.value === 'DONE')).toBe(true) // SSE 展示 AI SDK 工具结果
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取持久化上下文
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool']) // 工具调用和结果形成两条消息
-    expect(detail.messages[2].content[0]).toEqual({ type: 'tool_result', toolCallId: 'call_finish', output: 'DONE', isError: false }) // 结果严格符合 store
+    expect(detail.messages[2].content[0]).toEqual({ type: 'tool-result', toolCallId: 'call_finish', toolName: 'finish', output: { type: 'text', value: 'DONE' } }) // 结果直接符合 AI SDK ToolResultPart
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 10000)
 
@@ -427,12 +427,12 @@ describe('minimal agent backend', () => {
     const subscription = await subscribe(session.id)    // 监听思考、正文和终态
     await jsonRequest('/session/send', 'POST', { id: session.id, content: 'REASONING_STREAM' }) // 请求模型返回思考内容
     await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 等待三轮文本规则结束
-    expect(subscription.events.some((event) => event.name === 'thinking-delta' && event.data.thinking === 'THINKING')).toBe(true) // SSE 实时反馈思考
+    expect(subscription.events.some((event) => event.name === 'reasoning-delta' && event.data.text === 'THINKING')).toBe(true) // SSE 实时反馈 AI SDK 推理增量
     expect(subscription.events.some((event) => event.name === 'text-delta' && event.data.text === 'ANSWER')).toBe(true) // SSE 实时反馈正文
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取持久化输出顺序
     expect(detail.messages[1].content).toEqual([
-      { type: 'thinking', thinking: { thinking: 'THINKING' } }, // 思考块保持模型原始顺序
-      { type: 'text', text: { text: 'ANSWER' } },        // 正文块紧随其后
+      { type: 'reasoning', text: 'THINKING' },           // 推理块直接符合 AI SDK ReasoningPart
+      { type: 'text', text: 'ANSWER' },                  // 正文块紧随其后
     ])
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 10000)
@@ -447,8 +447,8 @@ describe('minimal agent backend', () => {
     expect(await readFile(join(directory, 'chain.txt'), 'utf8')).toBe('CHAIN_OK') // write_file 真实修改工作区
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取完整工具上下文
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'tool']) // 工具结果确实发送到下一轮
-    expect(detail.messages[2].content[0].output).toContain('chain.txt') // 第一轮保存写入反馈
-    expect(detail.messages[4].content[0].output).toBe('DONE') // 第二轮 finish 保存摘要
+    expect(detail.messages[2].content[0].output.value).toContain('chain.txt') // 第一轮保存写入反馈
+    expect(detail.messages[4].content[0].output.value).toBe('DONE') // 第二轮 finish 保存摘要
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 10000)
 
@@ -479,11 +479,11 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建工具运行上下文
     const startedAt = Date.now()                        // 记录两个固定延迟请求的总耗时
     const result = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'web-1', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` }, status: 'pending' }, // 第一个慢请求
-      { type: 'tool_call', toolCallId: 'web-2', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` }, status: 'pending' }, // 第二个慢请求
+      { type: 'tool-call', toolCallId: 'web-1', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第一个慢请求
+      { type: 'tool-call', toolCallId: 'web-2', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第二个慢请求
     ])
     expect(Date.now() - startedAt).toBeLessThan(350)    // 并行约 200ms，串行约 400ms
-    expect(result.results.map((item) => item.output)).toEqual(['SLOW_OK', 'SLOW_OK']) // 结果保持调用顺序
+    expect(result.results.map((item) => item.output.value)).toEqual(['SLOW_OK', 'SLOW_OK']) // 结果保持调用顺序
   })
 
   it('executes every built-in tool through the command boundary', async () => {
@@ -493,35 +493,35 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建工具上下文
 
     const overwrite = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'write-overwrite', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'A' }, status: 'pending' }, // 覆盖创建文件
+      { type: 'tool-call', toolCallId: 'write-overwrite', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'A' } }, // 覆盖创建文件
     ])
     const append = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'write-append', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'B', mode: 'append' }, status: 'pending' }, // 追加文件
+      { type: 'tool-call', toolCallId: 'write-append', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'B', mode: 'append' } }, // 追加文件
     ])
     const reads = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'read', toolName: 'read_file', input: { path: 'nested/note.txt' }, status: 'pending' }, // 读取完整文本
-      { type: 'tool_call', toolCallId: 'list', toolName: 'list_files', input: { path: 'nested' }, status: 'pending' }, // 列出当前目录
-      { type: 'tool_call', toolCallId: 'search', toolName: 'search_files', input: { path: '.', keyword: 'note' }, status: 'pending' }, // 递归搜索文件名
-      { type: 'tool_call', toolCallId: 'web-ok', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-ok` }, status: 'pending' }, // 获取成功网页
-      { type: 'tool_call', toolCallId: 'web-error', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-error` }, status: 'pending' }, // 获取错误网页
-      { type: 'tool_call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' }, status: 'pending' }, // 明确结束任务
-      { type: 'tool_call', toolCallId: 'missing', toolName: 'missing_tool', input: {}, status: 'pending' }, // 未配置工具返回错误
+      { type: 'tool-call', toolCallId: 'read', toolName: 'read_file', input: { path: 'nested/note.txt' } }, // 读取完整文本
+      { type: 'tool-call', toolCallId: 'list', toolName: 'list_files', input: { path: 'nested' } }, // 列出当前目录
+      { type: 'tool-call', toolCallId: 'search', toolName: 'search_files', input: { path: '.', keyword: 'note' } }, // 递归搜索文件名
+      { type: 'tool-call', toolCallId: 'web-ok', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-ok` } }, // 获取成功网页
+      { type: 'tool-call', toolCallId: 'web-error', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-error` } }, // 获取错误网页
+      { type: 'tool-call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' } }, // 明确结束任务
+      { type: 'tool-call', toolCallId: 'missing', toolName: 'missing_tool', input: {} }, // 未配置工具返回错误
     ])
     const shell = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'shell-ok', toolName: 'shell', input: { command: process.platform === 'win32' ? "[Console]::Write('SHELL_OK')" : "printf 'SHELL_OK'", cwd: 'nested' }, status: 'pending' }, // 在相对工作目录执行成功命令
+      { type: 'tool-call', toolCallId: 'shell-ok', toolName: 'shell', input: { command: process.platform === 'win32' ? "[Console]::Write('SHELL_OK')" : "printf 'SHELL_OK'", cwd: 'nested' } }, // 在相对工作目录执行成功命令
     ])
 
-    expect(overwrite.results[0].isError).toBe(false)    // 覆盖写入成功
-    expect(append.results[0].isError).toBe(false)       // 追加写入成功
-    expect(reads.results[0].output).toBe('AB')          // 读取返回覆盖和追加后的完整内容
-    expect(reads.results[1].output).toContain('file: note.txt') // 目录列出真实文件
-    expect(reads.results[2].output).toContain(join('nested', 'note.txt')) // 搜索返回真实路径
-    expect(reads.results[3].output).toBe('WEB_OK')      // Web 成功内容返回模型
-    expect(reads.results[4]).toMatchObject({ isError: true, output: 'web request failed with status 503' }) // Web 非成功状态变成错误结果
-    expect(reads.results[5]).toMatchObject({ isError: false, output: 'TOOLS_DONE' }) // finish 返回摘要
+    expect(overwrite.results[0].output.type).toBe('text') // 覆盖写入成功
+    expect(append.results[0].output.type).toBe('text')   // 追加写入成功
+    expect(reads.results[0].output.value).toBe('AB')    // 读取返回覆盖和追加后的完整内容
+    expect(reads.results[1].output.value).toContain('file: note.txt') // 目录列出真实文件
+    expect(reads.results[2].output.value).toContain(join('nested', 'note.txt')) // 搜索返回真实路径
+    expect(reads.results[3].output.value).toBe('WEB_OK') // Web 成功内容返回模型
+    expect(reads.results[4].output).toEqual({ type: 'error-text', value: 'web request failed with status 503' }) // Web 非成功状态变成错误结果
+    expect(reads.results[5].output).toEqual({ type: 'text', value: 'TOOLS_DONE' }) // finish 返回摘要
     expect(reads.shouldStop).toBe(true)                 // finish 控制 Agent 退出
-    expect(reads.results[6]).toMatchObject({ isError: true, output: 'tool not found: missing_tool' }) // 未声明工具不执行
-    expect(shell.results[0].output).toMatchObject({ stdout: 'SHELL_OK', exitCode: 0 }) // Shell 使用工作区相对 cwd
+    expect(reads.results[6].output).toEqual({ type: 'error-text', value: 'tool not found: missing_tool' }) // 未声明工具不执行
+    expect(shell.results[0].output.value).toMatchObject({ stdout: 'SHELL_OK', exitCode: 0 }) // Shell 使用工作区相对 cwd
   }, 10000)
 
   it('broadcasts one event to every SSE client and cleans disconnects', async () => {
@@ -543,10 +543,10 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建 Shell 工具上下文
     const command = process.platform === 'win32' ? 'exit 7' : 'exit 7' // 两个平台都使用非零退出命令
     const result = await Tool.runAll(session.id, [
-      { type: 'tool_call', toolCallId: 'shell-error', toolName: 'shell', input: { command }, status: 'pending' }, // 执行必定失败的命令
+      { type: 'tool-call', toolCallId: 'shell-error', toolName: 'shell', input: { command } }, // 执行必定失败的命令
     ])
-    expect(result.results[0].isError).toBe(true)         // 非零退出码不能伪装成成功工具结果
-    expect(result.results[0].output).toContain('exitCode') // 错误仍保留输出和退出码供模型修正
+    expect(result.results[0].output.type).toBe('error-text') // 非零退出码不能伪装成成功工具结果
+    expect(result.results[0].output.value).toContain('exitCode') // 错误仍保留输出和退出码供模型修正
   })
 
   it('keeps retrying recoverable errors until stop aborts the wait', async () => {
@@ -748,7 +748,7 @@ describe('minimal agent backend', () => {
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
       tools: ['agent.js', 'file.js', 'shell.js', 'web.js'], // 四个平铺工具模块
-      utils: ['json.js', 'llm.js', 'message.js', 'retry.js', 'tool.js'], // 保留消息、LLM、工具、重试和原子 JSON 封装
+      utils: ['json.js', 'llm.js', 'retry.js', 'tool.js'], // 保留 LLM、工具、重试和原子 JSON 封装
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))

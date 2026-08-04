@@ -35,7 +35,7 @@ async function send(sessionID, content) {
 
   const messageID = `msg_${crypto.randomUUID()}`          // 客户端身份与 Server 持久化保持一致
   const files = [...session.files]                         // 保存本轮真实附件，清空输入区后仍可发送
-  const userMessage = { id: messageID, role: 'user', content: text, contentBlocks: [{ type: 'text', text: { text } }], files: files.map(({ content: _content, ...file }) => file), createdAt: Date.now() } // 输入立即进入时间线且不把正文重复放入 UI
+  const userMessage = { id: messageID, role: 'user', content: text, files: files.map(({ content: _content, ...file }) => file), createdAt: Date.now() } // 输入立即进入时间线，终态再由 Server 的 AI SDK 消息校准
   const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前响应占位
   session.rollback = null                                // 新消息正式提交当前回退分支
   session.files = []                                     // 附件归属用户消息后清空输入区
@@ -98,9 +98,13 @@ async function receive(sessionID, event, controller) {
 
   if (event.name === 'text-delta' && assistant) assistant.content += event.data.text || '' // 追加模型正文增量
   if (event.name === 'reasoning-delta' && assistant) assistant.reasoning += event.data.text || '' // 追加模型推理增量
-  if (event.name === 'tool-call' && assistant) upsertTool(assistant, event.data, 'running') // 展示模型工具声明
+  if (event.name === 'tool-call' && assistant) upsertTool(assistant, event.data.toolCall, 'running') // 展示模型工具声明
   if (event.name === 'tool-approval-request' && assistant) upsertTool(assistant, { toolCallId: event.data.id, toolName: event.data.name, input: event.data.args }, 'waiting') // 展示三选一审批
-  if (event.name === 'tool-result' && assistant) upsertTool(assistant, event.data, event.data.output?.denied ? 'rejected' : 'completed') // 展示真实工具结果
+  if (event.name === 'tool-result' && assistant) {
+    const result = event.data.toolResult                 // 读取 AI SDK ToolResultPart
+    const status = result.output.type === 'execution-denied' ? 'rejected' : result.output.type.startsWith('error-') ? 'error' : 'completed' // 根据 SDK 输出类型展示终态
+    upsertTool(assistant, { ...result, output: result.output }, status) // 展示真实工具结果
+  }
   if (event.name === 'task-list-updated') {
     session.tasks = event.data.tasks || []                // 任务面板使用 Server 持久化清单
     session.taskRevision = event.data.taskRevision        // 保存并发修订号
@@ -151,8 +155,9 @@ function upsertTool(assistant, data, status) {
 
 // --- 格式化工具结果 ---
 function formatOutput(output) {
-  if (typeof output === 'string') return output           // 文本结果直接展示
-  return output?.result || JSON.stringify(output ?? '')   // 优先显示工具业务结果
+  if (output?.type === 'text' || output?.type === 'error-text') return output.value // AI SDK 文本结果直接展示
+  if (output?.type === 'execution-denied') return output.reason || t('toolDenied') // 展示工具拒绝原因
+  return JSON.stringify(output?.value ?? output ?? '')    // JSON 结果保持真实结构
 }
 
 

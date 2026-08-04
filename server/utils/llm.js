@@ -1,5 +1,5 @@
 /*
-LLM 流工具：请求 OpenAI-compatible 模型，处理单轮超时，并返回完整内容块和工具调用。
+LLM 流工具：请求 OpenAI-compatible 模型，处理单轮超时，并返回 AI SDK AssistantContent 和工具调用。
 本文件只依赖调用参数和模型 SDK，不读取 store、会话或 SSE 客户端。
 调用示例：await LLM.chat({ apiURL, apiKey, model, messages, tools, signal, onEvent })。
 */
@@ -23,157 +23,29 @@ async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, sign
 
   try {
     const stream = streamText({
-			model: provider(model),
-			system: systemPrompt,
-			messages,
-			tools: modelTools,
-			maxRetries: 0,
-			abortSignal: requestSignal,
-			onError: () => {},
-		})
+      model: provider(model),                            // 使用调用方选择的具体模型
+      system: systemPrompt,                              // 传入当前系统提示
+      messages,                                          // session.messages 本身就是 ModelMessage[]
+      tools: modelTools,                                 // 发送当前扫描到的动态工具
+      maxRetries: 0,                                     // 项目统一由 Retry 管理重试
+      abortSignal: requestSignal,                        // 停止和单轮超时都中断底层请求
+      onError: () => {},                                 // 错误由流事件抛给调用方
+    })
 
-		// ── 结果容器 ──
-		const contentBlocks = [];
-		const toolCalls = [];
-		let fullText = "";
-		let usage = null;
+    for await (const part of stream.fullStream) {
+      if (part.type === 'text-delta') onEvent?.('text-delta', { delta: part.text }) // 实时反馈正文增量
+      if (part.type === 'reasoning-delta') onEvent?.('reasoning-delta', { delta: part.text }) // 实时反馈推理增量
+      if (part.type === 'tool-call') onEvent?.('tool-call', { type: 'tool-call', toolCallId: part.toolCallId, toolName: part.toolName, input: part.input }) // 反馈完整 AI SDK ToolCallPart
+      if (part.type === 'tool-error' || part.type === 'error') throw part.error // 模型和工具协议错误结束本轮
+      if (part.type === 'abort') throw new DOMException('LLM request aborted', 'AbortError') // SDK 中止事件保持标准语义
+    }
 
-		const textBlocks = new Map();
-		const thinkBlocks = new Map();
-		const toolBlocks = new Map();
-
-		// ── 消费流，边读边推事件 ──
-		for await (const part of stream.fullStream) {
-			switch (part.type) {
-				case "text-start": {
-					const block = { type: "text", text: "" };
-					textBlocks.set(part.id, block);
-					contentBlocks.push(block);
-					onEvent?.("text-start", { blockIndex: contentBlocks.length - 1 });
-					break;
-				}
-
-				case "text-delta": {
-					let block = textBlocks.get(part.id);
-					if (!block) {
-						block = { type: "text", text: "" };
-						textBlocks.set(part.id, block);
-						contentBlocks.push(block);
-						onEvent?.("text-start", { blockIndex: contentBlocks.length - 1 });
-					}
-					block.text += part.text;
-					fullText += part.text;
-					onEvent?.("text-delta", {
-						blockIndex: contentBlocks.indexOf(block),
-						delta: part.text,
-					});
-					break;
-				}
-
-				case "reasoning-start": {
-					const block = { type: "thinking", thinking: "" };
-					thinkBlocks.set(part.id, block);
-					contentBlocks.push(block);
-					onEvent?.("thinking-start", { blockIndex: contentBlocks.length - 1 });
-					break;
-				}
-
-				case "reasoning-delta": {
-					let block = thinkBlocks.get(part.id);
-					if (!block) {
-						block = { type: "thinking", thinking: "" };
-						thinkBlocks.set(part.id, block);
-						contentBlocks.push(block);
-						onEvent?.("thinking-start", { blockIndex: contentBlocks.length - 1 });
-					}
-					block.thinking += part.text;
-					onEvent?.("thinking-delta", {
-						blockIndex: contentBlocks.indexOf(block),
-						delta: part.text,
-					});
-					break;
-				}
-
-				case "tool-input-start": {
-					const block = {
-						type: "tool_call",
-						toolCallId: part.id,
-						toolName: part.toolName,
-						input: {},
-						inputRaw: "",
-						status: "pending",
-					};
-					toolBlocks.set(part.id, block);
-					contentBlocks.push(block);
-					onEvent?.("tool-call-start", {
-						blockIndex: contentBlocks.length - 1,
-						toolCallId: part.id,
-						toolName: part.toolName,
-					});
-					break;
-				}
-
-				case "tool-input-delta": {
-					const block = toolBlocks.get(part.id);
-					if (block) {
-						block.inputRaw += part.delta;
-						onEvent?.("tool-input-delta", {
-							toolCallId: part.id,
-							delta: part.delta,
-						});
-					}
-					break;
-				}
-
-				case "tool-call": {
-					let block = toolBlocks.get(part.toolCallId);
-					if (!block) {
-						block = { type: "tool_call", toolCallId: part.toolCallId, toolName: part.toolName, input: {}, status: "pending" };
-						toolBlocks.set(part.toolCallId, block);
-						contentBlocks.push(block);
-						onEvent?.("tool-call-start", { blockIndex: contentBlocks.length - 1, toolCallId: part.toolCallId, toolName: part.toolName });
-					}
-					if (block) {
-						block.input = part.input;
-						delete block.inputRaw;
-						onEvent?.("tool-call-ready", {
-							toolCallId: part.toolCallId,
-							toolName: part.toolName,
-							input: part.input,
-						});
-					}
-					toolCalls.push({
-						toolCallId: part.toolCallId,
-						toolName: part.toolName,
-						args: part.input,
-					});
-					break;
-				}
-
-				case "finish": {
-					usage = part.totalUsage ? { inputTokens: part.totalUsage.inputTokens, outputTokens: part.totalUsage.outputTokens } : null;
-					break;
-				}
-
-				case "tool-error":
-					throw part.error;
-
-				case "error":
-					throw part.error;
-
-				case "abort":
-					throw new DOMException("LLM request aborted", "AbortError");
-			}
-		}
-
-		// ── 返回完整结果给 agent.js ──
     requestSignal.throwIfAborted()                       // 供应商未抛中止事件时也不能吞掉停止
-		return {
-			content: fullText,
-			contentBlocks,
-			toolCalls,
-			usage,
-		}
+    const responseMessages = await stream.responseMessages // 由 AI SDK 生成可直接用于下一轮的消息
+    const assistant = responseMessages.findLast((message) => message.role === 'assistant') // 当前单轮只持久化最终助手消息
+    const content = assistant?.content ?? []             // 直接保留 AI SDK AssistantContent
+    const toolCalls = Array.isArray(content) ? content.filter((part) => part.type === 'tool-call') : [] // 同一内容块直接交给工具执行
+    return { content, toolCalls, usage: await stream.usage } // 不重建任何消息内容块
   } catch (error) {
     if (signal?.aborted) throw signal.reason ?? new DOMException('operation aborted', 'AbortError') // 用户停止保持原始中止语义
     if (timeoutSignal.aborted) throw Object.assign(new Error(`model request timed out after ${timeoutMS}ms`), { status: 408 }) // 超时提供可重试状态

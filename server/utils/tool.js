@@ -36,7 +36,7 @@ function definitions() {
 // --- 执行工具 ---
 function execute(toolCall, context = {}, { onOutput } = {}) {
   const name = toolCall.toolName                          // 读取模型声明的工具名称
-  const input = toolCall.args ?? toolCall.input ?? {}     // 接受 LLM 和持久化工具调用的参数字段
+  const input = toolCall.input ?? {}                     // 直接读取 AI SDK ToolCallPart 输入
   const tool = registry.get(name)                        // 按模型返回名称定位工具
   if (!tool) return { result: Promise.resolve({ output: `tool not found: ${name}`, isError: true, stop: false }), abort() {} } // 未注册名称返回稳定错误结果
 

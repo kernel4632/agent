@@ -151,19 +151,22 @@ async function selectModel(sessionID, provider, model) {
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
   const provider = findModelProvider(source.model)       // 从 `/config` 模型目录解析供应商
-  const sessionData = structuredClone(source)              // Server 返回的 Session 即为前端公开结构
-  const messages = []                                   // 将工具结果合并到所属助手消息
+  const sessionData = structuredClone(source)            // Server 返回的 Session 即为前端公开结构
+  const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
   for (const item of source.messages ?? []) {
     if (item.role === 'tool') {
       const assistant = [...messages].reverse().find((message) => message.role === 'assistant') // 工具结果归入最近助手轮次
-      const tool = assistant?.tools?.find((entry) => entry.id === item.toolCallId) // 查找同一工具声明
-      if (tool) Object.assign(tool, { status: item.status || 'completed', preview: formatToolOutput(item.result), checkpoint: item.checkpoint || item.step }) // 补齐真实结果和存档点
+      for (const result of item.content) {
+        const tool = assistant?.tools?.find((entry) => entry.id === result.toolCallId) // 按 AI SDK 调用身份查找展示条
+        if (tool) Object.assign(tool, { status: result.output.type.startsWith('error-') ? 'error' : 'completed', preview: formatToolOutput(result.output), checkpoint: result.checkpoint }) // 补齐真实结果
+      }
       continue                                           // 工具协议消息不单独占用聊天气泡
     }
-    const message = structuredClone(item)                   // 复制消息避免归一化修改 Server 响应
-    message.reasoning = item.reasoning || item.contentBlocks?.find((block) => block.type === 'thinking')?.thinking?.thinking || '' // 读取统一推理块
-    message.content = item.content || item.contentBlocks?.filter((block) => block.type === 'text').map((block) => block.text?.text || '').join('') || '' // 合并文本块
-    message.tools = (item.toolCalls ?? []).map((call) => ({ id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: item.checkpoint })) // 将工具声明转换为展示条
+    const blocks = typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : item.content // AI SDK 允许字符串或内容块数组
+    const message = structuredClone(item)                // 复制消息避免归一化修改 Server 响应
+    message.reasoning = blocks.filter((block) => block.type === 'reasoning').map((block) => block.text).join('') // 合并 AI SDK 推理块
+    message.content = blocks.filter((block) => block.type === 'text').map((block) => block.text).join('') // 合并 AI SDK 文本块
+    message.tools = blocks.filter((block) => block.type === 'tool-call').map((call) => ({ id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: null })) // 将 AI SDK 工具调用转换为展示条
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }
   return {
@@ -194,8 +197,9 @@ function findModelProvider(model) {
 // --- 格式化工具结果预览 ---
 function formatToolOutput(output) {
   if (output == null) return ''                          // 尚无结果时保持空预览
-  if (typeof output === 'string') return output          // 文本结果直接展示
-  return output.result || JSON.stringify(output)         // 优先展示工具业务结果
+  if (output.type === 'text' || output.type === 'error-text') return output.value // AI SDK 文本结果直接展示
+  if (output.type === 'execution-denied') return output.reason || t('toolDenied') // 拒绝结果展示原因
+  return JSON.stringify(output.value ?? '')              // JSON 结果保持真实结构
 }
 
 

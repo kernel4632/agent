@@ -4,7 +4,6 @@
 调用示例：await Tool.load('D:/agent/server/tools')、await Tool.runAll(sessionID, toolCalls)。
 */
 import { store } from '../store.js'                      // 引入公开工具定义列表
-import { createToolResult } from '../utils/message.js'   // 引入纯工具结果格式
 import { Tool as ToolRuntime } from '../utils/tool.js'   // 引入工具注册、执行和中止封装
 import { Session } from './session.js'                   // 引入会话工作区和停止状态
 
@@ -45,7 +44,7 @@ async function runAll(sessionID, toolCalls) {
 // --- 执行单个工具 ---
 async function run(sessionID, toolCall) {
   const session = await Session.getMutable(sessionID)    // 工具运行状态归属于当前会话
-  if (!session) return { result: createToolResult(toolCall, 'session not found', true), stop: false } // 会话删除后不再执行外部动作
+  if (!session) return { result: toolResult(toolCall, 'session not found', true), stop: false } // 会话删除后不再执行外部动作
 
   let context
   try {
@@ -56,22 +55,27 @@ async function run(sessionID, toolCall) {
       removeProcess: (childProcess) => session.processes.delete(childProcess), // Shell 结束后离开集合
     }
   } catch (error) {
-    return { result: createToolResult(toolCall, ToolRuntime.errorText(error), true), stop: false } // 工作区损坏作为工具错误反馈
+    return { result: toolResult(toolCall, ToolRuntime.errorText(error), true), stop: false } // 工作区损坏作为工具错误反馈
   }
 
-  toolCall.status = 'running'                            // store 记录工具已经开始
   const execution = ToolRuntime.execute(toolCall, context) // utils 读取调用参数并统一执行结果
   const sessionTools = runningTools.get(sessionID) ?? new Set() // 读取或创建当前会话工具集合
   sessionTools.add(execution)                            // stop 可以中止 utils 包装任务
   runningTools.set(sessionID, sessionTools)              // 保存当前会话工具集合
   try {
     const value = await execution.result                 // 等待完整工具输出
-    toolCall.status = value.isError ? 'error' : 'completed' // 结果状态同步回助手消息
-    return { result: createToolResult(toolCall, value.output, value.isError), stop: value.stop } // 转成 store 工具结果和 Agent 控制信号
+    return { result: toolResult(toolCall, value.output, value.isError), stop: value.stop } // 转成 AI SDK 工具结果和 Agent 控制信号
   } finally {
     sessionTools.delete(execution)                       // 无论成功失败都清除包装任务
     if (sessionTools.size === 0) runningTools.delete(sessionID) // 最后一个任务结束后释放集合
   }
+}
+
+
+// --- 创建 AI SDK 工具结果 ---
+function toolResult(toolCall, output, isError) {
+  const outputType = isError ? (typeof output === 'string' ? 'error-text' : 'error-json') : (typeof output === 'string' ? 'text' : 'json') // 按真实值和错误状态选择 SDK 输出类型
+  return { type: 'tool-result', toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: { type: outputType, value: output } } // 直接符合 AI SDK ToolResultPart
 }
 
 
