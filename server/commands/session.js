@@ -7,7 +7,7 @@ import { mkdir, rm } from 'node:fs/promises'            // 引入会话目录创
 import { join } from 'node:path'                        // 引入会话文件路径拼接能力
 import { nanoid } from 'nanoid'                         // 引入会话和消息唯一 ID 生成能力
 import { store } from '../store.js'                     // 引入会话与工作区数据
-import { writeJSON } from '../utils/json.js'            // 引入完整 JSON 文件替换能力
+import { File } from '../utils/file.js'                 // 引入完整文件替换能力
 import { Workspace } from './workspace.js'              // 引入工作区摘要保存动作
 
 const encoder = new TextEncoder()                       // 所有 SSE 客户端共用 UTF-8 编码器
@@ -136,7 +136,7 @@ async function save(id) {
   const snapshot = publicValue(session)                 // 排除三个运行时字段
   const sessionPath = join(sessionsDirectory, `${id}.json`) // 确定最终会话文件位置
   const previousSave = lastSessionSaves.get(id) ?? Promise.resolve() // 只等待当前会话的前一次保存
-  const currentSave = previousSave.catch(() => {}).then(() => writeJSON(sessionPath, snapshot)) // 较新状态可以修复前一次失败
+  const currentSave = previousSave.catch(() => {}).then(() => File.write(sessionPath, `${JSON.stringify(snapshot, null, 2)}\n`)) // 较新状态可以修复前一次失败
   lastSessionSaves.set(id, currentSave)                 // 后续快照排在当前保存之后
   try {
     await currentSave                                    // 等待当前快照真正写入磁盘

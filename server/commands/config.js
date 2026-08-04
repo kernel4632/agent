@@ -6,7 +6,7 @@
 import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建配置目录的能力
 import { dirname } from 'node:path'                   // 引入配置文件父目录定位能力
 import { store } from '../store.js'                   // 引入唯一配置数据
-import { writeJSON } from '../utils/json.js'          // 引入完整 JSON 文件替换能力
+import { File } from '../utils/file.js'                // 引入完整文件替换能力
 
 let configPath = ''                                   // 保存当前进程使用的配置文件位置
 let lastConfigUpdate = Promise.resolve()              // 后一个配置修改等待前一个修改完成
@@ -57,7 +57,7 @@ async function applyUpdate(partialConfig) {
 // --- 保存配置 ---
 async function save(value = store.config) {
   if (!configPath) throw new Error('configuration has not been loaded') // 未加载时没有合法写入位置
-  await writeJSON(configPath, value)                   // 使用完整文件替换保存配置
+  await File.write(configPath, `${JSON.stringify(value, null, 2)}\n`) // 配置自行序列化后完整替换文件
 }
 
 

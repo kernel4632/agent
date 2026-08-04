@@ -7,7 +7,7 @@ import { mkdir } from 'node:fs/promises'                // 引入数据目录创
 import { dirname, resolve } from 'node:path'            // 引入稳定绝对路径和父目录定位能力
 import { nanoid } from 'nanoid'                         // 引入工作区唯一 ID 生成能力
 import { store } from '../store.js'                     // 引入工作区数据列表
-import { writeJSON } from '../utils/json.js'            // 引入完整 JSON 文件替换能力
+import { File } from '../utils/file.js'                 // 引入完整文件替换能力
 
 let workspacePath = ''                                  // 保存 workspace.json 的实际位置
 let lastWorkspaceSave = Promise.resolve()               // 后一个工作区快照等待前一个保存完成
@@ -63,7 +63,7 @@ async function remove(id) {
 function save() {
   if (!workspacePath) throw new Error('workspaces have not been loaded') // 未加载时没有合法写入位置
   const snapshot = structuredClone(store.workspaces)    // 固定本次保存内容，避免序列化期间继续变化
-  const currentSave = lastWorkspaceSave.then(() => writeJSON(workspacePath, snapshot)) // 按业务顺序保存当前快照
+  const currentSave = lastWorkspaceSave.then(() => File.write(workspacePath, `${JSON.stringify(snapshot, null, 2)}\n`)) // 按业务顺序保存当前快照
   lastWorkspaceSave = currentSave.catch(() => {})       // 单次失败不能阻塞后续保存
   return currentSave                                    // 调用方等待当前快照真正落盘
 }

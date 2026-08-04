@@ -11,6 +11,7 @@ import { Session } from '../commands/session.js'        // 引入会话运行时
 import { list as listTools, runAll } from '../commands/tool.js' // 引入工具列表和并行执行指令
 import { createApp } from '../server.js'                // 引入完整单文件路由应用
 import { store } from '../store.js'                     // 引入严格 store 结构供契约断言
+import { File } from '../utils/file.js'                 // 引入通用完整文件写入动作
 import { LLM } from '../utils/llm.js'                   // 引入公开 LLM 调用契约供独立验证
 import { Retry } from '../utils/retry.js'               // 引入无限重试封装供次数契约验证
 import { Tool } from '../utils/tool.js'                 // 引入唯一工具注册和执行接口
@@ -250,6 +251,13 @@ describe('minimal agent backend', () => {
     const unrelated = await jsonRequest('/config', 'PATCH', { tools: {} }) // 额外领域不参与供应商配置
     expect(unrelated.status).toBe(200)                  // command 默认信任输入并只读取所需字段
     expect(await (await request('/config')).json()).toEqual(config) // 无关字段不进入配置
+  })
+
+  it('replaces any file through File.write', async () => {
+    const path = join(dataDirectory, 'file-write.txt')   // 创建与 JSON 无关的普通文本路径
+    await File.write(path, 'first')                      // 首次写入完整文件
+    await File.write(path, 'second')                     // 再次调用替换旧内容
+    expect(await readFile(path, 'utf8')).toBe('second') // 公开接口只保留最新完整内容
   })
 
   it('reports missing routes and business resources', async () => {
@@ -767,7 +775,7 @@ describe('minimal agent backend', () => {
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
       tools: ['agent.js', 'file.js', 'shell.js', 'web.js'], // 四个平铺工具模块
-      utils: ['json.js', 'llm.js', 'retry.js', 'tool.js'], // 保留 LLM、工具、重试和原子 JSON 封装
+      utils: ['file.js', 'llm.js', 'retry.js', 'tool.js'], // 保留文件、LLM、工具和重试封装
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))
