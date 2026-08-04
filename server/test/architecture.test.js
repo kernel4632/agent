@@ -407,7 +407,7 @@ describe('minimal agent backend', () => {
 
   it('rejects tools when a session has lost its workspace', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建正常归属的会话
-    const workspace = store.workspaces.find((item) => item.id === workspaceId) // 定位真实工作区摘要
+    const workspace = store.workspaces[workspaceId]      // 按 ID 定位真实工作区摘要
     workspace.sessions = workspace.sessions.filter((summary) => summary.id !== session.id) // 模拟损坏数据中的孤立会话
     const outcome = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' } }, // 尝试读取相对文件
@@ -735,7 +735,7 @@ describe('minimal agent backend', () => {
     const currentWorkspace = (await (await request('/workspace')).json()).find((item) => item.id === workspaceId) // 读取摘要最终状态
     const savedSession = JSON.parse(await readFile(join(dataDirectory, 'sessions', `${session.id}.json`), 'utf8')) // 读取磁盘会话
     const savedWorkspaces = JSON.parse(await readFile(join(dataDirectory, 'workspace.json'), 'utf8')) // 读取磁盘工作区
-    const savedSummary = savedWorkspaces.find((item) => item.id === workspaceId).sessions.find((item) => item.id === session.id) // 定位磁盘摘要
+    const savedSummary = savedWorkspaces[workspaceId].sessions.find((item) => item.id === session.id) // 按 ID 定位磁盘摘要
     expect(savedSession).toEqual(currentSession)         // 磁盘会话不能回退到旧快照
     expect(savedSummary).toEqual(currentWorkspace.sessions.find((item) => item.id === session.id)) // 磁盘摘要不能回退到旧快照
   }, 10000)

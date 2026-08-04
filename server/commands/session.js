@@ -56,7 +56,7 @@ function get(id) {
 
 // --- 创建会话 ---
 async function create(workspaceId, provider, model) {
-  const workspace = Workspace.getMutable(workspaceId)  // 会话摘要必须归入现有工作区
+  const workspace = store.workspaces[workspaceId]       // 按 ID 直接读取会话所属工作区
   if (!workspace) throw businessError(404, 'workspace not found') // 不创建游离会话
 
   const now = Date.now()                                // 摘要时间使用统一基准
@@ -106,7 +106,7 @@ async function remove(id, stopRunningSession) {
     session.clients.clear()                             // 释放全部客户端引用
     await rm(join(sessionsDirectory, `${id}.json`), { force: true }) // 删除持久化会话文件
     delete store.sessions[id]                           // 从内存缓存移除完整会话
-    for (const workspace of store.workspaces) workspace.sessions = workspace.sessions.filter((summary) => summary.id !== id) // 从所有工作区移除摘要
+    for (const workspace of Object.values(store.workspaces)) workspace.sessions = workspace.sessions.filter((summary) => summary.id !== id) // 从所有工作区移除摘要
     await Workspace.save()                             // 保存摘要删除结果
     return { id }                                      // 返回被删除会话 ID
   } finally {
@@ -172,7 +172,7 @@ function emit(id, event, data) {
 
 // --- 查找会话摘要 ---
 function findSummary(id) {
-  for (const workspace of store.workspaces) {
+  for (const workspace of Object.values(store.workspaces)) {
     const summary = workspace.sessions.find((item) => item.id === id) // 在工作区摘要中查找归属
     if (summary) return summary                         // 找到后返回真实可修改对象
   }

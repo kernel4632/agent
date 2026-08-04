@@ -6,7 +6,7 @@
 import { mkdir } from 'node:fs/promises'                // 引入数据目录创建能力
 import { dirname, resolve } from 'node:path'            // 引入稳定绝对路径和父目录定位能力
 import { nanoid } from 'nanoid'                         // 引入工作区唯一 ID 生成能力
-import { store } from '../store.js'                     // 引入工作区数据列表
+import { store } from '../store.js'                     // 引入工作区 KV 数据
 import { File } from '../utils/file.js'                 // 引入完整文件替换能力
 
 let workspacePath = ''                                  // 保存 workspace.json 的实际位置
@@ -19,30 +19,31 @@ async function load(filePath) {
   lastWorkspaceSave = Promise.resolve()                // 新应用实例不等待旧工作区文件写入
   await mkdir(dirname(workspacePath), { recursive: true }) // 首次启动时创建数据目录
   const file = Bun.file(workspacePath)                  // 定位工作区文件
-  const saved = await file.exists() ? await file.json() : [] // 文件不存在时从空列表开始
-  store.workspaces = Array.isArray(saved) ? saved : []  // 工作区根数据严格保持列表
-  if (!await file.exists()) await save()                // 首次运行创建 workspace.json
+  const exists = await file.exists()                    // 记录是否需要创建或迁移配置
+  const saved = exists ? await file.json() : {}         // 文件不存在时从空 KV 开始
+  store.workspaces = Array.isArray(saved) ? Object.fromEntries(saved.map((workspace) => [workspace.id, workspace])) : saved // 旧数组一次迁移为 ID 键值
+  if (!exists || Array.isArray(saved)) await save()      // 首次运行或旧格式迁移后写回 KV
   return list()                                         // 反馈恢复后的工作区
 }
 
 
 // --- 列出工作区 ---
 function list() {
-  return structuredClone(store.workspaces)              // 返回副本避免入口直接修改 store
+  return structuredClone(Object.values(store.workspaces)) // HTTP 列表保持数组，store 使用 KV
 }
 
 
 // --- 添加工作区 ---
 async function add(path) {
   const normalizedPath = resolve(path)                  // 相对路径转换为稳定绝对路径
-  if (store.workspaces.some((item) => item.path.toLowerCase() === normalizedPath.toLowerCase())) throw businessError(409, 'workspace path already exists') // 同一路径只保存一次
+  if (Object.values(store.workspaces).some((item) => item.path.toLowerCase() === normalizedPath.toLowerCase())) throw businessError(409, 'workspace path already exists') // 同一路径只保存一次
 
   const workspace = {                                   // 创建严格符合 store 的工作区结构
     id: `workspace-${nanoid(10)}`,                       // 生成稳定工作区身份
     path: normalizedPath,                                // 保存真实绝对路径
     sessions: [],                                        // 新工作区还没有会话摘要
   }
-  store.workspaces.push(workspace)                       // 将记录加入全局列表
+  store.workspaces[workspace.id] = workspace             // 按 ID 将记录加入全局 KV
   await save()                                           // 添加后立即保存
   return structuredClone(workspace)                      // 返回新工作区副本
 }
@@ -50,10 +51,10 @@ async function add(path) {
 
 // --- 移除工作区 ---
 async function remove(id) {
-  const index = store.workspaces.findIndex((item) => item.id === id) // 查找目标工作区
-  if (index < 0) throw businessError(404, 'workspace not found') // 不存在时返回资源错误
-  if (store.workspaces[index].sessions.length > 0) throw businessError(409, 'workspace still contains sessions') // 保留会话时不能制造失去归属的数据
-  store.workspaces.splice(index, 1)                     // 只移除工作区记录
+  const workspace = store.workspaces[id]                // 按 ID 直接读取目标工作区
+  if (!workspace) throw businessError(404, 'workspace not found') // 不存在时返回资源错误
+  if (workspace.sessions.length > 0) throw businessError(409, 'workspace still contains sessions') // 保留会话时不能制造失去归属的数据
+  delete store.workspaces[id]                           // 只移除工作区记录
   await save()                                          // 不删除目录或会话文件
   return { id }                                         // 返回被移除的工作区 ID
 }
@@ -69,16 +70,10 @@ function save() {
 }
 
 
-// --- 读取可修改工作区 ---
-function getMutable(id) {
-  return store.workspaces.find((workspace) => workspace.id === id) ?? null // 只供 commands 内部修改摘要
-}
-
-
 // --- 创建业务错误 ---
 function businessError(status, message) {
   return Object.assign(new Error(message), { status })  // 让 server.js 统一转换 HTTP 状态
 }
 
 
-export const Workspace = { load, list, add, remove, save, getMutable } // 导出工作区最小动作
+export const Workspace = { load, list, add, remove, save } // 导出工作区最小动作

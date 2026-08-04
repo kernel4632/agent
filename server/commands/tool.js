@@ -43,7 +43,7 @@ async function execute(session, toolCall) {
   const input = structuredClone(toolCall.input)          // 工具获得独立输入，路径展开不修改模型消息
   try {
     if (toolCall.toolName === 'shell' || typeof input.path === 'string') {
-      const workspace = store.workspaces.find((item) => item.sessions.some((summary) => summary.id === session.id)) // 通过摘要确定会话工作区
+      const workspace = Object.values(store.workspaces).find((item) => item.sessions.some((summary) => summary.id === session.id)) // 通过摘要确定会话工作区
       if (!workspace) throw Object.assign(new Error('session workspace not found'), { status: 409 }) // 归属损坏时禁止回退到服务端目录
       const path = workspace.path                         // 工具只使用明确登记的工作区
       if (input.path === undefined) input.path = path     // Shell 默认在当前工作区执行
