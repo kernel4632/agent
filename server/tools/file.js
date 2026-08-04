@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'                // 引入父目录和�
 
 // --- 读取文本文件 ---
 export const readFileTool = {
-  name: 'read_file',                                    // LLM 调用使用的稳定工具名
+  name: 'file_read',                                    // LLM 调用使用对象在前的稳定工具名
   description: '读取指定路径的文本文件内容。',         // 说明该工具用于读取文本
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
@@ -28,7 +28,7 @@ export const readFileTool = {
 
 // --- 写入文本文件 ---
 export const writeFileTool = {
-  name: 'write_file',                                   // LLM 调用使用的稳定工具名
+  name: 'file_write',                                   // LLM 调用使用对象在前的稳定工具名
   description: '覆盖或追加写入文本文件，不存在时创建父目录。', // 明确该工具会修改磁盘
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
@@ -52,7 +52,7 @@ export const writeFileTool = {
 
 // --- 列出目录内容 ---
 export const listFilesTool = {
-  name: 'list_files',                                   // LLM 调用使用的稳定工具名
+  name: 'file_list',                                    // LLM 调用使用对象在前的稳定工具名
   description: '列出目录中的文件和子目录。',           // 说明只列出当前一层
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
@@ -73,7 +73,7 @@ export const listFilesTool = {
 
 // --- 搜索文件名称 ---
 export const searchFilesTool = {
-  name: 'search_files',                                 // LLM 调用使用的稳定工具名
+  name: 'file_search',                                  // LLM 调用使用对象在前的稳定工具名
   description: '递归查找目录中名称包含关键词的文件。', // 搜索只匹配文件名
   parameters: {
     type: 'object',                                     // 工具输入必须是对象

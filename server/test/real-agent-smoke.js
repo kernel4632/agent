@@ -58,9 +58,9 @@ try {
     '在当前工作区创建一个完整、可直接运行的静态网站。',
     '主题：软件团队的 Sprint 控制台。页面必须包含项目标题、当前冲刺指标、任务看板和一个可交互的筛选按钮。',
     `第一步必须调用 web 工具读取项目验收要求：${requirementsURL}`,
-    '必须使用 write_file 工具创建且只创建 index.html、styles.css、script.js 三个文件。',
+    '必须使用 file_write 工具创建且只创建 index.html、styles.css、script.js 三个文件。',
     'index.html 必须正确引用 styles.css 和 script.js；不得只回复代码或方案。页面至少包含六个带 data-status 的任务卡。',
-    '创建后必须调用 list_files、search_files，并分别调用 read_file 检查三个文件。',
+    '创建后必须调用 file_list、file_search，并分别调用 file_read 检查三个文件。',
     '随后必须调用 shell 检查工作区恰好包含三个目标文件，且 script.js 不是空文件。',
     '完成并检查文件后调用 finish 工具。',
   ].join('\n')
@@ -81,7 +81,7 @@ try {
   const toolCalls = blocks.filter((block) => block.type === 'tool-call') // 收集模型真实工具调用
   const toolResults = blocks.filter((block) => block.type === 'tool-result') // 收集后端真实工具结果
   const toolNames = toolCalls.map((block) => block.toolName) // 收集模型真实调用名称
-  const requiredTools = ['web', 'write_file', 'list_files', 'search_files', 'read_file', 'shell', 'finish'] // 完整项目必须覆盖的工具链
+  const requiredTools = ['web', 'file_write', 'file_list', 'file_search', 'file_read', 'shell', 'finish'] // 完整项目必须覆盖的工具链
   const missingTools = requiredTools.filter((name) => !toolNames.includes(name)) // 找出模型跳过的后端功能
   if (missingTools.length > 0) throw new Error(`Agent skipped required tools: ${missingTools.join(', ')}`) // 工具链不完整视为 smoke 失败
   const failedTools = requiredTools.filter((name) => !toolCalls.some((call) => call.toolName === name && toolResults.some((result) => result.toolCallId === call.toolCallId && !result.output.type.startsWith('error-')))) // 每类工具至少成功一次

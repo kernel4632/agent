@@ -55,7 +55,7 @@ beforeAll(async () => {
         const hasToolResult = body.messages.some((message) => message.role === 'tool') // 工具结果出现后进入完成轮
         return hasToolResult
           ? toolCallStream()                             // 第二轮调用 finish 结束
-          : namedToolCallStream('call_write', 'write_file', { path: 'chain.txt', content: 'CHAIN_OK' }) // 第一轮写入真实文件
+          : namedToolCallStream('call_write', 'file_write', { path: 'chain.txt', content: 'CHAIN_OK' }) // 第一轮写入真实文件
       }
       if (prompt.includes('FINISH_TOOL')) return toolCallStream() // 返回 finish 工具调用
 
@@ -305,7 +305,7 @@ describe('minimal agent backend', () => {
         },
       })
       expect(JSON.parse(await readFile(join(migrationRoot, 'config.json'), 'utf8'))).toEqual(config) // 磁盘删除旧 tools 字段
-      expect(store.tools.read_file).toBeObject()         // 工具仍来自正式目录扫描
+      expect(store.tools.file_read).toBeObject()         // 工具仍来自正式目录扫描
     } finally {
       await migrated.close()                             // 关闭迁移应用
       const restored = await createApp({ dataDirectory }) // 恢复主测试应用的全局 store
@@ -410,9 +410,9 @@ describe('minimal agent backend', () => {
     const workspace = store.workspaces[workspaceId]      // 按 ID 定位真实工作区摘要
     workspace.sessions = workspace.sessions.filter((summary) => summary.id !== session.id) // 模拟损坏数据中的孤立会话
     const outcome = await runTools(session.id, [
-      { type: 'tool-call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' } }, // 尝试读取相对文件
+      { type: 'tool-call', toolCallId: 'orphan-read', toolName: 'file_read', input: { path: 'config.json' } }, // 尝试读取相对文件
     ])
-    expect(outcome.results[0]).toEqual({ type: 'tool-result', toolCallId: 'orphan-read', toolName: 'read_file', output: { type: 'error-text', value: 'session workspace not found' } }) // 工具不能回退到服务端当前目录
+    expect(outcome.results[0]).toEqual({ type: 'tool-result', toolCallId: 'orphan-read', toolName: 'file_read', output: { type: 'error-text', value: 'session workspace not found' } }) // 工具不能回退到服务端当前目录
     await Session.remove(session.id)                    // 清理不再属于工作区的测试会话
   })
 
@@ -488,7 +488,7 @@ describe('minimal agent backend', () => {
     const subscription = await subscribe(session.id)    // 监听两个工具轮次
     await jsonRequest('/session/send', 'POST', { id: session.id, content: 'TOOL_CHAIN' }) // 首轮写文件，次轮 finish
     await readUntil(subscription, (event) => event.name === 'status' && event.data.status === 'idle') // 等待 finish 结束
-    expect(await readFile(join(directory, 'chain.txt'), 'utf8')).toBe('CHAIN_OK') // write_file 真实修改工作区
+    expect(await readFile(join(directory, 'chain.txt'), 'utf8')).toBe('CHAIN_OK') // file_write 真实修改工作区
     const detail = await (await request(`/session?id=${session.id}`)).json() // 读取完整工具上下文
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'tool']) // 工具结果确实发送到下一轮
     expect(detail.messages[2].content[0].output.value).toContain('chain.txt') // 第一轮保存写入反馈
@@ -537,15 +537,15 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建工具上下文
 
     const overwrite = await runTools(session.id, [
-      { type: 'tool-call', toolCallId: 'write-overwrite', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'A' } }, // 覆盖创建文件
+      { type: 'tool-call', toolCallId: 'write-overwrite', toolName: 'file_write', input: { path: 'nested/note.txt', content: 'A' } }, // 覆盖创建文件
     ])
     const append = await runTools(session.id, [
-      { type: 'tool-call', toolCallId: 'write-append', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'B', mode: 'append' } }, // 追加文件
+      { type: 'tool-call', toolCallId: 'write-append', toolName: 'file_write', input: { path: 'nested/note.txt', content: 'B', mode: 'append' } }, // 追加文件
     ])
     const reads = await runTools(session.id, [
-      { type: 'tool-call', toolCallId: 'read', toolName: 'read_file', input: { path: 'nested/note.txt' } }, // 读取完整文本
-      { type: 'tool-call', toolCallId: 'list', toolName: 'list_files', input: { path: 'nested' } }, // 列出当前目录
-      { type: 'tool-call', toolCallId: 'search', toolName: 'search_files', input: { path: '.', keyword: 'note' } }, // 递归搜索文件名
+      { type: 'tool-call', toolCallId: 'read', toolName: 'file_read', input: { path: 'nested/note.txt' } }, // 读取完整文本
+      { type: 'tool-call', toolCallId: 'list', toolName: 'file_list', input: { path: 'nested' } }, // 列出当前目录
+      { type: 'tool-call', toolCallId: 'search', toolName: 'file_search', input: { path: '.', keyword: 'note' } }, // 递归搜索文件名
       { type: 'tool-call', toolCallId: 'web-ok', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-ok` } }, // 获取成功网页
       { type: 'tool-call', toolCallId: 'web-error', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-error` } }, // 获取错误网页
       { type: 'tool-call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' } }, // 明确结束任务
