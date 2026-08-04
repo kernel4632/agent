@@ -9,7 +9,7 @@ import { Elysia } from 'elysia'                        // 引入单文件 HTTP �
 import { Agent } from './commands/agent.js'            // 引入发送和停止指令
 import { Config } from './commands/config.js'          // 引入配置加载与修改指令
 import { Session } from './commands/session.js'        // 引入会话和 SSE 指令
-import { Tool } from './commands/tool.js'              // 引入启动工具扫描指令
+import { load as loadTools } from './commands/tool.js' // 引入启动工具扫描指令
 import { Workspace } from './commands/workspace.js'    // 引入工作区指令
 import { store } from './store.js'                     // 引入退出清理所需的会话列表
 
@@ -18,7 +18,7 @@ import { store } from './store.js'                     // 引入退出清理所�
 export async function createApp(options = {}) {
   const dataDirectory = resolve(options.dataDirectory ?? process.env.AGENT_DATA_DIR ?? join(process.env.USERPROFILE ?? '.', '.agent')) // 确定唯一数据目录
   await mkdir(join(dataDirectory, 'sessions'), { recursive: true }) // 启动前确保会话目录存在
-  await Tool.load(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 每次启动重新扫描工具模块
+  await loadTools(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 每次启动重新扫描工具模块
   await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 再加载模型供应商配置
   await Workspace.load(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 再加载工作区摘要
   await Session.load(join(dataDirectory, 'sessions'))   // 最后准备会话按需加载目录

@@ -1,6 +1,6 @@
 /*
 配置指令集：加载、读取、合并并保存模型供应商配置。
-工具由 Tool.load 在启动时扫描，既不读取也不写入 config.json。
+工具由 Tool.scan 在启动时扫描，既不读取也不写入 config.json。
 调用示例：await Config.load('C:/Users/me/.agent/config.json')、await Config.update({ provider: { key: 'sk-...' } })。
 */
 import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建配置目录的能力

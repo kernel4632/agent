@@ -7,7 +7,7 @@ import { LLM } from '../utils/llm.js'                    // 引入完整单轮 L
 import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
 import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
-import { Tool } from './tool.js'                         // 引入工具定义、执行和停止能力
+import { definitions, runAll, stopAll } from './tool.js' // 引入工具定义、执行和停止能力
 
 const toolPrompt = '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。' // 第二次纯文本后只提醒下一轮模型
 const runs = new WeakMap()                               // 当前停止控制器对应的完整 Agent 任务
@@ -61,7 +61,7 @@ async function run(session, userMessage, controller, firstSave) {
           model: session.model,                          // 使用会话选择的模型
           systemPrompt: '',                              // Core 当前没有额外系统提示
           messages,                                      // 发送完整会话上下文
-          tools: Tool.definitions(),                     // 工具定义来自启动扫描结果
+          tools: definitions(),                          // 工具定义来自启动扫描结果
           signal: controller.signal,                     // 用户停止中断当前响应流
           onEvent(type, data) {
             if (type === 'text-delta') Session.emit(sessionID, 'text-delta', { messageId: messageID, text: data.delta }) // 实时反馈正文增量
@@ -92,7 +92,7 @@ async function run(session, userMessage, controller, firstSave) {
       }
 
       session.textOnlyCount = 0                          // 调用工具后重新统计纯文本轮次
-      const toolRun = await Tool.runAll(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
+      const toolRun = await runAll(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
       controller.signal.throwIfAborted()                 // 停止期间完成的工具结果不能写回会话
       const toolMessage = { id: Session.createMessageId(), role: 'tool', content: toolRun.results } // AI SDK ToolResultPart 组成观察消息
       session.messages.push(toolMessage)                 // 观察结果进入下一轮 LLM 上下文
@@ -136,7 +136,7 @@ async function stop(sessionID) {
   const running = controller && runs.get(controller)     // 定位当前完整 Agent 任务
 
   controller?.abort(new DOMException('stopped by user', 'AbortError')) // 中断 LLM、重试和工具等待
-  await Tool.stopAll(sessionID)                          // 中止本轮全部工具
+  await stopAll(sessionID)                               // 中止本轮全部工具
   if (running) {
     await running.catch(() => {})                        // 等待 run 的最终保存和状态反馈
     if (session.abortController && session.abortController !== controller) return { status: session.status } // 新任务已经接管时不覆盖状态

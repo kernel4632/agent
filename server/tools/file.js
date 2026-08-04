@@ -1,10 +1,10 @@
 /*
 文件工具集：读取、写入、列出和搜索本地文件。
-工具元数据会在启动扫描后进入 store.tools，执行函数只由 commands/tool.js 调用。
-调用示例：await readFileTool.execute({ path: 'README.md' }, context)。
+path 是每个文件工具自己的目标参数，commands/tool.js 会先把相对路径展开为工作区绝对路径。
+调用示例：await readFileTool.execute({ path: 'D:/project/README.md' }, signal)。
 */
 import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises' // 引入真实文件读写能力
-import { dirname, isAbsolute, join, resolve } from 'node:path' // 引入工作区相对路径定位能力
+import { dirname, join } from 'node:path'                // 引入父目录和搜索路径拼接能力
 
 
 // --- 读取文本文件 ---
@@ -19,10 +19,9 @@ export const readFileTool = {
     required: ['path'],                                 // 读取必须明确目标文件
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, __context: context }) {
-    context.abortSignal?.throwIfAborted()               // 已停止会话不再读取文件
-    const filePath = resolvePath(context.cwd, path)     // 相对路径从会话工作区解析
-    return { output: await readFile(filePath, { encoding: 'utf-8', signal: context.abortSignal }) } // 返回完整文本
+  async execute({ path }, signal) {
+    signal.throwIfAborted()                              // 已停止任务不再读取文件
+    return { output: await readFile(path, { encoding: 'utf-8', signal }) } // 返回完整文本
   },
 }
 
@@ -41,13 +40,12 @@ export const writeFileTool = {
     required: ['path', 'content'],                      // 路径和正文都必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, content, mode = 'overwrite', __context: context }) {
-    context.abortSignal?.throwIfAborted()               // 已停止会话不再修改文件
-    const filePath = resolvePath(context.cwd, path)     // 相对路径从会话工作区解析
-    await mkdir(dirname(filePath), { recursive: true }) // 写入前创建父目录
-    if (mode === 'append') await appendFile(filePath, content, { encoding: 'utf-8', signal: context.abortSignal }) // 追加到文件末尾
-    else await writeFile(filePath, content, { encoding: 'utf-8', signal: context.abortSignal }) // 覆盖目标文件
-    return { output: `文件已写入: ${filePath}` }        // 向模型反馈实际路径
+  async execute({ path, content, mode = 'overwrite' }, signal) {
+    signal.throwIfAborted()                              // 已停止任务不再修改文件
+    await mkdir(dirname(path), { recursive: true })     // 写入前创建父目录
+    if (mode === 'append') await appendFile(path, content, { encoding: 'utf-8', signal }) // 追加到文件末尾
+    else await writeFile(path, content, { encoding: 'utf-8', signal }) // 覆盖目标文件
+    return { output: `文件已写入: ${path}` }            // 向模型反馈实际路径
   },
 }
 
@@ -64,10 +62,9 @@ export const listFilesTool = {
     required: ['path'],                                 // 必须明确目标目录
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, __context: context }) {
-    context.abortSignal?.throwIfAborted()               // 已停止会话不再读取目录
-    const directory = resolvePath(context.cwd, path)    // 相对路径从会话工作区解析
-    const entries = await readdir(directory, { withFileTypes: true }) // 读取当前目录条目
+  async execute({ path }, signal) {
+    signal.throwIfAborted()                              // 已停止任务不再读取目录
+    const entries = await readdir(path, { withFileTypes: true }) // 读取当前目录条目
     const output = entries.map((entry) => `${entry.isDirectory() ? 'directory' : 'file'}: ${entry.name}`).join('\n') // 输出稳定文本列表
     return { output }                                   // 将列表反馈给模型
   },
@@ -87,11 +84,11 @@ export const searchFilesTool = {
     required: ['path', 'keyword'],                      // 根目录和关键词都必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, keyword, __context: context }) {
+  async execute({ path, keyword }, signal) {
     const matches = []                                  // 按发现顺序保存匹配路径
-    const directories = [resolvePath(context.cwd, path)] // 从目标目录开始广度遍历
+    const directories = [path]                          // 从目标目录开始广度遍历
     while (directories.length > 0) {
-      context.abortSignal?.throwIfAborted()             // 每层目录之间响应用户停止
+      signal.throwIfAborted()                            // 每层目录之间响应用户停止
       const directory = directories.shift()             // 取出下一待检查目录
       const entries = await readdir(directory, { withFileTypes: true }) // 读取真实目录条目
       for (const entry of entries) {
@@ -102,12 +99,6 @@ export const searchFilesTool = {
     }
     return { output: matches.join('\n') }              // 将全部匹配路径反馈给模型
   },
-}
-
-
-// --- 解析工作区路径 ---
-function resolvePath(cwd, path) {
-  return isAbsolute(path) ? path : resolve(cwd, path)    // 绝对路径保持原值，相对路径绑定会话工作区
 }
 
 

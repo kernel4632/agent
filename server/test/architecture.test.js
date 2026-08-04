@@ -8,10 +8,11 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises' /
 import { tmpdir } from 'node:os'                         // 引入系统临时目录
 import { join } from 'node:path'                        // 引入跨平台路径拼接
 import { Session } from '../commands/session.js'        // 引入会话运行时身份和删除动作供回归验证
-import { Tool } from '../commands/tool.js'              // 引入并行工具指令供独立验证
+import { list as listTools, runAll } from '../commands/tool.js' // 引入工具列表和并行执行指令
 import { createApp } from '../server.js'                // 引入完整单文件路由应用
 import { store } from '../store.js'                     // 引入严格 store 结构供契约断言
 import { Retry } from '../utils/retry.js'               // 引入无限重试封装供次数契约验证
+import { Tool } from '../utils/tool.js'                 // 引入唯一工具注册和执行接口
 
 let app                                                  // 保存测试使用的 Elysia 应用
 let closeApp                                             // 保存应用关闭动作
@@ -310,7 +311,11 @@ describe('minimal agent backend', () => {
     const dynamic = await createApp({ dataDirectory: dynamicRoot, toolsDirectory }) // 启动时只扫描临时工具
     try {
       expect(store.tools).toEqual([{ name: 'custom_echo', description: 'Echo dynamic input.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false } }]) // store 反映动态目录
-      expect(Tool.list()).toEqual(store.tools)           // 指令公开列表与 store 一致
+      expect(listTools()).toEqual(store.tools)           // 指令公开列表与 store 一致
+      let directOutput = ''                              // 记录公开回调收到的工具输出
+      const tool = Tool.execute('custom_echo', { text: 'DIRECT_OK' }, { onOutput: (chunk) => { directOutput += chunk } }) // 使用名称、输入和可选回调直接执行
+      expect(await tool.result).toEqual({ output: 'DIRECT_OK', isError: false, stop: false }) // 公共调用保持最小结果结构
+      expect(directOutput).toBe('DIRECT_OK')             // 第三个参数只负责通用输出反馈
     } finally {
       await dynamic.close()                              // 关闭动态工具应用
       const restored = await createApp({ dataDirectory }) // 恢复正式工具目录和主测试数据
@@ -360,7 +365,7 @@ describe('minimal agent backend', () => {
     const detail = await (await request(`/session?id=${session.id}`)).json() // 按 query id 读取会话
     expect(detail).toEqual(session)                     // 修改标题不向完整 session 添加 title
     const savedSession = JSON.parse(await readFile(join(dataDirectory, 'sessions', `${session.id}.json`), 'utf8')) // 读取真实会话文件
-    expect(savedSession).toEqual(session)               // 会话文件不持久化四个运行字段
+    expect(savedSession).toEqual(session)               // 会话文件不持久化三个运行字段
   })
 
   it('protects workspace and session ownership conflicts', async () => {
@@ -383,7 +388,7 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建正常归属的会话
     const workspace = store.workspaces.find((item) => item.id === workspaceId) // 定位真实工作区摘要
     workspace.sessions = workspace.sessions.filter((summary) => summary.id !== session.id) // 模拟损坏数据中的孤立会话
-    const outcome = await Tool.runAll(session.id, [
+    const outcome = await runAll(session.id, [
       { type: 'tool-call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' } }, // 尝试读取相对文件
     ])
     expect(outcome.results[0]).toEqual({ type: 'tool-result', toolCallId: 'orphan-read', toolName: 'read_file', output: { type: 'error-text', value: 'session workspace not found' } }) // 工具不能回退到服务端当前目录
@@ -478,7 +483,7 @@ describe('minimal agent backend', () => {
   it('runs every tool call in the same turn concurrently', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建工具运行上下文
     const startedAt = Date.now()                        // 记录两个固定延迟请求的总耗时
-    const result = await Tool.runAll(session.id, [
+    const result = await runAll(session.id, [
       { type: 'tool-call', toolCallId: 'web-1', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第一个慢请求
       { type: 'tool-call', toolCallId: 'web-2', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第二个慢请求
     ])
@@ -492,13 +497,13 @@ describe('minimal agent backend', () => {
     const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 登记真实工具目录
     const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建工具上下文
 
-    const overwrite = await Tool.runAll(session.id, [
+    const overwrite = await runAll(session.id, [
       { type: 'tool-call', toolCallId: 'write-overwrite', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'A' } }, // 覆盖创建文件
     ])
-    const append = await Tool.runAll(session.id, [
+    const append = await runAll(session.id, [
       { type: 'tool-call', toolCallId: 'write-append', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'B', mode: 'append' } }, // 追加文件
     ])
-    const reads = await Tool.runAll(session.id, [
+    const reads = await runAll(session.id, [
       { type: 'tool-call', toolCallId: 'read', toolName: 'read_file', input: { path: 'nested/note.txt' } }, // 读取完整文本
       { type: 'tool-call', toolCallId: 'list', toolName: 'list_files', input: { path: 'nested' } }, // 列出当前目录
       { type: 'tool-call', toolCallId: 'search', toolName: 'search_files', input: { path: '.', keyword: 'note' } }, // 递归搜索文件名
@@ -507,8 +512,8 @@ describe('minimal agent backend', () => {
       { type: 'tool-call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' } }, // 明确结束任务
       { type: 'tool-call', toolCallId: 'missing', toolName: 'missing_tool', input: {} }, // 未配置工具返回错误
     ])
-    const shell = await Tool.runAll(session.id, [
-      { type: 'tool-call', toolCallId: 'shell-ok', toolName: 'shell', input: { command: process.platform === 'win32' ? "[Console]::Write('SHELL_OK')" : "printf 'SHELL_OK'", cwd: 'nested' } }, // 在相对工作目录执行成功命令
+    const shell = await runAll(session.id, [
+      { type: 'tool-call', toolCallId: 'shell-ok', toolName: 'shell', input: { command: process.platform === 'win32' ? "[Console]::Write('SHELL_OK')" : "printf 'SHELL_OK'", path: 'nested' } }, // 在相对工作路径执行成功命令
     ])
 
     expect(overwrite.results[0].output.type).toBe('text') // 覆盖写入成功
@@ -521,7 +526,7 @@ describe('minimal agent backend', () => {
     expect(reads.results[5].output).toEqual({ type: 'text', value: 'TOOLS_DONE' }) // finish 返回摘要
     expect(reads.shouldStop).toBe(true)                 // finish 控制 Agent 退出
     expect(reads.results[6].output).toEqual({ type: 'error-text', value: 'tool not found: missing_tool' }) // 未声明工具不执行
-    expect(shell.results[0].output.value).toMatchObject({ stdout: 'SHELL_OK', exitCode: 0 }) // Shell 使用工作区相对 cwd
+    expect(shell.results[0].output.value).toMatchObject({ stdout: 'SHELL_OK', exitCode: 0 }) // Shell 使用工作区相对 path
   }, 10000)
 
   it('broadcasts one event to every SSE client and cleans disconnects', async () => {
@@ -542,7 +547,7 @@ describe('minimal agent backend', () => {
   it('marks a non-zero shell exit as an error result', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建 Shell 工具上下文
     const command = process.platform === 'win32' ? 'exit 7' : 'exit 7' // 两个平台都使用非零退出命令
-    const result = await Tool.runAll(session.id, [
+    const result = await runAll(session.id, [
       { type: 'tool-call', toolCallId: 'shell-error', toolName: 'shell', input: { command } }, // 执行必定失败的命令
     ])
     expect(result.results[0].output.type).toBe('error-text') // 非零退出码不能伪装成成功工具结果
@@ -610,18 +615,17 @@ describe('minimal agent backend', () => {
   }, 10000)
 
   it('kills a running shell process when the Agent stops', async () => {
-    const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建长 Shell 会话
+    const configured = await jsonRequest('/config', 'PATCH', { provider: { api: `http://127.0.0.1:${modelServer.port}/v1`, key: 'unit-secret', models: ['unit-model'] } }) // 独立运行时也配置本机模型
+    expect(configured.status).toBe(200)                  // 模型端点配置成功
+    const directory = await mkdtemp(join(dataDirectory, 'shell-stop-')) // 创建可独立运行的 Shell 工作区
+    const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 登记本测试专属工作区
+    const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建长 Shell 会话
     const subscription = await subscribe(session.id)    // 监听工具调用和停止终态
     await jsonRequest('/session/send', 'POST', { id: session.id, content: 'SHELL_STOP' }) // 让模型启动十秒子进程
     await readUntil(subscription, (event) => event.name === 'tool-call' && event.data.toolCall.toolName === 'shell') // 确认模型已经声明 Shell
-    const mutable = await Session.getMutable(session.id) // 读取真实工具进程集合
-    const deadline = Date.now() + 3000                   // 等待工具进程实际加入 store
-    while (mutable.processes.size === 0 && Date.now() < deadline) await Bun.sleep(10) // 模型消息保存后工具才启动
-    expect(mutable.processes.size).toBe(1)              // 长 Shell 已由会话追踪
     const stoppedAt = Date.now()                         // 记录停止耗时
     expect(await (await jsonRequest('/session/stop', 'POST', { id: session.id })).json()).toEqual({ status: 'idle' }) // 中断模型和进程
     expect(Date.now() - stoppedAt).toBeLessThan(3000)   // 不等待原始十秒命令自然结束
-    expect(mutable.processes.size).toBe(0)              // 子进程引用已清空
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 10000)
 
@@ -737,7 +741,6 @@ describe('minimal agent backend', () => {
     expect(detail.status).toBe('idle')                  // 已完成会话恢复为空闲
     expect(detail.messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool']) // 完整上下文已恢复
     const runtime = await Session.getMutable(session.id) // 读取恢复后的真实运行时字段
-    expect(runtime.processes.size).toBe(0)              // 重启后没有遗留子进程
     expect(runtime.abortController).toBeNull()          // 重启后没有遗留停止控制器
     expect(runtime.clients.size).toBe(0)                // 重启后没有遗留 SSE 客户端
     expect(runtime.textOnlyCount).toBe(0)               // 重启后纯文本计数归零

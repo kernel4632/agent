@@ -59,7 +59,7 @@ async function loadSavedSession(id) {
   const saved = await file.json()                       // 读取严格的持久化字段
   const loaded = store.sessions.find((session) => session.id === id) // 读取期间可能已有调用方创建了同 ID 对象
   if (loaded) return loaded                             // 已存在对象保留其运行时引用
-  const session = withRuntime(saved)                    // 补上四个内存字段
+  const session = withRuntime(saved)                    // 补上三个内存字段
   store.sessions.push(session)                          // 加入已加载会话列表
   return session                                        // 返回可修改真实对象
 }
@@ -133,7 +133,7 @@ async function save(id) {
   if (removingSessions.has(id)) throw businessError(409, 'session is being removed') // 删除开始后禁止迟到写入重建文件
   const session = store.sessions.find((item) => item.id === id) // 保存只接受已经加载的会话
   if (!session) throw businessError(404, 'session not found') // 未加载会话没有可保存数据
-  const snapshot = publicValue(session)                 // 排除四个运行时字段
+  const snapshot = publicValue(session)                 // 排除三个运行时字段
   const sessionPath = join(sessionsDirectory, `${id}.json`) // 确定最终会话文件位置
   const previousSave = lastSessionSaves.get(id) ?? Promise.resolve() // 只等待当前会话的前一次保存
   const currentSave = previousSave.catch(() => {}).then(() => writeJSON(sessionPath, snapshot)) // 较新状态可以修复前一次失败
@@ -199,8 +199,8 @@ function findSummary(id) {
 }
 
 
-// --- 查找会话工作目录 ---
-function getWorkspacePath(id) {
+// --- 查找会话路径 ---
+function path(id) {
   const workspace = store.workspaces.find((item) => item.sessions.some((summary) => summary.id === id)) // 通过摘要确定会话归属
   if (!workspace) throw businessError(409, 'session workspace not found') // 归属损坏时禁止工具落到服务端目录
   return workspace.path                                // 工具只使用明确登记的工作区
@@ -215,7 +215,6 @@ function withRuntime(saved) {
     messages: Array.isArray(saved.messages) ? saved.messages : [], // 恢复消息上下文
     provider: saved.provider ?? '',                     // 恢复会话供应商字段
     model: saved.model ?? '',                           // 恢复模型名称
-    processes: new Set(),                               // 新进程尚未启动工具
     abortController: null,                              // 新进程没有模型请求
     clients: new Set(),                                 // 新进程没有 SSE 客户端
     textOnlyCount: 0,                                   // 新执行从零统计纯文本轮次
@@ -250,4 +249,4 @@ function businessError(status, message) {
 }
 
 
-export const Session = { load, get, getMutable, create, update, remove, save, listen, emit, createMessageId, getWorkspacePath, closeClients } // 导出会话最小动作
+export const Session = { load, get, getMutable, create, update, remove, save, listen, emit, createMessageId, path, closeClients } // 导出会话最小动作
