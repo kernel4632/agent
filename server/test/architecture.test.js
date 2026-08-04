@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises' /
 import { tmpdir } from 'node:os'                         // 引入系统临时目录
 import { join } from 'node:path'                        // 引入跨平台路径拼接
 import { Session } from '../commands/session.js'        // 引入会话运行时身份和删除动作供回归验证
-import { list as listTools, runAll } from '../commands/tool.js' // 引入工具列表和并行执行指令
+import { list as listTools, run as runTools } from '../commands/tool.js' // 引入工具列表和运行指令
 import { createApp } from '../server.js'                // 引入完整单文件路由应用
 import { store } from '../store.js'                     // 引入严格 store 结构供契约断言
 import { File } from '../utils/file.js'                 // 引入通用完整文件写入动作
@@ -408,7 +408,7 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建正常归属的会话
     const workspace = store.workspaces.find((item) => item.id === workspaceId) // 定位真实工作区摘要
     workspace.sessions = workspace.sessions.filter((summary) => summary.id !== session.id) // 模拟损坏数据中的孤立会话
-    const outcome = await runAll(session.id, [
+    const outcome = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'orphan-read', toolName: 'read_file', input: { path: 'config.json' } }, // 尝试读取相对文件
     ])
     expect(outcome.results[0]).toEqual({ type: 'tool-result', toolCallId: 'orphan-read', toolName: 'read_file', output: { type: 'error-text', value: 'session workspace not found' } }) // 工具不能回退到服务端当前目录
@@ -521,7 +521,7 @@ describe('minimal agent backend', () => {
   it('runs every tool call in the same turn concurrently', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建工具运行上下文
     const startedAt = Date.now()                        // 记录两个固定延迟请求的总耗时
-    const result = await runAll(session.id, [
+    const result = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'web-1', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第一个慢请求
       { type: 'tool-call', toolCallId: 'web-2', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第二个慢请求
     ])
@@ -535,13 +535,13 @@ describe('minimal agent backend', () => {
     const workspace = await (await jsonRequest('/workspace', 'POST', { path: directory })).json() // 登记真实工具目录
     const session = await (await jsonRequest('/session', 'POST', { workspaceId: workspace.id, provider: 'unit', model: 'unit-model' })).json() // 创建工具上下文
 
-    const overwrite = await runAll(session.id, [
+    const overwrite = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'write-overwrite', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'A' } }, // 覆盖创建文件
     ])
-    const append = await runAll(session.id, [
+    const append = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'write-append', toolName: 'write_file', input: { path: 'nested/note.txt', content: 'B', mode: 'append' } }, // 追加文件
     ])
-    const reads = await runAll(session.id, [
+    const reads = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'read', toolName: 'read_file', input: { path: 'nested/note.txt' } }, // 读取完整文本
       { type: 'tool-call', toolCallId: 'list', toolName: 'list_files', input: { path: 'nested' } }, // 列出当前目录
       { type: 'tool-call', toolCallId: 'search', toolName: 'search_files', input: { path: '.', keyword: 'note' } }, // 递归搜索文件名
@@ -550,7 +550,7 @@ describe('minimal agent backend', () => {
       { type: 'tool-call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' } }, // 明确结束任务
       { type: 'tool-call', toolCallId: 'missing', toolName: 'missing_tool', input: {} }, // 未配置工具返回错误
     ])
-    const shell = await runAll(session.id, [
+    const shell = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'shell-ok', toolName: 'shell', input: { command: process.platform === 'win32' ? "[Console]::Write('SHELL_OK')" : "printf 'SHELL_OK'", path: 'nested' } }, // 在相对工作路径执行成功命令
     ])
 
@@ -585,7 +585,7 @@ describe('minimal agent backend', () => {
   it('marks a non-zero shell exit as an error result', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建 Shell 工具上下文
     const command = process.platform === 'win32' ? 'exit 7' : 'exit 7' // 两个平台都使用非零退出命令
-    const result = await runAll(session.id, [
+    const result = await runTools(session.id, [
       { type: 'tool-call', toolCallId: 'shell-error', toolName: 'shell', input: { command } }, // 执行必定失败的命令
     ])
     expect(result.results[0].output.type).toBe('error-text') // 非零退出码不能伪装成成功工具结果

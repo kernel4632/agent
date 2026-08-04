@@ -1,7 +1,7 @@
 /*
 工具指令集：把工具定义和运行任务接入 store，并按会话工作区执行模型要求的工具。
 utils/Tool 负责注册和执行，本文件只联动 store、补齐路径并转换模型结果。
-调用示例：await load('D:/agent/server/tools')、await runAll(sessionID, toolCalls)。
+调用示例：await load('D:/agent/server/tools')、await run(sessionID, toolCalls)。
 */
 import { isAbsolute, resolve } from 'node:path'           // 引入工作区相对路径展开能力
 import { store } from '../store.js'                      // 引入 LLM 工具定义和会话运行数据
@@ -23,10 +23,10 @@ function list() {
 
 
 // --- 并行执行全部工具 ---
-async function runAll(sessionID, toolCalls) {
+async function run(sessionID, toolCalls) {
   const session = await Session.getMutable(sessionID)    // 当前会话直接保存本轮 execution
   if (!session) return { results: toolCalls.map((toolCall) => toolResult(toolCall, 'session not found', true)), shouldStop: false } // 会话删除后不执行外部动作
-  const outcomes = await Promise.all(toolCalls.map((toolCall) => run(session, toolCall))) // 同轮工具全部同时执行
+  const outcomes = await Promise.all(toolCalls.map((toolCall) => execute(session, toolCall))) // 同轮工具全部同时执行
   return {
     results: outcomes.map((outcome) => outcome.result),  // 结果保持模型调用顺序
     shouldStop: outcomes.some((outcome) => outcome.stop), // 任一 finish 结果都结束 Agent
@@ -35,7 +35,7 @@ async function runAll(sessionID, toolCalls) {
 
 
 // --- 执行单个工具 ---
-async function run(session, toolCall) {
+async function execute(session, toolCall) {
   const input = structuredClone(toolCall.input)          // 工具获得独立输入，路径展开不修改模型消息
   try {
     if (toolCall.toolName === 'shell' || typeof input.path === 'string') {
@@ -68,7 +68,7 @@ function toolResult(toolCall, output, isError) {
 
 
 // --- 停止全部工具 ---
-async function stopAll(sessionID) {
+async function stop(sessionID) {
   const session = await Session.getMutable(sessionID)    // 读取会话当前工具任务
   if (!session) return                                   // 会话已删除时无需停止
   const executions = [...session.tools]                  // 快照当前会话全部运行任务
@@ -77,4 +77,4 @@ async function stopAll(sessionID) {
 }
 
 
-export { load, list, runAll, stopAll }                    // 导出工具加载、执行和停止动作
+export { load, list, run, stop }                          // 导出工具加载、运行和停止指令

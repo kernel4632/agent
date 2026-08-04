@@ -7,7 +7,7 @@ import { LLM } from '../utils/llm.js'                    // 引入完整单轮 L
 import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
 import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
-import { list as listTools, runAll, stopAll } from './tool.js' // 引入工具定义、执行和停止能力
+import { list as listTools, run as runTools, stop as stopTools } from './tool.js' // 引入工具定义、运行和停止能力
 
 const runs = new WeakMap()                               // 当前停止控制器对应的完整 Agent 任务
 
@@ -84,7 +84,7 @@ async function run(session, controller) {
     }
 
     textOnlyCount = 0                                    // 工具行动后重新统计纯文本轮次
-    const tools = await runAll(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
+    const tools = await runTools(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
     controller.signal.throwIfAborted()                   // 停止期间完成的结果不能写回会话
     const message = { id: Session.createMessageId(), role: 'tool', content: tools.results } // 工具结果组成 AI SDK 消息
     for (const toolResult of tools.results) Session.emit(sessionID, 'tool-result', { messageId: message.id, toolResult: structuredClone(toolResult) }) // 逐个反馈工具结果
@@ -102,7 +102,7 @@ async function stop(sessionID) {
   const running = controller && runs.get(controller)     // 定位当前完整 Agent 任务
 
   controller?.abort(new DOMException('stopped by user', 'AbortError')) // 中断 LLM、重试和工具等待
-  await stopAll(sessionID)                               // 中止本轮全部工具
+  await stopTools(sessionID)                             // 中止本轮全部工具
   if (running) {
     await running.catch(() => {})                        // 等待 run 的最终保存和状态反馈
     if (session.abortController && session.abortController !== controller) return { status: session.status } // 新任务已经接管时不覆盖状态
