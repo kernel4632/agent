@@ -11,6 +11,7 @@ import { Session } from '../commands/session.js'        // 引入会话运行时
 import { list as listTools, runAll } from '../commands/tool.js' // 引入工具列表和并行执行指令
 import { createApp } from '../server.js'                // 引入完整单文件路由应用
 import { store } from '../store.js'                     // 引入严格 store 结构供契约断言
+import { LLM } from '../utils/llm.js'                   // 引入公开 LLM 调用契约供独立验证
 import { Retry } from '../utils/retry.js'               // 引入无限重试封装供次数契约验证
 import { Tool } from '../utils/tool.js'                 // 引入唯一工具注册和执行接口
 
@@ -412,6 +413,21 @@ describe('minimal agent backend', () => {
     expect(detail.messages.at(-1).content).toEqual([{ type: 'text', text: 'ROUND_3' }]) // 持久化内容直接符合 AI SDK TextPart
     await unsubscribe(subscription)                     // 释放 SSE 客户端
   }, 15000)
+
+  it('returns text and native content blocks from LLM.chat', async () => {
+    const result = await LLM.chat({
+      apiURL: `http://127.0.0.1:${modelServer.port}/v1`, // 使用本机 OpenAI-compatible 服务
+      apiKey: 'unit-secret',                             // 传入公开调用所需密钥
+      model: 'unit-model',                               // 使用稳定测试模型名称
+      systemPrompt: '',                                  // 本测试不增加系统提示
+      messages: [{ role: 'user', content: 'LLM_RESULT' }], // 直接传入 AI SDK ModelMessage
+      tools: {},                                         // 本轮只验证文本结果
+    })
+    expect(result.content).toBe('ROUND_1')               // content 是所有文本块合并后的完整正文
+    expect(result.contentBlocks).toEqual([{ type: 'text', text: 'ROUND_1' }]) // blocks 直接使用 AI SDK AssistantContent
+    expect(result.toolCalls).toEqual([])                 // 无工具调用时返回空列表
+    expect(result.usage).toBeObject()                    // usage 保留 AI SDK 用量结构
+  })
 
   it('executes an LLM tool call and stores the tool result', async () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建工具执行会话

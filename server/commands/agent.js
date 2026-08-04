@@ -79,7 +79,7 @@ async function run(session, userMessage, controller, firstSave) {
       })
       nextPrompt = ''                                    // 临时提醒只参与紧接着的一轮
 
-      const assistantMessage = { id: answer.messageID, role: 'assistant', content: answer.content } // LLM 直接返回 AI SDK AssistantContent
+      const assistantMessage = { id: answer.messageID, role: 'assistant', content: answer.contentBlocks } // AI SDK 原生 blocks 直接成为助手消息内容
       session.messages.push(assistantMessage)            // 助手消息进入下一轮上下文
       Session.emit(sessionID, 'message', { message: structuredClone(assistantMessage) }) // 反馈完整助手消息
       await Session.save(sessionID)                      // 每轮模型结束后保存完整回复

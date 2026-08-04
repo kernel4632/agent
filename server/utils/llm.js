@@ -1,7 +1,39 @@
 /*
-LLM 流工具：请求 OpenAI-compatible 模型，处理单轮超时，并返回 AI SDK AssistantContent 和工具调用。
+LLM 流工具：请求 OpenAI-compatible 模型，并返回完整文本、AI SDK 内容块、工具调用和用量。
 本文件只依赖调用参数和模型 SDK，不读取 store、会话或 SSE 客户端。
-调用示例：await LLM.chat({ apiURL, apiKey, model, messages, tools, signal, onEvent })。
+
+使用示例
+const controller = new AbortController()
+const result = await LLM.chat({
+  apiURL: provider.api,
+  apiKey: provider.key,
+  model: session.model,
+  systemPrompt: '你是一个编程助手',
+  messages: session.messages,
+  tools: {
+    shell: {
+      description: '执行系统命令',
+      parameters: {
+        type: 'object',
+        properties: { command: { type: 'string' } },
+        required: ['command'],
+      },
+    },
+  },
+  signal: controller.signal,
+  onEvent(type, data) {
+    if (type === 'text-delta') console.log(data.delta)
+    if (type === 'reasoning-delta') console.log(data.delta)
+    if (type === 'tool-call') console.log(data.toolName, data.input)
+  },
+})
+
+result.content       // 所有 text 块合并后的完整正文
+result.contentBlocks // AI SDK 原生 AssistantContent，可直接保存到 assistant message.content
+result.toolCalls     // contentBlocks 中需要执行的 ToolCallPart 列表
+result.usage         // AI SDK 返回的 token 用量
+
+需要停止时调用 controller.abort()
 */
 import { dynamicTool, jsonSchema, streamText } from 'ai' // 引入 AI SDK 流式文本和动态工具能力
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible' // 引入 OpenAI-compatible 模型客户端
@@ -43,9 +75,10 @@ async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, sign
     requestSignal.throwIfAborted()                       // 供应商未抛中止事件时也不能吞掉停止
     const responseMessages = await stream.responseMessages // 由 AI SDK 生成可直接用于下一轮的消息
     const assistant = responseMessages.findLast((message) => message.role === 'assistant') // 当前单轮只持久化最终助手消息
-    const content = assistant?.content ?? []             // 直接保留 AI SDK AssistantContent
-    const toolCalls = Array.isArray(content) ? content.filter((part) => part.type === 'tool-call') : [] // 同一内容块直接交给工具执行
-    return { content, toolCalls, usage: await stream.usage } // 不重建任何消息内容块
+    const contentBlocks = assistant?.content ?? []       // 直接保留 AI SDK AssistantContent
+    const content = typeof contentBlocks === 'string' ? contentBlocks : contentBlocks.filter((part) => part.type === 'text').map((part) => part.text).join('') // 合并完整正文供调用方直接使用
+    const toolCalls = Array.isArray(contentBlocks) ? contentBlocks.filter((part) => part.type === 'tool-call') : [] // 同一内容块直接交给工具执行
+    return { content, contentBlocks, toolCalls, usage: await stream.usage } // 返回同一响应的四个清楚视图
   } catch (error) {
     if (signal?.aborted) throw signal.reason ?? new DOMException('operation aborted', 'AbortError') // 用户停止保持原始中止语义
     if (timeoutSignal.aborted) throw Object.assign(new Error(`model request timed out after ${timeoutMS}ms`), { status: 408 }) // 超时提供可重试状态
