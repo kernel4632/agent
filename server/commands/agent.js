@@ -1,16 +1,16 @@
 /*
-Agent 指令集：接收用户消息、运行完整 Agent 循环，并停止当前任务。
-run() 从上到下完整展示"请求 LLM、保存回复、执行工具、带结果继续请求、结束任务"的全部过程。
+Agent 指令集：接收用户消息、启动循环、停止任务。
+循环引擎在 utils/agent.js，本文件只负责从 store 读数据、写结果、发 SSE。
 调用示例：await Agent.send(sessionID, '分析项目')、await Agent.stop(sessionID)。
 */
 import createError from 'http-errors'                    // 引入标准 HTTP 错误创建
-import { LLM } from '../utils/llm.js'                    // 引入完整单轮 LLM 请求能力
+import { AgentLoop } from '../utils/agent.js'            // 引入纯函数 Agent 循环引擎
 import { Message } from '../utils/message.js'            // 引入消息工厂
-import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
 import { errorMessage } from '../utils/error.js'         // 引入错误消息安全提取
 import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
-import { list as listTools, run as runTools, stop as stopTools } from './tool.js' // 引入工具定义、运行和停止能力
+import { LLM } from '../utils/llm.js'                    // 引入 LLM 能力传给引擎
+import { list as listTools, run as runTools, stop as stopTools } from './tool.js' // 引入工具能力传给引擎
 
 const runs = new WeakMap()                               // 当前停止控制器对应的完整 Agent 任务
 
@@ -19,7 +19,7 @@ const runs = new WeakMap()                               // 当前停止控制�
 async function send(sessionID, content) {
   const session = Session.get(sessionID) ?? await Session.load(sessionID)
   if (session.status !== 'idle' || session.abortController) throw createError(409, 'session is not idle')
-  const message = Message.user(content)                  // 用户消息由工厂统一创建
+  const message = Message.user(content)
   session.messages.push(message)
   session.status = 'running'
   const controller = new AbortController()
@@ -36,68 +36,33 @@ async function send(sessionID, content) {
   Session.emit(sessionID, 'message', { message: structuredClone(message) })
   Session.emit(sessionID, 'status', { status: 'running' })
 
-  const running = run(session, controller).then(
+  const running = AgentLoop.run({
+    messages: session.messages,
+    model: session.model,
+    provider: store.config.provider,
+    systemPrompt: store.config.prompts.system,
+    toolPrompt: store.config.prompts.tool,
+    tools: listTools(),
+    signal: controller.signal,
+    llm: LLM,
+    runTools: (toolCalls) => runTools(sessionID, toolCalls),
+    onEvent: (type, data) => Session.emit(sessionID, type, data),
+    onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: error, attempt, nextRetryIn: delay }),
+    async onAssistant(assistant) {
+      Session.emit(sessionID, 'message', { message: structuredClone(assistant) })
+      await Session.save(sessionID)
+    },
+    async onToolResults(toolMessage, results) {
+      for (const result of results) Session.emit(sessionID, 'tool-result', { messageId: toolMessage.id, toolResult: structuredClone(result) })
+      Session.emit(sessionID, 'message', { message: structuredClone(toolMessage) })
+      await Session.save(sessionID)
+    },
+  }).then(
     () => finish(session, controller),
     (error) => finish(session, controller, error),
   ).finally(() => runs.delete(controller))
   runs.set(controller, running)
   return { messageId: message.id }
-}
-
-
-// --- 运行完整 Agent 循环 ---
-async function run(session, controller) {
-  const sessionID = session.id
-  let nextPrompt = ''
-  let textOnlyCount = 0
-
-  while (!controller.signal.aborted) {
-    const answer = await Retry.run(async () => {
-      const provider = store.config.provider
-      const messages = nextPrompt ? [...session.messages, { role: 'user', content: nextPrompt }] : session.messages
-      const messageID = Message.id()                     // 每次重试使用独立的流式消息身份
-
-      const result = await LLM.chat({
-        apiURL: provider.api,
-        apiKey: provider.key,
-        model: session.model,
-        systemPrompt: store.config.prompts.system,
-        messages,
-        tools: listTools(),
-        signal: controller.signal,
-        onEvent(type, data) {
-          Session.emit(sessionID, type, { messageId: messageID, ...data })
-        },
-      })
-      return { ...result, messageID }
-    }, {
-      signal: controller.signal,
-      onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: errorMessage(error), attempt, nextRetryIn: delay }),
-    })
-    nextPrompt = ''
-
-    const assistant = Message.assistant(answer.contentBlocks) // 助手消息由工厂创建
-    assistant.id = answer.messageID                       // 使用流式阶段已经广播的消息 ID
-    session.messages.push(assistant)
-    Session.emit(sessionID, 'message', { message: structuredClone(assistant) })
-    await Session.save(sessionID)
-
-    if (answer.toolCalls.length === 0) {
-      textOnlyCount += 1
-      if (textOnlyCount >= 3) return
-      if (textOnlyCount === 2) nextPrompt = store.config.prompts.tool
-      continue
-    }
-
-    textOnlyCount = 0
-    const tools = await runTools(sessionID, answer.toolCalls)
-    const toolMessage = Message.tool(tools.results)      // 工具消息由工厂创建
-    for (const toolResult of tools.results) Session.emit(sessionID, 'tool-result', { messageId: toolMessage.id, toolResult: structuredClone(toolResult) })
-    session.messages.push(toolMessage)
-    Session.emit(sessionID, 'message', { message: structuredClone(toolMessage) })
-    await Session.save(sessionID)
-    if (tools.shouldStop) return
-  }
 }
 
 
