@@ -121,10 +121,10 @@ async function save(id) {
   if (removingSessions.has(id)) throw businessError(409, 'session is being removed') // 删除开始后禁止迟到写入重建文件
   const session = store.sessions[id]                    // 保存只接受已经加载的会话
   if (!session) throw businessError(404, 'session not found') // 未加载会话没有可保存数据
-  const snapshot = publicValue(session)                 // 排除三个运行时字段
+  const json = JSON.stringify({ id: session.id, status: session.status, messages: session.messages, provider: session.provider, model: session.model }, null, 2) + '\n' // stringify 本身就是不可变快照
   const sessionPath = join(sessionsDirectory, `${id}.json`) // 确定最终会话文件位置
   const previousSave = lastSessionSaves.get(id) ?? Promise.resolve() // 只等待当前会话的前一次保存
-  const currentSave = previousSave.catch(() => {}).then(() => File.write(sessionPath, `${JSON.stringify(snapshot, null, 2)}\n`)) // 较新状态可以修复前一次失败
+  const currentSave = previousSave.catch(() => {}).then(() => File.write(sessionPath, json)) // 较新状态可以修复前一次失败
   lastSessionSaves.set(id, currentSave)                 // 后续快照排在当前保存之后
   try {
     await currentSave                                    // 等待当前快照真正写入磁盘
@@ -138,14 +138,21 @@ async function save(id) {
 async function listen(id) {
   const session = get(id) ?? await load(id)             // SSE 连接明确按需加载目标会话
   let client                                             // 保存当前流控制器供断开清理
+  let heartbeat                                          // 保存心跳定时器供断开清理
   const stream = new ReadableStream({
     start(controller) {
       client = controller                                // 记录本连接的写入控制器
       session.clients.add(client)                        // 新客户端加入会话集合
       client.enqueue(encoder.encode(': connected\n\n')) // 立即刷新真实网络响应，前端随后才能发送消息
+      client.enqueue(encoder.encode(`event: sync\ndata: ${JSON.stringify({ status: session.status, messageCount: session.messages.length })}\n\n`)) // 连接时同步当前会话状态
+      heartbeat = setInterval(() => {
+        try { client.enqueue(encoder.encode(': ping\n\n')) } // 每 30 秒发送心跳保持连接存活
+        catch { clearInterval(heartbeat); session.clients.delete(client) } // 写入失败时自动清理
+      }, 30000)
     },
     cancel() {
-      session.clients.delete(client)                     // 浏览器断开后释放控制器引用
+      clearInterval(heartbeat)                           // 浏览器断开后停止心跳
+      session.clients.delete(client)                     // 释放控制器引用
     },
   })
   return new Response(stream, {                         // 返回浏览器可识别的 SSE 响应

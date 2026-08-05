@@ -11,7 +11,8 @@
     "@ai-sdk/openai-compatible": "^3.0.20",
     "ai": "^7.0.48",
     "elysia": "latest",
-    "nanoid": "latest"
+    "nanoid": "latest",
+    "write-file-atomic": "^6.0.0"
   },
   "devDependencies": {}
 }

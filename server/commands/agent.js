@@ -88,7 +88,6 @@ async function run(session, controller) {
 
     textOnlyCount = 0                                    // 工具行动后重新统计纯文本轮次
     const tools = await runTools(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
-    controller.signal.throwIfAborted()                   // 停止期间完成的结果不能写回会话
     const message = { id: `message-${nanoid(12)}`, role: 'tool', content: tools.results } // 工具结果组成 AI SDK 消息
     for (const toolResult of tools.results) Session.emit(sessionID, 'tool-result', { messageId: message.id, toolResult: structuredClone(toolResult) }) // 逐个反馈工具结果
     session.messages.push(message)                       // 工具结果进入下一轮模型上下文

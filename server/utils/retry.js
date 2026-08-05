@@ -29,11 +29,12 @@ export const Retry = {
 	 * @param {AbortSignal} options.signal - 中止信号，abort 时立即停止重试
 	 * @param {function} options.onRetry - ({ attempt, delay, error }) => void
 	 * @param {number} options.baseDelay - 基础等待毫秒，默认 1000
+	 * @param {number} options.maxDelay - 最大等待毫秒，默认 60000
 	 *
 	 * @returns {Promise<T>}
 	 * @throws 不可重试的错误 / abort 直接抛出
 	 */
-	async run(fn, { signal, onRetry, baseDelay = 1000 } = {}) {
+	async run(fn, { signal, onRetry, baseDelay = 1000, maxDelay = 60000 } = {}) {
 		let attempt = 0;
 
 		while (true) {
@@ -45,7 +46,7 @@ export const Retry = {
 				if (!isRetryable(error)) throw error;
 
 				attempt++;
-				const delay = baseDelay * 2 ** (attempt - 1);
+				const delay = Math.min(baseDelay * 2 ** (attempt - 1), maxDelay);
 
 				onRetry?.({ attempt, delay, error });
 

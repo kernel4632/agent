@@ -15,9 +15,9 @@ export const shellTool = {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
       command: { type: 'string', description: '完整命令' }, // 要交给系统 Shell 的正文
-      path: { type: 'string', description: '命令工作路径，默认当前会话路径' }, // 可选覆盖工作路径
+      path: { type: 'string', description: '命令执行的绝对路径' }, // 模型必须提供工作目录
     },
-    required: ['command'],                              // 命令正文必须提供
+    required: ['command', 'path'],                       // 命令和工作路径都必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
   async execute({ command, path }, signal) {
