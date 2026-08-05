@@ -27,7 +27,7 @@ async function run(sessionID, toolCalls) {
   let session                                             // 当前会话直接保存本轮 execution
   try { session = Session.get(sessionID) ?? await Session.load(sessionID) } // 工具明确从缓存或文件读取会话
   catch (error) {
-    return { results: toolCalls.map((toolCall) => toolResult(toolCall, errorMessage(error), true)), shouldStop: false } // 不执行外部动作
+    return { results: toolCalls.map((toolCall) => result(toolCall, errorMessage(error), true)), shouldStop: false } // 不执行外部动作
   }
   const outcomes = await Promise.all(toolCalls.map((toolCall) => execute(session, toolCall))) // 同轮工具全部同时执行
   return {
@@ -43,7 +43,7 @@ async function execute(session, toolCall) {
   session.tools.add(execution)                           // Agent.stop 可以遍历当前会话全部 execution
   try {
     const value = await execution.result                 // 等待完整工具输出
-    return { result: toolResult(toolCall, value.output, value.isError), stop: value.stop } // 转成 AI SDK 工具结果和 Agent 控制信号
+    return { result: result(toolCall, value.output, value.isError), stop: value.stop } // 转成 AI SDK 工具结果和 Agent 控制信号
   } finally {
     session.tools.delete(execution)                      // 无论成功失败都清除已结束 execution
   }
@@ -51,7 +51,7 @@ async function execute(session, toolCall) {
 
 
 // --- 创建 AI SDK 工具结果 ---
-function toolResult(toolCall, output, isError) {
+function result(toolCall, output, isError) {
   const outputType = isError ? (typeof output === 'string' ? 'error-text' : 'error-json') : (typeof output === 'string' ? 'text' : 'json') // 按真实值和错误状态选择 SDK 输出类型
   return { type: 'tool-result', toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: { type: outputType, value: output } } // 直接符合 AI SDK ToolResultPart
 }

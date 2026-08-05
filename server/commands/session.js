@@ -13,40 +13,40 @@ import { File } from '../utils/file.js'                 // 引入完整文件替
 import { SSE } from '../utils/sse.js'                   // 引入 SSE 帧编码和广播能力
 import { Workspace } from './workspace.js'              // 引入工作区摘要保存动作
 
-let sessionsDirectory = ''                              // 保存会话文件所在目录
-const loadingSessions = new Map()                       // 同一会话的并发读取共享一个任务
-const saveMutexes = new Map()                           // 每个会话一把互斥锁，保证保存串行
-const removingSessions = new Set()                      // 删除期间拒绝重新加载或保存目标会话
+let directory = ''                                      // 保存会话文件所在目录
+const loading = new Map()                               // 同一会话的并发读取共享一个任务
+const locks = new Map()                                 // 每个会话一把互斥锁，保证保存串行
+const removing = new Set()                              // 删除期间拒绝重新加载或保存目标会话
 
 
 // --- 初始化会话目录 ---
-async function init(directory) {
-  sessionsDirectory = directory                        // 后续保存和删除从该目录定位会话文件
-  await mkdir(sessionsDirectory, { recursive: true })   // 首次启动时创建 sessions 目录
+async function init(dir) {
+  directory = dir                                       // 后续保存和删除从该目录定位会话文件
+  await mkdir(directory, { recursive: true })            // 首次启动时创建 sessions 目录
   store.sessions = {}                                   // 新应用从空的按需缓存开始
-  loadingSessions.clear()                               // 新目录不能复用旧目录的读取任务
-  saveMutexes.clear()                                   // 新目录不能复用旧互斥锁
-  removingSessions.clear()                              // 新目录没有正在删除的旧会话
+  loading.clear()                                       // 新目录不能复用旧目录的读取任务
+  locks.clear()                                         // 新目录不能复用旧互斥锁
+  removing.clear()                                      // 新目录没有正在删除的旧会话
 }
 
 
 // --- 加载会话 ---
 async function load(id) {
-  if (removingSessions.has(id)) throw createError(404, 'session not found')
+  if (removing.has(id)) throw createError(404, 'session not found')
   if (store.sessions[id]) return store.sessions[id]     // 已加载时直接返回同一个真实对象
-  const loading = loadingSessions.get(id)               // 检查是否已有调用方正在读取同一文件
-  if (loading) return loading                            // 并发调用共享读取结果
+  const pending = loading.get(id)                       // 检查是否已有调用方正在读取同一文件
+  if (pending) return pending                            // 并发调用共享读取结果
 
-  const pending = (async () => {
-    const file = Bun.file(join(sessionsDirectory, `${id}.json`))
+  const task = (async () => {
+    const file = Bun.file(join(directory, `${id}.json`))
     if (!await file.exists()) throw createError(404, 'session not found')
-    const session = withRuntime(await file.json())      // 恢复持久化数据和运行字段
+    const session = hydrate(await file.json())           // 恢复持久化数据和运行字段
     store.sessions[id] = session                        // 按 session ID 写入内存缓存
     return session
   })()
-  loadingSessions.set(id, pending)                      // 后续并发调用等待同一任务
-  try { return await pending }
-  finally { loadingSessions.delete(id) }
+  loading.set(id, task)                                 // 后续并发调用等待同一任务
+  try { return await task }
+  finally { loading.delete(id) }
 }
 
 
@@ -62,7 +62,7 @@ async function create(workspaceId, provider, model) {
   if (!workspace) throw createError(404, 'workspace not found')
 
   const now = Date.now()
-  const session = withRuntime({
+  const session = hydrate({
     id: `session-${nanoid(10)}`,
     status: 'idle',
     messages: [],
@@ -72,24 +72,24 @@ async function create(workspaceId, provider, model) {
   workspace.sessions.push({ id: session.id, title: '新对话', lastActiveAt: now })
   store.sessions[session.id] = session
   await Promise.all([save(session.id), Workspace.save()])
-  return publicValue(session)
+  return snapshot(session)
 }
 
 
 // --- 修改会话 ---
 async function update(id, title, provider, model) {
   const session = get(id) ?? await load(id)
-  const summary = findSummary(id)
+  const found = summary(id)
 
   if (title !== undefined) {
-    if (!summary) throw createError(404, 'session workspace not found')
-    summary.title = title
+    if (!found) throw createError(404, 'session workspace not found')
+    found.title = title
   }
   if (provider !== undefined) session.provider = provider
   if (model !== undefined) session.model = model
-  if (summary) summary.lastActiveAt = Date.now()
+  if (found) found.lastActiveAt = Date.now()
   await Promise.all([save(id), Workspace.save()])
-  return publicValue(session)
+  return snapshot(session)
 }
 
 
@@ -101,33 +101,33 @@ async function remove(id, stopRunningSession) {
   if (hasActiveRun) await stopRunningSession(id)
   if (session.abortController) throw createError(409, 'session is still running')
 
-  removingSessions.add(id)
+  removing.add(id)
   try {
-    const mutex = saveMutexes.get(id)
+    const mutex = locks.get(id)
     if (mutex) await mutex.waitForUnlock()
     for (const client of session.clients) try { client.close() } catch {}
     session.clients.clear()
-    await rm(join(sessionsDirectory, `${id}.json`), { force: true })
+    await rm(join(directory, `${id}.json`), { force: true })
     delete store.sessions[id]
     for (const workspace of Object.values(store.workspaces)) workspace.sessions = workspace.sessions.filter((summary) => summary.id !== id)
     await Workspace.save()
     return { id }
   } finally {
-    saveMutexes.delete(id)
-    removingSessions.delete(id)
+    locks.delete(id)
+    removing.delete(id)
   }
 }
 
 
 // --- 保存会话 ---
 function save(id) {
-  if (removingSessions.has(id)) throw createError(409, 'session is being removed')
+  if (removing.has(id)) throw createError(409, 'session is being removed')
   const session = store.sessions[id]
   if (!session) throw createError(404, 'session not found')
-  if (!saveMutexes.has(id)) saveMutexes.set(id, new Mutex())
-  return saveMutexes.get(id).runExclusive(() => {
+  if (!locks.has(id)) locks.set(id, new Mutex())
+  return locks.get(id).runExclusive(() => {
     const json = JSON.stringify({ id: session.id, status: session.status, messages: session.messages, provider: session.provider, model: session.model }, null, 2) + '\n'
-    return File.write(join(sessionsDirectory, `${id}.json`), json)
+    return File.write(join(directory, `${id}.json`), json)
   })
 }
 
@@ -151,7 +151,7 @@ function emit(id, event, data) {
 
 
 // --- 查找会话摘要 ---
-function findSummary(id) {
+function summary(id) {
   for (const workspace of Object.values(store.workspaces)) {
     const summary = workspace.sessions.find((item) => item.id === id)
     if (summary) return summary
@@ -161,7 +161,7 @@ function findSummary(id) {
 
 
 // --- 补齐运行时字段 ---
-function withRuntime(saved) {
+function hydrate(saved) {
   return {
     id: saved.id,
     status: saved.status === 'error' ? 'error' : 'idle',
@@ -175,8 +175,8 @@ function withRuntime(saved) {
 }
 
 
-// --- 创建公开和持久化会话 ---
-function publicValue(session) {
+// --- 创建可序列化会话快照 ---
+function snapshot(session) {
   return structuredClone({
     id: session.id,
     status: session.status,

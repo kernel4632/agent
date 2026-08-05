@@ -4,7 +4,7 @@ Agent 指令集：接收用户消息、启动循环、停止任务。
 调用示例：await Agent.send(sessionID, '分析项目')、await Agent.stop(sessionID)。
 */
 import createError from 'http-errors'                    // 引入标准 HTTP 错误创建
-import { AgentLoop } from '../utils/agent.js'            // 引入纯函数 Agent 循环引擎
+import { Loop } from '../utils/agent.js'                 // 引入纯函数 Agent 循环引擎
 import { Message } from '../utils/message.js'            // 引入消息工厂
 import { errorMessage } from '../utils/error.js'         // 引入错误消息安全提取
 import { store } from '../store.js'                      // 引入模型供应商配置
@@ -36,23 +36,23 @@ async function send(sessionID, content) {
   Session.emit(sessionID, 'message', { message: structuredClone(message) })
   Session.emit(sessionID, 'status', { status: 'running' })
 
-  const running = AgentLoop.run({
+  const running = Loop.run({
     messages: session.messages,
     model: session.model,
     provider: store.config.provider,
-    systemPrompt: store.config.prompts.system,
-    toolPrompt: store.config.prompts.tool,
+    system: store.config.prompts.system,
+    nudge: store.config.prompts.tool,
     tools: listTools(),
     signal: controller.signal,
     llm: LLM,
-    runTools: (toolCalls) => runTools(sessionID, toolCalls),
+    execute: (toolCalls) => runTools(sessionID, toolCalls),
     onEvent: (type, data) => Session.emit(sessionID, type, data),
     onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: error, attempt, nextRetryIn: delay }),
-    async onAssistant(assistant) {
+    async onReply(assistant) {
       Session.emit(sessionID, 'message', { message: structuredClone(assistant) })
       await Session.save(sessionID)
     },
-    async onToolResults(toolMessage, results) {
+    async onTools(toolMessage, results) {
       for (const result of results) Session.emit(sessionID, 'tool-result', { messageId: toolMessage.id, toolResult: structuredClone(result) })
       Session.emit(sessionID, 'message', { message: structuredClone(toolMessage) })
       await Session.save(sessionID)

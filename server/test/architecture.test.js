@@ -411,10 +411,10 @@ describe('minimal agent backend', () => {
 
   it('returns text and native content blocks from LLM.chat', async () => {
     const result = await LLM.chat({
-      apiURL: `http://127.0.0.1:${modelServer.port}/v1`, // 使用本机 OpenAI-compatible 服务
-      apiKey: 'unit-secret',                             // 传入公开调用所需密钥
+      url: `http://127.0.0.1:${modelServer.port}/v1`,    // 使用本机 OpenAI-compatible 服务
+      key: 'unit-secret',                                // 传入公开调用所需密钥
       model: 'unit-model',                               // 使用稳定测试模型名称
-      systemPrompt: '',                                  // 本测试不增加系统提示
+      system: '',                                        // 本测试不增加系统提示
       messages: [{ role: 'user', content: 'LLM_RESULT' }], // 直接传入 AI SDK ModelMessage
       tools: {},                                         // 本轮只验证文本结果
     })

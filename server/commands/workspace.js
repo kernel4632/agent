@@ -11,15 +11,15 @@ import { nanoid } from 'nanoid'                         // 引入工作区唯一
 import { store } from '../store.js'                     // 引入工作区 KV 数据
 import { File } from '../utils/file.js'                 // 引入完整文件替换能力
 
-let workspacePath = ''                                  // 保存 workspace.json 的实际位置
+let filepath = ''                                       // 保存 workspace.json 的实际位置
 const mutex = new Mutex()                               // 工作区保存互斥：后一个快照等前一个完成
 
 
 // --- 加载工作区 ---
 async function load(filePath) {
-  workspacePath = filePath                              // 后续保存写回同一个文件
-  await mkdir(dirname(workspacePath), { recursive: true }) // 首次启动时创建数据目录
-  const file = Bun.file(workspacePath)                  // 定位工作区文件
+  filepath = filePath                                   // 后续保存写回同一个文件
+  await mkdir(dirname(filepath), { recursive: true })   // 首次启动时创建数据目录
+  const file = Bun.file(filepath)                       // 定位工作区文件
   const exists = await file.exists()                    // 记录是否需要创建工作区文件
   store.workspaces = exists ? await file.json() : {}    // 文件不存在时从空 KV 开始
   if (!exists) await save()                              // 首次运行创建当前格式的 workspace.json
@@ -62,10 +62,10 @@ async function remove(id) {
 
 // --- 保存工作区 ---
 function save() {
-  if (!workspacePath) throw new Error('workspaces have not been loaded') // 未加载时没有合法写入位置
+  if (!filepath) throw new Error('workspaces have not been loaded') // 未加载时没有合法写入位置
   return mutex.runExclusive(() => {                     // 互斥保证并发保存按顺序写入
     const snapshot = structuredClone(store.workspaces)  // 固定本次保存内容
-    return File.write(workspacePath, `${JSON.stringify(snapshot, null, 2)}\n`)
+    return File.write(filepath, `${JSON.stringify(snapshot, null, 2)}\n`)
   })
 }
 

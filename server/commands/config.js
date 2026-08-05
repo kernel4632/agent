@@ -9,15 +9,15 @@ import { Mutex } from 'async-mutex'                   // 引入互斥锁保证�
 import { store } from '../store.js'                   // 引入唯一配置数据
 import { File } from '../utils/file.js'                // 引入完整文件替换能力
 
-let configPath = ''                                   // 保存当前进程使用的配置文件位置
+let filepath = ''                                     // 保存当前进程使用的配置文件位置
 const mutex = new Mutex()                             // 配置修改互斥：后一个修改等前一个完成
 
 
 // --- 加载配置 ---
 async function load(filePath) {
-  configPath = filePath                               // 后续保存始终写回同一个文件
-  await mkdir(dirname(configPath), { recursive: true }) // 首次启动时创建 .agent 目录
-  const file = Bun.file(configPath)                   // 定位配置文件
+  filepath = filePath                                  // 后续保存始终写回同一个文件
+  await mkdir(dirname(filepath), { recursive: true })   // 首次启动时创建 .agent 目录
+  const file = Bun.file(filepath)                   // 定位配置文件
   const exists = await file.exists()                  // 记录是否需要创建配置文件
   const candidate = exists ? await file.json() : structuredClone(store.config) // 首次启动复制 store 中的唯一默认配置
   if (!exists) await save(candidate)                  // 首次运行只写入一份默认配置
@@ -49,8 +49,8 @@ function update(partialConfig = {}) {
 
 // --- 保存配置 ---
 async function save(value = store.config) {
-  if (!configPath) throw new Error('configuration has not been loaded') // 未加载时没有合法写入位置
-  await File.write(configPath, `${JSON.stringify(value, null, 2)}\n`) // 配置自行序列化后完整替换文件
+  if (!filepath) throw new Error('configuration has not been loaded') // 未加载时没有合法写入位置
+  await File.write(filepath, `${JSON.stringify(value, null, 2)}\n`) // 配置自行序列化后完整替换文件
 }
 
 

@@ -5,10 +5,10 @@ LLM 流工具：请求 OpenAI-compatible 模型，并返回完整文本、AI SDK
 使用示例
 const controller = new AbortController()
 const result = await LLM.chat({
-  apiURL: provider.api,
-  apiKey: provider.key,
+  url: provider.api,
+  key: provider.key,
   model: session.model,
-  systemPrompt: '你是一个编程助手',
+  system: '你是一个编程助手',
   messages: session.messages,
   tools: {
     shell: {
@@ -38,16 +38,16 @@ result.usage         // AI SDK 返回的 token 用量
 import { dynamicTool, jsonSchema, streamText } from 'ai' // 引入 AI SDK 流式文本和动态工具能力
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible' // 引入 OpenAI-compatible 模型客户端
 
-const defaultTimeoutMS = 120000                          // 单轮模型请求默认最多等待两分钟
+const TIMEOUT = 120000                                   // 单轮模型请求默认最多等待两分钟
 
 
 // --- 请求一轮 LLM ---
-async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, signal, onEvent }) {
-  const configuredTimeout = Number(process.env.AGENT_REQUEST_TIMEOUT_MS ?? defaultTimeoutMS) // 读取可选单轮请求预算
-  const timeoutMS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.floor(configuredTimeout) : defaultTimeoutMS // 非法值回退默认预算
+async function chat({ url, key, model, system, messages, tools, signal, onEvent }) {
+  const configuredTimeout = Number(process.env.AGENT_REQUEST_TIMEOUT_MS ?? TIMEOUT) // 读取可选单轮请求预算
+  const timeoutMS = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.floor(configuredTimeout) : TIMEOUT // 非法值回退默认预算
   const timeoutSignal = AbortSignal.timeout(timeoutMS)   // 超时只结束本轮，外层可以决定是否重试
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal // 调用方停止和超时共享底层请求
-  const provider = createOpenAICompatible({ name: 'agent', baseURL: apiURL, apiKey }) // 为当前配置创建模型供应商
+  const provider = createOpenAICompatible({ name: 'agent', baseURL: url, apiKey: key }) // 为当前配置创建模型供应商
   const modelTools = Object.fromEntries(Object.entries(tools ?? {}).map(([name, tool]) => [
     name,
     dynamicTool({ description: tool.description, inputSchema: jsonSchema(tool.parameters) }), // 把通用 JSON Schema 转成 SDK 工具
@@ -56,7 +56,7 @@ async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, sign
   try {
     const stream = streamText({
       model: provider(model),                            // 使用调用方选择的具体模型
-      system: systemPrompt,                              // 传入当前系统提示
+      system,                                            // 传入当前系统提示
       messages,                                          // session.messages 本身就是 ModelMessage[]
       tools: modelTools,                                 // 发送当前扫描到的动态工具
       maxRetries: 0,                                     // 项目统一由 Retry 管理重试
