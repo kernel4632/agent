@@ -8,10 +8,26 @@ import { dirname } from 'node:path'                      // 引入父目录定�
 import { fdir } from 'fdir'                              // 引入高性能目录递归遍历
 
 
-// --- 读取文本文件 ---
+// --- 检测图片格式 ---
+function detectImage(buffer) {
+  if (buffer.length < 12) return null
+  const h = buffer.subarray(0, 12)                       // 取前 12 字节判断文件签名
+  if (h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4E && h[3] === 0x47) return 'image/png'
+  if (h[0] === 0xFF && h[1] === 0xD8 && h[2] === 0xFF) return 'image/jpeg'
+  if (h[0] === 0x47 && h[1] === 0x49 && h[2] === 0x46 && h[3] === 0x38) return 'image/gif'
+  if (h[0] === 0x42 && h[1] === 0x4D) return 'image/bmp'
+  if (h[0] === 0x49 && h[1] === 0x49 && h[2] === 0x2A && h[3] === 0x00) return 'image/tiff'
+  if (h[0] === 0x4D && h[1] === 0x4D && h[2] === 0x00 && h[3] === 0x2A) return 'image/tiff'
+  if (h[0] === 0x52 && h[1] === 0x49 && h[2] === 0x46 && h[3] === 0x46 && h[8] === 0x57 && h[9] === 0x45 && h[10] === 0x42 && h[11] === 0x50) return 'image/webp'
+  if (h[4] === 0x66 && h[5] === 0x74 && h[6] === 0x79 && h[7] === 0x70) return 'image/avif' // ftyp box: AVIF/HEIF
+  return null
+}
+
+
+// --- 读取文件 ---
 export const readFileTool = {
   name: 'file_read',                                    // LLM 调用使用对象在前的稳定工具名
-  description: '读取指定路径的文本文件内容。',         // 说明该工具用于读取文本
+  description: '读取指定路径的文件内容。文本文件返回文本，图片文件返回图片供模型直接查看。',
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
@@ -21,7 +37,10 @@ export const readFileTool = {
     additionalProperties: false,                       // 拒绝无意义参数
   },
   async execute({ path }, signal) {
-    return { output: await readFile(path, { encoding: 'utf-8', signal }) } // 返回完整文本
+    const buffer = await readFile(path, { signal })     // 先以 buffer 读取完整文件
+    const mime = detectImage(buffer)                    // 检测文件头判断是否为图片
+    if (mime) return { output: { image: buffer.toString('base64'), mime } } // 图片返回 base64 + MIME
+    return { output: buffer.toString('utf-8') }        // 非图片当作文本返回
   },
 }
 

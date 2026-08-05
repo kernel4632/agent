@@ -72,6 +72,7 @@ function approve(session, toolCall) {
 
 // --- 创建 AI SDK 工具结果 ---
 function result(toolCall, output, isError) {
+  if (!isError && output?.image && output?.mime) return { type: 'tool-result', toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: { type: 'image', value: output.image, mimeType: output.mime } } // 图片 output 转成 AI SDK image part
   const outputType = isError ? (typeof output === 'string' ? 'error-text' : 'error-json') : (typeof output === 'string' ? 'text' : 'json') // 按真实值和错误状态选择 SDK 输出类型
   return { type: 'tool-result', toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: { type: outputType, value: output } } // 直接符合 AI SDK ToolResultPart
 }
