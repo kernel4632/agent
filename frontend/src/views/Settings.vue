@@ -45,7 +45,7 @@ async function openSection(sectionID) {
 
 <template>
   <section v-if="draft" ref="settingsView" class="settings-view">
-    <SettingsNavigation :sections="sections" :active="store.ui.settingsSection" :saved="Boolean(store.settings.savedAt)" @select="openSection" />
+    <SettingsNavigation :sections="sections" :active="store.ui.settingsSection" @select="openSection" />
 
     <main class="settings-content">
        <ProviderSettings v-if="store.ui.settingsSection === 'providers'" :config="draft" />

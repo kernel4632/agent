@@ -16,8 +16,10 @@ import '@m3e/web/chips'                             // 注册附件 Chip
 import '@m3e/web/dialog'                            // 注册确认和模型弹窗
 import '@m3e/web/expansion-panel'                   // 注册任务折叠面板
 import '@m3e/web/form-field'                        // 注册原生输入字段外观
+import '@m3e/web/heading'                           // 注册设置页标题层级
 import '@m3e/web/icon'                              // 与图标包共享 SVG Registry
 import '@m3e/web/icon-button'                       // 注册图标命令
+import '@m3e/web/list'                              // 注册设置供应商和模型列表
 import '@m3e/web/menu'                              // 注册 Grok 风格模型浮层
 import '@m3e/web/progress-indicator'                // 注册请求进度反馈
 import '@m3e/web/search'                            // 注册主页搜索框
@@ -26,6 +28,7 @@ import '@m3e/web/snackbar'                          // 注册全局即时反馈
 import '@m3e/web/switch'                            // 注册设置开关
 import '@m3e/web/textarea-autosize'                 // 注册自适应长文本能力
 import '@m3e/web/theme'                             // 注册 Material 3 暗色主题
+import '@m3e/web/tooltip'                           // 注册纯图标设置导航提示
 import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
 import '@m3e/icons/outlined/add'                    // 注册新建动作图标
 import '@m3e/icons/outlined/account_tree'           // 注册多专家模式图标
@@ -73,6 +76,8 @@ import '@m3e/icons/outlined/terminal'               // 注册命令执行图标
 import '@m3e/icons/outlined/tune'                   // 注册模型设置图标
 import '@m3e/icons/outlined/undo'                   // 注册回退动作图标
 import '@m3e/icons/outlined/upload'                 // 注册上传动作图标
+import '@m3e/icons/outlined/visibility'             // 注册显示密钥图标
+import '@m3e/icons/outlined/visibility_off'         // 注册隐藏密钥图标
 import App from './App.vue'                        // 引入根界面组合组件
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
