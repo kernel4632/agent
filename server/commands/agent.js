@@ -5,8 +5,9 @@ run() 从上到下完整展示"请求 LLM、保存回复、执行工具、带结
 */
 import createError from 'http-errors'                    // 引入标准 HTTP 错误创建
 import { LLM } from '../utils/llm.js'                    // 引入完整单轮 LLM 请求能力
+import { Message } from '../utils/message.js'            // 引入消息工厂
 import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
-import { nanoid } from 'nanoid'                          // 引入消息唯一 ID 生成能力
+import { errorMessage } from '../utils/error.js'         // 引入错误消息安全提取
 import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
 import { list as listTools, run as runTools, stop as stopTools } from './tool.js' // 引入工具定义、运行和停止能力
@@ -16,47 +17,47 @@ const runs = new WeakMap()                               // 当前停止控制�
 
 // --- 接收用户消息 ---
 async function send(sessionID, content) {
-  const session = Session.get(sessionID) ?? await Session.load(sessionID) // 明确按需加载当前会话真实对象
-  if (session.status !== 'idle' || session.abortController) throw createError(409, 'session is not idle') // 上一轮彻底结束前拒绝重叠执行
-  const message = { id: `message-${nanoid(12)}`, role: 'user', content: [{ type: 'text', text: content }] } // 项目只给 AI SDK 用户消息增加持久化身份
-  session.messages.push(message)                         // 用户消息进入后续模型上下文
-  session.status = 'running'                             // 会话立即进入执行状态
-  const controller = new AbortController()               // 本轮 LLM、重试和工具共享停止信号
-  session.abortController = controller                   // stop 通过会话定位当前任务
+  const session = Session.get(sessionID) ?? await Session.load(sessionID)
+  if (session.status !== 'idle' || session.abortController) throw createError(409, 'session is not idle')
+  const message = Message.user(content)                  // 用户消息由工厂统一创建
+  session.messages.push(message)
+  session.status = 'running'
+  const controller = new AbortController()
+  session.abortController = controller
 
-  try { await Session.save(sessionID) }                  // 启动 LLM 前先持久化用户输入
+  try { await Session.save(sessionID) }
   catch (error) {
-    session.status = 'error'                             // 启动保存失败时不创建后台任务
-    session.abortController = null                       // 释放尚未使用的停止控制器
-    Session.emit(sessionID, 'error', { message: error instanceof Error ? error.message : String(error) }) // 反馈真实保存错误
-    Session.emit(sessionID, 'status', { status: session.status }) // 反馈错误终态
-    throw error                                          // 将保存错误反馈给调用方
+    session.status = 'error'
+    session.abortController = null
+    Session.emit(sessionID, 'error', { message: errorMessage(error) })
+    Session.emit(sessionID, 'status', { status: session.status })
+    throw error
   }
-  Session.emit(sessionID, 'message', { message: structuredClone(message) }) // 落盘后反馈用户消息
-  Session.emit(sessionID, 'status', { status: 'running' }) // 告知客户端 Agent 已经开始
+  Session.emit(sessionID, 'message', { message: structuredClone(message) })
+  Session.emit(sessionID, 'status', { status: 'running' })
 
   const running = run(session, controller).then(
-    () => finish(session, controller),                   // 正常结束统一保存和释放状态
-    (error) => finish(session, controller, error),       // 停止或失败也走同一收尾动作
-  ).finally(() => runs.delete(controller))               // 释放本轮后台任务引用
-  runs.set(controller, running)                          // stop 和删除可以等待本轮彻底完成
-  return { messageId: message.id }                       // 返回前端可追踪的消息身份
+    () => finish(session, controller),
+    (error) => finish(session, controller, error),
+  ).finally(() => runs.delete(controller))
+  runs.set(controller, running)
+  return { messageId: message.id }
 }
 
 
 // --- 运行完整 Agent 循环 ---
 async function run(session, controller) {
-  const sessionID = session.id                           // 本轮所有数据和反馈都归属同一会话
-  let nextPrompt = ''                                    // 临时提醒默认不参与模型上下文
-  let textOnlyCount = 0                                  // 只属于本轮 Agent 的纯文本次数
+  const sessionID = session.id
+  let nextPrompt = ''
+  let textOnlyCount = 0
 
   while (!controller.signal.aborted) {
-    const answer = await Retry.run(async () => {         // 每轮 LLM 请求对可恢复错误无限重试
-      const provider = store.config.provider             // 每次重试都读取最新供应商配置
-      const messages = nextPrompt ? [...session.messages, { role: 'user', content: nextPrompt }] : session.messages // 临时提醒只扩展本轮数组
-      const messageID = `message-${nanoid(12)}`          // 每次重试使用独立的流式消息身份
+    const answer = await Retry.run(async () => {
+      const provider = store.config.provider
+      const messages = nextPrompt ? [...session.messages, { role: 'user', content: nextPrompt }] : session.messages
+      const messageID = Message.id()                     // 每次重试使用独立的流式消息身份
 
-      const result = await LLM.chat({                    // 请求一轮完整模型回复
+      const result = await LLM.chat({
         apiURL: provider.api,
         apiKey: provider.key,
         model: session.model,
@@ -65,75 +66,76 @@ async function run(session, controller) {
         tools: listTools(),
         signal: controller.signal,
         onEvent(type, data) {
-          Session.emit(sessionID, type, { messageId: messageID, ...data }) // 模型事件直接反馈给当前会话
+          Session.emit(sessionID, type, { messageId: messageID, ...data })
         },
       })
-      return { ...result, messageID }                    // 回复携带本次流式消息身份
+      return { ...result, messageID }
     }, {
       signal: controller.signal,
-      onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: error instanceof Error ? error.message : String(error), attempt, nextRetryIn: delay }), // 反馈重试原因和等待时间
+      onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: errorMessage(error), attempt, nextRetryIn: delay }),
     })
-    nextPrompt = ''                                      // 临时提醒只参与紧接着的一轮
+    nextPrompt = ''
 
-    const assistant = { id: answer.messageID, role: 'assistant', content: answer.contentBlocks } // 完整回复直接成为会话消息
-    session.messages.push(assistant)                     // 助手回复进入后续模型上下文
-    Session.emit(sessionID, 'message', { message: structuredClone(assistant) }) // 反馈完整助手消息
-    await Session.save(sessionID)                        // 保存当前完整历史
+    const assistant = Message.assistant(answer.contentBlocks) // 助手消息由工厂创建
+    assistant.id = answer.messageID                       // 使用流式阶段已经广播的消息 ID
+    session.messages.push(assistant)
+    Session.emit(sessionID, 'message', { message: structuredClone(assistant) })
+    await Session.save(sessionID)
 
     if (answer.toolCalls.length === 0) {
-      textOnlyCount += 1                                 // 没有行动时累计纯文本轮次
-      if (textOnlyCount >= 3) return                     // 第三次普通回复后结束任务
-      if (textOnlyCount === 2) nextPrompt = store.config.prompts.tool // 第二次后读取当前工具提醒
-      continue                                           // 没有工具结果时继续请求 LLM
+      textOnlyCount += 1
+      if (textOnlyCount >= 3) return
+      if (textOnlyCount === 2) nextPrompt = store.config.prompts.tool
+      continue
     }
 
-    textOnlyCount = 0                                    // 工具行动后重新统计纯文本轮次
-    const tools = await runTools(sessionID, answer.toolCalls) // 同一轮全部工具并行执行
-    const message = { id: `message-${nanoid(12)}`, role: 'tool', content: tools.results } // 工具结果组成 AI SDK 消息
-    for (const toolResult of tools.results) Session.emit(sessionID, 'tool-result', { messageId: message.id, toolResult: structuredClone(toolResult) }) // 逐个反馈工具结果
-    session.messages.push(message)                       // 工具结果进入下一轮模型上下文
-    Session.emit(sessionID, 'message', { message: structuredClone(message) }) // 反馈完整工具消息
-    await Session.save(sessionID)                        // 保存全部工具结果
-    if (tools.shouldStop) return                         // finish 工具结束当前任务
+    textOnlyCount = 0
+    const tools = await runTools(sessionID, answer.toolCalls)
+    const toolMessage = Message.tool(tools.results)      // 工具消息由工厂创建
+    for (const toolResult of tools.results) Session.emit(sessionID, 'tool-result', { messageId: toolMessage.id, toolResult: structuredClone(toolResult) })
+    session.messages.push(toolMessage)
+    Session.emit(sessionID, 'message', { message: structuredClone(toolMessage) })
+    await Session.save(sessionID)
+    if (tools.shouldStop) return
   }
 }
 
 
 // --- 完成当前任务 ---
 async function finish(session, controller, error) {
-  const stopped = controller.signal.aborted || error?.name === 'AbortError' // 用户停止不属于执行错误
-  session.status = error && !stopped ? 'error' : 'idle'  // 记录本轮最终状态
-  if (error && !stopped) Session.emit(session.id, 'error', { message: error instanceof Error ? error.message : String(error) }) // 反馈不可恢复错误
-  try { await Session.save(session.id) }                 // 最终状态必须真实写入磁盘
+  const stopped = controller.signal.aborted || error?.name === 'AbortError'
+  session.status = error && !stopped ? 'error' : 'idle'
+  if (error && !stopped) Session.emit(session.id, 'error', { message: errorMessage(error) })
+  try { await Session.save(session.id) }
   catch (saveError) {
-    session.status = 'error'                             // 保存失败不能伪报成功
-    Session.emit(session.id, 'error', { message: saveError instanceof Error ? saveError.message : String(saveError) }) // 反馈保存错误
+    session.status = 'error'
+    Session.emit(session.id, 'error', { message: errorMessage(saveError) })
   }
-  if (session.abortController === controller) session.abortController = null // 释放本轮停止控制器
-  Session.emit(session.id, 'status', { status: session.status }) // 反馈最终状态
+  if (session.abortController === controller) session.abortController = null
+  Session.emit(session.id, 'status', { status: session.status })
 }
 
 
 // --- 停止当前任务 ---
 async function stop(sessionID) {
-  const session = Session.get(sessionID) ?? await Session.load(sessionID) // 明确按需加载目标会话运行状态
-  const controller = session.abortController             // 保存当前控制器供等待后台结束
-  const running = controller && runs.get(controller)     // 定位当前完整 Agent 任务
+  const session = Session.get(sessionID) ?? await Session.load(sessionID)
+  const controller = session.abortController
+  const running = controller && runs.get(controller)
 
-  controller?.abort(new DOMException('stopped by user', 'AbortError')) // 中断 LLM、重试和工具等待
-  await stopTools(sessionID)                             // 中止本轮全部工具
+  controller?.abort(new DOMException('stopped by user', 'AbortError'))
+  await stopTools(sessionID)
   if (running) {
-    await running.catch(() => {})                        // 等待 run 的最终保存和状态反馈
-    if (session.abortController && session.abortController !== controller) return { status: session.status } // 新任务已经接管时不覆盖状态
-    return { status: session.status }                    // run 已经完成空闲状态保存
+    await running.catch(() => {})
+    if (session.abortController && session.abortController !== controller) return { status: session.status }
+    return { status: session.status }
   }
 
-  session.abortController = null                         // 没有后台任务时直接清除旧控制器
-  session.status = 'idle'                                // error 或残留状态恢复空闲
-  await Session.save(sessionID)                          // 保存停止后的最终状态
-  Session.emit(sessionID, 'status', { status: session.status }) // 反馈停止结果
-  return { status: session.status }                      // 返回当前会话状态
+  session.abortController = null
+  session.status = 'idle'
+  await Session.save(sessionID)
+  Session.emit(sessionID, 'status', { status: session.status })
+  return { status: session.status }
 }
 
 
-export const Agent = { send, stop }                      // 导出用户可触发的发送和停止指令
+export const Agent = { send, stop }

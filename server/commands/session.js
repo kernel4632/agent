@@ -10,9 +10,9 @@ import createError from 'http-errors'                   // 引入标准 HTTP 错
 import { nanoid } from 'nanoid'                         // 引入会话唯一 ID 生成能力
 import { store } from '../store.js'                     // 引入会话与工作区数据
 import { File } from '../utils/file.js'                 // 引入完整文件替换能力
+import { SSE } from '../utils/sse.js'                   // 引入 SSE 帧编码和广播能力
 import { Workspace } from './workspace.js'              // 引入工作区摘要保存动作
 
-const encoder = new TextEncoder()                       // 所有 SSE 客户端共用 UTF-8 编码器
 let sessionsDirectory = ''                              // 保存会话文件所在目录
 const loadingSessions = new Map()                       // 同一会话的并发读取共享一个任务
 const saveMutexes = new Map()                           // 每个会话一把互斥锁，保证保存串行
@@ -38,15 +38,15 @@ async function load(id) {
   if (loading) return loading                            // 并发调用共享读取结果
 
   const pending = (async () => {
-    const file = Bun.file(join(sessionsDirectory, `${id}.json`)) // 按 ID 定位会话文件
+    const file = Bun.file(join(sessionsDirectory, `${id}.json`))
     if (!await file.exists()) throw createError(404, 'session not found')
     const session = withRuntime(await file.json())      // 恢复持久化数据和运行字段
     store.sessions[id] = session                        // 按 session ID 写入内存缓存
-    return session                                      // 返回可直接操作的真实会话
+    return session
   })()
   loadingSessions.set(id, pending)                      // 后续并发调用等待同一任务
-  try { return await pending }                          // 反馈加载后的真实会话
-  finally { loadingSessions.delete(id) }                // 读取结束后释放任务引用
+  try { return await pending }
+  finally { loadingSessions.delete(id) }
 }
 
 
@@ -58,63 +58,63 @@ function get(id) {
 
 // --- 创建会话 ---
 async function create(workspaceId, provider, model) {
-  const workspace = store.workspaces[workspaceId]       // 按 ID 直接读取会话所属工作区
+  const workspace = store.workspaces[workspaceId]
   if (!workspace) throw createError(404, 'workspace not found')
 
-  const now = Date.now()                                // 摘要时间使用统一基准
-  const session = withRuntime({                         // 创建严格符合 store 的完整会话
-    id: `session-${nanoid(10)}`,                        // 生成会话唯一身份
-    status: 'idle',                                     // 新会话默认空闲
-    messages: [],                                       // 新会话没有历史消息
-    provider,                                            // 原样保存调用方选择的供应商
-    model,                                               // 保存当前模型名称
+  const now = Date.now()
+  const session = withRuntime({
+    id: `session-${nanoid(10)}`,
+    status: 'idle',
+    messages: [],
+    provider,
+    model,
   })
-  workspace.sessions.push({ id: session.id, title: '新对话', lastActiveAt: now }) // 工作区只保存会话摘要
-  store.sessions[session.id] = session                  // 完整会话按 ID 进入内存缓存
-  await Promise.all([save(session.id), Workspace.save()]) // 同时保存完整会话和摘要
-  return publicValue(session)                           // 返回新会话持久化数据
+  workspace.sessions.push({ id: session.id, title: '新对话', lastActiveAt: now })
+  store.sessions[session.id] = session
+  await Promise.all([save(session.id), Workspace.save()])
+  return publicValue(session)
 }
 
 
 // --- 修改会话 ---
 async function update(id, title, provider, model) {
-  const session = get(id) ?? await load(id)             // 明确按需加载完整会话供修改
-  const summary = findSummary(id)                       // 标题和最近时间只保存在工作区摘要
+  const session = get(id) ?? await load(id)
+  const summary = findSummary(id)
 
   if (title !== undefined) {
     if (!summary) throw createError(404, 'session workspace not found')
-    summary.title = title                                // 更新工作区中的会话标题
+    summary.title = title
   }
-  if (provider !== undefined) session.provider = provider // 原样更新会话供应商字段
-  if (model !== undefined) session.model = model         // 更新会话模型
-  if (summary) summary.lastActiveAt = Date.now()        // 摘要存在时刷新列表时间
-  await Promise.all([save(id), Workspace.save()])       // 两类数据一起持久化
-  return publicValue(session)                           // 返回修改后的完整会话
+  if (provider !== undefined) session.provider = provider
+  if (model !== undefined) session.model = model
+  if (summary) summary.lastActiveAt = Date.now()
+  await Promise.all([save(id), Workspace.save()])
+  return publicValue(session)
 }
 
 
 // --- 删除会话 ---
 async function remove(id, stopRunningSession) {
-  const session = get(id) ?? await load(id)             // 明确按需加载运行状态
-  const hasActiveRun = session.status === 'running' || session.abortController // 最终保存期间也属于活跃执行
+  const session = get(id) ?? await load(id)
+  const hasActiveRun = session.status === 'running' || session.abortController
   if (hasActiveRun && typeof stopRunningSession !== 'function') throw createError(409, 'running session must be stopped before removal')
-  if (hasActiveRun) await stopRunningSession(id)         // 等待运行和最终保存结束，避免删除后文件重建
+  if (hasActiveRun) await stopRunningSession(id)
   if (session.abortController) throw createError(409, 'session is still running')
 
-  removingSessions.add(id)                              // 从此刻起拒绝迟到保存和磁盘重载
+  removingSessions.add(id)
   try {
-    const mutex = saveMutexes.get(id)                   // 获取该会话的保存锁
-    if (mutex) await mutex.waitForUnlock()              // 删除文件前等待正在进行的保存结束
-    for (const client of session.clients) try { client.close() } catch {} // 删除前关闭全部 SSE 连接
-    session.clients.clear()                             // 释放全部客户端引用
-    await rm(join(sessionsDirectory, `${id}.json`), { force: true }) // 删除持久化会话文件
-    delete store.sessions[id]                           // 从内存缓存移除完整会话
-    for (const workspace of Object.values(store.workspaces)) workspace.sessions = workspace.sessions.filter((summary) => summary.id !== id) // 从所有工作区移除摘要
-    await Workspace.save()                             // 保存摘要删除结果
-    return { id }                                      // 返回被删除会话 ID
+    const mutex = saveMutexes.get(id)
+    if (mutex) await mutex.waitForUnlock()
+    for (const client of session.clients) try { client.close() } catch {}
+    session.clients.clear()
+    await rm(join(sessionsDirectory, `${id}.json`), { force: true })
+    delete store.sessions[id]
+    for (const workspace of Object.values(store.workspaces)) workspace.sessions = workspace.sessions.filter((summary) => summary.id !== id)
+    await Workspace.save()
+    return { id }
   } finally {
-    saveMutexes.delete(id)                              // 删除结束后释放该会话互斥锁
-    removingSessions.delete(id)                         // 后续同 ID 文件不存在时正常返回 404
+    saveMutexes.delete(id)
+    removingSessions.delete(id)
   }
 }
 
@@ -122,10 +122,10 @@ async function remove(id, stopRunningSession) {
 // --- 保存会话 ---
 function save(id) {
   if (removingSessions.has(id)) throw createError(409, 'session is being removed')
-  const session = store.sessions[id]                    // 保存只接受已经加载的会话
+  const session = store.sessions[id]
   if (!session) throw createError(404, 'session not found')
-  if (!saveMutexes.has(id)) saveMutexes.set(id, new Mutex()) // 首次保存时为该会话创建互斥锁
-  return saveMutexes.get(id).runExclusive(() => {       // 互斥保证同一会话的保存按顺序写入
+  if (!saveMutexes.has(id)) saveMutexes.set(id, new Mutex())
+  return saveMutexes.get(id).runExclusive(() => {
     const json = JSON.stringify({ id: session.id, status: session.status, messages: session.messages, provider: session.provider, model: session.model }, null, 2) + '\n'
     return File.write(join(sessionsDirectory, `${id}.json`), json)
   })
@@ -134,75 +134,50 @@ function save(id) {
 
 // --- 建立 SSE 连接 ---
 async function listen(id) {
-  const session = get(id) ?? await load(id)             // SSE 连接明确按需加载目标会话
-  let client                                             // 保存当前流控制器供断开清理
-  let heartbeat                                          // 保存心跳定时器供断开清理
-  const stream = new ReadableStream({
-    start(controller) {
-      client = controller                                // 记录本连接的写入控制器
-      session.clients.add(client)                        // 新客户端加入会话集合
-      client.enqueue(encoder.encode(': connected\n\n')) // 立即刷新真实网络响应，前端随后才能发送消息
-      client.enqueue(encoder.encode(`event: sync\ndata: ${JSON.stringify({ status: session.status, messageCount: session.messages.length })}\n\n`)) // 连接时同步当前会话状态
-      heartbeat = setInterval(() => {
-        try { client.enqueue(encoder.encode(': ping\n\n')) } // 每 30 秒发送心跳保持连接存活
-        catch { clearInterval(heartbeat); session.clients.delete(client) } // 写入失败时自动清理
-      }, 30000)
-    },
-    cancel() {
-      clearInterval(heartbeat)                           // 浏览器断开后停止心跳
-      session.clients.delete(client)                     // 释放控制器引用
-    },
-  })
-  return new Response(stream, {                         // 返回浏览器可识别的 SSE 响应
-    headers: {
-      'content-type': 'text/event-stream; charset=utf-8', // 声明事件流格式
-      'cache-control': 'no-cache',                      // 禁止代理缓存实时内容
-      connection: 'keep-alive',                         // 保持连接直到客户端关闭
-    },
-  })
+  const session = get(id) ?? await load(id)
+  const { client, response } = SSE.connect((controller) => session.clients.delete(controller)) // 断开时自动移除
+  session.clients.add(client())                         // 新客户端加入会话集合
+  SSE.send(client(), 'sync', { status: session.status, messageCount: session.messages.length }) // 连接时同步当前状态
+  return response
 }
 
 
 // --- 发送 SSE 事件 ---
 function emit(id, event, data) {
-  const session = store.sessions[id]                    // 事件只发给已加载会话
+  const session = store.sessions[id]
   if (!session) return                                  // 会话已删除时忽略迟到事件
-  const frame = encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) // 编码最小 SSE 帧
-  for (const client of [...session.clients]) {
-    try { client.enqueue(frame) }                       // 向每个当前客户端发送同一事件
-    catch { session.clients.delete(client) }            // 失效客户端立即从集合移除
-  }
+  SSE.broadcast(session.clients, event, data)
 }
 
 
 // --- 查找会话摘要 ---
 function findSummary(id) {
   for (const workspace of Object.values(store.workspaces)) {
-    const summary = workspace.sessions.find((item) => item.id === id) // 在工作区摘要中查找归属
-    if (summary) return summary                         // 找到后返回真实可修改对象
+    const summary = workspace.sessions.find((item) => item.id === id)
+    if (summary) return summary
   }
-  return null                                           // 没有摘要时不猜测工作区
+  return null
 }
 
 
 // --- 补齐运行时字段 ---
 function withRuntime(saved) {
   return {
-    id: saved.id,                                       // 保留持久化会话身份
-    status: saved.status === 'error' ? 'error' : 'idle', // 重启后旧运行不能继续，运行中恢复为空闲
-    messages: Array.isArray(saved.messages) ? saved.messages : [], // 恢复消息上下文
-    provider: saved.provider ?? '',                     // 恢复会话供应商字段
-    model: saved.model ?? '',                           // 恢复模型名称
-    abortController: null,                              // 新进程没有模型请求
-    clients: new Set(),                                 // 新进程没有 SSE 客户端
-    tools: new Set(),                                   // 新进程没有正在运行的工具
+    id: saved.id,
+    status: saved.status === 'error' ? 'error' : 'idle',
+    messages: Array.isArray(saved.messages) ? saved.messages : [],
+    provider: saved.provider ?? '',
+    model: saved.model ?? '',
+    abortController: null,
+    clients: new Set(),
+    tools: new Set(),
   }
 }
 
 
 // --- 创建公开和持久化会话 ---
 function publicValue(session) {
-  return structuredClone({                             // 只返回 store 中需要持久化的五个字段
+  return structuredClone({
     id: session.id,
     status: session.status,
     messages: session.messages,
@@ -212,4 +187,4 @@ function publicValue(session) {
 }
 
 
-export const Session = { init, load, get, create, update, remove, save, listen, emit } // 导出会话数据和 SSE 指令
+export const Session = { init, load, get, create, update, remove, save, listen, emit }

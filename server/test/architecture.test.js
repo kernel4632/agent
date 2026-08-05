@@ -762,7 +762,7 @@ describe('minimal agent backend', () => {
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
       tools: ['file.js', 'finish.js', 'shell.js', 'web.js'], // 四个平铺工具模块
-      utils: ['file.js', 'llm.js', 'retry.js', 'tool.js'], // 保留文件、LLM、工具和重试封装
+      utils: ['error.js', 'file.js', 'llm.js', 'message.js', 'retry.js', 'sse.js', 'tool.js'], // 保留错误、文件、LLM、消息、重试、SSE 和工具封装
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))

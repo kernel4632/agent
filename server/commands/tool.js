@@ -5,6 +5,7 @@ utils/Tool 负责注册和执行，本文件只联动 store 和转换模型结�
 */
 import { store } from '../store.js'                      // 引入 LLM 工具定义和会话运行数据
 import { Tool } from '../utils/tool.js'                  // 引入简洁工具注册和执行接口
+import { errorMessage } from '../utils/error.js'         // 引入错误消息安全提取
 import { Session } from './session.js'                   // 引入会话运行数据
 
 
@@ -26,8 +27,7 @@ async function run(sessionID, toolCalls) {
   let session                                             // 当前会话直接保存本轮 execution
   try { session = Session.get(sessionID) ?? await Session.load(sessionID) } // 工具明确从缓存或文件读取会话
   catch (error) {
-    const message = error instanceof Error ? error.message : String(error) // 会话错误转成工具结果
-    return { results: toolCalls.map((toolCall) => toolResult(toolCall, message, true)), shouldStop: false } // 不执行外部动作
+    return { results: toolCalls.map((toolCall) => toolResult(toolCall, errorMessage(error), true)), shouldStop: false } // 不执行外部动作
   }
   const outcomes = await Promise.all(toolCalls.map((toolCall) => execute(session, toolCall))) // 同轮工具全部同时执行
   return {

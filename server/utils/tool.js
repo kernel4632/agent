@@ -1,23 +1,21 @@
 /*
+工具注册和执行基础设施：扫描工具目录、生成 LLM 工具定义、执行工具并收集结果。
+工具可以返回三种形式：ReadableStream（流式输出）、对象 { output, isError?, stop? }、或字符串。
+框架自动处理 signal 检查、流式读取、错误捕获和结果归一化。
+
 使用示例
-注册
 await Tool.scan('./tools')
 
-const tool = Tool.execute('shell', { command: 'npm install' }, {
-  onOutput(chunk) {
-    SSE.emit(session, 'tool-output', { toolCallId, delta: chunk })
-  },
+const execution = Tool.execute('shell', { command: 'npm install' }, {
+  onOutput(chunk) { console.log(chunk) }
 })
-
-等结果
-const { output, isError, stop } = await tool.result
-
-如果用户停止
-tool.abort()
+const { output, isError, stop } = await execution.result
+execution.abort()  // 用户停止
 */
 import { readdir } from 'node:fs/promises'               // 引入平铺工具目录扫描能力
 import { join, resolve } from 'node:path'                // 引入工具目录和模块路径定位能力
 import { pathToFileURL } from 'node:url'                 // 引入跨平台动态导入地址
+import { errorMessage } from './error.js'                // 引入错误消息安全提取
 
 let registry = new Map()                                 // 保存当前一次扫描得到的工具
 
@@ -48,55 +46,65 @@ function definitions() {
 // --- 执行工具 ---
 function execute(name, input, { onOutput } = {}) {
   const tool = registry.get(name)                        // 按模型返回名称定位工具
-  if (!tool) return { result: Promise.resolve({ output: `tool not found: ${name}`, isError: true, stop: false }), abort() {} } // 未注册名称返回稳定错误结果
+  if (!tool) return { result: Promise.resolve({ output: `tool not found: ${name}`, isError: true, stop: false }), abort() {} }
 
-  let output = ''                                        // 累积普通结果或流式输出
-  let reader = null                                      // 流式工具使用读取器响应停止
+  let output = ''                                        // 累积流式输出供最终结果
+  let reader = null                                      // 流式工具的读取器供停止使用
   const controller = new AbortController()               // 每次执行拥有独立停止信号
 
   const result = (async () => {
     try {
-      const raw = await tool.execute(input, controller.signal) // 工具只接收自己的输入和停止信号
-      if (controller.signal.aborted) return { output: `${output}\n[工具被强制终止]`, isError: true, stop: false } // 停止后的迟到结果不能成为成功
+      controller.signal.throwIfAborted()                 // 框架统一做执行前检查，工具不需要自己写
+      const raw = await tool.execute(input, controller.signal) // 工具只接收输入和信号
+      if (controller.signal.aborted) return aborted(output)
 
+      // 流式返回：工具返回 ReadableStream，框架逐段读取并实时反馈
       if (raw instanceof ReadableStream) {
-        reader = raw.getReader()                         // 锁定输出流供读取和停止
+        reader = raw.getReader()
         while (!controller.signal.aborted) {
-          const { done, value } = await reader.read()    // 逐段读取工具输出
-          if (done) break                                // 流正常结束后返回完整内容
-          const chunk = typeof value === 'string' ? value : new TextDecoder().decode(value) // 字节输出统一转成文本
-          output += chunk                                // 累积完整工具反馈
-          onOutput?.(chunk)                              // 同时反馈实时增量
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = typeof value === 'string' ? value : new TextDecoder().decode(value)
+          output += chunk
+          onOutput?.(chunk)
         }
-        if (controller.signal.aborted) return { output: `${output}\n[工具被强制终止]`, isError: true, stop: false } // 中止流返回明确错误
-        return { output, isError: false, stop: false }    // 正常流不要求额外结果对象
+        if (controller.signal.aborted) return aborted(output)
+        return { output, isError: false, stop: false }
       }
 
+      // 对象返回：工具返回 { output, isError?, stop? }
       if (typeof raw === 'object' && raw !== null) {
-        output = raw.output ?? ''                        // 工具对象可以同时声明错误和停止
-        onOutput?.(output)                               // 对象输出也走统一反馈入口
-        return { output, isError: raw.isError ?? false, stop: raw.stop ?? false } // 补齐统一结果字段
+        output = raw.output ?? ''
+        onOutput?.(output)
+        return { output, isError: raw.isError ?? false, stop: raw.stop ?? false }
       }
 
-      output = String(raw ?? '')                         // 普通值统一转成文本
-      onOutput?.(output)                                 // 反馈完整普通输出
-      return { output, isError: false, stop: false }      // 普通值默认表示成功并继续
+      // 原始值返回：字符串或其他原始值当作成功输出
+      output = String(raw ?? '')
+      onOutput?.(output)
+      return { output, isError: false, stop: false }
     } catch (error) {
-      if (controller.signal.aborted) return { output: `${output}\n[工具被强制终止]`, isError: true, stop: false } // 停止优先于迟到异常
-      const message = error instanceof Error ? error.message : String(error) // 任意抛出值转成稳定反馈文本
-      onOutput?.(message)                                // 错误也通过同一个输出入口反馈
-      return { output: message, isError: true, stop: false } // 工具错误交给模型继续处理
+      if (controller.signal.aborted) return aborted(output)
+      const message = errorMessage(error)
+      onOutput?.(message)
+      return { output: message, isError: true, stop: false }
     }
   })()
 
   return {
-    result,                                              // 调用方等待统一完成结果
+    result,
     abort() {
-      controller.abort(new DOMException('tool stopped', 'AbortError')) // 通知工具停止文件、网络或进程
-      if (reader) void reader.cancel().catch(() => {})   // 立即停止正在读取的输出流
+      controller.abort(new DOMException('tool stopped', 'AbortError'))
+      if (reader) void reader.cancel().catch(() => {})
     },
   }
 }
 
 
-export const Tool = { scan, definitions, execute }       // 导出简洁的工具注册、定义和执行接口
+// --- 被中止时的统一返回 ---
+function aborted(partialOutput) {
+  return { output: `${partialOutput}\n[工具被强制终止]`.trim(), isError: true, stop: false }
+}
+
+
+export const Tool = { scan, definitions, execute }

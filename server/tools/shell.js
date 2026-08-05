@@ -22,7 +22,6 @@ export const shellTool = {
     additionalProperties: false,                       // 拒绝无意义参数
   },
   async execute({ command, path }, signal) {
-    signal.throwIfAborted()                              // 已停止任务不再启动子进程
     const shell = process.platform === 'win32' ? 'powershell' : true // Windows 使用 PowerShell，Unix 使用默认 Shell
     const { stdout, stderr, exitCode } = await execa({
       shell,                                            // 跨平台 Shell 选择
@@ -31,7 +30,6 @@ export const shellTool = {
       cancelSignal: signal,                             // abort 时自动终止进程树
       forceKillAfterDelay: 3000,                        // 进程 3 秒内未退出则强制杀死
     })`${command}`
-    signal.throwIfAborted()                              // 被停止的命令不能伪装成正常完成
     if (exitCode !== 0) throw new Error(JSON.stringify({ stdout, stderr, exitCode })) // 非零退出码必须成为 isError 工具结果
     return { output: { stdout, stderr, exitCode } }      // 返回结构化命令结果
   },

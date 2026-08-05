@@ -21,7 +21,6 @@ export const readFileTool = {
     additionalProperties: false,                       // 拒绝无意义参数
   },
   async execute({ path }, signal) {
-    signal.throwIfAborted()                              // 已停止任务不再读取文件
     return { output: await readFile(path, { encoding: 'utf-8', signal }) } // 返回完整文本
   },
 }
@@ -42,7 +41,6 @@ export const writeFileTool = {
     additionalProperties: false,                       // 拒绝无意义参数
   },
   async execute({ path, content, mode = 'overwrite' }, signal) {
-    signal.throwIfAborted()                              // 已停止任务不再修改文件
     await mkdir(dirname(path), { recursive: true })     // 写入前创建父目录
     if (mode === 'append') await appendFile(path, content, { encoding: 'utf-8', signal }) // 追加到文件末尾
     else await writeFile(path, content, { encoding: 'utf-8', signal }) // 覆盖目标文件
@@ -64,7 +62,6 @@ export const listFilesTool = {
     additionalProperties: false,                       // 拒绝无意义参数
   },
   async execute({ path }, signal) {
-    signal.throwIfAborted()                              // 已停止任务不再读取目录
     const entries = await readdir(path, { withFileTypes: true }) // 读取当前目录条目
     const output = entries.map((entry) => `${entry.isDirectory() ? 'directory' : 'file'}: ${entry.name}`).join('\n') // 输出稳定文本列表
     return { output }                                   // 将列表反馈给模型

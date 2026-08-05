@@ -82,10 +82,10 @@ async function chat({ apiURL, apiKey, model, systemPrompt, messages, tools, sign
   } catch (error) {
     if (signal?.aborted) throw signal.reason ?? new DOMException('operation aborted', 'AbortError') // 用户停止保持原始中止语义
     if (timeoutSignal.aborted) throw Object.assign(new Error(`model request timed out after ${timeoutMS}ms`), { status: 408 }) // 超时提供可重试状态
-    const failure = error instanceof Error ? error : Object.assign(new Error(String(error)), error) // 任意 SDK 抛出值转成 Error
-    if (failure.status === undefined && failure.statusCode !== undefined) failure.status = failure.statusCode // 统一 SDK HTTP 状态字段
-    if (failure.code === undefined && failure.cause?.code !== undefined) failure.code = failure.cause.code // 统一底层网络错误代码
-    throw failure                                        // 调用方决定最终状态或重试
+    const failure = error instanceof Error ? error : new Error(String(error)) // SDK 抛出值归一为 Error
+    failure.status ??= failure.statusCode               // 统一 SDK HTTP 状态字段供 Retry 判断
+    failure.code ??= failure.cause?.code                // 统一底层网络错误代码供 Retry 判断
+    throw failure
   }
 }
 

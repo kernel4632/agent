@@ -3,6 +3,7 @@ Web 工具：通过标准 fetch 获取公开 HTTP 或 HTTPS 文本。
 请求直接使用 Tool.execute 创建的停止信号，用户停止时同步中断网络读取。
 调用示例：await webTool.execute({ url: 'https://example.com' }, signal)。
 */
+import createError from 'http-errors'                   // 引入标准 HTTP 错误创建
 
 // --- 获取网页文本 ---
 export const webTool = {
@@ -18,7 +19,7 @@ export const webTool = {
   },
   async execute({ url }, signal) {
     const response = await fetch(url, { signal })        // 发起可取消网络请求
-    if (!response.ok) throw Object.assign(new Error(`web request failed with status ${response.status}`), { status: response.status }) // 非成功响应转为工具错误
+    if (!response.ok) throw createError(response.status, `web request failed with status ${response.status}`)
     return { output: await response.text() }            // 返回完整响应文本
   },
 }
