@@ -12,7 +12,7 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 
 .layer { width: 100%; margin-bottom: 32px; }
 .layer-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
-.layer-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
+.layer-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; white-space: nowrap; }
 .layer-desc { font-size: 12px; color: #666; }
 .layer-box { border: 1px solid #222; border-radius: 10px; padding: 16px 20px; background: #111; }
 .modules { display: flex; flex-wrap: nowrap; gap: 10px; overflow-x: auto; }
@@ -45,9 +45,9 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 
 .flow { width: 100%; margin-top: 40px; border: 1px solid #222; border-radius: 10px; padding: 24px; background: #111; }
 .flow-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 16px; text-align: center; }
-.flow-row { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 0; margin-bottom: 12px; }
+.flow-row { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 0; margin-bottom: 12px; overflow-x: auto; }
 .flow-node { padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; border: 1px solid #333; background: #1a1a1a; }
-.flow-arrow { color: #444; padding: 0 6px; font-size: 16px; }
+.flow-arrow { color: #444; padding: 0 6px; font-size: 16px; flex-shrink: 0; }
 .flow-label { font-size: 11px; color: #666; text-align: center; margin-top: 4px; }
 
 .deps { width: 100%; margin-top: 40px; text-align: center; }
@@ -59,7 +59,7 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 <body>
 
 <h1>Agent Server</h1>
-<p class="subtitle">四层架构 · 业务逻辑与基础设施分离 · 工具可热插拔</p>
+<p class="subtitle">四层架构 · 引擎与业务分离 · 工具可热插拔</p>
 
 <!-- 入口层 -->
 <div class="layer layer-entry">
@@ -72,11 +72,10 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
       <div class="module">
         <div class="module-name">server.js</div>
         <div class="module-logic">
-          启动 Elysia 应用，注册全部 REST 路由。每个路由只提取请求参数然后调用对应的 command。<br>
+          启动 Elysia 应用，注册全部 REST 路由。每个路由只提取请求参数然后调用对应的 command，自己不做任何数据处理。启动时按顺序加载工具 → 配置 → 工作区 → 会话目录。<br>
           <strong>GET</strong> /health · /config · /workspace · /session · /session/events<br>
           <strong>POST</strong> /session · /session/send · /session/stop · /workspace<br>
-          <strong>PATCH</strong> /config · /session<br>
-          <strong>DELETE</strong> /workspace · /session
+          <strong>PATCH</strong> /config · /session &nbsp; <strong>DELETE</strong> /workspace · /session
         </div>
       </div>
     </div>
@@ -89,38 +88,38 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 <div class="layer layer-commands">
   <div class="layer-header">
     <span class="layer-title">业务指令层</span>
-    <span class="layer-desc">纯业务逻辑：状态转换、数据持久化、Agent 循环。所有对外能力的实现都在这里</span>
+    <span class="layer-desc">纯业务逻辑：声明式地调用引擎和工具，从 store 读数据、写结果、发 SSE 反馈</span>
   </div>
   <div class="layer-box">
     <div class="modules">
       <div class="module">
         <div class="module-name">agent.js</div>
         <div class="module-logic">
-          接收用户消息后启动 Agent 循环。循环内不断请求 LLM，拿到回复后判断：有工具调用就并行执行全部工具，把结果带回下一轮；纯文本回复连续 3 次就自动结束。用户可以随时 stop 中断整个链路。
+          接收用户消息后，声明式地调用 AgentLoop 引擎。把 store 里的 provider、prompts、tools 传进去，回调里只做三件事：发 SSE、保存 Session、clone 消息。管理 send/stop/finish 生命周期。自己不实现循环逻辑。
         </div>
       </div>
       <div class="module">
         <div class="module-name">session.js</div>
         <div class="module-logic">
-          管理会话的完整生命周期：创建、加载、修改、删除、保存。同时负责 SSE 连接管理——客户端连上时发送 sync 事件同步当前状态，断开时自动清理。每个会话的保存操作通过互斥锁保证串行。
+          管理会话的完整生命周期：创建、加载、修改、删除、保存。同时负责 SSE 连接——客户端连上时发送 sync 事件同步状态，断开时自动清理。每个会话的保存通过 async-mutex 互斥锁保证串行。
         </div>
       </div>
       <div class="module">
         <div class="module-name">workspace.js</div>
         <div class="module-logic">
-          工作区的 CRUD。工作区只是一个 { id, path, sessions[] } 记录，代表用户注册的一个本地项目目录。会话摘要存在工作区里。删除工作区不删目录也不删会话文件。
+          工作区 CRUD。工作区只是 { id, path, sessions[] } 记录，代表用户注册的一个本地项目目录。会话摘要挂在工作区下。删除工作区只移除记录，不碰磁盘目录。
         </div>
       </div>
       <div class="module">
         <div class="module-name">config.js</div>
         <div class="module-logic">
-          加载和合并模型供应商配置（api/key/models）和提示词配置（system/tool）。并发修改通过互斥锁串行执行，保证不会丢失字段。
+          加载和合并模型供应商配置（api/key/models）与提示词配置（system/tool）。并发修改通过 async-mutex 互斥锁串行，保证不丢字段。
         </div>
       </div>
       <div class="module">
         <div class="module-name">tool.js</div>
         <div class="module-logic">
-          工具调度器。启动时扫描 tools/ 目录注册全部工具定义。运行时接收模型的工具调用请求，并行执行全部工具，收集结果返回给 Agent 循环。任一 finish 工具触发结束信号。
+          工具调度器。启动时扫描 tools/ 目录注册全部工具。运行时把模型的工具调用交给 utils/tool.js 并行执行，收集结果返回给 Agent。模型传什么参数就执行什么，不做任何转换。
         </div>
       </div>
     </div>
@@ -133,14 +132,14 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 <div class="layer layer-store">
   <div class="layer-header">
     <span class="layer-title">数据层</span>
-    <span class="layer-desc">全局内存状态，所有 commands 读写同一份数据。持久化由各 command 自己负责写磁盘</span>
+    <span class="layer-desc">全局内存状态，所有 commands 读写同一份数据。持久化由各 command 自行写磁盘</span>
   </div>
   <div class="layer-box">
     <div class="modules">
       <div class="module">
         <div class="module-name">store.js</div>
         <div class="module-logic">
-          单一全局对象，包含四个字段：<strong>config</strong>（供应商和提示词）、<strong>workspaces</strong>（工作区 KV）、<strong>sessions</strong>（已加载会话的内存缓存）、<strong>tools</strong>（LLM 工具定义）。没有 getter/setter，直接读写。
+          单一全局对象，四个字段：<strong>config</strong>（供应商 + 提示词）、<strong>workspaces</strong>（工作区 KV，含会话摘要）、<strong>sessions</strong>（已加载会话的内存缓存，含 messages、状态和运行字段）、<strong>tools</strong>（LLM 工具定义）。没有封装，直接读写。
         </div>
       </div>
     </div>
@@ -153,33 +152,37 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 <div class="layer layer-utils">
   <div class="layer-header">
     <span class="layer-title">基础设施层</span>
-    <span class="layer-desc">封装外部库和协议细节。业务层只调用简洁 API，不接触编码、信号、重试等底层机制</span>
+    <span class="layer-desc">封装外部库和协议细节，全部与项目无关，可独立复用。业务层只调用简洁 API</span>
   </div>
   <div class="layer-box">
     <div class="modules">
       <div class="module">
+        <div class="module-name">agent.js</div>
+        <div class="module-logic">纯函数 Agent 循环引擎。接收 messages、provider、tools 等参数，内部完成 Retry→LLM→工具执行→三次纯文本退出。通过回调通知每一步结果，不知道 store 和 SSE 的存在。</div>
+      </div>
+      <div class="module">
         <div class="module-name">llm.js</div>
-        <div class="module-logic">通过 AI SDK 请求 OpenAI-compatible 模型，流式返回文本和工具调用。内置单轮超时和 abort 信号合并。</div>
+        <div class="module-logic">通过 AI SDK 请求 OpenAI-compatible 模型。流式返回文本、推理和工具调用。内置单轮超时，自动合并 abort 信号。</div>
       </div>
       <div class="module">
         <div class="module-name">sse.js</div>
-        <div class="module-logic">SSE 协议封装：帧编码、广播到多客户端、30 秒心跳保活、连接生命周期管理。</div>
+        <div class="module-logic">SSE 协议封装：帧编码、广播到多客户端、30 秒心跳保活、连接建立和断开的生命周期管理。</div>
       </div>
       <div class="module">
         <div class="module-name">tool.js</div>
-        <div class="module-logic">扫描工具目录并注册。执行时自动做 signal 检查、流式读取、错误捕获和结果归一化，工具本身只需返回结果。</div>
+        <div class="module-logic">扫描工具目录并注册。执行时自动做 signal 检查、流式读取、错误捕获和返回值归一化。工具只需要 export 声明和 execute 函数。</div>
       </div>
       <div class="module">
         <div class="module-name">message.js</div>
-        <div class="module-logic">消息工厂，生成带唯一 ID 的 AI SDK 格式消息：user()、assistant()、tool()。</div>
+        <div class="module-logic">消息工厂。生成带唯一 ID 的 AI SDK 格式消息：user()、assistant()、tool()、id()。</div>
       </div>
       <div class="module">
         <div class="module-name">retry.js</div>
-        <div class="module-logic">无限重试 + 指数退避（上限 60 秒）。可中断，支持 onRetry 回调。判断 HTTP 状态码和网络错误码决定是否重试。</div>
+        <div class="module-logic">无限重试 + 指数退避（上限 60 秒）。可被 AbortSignal 中断。根据 HTTP 状态码和网络错误码判断是否可重试。</div>
       </div>
       <div class="module">
         <div class="module-name">file.js</div>
-        <div class="module-logic">跨平台原子文件写入，基于 write-file-atomic。写入中途崩溃时旧文件不会损坏。</div>
+        <div class="module-logic">跨平台原子文件写入。基于 write-file-atomic，写入中途崩溃时旧文件不会损坏。</div>
       </div>
       <div class="module">
         <div class="module-name">error.js</div>
@@ -195,37 +198,37 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 <div class="layer layer-tools">
   <div class="layer-header">
     <span class="layer-title">工具层</span>
-    <span class="layer-desc">独立可插拔工具，与项目架构无关。每个工具只声明参数和 execute 函数，收到什么参数就执行什么</span>
+    <span class="layer-desc">独立可插拔，与项目架构无关。放入文件自动注册，删除文件自动移除。收到什么参数就执行什么</span>
   </div>
   <div class="layer-box">
     <div class="modules">
       <div class="module">
         <div class="module-name">file.js</div>
-        <div class="module-logic">读取文件内容、覆盖/追加写入、列出目录条目、按文件名关键词递归搜索。基于 Node.js fs + fdir。</div>
+        <div class="module-logic">文件读写列搜。读取内容、覆盖/追加写入、列出目录、按关键词递归搜索文件名。基于 Node.js fs + fdir。</div>
       </div>
       <div class="module">
         <div class="module-name">edit.js</div>
-        <div class="module-logic">精确字符串替换。模型指定 old 和 new 文本，只改动匹配的部分而不需要重写整个文件。支持 replaceAll。</div>
+        <div class="module-logic">精确字符串替换。指定 old 和 new 文本，只改匹配部分。支持 replaceAll。比覆盖整个文件安全。</div>
       </div>
       <div class="module">
         <div class="module-name">grep.js</div>
-        <div class="module-logic">用正则表达式搜索文件内容。基于 ripgrep，返回文件路径、行号和匹配文本。支持文件类型过滤。</div>
+        <div class="module-logic">正则内容搜索。基于 ripgrep，返回文件路径、行号和匹配文本。支持文件类型过滤。</div>
       </div>
       <div class="module">
         <div class="module-name">glob.js</div>
-        <div class="module-logic">用 glob 模式查找文件（**/*.ts 等）。基于 fast-glob，自动忽略 node_modules 和 .git。最多返回 100 个结果。</div>
+        <div class="module-logic">glob 模式文件查找。支持 ** 递归、* 通配、{a,b} 选择。基于 fast-glob，忽略 node_modules。</div>
       </div>
       <div class="module">
         <div class="module-name">shell.js</div>
-        <div class="module-logic">在指定绝对路径执行系统命令。基于 execa，自动跨平台选择 Shell，abort 时杀死整个进程树。</div>
+        <div class="module-logic">在指定绝对路径执行系统命令。基于 execa，跨平台 Shell 选择，abort 时杀死整个进程树。</div>
       </div>
       <div class="module">
         <div class="module-name">web.js</div>
-        <div class="module-logic">获取公开网页内容。支持 text 和 markdown 两种格式，markdown 模式用 turndown 把 HTML 转成结构化文本。</div>
+        <div class="module-logic">获取公开网页。支持 text 和 markdown 格式。markdown 模式用 turndown 把 HTML 转成结构化文本。</div>
       </div>
       <div class="module">
         <div class="module-name">finish.js</div>
-        <div class="module-logic">结束当前任务。模型调用此工具表示任务完成，Agent 循环收到 stop 信号后退出。</div>
+        <div class="module-logic">结束当前任务。模型调用此工具发出 stop 信号，Agent 循环收到后正常退出。</div>
       </div>
     </div>
   </div>
@@ -235,23 +238,23 @@ h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
 <div class="flow">
   <div class="flow-title">数据流向</div>
   <div class="flow-row">
-    <div class="flow-node">用户 HTTP 请求</div>
+    <div class="flow-node">用户请求</div>
     <div class="flow-arrow">→</div>
-    <div class="flow-node">server.js 路由</div>
+    <div class="flow-node">server.js</div>
     <div class="flow-arrow">→</div>
-    <div class="flow-node">agent.js 循环</div>
+    <div class="flow-node">commands/agent.js</div>
     <div class="flow-arrow">→</div>
-    <div class="flow-node">Retry + LLM 请求</div>
+    <div class="flow-node">utils/agent.js 引擎</div>
     <div class="flow-arrow">→</div>
-    <div class="flow-node">tool.js 调度</div>
+    <div class="flow-node">Retry + LLM</div>
     <div class="flow-arrow">→</div>
     <div class="flow-node">tools/* 执行</div>
     <div class="flow-arrow">→</div>
-    <div class="flow-node">SSE 广播</div>
+    <div class="flow-node">回调 → SSE</div>
     <div class="flow-arrow">→</div>
-    <div class="flow-node">浏览器 EventSource</div>
+    <div class="flow-node">浏览器</div>
   </div>
-  <div class="flow-label">每一步的结果都通过 SSE 实时推送给前端，用户可以随时 stop 中断任意环节</div>
+  <div class="flow-label">引擎通过回调把每一步结果交给 commands/agent.js，由它决定保存和广播。用户可随时 stop 中断全链路。</div>
 </div>
 
 <!-- 依赖 -->
