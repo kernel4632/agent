@@ -8,6 +8,38 @@ import vue from '@vitejs/plugin-vue'                // 引入 Vue 单文件组�
 
 const serverURL = process.env.AGENT_SERVER_URL ?? 'http://127.0.0.1:4632' // 读取当前开发 Server 地址
 
+function openAIProxy() {
+  async function handle(request, response, next) {
+    const requestURL = new URL(request.url, 'http://127.0.0.1')
+    if (requestURL.pathname !== '/openai-proxy/models') return next()
+    response.setHeader('access-control-allow-origin', '*')
+    try {
+      const baseURL = new URL(requestURL.searchParams.get('baseURL'))
+      if (!['http:', 'https:'].includes(baseURL.protocol)) throw new Error('仅支持 HTTP 或 HTTPS API 地址')
+      const target = new URL(`${baseURL.href.replace(/\/+$/, '')}/models`)
+      const upstream = await fetch(target, {
+        headers: {
+          accept: 'application/json',
+          ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
+        },
+      })
+      response.statusCode = upstream.status
+      response.setHeader('content-type', upstream.headers.get('content-type') || 'application/json')
+      response.end(Buffer.from(await upstream.arrayBuffer()))
+    } catch (error) {
+      response.statusCode = 502
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ error: error.message }))
+    }
+  }
+
+  return {
+    name: 'openai-model-proxy',
+    configureServer(server) { server.middlewares.use(handle) },
+    configurePreviewServer(server) { server.middlewares.use(handle) },
+  }
+}
+
 export default defineConfig({                       // 导出前端开发与构建配置
   plugins: [                                        // 注册项目需要的编译插件
     vue({                                           // 编译 Vue 3 单文件组件
@@ -17,6 +49,7 @@ export default defineConfig({                       // 导出前端开发与构�
         },
       },
     }),
+    openAIProxy(),                                  // 本地同源代理任意 OpenAI 兼容模型目录
   ],
   server: {                                         // 配置本地开发服务
     port: 5173,                                     // 使用 Vite 常见开发端口

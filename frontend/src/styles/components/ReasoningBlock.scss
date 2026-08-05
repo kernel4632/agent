@@ -1,7 +1,0 @@
-.reasoning { display: block; width: fit-content; min-width: 220px; max-width: 100%; margin-bottom: 16px; overflow: hidden; color: #999; background: transparent; }
-.reasoning__trigger { justify-content: flex-start; width: 100%; min-height: 38px; color: inherit; }
-.reasoning__spark, .reasoning__progress { width: 18px; height: 18px; color: var(--md-sys-color-primary); }
-.reasoning__chevron { width: 18px; height: 18px; margin-left: auto; transition: transform 220ms cubic-bezier(.2, 0, 0, 1); }
-.reasoning__chevron--open { transform: rotate(180deg); }
-.reasoning__content { width: min(680px, 80vw); margin-left: 17px; padding: 8px 14px 12px 26px; border-left: 1px solid #333; color: #999; font-size: 13px; line-height: 1.65; white-space: pre-wrap; animation: detail-in 180ms var(--app-easing); }
-@keyframes detail-in { from { opacity: 0; transform: translateY(-4px); } }

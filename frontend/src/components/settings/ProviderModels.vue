@@ -1,26 +1,37 @@
-<!-- 模型管理：从 Server 获取模型目录，批量切换并移除已添加模型。 -->
+<!-- 模型管理：批量选择远端模型，并移除已添加模型。 -->
 <script setup>
-import { ref } from 'vue'
+import { ref } from 'vue' // 管理远端模型选择窗口
+import { Settings } from '../../commands/settings.js' // 使用正式 Server 获取模型目录
 
 const props = defineProps({
+  provider: { type: Object, required: true },
   models: { type: Array, required: true },
-  loading: { type: Boolean, default: false },
-  fetchModels: { type: Function, required: true },
 })
+const emit = defineEmits(['update:models'])
 
-const emit = defineEmits(['add', 'remove'])
-const chooserDialog = ref(null)
+const chooserDialog = ref(null)                        // 远端模型选择窗口
 const availableModels = ref([])
 
 async function openChooser() {
-  chooserDialog.value?.show()
-  const discoveredModels = await props.fetchModels()
-  availableModels.value = [...new Set([...props.models, ...discoveredModels])]
+  const discovered = await Settings.fetchModels(props.provider, props.models)
+  availableModels.value = [...new Map([...props.models, ...discovered].map(model => [model.id, model])).values()]
+  chooserDialog.value.show()
 }
 
-function toggleModel(modelName) {
-  if (props.models.includes(modelName)) emit('remove', modelName)
-  else emit('add', modelName)
+// --- 在选择窗中切换模型的添加状态 ---
+function toggleModel(model) {
+  const modelExists = props.models.some(item => item.id === model.id)
+  if (modelExists) {
+    emit('update:models', props.models.filter(item => item.id !== model.id)) // 再次点击已选模型即取消
+    return
+  }
+
+  emit('update:models', [...props.models, { ...model }])                       // 未选模型加入当前供应商
+}
+
+
+function removeModel(modelId) {
+  emit('update:models', props.models.filter(model => model.id !== modelId))
 }
 </script>
 
@@ -31,17 +42,22 @@ function toggleModel(modelName) {
         <m3e-heading variant="title" size="medium" level="3">模型列表</m3e-heading>
         <span>{{ props.models.length }} 个已添加模型</span>
       </div>
-      <m3e-button type="button" variant="outlined" :disabled="props.loading" @click="openChooser">
-        <m3e-icon slot="icon" name="download"></m3e-icon>
+      <m3e-button type="button" variant="outlined" @click="openChooser">
+        <m3e-icon slot="icon" name="cloud_download" filled="1"></m3e-icon>
         获取模型列表
       </m3e-button>
     </div>
 
     <div class="provider-models__list">
-      <div v-for="modelName in props.models" :key="modelName" class="provider-models__item">
-        <div class="provider-models__identity"><strong>{{ modelName }}</strong></div>
-        <m3e-icon-button type="button" aria-label="移除模型" title="移除模型" @click="emit('remove', modelName)">
-          <m3e-icon name="delete"></m3e-icon>
+      <div v-for="model in props.models" :key="model.id" class="provider-models__item">
+        <div class="provider-models__identity">
+          <strong>{{ model.name }}</strong>
+          <div class="provider-models__capabilities">
+            <span v-for="capability in model.capabilities" :key="capability">{{ capability }}</span>
+          </div>
+        </div>
+        <m3e-icon-button type="button" aria-label="移除模型" title="移除模型" @click="removeModel(model.id)">
+          <m3e-icon name="delete" filled="1"></m3e-icon>
         </m3e-icon-button>
       </div>
       <p v-if="!props.models.length" class="provider-models__empty">尚未添加模型</p>
@@ -50,18 +66,16 @@ function toggleModel(modelName) {
 
   <m3e-dialog ref="chooserDialog" class="provider-models__dialog">
     <m3e-heading slot="header" variant="headline" size="small" level="2">选择模型</m3e-heading>
-    <div v-if="props.loading" class="provider-models__loading">
-      <m3e-circular-progress-indicator variant="wavy" indeterminate aria-label="正在获取模型列表"></m3e-circular-progress-indicator>
-    </div>
-    <m3e-action-list v-else class="provider-models__available" aria-label="可添加模型">
-      <m3e-list-action v-for="modelName in availableModels" :key="modelName" @click="toggleModel(modelName)">
-        {{ modelName }}
-        <m3e-icon slot="trailing" :name="props.models.includes(modelName) ? 'check' : 'add'"></m3e-icon>
+    <m3e-action-list class="provider-models__available" aria-label="可添加模型">
+      <m3e-list-action v-for="model in availableModels" :key="model.id" @click="toggleModel(model)">
+        {{ model.name }}
+        <span slot="supporting-text">{{ model.capabilities.join(' · ') }}</span>
+        <m3e-icon slot="trailing" :name="props.models.some(item => item.id === model.id) ? 'check' : 'add'" filled="1"></m3e-icon>
       </m3e-list-action>
-      <p v-if="!availableModels.length" class="provider-models__empty">没有可添加的模型</p>
     </m3e-action-list>
     <div slot="actions"><m3e-button type="button" @click="chooserDialog.hide()">关闭</m3e-button></div>
   </m3e-dialog>
+
 </template>
 
 <style scoped lang="scss">
@@ -73,9 +87,12 @@ function toggleModel(modelName) {
 .provider-models__item { display: flex; align-items: center; min-height: 64px; gap: 8px; padding: 10px 12px; border: 1px solid #303030; border-radius: 8px; }
 .provider-models__identity { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; }
 .provider-models__identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-models__capabilities { display: flex; flex-wrap: wrap; gap: 6px; }
+.provider-models__capabilities span { padding: 2px 7px; border-radius: 5px; background: #292929; color: #bdbdbd; font-size: 11px; }
 .provider-models__empty { margin: 0; padding: 24px; border: 1px dashed #333333; border-radius: 8px; color: #777777; text-align: center; }
 .provider-models__available { display: flex; width: min(480px, 72vw); max-width: 100%; overflow: hidden; flex-direction: column; gap: 6px; padding: 4px; }
 .provider-models__available m3e-list-action { --m3e-list-item-container-color: #262626; width: 100%; }
-.provider-models__loading { display: flex; align-items: center; justify-content: center; min-height: 180px; }
-@media (max-width: 560px) { .provider-models__heading { align-items: stretch; flex-direction: column; } }
+@media (max-width: 560px) {
+  .provider-models__heading { align-items: stretch; flex-direction: column; }
+}
 </style>

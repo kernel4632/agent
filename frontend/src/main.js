@@ -29,7 +29,7 @@ import '@m3e/web/switch'                            // 注册设置开关
 import '@m3e/web/textarea-autosize'                 // 注册自适应长文本能力
 import '@m3e/web/theme'                             // 注册 Material 3 暗色主题
 import '@m3e/web/tooltip'                           // 注册纯图标设置导航提示
-import 'katex/dist/katex.min.css'                  // 引入数学公式排版基础样式
+import './styles/base.scss'                        // 使用复制组件原始主题和布局 token
 import '@m3e/icons/outlined/add'                    // 注册新建动作图标
 import '@m3e/icons/outlined/account_tree'           // 注册多专家模式图标
 import '@m3e/icons/outlined/arrow_upward'           // 注册发送动作图标
@@ -39,10 +39,14 @@ import '@m3e/icons/outlined/build'                  // 注册工具图标
 import '@m3e/icons/outlined/bolt'                   // 注册快速模型图标
 import '@m3e/icons/outlined/check'                  // 注册模型选中图标
 import '@m3e/icons/outlined/check_circle'           // 注册完成状态图标
+import '@m3e/icons/outlined/chat'                   // 注册会话图标
+import '@m3e/icons/outlined/chevron_right'          // 注册列表进入图标
+import '@m3e/icons/outlined/cloud_download'         // 注册获取模型图标
 import '@m3e/icons/outlined/close'                  // 注册关闭动作图标
 import '@m3e/icons/outlined/code'                   // 注册命令工具图标
 import '@m3e/icons/outlined/content_copy'           // 注册复制动作图标
 import '@m3e/icons/outlined/delete'                 // 注册删除动作图标
+import '@m3e/icons/outlined/dashboard_customize'    // 注册文件编辑活动图标
 import '@m3e/icons/outlined/description'            // 注册读取文件图标
 import '@m3e/icons/outlined/dns'                    // 注册供应商图标
 import '@m3e/icons/outlined/download'               // 注册下载动作图标
@@ -72,12 +76,16 @@ import '@m3e/icons/outlined/settings'               // 注册设置图标
 import '@m3e/icons/outlined/smart_toy'              // 注册提示词图标
 import '@m3e/icons/outlined/stop'                   // 注册停止动作图标
 import '@m3e/icons/outlined/storage'                // 注册数据管理图标
+import '@m3e/icons/outlined/sync_alt'               // 注册 API 请求活动图标
 import '@m3e/icons/outlined/terminal'               // 注册命令执行图标
+import '@m3e/icons/outlined/text_snippet'           // 注册系统提示词图标
 import '@m3e/icons/outlined/tune'                   // 注册模型设置图标
 import '@m3e/icons/outlined/undo'                   // 注册回退动作图标
 import '@m3e/icons/outlined/upload'                 // 注册上传动作图标
 import '@m3e/icons/outlined/visibility'             // 注册显示密钥图标
 import '@m3e/icons/outlined/visibility_off'         // 注册隐藏密钥图标
+import '@m3e/icons/outlined/workspaces'             // 注册工作区图标
+import '@m3e/icons/outlined/database'               // 注册数据管理图标
 import App from './App.vue'                        // 引入根界面组合组件
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例

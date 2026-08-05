@@ -18,8 +18,19 @@ function clone(value) {
 
 // --- 进入设置页 ---
 function open() {
+  const providers = Object.entries(store.config.providers).map(([name, provider], index) => ({
+    id: provider.id || `provider-${index + 1}`,
+    name,
+    enabled: provider.enabled !== false,
+    apiType: provider.protocol || 'openai-compatible',
+    apiUrl: provider.baseURL || '',
+    apiKey: provider.apiKey || '',
+    models: (provider.models || []).map(model => typeof model === 'string'
+      ? { id: model, name: model, capabilities: ['文本', '工具'] }
+      : model),
+  }))
   store.settings.draft = clone({
-    providers: store.config.providers,                  // 供应商编辑使用页面适配结构
+    providers,                                          // 转换为复制组件使用的数组结构
     tools: store.config.tools,                          // 工具权限使用运行目录
     mcp: store.config.mcp,                              // MCP 使用编辑与状态组合结构
     prompt: store.config.prompt,                        // 提示词使用独立字段
@@ -34,16 +45,8 @@ async function save() {
   if (!draft || store.settings.isSaving) return false   // 尚未进入或已有保存时不重复提交
   store.settings.isSaving = true                        // 导航期间公开保存状态
   try {
-    const providers = Object.fromEntries(Object.entries(draft.providers).map(([name, provider]) => {
-      let headers = {}                                   // 无自定义头时保存空对象
-      try { headers = typeof provider.headers === 'string' ? JSON.parse(provider.headers || '{}') : provider.headers || {} } // 将设置文本解析为 Server 对象
-      catch { throw new Error(`${name} 自定义请求头不是有效 JSON`) } // 阻止损坏配置进入 Server
-      const { enabled, timeout, ...saved } = provider    // 移除仅页面使用字段
-      return [name, { ...saved, enabled, timeoutMs: timeout, headers }] // 恢复 Server 字段名称
-    }))
-    const permissions = Object.fromEntries(draft.tools.map((tool) => [tool.name, tool.permission])) // 工具选择转换为权限映射
-    const mcpServers = Object.fromEntries(draft.mcp.map((server) => [server.name, { ...(server.definition || {}), enabled: server.enabled, command: server.definition?.command || server.command }])) // 保存完整 MCP 定义
-    await AgentAPI.updateConfig({ providers, permissions, mcpServers, prompts: { system: draft.prompt } }) // 提交系统提示并保留 Server 工具提醒
+    const provider = draft.providers[0] || { apiUrl: '', apiKey: '', models: [] } // 当前最小 Server 只支持一个供应商
+    await AgentAPI.updateConfig({ provider: { api: provider.apiUrl || '', key: provider.apiKey || '', models: provider.models.map(model => model.id) }, prompts: { system: draft.prompt } }) // 转回 Server 的严格最小配置结构
     store.config.appearance = clone(draft.appearance)    // 外观设置在当前前端会话即时生效
     await Config.load()                                  // 重新读取脱敏最终配置和运行能力
     store.settings.savedAt = Date.now()                  // 设置页再次进入可展示保存时间
@@ -131,16 +134,39 @@ function updateModel(providerName, modelName, changes) {
 
 
 // --- 获取可添加模型目录 ---
-async function fetchModels(providerName) {
-  const provider = store.settings.draft?.providers?.[providerName] // 读取目标供应商现有模型
-  if (!provider) return []                                // 当前供应商被删除时不产生发现请求
-  try {
-    const result = await AgentAPI.listProviderModels(providerName) // 通过 Server 使用已保存认证读取真实目录
-    return (result.models || []).filter((model) => !provider.models.includes(model)) // 只展示尚未添加的真实模型
-  } catch (error) {
-    UI.notify(error.message)                              // 发现失败原位反馈真实上游错误
-    return []                                             // 失败时保持弹窗可关闭
+async function fetchModels(provider, currentModels = []) {
+  const baseURL = provider?.apiUrl?.trim().replace(/\/+$/, '') // OpenAI 兼容地址统一移除末尾斜杠
+  if (!baseURL) {
+    UI.notify('请先填写请求地址（API）')
+    return currentModels.map(model => ({ ...model }))
   }
+
+  try {
+    const response = await fetch(`/openai-proxy/models?baseURL=${encodeURIComponent(baseURL)}`, {
+      headers: {
+        accept: 'application/json',
+        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+      },
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error?.message || payload.error || `获取模型失败: ${response.status}`)
+    const source = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : []
+    const discovered = source
+      .map(model => typeof model === 'string' ? model : model.id || model.name)
+      .filter(Boolean)
+      .map(id => ({ id, name: id, capabilities: ['文本', '工具'] }))
+    if (!discovered.length) throw new Error('接口未返回可用模型')
+    return discovered
+  } catch (error) {
+    UI.notify(error.message)
+    return currentModels.map(model => ({ ...model }))
+  }
+}
+
+
+async function replaceDraftAndSave(snapshot) {
+  store.settings.draft = clone(snapshot)                  // 接收复制设置页离开时提交的完整快照
+  return save()                                           // 使用同一正式保存边界持久化
 }
 
 
@@ -200,4 +226,4 @@ function updateAppearance(field, value) {
 }
 
 
-export const Settings = { open, save, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance } // 暴露设置全部动作
+export const Settings = { open, save, replaceDraftAndSave, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance } // 暴露设置全部动作

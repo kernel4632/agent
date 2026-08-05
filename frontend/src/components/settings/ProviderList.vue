@@ -1,8 +1,8 @@
-<!-- 供应商列表：展示供应商状态并发出选择意图。 -->
+<!-- 供应商列表：展示供应商状态，并发出选择或新增意图。 -->
 <script setup>
 const props = defineProps({
   providers: { type: Array, required: true },
-  selectedName: { type: String, default: '' },
+  selectedId: { type: String, default: '' },
 })
 
 const emit = defineEmits(['select'])
@@ -13,13 +13,13 @@ const emit = defineEmits(['select'])
     <m3e-action-list class="provider-list__items" aria-label="供应商">
       <m3e-list-action
         v-for="provider in props.providers"
-        :key="provider.name"
+        :key="provider.id"
         class="provider-list__item"
-        :class="{ 'is-selected': provider.name === props.selectedName }"
-        @click="emit('select', provider.name)"
+        :class="{ 'is-selected': provider.id === props.selectedId }"
+        @click="emit('select', provider.id)"
       >
         <span class="provider-list__name">{{ provider.name }}</span>
-        <span slot="supporting-text" class="provider-list__endpoint">{{ provider.baseURL || '未配置请求地址' }}</span>
+        <span slot="supporting-text" class="provider-list__endpoint">{{ provider.apiUrl || '未配置请求地址' }}</span>
         <span slot="trailing" class="provider-list__state" :class="{ 'is-enabled': provider.enabled }">
           {{ provider.enabled ? '启用' : '停用' }}
         </span>
@@ -76,8 +76,12 @@ const emit = defineEmits(['select'])
   white-space: nowrap;
 }
 
-.provider-list__state { color: #777777; font-size: 12px; }
-.provider-list__state.is-enabled { color: #d3d3d3; }
+.provider-list__state {
+  color: #777777;
+  font-size: 12px;
+
+  &.is-enabled { color: #d3d3d3; }
+}
 
 @media (max-width: 980px) {
   .provider-list { flex-basis: 200px; }

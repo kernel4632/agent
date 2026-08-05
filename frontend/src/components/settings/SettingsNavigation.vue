@@ -1,31 +1,33 @@
 <!-- 设置分类导航：用带提示的图标按钮展示分类并发出切换意图。 -->
 <script setup>
-import { t } from '../../i18n.js'
-
 const props = defineProps({
-  sections: { type: Array, default: () => [] },
-  active: { type: String, default: '' },
+  items: { type: Array, required: true },
+  selectedId: { type: String, required: true },
 })
 
 const emit = defineEmits(['select'])
 </script>
 
 <template>
-  <nav class="settings-navigation" :aria-label="t('settings')">
+  <nav class="settings-navigation" aria-label="设置分类">
     <div class="settings-navigation__items">
-      <div v-for="section in props.sections" :key="section.id" class="settings-navigation__item">
+      <div
+        v-for="item in props.items"
+        :key="item.id"
+        class="settings-navigation__item"
+      >
         <m3e-icon-button
-          :id="`settings-nav-${section.id}`"
+          :id="`settings-nav-${item.id}`"
           type="button"
           shape="rounded"
-          :variant="section.id === props.active ? 'filled' : 'standard'"
-          :aria-label="t(section.label)"
-          :aria-current="section.id === props.active ? 'page' : undefined"
-          @click="emit('select', section.id)"
+          :variant="item.id === props.selectedId ? 'filled' : 'standard'"
+          :aria-label="item.label"
+          :aria-current="item.id === props.selectedId ? 'page' : undefined"
+          @click="emit('select', item.id)"
         >
-          <m3e-icon :name="section.icon"></m3e-icon>
+          <m3e-icon :name="item.icon" filled="1"></m3e-icon>
         </m3e-icon-button>
-        <m3e-tooltip :for="`settings-nav-${section.id}`" position="after">{{ t(section.label) }}</m3e-tooltip>
+        <m3e-tooltip :for="`settings-nav-${item.id}`" position="after">{{ item.label }}</m3e-tooltip>
       </div>
     </div>
   </nav>
@@ -69,9 +71,6 @@ const emit = defineEmits(['select'])
 
 @media (max-width: 760px) {
   .settings-navigation {
-    position: sticky;
-    z-index: 12;
-    top: 0;
     flex: none;
     width: 100%;
     padding: 10px 16px;

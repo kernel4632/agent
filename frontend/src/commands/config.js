@@ -22,10 +22,21 @@ async function load() {
 
 // --- 应用 Server 配置到设置结构 ---
 function apply(raw) {
-  const providerSource = raw.providers ?? raw.provider ?? {}
+  const isMinimalProvider = raw.provider && ('api' in raw.provider || 'key' in raw.provider || Array.isArray(raw.provider.models))
+  const providerSource = raw.providers ?? (isMinimalProvider ? { 默认供应商: {
+    protocol: 'openai-compatible',
+    baseURL: raw.provider.api || '',
+    apiKey: raw.provider.key || '',
+    models: raw.provider.models || [],
+  } } : raw.provider) ?? {}
   const providers = Object.fromEntries(Object.entries(providerSource).map(([name, provider]) => [name, {
     ...provider,                                          // 保留协议、缓存和模型设置
     enabled: provider.enabled !== false,                  // 设置页开关默认为启用
+    protocol: provider.protocol || 'openai-compatible',   // 历史配置默认使用 OpenAI 兼容协议
+    baseURL: provider.baseURL || '',                      // 缺省地址仍可在设置页编辑
+    apiKey: provider.apiKey || '',                        // 缺省密钥不阻止设置页渲染
+    models: Array.isArray(provider.models) ? provider.models : [], // 历史配置缺少模型目录时使用空数组
+    modelSettings: provider.modelSettings || {},          // 保持模型添加指令可以直接写入默认能力
     timeout: provider.timeoutMs ?? 120000,                // 适配现有数字输入字段
     headers: JSON.stringify(provider.headers ?? {}, null, 2), // 设置页使用可编辑 JSON 文本
   }]))
