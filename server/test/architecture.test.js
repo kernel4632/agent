@@ -214,7 +214,7 @@ describe('minimal agent backend', () => {
 
   it('uses the exact minimal store shape and tool list', () => {
     expect(Object.keys(store).sort()).toEqual(['config', 'sessions', 'tools', 'workspaces']) // tools 与 config 并列且根节点没有额外领域
-    expect(Object.keys(store.config)).toEqual(['provider', 'prompts']) // config 只包含持久化供应商和提示词
+    expect(Object.keys(store.config)).toEqual(['provider', 'prompts', 'approval']) // config 包含供应商、提示词和审批配置
     expect(Object.keys(store.config.provider).sort()).toEqual(['api', 'key', 'models']) // provider 结构严格匹配设计
     expect(Object.keys(store.config.prompts)).toEqual(['system', 'tool']) // prompts 只包含系统提示和工具提醒
     expect(store.tools).toBeObject()                     // 启动扫描结果直接使用 LLM 工具定义格式
@@ -761,7 +761,7 @@ describe('minimal agent backend', () => {
     const serverRoot = join(import.meta.dir, '..')      // 定位后端根目录
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
-      tools: ['edit.js', 'file.js', 'finish.js', 'glob.js', 'grep.js', 'shell.js', 'web.js'], // 七个平铺工具模块
+      tools: ['ask.js', 'edit.js', 'file.js', 'finish.js', 'glob.js', 'grep.js', 'shell.js', 'web.js'], // 八个平铺工具模块
       utils: ['agent.js', 'error.js', 'file.js', 'llm.js', 'message.js', 'retry.js', 'sse.js', 'tool.js'], // 保留 Agent 引擎、错误、文件、LLM、消息、重试、SSE 和工具封装
     }
     for (const [directory, files] of Object.entries(expected)) {

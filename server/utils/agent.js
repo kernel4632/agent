@@ -70,10 +70,10 @@ async function run({
 
     const assistant = Message.assistant(answer.contentBlocks)
     assistant.id = answer.messageId                       // 使用流式阶段已广播的消息 ID
-    messages.push(assistant)
-    await onReply?.(assistant)                            // 通知调用方：助手消息已生成
+    await onReply?.(assistant)                            // 通知调用方：助手消息已生成（SSE 实时推送）
 
     if (answer.toolCalls.length === 0) {
+      messages.push(assistant)                           // 纯文本立即入列（已是完整消息）
       textCount += 1
       if (textCount >= 3) return                          // 连续三次纯文本 → 结束任务
       if (textCount === 2) hint = nudge                   // 第二次 → 下轮提醒使用工具
@@ -83,7 +83,7 @@ async function run({
     textCount = 0                                        // 有工具调用 → 重置计数
     const toolResults = await execute(answer.toolCalls)   // 并行执行全部工具
     const toolMessage = Message.tool(toolResults.results)
-    messages.push(toolMessage)
+    messages.push(assistant, toolMessage)                 // assistant + tool-result 配对入列，磁盘上永远完整
     await onTools?.(toolMessage, toolResults.results)     // 通知调用方：工具结果已生成
     if (toolResults.shouldStop) return                    // finish 工具 → 结束任务
   }

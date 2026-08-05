@@ -150,6 +150,17 @@ function emit(id, event, data) {
 }
 
 
+// --- 回答审批请求 ---
+function answer(id, gateId, value) {
+  const session = store.sessions[id]
+  if (!session) throw createError(404, 'session not found')
+  const gate = session.gates.get(gateId)
+  if (!gate) throw createError(404, 'gate not found')
+  session.gates.delete(gateId)                          // 一次性使用，回答后移除
+  gate.resolve(value)                                   // 解除工具执行前的等待
+}
+
+
 // --- 查找会话摘要 ---
 function summary(id) {
   for (const workspace of Object.values(store.workspaces)) {
@@ -171,6 +182,7 @@ function hydrate(saved) {
     abortController: null,
     clients: new Set(),
     tools: new Set(),
+    gates: new Map(),
   }
 }
 
@@ -187,4 +199,4 @@ function snapshot(session) {
 }
 
 
-export const Session = { init, load, get, create, update, remove, save, listen, emit }
+export const Session = { init, load, get, create, update, remove, save, listen, emit, answer }

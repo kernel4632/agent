@@ -15,6 +15,10 @@ export const store = {
       system: '你是一个AI Agent',                         // 每轮模型请求使用的系统提示词
       tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 连续纯文本后使用的工具提醒
     },
+    approval: {
+      mode: 'none',                                         // 审批模式：none 全部放行 / all 全部审批 / selected 按列表审批
+      tools: [],                                            // mode=selected 时需要审批的工具名列表
+    },
   },
   tools: {},                                                // 启动时扫描得到的 LLM 工具定义
   workspaces: {},                                           // 按 ID 保存工作区及其会话摘要

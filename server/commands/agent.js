@@ -50,7 +50,6 @@ async function send(sessionID, content) {
     onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: error, attempt, nextRetryIn: delay }),
     async onReply(assistant) {
       Session.emit(sessionID, 'message', { message: structuredClone(assistant) })
-      await Session.save(sessionID)
     },
     async onTools(toolMessage, results) {
       for (const result of results) Session.emit(sessionID, 'tool-result', { messageId: toolMessage.id, toolResult: structuredClone(result) })

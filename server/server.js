@@ -32,7 +32,7 @@ export async function createApp(options = {}) {
     .delete('/workspace', ({ query }) => Workspace.remove(query.id)) // query id 移除工作区记录
     .get('/session', async ({ query }) => {
       const loaded = Session.get(query.id) ?? await Session.load(query.id) // 明确从缓存或文件读取会话
-      const { abortController, clients, tools, ...session } = loaded // 路由只排除三个运行字段
+      const { abortController, clients, tools, gates, ...session } = loaded // 路由只排除四个运行字段
       return structuredClone(session)                    // 返回可公开、可序列化的会话数据
     })
     .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model)) // 创建完整会话和摘要
@@ -41,6 +41,7 @@ export async function createApp(options = {}) {
     .get('/session/events', ({ query }) => Session.listen(query.id)) // 建立会话 SSE 连接
     .post('/session/send', ({ body }) => Agent.send(body?.id, body?.content)) // 保存用户消息并后台启动 Agent
     .post('/session/stop', ({ body }) => Agent.stop(body?.id)) // 停止模型和全部工具进程
+    .post('/session/answer', ({ body }) => { Session.answer(body?.id, body?.gateId, body?.value); return { ok: true } }) // 回答审批请求
     .onError(({ code, error, status }) => {
       if (code === 'NOT_FOUND') return status(404, { error: 'Not Found' }) // 未知路由明确返回 404
       return status(error.status ?? 500, { error: error.message }) // 业务错误保留状态，未知错误返回 500
