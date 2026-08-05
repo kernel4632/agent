@@ -11,6 +11,7 @@ import { Config } from './commands/config.js'          // 引入配置加载与�
 import { Session } from './commands/session.js'        // 引入会话和 SSE 指令
 import { load as loadTools } from './commands/tool.js' // 引入启动工具扫描指令
 import { Workspace } from './commands/workspace.js'    // 引入工作区指令
+import { Title } from './features/title.js'            // 引入标题生成功能
 import { store } from './store.js'                     // 引入退出清理所需的会话列表
 
 
@@ -42,6 +43,7 @@ export async function createApp(options = {}) {
     .post('/session/send', ({ body }) => Agent.send(body?.id, body?.content)) // 保存用户消息并后台启动 Agent
     .post('/session/stop', ({ body }) => Agent.stop(body?.id)) // 停止模型和全部工具进程
     .post('/session/answer', ({ body }) => { Session.answer(body?.id, body?.gateId, body?.value); return { ok: true } }) // 回答审批请求
+    .post('/session/title', async ({ body }) => ({ title: await Title.generate(body?.id, body?.prompt) })) // 生成会话标题
     .onError(({ code, error, status }) => {
       if (code === 'NOT_FOUND') return status(404, { error: 'Not Found' }) // 未知路由明确返回 404
       return status(error.status ?? 500, { error: error.message }) // 业务错误保留状态，未知错误返回 500
