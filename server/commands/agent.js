@@ -1,8 +1,9 @@
 /*
 Agent 指令集：接收用户消息、运行完整 Agent 循环，并停止当前任务。
-run() 从上到下完整展示“请求 LLM、保存回复、执行工具、带结果继续请求、结束任务”的全部过程。
+run() 从上到下完整展示"请求 LLM、保存回复、执行工具、带结果继续请求、结束任务"的全部过程。
 调用示例：await Agent.send(sessionID, '分析项目')、await Agent.stop(sessionID)。
 */
+import createError from 'http-errors'                    // 引入标准 HTTP 错误创建
 import { LLM } from '../utils/llm.js'                    // 引入完整单轮 LLM 请求能力
 import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试能力
 import { nanoid } from 'nanoid'                          // 引入消息唯一 ID 生成能力
@@ -16,7 +17,7 @@ const runs = new WeakMap()                               // 当前停止控制�
 // --- 接收用户消息 ---
 async function send(sessionID, content) {
   const session = Session.get(sessionID) ?? await Session.load(sessionID) // 明确按需加载当前会话真实对象
-  if (session.status !== 'idle' || session.abortController) throw Object.assign(new Error('session is not idle'), { status: 409 }) // 上一轮彻底结束前拒绝重叠执行
+  if (session.status !== 'idle' || session.abortController) throw createError(409, 'session is not idle') // 上一轮彻底结束前拒绝重叠执行
   const message = { id: `message-${nanoid(12)}`, role: 'user', content: [{ type: 'text', text: content }] } // 项目只给 AI SDK 用户消息增加持久化身份
   session.messages.push(message)                         // 用户消息进入后续模型上下文
   session.status = 'running'                             // 会话立即进入执行状态

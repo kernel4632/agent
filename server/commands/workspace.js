@@ -5,18 +5,19 @@
 */
 import { mkdir } from 'node:fs/promises'                // 引入数据目录创建能力
 import { dirname, resolve } from 'node:path'            // 引入稳定绝对路径和父目录定位能力
+import { Mutex } from 'async-mutex'                     // 引入互斥锁保证工作区保存串行
+import createError from 'http-errors'                   // 引入标准 HTTP 错误创建
 import { nanoid } from 'nanoid'                         // 引入工作区唯一 ID 生成能力
 import { store } from '../store.js'                     // 引入工作区 KV 数据
 import { File } from '../utils/file.js'                 // 引入完整文件替换能力
 
 let workspacePath = ''                                  // 保存 workspace.json 的实际位置
-let lastWorkspaceSave = Promise.resolve()               // 后一个工作区快照等待前一个保存完成
+const mutex = new Mutex()                               // 工作区保存互斥：后一个快照等前一个完成
 
 
 // --- 加载工作区 ---
 async function load(filePath) {
   workspacePath = filePath                              // 后续保存写回同一个文件
-  lastWorkspaceSave = Promise.resolve()                // 新应用实例不等待旧工作区文件写入
   await mkdir(dirname(workspacePath), { recursive: true }) // 首次启动时创建数据目录
   const file = Bun.file(workspacePath)                  // 定位工作区文件
   const exists = await file.exists()                    // 记录是否需要创建工作区文件
@@ -35,7 +36,7 @@ function list() {
 // --- 添加工作区 ---
 async function add(path) {
   const normalizedPath = resolve(path)                  // 相对路径转换为稳定绝对路径
-  if (Object.values(store.workspaces).some((item) => item.path.toLowerCase() === normalizedPath.toLowerCase())) throw businessError(409, 'workspace path already exists') // 同一路径只保存一次
+  if (Object.values(store.workspaces).some((item) => item.path.toLowerCase() === normalizedPath.toLowerCase())) throw createError(409, 'workspace path already exists') // 同一路径只保存一次
 
   const workspace = {                                   // 创建严格符合 store 的工作区结构
     id: `workspace-${nanoid(10)}`,                       // 生成稳定工作区身份
@@ -51,8 +52,8 @@ async function add(path) {
 // --- 移除工作区 ---
 async function remove(id) {
   const workspace = store.workspaces[id]                // 按 ID 直接读取目标工作区
-  if (!workspace) throw businessError(404, 'workspace not found') // 不存在时返回资源错误
-  if (workspace.sessions.length > 0) throw businessError(409, 'workspace still contains sessions') // 保留会话时不能制造失去归属的数据
+  if (!workspace) throw createError(404, 'workspace not found')
+  if (workspace.sessions.length > 0) throw createError(409, 'workspace still contains sessions')
   delete store.workspaces[id]                           // 只移除工作区记录
   await save()                                          // 不删除目录或会话文件
   return { id }                                         // 返回被移除的工作区 ID
@@ -62,16 +63,10 @@ async function remove(id) {
 // --- 保存工作区 ---
 function save() {
   if (!workspacePath) throw new Error('workspaces have not been loaded') // 未加载时没有合法写入位置
-  const snapshot = structuredClone(store.workspaces)    // 固定本次保存内容，避免序列化期间继续变化
-  const currentSave = lastWorkspaceSave.then(() => File.write(workspacePath, `${JSON.stringify(snapshot, null, 2)}\n`)) // 按业务顺序保存当前快照
-  lastWorkspaceSave = currentSave.catch(() => {})       // 单次失败不能阻塞后续保存
-  return currentSave                                    // 调用方等待当前快照真正落盘
-}
-
-
-// --- 创建业务错误 ---
-function businessError(status, message) {
-  return Object.assign(new Error(message), { status })  // 让 server.js 统一转换 HTTP 状态
+  return mutex.runExclusive(() => {                     // 互斥保证并发保存按顺序写入
+    const snapshot = structuredClone(store.workspaces)  // 固定本次保存内容
+    return File.write(workspacePath, `${JSON.stringify(snapshot, null, 2)}\n`)
+  })
 }
 
 

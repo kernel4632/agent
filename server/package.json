@@ -10,7 +10,11 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.20",
     "ai": "^7.0.48",
+    "async-mutex": "^0.5.0",
     "elysia": "latest",
+    "execa": "^10.0.1",
+    "fdir": "^6.5.0",
+    "http-errors": "^2.0.1",
     "nanoid": "latest",
     "write-file-atomic": "^6.0.0"
   },

@@ -5,17 +5,17 @@
 */
 import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建配置目录的能力
 import { dirname } from 'node:path'                   // 引入配置文件父目录定位能力
+import { Mutex } from 'async-mutex'                   // 引入互斥锁保证配置修改串行
 import { store } from '../store.js'                   // 引入唯一配置数据
 import { File } from '../utils/file.js'                // 引入完整文件替换能力
 
 let configPath = ''                                   // 保存当前进程使用的配置文件位置
-let lastConfigUpdate = Promise.resolve()              // 后一个配置修改等待前一个修改完成
+const mutex = new Mutex()                             // 配置修改互斥：后一个修改等前一个完成
 
 
 // --- 加载配置 ---
 async function load(filePath) {
   configPath = filePath                               // 后续保存始终写回同一个文件
-  lastConfigUpdate = Promise.resolve()               // 新应用实例不等待旧配置目录的修改
   await mkdir(dirname(configPath), { recursive: true }) // 首次启动时创建 .agent 目录
   const file = Bun.file(configPath)                   // 定位配置文件
   const exists = await file.exists()                  // 记录是否需要创建配置文件
@@ -35,21 +35,15 @@ function get() {
 // --- 更新配置 ---
 function update(partialConfig = {}) {
   const changes = structuredClone(partialConfig)      // 调用方后续修改请求体不能影响排队内容
-  const currentUpdate = lastConfigUpdate.then(() => applyUpdate(changes)) // 排到前一修改之后再读取最新配置
-  lastConfigUpdate = currentUpdate.catch(() => {})    // 单次失败不能阻塞后续合法修改
-  return currentUpdate                                // 返回当前修改自己的完成结果
-}
-
-
-// --- 提交配置修改 ---
-async function applyUpdate(partialConfig) {
-  const candidate = {                                  // 在独立候选值中合并配置字段
-    provider: { ...store.config.provider, ...structuredClone(partialConfig.provider ?? {}) },
-    prompts: { ...store.config.prompts, ...structuredClone(partialConfig.prompts ?? {}) },
-  }
-  await save(candidate)                               // 候选配置先持久化
-  store.config = candidate                            // 写盘成功后替换全局配置
-  return get()                                        // 返回修改后的完整配置
+  return mutex.runExclusive(async () => {             // 互斥保证并发修改按顺序合并
+    const candidate = {
+      provider: { ...store.config.provider, ...structuredClone(changes.provider ?? {}) },
+      prompts: { ...store.config.prompts, ...structuredClone(changes.prompts ?? {}) },
+    }
+    await save(candidate)                             // 候选配置先持久化
+    store.config = candidate                          // 写盘成功后替换全局配置
+    return get()                                      // 返回修改后的完整配置
+  })
 }
 
 

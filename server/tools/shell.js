@@ -1,8 +1,9 @@
 /*
-Shell 工具：在会话工作区中执行系统命令并返回输出。
-path 是 Shell 自己的工作路径参数，停止信号会直接终止子进程。
+Shell 工具：在指定绝对路径中执行系统命令并返回输出。
+停止信号会终止进程树，execa 自动处理跨平台 Shell 选择和输出收集。
 调用示例：await shellTool.execute({ command: 'bun --version', path: 'D:/project' }, signal)。
 */
+import { execa } from 'execa'                           // 引入跨平台命令执行和进程树管理
 
 
 // --- 执行系统命令 ---
@@ -22,14 +23,14 @@ export const shellTool = {
   },
   async execute({ command, path }, signal) {
     signal.throwIfAborted()                              // 已停止任务不再启动子进程
-    const shell = process.platform === 'win32' ? ['powershell', '-NoProfile', '-Command'] : ['sh', '-lc'] // 按平台选择 Shell
-    const child = Bun.spawn([...shell, command], { cwd: path, stdout: 'pipe', stderr: 'pipe' }) // 启动真实子进程
-    signal.addEventListener('abort', () => child.kill(), { once: true }) // tool.abort 直接终止当前命令
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(child.stdout).text(),                // 并行读取标准输出
-      new Response(child.stderr).text(),                // 并行读取错误输出
-      child.exited,                                      // 等待真实退出码
-    ])
+    const shell = process.platform === 'win32' ? 'powershell' : true // Windows 使用 PowerShell，Unix 使用默认 Shell
+    const { stdout, stderr, exitCode } = await execa({
+      shell,                                            // 跨平台 Shell 选择
+      cwd: path,                                        // 在指定绝对路径执行
+      reject: false,                                    // 非零退出码不抛异常，由业务逻辑判断
+      cancelSignal: signal,                             // abort 时自动终止进程树
+      forceKillAfterDelay: 3000,                        // 进程 3 秒内未退出则强制杀死
+    })`${command}`
     signal.throwIfAborted()                              // 被停止的命令不能伪装成正常完成
     if (exitCode !== 0) throw new Error(JSON.stringify({ stdout, stderr, exitCode })) // 非零退出码必须成为 isError 工具结果
     return { output: { stdout, stderr, exitCode } }      // 返回结构化命令结果

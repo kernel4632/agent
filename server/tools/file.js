@@ -1,10 +1,11 @@
 /*
 文件工具集：读取、写入、列出和搜索本地文件。
-path 是每个文件工具自己的目标参数，commands/tool.js 会先把相对路径展开为工作区绝对路径。
+path 是每个文件工具自己的目标参数，模型必须传入绝对路径。
 调用示例：await readFileTool.execute({ path: 'D:/project/README.md' }, signal)。
 */
 import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises' // 引入真实文件读写能力
-import { dirname, join } from 'node:path'                // 引入父目录和搜索路径拼接能力
+import { dirname } from 'node:path'                      // 引入父目录定位能力
+import { fdir } from 'fdir'                              // 引入高性能目录递归遍历
 
 
 // --- 读取文本文件 ---
@@ -14,7 +15,7 @@ export const readFileTool = {
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
-      path: { type: 'string', description: '文件路径' }, // 支持绝对路径和工作区相对路径
+      path: { type: 'string', description: '文件绝对路径' }, // 模型必须提供绝对路径
     },
     required: ['path'],                                 // 读取必须明确目标文件
     additionalProperties: false,                       // 拒绝无意义参数
@@ -33,7 +34,7 @@ export const writeFileTool = {
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
-      path: { type: 'string', description: '文件路径' }, // 目标文件位置
+      path: { type: 'string', description: '文件绝对路径' }, // 目标文件位置
       content: { type: 'string', description: '写入内容' }, // 本次写入文本
       mode: { type: 'string', enum: ['overwrite', 'append'], description: '覆盖或追加', default: 'overwrite' }, // 明确写入方式
     },
@@ -57,7 +58,7 @@ export const listFilesTool = {
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
-      path: { type: 'string', description: '目录路径' }, // 目标目录位置
+      path: { type: 'string', description: '目录绝对路径' }, // 目标目录位置
     },
     required: ['path'],                                 // 必须明确目标目录
     additionalProperties: false,                       // 拒绝无意义参数
@@ -78,25 +79,18 @@ export const searchFilesTool = {
   parameters: {
     type: 'object',                                     // 工具输入必须是对象
     properties: {
-      path: { type: 'string', description: '起始目录' }, // 搜索根目录
+      path: { type: 'string', description: '起始目录绝对路径' }, // 搜索根目录
       keyword: { type: 'string', description: '文件名关键词' }, // 名称匹配文本
     },
     required: ['path', 'keyword'],                      // 根目录和关键词都必须提供
     additionalProperties: false,                       // 拒绝无意义参数
   },
-  async execute({ path, keyword }, signal) {
-    const matches = []                                  // 按发现顺序保存匹配路径
-    const directories = [path]                          // 从目标目录开始广度遍历
-    while (directories.length > 0) {
-      signal.throwIfAborted()                            // 每层目录之间响应用户停止
-      const directory = directories.shift()             // 取出下一待检查目录
-      const entries = await readdir(directory, { withFileTypes: true }) // 读取真实目录条目
-      for (const entry of entries) {
-        const entryPath = join(directory, entry.name)    // 构造完整条目路径
-        if (entry.isDirectory()) directories.push(entryPath) // 子目录加入后续队列
-        if (entry.isFile() && entry.name.includes(keyword)) matches.push(entryPath) // 名称匹配时记录文件
-      }
-    }
+  async execute({ path, keyword }) {
+    const matches = await new fdir()                    // 创建高性能目录遍历器
+      .withFullPaths()                                  // 返回绝对路径
+      .filter((filePath) => filePath.includes(keyword)) // 只保留名称包含关键词的文件
+      .crawl(path)                                      // 从指定目录开始递归
+      .withPromise()                                    // 异步执行遍历
     return { output: matches.join('\n') }              // 将全部匹配路径反馈给模型
   },
 }
