@@ -42,7 +42,9 @@ async function run(sessionID, toolCalls) {
 async function execute(session, toolCall) {
   const approved = await approve(session, toolCall)       // 所有工具都过审批，配置决定是否阻塞
   if (!approved) return { result: result(toolCall, '用户拒绝执行该工具', true), stop: false }
-  const execution = Tool.execute(toolCall.toolName, toolCall.input) // 模型传什么参数就执行什么参数
+  const execution = Tool.execute(toolCall.toolName, toolCall.input, {
+    onOutput: (chunk) => Session.emit(session.id, 'tool-output', { toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: chunk }),
+  })
   session.tools.add(execution)                           // Agent.stop 可以遍历当前会话全部 execution
   try {
     const value = await execution.result                 // 等待完整工具输出
