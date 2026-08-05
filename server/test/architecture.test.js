@@ -495,8 +495,8 @@ describe('minimal agent backend', () => {
     const session = await (await jsonRequest('/session', 'POST', { workspaceId, provider: 'unit', model: 'unit-model' })).json() // 创建工具运行上下文
     const startedAt = Date.now()                        // 记录两个固定延迟请求的总耗时
     const result = await runTools(session.id, [
-      { type: 'tool-call', toolCallId: 'web-1', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第一个慢请求
-      { type: 'tool-call', toolCallId: 'web-2', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow` } }, // 第二个慢请求
+      { type: 'tool-call', toolCallId: 'web-1', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow`, format: 'text' } }, // 第一个慢请求
+      { type: 'tool-call', toolCallId: 'web-2', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/slow`, format: 'text' } }, // 第二个慢请求
     ])
     expect(Date.now() - startedAt).toBeLessThan(350)    // 并行约 200ms，串行约 400ms
     expect(result.results.map((item) => item.output.value)).toEqual(['SLOW_OK', 'SLOW_OK']) // 结果保持调用顺序
@@ -518,8 +518,8 @@ describe('minimal agent backend', () => {
       { type: 'tool-call', toolCallId: 'read', toolName: 'file_read', input: { path: join(directory, 'nested/note.txt') } }, // 读取完整文本
       { type: 'tool-call', toolCallId: 'list', toolName: 'file_list', input: { path: join(directory, 'nested') } }, // 列出当前目录
       { type: 'tool-call', toolCallId: 'search', toolName: 'file_search', input: { path: directory, keyword: 'note' } }, // 递归搜索文件名
-      { type: 'tool-call', toolCallId: 'web-ok', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-ok` } }, // 获取成功网页
-      { type: 'tool-call', toolCallId: 'web-error', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-error` } }, // 获取错误网页
+      { type: 'tool-call', toolCallId: 'web-ok', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-ok`, format: 'text' } }, // 获取成功网页
+      { type: 'tool-call', toolCallId: 'web-error', toolName: 'web', input: { url: `http://127.0.0.1:${modelServer.port}/web-error`, format: 'text' } }, // 获取错误网页
       { type: 'tool-call', toolCallId: 'finish', toolName: 'finish', input: { summary: 'TOOLS_DONE' } }, // 明确结束任务
       { type: 'tool-call', toolCallId: 'missing', toolName: 'missing_tool', input: {} }, // 未配置工具返回错误
     ])
@@ -761,7 +761,7 @@ describe('minimal agent backend', () => {
     const serverRoot = join(import.meta.dir, '..')      // 定位后端根目录
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
-      tools: ['file.js', 'finish.js', 'shell.js', 'web.js'], // 四个平铺工具模块
+      tools: ['edit.js', 'file.js', 'finish.js', 'glob.js', 'grep.js', 'shell.js', 'web.js'], // 七个平铺工具模块
       utils: ['error.js', 'file.js', 'llm.js', 'message.js', 'retry.js', 'sse.js', 'tool.js'], // 保留错误、文件、LLM、消息、重试、SSE 和工具封装
     }
     for (const [directory, files] of Object.entries(expected)) {
