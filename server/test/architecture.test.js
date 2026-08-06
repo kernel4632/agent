@@ -214,8 +214,8 @@ describe('minimal agent backend', () => {
 
   it('uses the exact minimal store shape and tool list', () => {
     expect(Object.keys(store).sort()).toEqual(['config', 'sessions', 'tools', 'workspaces']) // tools 与 config 并列且根节点没有额外领域
-    expect(Object.keys(store.config)).toEqual(['provider', 'prompts', 'approval']) // config 包含供应商、提示词和审批配置
-    expect(Object.keys(store.config.provider).sort()).toEqual(['api', 'key', 'models']) // provider 结构严格匹配设计
+    expect(Object.keys(store.config)).toEqual(['provider', 'prompts', 'approval', 'context']) // config 包含供应商、提示词、审批和上下文配置
+    expect(Object.keys(store.config.provider).sort()).toEqual(['api', 'key', 'maxTokens', 'models']) // provider 结构严格匹配设计
     expect(Object.keys(store.config.prompts)).toEqual(['system', 'tool']) // prompts 只包含系统提示和工具提醒
     expect(store.tools).toBeObject()                     // 启动扫描结果直接使用 LLM 工具定义格式
     expect(Object.keys(store.tools).length).toBeGreaterThan(0) // 内置工具必须在启动时被发现
@@ -282,7 +282,7 @@ describe('minimal agent backend', () => {
     ])
     expect([apiUpdate.status, keyUpdate.status, modelsUpdate.status]).toEqual([200, 200, 200]) // 三个修改都被接受
     const config = await (await request('/config')).json() // 读取全部排队修改后的状态
-    expect(config.provider).toEqual({ api: `http://127.0.0.1:${modelServer.port}/v1`, key: 'concurrent-secret', models: ['unit-model', 'backup-model'] }) // 不丢失任何字段
+    expect(config.provider).toEqual({ api: `http://127.0.0.1:${modelServer.port}/v1`, key: 'concurrent-secret', models: ['unit-model', 'backup-model'], maxTokens: 100000 }) // 不丢失任何字段
     expect(JSON.parse(await readFile(join(dataDirectory, 'config.json'), 'utf8'))).toEqual(config) // 磁盘与内存保持一致
     await jsonRequest('/config', 'PATCH', { provider: { key: 'unit-secret', models: ['unit-model'] } }) // 恢复后续模型测试配置
   })
@@ -761,9 +761,9 @@ describe('minimal agent backend', () => {
     const serverRoot = join(import.meta.dir, '..')      // 定位后端根目录
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
-      features: ['title.js'],                             // 独立功能模块
+      features: ['context.js', 'loop.js', 'summary.js', 'title.js'], // 独立功能模块
       tools: ['ask.js', 'edit.js', 'file.js', 'finish.js', 'glob.js', 'grep.js', 'shell.js', 'web.js'], // 八个平铺工具模块
-      utils: ['agent.js', 'error.js', 'file.js', 'llm.js', 'message.js', 'retry.js', 'sse.js', 'tool.js'], // 保留 Agent 引擎、错误、文件、LLM、消息、重试、SSE 和工具封装
+      utils: ['error.js', 'file.js', 'llm.js', 'message.js', 'retry.js', 'sse.js', 'tool.js'], // 错误、文件、LLM、消息、重试、SSE 和工具封装
     }
     for (const [directory, files] of Object.entries(expected)) {
       const actual = (await readdir(join(serverRoot, directory), { withFileTypes: true }))

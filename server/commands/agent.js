@@ -1,16 +1,14 @@
 /*
 Agent 指令集：接收用户消息、启动循环、停止任务。
-循环引擎在 utils/agent.js，本文件只负责从 store 读数据、写结果、发 SSE。
+循环引擎在 features/loop.js，本文件只负责从 store 读数据、写结果、发 SSE。
 调用示例：await Agent.send(sessionID, '分析项目')、await Agent.stop(sessionID)。
 */
 import createError from 'http-errors'                    // 引入标准 HTTP 错误创建
-import { Loop } from '../utils/agent.js'                 // 引入纯函数 Agent 循环引擎
+import { Loop } from '../features/loop.js'               // 引入 Agent 循环引擎
 import { Message } from '../utils/message.js'            // 引入消息工厂
 import { errorMessage } from '../utils/error.js'         // 引入错误消息安全提取
-import { store } from '../store.js'                      // 引入模型供应商配置
 import { Session } from './session.js'                   // 引入会话读写和 SSE 反馈
-import { LLM } from '../utils/llm.js'                    // 引入 LLM 能力传给引擎
-import { list as listTools, run as runTools, stop as stopTools } from './tool.js' // 引入工具能力传给引擎
+import { run as runTools, stop as stopTools } from './tool.js' // 引入工具能力传给引擎
 
 const runs = new WeakMap()                               // 当前停止控制器对应的完整 Agent 任务
 
@@ -39,12 +37,7 @@ async function send(sessionID, content) {
   const running = Loop.run({
     messages: session.messages,
     model: session.model,
-    provider: store.config.provider,
-    system: store.config.prompts.system,
-    nudge: store.config.prompts.tool,
-    tools: listTools(),
     signal: controller.signal,
-    llm: LLM,
     execute: (toolCalls) => runTools(sessionID, toolCalls),
     onEvent: (type, data) => Session.emit(sessionID, type, data),
     onRetry: ({ attempt, delay, error }) => Session.emit(sessionID, 'error', { message: error, attempt, nextRetryIn: delay }),

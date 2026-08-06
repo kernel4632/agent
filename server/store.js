@@ -10,6 +10,7 @@ export const store = {
       api: '',                                              // 模型 API 地址
       key: '',                                              // 模型 API Key
       models: [],                                           // 当前供应商可用模型
+      maxTokens: 100000,                                    // 模型上下文窗口大小，触发压缩的阈值
     },
     prompts: {
       system: '你是一个AI Agent',                         // 每轮模型请求使用的系统提示词
@@ -18,6 +19,10 @@ export const store = {
     approval: {
       mode: 'none',                                         // 审批模式：none 全部放行 / all 全部审批 / selected 按列表审批
       tools: [],                                            // mode=selected 时需要审批的工具名列表
+    },
+    context: {
+      head: 3,                                              // 压缩时保留开头消息数（用户原始需求）
+      tail: 3,                                              // 压缩时保留摘要前后消息数（衔接上下文）
     },
   },
   tools: {},                                                // 启动时扫描得到的 LLM 工具定义

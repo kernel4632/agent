@@ -17,6 +17,7 @@
     "fast-glob": "^3.3.3",
     "fdir": "^6.5.0",
     "http-errors": "^2.0.1",
+    "js-tiktoken": "^1.0.21",
     "nanoid": "latest",
     "turndown": "^7.2.4",
     "write-file-atomic": "^6.0.0"

@@ -40,6 +40,7 @@ function update(partialConfig = {}) {
       provider: { ...store.config.provider, ...structuredClone(changes.provider ?? {}) },
       prompts: { ...store.config.prompts, ...structuredClone(changes.prompts ?? {}) },
       approval: { ...store.config.approval, ...structuredClone(changes.approval ?? {}) },
+      context: { ...store.config.context, ...structuredClone(changes.context ?? {}) },
     }
     await save(candidate)                             // 候选配置先持久化
     store.config = candidate                          // 写盘成功后替换全局配置
