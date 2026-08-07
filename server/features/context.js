@@ -19,7 +19,6 @@ function getEncoder() {
 
 // --- 估算单条消息的 token 数 ---
 function estimate(message) {
-  if (message.usage?.promptTokens) return message.usage.promptTokens // 有真实 usage 直接用
   const enc = getEncoder()
   let text = ''
   if (typeof message.content === 'string') text = message.content

@@ -761,7 +761,7 @@ describe('minimal agent backend', () => {
     const serverRoot = join(import.meta.dir, '..')      // 定位后端根目录
     const expected = {
       commands: ['agent.js', 'config.js', 'session.js', 'tool.js', 'workspace.js'], // 五个业务主体指令
-      features: ['context.js', 'loop.js', 'summary.js', 'title.js'], // 独立功能模块
+      features: ['approval.js', 'context.js', 'loop.js', 'summary.js', 'title.js'], // 独立功能模块
       tools: ['ask.js', 'edit.js', 'file.js', 'finish.js', 'glob.js', 'grep.js', 'shell.js', 'web.js'], // 八个平铺工具模块
       utils: ['error.js', 'file.js', 'llm.js', 'message.js', 'retry.js', 'sse.js', 'tool.js'], // 错误、文件、LLM、消息、重试、SSE 和工具封装
     }

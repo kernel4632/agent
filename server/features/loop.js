@@ -1,10 +1,10 @@
 /*
-Agent 循环引擎：实现"构建上下文→压缩→请求模型→执行工具→循环控制"完整流程。
+Agent 循环引擎：实现"构建上下文→压缩→请求模型→审批→执行工具→循环控制"完整流程。
 直接访问 store 读取配置，调用方只需传入会话级参数和回调。
 
 使用示例
 await Loop.run({
-  messages, model, signal,
+  messages, model, session, signal,
   execute: (toolCalls) => Tool.run(toolCalls),
   onEvent, onReply, onTools, onRetry,
 })
@@ -16,12 +16,15 @@ import { Retry } from '../utils/retry.js'                // 引入可中断的�
 import { errorMessage } from '../utils/error.js'         // 引入错误消息提取
 import { Context } from './context.js'                   // 引入上下文构建功能
 import { Summary } from './summary.js'                   // 引入摘要生成功能
+import { Approval } from './approval.js'                 // 引入工具审批功能
+import { result as toolResult } from '../commands/tool.js' // 引入工具结果构造函数
 
 
 // --- 运行 Agent 循环 ---
 async function run({
   messages,                                              // 当前会话消息数组（引擎会直接 push）
   model,                                                 // 模型名称
+  session,                                               // 当前会话对象（审批需要 session.approvals）
   signal,                                                // AbortSignal 停止信号
   execute,                                               // 工具执行函数 (toolCalls) => { results, shouldStop }
   onEvent,                                               // 模型流式事件回调 (type, data) => void
@@ -82,11 +85,24 @@ async function run({
     }
 
     textCount = 0                                        // 有工具调用 → 重置计数
-    const toolResults = await execute(answer.toolCalls)   // 并行执行全部工具
-    const toolMessage = Message.tool(toolResults.results)
-    messages.push(assistant, toolMessage)                 // assistant + tool-result 配对入列，磁盘上永远完整
-    await onTools?.(toolMessage, toolResults.results)     // 通知调用方：工具结果已生成
-    if (toolResults.shouldStop) return                    // finish 工具 → 结束任务
+
+    const decisions = await Approval.wait(session, answer.toolCalls, signal) // 等待审批结果
+    if (signal.aborted) return                           // stop 期间全被拒绝后直接退出
+
+    const approved = decisions.filter((d) => d.approved) // 通过的工具列表
+    const rejected = decisions.filter((d) => !d.approved) // 被拒的工具列表
+
+    const rejectedResults = rejected.map((d) => toolResult(d.toolCall, '用户拒绝执行该工具', true)) // 被拒的直接构造错误结果
+    let executedResults = { results: [], shouldStop: false }
+    if (approved.length > 0) {
+      executedResults = await execute(approved.map((d) => d.toolCall)) // 只执行通过审批的工具
+    }
+
+    const allResults = [...rejectedResults, ...executedResults.results] // 合并全部结果
+    const toolMessage = Message.tool(allResults)
+    messages.push(assistant, toolMessage)                 // assistant + tool-result 配对入列
+    await onTools?.(toolMessage, allResults)              // 通知调用方：工具结果已生成
+    if (executedResults.shouldStop) return                // finish 工具 → 结束任务
   }
 }
 

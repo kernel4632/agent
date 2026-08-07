@@ -37,6 +37,7 @@ async function send(sessionID, content) {
   const running = Loop.run({
     messages: session.messages,
     model: session.model,
+    session,
     signal: controller.signal,
     execute: (toolCalls) => runTools(sessionID, toolCalls),
     onEvent: (type, data) => Session.emit(sessionID, type, data),
