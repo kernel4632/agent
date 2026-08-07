@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Server 调用树</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #fafafa; color: #1a1a1a; padding: 40px; }
+h1 { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: #888; margin-bottom: 40px; }
+
+/* 树结构 */
+.tree { padding-left: 0; }
+.tree, .tree ul { list-style: none; }
+.tree ul { padding-left: 28px; border-left: 2px solid #e0e0e0; margin-left: 8px; }
+.tree li { position: relative; padding: 4px 0; }
+.tree li::before { content: ''; position: absolute; left: -28px; top: 14px; width: 20px; height: 0; border-top: 2px solid #e0e0e0; }
+.tree > li::before { display: none; }
+.tree > li { padding: 12px 0; }
+
+/* 节点样式 */
+.file { font-weight: 700; font-size: 14px; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 2px; cursor: pointer; user-select: none; }
+.func { font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 12px; color: #555; font-weight: 500; padding: 2px 8px; border-radius: 3px; display: inline-block; background: #f0f0f0; cursor: pointer; user-select: none; }
+.func.internal { color: #999; background: #f5f5f5; border: 1px dashed #ddd; }
+.tag { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; }
+
+/* 折叠 */
+.tree li.collapsed > ul { display: none; }
+.tree li.has-children > .file::before,
+.tree li.has-children > .func::before { content: '▼ '; font-size: 10px; color: #aaa; }
+.tree li.has-children.collapsed > .file::before,
+.tree li.has-children.collapsed > .func::before { content: '▶ '; font-size: 10px; color: #aaa; }
+
+/* 层级颜色 */
+.l-entry .file { background: #f3e5f5; color: #7b1fa2; }
+.l-entry .tag { background: #ce93d8; color: #fff; }
+.l-entry > ul { border-left-color: #ce93d8; }
+
+.l-cmd .file { background: #e3f2fd; color: #1565c0; }
+.l-cmd .tag { background: #64b5f6; color: #fff; }
+.l-cmd > ul { border-left-color: #64b5f6; }
+
+.l-feat .file { background: #e0f7fa; color: #00838f; }
+.l-feat .tag { background: #4dd0e1; color: #fff; }
+.l-feat > ul { border-left-color: #4dd0e1; }
+
+.l-util .file { background: #e8f5e9; color: #2e7d32; }
+.l-util .tag { background: #81c784; color: #fff; }
+.l-util > ul { border-left-color: #81c784; }
+
+.l-tool .file { background: #fff3e0; color: #e65100; }
+.l-tool .tag { background: #ff8a65; color: #fff; }
+.l-tool > ul { border-left-color: #ff8a65; }
+
+.l-store .file { background: #fff9c4; color: #f57f17; }
+.l-store .tag { background: #ffd54f; color: #333; }
+
+/* 说明文字 */
+.desc { font-size: 11px; color: #999; margin-left: 12px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>调用树</h1>
+<p class="subtitle">入口 → 指令 → 功能 → 基础设施 → 工具 · 线条表示调用/依赖关系 · 从上到下逐级展开到函数</p>
+
+<ul class="tree">
+
+  <!-- ============ server.js ============ -->
+  <li class="l-entry">
+    <span class="file">server.js</span><span class="tag">入口</span>
+    <ul>
+      <!-- 路由 → Agent -->
+      <li class="l-cmd">
+        <span class="file">commands/agent.js</span><span class="tag">指令</span><span class="desc">POST /session/send · POST /session/stop</span>
+        <ul>
+          <li><span class="func">send(sessionID, content)</span>
+            <ul>
+              <li class="l-feat">
+                <span class="file">features/loop.js</span><span class="tag">功能</span>
+                <ul>
+                  <li><span class="func">run({ messages, model, session, signal, execute, ... })</span>
+                    <ul>
+                      <!-- Context -->
+                      <li class="l-feat">
+                        <span class="file">features/context.js</span>
+                        <ul>
+                          <li><span class="func">build(messages, { head, tail })</span>
+                            <ul>
+                              <li><span class="func internal">estimate(message)</span><span class="desc">tiktoken 估算单条 token</span></li>
+                              <li><span class="func internal">getEncoder()</span><span class="desc">延迟初始化编码器</span></li>
+                              <li class="l-util"><span class="file">utils/js-tiktoken</span><span class="desc">encodingForModel</span></li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </li>
+                      <!-- Summary -->
+                      <li class="l-feat">
+                        <span class="file">features/summary.js</span>
+                        <ul>
+                          <li><span class="func">generate(built, { url, key, model })</span>
+                            <ul>
+                              <li class="l-util"><span class="file">utils/llm.js</span> → <span class="func">chat()</span></li>
+                              <li class="l-util"><span class="file">utils/message.js</span> → <span class="func">assistant()</span></li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </li>
+                      <!-- Approval -->
+                      <li class="l-feat">
+                        <span class="file">features/approval.js</span>
+                        <ul>
+                          <li><span class="func">wait(session, toolCalls, signal)</span>
+                            <ul>
+                              <li class="l-store"><span class="file">store.js</span> → <span class="func">config.approval</span></li>
+                              <li class="l-cmd"><span class="file">commands/session.js</span> → <span class="func">emit()</span></li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </li>
+                      <!-- LLM 请求 -->
+                      <li class="l-util">
+                        <span class="file">utils/llm.js</span>
+                        <ul>
+                          <li><span class="func">chat({ url, key, model, system, messages, tools, signal, onEvent })</span></li>
+                        </ul>
+                      </li>
+                      <!-- Retry -->
+                      <li class="l-util">
+                        <span class="file">utils/retry.js</span>
+                        <ul>
+                          <li><span class="func">run(fn, { signal, onRetry })</span></li>
+                          <li><span class="func">wait(ms, signal)</span></li>
+                        </ul>
+                      </li>
+                      <!-- Message -->
+                      <li class="l-util">
+                        <span class="file">utils/message.js</span>
+                        <ul>
+                          <li><span class="func">id()</span></li>
+                          <li><span class="func">assistant(contentBlocks)</span></li>
+                          <li><span class="func">tool(results)</span></li>
+                        </ul>
+                      </li>
+                      <!-- execute 回调 → tool.run -->
+                      <li class="l-cmd">
+                        <span class="file">commands/tool.js</span><span class="desc">execute 回调</span>
+                        <ul>
+                          <li><span class="func">run(sessionID, toolCalls)</span>
+                            <ul>
+                              <li><span class="func internal">execute(session, toolCall)</span>
+                                <ul>
+                                  <li class="l-util">
+                                    <span class="file">utils/tool.js</span>
+                                    <ul>
+                                      <li><span class="func">execute(name, input, { onOutput })</span>
+                                        <ul>
+                                          <li><span class="func internal">aborted(partialOutput)</span></li>
+                                          <li class="l-tool">
+                                            <span class="file">tools/*.js</span><span class="desc">实际工具执行</span>
+                                            <ul>
+                                              <li><span class="func">file_read / file_write / file_list / file_search</span></li>
+                                              <li><span class="func">edit</span></li>
+                                              <li><span class="func">shell</span></li>
+                                              <li><span class="func">grep</span></li>
+                                              <li><span class="func">glob</span></li>
+                                              <li><span class="func">web</span></li>
+                                              <li><span class="func">ask</span></li>
+                                              <li><span class="func">finish</span></li>
+                                            </ul>
+                                          </li>
+                                        </ul>
+                                      </li>
+                                    </ul>
+                                  </li>
+                                  <li class="l-cmd"><span class="file">commands/session.js</span> → <span class="func">emit()</span><span class="desc">tool-output SSE</span></li>
+                                </ul>
+                              </li>
+                              <li><span class="func">result(toolCall, output, isError)</span><span class="desc">构造 AI SDK 工具结果</span></li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </li>
+                      <!-- store 读取 -->
+                      <li class="l-store"><span class="file">store.js</span> → <span class="func">config.provider / prompts / context / tools</span></li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+              <li class="l-cmd"><span class="file">commands/session.js</span> → <span class="func">get() / load() / save() / emit()</span></li>
+              <li class="l-util"><span class="file">utils/message.js</span> → <span class="func">user(content)</span></li>
+            </ul>
+          </li>
+          <li><span class="func">stop(sessionID)</span>
+            <ul>
+              <li class="l-cmd"><span class="file">commands/session.js</span> → <span class="func">get() / load() / save() / emit()</span></li>
+              <li class="l-cmd"><span class="file">commands/tool.js</span> → <span class="func">stop(sessionID)</span></li>
+            </ul>
+          </li>
+          <li><span class="func internal">finish(session, controller, error)</span>
+            <ul>
+              <li class="l-cmd"><span class="file">commands/session.js</span> → <span class="func">save() / emit()</span></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+
+      <!-- 路由 → Session -->
+      <li class="l-cmd">
+        <span class="file">commands/session.js</span><span class="tag">指令</span><span class="desc">GET/POST/PATCH/DELETE /session · GET /session/events</span>
+        <ul>
+          <li><span class="func">init(dir)</span></li>
+          <li><span class="func">load(id)</span>
+            <ul>
+              <li><span class="func internal">hydrate(saved)</span><span class="desc">补齐运行时字段</span></li>
+            </ul>
+          </li>
+          <li><span class="func">get(id)</span></li>
+          <li><span class="func">create(workspaceId, provider, model)</span>
+            <ul>
+              <li><span class="func internal">hydrate()</span></li>
+              <li><span class="func internal">snapshot(session)</span><span class="desc">构造可序列化副本</span></li>
+              <li class="l-cmd"><span class="file">commands/workspace.js</span> → <span class="func">save()</span></li>
+            </ul>
+          </li>
+          <li><span class="func">update(id, title, provider, model)</span>
+            <ul>
+              <li><span class="func internal">summary(id)</span><span class="desc">遍历工作区找摘要</span></li>
+              <li><span class="func internal">snapshot(session)</span></li>
+              <li class="l-cmd"><span class="file">commands/workspace.js</span> → <span class="func">save()</span></li>
+            </ul>
+          </li>
+          <li><span class="func">remove(id, stopRunningSession)</span></li>
+          <li><span class="func">save(id)</span>
+            <ul>
+              <li class="l-util"><span class="file">utils/file.js</span> → <span class="func">write(path, content)</span></li>
+            </ul>
+          </li>
+          <li><span class="func">listen(id)</span>
+            <ul>
+              <li class="l-util"><span class="file">utils/sse.js</span> → <span class="func">connect() / send()</span></li>
+            </ul>
+          </li>
+          <li><span class="func">emit(id, event, data)</span>
+            <ul>
+              <li class="l-util"><span class="file">utils/sse.js</span> → <span class="func">broadcast()</span></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+
+      <!-- 路由 → Config -->
+      <li class="l-cmd">
+        <span class="file">commands/config.js</span><span class="tag">指令</span><span class="desc">GET/PATCH /config</span>
+        <ul>
+          <li><span class="func">load(filePath)</span></li>
+          <li><span class="func">get()</span></li>
+          <li><span class="func">update(partialConfig)</span></li>
+          <li><span class="func">save(value)</span>
+            <ul>
+              <li class="l-util"><span class="file">utils/file.js</span> → <span class="func">write()</span></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+
+      <!-- 路由 → Workspace -->
+      <li class="l-cmd">
+        <span class="file">commands/workspace.js</span><span class="tag">指令</span><span class="desc">GET/POST/DELETE /workspace</span>
+        <ul>
+          <li><span class="func">load(filePath)</span></li>
+          <li><span class="func">list()</span></li>
+          <li><span class="func">add(path)</span></li>
+          <li><span class="func">remove(id)</span></li>
+          <li><span class="func">save()</span>
+            <ul>
+              <li class="l-util"><span class="file">utils/file.js</span> → <span class="func">write()</span></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+
+      <!-- 路由 → Approval.answer -->
+      <li class="l-feat">
+        <span class="file">features/approval.js</span><span class="tag">功能</span><span class="desc">POST /session/approve</span>
+        <ul>
+          <li><span class="func">answer(session, toolCallID, approved)</span><span class="desc">触发等待中的 Promise</span></li>
+        </ul>
+      </li>
+
+      <!-- 路由 → Title -->
+      <li class="l-feat">
+        <span class="file">features/title.js</span><span class="tag">功能</span><span class="desc">POST /session/title</span>
+        <ul>
+          <li><span class="func">generate(sessionID, prompt)</span>
+            <ul>
+              <li class="l-store"><span class="file">store.js</span> → <span class="func">config.provider</span></li>
+              <li class="l-util"><span class="file">utils/llm.js</span> → <span class="func">chat()</span></li>
+              <li class="l-cmd"><span class="file">commands/session.js</span> → <span class="func">emit()</span></li>
+              <li class="l-cmd"><span class="file">commands/workspace.js</span> → <span class="func">save()</span></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+
+      <!-- store -->
+      <li class="l-store">
+        <span class="file">store.js</span><span class="tag">数据</span><span class="desc">全局内存数据中心，被全部 commands 和 features 读写</span>
+        <ul>
+          <li><span class="func">config.provider</span><span class="desc">{ api, key, models, maxTokens }</span></li>
+          <li><span class="func">config.prompts</span><span class="desc">{ system, tool }</span></li>
+          <li><span class="func">config.approval</span><span class="desc">{ mode, tools }</span></li>
+          <li><span class="func">config.context</span><span class="desc">{ head, tail }</span></li>
+          <li><span class="func">tools</span><span class="desc">LLM 工具定义 KV</span></li>
+          <li><span class="func">workspaces</span><span class="desc">工作区 KV</span></li>
+          <li><span class="func">sessions</span><span class="desc">已加载会话缓存 KV</span></li>
+        </ul>
+      </li>
+
+    </ul>
+  </li>
+
+</ul>
+
+<script>
+document.querySelectorAll('.tree li').forEach(li => {
+  if (li.querySelector('ul')) {
+    li.classList.add('has-children')
+    const toggle = li.querySelector('.file, .func')
+    if (toggle) toggle.addEventListener('click', () => li.classList.toggle('collapsed'))
+  }
+})
+</script>
+
+</body>
+</html>
