@@ -19,6 +19,7 @@ async function get(id) {
   const file = Bun.file(join(directory, `${id}.json`))
   if (!await file.exists()) return null
   store.sessions[id] = await file.json()                 // 从磁盘加载到内存
+  store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() } // 加载时创建运行时
   return { id, ...store.sessions[id] }
 }
 
@@ -27,6 +28,7 @@ async function get(id) {
 async function create(workspaceId, provider, model) {
   const id = `session-${nanoid(10)}`
   store.sessions[id] = { messages: [], provider, model }
+  store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
   store.workspaces[workspaceId].sessions.push({ id, title: '新对话', lastActiveAt: Date.now() })
   await save(id)
   await Workspace.save()                                 // 通过 Workspace 集中保存，不自己拼路径
@@ -72,10 +74,10 @@ async function save(id) {
 }
 
 
-// --- 设定目录（server.js 启动时调用）---
-function init(dir) {
+// --- 设定会话文件目录（server.js 启动时调用一次）---
+export function setDirectory(dir) {
   directory = dir
 }
 
 
-export const Session = { get, create, update, remove, save, init }
+export const Session = { get, create, update, remove, save }

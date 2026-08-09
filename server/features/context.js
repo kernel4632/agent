@@ -24,17 +24,17 @@ function build(messages, { head = 3, tail = 3 } = {}) {
 
   let tokens = 0
   const built = view.map((msg) => {
-    let text = ''                                        // 提取消息文本用于 token 计算
-    if (typeof msg.content === 'string') text = msg.content
+    let text = ''                                        // 累积消息全部文本内容用于 token 计算
+    if (typeof msg.content === 'string') text = msg.content // 纯文本消息直接取值
     else if (Array.isArray(msg.content)) {
       for (const part of msg.content) {
-        if (part.type === 'text') text += part.text ?? ''
-        else if (part.type === 'tool-call') text += JSON.stringify(part.input ?? '')
-        else if (part.type === 'tool-result') text += typeof part.output?.value === 'string' ? part.output.value : JSON.stringify(part.output?.value ?? '')
+        if (part.type === 'text') text += part.text ?? '' // 正文块取文本
+        else if (part.type === 'tool-call') text += JSON.stringify(part.input ?? '') // 工具调用取参数序列化
+        else if (part.type === 'tool-result') text += typeof part.output?.value === 'string' ? part.output.value : JSON.stringify(part.output?.value ?? '') // 工具结果取输出值
       }
     }
-    tokens += Token.count(text) + 4                      // +4 为消息头开销
-    const { summary, usage, ...clean } = msg             // 剥掉非标准字段
+    tokens += Token.count(text) + 4                      // +4 为消息角色和结构开销
+    const { summary, usage, ...clean } = msg             // 剥掉 summary 和 usage 非标准字段
     return clean
   })
 

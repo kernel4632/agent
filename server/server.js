@@ -9,7 +9,7 @@ import { Elysia } from 'elysia'                          // 引入 HTTP 服务�
 import { store } from './store.js'                        // 引入全局数据
 import { Config } from './commands/config.js'             // 引入配置指令
 import { Workspace } from './commands/workspace.js'       // 引入工作区指令
-import { Session } from './commands/session.js'           // 引入会话指令
+import { Session, setDirectory as setSessionDirectory } from './commands/session.js' // 引入会话指令
 import { Agent } from './commands/agent.js'               // 引入 Agent 指令
 import { Title } from './features/title.js'               // 引入标题生成功能
 import { Tool } from './utils/tool.js'                    // 引入工具扫描能力
@@ -24,7 +24,7 @@ export async function createApp(options = {}) {
   store.tools = await Tool.scan(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 扫描工具
   await Config.load(join(dataDirectory, 'config.json'))   // 加载配置
   await Workspace.load(join(dataDirectory, 'workspace.json')) // 加载工作区
-  Session.init(join(dataDirectory, 'sessions'))           // 设定会话目录
+  setSessionDirectory(join(dataDirectory, 'sessions'))    // 设定会话文件目录
 
   const app = new Elysia({ name: 'agent.server' })
     .get('/health', () => ({ status: 'ok' }))
@@ -49,16 +49,18 @@ export async function createApp(options = {}) {
     .post('/agent/approve', ({ body }) => Agent.approve(body?.id, body?.toolCallId, body?.approved))
 
     .get('/sse', ({ query }) => {                          // 建立 SSE 连接
-      const id = query.id
-      if (!store.runtime[id]) store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() } // 首次连接时初始化运行时
-      const runtime = store.runtime[id]
+      const runtime = store.runtime[query.id]
       const { client, response } = SSE.connect((c) => runtime.clients.delete(c))
       runtime.clients.add(client())
-      SSE.send(client(), 'sync', { status: runtime.status, messageCount: store.sessions[id]?.messages?.length ?? 0 })
+      SSE.send(client(), 'sync', { status: runtime.status, messageCount: store.sessions[query.id]?.messages?.length ?? 0 })
       return response
     })
 
-    .post('/title', ({ body }) => Title.generate(body?.id, body?.prompt))
+    .post('/title', async ({ body }) => {
+      const title = await Title.generate(body?.id, body?.prompt)
+      await Workspace.save()                              // 标题更新后保存工作区
+      return { title }
+    })
 
     .onError(({ code, error, set }) => {
       if (code === 'NOT_FOUND') { set.status = 404; return { error: 'Not Found' } }

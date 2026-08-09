@@ -12,18 +12,11 @@ import { SSE } from '../utils/sse.js'                    // 引入 SSE 广播能
 import { Session } from './session.js'                   // 引入会话保存能力
 
 
-// --- 确保运行时存在 ---
-function ensureRuntime(id) {
-  if (!store.runtime[id]) store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
-  return store.runtime[id]
-}
-
-
 // --- 发送消息 ---
 async function send(sessionID, content) {
   if (!store.sessions[sessionID]) await Session.get(sessionID)
   const session = store.sessions[sessionID]
-  const runtime = ensureRuntime(sessionID)
+  const runtime = store.runtime[sessionID]
 
   const message = Message.user(content)                  // 构造用户消息
   session.messages.push(message)                         // 存入会话历史
