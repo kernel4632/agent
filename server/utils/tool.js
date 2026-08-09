@@ -15,7 +15,6 @@ execution.abort()  // 用户停止
 import { readdir } from 'node:fs/promises'               // 引入平铺工具目录扫描能力
 import { join, resolve } from 'node:path'                // 引入工具目录和模块路径定位能力
 import { pathToFileURL } from 'node:url'                 // 引入跨平台动态导入地址
-import { errorMessage } from './error.js'                // 引入错误消息安全提取
 
 let registry = new Map()                                 // 保存当前一次扫描得到的工具
 
@@ -33,13 +32,7 @@ async function scan(folder) {
     for (const tool of tools) nextRegistry.set(tool.name, { description: tool.description, parameters: tool.parameters, execute: tool.execute }) // 同名工具使用后加载定义
   }
   registry = nextRegistry                                // 完整扫描成功后一次替换注册表
-  return definitions()                                   // 反馈模型可以直接使用的全部定义
-}
-
-
-// --- 读取工具定义 ---
-function definitions() {
-  return Object.fromEntries([...registry].map(([name, tool]) => [name, { description: tool.description, parameters: structuredClone(tool.parameters) }])) // 调用方不能修改注册表数据
+  return Object.fromEntries([...registry].map(([name, tool]) => [name, { description: tool.description, parameters: structuredClone(tool.parameters) }])) // 返回模型可直接使用的工具定义
 }
 
 
@@ -85,7 +78,7 @@ function execute(name, input, { onOutput } = {}) {
       return { output, isError: false, stop: false }
     } catch (error) {
       if (controller.signal.aborted) return aborted(output)
-      const message = errorMessage(error)
+      const message = error?.message ?? String(error)
       onOutput?.(message)
       return { output: message, isError: true, stop: false }
     }
@@ -107,4 +100,4 @@ function aborted(partialOutput) {
 }
 
 
-export const Tool = { scan, definitions, execute }
+export const Tool = { scan, execute }

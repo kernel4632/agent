@@ -1,81 +1,90 @@
 /*
-Agent Server 入口：加载最小持久化数据，并在当前文件直接注册全部 Elysia 路由。
-路由只提取请求参数和调用 commands；业务数据统一保存在 store。
+Agent Server 入口：加载持久化数据，注册全部路由。
+路由只提取参数并调用 commands/features，不做任何业务逻辑。
 调用示例：const { app, close } = await createApp({ dataDirectory }); app.listen(4632)。
 */
-import { mkdir } from 'node:fs/promises'               // 引入数据目录创建能力
-import { join, resolve } from 'node:path'               // 引入数据文件路径定位能力
-import { Elysia } from 'elysia'                        // 引入单文件 HTTP 服务能力
-import { Agent } from './commands/agent.js'            // 引入发送和停止指令
-import { Config } from './commands/config.js'          // 引入配置加载与修改指令
-import { Session } from './commands/session.js'        // 引入会话和 SSE 指令
-import { load as loadTools } from './commands/tool.js' // 引入启动工具扫描指令
-import { Workspace } from './commands/workspace.js'    // 引入工作区指令
-import { Title } from './features/title.js'            // 引入标题生成功能
-import { Approval } from './features/approval.js'      // 引入工具审批功能
-import { store } from './store.js'                     // 引入退出清理所需的会话列表
+import { mkdir } from 'node:fs/promises'                 // 引入目录创建能力
+import { join, resolve } from 'node:path'                // 引入路径定位能力
+import { Elysia } from 'elysia'                          // 引入 HTTP 服务能力
+import { store } from './store.js'                        // 引入全局数据
+import { Config } from './commands/config.js'             // 引入配置指令
+import { Workspace } from './commands/workspace.js'       // 引入工作区指令
+import { Session } from './commands/session.js'           // 引入会话指令
+import { Agent } from './commands/agent.js'               // 引入 Agent 指令
+import { Title } from './features/title.js'               // 引入标题生成功能
+import { Tool } from './utils/tool.js'                    // 引入工具扫描能力
+import { SSE } from './utils/sse.js'                      // 引入 SSE 连接能力
 
 
-// --- 创建 Agent 应用 ---
+// --- 创建应用 ---
 export async function createApp(options = {}) {
-  const dataDirectory = resolve(options.dataDirectory ?? process.env.AGENT_DATA_DIR ?? join(process.env.USERPROFILE ?? '.', '.agent')) // 确定唯一数据目录
-  await mkdir(join(dataDirectory, 'sessions'), { recursive: true }) // 启动前确保会话目录存在
-  await loadTools(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 每次启动重新扫描工具模块
-  await Config.load(options.configPath ?? join(dataDirectory, 'config.json')) // 再加载模型供应商配置
-  await Workspace.load(options.workspacePath ?? join(dataDirectory, 'workspace.json')) // 再加载工作区摘要
-  await Session.init(join(dataDirectory, 'sessions'))   // 最后准备会话文件目录
+  const dataDirectory = resolve(options.dataDirectory ?? process.env.AGENT_DATA_DIR ?? join(process.env.USERPROFILE ?? '.', '.agent'))
+  await mkdir(join(dataDirectory, 'sessions'), { recursive: true }) // 确保会话目录存在
+
+  store.tools = await Tool.scan(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 扫描工具
+  await Config.load(join(dataDirectory, 'config.json'))   // 加载配置
+  await Workspace.load(join(dataDirectory, 'workspace.json')) // 加载工作区
+  Session.init(join(dataDirectory, 'sessions'))           // 设定会话目录
 
   const app = new Elysia({ name: 'agent.server' })
-    .get('/health', () => ({ status: 'ok' }))           // 健康检查直接返回最小状态
-    .get('/config', () => Config.get())                 // 返回完整配置和原始 Key
-    .patch('/config', ({ body }) => Config.update(body)) // 合并并保存配置
-    .get('/workspace', () => Workspace.list())          // 返回工作区与会话摘要
-    .post('/workspace', ({ body }) => Workspace.add(body?.path)) // 添加本地工作区
-    .delete('/workspace', ({ query }) => Workspace.remove(query.id)) // query id 移除工作区记录
-    .get('/session', async ({ query }) => {
-      const loaded = Session.get(query.id) ?? await Session.load(query.id) // 明确从缓存或文件读取会话
-      const { abortController, clients, tools, approvals, ...session } = loaded // 路由只排除四个运行字段
-      return structuredClone(session)                    // 返回可公开、可序列化的会话数据
+    .get('/health', () => ({ status: 'ok' }))
+
+    .get('/config', () => Config.get())
+    .patch('/config', ({ body }) => Config.update(body))
+
+    .get('/workspace', () => Workspace.list())
+    .post('/workspace', ({ body }) => Workspace.add(body?.path))
+    .delete('/workspace', ({ query }) => Workspace.remove(query.id))
+
+    .get('/session', ({ query }) => Session.get(query.id))
+    .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model))
+    .patch('/session', ({ body }) => Session.update(body?.id, body))
+    .delete('/session', async ({ query }) => {
+      if (store.runtime[query.id]?.status === 'running') await Agent.stop(query.id) // 运行中先停
+      return Session.remove(query.id)
     })
-    .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model)) // 创建完整会话和摘要
-    .patch('/session', ({ body }) => Session.update(body?.id, body?.title, body?.provider, body?.model)) // 修改标题、供应商或模型
-    .delete('/session', ({ query }) => Session.remove(query.id, Agent.stop)) // 运行中先停止，再删除会话
-    .get('/session/events', ({ query }) => Session.listen(query.id)) // 建立会话 SSE 连接
-    .post('/session/send', ({ body }) => Agent.send(body?.id, body?.content)) // 保存用户消息并后台启动 Agent
-    .post('/session/stop', ({ body }) => Agent.stop(body?.id)) // 停止模型和全部工具进程
-    .post('/session/approve', ({ body }) => {              // 回答工具审批
-      const session = Session.get(body?.id)
-      if (session) Approval.answer(session, body?.toolCallId, body?.approved)
-      return { ok: true }
+
+    .post('/agent/send', ({ body }) => Agent.send(body?.id, body?.content))
+    .post('/agent/stop', ({ body }) => Agent.stop(body?.id))
+    .post('/agent/approve', ({ body }) => Agent.approve(body?.id, body?.toolCallId, body?.approved))
+
+    .get('/sse', ({ query }) => {                          // 建立 SSE 连接
+      const id = query.id
+      if (!store.runtime[id]) store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() } // 首次连接时初始化运行时
+      const runtime = store.runtime[id]
+      const { client, response } = SSE.connect((c) => runtime.clients.delete(c))
+      runtime.clients.add(client())
+      SSE.send(client(), 'sync', { status: runtime.status, messageCount: store.sessions[id]?.messages?.length ?? 0 })
+      return response
     })
-    .post('/session/title', async ({ body }) => ({ title: await Title.generate(body?.id, body?.prompt) })) // 生成会话标题
-    .onError(({ code, error, status }) => {
-      if (code === 'NOT_FOUND') return status(404, { error: 'Not Found' }) // 未知路由明确返回 404
-      return status(error.status ?? 500, { error: error.message }) // 业务错误保留状态，未知错误返回 500
+
+    .post('/title', ({ body }) => Title.generate(body?.id, body?.prompt, { dataDirectory }))
+
+    .onError(({ code, error, set }) => {
+      if (code === 'NOT_FOUND') { set.status = 404; return { error: 'Not Found' } }
+      set.status = error.status ?? 500
+      return { error: error.message }
     })
 
   async function close() {
-    for (const session of Object.values(store.sessions)) {
-      if (session.status === 'running' || session.abortController) await Agent.stop(session.id).catch(() => {}) // 关闭前等待模型、工具和最终保存
-      for (const client of session.clients) try { client.close() } catch {} // 关闭该会话全部 SSE 连接
-      session.clients.clear()                         // 释放全部 SSE 控制器引用
+    for (const [id, runtime] of Object.entries(store.runtime)) {
+      if (runtime.status === 'running') await Agent.stop(id).catch(() => {})
+      for (const client of runtime.clients) try { client.close() } catch {}
+      runtime.clients.clear()
     }
   }
-  return { app, close, dataDirectory }                // 测试和宿主共享同一个应用入口
+
+  return { app, close, dataDirectory }
 }
 
 
-// --- 直接启动本地服务 ---
+// --- 直接启动 ---
 if (import.meta.main) {
-  const { app, close } = await createApp()            // 使用默认 .agent 数据目录创建应用
-  const port = Number(process.env.PORT ?? 4632)       // 默认监听设计指定端口
-  app.listen({ hostname: '127.0.0.1', port, idleTimeout: 255 }) // 只允许本机访问并支持长模型请求
-  console.log(`Agent Server listening on http://127.0.0.1:${port}`) // 反馈实际地址
+  const { app, close } = await createApp()
+  const port = Number(process.env.PORT ?? 4632)
+  app.listen({ hostname: '127.0.0.1', port, idleTimeout: 255 })
+  console.log(`Agent Server listening on http://127.0.0.1:${port}`)
   for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.once(signal, async () => {
-      await close()                                    // 退出前停止模型、工具进程和 SSE 客户端
-      app.stop()                                       // 完成业务清理后停止 HTTP 监听
-      process.exit(0)                                  // 明确结束当前服务进程
-    })
+    process.once(signal, async () => { await close(); app.stop(); process.exit(0) })
   }
 }

@@ -1,31 +1,27 @@
 /*
-服务端全局数据中心：只定义配置、工具、工作区和会话四类数据。
-所有读写、持久化和执行逻辑都放在 commands 中，本文件不提供任何方法。
-调用示例：store.config.provider.api、store.config.prompts.system、store.tools、store.workspaces、store.sessions。
+全局数据中心：定义配置、工作区、会话和运行时四类数据结构。
+所有读写和持久化逻辑在 commands 和 features 中，本文件不提供方法。
+调用示例：store.config.provider.api、store.sessions['session-xxx'].messages、store.runtime['session-xxx'].status。
 */
 
 export const store = {
   config: {
     provider: {
-      api: '',                                              // 模型 API 地址
-      key: '',                                              // 模型 API Key
-      models: [],                                           // 当前供应商可用模型
-      maxTokens: 100000,                                    // 模型上下文窗口大小，触发压缩的阈值
+      api: '',                                            // 模型 API 地址
+      key: '',                                            // 模型 API 密钥
+      models: [],                                         // 可用模型列表
+      maxTokens: 100000,                                  // 上下文窗口大小，触发压缩的阈值
     },
     prompts: {
-      system: '你是一个AI Agent',                         // 每轮模型请求使用的系统提示词
-      tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 连续纯文本后使用的工具提醒
+      system: '你是一个AI Agent',                         // 系统提示词
+      tool: '继续完成用户任务。需要外部操作时必须调用可用工具，不要只描述计划。', // 连续纯文本后的工具提醒
+      summary: '将以下对话历史压缩为结构化摘要。保留：用户核心需求、关键决策、文件路径、错误及修复、当前进度。去掉：冗余描述、重复内容、思考过程、大段代码。格式：简短条目列表。语言：与对话相同。', // 摘要压缩提示词
     },
-    approval: {
-      mode: 'none',                                         // 审批模式：none 全部放行 / all 全部审批 / selected 按列表审批
-      tools: [],                                            // mode=selected 时需要审批的工具名列表
-    },
-    context: {
-      head: 3,                                              // 压缩时保留开头消息数（用户原始需求）
-      tail: 3,                                              // 压缩时保留摘要前后消息数（衔接上下文）
-    },
+    permission: {},                                       // 工具权限：{ toolName: "allow" | "ask" }，未列出的默认放行
+    mcp: {},                                              // MCP 服务器配置：{ serverName: { type, enabled, command?, url?, environment?, headers?, timeout? } }
   },
-  tools: {},                                                // 启动时扫描得到的 LLM 工具定义
-  workspaces: {},                                           // 按 ID 保存工作区及其会话摘要
-  sessions: {},                                             // 按 ID 保存已加载的完整会话和运行时状态
+  workspaces: {},                                         // 工作区 KV：{ [id]: { path, sessions: [{ id, title, lastActiveAt }] } }
+  sessions: {},                                           // 会话 KV：{ [id]: { messages, provider, model } }
+  tools: {},                                              // 启动时扫描得到的 LLM 工具定义
+  runtime: {},                                            // 运行时状态 KV：{ [id]: { status, controller, clients, tools, approvals } }
 }

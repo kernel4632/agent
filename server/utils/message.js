@@ -1,11 +1,6 @@
 /*
-消息工厂：生成符合 AI SDK 格式的会话消息，统一 ID 和结构。
-业务代码只调用 Message.user / Message.assistant / Message.tool，不手动拼结构。
-
-使用示例
-const msg = Message.user('分析这段代码')
-const reply = Message.assistant(contentBlocks)
-const result = Message.tool(toolResults)
+消息工厂：生成符合 AI SDK 格式的会话消息和工具结果，统一 ID 和结构。
+调用示例：Message.user('分析代码')、Message.assistant(blocks)、Message.tool(results)、Message.result(toolCall, output, isError)。
 */
 import { nanoid } from 'nanoid'                         // 引入消息唯一 ID 生成能力
 
@@ -34,4 +29,12 @@ function tool(results) {
 }
 
 
-export const Message = { id, user, assistant, tool }
+// --- 创建单个工具结果 ---
+function result(toolCall, output, isError) {
+  if (!isError && output?.image && output?.mime) return { type: 'tool-result', toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: { type: 'image', value: output.image, mimeType: output.mime } }
+  const outputType = isError ? (typeof output === 'string' ? 'error-text' : 'error-json') : (typeof output === 'string' ? 'text' : 'json')
+  return { type: 'tool-result', toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: { type: outputType, value: output } }
+}
+
+
+export const Message = { id, user, assistant, tool, result }

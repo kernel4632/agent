@@ -1,108 +1,95 @@
 /*
-Agent 循环引擎：实现"构建上下文→压缩→请求模型→审批→执行工具→循环控制"完整流程。
-直接访问 store 读取配置，调用方只需传入会话级参数和回调。
-
-使用示例
-await Loop.run({
-  messages, model, session, signal,
-  execute: (toolCalls) => Tool.run(toolCalls),
-  onEvent, onReply, onTools, onRetry,
-})
+Agent 循环引擎：构建上下文 → 压缩 → 请求模型 → 审批 → 执行工具 → 循环控制。
+直接访问 store 读取配置，调用方传入会话级参数和回调。
+调用示例：await Loop.run({ sessionID, messages, model, signal, onEvent, onReply, onTools, onRetry })。
 */
-import { store } from '../store.js'                      // 引入全局配置（provider / prompts / context）
+import { store } from '../store.js'                      // 引入全局配置和运行时数据
 import { LLM } from '../utils/llm.js'                    // 引入 LLM 流式请求能力
-import { Message } from '../utils/message.js'            // 引入消息工厂
-import { Retry } from '../utils/retry.js'                // 引入可中断的无限重试
-import { errorMessage } from '../utils/error.js'         // 引入错误消息提取
-import { Context } from './context.js'                   // 引入上下文构建功能
-import { Summary } from './summary.js'                   // 引入摘要生成功能
-import { Approval } from './approval.js'                 // 引入工具审批功能
-import { result as toolResult } from '../commands/tool.js' // 引入工具结果构造函数
+import { Message } from '../utils/message.js'            // 引入消息和工具结果构造
+import { Tool } from '../utils/tool.js'                  // 引入工具执行能力
+import { SSE } from '../utils/sse.js'                    // 引入 SSE 广播能力
+import { Retry } from '../utils/retry.js'                // 引入可中断重试
+import { Context } from './context.js'                   // 引入上下文构建
+import { Summary } from './summary.js'                   // 引入摘要生成
+import { Approval } from './approval.js'                 // 引入工具审批
 
 
 // --- 运行 Agent 循环 ---
-async function run({
-  messages,                                              // 当前会话消息数组（引擎会直接 push）
-  model,                                                 // 模型名称
-  session,                                               // 当前会话对象（审批需要 session.approvals）
-  signal,                                                // AbortSignal 停止信号
-  execute,                                               // 工具执行函数 (toolCalls) => { results, shouldStop }
-  onEvent,                                               // 模型流式事件回调 (type, data) => void
-  onReply,                                               // 助手消息生成后回调 (message) => Promise<void>
-  onTools,                                               // 工具结果生成后回调 (message, results) => Promise<void>
-  onRetry,                                               // 重试回调 ({ attempt, delay, error }) => void
-}) {
-  const { provider, prompts, context } = store.config    // 从 store 读取当前配置
-  let hint = ''                                          // 临时提醒，只参与紧接着的一轮
+async function run({ sessionID, messages, model, signal, onEvent, onReply, onTools, onRetry }) {
+  const { provider, prompts, context } = store.config    // 读取当前配置
+  const runtime = store.runtime[sessionID]               // 读取当前运行时状态
+  let hint = ''                                          // 临时工具提醒，只参与一轮
   let textCount = 0                                      // 连续纯文本轮次计数
 
   while (!signal.aborted) {
-    let [built, tokens] = Context.build(messages, context) // 构建发送给模型的消息视图
+    let [built, tokens] = Context.build(messages, context)
 
-    if (provider.maxTokens && tokens > provider.maxTokens) { // token 超模型上下文阈值时触发压缩
+    if (provider.maxTokens && tokens > provider.maxTokens) { // token 超阈值时压缩
       const summaryMsg = await Summary.generate(built, { url: provider.api, key: provider.key, model })
       if (summaryMsg) {
-        messages.push(summaryMsg)                        // 摘要追加到 messages
-        ;[built, tokens] = Context.build(messages, context) // 重新构建视图
+        messages.push(summaryMsg)
+        ;[built, tokens] = Context.build(messages, context)
       }
     }
 
     const input = hint ? [...built, { role: 'user', content: [{ type: 'text', text: hint }] }] : built
 
     const answer = await Retry.run(async () => {
-      const messageId = Message.id()                     // 每次重试使用独立的流式消息身份
-
+      const messageId = Message.id()
       const result = await LLM.chat({
-        url: provider.api,
-        key: provider.key,
-        model,
+        url: provider.api, key: provider.key, model,
         system: prompts.system,
         messages: input,
         tools: store.tools,
         signal,
-        onEvent(type, data) {
-          onEvent?.(type, { messageId, ...data })
-        },
+        onEvent(type, data) { onEvent?.(type, { messageId, ...data }) },
       })
       return { ...result, messageId }
     }, {
       signal,
-      onRetry: onRetry ? ({ attempt, delay, error }) => onRetry({ attempt, delay, error: errorMessage(error) }) : undefined,
+      onRetry: onRetry ? ({ attempt, delay, error }) => onRetry({ attempt, delay, error: error?.message ?? String(error) }) : undefined,
     })
     hint = ''
 
     const assistant = Message.assistant(answer.contentBlocks)
-    assistant.id = answer.messageId                       // 使用流式阶段已广播的消息 ID
-    if (answer.usage) assistant.usage = answer.usage      // 保存 token 用量供前端展示和下次 build 计算
-    await onReply?.(assistant)                            // 通知调用方：助手消息已生成（SSE 实时推送）
+    assistant.id = answer.messageId
+    if (answer.usage) assistant.usage = answer.usage      // 保存 token 用量供前端展示
+    onReply?.(assistant)
 
     if (answer.toolCalls.length === 0) {
-      messages.push(assistant)                           // 纯文本立即入列（已是完整消息）
+      messages.push(assistant)                           // 纯文本立即入列
       textCount += 1
-      if (textCount >= 3) return                          // 连续三次纯文本 → 结束任务
-      if (textCount === 2) hint = prompts.tool            // 第二次 → 下轮提醒使用工具
+      if (textCount >= 3) return                          // 连续三次纯文本 → 退出
+      if (textCount === 2) hint = prompts.tool
       continue
     }
 
-    textCount = 0                                        // 有工具调用 → 重置计数
+    textCount = 0
+    const decisions = await Approval.wait(runtime, answer.toolCalls, signal) // 审批
+    if (signal.aborted) return
 
-    const decisions = await Approval.wait(session, answer.toolCalls, signal) // 等待审批结果
-    if (signal.aborted) return                           // stop 期间全被拒绝后直接退出
+    const approved = decisions.filter((d) => d.approved)
+    const rejected = decisions.filter((d) => !d.approved)
+    const rejectedResults = rejected.map((d) => Message.result(d.toolCall, '用户拒绝执行该工具', true))
 
-    const approved = decisions.filter((d) => d.approved) // 通过的工具列表
-    const rejected = decisions.filter((d) => !d.approved) // 被拒的工具列表
-
-    const rejectedResults = rejected.map((d) => toolResult(d.toolCall, '用户拒绝执行该工具', true)) // 被拒的直接构造错误结果
-    let executedResults = { results: [], shouldStop: false }
-    if (approved.length > 0) {
-      executedResults = await execute(approved.map((d) => d.toolCall)) // 只执行通过审批的工具
+    let executedResults = []
+    let shouldStop = false
+    for (const { toolCall } of approved) {               // 逐个执行通过审批的工具
+      const execution = Tool.execute(toolCall.toolName, toolCall.input, {
+        onOutput: (chunk) => SSE.broadcast(runtime.clients, 'tool-output', { toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: chunk }),
+      })
+      runtime.tools.add(execution)
+      const value = await execution.result
+      runtime.tools.delete(execution)
+      executedResults.push(Message.result(toolCall, value.output, value.isError))
+      if (value.stop) shouldStop = true
     }
 
-    const allResults = [...rejectedResults, ...executedResults.results] // 合并全部结果
+    const allResults = [...rejectedResults, ...executedResults]
     const toolMessage = Message.tool(allResults)
-    messages.push(assistant, toolMessage)                 // assistant + tool-result 配对入列
-    await onTools?.(toolMessage, allResults)              // 通知调用方：工具结果已生成
-    if (executedResults.shouldStop) return                // finish 工具 → 结束任务
+    messages.push(assistant, toolMessage)                 // 配对入列
+    await onTools?.(toolMessage, allResults)
+    if (shouldStop) return
   }
 }
 

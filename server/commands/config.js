@@ -1,59 +1,40 @@
 /*
-配置指令集：加载、读取、合并并保存模型供应商和提示词配置。
-工具由 Tool.scan 在启动时扫描，既不读取也不写入 config.json。
-调用示例：await Config.load('C:/Users/me/.agent/config.json')、await Config.update({ prompts: { system: '你是编程助手' } })。
+配置指令集：读取和更新全局配置。
+启动时由 server.js 从文件加载配置覆盖 store.config，本文件只负责运行时的读写操作。
+调用示例：Config.get()、Config.update({ provider: { api: '...' } })。
 */
-import { mkdir } from 'node:fs/promises'              // 引入首次运行时创建配置目录的能力
-import { dirname } from 'node:path'                   // 引入配置文件父目录定位能力
-import { Mutex } from 'async-mutex'                   // 引入互斥锁保证配置修改串行
-import { store } from '../store.js'                   // 引入唯一配置数据
-import { File } from '../utils/file.js'                // 引入完整文件替换能力
+import { store } from '../store.js'                      // 引入配置数据
+import { File } from '../utils/file.js'                  // 引入原子写文件能力
 
-let filepath = ''                                     // 保存当前进程使用的配置文件位置
-const mutex = new Mutex()                             // 配置修改互斥：后一个修改等前一个完成
-
-
-// --- 加载配置 ---
-async function load(filePath) {
-  filepath = filePath                                  // 后续保存始终写回同一个文件
-  await mkdir(dirname(filepath), { recursive: true })   // 首次启动时创建 .agent 目录
-  const file = Bun.file(filepath)                   // 定位配置文件
-  const exists = await file.exists()                  // 记录是否需要创建配置文件
-  const candidate = exists ? await file.json() : structuredClone(store.config) // 首次启动复制 store 中的唯一默认配置
-  if (!exists) await save(candidate)                  // 首次运行只写入一份默认配置
-  store.config = candidate                            // 加载成功后提交全局配置
-  return get()                                        // 返回独立副本供启动流程使用
-}
+let filepath = ''                                        // 配置文件路径，启动时设定
 
 
 // --- 读取配置 ---
 function get() {
-  return structuredClone(store.config)               // 防止路由绕过 Config.update 修改全局数据
+  return store.config
 }
 
 
 // --- 更新配置 ---
-function update(partialConfig = {}) {
-  const changes = structuredClone(partialConfig)      // 调用方后续修改请求体不能影响排队内容
-  return mutex.runExclusive(async () => {             // 互斥保证并发修改按顺序合并
-    const candidate = {
-      provider: { ...store.config.provider, ...structuredClone(changes.provider ?? {}) },
-      prompts: { ...store.config.prompts, ...structuredClone(changes.prompts ?? {}) },
-      approval: { ...store.config.approval, ...structuredClone(changes.approval ?? {}) },
-      context: { ...store.config.context, ...structuredClone(changes.context ?? {}) },
-    }
-    await save(candidate)                             // 候选配置先持久化
-    store.config = candidate                          // 写盘成功后替换全局配置
-    return get()                                      // 返回修改后的完整配置
-  })
+async function update(partial = {}) {
+  store.config = {
+    provider: { ...store.config.provider, ...(partial.provider ?? {}) },
+    prompts: { ...store.config.prompts, ...(partial.prompts ?? {}) },
+    permission: { ...store.config.permission, ...(partial.permission ?? {}) },
+    mcp: { ...store.config.mcp, ...(partial.mcp ?? {}) },
+  }
+  await File.write(filepath, JSON.stringify(store.config, null, 2) + '\n')
+  return store.config
 }
 
 
-// --- 保存配置 ---
-async function save(value = store.config) {
-  if (!filepath) throw new Error('configuration has not been loaded') // 未加载时没有合法写入位置
-  await File.write(filepath, `${JSON.stringify(value, null, 2)}\n`) // 配置自行序列化后完整替换文件
+// --- 设定文件路径并加载（server.js 启动时调用）---
+async function load(filePath) {
+  filepath = filePath
+  const file = Bun.file(filepath)
+  if (await file.exists()) store.config = await file.json()
+  else await File.write(filepath, JSON.stringify(store.config, null, 2) + '\n')
 }
 
 
-export const Config = { load, get, update, save }       // 导出配置的全部最小动作
+export const Config = { get, update, load }
