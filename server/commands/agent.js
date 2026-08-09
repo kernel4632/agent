@@ -1,7 +1,7 @@
 /*
-Agent 指令集：发送消息启动循环、停止运行、批准工具执行、建立 SSE 连接。
+Agent 指令集：发送消息启动循环、停止运行、批准工具执行。
 Agent 操作运行时状态 store.runtime[id]，通过 Loop 驱动模型对话。
-调用示例：Agent.send('session-xxx', '分析代码')、Agent.stop('session-xxx')、Agent.approve('session-xxx', 'call_abc', true)、Agent.connect('session-xxx')。
+调用示例：Agent.send('session-xxx', '分析代码')、Agent.stop('session-xxx')、Agent.approve('session-xxx', 'call_abc', true)。
 */
 import { store } from '../store.js'                      // 引入会话和运行时数据
 import { Loop } from '../features/loop.js'               // 引入 Agent 循环引擎
@@ -52,9 +52,9 @@ async function send(sessionID, content) {
       SSE.broadcast(runtime.clients, 'status', { status: 'idle' })
     },
     async (error) => {
-      runtime.status = 'idle'                            // 无论什么错误，状态回到 idle
+      runtime.status = 'idle'
       runtime.controller = null
-      if (!controller.signal.aborted) SSE.broadcast(runtime.clients, 'error', { message: error?.message ?? String(error) }) // 非主动停止时通知前端
+      if (!controller.signal.aborted) SSE.broadcast(runtime.clients, 'error', { message: error?.message ?? String(error) })
       await Session.save(sessionID)
       SSE.broadcast(runtime.clients, 'status', { status: 'idle' })
     },
@@ -79,17 +79,6 @@ async function executeTool(runtime, toolCall, signal) {
 }
 
 
-// --- 建立 SSE 连接 ---
-function connect(sessionID) {
-  const runtime = store.runtime[sessionID]
-  const { client, response } = SSE.connect((c) => runtime.clients.delete(c))
-  const controller = client()                            // 取一次控制器引用
-  runtime.clients.add(controller)
-  SSE.send(controller, 'sync', { status: runtime.status, messageCount: store.sessions[sessionID]?.messages?.length ?? 0 })
-  return response
-}
-
-
 // --- 停止运行 ---
 async function stop(sessionID) {
   const runtime = store.runtime[sessionID]
@@ -106,4 +95,4 @@ function approve(sessionID, toolCallId, approved) {
 }
 
 
-export const Agent = { send, stop, approve, connect }
+export const Agent = { send, stop, approve }

@@ -29,10 +29,5 @@ export const store = {
   workspaces: {},                                         // 工作区 KV：{ [id]: { path, sessions: [{ id, title, lastActiveAt }] } }
   sessions: {},                                           // 会话 KV：{ [id]: { messages, provider, model } }
   tools: {},                                              // 启动时扫描得到的 LLM 工具定义
-  runtime: new Proxy({}, {                                // 运行时状态 KV：首次访问自动创建默认结构
-    get(target, id) {
-      if (!target[id]) target[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
-      return target[id]
-    },
-  }),
+  runtime: {},                                            // 运行时状态 KV：Session.create/get 时显式创建 { [id]: { status, controller, clients, tools, approvals } }
 }

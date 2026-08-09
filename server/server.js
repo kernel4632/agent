@@ -41,7 +41,7 @@ export async function createApp(options = {}) {
     .post('/agent/send', ({ body }) => Agent.send(body?.id, body?.content))
     .post('/agent/stop', ({ body }) => Agent.stop(body?.id))
     .post('/agent/approve', ({ body }) => Agent.approve(body?.id, body?.toolCallId, body?.approved))
-    .get('/sse', ({ query }) => Agent.connect(query.id))
+    .get('/sse', ({ query }) => Session.connect(query.id))
     .post('/title', ({ body }) => Title.generate(body?.id, body?.prompt))
     .onError(({ code, error, set }) => {
       if (code === 'NOT_FOUND') { set.status = 404; return { error: 'Not Found' } }
