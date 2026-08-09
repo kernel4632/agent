@@ -24,27 +24,21 @@ function build(messages, { head = 3, tail = 3 } = {}) {
 
   let tokens = 0
   const built = view.map((msg) => {
-    tokens += estimate(msg)                              // 累加每条消息的 token 量
+    let text = ''                                        // 提取消息文本用于 token 计算
+    if (typeof msg.content === 'string') text = msg.content
+    else if (Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part.type === 'text') text += part.text ?? ''
+        else if (part.type === 'tool-call') text += JSON.stringify(part.input ?? '')
+        else if (part.type === 'tool-result') text += typeof part.output?.value === 'string' ? part.output.value : JSON.stringify(part.output?.value ?? '')
+      }
+    }
+    tokens += Token.count(text) + 4                      // +4 为消息头开销
     const { summary, usage, ...clean } = msg             // 剥掉非标准字段
     return clean
   })
 
   return [built, tokens]
-}
-
-
-// --- 估算单条消息 token 数 ---
-function estimate(message) {
-  let text = ''
-  if (typeof message.content === 'string') text = message.content
-  else if (Array.isArray(message.content)) {
-    for (const part of message.content) {
-      if (part.type === 'text') text += part.text ?? ''
-      else if (part.type === 'tool-call') text += JSON.stringify(part.input ?? '')
-      else if (part.type === 'tool-result') text += typeof part.output?.value === 'string' ? part.output.value : JSON.stringify(part.output?.value ?? '')
-    }
-  }
-  return Token.count(text) + 4                           // +4 为消息头开销
 }
 
 

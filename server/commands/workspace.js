@@ -21,7 +21,7 @@ function list() {
 async function add(path) {
   const id = `workspace-${nanoid(10)}`
   store.workspaces[id] = { path: resolve(path), sessions: [] }
-  await File.write(filepath, JSON.stringify(store.workspaces, null, 2) + '\n')
+  await save()
   return { id, ...store.workspaces[id] }
 }
 
@@ -29,8 +29,14 @@ async function add(path) {
 // --- 移除工作区 ---
 async function remove(id) {
   delete store.workspaces[id]
-  await File.write(filepath, JSON.stringify(store.workspaces, null, 2) + '\n')
+  await save()
   return { id }
+}
+
+
+// --- 保存工作区到磁盘 ---
+async function save() {
+  await File.write(filepath, JSON.stringify(store.workspaces, null, 2) + '\n')
 }
 
 
@@ -39,8 +45,8 @@ async function load(filePath) {
   filepath = filePath
   const file = Bun.file(filepath)
   if (await file.exists()) store.workspaces = await file.json()
-  else await File.write(filepath, JSON.stringify(store.workspaces, null, 2) + '\n')
+  else await save()                                      // 首次运行创建文件
 }
 
 
-export const Workspace = { list, add, remove, load }
+export const Workspace = { list, add, remove, save, load }

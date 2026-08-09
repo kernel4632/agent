@@ -11,12 +11,18 @@ import { SSE } from '../utils/sse.js'                    // 引入 SSE 广播能
 import { Session } from './session.js'                   // 引入会话保存能力
 
 
+// --- 确保运行时存在 ---
+function ensureRuntime(id) {
+  if (!store.runtime[id]) store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
+  return store.runtime[id]
+}
+
+
 // --- 发送消息 ---
 async function send(sessionID, content) {
-  if (!store.sessions[sessionID]) await Session.get(sessionID) // 确保会话已加载到内存
-  const session = store.sessions[sessionID]              // 直接操作 store 中的真实数据
-  if (!store.runtime[sessionID]) store.runtime[sessionID] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
-  const runtime = store.runtime[sessionID]
+  if (!store.sessions[sessionID]) await Session.get(sessionID)
+  const session = store.sessions[sessionID]
+  const runtime = ensureRuntime(sessionID)
 
   const message = Message.user(content)                  // 构造用户消息
   session.messages.push(message)                         // 存入会话历史
@@ -44,8 +50,20 @@ async function send(sessionID, content) {
       await Session.save(sessionID)
     },
   }).then(
-    () => finish(sessionID),
-    (error) => finish(sessionID, error),
+    async () => {                                        // 循环正常结束
+      runtime.status = 'idle'
+      runtime.controller = null
+      await Session.save(sessionID)
+      SSE.broadcast(runtime.clients, 'status', { status: 'idle' })
+    },
+    async (error) => {                                   // 循环异常结束
+      const stopped = controller.signal.aborted
+      runtime.status = (error && !stopped) ? 'error' : 'idle'
+      runtime.controller = null
+      if (error && !stopped) SSE.broadcast(runtime.clients, 'error', { message: error?.message ?? String(error) })
+      await Session.save(sessionID)
+      SSE.broadcast(runtime.clients, 'status', { status: runtime.status })
+    },
   )
 
   return { messageId: message.id }
@@ -65,18 +83,6 @@ async function stop(sessionID) {
 // --- 批准/拒绝工具 ---
 function approve(sessionID, toolCallId, approved) {
   Approval.answer(store.runtime[sessionID], toolCallId, approved)
-}
-
-
-// --- 循环结束后收尾 ---
-async function finish(sessionID, error) {
-  const runtime = store.runtime[sessionID]
-  const stopped = runtime.controller?.signal.aborted
-  runtime.status = (error && !stopped) ? 'error' : 'idle'
-  runtime.controller = null
-  if (error && !stopped) SSE.broadcast(runtime.clients, 'error', { message: error?.message ?? String(error) })
-  await Session.save(sessionID)
-  SSE.broadcast(runtime.clients, 'status', { status: runtime.status })
 }
 
 

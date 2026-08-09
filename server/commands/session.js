@@ -8,6 +8,7 @@ import { rm } from 'node:fs/promises'                    // 引入文件删除�
 import { nanoid } from 'nanoid'                          // 引入唯一 ID 生成能力
 import { store } from '../store.js'                      // 引入会话和工作区数据
 import { File } from '../utils/file.js'                  // 引入原子写文件能力
+import { Workspace } from './workspace.js'               // 引入工作区保存能力
 
 let directory = ''                                       // 会话文件目录，启动时设定
 
@@ -17,7 +18,7 @@ async function get(id) {
   if (store.sessions[id]) return { id, ...store.sessions[id] }
   const file = Bun.file(join(directory, `${id}.json`))
   if (!await file.exists()) return null
-  store.sessions[id] = await file.json()
+  store.sessions[id] = await file.json()                 // 从磁盘加载到内存
   return { id, ...store.sessions[id] }
 }
 
@@ -25,27 +26,27 @@ async function get(id) {
 // --- 创建会话 ---
 async function create(workspaceId, provider, model) {
   const id = `session-${nanoid(10)}`
-  store.sessions[id] = { messages: [], provider, model } // 写入内存
-  store.workspaces[workspaceId].sessions.push({ id, title: '新对话', lastActiveAt: Date.now() }) // 在工作区摘要里添加
-  await save(id)                                         // 持久化会话文件
-  await File.write(join(directory, '..', 'workspace.json'), JSON.stringify(store.workspaces, null, 2) + '\n') // 持久化工作区
+  store.sessions[id] = { messages: [], provider, model }
+  store.workspaces[workspaceId].sessions.push({ id, title: '新对话', lastActiveAt: Date.now() })
+  await save(id)
+  await Workspace.save()                                 // 通过 Workspace 集中保存，不自己拼路径
   return { id, ...store.sessions[id] }
 }
 
 
 // --- 修改会话 ---
 async function update(id, { title, provider, model } = {}) {
-  if (!store.sessions[id]) await get(id)                 // 确保会话已加载到内存
+  if (!store.sessions[id]) await get(id)
   const session = store.sessions[id]
-  if (provider !== undefined) session.provider = provider // 修改供应商
-  if (model !== undefined) session.model = model         // 修改模型
+  if (provider !== undefined) session.provider = provider
+  if (model !== undefined) session.model = model
 
-  if (title !== undefined) {                             // 修改标题（存在工作区摘要里）
+  if (title !== undefined) {
     for (const workspace of Object.values(store.workspaces)) {
       const found = workspace.sessions.find((s) => s.id === id)
       if (found) { found.title = title; found.lastActiveAt = Date.now(); break }
     }
-    await File.write(join(directory, '..', 'workspace.json'), JSON.stringify(store.workspaces, null, 2) + '\n')
+    await Workspace.save()
   }
   await save(id)
   return { id, ...session }
@@ -54,13 +55,13 @@ async function update(id, { title, provider, model } = {}) {
 
 // --- 删除会话 ---
 async function remove(id) {
-  await rm(join(directory, `${id}.json`), { force: true }) // 删除文件
-  delete store.sessions[id]                              // 从内存移除
-  delete store.runtime[id]                               // 清除运行时状态
+  await rm(join(directory, `${id}.json`), { force: true })
+  delete store.sessions[id]
+  delete store.runtime[id]
   for (const workspace of Object.values(store.workspaces)) {
     workspace.sessions = workspace.sessions.filter((s) => s.id !== id)
   }
-  await File.write(join(directory, '..', 'workspace.json'), JSON.stringify(store.workspaces, null, 2) + '\n')
+  await Workspace.save()
   return { id }
 }
 

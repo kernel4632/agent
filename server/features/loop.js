@@ -74,11 +74,14 @@ async function run({ sessionID, messages, model, signal, onEvent, onReply, onToo
 
     let executedResults = []
     let shouldStop = false
-    for (const { toolCall } of approved) {               // 逐个执行通过审批的工具
+    const executions = approved.map(({ toolCall }) => {   // 并行启动所有通过审批的工具
       const execution = Tool.execute(toolCall.toolName, toolCall.input, {
         onOutput: (chunk) => SSE.broadcast(runtime.clients, 'tool-output', { toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: chunk }),
       })
       runtime.tools.add(execution)
+      return { toolCall, execution }
+    })
+    for (const { toolCall, execution } of executions) {  // 按顺序收集结果（工具本身已并行执行）
       const value = await execution.result
       runtime.tools.delete(execution)
       executedResults.push(Message.result(toolCall, value.output, value.isError))

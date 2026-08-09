@@ -58,7 +58,7 @@ export async function createApp(options = {}) {
       return response
     })
 
-    .post('/title', ({ body }) => Title.generate(body?.id, body?.prompt, { dataDirectory }))
+    .post('/title', ({ body }) => Title.generate(body?.id, body?.prompt))
 
     .onError(({ code, error, set }) => {
       if (code === 'NOT_FOUND') { set.status = 404; return { error: 'Not Found' } }
