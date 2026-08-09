@@ -1,11 +1,10 @@
 /*
 标题生成功能：用用户的第一句话调 LLM 生成一个简短的会话标题。
-生成后更新工作区摘要数据、保存到磁盘、并通过 SSE 通知前端。
+生成后更新工作区摘要数据、保存到磁盘、返回标题。
 调用示例：await Title.generate('session-xxx', '帮我分析性能问题')。
 */
 import { store } from '../store.js'                      // 引入配置和工作区数据
 import { LLM } from '../utils/llm.js'                    // 引入 LLM 流式请求能力
-import { SSE } from '../utils/sse.js'                    // 引入 SSE 广播能力
 import { Workspace } from '../commands/workspace.js'     // 引入工作区保存能力
 
 const SYSTEM = '根据用户发送的第一条消息生成一个简短的会话标题。要求：不超过15个字，只返回标题文本，不加引号，不加标点，不解释。'
@@ -26,11 +25,10 @@ async function generate(sessionID, prompt) {
 
   for (const workspace of Object.values(store.workspaces)) {
     const found = workspace.sessions.find((s) => s.id === sessionID)
-    if (found) { found.title = title; break }            // 更新 store 中的摘要标题
+    if (found) { found.title = title; break }
   }
 
-  await Workspace.save()                                 // 持久化工作区数据
-  SSE.broadcast(store.runtime[sessionID].clients, 'title', { title }) // 通知前端
+  await Workspace.save()
   return { title }
 }
 
