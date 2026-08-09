@@ -5,6 +5,11 @@
 */
 
 export const store = {
+  paths: {
+    sessions: '',                                         // 会话文件目录，启动时设定
+    config: '',                                           // 配置文件路径，启动时设定
+    workspace: '',                                        // 工作区文件路径，启动时设定
+  },
   config: {
     provider: {
       api: '',                                            // 模型 API 地址

@@ -10,13 +10,11 @@ import { store } from '../store.js'                      // 引入会话和工�
 import { File } from '../utils/file.js'                  // 引入原子写文件能力
 import { Workspace } from './workspace.js'               // 引入工作区保存能力
 
-let directory = ''                                       // 会话文件目录，启动时设定
-
 
 // --- 获取会话 ---
 async function get(id) {
   if (store.sessions[id]) return { id, ...store.sessions[id] }
-  const file = Bun.file(join(directory, `${id}.json`))
+  const file = Bun.file(join(store.paths.sessions, `${id}.json`))
   if (!await file.exists()) return null
   store.sessions[id] = await file.json()                 // 从磁盘加载到内存
   store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() } // 加载时创建运行时
@@ -31,7 +29,7 @@ async function create(workspaceId, provider, model) {
   store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
   store.workspaces[workspaceId].sessions.push({ id, title: '新对话', lastActiveAt: Date.now() })
   await save(id)
-  await Workspace.save()                                 // 通过 Workspace 集中保存，不自己拼路径
+  await Workspace.save()
   return { id, ...store.sessions[id] }
 }
 
@@ -57,7 +55,13 @@ async function update(id, { title, provider, model } = {}) {
 
 // --- 删除会话 ---
 async function remove(id) {
-  await rm(join(directory, `${id}.json`), { force: true })
+  const runtime = store.runtime[id]
+  if (runtime?.status === 'running') {                    // 运行中先中止
+    runtime.controller?.abort(new DOMException('session removed', 'AbortError'))
+    for (const execution of runtime.tools) execution.abort()
+    await Promise.allSettled([...runtime.tools].map((e) => e.result))
+  }
+  await rm(join(store.paths.sessions, `${id}.json`), { force: true })
   delete store.sessions[id]
   delete store.runtime[id]
   for (const workspace of Object.values(store.workspaces)) {
@@ -70,13 +74,7 @@ async function remove(id) {
 
 // --- 保存单个会话到磁盘 ---
 async function save(id) {
-  await File.write(join(directory, `${id}.json`), JSON.stringify(store.sessions[id], null, 2) + '\n')
-}
-
-
-// --- 设定会话文件目录（server.js 启动时调用一次）---
-export function setDirectory(dir) {
-  directory = dir
+  await File.write(join(store.paths.sessions, `${id}.json`), JSON.stringify(store.sessions[id], null, 2) + '\n')
 }
 
 

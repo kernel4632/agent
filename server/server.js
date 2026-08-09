@@ -1,6 +1,6 @@
 /*
-Agent Server 入口：加载持久化数据，注册全部路由。
-路由只提取参数并调用 commands/features，不做任何业务逻辑。
+Agent Server 入口：设定路径、加载持久化数据、注册路由。
+每条路由只做参数提取和方法调用，不包含任何业务逻辑。
 调用示例：const { app, close } = await createApp({ dataDirectory }); app.listen(4632)。
 */
 import { mkdir } from 'node:fs/promises'                 // 引入目录创建能力
@@ -9,59 +9,40 @@ import { Elysia } from 'elysia'                          // 引入 HTTP 服务�
 import { store } from './store.js'                        // 引入全局数据
 import { Config } from './commands/config.js'             // 引入配置指令
 import { Workspace } from './commands/workspace.js'       // 引入工作区指令
-import { Session, setDirectory as setSessionDirectory } from './commands/session.js' // 引入会话指令
+import { Session } from './commands/session.js'           // 引入会话指令
 import { Agent } from './commands/agent.js'               // 引入 Agent 指令
 import { Title } from './features/title.js'               // 引入标题生成功能
 import { Tool } from './utils/tool.js'                    // 引入工具扫描能力
-import { SSE } from './utils/sse.js'                      // 引入 SSE 连接能力
 
 
 // --- 创建应用 ---
 export async function createApp(options = {}) {
   const dataDirectory = resolve(options.dataDirectory ?? process.env.AGENT_DATA_DIR ?? join(process.env.USERPROFILE ?? '.', '.agent'))
-  await mkdir(join(dataDirectory, 'sessions'), { recursive: true }) // 确保会话目录存在
+  store.paths.sessions = join(dataDirectory, 'sessions')
+  store.paths.config = join(dataDirectory, 'config.json')
+  store.paths.workspace = join(dataDirectory, 'workspace.json')
+  await mkdir(store.paths.sessions, { recursive: true }) // 确保会话目录存在
 
-  store.tools = await Tool.scan(options.toolsDirectory ?? join(import.meta.dir, 'tools')) // 扫描工具
-  await Config.load(join(dataDirectory, 'config.json'))   // 加载配置
-  await Workspace.load(join(dataDirectory, 'workspace.json')) // 加载工作区
-  setSessionDirectory(join(dataDirectory, 'sessions'))    // 设定会话文件目录
+  store.tools = await Tool.scan(options.toolsDirectory ?? join(import.meta.dir, 'tools'))
+  await Config.load()
+  await Workspace.load()
 
   const app = new Elysia({ name: 'agent.server' })
     .get('/health', () => ({ status: 'ok' }))
-
     .get('/config', () => Config.get())
     .patch('/config', ({ body }) => Config.update(body))
-
     .get('/workspace', () => Workspace.list())
     .post('/workspace', ({ body }) => Workspace.add(body?.path))
     .delete('/workspace', ({ query }) => Workspace.remove(query.id))
-
     .get('/session', ({ query }) => Session.get(query.id))
     .post('/session', ({ body }) => Session.create(body?.workspaceId, body?.provider, body?.model))
     .patch('/session', ({ body }) => Session.update(body?.id, body))
-    .delete('/session', async ({ query }) => {
-      if (store.runtime[query.id]?.status === 'running') await Agent.stop(query.id) // 运行中先停
-      return Session.remove(query.id)
-    })
-
+    .delete('/session', ({ query }) => Session.remove(query.id))
     .post('/agent/send', ({ body }) => Agent.send(body?.id, body?.content))
     .post('/agent/stop', ({ body }) => Agent.stop(body?.id))
     .post('/agent/approve', ({ body }) => Agent.approve(body?.id, body?.toolCallId, body?.approved))
-
-    .get('/sse', ({ query }) => {                          // 建立 SSE 连接
-      const runtime = store.runtime[query.id]
-      const { client, response } = SSE.connect((c) => runtime.clients.delete(c))
-      runtime.clients.add(client())
-      SSE.send(client(), 'sync', { status: runtime.status, messageCount: store.sessions[query.id]?.messages?.length ?? 0 })
-      return response
-    })
-
-    .post('/title', async ({ body }) => {
-      const title = await Title.generate(body?.id, body?.prompt)
-      await Workspace.save()                              // 标题更新后保存工作区
-      return { title }
-    })
-
+    .get('/sse', ({ query }) => Agent.connect(query.id))
+    .post('/title', ({ body }) => Title.generate(body?.id, body?.prompt))
     .onError(({ code, error, set }) => {
       if (code === 'NOT_FOUND') { set.status = 404; return { error: 'Not Found' } }
       set.status = error.status ?? 500

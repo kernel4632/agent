@@ -1,7 +1,7 @@
 /*
-Agent 指令集：发送消息启动循环、停止运行、批准工具执行。
+Agent 指令集：发送消息启动循环、停止运行、批准工具执行、建立 SSE 连接。
 Agent 操作运行时状态 store.runtime[id]，通过 Loop 驱动模型对话。
-调用示例：Agent.send('session-xxx', '分析代码')、Agent.stop('session-xxx')、Agent.approve('session-xxx', 'call_abc', true)。
+调用示例：Agent.send('session-xxx', '分析代码')、Agent.stop('session-xxx')、Agent.approve('session-xxx', 'call_abc', true)、Agent.connect('session-xxx')。
 */
 import { store } from '../store.js'                      // 引入会话和运行时数据
 import { Loop } from '../features/loop.js'               // 引入 Agent 循环引擎
@@ -74,6 +74,16 @@ async function send(sessionID, content) {
 }
 
 
+// --- 建立 SSE 连接 ---
+function connect(sessionID) {
+  const runtime = store.runtime[sessionID]
+  const { client, response } = SSE.connect((c) => runtime.clients.delete(c))
+  runtime.clients.add(client())
+  SSE.send(client(), 'sync', { status: runtime.status, messageCount: store.sessions[sessionID]?.messages?.length ?? 0 })
+  return response
+}
+
+
 // --- 停止运行 ---
 async function stop(sessionID) {
   const runtime = store.runtime[sessionID]
@@ -90,4 +100,4 @@ function approve(sessionID, toolCallId, approved) {
 }
 
 
-export const Agent = { send, stop, approve }
+export const Agent = { send, stop, approve, connect }

@@ -8,8 +8,6 @@ import { nanoid } from 'nanoid'                          // 引入唯一 ID 生�
 import { store } from '../store.js'                      // 引入工作区数据
 import { File } from '../utils/file.js'                  // 引入原子写文件能力
 
-let filepath = ''                                        // 工作区文件路径，启动时设定
-
 
 // --- 列出全部工作区 ---
 function list() {
@@ -36,16 +34,15 @@ async function remove(id) {
 
 // --- 保存工作区到磁盘 ---
 async function save() {
-  await File.write(filepath, JSON.stringify(store.workspaces, null, 2) + '\n')
+  await File.write(store.paths.workspace, JSON.stringify(store.workspaces, null, 2) + '\n')
 }
 
 
-// --- 设定文件路径并加载（server.js 启动时调用）---
-async function load(filePath) {
-  filepath = filePath
-  const file = Bun.file(filepath)
+// --- 从文件加载（server.js 启动时调用）---
+async function load() {
+  const file = Bun.file(store.paths.workspace)
   if (await file.exists()) store.workspaces = await file.json()
-  else await save()                                      // 首次运行创建文件
+  else await save()
 }
 
 

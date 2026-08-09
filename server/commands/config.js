@@ -6,8 +6,6 @@
 import { store } from '../store.js'                      // 引入配置数据
 import { File } from '../utils/file.js'                  // 引入原子写文件能力
 
-let filepath = ''                                        // 配置文件路径，启动时设定
-
 
 // --- 读取配置 ---
 function get() {
@@ -23,17 +21,16 @@ async function update(partial = {}) {
     permission: { ...store.config.permission, ...(partial.permission ?? {}) },
     mcp: { ...store.config.mcp, ...(partial.mcp ?? {}) },
   }
-  await File.write(filepath, JSON.stringify(store.config, null, 2) + '\n')
+  await File.write(store.paths.config, JSON.stringify(store.config, null, 2) + '\n')
   return store.config
 }
 
 
-// --- 设定文件路径并加载（server.js 启动时调用）---
-async function load(filePath) {
-  filepath = filePath
-  const file = Bun.file(filepath)
+// --- 从文件加载（server.js 启动时调用）---
+async function load() {
+  const file = Bun.file(store.paths.config)
   if (await file.exists()) store.config = await file.json()
-  else await File.write(filepath, JSON.stringify(store.config, null, 2) + '\n')
+  else await File.write(store.paths.config, JSON.stringify(store.config, null, 2) + '\n')
 }
 
 
