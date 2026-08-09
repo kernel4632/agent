@@ -32,17 +32,7 @@ async function send(sessionID, content) {
     messages: session.messages,
     model: session.model,
     signal: controller.signal,
-    execute: (toolCalls) => Promise.all(toolCalls.map(async (toolCall) => {
-      const allowed = await Approval.check(runtime, toolCall, controller.signal) // 审批
-      if (!allowed) return { result: Message.result(toolCall, '用户拒绝执行该工具', true), stop: false }
-      const execution = Tool.execute(toolCall.toolName, toolCall.input, {
-        onOutput: (chunk) => SSE.broadcast(runtime.clients, 'tool-output', { toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: chunk }),
-      })
-      runtime.tools.add(execution)
-      const value = await execution.result
-      runtime.tools.delete(execution)
-      return { result: Message.result(toolCall, value.output, value.isError), stop: value.stop }
-    })),
+    execute: (toolCalls) => Promise.all(toolCalls.map((tc) => executeTool(runtime, tc, controller.signal))),
     onEvent: (type, data) => SSE.broadcast(runtime.clients, type, data),
     onRetry: ({ attempt, delay, error }) => SSE.broadcast(runtime.clients, 'error', { message: error, attempt, nextRetryIn: delay }),
     onReply(assistant) {
@@ -74,12 +64,28 @@ async function send(sessionID, content) {
 }
 
 
+// --- 执行单个工具（含审批和 SSE 推送）---
+async function executeTool(runtime, toolCall, signal) {
+  const allowed = await Approval.check(runtime, toolCall, signal)
+  if (!allowed) return { result: Message.result(toolCall, '用户拒绝执行该工具', true), stop: false }
+
+  const execution = Tool.execute(toolCall.toolName, toolCall.input, {
+    onOutput: (chunk) => SSE.broadcast(runtime.clients, 'tool-output', { toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, output: chunk }),
+  })
+  runtime.tools.add(execution)
+  const value = await execution.result
+  runtime.tools.delete(execution)
+  return { result: Message.result(toolCall, value.output, value.isError), stop: value.stop }
+}
+
+
 // --- 建立 SSE 连接 ---
 function connect(sessionID) {
   const runtime = store.runtime[sessionID]
   const { client, response } = SSE.connect((c) => runtime.clients.delete(c))
-  runtime.clients.add(client())
-  SSE.send(client(), 'sync', { status: runtime.status, messageCount: store.sessions[sessionID]?.messages?.length ?? 0 })
+  const controller = client()                            // 取一次控制器引用
+  runtime.clients.add(controller)
+  SSE.send(controller, 'sync', { status: runtime.status, messageCount: store.sessions[sessionID]?.messages?.length ?? 0 })
   return response
 }
 

@@ -16,8 +16,7 @@ async function get(id) {
   if (store.sessions[id]) return { id, ...store.sessions[id] }
   const file = Bun.file(join(store.paths.sessions, `${id}.json`))
   if (!await file.exists()) return null
-  store.sessions[id] = await file.json()                 // 从磁盘加载到内存
-  store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() } // 加载时创建运行时
+  store.sessions[id] = await file.json()                 // 从磁盘加载到内存，runtime 由 Proxy 自动创建
   return { id, ...store.sessions[id] }
 }
 
@@ -26,7 +25,6 @@ async function get(id) {
 async function create(workspaceId, provider, model) {
   const id = `session-${nanoid(10)}`
   store.sessions[id] = { messages: [], provider, model }
-  store.runtime[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
   store.workspaces[workspaceId].sessions.push({ id, title: '新对话', lastActiveAt: Date.now() })
   await save(id)
   await Workspace.save()

@@ -1,6 +1,7 @@
 /*
 全局数据中心：定义配置、工作区、会话和运行时四类数据结构。
 所有读写和持久化逻辑在 commands 和 features 中，本文件不提供方法。
+runtime 使用 Proxy 按需创建——session 存在 runtime 就跟随存在，首次访问自动初始化。
 调用示例：store.config.provider.api、store.sessions['session-xxx'].messages、store.runtime['session-xxx'].status。
 */
 
@@ -28,5 +29,10 @@ export const store = {
   workspaces: {},                                         // 工作区 KV：{ [id]: { path, sessions: [{ id, title, lastActiveAt }] } }
   sessions: {},                                           // 会话 KV：{ [id]: { messages, provider, model } }
   tools: {},                                              // 启动时扫描得到的 LLM 工具定义
-  runtime: {},                                            // 运行时状态 KV：{ [id]: { status, controller, clients, tools, approvals } }
+  runtime: new Proxy({}, {                                // 运行时状态 KV：首次访问自动创建默认结构
+    get(target, id) {
+      if (!target[id]) target[id] = { status: 'idle', controller: null, clients: new Set(), tools: new Set(), approvals: new Map() }
+      return target[id]
+    },
+  }),
 }
