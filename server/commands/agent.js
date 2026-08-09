@@ -17,6 +17,7 @@ async function send(sessionID, content) {
   if (!store.sessions[sessionID]) await Session.get(sessionID)
   const session = store.sessions[sessionID]
   const runtime = store.runtime[sessionID]
+  if (runtime.status === 'running') return                // 运行中不可重复发送
 
   const message = Message.user(content)                  // 构造用户消息
   session.messages.push(message)                         // 存入会话历史
@@ -51,12 +52,11 @@ async function send(sessionID, content) {
       SSE.broadcast(runtime.clients, 'status', { status: 'idle' })
     },
     async (error) => {
-      const stopped = controller.signal.aborted
-      runtime.status = (error && !stopped) ? 'error' : 'idle'
+      runtime.status = 'idle'                            // 无论什么错误，状态回到 idle
       runtime.controller = null
-      if (error && !stopped) SSE.broadcast(runtime.clients, 'error', { message: error?.message ?? String(error) })
+      if (!controller.signal.aborted) SSE.broadcast(runtime.clients, 'error', { message: error?.message ?? String(error) }) // 非主动停止时通知前端
       await Session.save(sessionID)
-      SSE.broadcast(runtime.clients, 'status', { status: runtime.status })
+      SSE.broadcast(runtime.clients, 'status', { status: 'idle' })
     },
   )
 

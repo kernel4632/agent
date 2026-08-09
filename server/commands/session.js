@@ -9,6 +9,7 @@ import { nanoid } from 'nanoid'                          // 引入唯一 ID 生�
 import { store } from '../store.js'                      // 引入会话和工作区数据
 import { File } from '../utils/file.js'                  // 引入原子写文件能力
 import { Workspace } from './workspace.js'               // 引入工作区保存能力
+import { Agent } from './agent.js'                       // 引入 Agent 停止能力
 
 
 // --- 获取会话 ---
@@ -53,12 +54,7 @@ async function update(id, { title, provider, model } = {}) {
 
 // --- 删除会话 ---
 async function remove(id) {
-  const runtime = store.runtime[id]
-  if (runtime?.status === 'running') {                    // 运行中先中止
-    runtime.controller?.abort(new DOMException('session removed', 'AbortError'))
-    for (const execution of runtime.tools) execution.abort()
-    await Promise.allSettled([...runtime.tools].map((e) => e.result))
-  }
+  if (store.runtime[id]?.status === 'running') await Agent.stop(id) // 运行中先停止
   await rm(join(store.paths.sessions, `${id}.json`), { force: true })
   delete store.sessions[id]
   delete store.runtime[id]
