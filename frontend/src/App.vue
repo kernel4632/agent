@@ -42,27 +42,30 @@ async function submitMessage(content) {
       />
 
       <main class="app-content">
-        <HomePage
-          v-if="store.ui.view === 'home'"
-          v-model:workspace-id="store.ui.activeWorkspaceID"
-          :workspaces="homeWorkspaces"
-          :conversations-by-workspace="conversationsByWorkspace"
-          @add-workspace="Workspace.add"
-          @select-conversation="Session.open($event.conversationId)"
-          @rename-conversation="Session.rename($event.conversationId, $event.title)"
-          @delete-conversation="Session.remove($event.conversationId)"
-        />
+        <Transition name="view" mode="out-in">
+          <HomePage
+            v-if="store.ui.view === 'home'"
+            key="home"
+            v-model:workspace-id="store.ui.activeWorkspaceID"
+            :workspaces="homeWorkspaces"
+            :conversations-by-workspace="conversationsByWorkspace"
+            @add-workspace="Workspace.add"
+            @select-conversation="Session.open($event.conversationId)"
+            @rename-conversation="Session.rename($event.conversationId, $event.title)"
+            @delete-conversation="Session.remove($event.conversationId)"
+          />
 
-        <section v-else-if="store.ui.view === 'chat'" class="chat-page">
-          <div class="chat-page__scroll">
-            <ConversationFlow />
-          </div>
-          <div class="chat-page__composer">
-            <ChatComposer :models="activeModels" :selected-model="activeSession?.model || activeModels[0]" @submit="submitMessage" />
-          </div>
-        </section>
+          <section v-else-if="store.ui.view === 'chat'" key="chat" class="chat-page">
+            <div class="chat-page__scroll">
+              <ConversationFlow />
+            </div>
+            <div class="chat-page__composer">
+              <ChatComposer :models="activeModels" :selected-model="activeSession?.model || activeModels[0]" @submit="submitMessage" />
+            </div>
+          </section>
 
-        <SettingsPage v-else @save="Settings.replaceDraftAndSave" />
+          <SettingsPage v-else key="settings" @save="Settings.replaceDraftAndSave" />
+        </Transition>
       </main>
     </div>
   </m3e-theme>
@@ -71,10 +74,31 @@ async function submitMessage(content) {
 <style scoped lang="scss">
 
 /* --- 主内容区自适应填充 --- */
-.app-content { min-width: 0; height: 100%; overflow: hidden; flex: 1 1 auto; }
+.app-content { min-width: 0; height: 100%; overflow: hidden; flex: 1 1 auto; position: relative; }
 
 /* --- 对话页：flex 布局，内容滚动，composer 固定底部 --- */
 .chat-page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .chat-page__scroll { flex: 1 1 0; overflow-y: auto; overflow-x: hidden; @include scrollbar-dark; }
 .chat-page__composer { flex: 0 0 auto; padding: 12px 24px 20px; max-width: 820px; width: 100%; margin: 0 auto; }
+</style>
+
+<style lang="scss">
+/* --- 页面切换过渡：缩放 + 淡入淡出 + 弹簧回弹（非 scoped，直接匹配 Transition 子元素）--- */
+.view-enter-active {
+  transition: opacity 280ms ease, transform 400ms var(--motion-spring-bouncy);
+}
+
+.view-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.view-enter-from {
+  opacity: 0;
+  transform: scale(.97) translateY(6px);             /* 新页面从略小略下位置弹入 */
+}
+
+.view-leave-to {
+  opacity: 0;
+  transform: scale(.98) translateY(-4px);            /* 旧页面向略上缩小消失 */
+}
 </style>
