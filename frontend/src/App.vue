@@ -88,7 +88,11 @@ async function submitMessage(content) {
 /* --- 主内容区自适应填充 --- */
 .app-content { min-width: 0; height: 100%; overflow: hidden; flex: 1 1 auto; }
 
-/* --- 对话页绝对定位编辑器 --- */
-.chat-page { position: relative; height: 100%; overflow: hidden; }
-.chat-page__composer { position: absolute; right: 24px; bottom: 20px; left: 24px; max-width: 820px; margin: 0 auto; }
+/* --- 对话页：自身滚动，滚动条贴屏幕右边缘 --- */
+.chat-page { position: relative; height: 100%; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #555555 transparent; }
+.chat-page::-webkit-scrollbar { width: 8px; }
+.chat-page::-webkit-scrollbar-track { background: transparent; }
+.chat-page::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #555555; background-clip: padding-box; }
+.chat-page::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+.chat-page__composer { position: sticky; bottom: 0; right: 24px; left: 24px; max-width: 820px; margin: 0 auto; padding: 12px 0 20px; background: linear-gradient(to top, var(--md-sys-color-surface, #1a1a1a) 60%, transparent); }
 </style>

@@ -17,7 +17,7 @@ const messages = computed(() => session.value?.messages || []) // 当前会话�
 // --- 自动滚动到底部 ---
 function scrollToBottom() {
   nextTick(() => {
-    const container = flowContainer.value               // 读取滚动容器 DOM
+    const container = flowContainer.value?.closest('.chat-page') // 滚动容器是外层 .chat-page
     if (container) container.scrollTop = container.scrollHeight // 新消息后显示最新内容
   })
 }
@@ -97,25 +97,8 @@ function toolIcon(toolName) {
   flex-direction: column;
   gap: 48px;
   width: min(960px, 100%);
-  min-height: 100%;
   margin: 0 auto;
-  padding: 56px 32px 80px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #555555 transparent;
-
-  &::-webkit-scrollbar { width: 8px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-
-  &::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background: #555555;
-    background-clip: padding-box;                                    /* 留出边距形成视觉收窄 */
-  }
-
-  &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+  padding: 56px 32px 24px;
 }
 
 /* --- 用户消息轮次：右对齐气泡布局 --- */
