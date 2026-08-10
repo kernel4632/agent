@@ -69,15 +69,12 @@ async function submitMessage(content) {
 </template>
 
 <style scoped lang="scss">
+
 /* --- 主内容区自适应填充 --- */
 .app-content { min-width: 0; height: 100%; overflow: hidden; flex: 1 1 auto; }
 
 /* --- 对话页：flex 布局，内容滚动，composer 固定底部 --- */
 .chat-page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.chat-page__scroll { flex: 1 1 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #555555 transparent; }
-.chat-page__scroll::-webkit-scrollbar { width: 8px; }
-.chat-page__scroll::-webkit-scrollbar-track { background: transparent; }
-.chat-page__scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #555555; background-clip: padding-box; }
-.chat-page__scroll::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+.chat-page__scroll { flex: 1 1 0; overflow-y: auto; overflow-x: hidden; @include scrollbar-dark; }
 .chat-page__composer { flex: 0 0 auto; padding: 12px 24px 20px; max-width: 820px; width: 100%; margin: 0 auto; }
 </style>

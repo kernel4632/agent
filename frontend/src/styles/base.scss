@@ -101,39 +101,16 @@ body {
   background: #090909;
 }
 
-/* 所有离散操作控件共享按压缩放与弹簧回弹；输入表面保持稳定，避免打断编辑。 */
+/* --- 所有离散操作控件共享按压缩放与弹簧回弹；输入表面保持稳定，避免打断编辑 --- */
 m3e-button,
 m3e-icon-button,
 m3e-switch {
-  transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover {
-    filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);
-  }
-
-  &:active {
-    filter: brightness(.94);
-    transform: scale(.94);
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
-  }
+  @include bounce-interact;
 }
 
-/* 列表项只在按下时收缩，回弹仍保留，但 hover 不放大以免滚动容器溢出。 */
+/* --- 列表项只在按下时收缩，hover 不放大以免滚动容器溢出 --- */
 m3e-list-action {
-  transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover { filter: brightness(1.08); }
-
-  &:active {
-    filter: brightness(.94);
-    transform: scale(.985);
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
-  }
+  @include bounce-press;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,78 @@
+/*
+视觉能力复用：集中定义跨组件共享的滚动条和弹性交互样式。
+组件只需 @include 一行即可获得完整视觉能力，不再重复手写。
+调用示例：@include scrollbar-dark、@include bounce-interact。
+*/
+
+
+/* --- 暗色窄滚动条（纵向）--- */
+@mixin scrollbar-dark {
+  scrollbar-width: thin;
+  scrollbar-color: #555555 transparent;
+
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+
+  &::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: #555555;
+    background-clip: padding-box;
+  }
+
+  &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+}
+
+
+/* --- 暗色窄滚动条（横向）--- */
+@mixin scrollbar-dark-horizontal {
+  scrollbar-width: thin;
+  scrollbar-color: #555555 transparent;
+
+  &::-webkit-scrollbar { height: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+
+  &::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: #555555;
+    background-clip: padding-box;
+  }
+
+  &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+}
+
+
+/* --- 弹性交互：悬停微浮 + 按压缩小 --- */
+@mixin bounce-interact {
+  transform: scale(1);
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
+
+  &:hover {
+    filter: brightness(1.08);
+    transform: translateY(-.5px) scale(1.01);
+  }
+
+  &:active {
+    filter: brightness(.94);
+    transform: scale(.94);
+    transition-duration: var(--motion-duration-press);
+    transition-timing-function: ease-out;
+  }
+}
+
+
+/* --- 弹性交互（仅按压，不悬停放大）--- */
+@mixin bounce-press {
+  transform: scale(1);
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
+
+  &:hover { filter: brightness(1.08); }
+
+  &:active {
+    filter: brightness(.94);
+    transform: scale(.985);
+    transition-duration: var(--motion-duration-press);
+    transition-timing-function: ease-out;
+  }
+}

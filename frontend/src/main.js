@@ -8,88 +8,33 @@ import { startWatchers } from './watchers.js'      // 引入集中管理的数�
 import { Config } from './commands/config.js'      // 引入应用配置和能力加载指令
 import { Workspace } from './commands/workspace.js' // 引入主页工作区加载指令
 import { store } from './store.js'                 // 引入启动状态反馈数据
-import '@m3e/web/avatar'                            // 注册身份头像
-import '@m3e/web/button'                            // 注册文本命令
-import '@m3e/web/card'                              // 注册内容容器
-import '@m3e/web/checkbox'                          // 注册任务状态控件
-import '@m3e/web/chips'                             // 注册附件 Chip
-import '@m3e/web/dialog'                            // 注册确认和模型弹窗
-import '@m3e/web/expansion-panel'                   // 注册任务折叠面板
-import '@m3e/web/form-field'                        // 注册原生输入字段外观
-import '@m3e/web/heading'                           // 注册设置页标题层级
-import '@m3e/web/icon'                              // 与图标包共享 SVG Registry
-import '@m3e/web/icon-button'                       // 注册图标命令
-import '@m3e/web/list'                              // 注册设置供应商和模型列表
-import '@m3e/web/menu'                              // 注册 Grok 风格模型浮层
-import '@m3e/web/progress-indicator'                // 注册请求进度反馈
-import '@m3e/web/search'                            // 注册主页搜索框
-import '@m3e/web/select'                            // 注册模型和权限选择器
-import '@m3e/web/snackbar'                          // 注册全局即时反馈
-import '@m3e/web/switch'                            // 注册设置开关
-import '@m3e/web/textarea-autosize'                 // 注册自适应长文本能力
-import '@m3e/web/theme'                             // 注册 Material 3 暗色主题
-import '@m3e/web/tooltip'                           // 注册纯图标设置导航提示
-import './styles/base.scss'                        // 使用复制组件原始主题和布局 token
-import '@m3e/icons/outlined/add'                    // 注册新建动作图标
-import '@m3e/icons/outlined/account_tree'           // 注册多专家模式图标
-import '@m3e/icons/outlined/arrow_upward'           // 注册发送动作图标
-import '@m3e/icons/outlined/attach_file'            // 注册附件图标
-import '@m3e/icons/outlined/award_star'             // 注册推理状态图标
-import '@m3e/icons/outlined/build'                  // 注册工具图标
-import '@m3e/icons/outlined/bolt'                   // 注册快速模型图标
-import '@m3e/icons/outlined/check'                  // 注册模型选中图标
-import '@m3e/icons/outlined/check_circle'           // 注册完成状态图标
-import '@m3e/icons/outlined/chat'                   // 注册会话图标
-import '@m3e/icons/outlined/chevron_right'          // 注册列表进入图标
-import '@m3e/icons/outlined/cloud_download'         // 注册获取模型图标
-import '@m3e/icons/outlined/close'                  // 注册关闭动作图标
-import '@m3e/icons/outlined/code'                   // 注册命令工具图标
-import '@m3e/icons/outlined/content_copy'           // 注册复制动作图标
-import '@m3e/icons/outlined/delete'                 // 注册删除动作图标
-import '@m3e/icons/outlined/dashboard_customize'    // 注册文件编辑活动图标
-import '@m3e/icons/outlined/description'            // 注册读取文件图标
-import '@m3e/icons/outlined/dns'                    // 注册供应商图标
-import '@m3e/icons/outlined/download'               // 注册下载动作图标
-import '@m3e/icons/outlined/edit'                   // 注册重命名动作图标
-import '@m3e/icons/outlined/edit_document'          // 注册写入文件图标
-import '@m3e/icons/outlined/error'                  // 注册错误状态图标
-import '@m3e/icons/outlined/keyboard_arrow_down'    // 注册展开状态图标
-import '@m3e/icons/outlined/folder'                 // 注册工作区图标
-import '@m3e/icons/outlined/history'                // 注册历史会话图标
-import '@m3e/icons/outlined/home'                   // 注册主页图标
-import '@m3e/icons/outlined/hub'                    // 注册 MCP 图标
-import '@m3e/icons/outlined/keyboard_double_arrow_left' // 注册收起侧边栏图标
-import '@m3e/icons/outlined/keyboard_arrow_right'   // 注册列表导航图标
-import '@m3e/icons/outlined/language'               // 注册网络访问图标
-import '@m3e/icons/outlined/lightbulb'              // 注册深度思考模式图标
-import '@m3e/icons/outlined/link'                   // 注册会话链接图标
-import '@m3e/icons/outlined/menu_open'              // 注册展开侧边栏图标
-import '@m3e/icons/outlined/mic'                    // 注册语音输入图标
-import '@m3e/icons/outlined/more_horiz'             // 注册对话更多操作图标
-import '@m3e/icons/outlined/orbit'                  // 注册产品轨道标识图标
-import '@m3e/icons/outlined/rocket_launch'          // 注册自动模式图标
-import '@m3e/icons/outlined/palette'                // 注册外观图标
-import '@m3e/icons/outlined/pause_circle'           // 注册暂停状态图标
-import '@m3e/icons/outlined/search'                 // 注册搜索图标
-import '@m3e/icons/outlined/edit_square'            // 注册 Grok 风格新建对话图标
-import '@m3e/icons/outlined/settings'               // 注册设置图标
-import '@m3e/icons/outlined/smart_toy'              // 注册提示词图标
-import '@m3e/icons/outlined/stop'                   // 注册停止动作图标
-import '@m3e/icons/outlined/storage'                // 注册数据管理图标
-import '@m3e/icons/outlined/sync_alt'               // 注册 API 请求活动图标
-import '@m3e/icons/outlined/terminal'               // 注册命令执行图标
-import '@m3e/icons/outlined/text_snippet'           // 注册系统提示词图标
-import '@m3e/icons/outlined/tune'                   // 注册模型设置图标
-import '@m3e/icons/outlined/undo'                   // 注册回退动作图标
-import '@m3e/icons/outlined/upload'                 // 注册上传动作图标
-import '@m3e/icons/outlined/visibility'             // 注册显示密钥图标
-import '@m3e/icons/outlined/visibility_off'         // 注册隐藏密钥图标
-import '@m3e/icons/outlined/workspaces'             // 注册工作区图标
-import '@m3e/icons/outlined/database'               // 注册数据管理图标
+import '@m3e/web/avatar'                            // 注册 M3E 组件：身份头像
+import '@m3e/web/button'                            // 注册 M3E 组件：文本命令
+import '@m3e/web/card'                              // 注册 M3E 组件：内容容器
+import '@m3e/web/checkbox'                          // 注册 M3E 组件：任务状态控件
+import '@m3e/web/chips'                             // 注册 M3E 组件：附件 Chip
+import '@m3e/web/dialog'                            // 注册 M3E 组件：确认弹窗
+import '@m3e/web/expansion-panel'                   // 注册 M3E 组件：折叠面板
+import '@m3e/web/form-field'                        // 注册 M3E 组件：输入字段外观
+import '@m3e/web/heading'                           // 注册 M3E 组件：标题层级
+import '@m3e/web/icon'                              // 注册 M3E 组件：SVG 图标（图标注册依赖此模块）
+import '@m3e/web/icon-button'                       // 注册 M3E 组件：图标命令
+import '@m3e/web/list'                              // 注册 M3E 组件：列表
+import '@m3e/web/menu'                              // 注册 M3E 组件：浮层菜单
+import '@m3e/web/progress-indicator'                // 注册 M3E 组件：请求进度
+import '@m3e/web/search'                            // 注册 M3E 组件：搜索框
+import '@m3e/web/select'                            // 注册 M3E 组件：选择器
+import '@m3e/web/snackbar'                          // 注册 M3E 组件：即时反馈
+import '@m3e/web/switch'                            // 注册 M3E 组件：开关
+import '@m3e/web/textarea-autosize'                 // 注册 M3E 组件：自适应文本
+import '@m3e/web/theme'                             // 注册 M3E 组件：暗色主题
+import '@m3e/web/tooltip'                           // 注册 M3E 组件：导航提示
+import '@m3e/icons/outlined'                        // 注册全部 Outlined 图标（依赖上方 @m3e/web/icon 的 registerIcon）
+import './styles/base.scss'                        // 引入全局主题和布局 token
 import App from './App.vue'                        // 引入根界面组合组件
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
-startWatchers()                                    // 再启动标签持久化等集中副作用
+startWatchers()                                    // 启动标签持久化等集中副作用
 await Promise.all([Workspace.load(), Config.load()]) // 页面挂载前并行恢复 Server 事实
 store.ui.isLoading = false                         // 首次资源加载完成后开放工作台
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面

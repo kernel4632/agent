@@ -116,8 +116,7 @@ watch(() => props.providers, providers => {
   min-width: 0;
   overflow-y: auto;
   flex: 1 1 auto;
-  scrollbar-width: thin;
-  scrollbar-color: #555555 transparent;
+  @include scrollbar-dark;
 }
 
 /* --- 空状态居中提示 --- */

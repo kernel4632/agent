@@ -51,6 +51,16 @@ export default defineConfig({                       // 导出前端开发与构�
     }),
     openAIProxy(),                                  // 本地同源代理任意 OpenAI 兼容模型目录
   ],
+  css: {                                            // 配置 CSS 预处理
+    preprocessorOptions: {
+      scss: {
+        additionalData: `@use "@/styles/mixins" as *;\n`, // 全部 SCSS 文件自动注入 mixin，无需手动 @use
+      },
+    },
+  },
+  resolve: {                                        // 配置模块解析
+    alias: { '@': '/src' },                         // @ 别名指向 src 目录
+  },
   server: {                                         // 配置本地开发服务
     port: 5173,                                     // 使用 Vite 常见开发端口
     strictPort: false,                              // 被占用时自动选择下一个可用端口

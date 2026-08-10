@@ -93,6 +93,7 @@ function toolIcon(toolName) {
 </template>
 
 <style scoped lang="scss">
+
 /* --- 对话流主容器：垂直排列用户和助手轮次 --- */
 .conversation-flow {
   display: flex;
@@ -224,20 +225,7 @@ function toolIcon(toolName) {
   background: #111111;
   color: #cfcfcf;
   font: 14px/1.7 "Cascadia Code", Consolas, monospace;
-  scrollbar-width: thin;
-  scrollbar-color: #555555 transparent;
-
-  &::-webkit-scrollbar { height: 8px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-
-  &::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background: #555555;
-    background-clip: padding-box;
-  }
-
-  &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+  @include scrollbar-dark-horizontal;
 }
 
 /* --- 终端输出块：无边框等宽字体 --- */
@@ -247,8 +235,7 @@ function toolIcon(toolName) {
   overflow-x: auto;
   color: #c8cbd3;
   font: 17px/1.7 "Cascadia Code", Consolas, monospace;
-  scrollbar-width: thin;
-  scrollbar-color: #555555 transparent;
+  @include scrollbar-dark-horizontal;
 }
 
 /* --- 代码语法高亮色彩 --- */

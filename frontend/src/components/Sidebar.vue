@@ -86,6 +86,7 @@ function toggleSidebar() {
 </template>
 
 <style scoped lang="scss">
+
 /* --- 侧边栏主容器：展开/收起由 CSS 变量切换宽度 --- */
 .sidebar {
   --sidebar-width: 270px;
@@ -138,20 +139,10 @@ function toggleSidebar() {
 .sidebar__action,
 .sidebar__expand,
 .sidebar__settings {
-  transform: scale(1);
+  @include bounce-interact;
   transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease, background-color 120ms ease, color 120ms ease;
 
-  &:hover {
-    filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);                         /* 悬停微上浮 */
-  }
-
-  &:active {
-    filter: brightness(.94);
-    transform: scale(.96);                                            /* 按压弹性缩小 */
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
-  }
+  &:active { transform: scale(.96); }                                 /* 侧边栏元素缩小幅度比全局稍大 */
 }
 
 /* --- Logo 圆形标记 --- */

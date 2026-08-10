@@ -116,6 +116,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
+
 /* --- 编辑器外框：单行横排，多行时 Flex 换行切成正文和工具栏两层 --- */
 .chat-composer {
   --control-size: 40px;
@@ -190,22 +191,12 @@ onBeforeUnmount(() => {
   letter-spacing: inherit;
   line-height: 24px;
   overflow-wrap: anywhere;
-  scrollbar-width: thin;
-  scrollbar-color: #555 transparent;
+  @include scrollbar-dark;
 }
 
 .chat-composer__editor::placeholder {
   color: #989898;
   opacity: 1;
-}
-
-.chat-composer__editor::-webkit-scrollbar { width: 8px; }
-.chat-composer__editor::-webkit-scrollbar-track { background: transparent; }
-.chat-composer__editor::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: #555;
-  background-clip: padding-box;
 }
 
 /* --- 底排操作区：模型选择和提交按钮 --- */
@@ -221,8 +212,10 @@ onBeforeUnmount(() => {
 .chat-composer__icon-button,
 .chat-composer__submit,
 .chat-composer__model {
-  transform: scale(1);
-  transition: transform 360ms var(--motion-spring-bouncy), filter 120ms ease;
+  @include bounce-interact;
+  transition-duration: 360ms;                                         /* 编辑器控件使用更快的弹簧时长 */
+  &:hover { transform: translateY(-1px) scale(1.03); }                /* 编辑器悬停幅度更大 */
+  &:active { transform: scale(.86); transition: transform 60ms ease-out, filter 60ms ease-out; } /* 按压幅度比全局更夸张 */
 }
 
 .chat-composer__icon-button,
@@ -231,21 +224,6 @@ onBeforeUnmount(() => {
   width: var(--control-size);
   height: var(--control-size);
   flex: 0 0 var(--control-size);
-}
-
-.chat-composer__icon-button:hover,
-.chat-composer__submit:hover,
-.chat-composer__model:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px) scale(1.03);                            /* 悬停微上浮 */
-}
-
-.chat-composer__icon-button:active,
-.chat-composer__submit:active,
-.chat-composer__model:active {
-  filter: brightness(.94);
-  transform: scale(.86);                                              /* 按压弹性缩小 */
-  transition: transform 60ms ease-out, filter 60ms ease-out;
 }
 
 /* --- 图标按钮 SVG 描边 --- */

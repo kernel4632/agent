@@ -154,6 +154,7 @@ function resetRenameDialog() {
 </template>
 
 <style scoped lang="scss">
+
 /* --- 主页整体布局：搜索在顶部，工作区和会话分列下方 --- */
 .home-page {
   display: flex;
@@ -169,13 +170,7 @@ function resetRenameDialog() {
 .home-page__search {
   align-self: center;
   width: min(720px, 100%);
-  transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover {
-    filter: brightness(1.04);
-    transform: scale(1.01);
-  }
+  @include bounce-interact;
 
   &:focus-within {
     filter: brightness(1.04);
@@ -185,8 +180,6 @@ function resetRenameDialog() {
   &:active {
     filter: brightness(.98);
     transform: scale(.985);
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
   }
 }
 
@@ -239,20 +232,7 @@ function resetRenameDialog() {
   overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
-  scrollbar-width: thin;
-  scrollbar-color: #555555 transparent;
-
-  &::-webkit-scrollbar { width: 8px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-
-  &::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background: #555555;
-    background-clip: padding-box;
-  }
-
-  &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
+  @include scrollbar-dark;
 }
 
 /* --- 面板标题行：标题 + 添加按钮 --- */
@@ -290,26 +270,6 @@ function resetRenameDialog() {
   filter: none;
   transform: scale(1);                                                /* 按钮交互时父级保持稳定 */
   transition: none;
-}
-
-/* --- 所有可点击元素的弹性交互 --- */
-.home-page m3e-button,
-.home-page m3e-icon-button,
-.home-page m3e-list-action {
-  transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover {
-    filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);
-  }
-
-  &:active {
-    filter: brightness(.94);
-    transform: scale(.96);                                            /* 按压缩小反馈 */
-    transition-duration: var(--motion-duration-press);
-    transition-timing-function: ease-out;
-  }
 }
 
 .home-page m3e-action-list {
