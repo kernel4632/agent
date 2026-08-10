@@ -19,7 +19,7 @@ const actions = ref(null)                                     // 底排提供实
 const message = ref('')                                       // 保存尚未提交的输入文本
 const expanded = ref(false)                                   // 第二行出现后切换为上下结构
 const composerHeight = ref('64px')                            // 根据实际布局尺寸驱动外框过渡
-const modelMenuId = `chat-composer-models-${useId()}`         // 避免多个组件实例共享菜单 ID
+const modelMenuID = `chat-composer-models-${useId()}`         // 避免多个组件实例共享菜单 ID
 let editorResizeObserver                                      // 卸载时停止尺寸观察
 let layoutFrame                                               // 新输入会取消上一帧过期测量
 
@@ -98,13 +98,13 @@ onBeforeUnmount(() => {
 
     <div ref="actions" class="chat-composer__actions">
       <m3e-button class="chat-composer__model" type="button" shape="rounded" aria-label="模型选择">
-        <m3e-menu-trigger :for="modelMenuId">
+        <m3e-menu-trigger :for="modelMenuID">
           <span>{{ props.selectedModel }}</span>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
         </m3e-menu-trigger>
       </m3e-button>
 
-      <m3e-menu :id="modelMenuId" class="chat-composer__menu" placement="top-end">
+      <m3e-menu :id="modelMenuID" class="chat-composer__menu" placement="top-end">
         <m3e-menu-item v-for="model in props.models" :key="model" @click="emit('select-model', model)">{{ model }}</m3e-menu-item>
       </m3e-menu>
 

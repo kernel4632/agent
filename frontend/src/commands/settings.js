@@ -230,4 +230,22 @@ function updateAppearance(field, value) {
 }
 
 
-export const Settings = { open, save, replaceDraftAndSave, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance } // 暴露设置全部动作
+// --- 获取远程模型并与已有模型合并去重 ---
+async function discoverModels(provider, currentModels = []) {
+  const discovered = await fetchModels(provider, currentModels) // 从远程获取模型列表
+  const merged = new Map()                                      // 使用 Map 按 ID 去重
+  for (const model of currentModels) merged.set(model.id, model) // 已有模型优先保留
+  for (const model of discovered) merged.set(model.id, model)   // 新发现模型补充进来
+  return [...merged.values()]                                   // 返回去重后的完整列表
+}
+
+
+// --- 切换模型的添加/移除状态 ---
+function toggleModelInList(models, model) {
+  const exists = models.some(item => item.id === model.id)      // 判断模型是否已在列表中
+  if (exists) return models.filter(item => item.id !== model.id) // 已存在则移除
+  return [...models, { ...model }]                               // 不存在则追加
+}
+
+
+export const Settings = { open, save, replaceDraftAndSave, addProvider, removeProvider, renameProvider, updateProvider, addModel, removeModel, updateModel, fetchModels, discoverModels, toggleModelInList, updateTool, addMCP, updateMCP, removeMCP, updatePrompt, updateAppearance } // 暴露设置全部动作

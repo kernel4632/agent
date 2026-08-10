@@ -1,42 +1,48 @@
-<!-- 模型管理：批量选择远端模型，并移除已添加模型。 -->
+<!--
+模型管理面板：展示已添加模型列表，提供远程获取和批量选择能力。
+设计思想：组件只触发指令和渲染结果，模型去重和切换逻辑由 commands/settings.js 完成。
+核心数据：models（当前供应商已添加的模型数组）、availableModels（远程获取后的候选列表）。
+调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="updateProvider({ models: $event })" />。
+-->
 <script setup>
-import { ref } from 'vue' // 管理远端模型选择窗口
-import { Settings } from '../../commands/settings.js' // 使用正式 Server 获取模型目录
+import { ref } from 'vue'                              // 引入响应式状态管理
+import { Settings } from '../../commands/settings.js'  // 引入模型发现和切换指令
 
 const props = defineProps({
-  provider: { type: Object, required: true },
-  models: { type: Array, required: true },
+  provider: { type: Object, required: true },          // 接收当前供应商连接信息（用于远程获取）
+  models: { type: Array, required: true },             // 接收当前已添加的模型数组
 })
-const emit = defineEmits(['update:models'])
+const emit = defineEmits(['update:models'])             // 输出变更后的模型数组
 
-const chooserDialog = ref(null)                        // 远端模型选择窗口
-const availableModels = ref([])
+const chooserDialog = ref(null)                        // 远程模型选择弹窗引用
+const availableModels = ref([])                        // 远程获取后的去重候选模型列表
 
+
+// --- 打开模型选择弹窗 ---
 async function openChooser() {
-  const discovered = await Settings.fetchModels(props.provider, props.models)
-  availableModels.value = [...new Map([...props.models, ...discovered].map(model => [model.id, model])).values()]
-  chooserDialog.value.show()
+  availableModels.value = await Settings.discoverModels(props.provider, props.models) // 调用指令获取去重后的完整列表
+  chooserDialog.value.show()                           // 数据就绪后打开弹窗
 }
 
-// --- 在选择窗中切换模型的添加状态 ---
+
+// --- 切换模型的添加状态 ---
 function toggleModel(model) {
-  const modelExists = props.models.some(item => item.id === model.id)
-  if (modelExists) {
-    emit('update:models', props.models.filter(item => item.id !== model.id)) // 再次点击已选模型即取消
-    return
-  }
-
-  emit('update:models', [...props.models, { ...model }])                       // 未选模型加入当前供应商
+  const nextModels = Settings.toggleModelInList(props.models, model) // 调用指令完成添加或移除
+  emit('update:models', nextModels)                    // 变更后的列表交给父组件写入草稿
 }
 
 
-function removeModel(modelId) {
-  emit('update:models', props.models.filter(model => model.id !== modelId))
+// --- 移除已添加模型 ---
+function removeModel(modelID) {
+  emit('update:models', props.models.filter(model => model.id !== modelID)) // 过滤目标模型后上抛
 }
+
+
 </script>
 
 <template>
   <section class="provider-models">
+    <!-- 标题行：模型计数和获取按钮。 -->
     <div class="provider-models__heading">
       <div>
         <m3e-heading variant="title" size="medium" level="3">模型列表</m3e-heading>
@@ -48,6 +54,7 @@ function removeModel(modelId) {
       </m3e-button>
     </div>
 
+    <!-- 已添加模型列表。 -->
     <div class="provider-models__list">
       <div v-for="model in props.models" :key="model.id" class="provider-models__item">
         <div class="provider-models__identity">
@@ -64,6 +71,7 @@ function removeModel(modelId) {
     </div>
   </section>
 
+  <!-- 远程模型选择弹窗。 -->
   <m3e-dialog ref="chooserDialog" class="provider-models__dialog">
     <m3e-heading slot="header" variant="headline" size="small" level="2">选择模型</m3e-heading>
     <m3e-action-list class="provider-models__available" aria-label="可添加模型">
@@ -79,19 +87,36 @@ function removeModel(modelId) {
 </template>
 
 <style scoped lang="scss">
+/* --- 模型管理面板：垂直排列标题和列表 --- */
 .provider-models { display: flex; flex-direction: column; gap: 16px; }
+
+/* --- 标题行：左侧计数，右侧获取按钮 --- */
 .provider-models__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .provider-models__heading > div { display: flex; flex-direction: column; gap: 3px; }
 .provider-models__heading span { color: #858585; font-size: 13px; }
+
+/* --- 模型卡片列表 --- */
 .provider-models__list { display: flex; flex-direction: column; gap: 6px; }
+
+/* --- 单个模型行：名称、能力标签和移除按钮 --- */
 .provider-models__item { display: flex; align-items: center; min-height: 64px; gap: 8px; padding: 10px 12px; border: 1px solid #303030; border-radius: 8px; }
+
+/* --- 模型身份区：名称和能力标签 --- */
 .provider-models__identity { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; }
 .provider-models__identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- 能力标签组 --- */
 .provider-models__capabilities { display: flex; flex-wrap: wrap; gap: 6px; }
 .provider-models__capabilities span { padding: 2px 7px; border-radius: 5px; background: #292929; color: #bdbdbd; font-size: 11px; }
+
+/* --- 空状态占位 --- */
 .provider-models__empty { margin: 0; padding: 24px; border: 1px dashed #333333; border-radius: 8px; color: #777777; text-align: center; }
+
+/* --- 选择弹窗候选列表 --- */
 .provider-models__available { display: flex; width: min(480px, 72vw); max-width: 100%; overflow: hidden; flex-direction: column; gap: 6px; padding: 4px; }
 .provider-models__available m3e-list-action { --m3e-list-item-container-color: #262626; width: 100%; }
+
+/* --- 窄屏适配：标题行纵向堆叠 --- */
 @media (max-width: 560px) {
   .provider-models__heading { align-items: stretch; flex-direction: column; }
 }

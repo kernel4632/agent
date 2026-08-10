@@ -39,6 +39,11 @@ export const store = reactive({
     controllers: {},                                  // 每个会话当前订阅的中断控制器
   },
 
+  tabs: {
+    items: [],                                        // 顶部标签列表，每项包含 key、sessionID、title
+    activeKey: '',                                    // 当前选中标签的稳定键名
+  },
+
   settings: {
     draft: null,                                      // 进入设置后创建的隔离草稿
     savedAt: null,                                    // 最近成功自动保存时间

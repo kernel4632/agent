@@ -18,12 +18,12 @@ const renameDialog = ref(null)                               // 打开和关闭 
 const renameInput = ref(null)                                // 弹窗打开后聚焦名称输入框
 const renameTarget = ref(null)                               // 保存当前准备重命名的会话
 const renameDraft = ref('')                                  // 保存输入中的新会话名称
-const renameInputId = `rename-conversation-${useId()}`       // 连接字段标签与输入框
+const renameInputID = `rename-conversation-${useId()}`       // 连接字段标签与输入框
 
-const effectiveWorkspaceId = computed(() => selectedWorkspaceId.value ?? props.workspaces[0]?.id ?? null)           // 无外部选中值时使用首项
-const selectedWorkspace = computed(() => props.workspaces.find(workspace => workspace.id === effectiveWorkspaceId.value)) // 提供右侧标题
+const effectiveWorkspaceID = computed(() => selectedWorkspaceId.value ?? props.workspaces[0]?.id ?? null)           // 无外部选中值时使用首项
+const selectedWorkspace = computed(() => props.workspaces.find(workspace => workspace.id === effectiveWorkspaceID.value)) // 提供右侧标题
 const conversationGroups = computed(() => {                 // 按当前工作区和搜索词生成可见分组
-  const groups = props.conversationsByWorkspace[effectiveWorkspaceId.value] || []
+  const groups = props.conversationsByWorkspace[effectiveWorkspaceID.value] || []
   const term = searchTerm.value.trim().toLocaleLowerCase()
   if (!term) return groups
 
@@ -49,7 +49,7 @@ async function confirmRename() {
   if (!nextTitle || !renameTarget.value) return               // 空标题或无目标时不修改数据
 
   emit('rename-conversation', {                               // 将修改交给调用方的 Store 或请求层
-    workspaceId: effectiveWorkspaceId.value,
+    workspaceId: effectiveWorkspaceID.value,
     conversationId: renameTarget.value.id,
     title: nextTitle,
   })
@@ -88,7 +88,7 @@ function resetRenameDialog() {
             <m3e-list-action
               v-for="workspace in props.workspaces"
               :key="workspace.id"
-              :aria-current="workspace.id === effectiveWorkspaceId ? 'page' : undefined"
+              :aria-current="workspace.id === effectiveWorkspaceID ? 'page' : undefined"
               @click="selectedWorkspaceId = workspace.id"
             >
               <m3e-icon slot="leading" name="workspaces" filled="1"></m3e-icon>
@@ -111,7 +111,7 @@ function resetRenameDialog() {
 
               <m3e-action-list aria-label="会话列表">
                 <template v-for="conversation in group.items" :key="conversation.id">
-                  <m3e-list-action @click="emit('select-conversation', { workspaceId: effectiveWorkspaceId, conversationId: conversation.id })">
+                  <m3e-list-action @click="emit('select-conversation', { workspaceId: effectiveWorkspaceID, conversationId: conversation.id })">
                     <m3e-icon slot="leading" name="chat" filled="1"></m3e-icon>
                     {{ conversation.title }}
                     <span slot="supporting-text">{{ conversation.time }}</span>
@@ -120,7 +120,7 @@ function resetRenameDialog() {
                       <m3e-icon-button type="button" shape="rounded" :aria-label="`重命名 ${conversation.title}`" title="重命名" @click.stop="openRenameDialog(conversation)">
                         <m3e-icon name="edit" filled="1"></m3e-icon>
                       </m3e-icon-button>
-                      <m3e-icon-button type="button" shape="rounded" :aria-label="`删除 ${conversation.title}`" title="删除" @click.stop="emit('delete-conversation', { workspaceId: effectiveWorkspaceId, conversationId: conversation.id })">
+                      <m3e-icon-button type="button" shape="rounded" :aria-label="`删除 ${conversation.title}`" title="删除" @click.stop="emit('delete-conversation', { workspaceId: effectiveWorkspaceID, conversationId: conversation.id })">
                         <m3e-icon name="delete" filled="1"></m3e-icon>
                       </m3e-icon-button>
                     </span>
@@ -138,8 +138,8 @@ function resetRenameDialog() {
 
       <div class="home-page__rename-content">
         <m3e-form-field class="home-page__rename-field" variant="outlined">
-          <label slot="label" :for="renameInputId">会话名称</label>
-          <input :id="renameInputId" ref="renameInput" v-model="renameDraft" type="text" @keydown.enter.prevent="confirmRename" />
+          <label slot="label" :for="renameInputID">会话名称</label>
+          <input :id="renameInputID" ref="renameInput" v-model="renameDraft" type="text" @keydown.enter.prevent="confirmRename" />
         </m3e-form-field>
       </div>
 

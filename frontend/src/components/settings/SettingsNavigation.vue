@@ -1,15 +1,15 @@
 <!--
 设置分类导航：用带 Tooltip 的图标按钮展示设置分类并发出切换意图。
-设计思想是仅负责显示和事件，不持有业务数据，所有选中状态由调用方通过 props 控制。
-调用示例：<SettingsNavigation :items="sections" :selected-id="currentSection" @select="switchSection" />。
+设计思想：仅负责显示和事件，不持有业务数据，所有选中状态由调用方通过 props 控制。
+调用示例：<SettingsNavigation :items="sections" :selected-id="selectedSectionID" @select="selectedSectionID = $event" />。
 -->
 <script setup>
 const props = defineProps({
-  items: { type: Array, required: true },
-  selectedId: { type: String, required: true },
+  items: { type: Array, required: true },                   // 设置分类定义数组
+  selectedId: { type: String, required: true },             // 当前选中分类的唯一身份
 })
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select'])                        // 输出用户点击的分类 ID
 </script>
 
 <template>
@@ -38,6 +38,7 @@ const emit = defineEmits(['select'])
 </template>
 
 <style scoped lang="scss">
+/* --- 导航主容器：垂直排列图标按钮 --- */
 .settings-navigation {
   display: flex;
   align-items: center;
@@ -48,6 +49,7 @@ const emit = defineEmits(['select'])
   background: #0d0d0d;
 }
 
+/* --- 按钮组：垂直排列带间距 --- */
 .settings-navigation__items {
   display: flex;
   align-items: center;
@@ -55,6 +57,7 @@ const emit = defineEmits(['select'])
   gap: 8px;
 }
 
+/* --- 单个分类项容器 --- */
 .settings-navigation__item {
   display: flex;
   align-items: center;
@@ -63,6 +66,7 @@ const emit = defineEmits(['select'])
   height: 48px;
 }
 
+/* --- 图标按钮颜色：未选中灰色，选中白色 --- */
 .settings-navigation__item m3e-icon-button {
   --m3e-icon-button-icon-color: #a9a9a9;
   --m3e-icon-button-hover-icon-color: #f2f2f2;
@@ -73,6 +77,7 @@ const emit = defineEmits(['select'])
   --m3e-filled-icon-button-pressed-icon-color: #ffffff;
 }
 
+/* --- 窄屏适配：导航改为横向顶部条 --- */
 @media (max-width: 760px) {
   .settings-navigation {
     flex: none;
