@@ -56,6 +56,7 @@ async function submitMessage(content) {
         @home="UI.openHome"
         @new-conversation="Session.create()"
         @select-conversation="Session.open($event)"
+        @close-conversation="Session.closeOpened($event)"
         @settings="UI.openSettings()"
       />
 

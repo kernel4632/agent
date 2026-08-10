@@ -12,7 +12,7 @@ const props = defineProps({                                                   //
   },
   activeConversationId: { type: [String, Number], default: null },
 })
-const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'settings']) // 输出用户导航意图
+const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'close-conversation', 'settings']) // 输出用户导航意图
 
 
 // --- 切换侧边栏显示状态 ---
@@ -53,19 +53,26 @@ function toggleSidebar() {
 
     <!-- 第三排：仅在展开时显示，并占满剩余高度。 -->
     <section v-if="!collapsed" class="sidebar__conversations" aria-label="会话列表">
-      <m3e-button
+      <div
         v-for="conversation in props.conversations"
         :key="conversation.id"
-        class="sidebar__conversation"
+        class="sidebar__conversation-row"
         :class="{ 'is-active': conversation.id === props.activeConversationId }"
-        :variant="conversation.id === props.activeConversationId ? 'tonal' : 'text'"
-        :aria-current="conversation.id === props.activeConversationId ? 'page' : undefined"
-        type="button"
-        shape="square"
-        @click="emit('select-conversation', conversation.id)"
       >
-        <span class="sidebar__conversation-content">{{ conversation.title || '新对话' }}</span>
-      </m3e-button>
+        <m3e-button
+          class="sidebar__conversation"
+          :variant="conversation.id === props.activeConversationId ? 'tonal' : 'text'"
+          :aria-current="conversation.id === props.activeConversationId ? 'page' : undefined"
+          type="button"
+          shape="square"
+          @click="emit('select-conversation', conversation.id)"
+        >
+          <span class="sidebar__conversation-content">{{ conversation.title || '新对话' }}</span>
+        </m3e-button>
+        <m3e-icon-button class="sidebar__conversation-close" type="button" shape="rounded" aria-label="关闭会话" title="关闭" @click.stop="emit('close-conversation', conversation.id)">
+          <m3e-icon name="close" filled="1"></m3e-icon>
+        </m3e-icon-button>
+      </div>
     </section>
 
     <!-- 第四排：仅在收起时显示。 -->
@@ -243,22 +250,49 @@ function toggleSidebar() {
   scrollbar-color: #242424 transparent;
 }
 
+/* --- 单个会话行：包含标题按钮和关闭按钮 --- */
+.sidebar__conversation-row {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+
+  &:hover .sidebar__conversation-close,
+  &:focus-within .sidebar__conversation-close {
+    opacity: 1;                                                        /* 悬停时显示关闭按钮 */
+    pointer-events: auto;
+  }
+
+  &.is-active {
+    background: #171717;                                               /* 当前会话高亮背景 */
+  }
+}
+
 /* --- 单个会话按钮 --- */
 .sidebar__conversation {
   --m3e-button-container-height: 40px;
   --m3e-button-leading-space: 15px;
-  --m3e-button-trailing-space: 15px;
+  --m3e-button-trailing-space: 8px;
   --m3e-text-button-label-text-color: #d8d8d8;
   display: block;
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 15px;
   text-align: left;
+}
 
-  &.is-active {
-    --m3e-tonal-button-container-color: #171717;                      /* 当前会话高亮背景 */
-    --m3e-tonal-button-label-text-color: #ffffff;
-  }
+/* --- 关闭会话按钮：默认隐藏 --- */
+.sidebar__conversation-close {
+  --m3e-icon-button-icon-color: #777;
+  --m3e-icon-button-hover-icon-color: #f0f0f0;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  margin-right: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+
+  m3e-icon { font-size: 16px; }
 }
 
 /* --- 会话标题截断 --- */
