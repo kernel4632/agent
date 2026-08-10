@@ -81,6 +81,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
 </template>
 
 <style scoped lang="scss">
+/* --- 对话流主容器：垂直排列用户和助手轮次 --- */
 .conversation-flow {
   display: flex;
   flex-direction: column;
@@ -101,12 +102,13 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
     border: 2px solid transparent;
     border-radius: 999px;
     background: #555555;
-    background-clip: padding-box;
+    background-clip: padding-box;                                    /* 留出边距形成视觉收窄 */
   }
 
   &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
 }
 
+/* --- 用户消息轮次：右对齐气泡布局 --- */
 .conversation-flow__user-turn {
   display: flex;
   flex-direction: column;
@@ -114,18 +116,20 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   gap: 8px;
 }
 
+/* --- 用户消息气泡：圆角矩形仿 Grok 右下方缺角 --- */
 .conversation-flow__user-message {
   max-width: min(620px, 82%);
   margin: 0;
   padding: 14px 20px;
   border: 1px solid #353535;
-  border-radius: 22px 22px 6px 22px;
+  border-radius: 22px 22px 6px 22px;                                /* 右下缺角标识发送方 */
   background: #1b1b1b;
   color: #f2f2f2;
   font-size: 17px;
   line-height: 1.55;
 }
 
+/* --- 消息操作栏：悬停时淡入的回退和复制 --- */
 .conversation-flow__message-actions {
   display: flex;
   align-items: center;
@@ -139,10 +143,11 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
 
 .conversation-flow__user-turn:hover .conversation-flow__message-actions,
 .conversation-flow__user-turn:focus-within .conversation-flow__message-actions {
-  opacity: 1;
+  opacity: 1;                                                        /* 悬停或键盘聚焦时显示操作 */
   pointer-events: auto;
 }
 
+/* --- 助手轮次：左对齐活动流卡片 --- */
 .conversation-flow__assistant-turn { min-width: 0; }
 
 .conversation-flow__activity-list {
@@ -151,6 +156,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   gap: 12px;
 }
 
+/* --- 活动卡片：透明无阴影容器 --- */
 .conversation-flow__activity-card {
   --m3e-card-padding: 0;
   --m3e-filled-card-container-color: transparent;
@@ -158,6 +164,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   min-width: 0;
 }
 
+/* --- API 请求行：低对比度用量摘要 --- */
 .conversation-flow__api-row {
   display: flex;
   align-items: center;
@@ -166,13 +173,13 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   padding-inline: 12px;
   color: #676b75;
   font-size: 14px;
-  opacity: .42;
+  opacity: .42;                                                      /* 默认弱化避免干扰阅读流 */
   transition: opacity 160ms ease, color 160ms ease;
 
   &:hover,
   &:focus-within {
     color: #aeb2bc;
-    opacity: 1;
+    opacity: 1;                                                      /* 悬停时恢复完整可见度 */
   }
 
   > m3e-icon {
@@ -181,6 +188,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   }
 }
 
+/* --- API 用量数字：右侧固定宽度 --- */
 .conversation-flow__api-cost {
   display: flex;
   margin-left: auto;
@@ -190,6 +198,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   white-space: nowrap;
 }
 
+/* --- 助手文本消息块 --- */
 .conversation-flow__message-block {
   display: flex;
   flex-direction: column;
@@ -210,6 +219,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   }
 }
 
+/* --- 代码差异块：暗底带行高亮 --- */
 .conversation-flow__code {
   margin: 12px 0 0;
   padding: 14px 16px;
@@ -235,6 +245,7 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
 }
 
+/* --- 终端输出块：无边框等宽字体 --- */
 .conversation-flow__terminal {
   margin: 0;
   padding: 0;
@@ -245,11 +256,13 @@ const commandDetailsOpen = ref(true)                   // 当前运行命令默�
   scrollbar-color: #555555 transparent;
 }
 
-.code-add { color: #86d986; }
-.code-prompt { color: #a66cff; }
-.code-command { color: #68a9ff; }
-.code-output { color: #a8a8a8; }
+/* --- 代码语法高亮色彩 --- */
+.code-add { color: #86d986; }                                        /* 新增行绿色 */
+.code-prompt { color: #a66cff; }                                     /* 终端提示符紫色 */
+.code-command { color: #68a9ff; }                                    /* 命令蓝色 */
+.code-output { color: #a8a8a8; }                                     /* 输出灰色 */
 
+/* --- 移动端适配：收窄间距和字号 --- */
 @media (max-width: 640px) {
   .conversation-flow {
     gap: 36px;

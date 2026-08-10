@@ -154,7 +154,7 @@ function resetRenameDialog() {
 </template>
 
 <style scoped lang="scss">
-/* 页面布局、全局弹簧交互与会话滚动条；组件主体外观仍由 M3E 主题提供。 */
+/* --- 主页整体布局：搜索在顶部，工作区和会话分列下方 --- */
 .home-page {
   display: flex;
   flex-direction: column;
@@ -165,6 +165,7 @@ function resetRenameDialog() {
   overflow: hidden;
 }
 
+/* --- 搜索框：居中带弹性交互 --- */
 .home-page__search {
   align-self: center;
   width: min(720px, 100%);
@@ -178,7 +179,7 @@ function resetRenameDialog() {
 
   &:focus-within {
     filter: brightness(1.04);
-    transform: scale(1.015);
+    transform: scale(1.015);                                          /* 聚焦时略大于悬停 */
   }
 
   &:active {
@@ -189,6 +190,7 @@ function resetRenameDialog() {
   }
 }
 
+/* --- 主体双栏：左侧工作区列表 + 右侧会话列表 --- */
 .home-page__body {
   display: flex;
   overflow: hidden;
@@ -197,6 +199,7 @@ function resetRenameDialog() {
   min-height: 0;
 }
 
+/* --- 面板通用约束 --- */
 .home-page__workspace-pane,
 .home-page__conversation-pane {
   height: 100%;
@@ -204,15 +207,18 @@ function resetRenameDialog() {
   min-height: 0;
 }
 
+/* --- 工作区面板：固定最小宽度 --- */
 .home-page__workspace-pane {
   min-width: 240px;
   flex: 0 1 320px;
 }
 
+/* --- 会话面板：自适应填充剩余空间 --- */
 .home-page__conversation-pane {
   flex: 1 1 0;
 }
 
+/* --- 面板内容和分组通用 Flex 布局 --- */
 .home-page__pane-content,
 .home-page__conversation-groups,
 .home-page__conversation-group {
@@ -226,6 +232,7 @@ function resetRenameDialog() {
   min-height: 0;
 }
 
+/* --- 会话分组滚动容器 --- */
 .home-page__conversation-groups {
   min-height: 0;
   padding-right: 8px;
@@ -248,6 +255,7 @@ function resetRenameDialog() {
   &::-webkit-scrollbar-thumb:hover { background-color: #747474; }
 }
 
+/* --- 面板标题行：标题 + 添加按钮 --- */
 .home-page__pane-header {
   display: flex;
   align-items: center;
@@ -255,12 +263,14 @@ function resetRenameDialog() {
   gap: 16px;
 }
 
+/* --- 会话操作按钮组：重命名和删除 --- */
 .home-page__conversation-actions {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+/* --- 重命名弹窗内部布局 --- */
 .home-page__rename-field { width: 100%; }
 
 .home-page__rename-content {
@@ -274,13 +284,15 @@ function resetRenameDialog() {
   gap: 8px;
 }
 
+/* --- 操作按钮悬停时冻结父级列表项变换 --- */
 .home-page m3e-list-action:has(.home-page__conversation-actions:hover),
 .home-page m3e-list-action:has(.home-page__conversation-actions:focus-within) {
   filter: none;
-  transform: scale(1);
+  transform: scale(1);                                                /* 按钮交互时父级保持稳定 */
   transition: none;
 }
 
+/* --- 所有可点击元素的弹性交互 --- */
 .home-page m3e-button,
 .home-page m3e-icon-button,
 .home-page m3e-list-action {
@@ -294,7 +306,7 @@ function resetRenameDialog() {
 
   &:active {
     filter: brightness(.94);
-    transform: scale(.96);
+    transform: scale(.96);                                            /* 按压缩小反馈 */
     transition-duration: var(--motion-duration-press);
     transition-timing-function: ease-out;
   }
@@ -304,6 +316,7 @@ function resetRenameDialog() {
   padding: 8px;
 }
 
+/* --- 移动端适配：改为纵向堆叠 --- */
 @media (max-width: 760px) {
   .home-page {
     height: auto;
@@ -314,7 +327,7 @@ function resetRenameDialog() {
   }
 
   .home-page__body {
-    flex-direction: column;
+    flex-direction: column;                                           /* 窄屏工作区和会话纵向排列 */
   }
 
   .home-page__workspace-pane { flex-basis: auto; }

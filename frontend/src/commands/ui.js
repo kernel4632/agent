@@ -30,6 +30,7 @@ async function openChat(sessionID) {
   if (!await leaveCurrentView()) return false                        // 保存失败时不离开设置页
   store.ui.activeSessionID = sessionID                               // 先固定目标 Session
   store.ui.view = 'chat'                                             // 再显示对话页
+  collapseSidebarOnMobile()                                          // 移动端优先展示对话内容
   return true                                                        // 反馈导航完成
 }
 
@@ -39,6 +40,7 @@ async function openSettings(section = 'providers') {
   if (store.ui.view !== 'settings') Settings.open()                  // 首次进入时创建隔离草稿
   store.ui.settingsSection = section                                 // 选择对应设置项
   store.ui.view = 'settings'                                         // 显示设置主页面
+  collapseSidebarOnMobile()                                          // 移动端优先展示设置内容
   return true                                                        // 反馈设置页已经打开
 }
 
@@ -73,6 +75,12 @@ async function copy(text) {
     notify(t('copyFailed'))                                           // 权限受限时给出明确反馈
     return false                                                      // 反馈调用方复制失败
   }
+}
+
+
+// --- 移动端导航后收起侧边栏 ---
+function collapseSidebarOnMobile() {
+  if (window.innerWidth <= 760) store.ui.sidebarOpen = false         // 窄屏优先展示主内容区域
 }
 
 

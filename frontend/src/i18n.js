@@ -1,10 +1,11 @@
 /*
 界面翻译：从设置草稿或已保存配置读取当前语言，并返回响应式文案。
 业务数据保持原文；只有应用命令、标签、说明和无障碍文本经过这里翻译。
+调用示例：t('copied')、t('sessionCount', { count: 5 })、formatDateTime(Date.now())。
 */
-import { store } from './store.js'
+import { store } from './store.js'                                    // 引入全局配置中的语言偏好
 
-const messages = {
+const messages = {                                                    // 全部界面文案按语言分组
   'zh-CN': {
     home: '主页', newChat: '新建对话', sessions: '会话', settings: '设置', mainNav: '主要导航', agentHome: 'Agent 主页',
     collapseSidebar: '收起侧边栏', expandSidebar: '展开侧边栏', closeSidebar: '关闭侧边栏',
@@ -60,16 +61,22 @@ const messages = {
   },
 }
 
+
+// --- 读取当前界面语言 ---
 export function currentLanguage() {
-  return store.settings.draft?.appearance?.language || store.config.appearance.language || 'zh-CN'
+  return store.settings.draft?.appearance?.language || store.config.appearance.language || 'zh-CN' // 草稿优先，再读已保存配置
 }
 
+
+// --- 翻译文案键并替换变量 ---
 export function t(key, values = {}) {
-  const language = currentLanguage()
-  const template = messages[language]?.[key] ?? messages['zh-CN'][key] ?? key
-  return Object.entries(values).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), template)
+  const language = currentLanguage()                                   // 确定当前语言
+  const template = messages[language]?.[key] ?? messages['zh-CN'][key] ?? key // 优先当前语言，回退中文，最后返回原键
+  return Object.entries(values).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), template) // 将 {count} 等占位符替换为实参
 }
 
+
+// --- 格式化日期时间 ---
 export function formatDateTime(timestamp, options) {
-  return new Intl.DateTimeFormat(currentLanguage(), options).format(timestamp)
+  return new Intl.DateTimeFormat(currentLanguage(), options).format(timestamp) // 使用浏览器国际化按当前语言格式化
 }

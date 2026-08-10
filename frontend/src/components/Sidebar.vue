@@ -87,6 +87,7 @@ function toggleSidebar() {
 </template>
 
 <style scoped lang="scss">
+/* --- 侧边栏主容器：展开/收起由 CSS 变量切换宽度 --- */
 .sidebar {
   --sidebar-width: 270px;
   --sidebar-inset: 14px;
@@ -104,11 +105,12 @@ function toggleSidebar() {
   transition: width var(--motion-duration-spring) var(--motion-spring-bouncy);
 
   &.is-collapsed {
-    --sidebar-width: 76px;
+    --sidebar-width: 76px;                                            /* 收起态只保留图标宽度 */
     --sidebar-inset: 9px;
   }
 }
 
+/* --- 顶部标题栏：Logo + 收起按钮 --- */
 .sidebar__header {
   display: flex;
   align-items: center;
@@ -117,6 +119,7 @@ function toggleSidebar() {
   padding: 10px 19px;
 }
 
+/* --- Logo 按钮：圆形产品标识 --- */
 .sidebar__logo {
   display: grid;
   place-items: center;
@@ -130,6 +133,7 @@ function toggleSidebar() {
   cursor: pointer;
 }
 
+/* --- 所有可交互元素的弹性交互反馈 --- */
 .sidebar__logo,
 .sidebar__toggle,
 .sidebar__action,
@@ -141,17 +145,18 @@ function toggleSidebar() {
 
   &:hover {
     filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);
+    transform: translateY(-.5px) scale(1.01);                         /* 悬停微上浮 */
   }
 
   &:active {
     filter: brightness(.94);
-    transform: scale(.96);
+    transform: scale(.96);                                            /* 按压弹性缩小 */
     transition-duration: var(--motion-duration-press);
     transition-timing-function: ease-out;
   }
 }
 
+/* --- Logo 圆形标记 --- */
 .sidebar__logo-mark {
   display: grid;
   place-items: center;
@@ -161,9 +166,10 @@ function toggleSidebar() {
   border-radius: 50% 50%;
   font-size: 16px;
   font-weight: 800;
-  transform: rotate(-8deg);
+  transform: rotate(-8deg);                                          /* 微倾斜增加辨识度 */
 }
 
+/* --- 收起/展开切换按钮 --- */
 .sidebar__toggle,
 .sidebar__expand {
   --m3e-icon-button-icon-color: #969696;
@@ -174,6 +180,7 @@ function toggleSidebar() {
   m3e-icon { font-size: 24px; }
 }
 
+/* --- 主操作区：主页和新建对话 --- */
 .sidebar__actions {
   display: grid;
   gap: 6px;
@@ -181,6 +188,7 @@ function toggleSidebar() {
   padding: 10px var(--sidebar-inset) 8px;
 }
 
+/* --- 操作按钮和设置按钮通用样式 --- */
 .sidebar__action,
 .sidebar__settings {
   --m3e-button-container-height: var(--sidebar-item-height);
@@ -200,10 +208,11 @@ function toggleSidebar() {
   }
 }
 
+/* --- 按钮内容行：图标 + 文字 --- */
 .sidebar__action-content {
   display: flex;
   align-items: center;
-  width: calc(var(--sidebar-width) - var(--sidebar-inset) * 2 - 30px);
+  width: calc(var(--sidebar-width) - var(--sidebar-inset) * 2 - 30px); /* 适应侧边栏宽度变化 */
   min-width: 0;
 
   m3e-icon {
@@ -214,11 +223,13 @@ function toggleSidebar() {
   }
 }
 
+/* --- 按钮文字标签 --- */
 .sidebar__label {
   margin-left: 17px;
   white-space: nowrap;
 }
 
+/* --- 会话列表滚动区 --- */
 .sidebar__conversations {
   display: flex;
   flex-direction: column;
@@ -232,6 +243,7 @@ function toggleSidebar() {
   scrollbar-color: #242424 transparent;
 }
 
+/* --- 单个会话按钮 --- */
 .sidebar__conversation {
   --m3e-button-container-height: 40px;
   --m3e-button-leading-space: 15px;
@@ -244,25 +256,28 @@ function toggleSidebar() {
   text-align: left;
 
   &.is-active {
-    --m3e-tonal-button-container-color: #171717;
+    --m3e-tonal-button-container-color: #171717;                      /* 当前会话高亮背景 */
     --m3e-tonal-button-label-text-color: #ffffff;
   }
 }
 
+/* --- 会话标题截断 --- */
 .sidebar__conversation-content {
   display: block;
-  width: calc(var(--sidebar-width) - 66px);
+  width: calc(var(--sidebar-width) - 66px);                           /* 减去两侧间距和按钮留白 */
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* --- 收起态展开按钮 --- */
 .sidebar__expand {
   flex: 0 0 40px;
   margin: auto auto 16px;
 }
 
+/* --- 底部设置区：分割线 + 设置入口 --- */
 .sidebar__footer {
   display: flex;
   flex-direction: column;
@@ -280,6 +295,7 @@ function toggleSidebar() {
   flex: 0 0 var(--sidebar-item-height);
 }
 
+/* --- 收起态：所有按钮居中显示为纯图标 --- */
 .sidebar.is-collapsed {
   .sidebar__header {
     justify-content: center;
@@ -299,10 +315,10 @@ function toggleSidebar() {
 
   .sidebar__action-content {
     justify-content: center;
-    width: 24px;
+    width: 24px;                                                      /* 收起态只显示图标 */
   }
 
-  .sidebar__label { display: none; }
+  .sidebar__label { display: none; }                                  /* 收起态隐藏文字 */
 
   .sidebar__settings {
     margin-right: auto;
@@ -310,6 +326,7 @@ function toggleSidebar() {
   }
 }
 
+/* --- 无障碍：关闭动画的降级 --- */
 @media (prefers-reduced-motion: reduce) {
   .sidebar { transition-duration: 1ms; }
 }

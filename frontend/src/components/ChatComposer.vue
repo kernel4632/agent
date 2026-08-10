@@ -49,7 +49,8 @@ function observeEditorSize() {
   composerHeight.value = expanded.value ? `${expandedHeight}px` : '64px'
 }
 
-async function handleInput() {
+// --- 输入后重新测量编辑器布局 ---
+async function measureLayout() {
   expanded.value = false                                      // 先回到横排，让 textarea 按真实可用宽度排版
   await nextTick()
   window.cancelAnimationFrame(layoutFrame)                    // 快速输入时只保留最后一次布局请求
@@ -57,8 +58,8 @@ async function handleInput() {
 }
 
 
-// --- 处理编辑器键盘提交 ---
-function handleKeydown(event) {
+// --- 回车键提交消息 ---
+function submitOnEnter(event) {
   if (event.key !== 'Enter' || event.shiftKey) return         // Shift+Enter 保留换行，其他按键正常输入
   event.preventDefault()                                      // 普通 Enter 不向 textarea 插入新行
   emit('submit', message.value)                               // 只发出文本，未来由业务层决定如何发送
@@ -84,7 +85,7 @@ onBeforeUnmount(() => {
     </m3e-icon-button>
 
     <div class="chat-composer__viewport">
-      <textarea ref="editor" v-model="message" class="chat-composer__editor" aria-label="消息" :placeholder="props.placeholder" rows="1" @input="handleInput" @keydown="handleKeydown"></textarea>
+      <textarea ref="editor" v-model="message" class="chat-composer__editor" aria-label="消息" :placeholder="props.placeholder" rows="1" @input="measureLayout" @keydown="submitOnEnter"></textarea>
     </div>
 
     <div ref="actions" class="chat-composer__actions">
@@ -107,7 +108,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-/* --- 单行横排，多行通过 Flex 换行切成正文和工具栏两层 --- */
+/* --- 编辑器外框：单行横排，多行时 Flex 换行切成正文和工具栏两层 --- */
 .chat-composer {
   --control-size: 40px;
   display: flex;
@@ -121,18 +122,20 @@ onBeforeUnmount(() => {
   padding: 11px;
   overflow: hidden;
   border: 1px solid #303030;
-  border-radius: 32px;
+  border-radius: 32px;                                                /* 全圆角形成胶囊外观 */
   background: rgb(28 28 28 / 82%);
   box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);                                        /* 毛玻璃背景融合底层内容 */
   transition: height var(--motion-duration-spring) var(--motion-spring-bouncy), border-color 100ms ease, background-color 100ms ease;
 }
 
+/* --- 聚焦态：加亮边框和背景 --- */
 .chat-composer:focus-within {
   border-color: #464646;
   background: rgb(31 31 31 / 90%);
 }
 
+/* --- 文本视口：承载自适应高度 textarea --- */
 .chat-composer__viewport {
   display: flex;
   align-items: center;
@@ -142,6 +145,7 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
 }
 
+/* --- 展开态：输入区独占上排，按钮进入底排 --- */
 .chat-composer.is-expanded {
   flex-wrap: wrap;
   align-content: flex-end;
@@ -149,16 +153,17 @@ onBeforeUnmount(() => {
 }
 
 .chat-composer.is-expanded .chat-composer__viewport {
-  order: -1;
-  flex: 1 0 100%;
+  order: -1;                                                          /* 输入区排在最前 */
+  flex: 1 0 100%;                                                     /* 独占整行宽度 */
   align-items: flex-start;
   align-self: auto;
   height: auto;
   min-height: 0;
 }
 
+/* --- 文本编辑器：field-sizing 自适应内容高度 --- */
 .chat-composer__editor {
-  field-sizing: content;
+  field-sizing: content;                                              /* 浏览器原生内容驱动高度 */
   display: block;
   width: 100%;
   min-height: 24px;
@@ -195,6 +200,7 @@ onBeforeUnmount(() => {
   background-clip: padding-box;
 }
 
+/* --- 底排操作区：模型选择和提交按钮 --- */
 .chat-composer__actions {
   display: flex;
   align-items: center;
@@ -203,6 +209,7 @@ onBeforeUnmount(() => {
   margin-left: auto;
 }
 
+/* --- 控件弹性交互：悬停上浮、按压缩小 --- */
 .chat-composer__icon-button,
 .chat-composer__submit,
 .chat-composer__model {
@@ -222,17 +229,18 @@ onBeforeUnmount(() => {
 .chat-composer__submit:hover,
 .chat-composer__model:hover {
   filter: brightness(1.08);
-  transform: translateY(-1px) scale(1.03);
+  transform: translateY(-1px) scale(1.03);                            /* 悬停微上浮 */
 }
 
 .chat-composer__icon-button:active,
 .chat-composer__submit:active,
 .chat-composer__model:active {
   filter: brightness(.94);
-  transform: scale(.86);
+  transform: scale(.86);                                              /* 按压弹性缩小 */
   transition: transform 60ms ease-out, filter 60ms ease-out;
 }
 
+/* --- 图标按钮 SVG 描边 --- */
 .chat-composer__icon-button svg,
 .chat-composer__submit svg {
   width: 21px;
@@ -244,6 +252,7 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
+/* --- 模型选择按钮：胶囊文本按钮 --- */
 .chat-composer__model {
   --m3e-button-shape-round: var(--md-sys-shape-corner-full);
   --m3e-button-shape-pressed-morph: var(--md-sys-shape-corner-full);
@@ -269,12 +278,14 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
+/* --- 模型浮层菜单 --- */
 .chat-composer__menu {
   --m3e-menu-container-color: #202020;
   --m3e-menu-container-shape: 18px;
   --m3e-menu-container-min-width: 220px;
 }
 
+/* --- 提交按钮：高对比度填充 --- */
 .chat-composer__submit {
   --m3e-filled-icon-button-container-color: #f1f1f1;
   --m3e-filled-icon-button-icon-color: #111111;
@@ -282,12 +293,14 @@ onBeforeUnmount(() => {
 
 .chat-composer__submit svg { stroke-width: 2; }
 
+/* --- 移动端适配：缩小控件和字号 --- */
 @media (max-width: 620px) {
   .chat-composer { --control-size: 38px; padding: 12px; }
   .chat-composer__editor { font-size: 15px; }
   .chat-composer__model { font-size: 13px; }
 }
 
+/* --- 关闭透明度的无障碍适配 --- */
 @media (prefers-reduced-transparency: reduce) {
   .chat-composer { background: #1c1c1c; backdrop-filter: none; }
 }
