@@ -6,6 +6,16 @@
 import { reactive } from 'vue'                         // 引入唯一响应式数据根
 
 
+// --- 从 localStorage 恢复外观偏好 ---
+function loadAppearance() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('agent.appearance'))  // 读取上次保存的偏好
+    if (saved && typeof saved === 'object') return { language: saved.language || 'zh-CN', density: saved.density || 'comfortable', animations: saved.animations !== false }
+  } catch { /* 损坏数据回退默认 */ }
+  return { language: 'zh-CN', density: 'comfortable', animations: true } // 首次使用的默认值
+}
+
+
 // --- 工作台唯一数据根 ---
 export const store = reactive({
   ui: {
@@ -28,7 +38,7 @@ export const store = reactive({
     tools: [],                                        // 工具运行目录与权限
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
-    appearance: { language: 'zh-CN', density: 'comfortable', animations: true }, // 仅前端使用的外观偏好
+    appearance: loadAppearance(),                       // 从 localStorage 恢复外观偏好
     activeProvider: '',                               // Server 当前供应商
     activeModel: '',                                  // Server 当前模型
     raw: null,                                        // 脱敏后的完整 Server 配置

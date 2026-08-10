@@ -48,8 +48,25 @@ async function save() {
   store.settings.isSaving = true                        // 导航期间公开保存状态
   try {
     const provider = draft.providers[0] || { apiUrl: '', apiKey: '', models: [] } // 当前最小 Server 只支持一个供应商
-    await AgentAPI.updateConfig({ provider: { api: provider.apiUrl || '', key: provider.apiKey || '', models: provider.models.map(model => model.id) }, prompts: { system: draft.prompt } }) // 转回 Server 的严格最小配置结构
+
+    // 将工具数组转换回 Server 的 permission 对象结构：{ toolName: "allow" | "ask" | "deny" }
+    const permission = Object.fromEntries(
+      (draft.tools || []).map(tool => [tool.name, tool.permission || (tool.enabled ? 'ask' : 'deny')])
+    )
+
+    // 将 MCP 数组转换回 Server 的 mcp 对象结构：{ name: definition }
+    const mcp = Object.fromEntries(
+      (draft.mcp || []).map(item => [item.name, { ...item.definition, command: item.command, enabled: item.enabled }])
+    )
+
+    await AgentAPI.updateConfig({
+      provider: { api: provider.apiUrl || '', key: provider.apiKey || '', models: provider.models.map(model => model.id) }, // 供应商连接信息
+      prompts: { system: draft.prompt },                 // 系统提示词
+      permission,                                        // 工具权限配置
+      mcp,                                               // MCP 服务定义
+    })
     store.config.appearance = isolateDraft(draft.appearance)    // 外观设置在当前前端会话即时生效
+    persistAppearance(draft.appearance)                         // 外观偏好写入 localStorage 跨刷新保留
     await Config.load()                                  // 重新读取脱敏最终配置和运行能力
     store.settings.savedAt = Date.now()                  // 设置页再次进入可展示保存时间
     store.settings.draft = null                          // 释放已经提交的编辑副本
@@ -60,6 +77,24 @@ async function save() {
   } finally {
     store.settings.isSaving = false                      // 保存终态恢复后续导航
   }
+}
+
+
+// --- 外观偏好持久化到 localStorage ---
+const appearanceKey = 'agent.appearance'                  // 浏览器持久化键名
+
+function persistAppearance(appearance) {
+  try {
+    localStorage.setItem(appearanceKey, JSON.stringify(appearance)) // 序列化写入
+  } catch { /* localStorage 不可用时静默忽略 */ }
+}
+
+function restoreAppearance() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(appearanceKey))   // 读取上次保存的外观偏好
+    if (saved && typeof saved === 'object') return saved            // 返回有效对象
+  } catch { /* 损坏数据回退默认 */ }
+  return { language: 'zh-CN', density: 'comfortable', animations: true } // 首次使用的默认值
 }
 
 

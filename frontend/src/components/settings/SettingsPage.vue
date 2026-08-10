@@ -6,9 +6,13 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'          // 引入响应式计算、卸载钩子和本地状态
-import ProviderSettings from './ProviderSettings.vue'         // 引入供应商配置分类（当前唯一完整实现）
+import ProviderSettings from './ProviderSettings.vue'         // 引入供应商配置分类
+import ToolsSettings from './ToolsSettings.vue'               // 引入工具权限管理分类
+import MCPSettings from './MCPSettings.vue'                   // 引入 MCP 服务管理分类
+import PromptsSettings from './PromptsSettings.vue'           // 引入系统提示词编辑分类
+import AppearanceSettings from './AppearanceSettings.vue'     // 引入语言与外观分类
 import SettingsNavigation from './SettingsNavigation.vue'     // 引入左侧分类导航
-import SettingsPlaceholder from './SettingsPlaceholder.vue'   // 引入尚未实现分类的占位组件
+import SettingsPlaceholder from './SettingsPlaceholder.vue'   // 引入尚未实现分类的占位组件（数据管理）
 import { Settings } from '../../commands/settings.js'         // 引入设置草稿创建指令
 import { store } from '../../store.js'                        // 引入全局设置草稿状态
 
@@ -46,6 +50,10 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
     <SettingsNavigation :items="sections" :selected-id="selectedSectionID" @select="selectedSectionID = $event" />
     <section class="settings-page__content">
       <ProviderSettings v-if="selectedSectionID === 'providers'" v-model:providers="settingsDraft.providers" />
+      <ToolsSettings v-else-if="selectedSectionID === 'tools'" v-model:tools="settingsDraft.tools" />
+      <MCPSettings v-else-if="selectedSectionID === 'mcp'" v-model:mcp="settingsDraft.mcp" />
+      <PromptsSettings v-else-if="selectedSectionID === 'prompts'" v-model:prompt="settingsDraft.prompt" />
+      <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" v-model:appearance="settingsDraft.appearance" />
       <SettingsPlaceholder
         v-else
         :title="selectedSection.label"
