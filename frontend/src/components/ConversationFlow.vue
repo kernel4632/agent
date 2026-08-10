@@ -1,82 +1,92 @@
 <!--
-对话流组件：用户消息参考 Grok 的右对齐气泡，Assistant 使用 Agent 活动流展示执行过程。
-组件当前承载静态预览内容，用于确认消息层级、工具步骤和响应式布局。
+对话流组件：从 store 读取当前活跃会话的消息列表，渲染用户消息气泡和助手执行活动流。
+用户消息参考 Grok 的右对齐气泡，Assistant 使用卡片流展示工具执行过程和文本回复。
 调用示例：<ConversationFlow />。
 -->
 <script setup>
-import { ref } from 'vue'                              // 保存静态预览中两个工具的展开状态
-import ToolExpansion from './ToolExpansion.vue'       // 复用工具标题、详情折叠与回退确认
+import { computed, nextTick, ref, watch } from 'vue'    // 引入响应式计算和滚动控制
+import { store } from '../store.js'                     // 引入全局会话数据
+import { renderMarkdown } from '../utils/markdown.js'   // 引入 Markdown 转 HTML 能力
+import ToolExpansion from './ToolExpansion.vue'          // 复用工具标题、详情折叠与回退确认
 
-const emit = defineEmits(['copy-message', 'rollback-message', 'rollback-tool']) // 将消息和工具操作交给业务层
-const fileDetailsOpen = ref(false)                     // 文件差异默认收起，避免占用消息流高度
-const commandDetailsOpen = ref(true)                   // 当前运行命令默认展开，直接展示执行反馈
+const flowContainer = ref(null)                         // 容器引用，用于自动滚动到底部
+const session = computed(() => store.sessions[store.ui.activeSessionID] || null) // 当前活跃会话
+const messages = computed(() => session.value?.messages || []) // 当前会话消息列表
+
+
+// --- 自动滚动到底部 ---
+function scrollToBottom() {
+  nextTick(() => {
+    const container = flowContainer.value               // 读取滚动容器 DOM
+    if (container) container.scrollTop = container.scrollHeight // 新消息后显示最新内容
+  })
+}
+
+watch(messages, scrollToBottom, { deep: true })         // 消息变化时自动向下滚动
+
+
+// --- 工具图标映射 ---
+function toolIcon(toolName) {
+  if (toolName?.includes('file') || toolName?.includes('edit')) return 'dashboard_customize' // 文件类工具
+  if (toolName?.includes('shell') || toolName?.includes('command') || toolName?.includes('terminal')) return 'terminal' // 终端类工具
+  if (toolName?.includes('search') || toolName?.includes('grep')) return 'search' // 搜索类工具
+  return 'build'                                        // 其他工具使用通用图标
+}
 </script>
 
 <template>
-  <main class="conversation-flow" aria-label="对话内容">
-    <!-- 用户消息：紧凑气泡；悬停或聚焦时展示时间与操作。 -->
-    <section class="conversation-flow__user-turn" aria-label="用户消息">
-      <p class="conversation-flow__user-message">检查消息流组件的结构，并修复会话操作按钮的交互问题。</p>
-      <div class="conversation-flow__message-actions" aria-label="用户消息操作">
-        <span class="conversation-flow__message-time">刚刚</span>
-        <m3e-icon-button type="button" shape="rounded" aria-label="回退" title="回退" @click="emit('rollback-message')">
-          <m3e-icon name="undo" filled="1"></m3e-icon>
-        </m3e-icon-button>
-        <m3e-icon-button type="button" shape="rounded" aria-label="复制" title="复制" @click="emit('copy-message')">
-          <m3e-icon name="content_copy" filled="1"></m3e-icon>
-        </m3e-icon-button>
-      </div>
-    </section>
+  <main ref="flowContainer" class="conversation-flow" aria-label="对话内容">
+    <template v-for="(message, index) in messages" :key="message.id || index">
+      <!-- 用户消息：紧凑气泡 -->
+      <section v-if="message.role === 'user'" class="conversation-flow__user-turn" aria-label="用户消息">
+        <p class="conversation-flow__user-message">{{ typeof message.content === 'string' ? message.content : '' }}</p>
+      </section>
 
-    <!-- Agent：以 Roo Code 风格卡片流展示执行过程。 -->
-    <section class="conversation-flow__assistant-turn" aria-label="Agent 执行过程">
-      <div class="conversation-flow__activity-list">
-        <m3e-card class="conversation-flow__activity-card" variant="filled">
-          <div slot="content">
-            <ToolExpansion v-model:open="fileDetailsOpen" icon="dashboard_customize" label="需要编辑文件" parameter="components/src/components/HomePage.vue" @rollback="emit('rollback-tool', 'edit-file')">
-              <pre class="conversation-flow__code"><code><span class="code-add">+ @click.stop="openRenameDialog(conversation)"</span>
-<span class="code-add">+ :has(.conversation-actions:hover) {</span>
-<span class="code-add">+   transform: scale(1);</span>
-<span class="code-add">+ }</span></code></pre>
-            </ToolExpansion>
-          </div>
-        </m3e-card>
+      <!-- 助手消息：活动流卡片 -->
+      <section v-else-if="message.role === 'assistant'" class="conversation-flow__assistant-turn" aria-label="Agent 执行过程">
+        <div class="conversation-flow__activity-list">
+          <!-- 工具调用卡片 -->
+          <m3e-card v-for="tool in (message.tools || [])" :key="tool.id" class="conversation-flow__activity-card" variant="filled">
+            <div slot="content">
+              <ToolExpansion :icon="toolIcon(tool.name)" :label="tool.status === 'running' ? '正在运行' : tool.status === 'completed' ? '已完成' : tool.status === 'error' ? '执行失败' : '等待中'" :parameter="tool.name + (tool.input?.command ? ' ' + tool.input.command : tool.input?.path ? ' ' + tool.input.path : '')" :open="tool.status === 'running'">
+                <pre v-if="tool.preview" class="conversation-flow__terminal"><code>{{ tool.preview }}</code></pre>
+              </ToolExpansion>
+            </div>
+          </m3e-card>
 
-        <m3e-card class="conversation-flow__activity-card" variant="filled">
-          <div slot="content" class="conversation-flow__api-row">
-            <m3e-icon name="sync_alt" filled="1"></m3e-icon>
-            <span>API 请求</span>
-            <span class="conversation-flow__api-cost">
-              <span>Tokens:42050</span>
-              <span>↑38139</span>
-              <span>↓3911</span>
-            </span>
-          </div>
-        </m3e-card>
+          <!-- API 用量行 -->
+          <m3e-card v-if="message.request?.input || message.request?.output" class="conversation-flow__activity-card" variant="filled">
+            <div slot="content" class="conversation-flow__api-row">
+              <m3e-icon name="sync_alt" filled="1"></m3e-icon>
+              <span>API 请求</span>
+              <span class="conversation-flow__api-cost">
+                <span>↑{{ message.request.input }}</span>
+                <span>↓{{ message.request.output }}</span>
+              </span>
+            </div>
+          </m3e-card>
 
-        <m3e-card class="conversation-flow__activity-card" variant="filled">
-          <div slot="content" class="conversation-flow__message-block">
-            <p>图标按钮已经阻止事件冒泡，但父级仍会命中 CSS 的 <code>:hover</code> 与 <code>:active</code>。需要在操作区交互时暂停会话项自身的 transform，只保留图标按钮的 ripple 和弹性反馈。</p>
-          </div>
-        </m3e-card>
+          <!-- 文本内容块 -->
+          <m3e-card v-if="message.content" class="conversation-flow__activity-card" variant="filled">
+            <div slot="content" class="conversation-flow__message-block" v-html="renderMarkdown(message.content)"></div>
+          </m3e-card>
 
-        <m3e-card class="conversation-flow__activity-card" variant="filled">
-          <div slot="content">
-            <ToolExpansion v-model:open="commandDetailsOpen" icon="terminal" label="正在运行" parameter="bun run build" :icon-filled="false" @rollback="emit('rollback-tool', 'run-command')">
-              <pre class="conversation-flow__terminal"><code><span class="code-prompt">›</span> <span class="code-command">bun run build</span>
-<span class="code-output">✓ 54 modules transformed</span>
-<span class="code-output">✓ built in 369ms</span></code></pre>
-            </ToolExpansion>
-          </div>
-        </m3e-card>
+          <!-- 流式打字指示器 -->
+          <m3e-card v-if="message.isStreaming && !message.content" class="conversation-flow__activity-card" variant="filled">
+            <div slot="content" class="conversation-flow__message-block">
+              <p class="conversation-flow__typing">正在思考...</p>
+            </div>
+          </m3e-card>
 
-        <m3e-card class="conversation-flow__activity-card" variant="filled">
-          <div slot="content" class="conversation-flow__message-block">
-            <p>会话项与内部操作按钮的交互已经隔离。点击重命名或删除时，父级保持稳定，只有目标图标按钮执行按压、ripple 和弹性回弹。</p>
-          </div>
-        </m3e-card>
-      </div>
-    </section>
+          <!-- 错误显示 -->
+          <m3e-card v-if="message.error" class="conversation-flow__activity-card" variant="filled">
+            <div slot="content" class="conversation-flow__message-block">
+              <p class="conversation-flow__error">{{ message.error }}</p>
+            </div>
+          </m3e-card>
+        </div>
+      </section>
+    </template>
   </main>
 </template>
 

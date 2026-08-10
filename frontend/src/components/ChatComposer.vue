@@ -62,7 +62,15 @@ async function measureLayout() {
 function submitOnEnter(event) {
   if (event.key !== 'Enter' || event.shiftKey) return         // Shift+Enter 保留换行，其他按键正常输入
   event.preventDefault()                                      // 普通 Enter 不向 textarea 插入新行
+  submitForm()                                                // 共用提交逻辑
+}
+
+
+// --- 表单提交（按钮或 Enter） ---
+function submitForm() {
+  if (!message.value.trim()) return                           // 空文本不触发发送
   emit('submit', message.value)                               // 只发出文本，未来由业务层决定如何发送
+  message.value = ''                                          // 发送后立即清空输入框
 }
 
 onMounted(() => {
@@ -78,7 +86,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <form ref="composer" class="chat-composer" :class="{ 'is-expanded': expanded }" :style="{ '--composer-height': composerHeight }" aria-label="对话编辑器" @submit.prevent="emit('submit', message)">
+  <form ref="composer" class="chat-composer" :class="{ 'is-expanded': expanded }" :style="{ '--composer-height': composerHeight }" aria-label="对话编辑器" @submit.prevent="submitForm">
     <!-- 单行时三部分横排；出现第二行后，输入区独占上排，控件进入底排。 -->
     <m3e-icon-button class="chat-composer__icon-button" type="button" shape="rounded" aria-label="附件" title="附件" @click="emit('attach')">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12"></path></svg>

@@ -33,12 +33,8 @@ async function send(sessionID, content) {
   const text = content.trim()                              // 消息不保留无意义首尾空白
   if (!session || !text || session.status === 'running') return false // 无会话、空文本和重复发送均拒绝
 
-  const messageID = `msg_${crypto.randomUUID()}`          // 客户端身份与 Server 持久化保持一致
-  const files = [...session.files]                         // 保存本轮真实附件，清空输入区后仍可发送
-  const userMessage = { id: messageID, role: 'user', content: text, files: files.map(({ content: _content, ...file }) => file), createdAt: Date.now() } // 输入立即进入时间线，终态再由 Server 的 AI SDK 消息校准
+  const userMessage = { id: `msg_${crypto.randomUUID()}`, role: 'user', content: text, createdAt: Date.now() } // 输入立即进入时间线
   const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前响应占位
-  session.rollback = null                                // 新消息正式提交当前回退分支
-  session.files = []                                     // 附件归属用户消息后清空输入区
   session.messages.push(userMessage, assistant)          // 输入和请求状态即时反馈
   session.status = 'running'                             // 输入器切换为停止按钮
   session.updatedAt = Date.now()                         // 会话进入最近活动
@@ -48,13 +44,11 @@ async function send(sessionID, content) {
   previousController?.abort()                            // 同一会话只保留一个事件读取循环
   const controller = new AbortController()               // 当前执行使用独立订阅中断信号
   store.events.controllers[sessionID] = controller       // 停止和终态可以释放订阅
-  const afterID = store.events.lastIDs[sessionID] || 0   // 从最后确认事件继续读取
-  const eventResponse = AgentAPI.subscribeSession(sessionID, afterID, controller.signal) // 并发建立订阅，空历史时等待首事件
 
   try {
-    await AgentAPI.sendMessage(sessionID, text)            // 会话模型已在创建或切换时持久化
-    const response = await eventResponse                  // 执行已启动后取得事件流响应
-    void consume(sessionID, response, controller)         // 后台持续归约事件，不阻塞输入事件栈
+    const eventResponse = await AgentAPI.subscribeSession(sessionID, 0, controller.signal) // 先建立 SSE 连接
+    await AgentAPI.sendMessage(sessionID, text)            // SSE 就绪后再发送消息
+    void consume(sessionID, eventResponse, controller)    // 后台持续归约事件，不阻塞输入事件栈
     return true                                           // 反馈发送动作已接受
   } catch (error) {
     controller.abort()                                    // 启动失败释放尚未建立的订阅
@@ -92,50 +86,76 @@ async function consume(sessionID, response, controller) {
 async function receive(sessionID, event, controller) {
   const session = store.sessions[sessionID]               // 读取事件所属完整会话
   if (!session) return                                    // 已删除或未加载会话忽略旧事件
-  if (event.id && event.id <= (store.events.lastIDs[sessionID] || 0)) return // 重放重复事件不能二次修改页面
-  if (event.id) store.events.lastIDs[sessionID] = event.id // 成功接收后推进断线位置
   const assistant = getStreamingAssistant(session)        // 当前增量统一写入最新响应占位
 
-  if (event.name === 'text-delta' && assistant) assistant.content += event.data.text || '' // 追加模型正文增量
-  if (event.name === 'reasoning-delta' && assistant) assistant.reasoning += event.data.text || '' // 追加模型推理增量
-  if (event.name === 'tool-call' && assistant) upsertTool(assistant, event.data.toolCall, 'running') // 展示模型工具声明
-  if (event.name === 'tool-approval-request' && assistant) upsertTool(assistant, { toolCallId: event.data.id, toolName: event.data.name, input: event.data.args }, 'waiting') // 展示三选一审批
-  if (event.name === 'tool-result' && assistant) {
-    const result = event.data.toolResult                 // 读取 AI SDK ToolResultPart
-    const status = result.output.type === 'execution-denied' ? 'rejected' : result.output.type.startsWith('error-') ? 'error' : 'completed' // 根据 SDK 输出类型展示终态
-    upsertTool(assistant, { ...result, output: result.output }, status) // 展示真实工具结果
-  }
-  if (event.name === 'task-list-updated') {
-    session.tasks = event.data.tasks || []                // 任务面板使用 Server 持久化清单
-    session.taskRevision = event.data.taskRevision        // 保存并发修订号
-  }
-  if (event.name === 'session-title') {
-    session.title = event.data.title                      // 异步模型标题更新对话页
-    Session.syncSummary(session)                          // 同步主页与侧栏标题
-  }
-  if ((event.name === 'finish-step' || event.name === 'finish') && assistant && event.data.usage) applyUsage(session, assistant, event.data.usage) // 处理 AI SDK 用量结构
-  if (event.name === 'usage' && assistant) applyUsage(session, assistant, event.data) // 处理 Server 显式用量事件
-  if (event.name === 'context') {
-    session.contextTokens = event.data.used || 0          // 使用 Server 反馈的真实上下文 token
-    session.contextLimit = event.data.limit || session.contextLimit // 使用当前模型真实上下文上限
-  }
-  if (event.name === 'error-retry' && assistant) assistant.error = `${event.data.message} · ${event.data.nextRetryIn}ms` // 原位展示重试反馈
-  if (event.name === 'error' && assistant) {
-    assistant.error = event.data.message                 // 展示不可恢复错误
-    assistant.request.status = 'failed'                  // 请求条进入故障状态
-  }
+  if (event.name === 'sync') return                       // 连接建立确认事件不修改页面
 
-  if (!['finish', 'error'].includes(event.name)) return  // 普通增量继续保持订阅
-  if (assistant) {
-    assistant.isStreaming = false                        // 终态关闭打字状态
-    assistant.request.status = event.data.cancelled ? 'cancelled' : event.name === 'error' ? 'failed' : 'completed' // 映射真实终态
+  if (event.name === 'text-delta' && assistant) {
+    assistant.content += event.data.text || ''             // 追加模型正文增量
+    return
   }
-  session.status = 'idle'                                // 输入器恢复发送动作
-  Session.syncSummary(session)                           // 列表同步终态
-  try { await Session.refresh(sessionID) }               // 用 Server 最终持久化历史校准增量占位
-  catch (error) { UI.notify(error.message) }             // 刷新失败保留当前已显示增量
-  controller.abort()                                     // 当前执行结束后释放持续 SSE
-  if (store.events.controllers[sessionID] === controller) delete store.events.controllers[sessionID] // 清除当前控制器引用
+  if (event.name === 'reasoning-delta' && assistant) {
+    assistant.reasoning += event.data.text || ''           // 追加模型推理增量
+    return
+  }
+  if (event.name === 'tool-call' && assistant) {
+    const toolCall = event.data.toolCall                   // 读取完整工具调用结构
+    if (toolCall.toolName === 'finish' || toolCall.toolName === 'delegate_task') return // 内部控制工具不展示
+    upsertTool(assistant, toolCall, 'running')             // 展示模型工具声明
+    return
+  }
+  if (event.name === 'tool-output' && assistant) {
+    const tool = assistant.tools.find((item) => item.id === event.data.toolCallId) // 定位正在执行的工具
+    if (tool) tool.preview += event.data.output || ''     // 实时追加工具输出预览
+    return
+  }
+  if (event.name === 'tool-result' && assistant) {
+    const result = event.data.toolResult ?? event.data    // 兼容不同结构
+    const toolCallID = result.toolCallId                  // 定位目标工具条
+    const tool = assistant.tools.find((item) => item.id === toolCallID)
+    if (tool) {
+      tool.status = result.isError ? 'error' : 'completed' // 根据错误标记设置终态
+      tool.preview = result.result ?? tool.preview         // 使用最终结果替换预览
+    }
+    return
+  }
+  if (event.name === 'message' && event.data.message) {
+    const msg = event.data.message                        // 后端推送完整消息
+    if (msg.role === 'assistant' && assistant) {
+      const content = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '') // 合并 AI SDK 文本块
+      const reasoning = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'reasoning').map(b => b.text).join('') : '' // 合并推理块
+      if (content) assistant.content = content            // 完整消息替换增量累积
+      if (reasoning) assistant.reasoning = reasoning      // 完整推理替换累积
+      if (msg.usage) applyUsage(session, assistant, msg.usage) // 应用最终用量
+      const toolCalls = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'tool-call' && b.toolName !== 'finish' && b.toolName !== 'delegate_task') : []
+      for (const call of toolCalls) upsertTool(assistant, call, 'running') // 确保工具条存在
+    }
+    return
+  }
+  if (event.name === 'error') {
+    if (assistant) {
+      assistant.error = event.data.message || event.data.error || '未知错误' // 展示不可恢复错误
+      assistant.request.status = 'failed'                 // 请求条进入故障状态
+    }
+    session.status = 'idle'                               // 恢复输入器
+    if (assistant) assistant.isStreaming = false           // 关闭打字状态
+    Session.syncSummary(session)                          // 列表同步终态
+    controller.abort()                                    // 释放 SSE 连接
+    return
+  }
+  if (event.name === 'status') {
+    if (event.data.status === 'idle' && session.status === 'running') {
+      session.status = 'idle'                             // 输入器恢复发送动作
+      if (assistant) {
+        assistant.isStreaming = false                     // 终态关闭打字状态
+        assistant.request.status = 'completed'            // 映射完成终态
+      }
+      Session.syncSummary(session)                        // 列表同步终态
+      controller.abort()                                  // Agent 循环结束后释放 SSE
+      if (store.events.controllers[sessionID] === controller) delete store.events.controllers[sessionID]
+    }
+    return
+  }
 }
 
 
