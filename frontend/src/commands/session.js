@@ -68,6 +68,7 @@ async function open(sessionID) {
   if (!found) return false                              // 无效点击保持当前页面
   try {
     const loaded = await AgentAPI.getSession(sessionID) // 每次打开读取 Server 最新历史和状态
+    if (!loaded.title && found.summary.title) loaded.title = found.summary.title // 摘要已有标题时回退使用，防止侧边栏显示空标题
     store.sessions[sessionID] = normalize(loaded, store.sessions[sessionID]) // 保留当前草稿并替换服务数据
     store.ui.activeWorkspaceID = found.workspace.id     // 侧边栏与主页保持正确工作区归属
     rememberOpened(sessionID)                           // 读取成功后才加入侧边栏，失败时不制造空标签
