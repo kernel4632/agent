@@ -4,7 +4,7 @@
 调用示例：Vite 从 main.js 挂载本文件的根组件。
 -->
 <script setup>
-import { ref } from 'vue'                                           // 引入侧边栏本地状态
+import { computed } from 'vue'                                      // 引入响应式计算
 import ChatComposer from './components/ChatComposer.vue'            // 引入对话输入编辑器
 import ConversationFlow from './components/ConversationFlow.vue'    // 引入对话消息时间线
 import HomePage from './components/HomePage.vue'                    // 引入工作区与会话主页
@@ -17,7 +17,11 @@ import { UI, openedConversations, homeWorkspaces, conversationsByWorkspace, acti
 import { Workspace } from './commands/workspace.js'                 // 引入工作区选择指令
 import { store } from './store.js'                                  // 引入全局工作台数据
 
-const sidebarCollapsed = ref(!store.ui.sidebarOpen)                 // 侧边栏展开状态由本地 ref 驱动过渡动画
+// --- 侧边栏折叠状态：store 是唯一真相，collapsed 是反向映射 ---
+const sidebarCollapsed = computed({
+  get: () => !store.ui.sidebarOpen,                                  // store 的 open=true 对应 collapsed=false
+  set: (value) => { store.ui.sidebarOpen = !value },                 // Sidebar 写 collapsed 时同步回 store
+})
 
 
 // --- 提交用户消息 ---
@@ -60,7 +64,7 @@ async function submitMessage(content) {
               <ConversationFlow />
             </div>
             <div class="chat-page__composer">
-              <ChatComposer :models="activeModels" :selected-model="activeSession?.model || activeModels[0]" @submit="submitMessage" />
+              <ChatComposer v-model:draft="activeSession.draft" :models="activeModels" :selected-model="activeSession?.model || activeModels[0]" @submit="submitMessage" @select-model="Session.selectModel(activeSession?.id, store.config.activeProvider, $event)" />
             </div>
           </section>
 

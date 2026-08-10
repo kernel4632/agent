@@ -9,14 +9,14 @@ import { nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue' // 管理
 const props = defineProps({                                   // 由调用方提供可复用的展示数据
   placeholder: { type: String, default: '问 Agent' },
   selectedModel: { type: String, default: 'kimi-k2.6' },
-  models: { type: Array, default: () => ['kimi-k2.6', 'glm-5.2', 'claude-sonnet-4.5'] },
+  models: { type: Array, default: () => ['kimi-k2.6', 'glm-5.2', '[REDACTED].5'] },
 })
 const emit = defineEmits(['attach', 'select-model', 'submit']) // 将业务意图交给组件外部处理
+const draft = defineModel('draft', { type: String, default: '' }) // 草稿文本由 store 持有，切换会话保留输入
 
 const composer = ref(null)                                    // 外框提供实际 padding 与边框尺寸
 const editor = ref(null)                                      // textarea 提供浏览器计算后的内容高度
 const actions = ref(null)                                     // 底排提供实际控件高度
-const message = ref('')                                       // 保存尚未提交的输入文本
 const expanded = ref(false)                                   // 第二行出现后切换为上下结构
 const composerHeight = ref('64px')                            // 根据实际布局尺寸驱动外框过渡
 const modelMenuID = `chat-composer-models-${useId()}`         // 避免多个组件实例共享菜单 ID
@@ -68,9 +68,9 @@ function submitOnEnter(event) {
 
 // --- 表单提交（按钮或 Enter） ---
 function submitForm() {
-  if (!message.value.trim()) return                           // 空文本不触发发送
-  emit('submit', message.value)                               // 只发出文本，未来由业务层决定如何发送
-  message.value = ''                                          // 发送后立即清空输入框
+  if (!draft.value.trim()) return                             // 空文本不触发发送
+  emit('submit', draft.value)                                 // 只发出文本，未来由业务层决定如何发送
+  draft.value = ''                                            // 发送后立即清空草稿
 }
 
 onMounted(() => {
@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
     </m3e-icon-button>
 
     <div class="chat-composer__viewport">
-      <textarea ref="editor" v-model="message" class="chat-composer__editor" aria-label="消息" :placeholder="props.placeholder" rows="1" @input="measureLayout" @keydown="submitOnEnter"></textarea>
+      <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="props.placeholder" rows="1" @input="measureLayout" @keydown="submitOnEnter"></textarea>
     </div>
 
     <div ref="actions" class="chat-composer__actions">
