@@ -1,7 +1,7 @@
 /*
 对话指令：负责发送消息、归约 SSE、停止、审批、附件和历史回退。
-用户触发先调用正式 API，事件按递增 ID 修改当前会话，终态再读取持久化历史校准。
-调用示例：await Chat.send(sessionID, content)、await Chat.decide(sessionID, toolCallID, decision)。
+SSE 连接在会话打开时建立并持久保持，Agent 循环结束不断开连接。
+调用示例：await Chat.send(sessionID, content)、Chat.subscribe(sessionID)、Chat.unsubscribe(sessionID)。
 */
 import { AgentAPI } from '../api.js'                    // 引入正式会话和审批 HTTP 契约
 import { store } from '../store.js'                     // 引入完整会话和事件位置
@@ -27,7 +27,35 @@ function submitInput(content, isRunning, emit) {
 }
 
 
-// --- 发送用户消息并启动事件订阅 ---
+// --- 建立持久 SSE 订阅（会话打开时调用）---
+async function subscribe(sessionID) {
+  const existing = store.events.controllers[sessionID]    // 检查是否已有连接
+  if (existing) return                                    // 避免重复订阅
+
+  const controller = new AbortController()                // 独立控制当前 SSE 生命周期
+  store.events.controllers[sessionID] = controller        // 注册到全局便于 unsubscribe 使用
+
+  try {
+    const response = await AgentAPI.subscribeSession(sessionID, 0, controller.signal) // 建立 SSE 连接
+    void consume(sessionID, response, controller)          // 后台持续消费事件
+  } catch (error) {
+    if (controller.signal.aborted) return                  // 被主动关闭的不报错
+    delete store.events.controllers[sessionID]             // 连接失败清除引用
+  }
+}
+
+
+// --- 关闭 SSE 订阅（离开会话页时调用）---
+function unsubscribe(sessionID) {
+  const controller = store.events.controllers[sessionID]  // 读取当前连接控制器
+  if (controller) {
+    controller.abort()                                     // 断开 SSE 连接
+    delete store.events.controllers[sessionID]             // 清除引用
+  }
+}
+
+
+// --- 发送用户消息（SSE 已在会话打开时建立）---
 async function send(sessionID, content) {
   const session = store.sessions[sessionID]               // 读取目标会话
   const text = content.trim()                              // 消息不保留无意义首尾空白
@@ -40,18 +68,10 @@ async function send(sessionID, content) {
   session.updatedAt = Date.now()                         // 会话进入最近活动
   Session.syncSummary(session)                           // 侧边栏和主页同步运行状态
 
-  const previousController = store.events.controllers[sessionID] // 读取旧订阅控制器
-  previousController?.abort()                            // 同一会话只保留一个事件读取循环
-  const controller = new AbortController()               // 当前执行使用独立订阅中断信号
-  store.events.controllers[sessionID] = controller       // 停止和终态可以释放订阅
-
   try {
-    const eventResponse = await AgentAPI.subscribeSession(sessionID, 0, controller.signal) // 先建立 SSE 连接
-    await AgentAPI.sendMessage(sessionID, text)            // SSE 就绪后再发送消息
-    void consume(sessionID, eventResponse, controller)    // 后台持续归约事件，不阻塞输入事件栈
+    await AgentAPI.sendMessage(sessionID, text)            // POST 发送消息，后端通过已建立的 SSE 推送响应
     return true                                           // 反馈发送动作已接受
   } catch (error) {
-    controller.abort()                                    // 启动失败释放尚未建立的订阅
     assistant.isStreaming = false                         // 关闭响应打字状态
     assistant.request.status = 'failed'                   // 请求条进入错误状态
     assistant.error = error.message                       // 原位展示真实 API 错误
@@ -89,6 +109,28 @@ async function receive(sessionID, event, controller) {
   const assistant = getStreamingAssistant(session)        // 当前增量统一写入最新响应占位
 
   if (event.name === 'sync') return                       // 连接建立确认事件不修改页面
+
+  if (event.name === 'status') {
+    if (event.data.status === 'running' && session.status !== 'running') {
+      session.status = 'running'                          // 后端开始循环，UI 切换为运行状态
+      Session.syncSummary(session)                        // 侧边栏同步
+      // 如果没有正在流式的 assistant 占位（比如从后端恢复运行状态），创建一个
+      if (!assistant) {
+        const newAssistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } }
+        session.messages.push(newAssistant)
+      }
+    }
+    if (event.data.status === 'idle' && session.status === 'running') {
+      session.status = 'idle'                             // 输入器恢复发送动作
+      if (assistant) {
+        assistant.isStreaming = false                     // 终态关闭打字状态
+        assistant.request.status = 'completed'            // 映射完成终态
+      }
+      Session.syncSummary(session)                        // 列表同步终态
+      // 注意：不断开 SSE，连接保持以接收下一轮事件
+    }
+    return
+  }
 
   if (event.name === 'text-delta' && assistant) {
     assistant.content += event.data.text || ''             // 追加模型正文增量
@@ -132,27 +174,18 @@ async function receive(sessionID, event, controller) {
     }
     return
   }
+  if (event.name === 'approval' && assistant) {
+    upsertTool(assistant, { toolCallId: event.data.toolCallId, toolName: event.data.toolName, input: event.data.input }, 'waiting') // 展示审批请求
+    return
+  }
   if (event.name === 'error') {
     if (assistant) {
       assistant.error = event.data.message || event.data.error || '未知错误' // 展示不可恢复错误
-      assistant.request.status = 'failed'                 // 请求条进入故障状态
-    }
-    session.status = 'idle'                               // 恢复输入器
-    if (assistant) assistant.isStreaming = false           // 关闭打字状态
-    Session.syncSummary(session)                          // 列表同步终态
-    controller.abort()                                    // 释放 SSE 连接
-    return
-  }
-  if (event.name === 'status') {
-    if (event.data.status === 'idle' && session.status === 'running') {
-      session.status = 'idle'                             // 输入器恢复发送动作
-      if (assistant) {
-        assistant.isStreaming = false                     // 终态关闭打字状态
-        assistant.request.status = 'completed'            // 映射完成终态
+      // 如果有重试信息不关闭打字状态（属于 retry 阶段）
+      if (!event.data.attempt) {
+        assistant.request.status = 'failed'               // 请求条进入故障状态
+        assistant.isStreaming = false                      // 关闭打字状态
       }
-      Session.syncSummary(session)                        // 列表同步终态
-      controller.abort()                                  // Agent 循环结束后释放 SSE
-      if (store.events.controllers[sessionID] === controller) delete store.events.controllers[sessionID]
     }
     return
   }
@@ -281,4 +314,4 @@ async function undoRollback(sessionID) {
 }
 
 
-export const Chat = { current, submitInput, send, receive, stop, decide, attach, removeFile, rollback, rollbackMessage, undoRollback } // 暴露全部对话动作
+export const Chat = { current, submitInput, subscribe, unsubscribe, send, receive, stop, decide, attach, removeFile, rollback, rollbackMessage, undoRollback } // 暴露全部对话动作

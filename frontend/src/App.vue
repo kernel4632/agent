@@ -4,7 +4,7 @@
 调用示例：Vite 从 main.js 挂载本文件的根组件。
 -->
 <script setup>
-import { computed, ref } from 'vue'                             // 引入响应式计算和侧边栏本地状态
+import { computed, ref, watch } from 'vue'                      // 引入响应式计算、侧边栏本地状态和订阅监听
 import ChatComposer from './components/ChatComposer.vue'        // 引入对话输入编辑器
 import ConversationFlow from './components/ConversationFlow.vue' // 引入对话消息时间线
 import HomePage from './components/HomePage.vue'                // 引入工作区与会话主页
@@ -23,6 +23,20 @@ const homeWorkspaces = computed(() => store.workspaces.map(workspace => ({ id: w
 const conversationsByWorkspace = computed(() => Object.fromEntries(store.workspaces.map(workspace => [workspace.id, [{ group: '会话', items: (workspace.sessions || []).map(session => ({ id: session.id, title: session.title || '新对话', time: '' })) }]]))) // 按工作区分组的会话摘要
 const activeSession = computed(() => store.sessions[store.ui.activeSessionID] || null) // 对话页当前会话
 const activeModels = computed(() => store.config.providers[store.config.activeProvider]?.models || []) // 模型选择器可选模型
+
+
+// --- SSE 订阅生命周期：会话打开时连接，离开时断开 ---
+watch(() => store.ui.activeSessionID, (newID, oldID) => {
+  if (oldID && oldID !== newID) Chat.unsubscribe(oldID)         // 离开旧会话时断开 SSE
+  if (newID && store.ui.view === 'chat') Chat.subscribe(newID)  // 进入新会话时建立 SSE
+}, { immediate: true })
+
+watch(() => store.ui.view, (newView, oldView) => {
+  const sessionID = store.ui.activeSessionID
+  if (!sessionID) return
+  if (newView === 'chat' && oldView !== 'chat') Chat.subscribe(sessionID) // 切回对话页时重连
+  if (newView !== 'chat' && oldView === 'chat') Chat.unsubscribe(sessionID) // 离开对话页时断开
+})
 
 
 // --- 提交用户消息 ---
