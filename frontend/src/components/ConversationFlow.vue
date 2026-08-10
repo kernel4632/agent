@@ -4,9 +4,10 @@
 调用示例：<ConversationFlow />。
 -->
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'    // 引入响应式计算和滚动控制
+import { computed, nextTick, ref } from 'vue'           // 引入响应式计算和滚动控制
 import { store } from '../store.js'                     // 引入全局会话数据
 import { renderMarkdown } from '../utils/markdown.js'   // 引入 Markdown 转 HTML 能力
+import { watchMessages } from '../watchers.js'          // 引入集中管理的消息监听
 import ToolExpansion from './ToolExpansion.vue'          // 复用工具标题、详情折叠与回退确认
 
 const flowContainer = ref(null)                         // 容器引用，用于自动滚动到底部
@@ -22,7 +23,8 @@ function scrollToBottom() {
   })
 }
 
-watch(messages, scrollToBottom, { deep: true })         // 消息变化时自动向下滚动
+// 通过 watchers.js 统一管理的消息变化监听，新消息到达时自动向下滚动
+watchMessages(messages, scrollToBottom)
 
 
 // --- 工具图标映射 ---

@@ -1,4 +1,8 @@
-<!-- 尚未实现的设置分类：保持页面层级稳定，后续可直接替换正文。 -->
+<!--
+设置占位组件：尚未实现的设置分类使用此组件保持页面层级稳定。
+设计思想是维持布局一致性，待正式组件完成后直接替换，不影响其他分类。
+调用示例：<SettingsPlaceholder title="工具管理" description="管理 Agent 可调用的工具。" icon="build" />。
+-->
 <script setup>
 const props = defineProps({
   title: { type: String, required: true },

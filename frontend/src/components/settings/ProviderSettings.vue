@@ -1,4 +1,9 @@
-<!-- 供应商配置组合页：协调供应商选择、添加和单项更新。 -->
+<!--
+供应商配置组合页：协调供应商列表选择、添加新供应商和单项字段更新。
+设计思想是左右分栏——左侧 ProviderList 管理供应商集合，右侧 ProviderEditor 编辑选中项。
+供应商数组通过 v-model:providers 双向绑定，由设置页统一管理持久化时机。
+调用示例：<ProviderSettings v-model:providers="settingsDraft.providers" />。
+-->
 <script setup>
 import { computed, ref, watch } from 'vue'       // 保持当前供应商选择始终有效
 import ProviderEditor from './ProviderEditor.vue' // 右侧编辑当前供应商
@@ -12,19 +17,19 @@ const selectedProvider = computed(() => props.providers.find(provider => provide
 
 // --- 添加可立即编辑的新供应商 ---
 function addProvider() {
-  const providerNumber = props.providers.length + 1
+  const providerNumber = props.providers.length + 1       // 用现有数量 +1 生成可读的默认名称序号
   const newProvider = {
-    id: `provider-${crypto.randomUUID()}`,
-    name: `新供应商 ${providerNumber}`,
-    enabled: true,
-    apiType: 'openai-compatible',
-    apiUrl: '',
-    apiKey: '',
-    models: [],
+    id: `provider-${crypto.randomUUID()}`,                // 全局唯一身份，避免同名供应商冲突
+    name: `新供应商 ${providerNumber}`,                    // 默认显示名，用户可在编辑器中修改
+    enabled: true,                                        // 新建默认启用，立即可被 Session 选择
+    apiType: 'openai-compatible',                         // 当前所有供应商使用 OpenAI 兼容协议
+    apiUrl: '',                                           // 等待用户填写 API 请求地址
+    apiKey: '',                                           // 等待用户填写认证密钥
+    models: [],                                           // 空模型列表，用户通过获取或手动添加
   }
 
-  emit('update:providers', [...props.providers, newProvider])
-  selectedProviderId.value = newProvider.id
+  emit('update:providers', [...props.providers, newProvider]) // 新供应商追加到数组末尾触发响应式更新
+  selectedProviderId.value = newProvider.id                   // 添加后立即选中新项进入编辑状态
 }
 
 

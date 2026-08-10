@@ -5,14 +5,14 @@
 */
 import { store } from '../store.js'                      // 引入全局顶部标签数据结构
 
-const storageKey = 'agent.session-tabs'                  // 使用稳定浏览器键恢复工作区标签
+const sessionTabsKey = 'agent.session-tabs'              // 浏览器 localStorage 中保存标签顺序的稳定键名
 
 
 // --- 恢复上次保存的标签 ---
 function restore() {
   const tabStore = store.tabs                            // 读取全局标签数据
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) ?? '{}') // 解析上次窗口的标签顺序
+    const saved = JSON.parse(localStorage.getItem(sessionTabsKey) ?? '{}') // 解析上次窗口的标签顺序
     tabStore.items = Array.isArray(saved.tabs) ? saved.tabs.filter((tab) => tab.sessionID) : [] // 草稿不跨刷新恢复
     tabStore.activeKey = tabStore.items.some((tab) => tab.key === saved.activeKey) ? saved.activeKey : '' // 只恢复仍存在的选择
   } catch {
@@ -103,4 +103,4 @@ function removeSession(sessionID) {
 }
 
 
-export const Tabs = { storageKey, restore, createDraft, openSession, promote, select, close, setTitle, syncTitles, removeSession } // 暴露全部标签指令
+export const Tabs = { sessionTabsKey, restore, createDraft, openSession, promote, select, close, setTitle, syncTitles, removeSession } // 暴露全部标签指令

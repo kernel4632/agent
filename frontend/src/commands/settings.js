@@ -10,31 +10,33 @@ import { UI } from './ui.js'                            // 引入保存错误轻
 import { t } from '../i18n.js'                          // 引入当前语言默认和反馈文案
 
 
-// --- 深复制可持久化配置 ---
-function clone(value) {
-  return JSON.parse(JSON.stringify(value))              // 配置只包含 JSON 数据，可安全隔离草稿
+// --- 隔离设置草稿数据 ---
+function isolateDraft(value) {
+  return JSON.parse(JSON.stringify(value))              // 设置只包含 JSON 数据，隔离后修改不影响已保存配置
 }
 
 
 // --- 进入设置页 ---
 function open() {
+  // 将 Server 存储结构转换为设置页可编辑的数组结构
   const providers = Object.entries(store.config.providers).map(([name, provider], index) => ({
-    id: provider.id || `provider-${index + 1}`,
-    name,
-    enabled: provider.enabled !== false,
-    apiType: provider.protocol || 'openai-compatible',
-    apiUrl: provider.baseURL || '',
-    apiKey: provider.apiKey || '',
+    id: provider.id || `provider-${index + 1}`,           // 保留已有 ID，否则按顺序生成稳定身份
+    name,                                                  // 供应商键名即为编辑器显示名
+    enabled: provider.enabled !== false,                   // 未明确关闭的供应商视为启用
+    apiType: provider.protocol || 'openai-compatible',     // protocol 映射为前端选择器使用的 apiType 字段
+    apiUrl: provider.baseURL || '',                        // Server 的 baseURL 对应编辑器中的请求地址
+    apiKey: provider.apiKey || '',                         // 脱敏密钥原样保留，保存时 Server 会恢复真实值
     models: (provider.models || []).map(model => typeof model === 'string'
-      ? { id: model, name: model, capabilities: ['文本', '工具'] }
-      : model),
+      ? { id: model, name: model, capabilities: ['文本', '工具'] } // 字符串模型升级为包含默认能力的对象结构
+      : model),                                            // 已经是对象结构的模型保持不变
   }))
-  store.settings.draft = clone({
-    providers,                                          // 转换为复制组件使用的数组结构
-    tools: store.config.tools,                          // 工具权限使用运行目录
-    mcp: store.config.mcp,                              // MCP 使用编辑与状态组合结构
-    prompt: store.config.prompt,                        // 提示词使用独立字段
-    appearance: store.config.appearance,                // 外观偏好只在前端持久化
+
+  store.settings.draft = isolateDraft({
+    providers,                                            // 转换为复制组件使用的数组结构
+    tools: store.config.tools,                            // 工具权限使用运行目录
+    mcp: store.config.mcp,                                // MCP 使用编辑与状态组合结构
+    prompt: store.config.prompt,                          // 提示词使用独立字段
+    appearance: store.config.appearance,                  // 外观偏好只在前端持久化
   })
 }
 
@@ -47,7 +49,7 @@ async function save() {
   try {
     const provider = draft.providers[0] || { apiUrl: '', apiKey: '', models: [] } // 当前最小 Server 只支持一个供应商
     await AgentAPI.updateConfig({ provider: { api: provider.apiUrl || '', key: provider.apiKey || '', models: provider.models.map(model => model.id) }, prompts: { system: draft.prompt } }) // 转回 Server 的严格最小配置结构
-    store.config.appearance = clone(draft.appearance)    // 外观设置在当前前端会话即时生效
+    store.config.appearance = isolateDraft(draft.appearance)    // 外观设置在当前前端会话即时生效
     await Config.load()                                  // 重新读取脱敏最终配置和运行能力
     store.settings.savedAt = Date.now()                  // 设置页再次进入可展示保存时间
     store.settings.draft = null                          // 释放已经提交的编辑副本
@@ -135,37 +137,39 @@ function updateModel(providerName, modelName, changes) {
 
 // --- 获取可添加模型目录 ---
 async function fetchModels(provider, currentModels = []) {
-  const baseURL = provider?.apiUrl?.trim().replace(/\/+$/, '') // OpenAI 兼容地址统一移除末尾斜杠
+  const baseURL = provider?.apiUrl?.trim().replace(/\/+$/, '') // OpenAI 兼容地址统一移除末尾斜杠，避免双斜杠 404
   if (!baseURL) {
     UI.notify('请先填写请求地址（API）')
-    return currentModels.map(model => ({ ...model }))
+    return currentModels.map(model => ({ ...model }))           // 无地址时返回现有模型副本保持列表不变
   }
 
   try {
     const response = await fetch(`/openai-proxy/models?baseURL=${encodeURIComponent(baseURL)}`, {
       headers: {
         accept: 'application/json',
-        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}), // 有密钥时附加认证头
       },
     })
-    const payload = await response.json().catch(() => ({}))
+    const payload = await response.json().catch(() => ({}))     // 解析失败时降级为空对象，不中断后续逻辑
     if (!response.ok) throw new Error(payload.error?.message || payload.error || `获取模型失败: ${response.status}`)
+
+    // 兼容 OpenAI（payload.data）和其他供应商（payload.models）两种返回格式
     const source = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : []
     const discovered = source
-      .map(model => typeof model === 'string' ? model : model.id || model.name)
-      .filter(Boolean)
-      .map(id => ({ id, name: id, capabilities: ['文本', '工具'] }))
+      .map(model => typeof model === 'string' ? model : model.id || model.name) // 统一提取模型 ID 字符串
+      .filter(Boolean)                                          // 过滤无效空值
+      .map(id => ({ id, name: id, capabilities: ['文本', '工具'] })) // 所有远程模型默认具备文本和工具能力，后续用户可在设置中调整
     if (!discovered.length) throw new Error('接口未返回可用模型')
-    return discovered
+    return discovered                                           // 返回完整模型对象数组供选择弹窗使用
   } catch (error) {
-    UI.notify(error.message)
-    return currentModels.map(model => ({ ...model }))
+    UI.notify(error.message)                                    // 展示真实网络或格式错误
+    return currentModels.map(model => ({ ...model }))           // 失败时保持现有列表不变
   }
 }
 
 
 async function replaceDraftAndSave(snapshot) {
-  store.settings.draft = clone(snapshot)                  // 接收复制设置页离开时提交的完整快照
+  store.settings.draft = isolateDraft(snapshot)                  // 接收复制设置页离开时提交的完整快照
   return save()                                           // 使用同一正式保存边界持久化
 }
 

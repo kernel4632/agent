@@ -1,4 +1,8 @@
-<!-- 设置分类导航：用带提示的图标按钮展示分类并发出切换意图。 -->
+<!--
+设置分类导航：用带 Tooltip 的图标按钮展示设置分类并发出切换意图。
+设计思想是仅负责显示和事件，不持有业务数据，所有选中状态由调用方通过 props 控制。
+调用示例：<SettingsNavigation :items="sections" :selected-id="currentSection" @select="switchSection" />。
+-->
 <script setup>
 const props = defineProps({
   items: { type: Array, required: true },

@@ -61,9 +61,23 @@ async function send(sessionID, content) {
   const text = content.trim()                              // 消息不保留无意义首尾空白
   if (!session || !text || session.status === 'running') return false // 无会话、空文本和重复发送均拒绝
 
-  const userMessage = { id: `msg_${crypto.randomUUID()}`, role: 'user', content: text, createdAt: Date.now() } // 输入立即进入时间线
-  const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } } // 建立当前响应占位
-  session.messages.push(userMessage, assistant)          // 输入和请求状态即时反馈
+  const userMessage = {
+    id: `msg_${crypto.randomUUID()}`,                    // 本地临时身份，Server 确认后不替换
+    role: 'user',                                        // 标识发送方为用户
+    content: text,                                       // 用户输入的纯文本内容
+    createdAt: Date.now(),                               // 输入时间戳用于时间线排序
+  }
+  const pendingAssistant = {
+    id: `pending_${crypto.randomUUID()}`,                // 占位身份，SSE 完成后会被 Server 真实 ID 替换
+    role: 'assistant',                                   // 标识为助手响应
+    content: '',                                         // 流式增量文本将持续追加到此字段
+    reasoning: '',                                       // 流式推理增量追加到此字段
+    tools: [],                                           // 工具调用事件到达后逐条追加
+    createdAt: Date.now(),                               // 创建时间
+    isStreaming: true,                                   // 标识当前仍在接收流式数据
+    request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 }, // 请求状态和用量占位
+  }
+  session.messages.push(userMessage, pendingAssistant)   // 输入和请求状态即时反馈
   session.status = 'running'                             // 输入器切换为停止按钮
   session.updatedAt = Date.now()                         // 会话进入最近活动
   Session.syncSummary(session)                           // 侧边栏和主页同步运行状态
@@ -72,9 +86,9 @@ async function send(sessionID, content) {
     await AgentAPI.sendMessage(sessionID, text)            // POST 发送消息，后端通过已建立的 SSE 推送响应
     return true                                           // 反馈发送动作已接受
   } catch (error) {
-    assistant.isStreaming = false                         // 关闭响应打字状态
-    assistant.request.status = 'failed'                   // 请求条进入错误状态
-    assistant.error = error.message                       // 原位展示真实 API 错误
+    pendingAssistant.isStreaming = false                  // 关闭响应打字状态
+    pendingAssistant.request.status = 'failed'            // 请求条进入错误状态
+    pendingAssistant.error = error.message                // 原位展示真实 API 错误
     session.status = 'idle'                               // 恢复输入器
     Session.syncSummary(session)                          // 主页状态同步恢复
     return false                                          // 反馈发送失败
@@ -102,117 +116,152 @@ async function consume(sessionID, response, controller) {
 }
 
 
-// --- 归约一个 Server 事件 ---
+// --- 归约一个 Server 事件（分发到对应处理函数）---
 async function receive(sessionID, event, controller) {
   const session = store.sessions[sessionID]               // 读取事件所属完整会话
   if (!session) return                                    // 已删除或未加载会话忽略旧事件
   const assistant = getStreamingAssistant(session)        // 当前增量统一写入最新响应占位
 
   if (event.name === 'sync') return                       // 连接建立确认事件不修改页面
+  if (event.name === 'status') return receiveStatus(session, event, assistant)
+  if (event.name === 'text-delta') return receiveTextDelta(session, event, assistant)
+  if (event.name === 'reasoning-delta') return receiveReasoningDelta(session, event, assistant)
+  if (event.name === 'tool-call') return receiveToolCall(session, event, assistant)
+  if (event.name === 'tool-output') return receiveToolOutput(session, event, assistant)
+  if (event.name === 'tool-result') return receiveToolResult(session, event, assistant)
+  if (event.name === 'message') return receiveMessage(session, event, assistant)
+  if (event.name === 'approval') return receiveApproval(session, event, assistant)
+  if (event.name === 'error') return receiveError(session, event, assistant)
+}
 
-  if (event.name === 'status') {
-    if (event.data.status === 'running' && session.status !== 'running') {
-      session.status = 'running'                          // 后端开始循环，UI 切换为运行状态
-      Session.syncSummary(session)                        // 侧边栏同步
-      // 如果没有正在流式的 assistant 占位（比如从后端恢复运行状态），创建一个
-      if (!assistant) {
-        const newAssistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } }
-        session.messages.push(newAssistant)
-      }
-    }
-    if (event.data.status === 'idle' && session.status === 'running') {
-      session.status = 'idle'                             // 输入器恢复发送动作
-      if (assistant) {
-        assistant.isStreaming = false                     // 终态关闭打字状态
-        assistant.request.status = 'completed'            // 映射完成终态
-      }
-      Session.syncSummary(session)                        // 列表同步终态
-      // 首次完成时异步生成标题（不阻塞 UI）
-      if (!session.titleGenerated) {
-        session.titleGenerated = true                    // 防止重复触发
-        const firstUserMsg = session.messages.find(m => m.role === 'user')
-        const prompt = typeof firstUserMsg?.content === 'string' ? firstUserMsg.content : (Array.isArray(firstUserMsg?.content) ? firstUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '')
-        if (prompt) {
-          AgentAPI.generateTitle(sessionID, prompt).then(({ title }) => {
-            if (title && store.sessions[sessionID]) {
-              store.sessions[sessionID].title = title    // 更新会话完整数据
-              Session.syncSummary(store.sessions[sessionID]) // 侧边栏刷新标题
-            }
-          }).catch(() => {})                             // 标题失败不影响对话
-        }
-      }
-      // 注意：不断开 SSE，连接保持以接收下一轮事件
-    }
-    return
-  }
 
-  if (event.name === 'text-delta') {
-    const target = assistant || createAssistant(session)   // 没有 streaming 则新建占位（循环的新一轮）
-    target.content += event.data.text || ''                // 追加模型正文增量
-    return
-  }
-  if (event.name === 'reasoning-delta') {
-    const target = assistant || createAssistant(session)   // 没有 streaming 则新建占位
-    target.reasoning += event.data.text || ''              // 追加模型推理增量
-    return
-  }
-  if (event.name === 'tool-call') {
-    const toolCall = event.data.toolCall                   // 读取完整工具调用结构
-    if (toolCall.toolName === 'finish' || toolCall.toolName === 'delegate_task') return // 内部控制工具不展示
-    const target = assistant || createAssistant(session)   // 没有 streaming 则新建占位
-    upsertTool(target, toolCall, 'running')                // 展示模型工具声明
-    return
-  }
-  if (event.name === 'tool-output') {
-    const target = assistant || createAssistant(session)   // 确保有活跃占位
-    const tool = target.tools.find((item) => item.id === event.data.toolCallId) // 定位正在执行的工具
-    if (tool) tool.preview += event.data.output || ''     // 实时追加工具输出预览
-    return
-  }
-  if (event.name === 'tool-result') {
-    const target = assistant || createAssistant(session)   // 确保有活跃占位
-    const result = event.data.toolResult ?? event.data    // 兼容不同结构
-    const toolCallID = result.toolCallId                  // 定位目标工具条
-    const tool = target.tools.find((item) => item.id === toolCallID)
-    if (tool) {
-      tool.status = result.isError ? 'error' : 'completed' // 根据错误标记设置终态
-      tool.preview = result.result ?? tool.preview         // 使用最终结果替换预览
+// --- 处理 status 事件：Agent 循环开始或结束 ---
+function receiveStatus(session, event, assistant) {
+  if (event.data.status === 'running' && session.status !== 'running') {
+    session.status = 'running'                            // 后端开始循环，UI 切换为运行状态
+    Session.syncSummary(session)                          // 侧边栏同步
+    // 如果没有正在流式的 assistant 占位（比如从后端恢复运行状态），创建一个
+    if (!assistant) {
+      const newAssistant = {
+        id: `pending_${crypto.randomUUID()}`,             // 占位身份
+        role: 'assistant',                                // 助手角色
+        content: '',                                      // 等待流式增量
+        reasoning: '',                                    // 等待推理增量
+        tools: [],                                        // 等待工具事件
+        createdAt: Date.now(),                            // 占位创建时间
+        isStreaming: true,                                // 标识接收中
+        request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 }, // 用量占位
+      }
+      session.messages.push(newAssistant)
     }
-    return
   }
-  if (event.name === 'message' && event.data.message) {
-    const msg = event.data.message                        // 后端推送完整消息
-    if (msg.role === 'user') return                        // 用户消息由 send() 处理，忽略后端回显
-    if (msg.role === 'assistant') {
-      const target = assistant || createAssistant(session) // 没有 streaming 则新建占位
-      if (msg.id) target.id = msg.id                      // 使用 Server 真实 ID
-      const content = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '')
-      const reasoning = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'reasoning').map(b => b.text).join('') : ''
-      if (content) target.content = content               // 完整消息替换增量累积
-      if (reasoning) target.reasoning = reasoning         // 完整推理替换累积
-      if (msg.usage) applyUsage(session, target, msg.usage) // 应用本轮用量
-      const toolCalls = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'tool-call' && b.toolName !== 'finish' && b.toolName !== 'delegate_task') : []
-      for (const call of toolCalls) upsertTool(target, call, 'running')
-      // 定格当前轮次：下一轮 text-delta 会自动创建新占位
-      target.isStreaming = false                           // 定格：本轮 assistant 回复完成
-      target.request.status = 'completed'                 // 映射完成终态
-    }
-    return
-  }
-  if (event.name === 'approval' && assistant) {
-    upsertTool(assistant, { toolCallId: event.data.toolCallId, toolName: event.data.toolName, input: event.data.input }, 'waiting') // 展示审批请求
-    return
-  }
-  if (event.name === 'error') {
+  if (event.data.status === 'idle' && session.status === 'running') {
+    session.status = 'idle'                               // 输入器恢复发送动作
     if (assistant) {
-      assistant.error = event.data.message || event.data.error || '未知错误' // 展示不可恢复错误
-      // 如果有重试信息不关闭打字状态（属于 retry 阶段）
-      if (!event.data.attempt) {
-        assistant.request.status = 'failed'               // 请求条进入故障状态
-        assistant.isStreaming = false                      // 关闭打字状态
+      assistant.isStreaming = false                       // 终态关闭打字状态
+      assistant.request.status = 'completed'              // 映射完成终态
+    }
+    Session.syncSummary(session)                          // 列表同步终态
+    // 首次完成时异步生成标题（不阻塞 UI）
+    if (!session.titleGenerated) {
+      session.titleGenerated = true                      // 防止重复触发
+      const firstUserMsg = session.messages.find(m => m.role === 'user')
+      const prompt = typeof firstUserMsg?.content === 'string' ? firstUserMsg.content : (Array.isArray(firstUserMsg?.content) ? firstUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '')
+      if (prompt) {
+        AgentAPI.generateTitle(session.id, prompt).then(({ title }) => {
+          if (title && store.sessions[session.id]) {
+            store.sessions[session.id].title = title      // 更新会话完整数据
+            Session.syncSummary(store.sessions[session.id]) // 侧边栏刷新标题
+          }
+        }).catch(() => {})                               // 标题失败不影响对话
       }
     }
-    return
+    // 注意：不断开 SSE，连接保持以接收下一轮事件
+  }
+}
+
+
+// --- 处理 text-delta 事件：追加模型正文增量 ---
+function receiveTextDelta(session, event, assistant) {
+  const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建（Agent 循环新一轮）
+  streamingMessage.content += event.data.text || ''              // 追加模型正文增量
+}
+
+
+// --- 处理 reasoning-delta 事件：追加模型推理增量 ---
+function receiveReasoningDelta(session, event, assistant) {
+  const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建
+  streamingMessage.reasoning += event.data.text || ''            // 追加模型推理增量
+}
+
+
+// --- 处理 tool-call 事件：展示模型工具声明 ---
+function receiveToolCall(session, event, assistant) {
+  const toolCall = event.data.toolCall                           // 读取完整工具调用结构
+  if (toolCall.toolName === 'finish' || toolCall.toolName === 'delegate_task') return // 内部控制工具不展示
+  const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建
+  upsertTool(streamingMessage, toolCall, 'running')              // 展示模型工具声明
+}
+
+
+// --- 处理 tool-output 事件：实时追加工具输出预览 ---
+function receiveToolOutput(session, event, assistant) {
+  const streamingMessage = assistant || createAssistant(session) // 确保有活跃流式占位
+  const tool = streamingMessage.tools.find((item) => item.id === event.data.toolCallId) // 定位正在执行的工具
+  if (tool) tool.preview += event.data.output || ''             // 实时追加工具输出预览
+}
+
+
+// --- 处理 tool-result 事件：写入工具执行终态 ---
+function receiveToolResult(session, event, assistant) {
+  const streamingMessage = assistant || createAssistant(session) // 确保有活跃流式占位
+  const result = event.data.toolResult ?? event.data            // 兼容不同结构
+  const toolCallID = result.toolCallId                          // 定位目标工具条
+  const tool = streamingMessage.tools.find((item) => item.id === toolCallID)
+  if (tool) {
+    tool.status = result.isError ? 'error' : 'completed'       // 根据错误标记设置终态
+    tool.preview = result.result ?? tool.preview                // 使用最终结果替换预览
+  }
+}
+
+
+// --- 处理 message 事件：后端推送完整消息 ---
+function receiveMessage(session, event, assistant) {
+  if (!event.data.message) return                                // 无消息体忽略
+  const msg = event.data.message                                // 后端推送完整消息
+  if (msg.role === 'user') return                                // 用户消息由 send() 处理，忽略后端回显
+  if (msg.role === 'assistant') {
+    const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建
+    if (msg.id) streamingMessage.id = msg.id                    // 使用 Server 真实 ID
+    const content = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '')
+    const reasoning = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'reasoning').map(b => b.text).join('') : ''
+    if (content) streamingMessage.content = content             // 完整消息替换增量累积
+    if (reasoning) streamingMessage.reasoning = reasoning       // 完整推理替换累积
+    if (msg.usage) applyUsage(session, streamingMessage, msg.usage) // 应用本轮用量
+    const toolCalls = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'tool-call' && b.toolName !== 'finish' && b.toolName !== 'delegate_task') : []
+    for (const call of toolCalls) upsertTool(streamingMessage, call, 'running')
+    // 定格当前轮次：下一轮 text-delta 会自动创建新占位
+    streamingMessage.isStreaming = false                         // 定格：本轮 assistant 回复完成
+    streamingMessage.request.status = 'completed'               // 映射完成终态
+  }
+}
+
+
+// --- 处理 approval 事件：展示审批请求 ---
+function receiveApproval(session, event, assistant) {
+  if (!assistant) return                                         // 无流式占位时忽略审批
+  upsertTool(assistant, { toolCallId: event.data.toolCallId, toolName: event.data.toolName, input: event.data.input }, 'waiting') // 展示审批请求
+}
+
+
+// --- 处理 error 事件：展示不可恢复错误 ---
+function receiveError(session, event, assistant) {
+  if (!assistant) return                                         // 无流式占位时忽略错误
+  assistant.error = event.data.message || event.data.error || '未知错误' // 展示不可恢复错误
+  // 如果有重试信息不关闭打字状态（属于 retry 阶段）
+  if (!event.data.attempt) {
+    assistant.request.status = 'failed'                          // 请求条进入故障状态
+    assistant.isStreaming = false                                // 关闭打字状态
   }
 }
 
@@ -305,7 +354,7 @@ async function attach(sessionID, files) {
   if (!session) return false                              // 无会话不能保存附件草稿
   for (const file of files) {
     if (session.files.some((item) => item.name === file.name && item.size === file.size)) continue // 避免重复选择同一文件
-    if (file.size > 1048576) { UI.notify(`${file.name} 超过 1 MiB`); continue } // 与 Server 请求上限保持一致
+    if (file.size > 1048576) { UI.notify(`${file.name} 超过 1 MiB`); continue } // 1048576 字节 = 1 MiB，与 Server 请求体上限保持一致
     const bytes = new Uint8Array(await file.arrayBuffer())              // 读取用户真实选择的附件内容
     let binary = ''                                                     // Base64 编码前建立字节字符串
     bytes.forEach((byte) => { binary += String.fromCharCode(byte) })     // 保持任意文本和二进制字节不丢失

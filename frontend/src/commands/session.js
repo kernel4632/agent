@@ -152,6 +152,8 @@ async function selectModel(sessionID, provider, model) {
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
   const provider = findModelProvider(source.model)       // 从 `/config` 模型目录解析供应商
+
+  // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
   const sessionData = structuredClone(source)            // Server 返回的 Session 即为前端公开结构
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
   for (const item of source.messages ?? []) {
@@ -170,6 +172,8 @@ function normalize(source, previous = {}) {
     message.tools = blocks.filter((block) => block.type === 'tool-call').map((call) => ({ id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: null })) // 将 AI SDK 工具调用转换为展示条
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }
+
+  // 阶段二：组合最终前端会话结构，补齐仅前端使用的草稿和用量字段
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
@@ -208,7 +212,17 @@ function formatToolOutput(output) {
 
 // --- 创建会话摘要 ---
 function summaryOf(session) {
-  return { id: session.id, workspaceID: session.workspaceID, title: session.title || t('newConversation'), model: session.model, status: session.status, messageCount: session.messages.length, createdAt: session.createdAt, updatedAt: session.updatedAt, lastActiveAt: session.lastActiveAt } // 主页只保存扫描字段
+  return {
+    id: session.id,                                      // 会话唯一身份
+    workspaceID: session.workspaceID,                    // 所属工作区
+    title: session.title || t('newConversation'),        // 列表显示标题，空标题使用默认文案
+    model: session.model,                                // 当前使用模型
+    status: session.status,                              // 运行或空闲状态
+    messageCount: session.messages.length,               // 消息数量用于列表摘要展示
+    createdAt: session.createdAt,                        // 创建时间
+    updatedAt: session.updatedAt,                        // 最近更新时间
+    lastActiveAt: session.lastActiveAt,                  // 最近活跃时间
+  }
 }
 
 

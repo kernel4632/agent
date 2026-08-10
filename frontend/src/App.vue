@@ -4,39 +4,20 @@
 调用示例：Vite 从 main.js 挂载本文件的根组件。
 -->
 <script setup>
-import { computed, ref, watch } from 'vue'                      // 引入响应式计算、侧边栏本地状态和订阅监听
-import ChatComposer from './components/ChatComposer.vue'        // 引入对话输入编辑器
-import ConversationFlow from './components/ConversationFlow.vue' // 引入对话消息时间线
-import HomePage from './components/HomePage.vue'                // 引入工作区与会话主页
-import Sidebar from './components/Sidebar.vue'                  // 引入导航侧边栏
-import SettingsPage from './components/settings/SettingsPage.vue' // 引入设置页面
-import { Chat } from './commands/chat.js'                       // 引入消息发送指令
-import { Session } from './commands/session.js'                 // 引入会话创建、打开和删除指令
-import { Settings } from './commands/settings.js'               // 引入设置快照保存指令
-import { UI } from './commands/ui.js'                           // 引入页面导航和反馈指令
-import { Workspace } from './commands/workspace.js'             // 引入工作区选择指令
-import { store } from './store.js'                              // 引入全局工作台数据
+import { ref } from 'vue'                                           // 引入侧边栏本地状态
+import ChatComposer from './components/ChatComposer.vue'            // 引入对话输入编辑器
+import ConversationFlow from './components/ConversationFlow.vue'    // 引入对话消息时间线
+import HomePage from './components/HomePage.vue'                    // 引入工作区与会话主页
+import Sidebar from './components/Sidebar.vue'                      // 引入导航侧边栏
+import SettingsPage from './components/settings/SettingsPage.vue'   // 引入设置页面
+import { Chat } from './commands/chat.js'                           // 引入消息发送指令
+import { Session } from './commands/session.js'                     // 引入会话创建、打开和删除指令
+import { Settings } from './commands/settings.js'                   // 引入设置快照保存指令
+import { UI, openedConversations, homeWorkspaces, conversationsByWorkspace, activeSession, activeModels } from './commands/ui.js' // 引入页面导航、反馈和派生视图数据
+import { Workspace } from './commands/workspace.js'                 // 引入工作区选择指令
+import { store } from './store.js'                                  // 引入全局工作台数据
 
-const sidebarCollapsed = ref(!store.ui.sidebarOpen)             // 侧边栏展开状态由本地 ref 驱动过渡动画
-const openedConversations = computed(() => store.ui.openedSessionIDs.map(id => store.sessions[id]).filter(Boolean)) // 侧边栏只展示已加载的会话
-const homeWorkspaces = computed(() => store.workspaces.map(workspace => ({ id: workspace.id, name: workspace.name || workspace.path, description: workspace.path }))) // 主页只需要摘要字段
-const conversationsByWorkspace = computed(() => Object.fromEntries(store.workspaces.map(workspace => [workspace.id, [{ group: '会话', items: (workspace.sessions || []).map(session => ({ id: session.id, title: session.title || '新对话', time: '' })) }]]))) // 按工作区分组的会话摘要
-const activeSession = computed(() => store.sessions[store.ui.activeSessionID] || null) // 对话页当前会话
-const activeModels = computed(() => store.config.providers[store.config.activeProvider]?.models || []) // 模型选择器可选模型
-
-
-// --- SSE 订阅生命周期：会话打开时连接，离开时断开 ---
-watch(() => store.ui.activeSessionID, (newID, oldID) => {
-  if (oldID && oldID !== newID) Chat.unsubscribe(oldID)         // 离开旧会话时断开 SSE
-  if (newID && store.ui.view === 'chat') Chat.subscribe(newID)  // 进入新会话时建立 SSE
-}, { immediate: true })
-
-watch(() => store.ui.view, (newView, oldView) => {
-  const sessionID = store.ui.activeSessionID
-  if (!sessionID) return
-  if (newView === 'chat' && oldView !== 'chat') Chat.subscribe(sessionID) // 切回对话页时重连
-  if (newView !== 'chat' && oldView === 'chat') Chat.unsubscribe(sessionID) // 离开对话页时断开
-})
+const sidebarCollapsed = ref(!store.ui.sidebarOpen)                 // 侧边栏展开状态由本地 ref 驱动过渡动画
 
 
 // --- 提交用户消息 ---
@@ -66,7 +47,7 @@ async function submitMessage(content) {
           v-model:workspace-id="store.ui.activeWorkspaceID"
           :workspaces="homeWorkspaces"
           :conversations-by-workspace="conversationsByWorkspace"
-          @add-workspace="Workspace.select(store.ui.activeWorkspaceID)"
+          @add-workspace="Workspace.add"
           @select-conversation="Session.open($event.conversationId)"
           @rename-conversation="Session.rename($event.conversationId, $event.title)"
           @delete-conversation="Session.remove($event.conversationId)"

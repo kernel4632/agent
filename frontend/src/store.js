@@ -10,7 +10,7 @@ import { reactive } from 'vue'                         // 引入唯一响应式�
 export const store = reactive({
   ui: {
     view: 'home',                                      // 当前页面为 home、chat 或 settings
-    sidebarOpen: window.innerWidth > 760,              // 移动端首次进入时优先展示主内容
+    sidebarOpen: window.innerWidth > 760,              // 760px 是移动端与桌面端的响应式断点，窄屏首次进入时收起侧栏优先展示主内容
     activeWorkspaceID: '',                             // 主页当前工作区身份
     activeSessionID: '',                               // 对话页当前会话身份
     openedSessionIDs: [],                              // 用户本次运行中主动打开的会话，顺序即侧边栏顺序
