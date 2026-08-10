@@ -132,29 +132,34 @@ async function receive(sessionID, event, controller) {
     return
   }
 
-  if (event.name === 'text-delta' && assistant) {
-    assistant.content += event.data.text || ''             // 追加模型正文增量
+  if (event.name === 'text-delta') {
+    const target = assistant || createAssistant(session)   // 没有 streaming 则新建占位（循环的新一轮）
+    target.content += event.data.text || ''                // 追加模型正文增量
     return
   }
-  if (event.name === 'reasoning-delta' && assistant) {
-    assistant.reasoning += event.data.text || ''           // 追加模型推理增量
+  if (event.name === 'reasoning-delta') {
+    const target = assistant || createAssistant(session)   // 没有 streaming 则新建占位
+    target.reasoning += event.data.text || ''              // 追加模型推理增量
     return
   }
-  if (event.name === 'tool-call' && assistant) {
+  if (event.name === 'tool-call') {
     const toolCall = event.data.toolCall                   // 读取完整工具调用结构
     if (toolCall.toolName === 'finish' || toolCall.toolName === 'delegate_task') return // 内部控制工具不展示
-    upsertTool(assistant, toolCall, 'running')             // 展示模型工具声明
+    const target = assistant || createAssistant(session)   // 没有 streaming 则新建占位
+    upsertTool(target, toolCall, 'running')                // 展示模型工具声明
     return
   }
-  if (event.name === 'tool-output' && assistant) {
-    const tool = assistant.tools.find((item) => item.id === event.data.toolCallId) // 定位正在执行的工具
+  if (event.name === 'tool-output') {
+    const target = assistant || createAssistant(session)   // 确保有活跃占位
+    const tool = target.tools.find((item) => item.id === event.data.toolCallId) // 定位正在执行的工具
     if (tool) tool.preview += event.data.output || ''     // 实时追加工具输出预览
     return
   }
-  if (event.name === 'tool-result' && assistant) {
+  if (event.name === 'tool-result') {
+    const target = assistant || createAssistant(session)   // 确保有活跃占位
     const result = event.data.toolResult ?? event.data    // 兼容不同结构
     const toolCallID = result.toolCallId                  // 定位目标工具条
-    const tool = assistant.tools.find((item) => item.id === toolCallID)
+    const tool = target.tools.find((item) => item.id === toolCallID)
     if (tool) {
       tool.status = result.isError ? 'error' : 'completed' // 根据错误标记设置终态
       tool.preview = result.result ?? tool.preview         // 使用最终结果替换预览
@@ -163,14 +168,20 @@ async function receive(sessionID, event, controller) {
   }
   if (event.name === 'message' && event.data.message) {
     const msg = event.data.message                        // 后端推送完整消息
-    if (msg.role === 'assistant' && assistant) {
-      const content = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '') // 合并 AI SDK 文本块
-      const reasoning = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'reasoning').map(b => b.text).join('') : '' // 合并推理块
-      if (content) assistant.content = content            // 完整消息替换增量累积
-      if (reasoning) assistant.reasoning = reasoning      // 完整推理替换累积
-      if (msg.usage) applyUsage(session, assistant, msg.usage) // 应用最终用量
+    if (msg.role === 'user') return                        // 用户消息由 send() 处理，忽略后端回显
+    if (msg.role === 'assistant') {
+      const target = assistant || createAssistant(session) // 没有 streaming 则新建占位
+      if (msg.id) target.id = msg.id                      // 使用 Server 真实 ID
+      const content = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '')
+      const reasoning = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'reasoning').map(b => b.text).join('') : ''
+      if (content) target.content = content               // 完整消息替换增量累积
+      if (reasoning) target.reasoning = reasoning         // 完整推理替换累积
+      if (msg.usage) applyUsage(session, target, msg.usage) // 应用本轮用量
       const toolCalls = Array.isArray(msg.content) ? msg.content.filter(b => b.type === 'tool-call' && b.toolName !== 'finish' && b.toolName !== 'delegate_task') : []
-      for (const call of toolCalls) upsertTool(assistant, call, 'running') // 确保工具条存在
+      for (const call of toolCalls) upsertTool(target, call, 'running')
+      // 定格当前轮次：下一轮 text-delta 会自动创建新占位
+      target.isStreaming = false                           // 定格：本轮 assistant 回复完成
+      target.request.status = 'completed'                 // 映射完成终态
     }
     return
   }
@@ -230,6 +241,14 @@ function applyUsage(session, assistant, usage) {
 // --- 读取当前流式助手消息 ---
 function getStreamingAssistant(session) {
   return [...session.messages].reverse().find((message) => message.role === 'assistant' && message.isStreaming) // 最新执行只修改自己的占位消息
+}
+
+
+// --- 创建新的流式助手占位（Agent 循环新一轮开始时）---
+function createAssistant(session) {
+  const assistant = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], createdAt: Date.now(), isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0, duration: 0 } }
+  session.messages.push(assistant)                        // 新占位进入消息列表
+  return assistant                                        // 返回供事件归约写入
 }
 
 

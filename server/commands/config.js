@@ -29,8 +29,12 @@ async function update(partial = {}) {
 // --- 从文件加载（server.js 启动时调用）---
 async function load() {
   const file = Bun.file(store.paths.config)
-  if (await file.exists()) store.config = await file.json()
-  else await File.write(store.paths.config, JSON.stringify(store.config, null, 2) + '\n')
+  if (await file.exists()) {
+    const loaded = await file.json()
+    store.config = { ...store.config, ...loaded, permission: { ...store.config.permission, ...(loaded.permission ?? {}) } } // 保证 permission 始终存在
+  } else {
+    await File.write(store.paths.config, JSON.stringify(store.config, null, 2) + '\n')
+  }
 }
 
 

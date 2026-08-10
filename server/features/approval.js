@@ -9,7 +9,7 @@ import { SSE } from '../utils/sse.js'                    // 引入 SSE 广播能
 
 // --- 检查单个工具审批 ---
 function check(runtime, toolCall, signal) {
-  if (store.config.permission[toolCall.toolName] !== 'ask') return Promise.resolve(true) // 无需审批直接放行
+  if ((store.config.permission ?? {})[toolCall.toolName] !== 'ask') return Promise.resolve(true) // 无需审批直接放行
 
   SSE.broadcast(runtime.clients, 'approval', { toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, input: toolCall.input }) // 通知前端
 

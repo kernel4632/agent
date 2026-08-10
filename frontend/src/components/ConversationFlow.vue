@@ -45,15 +45,6 @@ function toolIcon(toolName) {
       <!-- 助手消息：活动流卡片 -->
       <section v-else-if="message.role === 'assistant'" class="conversation-flow__assistant-turn" aria-label="Agent 执行过程">
         <div class="conversation-flow__activity-list">
-          <!-- 工具调用卡片 -->
-          <m3e-card v-for="tool in (message.tools || [])" :key="tool.id" class="conversation-flow__activity-card" variant="filled">
-            <div slot="content">
-              <ToolExpansion :icon="toolIcon(tool.name)" :label="tool.status === 'running' ? '正在运行' : tool.status === 'completed' ? '已完成' : tool.status === 'error' ? '执行失败' : '等待中'" :parameter="tool.name + (tool.input?.command ? ' ' + tool.input.command : tool.input?.path ? ' ' + tool.input.path : '')" :open="tool.status === 'running'">
-                <pre v-if="tool.preview" class="conversation-flow__terminal"><code>{{ tool.preview }}</code></pre>
-              </ToolExpansion>
-            </div>
-          </m3e-card>
-
           <!-- API 用量行 -->
           <m3e-card v-if="message.request?.input || message.request?.output" class="conversation-flow__activity-card" variant="filled">
             <div slot="content" class="conversation-flow__api-row">
@@ -66,15 +57,24 @@ function toolIcon(toolName) {
             </div>
           </m3e-card>
 
-          <!-- 文本内容块 -->
+          <!-- 文本内容块（模型思考和回复）-->
           <m3e-card v-if="message.content" class="conversation-flow__activity-card" variant="filled">
             <div slot="content" class="conversation-flow__message-block" v-html="renderMarkdown(message.content)"></div>
           </m3e-card>
 
           <!-- 流式打字指示器 -->
-          <m3e-card v-if="message.isStreaming && !message.content" class="conversation-flow__activity-card" variant="filled">
+          <m3e-card v-if="message.isStreaming && !message.content && !(message.tools || []).length" class="conversation-flow__activity-card" variant="filled">
             <div slot="content" class="conversation-flow__message-block">
               <p class="conversation-flow__typing">正在思考...</p>
+            </div>
+          </m3e-card>
+
+          <!-- 工具调用卡片（模型决定执行的动作）-->
+          <m3e-card v-for="tool in (message.tools || [])" :key="tool.id" class="conversation-flow__activity-card" variant="filled">
+            <div slot="content">
+              <ToolExpansion :icon="toolIcon(tool.name)" :label="tool.status === 'running' ? '正在运行' : tool.status === 'completed' ? '已完成' : tool.status === 'error' ? '执行失败' : '等待中'" :parameter="tool.name + (tool.input?.command ? ' ' + tool.input.command : tool.input?.path ? ' ' + tool.input.path : '')" :open="tool.status === 'running'">
+                <pre v-if="tool.preview" class="conversation-flow__terminal"><code>{{ tool.preview }}</code></pre>
+              </ToolExpansion>
             </div>
           </m3e-card>
 
