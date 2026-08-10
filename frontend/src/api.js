@@ -26,27 +26,24 @@ async function request(path, method = 'GET', body) {
 
 // --- 建立会话事件订阅 ---
 function subscribeSession(sessionID, afterID, signal) {
-  return fetch(`${apiRoot}/session/events?sessionId=${encodeURIComponent(sessionID)}&afterId=${afterID || 0}`, { signal }) // SSE 断线位置显式传给 Server
+  return fetch(`${apiRoot}/sse?id=${encodeURIComponent(sessionID)}`, { signal }) // SSE 连接使用会话 ID
 }
 
 
 export const AgentAPI = {
   getHealth: () => request('/health'),                                      // 读取服务身份和版本
   listWorkspaces: () => request('/workspace'),                              // 读取工作区及下属会话
-  createWorkspace: (path, name) => request('/workspace', 'POST', { path, name }), // 添加工作区定义
-  updateWorkspace: (workspaceID, changes) => request('/workspace', 'PATCH', { workspaceId: workspaceID, ...changes }), // 修改工作区
-  removeWorkspace: (workspaceID) => request('/workspace', 'DELETE', { workspaceId: workspaceID }), // 仅移除工作区定义
+  createWorkspace: (path) => request('/workspace', 'POST', { path }),       // 添加工作区定义
+  updateWorkspace: (workspaceID, changes) => request('/workspace', 'PATCH', { id: workspaceID, ...changes }), // 修改工作区
+  removeWorkspace: (workspaceID) => request(`/workspace?id=${encodeURIComponent(workspaceID)}`, 'DELETE'), // 仅移除工作区定义
   createSession: (workspaceID, model) => request('/session', 'POST', { workspaceId: workspaceID, model: model || undefined }), // 创建工作区会话
-  getSession: (sessionID) => request(`/session?sessionId=${encodeURIComponent(sessionID)}`), // 读取完整会话
-  updateSession: (sessionID, changes) => request('/session', 'PATCH', { sessionId: sessionID, ...changes }), // 修改标题或模型
-  removeSession: (sessionID) => request('/session', 'DELETE', { sessionId: sessionID }), // 删除会话
-  sendMessage: (sessionID, content, messageID, files) => request('/session/send', 'POST', { sessionId: sessionID, content, messageId: messageID, files }), // 发送带真实附件的模型请求
-  stopSession: (sessionID) => request('/session/stop', 'POST', { sessionId: sessionID }), // 停止当前会话执行
+  getSession: (sessionID) => request(`/session?id=${encodeURIComponent(sessionID)}`), // 读取完整会话
+  updateSession: (sessionID, changes) => request('/session', 'PATCH', { id: sessionID, ...changes }), // 修改标题或模型
+  removeSession: (sessionID) => request(`/session?id=${encodeURIComponent(sessionID)}`, 'DELETE'), // 删除会话
+  sendMessage: (sessionID, content) => request('/agent/send', 'POST', { id: sessionID, content }), // 发送模型请求
+  stopSession: (sessionID) => request('/agent/stop', 'POST', { id: sessionID }), // 停止当前会话执行
   subscribeSession,                                                       // 订阅递增会话事件
-  decideTool: (sessionID, toolCallID, decision) => request('/session/approval', 'POST', { sessionId: sessionID, toolCallId: toolCallID, decision }), // 提交权限决定
-  changeHistory: (sessionID, action, target = {}) => request('/session/history', 'POST', { sessionId: sessionID, action, ...target }), // 回退或撤销历史
+  decideTool: (sessionID, toolCallID, decision) => request('/agent/approve', 'POST', { id: sessionID, toolCallId: toolCallID, approved: decision !== 'deny' }), // 提交权限决定
   getConfig: () => request('/config'),                                  // 读取脱敏配置
   updateConfig: (changes) => request('/config', 'PATCH', changes),       // 局部更新配置
-  testProvider: (provider, model) => request('/config/test', 'POST', { provider, model: model || undefined }), // 真实测试供应商
-  listProviderModels: (provider) => request('/config/models', 'POST', { provider }), // 真实读取供应商模型目录
 }

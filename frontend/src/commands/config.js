@@ -22,45 +22,40 @@ async function load() {
 
 // --- 应用 Server 配置到设置结构 ---
 function apply(raw) {
-  const isMinimalProvider = raw.provider && ('api' in raw.provider || 'key' in raw.provider || Array.isArray(raw.provider.models))
-  const providerSource = raw.providers ?? (isMinimalProvider ? { 默认供应商: {
-    protocol: 'openai-compatible',
-    baseURL: raw.provider.api || '',
-    apiKey: raw.provider.key || '',
-    models: raw.provider.models || [],
-  } } : raw.provider) ?? {}
-  const providers = Object.fromEntries(Object.entries(providerSource).map(([name, provider]) => [name, {
-    ...provider,                                          // 保留协议、缓存和模型设置
-    enabled: provider.enabled !== false,                  // 设置页开关默认为启用
-    protocol: provider.protocol || 'openai-compatible',   // 历史配置默认使用 OpenAI 兼容协议
-    baseURL: provider.baseURL || '',                      // 缺省地址仍可在设置页编辑
-    apiKey: provider.apiKey || '',                        // 缺省密钥不阻止设置页渲染
-    models: Array.isArray(provider.models) ? provider.models : [], // 历史配置缺少模型目录时使用空数组
-    modelSettings: provider.modelSettings || {},          // 保持模型添加指令可以直接写入默认能力
-    timeout: provider.timeoutMs ?? 120000,                // 适配现有数字输入字段
-    headers: JSON.stringify(provider.headers ?? {}, null, 2), // 设置页使用可编辑 JSON 文本
-  }]))
-  const permissions = raw.permissions ?? raw.tools ?? {}
+  const providerData = raw.provider ?? {}                  // 读取 Server 唯一供应商配置
+  const providers = {
+    默认供应商: {
+      enabled: true,                                        // 设置页开关默认为启用
+      protocol: 'openai-compatible',                        // 当前 Server 固定使用 OpenAI 兼容协议
+      baseURL: providerData.api || '',                      // API 地址
+      apiKey: providerData.key || '',                       // API 密钥
+      models: Array.isArray(providerData.models) ? providerData.models : [], // 可用模型列表
+      modelSettings: {},                                    // 前端维护模型能力设置
+      timeout: 120000,                                      // 默认请求超时
+      headers: '{}',                                        // 自定义请求头
+    },
+  }
+  const permissions = raw.permission ?? {}
   const toolSettings = Object.entries(permissions)
     .filter(([name]) => !['delegate_task', 'agent'].includes(name))
     .map(([name, permission]) => ({ name, title: name, enabled: permission !== 'deny', permission }))
-  const mcp = Object.entries(raw.mcpServers ?? {}).map(([name, definition]) => ({
-    id: name,                                             // 设置页使用稳定配置键作为身份
-    name,                                                 // 展示和保存共用名称
-    command: definition.command || definition.url || '',  // 简单面板显示主要连接地址
-    enabled: definition.enabled !== false,                // 映射启用开关
-    definition: structuredClone(definition),              // 保存完整 transport/args/env/headers 定义
+  const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => ({
+    id: name,                                               // 设置页使用稳定配置键作为身份
+    name,                                                   // 展示和保存共用名称
+    command: definition.command || definition.url || '',     // 简单面板显示主要连接地址
+    enabled: definition.enabled !== false,                   // 映射启用开关
+    definition: structuredClone(definition),                 // 保存完整 transport/args/env/headers 定义
   }))
 
   Object.assign(store.config, {
-    providers,                                            // 替换供应商编辑目录
-    tools: toolSettings,                                  // 替换工具权限目录
-    mcp,                                                  // 替换 MCP 编辑和状态目录
-    prompt: raw.prompts?.system || '',                    // 读取 Server 系统提示词
-    appearance: store.config.appearance,                  // 外观偏好保持前端本地状态
-    activeProvider: raw.activeProvider || Object.keys(providers)[0] || '', // 保存当前供应商选择
-    activeModel: raw.activeModel || raw.defaultModel || '', // 保存当前模型选择
-    raw: structuredClone(raw),                            // 保留未在设置页展示的字段
+    providers,                                              // 替换供应商编辑目录
+    tools: toolSettings,                                    // 替换工具权限目录
+    mcp,                                                    // 替换 MCP 编辑和状态目录
+    prompt: raw.prompts?.system || '',                       // 读取 Server 系统提示词
+    appearance: store.config.appearance,                     // 外观偏好保持前端本地状态
+    activeProvider: '默认供应商',                             // Server 当前只有一个供应商
+    activeModel: providerData.models?.[0] || '',             // 使用模型列表首项作为默认
+    raw: structuredClone(raw),                               // 保留未在设置页展示的字段
   })
 }
 

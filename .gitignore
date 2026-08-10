@@ -34,3 +34,4 @@ agent-server.exe
 Thumbs.db
 Agent.mm
 参考图/
+.playwright-mcp/

@@ -38,9 +38,9 @@ async function add(name, path) {
   if (!cleanName || !cleanPath) return false            // 两个字段缺一不可
 
   try {
-    const result = await AgentAPI.createWorkspace(cleanPath, cleanName) // 让 Server 验证路径重复并持久化
-    store.workspaces.push({ ...result.workspace, sessions: [] })         // 新工作区进入主页目录
-    store.ui.activeWorkspaceID = result.workspace.id                     // 创建后立即选中新工作区
+    const result = await AgentAPI.createWorkspace(cleanPath) // 让 Server 验证路径重复并持久化
+    store.workspaces.push({ ...result, sessions: result.sessions || [] }) // 新工作区进入主页目录
+    store.ui.activeWorkspaceID = result.id ?? result.workspace?.id ?? '' // 创建后立即选中新工作区
     UI.notify(t('workspaceAdded'))                                        // 反馈添加完成
     return true                                                           // 通知弹窗关闭
   } catch (error) {

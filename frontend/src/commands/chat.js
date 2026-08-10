@@ -52,7 +52,7 @@ async function send(sessionID, content) {
   const eventResponse = AgentAPI.subscribeSession(sessionID, afterID, controller.signal) // 并发建立订阅，空历史时等待首事件
 
   try {
-    await AgentAPI.sendMessage(sessionID, text, messageID, files) // 会话模型已在创建或切换时持久化
+    await AgentAPI.sendMessage(sessionID, text)            // 会话模型已在创建或切换时持久化
     const response = await eventResponse                  // 执行已启动后取得事件流响应
     void consume(sessionID, response, controller)         // 后台持续归约事件，不阻塞输入事件栈
     return true                                           // 反馈发送动作已接受
@@ -242,42 +242,22 @@ function removeFile(sessionID, fileID) {
 
 // --- 回退到工具步骤 ---
 async function rollback(sessionID, checkpoint) {
-  try {
-    await AgentAPI.changeHistory(sessionID, 'rollback-checkpoint', { checkpoint }) // Server 同步截断展示和模型历史
-    await Session.refresh(sessionID)                     // 重新读取回退预览和可见消息
-    return true                                          // 显示回退预览条
-  } catch (error) {
-    UI.notify(error.message)                             // 展示无存档点或运行冲突
-    return false                                         // 保持当前历史
-  }
+  UI.notify('回退功能尚未支持')                            // Server 未实现 history 接口
+  return false                                           // 保持当前历史
 }
 
 
 // --- 回退用户消息并填回输入框 ---
 async function rollbackMessage(sessionID, messageID) {
-  try {
-    const result = await AgentAPI.changeHistory(sessionID, 'rollback-message', { messageId: messageID }) // Server 暂存目标消息及后续历史
-    await Session.refresh(sessionID)                     // 刷新可见历史和撤销摘要
-    store.sessions[sessionID].draft = result.content     // 把原用户消息填回输入框
-    return true                                          // 显示撤销回退动作
-  } catch (error) {
-    UI.notify(error.message)                             // 展示目标不存在或运行冲突
-    return false                                         // 保持当前历史
-  }
+  UI.notify('回退功能尚未支持')                            // Server 未实现 history 接口
+  return false                                           // 保持当前历史
 }
 
 
 // --- 撤销最近回退 ---
 async function undoRollback(sessionID) {
-  try {
-    await AgentAPI.changeHistory(sessionID, 'undo')      // Server 恢复暂存的两套历史
-    await Session.refresh(sessionID)                     // 刷新完整时间线
-    store.sessions[sessionID].draft = ''                 // 撤销消息回退时清除输入原文
-    return true                                          // 反馈恢复完成
-  } catch (error) {
-    UI.notify(error.message)                             // 展示没有可撤销回退等错误
-    return false                                         // 保持当前状态
-  }
+  UI.notify('撤销回退功能尚未支持')                        // Server 未实现 history 接口
+  return false                                           // 保持当前状态
 }
 
 
