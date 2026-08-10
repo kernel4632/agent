@@ -17,7 +17,7 @@ const messages = computed(() => session.value?.messages || []) // 当前会话�
 // --- 自动滚动到底部 ---
 function scrollToBottom() {
   nextTick(() => {
-    const container = flowContainer.value?.closest('.chat-page') // 滚动容器是外层 .chat-page
+    const container = flowContainer.value?.closest('.chat-page__scroll') // 滚动容器是外层 .chat-page__scroll
     if (container) container.scrollTop = container.scrollHeight // 新消息后显示最新内容
   })
 }

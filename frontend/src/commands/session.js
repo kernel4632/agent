@@ -171,6 +171,8 @@ function normalize(source, previous = {}) {
   }
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
+    title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
+    titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
     provider,                                           // 模型选择器显示供应商
     model: source.model || store.config.activeModel,    // 模型选择器显示模型
     messages,                                            // 使用合并后的可见消息

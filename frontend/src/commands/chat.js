@@ -127,6 +127,20 @@ async function receive(sessionID, event, controller) {
         assistant.request.status = 'completed'            // 映射完成终态
       }
       Session.syncSummary(session)                        // 列表同步终态
+      // 首次完成时异步生成标题（不阻塞 UI）
+      if (!session.titleGenerated) {
+        session.titleGenerated = true                    // 防止重复触发
+        const firstUserMsg = session.messages.find(m => m.role === 'user')
+        const prompt = typeof firstUserMsg?.content === 'string' ? firstUserMsg.content : (Array.isArray(firstUserMsg?.content) ? firstUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join('') : '')
+        if (prompt) {
+          AgentAPI.generateTitle(sessionID, prompt).then(({ title }) => {
+            if (title && store.sessions[sessionID]) {
+              store.sessions[sessionID].title = title    // 更新会话完整数据
+              Session.syncSummary(store.sessions[sessionID]) // 侧边栏刷新标题
+            }
+          }).catch(() => {})                             // 标题失败不影响对话
+        }
+      }
       // 注意：不断开 SSE，连接保持以接收下一轮事件
     }
     return

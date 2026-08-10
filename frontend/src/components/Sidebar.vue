@@ -64,7 +64,7 @@ function toggleSidebar() {
         shape="square"
         @click="emit('select-conversation', conversation.id)"
       >
-        <span class="sidebar__conversation-content">{{ conversation.title }}</span>
+        <span class="sidebar__conversation-content">{{ conversation.title || '新对话' }}</span>
       </m3e-button>
     </section>
 

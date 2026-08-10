@@ -44,6 +44,7 @@ export const AgentAPI = {
   stopSession: (sessionID) => request('/agent/stop', 'POST', { id: sessionID }), // 停止当前会话执行
   subscribeSession,                                                       // 订阅递增会话事件
   decideTool: (sessionID, toolCallID, decision) => request('/agent/approve', 'POST', { id: sessionID, toolCallId: toolCallID, approved: decision !== 'deny' }), // 提交权限决定
+  generateTitle: (sessionID, prompt) => request('/title', 'POST', { id: sessionID, prompt }), // 为会话生成标题
   getConfig: () => request('/config'),                                  // 读取脱敏配置
   updateConfig: (changes) => request('/config', 'PATCH', changes),       // 局部更新配置
 }
