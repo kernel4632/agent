@@ -31,7 +31,8 @@ async function send(sessionID, content) {
 
   Loop.run({
     messages: session.messages,
-    model: session.model,
+    provider: session.provider,
+    prompts: session.prompts,
     signal: controller.signal,
     execute: (toolCalls) => Promise.all(toolCalls.map((tc) => executeTool(runtime, tc, controller.signal))),
     onEvent: (type, data) => SSE.broadcast(runtime.clients, type, data),

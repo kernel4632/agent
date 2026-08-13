@@ -9,7 +9,7 @@ import { Message } from '../utils/message.js'            // 引入消息工厂
 
 
 // --- 生成摘要 ---
-async function generate(built, { url, key, model }) {
+async function generate(built) {
   const material = built.slice(3, -3)                    // 去掉头尾各 3 条，压缩中间部分
   if (material.length === 0) return null
 
