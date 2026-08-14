@@ -1,7 +1,3 @@
-/*
-模型调用：用 AI SDK 对任意 OpenAI 兼容端点执行单轮流式生成，并组装标准 UIMessage。
-一次调用包含完整流消费，因此网络中断会由 Retry 原地重试，不会留下半条持久消息。
-*/
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import {
     readUIMessageStream,
@@ -14,54 +10,51 @@ import {
     type UIMessageChunk,
 } from 'ai'
 import { nanoid } from 'nanoid'
-import Retry from './retry.ts'
-import Store from '../store.ts'
-
+import pRetry from 'p-retry'
+import type { ConfigData, ModelConfig, ProviderConfig } from '../types.ts'
+import Error from './error.ts'
 const chat = async ({
     provider,
-    modelID,
+    model,
+    retry,
     messages,
     tools = {},
     instructions,
-    signal,
-    onPart,
 }: {
-    provider: string
-    modelID: string
+    provider: ProviderConfig
+    model: ModelConfig
+    retry: ConfigData['retry']
     messages: ModelMessage[]
     tools?: ToolSet
     instructions: string
+}, {
+    signal = new AbortController().signal,
+    receive,
+}: {
     signal?: AbortSignal
-    onPart?: (part: UIMessageChunk) => void | Promise<void>
-}) => {
-    const providerConfig = Store.config.providers.find(item => item.name === provider)
-    if (!providerConfig) throw new Error(`Provider not found: ${provider}`)
-    const modelConfig = providerConfig.models.find(item => item.id === modelID)
-    if (!modelConfig) throw new Error(`Model not found: ${provider}/${modelID}`)
-    const model = createOpenAICompatible({
-        name: providerConfig.name,
-        baseURL: providerConfig.baseURL,
-        apiKey: providerConfig.key,
+    receive?: (part: UIMessageChunk) => void | Promise<void>
+} = {}) => {
+    const languageModel = createOpenAICompatible({
+        name: provider.name,
+        baseURL: provider.baseURL,
+        apiKey: provider.key,
         includeUsage: true,
-    }).chatModel(modelID)
+    }).chatModel(model.id)
     let streamed = false
     let emptyAttempts = 0
-    while (true) {
-        let produced = false
-        const pending: UIMessageChunk[] = []
-        try {
-            return await Retry.run(async () => {
+    return pRetry(async () => {
+                let produced = false
+                const pending: UIMessageChunk[] = []
                 const messageID = nanoid()
                 const result = streamText({
-                    model,
+                    model: languageModel,
                     instructions,
                     messages,
                     tools,
                     abortSignal: signal,
                     maxRetries: 0,
-                    maxOutputTokens: modelConfig.maxOutput,
+                    maxOutputTokens: model.maxOutput,
                 })
-
                 let message: UIMessage | undefined
                 const uiStream = toUIMessageStream({
                     stream: result.stream,
@@ -78,24 +71,30 @@ const chat = async ({
                             produced = true
                             streamed = true
                             for (const buffered of pending) {
-                                await onPart?.(buffered)
+                                await receive?.(buffered)
                                 controller.enqueue(buffered)
                             }
                             pending.length = 0
                             return
                         }
-                        await onPart?.(chunk)
+                        await receive?.(chunk)
                         controller.enqueue(chunk)
                     },
                 }))
                 for await (const update of readUIMessageStream({ stream: observed })) message = update
                 if (!message || !produced) throw new NoOutputGeneratedError()
-                return { message, usage: await result.usage, finishReason: await result.finishReason }
-            }, signal, error => !streamed && Retry.recoverable(error))
-        } catch (error) {
-            if (streamed || !NoOutputGeneratedError.isInstance(error) || ++emptyAttempts >= 3) throw error
-        }
-    }
+                return { message, usage: await result.usage }
+            }, {
+                retries: Infinity,
+                factor: retry.factor,
+                minTimeout: retry.baseDelay,
+                maxTimeout: retry.maxDelay,
+                signal,
+                shouldRetry: ({ error }) => {
+                    if (streamed) return false
+                    if (NoOutputGeneratedError.isInstance(error)) return ++emptyAttempts < 3
+                    return Error.retryable(error)
+                },
+            })
 }
-
 export default { chat }

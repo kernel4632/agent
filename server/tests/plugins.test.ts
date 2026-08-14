@@ -4,7 +4,6 @@ import CronPlugin from '../plugins/cron/index.ts'
 import MCPPlugin from '../plugins/mcp/index.ts'
 import TitlePlugin from '../plugins/title/index.ts'
 import WebsearchPlugin from '../plugins/websearch/index.ts'
-import Retry from '../utils/retry.ts'
 
 describe('First-party plugins', () => {
     it('generates a title once for the first user message', async () => {
@@ -16,7 +15,10 @@ describe('First-party plugins', () => {
                 read: () => session,
                 rename: async (_id: string, value: string) => { title = value },
             },
-            Store: { workspaces: { workspace: { sessions: [{ id: 'session', get title() { return title } }] } } },
+            Store: {
+                config: { retry: { baseDelay: 1, factor: 2, maxDelay: 2 }, providers: [{ name: 'provider', models: [{ id: 'model' }] }] },
+                workspaces: { workspace: { sessions: [{ id: 'session', get title() { return title } }] } },
+            },
             LLM: {
                 chat: async () => {
                     calls += 1
@@ -51,13 +53,12 @@ describe('First-party plugins', () => {
             Store: { config: { plugins: { mcp: { settings: { servers: {
                 test: { type: 'stdio', command: [process.execPath, script, 'stdio'] },
             } } } } } },
-            Retry,
         }
         const plugin = await MCPPlugin(api)
         const echo = plugin.tools!.find(tool => tool.name === 'test__echo')!
         expect(echo).toBeDefined()
         const result = await echo.execute({ message: 'hello' }, {
-            sessionID: 'session', messageID: 'message', partIndex: 0, signal: new AbortController().signal,
+            sessionID: 'session', messageID: 'message', partIndex: 0, signal: new AbortController().signal, retry: operation => operation(),
         })
         expect(JSON.stringify(result.output)).toContain('hello')
         await plugin.unload!()
@@ -79,11 +80,10 @@ describe('First-party plugins', () => {
             Store: { config: { plugins: { websearch: { settings: {
                 baseURL: `http://127.0.0.1:${server.port}/v1`, key: 'test', model: 'search',
             } } } } },
-            Retry,
         }
         const plugin = WebsearchPlugin(api)
         const result = await plugin.tools![0]!.execute({ query: 'current event' }, {
-            sessionID: 'session', messageID: 'message', partIndex: 0, signal: new AbortController().signal,
+            sessionID: 'session', messageID: 'message', partIndex: 0, signal: new AbortController().signal, retry: operation => operation(),
         })
         server.stop()
         expect((result.output as any).text).toBe('search result')

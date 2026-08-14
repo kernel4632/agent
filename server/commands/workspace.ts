@@ -53,6 +53,17 @@ const add = async (path: string) => {
     return workspace
 }
 
+const update = async (workspaceID: string, path: string) => {
+    const workspace = Store.workspaces[workspaceID]
+    if (!workspace) throw Error.notFound('Workspace not found')
+    const absolutePath = resolve(path)
+    if (!(await stat(absolutePath).catch(() => null))?.isDirectory()) throw Error.invalid('Workspace must be a directory')
+    if (list().some(item => item.id !== workspaceID && item.path === absolutePath)) throw Error.conflict('Workspace path already exists')
+    workspace.path = absolutePath
+    await save()
+    return workspace
+}
+
 const remove = async (workspaceID: string) => {
     const workspace = Store.workspaces[workspaceID]
     if (!workspace) return false
@@ -62,4 +73,4 @@ const remove = async (workspaceID: string) => {
     return true
 }
 
-export default { load, save, list, add, remove }
+export default { load, save, list, add, update, remove }

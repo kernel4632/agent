@@ -19,13 +19,14 @@ export default (api: any): PluginModule => {
             const settings = api.Store.config.plugins.websearch?.settings as any
             if (!settings) throw new Error('websearch plugin is not configured')
             const provider = createOpenAICompatible({ name: 'websearch', baseURL: settings.baseURL, apiKey: settings.key })
-            const result = await api.Retry.run(() => generateText({
+            const request = () => generateText({
                 model: provider.chatModel(settings.model),
                 prompt: (input as any).query,
                 abortSignal: context.signal,
                 maxRetries: 0,
                 providerOptions: settings.providerOptions,
-            }), context.signal)
+            })
+            const result = context.retry ? await context.retry(request) : await request()
             return { output: { text: result.text, sources: result.sources } }
         },
     }

@@ -5,7 +5,6 @@ file_read 对图片返回真实 file content，使模型能直接观察像素而
 import { readdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
-import Checkpoint from '../features/checkpoint.ts'
 import type { AgentTool } from '../types.ts'
 
 const fileRead: AgentTool = {
@@ -51,7 +50,7 @@ const fileWrite: AgentTool = {
     },
     async execute(input, context) {
         const { path, content } = input as { path: string; content: string }
-        await Checkpoint.save(context.sessionID, context, path)
+        await context.checkpoint?.(path)
         await writeFile(path, content)
         return { output: `Wrote ${Buffer.byteLength(content)} bytes to ${path}` }
     },

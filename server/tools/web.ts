@@ -2,7 +2,6 @@
 网页读取工具：获取任意 HTTP 地址并返回状态、响应头和正文。
 网络瞬时错误走与模型相同的无限退避策略，用户 stop 可以立即打断。
 */
-import Retry from '../utils/retry.ts'
 import type { AgentTool } from '../types.ts'
 
 const webFetch: AgentTool = {
@@ -16,11 +15,12 @@ const webFetch: AgentTool = {
     },
     async execute(input, context) {
         const { url } = input as { url: string }
-        const response = await Retry.run(async () => {
+        const request = async () => {
             const response = await fetch(url, { signal: context.signal })
             if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
             return response
-        }, context.signal)
+        }
+        const response = context.retry ? await context.retry(request) : await request()
         return { output: { status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() } }
     },
 }

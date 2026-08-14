@@ -7,6 +7,7 @@ import { writeFile } from 'atomically'
 import { deepmergeCustom } from 'deepmerge-ts'
 import * as v from 'valibot'
 import Store from '../store.ts'
+import Auth from './auth.ts'
 import Path from '../utils/path.ts'
 import type { ConfigData } from '../types.ts'
 
@@ -50,17 +51,20 @@ const load = async () => {
 
 const read = () => structuredClone(Store.config)
 
-const save = async (patch: Partial<ConfigData>) => {
+const save = async (update: Partial<ConfigData> | ((config: ConfigData) => Partial<ConfigData>)) => {
     const previous = saving
     let release = () => {}
     saving = new Promise<void>(resolve => { release = resolve })
     await previous
     try {
+        const patch = typeof update === 'function' ? update(Store.config) : update
         const merge = deepmergeCustom({ mergeArrays: values => values.at(-1) })
         const config = v.parse(schema, merge(Store.config, patch)) as ConfigData
         await writeFile(Path.config(), JSON.stringify(config, null, 2), { mode: 0o600 })
         await chmod(Path.config(), 0o600)
+        const authChanged = config.auth.username !== Store.config.auth.username || config.auth.password !== Store.config.auth.password
         Store.config = config
+        if (authChanged) Auth.reset()
         return read()
     } finally {
         release()

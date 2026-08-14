@@ -1,31 +1,26 @@
 /*
-上下文压缩：把当前有效上下文总结为一条 summary assistant message，原消息永不删除。
-下一次 Context.select 会自然形成“开头 3 + 摘要前 3 + 摘要 + 摘要后全部”。
+上下文压缩：把传入的有效上下文总结为一条 summary assistant message。
+模型能力、控制器和流接收器都由调用方注入；本模块不读写 Store。
 */
-import { convertToModelMessages } from 'ai'
+import { convertToModelMessages, type UIMessageChunk } from 'ai'
 import { nanoid } from 'nanoid'
 import Context from './context.ts'
-import LLM from '../utils/llm.ts'
-import Plugin from './plugin.ts'
-import Store from '../store.ts'
 import type { AgentMessage } from '../types.ts'
-import Error from '../utils/error.ts'
-import Session from '../commands/session.ts'
-import type { UIMessageChunk } from 'ai'
 
-const run = async (sessionID: string, signal = new AbortController().signal, onEvent?: (event: UIMessageChunk) => void | Promise<void>): Promise<AgentMessage> => {
-    const session = Store.sessions[sessionID]
-    if (!session) throw Error.notFound('Session not found')
-    if (Store.runtimes[sessionID]!.status === 'running' && signal !== Store.runtimes[sessionID]!.abort.signal) throw Error.conflict('Cannot compact a running session')
-
-    const result = await LLM.chat({
-        provider: session.provider,
-        modelID: session.model,
-        messages: await convertToModelMessages(Context.select(session.messages)),
-        instructions: Store.config.prompts.summary,
-        signal,
-    })
-    const summary: AgentMessage = {
+const run = async (messages: AgentMessage[], {
+    signal,
+    receive,
+    chat,
+}: {
+    signal: AbortSignal
+    receive?: (event: UIMessageChunk) => void | Promise<void>
+    chat: (messages: Awaited<ReturnType<typeof convertToModelMessages>>, options: {
+        signal: AbortSignal
+        receive?: (event: UIMessageChunk) => void | Promise<void>
+    }) => Promise<{ message: AgentMessage; usage?: AgentMessage['usage'] }>
+}): Promise<AgentMessage> => {
+    const result = await chat(await convertToModelMessages(Context.select(messages)), { signal, receive })
+    return {
         ...result.message,
         id: nanoid(),
         role: 'assistant',
@@ -33,10 +28,6 @@ const run = async (sessionID: string, signal = new AbortController().signal, onE
         summary: true,
         usage: result.usage,
     }
-    await Session.append(sessionID, summary)
-    await onEvent?.({ type: 'data-compact-done', data: { message: summary }, transient: true })
-    await Plugin.emit('message.append', { sessionID, message: summary })
-    return summary
 }
 
 export default { run }

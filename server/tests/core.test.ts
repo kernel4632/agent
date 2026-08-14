@@ -16,6 +16,7 @@ import Permission from '../features/permission.ts'
 import Plugin from '../features/plugin.ts'
 import Path from '../utils/path.ts'
 import Store from '../store.ts'
+import LLM from '../utils/llm.ts'
 
 beforeEach(async () => {
     process.env.AGENT_HOME = join(tmpdir(), `agent-test-${nanoid()}`)
@@ -34,6 +35,14 @@ describe('Store', () => {
     it('keeps configuration arrays replaceable during patch', async () => {
         await Config.save({ permission: [{ tool: 'shell', match: '*', action: 'allow' }] })
         expect(Store.config.permission).toEqual([{ tool: 'shell', match: '*', action: 'allow' }])
+    })
+
+    it('preserves concurrent functional permission updates', async () => {
+        await Promise.all([
+            Config.save(config => ({ permission: [...config.permission, { tool: 'one', match: '*', action: 'allow' }] })),
+            Config.save(config => ({ permission: [...config.permission, { tool: 'two', match: '*', action: 'allow' }] })),
+        ])
+        expect(Store.config.permission.slice(-2).map(rule => rule.tool)).toEqual(['one', 'two'])
     })
 
     it('rejects damaged JSONL lines instead of silently losing messages', async () => {
@@ -55,6 +64,13 @@ describe('Store', () => {
         expect(await readFile(Path.messages(session.id), 'utf8')).toContain('partial')
     })
 
+    it('rejects a workspace index that points to missing session metadata', async () => {
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        workspace.sessions.push({ id: 'missing-metadata', title: '', lastActiveAt: new Date().toISOString() })
+        await Workspace.save()
+        await expect(Session.load()).rejects.toThrow('Missing session metadata')
+    })
+
     it('validates config before committing and protects persisted files', async () => {
         await expect(Config.save({ context: { compactRatio: 2 } } as any)).rejects.toThrow()
         expect(Store.config.context.compactRatio).toBe(0.8)
@@ -74,16 +90,64 @@ describe('Permission', () => {
     it('waits until a decision and persists an always-allow rule', async () => {
         const workspace = await Workspace.add(process.env.AGENT_HOME!)
         const session = await Session.create(workspace.id, 'provider', 'model')
-        const pending = Permission.request(session.id, 'call', 'shell', { command: 'ls' })
+        const controller = new AbortController()
+        const pending = Permission.request({ callID: 'call', tool: 'shell', input: { command: 'ls' }, rules: Store.config.permission }, {
+            signal: controller.signal,
+            wait: resolve => {
+                Store.runtimes[session.id]!.permission.set('call', resolve)
+                return () => Store.runtimes[session.id]!.permission.delete('call')
+            },
+            persist: rule => Config.save({ permission: [...Store.config.permission, rule] }),
+        })
         await Bun.sleep(1)
         expect(Store.runtimes[session.id]!.permission.has('call')).toBe(true)
-        Permission.decide(session.id, 'call', { action: 'allow', scope: 'always' })
+        Permission.decide(Store.runtimes[session.id]!.permission.get('call'), 'call', { action: 'allow', scope: 'always' })
         expect(await pending).toBe(true)
         expect(Store.config.permission.at(-1)?.action).toBe('allow')
+    })
+
+    it('cancels when stop happens while delivering the permission request', async () => {
+        const controller = new AbortController()
+        const pending = Permission.request({ callID: 'cancel', tool: 'shell', input: {}, rules: Store.config.permission }, {
+            signal: controller.signal,
+            receive: () => controller.abort(new DOMException('Stopped', 'AbortError')),
+            wait: () => undefined,
+        })
+        await expect(pending).rejects.toThrow('Stopped')
     })
 })
 
 describe('Checkpoint', () => {
+    it('serializes concurrent snapshots without losing entries', async () => {
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        const session = await Session.create(workspace.id, 'provider', 'model')
+        const paths = [join(workspace.path, 'a.txt'), join(workspace.path, 'b.txt')]
+        await Promise.all(paths.map(path => writeFile(path, 'before')))
+        await Session.append(session.id, { id: 'parallel-checkpoint', role: 'assistant', parts: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] })
+        await Promise.all(paths.map((path, partIndex) => Checkpoint.save(session.id, { messageID: 'parallel-checkpoint', partIndex }, path)))
+        await Promise.all(paths.map(path => writeFile(path, 'after')))
+        const entries = await Checkpoint.list(session.id)
+        expect(entries.map(entry => entry.sequence)).toEqual([1, 2])
+        await Checkpoint.rollback(session.id, { messageID: 'parallel-checkpoint', partIndex: 0 })
+        expect(await Promise.all(paths.map(path => readFile(path, 'utf8')))).toEqual(['before', 'before'])
+    })
+
+    it('serializes rollback with accepted session sends', async () => {
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        const session = await Session.create(workspace.id, 'provider', 'model')
+        await Session.append(session.id, { id: 'rollback-lock', role: 'user', parts: [{ type: 'text', text: 'keep' }] })
+        let release = () => {}
+        const gate = new Promise<void>(resolve => { release = resolve })
+        void Store.runtimes[session.id]!.sends.add(() => gate)
+        let completed = false
+        const rollback = Checkpoint.rollback(session.id, { messageID: 'rollback-lock', partIndex: 0 }).then(() => { completed = true })
+        await Bun.sleep(20)
+        expect(completed).toBe(false)
+        release()
+        await rollback
+        expect(completed).toBe(true)
+    })
+
     it('restores overwritten and newly created files at a part position', async () => {
         const workspace = await Workspace.add(process.env.AGENT_HOME!)
         const session = await Session.create(workspace.id, 'provider', 'model')
@@ -178,7 +242,18 @@ describe('Context', () => {
             role: 'user',
             parts: [{ type: 'text', text: String(index) }],
         })
-        const summary = await Compact.run(session.id)
+        const provider = Store.config.providers[0]!
+        const summary = await Compact.run(session.messages, {
+            signal: new AbortController().signal,
+            chat: (messages, options) => LLM.chat({
+                provider,
+                model: provider.models[0]!,
+                retry: Store.config.retry,
+                messages,
+                instructions: Store.config.prompts.summary,
+            }, options),
+        })
+        await Session.append(session.id, summary)
         expect(summary.summary).toBe(true)
         expect(Store.sessions[session.id]!.messages).toHaveLength(6)
         const fork = await Fork.create(session.id, { messageID: 'message-3', partIndex: 1 })
@@ -199,7 +274,7 @@ describe('Context', () => {
             { id: 'orphan', role: 'assistant', parts: [{ type: 'dynamic-tool', toolName: 'finish', toolCallId: 'orphan-call', state: 'input-available', input: { result: 'lost' } } as any] },
             { id: 'user-after', role: 'user', parts: [{ type: 'text', text: 'after' }] },
         )
-        const context = await Context.build(session.id, {})
+        const context = await Context.build(session.messages, {})
         expect(JSON.stringify(context)).not.toContain('orphan-call')
         expect(JSON.stringify(context)).toContain('after')
     })
@@ -210,6 +285,20 @@ describe('Lifecycle', () => {
         const workspace = await Workspace.add(process.env.AGENT_HOME!)
         await Session.create(workspace.id, 'provider', 'model')
         await expect(Workspace.remove(workspace.id)).rejects.toThrow('Cannot remove a workspace with sessions')
+    })
+
+    it('waits for queued message writes before removing a session', async () => {
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        const session = await Session.create(workspace.id, 'provider', 'model')
+        let release = () => {}
+        const gate = new Promise<void>(resolve => { release = resolve })
+        void Store.runtimes[session.id]!.writes.add(() => gate)
+        const append = Session.append(session.id, { id: 'queued', role: 'user', parts: [{ type: 'text', text: 'queued' }] })
+        const removing = Session.remove(session.id)
+        release()
+        await Promise.all([append, removing])
+        expect(Store.sessions[session.id]).toBeUndefined()
+        expect(await Bun.file(Path.session(session.id)).exists()).toBe(false)
     })
 })
 

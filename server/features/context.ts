@@ -4,8 +4,7 @@ Context.count 与 Context.needsCompact 也公开，压缩和插件可复用同�
 */
 import { convertToModelMessages, type ToolSet } from 'ai'
 import { encode } from 'gpt-tokenizer'
-import Store from '../store.ts'
-import type { AgentMessage } from '../types.ts'
+import type { AgentMessage, ModelConfig } from '../types.ts'
 
 const select = (messages: AgentMessage[]) => {
     const summaryIndex = messages.findLastIndex(message => message.summary)
@@ -20,17 +19,16 @@ const select = (messages: AgentMessage[]) => {
     return selected.filter((message, index) => selected.findIndex(item => item.id === message.id) === index)
 }
 
-const needsCompact = (sessionID: string, messages = select(Store.sessions[sessionID]!.messages)) => {
-    const session = Store.sessions[sessionID]!
-    const provider = Store.config.providers.find(item => item.name === session.provider)
-    const model = provider?.models.find(item => item.id === session.model)
-    if (!model) throw new Error('Session model configuration not found')
-    return encode(JSON.stringify(messages)).length > model.contextWindow * Store.config.context.compactRatio
-}
+const needsCompact = (messages: AgentMessage[], model: ModelConfig, ratio: number) =>
+    encode(JSON.stringify(select(messages))).length > model.contextWindow * ratio
 
-const build = async (sessionID: string, tools: ToolSet) => {
-    const messages = select(Store.sessions[sessionID]!.messages)
-    return convertToModelMessages(messages, { tools, ignoreIncompleteToolCalls: true })
-}
+const build = async (messages: AgentMessage[], tools: ToolSet) =>
+    convertToModelMessages(select(messages), { tools, ignoreIncompleteToolCalls: true })
 
-export default { select, needsCompact, build }
+const request = async (messages: AgentMessage[], tools: ToolSet, prompts: string[]) => ({
+    messages: await build(messages, tools),
+    tools,
+    instructions: prompts.filter(Boolean).join('\n\n'),
+})
+
+export default { select, needsCompact, build, request }

@@ -62,9 +62,11 @@ describe('Configured real model', () => {
                 maxOutput: provider.models[modelID].limit.output,
             }],
         }]
+        const localProvider = Store.config.providers[0]!
         const result = await LLM.chat({
-            provider: providerName,
-            modelID,
+            provider: localProvider,
+            model: localProvider.models[0]!,
+            retry: Store.config.retry,
             messages: [{ role: 'user', content: 'Reply with exactly the word READY.' }],
             instructions: 'Reply with exactly the word READY.',
         })
@@ -81,10 +83,12 @@ describe('Configured real model', () => {
         Store.config.providers = [{ name: providerName, baseURL: provider.options.baseURL, key: provider.options.apiKey, models: [{
             id: modelID, contextWindow: provider.models[modelID].limit.context, maxOutput: provider.models[modelID].limit.output,
         }] }]
+        const localProvider = Store.config.providers[0]!
         const png = Uint8Array.fromBase64('iVBORw0KGgoAAAANSUhEUgAAAGAAAABAAgMAAACYWpqdAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAACVBMVEX/AAAAAP////8Ul8VoAAAAAWJLR0QCZgt8ZAAAAAd0SU1FB+oIDQwUJKKmy7gAAAAdSURBVDjLY2BAAqFIgGFUYlRiVGJUYlRiVAK3BAAamf8BpyBzUwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyNi0wOC0xM1QxMjoyMDozNiswMDowMJHCgWMAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjYtMDgtMTNUMTI6MjA6MzYrMDA6MDDgnznfAAAAAElFTkSuQmCC')
         const result = await LLM.chat({
-            provider: providerName,
-            modelID,
+            provider: localProvider,
+            model: localProvider.models[0]!,
+            retry: Store.config.retry,
             messages: [{ role: 'user', content: [
                 { type: 'text', text: 'Name the two colors in this image. Reply with only the two color names.' },
                 { type: 'file', data: png, mediaType: 'image/png' },
@@ -106,10 +110,12 @@ describe('Configured real model', () => {
         Store.config.providers = [{ name: providerName, baseURL: provider.options.baseURL, key: provider.options.apiKey, models: [{
             id: modelID, contextWindow: provider.models[modelID].limit.context, maxOutput: provider.models[modelID].limit.output,
         }] }]
+        const localProvider = Store.config.providers[0]!
         const prefix = Array.from({ length: 3000 }, (_, index) => `stable-cache-token-${index}`).join(' ')
         const request = () => LLM.chat({
-            provider: providerName,
-            modelID,
+            provider: localProvider,
+            model: localProvider.models[0]!,
+            retry: Store.config.retry,
             messages: [{ role: 'user', content: `${prefix}\nReply with exactly CACHE.` }],
             instructions: 'Reply with exactly CACHE.',
         })

@@ -30,20 +30,24 @@ export default async (api: any): Promise<PluginModule> => {
             })
             clients.push(client)
 
-            for (const definition of (await client.listTools({ options: { timeout, maxTotalTimeout: timeout } })).tools) {
-                tools.push({
+            let cursor: string | undefined
+            do {
+                const page = await client.listTools({ params: cursor ? { cursor } : undefined, options: { timeout, maxTotalTimeout: timeout } })
+                for (const definition of page.tools) tools.push({
                     name: `${serverName}__${definition.name}`,
                     description: definition.description ?? `Call ${definition.name} on MCP server ${serverName}.`,
                     inputSchema: definition.inputSchema,
-                    execute: async (input, context) => ({
-                        output: await api.Retry.run(() => client.callTool({
+                    execute: async (input, context) => {
+                        const call = () => client.callTool({
                             name: definition.name,
                             arguments: input as Record<string, unknown>,
                             options: { signal: context.signal, timeout, maxTotalTimeout: timeout },
-                        }), context.signal),
-                    }),
+                        })
+                        return { output: context.retry ? await context.retry(call) : await call() }
+                    },
                 })
-            }
+                cursor = page.nextCursor
+            } while (cursor)
         }
     } catch (error) {
         await Promise.allSettled(clients.map(client => client.close()))

@@ -26,6 +26,49 @@ beforeEach(async () => {
 })
 
 describe('Agent loop', () => {
+    it('runs independent tool calls in the same model turn concurrently', async () => {
+        const directory = join(process.env.AGENT_HOME!, '.agent', 'tools')
+        const times = ['a-start', 'a-end', 'b-start', 'b-end'].map(name => join(process.env.AGENT_HOME!, name))
+        await mkdir(directory, { recursive: true })
+        await Bun.write(join(directory, 'parallel.ts'), `export default {
+            name: 'parallel_test', description: 'test concurrency', inputSchema: { type: 'object' },
+            async execute(input) {
+                await Bun.write(input.start, String(Date.now()))
+                await Bun.sleep(50)
+                await Bun.write(input.end, String(Date.now()))
+                return { output: input }
+            }
+        }`)
+        let step = 0
+        const model = Bun.serve({ port: 0, fetch: () => {
+            step += 1
+            const calls = step === 1
+                ? [
+                    { index: 0, id: 'parallel-a', type: 'function', function: { name: 'parallel_test', arguments: JSON.stringify({ start: times[0], end: times[1] }) } },
+                    { index: 1, id: 'parallel-b', type: 'function', function: { name: 'parallel_test', arguments: JSON.stringify({ start: times[2], end: times[3] }) } },
+                ]
+                : [{ index: 0, id: 'finish-parallel', type: 'function', function: { name: 'finish', arguments: '{"result":"done"}' } }]
+            return new Response([
+                `data: ${JSON.stringify({ choices: [{ delta: { role: 'assistant', tool_calls: calls }, finish_reason: null }] })}\n\n`,
+                `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`,
+                'data: [DONE]\n\n',
+            ].join(''), { headers: { 'content-type': 'text/event-stream' } })
+        } })
+        Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+        Store.config.permission = [{ tool: '*', match: '*', action: 'allow' }]
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        const session = await Session.create(workspace.id, 'mock', 'model')
+        await Agent.send(session.id, 'run both')
+        await Store.runtimes[session.id]!.task
+        model.stop()
+        const values = await Promise.all(times.map(path => Bun.file(path).text().then(Number)))
+        const [aStart, aEnd, bStart, bEnd] = values as [number, number, number, number]
+        expect(Math.max(aStart, bStart)).toBeLessThan(Math.min(aEnd, bEnd))
+        expect(step).toBe(2)
+        const firstAnswer = Store.sessions[session.id]!.messages[1]!
+        expect(firstAnswer.parts.filter((part: any) => part.state === 'output-available')).toHaveLength(2)
+    })
+
     it('executes a model tool call, checkpoints the file and stops through finish', async () => {
         const target = join(process.env.AGENT_HOME!, 'result.txt')
         let step = 0
@@ -98,7 +141,7 @@ describe('Agent loop', () => {
         expect(Store.runtimes[session.id]!.status).toBe('idle')
     })
 
-    it('keeps the session running until the loop-end hook has finished', async () => {
+    it('does not let a loop-end hook block the session lifecycle', async () => {
         let calls = 0
         let releaseHook = () => {}
         const hookGate = new Promise<void>(resolve => { releaseHook = resolve })
@@ -122,41 +165,106 @@ describe('Agent loop', () => {
         await Agent.send(session.id, 'first')
         while (calls < 1) await Bun.sleep(1)
         await Bun.sleep(10)
-        expect(Store.runtimes[session.id]!.status).toBe('running')
-        const second = Agent.send(session.id, 'second')
-        await Bun.sleep(10)
-        expect(calls).toBe(1)
-        releaseHook()
-        await second
+        expect(Store.runtimes[session.id]!.status).toBe('idle')
+        await Agent.send(session.id, 'second')
         await Store.runtimes[session.id]!.task
+        expect(calls).toBe(2)
+        releaseHook()
         model.stop()
         await Plugin.reset()
         expect(calls).toBe(2)
         expect(Store.runtimes[session.id]!.status).toBe('idle')
     })
 
-    it('persists a cancelled tool as an AI SDK output error', async () => {
+    it('stops while a request hook never resolves', async () => {
+        const model = Bun.serve({ port: 0, fetch: () => new Response('unexpected') })
+        Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        const session = await Session.create(workspace.id, 'mock', 'model')
+        await Plugin.reset()
+        Plugin.setAPI({ Store })
+        const directory = Path.plugins() + '/blocked-request'
+        await mkdir(directory, { recursive: true })
+        await Bun.write(directory + '/index.ts', `export default () => ({ name: 'blocked-request', hooks: { 'request.before': () => new Promise(() => {}) } })`)
+        await Plugin.load('blocked-request')
+        await Agent.send(session.id, 'block')
+        await Bun.sleep(20)
+        const stopped = await Promise.race([Agent.stop(session.id), Bun.sleep(500).then(() => 'timeout')])
+        model.stop()
+        await Plugin.reset()
+        expect(stopped).toBe(true)
+        expect(Store.runtimes[session.id]!.status).toBe('idle')
+    })
+
+    it('stops while custom tool discovery never resolves', async () => {
+        const model = Bun.serve({ port: 0, fetch: () => new Response('unexpected') })
+        Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+        const project = join(process.env.AGENT_HOME!, 'blocked-discovery')
+        await mkdir(join(project, '.agent', 'tools'), { recursive: true })
+        await Bun.write(join(project, '.agent', 'tools', 'blocked.ts'), `await new Promise(() => {}); export default { name: 'blocked', description: 'blocked', inputSchema: { type: 'object' }, execute: () => ({ output: true }) }`)
+        const workspace = await Workspace.add(project)
+        const session = await Session.create(workspace.id, 'mock', 'model')
+        await Agent.send(session.id, 'block discovery')
+        await Bun.sleep(20)
+        const stopped = await Promise.race([Agent.stop(session.id), Bun.sleep(500).then(() => 'timeout')])
+        model.stop()
+        expect(stopped).toBe(true)
+        expect(Store.runtimes[session.id]!.status).toBe('idle')
+    })
+
+    it('stops while a streamed-part hook never resolves', async () => {
+        const model = Bun.serve({ port: 0, fetch: () => new Response(`data: {"choices":[{"delta":{"role":"assistant","content":"wait"},"finish_reason":null}]}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } }) })
+        Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+        const workspace = await Workspace.add(process.env.AGENT_HOME!)
+        const session = await Session.create(workspace.id, 'mock', 'model')
+        await Plugin.reset()
+        Plugin.setAPI({ Store })
+        const directory = Path.plugins() + '/blocked-stream'
+        await mkdir(directory, { recursive: true })
+        await Bun.write(directory + '/index.ts', `export default () => ({ name: 'blocked-stream', hooks: { 'part.stream': () => new Promise(() => {}) } })`)
+        await Plugin.load('blocked-stream')
+        await Agent.send(session.id, 'block stream')
+        await Bun.sleep(30)
+        const stopped = await Promise.race([Agent.stop(session.id), Bun.sleep(500).then(() => 'timeout')])
+        model.stop()
+        await Plugin.reset()
+        expect(stopped).toBe(true)
+        expect(Store.runtimes[session.id]!.status).toBe('idle')
+    })
+
+    it('stops one tool, persists its collected result and continues the agent', async () => {
+        let step = 0
         const model = Bun.serve({
             port: 0,
-            fetch: () => new Response([
-                `data: ${JSON.stringify({ choices: [{ delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'shell-call', type: 'function', function: { name: 'shell', arguments: JSON.stringify({ command: 'sleep 10' }) } }] }, finish_reason: null }] })}\n\n`,
+            fetch: () => {
+                step += 1
+                const call = step === 1
+                    ? { index: 0, id: 'shell-call', type: 'function', function: { name: 'shell', arguments: JSON.stringify({ command: 'printf started; sleep 10' }) } }
+                    : { index: 0, id: 'finish-after-stop', type: 'function', function: { name: 'finish', arguments: JSON.stringify({ result: 'done' }) } }
+                return new Response([
+                `data: ${JSON.stringify({ choices: [{ delta: { role: 'assistant', tool_calls: [call] }, finish_reason: null }] })}\n\n`,
                 `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`,
                 'data: [DONE]\n\n',
-            ].join(''), { headers: { 'content-type': 'text/event-stream' } }),
+                ].join(''), { headers: { 'content-type': 'text/event-stream' } })
+            },
         })
         Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
         Store.config.permission = [{ tool: '*', match: '*', action: 'allow' }]
         const workspace = await Workspace.add(process.env.AGENT_HOME!)
         const session = await Session.create(workspace.id, 'mock', 'model')
-        await Agent.send(session.id, 'wait')
+        const events: any[] = []
+        await Agent.send(session.id, 'wait', event => { events.push(event) })
         const started = Date.now()
-        while (!Store.runtimes[session.id]!.tools.size && Date.now() - started < 1000) await Bun.sleep(1)
-        expect(Store.runtimes[session.id]!.tools.size).toBe(1)
-        await Agent.stop(session.id)
+        while (!events.some(event => event.type === 'data-tool-output' && event.data?.data === 'started') && Date.now() - started < 1000) await Bun.sleep(1)
+        expect(Store.runtimes[session.id]!.operations.has('shell-call')).toBe(true)
+        expect(await Agent.stop(session.id, 'shell-call')).toBe(true)
+        await Store.runtimes[session.id]!.task
         model.stop()
-        const tool = Store.sessions[session.id]!.messages.at(-1)!.parts.find((part: any) => part.toolCallId === 'shell-call') as any
-        expect(tool.state).toBe('output-error')
-        expect(tool.errorText).toBe('User cancelled.')
+        const tool = Store.sessions[session.id]!.messages[1]!.parts.find((part: any) => part.toolCallId === 'shell-call') as any
+        expect(tool.state).toBe('output-available')
+        expect(tool.output).toContain('started')
+        expect(tool.output).toContain('User stopped tool execution.')
+        expect(step).toBe(2)
     }, 10_000)
 
     it('cancels while a permission hook is still running', async () => {
@@ -176,15 +284,15 @@ describe('Agent loop', () => {
         await Bun.write(directory + '/index.ts', `export default () => ({ name: 'slow-permission', hooks: { 'permission.request': async data => { await Bun.sleep(100); return data } } })`)
         await Plugin.load('slow-permission')
         await Agent.send(session.id, 'list')
-        await Bun.sleep(20)
+        while (!Store.runtimes[session.id]!.operations.has('permission-call')) await Bun.sleep(1)
         const stopped = await Promise.race([Agent.stop(session.id), Bun.sleep(1000).then(() => 'timeout')])
         model.stop()
         await Plugin.reset()
         expect(stopped).toBe(true)
         expect(Store.runtimes[session.id]!.status).toBe('idle')
         const permissionPart = Store.sessions[session.id]!.messages.at(-1)!.parts.find((part: any) => part.toolCallId === 'permission-call') as any
-        expect(permissionPart.state).toBe('output-error')
-        expect(permissionPart.errorText).toBe('User cancelled.')
+        expect(permissionPart.state).toBe('output-available')
+        expect(permissionPart.output).toContain('User stopped tool execution.')
     })
 
     it('persists a denied tool result across reload', async () => {
@@ -206,7 +314,7 @@ describe('Agent loop', () => {
         await Agent.send(session.id, 'list')
         while (!Store.runtimes[session.id]!.permission.has('denied-call')) await Bun.sleep(1)
         const permission = (await import('../features/permission.ts')).default
-        permission.decide(session.id, 'denied-call', { action: 'deny', scope: 'once' })
+        permission.decide(Store.runtimes[session.id]!.permission.get('denied-call'), 'denied-call', { action: 'deny', scope: 'once' })
         await Store.runtimes[session.id]!.task
         model.stop()
         Store.sessions = {}
@@ -280,7 +388,7 @@ describe('Agent loop', () => {
             role: 'user',
             parts: [{ type: 'text', text: `${index === 10 ? 'OMITTED_MIDDLE_10 ' : ''}${'token '.repeat(30)}` }],
         })
-        expect(Context.needsCompact(session.id)).toBe(true)
+        expect(Context.needsCompact(session.messages, Store.config.providers[0]!.models[0]!, Store.config.context.compactRatio)).toBe(true)
         await Agent.send(session.id, 'continue')
         await Store.runtimes[session.id]!.task
         model.stop()

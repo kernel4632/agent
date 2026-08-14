@@ -7,7 +7,7 @@ import Store from '../store.ts'
 import type { CheckpointPosition } from '../types.ts'
 import Error from '../utils/error.ts'
 
-const create = async (sessionID: string, position: CheckpointPosition) => {
+const createNow = async (sessionID: string, position: CheckpointPosition) => {
     const source = Store.sessions[sessionID]
     if (!source) throw Error.notFound('Session not found')
     if (Store.runtimes[sessionID]!.status === 'running') throw Error.conflict('Cannot fork a running session')
@@ -20,6 +20,12 @@ const create = async (sessionID: string, position: CheckpointPosition) => {
     Session.truncate(target.id, position)
     await Session.rewrite(target.id)
     return target
+}
+
+const create = (sessionID: string, position: CheckpointPosition) => {
+    const runtime = Store.runtimes[sessionID]
+    if (!runtime) throw Error.notFound('Session not found')
+    return runtime.sends.add(() => createNow(sessionID, position))
 }
 
 export default { create }
