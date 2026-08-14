@@ -43,6 +43,28 @@ test('runs a real OpenAI-compatible tool round through finish', async () => {
     expect(session.messages.some(message => message.parts.some(part => part.state === 'output-available'))).toBe(true)
 })
 
+test('executes multiple tool calls from one model message in parallel', async () => {
+    const first = join(process.env.AGENT_HOME, 'first.txt')
+    const second = join(process.env.AGENT_HOME, 'second.txt')
+    let step = 0
+    const model = Bun.serve({ port: 0, fetch: () => {
+        step += 1
+        if (step > 1) return response({ id: 'finish-many', name: 'finish', arguments: JSON.stringify({ result: 'done' }) })
+        const calls = [first, second].map((path, index) => ({ index, id: `write-${index}`, type: 'function', function: { name: 'file_write', arguments: JSON.stringify({ path, content: path }) } }))
+        const body = { choices: [{ delta: { role: 'assistant', tool_calls: calls }, finish_reason: null }, { delta: {}, finish_reason: 'tool_calls' }] }
+        return new Response(`data: ${JSON.stringify(body)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    } })
+    Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+    Store.config.permission = [{ tool: '*', match: '*', action: 'allow' }]
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'mock', 'model')
+    await Agent.send(session.id, 'write both files and finish')
+    await wait(session)
+    model.stop()
+    expect(await Bun.file(first).text()).toBe(first)
+    expect(await Bun.file(second).text()).toBe(second)
+})
+
 test('publishes a denied tool part and continues the model loop', async () => {
     let step = 0
     const model = Bun.serve({ port: 0, fetch: () => {

@@ -79,6 +79,16 @@ test('cron plugin loads and unloads configured jobs', async () => {
     expect(await Plugin.unload('cron')).toBe(true)
 })
 
+test('cron plugin triggers the public Agent API', async () => {
+    let calls = 0
+    Store.config.plugins.cron = { enabled: true, settings: { jobs: [{ cron: '* * * * * *', sessionID: 'scheduled', message: 'tick' }] } }
+    Plugin.setAPI({ Store, Agent: { send: async () => { calls += 1 } } })
+    await Plugin.load('cron')
+    await Bun.sleep(1200)
+    expect(calls).toBeGreaterThan(0)
+    await Plugin.unload('cron')
+})
+
 test('MCP stdio plugin discovers tools and closes its client', async () => {
     Store.config.plugins.mcp = { enabled: true, settings: { servers: { everything: { type: 'stdio', command: ['node', join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'), 'stdio'] } } } }
     Plugin.setAPI({ Store })
@@ -101,7 +111,9 @@ test('MCP plugin connects through streamable HTTP', async () => {
     Store.config.plugins.mcp = { enabled: true, settings: { servers: { http: { type: 'http', url: `http://127.0.0.1:${port}/mcp` } } } }
     Plugin.setAPI({ Store })
     await Plugin.load('mcp')
-    expect(Object.keys(Plugin.tools()).some(name => name.startsWith('http__'))).toBe(true)
+    const echo = Plugin.tools().http__echo
+    expect(echo).toBeDefined()
+    expect((await echo.execute({ message: 'hello' }, { signal: AbortSignal.timeout(5000) })).output.content[0].text).toBe('Echo: hello')
     await Plugin.unload('mcp')
     child.kill()
     await child.exited
