@@ -1,10 +1,19 @@
 /* 会话数据、消息 JSONL 和 SSE 连接。 */
-import { appendFile, rm } from 'node:fs/promises'
+import { chmod, rm } from 'node:fs/promises'
 import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import Store from '../store.js'
 import Path from '../utils/path.js'
 
+const writes = new Map()
+const serial = (id, action) => {
+    const previous = writes.get(id) || Promise.resolve()
+    const current = previous.catch(() => {}).then(action)
+    const cleanup = current.finally(() => { if (writes.get(id) === cleanup) writes.delete(id) })
+    cleanup.catch(() => {})
+    writes.set(id, cleanup)
+    return current
+}
 const read = id => Store.sessions[id] || null
 const create = async (workspaceID, provider, model) => {
     const workspace = Store.workspaces[workspaceID]
@@ -36,11 +45,17 @@ const remove = async id => {
     return true
 }
 const append = async (id, message) => {
-    await Store.save(id)
-    await appendFile(Path.messages(id), `${JSON.stringify(message)}\n`)
-    Store.sessions[id].messages.push(message)
+    return serial(id, async () => {
+        Store.sessions[id].messages.push(message)
+        await writeFile(Path.messages(id), Store.sessions[id].messages.map(JSON.stringify).join('\n') + '\n', { mode: 0o600 })
+        await chmod(Path.messages(id), 0o600)
+        await Store.save(id)
+    })
 }
-const rewrite = id => writeFile(Path.messages(id), Store.sessions[id].messages.map(JSON.stringify).join('\n') + '\n')
+const rewrite = id => serial(id, async () => {
+    await writeFile(Path.messages(id), Store.sessions[id].messages.map(JSON.stringify).join('\n') + (Store.sessions[id].messages.length ? '\n' : ''), { mode: 0o600 })
+    await chmod(Path.messages(id), 0o600)
+})
 const listen = id => {
     let controller
     return new ReadableStream({

@@ -13,12 +13,13 @@ const files = async name => {
         if (!await stat(root).then(value => value.isDirectory()).catch(() => false)) continue
         for await (const file of new Bun.Glob(name ? `${name}/index.js` : '*/index.js').scan({ cwd: root, absolute: true, onlyFiles: true })) found.set(file.split('/').at(-2), file)
     }
+    for (const pluginName of loaded.keys()) if (!found.has(pluginName)) await unload(pluginName)
     return found
 }
 const setAPI = value => { api = value }
 const load = async name => {
     for (const [pluginName, file] of await files(name)) {
-        if (!name && !Store.config.plugins[pluginName]?.enabled) continue
+        if (!name && Store.config.plugins[pluginName]?.enabled === false) continue
         const previous = loaded.get(pluginName)
         if (previous) { await previous.unload?.(); loaded.delete(pluginName) }
         const factory = (await import(`${file}?v=${(await stat(file)).mtimeMs}`)).default
@@ -38,7 +39,7 @@ const unload = async name => {
     return true
 }
 const list = () => [...loaded.keys()]
-const tools = () => Object.fromEntries([...loaded.values()].flatMap(plugin => plugin.tools || []).map(tool => [tool.name, tool]))
+const tools = () => Object.fromEntries([...loaded.values()].flatMap(plugin => Array.isArray(plugin.tools) ? plugin.tools : Object.values(plugin.tools || {})).map(tool => [tool.name, tool]))
 const emit = async (event, data) => {
     let value = data
     for (const plugin of loaded.values()) value = await plugin.hooks?.[event]?.(value) ?? value

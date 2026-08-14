@@ -9,6 +9,7 @@ import Session from '../commands/session.js'
 import Checkpoint from '../features/checkpoint.js'
 import Tool from '../utils/tool.js'
 import Path from '../utils/path.js'
+import { readFile } from 'node:fs/promises'
 
 let workspace, session
 beforeEach(async () => {
@@ -44,4 +45,17 @@ test('writes, edits, reads and searches real files', async () => {
     expect((await Tool.execute('glob', { path: workspace.path, pattern: '*.txt' }, ctx)).output).toContain('sample.txt')
     expect((await Tool.execute('grep', { path: workspace.path, pattern: 'gamma' }, ctx)).output).toHaveLength(1)
     expect((await Tool.execute('shell', { command: 'pwd', cwd: workspace.path }, ctx)).output.code).toBe(0)
+})
+
+test('serializes concurrent writes to one path and keeps both checkpoints', async () => {
+    const tools = await Tool.list(workspace.path)
+    const file = join(workspace.path, 'same.txt')
+    const ctx = context(tools)
+    await Promise.all([
+        Tool.execute('file_write', { path: file, content: 'first' }, ctx),
+        Tool.execute('file_write', { path: file, content: 'second' }, ctx),
+    ])
+    const log = (await readFile(Path.undoLog(session.id), 'utf8')).trim().split('\n').map(JSON.parse)
+    expect(log.filter(item => item.type === 'write')).toHaveLength(2)
+    expect(await Bun.file(file).text()).toBe('second')
 })

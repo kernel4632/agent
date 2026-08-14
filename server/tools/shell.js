@@ -7,6 +7,7 @@ export default {
     },
     async execute({ command, cwd }, context) {
         const process = Bun.spawn(['sh', '-lc', command], { cwd, signal: context.signal, stdout: 'pipe', stderr: 'pipe' })
+        context.processes?.add(process)
         const read = async (stream, name) => {
             let text = ''
             for await (const chunk of stream) {
@@ -17,6 +18,7 @@ export default {
             return text
         }
         const [stdout, stderr, code] = await Promise.all([read(process.stdout, 'stdout'), read(process.stderr, 'stderr'), process.exited])
+        context.processes?.delete(process)
         return { output: { stdout, stderr, code } }
     },
 }

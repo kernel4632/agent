@@ -9,6 +9,7 @@ const run = (operation, signal) => pRetry(operation, {
     minTimeout: Store.config.retry.baseDelay,
     maxTimeout: Store.config.retry.maxDelay,
     shouldRetry: ({ error }) => {
+        if (error?.streamed) return false
         const status = Number(error?.statusCode || error?.status || 0)
         if (status) return status === 408 || status === 429 || status >= 500
         return error instanceof TypeError && /fetch|network|socket|connection|terminated/i.test(error.message)

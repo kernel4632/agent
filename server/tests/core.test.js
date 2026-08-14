@@ -9,6 +9,8 @@ import Session from '../commands/session.js'
 import Checkpoint from '../features/checkpoint.js'
 import Fork from '../features/fork.js'
 import Permission from '../features/permission.js'
+import Compact from '../features/compact.js'
+import Agent from '../commands/agent.js'
 
 beforeEach(async () => {
     process.env.AGENT_HOME = join(tmpdir(), `agent-core-${nanoid()}`)
@@ -65,4 +67,20 @@ test('permission waits for and applies an allow-once decision', async () => {
     await Bun.sleep(0)
     expect(await Permission.decide(session.id, 'call-1', 'allow', 'once')).toBe(true)
     expect(await pending).toBe(true)
+})
+
+test('overlapping sends serialize and leave the newest run in control', async () => {
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'missing', 'missing')
+    await Promise.all([Agent.send(session.id, 'first'), Agent.send(session.id, 'second')])
+    await Bun.sleep(20)
+    expect(session.messages.filter(message => message.role === 'user').map(message => message.parts[0].text)).toEqual(['first', 'second'])
+    expect(Store.runtimes[session.id].status).toBe('idle')
+})
+
+test('failed manual compact restores idle state', async () => {
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'missing', 'missing')
+    await expect(Compact.run(session.id)).rejects.toThrow('Session model is not configured')
+    expect(Store.runtimes[session.id].status).toBe('idle')
 })

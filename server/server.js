@@ -65,12 +65,14 @@ export const app = new Elysia()
 export const start = async (port = Number(process.env.PORT || 3000), hostname = process.env.HOST || '127.0.0.1') => {
     if (server) throw new Error('HTTP server is already running')
     await Store.load()
+    Store.closed = false
     await Plugin.load()
     server = app.listen({ port, hostname }).server
     return server
 }
 export const shutdown = async () => {
     shuttingDown = true
+    Store.closed = true
     await Promise.allSettled(Object.keys(Store.runtimes).map(Agent.stop))
     await Promise.allSettled(Plugin.list().map(Plugin.unload))
     await server?.stop(true)

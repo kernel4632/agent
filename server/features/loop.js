@@ -14,6 +14,8 @@ import Plugin from './plugin.js'
 const run = async sessionID => {
     const session = Store.sessions[sessionID]
     const runtime = Store.runtimes[sessionID]
+    const runID = crypto.randomUUID()
+    runtime.runID = runID
     const provider = Store.config.providers.find(item => item.name === session.provider)
     const model = provider?.models.find(item => item.id === session.model)
     let idle = 0
@@ -23,7 +25,7 @@ const run = async sessionID => {
         await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'running' } })
         await Plugin.emit('loop.start', { sessionID })
         while (!runtime.abortController.signal.aborted) {
-            if (Context.count(session.messages) > model.contextWindow * Store.config.context.compactRatio) await Compact.run(sessionID)
+            if (Context.count(session.messages) > model.contextWindow * Store.config.context.compactRatio) await Compact.run(sessionID, true)
             const context = await Context.build(sessionID)
             const request = await Plugin.emit('request.before', { sessionID, ...context })
             const result = await LLM.stream({ provider, model, ...request, signal: runtime.abortController.signal }, {
@@ -34,6 +36,7 @@ const run = async sessionID => {
             })
             const message = { ...result.message, usage: result.usage }
             await Session.append(sessionID, message)
+            await Store.broadcast(sessionID, { type: 'data-message', data: { message } })
             runtime.events = []
             const calls = message.parts.map(async (part, partIndex) => {
                 if (!isToolUIPart(part) || part.state !== 'input-available') return false
@@ -44,6 +47,7 @@ const run = async sessionID => {
                     const output = await Tool.execute(name, input, {
                         tools: context.available, sessionID, messageID: message.id, partIndex,
                         signal: runtime.abortController.signal,
+                        processes: runtime.processes,
                         receive: event => Store.broadcast(sessionID, { type: 'data-tool-output', data: { callID: part.toolCallId, tool: name, ...event } }),
                         checkpoint: path => Checkpoint.save(sessionID, { messageID: message.id, partIndex }, path),
                         retry: operation => Retry.run(operation, runtime.abortController.signal),
@@ -68,9 +72,11 @@ const run = async sessionID => {
         reason = runtime.abortController.signal.aborted ? 'abort' : 'error'
         if (reason === 'error') await Store.broadcast(sessionID, { type: 'error', errorText: String(error) })
     } finally {
-        runtime.status = 'idle'
-        await Plugin.emit('loop.end', { sessionID, reason }).catch(() => {})
-        await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason } })
+        if (runtime.runID === runID) {
+            runtime.status = 'idle'
+            await Plugin.emit('loop.end', { sessionID, reason }).catch(() => {})
+            await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason } })
+        }
     }
 }
 

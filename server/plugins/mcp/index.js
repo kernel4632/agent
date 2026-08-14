@@ -23,10 +23,10 @@ export default async api => {
                     description: definition.description || `Call ${definition.name} on ${serverName}.`,
                     inputSchema: definition.inputSchema,
                     async execute(input, context) {
-                        const output = await context.retry(() => client.callTool({
+                        const output = await client.callTool({
                             name: definition.name, arguments: input,
                             options: { signal: context.signal, timeout, maxTotalTimeout: timeout },
-                        }))
+                        })
                         return { output }
                     },
                 })

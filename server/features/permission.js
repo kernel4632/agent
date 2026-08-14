@@ -10,11 +10,15 @@ const request = async (sessionID, callID, tool, input) => {
         (item.match === '*' || item.match === JSON.stringify(input) || picomatch.isMatch(JSON.stringify(input), item.match, { dot: true })))
     if (rule?.action === 'allow') return true
     const runtime = Store.runtimes[sessionID]
+    const signal = runtime.abortController.signal
+    if (signal.aborted) return false
     const detail = await Plugin.emit('permission.request', { sessionID, callID, tool, input })
     await Store.broadcast(sessionID, { type: 'data-permission', data: detail })
-    const decision = await new Promise((resolve, reject) => {
+    const decision = await new Promise(resolve => {
         runtime.permission.set(callID, resolve)
-        runtime.abortController.signal.addEventListener('abort', () => reject(runtime.abortController.signal.reason), { once: true })
+        const deny = () => resolve({ action: 'deny', scope: 'once' })
+        if (signal.aborted) deny()
+        else signal.addEventListener('abort', deny, { once: true })
     }).finally(() => runtime.permission.delete(callID))
     if (decision.action === 'allow' && decision.scope === 'always') {
         await Config.save({ permission: [...Store.config.permission, { tool, match: JSON.stringify(input), action: 'allow' }] })

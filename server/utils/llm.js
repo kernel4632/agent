@@ -16,17 +16,22 @@ const stream = async (request, options = {}) => Retry.run(async () => {
         instructions: request.instructions, abortSignal: request.signal,
         maxOutputTokens: request.model.maxOutput, maxRetries: 0,
     })
+    let streamed = false
     const observed = toUIMessageStream({
         stream: result.stream, tools: request.tools, generateMessageId: nanoid,
         sendReasoning: true, sendSources: true,
     }).pipeThrough(new TransformStream({
         async transform(part, controller) {
+            streamed = true
             await options.receive?.(part)
             controller.enqueue(part)
         },
     }))
     let message
-    for await (const update of readUIMessageStream({ stream: observed })) message = update
+    try { for await (const update of readUIMessageStream({ stream: observed })) message = update } catch (error) {
+        if (streamed) error.streamed = true
+        throw error
+    }
     if (!message) throw new Error('Model returned no message')
     return { message, usage: await result.usage }
 }, request.signal)
