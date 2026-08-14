@@ -1,26 +1,33 @@
 {
-  "name": "agent-server",
-  "private": true,
+  "name": "universal-agent",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "bun run server.js",
-    "test": "bun test test/architecture.test.js --timeout 30000",
-    "test:real": "bun run test/real-agent-smoke.js"
+    "start": "bun run server.ts",
+    "test": "bun test",
+    "test:real": "RUN_REAL_MODEL=1 bun test tests/real.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^3.0.20",
+    "@ai-sdk/mcp": "^2.0.31",
+    "@ai-sdk/openai-compatible": "^3.0.29",
     "@vscode/ripgrep": "^1.18.0",
-    "ai": "^7.0.48",
-    "async-mutex": "^0.5.0",
-    "elysia": "latest",
-    "execa": "^10.0.1",
-    "fast-glob": "^3.3.3",
-    "fdir": "^6.5.0",
-    "http-errors": "^2.0.1",
-    "js-tiktoken": "^1.0.21",
-    "nanoid": "latest",
-    "turndown": "^7.2.4",
-    "write-file-atomic": "^6.0.0"
+    "ai": "^7.0.62",
+    "atomically": "^2.0.3",
+    "croner": "^10.0.1",
+    "deepmerge-ts": "^7.1.6",
+    "elysia": "^1.4.29",
+    "gpt-tokenizer": "^3.4.0",
+    "jsonc-parser": "^3.3.1",
+    "nanoid": "^5.1.5",
+    "picomatch": "^4.0.3",
+    "tree-kill": "^1.2.2",
+    "valibot": "^1.4.2"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@modelcontextprotocol/server-everything": "^2026.7.4",
+    "@types/bun": "latest",
+    "@types/picomatch": "^4.0.2",
+    "typescript": "^5.9.3"
+  }
 }
