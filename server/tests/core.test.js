@@ -85,6 +85,10 @@ test('permission waits for and applies an allow-once decision', async () => {
     const session = await Session.create(workspace.id, 'openai', 'model')
     const pending = Permission.request(session.id, 'call-1', 'shell', { command: 'pwd' })
     await Bun.sleep(0)
+    let settled = false
+    pending.then(() => { settled = true })
+    await Bun.sleep(30)
+    expect(settled).toBe(false)
     expect(await Permission.decide(session.id, 'call-1', 'allow', 'once')).toBe(true)
     expect(await pending).toBe(true)
 })

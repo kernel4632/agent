@@ -65,6 +65,25 @@ test('executes multiple tool calls from one model message in parallel', async ()
     expect(await Bun.file(second).text()).toBe(second)
 })
 
+test('keeps a long tool loop alive until the finish tool stops it', async () => {
+    let step = 0
+    const model = Bun.serve({ port: 0, fetch: () => {
+        step += 1
+        return response(step <= 8
+            ? { id: `list-${step}`, name: 'file_list', arguments: JSON.stringify({ path: process.env.AGENT_HOME }) }
+            : { id: 'finish-long', name: 'finish', arguments: JSON.stringify({ result: 'done' }) })
+    } })
+    Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+    Store.config.permission = [{ tool: '*', match: '*', action: 'allow' }]
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'mock', 'model')
+    await Agent.send(session.id, 'keep inspecting until finished')
+    await wait(session)
+    model.stop()
+    expect(step).toBe(9)
+    expect(session.messages.flatMap(message => message.parts).filter(part => part.state === 'output-available')).toHaveLength(9)
+})
+
 test('publishes a denied tool part and continues the model loop', async () => {
     let step = 0
     const model = Bun.serve({ port: 0, fetch: () => {
