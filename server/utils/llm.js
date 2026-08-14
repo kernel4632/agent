@@ -4,7 +4,9 @@ import { readUIMessageStream, streamText, toUIMessageStream } from 'ai'
 import { nanoid } from 'nanoid'
 import Retry from './retry.js'
 
-const stream = async (request, options = {}) => Retry.run(async () => {
+const stream = async (request, options = {}) => {
+    let emptyAttempts = 0
+    return Retry.run(async () => {
     const languageModel = createOpenAICompatible({
         name: request.provider.name,
         baseURL: request.provider.baseURL,
@@ -32,8 +34,12 @@ const stream = async (request, options = {}) => Retry.run(async () => {
         if (streamed) error.streamed = true
         throw error
     }
-    if (!message) throw new Error('Model returned no message')
+    if (!message || !message.parts?.length) {
+        emptyAttempts += 1
+        throw Object.assign(new Error('Model returned no message'), { status: emptyAttempts < 3 ? 503 : 400 })
+    }
     return { message, usage: await result.usage }
-}, request.signal)
+    }, request.signal)
+}
 
 export default { stream }

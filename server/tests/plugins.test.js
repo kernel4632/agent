@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, expect, test } from 'bun:test'
@@ -24,4 +24,14 @@ test('loads user plugins with hooks and tools from disk', async () => {
     expect(await Plugin.emit('test', { value: 1 })).toEqual({ value: 1, changed: true })
     expect(Plugin.tools().demo_tool.name).toBe('demo_tool')
     expect(await Plugin.unload('demo')).toBe(true)
+})
+
+test('removes a plugin when its directory disappears', async () => {
+    const directory = join(Path.plugins(), 'vanish')
+    await mkdir(directory, { recursive: true })
+    await Bun.write(join(directory, 'index.js'), `export default () => ({ name: 'vanish' })`)
+    await Plugin.load('vanish')
+    await rm(directory, { recursive: true, force: true })
+    await Plugin.load()
+    expect(Plugin.list()).not.toContain('vanish')
 })

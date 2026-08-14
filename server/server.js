@@ -19,7 +19,8 @@ Plugin.setAPI({ Agent, Session, LLM, Store })
 let server
 let shuttingDown = false
 const position = t.Object({ messageID: t.String(), partIndex: t.Integer({ minimum: 0 }) })
-const message = t.Object({ id: t.String(), role: t.String(), parts: t.Array(t.Any()) })
+const message = t.Object({ id: t.String(), role: t.Union([t.Literal('user'), t.Literal('assistant'), t.Literal('system')]), parts: t.Array(t.Object({ type: t.String() }, { additionalProperties: true })) })
+const configPatch = t.Partial(t.Object({ auth: t.Partial(t.Object({ username: t.String(), password: t.String() })), providers: t.Array(t.Object({ name: t.String(), baseURL: t.String(), key: t.String(), models: t.Array(t.Object({ id: t.String(), contextWindow: t.Number(), maxOutput: t.Number() })) })), prompts: t.Partial(t.Object({ system: t.String(), tool: t.String(), summary: t.String() })), retry: t.Partial(t.Object({ baseDelay: t.Number(), factor: t.Number(), maxDelay: t.Number() })), context: t.Partial(t.Object({ compactRatio: t.Number(), idleRounds: t.Number() })), permission: t.Array(t.Object({ tool: t.String(), match: t.String(), action: t.Union([t.Literal('allow'), t.Literal('ask')]) })), plugins: t.Record(t.String(), t.Any()) }))
 const eventStream = id => createUIMessageStreamResponse({ stream: Session.listen(id) })
 
 export const app = new Elysia()
@@ -41,7 +42,7 @@ export const app = new Elysia()
     }, { body: t.Object({ username: t.String(), password: t.String() }) })
     .post('/logout', ({ cookie }) => { Auth.logout(cookie.agent.value); cookie.agent.remove(); return { ok: true } })
     .get('/config', () => Config.read())
-    .patch('/config', ({ body }) => Config.save(body), { body: t.Record(t.String(), t.Any()) })
+    .patch('/config', ({ body }) => Config.save(body), { body: configPatch })
     .get('/workspace', () => Workspace.list())
     .post('/workspace', ({ body }) => Workspace.add(body.path), { body: t.Object({ path: t.String() }) })
     .delete('/workspace', ({ query }) => Workspace.remove(query.id), { query: t.Object({ id: t.String() }) })
@@ -60,7 +61,7 @@ export const app = new Elysia()
     .get('/plugin', () => Plugin.list())
     .post('/plugin', ({ body }) => Plugin.load(body.name), { body: t.Object({ name: t.Optional(t.String()) }) })
     .delete('/plugin', ({ query }) => Plugin.unload(query.name), { query: t.Object({ name: t.String() }) })
-    .get('/tool', ({ query }) => Tool.list(query.workspacePath), { query: t.Object({ workspacePath: t.String() }) })
+    .get('/tool', ({ query }) => Tool.list(query.workspacePath, Plugin.tools()), { query: t.Object({ workspacePath: t.String() }) })
 
 export const start = async (port = Number(process.env.PORT || 3000), hostname = process.env.HOST || '127.0.0.1') => {
     if (server) throw new Error('HTTP server is already running')

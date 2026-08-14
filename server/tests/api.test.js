@@ -29,6 +29,7 @@ test('validates routes and protects private endpoints', async () => {
     const login = await request('/login', 'POST', { username: 'user', password: 'pass' })
     expect(login.status).toBe(200)
     expect((await request('/config', 'GET', undefined, login.headers.get('set-cookie'))).status).toBe(200)
+    expect((await request('/agent/send', 'POST', { sessionID: 'x', message: { id: 'x', role: 'user', parts: ['bad'] } }, login.headers.get('set-cookie'))).status).toBe(422)
 })
 
 test('serves health over a real socket and emits a session snapshot', async () => {

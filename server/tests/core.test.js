@@ -84,3 +84,13 @@ test('failed manual compact restores idle state', async () => {
     await expect(Compact.run(session.id)).rejects.toThrow('Session model is not configured')
     expect(Store.runtimes[session.id].status).toBe('idle')
 })
+
+test('permission resolves false when the agent is stopped', async () => {
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'missing', 'missing')
+    const runtime = Store.runtimes[session.id]
+    runtime.status = 'running'
+    const pending = Permission.request(session.id, 'call-stop', 'shell', { command: 'sleep 1' })
+    runtime.abortController.abort()
+    expect(await pending).toBe(false)
+})

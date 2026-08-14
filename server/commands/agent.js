@@ -38,6 +38,7 @@ const send = async (sessionID, input) => {
                 await Loop.run(sessionID)
             } catch (error) {
                 runtime.status = 'idle'
+                runtime.events = []
                 await Store.broadcast(sessionID, { type: 'error', errorText: String(error) })
                 await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason: 'error' } })
             }

@@ -74,6 +74,7 @@ const run = async sessionID => {
     } finally {
         if (runtime.runID === runID) {
             runtime.status = 'idle'
+            runtime.events = []
             await Plugin.emit('loop.end', { sessionID, reason }).catch(() => {})
             await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason } })
         }

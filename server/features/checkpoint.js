@@ -31,6 +31,7 @@ const saveNow = async (sessionID, position, path) => {
     const items = await entries(sessionID)
     const sequence = crypto.randomUUID()
     await mkdir(Path.undo(sessionID), { recursive: true, mode: 0o700 })
+    await chmod(Path.undo(sessionID), 0o700)
     const existed = await Bun.file(path).exists()
     if (existed) { await Bun.write(`${Path.undo(sessionID)}/${sequence}`, Bun.file(path)); await chmod(`${Path.undo(sessionID)}/${sequence}`, 0o600) }
     await writeEntries(sessionID, [...items, { type: 'write', sequence, ...position, path, existed }])
@@ -49,6 +50,7 @@ const rollbackNow = async (sessionID, position) => {
     })())
     const sequence = crypto.randomUUID()
     const files = []
+    await mkdir(Path.undo(sessionID), { recursive: true, mode: 0o700 })
     for (const [index, path] of [...new Set(writes.map(item => item.path))].entries()) {
         const existed = await Bun.file(path).exists()
         const snapshot = `${Path.undo(sessionID)}/${sequence}-${index}`

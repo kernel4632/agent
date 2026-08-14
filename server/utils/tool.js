@@ -7,8 +7,8 @@ import Path from './path.js'
 const locks = new Map()
 const registered = new Map()
 const register = tool => registered.set(tool.name, tool)
-const list = async workspacePath => {
-    const tools = Object.fromEntries(registered)
+const list = async (workspacePath, supplied = {}) => {
+    const tools = { ...Object.fromEntries(registered), ...supplied }
     const builtIn = resolve(dirname(fileURLToPath(import.meta.url)), '../tools')
     for (const directory of [builtIn, Path.tools(), Path.workspaceTools(workspacePath)]) {
         if (!await stat(directory).then(value => value.isDirectory()).catch(() => false)) continue
