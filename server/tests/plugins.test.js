@@ -6,6 +6,8 @@ import { nanoid } from 'nanoid'
 import Store from '../store.js'
 import Plugin from '../features/plugin.js'
 import Path from '../utils/path.js'
+import Session from '../commands/session.js'
+import Workspace from '../commands/workspace.js'
 
 beforeEach(async () => {
     for (const name of Plugin.list()) await Plugin.unload(name)
@@ -34,4 +36,45 @@ test('removes a plugin when its directory disappears', async () => {
     await rm(directory, { recursive: true, force: true })
     await Plugin.load()
     expect(Plugin.list()).not.toContain('vanish')
+})
+
+test('title plugin uses the injected model and session API', async () => {
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    Store.config.providers = [{ name: 'mock', baseURL: 'http://unused', key: 'test', models: [{ id: 'model', contextWindow: 1000, maxOutput: 100 }] }]
+    const session = await Session.create(workspace.id, 'mock', 'model')
+    Plugin.setAPI({ Store, Session, LLM: { stream: async () => ({ message: { parts: [{ type: 'text', text: 'Short title' }] } }) } })
+    await Plugin.load('title')
+    await Plugin.emit('message.append', { sessionID: session.id, message: { id: 'u', role: 'user', parts: [{ type: 'text', text: 'request' }] } })
+    expect(Store.workspaces[workspace.id].sessions[0].title).toBe('Short title')
+    await Plugin.unload('title')
+})
+
+test('websearch plugin calls an OpenAI-compatible search endpoint', async () => {
+    const server = Bun.serve({ port: 0, fetch: async request => {
+        expect((await request.json()).messages.at(-1).content).toBe('latest news')
+        return Response.json({ choices: [{ message: { role: 'assistant', content: 'result' } }] })
+    } })
+    Store.config.plugins.websearch = { enabled: true, settings: { baseURL: `http://127.0.0.1:${server.port}/v1`, key: 'test', model: 'search' } }
+    Plugin.setAPI({ Store })
+    await Plugin.load('websearch')
+    const tool = Plugin.tools().web_search
+    const result = await tool.execute({ query: 'latest news' }, { signal: AbortSignal.timeout(5000), retry: action => action() })
+    server.stop()
+    expect(result.output.text).toBe('result')
+    await Plugin.unload('websearch')
+})
+
+test('cron plugin loads and unloads configured jobs', async () => {
+    Store.config.plugins.cron = { enabled: true, settings: { jobs: [{ cron: '* * * * * *', sessionID: 'missing', message: 'tick' }] } }
+    Plugin.setAPI({ Store, Agent: { send: async () => {} } })
+    expect(await Plugin.load('cron')).toContain('cron')
+    expect(await Plugin.unload('cron')).toBe(true)
+})
+
+test('MCP stdio plugin discovers tools and closes its client', async () => {
+    Store.config.plugins.mcp = { enabled: true, settings: { servers: { everything: { type: 'stdio', command: ['node', join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'), 'stdio'] } } } }
+    Plugin.setAPI({ Store })
+    await Plugin.load('mcp')
+    expect(Object.keys(Plugin.tools()).length).toBeGreaterThan(0)
+    expect(await Plugin.unload('mcp')).toBe(true)
 })
