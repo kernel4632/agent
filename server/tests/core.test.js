@@ -213,6 +213,7 @@ test('failed rollback remains recoverable from its prepared record', async () =>
     await recover(session.id)
     expect(await Bun.file(path).text()).toBe('before')
     expect(session.messages.map(message => message.id)).toEqual(['u1'])
+    expect(await recover(session.id)).toBe(false)
 })
 
 test('failed undo remains resumable from its prepared record', async () => {
@@ -235,6 +236,7 @@ test('failed undo remains resumable from its prepared record', async () => {
     expect(await Bun.file(path).text()).toBe('after')
     expect(session.messages.map(message => message.id)).toEqual(['u1', 'a1', 'u2'])
     expect((await readFile(Path.undoLog(session.id), 'utf8')).includes('"type":"undo"')).toBe(false)
+    expect(await recover(session.id)).toBe(false)
 })
 
 test('remove waits for queued append before deleting the session', async () => {
@@ -245,6 +247,39 @@ test('remove waits for queued append before deleting the session', async () => {
     await Promise.all([append, remove])
     expect(Store.sessions[session.id]).toBeUndefined()
     expect(await Bun.file(Path.messages(session.id)).exists()).toBe(false)
+    await expect(Session.update(session.id, { title: 'late' })).rejects.toThrow('Session not found')
+    await expect(Session.append(session.id, { id: 'late', role: 'user', parts: [] })).rejects.toThrow('Session not found')
+})
+
+test('remove waits for a rollback persistence task', async () => {
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'missing', 'missing')
+    const path = join(process.env.AGENT_HOME, 'remove-checkpoint.txt')
+    await Bun.write(path, 'before')
+    await Session.append(session.id, { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'request' }] })
+    await Session.append(session.id, { id: 'a1', role: 'assistant', parts: [{ type: 'tool-file_write', toolCallId: 'call', state: 'input-available', input: {} }] })
+    await Checkpoint.save(session.id, { messageID: 'a1', partIndex: 0 }, path)
+    await Bun.write(path, 'after')
+    await Session.append(session.id, { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'later' }] })
+    let release
+    let entered
+    const wait = new Promise(resolve => { release = resolve })
+    const started = new Promise(resolve => { entered = resolve })
+    const save = Store.save
+    let blocked = true
+    Store.save = async domain => {
+        if (domain === session.id && blocked) { blocked = false; entered(); await wait }
+        return save(domain)
+    }
+    const rollback = Checkpoint.rollback(session.id, { messageID: 'a1', partIndex: 0 })
+    await started
+    const remove = Session.remove(session.id)
+    release()
+    const [rolled, deleted] = await Promise.allSettled([rollback, remove])
+    Store.save = save
+    expect(rolled.status).toBe('fulfilled')
+    expect(deleted.status).toBe('fulfilled')
+    expect(Store.sessions[session.id]).toBeUndefined()
 })
 
 test('remove stops a running session before taking its write queue', async () => {
