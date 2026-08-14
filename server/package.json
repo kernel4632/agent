@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "bun run server.ts",
-    "build": "rm -rf dist && bun build server.ts --outfile dist/server.js --target bun --minify && bun build utils/tool-supervisor.ts --outfile dist/tool-supervisor.js --target bun --minify && bun build utils/tool-worker.ts --outfile dist/tool-worker.js --target bun --minify",
+    "start": "bun run server.js",
+    "build": "bun build server.js --outfile dist/server.js --target bun --minify",
     "test": "bun test",
-    "test:real": "RUN_REAL_MODEL=1 RUN_REAL_AGENT=1 bun test tests/real.test.ts",
-    "typecheck": "tsc --noEmit"
+    "test:real": "RUN_REAL_MODEL=1 RUN_REAL_AGENT=1 bun test tests/real.test.js"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.31",
@@ -18,19 +17,12 @@
     "croner": "^10.0.1",
     "deepmerge-ts": "^7.1.6",
     "elysia": "^1.4.29",
-    "execa": "^10.0.1",
     "gpt-tokenizer": "^3.4.0",
-    "jsonc-parser": "^3.3.1",
     "nanoid": "^5.1.5",
-    "p-queue": "^9.3.3",
     "p-retry": "^8.0.0",
-    "picomatch": "^4.0.3",
-    "valibot": "^1.4.2"
+    "picomatch": "^4.0.3"
   },
   "devDependencies": {
-    "@modelcontextprotocol/server-everything": "^2026.7.4",
-    "@types/bun": "latest",
-    "@types/picomatch": "^4.0.2",
-    "typescript": "^5.9.3"
+    "@modelcontextprotocol/server-everything": "^2026.7.4"
   }
 }

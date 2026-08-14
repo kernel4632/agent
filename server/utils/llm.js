@@ -1,0 +1,34 @@
+/* OpenAI 兼容模型统一从这里流入 UIMessage。 */
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { readUIMessageStream, streamText, toUIMessageStream } from 'ai'
+import { nanoid } from 'nanoid'
+import Retry from './retry.js'
+
+const stream = async (request, options = {}) => Retry.run(async () => {
+    const languageModel = createOpenAICompatible({
+        name: request.provider.name,
+        baseURL: request.provider.baseURL,
+        apiKey: request.provider.key,
+        includeUsage: true,
+    }).chatModel(request.model.id)
+    const result = streamText({
+        model: languageModel, messages: request.messages, tools: request.tools,
+        instructions: request.instructions, abortSignal: request.signal,
+        maxOutputTokens: request.model.maxOutput, maxRetries: 0,
+    })
+    const observed = toUIMessageStream({
+        stream: result.stream, tools: request.tools, generateMessageId: nanoid,
+        sendReasoning: true, sendSources: true,
+    }).pipeThrough(new TransformStream({
+        async transform(part, controller) {
+            await options.receive?.(part)
+            controller.enqueue(part)
+        },
+    }))
+    let message
+    for await (const update of readUIMessageStream({ stream: observed })) message = update
+    if (!message) throw new Error('Model returned no message')
+    return { message, usage: await result.usage }
+}, request.signal)
+
+export default { stream }
