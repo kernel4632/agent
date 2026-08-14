@@ -13,13 +13,16 @@ const files = async name => {
         if (!await stat(root).then(value => value.isDirectory()).catch(() => false)) continue
         for await (const file of new Bun.Glob(name ? `${name}/index.js` : '*/index.js').scan({ cwd: root, absolute: true, onlyFiles: true })) found.set(file.split('/').at(-2), file)
     }
-    for (const pluginName of loaded.keys()) if (!found.has(pluginName) || Store.config.plugins[pluginName]?.enabled === false) await unload(pluginName)
+    if (!name) for (const pluginName of loaded.keys()) if (!found.has(pluginName) || Store.config.plugins[pluginName]?.enabled === false) await unload(pluginName)
     return found
 }
 const setAPI = value => { api = value }
 const load = async name => {
     for (const [pluginName, file] of await files(name)) {
-        if (!name && Store.config.plugins[pluginName]?.enabled === false) continue
+        if (Store.config.plugins[pluginName]?.enabled === false) {
+            await unload(pluginName)
+            continue
+        }
         const previous = loaded.get(pluginName)
         if (previous) { await previous.unload?.(); loaded.delete(pluginName) }
         const factory = (await import(`${file}?v=${(await stat(file)).mtimeMs}`)).default

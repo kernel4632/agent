@@ -1,7 +1,6 @@
 /* 线性主循环：上下文 -> 模型 -> 并行工具，直到明确停止。 */
 import { getToolName, isToolUIPart } from 'ai'
 import Store from '../store.js'
-import Session from '../commands/session.js'
 import LLM from '../utils/llm.js'
 import Retry from '../utils/retry.js'
 import Tool from '../utils/tool.js'
@@ -35,14 +34,19 @@ const run = async sessionID => {
                 },
             })
             const message = { ...result.message, usage: result.usage }
-            await Session.append(sessionID, message)
+            session.messages.push(message)
+            await Store.save(sessionID)
             await Store.broadcast(sessionID, { type: 'data-message', data: { message } })
-            runtime.events = []
             const calls = message.parts.map(async (part, partIndex) => {
                 if (!isToolUIPart(part) || part.state !== 'input-available') return false
                 const name = getToolName(part)
                 try {
-                    if (!await Permission.request(sessionID, part.toolCallId, name, part.input)) throw new Error('User denied this tool call')
+                    if (!await Permission.request(sessionID, part.toolCallId, name, part.input)) {
+                        Object.assign(part, { state: 'output-denied' })
+                        await Store.broadcast(sessionID, { type: 'tool-output-denied', toolCallId: part.toolCallId })
+                        return false
+                    }
+
                     const input = (await Plugin.emit('tool.before', { sessionID, tool: name, input: part.input })).input
                     const output = await Tool.execute(name, input, {
                         tools: context.available, sessionID, messageID: message.id, partIndex,
@@ -53,15 +57,16 @@ const run = async sessionID => {
                         retry: operation => Retry.run(operation, runtime.abortController.signal),
                     })
                     Object.assign(part, { state: 'output-available', output: output.output })
+                    await Store.broadcast(sessionID, { type: 'tool-output-available', toolCallId: part.toolCallId, output: output.output })
                     await Plugin.emit('tool.after', { sessionID, tool: name, input, output: output.output })
                     return output.stop === true
                 } catch (error) {
                     Object.assign(part, { state: 'output-error', errorText: String(error) })
+                    await Store.broadcast(sessionID, { type: 'tool-output-error', toolCallId: part.toolCallId, errorText: String(error) })
                     return false
-                } finally { await Session.rewrite(sessionID) }
+                } finally { await Store.save(sessionID) }
             })
             const stopped = (await Promise.all(calls)).some(Boolean)
-            runtime.events = []
             idle = message.parts.some(isToolUIPart) ? 0 : idle + 1
             await Plugin.emit('message.append', { sessionID, message })
             if (stopped) { reason = 'tool'; break }
@@ -73,10 +78,10 @@ const run = async sessionID => {
         if (reason === 'error') await Store.broadcast(sessionID, { type: 'error', errorText: String(error) })
     } finally {
         if (runtime.runID === runID) {
-            runtime.status = 'idle'
-            runtime.events = []
             await Plugin.emit('loop.end', { sessionID, reason }).catch(() => {})
             await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason } })
+            runtime.status = 'idle'
+            runtime.events = []
         }
     }
 }

@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, expect, test } from 'bun:test'
@@ -30,9 +30,14 @@ const context = tools => ({
 test('finds built-in and global custom tools without registration', async () => {
     await mkdir(Path.tools(), { recursive: true })
     await Bun.write(join(Path.tools(), 'hello.js'), `export default { name: 'hello', description: 'hello', inputSchema: { type: 'object' }, execute: async () => ({ output: 'world' }) }`)
+    const workspaceTools = join(workspace.path, '.agent', 'tools')
+    await mkdir(workspaceTools, { recursive: true })
+    await Bun.write(join(workspaceTools, 'local.js'), `export default { name: 'local', description: 'local', inputSchema: { type: 'object' }, execute: async () => ({ output: 'workspace' }) }`)
     const tools = await Tool.list(workspace.path)
-    for (const name of ['file_read', 'file_write', 'edit', 'shell', 'grep', 'glob', 'web_fetch', 'finish', 'hello']) expect(tools[name]).toBeDefined()
+    for (const name of ['file_read', 'file_write', 'edit', 'shell', 'grep', 'glob', 'web_fetch', 'finish', 'hello', 'local']) expect(tools[name]).toBeDefined()
     expect(await Tool.execute('hello', {}, context(tools))).toEqual({ output: 'world' })
+    await rm(join(Path.tools(), 'hello.js'))
+    expect((await Tool.list(workspace.path)).hello).toBeUndefined()
 })
 
 test('writes, edits, reads and searches real files', async () => {
@@ -44,7 +49,12 @@ test('writes, edits, reads and searches real files', async () => {
     expect((await Tool.execute('file_read', { path: file }, ctx)).output).toContain('gamma')
     expect((await Tool.execute('glob', { path: workspace.path, pattern: '*.txt' }, ctx)).output).toContain('sample.txt')
     expect((await Tool.execute('grep', { path: workspace.path, pattern: 'gamma' }, ctx)).output).toHaveLength(1)
+    expect((await Tool.execute('file_list', { path: workspace.path }, ctx)).output).toContain('sample.txt')
     expect((await Tool.execute('shell', { command: 'pwd', cwd: workspace.path }, ctx)).output.code).toBe(0)
+    const web = Bun.serve({ port: 0, fetch: () => new Response('local page') })
+    expect((await Tool.execute('web_fetch', { url: `http://127.0.0.1:${web.port}` }, ctx)).output.body).toBe('local page')
+    web.stop()
+    expect(await Tool.execute('ask_user', { question: 'Need input' }, ctx)).toEqual({ output: { question: 'Need input' }, stop: true })
 })
 
 test('serializes concurrent writes to one path and keeps both checkpoints', async () => {
@@ -58,4 +68,16 @@ test('serializes concurrent writes to one path and keeps both checkpoints', asyn
     const log = (await readFile(Path.undoLog(session.id), 'utf8')).trim().split('\n').map(JSON.parse)
     expect(log.filter(item => item.type === 'write')).toHaveLength(2)
     expect(await Bun.file(file).text()).toBe('second')
+})
+
+test('aborting shell stops its child process group', async () => {
+    const tools = await Tool.list(workspace.path)
+    const controller = new AbortController()
+    const started = Date.now()
+    const pending = Tool.execute('shell', { command: 'sleep 30', cwd: workspace.path }, { ...context(tools), signal: controller.signal })
+    await Bun.sleep(20)
+    controller.abort()
+    const result = await pending
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(result.output.code).not.toBe(0)
 })

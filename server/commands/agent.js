@@ -12,11 +12,11 @@ const stop = async (sessionID, waitForSend = true) => {
     runtime.abortController.abort()
     runtime.processes.forEach(process => process.kill())
     runtime.processes.clear()
-    await running.get(sessionID)?.catch(() => {})
+    await runtime.task?.catch(() => {})
+    await runtime.compactTask?.catch(() => {})
     return true
 }
 
-const running = new Map()
 const gates = new Map()
 const send = async (sessionID, input) => {
     if (Store.closed) throw new Error('Server is shutting down')
@@ -27,8 +27,10 @@ const send = async (sessionID, input) => {
     const accepted = previous.then(async () => {
         if (Store.closed) throw new Error('Server is shutting down')
         const runtime = Store.runtimes[sessionID]
+        if (!runtime || runtime.removing) throw new Error('Session is being removed')
         if (runtime.status === 'running') await stop(sessionID, false)
         await Session.append(sessionID, message)
+        if (runtime.removing) throw new Error('Session is being removed')
         runtime.status = 'running'
         runtime.abortController = new AbortController()
         runtime.events = []
@@ -43,8 +45,8 @@ const send = async (sessionID, input) => {
                 await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason: 'error' } })
             }
         })()
-        running.set(sessionID, task)
-        void task.finally(() => { if (running.get(sessionID) === task) running.delete(sessionID) }).catch(() => {})
+        runtime.task = task
+        void task.finally(() => { if (runtime.task === task) delete runtime.task }).catch(() => {})
     })
     const cleanup = accepted.finally(() => { if (gates.get(sessionID) === cleanup) gates.delete(sessionID) })
     cleanup.catch(() => {})

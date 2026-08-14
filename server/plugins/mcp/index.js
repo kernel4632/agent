@@ -2,6 +2,15 @@
 import { createMCPClient } from '@ai-sdk/mcp'
 import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
 
+const toModelPart = part => {
+    if (part.type === 'text') return { type: 'text', text: part.text }
+    if (['image', 'audio'].includes(part.type)) return { type: 'file', data: { type: 'data', data: part.data }, mediaType: part.mimeType }
+    if (part.type === 'resource' && part.resource?.text) return { type: 'text', text: part.resource.text }
+    if (part.type === 'resource' && part.resource?.blob) return { type: 'file', data: { type: 'data', data: part.resource.blob }, mediaType: part.resource.mimeType }
+    if (part.type === 'resource_link') return { type: 'text', text: `${part.name || 'resource'}: ${part.uri}` }
+    return { type: 'text', text: JSON.stringify(part) }
+}
+
 export default async api => {
     const servers = api.Store.config.plugins.mcp?.settings?.servers || {}
     const clients = []
@@ -28,6 +37,10 @@ export default async api => {
                             options: { signal: context.signal, timeout, maxTotalTimeout: timeout },
                         })
                         return { output }
+                    },
+                    toModelOutput(output) {
+                        const value = output.content?.length ? output.content.map(toModelPart) : [{ type: 'text', text: '' }]
+                        return { type: 'content', value }
                     },
                 })
                 cursor = page.nextCursor

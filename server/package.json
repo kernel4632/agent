@@ -6,7 +6,7 @@
     "start": "bun run server.js",
     "build": "bun build server.js --outfile dist/server.js --target bun --minify",
     "test": "bun test",
-    "test:real": "bun test tests/real.test.js"
+    "test:real": "RUN_REAL_MODEL=1 RUN_REAL_AGENT=1 bun test tests/real.test.js"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.31",
@@ -23,6 +23,7 @@
     "picomatch": "^4.0.3"
   },
   "devDependencies": {
-    "@modelcontextprotocol/server-everything": "^2026.7.4"
+    "@modelcontextprotocol/server-everything": "^2026.7.4",
+    "jsonc-parser": "^3.3.1"
   }
 }

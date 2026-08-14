@@ -38,6 +38,14 @@ test('removes a plugin when its directory disappears', async () => {
     expect(Plugin.list()).not.toContain('vanish')
 })
 
+test('does not explicitly load a disabled plugin', async () => {
+    const directory = join(Path.plugins(), 'disabled')
+    await mkdir(directory, { recursive: true })
+    await Bun.write(join(directory, 'index.js'), `export default () => ({ name: 'disabled' })`)
+    Store.config.plugins.disabled = { enabled: false }
+    expect(await Plugin.load('disabled')).not.toContain('disabled')
+})
+
 test('title plugin uses the injected model and session API', async () => {
     const workspace = await Workspace.add(process.env.AGENT_HOME)
     Store.config.providers = [{ name: 'mock', baseURL: 'http://unused', key: 'test', models: [{ id: 'model', contextWindow: 1000, maxOutput: 100 }] }]
@@ -76,5 +84,25 @@ test('MCP stdio plugin discovers tools and closes its client', async () => {
     Plugin.setAPI({ Store })
     await Plugin.load('mcp')
     expect(Object.keys(Plugin.tools()).length).toBeGreaterThan(0)
+    const tool = Object.values(Plugin.tools()).find(item => item.toModelOutput)
+    expect(tool.toModelOutput({ content: [{ type: 'image', data: 'abc', mimeType: 'image/png' }] })).toEqual({ type: 'content', value: [{ type: 'file', data: { type: 'data', data: 'abc' }, mediaType: 'image/png' }] })
+    expect(tool.toModelOutput({ content: [] })).toEqual({ type: 'content', value: [{ type: 'text', text: '' }] })
     expect(await Plugin.unload('mcp')).toBe(true)
+})
+
+test('MCP plugin connects through streamable HTTP', async () => {
+    const probe = Bun.serve({ port: 0, fetch: () => new Response('probe') })
+    const port = probe.port
+    probe.stop()
+    const child = Bun.spawn(['node', join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'), 'streamableHttp'], { env: { ...process.env, PORT: String(port) }, stdout: 'ignore', stderr: 'ignore' })
+    for (let attempt = 0; attempt < 30; attempt++) {
+        try { await fetch(`http://127.0.0.1:${port}/mcp`); break } catch { await Bun.sleep(50) }
+    }
+    Store.config.plugins.mcp = { enabled: true, settings: { servers: { http: { type: 'http', url: `http://127.0.0.1:${port}/mcp` } } } }
+    Plugin.setAPI({ Store })
+    await Plugin.load('mcp')
+    expect(Object.keys(Plugin.tools()).some(name => name.startsWith('http__'))).toBe(true)
+    await Plugin.unload('mcp')
+    child.kill()
+    await child.exited
 })

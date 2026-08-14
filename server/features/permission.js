@@ -1,7 +1,6 @@
 /* ask 规则会一直等用户决定；allow always 会追加一条持久规则。 */
 import picomatch from 'picomatch'
 import Store from '../store.js'
-import Config from '../commands/config.js'
 import Plugin from './plugin.js'
 
 const request = async (sessionID, callID, tool, input) => {
@@ -21,7 +20,8 @@ const request = async (sessionID, callID, tool, input) => {
         else signal.addEventListener('abort', deny, { once: true })
     }).finally(() => runtime.permission.delete(callID))
     if (decision.action === 'allow' && decision.scope === 'always') {
-        await Config.save({ permission: [...Store.config.permission, { tool, match: JSON.stringify(input), action: 'allow' }] })
+        Store.config.permission = [...Store.config.permission, { tool, match: JSON.stringify(input), action: 'allow' }]
+        await Store.save('config')
     }
     return decision.action === 'allow'
 }

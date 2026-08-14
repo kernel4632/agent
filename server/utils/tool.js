@@ -5,10 +5,8 @@ import { stat } from 'node:fs/promises'
 import Path from './path.js'
 
 const locks = new Map()
-const registered = new Map()
-const register = tool => registered.set(tool.name, tool)
 const list = async (workspacePath, supplied = {}) => {
-    const tools = { ...Object.fromEntries(registered), ...supplied }
+    const tools = { ...supplied }
     const builtIn = resolve(dirname(fileURLToPath(import.meta.url)), '../tools')
     for (const directory of [builtIn, Path.tools(), Path.workspaceTools(workspacePath)]) {
         if (!await stat(directory).then(value => value.isDirectory()).catch(() => false)) continue
@@ -24,7 +22,8 @@ const execute = async (name, input, context) => {
     if (!tool) throw new Error(`Tool not found: ${name}`)
     const path = ['file_write', 'edit'].includes(name) ? resolve(input.path) : ''
     const previous = locks.get(path)?.catch(() => {}) || Promise.resolve()
-    const current = previous.then(() => tool.execute(input, context))
+    const prepared = path ? { ...input, path } : input
+    const current = previous.then(() => tool.execute(prepared, context))
     if (!path) return current
     const cleanup = current.finally(() => { if (locks.get(path) === cleanup) locks.delete(path) })
     cleanup.catch(() => {})
@@ -32,4 +31,4 @@ const execute = async (name, input, context) => {
     return current
 }
 
-export default { list, register, execute }
+export default { list, execute }

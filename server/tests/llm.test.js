@@ -36,3 +36,24 @@ test('retries transient network errors but not permanent errors', async () => {
     await expect(Retry.run(async () => { attempts += 1; throw Object.assign(new Error('bad'), { status: 400 }) }, new AbortController().signal)).rejects.toThrow('bad')
     expect(attempts).toBe(1)
 })
+
+test('preserves multimodal messages and cache usage details', async () => {
+    let request
+    const server = Bun.serve({ port: 0, fetch: async input => {
+        request = await input.json()
+        const body = {
+            choices: [{ delta: { role: 'assistant', content: 'seen' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 20, completion_tokens: 1, total_tokens: 21, prompt_tokens_details: { cached_tokens: 12 } },
+        }
+        return new Response(`data: ${JSON.stringify(body)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    } })
+    const result = await LLM.stream({
+        provider: { name: 'mock', baseURL: `http://127.0.0.1:${server.port}/v1`, key: 'test' },
+        model: { id: 'model', maxOutput: 100 },
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'see this' }, { type: 'file', data: 'aGVsbG8=', mediaType: 'image/png' }] }],
+        instructions: 'test', signal: AbortSignal.timeout(5000),
+    })
+    server.stop()
+    expect(JSON.stringify(request.messages)).toContain('image')
+    expect(result.usage.inputTokenDetails.cacheReadTokens).toBe(12)
+})

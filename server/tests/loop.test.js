@@ -7,6 +7,7 @@ import Store from '../store.js'
 import Workspace from '../commands/workspace.js'
 import Session from '../commands/session.js'
 import Agent from '../commands/agent.js'
+import Permission from '../features/permission.js'
 
 beforeEach(async () => {
     process.env.AGENT_HOME = join(tmpdir(), `agent-loop-${nanoid()}`)
@@ -40,4 +41,55 @@ test('runs a real OpenAI-compatible tool round through finish', async () => {
     expect(await Bun.file(target).text()).toBe('written')
     expect(step).toBe(2)
     expect(session.messages.some(message => message.parts.some(part => part.state === 'output-available'))).toBe(true)
+})
+
+test('publishes a denied tool part and continues the model loop', async () => {
+    let step = 0
+    const model = Bun.serve({ port: 0, fetch: () => {
+        step += 1
+        return response(step === 1
+            ? { id: 'denied', name: 'file_list', arguments: JSON.stringify({ path: process.env.AGENT_HOME }) }
+            : { id: 'finish-denied', name: 'finish', arguments: JSON.stringify({ result: 'done' }) })
+    } })
+    Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+    Store.config.permission = [
+        { tool: 'file_list', match: '*', action: 'ask' },
+        { tool: 'finish', match: '*', action: 'allow' },
+    ]
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'mock', 'model')
+    const events = []
+    Store.runtimes[session.id].clients.add({ enqueue: event => events.push(event), close() {} })
+    await Agent.send(session.id, 'ask for a file list')
+    while (!Store.runtimes[session.id].permission.size && Store.runtimes[session.id].status === 'running') await Bun.sleep(5)
+    expect(await Permission.decide(session.id, 'denied', 'deny', 'once')).toBe(true)
+    await wait(session)
+    model.stop()
+    const parts = session.messages.flatMap(message => message.parts)
+    expect(parts.some(part => part.toolCallId === 'denied' && part.state === 'output-denied')).toBe(true)
+    expect(events.some(event => event.type === 'tool-output-denied')).toBe(true)
+})
+
+test('passes an image read result to the next model request as media', async () => {
+    const image = join(process.env.AGENT_HOME, 'image.png')
+    await Bun.write(image, 'not-a-real-png')
+    const requests = []
+    let step = 0
+    const model = Bun.serve({ port: 0, fetch: async request => {
+        requests.push(await request.json())
+        step += 1
+        return response(step === 1
+            ? { id: 'read-image', name: 'file_read', arguments: JSON.stringify({ path: image }) }
+            : { id: 'finish-image', name: 'finish', arguments: JSON.stringify({ result: 'done' }) })
+    } })
+    Store.config.providers = [{ name: 'mock', baseURL: `http://127.0.0.1:${model.port}/v1`, key: 'test', models: [{ id: 'model', contextWindow: 100000, maxOutput: 1000 }] }]
+    Store.config.permission = [{ tool: '*', match: '*', action: 'allow' }]
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    const session = await Session.create(workspace.id, 'mock', 'model')
+    await Agent.send(session.id, 'read the image and finish')
+    await wait(session)
+    model.stop()
+    expect(requests).toHaveLength(2)
+    expect(JSON.stringify(requests[1])).toContain('image')
+    expect(JSON.stringify(requests[1])).not.toContain('"type":"file"')
 })

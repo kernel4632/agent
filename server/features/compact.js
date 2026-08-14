@@ -1,11 +1,10 @@
 /* 摘要只追加新消息，原始历史始终保留在 JSONL 中。 */
 import Store from '../store.js'
-import Session from '../commands/session.js'
 import LLM from '../utils/llm.js'
 import Plugin from './plugin.js'
 import Context from './context.js'
 
-const run = async (sessionID, internal = false) => {
+const runNow = async (sessionID, internal) => {
     const session = Store.sessions[sessionID]
     const runtime = Store.runtimes[sessionID]
     if (runtime.status === 'running' && !internal) throw new Error('Cannot compact a running session')
@@ -28,16 +27,30 @@ const run = async (sessionID, internal = false) => {
             signal: runtime.abortController.signal,
         })
         const summary = { ...result.message, summary: true, usage: result.usage }
-        await Session.append(sessionID, summary)
+        session.messages.push(summary)
+        await Store.save(sessionID)
         await Plugin.emit('message.append', { sessionID, message: summary })
         await Store.broadcast(sessionID, { type: 'data-compact', data: { message: summary } })
         return summary
     } finally {
         if (standalone) {
-            runtime.status = 'idle'
             await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason: 'compact' } })
+            runtime.status = 'idle'
         }
     }
+}
+
+const run = (sessionID, internal = false) => {
+    if (internal) return runNow(sessionID, true)
+
+    const runtime = Store.runtimes[sessionID]
+    if (runtime.status === 'running') throw new Error('Cannot compact a running session')
+
+    const task = runNow(sessionID, false)
+    runtime.compactTask = task
+    const cleanup = task.finally(() => { if (runtime.compactTask === cleanup) delete runtime.compactTask })
+    cleanup.catch(() => {})
+    return task
 }
 
 export default { run }
