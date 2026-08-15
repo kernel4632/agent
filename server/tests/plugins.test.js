@@ -8,14 +8,15 @@ import Plugin from '../features/plugin.js'
 import Path from '../utils/path.js'
 import Session from '../commands/session.js'
 import Workspace from '../commands/workspace.js'
+import LLM from '../utils/llm.js'
 
 beforeEach(async () => {
     for (const name of Plugin.list()) await Plugin.unload(name)
     process.env.AGENT_HOME = join(tmpdir(), `agent-plugin-${nanoid()}`)
     await mkdir(process.env.AGENT_HOME, { recursive: true })
-    Store.config = structuredClone(Store.defaults); Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
+    Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
     await Store.load()
-    Plugin.setAPI({ Store })
+    Plugin.setAPI({ Store, LLM })
 })
 
 test('loads user plugins with hooks and tools from disk', async () => {
@@ -58,16 +59,17 @@ test('title plugin uses the injected model and session API', async () => {
 })
 
 test('websearch plugin calls an OpenAI-compatible search endpoint', async () => {
-    const server = Bun.serve({ port: 0, fetch: async request => {
-        expect((await request.json()).messages.at(-1).content).toBe('latest news')
-        return Response.json({ choices: [{ message: { role: 'assistant', content: 'result' } }] })
-    } })
-    Store.config.plugins.websearch = { enabled: true, settings: { baseURL: `http://127.0.0.1:${server.port}/v1`, key: 'test', model: 'search' } }
-    Plugin.setAPI({ Store })
+    Store.config.plugins.websearch = {
+        enabled: true,
+        settings: { baseURL: 'http://search', key: 'test', model: 'search' },
+    }
+    Plugin.setAPI({ Store, LLM: { stream: async request => {
+        expect(request.messages.at(-1).content).toBe('latest news')
+        return { message: { parts: [{ type: 'text', text: 'result' }] } }
+    } } })
     await Plugin.load('websearch')
     const tool = Plugin.tools().web_search
     const result = await tool.execute({ query: 'latest news' }, { signal: AbortSignal.timeout(5000), retry: action => action() })
-    server.stop()
     expect(result.output.text).toBe('result')
     await Plugin.unload('websearch')
 })

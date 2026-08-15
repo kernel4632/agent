@@ -12,7 +12,7 @@ import Permission from '../features/permission.js'
 beforeEach(async () => {
     process.env.AGENT_HOME = join(tmpdir(), `agent-loop-${nanoid()}`)
     await mkdir(process.env.AGENT_HOME, { recursive: true })
-    Store.config = structuredClone(Store.defaults); Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
+    Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
     await Store.load()
 })
 

@@ -1,25 +1,30 @@
 import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { beforeEach, expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { nanoid } from 'nanoid'
 import Store from '../store.js'
 import Config from '../commands/config.js'
 import Workspace from '../commands/workspace.js'
 import Session from '../commands/session.js'
-import { app, start, shutdown } from '../server.js'
+import { start, shutdown } from '../server.js'
+
+let baseURL
+let liveServer
 
 beforeEach(async () => {
     await shutdown()
     process.env.AGENT_HOME = join(tmpdir(), `agent-api-${nanoid()}`)
     await mkdir(process.env.AGENT_HOME, { recursive: true })
-    Store.config = structuredClone(Store.defaults); Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
-    await Store.load()
+    Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
+    liveServer = await start(0)
+    baseURL = `http://127.0.0.1:${liveServer.port}`
 })
-const request = (path, method = 'GET', body, cookie) => app.handle(new Request(`http://agent${path}`, {
+afterEach(() => shutdown())
+const request = (path, method = 'GET', body, cookie) => fetch(`${baseURL}${path}`, {
     method, headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(cookie ? { cookie } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
-}))
+})
 
 test('validates routes and protects private endpoints', async () => {
     await Config.save({ auth: { username: 'user', password: 'pass' } })
@@ -61,20 +66,20 @@ test('agent send preserves UIMessage metadata', async () => {
 test('serves health over a real socket and emits a session snapshot', async () => {
     const workspace = await Workspace.add(process.env.AGENT_HOME)
     const session = await Session.create(workspace.id, 'missing', 'missing')
-    const server = await start(0)
-    expect(await (await fetch(`http://127.0.0.1:${server.port}/health`)).json()).toEqual({ ok: true })
-    const response = await fetch(`http://127.0.0.1:${server.port}/session/events?sessionID=${session.id}`)
+    expect(await (await fetch(`${baseURL}/health`)).json()).toEqual({ ok: true })
+    const response = await fetch(`${baseURL}/session/events?sessionID=${session.id}`)
     expect(response.headers.get('content-type')).toContain('text/event-stream')
     expect(await response.text()).toContain('data-session')
     await shutdown()
 })
 
-test('shutdown stops the socket even when a final save fails', async () => {
-    const server = await start(0)
+test('shutdown reports a final save failure', async () => {
+    const server = liveServer
     const save = Store.save
     Store.save = async domain => domain === 'config' ? Promise.reject(new Error('flush failed')) : save(domain)
     await expect(shutdown()).rejects.toThrow('flush failed')
     Store.save = save
+    await shutdown()
     await expect(fetch(`http://127.0.0.1:${server.port}/health`)).rejects.toBeDefined()
 })
 

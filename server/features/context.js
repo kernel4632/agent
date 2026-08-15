@@ -5,26 +5,51 @@ import Store from '../store.js'
 import Tool from '../utils/tool.js'
 import Plugin from './plugin.js'
 
-const select = messages => {
+const count = messages => {
     const summary = messages.findLastIndex(message => message.summary)
-    if (summary < 0) return messages
-    const picked = [...messages.slice(0, 3), ...messages.slice(Math.max(3, summary - 3), summary + 1), ...messages.slice(summary + 1)]
-    return picked.filter((message, index) => picked.findIndex(item => item.id === message.id) === index)
+    if (summary < 0) return encode(JSON.stringify(messages)).length
+
+    const selected = [
+        ...messages.slice(0, 3),
+        ...messages.slice(Math.max(3, summary - 3), summary + 1),
+        ...messages.slice(summary + 1),
+    ]
+    const unique = selected.filter((message, index) => {
+        return selected.findIndex(item => item.id === message.id) === index
+    })
+    return encode(JSON.stringify(unique)).length
 }
-const count = messages => encode(JSON.stringify(select(messages))).length
+
 const build = async sessionID => {
     const session = Store.sessions[sessionID]
     const workspace = Store.workspaces[session.workspaceID]
-    const available = { ...await Tool.list(workspace.path), ...Plugin.tools() }
-    const tools = Object.fromEntries(Object.values(available).map(tool => [tool.name, dynamicTool({
-        description: tool.description,
-        inputSchema: jsonSchema(tool.inputSchema),
-        toModelOutput: tool.toModelOutput ? ({ output }) => tool.toModelOutput(output) : undefined,
-    })]))
+    const available = await Tool.list(workspace.path)
+    // Tool.execute 保留的是同一个快照对象，插件工具也会进入执行集合。
+    Object.assign(available, Plugin.tools())
+
+    // 摘要之后只保留开头、摘要附近和摘要之后的新消息。
+    const summary = session.messages.findLastIndex(message => message.summary)
+    const selected = summary < 0 ? session.messages : [
+        ...session.messages.slice(0, 3),
+        ...session.messages.slice(Math.max(3, summary - 3), summary + 1),
+        ...session.messages.slice(summary + 1),
+    ]
+    const messages = selected.filter((message, index) => {
+        return selected.findIndex(item => item.id === message.id) === index
+    })
+
+    const modelTools = Object.fromEntries(Object.values(available).map(tool => {
+        const definition = {
+            description: tool.description,
+            inputSchema: jsonSchema(tool.inputSchema),
+        }
+        if (tool.toModelOutput) definition.toModelOutput = ({ output }) => tool.toModelOutput(output)
+        return [tool.name, dynamicTool(definition)]
+    }))
+
     return {
-        messages: await convertToModelMessages(select(session.messages), { tools, ignoreIncompleteToolCalls: true }),
-        tools,
-        available,
+        messages: await convertToModelMessages(messages, { tools: modelTools, ignoreIncompleteToolCalls: true }),
+        tools: available,
         instructions: [Store.config.prompts.system, Store.config.prompts.tool].filter(Boolean).join('\n\n'),
     }
 }

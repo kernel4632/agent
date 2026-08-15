@@ -15,14 +15,14 @@ let workspace, session
 beforeEach(async () => {
     process.env.AGENT_HOME = join(tmpdir(), `agent-tool-${nanoid()}`)
     await mkdir(process.env.AGENT_HOME, { recursive: true })
-    Store.config = structuredClone(Store.defaults); Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
+    Store.workspaces = {}; Store.sessions = {}; Store.runtimes = {}
     await Store.load()
     workspace = await Workspace.add(process.env.AGENT_HOME)
     session = await Session.create(workspace.id, 'openai', 'model')
 })
 
-const context = tools => ({
-    tools, sessionID: session.id, messageID: 'a1', partIndex: 0,
+const context = () => ({
+    sessionID: session.id, messageID: 'a1', partIndex: 0,
     signal: new AbortController().signal, receive() {}, retry: operation => operation(),
     checkpoint: path => Checkpoint.save(session.id, { messageID: 'a1', partIndex: 0 }, path),
 })
@@ -50,7 +50,8 @@ test('writes, edits, reads and searches real files', async () => {
     expect((await Tool.execute('glob', { path: workspace.path, pattern: '*.txt' }, ctx)).output).toContain('sample.txt')
     expect((await Tool.execute('grep', { path: workspace.path, pattern: 'gamma' }, ctx)).output).toHaveLength(1)
     expect((await Tool.execute('file_list', { path: workspace.path }, ctx)).output).toContain('sample.txt')
-    expect((await Tool.execute('shell', { command: 'pwd', cwd: workspace.path }, ctx)).output.code).toBe(0)
+    const shell = await Tool.execute('shell', { command: 'pwd', cwd: workspace.path }, ctx)
+    expect(shell.output.stdout.trim()).toBe(workspace.path)
     const web = Bun.serve({ port: 0, fetch: () => new Response('local page') })
     expect((await Tool.execute('web_fetch', { url: `http://127.0.0.1:${web.port}` }, ctx)).output.body).toBe('local page')
     web.stop()
@@ -65,7 +66,8 @@ test('serializes concurrent writes to one path and keeps both checkpoints', asyn
         Tool.execute('file_write', { path: file, content: 'first' }, ctx),
         Tool.execute('file_write', { path: file, content: 'second' }, ctx),
     ])
-    const log = (await readFile(Path.undoLog(session.id), 'utf8')).trim().split('\n').map(JSON.parse)
+    const logPath = `${Path.undo(session.id)}.jsonl`
+    const log = (await readFile(logPath, 'utf8')).trim().split('\n').map(JSON.parse)
     expect(log.filter(item => item.type === 'write')).toHaveLength(2)
     expect(await Bun.file(file).text()).toBe('second')
 })
@@ -79,5 +81,5 @@ test('aborting shell stops its child process group', async () => {
     controller.abort()
     const result = await pending
     expect(Date.now() - started).toBeLessThan(1000)
-    expect(result.output.code).not.toBe(0)
+    expect(result.output).toHaveProperty('stdout')
 })

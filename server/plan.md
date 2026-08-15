@@ -292,7 +292,6 @@ Retries network errors, 408, 429, and 5xx forever with configured exponential de
 | Method | Input | Output |
 |---|---|---|
 | `list(workspacePath)` | workspace path | `{ [name]: Tool }` |
-| `register(tool)` | plugin `Tool` | `void` |
 | `execute(name, input, context)` | name, input, `ToolContext` | `{ output, stop? }` |
 
 Tool scans `tools/`, `~/.agent/tools/`, and `<workspace>/.agent/tools/`. A matching file export is immediately usable.

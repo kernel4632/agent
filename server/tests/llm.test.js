@@ -10,7 +10,6 @@ import Retry from '../utils/retry.js'
 beforeEach(async () => {
     process.env.AGENT_HOME = join(tmpdir(), `agent-llm-${nanoid()}`)
     await mkdir(process.env.AGENT_HOME, { recursive: true })
-    Store.config = structuredClone(Store.defaults)
     await Store.load()
 })
 

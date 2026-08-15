@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { stat } from 'node:fs/promises'
 import Path from './path.js'
 
-const locks = new Map()
-const list = async (workspacePath, supplied = {}) => {
-    const tools = { ...supplied }
+let available = {}
+const list = async workspacePath => {
+    const tools = {}
     const builtIn = resolve(dirname(fileURLToPath(import.meta.url)), '../tools')
     for (const directory of [builtIn, Path.tools(), Path.workspaceTools(workspacePath)]) {
         if (!await stat(directory).then(value => value.isDirectory()).catch(() => false)) continue
@@ -15,20 +15,13 @@ const list = async (workspacePath, supplied = {}) => {
             for (const tool of Array.isArray(value) ? value : [value]) tools[tool.name] = tool
         }
     }
+    available = tools
     return tools
 }
 const execute = async (name, input, context) => {
-    const tool = context.tools?.[name]
+    const tool = available[name]
     if (!tool) throw new Error(`Tool not found: ${name}`)
-    const path = ['file_write', 'edit'].includes(name) ? resolve(input.path) : ''
-    const previous = locks.get(path)?.catch(() => {}) || Promise.resolve()
-    const prepared = path ? { ...input, path } : input
-    const current = previous.then(() => tool.execute(prepared, context))
-    if (!path) return current
-    const cleanup = current.finally(() => { if (locks.get(path) === cleanup) locks.delete(path) })
-    cleanup.catch(() => {})
-    locks.set(path, cleanup)
-    return current
+    return tool.execute(input, context)
 }
 
 export default { list, execute }

@@ -3,15 +3,21 @@ export default api => ({
     name: 'title',
     hooks: {
         async 'message.append'({ sessionID, message, signal }) {
+            // 只有用户文本消息可以触发标题生成。
             if (message.role !== 'user') return
+
             const session = api.Session.read(sessionID)
-            const summary = api.Store.workspaces[session.workspaceID].sessions.find(item => item.id === sessionID)
+            const workspace = api.Store.workspaces[session.workspaceID]
+            const summary = workspace.sessions.find(item => item.id === sessionID)
             const text = message.parts.find(part => part.type === 'text')?.text
             if (summary.title || !text) return
+
             const provider = api.Store.config.providers.find(item => item.name === session.provider)
             const model = provider?.models.find(item => item.id === session.model)
             if (!provider || !model) return
+
             try {
+                // 标题请求失败只能跳过标题，不能阻断主 Agent。
                 const result = await api.LLM.stream({
                     provider, model,
                     messages: [{ role: 'user', content: `Write a concise title. Return only the title.\n\n${text}` }],

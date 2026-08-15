@@ -4,13 +4,13 @@ import { Cron } from 'croner'
 export default api => {
     const jobs = api.Store.config.plugins.cron?.settings?.jobs || []
     const running = []
-    try {
-        for (const job of jobs) running.push(new Cron(job.cron, { timezone: job.timezone }, () => {
+
+    for (const job of jobs) {
+        const timer = new Cron(job.cron, { timezone: job.timezone }, () => {
             void api.Agent.send(job.sessionID, job.message).catch(() => {})
-        }))
-    } catch (error) {
-        running.forEach(job => job.stop())
-        throw error
+        })
+        running.push(timer)
     }
+
     return { name: 'cron', unload: () => running.forEach(job => job.stop()) }
 }

@@ -1,27 +1,49 @@
-/* 使用系统 shell，stdout/stderr 边产生边发送。 */
+/* shell 输出边产生边发送，abort signal 直接停止子进程。 */
 export default {
-    name: 'shell', description: 'Run a shell command and return stdout, stderr, and exit code.',
+    name: 'shell',
+    description: 'Run a shell command and return stdout and stderr.',
     inputSchema: {
-        type: 'object', properties: { command: { type: 'string' }, cwd: { type: 'string' } },
-        required: ['command'], additionalProperties: false,
+        type: 'object',
+        properties: {
+            command: { type: 'string' },
+            cwd: { type: 'string' },
+        },
+        required: ['command'],
+        additionalProperties: false,
     },
+
     async execute({ command, cwd }, context) {
-        const child = Bun.spawn(['sh', '-lc', command], { cwd, detached: true, signal: context.signal, stdout: 'pipe', stderr: 'pipe' })
-        const running = { kill() { child.kill(); try { globalThis.process.kill(-child.pid) } catch {} } }
-        context.signal?.addEventListener('abort', running.kill, { once: true })
-        context.processes?.add(running)
-        const read = async (stream, name) => {
-            let text = ''
-            for await (const chunk of stream) {
-                const data = new TextDecoder().decode(chunk)
-                text += data
-                await context.receive({ stream: name, data })
-            }
-            return text
-        }
-        const [stdout, stderr, code] = await Promise.all([read(child.stdout, 'stdout'), read(child.stderr, 'stderr'), child.exited])
-        context.signal?.removeEventListener('abort', running.kill)
-        context.processes?.delete(running)
-        return { output: { stdout, stderr, code } }
+        const child = Bun.spawn(['sh', '-lc', command], {
+            cwd,
+            detached: true,
+            signal: context.signal,
+            stdout: 'pipe',
+            stderr: 'pipe',
+        })
+        context.signal.addEventListener('abort', () => {
+            child.kill()
+            try { globalThis.process.kill(-child.pid) } catch {}
+        }, { once: true })
+
+        let stdout = ''
+        let stderr = ''
+        await Promise.all([
+            (async () => {
+                for await (const chunk of child.stdout) {
+                    const data = new TextDecoder().decode(chunk)
+                    stdout += data
+                    await context.receive({ stream: 'stdout', data })
+                }
+            })(),
+            (async () => {
+                for await (const chunk of child.stderr) {
+                    const data = new TextDecoder().decode(chunk)
+                    stderr += data
+                    await context.receive({ stream: 'stderr', data })
+                }
+            })(),
+            child.exited,
+        ])
+        return { output: { stdout, stderr } }
     },
 }

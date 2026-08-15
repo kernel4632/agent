@@ -55,8 +55,8 @@ test.skipIf(process.env.RUN_REAL_AGENT !== '1')('real agent completes a tool rou
 
     const parts = session.messages.flatMap(message => message.parts)
     expect(Store.runtimes[session.id].status).toBe('idle')
-    expect(parts.some(part => part.toolName === 'file_list' && part.state === 'output-available')).toBe(true)
-    expect(parts.some(part => part.toolName === 'finish' && part.state === 'output-available')).toBe(true)
+    expect(parts.some(part => part.type === 'tool-file_list' && part.state === 'output-available')).toBe(true)
+    expect(parts.some(part => part.type === 'tool-finish' && part.state === 'output-available')).toBe(true)
 }, 300_000)
 
 test.skipIf(process.env.RUN_REAL_AGENT !== '1')('real agent builds a complete static website', async () => {
