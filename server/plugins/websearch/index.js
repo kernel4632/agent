@@ -27,6 +27,9 @@ export default api => ({
                 },
                 messages: [{ role: 'user', content: query }],
                 instructions: 'Search the live web and return concise results with source URLs.',
+                extraBody: {
+                    tools: [{ type: 'web_search', web_search: { max_search_results: 5 } }],
+                },
                 signal: context.signal,
             })
 

@@ -24,13 +24,10 @@ const message = t.Object({
     id: t.String(), role: t.Literal('user'),
     parts: t.Array(t.Object({ type: t.String() }, { additionalProperties: true })),
 }, { additionalProperties: true })
-const configPatch = t.Partial(t.Record(t.String(), t.Any()))
-const login = t.Object({ username: t.String(), password: t.String() })
 const sessionFields = t.Partial(t.Object({ provider: t.String(), model: t.String(), title: t.String() }))
 const sessionPatch = t.Intersect([id, sessionFields])
 const positionRequest = t.Object({ sessionID: t.String(), messageID: t.String(), partIndex: t.Integer({ minimum: 0 }) })
 const pluginBody = t.Optional(t.Object({ name: t.Optional(t.String()) }))
-const toolQuery = t.Object({ workspacePath: t.String() })
 
 const app = new Elysia()
     .onError(({ code, error, status }) => status(code === 'VALIDATION' ? 422 : 400, { error: error.message }))
@@ -46,14 +43,14 @@ const app = new Elysia()
         if (!token) return status(401, { error: 'Invalid credentials' })
         cookie.agent.set({ value: token, httpOnly: true, sameSite: 'strict', path: '/' })
         return { ok: true }
-    }, { body: login })
+    }, { body: t.Object({ username: t.String(), password: t.String() }) })
     .post('/logout', ({ cookie }) => {
         Auth.logout(cookie.agent.value)
         cookie.agent.remove()
         return { ok: true }
     })
     .get('/config', () => Config.read())
-    .patch('/config', ({ body }) => Config.save(body), { body: configPatch })
+    .patch('/config', ({ body }) => Config.save(body), { body: t.Partial(t.Record(t.String(), t.Any())) })
 
     // 工作区与会话元数据。
     .get('/workspace', () => Workspace.list())
@@ -92,7 +89,7 @@ const app = new Elysia()
     .get('/plugin', () => Plugin.list())
     .post('/plugin', ({ body }) => Plugin.load(body?.name), { body: pluginBody })
     .delete('/plugin', ({ query }) => Plugin.unload(query.name), { query: t.Object({ name: t.String() }) })
-    .get('/tool', ({ query }) => Tool.list(query.workspacePath), { query: toolQuery })
+    .get('/tool', ({ query }) => Tool.list(query.workspacePath), { query: t.Object({ workspacePath: t.String() }) })
 
 export const start = async (port = Number(process.env.PORT || 3000)) => {
     await Store.load()
@@ -103,12 +100,15 @@ export const start = async (port = Number(process.env.PORT || 3000)) => {
 
 export const shutdown = async () => {
     Object.keys(Store.runtimes).forEach(Agent.stop)
-    await Promise.all(Plugin.list().map(Plugin.unload))
+    while (Object.values(Store.runtimes).some(runtime => runtime.status === 'running')) await Bun.sleep(5)
 
+    const unloaded = await Promise.allSettled(Plugin.list().map(Plugin.unload))
     const domains = ['config', 'workspaces', ...Object.keys(Store.sessions)]
-    await Promise.all(domains.map(domain => Store.save(domain)))
+    const saved = await Promise.allSettled(domains.map(domain => Store.save(domain)))
+    const failure = [...unloaded, ...saved].find(result => result.status === 'rejected')?.reason
     await server?.stop(true)
     server = null
+    if (failure) throw failure
 }
 
 if (import.meta.main) {

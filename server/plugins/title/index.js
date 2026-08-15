@@ -2,7 +2,7 @@
 export default api => ({
     name: 'title',
     hooks: {
-        async 'message.append'({ sessionID, message, signal }) {
+        'message.append'({ sessionID, message, signal }) {
             // 只有用户文本消息可以触发标题生成。
             if (message.role !== 'user') return
 
@@ -16,16 +16,15 @@ export default api => ({
             const model = provider?.models.find(item => item.id === session.model)
             if (!provider || !model) return
 
-            try {
-                // 标题请求失败只能跳过标题，不能阻断主 Agent。
-                const result = await api.LLM.stream({
-                    provider, model,
-                    messages: [{ role: 'user', content: `Write a concise title. Return only the title.\n\n${text}` }],
-                    instructions: 'Return plain text without quotes.', signal,
-                })
+            // 标题独立生成，慢服务不能挡住主 Agent 循环。
+            void api.LLM.stream({
+                provider, model,
+                messages: [{ role: 'user', content: `Write a concise title. Return only the title.\n\n${text}` }],
+                instructions: 'Return plain text without quotes.', signal,
+            }).then(result => {
                 const title = result.message.parts.find(part => part.type === 'text')?.text?.trim()
-                if (title) await api.Session.update(sessionID, { title })
-            } catch { /* 标题失败不能阻断主任务。 */ }
+                if (title && !signal?.aborted) return api.Session.update(sessionID, { title })
+            }).catch(() => {})
         },
     },
 })

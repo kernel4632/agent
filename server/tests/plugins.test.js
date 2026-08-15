@@ -18,11 +18,22 @@ beforeEach(async () => {
     await Store.load()
     Plugin.setAPI({ Store, LLM })
 })
+const provider = () => [{
+    name: 'mock', baseURL: 'http://unused', key: 'test',
+    models: [{ id: 'model', contextWindow: 1000, maxOutput: 100 }],
+}]
 
 test('loads user plugins with hooks and tools from disk', async () => {
     const directory = join(Path.plugins(), 'demo')
     await mkdir(directory, { recursive: true })
-    await Bun.write(join(directory, 'index.js'), `export default () => ({ name: 'demo', hooks: { test: data => ({ ...data, changed: true }) }, tools: [{ name: 'demo_tool', description: '', inputSchema: { type: 'object' }, execute: async () => ({ output: 1 }) }] })`)
+    await Bun.write(join(directory, 'index.js'), `export default () => ({
+        name: 'demo',
+        hooks: { test: data => ({ ...data, changed: true }) },
+        tools: [{
+            name: 'demo_tool', description: '', inputSchema: { type: 'object' },
+            execute: async () => ({ output: 1 }),
+        }],
+    })`)
     expect(await Plugin.load('demo')).toEqual(['demo'])
     expect(await Plugin.emit('test', { value: 1 })).toEqual({ value: 1, changed: true })
     expect(Plugin.tools().demo_tool.name).toBe('demo_tool')
@@ -35,7 +46,7 @@ test('removes a plugin when its directory disappears', async () => {
     await Bun.write(join(directory, 'index.js'), `export default () => ({ name: 'vanish' })`)
     await Plugin.load('vanish')
     await rm(directory, { recursive: true, force: true })
-    await Plugin.load()
+    await Plugin.load('vanish')
     expect(Plugin.list()).not.toContain('vanish')
 })
 
@@ -49,12 +60,37 @@ test('does not explicitly load a disabled plugin', async () => {
 
 test('title plugin uses the injected model and session API', async () => {
     const workspace = await Workspace.add(process.env.AGENT_HOME)
-    Store.config.providers = [{ name: 'mock', baseURL: 'http://unused', key: 'test', models: [{ id: 'model', contextWindow: 1000, maxOutput: 100 }] }]
+    Store.config.providers = provider()
     const session = await Session.create(workspace.id, 'mock', 'model')
-    Plugin.setAPI({ Store, Session, LLM: { stream: async () => ({ message: { parts: [{ type: 'text', text: 'Short title' }] } }) } })
+    Plugin.setAPI({
+        Store, Session,
+        LLM: { stream: async () => ({ message: { parts: [{ type: 'text', text: 'Short title' }] } }) },
+    })
     await Plugin.load('title')
-    await Plugin.emit('message.append', { sessionID: session.id, message: { id: 'u', role: 'user', parts: [{ type: 'text', text: 'request' }] } })
+    await Plugin.emit('message.append', {
+        sessionID: session.id,
+        message: { id: 'u', role: 'user', parts: [{ type: 'text', text: 'request' }] },
+    })
+    while (!Store.workspaces[workspace.id].sessions[0].title) await Bun.sleep(0)
     expect(Store.workspaces[workspace.id].sessions[0].title).toBe('Short title')
+    await Plugin.unload('title')
+})
+
+test('title generation never blocks the message hook', async () => {
+    const workspace = await Workspace.add(process.env.AGENT_HOME)
+    Store.config.providers = provider()
+    const session = await Session.create(workspace.id, 'mock', 'model')
+    const controller = new AbortController()
+    Plugin.setAPI({ Store, Session, LLM: { stream: ({ signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }) } })
+    await Plugin.load('title')
+    await Plugin.emit('message.append', {
+        sessionID: session.id, signal: controller.signal,
+        message: { role: 'user', parts: [{ type: 'text', text: 'request' }] },
+    })
+    controller.abort()
+    expect(Store.workspaces[workspace.id].sessions[0].title).toBe('')
     await Plugin.unload('title')
 })
 
@@ -65,17 +101,23 @@ test('websearch plugin calls an OpenAI-compatible search endpoint', async () => 
     }
     Plugin.setAPI({ Store, LLM: { stream: async request => {
         expect(request.messages.at(-1).content).toBe('latest news')
+        expect(request.extraBody.tools[0].type).toBe('web_search')
         return { message: { parts: [{ type: 'text', text: 'result' }] } }
     } } })
     await Plugin.load('websearch')
     const tool = Plugin.tools().web_search
-    const result = await tool.execute({ query: 'latest news' }, { signal: AbortSignal.timeout(5000), retry: action => action() })
+    const result = await tool.execute({ query: 'latest news' }, {
+        signal: AbortSignal.timeout(5000), retry: action => action(),
+    })
     expect(result.output.text).toBe('result')
     await Plugin.unload('websearch')
 })
 
 test('cron plugin loads and unloads configured jobs', async () => {
-    Store.config.plugins.cron = { enabled: true, settings: { jobs: [{ cron: '* * * * * *', sessionID: 'missing', message: 'tick' }] } }
+    Store.config.plugins.cron = {
+        enabled: true,
+        settings: { jobs: [{ cron: '* * * * * *', sessionID: 'missing', message: 'tick' }] },
+    }
     Plugin.setAPI({ Store, Agent: { send: async () => {} } })
     expect(await Plugin.load('cron')).toContain('cron')
     expect(await Plugin.unload('cron')).toBe(true)
@@ -83,7 +125,10 @@ test('cron plugin loads and unloads configured jobs', async () => {
 
 test('cron plugin triggers the public Agent API', async () => {
     let calls = 0
-    Store.config.plugins.cron = { enabled: true, settings: { jobs: [{ cron: '* * * * * *', sessionID: 'scheduled', message: 'tick' }] } }
+    Store.config.plugins.cron = {
+        enabled: true,
+        settings: { jobs: [{ cron: '* * * * * *', sessionID: 'scheduled', message: 'tick' }] },
+    }
     Plugin.setAPI({ Store, Agent: { send: async () => { calls += 1 } } })
     await Plugin.load('cron')
     await Bun.sleep(1200)
@@ -92,12 +137,26 @@ test('cron plugin triggers the public Agent API', async () => {
 })
 
 test('MCP stdio plugin discovers tools and closes its client', async () => {
-    Store.config.plugins.mcp = { enabled: true, settings: { servers: { everything: { type: 'stdio', command: ['node', join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'), 'stdio'] } } } }
+    Store.config.plugins.mcp = { enabled: true, settings: { servers: {
+        everything: {
+            type: 'stdio',
+            command: [
+                'node',
+                join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'),
+                'stdio',
+            ],
+        },
+    } } }
     Plugin.setAPI({ Store })
     await Plugin.load('mcp')
     expect(Object.keys(Plugin.tools()).length).toBeGreaterThan(0)
     const tool = Object.values(Plugin.tools()).find(item => item.toModelOutput)
-    expect(tool.toModelOutput({ content: [{ type: 'image', data: 'abc', mimeType: 'image/png' }] })).toEqual({ type: 'content', value: [{ type: 'file', data: { type: 'data', data: 'abc' }, mediaType: 'image/png' }] })
+    expect(tool.toModelOutput({
+        content: [{ type: 'image', data: 'abc', mimeType: 'image/png' }],
+    })).toEqual({
+        type: 'content',
+        value: [{ type: 'file', data: { type: 'data', data: 'abc' }, mediaType: 'image/png' }],
+    })
     expect(tool.toModelOutput({ content: [] })).toEqual({ type: 'content', value: [{ type: 'text', text: '' }] })
     expect(await Plugin.unload('mcp')).toBe(true)
 })
@@ -106,16 +165,23 @@ test('MCP plugin connects through streamable HTTP', async () => {
     const probe = Bun.serve({ port: 0, fetch: () => new Response('probe') })
     const port = probe.port
     probe.stop()
-    const child = Bun.spawn(['node', join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'), 'streamableHttp'], { env: { ...process.env, PORT: String(port) }, stdout: 'ignore', stderr: 'ignore' })
+    const child = Bun.spawn([
+        'node',
+        join(process.cwd(), 'node_modules/@modelcontextprotocol/server-everything/dist/index.js'),
+        'streamableHttp',
+    ], { env: { ...process.env, PORT: String(port) }, stdout: 'ignore', stderr: 'ignore' })
     for (let attempt = 0; attempt < 30; attempt++) {
         try { await fetch(`http://127.0.0.1:${port}/mcp`); break } catch { await Bun.sleep(50) }
     }
-    Store.config.plugins.mcp = { enabled: true, settings: { servers: { http: { type: 'http', url: `http://127.0.0.1:${port}/mcp` } } } }
+    Store.config.plugins.mcp = { enabled: true, settings: { servers: {
+        http: { type: 'http', url: `http://127.0.0.1:${port}/mcp` },
+    } } }
     Plugin.setAPI({ Store })
     await Plugin.load('mcp')
     const echo = Plugin.tools().http__echo
     expect(echo).toBeDefined()
-    expect((await echo.execute({ message: 'hello' }, { signal: AbortSignal.timeout(5000) })).output.content[0].text).toBe('Echo: hello')
+    const result = await echo.execute({ message: 'hello' }, { signal: AbortSignal.timeout(5000) })
+    expect(result.output.content[0].text).toBe('Echo: hello')
     await Plugin.unload('mcp')
     child.kill()
     await child.exited

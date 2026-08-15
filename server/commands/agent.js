@@ -7,12 +7,13 @@ import Session from './session.js'
 
 const stop = sessionID => {
     const runtime = Store.runtimes[sessionID]
-    if (!runtime || runtime.status === 'idle') return false
+    if (!runtime) return false
+    const running = runtime.status !== 'idle'
 
     runtime.abortController.abort()
     runtime.processes.forEach(process => process.kill())
     runtime.processes.clear()
-    return true
+    return running
 }
 
 const send = async (sessionID, input) => {
@@ -21,24 +22,27 @@ const send = async (sessionID, input) => {
         : input
 
     stop(sessionID)
-    await Session.append(sessionID, message)
-
     const runtime = Store.runtimes[sessionID]
     runtime.status = 'running'
     runtime.abortController = new AbortController()
     runtime.events = []
+    const signal = runtime.abortController.signal
+    try {
+        await Session.append(sessionID, message)
+    } catch (error) {
+        if (runtime.abortController.signal === signal) runtime.status = 'idle'
+        throw error
+    }
+    if (signal.aborted || runtime.abortController.signal !== signal) return message
 
     void Plugin.emit('message.append', {
-        sessionID,
-        message,
-        signal: runtime.abortController.signal,
-    }).then(() => Loop.run(sessionID)).catch(async error => {
+        sessionID, message, signal,
+    }).then(() => signal.aborted ? undefined : Loop.run(sessionID)).catch(async error => {
+        if (Store.runtimes[sessionID] !== runtime || runtime.abortController.signal !== signal) return
+
         runtime.status = 'idle'
         await Store.broadcast(sessionID, { type: 'error', errorText: String(error) })
-        await Store.broadcast(sessionID, {
-            type: 'data-status',
-            data: { status: 'idle', reason: 'error' },
-        })
+        await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason: 'error' } })
     })
 
     return message

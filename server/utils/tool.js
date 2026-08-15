@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url'
 import { stat } from 'node:fs/promises'
 import Path from './path.js'
 
-let available = {}
 const list = async workspacePath => {
     const tools = {}
     const builtIn = resolve(dirname(fileURLToPath(import.meta.url)), '../tools')
@@ -15,13 +14,14 @@ const list = async workspacePath => {
             for (const tool of Array.isArray(value) ? value : [value]) tools[tool.name] = tool
         }
     }
-    available = tools
     return tools
 }
 const execute = async (name, input, context) => {
-    const tool = available[name]
+    const tool = context.tools[name]
     if (!tool) throw new Error(`Tool not found: ${name}`)
-    return tool.execute(input, context)
+
+    const { tools, ...toolContext } = context
+    return tool.execute(input, toolContext)
 }
 
 export default { list, execute }

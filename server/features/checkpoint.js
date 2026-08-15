@@ -9,7 +9,8 @@ let queue = Promise.resolve()
 const save = (sessionID, position, path) => {
     queue = queue.catch(() => {}).then(async () => {
         const logPath = `${Path.undo(sessionID)}.jsonl`
-        const text = await readFile(logPath, 'utf8').catch(() => '')
+        const text = await readFile(logPath, 'utf8')
+            .catch(error => error.code === 'ENOENT' ? '' : Promise.reject(error))
         const items = text.split('\n').filter(Boolean).map(JSON.parse)
         const sequence = crypto.randomUUID()
         await mkdir(Path.undo(sessionID), { recursive: true, mode: 0o700 })
@@ -37,7 +38,8 @@ const rollback = (sessionID, position) => {
         if (!session.messages[target]?.parts[position.partIndex]) throw new Error('Message part not found')
 
         const logPath = `${Path.undo(sessionID)}.jsonl`
-        const text = await readFile(logPath, 'utf8').catch(() => '')
+        const text = await readFile(logPath, 'utf8')
+            .catch(error => error.code === 'ENOENT' ? '' : Promise.reject(error))
         const items = text.split('\n').filter(Boolean).map(JSON.parse)
         const writes = items.filter(item => {
             if (item.type !== 'write') return false
@@ -84,7 +86,8 @@ const rollback = (sessionID, position) => {
 const undo = sessionID => {
     queue = queue.catch(() => {}).then(async () => {
         const logPath = `${Path.undo(sessionID)}.jsonl`
-        const text = await readFile(logPath, 'utf8').catch(() => '')
+        const text = await readFile(logPath, 'utf8')
+            .catch(error => error.code === 'ENOENT' ? '' : Promise.reject(error))
         const items = text.split('\n').filter(Boolean).map(JSON.parse)
         const index = items.findLastIndex(item => item.type === 'rollback')
         if (index < 0) return null

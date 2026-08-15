@@ -24,11 +24,13 @@ const stream = async (request, options = {}) => {
             baseURL: request.provider.baseURL,
             apiKey: request.provider.key,
             includeUsage: true,
+            transformRequestBody: body => ({ ...body, ...request.extraBody }),
         }).chatModel(request.model.id)
         const result = streamText({
             model: languageModel, messages: request.messages, tools,
             instructions: request.instructions, abortSignal: request.signal,
             maxOutputTokens: request.model.maxOutput, maxRetries: 0,
+            providerOptions: request.providerOptions,
         })
 
         // 每个增量先交给调用方，再合成为最终 UIMessage。
@@ -57,7 +59,12 @@ const stream = async (request, options = {}) => {
             const status = emptyAttempts < 3 ? 503 : 400
             throw Object.assign(new Error('Model returned no message'), { status })
         }
-        return { message, usage: await result.usage }
+        try {
+            return { message, usage: await result.usage }
+        } catch (error) {
+            if (streamed) error.streamed = true
+            throw error
+        }
     }, request.signal)
 }
 

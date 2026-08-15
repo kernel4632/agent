@@ -15,6 +15,7 @@ const run = async sessionID => {
 
     runtime.status = 'running'
     runtime.abortController = new AbortController()
+    const signal = runtime.abortController.signal
 
     try {
         await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'running' } })
@@ -25,7 +26,7 @@ const run = async sessionID => {
             messages: context.messages,
             tools: context.tools,
             instructions: Store.config.prompts.summary,
-            signal: runtime.abortController.signal,
+            signal,
         })
         const summary = { ...result.message, summary: true, usage: result.usage }
         session.messages.push(summary)
@@ -34,11 +35,10 @@ const run = async sessionID => {
         await Store.broadcast(sessionID, { type: 'data-compact', data: { message: summary } })
         return summary
     } finally {
-        runtime.status = 'idle'
-        await Store.broadcast(sessionID, {
-            type: 'data-status',
-            data: { status: 'idle', reason: 'compact' },
-        })
+        if (Store.runtimes[sessionID] === runtime && runtime.abortController.signal === signal) {
+            runtime.status = 'idle'
+            await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason: 'compact' } })
+        }
     }
 }
 

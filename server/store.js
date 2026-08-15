@@ -20,9 +20,7 @@ const queues = new Map()
 
 const Store = {
     config: structuredClone(defaults),
-    workspaces: {},
-    sessions: {},
-    runtimes: {},
+    workspaces: {}, sessions: {}, runtimes: {},
 
     async load() {
         await mkdir(Path.root(), { recursive: true, mode: 0o700 })
@@ -42,9 +40,7 @@ const Store = {
             context: { ...defaults.context, ...config.context },
             plugins: { ...defaults.plugins, ...config.plugins },
         }
-        this.workspaces = workspaces
-        this.sessions = {}
-        this.runtimes = {}
+        Object.assign(this, { workspaces, sessions: {}, runtimes: {} })
 
         for (const workspace of Object.values(workspaces)) {
             for (const summary of workspace.sessions) {
@@ -83,7 +79,10 @@ const Store = {
                 return chmod(path, 0o600)
             }
 
-            const { messages, ...meta } = Store.sessions[domain]
+            const session = Store.sessions[domain]
+            if (!session) return
+
+            const { messages, ...meta } = session
             await mkdir(Path.session(domain), { recursive: true, mode: 0o700 })
             const lines = messages.map(JSON.stringify).join('\n')
             await writeFile(Path.meta(domain), JSON.stringify(meta, null, 2), { mode: 0o600 })
@@ -95,7 +94,10 @@ const Store = {
 
     async broadcast(sessionID, event) {
         const runtime = this.runtimes[sessionID]
-        runtime.events.push(event)
+        if (!runtime) return
+
+        if (event.type === 'data-message') runtime.events = []
+        else if (event.type !== 'data-tool-output') runtime.events.push(event)
 
         for (const client of runtime.clients) {
             try {

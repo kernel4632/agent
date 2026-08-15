@@ -8,6 +8,8 @@ const read = id => Store.sessions[id] || null
 
 const create = async (workspaceID, provider, model) => {
     const workspace = Store.workspaces[workspaceID]
+    if (!workspace) throw new Error('Workspace not found')
+
     const session = { id: nanoid(), workspaceID, provider, model, messages: [] }
     Store.sessions[session.id] = session
     Store.runtimes[session.id] = {
@@ -47,6 +49,7 @@ const remove = async id => {
 
     runtime.abortController.abort()
     runtime.processes.forEach(process => process.kill())
+    runtime.permission.values().forEach(resolve => resolve(false))
     const workspace = Store.workspaces[session.workspaceID]
     workspace.sessions = workspace.sessions.filter(item => item.id !== id)
 

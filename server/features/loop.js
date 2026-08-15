@@ -10,13 +10,11 @@ import Checkpoint from './checkpoint.js'
 import Plugin from './plugin.js'
 
 const run = async sessionID => {
-    const session = Store.sessions[sessionID]
-    const runtime = Store.runtimes[sessionID]
+    const session = Store.sessions[sessionID], runtime = Store.runtimes[sessionID]
     const provider = Store.config.providers.find(item => item.name === session.provider)
     const model = provider?.models.find(item => item.id === session.model)
     const signal = runtime.abortController.signal
-    let idle = 0
-    let reason = 'idle'
+    let idle = 0, reason = 'idle'
 
     try {
         if (!provider || !model) throw new Error('Session model is not configured')
@@ -25,7 +23,9 @@ const run = async sessionID => {
 
         while (!signal.aborted) {
             // 达到阈值时追加摘要，原始消息仍完整保存在 JSONL。
-            if (Context.count(session.messages) > model.contextWindow * Store.config.context.compactRatio) {
+            const latestSummary = session.messages.findLastIndex(message => message.summary)
+            if ((latestSummary < 0 || latestSummary < session.messages.length - 3)
+                && Context.count(session.messages) > model.contextWindow * Store.config.context.compactRatio) {
                 const context = await Context.build(sessionID)
                 const result = await LLM.stream({
                     provider, model, ...context, instructions: Store.config.prompts.summary, signal,
@@ -50,7 +50,7 @@ const run = async sessionID => {
             await Store.broadcast(sessionID, { type: 'data-message', data: { message } })
 
             // 一条助手消息中的所有工具调用并行等待审批和执行。
-            const calls = message.parts.map(async (part, partIndex) => {
+            const stopped = (await Promise.all(message.parts.map(async (part, partIndex) => {
                 if (!isToolUIPart(part) || part.state !== 'input-available') return false
                 const name = getToolName(part)
                 try {
@@ -62,7 +62,7 @@ const run = async sessionID => {
                     }
                     const before = await Plugin.emit('tool.before', { sessionID, tool: name, input: part.input })
                     const output = await Tool.execute(name, before.input, {
-                        sessionID, messageID: message.id, partIndex, signal,
+                        sessionID, messageID: message.id, partIndex, signal, tools: context.tools,
                         receive: event => Store.broadcast(sessionID, {
                             type: 'data-tool-output', data: { callID: part.toolCallId, tool: name, ...event },
                         }),
@@ -82,14 +82,17 @@ const run = async sessionID => {
                     await Store.broadcast(sessionID, {
                         type: 'tool-output-error', toolCallId: part.toolCallId, errorText: String(error),
                     })
-                    return false
-                } finally { await Store.save(sessionID) }
-            })
-            const stopped = (await Promise.all(calls)).some(Boolean)
+                } finally {
+                    await Store.save(sessionID)
+                }
+            }))).some(Boolean)
             idle = message.parts.some(isToolUIPart) ? 0 : idle + 1
             await Plugin.emit('message.append', { sessionID, message })
 
-            if (stopped) { reason = 'tool'; break }
+            if (stopped) {
+                reason = 'tool'
+                break
+            }
             if (Store.config.context.idleRounds > 0 && idle >= Store.config.context.idleRounds) break
         }
         if (signal.aborted) reason = 'abort'
@@ -98,8 +101,10 @@ const run = async sessionID => {
         if (reason === 'error') await Store.broadcast(sessionID, { type: 'error', errorText: String(error) })
     } finally {
         await Plugin.emit('loop.end', { sessionID, reason }).catch(() => {})
-        runtime.status = 'idle'
-        await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason } })
+        if (Store.runtimes[sessionID] === runtime && runtime.abortController.signal === signal) {
+            runtime.status = 'idle'
+            await Store.broadcast(sessionID, { type: 'data-status', data: { status: 'idle', reason } })
+        }
     }
 }
 

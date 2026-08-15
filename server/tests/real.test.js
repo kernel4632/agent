@@ -19,7 +19,11 @@ const providerConfig = config?.provider?.[selected[0]]
 const modelConfig = providerConfig?.models?.[selected.slice(1).join('/')]
 const request = providerConfig && modelConfig ? {
     provider: { name: selected[0], baseURL: providerConfig.options.baseURL, key: providerConfig.options.apiKey },
-    model: { id: selected.slice(1).join('/'), contextWindow: modelConfig.limit.context, maxOutput: Math.min(modelConfig.limit.output, 4096) },
+    model: {
+        id: selected.slice(1).join('/'),
+        contextWindow: modelConfig.limit.context,
+        maxOutput: Math.min(modelConfig.limit.output, 4096),
+    },
 } : null
 
 test.skipIf(!configured)('real model smoke test', async () => {
@@ -72,7 +76,9 @@ test.skipIf(process.env.RUN_REAL_AGENT !== '1')('real agent builds a complete st
 
     const workspace = await Workspace.add(project)
     const session = await Session.create(workspace.id, request.provider.name, request.model.id)
-    await Agent.send(session.id, `Build a usable task board website in ${project}. Create index.html, style.css and script.js with absolute paths. Verify the files, then call finish.`)
+    const prompt = `Build a usable task board website in ${project}. `
+        + 'Create index.html, style.css and script.js with absolute paths. Verify the files, then call finish.'
+    await Agent.send(session.id, prompt)
 
     const started = Date.now()
     while (Store.runtimes[session.id].status === 'running' && Date.now() - started < 300_000) await Bun.sleep(100)

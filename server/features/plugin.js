@@ -21,6 +21,7 @@ const load = async name => {
             found.set(file.split('/').at(-2), file)
         }
     }
+    if (name && !found.has(name)) await unload(name)
     if (!name) {
         for (const pluginName of loaded.keys()) {
             if (!found.has(pluginName) || Store.config.plugins[pluginName]?.enabled === false) {
