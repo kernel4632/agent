@@ -11,13 +11,13 @@ export default {
         required: ['path', 'pattern'], additionalProperties: false,
     },
     async execute({ path, pattern }) {
-        const files = []
+        const files = [] // 保持扫描顺序的相对路径结果。
 
         // 结果达到上限后立即停止扫描，避免占满上下文。
         for await (const file of new Bun.Glob(pattern).scan({ cwd: path, dot: true })) {
-            files.push(file)
-            if (files.length >= 1000) break
+            files.push(file) // 立即记录命中的路径。
+            if (files.length >= 1000) break // 单次工具调用最多返回一千项。
         }
-        return { output: files }
+        return { output: files } // 直接给模型可继续使用的路径数组。
     },
 }
