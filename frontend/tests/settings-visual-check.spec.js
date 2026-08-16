@@ -11,12 +11,14 @@ test('capture current settings pages', async ({ page }) => {
   await page.screenshot({ path: 'test-results/settings-overview-hover.png', fullPage: true })
   await providersItem.click()
   await page.waitForSelector('.provider-settings')
+  await page.waitForTimeout(350)
   await page.screenshot({ path: 'test-results/settings-providers-current.png', fullPage: true })
 
   await page.locator('[aria-label="返回设置"]').click()
   await page.waitForSelector('.settings-navigation')
   await page.locator('.settings-navigation m3e-list-action[aria-label="工具管理"]').click()
   await page.waitForSelector('.tools-settings')
+  await page.waitForTimeout(350)
   await page.screenshot({ path: 'test-results/settings-tools-current.png', fullPage: true })
 
   await page.locator('[aria-label="返回设置"]').click()
@@ -33,5 +35,6 @@ test('capture current settings pages', async ({ page }) => {
   await page.waitForSelector('.settings-navigation')
   await page.locator('.settings-navigation m3e-list-action[aria-label="系统提示词定义"]').click()
   await page.waitForSelector('.prompts-settings')
+  await page.waitForTimeout(350)
   await page.screenshot({ path: 'test-results/settings-prompts-current.png', fullPage: true })
 })

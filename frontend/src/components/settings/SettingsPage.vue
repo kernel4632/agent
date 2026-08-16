@@ -10,8 +10,8 @@ import ProviderSettings from './ProviderSettings.vue'         // 引入供应商
 import ToolsSettings from './ToolsSettings.vue'               // 引入工具权限管理分类
 import MCPSettings from './MCPSettings.vue'                   // 引入 MCP 服务管理分类
 import PromptsSettings from './PromptsSettings.vue'           // 引入系统提示词编辑分类
-import AppearanceSettings from './AppearanceSettings.vue'     // 引入语言与外观分类
-import SettingsNavigation from './SettingsNavigation.vue'     // 引入左侧分类导航
+import AppearanceSettings from './AppearanceSettings.vue'     // 引入外观分类
+import SettingsNavigation from './SettingsNavigation.vue'     // 引入设置分类总览
 import SettingsPlaceholder from './SettingsPlaceholder.vue'   // 引入尚未实现分类的占位组件（数据管理）
 import { Settings } from '../../commands/settings.js'         // 引入设置草稿创建指令
 import { store } from '../../store.js'                        // 引入全局设置草稿状态
@@ -66,51 +66,42 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 <template>
   <main class="settings-page">
     <Transition :name="settingsTransitionName" mode="out-in">
-    <SettingsNavigation v-if="!selectedSectionID" key="overview" :items="sections" selected-id="" @select="openSection" />
-    <section v-else-if="settingsDraft" :key="selectedSectionID" class="settings-page__detail">
-      <header class="settings-page__detail-header">
-        <m3e-icon-button type="button" shape="rounded" aria-label="返回设置" title="返回设置" @click="closeSection">
-          <HugeiconsIcon :icon="ArrowLeft01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-        </m3e-icon-button>
-        <div>
-          <m3e-heading variant="headline" size="small" level="1">{{ selectedSection.label }}</m3e-heading>
-          <span>{{ selectedSection.description }}</span>
-        </div>
-      </header>
-      <div class="settings-page__content">
-        <ProviderSettings v-if="selectedSectionID === 'providers'" v-model:providers="settingsDraft.providers" />
-        <ToolsSettings v-else-if="selectedSectionID === 'tools'" v-model:tools="settingsDraft.tools" />
-        <MCPSettings v-else-if="selectedSectionID === 'mcp'" v-model:mcp="settingsDraft.mcp" />
-        <PromptsSettings v-else-if="selectedSectionID === 'prompts'" v-model:prompt="settingsDraft.prompt" />
-        <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" :appearance="settingsDraft.appearance" @change="updateAppearance" />
+      <SettingsNavigation v-if="!selectedSectionID" key="overview" :items="sections" selected-id="" @select="openSection" />
+      <section v-else-if="settingsDraft" :key="selectedSectionID" class="settings-page__detail">
+        <header class="settings-page__detail-header">
+          <m3e-icon-button type="button" shape="rounded" aria-label="返回设置" title="返回设置" @click="closeSection">
+            <HugeiconsIcon :icon="ArrowLeft01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+          </m3e-icon-button>
+          <div>
+            <m3e-heading variant="headline" size="small" level="1">{{ selectedSection.label }}</m3e-heading>
+            <span>{{ selectedSection.description }}</span>
+          </div>
+        </header>
+        <ProviderSettings v-if="selectedSectionID === 'providers'" class="settings-page__body" v-model:providers="settingsDraft.providers" />
+        <ToolsSettings v-else-if="selectedSectionID === 'tools'" class="settings-page__body settings-page__body--padded" v-model:tools="settingsDraft.tools" />
+        <MCPSettings v-else-if="selectedSectionID === 'mcp'" class="settings-page__body" v-model:mcp="settingsDraft.mcp" />
+        <PromptsSettings v-else-if="selectedSectionID === 'prompts'" class="settings-page__body" v-model:prompt="settingsDraft.prompt" />
+        <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" class="settings-page__body settings-page__body--padded" :appearance="settingsDraft.appearance" @change="updateAppearance" />
         <SettingsPlaceholder
           v-else
+          class="settings-page__body"
           :title="selectedSection.label"
           :description="selectedSection.description"
           :icon="selectedSection.icon"
         />
-      </div>
-    </section>
+      </section>
     </Transition>
   </main>
 </template>
 
 <style scoped lang="scss">
-/* --- 设置页主容器：左侧导航 + 右侧内容 --- */
+/* --- 设置页主容器 --- */
 .settings-page {
   display: flex;
   width: 100%;
   min-height: 100%;
   flex-direction: column;
   background: var(--md-sys-color-background);
-}
-
-/* --- 右侧内容区：填充剩余空间 --- */
-.settings-page__content {
-  display: flex;
-  min-width: 0;
-  overflow: hidden;
-  flex: 1 1 auto;
 }
 
 .settings-page__detail {
@@ -142,7 +133,18 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
   font-size: 13px;
 }
 
-.settings-page__content :deep(section > header) { display: none; }
+
+.settings-page__body {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.settings-page__body--padded {
+  padding: 24px 40px 48px;
+}
 
 .settings-forward-enter-active,
 .settings-back-enter-active {
@@ -177,7 +179,7 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 
 /* --- 窄屏适配：纵向堆叠导航和内容 --- */
 @media (max-width: 760px) {
-  .settings-page__content { overflow: visible; }
   .settings-page__detail-header { padding: 14px 16px; }
+  .settings-page__body--padded { padding: 20px 20px 40px; }
 }
 </style>

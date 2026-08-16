@@ -5,7 +5,6 @@
 调用示例：<AppearanceSettings v-model:appearance="settingsDraft.appearance" />。
 -->
 <script setup>
-import { t } from '../../i18n.js'
 import { DEFAULT_APPEARANCE } from '../../theme.js'
 
 const props = defineProps({
@@ -24,21 +23,11 @@ function resetAppearance() {
 </script>
 
 <template>
-  <section class="appearance-settings">
-    <!-- 顶部标题栏。 -->
-    <header class="appearance-settings__header">
-      <div>
-        <m3e-heading variant="headline" size="small" level="2">外观</m3e-heading>
-        <span>{{ t('appearanceDescription') }}</span>
-      </div>
-    </header>
-
-    <!-- 设置选项列表。 -->
-    <m3e-content-pane class="appearance-settings__body">
-      <div class="appearance-settings__toolbar">
+  <m3e-content-pane class="appearance-settings">
+    <div class="appearance-settings__toolbar">
         <m3e-button type="button" variant="text" @click="resetAppearance">恢复默认</m3e-button>
-      </div>
-      <m3e-list class="appearance-settings__options">
+    </div>
+    <m3e-list class="appearance-settings__options">
 
         <m3e-heading class="appearance-settings__group" variant="label" size="large" level="3">颜色</m3e-heading>
         <m3e-list-item class="appearance-settings__option">
@@ -137,45 +126,14 @@ function resetAppearance() {
           ></m3e-switch>
         </m3e-list-item>
 
-      </m3e-list>
-    </m3e-content-pane>
-  </section>
+    </m3e-list>
+  </m3e-content-pane>
 </template>
 
 <style scoped lang="scss">
-/* --- 外观设置主容器 --- */
 .appearance-settings {
   display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
   flex-direction: column;
-}
-
-/* --- 顶部标题栏 --- */
-.appearance-settings__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: 0 0 auto;
-  gap: 20px;
-  padding: 28px 40px 20px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.appearance-settings__header > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.appearance-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
-
-/* --- 选项列表区域 --- */
-.appearance-settings__body {
-  overflow-y: auto;
-  flex: 1 1 auto;
-  padding: 24px 40px 48px;
   @include scrollbar-dark;
 }
 
@@ -237,8 +195,6 @@ function resetAppearance() {
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
-  .appearance-settings__header { padding: 22px 20px 16px; }
-  .appearance-settings__body { padding: 20px 20px 40px; }
   .appearance-settings__select { width: 100%; }
 }
 </style>

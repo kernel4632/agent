@@ -11,14 +11,6 @@ const props = defineProps({
 const emit = defineEmits(['update:tools'])                   // 输出变更后的工具数组
 
 
-// --- 权限级别对应的显示文案 ---
-const permissionLabels = {
-  allow: '自动执行',                                          // 工具调用无需用户确认
-  ask: '每次询问',                                            // 每次调用需要用户审批
-  deny: '禁止调用',                                           // 完全禁用此工具
-}
-
-
 // --- 切换工具启用状态 ---
 function toggleTool(index) {
   const updated = props.tools.map((tool, i) => i === index
@@ -38,73 +30,32 @@ function updatePermission(index, permission) {
 </script>
 
 <template>
-  <section class="tools-settings">
-    <!-- 顶部标题栏。 -->
-    <header class="tools-settings__header">
-      <div>
-        <m3e-heading variant="headline" size="small" level="2">工具管理</m3e-heading>
-        <span>{{ props.tools.length }} 个工具</span>
-      </div>
-    </header>
-
-    <!-- 工具列表。 -->
-    <m3e-content-pane class="tools-settings__body">
-      <m3e-list class="tools-settings__list">
-        <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name" class="tools-settings__item">
-          {{ tool.title || tool.name }}
-          <span slot="supporting-text">{{ tool.name }}</span>
-          <div slot="trailing" class="tools-settings__controls">
-            <m3e-form-field class="tools-settings__permission" variant="outlined" hide-subscript="always">
-              <m3e-select @input="updatePermission(index, $event.currentTarget.value)">
-                <m3e-option value="allow">自动执行</m3e-option>
-                <m3e-option value="ask">每次询问</m3e-option>
-                <m3e-option value="deny">禁止调用</m3e-option>
-              </m3e-select>
-            </m3e-form-field>
-            <m3e-switch :checked="tool.enabled" @change="toggleTool(index)"></m3e-switch>
-          </div>
-        </m3e-list-item>
-        <m3e-divider v-if="props.tools.length"></m3e-divider>
-        <p v-if="!props.tools.length" class="tools-settings__empty">暂无可配置的工具</p>
-      </m3e-list>
-    </m3e-content-pane>
-  </section>
+  <m3e-content-pane class="tools-settings">
+    <m3e-list class="tools-settings__list">
+      <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name" class="tools-settings__item">
+        {{ tool.title || tool.name }}
+        <span slot="supporting-text">{{ tool.name }}</span>
+        <div slot="trailing" class="tools-settings__controls">
+          <m3e-form-field class="tools-settings__permission" variant="outlined" hide-subscript="always">
+            <m3e-select @input="updatePermission(index, $event.currentTarget.value)">
+              <m3e-option value="allow">自动执行</m3e-option>
+              <m3e-option value="ask">每次询问</m3e-option>
+              <m3e-option value="deny">禁止调用</m3e-option>
+            </m3e-select>
+          </m3e-form-field>
+          <m3e-switch :checked="tool.enabled" @change="toggleTool(index)"></m3e-switch>
+        </div>
+      </m3e-list-item>
+      <m3e-divider v-if="props.tools.length"></m3e-divider>
+      <p v-if="!props.tools.length" class="tools-settings__empty">暂无可配置的工具</p>
+    </m3e-list>
+  </m3e-content-pane>
 </template>
 
 <style scoped lang="scss">
-/* --- 工具管理主容器 --- */
 .tools-settings {
   display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
   flex-direction: column;
-}
-
-/* --- 顶部标题栏 --- */
-.tools-settings__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: 0 0 auto;
-  gap: 20px;
-  padding: 28px 40px 20px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.tools-settings__header > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.tools-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
-
-/* --- 列表区域 --- */
-.tools-settings__body {
-  overflow-y: auto;
-  flex: 1 1 auto;
-  padding: 24px 40px 48px;
   @include scrollbar-dark;
 }
 
@@ -135,15 +86,12 @@ function updatePermission(index, permission) {
 .tools-settings__empty {
   margin: 0;
   padding: 24px 16px;
-  text-align: left;
   color: var(--md-sys-color-outline);
   text-align: center;
 }
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
-  .tools-settings__header { padding: 22px 20px 16px; }
-  .tools-settings__body { padding: 20px 20px 40px; }
   .tools-settings__controls { gap: 8px; }
 }
 </style>

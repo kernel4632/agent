@@ -23,89 +23,43 @@ function onInput(event) {
 </script>
 
 <template>
-  <section class="prompts-settings">
-    <!-- 顶部标题栏。 -->
-    <header class="prompts-settings__header">
-      <div>
-        <m3e-heading variant="headline" size="small" level="2">系统提示词</m3e-heading>
-        <span>定义 Agent 的角色、行为规则和响应风格</span>
-      </div>
-      <span class="prompts-settings__count">{{ charCount }} 字符</span>
-    </header>
+  <div class="prompts-settings">
+    <span class="prompts-settings__count">{{ charCount }} 字符</span>
+    <m3e-form-field class="prompts-settings__editor" variant="outlined" hide-subscript="always">
+      <textarea
+        class="prompts-settings__textarea"
+        :value="props.prompt"
+        placeholder="输入系统提示词...&#10;&#10;例如：你是一个专业的软件开发助手，擅长 TypeScript 和 Vue.js。&#10;回答时使用中文，保持简洁准确。"
+        spellcheck="false"
+        @input="onInput"
+      ></textarea>
+    </m3e-form-field>
 
-    <!-- 编辑区域。 -->
-    <div class="prompts-settings__body">
-      <m3e-form-field class="prompts-settings__editor" variant="outlined" hide-subscript="always">
-        <textarea
-          class="prompts-settings__textarea"
-          :value="props.prompt"
-          placeholder="输入系统提示词...&#10;&#10;例如：你是一个专业的软件开发助手，擅长 TypeScript 和 Vue.js。&#10;回答时使用中文，保持简洁准确。"
-          spellcheck="false"
-          @input="onInput"
-        ></textarea>
-      </m3e-form-field>
-
-      <!-- 使用提示。 -->
-      <m3e-card class="prompts-settings__tips" variant="outlined">
-        <aside slot="content" class="prompts-settings__tips-content">
-          <m3e-heading variant="title" size="small" level="3">提示词建议</m3e-heading>
-          <ul>
-            <li>明确 Agent 的身份和专长领域</li>
-            <li>指定回复的语言和风格偏好</li>
-            <li>列出需要遵守的规则和约束</li>
-            <li>提供常用的项目上下文信息</li>
-          </ul>
-        </aside>
-      </m3e-card>
-    </div>
-  </section>
+    <!-- 使用提示。 -->
+    <m3e-card class="prompts-settings__tips" variant="outlined">
+      <aside slot="content" class="prompts-settings__tips-content">
+        <m3e-heading variant="title" size="small" level="3">提示词建议</m3e-heading>
+        <ul>
+          <li>明确 Agent 的身份和专长领域</li>
+          <li>指定回复的语言和风格偏好</li>
+          <li>列出需要遵守的规则和约束</li>
+          <li>提供常用的项目上下文信息</li>
+        </ul>
+      </aside>
+    </m3e-card>
+  </div>
 </template>
 
 <style scoped lang="scss">
-/* --- 提示词管理主容器 --- */
 .prompts-settings {
   display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-}
-
-/* --- 顶部标题栏 --- */
-.prompts-settings__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: 0 0 auto;
-  gap: 20px;
-  padding: 26px 32px 22px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.prompts-settings__header > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.prompts-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
-
-.prompts-settings__count {
-  color: var(--md-sys-color-outline);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- 编辑区域 --- */
-.prompts-settings__body {
-  display: flex;
-  overflow-y: auto;
-  flex: 1 1 auto;
   flex-direction: column;
   gap: 24px;
   padding: 24px 32px 48px;
   @include scrollbar-dark;
 }
+
+.prompts-settings__count { color: var(--md-sys-color-outline); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
 
 .prompts-settings__editor {
   width: min(820px, 100%);
@@ -147,7 +101,6 @@ function onInput(event) {
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
-  .prompts-settings__header { padding: 20px 16px; }
-  .prompts-settings__body { padding: 20px 16px 40px; }
+  .prompts-settings { padding: 20px 16px 40px; }
 }
 </style>
