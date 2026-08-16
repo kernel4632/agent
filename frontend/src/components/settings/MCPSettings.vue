@@ -6,6 +6,9 @@ MCP 服务管理：展示已配置的 MCP 服务连接，支持新增、编辑�
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'                  // 引入响应式状态、计算和监听
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { Add01Icon, Delete01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({
   mcp: { type: Array, required: true },                     // 接收 MCP 配置数组（双向绑定）
@@ -89,7 +92,7 @@ watch(() => props.mcp, (items) => {
         <span>{{ props.mcp.length }} 个服务</span>
       </div>
       <m3e-button type="button" variant="filled" @click="addMCP">
-        <m3e-icon slot="icon" name="add" filled="1"></m3e-icon>
+        <HugeiconsIcon slot="icon" :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         添加服务
       </m3e-button>
     </header>
@@ -182,7 +185,7 @@ watch(() => props.mcp, (items) => {
           <!-- 删除按钮。 -->
           <section class="mcp-settings__actions">
             <m3e-button type="button" variant="outlined" @click="removeMCP">
-              <m3e-icon slot="icon" name="delete" filled="1"></m3e-icon>
+              <HugeiconsIcon slot="icon" :icon="Delete01Icon" :stroke-width="ICON_STROKE_WIDTH" />
               删除此服务
             </m3e-button>
           </section>

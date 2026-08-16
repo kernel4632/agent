@@ -15,16 +15,17 @@ import SettingsNavigation from './SettingsNavigation.vue'     // 引入左侧分
 import SettingsPlaceholder from './SettingsPlaceholder.vue'   // 引入尚未实现分类的占位组件（数据管理）
 import { Settings } from '../../commands/settings.js'         // 引入设置草稿创建指令
 import { store } from '../../store.js'                        // 引入全局设置草稿状态
+import { Share01Icon, Wrench01Icon, GridViewIcon, FileEditIcon, ColorsIcon, Database01Icon } from '@hugeicons/core-free-icons'
 
 const emit = defineEmits(['save'])                            // 离开设置页时向业务层提交完整设置快照
 
 const sections = [                                            // 设置分类定义，供导航和正文共同使用
-  { id: 'providers', label: '供应商配置', icon: 'hub', description: '配置模型供应商、凭据与模型能力。' },
-  { id: 'tools', label: '工具管理', icon: 'build', description: '管理 Agent 可调用的本地与内置工具。' },
-  { id: 'mcp', label: 'MCP 管理', icon: 'dns', description: '连接、启用并诊断 MCP 服务。' },
-  { id: 'prompts', label: '系统提示词定义', icon: 'text_snippet', description: '维护系统提示词和可复用规则片段。' },
-  { id: 'appearance', label: '语言与外观', icon: 'palette', description: '调整语言、主题、字号与界面密度。' },
-  { id: 'data', label: '数据管理', icon: 'database', description: '导入、导出、清理或迁移本地数据。' },
+  { id: 'providers', label: '供应商配置', icon: Share01Icon, description: '配置模型供应商、凭据与模型能力。' },
+  { id: 'tools', label: '工具管理', icon: Wrench01Icon, description: '管理 Agent 可调用的本地与内置工具。' },
+  { id: 'mcp', label: 'MCP 管理', icon: GridViewIcon, description: '连接、启用并诊断 MCP 服务。' },
+  { id: 'prompts', label: '系统提示词定义', icon: FileEditIcon, description: '维护系统提示词和可复用规则片段。' },
+  { id: 'appearance', label: '语言与外观', icon: ColorsIcon, description: '调整语言、主题、字号与界面密度。' },
+  { id: 'data', label: '数据管理', icon: Database01Icon, description: '导入、导出、清理或迁移本地数据。' },
 ]
 
 const selectedSectionID = ref('providers')                    // 首次进入设置时展示供应商配置

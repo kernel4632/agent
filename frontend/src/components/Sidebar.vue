@@ -4,54 +4,48 @@
 调用示例：<Sidebar :conversations="conversations" @select-conversation="openConversation" />。
 -->
 <script setup>
-const collapsed = defineModel('collapsed', { type: Boolean, default: false }) // 保存展开与收起状态
-const props = defineProps({                                                   // 接收会话列表和当前选中项
-  conversations: {
-    type: Array,
-    default: () => [],
-  },
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { Home01Icon, PencilEdit01Icon, Cancel01Icon, ArrowLeftDoubleIcon, ArrowRightDoubleIcon, Settings01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../theme.js'
+
+const collapsed = defineModel('collapsed', { type: Boolean, default: false })
+const props = defineProps({
+  conversations: { type: Array, default: () => [] },
   activeConversationId: { type: [String, Number], default: null },
 })
-const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'close-conversation', 'settings']) // 输出用户导航意图
+const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'close-conversation', 'settings'])
 
-
-// --- 切换侧边栏显示状态 ---
 function toggleSidebar() {
-  collapsed.value = !collapsed.value                                          // 同步 v-model 给调用方
+  collapsed.value = !collapsed.value
 }
 </script>
 
 <template>
   <aside class="sidebar" :class="{ 'is-collapsed': collapsed }" aria-label="侧边栏">
-    <!-- 第一排：产品标识和展开态收起按钮。 -->
     <header class="sidebar__header">
       <button class="sidebar__logo" type="button" aria-label="产品首页" @click="emit('home')">
         <slot name="logo"><span class="sidebar__logo-mark">A</span></slot>
       </button>
-
       <m3e-icon-button v-if="!collapsed" class="sidebar__toggle" type="button" shape="rounded" aria-label="收起侧边栏" aria-expanded="true" title="收起侧边栏" @click="toggleSidebar">
-        <m3e-icon name="keyboard_double_arrow_left" filled="1"></m3e-icon>
+        <HugeiconsIcon :icon="ArrowLeftDoubleIcon" :stroke-width="ICON_STROKE_WIDTH" />
       </m3e-icon-button>
     </header>
 
-    <!-- 第二排：主页和新建对话按钮组。 -->
     <nav class="sidebar__actions" aria-label="主要操作">
       <m3e-button class="sidebar__action" type="button" shape="square" aria-label="主页" :title="collapsed ? '主页' : undefined" @click="emit('home')">
         <span class="sidebar__action-content">
-          <m3e-icon name="home" filled="1"></m3e-icon>
+          <HugeiconsIcon :icon="Home01Icon" :stroke-width="ICON_STROKE_WIDTH" />
           <span class="sidebar__label">主页</span>
         </span>
       </m3e-button>
-
       <m3e-button class="sidebar__action is-primary" type="button" variant="tonal" shape="square" aria-label="新建对话" :title="collapsed ? '新建对话' : undefined" @click="emit('new-conversation')">
         <span class="sidebar__action-content">
-          <m3e-icon name="edit_square" filled="1"></m3e-icon>
+          <HugeiconsIcon :icon="PencilEdit01Icon" :stroke-width="ICON_STROKE_WIDTH" />
           <span class="sidebar__label">新建对话</span>
         </span>
       </m3e-button>
     </nav>
 
-    <!-- 第三排：仅在展开时显示，并占满剩余高度。 -->
     <section v-if="!collapsed" class="sidebar__conversations" aria-label="会话列表">
       <div
         v-for="conversation in props.conversations"
@@ -62,22 +56,20 @@ function toggleSidebar() {
       >
         <span class="sidebar__conversation-title">{{ conversation.title || '新对话' }}</span>
         <m3e-icon-button class="sidebar__conversation-close" type="button" shape="rounded" aria-label="关闭会话" title="关闭" @click.stop="emit('close-conversation', conversation.id)">
-          <m3e-icon name="close"></m3e-icon>
+          <HugeiconsIcon :icon="Cancel01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         </m3e-icon-button>
       </div>
     </section>
 
-    <!-- 第四排：仅在收起时显示。 -->
     <m3e-icon-button v-if="collapsed" class="sidebar__expand" type="button" shape="rounded" aria-label="展开侧边栏" aria-expanded="false" title="展开侧边栏" @click="toggleSidebar">
-      <m3e-icon name="keyboard_double_arrow_right" filled="1"></m3e-icon>
+      <HugeiconsIcon :icon="ArrowRightDoubleIcon" :stroke-width="ICON_STROKE_WIDTH" />
     </m3e-icon-button>
 
-    <!-- 第五排：Flex 尾部区通过分割线和间距与上方内容分开。 -->
     <footer class="sidebar__footer">
       <m3e-divider></m3e-divider>
       <m3e-button class="sidebar__settings" type="button" shape="square" aria-label="设置" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
         <span class="sidebar__action-content">
-          <m3e-icon name="settings" filled="1"></m3e-icon>
+          <HugeiconsIcon :icon="Settings01Icon" :stroke-width="ICON_STROKE_WIDTH" />
           <span class="sidebar__label">设置</span>
         </span>
       </m3e-button>

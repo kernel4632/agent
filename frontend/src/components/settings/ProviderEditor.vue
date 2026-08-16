@@ -8,6 +8,9 @@
 <script setup>
 import { ref, useId } from 'vue'                    // 引入响应式状态和唯一 ID 生成能力
 import ProviderModels from './ProviderModels.vue'  // 引入模型列表管理子组件
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { EyeIcon, EyeOffIcon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({ provider: { type: Object, required: true } }) // 接收当前编辑的供应商完整对象
 const emit = defineEmits(['update:provider'])      // 输出合并后的供应商对象
@@ -65,7 +68,7 @@ function updateProvider(patch) {
           <input :id="`${fieldID}-api-key`" :value="props.provider.apiKey" :type="showApiKey ? 'text' : 'password'" autocomplete="off" placeholder="输入 API Key" @input="updateProvider({ apiKey: $event.currentTarget.value })" />
         </m3e-form-field>
           <m3e-icon-button type="button" :aria-label="showApiKey ? '隐藏 API Key' : '显示 API Key'" @click="showApiKey = !showApiKey">
-            <m3e-icon :name="showApiKey ? 'visibility_off' : 'visibility'" filled="1"></m3e-icon>
+            <HugeiconsIcon :icon="showApiKey ? EyeOffIcon : EyeIcon" :stroke-width="ICON_STROKE_WIDTH" />
           </m3e-icon-button>
       </span>
     </section>

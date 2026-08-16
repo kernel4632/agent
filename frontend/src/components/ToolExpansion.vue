@@ -5,14 +5,16 @@
 -->
 <script setup>
 import { ref } from 'vue'                              // 保存回退按钮与确认菜单的元素引用
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { UndoIcon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../theme.js'
 
 const props = defineProps({
-  icon: { type: String, required: true },
+  icon: { type: Object, required: true },
   label: { type: String, required: true },
   parameter: { type: String, default: '' },
   open: { type: Boolean, default: false },
   muted: { type: Boolean, default: false },
-  iconFilled: { type: Boolean, default: true },
   rollbackLabel: { type: String, default: '回退此工具操作' },
 })
 
@@ -43,7 +45,7 @@ function confirmRollback() {
     @closed="emit('update:open', false)"
   >
     <div slot="header" class="tool-expansion__header">
-      <m3e-icon :name="props.icon" :filled="props.iconFilled ? '1' : '0'"></m3e-icon>
+      <HugeiconsIcon :icon="props.icon" :stroke-width="ICON_STROKE_WIDTH" />
       <strong class="tool-expansion__label">{{ props.label }}</strong>
       <span v-if="props.parameter || $slots.parameter" class="tool-expansion__parameter">
         <slot name="parameter">{{ props.parameter }}</slot>
@@ -60,7 +62,7 @@ function confirmRollback() {
         @click.stop="showRollbackConfirmation"
         @keydown.stop
       >
-        <m3e-icon name="undo" filled="1"></m3e-icon>
+        <HugeiconsIcon :icon="UndoIcon" :stroke-width="ICON_STROKE_WIDTH" />
       </m3e-icon-button>
     </div>
     <div class="tool-expansion__details">

@@ -8,6 +8,9 @@
 import { computed, ref, watch } from 'vue'       // 引入响应式状态、计算和监听
 import ProviderEditor from './ProviderEditor.vue' // 引入右侧供应商编辑面板
 import ProviderList from './ProviderList.vue'     // 引入左侧供应商列表面板
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { Add01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({ providers: { type: Array, required: true } }) // 接收供应商数组（双向绑定）
 const emit = defineEmits(['update:providers'])    // 输出变更后的供应商数组
@@ -56,7 +59,7 @@ watch(() => props.providers, providers => {
         <span>{{ props.providers.length }} 个供应商</span>
       </div>
       <m3e-button type="button" variant="filled" @click="addProvider">
-        <m3e-icon slot="icon" name="add" filled="1"></m3e-icon>
+        <HugeiconsIcon slot="icon" :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         添加供应商
       </m3e-button>
     </header>

@@ -5,6 +5,8 @@
     "": {
       "name": "agent-frontend",
       "dependencies": {
+        "@hugeicons/core-free-icons": "^4.2.3",
+        "@hugeicons/vue": "1.0.7",
         "@m3e/icons": "^1.0.11",
         "@m3e/web": "^2.7.1",
         "dompurify": "latest",
@@ -50,6 +52,10 @@
     "@floating-ui/dom": ["@floating-ui/dom@1.8.0", "https://registry.npmmirror.com/@floating-ui/dom/-/dom-1.8.0.tgz", { "dependencies": { "@floating-ui/core": "^1.8.0", "@floating-ui/utils": "^0.2.12" } }, "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "https://registry.npmmirror.com/@floating-ui/utils/-/utils-0.2.12.tgz", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@hugeicons/core-free-icons": ["@hugeicons/core-free-icons@4.2.3", "https://registry.npmmirror.com/@hugeicons/core-free-icons/-/core-free-icons-4.2.3.tgz", {}, "sha512-fpiU0qFZkv4ABi23xJ2m4qNr0BBfuIaYjPboN8WDA6aj9D+OzXa7eykxKOpACZRuGbDz1U9S5DsNx1d5KNnsgA=="],
+
+    "@hugeicons/vue": ["@hugeicons/vue@1.0.7", "https://registry.npmmirror.com/@hugeicons/vue/-/vue-1.0.7.tgz", { "peerDependencies": { "vue": "^2.6.0 || ^3.0.0" } }, "sha512-oUE0ztUNYbsMFpMgbV3bsxQBObNkeouomUThFuFPzYC5eV++VTYonStsltJu2MoLMkxV8mzpoVvIbuMPBZSN0w=="],
 
     "@iconify/types": ["@iconify/types@2.0.0", "https://registry.npmmirror.com/@iconify/types/-/types-2.0.0.tgz", {}, "sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg=="],
 

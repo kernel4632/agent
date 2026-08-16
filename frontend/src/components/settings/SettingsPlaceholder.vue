@@ -4,16 +4,19 @@
 调用示例：<SettingsPlaceholder title="工具管理" description="管理 Agent 可调用的工具。" icon="build" />。
 -->
 <script setup>
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { ICON_STROKE_WIDTH } from '../../theme.js'
+
 const props = defineProps({
   title: { type: String, required: true },
   description: { type: String, required: true },
-  icon: { type: String, required: true },
+  icon: { type: Object, required: true },
 })
 </script>
 
 <template>
   <section class="settings-placeholder">
-    <m3e-icon :name="props.icon" filled="1"></m3e-icon>
+    <HugeiconsIcon :icon="props.icon" :stroke-width="ICON_STROKE_WIDTH" />
     <m3e-heading variant="headline" size="small" level="2">{{ props.title }}</m3e-heading>
     <p>{{ props.description }}</p>
   </section>

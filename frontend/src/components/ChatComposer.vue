@@ -5,6 +5,9 @@
 -->
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue' // 管理草稿与原生尺寸观察
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { PlusSignIcon, ArrowDown01Icon, ArrowUp01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../theme.js'
 
 const props = defineProps({                                   // 由调用方提供可复用的展示数据
   placeholder: { type: String, default: '问 Agent' },
@@ -89,7 +92,7 @@ onBeforeUnmount(() => {
   <form ref="composer" class="chat-composer" :class="{ 'is-expanded': expanded }" :style="{ '--composer-height': composerHeight }" aria-label="对话编辑器" @submit.prevent="submitForm">
     <!-- 单行时三部分横排；出现第二行后，输入区独占上排，控件进入底排。 -->
     <m3e-icon-button class="chat-composer__icon-button" type="button" shape="rounded" aria-label="附件" title="附件" @click="emit('attach')">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12"></path></svg>
+      <HugeiconsIcon :icon="PlusSignIcon" :stroke-width="ICON_STROKE_WIDTH" />
     </m3e-icon-button>
 
     <div class="chat-composer__viewport">
@@ -100,7 +103,7 @@ onBeforeUnmount(() => {
       <m3e-button class="chat-composer__model" type="button" shape="rounded" aria-label="模型选择">
         <m3e-menu-trigger :for="modelMenuID">
           <span>{{ props.selectedModel }}</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
+          <HugeiconsIcon :icon="ArrowDown01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         </m3e-menu-trigger>
       </m3e-button>
 
@@ -109,7 +112,7 @@ onBeforeUnmount(() => {
       </m3e-menu>
 
       <m3e-icon-button class="chat-composer__submit" type="submit" variant="filled" shape="rounded" aria-label="提交" title="提交">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11 12 5M12 5l6 6M12 5v14"></path></svg>
+        <HugeiconsIcon :icon="ArrowUp01Icon" :stroke-width="ICON_STROKE_WIDTH" />
       </m3e-icon-button>
     </div>
   </form>

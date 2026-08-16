@@ -7,6 +7,9 @@
 <script setup>
 import { ref } from 'vue'                              // 引入响应式状态管理
 import { Settings } from '../../commands/settings.js'  // 引入模型发现和切换指令
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { CloudDownloadIcon, Delete01Icon, Tick01Icon, Add01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({
   provider: { type: Object, required: true },          // 接收当前供应商连接信息（用于远程获取）
@@ -49,7 +52,7 @@ function removeModel(modelID) {
         <span>{{ props.models.length }} 个已添加模型</span>
       </div>
       <m3e-button type="button" variant="outlined" @click="openChooser">
-        <m3e-icon slot="icon" name="cloud_download" filled="1"></m3e-icon>
+        <HugeiconsIcon slot="icon" :icon="CloudDownloadIcon" :stroke-width="ICON_STROKE_WIDTH" />
         获取模型列表
       </m3e-button>
     </div>
@@ -64,7 +67,7 @@ function removeModel(modelID) {
           </div>
         </div>
         <m3e-icon-button type="button" aria-label="移除模型" title="移除模型" @click="removeModel(model.id)">
-          <m3e-icon name="delete" filled="1"></m3e-icon>
+          <HugeiconsIcon :icon="Delete01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         </m3e-icon-button>
       </div>
       <p v-if="!props.models.length" class="provider-models__empty">尚未添加模型</p>
@@ -78,7 +81,7 @@ function removeModel(modelID) {
       <m3e-list-action v-for="model in availableModels" :key="model.id" @click="toggleModel(model)">
         {{ model.name }}
         <span slot="supporting-text">{{ model.capabilities.join(' · ') }}</span>
-        <m3e-icon slot="trailing" :name="props.models.some(item => item.id === model.id) ? 'check' : 'add'" filled="1"></m3e-icon>
+        <HugeiconsIcon slot="trailing" :icon="props.models.some(item => item.id === model.id) ? Tick01Icon : Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
       </m3e-list-action>
     </m3e-action-list>
     <div slot="actions"><m3e-button type="button" @click="chooserDialog.hide()">关闭</m3e-button></div>

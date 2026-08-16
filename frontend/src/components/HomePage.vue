@@ -4,7 +4,10 @@
 调用示例：<HomePage :workspaces="workspaces" :conversations-by-workspace="conversations" />。
 -->
 <script setup>
-import { computed, ref, useId } from 'vue'                    // 管理页面选择、过滤和重命名弹窗
+import { computed, ref, useId } from 'vue'
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { Search01Icon, Add01Icon, LayoutGridIcon, ArrowRight01Icon, MessageAdd01Icon, PencilEdit01Icon, Delete01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../theme.js'
 
 const props = defineProps({                                   // 接收工作区与分组会话数据
   workspaces: { type: Array, default: () => [] },
@@ -67,10 +70,10 @@ function resetRenameDialog() {
 <template>
   <main class="home-page">
     <!-- 顶部：M3E 原生搜索框。 -->
-    <m3e-search-bar class="home-page__search" clearable clear-label="清除搜索">
-      <m3e-icon slot="leading" name="search" filled="1"></m3e-icon>
-      <input v-model="searchTerm" slot="input" type="search" placeholder="搜索工作区和会话" aria-label="搜索工作区和会话" />
-    </m3e-search-bar>
+      <m3e-search-bar class="home-page__search" clearable clear-label="清除搜索">
+        <HugeiconsIcon slot="leading" :icon="Search01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+        <input v-model="searchTerm" slot="input" type="search" placeholder="搜索工作区和会话" aria-label="搜索工作区和会话" />
+      </m3e-search-bar>
 
     <div class="home-page__body">
       <!-- 主体左侧：工作区标题、添加按钮和工作区列表。 -->
@@ -78,23 +81,22 @@ function resetRenameDialog() {
         <div class="home-page__pane-content">
           <div class="home-page__pane-header">
             <m3e-heading variant="title" size="large" level="2">工作区</m3e-heading>
-            <m3e-button type="button" variant="tonal" shape="square" @click="emit('add-workspace')">
-              <m3e-icon slot="icon" name="add" filled="1"></m3e-icon>
-              添加工作区
+              <m3e-button type="button" variant="tonal" shape="square" @click="emit('add-workspace')">
+              <HugeiconsIcon slot="icon" :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
             </m3e-button>
           </div>
 
           <m3e-action-list variant="segmented" aria-label="工作区列表">
-            <m3e-list-action
+              <m3e-list-action
               v-for="workspace in props.workspaces"
               :key="workspace.id"
               :aria-current="workspace.id === effectiveWorkspaceID ? 'page' : undefined"
               @click="selectedWorkspaceId = workspace.id"
             >
-              <m3e-icon slot="leading" name="workspaces" filled="1"></m3e-icon>
+              <HugeiconsIcon slot="leading" :icon="LayoutGridIcon" :stroke-width="ICON_STROKE_WIDTH" />
               {{ workspace.name }}
               <span slot="supporting-text">{{ workspace.description }}</span>
-              <m3e-icon slot="trailing" name="chevron_right" filled="1"></m3e-icon>
+              <HugeiconsIcon slot="trailing" :icon="ArrowRight01Icon" :stroke-width="ICON_STROKE_WIDTH" />
             </m3e-list-action>
           </m3e-action-list>
         </div>
@@ -112,16 +114,16 @@ function resetRenameDialog() {
               <m3e-action-list aria-label="会话列表">
                 <template v-for="conversation in group.items" :key="conversation.id">
                   <m3e-list-action @click="emit('select-conversation', { workspaceId: effectiveWorkspaceID, conversationId: conversation.id })">
-                    <m3e-icon slot="leading" name="chat" filled="1"></m3e-icon>
+                    <HugeiconsIcon slot="leading" :icon="MessageAdd01Icon" :stroke-width="ICON_STROKE_WIDTH" />
                     {{ conversation.title }}
                     <span slot="supporting-text">{{ conversation.time }}</span>
 
                     <span slot="trailing" class="home-page__conversation-actions">
                       <m3e-icon-button type="button" shape="rounded" :aria-label="`重命名 ${conversation.title}`" title="重命名" @click.stop="openRenameDialog(conversation)">
-                        <m3e-icon name="edit" filled="1"></m3e-icon>
+                        <HugeiconsIcon :icon="PencilEdit01Icon" :stroke-width="ICON_STROKE_WIDTH" />
                       </m3e-icon-button>
                       <m3e-icon-button type="button" shape="rounded" :aria-label="`删除 ${conversation.title}`" title="删除" @click.stop="emit('delete-conversation', { workspaceId: effectiveWorkspaceID, conversationId: conversation.id })">
-                        <m3e-icon name="delete" filled="1"></m3e-icon>
+                        <HugeiconsIcon :icon="Delete01Icon" :stroke-width="ICON_STROKE_WIDTH" />
                       </m3e-icon-button>
                     </span>
                   </m3e-list-action>

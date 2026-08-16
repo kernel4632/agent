@@ -9,6 +9,9 @@ import { store } from '../store.js'                     // 引入全局会话数
 import { renderMarkdown } from '../utils/markdown.js'   // 引入 Markdown 转 HTML 能力
 import { watchMessages } from '../watchers.js'          // 引入集中管理的消息监听
 import ToolExpansion from './ToolExpansion.vue'          // 复用工具标题、详情折叠与回退确认
+import { HugeiconsIcon } from '@hugeicons/vue'
+import { Refresh01Icon, Wrench01Icon, CommandLineIcon, Search01Icon, SquareArrowExpand01Icon } from '@hugeicons/core-free-icons'
+import { ICON_STROKE_WIDTH } from '../theme.js'
 
 const flowContainer = ref(null)                         // 容器引用，用于自动滚动到底部
 const session = computed(() => store.sessions[store.ui.activeSessionID] || null) // 当前活跃会话
@@ -29,10 +32,10 @@ watchMessages(messages, scrollToBottom)
 
 // --- 工具图标映射 ---
 function toolIcon(toolName) {
-  if (toolName?.includes('file') || toolName?.includes('edit')) return 'dashboard_customize' // 文件类工具
-  if (toolName?.includes('shell') || toolName?.includes('command') || toolName?.includes('terminal')) return 'terminal' // 终端类工具
-  if (toolName?.includes('search') || toolName?.includes('grep')) return 'search' // 搜索类工具
-  return 'build'                                        // 其他工具使用通用图标
+  if (toolName?.includes('file') || toolName?.includes('edit')) return SquareArrowExpand01Icon // 文件类工具
+  if (toolName?.includes('shell') || toolName?.includes('command') || toolName?.includes('terminal')) return CommandLineIcon // 终端类工具
+  if (toolName?.includes('search') || toolName?.includes('grep')) return Search01Icon // 搜索类工具
+  return Wrench01Icon                                       // 其他工具使用通用图标
 }
 </script>
 
@@ -50,7 +53,7 @@ function toolIcon(toolName) {
           <!-- API 用量行 -->
           <m3e-card v-if="message.request?.input || message.request?.output" class="conversation-flow__activity-card" variant="filled">
             <div slot="content" class="conversation-flow__api-row">
-              <m3e-icon name="sync_alt" filled="1"></m3e-icon>
+              <HugeiconsIcon :icon="Refresh01Icon" :stroke-width="ICON_STROKE_WIDTH" />
               <span>API 请求</span>
               <span class="conversation-flow__api-cost">
                 <span>↑{{ message.request.input }}</span>

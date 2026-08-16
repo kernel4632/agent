@@ -17,7 +17,6 @@ import '@m3e/web/dialog'                            // 注册 M3E 组件：确�
 import '@m3e/web/expansion-panel'                   // 注册 M3E 组件：折叠面板
 import '@m3e/web/form-field'                        // 注册 M3E 组件：输入字段外观
 import '@m3e/web/heading'                           // 注册 M3E 组件：标题层级
-import '@m3e/web/icon'                              // 注册 M3E 组件：SVG 图标（图标注册依赖此模块）
 import '@m3e/web/icon-button'                       // 注册 M3E 组件：图标命令
 import '@m3e/web/list'                              // 注册 M3E 组件：列表
 import '@m3e/web/menu'                              // 注册 M3E 组件：浮层菜单
@@ -29,7 +28,6 @@ import '@m3e/web/switch'                            // 注册 M3E 组件：开�
 import '@m3e/web/textarea-autosize'                 // 注册 M3E 组件：自适应文本
 import '@m3e/web/theme'                             // 注册 M3E 组件：暗色主题
 import '@m3e/web/tooltip'                           // 注册 M3E 组件：导航提示
-import '@m3e/icons/outlined'                        // 注册全部 Outlined 图标（依赖上方 @m3e/web/icon 的 registerIcon）
 import './styles/base.scss'                        // 引入全局主题和布局 token
 import App from './App.vue'                        // 引入根界面组合组件
 
