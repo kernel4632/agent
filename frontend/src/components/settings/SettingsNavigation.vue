@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { HugeiconsIcon } from '@hugeicons/vue'
+import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({
@@ -17,99 +18,69 @@ const emit = defineEmits(['select'])                        // 输出用户点�
 </script>
 
 <template>
-  <nav class="settings-navigation" aria-label="设置分类">
-    <div class="settings-navigation__items">
-      <div
+  <section class="settings-navigation">
+    <header class="settings-navigation__header">
+      <m3e-heading variant="headline" size="small" level="1">设置</m3e-heading>
+      <span>配置模型、工具和应用偏好</span>
+    </header>
+    <m3e-action-list class="settings-navigation__items" aria-label="设置分类">
+      <m3e-list-action
         v-for="item in props.items"
         :key="item.id"
         class="settings-navigation__item"
+        :aria-label="item.label"
+        @click="emit('select', item.id)"
       >
-        <m3e-icon-button
-          :id="`settings-nav-${item.id}`"
-          type="button"
-          shape="rounded"
-          :variant="item.id === props.selectedId ? 'filled' : 'standard'"
-          :aria-label="item.label"
-          :aria-current="item.id === props.selectedId ? 'page' : undefined"
-          @click="emit('select', item.id)"
-        >
-          <HugeiconsIcon
-            :icon="item.icon"
-            :stroke-width="ICON_STROKE_WIDTH"
-            :color="item.id === props.selectedId
-              ? 'var(--md-sys-color-on-primary-container)'
-              : 'var(--md-sys-color-on-surface-variant)'"
-          />
-        </m3e-icon-button>
-        <m3e-tooltip :for="`settings-nav-${item.id}`" position="after">{{ item.label }}</m3e-tooltip>
-      </div>
-    </div>
-  </nav>
+        <HugeiconsIcon slot="leading" :icon="item.icon" :stroke-width="ICON_STROKE_WIDTH" />
+        {{ item.label }}
+        <span slot="supporting-text">{{ item.description }}</span>
+        <HugeiconsIcon slot="trailing" :icon="ArrowRight01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+      </m3e-list-action>
+    </m3e-action-list>
+  </section>
 </template>
 
 <style scoped lang="scss">
 /* --- 导航主容器：垂直排列图标按钮 --- */
 .settings-navigation {
   display: flex;
-  align-items: center;
-  flex: 0 0 80px;
+  width: 100%;
+  min-width: 0;
+  overflow-y: auto;
   flex-direction: column;
-  padding: 24px 12px;
-  border-right: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface-container-lowest);
+  padding-bottom: 32px;
+  @include scrollbar-dark;
 }
 
-/* --- 按钮组：垂直排列带间距 --- */
-.settings-navigation__items {
+.settings-navigation__header {
   display: flex;
-  align-items: center;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  padding: 28px 40px 20px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
-/* --- 单个分类项容器 --- */
-.settings-navigation__item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-}
-
-/* --- 图标按钮颜色：未选中灰色，选中使用 primary 色 --- */
-.settings-navigation__item m3e-icon-button {
-  --m3e-icon-button-icon-color: var(--md-sys-color-outline);
-  --m3e-icon-button-hover-icon-color: var(--md-sys-color-on-surface);
-  --m3e-filled-icon-button-container-color: var(--md-sys-color-primary-container);
-  --m3e-filled-icon-button-icon-color: var(--md-sys-color-on-primary-container);
-  --m3e-filled-icon-button-hover-icon-color: var(--md-sys-color-on-primary-container);
-  --m3e-filled-icon-button-focus-icon-color: var(--md-sys-color-on-primary-container);
-  --m3e-filled-icon-button-pressed-icon-color: var(--md-sys-color-on-primary-container);
+.settings-navigation__header span {
   color: var(--md-sys-color-outline);
+  font-size: 13px;
 }
 
-/* 选中状态使用 primary-container 对应的前景 token。 */
-.settings-navigation__item m3e-icon-button[variant="filled"] {
-  color: var(--md-sys-color-on-primary-container);
+.settings-navigation__items {
+  width: min(720px, calc(100% - 80px));
+  margin: 20px 40px 0;
 }
 
 /* --- 窄屏适配：导航改为横向顶部条 --- */
 @media (max-width: 760px) {
   .settings-navigation {
-    flex: none;
-    width: 100%;
-    padding: 10px 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    border-right: 0;
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
-
-    &::-webkit-scrollbar { display: none; }
+    padding-bottom: 24px;
   }
 
+  .settings-navigation__header { padding: 22px 20px 16px; }
+
   .settings-navigation__items {
-    flex-direction: row;
-    width: max-content;
+    width: calc(100% - 40px);
+    margin: 12px 20px 0;
   }
 }
 </style>

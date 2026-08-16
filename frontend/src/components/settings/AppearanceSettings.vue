@@ -68,7 +68,7 @@ function updateField(field, value) {
   justify-content: space-between;
   flex: 0 0 auto;
   gap: 20px;
-  padding: 26px 32px 22px;
+  padding: 28px 40px 20px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
@@ -84,14 +84,14 @@ function updateField(field, value) {
 .appearance-settings__body {
   overflow-y: auto;
   flex: 1 1 auto;
-  padding: 24px 32px 48px;
+  padding: 24px 40px 48px;
   @include scrollbar-dark;
 }
 
 .appearance-settings__options {
   display: flex;
   width: min(640px, 100%);
-  margin: 0 auto;
+  margin: 0;
   flex-direction: column;
 }
 
@@ -108,7 +108,8 @@ function updateField(field, value) {
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
-  .appearance-settings__body { padding: 20px 16px 40px; }
+  .appearance-settings__header { padding: 22px 20px 16px; }
+  .appearance-settings__body { padding: 20px 20px 40px; }
   .appearance-settings__select { width: 100%; }
 }
 </style>

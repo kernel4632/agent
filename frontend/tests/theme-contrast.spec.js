@@ -22,23 +22,13 @@ for (const themeCase of themeCases) {
     await expect(page.locator('.settings-navigation')).toBeVisible()
     await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', themeCase.expected)
 
-    const icons = page.locator('.settings-navigation m3e-icon-button svg')
-    await expect(icons).toHaveCount(6)
+    const items = page.locator('.settings-navigation m3e-list-action')
+    await expect(items).toHaveCount(6)
 
-    const colors = await icons.evaluateAll((elements) => elements.map((icon) => ({
-      declared: icon.getAttribute('color'),
-      computed: getComputedStyle(icon).color,
-    })))
-
-    const expectedTokens = [
-      'var(--md-sys-color-on-primary-container)',
-      ...Array(5).fill('var(--md-sys-color-on-surface-variant)'),
-    ]
-    expect(colors.map(({ declared }) => declared)).toEqual(expectedTokens)
-    for (const { computed } of colors) {
+    const colors = await items.evaluateAll(elements => elements.map(item => getComputedStyle(item.querySelector('svg')).color))
+    for (const computed of colors) {
       expect(computed).not.toBe('rgba(0, 0, 0, 0)')
     }
-    expect(new Set(colors.map(({ computed }) => computed)).size).toBeGreaterThan(1)
   })
 }
 
@@ -48,7 +38,7 @@ test('appearance selector previews and persists the theme', async ({ page }) => 
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/')
   await page.locator('.sidebar__settings').click()
-  await page.locator('m3e-icon-button[aria-label="语言与外观"]').click()
+  await page.locator('.settings-navigation m3e-list-action[aria-label="语言与外观"]').click()
 
   for (const [theme, expected] of [
     ['light', 'light'],
@@ -57,7 +47,10 @@ test('appearance selector previews and persists the theme', async ({ page }) => 
   ]) {
     const selector = page.locator('.appearance-settings__select m3e-select').first()
     await selector.click()
-    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Home')
+    for (let index = 0; index < { system: 0, light: 1, dark: 2 }[theme]; index += 1) {
+      await page.keyboard.press('ArrowDown')
+    }
     await page.keyboard.press('Enter')
     await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', expected)
     await expect(page.locator('.appearance-settings')).toBeVisible()

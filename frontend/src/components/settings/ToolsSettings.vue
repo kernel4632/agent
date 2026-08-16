@@ -88,7 +88,7 @@ function updatePermission(index, permission) {
   justify-content: space-between;
   flex: 0 0 auto;
   gap: 20px;
-  padding: 26px 32px 22px;
+  padding: 28px 40px 20px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
@@ -104,14 +104,14 @@ function updatePermission(index, permission) {
 .tools-settings__body {
   overflow-y: auto;
   flex: 1 1 auto;
-  padding: 24px 32px 48px;
+  padding: 24px 40px 48px;
   @include scrollbar-dark;
 }
 
 .tools-settings__list {
   display: flex;
   width: min(720px, 100%);
-  margin: 0 auto;
+  margin: 0;
   flex-direction: column;
 }
 
@@ -134,14 +134,16 @@ function updatePermission(index, permission) {
 /* --- 空状态 --- */
 .tools-settings__empty {
   margin: 0;
-  padding: 32px;
+  padding: 24px 16px;
+  text-align: left;
   color: var(--md-sys-color-outline);
   text-align: center;
 }
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
-  .tools-settings__body { padding: 20px 16px 40px; }
+  .tools-settings__header { padding: 22px 20px 16px; }
+  .tools-settings__body { padding: 20px 20px 40px; }
   .tools-settings__controls { gap: 8px; }
 }
 </style>
