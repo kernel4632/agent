@@ -10,9 +10,9 @@ import { reactive } from 'vue'                         // 引入唯一响应式�
 function loadAppearance() {
   try {
     const saved = JSON.parse(localStorage.getItem('agent.appearance'))  // 读取上次保存的偏好
-    if (saved && typeof saved === 'object') return { language: saved.language || 'zh-CN', density: saved.density || 'comfortable', animations: saved.animations !== false, theme: saved.theme || 'system' }
+    if (saved && typeof saved === 'object') return { theme: saved.theme || 'system' }
   } catch { /* 损坏数据回退默认 */ }
-  return { language: 'zh-CN', density: 'comfortable', animations: true, theme: 'system' } // 首次使用的默认值
+  return { theme: 'system' } // 首次使用的默认值
 }
 
 

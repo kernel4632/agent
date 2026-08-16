@@ -94,7 +94,7 @@ function restoreAppearance() {
     const saved = JSON.parse(localStorage.getItem(appearanceKey))   // 读取上次保存的外观偏好
     if (saved && typeof saved === 'object') return saved            // 返回有效对象
   } catch { /* 损坏数据回退默认 */ }
-  return { language: 'zh-CN', density: 'comfortable', animations: true } // 首次使用的默认值
+  return { theme: 'system' } // 首次使用的默认值
 }
 
 
@@ -259,7 +259,7 @@ function updatePrompt(value) {
 // --- 修改外观字段 ---
 function updateAppearance(field, value) {
   const appearance = store.settings.draft?.appearance   // 读取外观设置草稿
-  if (!appearance || !['language', 'density', 'animations'].includes(field)) return false // 仅允许既定外观字段
+  if (!appearance || field !== 'theme') return false                    // 主题是唯一可编辑的外观偏好
   appearance[field] = value                              // 单字段变化进入隔离草稿
   return true                                            // 反馈修改完成
 }

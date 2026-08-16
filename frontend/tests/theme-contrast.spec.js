@@ -13,8 +13,6 @@ for (const themeCase of themeCases) {
     await page.addInitScript((theme) => {
       localStorage.setItem('agent.appearance', JSON.stringify({
         theme,
-        language: 'zh-CN',
-        density: 'comfortable',
         animations: true,
       }))
     }, themeCase.theme)

@@ -1,10 +1,12 @@
 <!--
 语言与外观设置：配置界面语言、信息密度和动画偏好。
 设计思想：外观偏好只在前端持久化（localStorage），不发送到 Server。
-核心数据：appearance（包含 language、density、animations 字段）。
+核心数据：appearance（包含 language、theme 字段）。
 调用示例：<AppearanceSettings v-model:appearance="settingsDraft.appearance" />。
 -->
 <script setup>
+import { t } from '../../i18n.js'
+
 const props = defineProps({
   appearance: { type: Object, required: true },             // 接收外观设置对象（双向绑定）
 })
@@ -22,7 +24,7 @@ function updateField(field, value) {
     <header class="appearance-settings__header">
       <div>
         <m3e-heading variant="headline" size="small" level="2">语言与外观</m3e-heading>
-        <span>保持黑白工作台的阅读密度与反馈节奏</span>
+        <span>{{ t('appearanceDescription') }}</span>
       </div>
     </header>
 
@@ -36,56 +38,13 @@ function updateField(field, value) {
             <strong>主题模式</strong>
             <span>亮色、暗色或跟随系统</span>
           </div>
-          <m3e-select
-            class="appearance-settings__select"
-            @input="updateField('theme', $event.currentTarget.value)"
-          >
+          <m3e-form-field class="appearance-settings__select" variant="outlined" hide-subscript="always">
+            <m3e-select @input="updateField('theme', $event.currentTarget.value)">
             <m3e-option value="system" :selected="(props.appearance.theme || 'system') === 'system'">跟随系统</m3e-option>
             <m3e-option value="light" :selected="props.appearance.theme === 'light'">亮色</m3e-option>
             <m3e-option value="dark" :selected="props.appearance.theme === 'dark'">暗色</m3e-option>
-          </m3e-select>
-        </div>
-
-        <!-- 界面语言。 -->
-        <div class="appearance-settings__option">
-          <div class="appearance-settings__label">
-            <strong>界面语言</strong>
-            <span>控制按钮、标签和提示文案的显示语言</span>
-          </div>
-          <m3e-select
-            class="appearance-settings__select"
-            @input="updateField('language', $event.currentTarget.value)"
-          >
-            <m3e-option value="zh-CN" :selected="(props.appearance.language || 'zh-CN') === 'zh-CN'">简体中文</m3e-option>
-            <m3e-option value="en-US" :selected="props.appearance.language === 'en-US'">English</m3e-option>
-          </m3e-select>
-        </div>
-
-        <!-- 界面密度。 -->
-        <div class="appearance-settings__option">
-          <div class="appearance-settings__label">
-            <strong>界面密度</strong>
-            <span>调整列表和卡片的间距与内边距</span>
-          </div>
-          <m3e-select
-            class="appearance-settings__select"
-            @input="updateField('density', $event.currentTarget.value)"
-          >
-            <m3e-option value="comfortable" :selected="(props.appearance.density || 'comfortable') === 'comfortable'">舒适</m3e-option>
-            <m3e-option value="compact" :selected="props.appearance.density === 'compact'">紧凑</m3e-option>
-          </m3e-select>
-        </div>
-
-        <!-- 界面动画。 -->
-        <div class="appearance-settings__option">
-          <div class="appearance-settings__label">
-            <strong>界面动画</strong>
-            <span>保留侧栏、弹窗和状态过渡动画</span>
-          </div>
-          <m3e-switch
-            :checked="props.appearance.animations !== false"
-            @change="updateField('animations', $event.currentTarget.checked)"
-          ></m3e-switch>
+            </m3e-select>
+          </m3e-form-field>
         </div>
 
       </div>

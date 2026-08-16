@@ -54,15 +54,13 @@ function updatePermission(index, permission) {
           <!-- 左侧：工具名和权限选择。 -->
           <div class="tools-settings__identity">
             <strong>{{ tool.title || tool.name }}</strong>
-            <m3e-select
-              class="tools-settings__permission"
-              :value="tool.permission"
-              @change="updatePermission(index, $event.currentTarget.value)"
-            >
+            <m3e-form-field class="tools-settings__permission" variant="outlined" hide-subscript="always">
+              <m3e-select @input="updatePermission(index, $event.currentTarget.value)">
               <m3e-option value="allow">自动执行</m3e-option>
               <m3e-option value="ask">每次询问</m3e-option>
               <m3e-option value="deny">禁止调用</m3e-option>
-            </m3e-select>
+              </m3e-select>
+            </m3e-form-field>
           </div>
           <!-- 右侧：启用开关。 -->
           <m3e-switch
