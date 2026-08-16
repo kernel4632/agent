@@ -76,6 +76,9 @@ async function auditViewport(page, testInfo, name) {
   await expect(page.locator('m3e-icon-button[aria-label="展开侧边栏"]')).toBeVisible() // 收起态展开控件可见
   await expect(page.locator('.sidebar__conversations')).toHaveCount(0)           // 收起态会话列表不应占据布局
   await expectClickableSidebar(page, state)                                     // 收起态图标仍保持可见、居中和可命中
+  const railCenter = state.left + state.width / 2                               // Navigation Rail 必须沿父级 flex 交叉轴居中
+  const railItems = state.buttons.filter(button => ['主页', '新建对话', '设置'].includes(button.label))
+  expect(railItems.every(button => Math.abs(button.left + button.width / 2 - railCenter) <= 1)).toBe(true)
   await page.screenshot({ path: testInfo.outputPath(`${name}-collapsed.png`), fullPage: true }) // 保存收起状态截图
 
   await page.locator('m3e-icon-button[aria-label="展开侧边栏"]').click() // 再次展开验证状态可逆

@@ -43,7 +43,7 @@ function toggleSidebar() {
       </m3e-nav-menu-item>
     </m3e-nav-menu>
 
-    <m3e-nav-rail v-else class="sidebar__rail" aria-label="主要操作">
+    <m3e-nav-rail v-else class="sidebar__rail" mode="compact" aria-label="主要操作">
       <m3e-nav-item aria-label="主页" :selected="props.activeView === 'home'" @click="emit('home')">
         <HugeiconsIcon slot="icon" :icon="Home01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         主页
@@ -109,7 +109,7 @@ function toggleSidebar() {
   transition: width var(--motion-duration-spring) var(--motion-spring-bouncy);
 
   &.is-collapsed {
-    --sidebar-width: 76px;                                            /* 收起态只保留图标宽度 */
+    --sidebar-width: 96px;                                            /* 对齐 M3E compact navigation rail */
     --sidebar-inset: 9px;
   }
 }
@@ -179,6 +179,7 @@ function toggleSidebar() {
 
 .sidebar__rail {
   min-height: 0;
+  align-self: stretch;
   flex: 1 1 auto;
 }
 
