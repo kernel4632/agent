@@ -5,7 +5,7 @@ SSE 连接在会话打开时建立并持久保持，Agent 循环结束不断开�
 */
 import { AgentAPI } from '../api.js'                    // 引入正式会话和审批 HTTP 契约
 import { store } from '../store.js'                     // 引入完整会话和事件位置
-import { readSSE } from '../utils/sse.js'               // 引入标准递增 SSE 解析能力
+import { readNDJSON } from '../utils/ndjson.js'         // 引入 NDJSON 流解析能力（后端格式）
 import { Session } from './session.js'                  // 引入终态刷新和摘要同步
 import { UI } from './ui.js'                            // 引入复制和轻反馈
 import { t } from '../i18n.js'                          // 引入当前语言反馈文案
@@ -99,7 +99,7 @@ async function send(sessionID, content) {
 // --- 消费当前执行的事件流 ---
 async function consume(sessionID, response, controller) {
   try {
-    await readSSE(response, (event) => receive(sessionID, event, controller)) // 事件严格按网络顺序修改会话
+    await readNDJSON(response, (event) => receive(sessionID, event, controller)) // 事件严格按网络顺序修改会话
   } catch (error) {
     if (controller.signal.aborted) return                 // 终态和用户停止造成的中断不是错误
     const session = store.sessions[sessionID]             // 读取仍在页面中的会话
@@ -122,20 +122,28 @@ async function receive(sessionID, event, controller) {
   if (!session) return                                    // 已删除或未加载会话忽略旧事件
   const assistant = getStreamingAssistant(session)        // 当前增量统一写入最新响应占位
 
-  if (event.name === 'sync') return                       // 连接建立确认事件不修改页面
-  if (event.name === 'status') return receiveStatus(session, event, assistant)
-  if (event.name === 'text-delta') return receiveTextDelta(session, event, assistant)
-  if (event.name === 'reasoning-delta') return receiveReasoningDelta(session, event, assistant)
-  if (event.name === 'tool-call') return receiveToolCall(session, event, assistant)
-  if (event.name === 'tool-output') return receiveToolOutput(session, event, assistant)
-  if (event.name === 'tool-result') return receiveToolResult(session, event, assistant)
-  if (event.name === 'message') return receiveMessage(session, event, assistant)
-  if (event.name === 'approval') return receiveApproval(session, event, assistant)
-  if (event.name === 'error') return receiveError(session, event, assistant)
+  if (event.type === 'data-session') return receiveSessionSnapshot(session, event) // 连接时初始快照
+  if (event.type === 'data-status') return receiveStatus(session, event, assistant) // 运行状态变更
+  if (event.type === 'text-delta') return receiveTextDelta(session, event, assistant) // 文本增量
+  if (event.type === 'reasoning') return receiveReasoningDelta(session, event, assistant) // 推理增量
+  if (event.type === 'tool-input-delta') return receiveToolInputDelta(session, event, assistant) // 工具输入增量
+  if (event.type === 'data-message') return receiveMessage(session, event, assistant) // 完整消息
+  if (event.type === 'data-permission') return receiveApproval(session, event, assistant) // 审批请求
+  if (event.type === 'data-tool-output') return receiveToolOutput(session, event, assistant) // 工具输出流
+  if (event.type === 'error') return receiveError(session, event, assistant) // 错误
 }
 
 
-// --- 处理 status 事件：Agent 循环开始或结束 ---
+// --- 处理 data-session 事件：连接时推送初始会话快照 ---
+function receiveSessionSnapshot(session, event) {
+  if (event.data?.status === 'running' && session.status !== 'running') {
+    session.status = 'running'
+    Session.syncSummary(session)
+  }
+}
+
+
+// --- 处理 data-status 事件：Agent 循环开始或结束 ---
 function receiveStatus(session, event, assistant) {
   if (event.data.status === 'running' && session.status !== 'running') {
     session.status = 'running'                            // 后端开始循环，UI 切换为运行状态
@@ -184,31 +192,38 @@ function receiveStatus(session, event, assistant) {
 // --- 处理 text-delta 事件：追加模型正文增量 ---
 function receiveTextDelta(session, event, assistant) {
   const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建（Agent 循环新一轮）
-  streamingMessage.content += event.data.text || ''              // 追加模型正文增量
+  streamingMessage.content += event.textDelta || ''              // 追加模型正文增量（AI SDK 字段）
 }
 
 
-// --- 处理 reasoning-delta 事件：追加模型推理增量 ---
+// --- 处理 reasoning 事件：追加模型推理增量 ---
 function receiveReasoningDelta(session, event, assistant) {
   const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建
-  streamingMessage.reasoning += event.data.text || ''            // 追加模型推理增量
+  streamingMessage.reasoning += event.textDelta || ''            // 追加模型推理增量（AI SDK 字段）
 }
 
 
-// --- 处理 tool-call 事件：展示模型工具声明 ---
-function receiveToolCall(session, event, assistant) {
-  const toolCall = event.data.toolCall                           // 读取完整工具调用结构
-  if (toolCall.toolName === 'finish' || toolCall.toolName === 'delegate_task') return // 内部控制工具不展示
+// --- 处理 tool-input-delta 事件：工具调用输入增量（AI SDK 流式格式）---
+function receiveToolInputDelta(session, event, assistant) {
+  const { toolCallId, argsTextDelta } = event                    // AI SDK 字段
+  if (!toolCallId) return                                        // 无 ID 时忽略
   const streamingMessage = assistant || createAssistant(session) // 没有流式占位则新建
-  upsertTool(streamingMessage, toolCall, 'running')              // 展示模型工具声明
+  let tool = streamingMessage.tools.find(t => t.id === toolCallId)
+  if (!tool) {
+    tool = { id: toolCallId, name: toolCallId, title: toolCallId, input: {}, preview: '', status: 'running', checkpoint: null }
+    streamingMessage.tools.push(tool)                            // 首次出现时创建工具条
+  }
+  // 累积参数文本，尝试解析为对象
+  tool._argsText = (tool._argsText || '') + (argsTextDelta || '')
+  try { tool.input = JSON.parse(tool._argsText) } catch { /* 参数还不完整，等待更多增量 */ }
 }
 
 
-// --- 处理 tool-output 事件：实时追加工具输出预览 ---
+// --- 处理 data-tool-output 事件：实时追加工具输出预览 ---
 function receiveToolOutput(session, event, assistant) {
   const streamingMessage = assistant || createAssistant(session) // 确保有活跃流式占位
-  const tool = streamingMessage.tools.find((item) => item.id === event.data.toolCallId) // 定位正在执行的工具
-  if (tool) tool.preview += event.data.output || ''             // 实时追加工具输出预览
+  const tool = streamingMessage.tools.find((item) => item.id === event.data?.callID) // 定位正在执行的工具
+  if (tool) tool.preview += String(event.data?.output ?? '') // 实时追加工具输出预览
 }
 
 
@@ -225,9 +240,9 @@ function receiveToolResult(session, event, assistant) {
 }
 
 
-// --- 处理 message 事件：后端推送完整消息 ---
+// --- 处理 data-message 事件：后端推送完整消息 ---
 function receiveMessage(session, event, assistant) {
-  if (!event.data.message) return                                // 无消息体忽略
+  if (!event.data?.message) return                              // 无消息体忽略
   const msg = event.data.message                                // 后端推送完整消息
   if (msg.role === 'user') return                                // 用户消息由 send() 处理，忽略后端回显
   if (msg.role === 'assistant') {
@@ -247,17 +262,19 @@ function receiveMessage(session, event, assistant) {
 }
 
 
-// --- 处理 approval 事件：展示审批请求 ---
+// --- 处理 data-permission 事件：展示审批请求 ---
 function receiveApproval(session, event, assistant) {
-  if (!assistant) return                                         // 无流式占位时忽略审批
-  upsertTool(assistant, { toolCallId: event.data.toolCallId, toolName: event.data.toolName, input: event.data.input }, 'waiting') // 展示审批请求
+  const streamingMessage = assistant || createAssistant(session) // 确保有占位
+  const { callID, tool, input } = event.data ?? {}               // 后端字段
+  if (!callID) return                                            // 无 ID 时忽略
+  upsertTool(streamingMessage, { toolCallId: callID, toolName: tool, input }, 'waiting') // 展示审批请求
 }
 
 
 // --- 处理 error 事件：展示不可恢复错误 ---
 function receiveError(session, event, assistant) {
-  if (!assistant) return                                         // 无流式占位时忽略错误
-  assistant.error = event.data.message || event.data.error || '未知错误' // 展示不可恢复错误
+  const streamingMessage = assistant || createAssistant(session) // 确保有占位
+  streamingMessage.error = event.errorText || event.data?.message || '未知错误' // 展示不可恢复错误
   // 如果有重试信息不关闭打字状态（属于 retry 阶段）
   if (!event.data.attempt) {
     assistant.request.status = 'failed'                          // 请求条进入故障状态
@@ -336,7 +353,9 @@ async function decide(sessionID, toolCallID, decision) {
   const tool = session?.messages.flatMap((item) => item.tools || []).find((item) => item.id === toolCallID) // 定位原位工具条
   if (!tool || !['deny', 'allow-once', 'always-allow'].includes(decision)) return false // 无效决定不修改数据
   try {
-    await AgentAPI.decideTool(sessionID, toolCallID, decision) // 恢复等待中的工具
+    const action = decision === 'deny' ? 'deny' : 'allow'      // 映射到后端 action 字段
+    const scope = decision === 'always-allow' ? 'always' : 'once' // 映射到后端 scope 字段
+    await AgentAPI.decideTool(sessionID, toolCallID, action, scope) // 恢复等待中的工具
     tool.decision = decision                             // 保存本次用户决定
     tool.status = decision === 'deny' ? 'rejected' : 'running' // 允许后等待真实工具结果
     UI.notify(t(decision === 'deny' ? 'toolDenied' : 'toolAllowed')) // 确认点击已提交

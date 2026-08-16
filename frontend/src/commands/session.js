@@ -48,7 +48,7 @@ async function create(workspaceID = store.ui.activeWorkspaceID) {
   const workspace = store.workspaces.find((item) => item.id === workspaceID) || store.workspaces[0] // 没有选择时使用首个工作区
   if (!workspace) return null                           // 没有工作区时不能创建归属不明的会话
   try {
-    const created = await AgentAPI.createSession(workspace.id, store.config.activeModel) // Server 创建并持久化完整会话
+    const created = await AgentAPI.createSession(workspace.id, store.config.activeProvider, store.config.activeModel) // Server 创建并持久化完整会话
     const session = normalize(created)                  // 补齐仅前端使用的草稿和用量字段
     store.sessions[session.id] = session                // 完整会话进入响应式目录
     workspace.sessions.unshift(summaryOf(session))      // 摘要进入当前工作区首位
@@ -157,19 +157,19 @@ function normalize(source, previous = {}) {
   const sessionData = structuredClone(source)            // Server 返回的 Session 即为前端公开结构
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
   for (const item of source.messages ?? []) {
-    if (item.role === 'tool') {
-      const assistant = [...messages].reverse().find((message) => message.role === 'assistant') // 工具结果归入最近助手轮次
-      for (const result of item.content) {
-        const tool = assistant?.tools?.find((entry) => entry.id === result.toolCallId) // 按 AI SDK 调用身份查找展示条
-        if (tool) Object.assign(tool, { status: result.output.type.startsWith('error-') ? 'error' : 'completed', preview: formatToolOutput(result.output), checkpoint: result.checkpoint }) // 补齐真实结果
-      }
-      continue                                           // 工具协议消息不单独占用聊天气泡
-    }
-    const blocks = typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : item.content // AI SDK 允许字符串或内容块数组
+    const parts = Array.isArray(item.parts) ? item.parts
+      : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
     const message = structuredClone(item)                // 复制消息避免归一化修改 Server 响应
-    message.reasoning = blocks.filter((block) => block.type === 'reasoning').map((block) => block.text).join('') // 合并 AI SDK 推理块
-    message.content = blocks.filter((block) => block.type === 'text').map((block) => block.text).join('') // 合并 AI SDK 文本块
-    message.tools = blocks.filter((block) => block.type === 'tool-call').map((call) => ({ id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.input, preview: '', status: 'running', checkpoint: null })) // 将 AI SDK 工具调用转换为展示条
+    message.reasoning = parts.filter((p) => p.type === 'reasoning').map((p) => p.reasoning || p.text || '').join('') // 合并推理块
+    message.content = parts.filter((p) => p.type === 'text').map((p) => p.text || '').join('') // 合并文本块
+    message.tools = parts
+      .filter((p) => p.type === 'tool-invocation' || p.type === 'tool-call')
+      .map((p) => {
+        const call = p.toolInvocation || p                // 兼容 UIMessage parts 和旧格式
+        const status = call.state === 'result' ? (call.result?.isError ? 'error' : 'completed') : 'running'
+        const preview = call.state === 'result' ? formatToolOutput(call.result) : ''
+        return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, status, checkpoint: null }
+      })
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }
 

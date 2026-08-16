@@ -8,6 +8,7 @@ import { startWatchers } from './watchers.js'      // 引入集中管理的数�
 import { Config } from './commands/config.js'      // 引入应用配置和能力加载指令
 import { Workspace } from './commands/workspace.js' // 引入主页工作区加载指令
 import { store } from './store.js'                 // 引入启动状态反馈数据
+import { AgentAPI } from './api.js'                // 引入启动登录指令
 import '@m3e/web/avatar'                            // 注册 M3E 组件：身份头像
 import '@m3e/web/button'                            // 注册 M3E 组件：文本命令
 import '@m3e/web/card'                              // 注册 M3E 组件：内容容器
@@ -33,6 +34,7 @@ import App from './App.vue'                        // 引入根界面组合组�
 
 const app = createApp(App)                         // 创建唯一 Vue 应用实例
 startWatchers()                                    // 启动标签持久化等集中副作用
+await AgentAPI.login('', '').catch(() => {})         // 开发模式下无密码直接登录获取 cookie
 await Promise.all([Workspace.load(), Config.load()]) // 页面挂载前并行恢复 Server 事实
 store.ui.isLoading = false                         // 首次资源加载完成后开放工作台
 app.mount('#app')                                  // 将完整 Agent 工作台挂载到页面

@@ -22,40 +22,59 @@ async function load() {
 
 // --- 应用 Server 配置到设置结构 ---
 function apply(raw) {
-  const providerData = raw.provider ?? {}                  // 读取 Server 唯一供应商配置
-  const providers = {
-    默认供应商: {
-      enabled: true,                                        // 设置页开关默认为启用
-      protocol: 'openai-compatible',                        // 当前 Server 固定使用 OpenAI 兼容协议
-      baseURL: providerData.api || '',                      // API 地址
-      apiKey: providerData.key || '',                       // API 密钥
-      models: Array.isArray(providerData.models) ? providerData.models : [], // 可用模型列表
-      modelSettings: {},                                    // 前端维护模型能力设置
-      timeout: 120000,                                      // 默认请求超时
-      headers: '{}',                                        // 自定义请求头
-    },
+  // 后端 providers 是数组，每项包含 name、baseURL、apiKey、models 等字段
+  const providerList = Array.isArray(raw.providers) ? raw.providers : []
+  const providers = {}
+  for (const p of providerList) {
+    const key = p.name || '默认供应商'
+    providers[key] = {
+      enabled: p.enabled !== false,
+      protocol: p.protocol || 'openai-compatible',
+      baseURL: p.baseURL || p.api || '',
+      apiKey: p.apiKey || p.key || '',
+      models: Array.isArray(p.models) ? p.models : [],
+      modelSettings: p.modelSettings || {},
+      timeout: p.timeout || 120000,
+      headers: p.headers || '{}',
+    }
   }
-  const permissions = raw.permission ?? {}
-  const toolSettings = Object.entries(permissions)
-    .filter(([name]) => !['delegate_task', 'agent'].includes(name))
-    .map(([name, permission]) => ({ name, title: name, enabled: permission !== 'deny', permission }))
-  const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => ({
-    id: name,                                               // 设置页使用稳定配置键作为身份
-    name,                                                   // 展示和保存共用名称
-    command: definition.command || definition.url || '',     // 简单面板显示主要连接地址
-    enabled: definition.enabled !== false,                   // 映射启用开关
-    definition: structuredClone(definition),                 // 保存完整 transport/args/env/headers 定义
+  // 兜底：如果没有供应商，提供空的默认条目
+  if (Object.keys(providers).length === 0) {
+    providers['默认供应商'] = { enabled: true, protocol: 'openai-compatible', baseURL: '', apiKey: '', models: [], modelSettings: {}, timeout: 120000, headers: '{}' }
+  }
+
+  // 后端 permission 是规则数组，前端工具设置需要按工具名聚合
+  const permissionRules = Array.isArray(raw.permission) ? raw.permission : []
+  const toolMap = {}
+  for (const rule of permissionRules) {
+    if (!rule.tool || rule.tool === '*') continue          // 跳过通配符规则
+    if (!toolMap[rule.tool]) toolMap[rule.tool] = rule.action
+  }
+  const toolSettings = Object.entries(toolMap).map(([name, action]) => ({
+    name, title: name, enabled: action !== 'deny', permission: action,
   }))
 
+  const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => ({
+    id: name,
+    name,
+    command: definition.command || definition.url || '',
+    enabled: definition.enabled !== false,
+    definition: structuredClone(definition),
+  }))
+
+  const firstProvider = Object.keys(providers)[0] || ''
+  const firstModels = providers[firstProvider]?.models || []
+  const activeModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
+
   Object.assign(store.config, {
-    providers,                                              // 替换供应商编辑目录
-    tools: toolSettings,                                    // 替换工具权限目录
-    mcp,                                                    // 替换 MCP 编辑和状态目录
-    prompt: raw.prompts?.system || '',                       // 读取 Server 系统提示词
-    appearance: store.config.appearance,                     // 外观偏好保持前端本地状态
-    activeProvider: '默认供应商',                             // Server 当前只有一个供应商
-    activeModel: providerData.models?.[0] || '',             // 使用模型列表首项作为默认
-    raw: structuredClone(raw),                               // 保留未在设置页展示的字段
+    providers,
+    tools: toolSettings,
+    mcp,
+    prompt: raw.prompts?.system || '',
+    appearance: store.config.appearance,
+    activeProvider: firstProvider,
+    activeModel,
+    raw: structuredClone(raw),
   })
 }
 

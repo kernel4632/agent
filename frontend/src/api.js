@@ -10,6 +10,7 @@ const apiRoot = '/api'                                  // Vite 与桌面宿主�
 async function request(path, method = 'GET', body) {
   const response = await fetch(`${apiRoot}${path}`, {   // 向真实 Agent Server 发起 HTTP 请求
     method,                                             // 使用业务动作指定方法
+    credentials: 'include',                             // 携带 HttpOnly cookie 完成鉴权
     headers: body === undefined ? undefined : { 'content-type': 'application/json' }, // 有请求体时声明 JSON
     body: body === undefined ? undefined : JSON.stringify(body), // 将结构化数据编码为请求正文
   })
@@ -26,25 +27,28 @@ async function request(path, method = 'GET', body) {
 
 // --- 建立会话事件订阅 ---
 function subscribeSession(sessionID, afterID, signal) {
-  return fetch(`${apiRoot}/sse?id=${encodeURIComponent(sessionID)}`, { signal }) // SSE 连接使用会话 ID
+  return fetch(`${apiRoot}/session/events?sessionID=${encodeURIComponent(sessionID)}`, {
+    signal,
+    credentials: 'include',                             // 携带 cookie 通过鉴权
+  })
 }
 
 
 export const AgentAPI = {
-  getHealth: () => request('/health'),                                      // 读取服务身份和版本
-  listWorkspaces: () => request('/workspace'),                              // 读取工作区及下属会话
-  createWorkspace: (path) => request('/workspace', 'POST', { path }),       // 添加工作区定义
-  updateWorkspace: (workspaceID, changes) => request('/workspace', 'PATCH', { id: workspaceID, ...changes }), // 修改工作区
-  removeWorkspace: (workspaceID) => request(`/workspace?id=${encodeURIComponent(workspaceID)}`, 'DELETE'), // 仅移除工作区定义
-  createSession: (workspaceID, model) => request('/session', 'POST', { workspaceId: workspaceID, model: model || undefined }), // 创建工作区会话
-  getSession: (sessionID) => request(`/session?id=${encodeURIComponent(sessionID)}`), // 读取完整会话
-  updateSession: (sessionID, changes) => request('/session', 'PATCH', { id: sessionID, ...changes }), // 修改标题或模型
-  removeSession: (sessionID) => request(`/session?id=${encodeURIComponent(sessionID)}`, 'DELETE'), // 删除会话
-  sendMessage: (sessionID, content) => request('/agent/send', 'POST', { id: sessionID, content }), // 发送模型请求
-  stopSession: (sessionID) => request('/agent/stop', 'POST', { id: sessionID }), // 停止当前会话执行
-  subscribeSession,                                                       // 订阅递增会话事件
-  decideTool: (sessionID, toolCallID, decision) => request('/agent/approve', 'POST', { id: sessionID, toolCallId: toolCallID, approved: decision !== 'deny' }), // 提交权限决定
-  generateTitle: (sessionID, prompt) => request('/title', 'POST', { id: sessionID, prompt }), // 为会话生成标题
-  getConfig: () => request('/config'),                                  // 读取脱敏配置
-  updateConfig: (changes) => request('/config', 'PATCH', changes),       // 局部更新配置
+  getHealth:        ()                          => request('/health'),
+  login:            (username, password)        => request('/login', 'POST', { username, password }),
+  logout:           ()                          => request('/logout', 'POST'),
+  listWorkspaces:   ()                          => request('/workspace'),
+  createWorkspace:  (path)                      => request('/workspace', 'POST', { path }),
+  removeWorkspace:  (workspaceID)               => request(`/workspace?id=${encodeURIComponent(workspaceID)}`, 'DELETE'),
+  createSession:    (workspaceID, provider, model) => request('/session', 'POST', { workspaceID, provider, model }),
+  getSession:       (sessionID)                 => request(`/session?id=${encodeURIComponent(sessionID)}`),
+  updateSession:    (sessionID, changes)        => request('/session', 'PATCH', { id: sessionID, ...changes }),
+  removeSession:    (sessionID)                 => request(`/session?id=${encodeURIComponent(sessionID)}`, 'DELETE'),
+  sendMessage:      (sessionID, message)        => request('/agent/send', 'POST', { sessionID, message }),
+  stopSession:      (sessionID)                 => request('/agent/stop', 'POST', { sessionID }),
+  subscribeSession,
+  decideTool:       (sessionID, callID, action, scope) => request('/permission/decide', 'POST', { sessionID, callID, action, scope }),
+  getConfig:        ()                          => request('/config'),
+  updateConfig:     (changes)                   => request('/config', 'PATCH', changes),
 }
