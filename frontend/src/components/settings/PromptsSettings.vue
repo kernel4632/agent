@@ -35,7 +35,7 @@ function onInput(event) {
 
     <!-- 编辑区域。 -->
     <div class="prompts-settings__body">
-      <div class="prompts-settings__editor">
+      <m3e-form-field class="prompts-settings__editor" variant="outlined" hide-subscript="always">
         <textarea
           class="prompts-settings__textarea"
           :value="props.prompt"
@@ -43,18 +43,20 @@ function onInput(event) {
           spellcheck="false"
           @input="onInput"
         ></textarea>
-      </div>
+      </m3e-form-field>
 
       <!-- 使用提示。 -->
-      <aside class="prompts-settings__tips">
-        <m3e-heading variant="title" size="small" level="3">提示词建议</m3e-heading>
-        <ul>
-          <li>明确 Agent 的身份和专长领域</li>
-          <li>指定回复的语言和风格偏好</li>
-          <li>列出需要遵守的规则和约束</li>
-          <li>提供常用的项目上下文信息</li>
-        </ul>
-      </aside>
+      <m3e-card class="prompts-settings__tips" variant="outlined">
+        <aside slot="content" class="prompts-settings__tips-content">
+          <m3e-heading variant="title" size="small" level="3">提示词建议</m3e-heading>
+          <ul>
+            <li>明确 Agent 的身份和专长领域</li>
+            <li>指定回复的语言和风格偏好</li>
+            <li>列出需要遵守的规则和约束</li>
+            <li>提供常用的项目上下文信息</li>
+          </ul>
+        </aside>
+      </m3e-card>
     </div>
   </section>
 </template>
@@ -115,18 +117,12 @@ function onInput(event) {
   width: 100%;
   min-height: 320px;
   padding: 16px 20px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px;
-  background: var(--md-sys-color-surface-dim);
   color: var(--md-sys-color-on-surface-variant);
   font-family: inherit;
   font-size: 14px;
   line-height: 1.7;
   resize: vertical;
   outline: none;
-  transition: border-color 0.15s;
-
-  &:focus { border-color: var(--md-sys-color-outline); }
 
   &::placeholder { color: var(--md-sys-color-outline); }
 }
@@ -135,10 +131,10 @@ function onInput(event) {
 .prompts-settings__tips {
   width: min(820px, 100%);
   margin: 0 auto;
+}
+
+.prompts-settings__tips-content {
   padding: 16px 20px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px;
-  background: var(--md-sys-color-surface);
 }
 
 .prompts-settings__tips ul {

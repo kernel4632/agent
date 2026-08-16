@@ -14,13 +14,17 @@ import '@m3e/web/button'                            // 注册 M3E 组件：文�
 import '@m3e/web/card'                              // 注册 M3E 组件：内容容器
 import '@m3e/web/checkbox'                          // 注册 M3E 组件：任务状态控件
 import '@m3e/web/chips'                             // 注册 M3E 组件：附件 Chip
+import '@m3e/web/content-pane'                      // 注册 M3E 组件：内容面板
 import '@m3e/web/dialog'                            // 注册 M3E 组件：确认弹窗
+import '@m3e/web/divider'                           // 注册 M3E 组件：分隔线
 import '@m3e/web/expansion-panel'                   // 注册 M3E 组件：折叠面板
 import '@m3e/web/form-field'                        // 注册 M3E 组件：输入字段外观
 import '@m3e/web/heading'                           // 注册 M3E 组件：标题层级
 import '@m3e/web/icon-button'                       // 注册 M3E 组件：图标命令
 import '@m3e/web/list'                              // 注册 M3E 组件：列表
 import '@m3e/web/menu'                              // 注册 M3E 组件：浮层菜单
+import '@m3e/web/nav-menu'                          // 注册 M3E 组件：侧边导航菜单
+import '@m3e/web/nav-rail'                          // 注册 M3E 组件：收起态导航栏
 import '@m3e/web/progress-indicator'                // 注册 M3E 组件：请求进度
 import '@m3e/web/search'                            // 注册 M3E 组件：搜索框
 import '@m3e/web/select'                            // 注册 M3E 组件：选择器

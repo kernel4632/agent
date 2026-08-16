@@ -63,12 +63,12 @@ test('designed interaction state screenshots', async ({ page }, testInfo) => {
 test('settings keeps global navigation available', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop')                       // 桌面设置页验证常驻 Grok 侧栏
   await page.goto('/')                                                 // 从主页开始验证完整返回路径
-  await page.locator('.sidebar__fifth m3e-button').click()             // 打开设置内容区
+  await page.locator('.sidebar__settings').click()                      // 打开设置内容区
   await expect(page.locator('.settings-content')).toBeVisible()        // 设置内容应替换主区域
   await expect(page.locator('.sidebar')).toBeVisible()                 // 全局侧栏必须继续可用
   await expect(page.locator('.settings-rail')).toHaveCount(0)          // 设置内容只保留一层分类侧栏
   await capture(page, testInfo, '08-settings-with-sidebar')            // 保存设置和全局导航共存状态
-  await page.locator('.sidebar__second m3e-button').first().click()     // 使用常驻导航返回主页
+  await page.locator('m3e-nav-menu-item[aria-label="主页"]').click()   // 使用常驻导航返回主页
   await expect(page.locator('.home-view')).toBeVisible()               // 验证用户不被困在设置页
   await capture(page, testInfo, '09-returned-home')                    // 保存真实返回结果
 })
@@ -86,7 +86,7 @@ test('sidebar lists only sessions opened from home', async ({ page }) => {
   await expect(page.locator('.sidebar-session-item')).toHaveCount(1)    // 只有已加载会话加入侧边栏
   await expect(page.locator('.sidebar-session-item').first()).toContainText(firstTitle) // 第一个打开项显示真实标题
 
-  await page.locator('.sidebar__second m3e-button').first().click()      // 返回主页选择另一个历史会话
+  await page.locator('m3e-nav-menu-item[aria-label="主页"]').click()    // 返回主页选择另一个历史会话
   await page.locator('.home-session').nth(1).click()                     // 从 Server 加载第二个完整会话
   await expect(page.locator('.sidebar-session-item')).toHaveCount(2)    // 两个已打开会话组成当前侧边栏列表
   await expect(page.locator('.sidebar-session-item').first()).toContainText(secondTitle) // 最近打开项排在最前
@@ -98,7 +98,7 @@ test('opened session tabs close without deleting history', async ({ page }) => {
   await page.goto('/')                                                  // 从全部历史仍可见的主页开始
   const historyCount = await page.locator('.home-session').count()      // 记录关闭标签前的后端历史数量
   await page.locator('.home-session').nth(0).click()                     // 打开第一个标签
-  await page.locator('.sidebar__second m3e-button').first().click()      // 回主页继续打开另一个标签
+  await page.locator('m3e-nav-menu-item[aria-label="主页"]').click()    // 回主页继续打开另一个标签
   await page.locator('.home-session').nth(1).click()                     // 第二个标签成为当前对话
 
   await page.locator('.sidebar-session-item').nth(1).locator('.sidebar-session-close').click() // 最近标签在前，第二项是后台标签

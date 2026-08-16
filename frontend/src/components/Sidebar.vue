@@ -12,6 +12,7 @@ const collapsed = defineModel('collapsed', { type: Boolean, default: false })
 const props = defineProps({
   conversations: { type: Array, default: () => [] },
   activeConversationId: { type: [String, Number], default: null },
+  activeView: { type: String, default: 'home' },
 })
 const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'close-conversation', 'settings'])
 
@@ -31,48 +32,59 @@ function toggleSidebar() {
       </m3e-icon-button>
     </header>
 
-    <nav class="sidebar__actions" aria-label="主要操作">
-      <m3e-button class="sidebar__action" type="button" shape="square" aria-label="主页" :title="collapsed ? '主页' : undefined" @click="emit('home')">
-        <span class="sidebar__action-content">
-          <HugeiconsIcon :icon="Home01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-          <span class="sidebar__label">主页</span>
-        </span>
-      </m3e-button>
-      <m3e-button class="sidebar__action is-primary" type="button" variant="tonal" shape="square" aria-label="新建对话" :title="collapsed ? '新建对话' : undefined" @click="emit('new-conversation')">
-        <span class="sidebar__action-content">
-          <HugeiconsIcon :icon="PencilEdit01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-          <span class="sidebar__label">新建对话</span>
-        </span>
-      </m3e-button>
-    </nav>
+    <m3e-nav-menu v-if="!collapsed" class="sidebar__actions" aria-label="主要操作">
+      <m3e-nav-menu-item aria-label="主页" :selected="props.activeView === 'home'" :title="collapsed ? '主页' : undefined" @click="emit('home')">
+        <HugeiconsIcon slot="icon" :icon="Home01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+        <span slot="label">主页</span>
+      </m3e-nav-menu-item>
+      <m3e-nav-menu-item aria-label="新建对话" :title="collapsed ? '新建对话' : undefined" @click="emit('new-conversation')">
+        <HugeiconsIcon slot="icon" :icon="PencilEdit01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+        <span slot="label">新建对话</span>
+      </m3e-nav-menu-item>
+    </m3e-nav-menu>
 
-    <section v-if="!collapsed" class="sidebar__conversations" aria-label="会话列表">
-      <div
+    <m3e-nav-rail v-else class="sidebar__rail" aria-label="主要操作">
+      <m3e-nav-item aria-label="主页" :selected="props.activeView === 'home'" @click="emit('home')">
+        <HugeiconsIcon slot="icon" :icon="Home01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+        主页
+      </m3e-nav-item>
+      <m3e-nav-item aria-label="新建对话" @click="emit('new-conversation')">
+        <HugeiconsIcon slot="icon" :icon="PencilEdit01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+        新建
+      </m3e-nav-item>
+      <m3e-nav-item aria-label="设置" :selected="props.activeView === 'settings'" @click="emit('settings')">
+        <HugeiconsIcon slot="icon" :icon="Settings01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+        设置
+      </m3e-nav-item>
+    </m3e-nav-rail>
+
+    <m3e-nav-menu v-if="!collapsed" class="sidebar__conversations" aria-label="会话列表">
+      <m3e-nav-menu-item
         v-for="conversation in props.conversations"
         :key="conversation.id"
         class="sidebar__conversation-row"
-        :class="{ 'is-active': conversation.id === props.activeConversationId }"
+        :selected="conversation.id === props.activeConversationId"
         @click="emit('select-conversation', conversation.id)"
       >
-        <span class="sidebar__conversation-title">{{ conversation.title || '新对话' }}</span>
-        <m3e-icon-button class="sidebar__conversation-close" type="button" shape="rounded" aria-label="关闭会话" title="关闭" @click.stop="emit('close-conversation', conversation.id)">
+        <span slot="label" class="sidebar__conversation-title">{{ conversation.title || '新对话' }}</span>
+        <m3e-icon-button slot="badge" class="sidebar__conversation-close" type="button" shape="rounded" aria-label="关闭会话" title="关闭" @click.stop="emit('close-conversation', conversation.id)">
           <HugeiconsIcon :icon="Cancel01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         </m3e-icon-button>
-      </div>
-    </section>
+      </m3e-nav-menu-item>
+    </m3e-nav-menu>
 
     <m3e-icon-button v-if="collapsed" class="sidebar__expand" type="button" shape="rounded" aria-label="展开侧边栏" aria-expanded="false" title="展开侧边栏" @click="toggleSidebar">
       <HugeiconsIcon :icon="ArrowRightDoubleIcon" :stroke-width="ICON_STROKE_WIDTH" />
     </m3e-icon-button>
 
-    <footer class="sidebar__footer">
+    <footer v-if="!collapsed" class="sidebar__footer">
       <m3e-divider></m3e-divider>
-      <m3e-button class="sidebar__settings" type="button" shape="square" aria-label="设置" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
-        <span class="sidebar__action-content">
-          <HugeiconsIcon :icon="Settings01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-          <span class="sidebar__label">设置</span>
-        </span>
-      </m3e-button>
+      <m3e-nav-menu class="sidebar__settings-menu">
+        <m3e-nav-menu-item class="sidebar__settings" aria-label="设置" :selected="props.activeView === 'settings'" :title="collapsed ? '设置' : undefined" @click="emit('settings')">
+          <HugeiconsIcon slot="icon" :icon="Settings01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+          <span slot="label">设置</span>
+        </m3e-nav-menu-item>
+      </m3e-nav-menu>
     </footer>
   </aside>
 </template>
@@ -128,9 +140,7 @@ function toggleSidebar() {
 /* --- 所有可交互元素的弹性交互反馈 --- */
 .sidebar__logo,
 .sidebar__toggle,
-.sidebar__action,
-.sidebar__expand,
-.sidebar__settings {
+.sidebar__expand {
   @include bounce-interact;
   transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease, background-color 120ms ease, color 120ms ease;
 
@@ -163,60 +173,19 @@ function toggleSidebar() {
 
 /* --- 主操作区：主页和新建对话 --- */
 .sidebar__actions {
-  display: grid;
-  gap: 6px;
   flex: 0 0 auto;
   padding: 10px var(--sidebar-inset) 8px;
 }
 
-/* --- 操作按钮和设置按钮通用样式 --- */
-.sidebar__action,
-.sidebar__settings {
-  --m3e-button-container-height: var(--sidebar-item-height);
-  --m3e-text-button-label-text-color: var(--md-sys-color-on-surface);
-  --m3e-button-leading-space: 15px;
-  --m3e-button-trailing-space: 15px;
-  display: block;
-  width: 100%;
-  min-width: 0;
-  font-size: 16px;
-  font-weight: 650;
-  text-align: left;
-
-  &.is-primary {
-    --m3e-tonal-button-container-color: var(--md-sys-color-surface-container-low);
-    --m3e-tonal-button-label-text-color: var(--md-sys-color-on-surface);
-  }
-}
-
-/* --- 按钮内容行：图标 + 文字 --- */
-.sidebar__action-content {
-  display: flex;
-  align-items: center;
-  width: calc(var(--sidebar-width) - var(--sidebar-inset) * 2 - 30px); /* 适应侧边栏宽度变化 */
-  min-width: 0;
-
-  m3e-icon {
-    width: 24px;
-    height: 24px;
-    flex: 0 0 24px;
-    font-size: 24px;
-  }
-}
-
-/* --- 按钮文字标签 --- */
-.sidebar__label {
-  margin-left: 17px;
-  white-space: nowrap;
+.sidebar__rail {
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 /* --- 会话列表滚动区 --- */
 .sidebar__conversations {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   min-height: 0;
-  padding: 16px 18px;
+  padding: 16px var(--sidebar-inset);
   overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
@@ -226,25 +195,9 @@ function toggleSidebar() {
 
 /* --- 单个会话行：标题在左，关闭按钮在右 --- */
 .sidebar__conversation-row {
-  display: flex;
-  align-items: center;
-  height: 40px;
-  padding: 0 8px 0 15px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background-color 120ms ease;
-
-  &:hover {
-    background: var(--md-sys-color-surface-dim);
-  }
-
   &:hover .sidebar__conversation-close {
     opacity: 1;
     pointer-events: auto;
-  }
-
-  &.is-active {
-    background: var(--md-sys-color-surface-container-low);
   }
 }
 
@@ -257,10 +210,6 @@ function toggleSidebar() {
   white-space: nowrap;
   font-size: 15px;
   color: var(--md-sys-color-on-surface-variant);
-}
-
-.sidebar__conversation-row.is-active .sidebar__conversation-title {
-  color: var(--md-sys-color-on-surface);
 }
 
 /* --- 关闭按钮：右侧固定，悬停行时显示 --- */
@@ -296,8 +245,7 @@ function toggleSidebar() {
 }
 
 .sidebar__settings {
-  width: auto;
-  flex: 0 0 var(--sidebar-item-height);
+  width: 100%;
 }
 
 /* --- 收起态：所有按钮居中显示为纯图标 --- */
@@ -307,28 +255,6 @@ function toggleSidebar() {
     padding-inline: 16px;
   }
 
-  .sidebar__action,
-  .sidebar__settings {
-    --m3e-button-leading-space: 0;
-    --m3e-button-trailing-space: 0;
-    display: grid;
-    place-items: center;
-    width: 48px;
-    height: 48px;
-    justify-self: center;
-  }
-
-  .sidebar__action-content {
-    justify-content: center;
-    width: 24px;                                                      /* 收起态只显示图标 */
-  }
-
-  .sidebar__label { display: none; }                                  /* 收起态隐藏文字 */
-
-  .sidebar__settings {
-    margin-right: auto;
-    margin-left: auto;
-  }
 }
 
 /* --- 无障碍：关闭动画的降级 --- */

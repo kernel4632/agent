@@ -55,7 +55,7 @@ test('appearance selector previews and persists the theme', async ({ page }) => 
     ['dark', 'dark'],
     ['system', 'dark'],
   ]) {
-    const selector = page.locator('.appearance-settings__select').first()
+    const selector = page.locator('.appearance-settings__select m3e-select').first()
     await selector.click()
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Enter')
@@ -63,7 +63,7 @@ test('appearance selector previews and persists the theme', async ({ page }) => 
     await expect(page.locator('.appearance-settings')).toBeVisible()
   }
 
-  await page.locator('.sidebar__action').first().click()
+  await page.locator('m3e-nav-menu-item[aria-label="主页"]').click()
   await expect.poll(() => page.evaluate(() => (
     JSON.parse(localStorage.getItem('agent.appearance'))?.theme
   ))).toBe('system')

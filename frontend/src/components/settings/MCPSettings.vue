@@ -135,7 +135,7 @@ watch(() => props.mcp, (items) => {
 
           <!-- 传输方式选择。 -->
           <section class="mcp-settings__section">
-            <m3e-form-field variant="outlined" hide-subscript="always">
+              <m3e-form-field variant="outlined" hide-subscript="always">
               <label slot="label">传输方式</label>
               <m3e-select :value="selectedItem.definition?.transport || 'stdio'" @change="updateDefinition('transport', $event.currentTarget.value)">
                 <m3e-option value="stdio">stdio（标准输入输出）</m3e-option>

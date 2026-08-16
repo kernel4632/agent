@@ -48,29 +48,26 @@ function updatePermission(index, permission) {
     </header>
 
     <!-- 工具列表。 -->
-    <div class="tools-settings__body">
-      <div class="tools-settings__list">
-        <div v-for="(tool, index) in props.tools" :key="tool.name" class="tools-settings__item">
-          <!-- 左侧：工具名和权限选择。 -->
-          <div class="tools-settings__identity">
-            <strong>{{ tool.title || tool.name }}</strong>
+    <m3e-content-pane class="tools-settings__body">
+      <m3e-list class="tools-settings__list">
+        <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name" class="tools-settings__item">
+          {{ tool.title || tool.name }}
+          <span slot="supporting-text">{{ tool.name }}</span>
+          <div slot="trailing" class="tools-settings__controls">
             <m3e-form-field class="tools-settings__permission" variant="outlined" hide-subscript="always">
               <m3e-select @input="updatePermission(index, $event.currentTarget.value)">
-              <m3e-option value="allow">自动执行</m3e-option>
-              <m3e-option value="ask">每次询问</m3e-option>
-              <m3e-option value="deny">禁止调用</m3e-option>
+                <m3e-option value="allow">自动执行</m3e-option>
+                <m3e-option value="ask">每次询问</m3e-option>
+                <m3e-option value="deny">禁止调用</m3e-option>
               </m3e-select>
             </m3e-form-field>
+            <m3e-switch :checked="tool.enabled" @change="toggleTool(index)"></m3e-switch>
           </div>
-          <!-- 右侧：启用开关。 -->
-          <m3e-switch
-            :checked="tool.enabled"
-            @change="toggleTool(index)"
-          ></m3e-switch>
-        </div>
+        </m3e-list-item>
+        <m3e-divider v-if="props.tools.length"></m3e-divider>
         <p v-if="!props.tools.length" class="tools-settings__empty">暂无可配置的工具</p>
-      </div>
-    </div>
+      </m3e-list>
+    </m3e-content-pane>
   </section>
 </template>
 
@@ -116,34 +113,16 @@ function updatePermission(index, permission) {
   width: min(720px, 100%);
   margin: 0 auto;
   flex-direction: column;
-  gap: 6px;
 }
 
 /* --- 单行工具 --- */
 .tools-settings__item {
+  width: 100%;
+}
+.tools-settings__controls {
   display: flex;
   align-items: center;
-  min-height: 56px;
-  gap: 16px;
-  padding: 12px 16px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px;
-}
-
-/* --- 工具身份区 --- */
-.tools-settings__identity {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  flex: 1 1 auto;
-  gap: 16px;
-}
-
-.tools-settings__identity strong {
-  min-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 12px;
 }
 
 /* --- 权限选择器 --- */
@@ -156,8 +135,6 @@ function updatePermission(index, permission) {
 .tools-settings__empty {
   margin: 0;
   padding: 32px;
-  border: 1px dashed var(--md-sys-color-outline-variant);
-  border-radius: 8px;
   color: var(--md-sys-color-outline);
   text-align: center;
 }
@@ -165,6 +142,6 @@ function updatePermission(index, permission) {
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
   .tools-settings__body { padding: 20px 16px 40px; }
-  .tools-settings__identity { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .tools-settings__controls { gap: 8px; }
 }
 </style>

@@ -14,9 +14,9 @@ async function readSidebarState(page) {
     const visible = (element) => {
       const style = getComputedStyle(element)                              // 检查元素是否真实参与布局
       const rect = element.getBoundingClientRect()                          // 检查元素是否有稳定尺寸
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && rect.width > 0 && rect.height > 0
     }
-    const buttons = [...document.querySelectorAll('.sidebar m3e-icon-button, .sidebar__second m3e-button, .sidebar__fifth m3e-button')].filter(visible).map((element) => {
+    const buttons = [...document.querySelectorAll('.sidebar m3e-icon-button, .sidebar m3e-nav-menu-item, .sidebar m3e-nav-item')].filter(visible).map((element) => {
       const rect = element.getBoundingClientRect()                          // 保存每个命令控件位置
       const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } // 计算点击中心
       const hit = document.elementFromPoint(center.x, center.y)              // 验证控件中心没有被遮罩覆盖
@@ -44,39 +44,44 @@ async function auditViewport(page, testInfo, name) {
   await expect(page.locator('.app-status')).toHaveCount(0, { timeout: 15_000 }) // 等待真实 Server 数据完成
 
   let state = await readSidebarState(page)                                      // 读取首次状态
-  const initiallyOpen = state.className.includes('sidebar--open')               // 移动端允许首次收起，桌面端默认展开
+  const initiallyOpen = !state.className.includes('is-collapsed')               // 移动端允许首次收起，桌面端默认展开
   if (initiallyOpen) {
-    await expect(page.locator('.sidebar__first m3e-icon-button[aria-label="收起侧边栏"]')).toBeVisible() // 展开态只能显示收起按钮
-    await expect(page.locator('.sidebar__fourth m3e-icon-button[aria-label="展开侧边栏"]')).toHaveCount(0) // 展开按钮在展开态必须隐藏
+    await expect(page.locator('m3e-icon-button[aria-label="收起侧边栏"]')).toBeVisible() // 展开态只能显示收起按钮
+    await expect(page.locator('m3e-icon-button[aria-label="展开侧边栏"]')).toHaveCount(0) // 展开按钮在展开态必须隐藏
   } else {
-    await expect(page.locator('.sidebar__fourth m3e-icon-button[aria-label="展开侧边栏"]')).toBeVisible() // 收起态必须显示展开按钮
-    await expect(page.locator('.sidebar__first m3e-icon-button[aria-label="收起侧边栏"]')).toHaveCount(0) // 收起按钮在收起态必须隐藏
+    await expect(page.locator('m3e-icon-button[aria-label="展开侧边栏"]')).toBeVisible() // 收起态必须显示展开按钮
+    await expect(page.locator('m3e-icon-button[aria-label="收起侧边栏"]')).toHaveCount(0) // 收起按钮在收起态必须隐藏
   }
   await expectClickableSidebar(page, state)                                     // 首次状态控件位置和命中检查
   await page.screenshot({ path: testInfo.outputPath(`${name}-initial.png`), fullPage: true }) // 保存初始状态截图
 
-  if (!initiallyOpen) await page.locator('.sidebar__fourth m3e-icon-button[aria-label="展开侧边栏"]').click() // 收起初始态先展开
+  if (!initiallyOpen) {
+    await page.locator('m3e-icon-button[aria-label="展开侧边栏"]').click() // 收起初始态先展开
+    await page.waitForTimeout(600)
+  }
   state = await readSidebarState(page)                                          // 读取展开后的真实坐标
-  expect(state.className).toContain('sidebar--open')                            // 展开动作必须改变状态类
-  await expect(page.locator('.sidebar__first m3e-icon-button[aria-label="收起侧边栏"]')).toBeVisible() // 展开态收起控件可见
-  await expect(page.locator('.sidebar__third')).toBeVisible()                    // 展开态会话列表可见
+  expect(state.className).not.toContain('is-collapsed')                         // 展开动作必须改变状态类
+  await expect(page.locator('m3e-icon-button[aria-label="收起侧边栏"]')).toBeVisible() // 展开态收起控件可见
+  await expect(page.locator('.sidebar__conversations')).toBeVisible()            // 展开态会话列表可见
   await expectClickableSidebar(page, state)                                     // 展开态所有图标位置和中心命中
   await page.screenshot({ path: testInfo.outputPath(`${name}-open.png`), fullPage: true }) // 保存展开状态截图
 
   const openWidth = state.width                                                     // 保存展开宽度用于收起对比
-  await page.locator('.sidebar__first m3e-icon-button[aria-label="收起侧边栏"]').click() // 执行真正收起动作
+  await page.locator('m3e-icon-button[aria-label="收起侧边栏"]').click() // 执行真正收起动作
+  await page.waitForTimeout(600)
   state = await readSidebarState(page)                                          // 读取收起后的真实坐标
-  expect(state.className).not.toContain('sidebar--open')                        // 收起动作必须移除状态类
+  expect(state.className).toContain('is-collapsed')                             // 收起动作必须添加状态类
   if (page.viewportSize().width > 760) expect(state.width).toBeLessThan(openWidth) // 桌面收起态必须真实变窄
   else expect(state.height).toBeLessThan(100)                                     // 移动收起态改为底部固定图标栏，高度必须稳定
-  await expect(page.locator('.sidebar__fourth m3e-icon-button[aria-label="展开侧边栏"]')).toBeVisible() // 收起态展开控件可见
-  await expect(page.locator('.sidebar__third')).toHaveCount(0)                  // 收起态会话列表不应占据布局
+  await expect(page.locator('m3e-icon-button[aria-label="展开侧边栏"]')).toBeVisible() // 收起态展开控件可见
+  await expect(page.locator('.sidebar__conversations')).toHaveCount(0)           // 收起态会话列表不应占据布局
   await expectClickableSidebar(page, state)                                     // 收起态图标仍保持可见、居中和可命中
   await page.screenshot({ path: testInfo.outputPath(`${name}-collapsed.png`), fullPage: true }) // 保存收起状态截图
 
-  await page.locator('.sidebar__fourth m3e-icon-button[aria-label="展开侧边栏"]').click() // 再次展开验证状态可逆
+  await page.locator('m3e-icon-button[aria-label="展开侧边栏"]').click() // 再次展开验证状态可逆
+  await page.waitForTimeout(600)
   state = await readSidebarState(page)                                          // 读取第二次展开坐标
-  expect(state.className).toContain('sidebar--open')                            // 状态循环必须回到展开
+  expect(state.className).not.toContain('is-collapsed')                         // 状态循环必须回到展开
   await expectClickableSidebar(page, state)                                     // 第二次展开仍无图标偏移或遮挡
   await page.screenshot({ path: testInfo.outputPath(`${name}-reopened.png`), fullPage: true }) // 保存再次展开截图
 }

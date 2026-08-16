@@ -29,26 +29,25 @@ function updateField(field, value) {
     </header>
 
     <!-- 设置选项列表。 -->
-    <div class="appearance-settings__body">
-      <div class="appearance-settings__options">
+    <m3e-content-pane class="appearance-settings__body">
+      <m3e-list class="appearance-settings__options">
 
         <!-- 主题模式。 -->
-        <div class="appearance-settings__option">
-          <div class="appearance-settings__label">
-            <strong>主题模式</strong>
-            <span>亮色、暗色或跟随系统</span>
-          </div>
-          <m3e-form-field class="appearance-settings__select" variant="outlined" hide-subscript="always">
+        <m3e-list-item class="appearance-settings__option">
+          主题模式
+          <span slot="supporting-text">亮色、暗色或跟随系统</span>
+          <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
             <m3e-select @input="updateField('theme', $event.currentTarget.value)">
-            <m3e-option value="system" :selected="(props.appearance.theme || 'system') === 'system'">跟随系统</m3e-option>
-            <m3e-option value="light" :selected="props.appearance.theme === 'light'">亮色</m3e-option>
-            <m3e-option value="dark" :selected="props.appearance.theme === 'dark'">暗色</m3e-option>
+              <m3e-option value="system" :selected="(props.appearance.theme || 'system') === 'system'">跟随系统</m3e-option>
+              <m3e-option value="light" :selected="props.appearance.theme === 'light'">亮色</m3e-option>
+              <m3e-option value="dark" :selected="props.appearance.theme === 'dark'">暗色</m3e-option>
             </m3e-select>
           </m3e-form-field>
-        </div>
+        </m3e-list-item>
+        <m3e-divider></m3e-divider>
 
-      </div>
-    </div>
+      </m3e-list>
+    </m3e-content-pane>
   </section>
 </template>
 
@@ -94,37 +93,11 @@ function updateField(field, value) {
   width: min(640px, 100%);
   margin: 0 auto;
   flex-direction: column;
-  gap: 8px;
 }
 
 /* --- 单行选项 --- */
 .appearance-settings__option {
-  display: flex;
-  align-items: center;
-  min-height: 64px;
-  gap: 24px;
-  padding: 16px 20px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px;
-}
-
-/* --- 选项标签区 --- */
-.appearance-settings__label {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.appearance-settings__label strong {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 14px;
-}
-
-.appearance-settings__label span {
-  color: var(--md-sys-color-outline);
-  font-size: 13px;
+  width: 100%;
 }
 
 /* --- 选择器固定宽度 --- */
@@ -136,7 +109,6 @@ function updateField(field, value) {
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
   .appearance-settings__body { padding: 20px 16px 40px; }
-  .appearance-settings__option { flex-direction: column; align-items: flex-start; gap: 12px; }
   .appearance-settings__select { width: 100%; }
 }
 </style>

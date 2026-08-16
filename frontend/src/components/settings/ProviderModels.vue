@@ -58,20 +58,17 @@ function removeModel(modelID) {
     </div>
 
     <!-- 已添加模型列表。 -->
-    <div class="provider-models__list">
-      <div v-for="model in props.models" :key="model.id" class="provider-models__item">
-        <div class="provider-models__identity">
-          <strong>{{ model.name }}</strong>
-          <div class="provider-models__capabilities">
-            <span v-for="capability in model.capabilities" :key="capability">{{ capability }}</span>
-          </div>
-        </div>
-        <m3e-icon-button type="button" aria-label="移除模型" title="移除模型" @click="removeModel(model.id)">
+    <m3e-list class="provider-models__list">
+      <m3e-list-item v-for="model in props.models" :key="model.id" class="provider-models__item">
+        {{ model.name }}
+        <span slot="supporting-text">{{ model.capabilities.join(' · ') }}</span>
+        <m3e-icon-button slot="trailing" type="button" aria-label="移除模型" title="移除模型" @click="removeModel(model.id)">
           <HugeiconsIcon :icon="Delete01Icon" :stroke-width="ICON_STROKE_WIDTH" />
         </m3e-icon-button>
-      </div>
+      </m3e-list-item>
+      <m3e-divider v-if="props.models.length"></m3e-divider>
       <p v-if="!props.models.length" class="provider-models__empty">尚未添加模型</p>
-    </div>
+    </m3e-list>
   </section>
 
   <!-- 远程模型选择弹窗。 -->
@@ -99,10 +96,15 @@ function removeModel(modelID) {
 .provider-models__heading span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 模型卡片列表 --- */
-.provider-models__list { display: flex; flex-direction: column; gap: 6px; }
+.provider-models__list {
+  display: flex;
+  flex-direction: column;
+}
 
 /* --- 单个模型行：名称、能力标签和移除按钮 --- */
-.provider-models__item { display: flex; align-items: center; min-height: 64px; gap: 8px; padding: 10px 12px; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 8px; }
+.provider-models__item {
+  width: 100%;
+}
 
 /* --- 模型身份区：名称和能力标签 --- */
 .provider-models__identity { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; }
@@ -113,7 +115,7 @@ function removeModel(modelID) {
 .provider-models__capabilities span { padding: 2px 7px; border-radius: 5px; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant); font-size: 11px; }
 
 /* --- 空状态占位 --- */
-.provider-models__empty { margin: 0; padding: 24px; border: 1px dashed var(--md-sys-color-outline-variant); border-radius: 8px; color: var(--md-sys-color-outline); text-align: center; }
+.provider-models__empty { margin: 0; padding: 24px; color: var(--md-sys-color-outline); text-align: center; }
 
 /* --- 选择弹窗候选列表 --- */
 .provider-models__available { display: flex; width: min(480px, 72vw); max-width: 100%; overflow: hidden; flex-direction: column; gap: 6px; padding: 4px; }

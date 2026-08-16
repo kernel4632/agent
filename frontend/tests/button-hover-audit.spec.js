@@ -5,7 +5,7 @@ test('audit M3E button hover elevation sources', async ({ page }) => {
   await page.waitForSelector('.sidebar')
 
   const selectors = [
-    ['sidebar', '.sidebar__action'],
+    ['sidebar', 'm3e-nav-menu-item[aria-label="主页"]'],
     ['add-workspace', '.home-page__pane-header m3e-button'],
   ]
 

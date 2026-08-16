@@ -72,6 +72,7 @@ async function submitMessage(content) {
         v-model:collapsed="sidebarCollapsed"
         :conversations="openedConversations"
         :active-conversation-id="store.ui.activeSessionID"
+        :active-view="store.ui.view"
         @home="UI.openHome"
         @new-conversation="Session.create()"
         @select-conversation="Session.open($event)"
