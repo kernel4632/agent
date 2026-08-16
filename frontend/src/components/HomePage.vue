@@ -174,15 +174,6 @@ function resetRenameDialog() {
   width: min(720px, 100%);
   @include bounce-interact;
 
-  &:focus-within {
-    filter: brightness(1.04);
-    transform: scale(1.015);                                          /* 聚焦时略大于悬停 */
-  }
-
-  &:active {
-    filter: brightness(.98);
-    transform: scale(.985);
-  }
 }
 
 /* --- 主体双栏：左侧工作区列表 + 右侧会话列表 --- */

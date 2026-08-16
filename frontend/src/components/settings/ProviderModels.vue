@@ -96,13 +96,13 @@ function removeModel(modelID) {
 /* --- 标题行：左侧计数，右侧获取按钮 --- */
 .provider-models__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .provider-models__heading > div { display: flex; flex-direction: column; gap: 3px; }
-.provider-models__heading span { color: #858585; font-size: 13px; }
+.provider-models__heading span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 模型卡片列表 --- */
 .provider-models__list { display: flex; flex-direction: column; gap: 6px; }
 
 /* --- 单个模型行：名称、能力标签和移除按钮 --- */
-.provider-models__item { display: flex; align-items: center; min-height: 64px; gap: 8px; padding: 10px 12px; border: 1px solid #303030; border-radius: 8px; }
+.provider-models__item { display: flex; align-items: center; min-height: 64px; gap: 8px; padding: 10px 12px; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 8px; }
 
 /* --- 模型身份区：名称和能力标签 --- */
 .provider-models__identity { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; }
@@ -110,14 +110,14 @@ function removeModel(modelID) {
 
 /* --- 能力标签组 --- */
 .provider-models__capabilities { display: flex; flex-wrap: wrap; gap: 6px; }
-.provider-models__capabilities span { padding: 2px 7px; border-radius: 5px; background: #292929; color: #bdbdbd; font-size: 11px; }
+.provider-models__capabilities span { padding: 2px 7px; border-radius: 5px; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant); font-size: 11px; }
 
 /* --- 空状态占位 --- */
-.provider-models__empty { margin: 0; padding: 24px; border: 1px dashed #333333; border-radius: 8px; color: #777777; text-align: center; }
+.provider-models__empty { margin: 0; padding: 24px; border: 1px dashed var(--md-sys-color-outline-variant); border-radius: 8px; color: var(--md-sys-color-outline); text-align: center; }
 
 /* --- 选择弹窗候选列表 --- */
 .provider-models__available { display: flex; width: min(480px, 72vw); max-width: 100%; overflow: hidden; flex-direction: column; gap: 6px; padding: 4px; }
-.provider-models__available m3e-list-action { --m3e-list-item-container-color: #262626; width: 100%; }
+.provider-models__available m3e-list-action { --m3e-list-item-container-color: var(--md-sys-color-surface-container-high); width: 100%; }
 
 /* --- 窄屏适配：标题行纵向堆叠 --- */
 @media (max-width: 560px) {

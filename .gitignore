@@ -35,3 +35,14 @@ Thumbs.db
 Agent.mm
 参考图/
 .playwright-mcp/
+
+# Local UI audit screenshots
+/*-fix*.png
+/*-check*.png
+/*-final*.png
+/*-state*.png
+/*-icons*.png
+/*-nav*.png
+/*-page*.png
+/*-light*.png
+/*-dark*.png

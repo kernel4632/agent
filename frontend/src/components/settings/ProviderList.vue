@@ -43,8 +43,8 @@ const emit = defineEmits(['select'])                // 输出用户选择的供�
   flex-direction: column;
   min-height: 0;
   padding: 12px 14px 20px;
-  border-right: 1px solid #242424;
-  background: #101010;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
 }
 
 /* --- 列表容器：允许纵向滚动 --- */
@@ -61,12 +61,12 @@ const emit = defineEmits(['select'])                // 输出用户选择的供�
 /* --- 单个供应商行：未选中和选中态样式 --- */
 .provider-list__item {
   --m3e-list-item-container-color: transparent;
-  --m3e-list-item-label-text-color: #b7b7b7;
+  --m3e-list-item-label-text-color: var(--md-sys-color-on-surface-variant);
   width: 100%;
 
   &.is-selected {
-    --m3e-list-item-container-color: #2b2b2b;
-    --m3e-list-item-label-text-color: #ffffff;
+    --m3e-list-item-container-color: var(--md-sys-color-surface-container-highest);
+    --m3e-list-item-label-text-color: var(--md-sys-color-on-surface);
   }
 }
 
@@ -90,10 +90,10 @@ const emit = defineEmits(['select'])                // 输出用户选择的供�
 
 /* --- 启用/停用状态标签 --- */
 .provider-list__state {
-  color: #777777;
+  color: var(--md-sys-color-outline);
   font-size: 12px;
 
-  &.is-enabled { color: #d3d3d3; }
+  &.is-enabled { color: var(--md-sys-color-on-surface-variant); }
 }
 
 /* --- 中等屏幕：缩窄侧边栏宽度 --- */
@@ -109,7 +109,7 @@ const emit = defineEmits(['select'])                // 输出用户选择的供�
     min-height: auto;
     padding: 8px 12px 12px;
     border-right: 0;
-    border-bottom: 1px solid #242424;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
 
   .provider-list__items {

@@ -46,15 +46,9 @@
 /* --- 弹性交互：悬停微浮 + 按压缩小 --- */
 @mixin bounce-interact {
   transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover {
-    filter: brightness(1.08);
-    transform: translateY(-.5px) scale(1.01);
-  }
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy);
 
   &:active {
-    filter: brightness(.94);
     transform: scale(.94);
     transition-duration: var(--motion-duration-press);
     transition-timing-function: ease-out;
@@ -65,12 +59,9 @@
 /* --- 弹性交互（仅按压，不悬停放大）--- */
 @mixin bounce-press {
   transform: scale(1);
-  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy), filter 120ms ease;
-
-  &:hover { filter: brightness(1.08); }
+  transition: transform var(--motion-duration-spring) var(--motion-spring-bouncy);
 
   &:active {
-    filter: brightness(.94);
     transform: scale(.985);
     transition-duration: var(--motion-duration-press);
     transition-timing-function: ease-out;

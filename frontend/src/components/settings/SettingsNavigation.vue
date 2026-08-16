@@ -13,6 +13,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['select'])                        // 输出用户点击的分类 ID
+
 </script>
 
 <template>
@@ -32,7 +33,13 @@ const emit = defineEmits(['select'])                        // 输出用户点�
           :aria-current="item.id === props.selectedId ? 'page' : undefined"
           @click="emit('select', item.id)"
         >
-          <HugeiconsIcon :icon="item.icon" :stroke-width="ICON_STROKE_WIDTH" />
+          <HugeiconsIcon
+            :icon="item.icon"
+            :stroke-width="ICON_STROKE_WIDTH"
+            :color="item.id === props.selectedId
+              ? 'var(--md-sys-color-on-primary-container)'
+              : 'var(--md-sys-color-on-surface-variant)'"
+          />
         </m3e-icon-button>
         <m3e-tooltip :for="`settings-nav-${item.id}`" position="after">{{ item.label }}</m3e-tooltip>
       </div>
@@ -48,8 +55,8 @@ const emit = defineEmits(['select'])                        // 输出用户点�
   flex: 0 0 80px;
   flex-direction: column;
   padding: 24px 12px;
-  border-right: 1px solid #242424;
-  background: #0d0d0d;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
 }
 
 /* --- 按钮组：垂直排列带间距 --- */
@@ -69,15 +76,21 @@ const emit = defineEmits(['select'])                        // 输出用户点�
   height: 48px;
 }
 
-/* --- 图标按钮颜色：未选中灰色，选中白色 --- */
+/* --- 图标按钮颜色：未选中灰色，选中使用 primary 色 --- */
 .settings-navigation__item m3e-icon-button {
-  --m3e-icon-button-icon-color: #a9a9a9;
-  --m3e-icon-button-hover-icon-color: #f2f2f2;
-  --m3e-filled-icon-button-container-color: rgba(255, 255, 255, .12);
-  --m3e-filled-icon-button-icon-color: #ffffff;
-  --m3e-filled-icon-button-hover-icon-color: #ffffff;
-  --m3e-filled-icon-button-focus-icon-color: #ffffff;
-  --m3e-filled-icon-button-pressed-icon-color: #ffffff;
+  --m3e-icon-button-icon-color: var(--md-sys-color-outline);
+  --m3e-icon-button-hover-icon-color: var(--md-sys-color-on-surface);
+  --m3e-filled-icon-button-container-color: var(--md-sys-color-primary-container);
+  --m3e-filled-icon-button-icon-color: var(--md-sys-color-on-primary-container);
+  --m3e-filled-icon-button-hover-icon-color: var(--md-sys-color-on-primary-container);
+  --m3e-filled-icon-button-focus-icon-color: var(--md-sys-color-on-primary-container);
+  --m3e-filled-icon-button-pressed-icon-color: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-outline);
+}
+
+/* 选中状态使用 primary-container 对应的前景 token。 */
+.settings-navigation__item m3e-icon-button[variant="filled"] {
+  color: var(--md-sys-color-on-primary-container);
 }
 
 /* --- 窄屏适配：导航改为横向顶部条 --- */
@@ -89,7 +102,7 @@ const emit = defineEmits(['select'])                        // 输出用户点�
     overflow-x: auto;
     scrollbar-width: none;
     border-right: 0;
-    border-bottom: 1px solid #242424;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
 
     &::-webkit-scrollbar { display: none; }
   }

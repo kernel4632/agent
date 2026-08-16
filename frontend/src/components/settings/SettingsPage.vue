@@ -36,10 +36,14 @@ if (!store.settings.draft) Settings.open()
 
 const settingsDraft = computed(() => store.settings.draft)    // 所有分类子组件共享的正式隔离草稿
 
+function updateAppearance({ field, value }) {
+  store.settings.draft.appearance[field] = value
+}
+
 
 // --- 离开设置页时保存当前草稿快照 ---
 function saveSettings() {
-  emit('save', structuredClone(settingsDraft.value))          // 克隆后提交，避免外部继续引用内部响应式数据
+  if (settingsDraft.value) emit('save', structuredClone(settingsDraft.value)) // 克隆后提交，避免外部继续引用内部响应式数据
 }
 
 
@@ -49,12 +53,12 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 <template>
   <main class="settings-page">
     <SettingsNavigation :items="sections" :selected-id="selectedSectionID" @select="selectedSectionID = $event" />
-    <section class="settings-page__content">
+    <section v-if="settingsDraft" class="settings-page__content">
       <ProviderSettings v-if="selectedSectionID === 'providers'" v-model:providers="settingsDraft.providers" />
       <ToolsSettings v-else-if="selectedSectionID === 'tools'" v-model:tools="settingsDraft.tools" />
       <MCPSettings v-else-if="selectedSectionID === 'mcp'" v-model:mcp="settingsDraft.mcp" />
       <PromptsSettings v-else-if="selectedSectionID === 'prompts'" v-model:prompt="settingsDraft.prompt" />
-      <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" v-model:appearance="settingsDraft.appearance" />
+      <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" :appearance="settingsDraft.appearance" @change="updateAppearance" />
       <SettingsPlaceholder
         v-else
         :title="selectedSection.label"
@@ -71,7 +75,7 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
   display: flex;
   width: 100%;
   min-height: 100%;
-  background: #0a0a0a;
+  background: var(--md-sys-color-surface-container-lowest);
 }
 
 /* --- 右侧内容区：填充剩余空间 --- */

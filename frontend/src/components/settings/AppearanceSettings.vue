@@ -8,13 +8,12 @@
 const props = defineProps({
   appearance: { type: Object, required: true },             // 接收外观设置对象（双向绑定）
 })
-const emit = defineEmits(['update:appearance'])              // 输出变更后的外观对象
-
-
+const emit = defineEmits(['change'])
 // --- 修改单个外观字段 ---
 function updateField(field, value) {
-  emit('update:appearance', { ...props.appearance, [field]: value }) // 只替换目标字段
+  emit('change', { field, value })                          // 由草稿持有者执行写入，避免修改只读 props
 }
+
 </script>
 
 <template>
@@ -31,6 +30,22 @@ function updateField(field, value) {
     <div class="appearance-settings__body">
       <div class="appearance-settings__options">
 
+        <!-- 主题模式。 -->
+        <div class="appearance-settings__option">
+          <div class="appearance-settings__label">
+            <strong>主题模式</strong>
+            <span>亮色、暗色或跟随系统</span>
+          </div>
+          <m3e-select
+            class="appearance-settings__select"
+            @input="updateField('theme', $event.currentTarget.value)"
+          >
+            <m3e-option value="system" :selected="(props.appearance.theme || 'system') === 'system'">跟随系统</m3e-option>
+            <m3e-option value="light" :selected="props.appearance.theme === 'light'">亮色</m3e-option>
+            <m3e-option value="dark" :selected="props.appearance.theme === 'dark'">暗色</m3e-option>
+          </m3e-select>
+        </div>
+
         <!-- 界面语言。 -->
         <div class="appearance-settings__option">
           <div class="appearance-settings__label">
@@ -39,11 +54,10 @@ function updateField(field, value) {
           </div>
           <m3e-select
             class="appearance-settings__select"
-            :value="props.appearance.language || 'zh-CN'"
-            @change="updateField('language', $event.currentTarget.value)"
+            @input="updateField('language', $event.currentTarget.value)"
           >
-            <m3e-option value="zh-CN">简体中文</m3e-option>
-            <m3e-option value="en-US">English</m3e-option>
+            <m3e-option value="zh-CN" :selected="(props.appearance.language || 'zh-CN') === 'zh-CN'">简体中文</m3e-option>
+            <m3e-option value="en-US" :selected="props.appearance.language === 'en-US'">English</m3e-option>
           </m3e-select>
         </div>
 
@@ -55,11 +69,10 @@ function updateField(field, value) {
           </div>
           <m3e-select
             class="appearance-settings__select"
-            :value="props.appearance.density || 'comfortable'"
-            @change="updateField('density', $event.currentTarget.value)"
+            @input="updateField('density', $event.currentTarget.value)"
           >
-            <m3e-option value="comfortable">舒适</m3e-option>
-            <m3e-option value="compact">紧凑</m3e-option>
+            <m3e-option value="comfortable" :selected="(props.appearance.density || 'comfortable') === 'comfortable'">舒适</m3e-option>
+            <m3e-option value="compact" :selected="props.appearance.density === 'compact'">紧凑</m3e-option>
           </m3e-select>
         </div>
 
@@ -98,7 +111,7 @@ function updateField(field, value) {
   flex: 0 0 auto;
   gap: 20px;
   padding: 26px 32px 22px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .appearance-settings__header > div {
@@ -107,7 +120,7 @@ function updateField(field, value) {
   gap: 4px;
 }
 
-.appearance-settings__header span { color: #7f7f7f; font-size: 13px; }
+.appearance-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 选项列表区域 --- */
 .appearance-settings__body {
@@ -132,7 +145,7 @@ function updateField(field, value) {
   min-height: 64px;
   gap: 24px;
   padding: 16px 20px;
-  border: 1px solid #303030;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 8px;
 }
 
@@ -146,12 +159,12 @@ function updateField(field, value) {
 }
 
 .appearance-settings__label strong {
-  color: #e0e0e0;
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 14px;
 }
 
 .appearance-settings__label span {
-  color: #858585;
+  color: var(--md-sys-color-outline);
   font-size: 13px;
 }
 

@@ -218,7 +218,7 @@ watch(() => props.mcp, (items) => {
   flex: 0 0 auto;
   gap: 20px;
   padding: 26px 32px 22px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .mcp-settings__header > div {
@@ -227,7 +227,7 @@ watch(() => props.mcp, (items) => {
   gap: 4px;
 }
 
-.mcp-settings__header span { color: #7f7f7f; font-size: 13px; }
+.mcp-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 主体双栏 --- */
 .mcp-settings__body {
@@ -244,8 +244,8 @@ watch(() => props.mcp, (items) => {
   flex-direction: column;
   min-height: 0;
   padding: 12px 14px 20px;
-  border-right: 1px solid #242424;
-  background: #101010;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
 }
 
 .mcp-settings__items {
@@ -260,12 +260,12 @@ watch(() => props.mcp, (items) => {
 
 .mcp-settings__list-item {
   --m3e-list-item-container-color: transparent;
-  --m3e-list-item-label-text-color: #b7b7b7;
+  --m3e-list-item-label-text-color: var(--md-sys-color-on-surface-variant);
   width: 100%;
 
   &.is-selected {
-    --m3e-list-item-container-color: #2b2b2b;
-    --m3e-list-item-label-text-color: #ffffff;
+    --m3e-list-item-container-color: var(--md-sys-color-surface-container-highest);
+    --m3e-list-item-label-text-color: var(--md-sys-color-on-surface);
   }
 }
 
@@ -286,9 +286,9 @@ watch(() => props.mcp, (items) => {
 }
 
 .mcp-settings__state {
-  color: #777777;
+  color: var(--md-sys-color-outline);
   font-size: 12px;
-  &.is-enabled { color: #d3d3d3; }
+  &.is-enabled { color: var(--md-sys-color-on-surface-variant); }
 }
 
 /* --- 右侧编辑面板 --- */
@@ -323,18 +323,16 @@ watch(() => props.mcp, (items) => {
   align-items: center;
   flex: 0 0 auto;
   gap: 10px;
-  color: #a6a6a6;
+  color: var(--md-sys-color-outline);
   font-size: 13px;
 }
-
-/* --- 表单分区 --- */
 .mcp-settings__section { padding: 0; }
 .mcp-settings__field-full { width: 100%; }
 
 /* --- 操作按钮区 --- */
 .mcp-settings__actions {
   padding-top: 12px;
-  border-top: 1px solid #242424;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
 /* --- 空状态 --- */
@@ -343,7 +341,7 @@ watch(() => props.mcp, (items) => {
   align-items: center;
   justify-content: center;
   min-height: 420px;
-  color: #777777;
+  color: var(--md-sys-color-outline);
 }
 
 /* --- 窄屏适配 --- */
@@ -355,7 +353,7 @@ watch(() => props.mcp, (items) => {
     width: 100%;
     padding: 8px 12px 12px;
     border-right: 0;
-    border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
   .mcp-settings__items { overflow-x: auto; flex-direction: row; }
   .mcp-settings__list-item { min-width: 170px; }

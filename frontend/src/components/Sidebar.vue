@@ -90,10 +90,10 @@ function toggleSidebar() {
   height: 100%;
   min-height: 440px;
   overflow: hidden;
-  border-right: 1px solid #242424;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 14px 0 0 14px;
-  background: #050505;
-  color: #f2f2f2;
+  background: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
   transition: width var(--motion-duration-spring) var(--motion-spring-bouncy);
 
   &.is-collapsed {
@@ -121,7 +121,7 @@ function toggleSidebar() {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #f5f5f5;
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
 }
 
@@ -153,8 +153,8 @@ function toggleSidebar() {
 /* --- 收起/展开切换按钮 --- */
 .sidebar__toggle,
 .sidebar__expand {
-  --m3e-icon-button-icon-color: #969696;
-  --m3e-icon-button-hover-icon-color: #f0f0f0;
+  --m3e-icon-button-icon-color: var(--md-sys-color-outline);
+  --m3e-icon-button-hover-icon-color: var(--md-sys-color-on-surface);
   width: 40px;
   height: 40px;
 
@@ -173,7 +173,7 @@ function toggleSidebar() {
 .sidebar__action,
 .sidebar__settings {
   --m3e-button-container-height: var(--sidebar-item-height);
-  --m3e-text-button-label-text-color: #eeeeee;
+  --m3e-text-button-label-text-color: var(--md-sys-color-on-surface);
   --m3e-button-leading-space: 15px;
   --m3e-button-trailing-space: 15px;
   display: block;
@@ -184,8 +184,8 @@ function toggleSidebar() {
   text-align: left;
 
   &.is-primary {
-    --m3e-tonal-button-container-color: #1b1b1b;
-    --m3e-tonal-button-label-text-color: #f1f1f1;
+    --m3e-tonal-button-container-color: var(--md-sys-color-surface-container-low);
+    --m3e-tonal-button-label-text-color: var(--md-sys-color-on-surface);
   }
 }
 
@@ -221,7 +221,7 @@ function toggleSidebar() {
   overflow-y: auto;
   flex: 1 1 auto;
   scrollbar-width: thin;
-  scrollbar-color: #242424 transparent;
+  scrollbar-color: var(--md-sys-color-outline-variant) transparent;
 }
 
 /* --- 单个会话行：标题在左，关闭按钮在右 --- */
@@ -235,7 +235,7 @@ function toggleSidebar() {
   transition: background-color 120ms ease;
 
   &:hover {
-    background: #1a1a1a;
+    background: var(--md-sys-color-surface-dim);
   }
 
   &:hover .sidebar__conversation-close {
@@ -244,7 +244,7 @@ function toggleSidebar() {
   }
 
   &.is-active {
-    background: #1e1e1e;
+    background: var(--md-sys-color-surface-container-low);
   }
 }
 
@@ -256,11 +256,11 @@ function toggleSidebar() {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 15px;
-  color: #d8d8d8;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .sidebar__conversation-row.is-active .sidebar__conversation-title {
-  color: #fff;
+  color: var(--md-sys-color-on-surface);
 }
 
 /* --- 关闭按钮：右侧固定，悬停行时显示 --- */
@@ -291,7 +291,7 @@ function toggleSidebar() {
   padding: 0 var(--sidebar-inset) 12px;
 
   m3e-divider {
-    --m3e-divider-color: #202020;
+    --m3e-divider-color: var(--md-sys-color-outline-variant);
   }
 }
 

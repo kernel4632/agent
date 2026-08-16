@@ -133,18 +133,17 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 11px;
   overflow: hidden;
-  border: 1px solid #303030;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 32px;                                                /* 全圆角形成胶囊外观 */
-  background: rgb(28 28 28 / 82%);
-  box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+  background: var(--md-sys-color-surface-container-high);
   backdrop-filter: blur(20px);                                        /* 毛玻璃背景融合底层内容 */
   transition: height var(--motion-duration-spring) var(--motion-spring-bouncy), border-color 100ms ease, background-color 100ms ease;
 }
 
 /* --- 聚焦态：加亮边框和背景 --- */
 .chat-composer:focus-within {
-  border-color: #464646;
-  background: rgb(31 31 31 / 90%);
+  border-color: var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 /* --- 文本视口：承载自适应高度 textarea --- */
@@ -187,7 +186,7 @@ onBeforeUnmount(() => {
   border: 0;
   background: transparent;
   outline: none;
-  color: #f2f2f2;
+  color: var(--md-sys-color-on-surface);
   font-family: inherit;
   font-size: 16px;
   font-weight: inherit;
@@ -198,7 +197,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-composer__editor::placeholder {
-  color: #989898;
+  color: var(--md-sys-color-outline);
   opacity: 1;
 }
 
@@ -211,13 +210,12 @@ onBeforeUnmount(() => {
   margin-left: auto;
 }
 
-/* --- 控件弹性交互：悬停上浮、按压缩小 --- */
+/* --- 控件交互：按压缩小，悬停交给 M3E state-layer --- */
 .chat-composer__icon-button,
 .chat-composer__submit,
 .chat-composer__model {
   @include bounce-interact;
   transition-duration: 360ms;                                         /* 编辑器控件使用更快的弹簧时长 */
-  &:hover { transform: translateY(-1px) scale(1.03); }                /* 编辑器悬停幅度更大 */
   &:active { transform: scale(.86); transition: transform 60ms ease-out, filter 60ms ease-out; } /* 按压幅度比全局更夸张 */
 }
 
@@ -245,7 +243,7 @@ onBeforeUnmount(() => {
 .chat-composer__model {
   --m3e-button-shape-round: var(--md-sys-shape-corner-full);
   --m3e-button-shape-pressed-morph: var(--md-sys-shape-corner-full);
-  --m3e-text-button-label-text-color: #ededed;
+  --m3e-text-button-label-text-color: var(--md-sys-color-on-surface);
   height: var(--control-size);
   font-size: 14px;
   font-weight: 600;
@@ -261,7 +259,7 @@ onBeforeUnmount(() => {
   width: 16px;
   height: 16px;
   fill: none;
-  stroke: #9b9b9b;
+  stroke: var(--md-sys-color-outline);
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -269,15 +267,15 @@ onBeforeUnmount(() => {
 
 /* --- 模型浮层菜单 --- */
 .chat-composer__menu {
-  --m3e-menu-container-color: #202020;
+  --m3e-menu-container-color: var(--md-sys-color-surface-container);
   --m3e-menu-container-shape: 18px;
   --m3e-menu-container-min-width: 220px;
 }
 
 /* --- 提交按钮：高对比度填充 --- */
 .chat-composer__submit {
-  --m3e-filled-icon-button-container-color: #f1f1f1;
-  --m3e-filled-icon-button-icon-color: #111111;
+  --m3e-filled-icon-button-container-color: var(--md-sys-color-primary);
+  --m3e-filled-icon-button-icon-color: var(--md-sys-color-on-primary);
 }
 
 .chat-composer__submit svg { stroke-width: 2; }
@@ -291,6 +289,6 @@ onBeforeUnmount(() => {
 
 /* --- 关闭透明度的无障碍适配 --- */
 @media (prefers-reduced-transparency: reduce) {
-  .chat-composer { background: #1c1c1c; backdrop-filter: none; }
+  .chat-composer {   background: var(--md-sys-color-surface-container-low); backdrop-filter: none; }
 }
 </style>

@@ -107,7 +107,7 @@ function updateProvider(patch) {
   align-items: center;
   flex: 0 0 auto;
   gap: 10px;
-  color: #a6a6a6;
+  color: var(--md-sys-color-outline);
   font-size: 13px;
 }
 

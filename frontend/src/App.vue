@@ -4,7 +4,7 @@
 调用示例：Vite 从 main.js 挂载本文件的根组件。
 -->
 <script setup>
-import { computed } from 'vue'                                      // 引入响应式计算
+import { computed, onMounted, onUnmounted, ref, watchEffect } from 'vue'  // 引入响应式计算和生命周期
 import ChatComposer from './components/ChatComposer.vue'            // 引入对话输入编辑器
 import ConversationFlow from './components/ConversationFlow.vue'    // 引入对话消息时间线
 import HomePage from './components/HomePage.vue'                    // 引入工作区与会话主页
@@ -19,8 +19,42 @@ import { store } from './store.js'                                  // 引入全
 
 // --- 侧边栏折叠状态：store 是唯一真相，collapsed 是反向映射 ---
 const sidebarCollapsed = computed({
-  get: () => !store.ui.sidebarOpen,                                  // store 的 open=true 对应 collapsed=false
-  set: (value) => { store.ui.sidebarOpen = !value },                 // Sidebar 写 collapsed 时同步回 store
+  get: () => !store.ui.sidebarOpen,
+  set: (value) => { store.ui.sidebarOpen = !value },
+})
+
+
+// --- 主题跟随系统 prefers-color-scheme ---
+const systemDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
+let mediaQuery
+const updateSystemScheme = (event) => { systemDark.value = event.matches }
+onMounted(() => {
+  mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  mediaQuery.addEventListener('change', updateSystemScheme)
+  // Vue 对 custom element 绑定 property 而非 attribute，CSS 选择器依赖 attribute，需要手动同步
+  const el = document.querySelector('m3e-theme')
+  if (el) el.setAttribute('scheme', scheme.value)
+})
+onUnmounted(() => {
+  mediaQuery?.removeEventListener('change', updateSystemScheme)
+})
+
+// scheme 响应 store 里的 theme 偏好：light / dark / system（跟随系统）
+const scheme = computed(() => {
+  const t = store.settings.draft?.appearance?.theme
+    ?? store.config.appearance?.theme
+    ?? 'system'
+  if (t === 'light') return 'light'
+  if (t === 'dark') return 'dark'
+  return systemDark.value ? 'dark' : 'light'
+})
+
+// Vue 对 custom element 的动态绑定会设置 property 而非 attribute
+// m3e-theme[scheme="..."] CSS 选择器依赖 attribute，所以需要手动同步
+watchEffect(() => {
+  const nextScheme = scheme.value
+  const el = document.querySelector('m3e-theme')
+  if (el) el.setAttribute('scheme', nextScheme)
 })
 
 
@@ -32,7 +66,7 @@ async function submitMessage(content) {
 </script>
 
 <template>
-  <m3e-theme color="#a0a0a0" scheme="dark" density="0">
+  <m3e-theme color="#a0a0a0" :scheme="scheme" density="0">
     <div class="preview-page">
       <Sidebar
         v-model:collapsed="sidebarCollapsed"

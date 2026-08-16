@@ -95,7 +95,7 @@ watch(() => props.providers, providers => {
   flex: 0 0 auto;
   gap: 20px;
   padding: 26px 32px 22px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .provider-settings__header > div {
@@ -104,7 +104,7 @@ watch(() => props.providers, providers => {
   gap: 4px;
 }
 
-.provider-settings__header span { color: #7f7f7f; font-size: 13px; }
+.provider-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 主体双栏：左侧列表 + 右侧编辑器 --- */
 .provider-settings__body {
@@ -128,7 +128,7 @@ watch(() => props.providers, providers => {
   align-items: center;
   justify-content: center;
   min-height: 420px;
-  color: #777777;
+  color: var(--md-sys-color-outline);
 }
 
 /* --- 窄屏适配：纵向堆叠 --- */

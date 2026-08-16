@@ -32,11 +32,11 @@ const props = defineProps({
   min-height: 420px;
   gap: 14px;
   padding: 32px;
-  color: #8f8f8f;
+  color: var(--md-sys-color-outline);
   text-align: center;
 
   > m3e-icon {
-    color: #b8b8b8;
+    color: var(--md-sys-color-on-surface-variant);
     font-size: 40px;
   }
 

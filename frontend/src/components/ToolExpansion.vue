@@ -122,14 +122,14 @@ function confirmRollback() {
 
   > m3e-icon {
     flex: 0 0 28px;
-    color: #c8cbd3;
+    color: var(--md-sys-color-on-surface-variant);
     font-size: 28px;
   }
 }
 
 .tool-expansion__label {
   flex: 0 0 auto;
-  color: #d8dbe3;
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 18px;
   line-height: 24px;
 }
@@ -138,7 +138,7 @@ function confirmRollback() {
   min-width: 0;
   overflow: hidden;
   flex: 1 1 auto;
-  color: #9498a3;
+  color: var(--md-sys-color-outline);
   font: 15px/24px "Cascadia Code", Consolas, monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -160,7 +160,7 @@ function confirmRollback() {
   flex-direction: column;
   gap: 10px;
   padding: 14px;
-  color: #e5e5e5;
+  color: var(--md-sys-color-on-surface);
   font-size: 14px;
 
   m3e-button { width: 100%; }

@@ -77,7 +77,7 @@ function onInput(event) {
   flex: 0 0 auto;
   gap: 20px;
   padding: 26px 32px 22px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .prompts-settings__header > div {
@@ -86,10 +86,10 @@ function onInput(event) {
   gap: 4px;
 }
 
-.prompts-settings__header span { color: #7f7f7f; font-size: 13px; }
+.prompts-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 .prompts-settings__count {
-  color: #7f7f7f;
+  color: var(--md-sys-color-outline);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
@@ -115,10 +115,10 @@ function onInput(event) {
   width: 100%;
   min-height: 320px;
   padding: 16px 20px;
-  border: 1px solid #303030;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 8px;
-  background: #141414;
-  color: #e0e0e0;
+  background: var(--md-sys-color-surface-dim);
+  color: var(--md-sys-color-on-surface-variant);
   font-family: inherit;
   font-size: 14px;
   line-height: 1.7;
@@ -126,9 +126,9 @@ function onInput(event) {
   outline: none;
   transition: border-color 0.15s;
 
-  &:focus { border-color: #555555; }
+  &:focus { border-color: var(--md-sys-color-outline); }
 
-  &::placeholder { color: #555555; }
+  &::placeholder { color: var(--md-sys-color-outline); }
 }
 
 /* --- 使用提示 --- */
@@ -136,15 +136,15 @@ function onInput(event) {
   width: min(820px, 100%);
   margin: 0 auto;
   padding: 16px 20px;
-  border: 1px solid #242424;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 8px;
-  background: #101010;
+  background: var(--md-sys-color-surface);
 }
 
 .prompts-settings__tips ul {
   margin: 10px 0 0;
   padding-left: 20px;
-  color: #999999;
+  color: var(--md-sys-color-outline);
   font-size: 13px;
   line-height: 2;
 }

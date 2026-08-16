@@ -94,7 +94,7 @@ function updatePermission(index, permission) {
   flex: 0 0 auto;
   gap: 20px;
   padding: 26px 32px 22px;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .tools-settings__header > div {
@@ -103,7 +103,7 @@ function updatePermission(index, permission) {
   gap: 4px;
 }
 
-.tools-settings__header span { color: #7f7f7f; font-size: 13px; }
+.tools-settings__header span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 列表区域 --- */
 .tools-settings__body {
@@ -128,7 +128,7 @@ function updatePermission(index, permission) {
   min-height: 56px;
   gap: 16px;
   padding: 12px 16px;
-  border: 1px solid #303030;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 8px;
 }
 
@@ -158,9 +158,9 @@ function updatePermission(index, permission) {
 .tools-settings__empty {
   margin: 0;
   padding: 32px;
-  border: 1px dashed #333333;
+  border: 1px dashed var(--md-sys-color-outline-variant);
   border-radius: 8px;
-  color: #777777;
+  color: var(--md-sys-color-outline);
   text-align: center;
 }
 

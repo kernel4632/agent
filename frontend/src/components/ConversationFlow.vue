@@ -120,10 +120,10 @@ function toolIcon(toolName) {
   max-width: min(620px, 82%);
   margin: 0;
   padding: 14px 20px;
-  border: 1px solid #353535;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 22px 22px 6px 22px;                                /* 右下缺角标识发送方 */
-  background: #1b1b1b;
-  color: #f2f2f2;
+  background: var(--md-sys-color-surface-dim);
+  color: var(--md-sys-color-on-surface);
   font-size: 17px;
   line-height: 1.55;
 }
@@ -133,7 +133,7 @@ function toolIcon(toolName) {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #b5b5b5;
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 14px;
   opacity: 0;
   pointer-events: none;
@@ -170,14 +170,14 @@ function toolIcon(toolName) {
   min-width: 0;
   gap: 12px;
   padding-inline: 12px;
-  color: #676b75;
+  color: var(--md-sys-color-outline);
   font-size: 14px;
   opacity: .42;                                                      /* 默认弱化避免干扰阅读流 */
   transition: opacity 160ms ease, color 160ms ease;
 
   &:hover,
   &:focus-within {
-    color: #aeb2bc;
+    color: var(--md-sys-color-outline);
     opacity: 1;                                                      /* 悬停时恢复完整可见度 */
   }
 
@@ -207,13 +207,13 @@ function toolIcon(toolName) {
   p {
     width: 100%;
     margin: 0;
-    color: #d0d3dc;
+    color: var(--md-sys-color-on-surface-variant);
     font-size: 18px;
     line-height: 1.65;
   }
 
   code {
-    color: #f0f0f0;
+    color: var(--md-sys-color-on-surface);
     font-family: "Cascadia Code", Consolas, monospace;
   }
 }
@@ -223,10 +223,10 @@ function toolIcon(toolName) {
   margin: 12px 0 0;
   padding: 14px 16px;
   overflow-x: auto;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 8px;
-  background: #111111;
-  color: #cfcfcf;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
   font: 14px/1.7 "Cascadia Code", Consolas, monospace;
   @include scrollbar-dark-horizontal;
 }
@@ -236,7 +236,7 @@ function toolIcon(toolName) {
   margin: 0;
   padding: 0;
   overflow-x: auto;
-  color: #c8cbd3;
+  color: var(--md-sys-color-on-surface-variant);
   font: 17px/1.7 "Cascadia Code", Consolas, monospace;
   @include scrollbar-dark-horizontal;
 }
