@@ -21,11 +21,20 @@ function updateProvider(updatedProvider) {
   emit('update:providers', props.providers.map(provider => provider.id === updatedProvider.id ? updatedProvider : provider)) // 保持列表顺序不变，仅替换匹配项
 }
 
+function removeProvider() {
+  const index = props.providers.findIndex(provider => provider.id === selectedProviderID.value)
+  if (index < 0) return
+  const nextProvider = props.providers[index + 1] ?? props.providers[index - 1]
+  emit('update:providers', props.providers.filter(provider => provider.id !== selectedProviderID.value))
+  selectedProviderID.value = nextProvider?.id ?? ''
+}
 
-// --- 供应商被删除后回退选择 ---
-watch(() => props.providers, providers => {
-  if (providers.some(provider => provider.id === selectedProviderID.value)) return // 当前选择仍存在，无需跳转
-  selectedProviderID.value = providers[0]?.id ?? ''                              // 删除或重载后回到首项
+
+// --- 外部新增条目时自动选择；删除时保留有效选择 ---
+watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => {
+  const addedID = ids.find(id => !previousIDs.includes(id))
+  if (addedID) selectedProviderID.value = addedID
+  else if (!ids.includes(selectedProviderID.value)) selectedProviderID.value = ids[0] ?? ''
 })
 </script>
 
@@ -33,7 +42,7 @@ watch(() => props.providers, providers => {
   <section class="provider-settings">
     <ProviderList :providers="props.providers" :selected-id="selectedProviderID" @select="selectedProviderID = $event" />
     <div class="provider-settings__editor">
-      <ProviderEditor v-if="selectedProvider" :provider="selectedProvider" @update:provider="updateProvider" />
+      <ProviderEditor v-if="selectedProvider" :provider="selectedProvider" @update:provider="updateProvider" @delete="removeProvider" />
       <div v-else class="provider-settings__empty">
         <span>添加一个供应商以开始配置</span>
       </div>

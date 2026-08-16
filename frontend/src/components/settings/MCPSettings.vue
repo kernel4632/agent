@@ -17,12 +17,19 @@ const emit = defineEmits(['update:mcp'])                     // 输出变更后�
 
 const selectedID = ref(props.mcp[0]?.id ?? '')              // 默认选中首个 MCP 服务
 const selectedItem = computed(() => props.mcp.find(item => item.id === selectedID.value) ?? null) // 选中项完整对象
+const deleteDialog = ref(null)
 
 
-// --- 删除选中的 MCP 服务 ---
+function requestRemove() {
+  deleteDialog.value.show()
+}
+
 function removeMCP() {
-  const updated = props.mcp.filter(item => item.id !== selectedID.value) // 从列表中过滤目标
-  emit('update:mcp', updated)                               // 上抛删除后的数组
+  const index = props.mcp.findIndex(item => item.id === selectedID.value)
+  if (index < 0) return
+  const nextItem = props.mcp[index + 1] ?? props.mcp[index - 1]
+  emit('update:mcp', props.mcp.filter(item => item.id !== selectedID.value))
+  selectedID.value = nextItem?.id ?? ''
 }
 
 
@@ -62,10 +69,11 @@ function tryUpdateEnv(text) {
 }
 
 
-// --- 删除后回退选择 ---
-watch(() => props.mcp, (items) => {
-  if (items.some(item => item.id === selectedID.value)) return // 当前选择仍存在
-  selectedID.value = items[0]?.id ?? ''                     // 回退到首项
+// --- 外部新增条目时自动选择；删除时保留有效选择 ---
+watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
+  const addedID = ids.find(id => !previousIDs.includes(id))
+  if (addedID) selectedID.value = addedID
+  else if (!ids.includes(selectedID.value)) selectedID.value = ids[0] ?? ''
 })
 </script>
 
@@ -109,9 +117,9 @@ watch(() => props.mcp, (items) => {
         <section class="mcp-settings__section">
               <m3e-form-field variant="outlined" hide-subscript="always">
               <label slot="label">传输方式</label>
-              <m3e-select :value="selectedItem.definition?.transport || 'stdio'" @change="updateDefinition('transport', $event.currentTarget.value)">
-                <m3e-option value="stdio">stdio（标准输入输出）</m3e-option>
-                <m3e-option value="sse">SSE（HTTP 流）</m3e-option>
+              <m3e-select @change="updateDefinition('transport', $event.currentTarget.value)">
+                <m3e-option value="stdio" :selected="(selectedItem.definition?.transport || 'stdio') === 'stdio'">stdio（标准输入输出）</m3e-option>
+                <m3e-option value="sse" :selected="selectedItem.definition?.transport === 'sse'">SSE（HTTP 流）</m3e-option>
               </m3e-select>
             </m3e-form-field>
         </section>
@@ -156,7 +164,7 @@ watch(() => props.mcp, (items) => {
 
         <!-- 删除按钮。 -->
         <section class="mcp-settings__actions">
-            <m3e-button type="button" variant="outlined" @click="removeMCP">
+            <m3e-button type="button" variant="outlined" @click="requestRemove">
               <HugeiconsIcon slot="icon" :icon="Delete01Icon" :stroke-width="ICON_STROKE_WIDTH" />
               删除此服务
             </m3e-button>
@@ -168,6 +176,15 @@ watch(() => props.mcp, (items) => {
         <span>添加一个 MCP 服务以开始配置</span>
       </div>
     </div>
+
+    <m3e-dialog ref="deleteDialog" dismissible aria-label="删除 MCP 服务确认">
+      <m3e-heading slot="header" variant="headline" size="small" level="2">删除 MCP 服务？</m3e-heading>
+      <p>此 MCP 服务的未保存配置将被移除。</p>
+      <div slot="actions" class="mcp-settings__dialog-actions" end>
+        <m3e-button type="button" shape="square"><m3e-dialog-action return-value="cancel">取消</m3e-dialog-action></m3e-button>
+        <m3e-button type="button" variant="filled" shape="square" @click="removeMCP"><m3e-dialog-action return-value="delete">删除</m3e-dialog-action></m3e-button>
+      </div>
+    </m3e-dialog>
   </section>
 </template>
 
@@ -274,6 +291,8 @@ watch(() => props.mcp, (items) => {
   padding-top: 12px;
   border-top: 1px solid var(--md-sys-color-outline-variant);
 }
+
+.mcp-settings__dialog-actions { display: flex; gap: 8px; }
 
 /* --- 空状态 --- */
 .mcp-settings__empty {

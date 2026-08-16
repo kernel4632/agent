@@ -1,7 +1,7 @@
 <!--
 设置分类导航：用带 Tooltip 的图标按钮展示设置分类并发出切换意图。
-设计思想：仅负责显示和事件，不持有业务数据，所有选中状态由调用方通过 props 控制。
-调用示例：<SettingsNavigation :items="sections" :selected-id="selectedSectionID" @select="selectedSectionID = $event" />。
+设计思想：仅负责显示和事件，不持有业务数据。
+调用示例：<SettingsNavigation :items="sections" @select="openSection" />。
 -->
 <script setup>
 import { HugeiconsIcon } from '@hugeicons/vue'
@@ -10,7 +10,6 @@ import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({
   items: { type: Array, required: true },                   // 设置分类定义数组
-  selectedId: { type: String, required: true },             // 当前选中分类的唯一身份
 })
 
 const emit = defineEmits(['select'])                        // 输出用户点击的分类 ID
