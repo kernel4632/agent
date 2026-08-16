@@ -91,7 +91,7 @@ const app = new Elysia()
     .delete('/plugin', ({ query }) => Plugin.unload(query.name), { query: t.Object({ name: t.String() }) })
     .get('/tool', ({ query }) => Tool.list(query.workspacePath), { query: t.Object({ workspacePath: t.String() }) })
 
-export const start = async (port = Number(process.env.PORT || 3000)) => {
+export const start = async (port = Number(process.env.PORT || 4632)) => {
     await Store.load() // 先恢复配置、工作区和会话。
     await Plugin.load() // 数据就绪后再启动依赖配置的插件。
     server = app.listen({ port, hostname: process.env.HOST || '127.0.0.1' }).server // 最后开放端口。
@@ -114,5 +114,5 @@ export const shutdown = async () => {
 if (import.meta.main) {
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => void shutdown()) // 系统信号只处理一次。
     await start() // 直接执行文件时自动启动服务。
-    console.log(`Agent listening on http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || 3000}`)
+    console.log(`Agent listening on http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || 4632}`)
 }
