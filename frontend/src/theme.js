@@ -7,4 +7,4 @@
 // --- 图标线条粗细 ---
 // 所有 HugeiconsIcon 组件通过此常量统一控制 strokeWidth，方便全局调整。
 // hugeicons 推荐范围 1–2，默认 1.5，视觉较粗可调至 2。
-export const ICON_STROKE_WIDTH = 1.5
+export const ICON_STROKE_WIDTH = 2

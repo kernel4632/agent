@@ -1,7 +1,7 @@
 /* Agent 数据路径。修改数据目录只需要改 AGENT_HOME。 */
 import { join } from 'node:path' // 使用平台安全的路径拼接。
 
-const root = () => process.env.AGENT_HOME || join(process.env.HOME, '.agent') // 支持测试和容器覆盖数据根目录。
+const root = () => process.env.AGENT_HOME || join(process.env.HOME || process.env.USERPROFILE, '.agent') // 支持测试和容器覆盖数据根目录；Windows 使用 USERPROFILE 替代 HOME。
 
 // 配置和工作区索引是 Agent 启动时首先读取的两个文件。
 const config = () => join(root(), 'config.json') // 全局模型、权限和插件配置。

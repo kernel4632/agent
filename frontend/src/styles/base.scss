@@ -135,3 +135,19 @@ m3e-list-action {
     padding: 0;
   }
 }
+
+/* --- M3E 按钮圆角全局覆盖 --- */
+:root {
+  --app-button-capsule-radius: 9999px;
+  --app-button-rectangle-radius: 12px;
+}
+
+m3e-button[shape="rounded"] {
+  --m3e-button-shape-round: var(--app-button-capsule-radius);
+  --m3e-button-shape-pressed-morph: var(--app-button-capsule-radius);
+}
+
+m3e-button[shape="square"] {
+  --m3e-button-shape-square: var(--app-button-rectangle-radius);
+  --m3e-button-shape-pressed-morph: var(--app-button-rectangle-radius);
+}
