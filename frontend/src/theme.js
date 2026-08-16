@@ -8,3 +8,18 @@
 // 所有 HugeiconsIcon 组件通过此常量统一控制 strokeWidth，方便全局调整。
 // hugeicons 推荐范围 1–2，默认 1.5，视觉较粗可调至 2。
 export const ICON_STROKE_WIDTH = 2
+
+// --- M3E ThemeElement 的完整可配置面 ---
+export const DEFAULT_APPEARANCE = Object.freeze({
+  theme: 'system',
+  color: '#6750a4',
+  variant: 'tonal-spot',
+  contrast: 'standard',
+  density: 0,
+  motion: 'expressive',
+  strongFocus: false,
+})
+
+export function normalizeAppearance(value = {}) {
+  return { ...DEFAULT_APPEARANCE, ...(value && typeof value === 'object' ? value : {}) }
+}

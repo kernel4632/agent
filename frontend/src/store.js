@@ -4,15 +4,16 @@
 调用示例：store.workspaces、store.sessions[sessionID]、store.ui.activeSessionID。
 */
 import { reactive } from 'vue'                         // 引入唯一响应式数据根
+import { normalizeAppearance } from './theme.js'
 
 
 // --- 从 localStorage 恢复外观偏好 ---
 function loadAppearance() {
   try {
     const saved = JSON.parse(localStorage.getItem('agent.appearance'))  // 读取上次保存的偏好
-    if (saved && typeof saved === 'object') return { theme: saved.theme || 'system' }
+    if (saved && typeof saved === 'object') return normalizeAppearance(saved)
   } catch { /* 损坏数据回退默认 */ }
-  return { theme: 'system' } // 首次使用的默认值
+  return normalizeAppearance() // 首次使用的默认值
 }
 
 

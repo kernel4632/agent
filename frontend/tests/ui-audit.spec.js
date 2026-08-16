@@ -127,7 +127,7 @@ test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => 
     ['MCP 管理', '17-settings-mcp'],
     ['系统提示词定义', '19-settings-prompt'],
     ['数据管理', '20-settings-data'],
-    ['语言与外观', '22-settings-appearance'],
+    ['外观', '22-settings-appearance'],
   ]) {
     await openSettingsSection(page, label)
     await capture(page, testInfo, name)
@@ -179,7 +179,7 @@ test('mobile screenshot and interaction matrix', async ({ page }, testInfo) => {
   await capture(page, testInfo, '06-mobile-settings-tools')
   await openSettingsSection(page, 'MCP 管理')
   await capture(page, testInfo, '07-mobile-settings-mcp')
-  await openSettingsSection(page, '语言与外观')
+  await openSettingsSection(page, '外观')
   await capture(page, testInfo, '08-mobile-settings-appearance')
 
   await expectHealthyLayout(page)

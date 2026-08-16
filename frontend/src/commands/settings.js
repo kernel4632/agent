@@ -8,6 +8,7 @@ import { store } from '../store.js'                     // 引入已保存配置
 import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
 import { UI } from './ui.js'                            // 引入保存错误轻反馈
 import { t } from '../i18n.js'                          // 引入当前语言默认和反馈文案
+import { normalizeAppearance } from '../theme.js'
 
 
 // --- 隔离设置草稿数据 ---
@@ -94,7 +95,7 @@ function restoreAppearance() {
     const saved = JSON.parse(localStorage.getItem(appearanceKey))   // 读取上次保存的外观偏好
     if (saved && typeof saved === 'object') return saved            // 返回有效对象
   } catch { /* 损坏数据回退默认 */ }
-  return { theme: 'system' } // 首次使用的默认值
+  return normalizeAppearance() // 首次使用的默认值
 }
 
 
@@ -259,7 +260,7 @@ function updatePrompt(value) {
 // --- 修改外观字段 ---
 function updateAppearance(field, value) {
   const appearance = store.settings.draft?.appearance   // 读取外观设置草稿
-  if (!appearance || field !== 'theme') return false                    // 主题是唯一可编辑的外观偏好
+  if (!appearance || !(field in normalizeAppearance())) return false    // 只接受 ThemeElement 公开的外观字段
   appearance[field] = value                              // 单字段变化进入隔离草稿
   return true                                            // 反馈修改完成
 }

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test('capture current settings pages', async ({ page }) => {
   await page.goto('/')
@@ -10,17 +10,28 @@ test('capture current settings pages', async ({ page }) => {
   await providersItem.hover()
   await page.screenshot({ path: 'test-results/settings-overview-hover.png', fullPage: true })
   await providersItem.click()
+  await page.waitForSelector('.provider-settings')
   await page.screenshot({ path: 'test-results/settings-providers-current.png', fullPage: true })
 
   await page.locator('[aria-label="返回设置"]').click()
+  await page.waitForSelector('.settings-navigation')
   await page.locator('.settings-navigation m3e-list-action[aria-label="工具管理"]').click()
+  await page.waitForSelector('.tools-settings')
   await page.screenshot({ path: 'test-results/settings-tools-current.png', fullPage: true })
 
   await page.locator('[aria-label="返回设置"]').click()
-  await page.locator('.settings-navigation m3e-list-action[aria-label="语言与外观"]').click()
+  await page.waitForSelector('.settings-navigation')
+  await page.locator('.settings-navigation m3e-list-action[aria-label="外观"]').click()
+  await page.waitForSelector('.appearance-settings')
+  await page.waitForTimeout(350)
+  await page.locator('.appearance-settings__option').first().waitFor()
+  await expect(page.locator('.appearance-settings__option')).toHaveCount(7)
+  await expect(page.getByRole('button', { name: '恢复默认' })).toBeVisible()
   await page.screenshot({ path: 'test-results/settings-appearance-current.png', fullPage: true })
 
   await page.locator('[aria-label="返回设置"]').click()
+  await page.waitForSelector('.settings-navigation')
   await page.locator('.settings-navigation m3e-list-action[aria-label="系统提示词定义"]').click()
+  await page.waitForSelector('.prompts-settings')
   await page.screenshot({ path: 'test-results/settings-prompts-current.png', fullPage: true })
 })

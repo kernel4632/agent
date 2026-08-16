@@ -16,6 +16,7 @@ import { Settings } from './commands/settings.js'                   // 引入设
 import { UI, openedConversations, homeWorkspaces, conversationsByWorkspace, activeSession, activeModels } from './commands/ui.js' // 引入页面导航、反馈和派生视图数据
 import { Workspace } from './commands/workspace.js'                 // 引入工作区选择指令
 import { store } from './store.js'                                  // 引入全局工作台数据
+import { normalizeAppearance } from './theme.js'
 
 // --- 侧边栏折叠状态：store 是唯一真相，collapsed 是反向映射 ---
 const sidebarCollapsed = computed({
@@ -49,13 +50,24 @@ const scheme = computed(() => {
   return systemDark.value ? 'dark' : 'light'
 })
 
+const appearance = computed(() => normalizeAppearance(
+  store.settings.draft?.appearance ?? store.config.appearance,
+))
+
 // Vue 对 custom element 的动态绑定会设置 property 而非 attribute
 // m3e-theme[scheme="..."] CSS 选择器依赖 attribute，所以需要手动同步
 watchEffect(() => {
   const nextScheme = scheme.value
   const el = document.querySelector('m3e-theme')
-  if (el) el.setAttribute('scheme', nextScheme)
-})
+  if (!el) return
+  el.setAttribute('scheme', nextScheme)
+  el.setAttribute('color', appearance.value.color)
+  el.setAttribute('variant', appearance.value.variant)
+  el.setAttribute('contrast', appearance.value.contrast)
+  el.setAttribute('density', String(appearance.value.density))
+  el.setAttribute('motion', appearance.value.motion)
+  el.toggleAttribute('strong-focus', appearance.value.strongFocus)
+}, { flush: 'post' })
 
 
 // --- 提交用户消息 ---
@@ -66,7 +78,7 @@ async function submitMessage(content) {
 </script>
 
 <template>
-  <m3e-theme color="#a0a0a0" :scheme="scheme" density="0">
+  <m3e-theme>
     <div class="preview-page">
       <Sidebar
         v-model:collapsed="sidebarCollapsed"

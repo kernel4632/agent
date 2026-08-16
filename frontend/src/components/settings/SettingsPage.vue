@@ -26,7 +26,7 @@ const sections = [                                            // 设置分类定
   { id: 'tools', label: '工具管理', icon: Wrench01Icon, description: '管理 Agent 可调用的本地与内置工具。' },
   { id: 'mcp', label: 'MCP 管理', navLabel: 'MCP 服务', icon: GridViewIcon, description: '连接、启用并诊断 MCP 服务。' },
   { id: 'prompts', label: '系统提示词定义', navLabel: '系统提示词', icon: FileEditIcon, description: '维护系统提示词和可复用规则片段。' },
-  { id: 'appearance', label: '语言与外观', navLabel: '外观', icon: ColorsIcon, description: '调整语言、主题与界面动效。' },
+  { id: 'appearance', label: '外观', icon: ColorsIcon, description: '调整动态颜色、对比度、密度与界面动效。' },
   { id: 'data', label: '数据管理', icon: Database01Icon, description: '导入、导出、清理或迁移本地数据。' },
 ]
 

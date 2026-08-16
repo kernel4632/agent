@@ -84,7 +84,7 @@ export function startWatchers() {
 
   // 监听主题变化：scheme 切换后 M3E 重新计算颜色，同步到 :root 供 Vue 组件使用
   watch(
-    () => store.config.appearance?.theme,
+    () => store.settings.draft?.appearance ?? store.config.appearance,
     () => nextTick(syncM3ETokens),                                    // DOM 更新后再读取计算值
     { immediate: false },
   )
@@ -98,7 +98,7 @@ export function startWatchers() {
     if (theme) {
       new MutationObserver(syncM3ETokens).observe(theme, {
         attributes: true,
-        attributeFilter: ['scheme', 'color'],                          // 只监听影响颜色的属性
+        attributeFilter: ['scheme', 'color', 'variant', 'contrast'],   // 监听所有影响动态色板的属性
       })
     }
   }
