@@ -18,21 +18,21 @@ test('provider add button creates and selects a provider', async ({ page }, test
   test.skip(testInfo.project.name !== 'desktop')
   await openSection(page, '供应商配置', '.provider-settings')
 
-  const providers = page.locator('.provider-list__item')
+  const providers = page.locator('.provider-list m3e-list-action')
   const count = await providers.count()
   const add = page.getByRole('button', { name: '添加供应商' })
   await expect(add).toBeVisible()
   await add.click()
 
   await expect(providers).toHaveCount(count + 1)
-  await expect(page.locator('.provider-list__item.is-selected')).toContainText(`Provider ${count + 1}`)
+  await expect(page.getByRole('textbox', { name: '供应商名' })).toHaveValue(`Provider ${count + 1}`)
 })
 
 test('provider delete confirms before removing', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop')
   await openSection(page, '供应商配置', '.provider-settings')
 
-  const providers = page.locator('.provider-list__item')
+  const providers = page.locator('.provider-list m3e-list-action')
   const originalCount = await providers.count()
   await page.getByRole('button', { name: '添加供应商' }).click()
   await expect(providers).toHaveCount(originalCount + 1)
@@ -53,11 +53,11 @@ test('MCP add selects, and delete requires confirmation', async ({ page }, testI
   test.skip(testInfo.project.name !== 'desktop')
   await openSection(page, 'MCP 管理', '.mcp-settings')
 
-  const servers = page.locator('.mcp-settings__list-item')
+  const servers = page.locator('.mcp-settings__list m3e-list-action')
   const originalCount = await servers.count()
   await page.getByRole('button', { name: '添加 MCP 服务' }).click()
   await expect(servers).toHaveCount(originalCount + 1)
-  await expect(page.locator('.mcp-settings__list-item.is-selected')).toContainText(`MCP ${originalCount + 1}`)
+  await expect(page.locator('.mcp-settings__form input').first()).toHaveValue(`MCP ${originalCount + 1}`)
   await page.getByRole('button', { name: '删除此服务' }).click()
 
   const dialog = page.getByRole('dialog', { name: '删除 MCP 服务？' })
@@ -75,7 +75,7 @@ test('an empty provider collection can recover through the header add action', a
   test.skip(testInfo.project.name !== 'desktop')
   await openSection(page, '供应商配置', '.provider-settings')
 
-  const providers = page.locator('.provider-list__item')
+  const providers = page.locator('.provider-list m3e-list-action')
   while (await providers.count()) {
     await page.getByRole('button', { name: '删除供应商' }).click()
     await confirmDelete(page, '删除供应商？')
@@ -84,7 +84,7 @@ test('an empty provider collection can recover through the header add action', a
 
   await page.getByRole('button', { name: '添加供应商' }).click()
   await expect(providers).toHaveCount(1)
-  await expect(page.locator('.provider-list__item.is-selected')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '供应商名' })).toHaveValue('Provider 1')
 })
 
 test('saving settings PATCHes every provider including visible edits', async ({ page }, testInfo) => {

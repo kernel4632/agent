@@ -26,8 +26,8 @@ test('capture current settings pages', async ({ page }) => {
   await page.locator('.settings-navigation m3e-list-action[aria-label="外观"]').click()
   await page.waitForSelector('.appearance-settings')
   await page.waitForTimeout(350)
-  await page.locator('.appearance-settings__option').first().waitFor()
-  await expect(page.locator('.appearance-settings__option')).toHaveCount(7)
+  await page.locator('.appearance-settings m3e-list-item').first().waitFor()
+  await expect(page.locator('.appearance-settings m3e-list-item')).toHaveCount(7)
   await expect(page.getByRole('button', { name: '恢复默认' })).toBeVisible()
   await page.screenshot({ path: 'test-results/settings-appearance-current.png', fullPage: true })
 

@@ -47,10 +47,7 @@ function removeModel(modelID) {
   <section class="provider-models">
     <!-- 标题行：模型计数和获取按钮。 -->
     <div class="provider-models__heading">
-      <div>
-        <m3e-heading variant="title" size="medium" level="3">模型列表</m3e-heading>
-        <span>{{ props.models.length }} 个已添加模型</span>
-      </div>
+      <m3e-heading variant="title" size="medium" level="3">模型列表 <span>{{ props.models.length }} 个已添加模型</span></m3e-heading>
       <m3e-button type="button" variant="outlined" @click="openChooser">
         <HugeiconsIcon slot="icon" :icon="CloudDownloadIcon" :stroke-width="ICON_STROKE_WIDTH" />
         获取模型列表
@@ -59,7 +56,7 @@ function removeModel(modelID) {
 
     <!-- 已添加模型列表。 -->
     <m3e-list class="provider-models__list">
-      <m3e-list-item v-for="model in props.models" :key="model.id" class="provider-models__item">
+      <m3e-list-item v-for="model in props.models" :key="model.id">
         {{ model.name }}
         <span slot="supporting-text">{{ model.capabilities.join(' · ') }}</span>
         <m3e-icon-button slot="trailing" type="button" aria-label="移除模型" title="移除模型" @click="removeModel(model.id)">
@@ -92,7 +89,7 @@ function removeModel(modelID) {
 
 /* --- 标题行：左侧计数，右侧获取按钮 --- */
 .provider-models__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.provider-models__heading > div { display: flex; flex-direction: column; gap: 3px; }
+.provider-models__heading m3e-heading { display: flex; flex-direction: column; gap: 3px; }
 .provider-models__heading span { color: var(--md-sys-color-outline); font-size: 13px; }
 
 /* --- 模型卡片列表 --- */
@@ -100,19 +97,6 @@ function removeModel(modelID) {
   display: flex;
   flex-direction: column;
 }
-
-/* --- 单个模型行：名称、能力标签和移除按钮 --- */
-.provider-models__item {
-  width: 100%;
-}
-
-/* --- 模型身份区：名称和能力标签 --- */
-.provider-models__identity { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; }
-.provider-models__identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* --- 能力标签组 --- */
-.provider-models__capabilities { display: flex; flex-wrap: wrap; gap: 6px; }
-.provider-models__capabilities span { padding: 2px 7px; border-radius: 5px; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant); font-size: 11px; }
 
 /* --- 空状态占位 --- */
 .provider-models__empty { margin: 0; padding: 24px; color: var(--md-sys-color-outline); text-align: center; }

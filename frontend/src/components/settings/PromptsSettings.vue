@@ -37,7 +37,7 @@ function onInput(event) {
 
     <!-- 使用提示。 -->
     <m3e-card class="prompts-settings__tips" variant="outlined">
-      <aside slot="content" class="prompts-settings__tips-content">
+      <aside slot="content">
         <m3e-heading variant="title" size="small" level="3">提示词建议</m3e-heading>
         <ul>
           <li>明确 Agent 的身份和专长领域</li>
@@ -87,9 +87,7 @@ function onInput(event) {
   margin: 0 auto;
 }
 
-.prompts-settings__tips-content {
-  padding: 16px 20px;
-}
+.prompts-settings__tips [slot="content"] { padding: 16px 20px; }
 
 .prompts-settings__tips ul {
   margin: 10px 0 0;

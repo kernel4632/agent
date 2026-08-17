@@ -99,8 +99,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
     </aside>
 
     <!-- 右侧编辑面板。 -->
-    <div class="mcp-settings__editor">
-      <form v-if="selectedItem" class="mcp-settings__form" @submit.prevent>
+    <form v-if="selectedItem" class="mcp-settings__form" @submit.prevent>
         <!-- 名称和启用状态。 -->
         <header class="mcp-settings__title-row">
             <m3e-form-field class="mcp-settings__field-name" variant="outlined" hide-subscript="always">
@@ -114,31 +113,26 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
         </header>
 
         <!-- 传输方式选择。 -->
-        <section class="mcp-settings__section">
-              <m3e-form-field variant="outlined" hide-subscript="always">
+        <m3e-form-field variant="outlined" hide-subscript="always">
               <label slot="label">传输方式</label>
               <m3e-select @change="updateDefinition('transport', $event.currentTarget.value)">
                 <m3e-option value="stdio" :selected="(selectedItem.definition?.transport || 'stdio') === 'stdio'">stdio（标准输入输出）</m3e-option>
                 <m3e-option value="sse" :selected="selectedItem.definition?.transport === 'sse'">SSE（HTTP 流）</m3e-option>
               </m3e-select>
-            </m3e-form-field>
-        </section>
+        </m3e-form-field>
 
         <!-- 启动命令。 -->
-        <section class="mcp-settings__section">
-            <m3e-form-field class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
+        <m3e-form-field class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
               <label slot="label">{{ selectedItem.definition?.transport === 'sse' ? '服务地址（URL）' : '启动命令' }}</label>
               <input
                 :value="selectedItem.command"
                 :placeholder="selectedItem.definition?.transport === 'sse' ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
                 @input="updateField('command', $event.currentTarget.value)"
               />
-            </m3e-form-field>
-        </section>
+        </m3e-form-field>
 
         <!-- 启动参数（仅 stdio）。 -->
-        <section v-if="selectedItem.definition?.transport !== 'sse'" class="mcp-settings__section">
-            <m3e-form-field class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
+        <m3e-form-field v-if="selectedItem.definition?.transport !== 'sse'" class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
               <label slot="label">启动参数（每行一个）</label>
               <textarea
                 :value="(selectedItem.definition?.args || []).join('\n')"
@@ -146,12 +140,10 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
                 placeholder="--port&#10;3000"
                 @input="updateDefinition('args', $event.currentTarget.value.split('\n').filter(Boolean))"
               ></textarea>
-            </m3e-form-field>
-        </section>
+        </m3e-form-field>
 
         <!-- 环境变量（仅 stdio）。 -->
-        <section v-if="selectedItem.definition?.transport !== 'sse'" class="mcp-settings__section">
-            <m3e-form-field class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
+        <m3e-form-field v-if="selectedItem.definition?.transport !== 'sse'" class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
               <label slot="label">环境变量（JSON 格式）</label>
               <textarea
                 :value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)"
@@ -159,8 +151,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
                 placeholder='{"API_KEY": "xxx"}'
                 @input="tryUpdateEnv($event.currentTarget.value)"
               ></textarea>
-            </m3e-form-field>
-        </section>
+        </m3e-form-field>
 
         <!-- 删除按钮。 -->
         <section class="mcp-settings__actions">
@@ -169,13 +160,10 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
               删除此服务
             </m3e-button>
         </section>
-      </form>
+    </form>
 
-      <!-- 无选中态。 -->
-      <div v-else class="mcp-settings__empty">
-        <span>添加一个 MCP 服务以开始配置</span>
-      </div>
-    </div>
+    <!-- 无选中态。 -->
+    <p v-else class="mcp-settings__empty">添加一个 MCP 服务以开始配置</p>
 
     <m3e-dialog ref="deleteDialog" dismissible aria-label="删除 MCP 服务确认">
       <m3e-heading slot="header" variant="headline" size="small" level="2">删除 MCP 服务？</m3e-heading>
@@ -192,6 +180,8 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 /* --- MCP 管理主容器 --- */
 .mcp-settings {
   display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 /* --- 左侧列表 --- */
@@ -249,20 +239,18 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 }
 
 /* --- 右侧编辑面板 --- */
-.mcp-settings__editor {
-  min-width: 0;
-  overflow-y: auto;
-  flex: 1 1 auto;
-  @include scrollbar-dark;
-}
-
 .mcp-settings__form {
   display: flex;
   width: min(720px, 100%);
+  min-width: 0;
+  min-height: 0;
   margin: 0 auto;
+  overflow-y: auto;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 28px;
   padding: 36px 40px 72px;
+  @include scrollbar-dark;
 }
 
 /* --- 标题行 --- */
@@ -283,7 +271,6 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   color: var(--md-sys-color-outline);
   font-size: 13px;
 }
-.mcp-settings__section { padding: 0; }
 .mcp-settings__field-full { width: 100%; }
 
 /* --- 操作按钮区 --- */
@@ -296,7 +283,10 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 
 /* --- 空状态 --- */
 .mcp-settings__empty {
-  display: flex;
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   min-height: 420px;
@@ -317,6 +307,5 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   .mcp-settings__list-item { min-width: 170px; }
   .mcp-settings__form { padding: 28px 22px 56px; }
   .mcp-settings__title-row { align-items: stretch; flex-direction: column; }
-  .mcp-settings__editor { overflow: visible; }
 }
 </style>

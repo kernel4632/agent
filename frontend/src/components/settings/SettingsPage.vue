@@ -89,10 +89,10 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
           <m3e-icon-button type="button" shape="rounded" aria-label="返回设置" title="返回设置" @click="closeSection">
             <HugeiconsIcon :icon="ArrowLeft01Icon" :stroke-width="ICON_STROKE_WIDTH" />
           </m3e-icon-button>
-          <div>
+          <span class="settings-page__detail-title">
             <m3e-heading variant="headline" size="small" level="1">{{ selectedSection.label }}</m3e-heading>
             <span>{{ selectedSection.description }}</span>
-          </div>
+          </span>
           <m3e-icon-button v-if="selectedSectionID === 'providers'" id="add-provider" class="settings-page__header-action" type="button" shape="rounded" aria-label="添加供应商" @click="addProvider">
             <HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
           </m3e-icon-button>
@@ -102,14 +102,13 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
           </m3e-icon-button>
           <m3e-rich-tooltip v-if="selectedSectionID === 'mcp'" for="add-mcp">添加 MCP 服务</m3e-rich-tooltip>
         </header>
-        <ProviderSettings v-if="selectedSectionID === 'providers'" class="settings-page__body" v-model:providers="settingsDraft.providers" />
-        <ToolsSettings v-else-if="selectedSectionID === 'tools'" class="settings-page__body settings-page__body--padded" v-model:tools="settingsDraft.tools" />
-        <MCPSettings v-else-if="selectedSectionID === 'mcp'" class="settings-page__body" v-model:mcp="settingsDraft.mcp" />
-        <PromptsSettings v-else-if="selectedSectionID === 'prompts'" class="settings-page__body" v-model:prompt="settingsDraft.prompt" />
-        <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" class="settings-page__body settings-page__body--padded" :appearance="settingsDraft.appearance" @change="updateAppearance" />
+        <ProviderSettings v-if="selectedSectionID === 'providers'" v-model:providers="settingsDraft.providers" />
+        <ToolsSettings v-else-if="selectedSectionID === 'tools'" v-model:tools="settingsDraft.tools" />
+        <MCPSettings v-else-if="selectedSectionID === 'mcp'" v-model:mcp="settingsDraft.mcp" />
+        <PromptsSettings v-else-if="selectedSectionID === 'prompts'" v-model:prompt="settingsDraft.prompt" />
+        <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" :appearance="settingsDraft.appearance" @change="updateAppearance" />
         <SettingsPlaceholder
           v-else
-          class="settings-page__body"
           :title="selectedSection.label"
           :description="selectedSection.description"
           :icon="selectedSection.icon"
@@ -146,7 +145,7 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
-.settings-page__detail-header > div {
+.settings-page__detail-title {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -160,18 +159,6 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 
 .settings-page__header-action { margin-left: auto; }
 
-
-.settings-page__body {
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  flex: 1 1 auto;
-}
-
-.settings-page__body--padded {
-  padding: 24px 40px 48px;
-}
 
 .settings-forward-enter-active,
 .settings-back-enter-active {
@@ -207,6 +194,5 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 /* --- 窄屏适配：纵向堆叠导航和内容 --- */
 @media (max-width: 760px) {
   .settings-page__detail-header { padding: 14px 16px; }
-  .settings-page__body--padded { padding: 20px 20px 40px; }
 }
 </style>

@@ -25,7 +25,7 @@ const emit = defineEmits(['select'])                // 输出用户选择的供�
         :class="{ 'is-selected': provider.id === props.selectedId }"
         @click="emit('select', provider.id)"
       >
-        <span class="provider-list__name">{{ provider.name }}</span>
+        {{ provider.name }}
         <span slot="supporting-text" class="provider-list__endpoint">{{ provider.apiUrl || '未配置请求地址' }}</span>
         <span slot="trailing" class="provider-list__state" :class="{ 'is-enabled': provider.enabled }">
           {{ provider.enabled ? '启用' : '停用' }}
@@ -62,21 +62,10 @@ const emit = defineEmits(['select'])                // 输出用户选择的供�
 .provider-list__item {
   --m3e-list-item-container-color: transparent;
   --m3e-list-item-label-text-color: var(--md-sys-color-on-surface-variant);
-  width: 100%;
-
   &.is-selected {
     --m3e-list-item-container-color: var(--md-sys-color-surface-container-highest);
     --m3e-list-item-label-text-color: var(--md-sys-color-on-surface);
   }
-}
-
-/* --- 供应商名称：溢出截断 --- */
-.provider-list__name {
-  min-width: 0;
-  overflow: hidden;
-  flex: 1 1 auto;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* --- API 地址辅助文本：溢出截断 --- */

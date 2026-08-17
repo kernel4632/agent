@@ -41,31 +41,24 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
 <template>
   <section class="provider-settings">
     <ProviderList :providers="props.providers" :selected-id="selectedProviderID" @select="selectedProviderID = $event" />
-    <div class="provider-settings__editor">
-      <ProviderEditor v-if="selectedProvider" :provider="selectedProvider" @update:provider="updateProvider" @delete="removeProvider" />
-      <div v-else class="provider-settings__empty">
-        <span>添加一个供应商以开始配置</span>
-      </div>
-    </div>
+    <ProviderEditor v-if="selectedProvider" :provider="selectedProvider" @update:provider="updateProvider" @delete="removeProvider" />
+    <p v-else class="provider-settings__empty">添加一个供应商以开始配置</p>
   </section>
 </template>
 
 <style scoped lang="scss">
 .provider-settings {
   display: flex;
-}
-
-/* --- 编辑器区域：填充剩余空间并垂直滚动 --- */
-.provider-settings__editor {
-  min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
   flex: 1 1 auto;
-  @include scrollbar-dark;
 }
 
 /* --- 空状态居中提示 --- */
 .provider-settings__empty {
-  display: flex;
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   min-height: 420px;
@@ -75,6 +68,5 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
 /* --- 窄屏适配：纵向堆叠 --- */
 @media (max-width: 680px) {
   .provider-settings { flex-direction: column; }
-  .provider-settings__editor { overflow: visible; }
 }
 </style>

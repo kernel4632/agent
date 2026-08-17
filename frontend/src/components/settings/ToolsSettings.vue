@@ -32,7 +32,7 @@ function updatePermission(index, permission) {
 <template>
   <m3e-content-pane class="tools-settings">
     <m3e-list class="tools-settings__list">
-      <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name" class="tools-settings__item">
+      <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name">
         {{ tool.title || tool.name }}
         <span slot="supporting-text">{{ tool.name }}</span>
         <div slot="trailing" class="tools-settings__controls">
@@ -55,7 +55,10 @@ function updatePermission(index, permission) {
 <style scoped lang="scss">
 .tools-settings {
   display: flex;
+  min-height: 0;
+  overflow-y: auto;
   flex-direction: column;
+  padding: 24px 40px 48px;
   @include scrollbar-dark;
 }
 
@@ -66,10 +69,6 @@ function updatePermission(index, permission) {
   flex-direction: column;
 }
 
-/* --- 单行工具 --- */
-.tools-settings__item {
-  width: 100%;
-}
 .tools-settings__controls {
   display: flex;
   align-items: center;
@@ -92,6 +91,7 @@ function updatePermission(index, permission) {
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
+  .tools-settings { padding: 20px 20px 40px; }
   .tools-settings__controls { gap: 8px; }
 }
 </style>

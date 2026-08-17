@@ -24,13 +24,11 @@ function resetAppearance() {
 
 <template>
   <m3e-content-pane class="appearance-settings">
-    <div class="appearance-settings__toolbar">
-        <m3e-button type="button" variant="text" @click="resetAppearance">恢复默认</m3e-button>
-    </div>
+    <m3e-button type="button" variant="text" @click="resetAppearance">恢复默认</m3e-button>
     <m3e-list class="appearance-settings__options">
 
         <m3e-heading class="appearance-settings__group" variant="label" size="large" level="3">颜色</m3e-heading>
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           主题模式
           <span slot="supporting-text">亮色、暗色或跟随系统</span>
           <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
@@ -43,7 +41,7 @@ function resetAppearance() {
         </m3e-list-item>
         <m3e-divider></m3e-divider>
 
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           主题颜色
           <span slot="supporting-text">用于生成完整 Material You 动态色板</span>
           <label slot="trailing" class="appearance-settings__color-control">
@@ -58,7 +56,7 @@ function resetAppearance() {
         </m3e-list-item>
         <m3e-divider></m3e-divider>
 
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           色板风格
           <span slot="supporting-text">选择动态颜色的生成算法</span>
           <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
@@ -77,7 +75,7 @@ function resetAppearance() {
         </m3e-list-item>
         <m3e-divider></m3e-divider>
 
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           对比度
           <span slot="supporting-text">调整文字、边界与容器的可辨识程度</span>
           <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
@@ -90,7 +88,7 @@ function resetAppearance() {
         </m3e-list-item>
 
         <m3e-heading class="appearance-settings__group" variant="label" size="large" level="3">界面</m3e-heading>
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           界面密度
           <span slot="supporting-text">控制组件尺寸和信息紧凑程度</span>
           <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
@@ -103,7 +101,7 @@ function resetAppearance() {
         </m3e-list-item>
         <m3e-divider></m3e-divider>
 
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           动效风格
           <span slot="supporting-text">标准缓动或 Material 3 Expressive 弹性动效</span>
           <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
@@ -115,7 +113,7 @@ function resetAppearance() {
         </m3e-list-item>
         <m3e-divider></m3e-divider>
 
-        <m3e-list-item class="appearance-settings__option">
+        <m3e-list-item>
           增强焦点指示器
           <span slot="supporting-text">为键盘导航显示更醒目的焦点轮廓</span>
           <m3e-switch
@@ -133,7 +131,10 @@ function resetAppearance() {
 <style scoped lang="scss">
 .appearance-settings {
   display: flex;
+  min-height: 0;
+  overflow-y: auto;
   flex-direction: column;
+  padding: 24px 40px 48px;
   @include scrollbar-dark;
 }
 
@@ -144,17 +145,7 @@ function resetAppearance() {
   flex-direction: column;
 }
 
-.appearance-settings__toolbar {
-  display: flex;
-  width: min(640px, 100%);
-  justify-content: flex-end;
-  margin-bottom: 4px;
-}
-
-/* --- 单行选项 --- */
-.appearance-settings__option {
-  width: 100%;
-}
+.appearance-settings > m3e-button { width: min(640px, 100%); margin-bottom: 4px; }
 
 .appearance-settings__group {
   display: block;
@@ -195,6 +186,7 @@ function resetAppearance() {
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
+  .appearance-settings { padding: 20px 20px 40px; }
   .appearance-settings__select { width: 100%; }
 }
 </style>
