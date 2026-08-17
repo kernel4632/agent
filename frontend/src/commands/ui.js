@@ -1,8 +1,8 @@
 /*
-界面指令：负责侧边栏、页面导航、设置分类、短时反馈和派生视图数据。
+界面指令：负责侧边栏、页面导航、短时反馈和派生视图数据。
 组件只表达用户点了什么，跨页面状态修改集中在这里。
 派生视图数据也集中在这里，入口组件只消费不计算。
-调用示例：UI.openHome()、UI.toggleSidebar()、UI.openSettings('providers')。
+调用示例：UI.openHome()、UI.toggleSidebar()、UI.openSettings()。
 */
 import { computed } from 'vue'                                          // 引入响应式派生计算
 import { store } from '../store.js'                                     // 引入唯一工作台数据根
@@ -79,9 +79,8 @@ async function openChat(sessionID) {
 
 
 // --- 打开设置页 ---
-async function openSettings(section = 'providers') {
+async function openSettings() {
   if (store.ui.view !== 'settings') Settings.open()                  // 首次进入时创建隔离草稿
-  store.ui.settingsSection = section                                 // 选择对应设置项
   store.ui.view = 'settings'                                         // 显示设置主页面
   collapseSidebarOnMobile()                                          // 移动端优先展示设置内容
   return true                                                        // 反馈设置页已经打开

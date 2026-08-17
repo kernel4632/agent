@@ -10,22 +10,22 @@ import ProviderSettings from './ProviderSettings.vue'         // 引入供应商
 import ToolsSettings from './ToolsSettings.vue'               // 引入工具权限管理分类
 import MCPSettings from './MCPSettings.vue'                   // 引入 MCP 服务管理分类
 import PromptsSettings from './PromptsSettings.vue'           // 引入系统提示词编辑分类
-import AppearanceSettings from './AppearanceSettings.vue'     // 引入语言与外观分类
-import SettingsNavigation from './SettingsNavigation.vue'     // 引入左侧分类导航
+import AppearanceSettings from './AppearanceSettings.vue'     // 引入外观分类
+import SettingsNavigation from './SettingsNavigation.vue'     // 引入设置分类总览
 import SettingsPlaceholder from './SettingsPlaceholder.vue'   // 引入尚未实现分类的占位组件（数据管理）
 import { Settings } from '../../commands/settings.js'         // 引入设置草稿创建指令
 import { store } from '../../store.js'                        // 引入全局设置草稿状态
-import { ArrowLeft01Icon, Share01Icon, Wrench01Icon, GridViewIcon, FileEditIcon, ColorsIcon, Database01Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, ArrowLeft01Icon, Share01Icon, Wrench01Icon, GridViewIcon, FileEditIcon, ColorsIcon, Database01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/vue'
 import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const emit = defineEmits(['save'])                            // 离开设置页时向业务层提交完整设置快照
 
 const sections = [                                            // 设置分类定义，供导航和正文共同使用
-  { id: 'providers', label: '供应商配置', navLabel: '模型供应商', icon: Share01Icon, description: '配置模型供应商、凭据与模型能力。' },
+  { id: 'providers', label: '供应商配置', icon: Share01Icon, description: '配置模型供应商、凭据与模型能力。' },
   { id: 'tools', label: '工具管理', icon: Wrench01Icon, description: '管理 Agent 可调用的本地与内置工具。' },
-  { id: 'mcp', label: 'MCP 管理', navLabel: 'MCP 服务', icon: GridViewIcon, description: '连接、启用并诊断 MCP 服务。' },
-  { id: 'prompts', label: '系统提示词定义', navLabel: '系统提示词', icon: FileEditIcon, description: '维护系统提示词和可复用规则片段。' },
+  { id: 'mcp', label: 'MCP 管理', icon: GridViewIcon, description: '连接、启用并诊断 MCP 服务。' },
+  { id: 'prompts', label: '系统提示词定义', icon: FileEditIcon, description: '维护系统提示词和可复用规则片段。' },
   { id: 'appearance', label: '外观', icon: ColorsIcon, description: '调整动态颜色、对比度、密度与界面动效。' },
   { id: 'data', label: '数据管理', icon: Database01Icon, description: '导入、导出、清理或迁移本地数据。' },
 ]
@@ -53,6 +53,23 @@ function closeSection() {
   selectedSectionID.value = null
 }
 
+function nextName(items, prefix) {
+  let number = items.length + 1
+  const names = new Set(items.map(item => item.name))
+  while (names.has(`${prefix} ${number}`)) number += 1
+  return `${prefix} ${number}`
+}
+
+function addProvider() {
+  const providers = settingsDraft.value.providers
+  providers.push({ id: `provider-${crypto.randomUUID()}`, name: nextName(providers, 'Provider'), enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', models: [] })
+}
+
+function addMCP() {
+  const mcp = settingsDraft.value.mcp
+  mcp.push({ id: `mcp-${crypto.randomUUID()}`, name: nextName(mcp, 'MCP'), command: '', enabled: true, definition: { transport: 'stdio', args: [], env: {} } })
+}
+
 
 // --- 离开设置页时保存当前草稿快照 ---
 function saveSettings() {
@@ -66,18 +83,25 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 <template>
   <main class="settings-page">
     <Transition :name="settingsTransitionName" mode="out-in">
-    <SettingsNavigation v-if="!selectedSectionID" key="overview" :items="sections" selected-id="" @select="openSection" />
-    <section v-else-if="settingsDraft" :key="selectedSectionID" class="settings-page__detail">
-      <header class="settings-page__detail-header">
-        <m3e-icon-button type="button" shape="rounded" aria-label="返回设置" title="返回设置" @click="closeSection">
-          <HugeiconsIcon :icon="ArrowLeft01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-        </m3e-icon-button>
-        <div>
-          <m3e-heading variant="headline" size="small" level="1">{{ selectedSection.label }}</m3e-heading>
-          <span>{{ selectedSection.description }}</span>
-        </div>
-      </header>
-      <div class="settings-page__content">
+      <SettingsNavigation v-if="!selectedSectionID" key="overview" :items="sections" @select="openSection" />
+      <section v-else-if="settingsDraft" :key="selectedSectionID" class="settings-page__detail">
+        <header class="settings-page__detail-header">
+          <m3e-icon-button type="button" shape="rounded" aria-label="返回设置" title="返回设置" @click="closeSection">
+            <HugeiconsIcon :icon="ArrowLeft01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+          </m3e-icon-button>
+          <span class="settings-page__detail-title">
+            <m3e-heading variant="headline" size="small" level="1">{{ selectedSection.label }}</m3e-heading>
+            <span>{{ selectedSection.description }}</span>
+          </span>
+          <m3e-icon-button v-if="selectedSectionID === 'providers'" id="add-provider" class="settings-page__header-action" type="button" shape="rounded" aria-label="添加供应商" @click="addProvider">
+            <HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+          </m3e-icon-button>
+          <m3e-rich-tooltip v-if="selectedSectionID === 'providers'" for="add-provider">添加供应商</m3e-rich-tooltip>
+          <m3e-icon-button v-if="selectedSectionID === 'mcp'" id="add-mcp" class="settings-page__header-action" type="button" shape="rounded" aria-label="添加 MCP 服务" @click="addMCP">
+            <HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+          </m3e-icon-button>
+          <m3e-rich-tooltip v-if="selectedSectionID === 'mcp'" for="add-mcp">添加 MCP 服务</m3e-rich-tooltip>
+        </header>
         <ProviderSettings v-if="selectedSectionID === 'providers'" v-model:providers="settingsDraft.providers" />
         <ToolsSettings v-else-if="selectedSectionID === 'tools'" v-model:tools="settingsDraft.tools" />
         <MCPSettings v-else-if="selectedSectionID === 'mcp'" v-model:mcp="settingsDraft.mcp" />
@@ -89,28 +113,19 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
           :description="selectedSection.description"
           :icon="selectedSection.icon"
         />
-      </div>
-    </section>
+      </section>
     </Transition>
   </main>
 </template>
 
 <style scoped lang="scss">
-/* --- 设置页主容器：左侧导航 + 右侧内容 --- */
+/* --- 设置页主容器 --- */
 .settings-page {
   display: flex;
   width: 100%;
   min-height: 100%;
   flex-direction: column;
   background: var(--md-sys-color-background);
-}
-
-/* --- 右侧内容区：填充剩余空间 --- */
-.settings-page__content {
-  display: flex;
-  min-width: 0;
-  overflow: hidden;
-  flex: 1 1 auto;
 }
 
 .settings-page__detail {
@@ -130,7 +145,7 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
-.settings-page__detail-header > div {
+.settings-page__detail-title {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -142,7 +157,8 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
   font-size: 13px;
 }
 
-.settings-page__content :deep(section > header) { display: none; }
+.settings-page__header-action { margin-left: auto; }
+
 
 .settings-forward-enter-active,
 .settings-back-enter-active {
@@ -177,7 +193,6 @@ onBeforeUnmount(saveSettings)                                 // 路由卸载或
 
 /* --- 窄屏适配：纵向堆叠导航和内容 --- */
 @media (max-width: 760px) {
-  .settings-page__content { overflow: visible; }
   .settings-page__detail-header { padding: 14px 16px; }
 }
 </style>

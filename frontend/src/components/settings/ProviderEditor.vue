@@ -9,18 +9,23 @@
 import { ref, useId } from 'vue'                    // 引入响应式状态和唯一 ID 生成能力
 import ProviderModels from './ProviderModels.vue'  // 引入模型列表管理子组件
 import { HugeiconsIcon } from '@hugeicons/vue'
-import { EyeIcon, EyeOffIcon } from '@hugeicons/core-free-icons'
+import { Delete01Icon, EyeIcon, EyeOffIcon } from '@hugeicons/core-free-icons'
 import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({ provider: { type: Object, required: true } }) // 接收当前编辑的供应商完整对象
-const emit = defineEmits(['update:provider'])      // 输出合并后的供应商对象
+const emit = defineEmits(['delete', 'update:provider']) // 输出删除请求和合并后的供应商对象
 const showApiKey = ref(false)                      // 控制 API Key 输入框明文/密文切换
 const fieldID = useId()                            // 表单内所有字段共享的唯一 ID 前缀
+const deleteDialog = ref(null)
 
 
 // --- 合并单个字段并提交完整供应商 ---
 function updateProvider(patch) {
   emit('update:provider', { ...props.provider, ...patch }) // 保持未修改字段不变，仅更新 patch 指定字段
+}
+
+function requestDelete() {
+  deleteDialog.value.show()
 }
 
 
@@ -45,8 +50,7 @@ function updateProvider(patch) {
     </header>
 
     <!-- 第二排：接口类型选择器和 API 地址输入框。 -->
-    <section class="provider-editor__section">
-      <div class="provider-editor__connection">
+    <div class="provider-editor__connection">
         <m3e-form-field class="provider-editor__type-field" variant="outlined" hide-subscript="always">
           <label slot="label" :for="`${fieldID}-api-type`">接口类型</label>
           <m3e-select :id="`${fieldID}-api-type`" @change="updateProvider({ apiType: $event.currentTarget.value })">
@@ -57,12 +61,10 @@ function updateProvider(patch) {
           <label slot="label" :for="`${fieldID}-api-url`">请求地址（API）</label>
           <input :id="`${fieldID}-api-url`" :value="props.provider.apiUrl" type="url" placeholder="https://api.example.com/v1" @input="updateProvider({ apiUrl: $event.currentTarget.value })" />
         </m3e-form-field>
-      </div>
-    </section>
+    </div>
 
     <!-- 第三排：API Key 输入框和明文/密文切换按钮。 -->
-    <section class="provider-editor__section">
-      <span class="provider-editor__secret">
+    <span class="provider-editor__secret">
         <m3e-form-field class="provider-editor__field" variant="outlined" hide-subscript="always">
           <label slot="label" :for="`${fieldID}-api-key`">API Key</label>
           <input :id="`${fieldID}-api-key`" :value="props.provider.apiKey" :type="showApiKey ? 'text' : 'password'" autocomplete="off" placeholder="输入 API Key" @input="updateProvider({ apiKey: $event.currentTarget.value })" />
@@ -70,15 +72,27 @@ function updateProvider(patch) {
           <m3e-icon-button type="button" :aria-label="showApiKey ? '隐藏 API Key' : '显示 API Key'" @click="showApiKey = !showApiKey">
             <HugeiconsIcon :icon="showApiKey ? EyeOffIcon : EyeIcon" :stroke-width="ICON_STROKE_WIDTH" />
           </m3e-icon-button>
-      </span>
-    </section>
+    </span>
 
     <!-- 第四排：模型列表管理子组件。 -->
-    <section class="provider-editor__section">
-      <ProviderModels :provider="props.provider" :models="props.provider.models" @update:models="updateProvider({ models: $event })" />
+    <ProviderModels :provider="props.provider" :models="props.provider.models" @update:models="updateProvider({ models: $event })" />
+
+    <section class="provider-editor__actions">
+      <m3e-icon-button type="button" shape="rounded" aria-label="删除供应商" @click="requestDelete">
+        <HugeiconsIcon :icon="Delete01Icon" :stroke-width="ICON_STROKE_WIDTH" />
+      </m3e-icon-button>
     </section>
 
   </form>
+
+  <m3e-dialog ref="deleteDialog" dismissible aria-label="删除供应商确认">
+    <m3e-heading slot="header" variant="headline" size="small" level="2">删除供应商？</m3e-heading>
+    <p>此供应商的未保存配置将被移除。</p>
+    <div slot="actions" class="provider-editor__dialog-actions" end>
+      <m3e-button type="button" shape="square"><m3e-dialog-action return-value="cancel">取消</m3e-dialog-action></m3e-button>
+      <m3e-button type="button" variant="filled" shape="square" @click="emit('delete')"><m3e-dialog-action return-value="delete">删除</m3e-dialog-action></m3e-button>
+    </div>
+  </m3e-dialog>
 </template>
 
 <style scoped lang="scss">
@@ -86,10 +100,15 @@ function updateProvider(patch) {
 .provider-editor {
   display: flex;
   width: min(820px, 100%);
+  min-width: 0;
+  min-height: 0;
   margin: 0 auto;
+  overflow-y: auto;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 28px;
   padding: 36px 40px 72px;
+  @include scrollbar-dark;
 }
 
 /* --- 标题行：供应商名和启用开关 --- */
@@ -111,8 +130,12 @@ function updateProvider(patch) {
   font-size: 13px;
 }
 
-/* --- 表单分区通用样式 --- */
-.provider-editor__section { padding: 0; }
+.provider-editor__actions {
+  padding-top: 12px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.provider-editor__dialog-actions { display: flex; gap: 8px; }
 
 .provider-editor__field {
   width: 100%;
