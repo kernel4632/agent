@@ -52,6 +52,7 @@ test('appearance selector previews and persists the theme', async ({ page }) => 
       await page.keyboard.press('ArrowDown')
     }
     await page.keyboard.press('Enter')
+    await page.keyboard.press('Escape')
     await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', expected)
     await expect(page.locator('.appearance-settings')).toBeVisible()
   }

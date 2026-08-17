@@ -34,6 +34,17 @@ function onInput(event) {
         @input="onInput"
       ></textarea>
     </m3e-form-field>
+  <div class="prompts-settings">
+    <span class="prompts-settings__count">{{ charCount }} 字符</span>
+    <m3e-form-field class="prompts-settings__editor" variant="outlined" hide-subscript="always">
+      <textarea
+        class="prompts-settings__textarea"
+        :value="props.prompt"
+        placeholder="输入系统提示词...&#10;&#10;例如：你是一个专业的软件开发助手，擅长 TypeScript 和 Vue.js。&#10;回答时使用中文，保持简洁准确。"
+        spellcheck="false"
+        @input="onInput"
+      ></textarea>
+    </m3e-form-field>
 
     <!-- 使用提示。 -->
     <m3e-card class="prompts-settings__tips" variant="outlined">
@@ -56,6 +67,8 @@ function onInput(event) {
   padding: 24px 32px 48px;
   @include scrollbar-dark;
 }
+
+.prompts-settings__count { color: var(--md-sys-color-outline); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
 
 .prompts-settings__count { color: var(--md-sys-color-outline); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
 
@@ -100,6 +113,7 @@ function onInput(event) {
 
 /* --- 移动端适配 --- */
 @media (max-width: 760px) {
+  .prompts-settings { padding: 20px 16px 40px; }
   .prompts-settings { padding: 20px 16px 40px; }
 }
 </style>
