@@ -3,3 +3,5 @@ dist/
 coverage/
 .agent/
 *.log
+.agents/
+skills-lock.json
