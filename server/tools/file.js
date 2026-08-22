@@ -10,7 +10,7 @@ const fileRead = { // 文本与图片读取共用一个工具名。
         type: 'object',
         properties: { path: { type: 'string' } },
         required: ['path'],
-        additionalProperties: false,
+        
     },
     async execute({ path }) {
         const file = Bun.file(path) // 延迟打开用户指定路径。
@@ -46,11 +46,10 @@ const fileWrite = { // 完整替换一个文本文件。
             content: { type: 'string' },
         },
         required: ['path', 'content'],
-        additionalProperties: false,
+        
     },
-    async execute({ path, content }, context) {
+    async execute({ path, content }) {
         // 文件写入前先记录旧内容，再创建目录并原子替换文件。
-        await context.checkpoint(path) // 写前保存文件快照。
         await mkdir(dirname(path), { recursive: true }) // 新文件允许自动创建父目录。
         await writeFile(path, content) // 一次原子替换全部文本。
         return { output: `Wrote ${Buffer.byteLength(content)} bytes to ${path}` } // 报告实际写入字节数。
@@ -64,7 +63,7 @@ const fileList = { // 只列出当前目录的直接子项。
         type: 'object',
         properties: { path: { type: 'string' } },
         required: ['path'],
-        additionalProperties: false,
+        
     },
     async execute({ path }) {
         const entries = await readdir(path, { withFileTypes: true }) // 同时取得每项是否目录。

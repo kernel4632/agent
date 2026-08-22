@@ -8,7 +8,7 @@ export default {
             path: { type: 'string' },
             pattern: { type: 'string' },
         },
-        required: ['path', 'pattern'], additionalProperties: false,
+        required: ['path', 'pattern'], 
     },
     async execute({ path, pattern }) {
         const files = [] // 保持扫描顺序的相对路径结果。
