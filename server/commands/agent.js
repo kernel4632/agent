@@ -2,7 +2,7 @@
 // 启动循环（循环在后台全自动运转，结果通过 SSE 推送）
 const result = await Agent.send({
     sessionId: "session-1",        // 会话 ID
-    userMessage: "帮我写个爬虫",    // 用户消息
+    input: "帮我写个爬虫",    // 用户消息
 })
 // result = { ok: true }
 
