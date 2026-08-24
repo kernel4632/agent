@@ -24,7 +24,7 @@ const result = await Loop.run({
     },
     // --- 功能模块（必填，平齐的功能模块作为参数传）---
     buildContext: Context.build,       // 上下文构建模块
-    compressContext: Compress.run,     // 上下文压缩模块
+    compressContext: Compact.run,     // 上下文压缩模块
     checkApproval: Approve.check,      // 工具审批模块
 
     // --- 控制（可选）---
