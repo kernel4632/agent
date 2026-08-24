@@ -11,6 +11,6 @@ const result = await Retry.run({
     onRetry: (info) => {},
 
     // 重试退避时间上限，默认 60 秒
-    maxTime: 60,
+    maxDelay: 60,
 }) 
 */
