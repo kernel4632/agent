@@ -13,3 +13,125 @@ await SSE.close({ id: sessionId })
 
 调用方全程只做三件事：连接、发、断。断线、缓存、补发、心跳，全是内部自动的。
  */
+
+import { createResponse } from 'better-sse'
+
+// 只保留最近的一小段事件，避免断线期间内存无限增长。
+const MAX_EVENTS = 100
+const HEARTBEAT_MS = 15000
+const sessions = new Map()
+
+// better-sse 默认会把字符串变成 JSON 字符串，例如 `"hello"`。
+// 这里保留字符串原样发送，同时仍然把对象安全地转成 JSON。
+const serialize = data => typeof data === 'string' ? data : JSON.stringify(data)
+
+const sessionState = id => {
+    let state = sessions.get(id)
+    if (!state) {
+        state = { nextId: 1, events: [], connection: null, controller: null }
+        sessions.set(id, state)
+    }
+    return state
+}
+
+const readLastEventId = request => {
+    const value = Number(request?.headers?.get('last-event-id') || 0)
+    return Number.isFinite(value) && value > 0 ? value : 0
+}
+
+const remember = (state, data) => {
+    const event = { id: state.nextId++, data }
+    state.events.push(event)
+    if (state.events.length > MAX_EVENTS) state.events.shift()
+    return event
+}
+
+const connect = async ({ id, request }) => {
+    if (typeof id !== 'string' || !id) throw new TypeError('id must be a non-empty string')
+    const state = sessionState(id)
+
+    // 同一个会话只允许一个浏览器连接，新连接建立时关闭旧连接。
+    // 这里只关闭网络，不清空事件，因为这可能只是客户端正在自动重连。
+    if (state.controller) state.controller.abort()
+
+    // better-sse 会监听 Request.signal。使用一个内部 signal 后，close()
+    // 就可以通过 abort() 可靠地关闭它创建的 Fetch 流。
+    const controller = new AbortController()
+    state.controller = controller
+    request?.signal?.addEventListener('abort', () => controller.abort(), { once: true })
+    const sessionRequest = new Request(request, { signal: controller.signal })
+
+    const response = createResponse(sessionRequest, {
+        // 不主动发送 retry 字段，避免把连接配置和第一条业务事件拆成两次读取。
+        // 浏览器仍会使用自己的默认重连时间。
+        retry: null,
+        keepAlive: HEARTBEAT_MS,
+        serializer: serialize,
+        headers: {
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+        },
+    }, connection => {
+        state.connection = connection
+
+        // 只补发客户端还没有收到的事件。
+        const lastEventId = readLastEventId(request)
+        for (const event of state.events) {
+            if (event.id > lastEventId) {
+                connection.push(event.data, undefined, String(event.id))
+            }
+        }
+
+        // 网络断开时保留缓存，等客户端重新连接后再补发。
+        // 只有显式调用 close 才代表任务完成，才会清空缓存。
+        connection.once('disconnected', () => {
+            if (state.connection === connection) state.connection = null
+            if (state.controller === controller) state.controller = null
+        })
+    })
+
+    // better-sse 初始化时会先写一个空数据块。过滤它可以让调用方首次
+    // reader.read() 直接读到真正的 SSE 事件，而不是读到空字符串。
+    const decoder = new TextDecoder()
+    const encoder = new TextEncoder()
+    let pending = ''
+    const body = response.body.pipeThrough(new TransformStream({
+        transform(chunk, streamController) {
+            pending += decoder.decode(chunk, { stream: true })
+            const lines = pending.split('\n')
+            pending = lines.pop()
+            const output = lines
+                .map(line => line.replace(/^(event|id|data|retry):(?=\S)/, '$1: '))
+                .join('\n') + (lines.length ? '\n' : '')
+            if (output) streamController.enqueue(encoder.encode(output))
+        },
+        flush(streamController) {
+            pending += decoder.decode()
+            const output = pending.replace(/^(event|id|data|retry):(?=\S)/gm, '$1: ')
+            if (output) streamController.enqueue(encoder.encode(output))
+        },
+    }))
+    return new Response(body, { status: response.status, headers: response.headers })
+}
+
+const send = async ({ id, data }) => {
+    if (typeof id !== 'string' || !id) throw new TypeError('id must be a non-empty string')
+    const state = sessionState(id)
+    const event = remember(state, data)
+    if (state.connection?.isConnected) {
+        try {
+            state.connection.push(event.data, undefined, String(event.id))
+        } catch {
+            // 连接可能在检查 isConnected 后立刻断开，缓存会在下次连接时补发。
+        }
+    }
+}
+
+const close = async ({ id }) => {
+    const state = sessions.get(id)
+    if (!state) return
+    if (state.controller) state.controller.abort()
+    sessions.delete(id)
+}
+
+export default { connect, send, close }

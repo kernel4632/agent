@@ -11,7 +11,6 @@ const result = await LLM.chat({
     // --- 工具（可选）---
     tools: [...],
     toolChoice: "required",
-    parallelToolCalls: true,
     // --- 流式与回调 ---
     stream: true,
     onChunk: (chunk) => { ... },    // 流式时每段文字回调
@@ -23,4 +22,93 @@ const result = await LLM.chat({
     body: {},                        // 额外请求体
     }
 }); 
-*/
+ */
+
+import { generateText, streamText } from 'ai'
+import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogle } from '@ai-sdk/google'
+
+/* 协议只影响“模型怎么创建”，后面的请求和结果都由 AI SDK 统一处理。 */
+const providers = {
+    // chat 使用通用兼容 Provider，让自建中转站只要兼容 OpenAI Chat API 就能接入。
+    chat: (settings, model) => createOpenAICompatible({ ...settings, name: 'agent' }).chatModel(model),
+    responses: (settings, model) => createOpenAI(settings).responses(model),
+    anthropic: (settings, model) => createAnthropic(settings).languageModel(model),
+    gemini: (settings, model) => createGoogle(settings).languageModel(model),
+}
+
+/* 只保留 Agent 真正需要的五种结果；其他 AI SDK 字段不进入项目自己的接口。 */
+const resultFields = [
+    'text', // 模型最后给用户看的文字答案。
+    'toolCalls', // 模型要求 Agent 执行的工具和工具参数。
+    'finishReason', // 模型停止生成的原因，例如正常结束或要求调用工具。
+    'usage', // 本次请求消耗的输入 Token、输出 Token 和总 Token。
+    'warnings', // 请求成功但某些参数未被供应商支持或没有生效的提示。
+]
+
+const createModel = ({ protocol, model, baseURL, apiKey, options }) => {
+    const settings = { apiKey, baseURL, headers: options.headers }
+
+    // AI SDK 已经生成了协议正确的请求，只在用户提供 body 覆盖项时合并它。
+    if (options.body) {
+        settings.fetch = async (input, init) => {
+            let body = init?.body
+            if (typeof body === 'string') {
+                try {
+                    body = { ...JSON.parse(body), ...options.body }
+                } catch (error) {
+                    throw new TypeError('AI SDK request body is not valid JSON', { cause: error })
+                }
+            }
+            return fetch(input, { ...init, body: body && JSON.stringify(body) })
+        }
+    }
+
+    const create = providers[protocol]
+    if (!create) throw new Error(`Unsupported protocol: ${protocol}`)
+    return create(settings, model)
+}
+
+const resolveResult = result => Promise.all(
+    resultFields.map(async field => [field, await result[field]]),
+).then(Object.fromEntries)
+
+const chat = async ({
+    baseURL,
+    apiKey,
+    model,
+    protocol = 'chat',
+    messages,
+    tools,
+    toolChoice = 'required',
+    stream = true,
+    onChunk,
+    signal,
+    options = {},
+}) => {
+    if (!baseURL || !model || !Array.isArray(messages)) {
+        throw new TypeError('baseURL, model and messages are required')
+    }
+
+    // 这里故意只构造一份参数，避免 generateText 和 streamText 的行为分叉。
+    const input = {
+        model: createModel({ protocol, model, baseURL, apiKey, options }),
+        messages,
+        tools,
+        toolChoice,
+        abortSignal: signal,
+        onChunk,
+    }
+
+    if (!stream) return resolveResult(await generateText(input))
+
+    // streamText 负责实时产生内容，consume 由内部完成，调用方只拿最终结果。
+    const result = streamText(input)
+    const text = []
+    for await (const delta of result.textStream) text.push(delta)
+    return resolveResult(result).then(output => ({ ...output, text: text.join('') }))
+}
+
+export default { chat }

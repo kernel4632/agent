@@ -18,7 +18,7 @@ await History.add({
 // 工具结果
 await History.add({
     sessionId: "session-1",
-    message: Message.tool({ toolCallId: "call-1", content: "成功" }),
+    message: Message.tool({ toolCallId: "call-1", toolName: "file_write", content: "成功" }),
 })
 
 // 压缩

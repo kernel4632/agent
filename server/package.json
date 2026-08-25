@@ -9,11 +9,15 @@
     "test:real": "RUN_REAL_MODEL=1 RUN_REAL_AGENT=1 bun test tests/real.test.js"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.41",
+    "@ai-sdk/google": "^4.0.50",
     "@ai-sdk/mcp": "^2.0.31",
+    "@ai-sdk/openai": "^4.0.46",
     "@ai-sdk/openai-compatible": "^3.0.29",
     "@vscode/ripgrep": "^1.18.0",
     "ai": "^7.0.62",
     "atomically": "^2.0.3",
+    "better-sse": "^0.16.1",
     "croner": "^10.0.1",
     "deepmerge-ts": "^7.1.6",
     "elysia": "^1.4.29",
