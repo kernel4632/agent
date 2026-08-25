@@ -101,7 +101,7 @@ const redo = async ({ sessionId }) => {
     if (records) session.messages.push(...records)
 }
 
-const getMessages = async ({ sessionId }) => {
+const getMessages = ({ sessionId }) => {
     // messageId 只给 History 的回退功能使用，模型只需要标准消息本身。
     return getSession(sessionId).messages.map(record => record.message)
 }
