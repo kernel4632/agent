@@ -16,8 +16,6 @@ await SSE.close({ id: sessionId })
 
 import { createResponse } from 'better-sse'
 
-// 只保留最近的一小段事件，避免断线期间内存无限增长。
-const MAX_EVENTS = 100
 const HEARTBEAT_MS = 15000
 const sessions = new Map()
 
@@ -34,15 +32,9 @@ const sessionState = id => {
     return state
 }
 
-const readLastEventId = request => {
-    const value = Number(request?.headers?.get('last-event-id') || 0)
-    return Number.isFinite(value) && value > 0 ? value : 0
-}
-
 const remember = (state, data) => {
     const event = { id: state.nextId++, data }
     state.events.push(event)
-    if (state.events.length > MAX_EVENTS) state.events.shift()
     return event
 }
 
@@ -74,13 +66,10 @@ const connect = async ({ id, request }) => {
     }, connection => {
         state.connection = connection
 
-        // 只补发客户端还没有收到的事件。
-        const lastEventId = readLastEventId(request)
-        for (const event of state.events) {
-            if (event.id > lastEventId) {
-                connection.push(event.data, undefined, String(event.id))
-            }
-        }
+        // History 由前端通过 Session 接口读取；SSE 只补发尚未写入 History 的流式事件。
+        connection.batch(buffer => {
+            for (const event of state.events) buffer.push(event.data, undefined, String(event.id))
+        })
 
         // 网络断开时保留缓存，等客户端重新连接后再补发。
         // 只有显式调用 close 才代表任务完成，才会清空缓存。
@@ -114,6 +103,13 @@ const connect = async ({ id, request }) => {
     return new Response(body, { status: response.status, headers: response.headers })
 }
 
+// 新任务开始时清空旧任务，当前任务产生的所有事件会一直保留。
+const reset = async ({ id }) => {
+    const state = sessionState(id)
+    state.events = []
+    state.nextId = 1
+}
+
 const send = async ({ id, data }) => {
     if (typeof id !== 'string' || !id) throw new TypeError('id must be a non-empty string')
     const state = sessionState(id)
@@ -134,4 +130,4 @@ const close = async ({ id }) => {
     sessions.delete(id)
 }
 
-export default { connect, send, close }
+export default { connect, send, reset, close }

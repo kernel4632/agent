@@ -11,65 +11,9 @@ import { countTokens } from 'gpt-tokenizer'
 const KEEP_FIRST = 3
 const KEEP_BEFORE_SUMMARY = 3
 
-const fail = (message, reason) => {
-    throw new TypeError(`Invalid ${message.role} message: ${reason}`)
-}
-
-const text = (value, message, name) => {
-    if (typeof value !== 'string') fail(message, `${name} must be a string`)
-    return value
-}
-
-const json = (value, message, name) => {
-    // 工具参数必须能变成 JSON，AI SDK 才能把它发送给模型提供商。
-    try {
-        const serialized = JSON.stringify(value)
-        if (serialized === undefined) fail(message, `${name} must be JSON serializable`)
-        return JSON.parse(serialized)
-    } catch {
-        fail(message, `${name} must be JSON serializable`)
-    }
-}
-
-const assistantPart = (part, message) => {
-    if (part?.type === 'text') return { type: 'text', text: text(part.text, message, 'text') }
-    if (part?.type === 'tool-call') return {
-        type: 'tool-call',
-        toolCallId: text(part.toolCallId, message, 'toolCallId'),
-        toolName: text(part.toolName, message, 'toolName'),
-        input: json(part.input, message, 'tool call input'),
-    }
-    fail(message, `unsupported assistant part: ${part?.type}`)
-}
-
-const toolPart = (part, message) => {
-    if (part?.type !== 'tool-result') fail(message, `unsupported tool part: ${part?.type}`)
-    if (part.output?.type !== 'text') fail(message, 'tool output must be text')
-
-    return {
-        type: 'tool-result',
-        toolCallId: text(part.toolCallId, message, 'toolCallId'),
-        toolName: text(part.toolName, message, 'toolName'),
-        output: { type: 'text', value: text(part.output.value, message, 'tool output value') },
-    }
-}
-
 const forModel = message => {
-    // 白名单重建消息：History 的所有自定义字段都会在这里被彻底丢弃。
-    if (!message || typeof message !== 'object') throw new TypeError('Invalid message')
-    if (message.role === 'system' || message.role === 'user') {
-        return { role: message.role, content: text(message.content, message, 'content') }
-    }
-    if (message.role === 'assistant') {
-        if (typeof message.content === 'string') return { role: 'assistant', content: message.content }
-        if (!Array.isArray(message.content)) fail(message, 'content must be a string or array')
-        return { role: 'assistant', content: message.content.map(part => assistantPart(part, message)) }
-    }
-    if (message.role === 'tool') {
-        if (!Array.isArray(message.content)) fail(message, 'content must be an array')
-        return { role: 'tool', content: message.content.map(part => toolPart(part, message)) }
-    }
-    throw new TypeError(`Invalid message role: ${message.role}`)
+    // History 只比 AI SDK 多了顶层内部字段，去掉它们后直接交给模型。
+    return { role: message.role, content: message.content }
 }
 
 const build = ({ history }) => {
@@ -95,8 +39,7 @@ const build = ({ history }) => {
 
     const messages = selected.map(forModel)
 
-    // 消息包含文字、工具调用和工具结果。转成 JSON 文本后统一计数，
-    // 不需要为每种消息形状分别编写计算规则。
+    // 消息本身已经接近 AI SDK 格式，转成 JSON 后统一计算上下文大小。
     const token = countTokens(JSON.stringify(messages))
     return { messages, token }
 }

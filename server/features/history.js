@@ -48,6 +48,7 @@ import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import Path from '../utils/path.js'
+import SSE from '../utils/sse.js'
 
 // 一个 Map 管理全部会话。key 是 sessionId，value 是该会话的消息和回退记录。
 let sessions = new Map()
@@ -122,6 +123,8 @@ const save = async ({ path, sessionId }) => {
     await mkdir(dirname(path), { recursive: true })
     // 原子写入会先写临时文件，再替换正式文件，避免留下半份 JSON。
     await writeFile(path, data)
+    // 历史成为稳定状态后，清掉已经被历史包含的旧 SSE 流。
+    if (sessionPath) await SSE.reset({ id: sessionId })
 }
 
 export default { load, add, rollback, redo, getMessages, save }

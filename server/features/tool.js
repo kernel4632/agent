@@ -16,9 +16,18 @@ const result = await Tool.execute({
 */
 
 import { pathToFileURL } from 'node:url'
+import { jsonSchema } from 'ai'
 
 const workerFile = new URL('../utils/tool-worker.js', import.meta.url)
 const locations = new WeakMap()
+
+const standardOutput = (tool, result) => {
+    const output = result?.output ?? result
+    if (typeof tool.toModelOutput === 'function') return tool.toModelOutput(output)
+    if (output === undefined || output === null || output === '') return { type: 'text', value: '工具执行成功，但没有输出' }
+    if (typeof output === 'string') return { type: 'text', value: output }
+    return { type: 'json', value: output }
+}
 
 // 这是当前正在使用的工具列表。
 // scan() 每次运行都会把它整体替换，所以工具目录可以随时变化。
@@ -49,8 +58,13 @@ const scan = async (directory) => {
         // 一个文件可以导出一个工具，也可以导出一组工具。
         // 不额外检查工具结构，目录里有什么就加载什么。
         for (const [index, tool] of exported.entries()) {
-            loaded[tool.name] = tool
-            locations.set(tool, { url, index })
+            // 扫描完成后就准备好模型需要的 Schema，Loop 不再处理工具格式。
+            const { execute, ...modelTool } = tool
+            Object.assign(modelTool, {
+                inputSchema: tool.inputSchema?.['~standard'] ? tool.inputSchema : jsonSchema(tool.inputSchema),
+            })
+            loaded[tool.name] = modelTool
+            locations.set(modelTool, { url, index })
         }
     }
 
@@ -75,12 +89,16 @@ const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
         const worker = new Worker(workerFile)
         let finished = false
         let outputQueue = Promise.resolve()
+        const output = []
 
         const stop = () => {
             if (finished) return
             finished = true
             worker.terminate()
-            reject(new DOMException('Tool execution aborted', 'AbortError'))
+            resolve({
+                output: { type: 'error-text', value: `${output.join('')}\n工具执行已中断` },
+                interrupted: true,
+            })
         }
 
         const cleanup = () => {
@@ -97,6 +115,7 @@ const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
             if (data.type === 'output') {
                 // 执行器只报告输出，不知道 SSE、终端或前端的存在。
                 // 调用方可以在这里自行显示、记录，或转发给 SSE。
+                output.push(String(data.data))
                 if (onOutput) outputQueue = outputQueue.then(() => onOutput({
                     tool: name,
                     stream: data.stream,
@@ -109,10 +128,11 @@ const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
             await outputQueue
             cleanup()
             if (data.type === 'error') {
-                reject(Object.assign(new Error(data.message), { stack: data.stack }))
+                resolve({ output: { type: 'error-text', value: `工具执行失败：${data.message}` }, error: data.message })
                 return
             }
-            resolve(data.result)
+            const result = data.result && typeof data.result === 'object' ? data.result : {}
+            resolve({ ...result, output: standardOutput(selected, data.result) })
         })
 
         worker.addEventListener('error', error => {

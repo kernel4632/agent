@@ -59,7 +59,7 @@ const tool = ({ toolCallId, toolName, content }) => ({ // 工具结果必须带�
         type: 'tool-result',
         toolCallId: text(toolCallId, 'toolCallId'),
         toolName: text(toolName, 'toolName'),
-        output: { type: 'text', value: text(content, 'content') },
+        output: typeof content === 'string' ? { type: 'text', value: text(content, 'content') } : content,
     }],
 })
 

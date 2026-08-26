@@ -54,12 +54,6 @@ const checkCancelled = signal => {
     if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
 }
 
-const resultText = result => {
-    if (typeof result === 'string') return result
-    if (result?.output !== undefined) return typeof result.output === 'string' ? result.output : JSON.stringify(result.output)
-    return JSON.stringify(result ?? '')
-}
-
 const run = async ({
     messages,
     system,
@@ -80,7 +74,6 @@ const run = async ({
     onToolOutput,
     onToolResult,
     onCompress,
-    onFinish,
 }) => {
     if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compressContext !== 'function') {
         throw new TypeError('messages, llm, buildContext and compressContext are required')
@@ -139,7 +132,6 @@ const run = async ({
                 const assistant = Message.assistant({ content: text.join('') || result.text || null })
                 messages.push(assistant)
                 const finished = { ...result, text: text.join('') || result.text || '' }
-                onFinish?.(finished)
                 return finished
             }
 
@@ -152,7 +144,7 @@ const run = async ({
                 // 模型已经产生了完整工具调用。即使此刻被取消，
                 // 也要给它补一条取消结果，不能让历史留下半截消息。
                 if (signal?.aborted) {
-                    toolResults.push({ call, content: '工具执行已取消' })
+                    toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
                     stop = true
                     break
                 }
@@ -164,7 +156,7 @@ const run = async ({
                 }) ?? true
 
                 if (!allowed) {
-                    toolResults.push({ call, content: '工具执行被用户拒绝' })
+                    toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } })
                     continue
                 }
 
@@ -176,23 +168,24 @@ const run = async ({
                         signal,
                         onOutput: output => onToolOutput?.({ ...output, ...call }),
                     })
-                    toolResults.push({ call, content: resultText(value), value })
-                    onToolResult?.({ ...call, result: value })
-                    stop ||= value?.stop === true
+                    toolResults.push({ call, output: value.output })
+                    onToolResult?.({ ...call, result: value, output: value.output })
+                    stop ||= value?.stop === true || value?.interrupted === true
                 } catch (error) {
                     if (error?.name === 'AbortError') {
-                        toolResults.push({ call, content: '工具执行已取消' })
+                        toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
                         stop = true
                         break
                     }
-                    toolResults.push({ call, content: `工具执行失败：${error.message}` })
-                    onToolResult?.({ ...call, error })
+                    const output = { type: 'error-text', value: `工具执行失败：${error.message}` }
+                    toolResults.push({ call, output })
+                    onToolResult?.({ ...call, error: error.message, output })
                 }
             }
 
             // 取消时也为尚未执行的调用补一条结果，保证历史始终成对。
             for (const call of toolCalls.slice(toolResults.length)) {
-                toolResults.push({ call, content: '工具执行已取消' })
+                toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
             }
 
             messages.push(Message.assistant({
@@ -203,23 +196,21 @@ const run = async ({
                     arguments: JSON.stringify(call.input),
                 })),
             }))
-            for (const { call, content } of toolResults) {
+            for (const { call, output } of toolResults) {
                 messages.push(Message.tool({
                     toolCallId: call.toolCallId,
                     toolName: call.toolName,
-                    content,
+                    content: output,
                 }))
             }
 
             if (stop) {
                 const finished = { ...result, text: text.join('') || result.text || '', stop: true }
-                onFinish?.(finished)
                 if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
                 return finished
             }
         }
     } catch (error) {
-        onFinish?.({ error })
         throw error
     }
 }

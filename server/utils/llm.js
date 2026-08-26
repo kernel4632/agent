@@ -49,16 +49,21 @@ const resultFields = [
     'warnings', // 请求成功但某些参数未被供应商支持或没有生效的提示。
 ]
 
-const createModel = ({ protocol, model, baseURL, apiKey, options }) => {
+const createModel = ({ protocol, model, baseURL, apiKey, options, cacheKey }) => {
     const settings = { apiKey, baseURL, headers: options.headers }
+    const cache = cacheKey && ['chat', 'responses'].includes(protocol) ? {
+        prompt_cache_key: cacheKey,
+        prompt_cache_retention: '24h',
+    } : {}
+    const bodyOverrides = { ...cache, ...options.body }
 
-    // AI SDK 已经生成了协议正确的请求，只在用户提供 body 覆盖项时合并它。
-    if (options.body) {
+    // OpenAI 风格协议永久携带缓存路由字段；其他自定义字段仍由用户配置覆盖。
+    if (Object.keys(bodyOverrides).length) {
         settings.fetch = async (input, init) => {
             let body = init?.body
             if (typeof body === 'string') {
                 try {
-                    body = { ...JSON.parse(body), ...options.body }
+                    body = { ...JSON.parse(body), ...bodyOverrides }
                 } catch (error) {
                     throw new TypeError('AI SDK request body is not valid JSON', { cause: error })
                 }
@@ -95,8 +100,10 @@ const chat = async ({
     }
 
     // 这里故意只构造一份参数，避免 generateText 和 streamText 的行为分叉。
+    // 缓存键由 LLM 层统一生成，所有调用 chat 的地方都会自动使用缓存。
+    const stableKey = `agent:${baseURL}:${model}:${Bun.hash(JSON.stringify(system || ''))}`
     const input = {
-        model: createModel({ protocol, model, baseURL, apiKey, options }),
+        model: createModel({ protocol, model, baseURL, apiKey, options, cacheKey: stableKey }),
         system,
         messages,
         tools,
@@ -111,7 +118,8 @@ const chat = async ({
     const result = streamText(input)
     const text = []
     for await (const delta of result.textStream) text.push(delta)
-    return resolveResult(result).then(output => ({ ...output, text: text.join('') }))
+    const output = await resolveResult(result)
+    return { ...output, text: text.join('') }
 }
 
 export default { chat }
