@@ -130,7 +130,7 @@ app.group('/session', session => session
 // Config：读取和保存全局配置。
 app.group('/config', config => config
     .get('/read', () => Config.read(Path.config()))
-    .patch('/set', ({ body }) => Config.set(body, Path.config())))
+    .patch('/set', ({ body }) => Config.set(body)))
 
 // SSE：建立事件流连接。
 app.group('/sse', sse => sse
