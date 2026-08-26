@@ -47,6 +47,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
+import Path from '../utils/path.js'
 
 // 一个 Map 管理全部会话。key 是 sessionId，value 是该会话的消息和回退记录。
 let sessions = new Map()
@@ -61,17 +62,23 @@ const getSession = sessionId => {
     return session
 }
 
-const load = async ({ path }) => {
+const load = async ({ path, sessionId }) => {
+    const sessionPath = !path && sessionId
+    path ||= sessionId && Path.history(sessionId)
+    if (!path) throw new TypeError('path or sessionId is required')
     const file = Bun.file(path)
 
     // 历史文件第一次还不存在是正常情况，直接从空历史开始。
     if (!await file.exists()) {
-        sessions = new Map()
+        if (sessionId) sessions.set(sessionId, { messages: [], redo: [] })
+        else sessions = new Map()
         return
     }
 
-    // JSON 只能保存普通对象，读取后再恢复成方便查找的 Map。
-    sessions = new Map(Object.entries(await file.json()))
+    const data = await file.json()
+    // 会话文件只保存自己的记录；旧的总文件仍可恢复全部会话。
+    if (sessionPath) sessions.set(sessionId, data)
+    else sessions = new Map(Object.entries(data))
 }
 
 const add = async ({ sessionId, message }) => {
@@ -106,9 +113,12 @@ const getMessages = ({ sessionId }) => {
     return getSession(sessionId).messages.map(record => record.message)
 }
 
-const save = async ({ path }) => {
-    // Map 不能直接写成 JSON，先转回普通对象；redo 也保存，重启后仍可撤销回退。
-    const data = JSON.stringify(Object.fromEntries(sessions), null, 2)
+const save = async ({ path, sessionId }) => {
+    const sessionPath = !path && sessionId
+    path ||= sessionId && Path.history(sessionId)
+    if (!path) throw new TypeError('path or sessionId is required')
+    // 会话文件只写当前记录；旧的总文件才写全部 Map。
+    const data = JSON.stringify(sessionPath ? getSession(sessionId) : Object.fromEntries(sessions), null, 2)
     await mkdir(dirname(path), { recursive: true })
     // 原子写入会先写临时文件，再替换正式文件，避免留下半份 JSON。
     await writeFile(path, data)

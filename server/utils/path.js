@@ -7,12 +7,12 @@ const root = () => process.env.AGENT_HOME || join(process.env.HOME || process.en
 const config = () => join(root(), 'config.json') // 全局模型、权限和插件配置。
 const workspaces = () => join(root(), 'workspaces.json') // 工作区与会话摘要索引。
 
-// 会话目录保存元数据、消息 JSONL 和 checkpoint 快照。
+// 会话目录保存元数据、历史记录和 checkpoint 快照。
 const session = id => join(root(), 'sessions', id) // 每条会话使用独立目录。
 const meta = id => join(session(id), 'meta.json') // 保存会话模型和工作区元数据。
-const messages = id => join(session(id), 'messages.jsonl') // 保存可编辑的消息历史。
+const history = id => join(session(id), 'history.json') // 保存可编辑的消息历史。
 
 // 工具和插件都按目录扫描，删除文件后下一次扫描就不会再发现它。
 const tools = () => join(root(), 'tools') // 用户安装的全局工具目录。
 
-export default { root, config, workspaces, session, meta, messages, tools } // 导出全部路径语义。
+export default { root, config, workspaces, session, meta, history, tools } // 导出全部路径语义。
