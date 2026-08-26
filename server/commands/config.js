@@ -3,7 +3,7 @@
 await Config.read(path)
 
 // 改配置
-await Config.set(newConfig)
+await Config.set(newConfig, path)
 
 // 保存配置
 await Config.save(path)
@@ -25,14 +25,14 @@ const read = async path => {
     return config
 }
 
-const set = newConfig => {
+const set = async (newConfig, path) => {
     if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
         throw new TypeError('config must be an object')
     }
 
     // 整体替换，不偷偷合并旧字段，保证用户提交的配置就是实际配置。
     config = structuredClone(newConfig)
-    return config
+    return save(path)
 }
 
 const get = () => config

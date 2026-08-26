@@ -94,3 +94,58 @@
  *   调用: Config.set(newConfig) → Config.save(path)
  *   结果: 保存后的配置
  */
+
+import { Elysia } from 'elysia'
+import Agent from './commands/agent.js'
+import Config from './commands/config.js'
+import Session from './commands/session.js'
+import Permission from './features/permission.js'
+import Path from './utils/path.js'
+import SSE from './utils/sse.js'
+
+const app = new Elysia()
+
+// 路由只负责把错误转换成 HTTP 响应，业务错误仍由 Command 自己产生。
+app.onError(({ error, set }) => {
+    set.status = error instanceof TypeError ? 400 : /not found/i.test(error.message) ? 404 : /already running/i.test(error.message) ? 409 : 500
+    return { error: error.message }
+})
+
+// Agent：启动任务、停止任务、处理工具审批。
+app.group('/agent', agent => agent
+    .post('/send/:sessionId', ({ params, body }) => Agent.send({ ...params, ...body }))
+    .post('/stop/:sessionId', ({ params }) => Agent.stop(params))
+    .post('/decide/:sessionId', ({ params, body }) => Agent.decide({ ...params, ...body })))
+
+// Session：管理会话资料和会话历史。
+app.group('/session', session => session
+    .post('/create', ({ body }) => Session.create(body))
+    .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
+    .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
+    .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
+    .post('/redo/:sessionId', ({ params }) => Session.redo(params))
+    .post('/compact/:sessionId', ({ params, body }) => Session.compact({ ...params, ...body })))
+
+// Config：读取和保存全局配置。
+app.group('/config', config => config
+    .get('/read', () => Config.read(Path.config()))
+    .patch('/set', ({ body }) => Config.set(body, Path.config())))
+
+// SSE：建立事件流连接。
+app.group('/sse', sse => sse
+    .get('/connect/:sessionId', ({ params, request }) => SSE.connect({ id: params.sessionId, request })))
+
+// 应用启动前先恢复配置和权限规则。
+const start = async ({ port = process.env.PORT || 3000 } = {}) => {
+    await Config.read(Path.config())
+    const permission = Config.get().permission
+    if (permission) await Permission.load({ path: Path.config() })
+    return app.listen(port)
+}
+
+export { app, start }
+
+if (import.meta.main) {
+    start().then(server => console.log(`Agent server listening on ${server.hostname}:${server.port}`))
+}

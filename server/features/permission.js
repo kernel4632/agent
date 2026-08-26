@@ -62,7 +62,9 @@ const resolveAction = ({ toolName, input }) => {
 
 const load = async ({ path }) => {
     const file = Bun.file(path)
-    rules = await file.exists() ? await file.json() : { '*': 'ask' }
+    const data = await file.exists() ? await file.json() : { '*': 'ask' }
+    // 既支持单独的权限文件，也支持从完整 config.json 读取 permission 字段。
+    rules = data.permission || data
     return rules
 }
 
