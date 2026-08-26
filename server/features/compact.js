@@ -9,6 +9,7 @@ const { content, token } = await Compact.run({
 */
 
 import { countTokens } from 'gpt-tokenizer'
+import Message from '../utils/message.js'
 import LLM from '../utils/llm.js'
 import Path from '../utils/path.js'
 
@@ -52,6 +53,9 @@ const run = async ({ sessionId, messages, token, maxTokens, onText }) => {
     }
 
     const { llm, summaryPrompt } = await getModelConfig(sessionId)
+    // 没超限时返回原数组。Loop 用这个“同一个数组”判断是否需要重新构建。
+    if (token <= maxTokens) return { messages, token }
+
     const output = []
     let callbackQueue = Promise.resolve()
     const result = await LLM.chat({
@@ -71,7 +75,8 @@ const run = async ({ sessionId, messages, token, maxTokens, onText }) => {
     })
     await callbackQueue
     const content = output.join('') || result.text.trim()
-    return { content, token: countTokens(content) }
+    const summary = Message.compress({ content })
+    return { messages: [summary], token: countTokens(content) }
 }
 
 export default { run }
