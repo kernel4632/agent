@@ -7,6 +7,7 @@ const result = await LLM.chat({
     model: "model-name",
     protocol: "chat",//模型协议，responses、anthropic……，默认chat
     messages: [...],                // 必填
+    system,
 
     // --- 工具（可选）---
     tools: [...],
@@ -80,6 +81,7 @@ const chat = async ({
     apiKey,
     model,
     protocol = 'chat',
+    system,
     messages,
     tools,
     toolChoice = 'required',
@@ -95,6 +97,7 @@ const chat = async ({
     // 这里故意只构造一份参数，避免 generateText 和 streamText 的行为分叉。
     const input = {
         model: createModel({ protocol, model, baseURL, apiKey, options }),
+        system,
         messages,
         tools,
         toolChoice,
