@@ -123,7 +123,10 @@ app.group('/session', session => session
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
-    .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
+    .post('/rollback/:sessionId', async ({ params, body }) => {
+        await Agent.stop(params)
+        return Session.rollback({ ...params, ...body })
+    })
     .post('/redo/:sessionId', ({ params }) => Session.redo(params))
     .post('/compact/:sessionId', ({ params, body }) => Session.compact({ ...params, ...body })))
 

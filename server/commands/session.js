@@ -97,7 +97,7 @@ const create = async ({ title, workspaceId, provider, model }) => {
 const read = async ({ sessionId }) => {
     const meta = await readMeta(sessionId)
     await History.load({ sessionId })
-    return { ...meta, history: History.getMessages({ sessionId }) }
+    return { ...meta, history: History.get({ sessionId }) }
 }
 
 const rename = async ({ sessionId, title }) => {
@@ -133,7 +133,7 @@ const redo = async ({ sessionId }) => {
 const compact = async ({ sessionId, maxTokens, onText }) => {
     await readMeta(sessionId)
     await History.load({ sessionId })
-    const context = Context.build({ history: History.getMessages({ sessionId }) })
+    const context = Context.build({ history: History.get({ sessionId }) })
     const result = await Compact.run({
         sessionId,
         messages: context.messages,

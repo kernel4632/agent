@@ -87,6 +87,7 @@ const run = async ({ session, history, controller }) => {
         const result = await Loop.run({
             messages: history,
             system: config.prompt?.system || '',
+            toolPrompt: config.prompt?.tool,
             tools,
             llm,
             buildContext: Context.build,

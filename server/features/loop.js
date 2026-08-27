@@ -5,6 +5,7 @@ const result = await Loop.run({
     messages: [],               // 完整消息列表
     system: "你是编程助手",         // 系统提示词
     tools: [],                  // 工具列表
+    toolPrompt: "必须使用工具继续完成任务", // 模型连续不调用工具时临时提醒
 
     // --- LLM 参数（必填，内部传给 LLM.chat）---
     llm: {
@@ -58,6 +59,7 @@ const run = async ({
     messages,
     system,
     tools,
+    toolPrompt,
     llm,
     retry = {},
     buildContext,
@@ -80,6 +82,8 @@ const run = async ({
     }
 
     onStart?.()
+    let noToolCount = 0
+    let temporaryPrompt = null
 
     try {
         while (true) {
@@ -111,7 +115,9 @@ const run = async ({
                 operation: () => LLM.chat({
                     ...llm,
                     system,
-                    messages: context.messages,
+                    messages: temporaryPrompt
+                        ? [...context.messages, Message.user({ content: temporaryPrompt })]
+                        : context.messages,
                     tools,
                     signal,
                     onChunk: ({ chunk }) => {
@@ -126,14 +132,25 @@ const run = async ({
                 onRetry,
                 maxDelay: retry.maxDelay ?? 60,
             })
+            temporaryPrompt = null
 
             const toolCalls = result.toolCalls || []
             if (!toolCalls.length) {
                 const assistant = Message.assistant({ content: text.join('') || result.text || null })
                 messages.push(assistant)
-                const finished = { ...result, text: text.join('') || result.text || '' }
-                return finished
+                noToolCount += 1
+
+                // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
+                if (noToolCount === 2) {
+                    if (typeof toolPrompt !== 'string' || !toolPrompt.trim()) {
+                        throw new Error('config.prompt.tool must be a non-empty string')
+                    }
+                    temporaryPrompt = toolPrompt
+                }
+                if (noToolCount >= 3) return { ...result, text: text.join('') || result.text || '' }
+                continue
             }
+            noToolCount = 0
 
             // 工具回合先全部放在临时数组中，避免历史出现半截 assistant/tool 结构。
             const toolResults = []

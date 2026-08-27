@@ -36,8 +36,8 @@ await History.rollback({
 // 发现回退错了，撤回来
 await History.redo({ sessionId })
 
-// 获取标准 messages 发给 API
-const messages = await History.getMessages({ sessionId: "session-1" })
+// 获取当前会话未经筛选的完整 History
+const history = History.get({ sessionId: "session-1" })
 
  // 保存
  await History.save({ path: "/path/to/history.json" })
@@ -109,9 +109,10 @@ const redo = async ({ sessionId }) => {
     if (records) session.messages.push(...records)
 }
 
-const getMessages = ({ sessionId }) => {
-    // messageId 只给 History 的回退功能使用，模型只需要标准消息本身。
-    return getSession(sessionId).messages.map(record => record.message)
+const get = ({ sessionId }) => {
+    // 返回完整 History：保留 messageId 和消息上的全部字段。
+    // 前端直接使用，模型调用前由 Context.build 统一过滤。
+    return getSession(sessionId).messages.map(({ messageId, message }) => ({ messageId, ...message }))
 }
 
 const save = async ({ path, sessionId }) => {
@@ -127,4 +128,4 @@ const save = async ({ path, sessionId }) => {
     if (sessionPath) await SSE.reset({ id: sessionId })
 }
 
-export default { load, add, rollback, redo, getMessages, save }
+export default { load, add, rollback, redo, get, save }
