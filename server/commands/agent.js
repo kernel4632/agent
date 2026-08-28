@@ -7,7 +7,9 @@ const agent = Agent.create({
         apiKey: "sk-xxx",
         model: "model-name",
         protocol: "chat",
+        stream: true,
         system: "你是一个编程助手。",
+        summary: "请总结这段对话，只输出总结内容。",
     },
     tools: {},
     callbacks: {},
@@ -18,7 +20,8 @@ await agent.send({
     input: "帮我写个爬虫",
     callbacks: {
         onText: text => console.log(text),
-        onPermission: async permission => 'allow-once',
+        onPermission: async permission => true,
+        onCompact: event => console.log(event),
     },
 })
 
@@ -35,17 +38,22 @@ await agent.stop()
 
 // callbacks 中可使用下面这些回调：
 // onStart: () => {}，循环开始时调用，无返回值。
-// onPermission: ({ sessionId, callId, toolCallId, toolName, arguments }) => 'allow-always' | 'allow-once' | 'deny'，需要等待时可以返回 Promise。
+// onPermission: ({ sessionId, callId, toolCallId, toolName, arguments }) => true | false，需要等待时可以返回 Promise。
 // onText: text => {}，收到一段模型文字时调用，text 是字符串。
 // onRetry: info => {}，模型请求重试时调用，info 是重试信息。
 // onToolCall: call => {}，模型请求调用工具时调用，call 包含 toolCallId、toolName、input。
 // onToolOutput: output => {}，工具产生实时输出时调用，output 包含工具调用信息和输出数据。
 // onToolResult: result => {}，工具执行结束时调用，result 包含工具调用信息和最终结果。
-// onCompact: ({ sessionId, messages, token, maxTokens }) => ({ messages, token })，上下文超限时替换默认裁剪行为。
+// onCompact: event => {}，压缩过程通知，不改变压缩逻辑。
+// event.type 为 compact-start、compact-text 或 compact-finish。
+// compact-start: { type, messages, token, maxTokens }，压缩开始。
+// compact-text: { type, text }，压缩内容；stream=true 时多次触发，否则触发一次。
+// compact-finish: { type, messages, token }，压缩完成后的总结和 Token 数。
 */
 
 import { nanoid } from 'nanoid'
 import Context from '../features/context.js'
+import Compact from '../features/compact.js'
 import Loop from '../features/loop.js'
 import Tool from '../features/tool.js'
 import Message from '../utils/message.js'
@@ -61,10 +69,10 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
             protocol: 'chat',
             headers: {},
             body: {},
-            maxTokens: undefined,
-            system: '',
-            toolPrompt: '请继续使用工具完成任务。',
-            ...config,
+        maxTokens: undefined,
+        stream: true,
+        system: '',
+        ...config,
         },
         tools,
         callbacks: { ...callbacks },
@@ -99,11 +107,17 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
             const result = await Loop.run({
                 messages: agent.history,
                 system: agent.config.system,
-                toolPrompt: agent.config.toolPrompt,
                 tools: agent.tools,
                 llm,
                 buildContext: Context.build,
-                compressContext: agent.callbacks.onCompact || (async ({ messages, token, maxTokens }) => ({ messages, token })),
+                compressContext: args => agent.config.maxTokens === undefined
+                    ? args
+                    : Compact.run({
+                        ...args,
+                        llm,
+                        stream: agent.config.stream,
+                        onCompact: agent.callbacks.onCompact,
+                    }),
                 executeTool: Tool.execute,
                 sessionId: agent.id,
                 signal: controller.signal,

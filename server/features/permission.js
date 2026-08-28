@@ -14,7 +14,7 @@ const result = await Permission.check({
         path: "src/index.js",
     },
 })
-// result = 'allow-always' | 'allow-once' | 'deny'
+// result = true | false
 
 // 3. 前端提交审批决定
 await Permission.decide({
@@ -72,31 +72,21 @@ const check = async ({ sessionId, callId, toolName, arguments: input = {}, signa
             }
         }
     }
-    if (action === 'allow') return 'allow-always'
+    if (action === 'allow') return true
 
     // 规则需要询问时，Permission 直接通知前端并等待 Permission.decide。
-    if (!sessionId || !callId) return 'allow-always'
+    if (!sessionId || !callId) return true
     const decision = await new Promise(resolve => {
-        approvals.set(`${sessionId}:${callId}`, { sessionId, resolve })
+        approvals.set(`${sessionId}:${callId}`, { sessionId, resolve, toolName, input, matchValue, toolRule })
         SSE.send({
             id: sessionId,
             data: { type: 'permission', callID: callId, tool: toolName, input },
         })
         signal?.addEventListener('abort', () => {
             approvals.delete(`${sessionId}:${callId}`)
-            resolve('deny')
+            resolve(false)
         }, { once: true })
     })
-    if (!['allow-always', 'allow-once', 'deny'].includes(decision)) return 'deny'
-    if (decision === 'allow-always') {
-        const pattern = matchValue.replace(/[\\*?\[\]{}()]/g, character => ({
-            '\\': '[\\\\]', '*': '[*]', '?': '[?]', '[': '[[]', ']': '[]]',
-            '{': '[{]', '}': '[}]', '(': '[(]', ')': '[)]',
-        }[character]))
-        if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[pattern] = 'allow'
-        else rules[toolName] = { '*': 'ask', [pattern]: 'allow' }
-        if (permissionPath) await save({ path: permissionPath })
-    }
     return decision
 }
 
@@ -104,7 +94,16 @@ const decide = async ({ sessionId, callId, decision }) => {
     const approval = approvals.get(`${sessionId}:${callId}`)
     if (!approval || approval.sessionId !== sessionId) return { ok: false }
     approvals.delete(`${sessionId}:${callId}`)
-    approval.resolve(decision === true ? 'allow-once' : decision === false ? 'deny' : decision)
+    if (decision === 'allow-always') {
+        const pattern = approval.matchValue.replace(/[\\*?\[\]{}()]/g, character => ({
+            '\\': '[\\\\]', '*': '[*]', '?': '[?]', '[': '[[]', ']': '[]]',
+            '{': '[{]', '}': '[}]', '(': '[(]', ')': '[)]',
+        }[character]))
+        if (approval.toolRule && typeof approval.toolRule === 'object' && !Array.isArray(approval.toolRule)) approval.toolRule[pattern] = 'allow'
+        else rules[approval.toolName] = { '*': 'ask', [pattern]: 'allow' }
+        if (permissionPath) await save({ path: permissionPath })
+    }
+    approval.resolve(decision === 'deny' || decision === false ? false : true)
     return { ok: true }
 }
 

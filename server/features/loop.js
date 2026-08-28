@@ -5,7 +5,6 @@ const result = await Loop.run({
     messages: [],               // 完整消息列表
     system: "你是编程助手",         // 系统提示词
     tools: [],                  // 工具列表
-    toolPrompt: "必须使用工具继续完成任务", // 模型连续不调用工具时临时提醒
 
     // --- LLM 参数（必填，内部传给 LLM.chat）---
     llm: {
@@ -36,7 +35,7 @@ const result = await Loop.run({
     onStart: () => { },                    // 循环开始
     onText: (text) => { },                 // 流式文字增量
     onRetry: (info) => { },                // 请求失败重试中
-    onPermission: async (permission) => { }, // 工具权限询问，返回三态决定
+    onPermission: async (permission) => { }, // 工具权限询问，返回 true 或 false
     onToolResult: (result) => { },         // 工具执行完
  })
  */
@@ -53,7 +52,6 @@ const run = async ({
     messages,
     system,
     tools,
-    toolPrompt,
     llm,
     retry = {},
     buildContext,
@@ -132,10 +130,7 @@ const run = async ({
 
             // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
             if (noToolCount === 2) {
-                if (typeof toolPrompt !== 'string' || !toolPrompt.trim()) {
-                    throw new Error('config.prompt.tool must be a non-empty string')
-                }
-                temporaryPrompt = toolPrompt
+                    temporaryPrompt = '请继续使用工具完成任务。'
             }
             if (noToolCount >= 3) return { ...result, text: text.join('') || result.text || '' }
             continue
@@ -155,16 +150,16 @@ const run = async ({
                 break
             }
 
-            const decision = await onPermission?.({
+            const allowed = await onPermission?.({
                 sessionId,
                 callId: call.toolCallId,
                 toolCallId: call.toolCallId,
                 toolName: call.toolName,
                 arguments: call.input,
                 signal,
-            }) ?? 'allow-always'
+            }) ?? true
 
-            if (decision === 'deny') {
+            if (!allowed) {
                 toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } })
                 continue
             }

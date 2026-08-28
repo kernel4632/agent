@@ -95,8 +95,8 @@ const agentConfig = ({ providerName, model }) => {
         headers,
         body: provider?.body || {},
         maxTokens: settings.context || settings.contextWindow || 128000,
+        stream: provider?.stream ?? global.stream ?? true,
         system: global.prompt?.system || '',
-        toolPrompt: global.prompt?.tool || '请继续使用工具完成任务。',
     }
 }
 
@@ -180,7 +180,7 @@ const redo = async ({ sessionId }) => {
     return read({ sessionId })
 }
 
-const compact = async ({ sessionId, maxTokens, onText }) => {
+const compact = async ({ sessionId, maxTokens, onCompact }) => {
     const meta = await readMeta(sessionId)
     let agent = agents.get(sessionId)
     if (!agent) {
@@ -204,7 +204,7 @@ const compact = async ({ sessionId, maxTokens, onText }) => {
             messages: context.messages,
             token: context.token,
             maxTokens,
-            onText,
+            onCompact,
         })
 
         // Compact 返回总结消息时，写回 History；未压缩时两者仍是同一个数组。
@@ -239,6 +239,7 @@ const send = async ({ sessionId, input, ...options }) => {
             onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
             onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
             onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } }),
+            onCompact: event => SSE.send({ id: sessionId, data: { type: 'compact', ...event } }),
         },
     })
     task.then(async result => {
