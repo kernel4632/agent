@@ -24,7 +24,7 @@ await History.add({
 // 压缩
 await History.add({
     sessionId: "session-1",
-    message: Message.compress({ content: "总结..." }),
+    message: Message.compact({ content: "总结..." }),
 })
 
 // 回退

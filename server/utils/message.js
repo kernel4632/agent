@@ -25,7 +25,7 @@ const toolMessage = Message.tool({
 })
 
 // 4. 创建压缩总结消息块
-const compressMessage = Message.compress({
+const compactMessage = Message.compact({
     content: "之前的对话总结...",  // 必填，字符串
 })
  */
@@ -63,10 +63,10 @@ const tool = ({ toolCallId, toolName, content }) => ({ // 工具结果必须带�
     }],
 })
 
-const compress = ({ content }) => ({ // 压缩消息保留 user 形状，再用 compress 标记给 Context.build 识别。
+const compact = ({ content }) => ({ // 压缩消息保留 user 形状，再用 compact 标记给 Context.build 识别。
     role: 'user',
     content: text(content, 'content'),
-    compress: true,
+    compact: true,
 })
 
-export default { user, assistant, tool, compress }
+export default { user, assistant, tool, compact }

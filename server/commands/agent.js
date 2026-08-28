@@ -9,7 +9,6 @@ const agent = Agent.create({
         protocol: "chat",
         stream: true,
         system: "你是一个编程助手。",
-        summary: "请总结这段对话，只输出总结内容。",
     },
     tools: {},
     callbacks: {},
@@ -71,6 +70,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
             headers: {}, // 额外请求头没有传入时直接交给 LLM 使用空对象。
             body: {}, // 额外请求体没有传入时不覆盖模型请求参数。
             maxTokens: undefined, // 不设上限时不主动压缩，让模型服务决定是否超限。
+            compactThreshold: 0.8, // 接近上限时提前压缩，默认在 80% 处开始。
             stream: true, // 压缩总结默认使用流式请求。
             system: '', // 没有系统提示词时仍允许 Agent 运行。
             ...config, // 传入配置覆盖默认配置，且配置结构只包含 Agent 需要的字段。
@@ -102,6 +102,8 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
                 model: agent.config.model,
                 protocol: agent.config.protocol,
                 maxTokens: agent.config.maxTokens,
+                compactThreshold: agent.config.compactThreshold,
+                stream: agent.config.stream,
                 options: {
                     headers: agent.config.headers,
                     body: agent.config.body,
@@ -113,14 +115,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
                 tools: agent.tools,
                 llm,
                 buildContext: Context.build,
-                compressContext: args => agent.config.maxTokens === undefined
-                    ? args
-                    : Compact.run({
-                        ...args,
-                        llm,
-                        stream: agent.config.stream,
-                        onCompact: agent.callbacks.onCompact,
-                    }),
+                compact: Compact.run,
                 executeTool: Tool.execute,
                 sessionId: agent.id,
                 signal: controller.signal,
@@ -131,6 +126,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
                 onToolCall: agent.callbacks.onToolCall,
                 onToolOutput: agent.callbacks.onToolOutput,
                 onToolResult: agent.callbacks.onToolResult,
+                onCompact: agent.callbacks.onCompact,
             })
             return result
         })()
@@ -150,7 +146,32 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
         return { ok: true }
     }
 
+    // 手动压缩：先停掉当前任务，再立即压缩当前上下文。
+    agent.compact = async ({ onCompact, ...options } = {}) => {
+        await agent.stop() // 用户主动压缩时，先结束正在进行的 send 或压缩。
+        const context = Context.build({ history: agent.history, system: agent.config.system, tools: agent.tools })
+        const controller = new AbortController() // stop() 也可以中断手动压缩。
+        const llm = {
+            baseURL: agent.config.baseURL,
+            apiKey: agent.config.apiKey,
+            model: agent.config.model,
+            protocol: agent.config.protocol,
+            options: { headers: agent.config.headers, body: agent.config.body },
+        }
+        const task = Compact.run({ ...options, messages: context.messages, llm, stream: agent.config.stream, onCompact, signal: controller.signal })
+        agent.running = { controller, task } // 手动压缩和 send 共用同一个运行状态。
+        try {
+            const content = await task
+            agent.history.push(Message.compact({ content })) // 总结文本写回公开历史。
+            return content
+        } finally {
+            if (agent.running?.task === task) agent.running = null
+        }
+    }
+
     return agent
 }
 
-export default { create }
+const Agent = { create, tool: Tool, context: Context }
+
+export default Agent

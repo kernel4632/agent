@@ -1,7 +1,9 @@
 /* 
 目标被调用形式（绝对不可修改）：
 const { messages, token } = Context.build({
-    history: History.get(),
+    history: History.get(),       // 完整历史
+    system: "你是编程助手。",     // 会进入 messages 并参与 Token 估算
+    tools: {},                    // 工具定义参与 Token 估算，不进入 messages
 })
 */
 
@@ -16,9 +18,9 @@ const forModel = message => {
     return { role: message.role, content: message.content }
 }
 
-const build = ({ history }) => {
+const build = ({ history, system = '', tools = {} }) => {
     // 从后往前找，确保多次压缩后只使用最新总结。
-    const summaryIndex = history.findLastIndex(message => message.compress === true)
+    const summaryIndex = history.findLastIndex(message => message.compact === true)
     let selected
 
     if (summaryIndex < 0) {
@@ -37,10 +39,13 @@ const build = ({ history }) => {
         selected = [...first, summary, ...beforeSummary, ...afterSummary]
     }
 
-    const messages = selected.map(forModel)
+    const messages = [
+        ...(system ? [{ role: 'system', content: system }] : []),
+        ...selected.map(forModel),
+    ]
 
-    // 消息本身已经接近 AI SDK 格式，转成 JSON 后统一计算上下文大小。
-    const token = countTokens(JSON.stringify(messages))
+    // 工具定义不属于 messages，但模型请求仍会携带它们，所以估算时一并计算。
+    const token = countTokens(JSON.stringify({ messages, tools }))
     return { messages, token }
 }
 

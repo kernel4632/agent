@@ -41,7 +41,7 @@ await Session.redo({
 // 用户主动压缩当前会话
 await Session.compact({
     sessionId: "session-1",
-    maxTokens: 8000,             // 压缩后的最大上下文长度
+    onCompact: event => {},      // 压缩过程通知
 })
   */
 
@@ -50,8 +50,6 @@ import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from './agent.js'
 import Config from './config.js'
-import Context from '../features/context.js'
-import Compact from '../features/compact.js'
 import History from '../features/history.js'
 import Permission from '../features/permission.js'
 import Path from '../utils/path.js'
@@ -180,7 +178,7 @@ const redo = async ({ sessionId }) => {
     return read({ sessionId })
 }
 
-const compact = async ({ sessionId, maxTokens, onCompact }) => {
+const compact = async ({ sessionId, onCompact }) => {
     const meta = await readMeta(sessionId)
     let agent = agents.get(sessionId)
     if (!agent) {
@@ -196,31 +194,11 @@ const compact = async ({ sessionId, maxTokens, onCompact }) => {
     }
     agents.set(sessionId, agent)
     if (agent.running) throw new Error(`Agent is already running: ${sessionId}`)
-    let task
-    task = (async () => {
-        const context = Context.build({ history: agent.history })
-        const result = await Compact.run({
-            sessionId,
-            messages: context.messages,
-            token: context.token,
-            maxTokens,
-            onCompact,
-        })
-
-        // Compact 返回总结消息时，写回 History；未压缩时两者仍是同一个数组。
-        if (result.messages !== context.messages) {
-            for (const message of result.messages) await History.add({ sessionId, message })
-            agent.history.push(...result.messages)
-            await History.save({ sessionId })
-        }
-        return read({ sessionId })
-    })()
-    agent.running = { task }
-    try {
-        return await task
-    } finally {
-        if (agent.running?.task === task) agent.running = null
-    }
+    const startLength = agent.history.length
+    const content = await agent.compact({ onCompact })
+    for (const message of agent.history.slice(startLength)) await History.add({ sessionId, message })
+    await History.save({ sessionId })
+    return { ...await read({ sessionId }), content }
 }
 
 const send = async ({ sessionId, input, ...options }) => {

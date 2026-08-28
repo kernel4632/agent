@@ -78,9 +78,9 @@
  *
  * POST /session/compact/:sessionId
  *   params: { sessionId }
- *   body: { maxTokens }
- *   调用: Session.compact({ sessionId, maxTokens })
- *   结果: { sessionId, history, token }
+ *   body: {}
+ *   调用: Session.compact({ sessionId })
+ *   结果: { sessionId, history, content }
  *   说明: 指令内部组合 History、Context 和 Compact。
  *
  * ==================== Config 指令 ====================

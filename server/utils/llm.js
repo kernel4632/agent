@@ -99,13 +99,17 @@ const chat = async ({
         throw new TypeError('baseURL, model and messages are required')
     }
 
+    const systemMessage = messages.find(message => message.role === 'system')
+    const modelMessages = messages.filter(message => message.role !== 'system')
+    system ||= systemMessage?.content
+
     // 这里故意只构造一份参数，避免 generateText 和 streamText 的行为分叉。
     // 缓存键由 LLM 层统一生成，所有调用 chat 的地方都会自动使用缓存。
     const stableKey = `agent:${baseURL}:${model}:${Bun.hash(JSON.stringify(system || ''))}`
     const input = {
         model: createModel({ protocol, model, baseURL, apiKey, options, cacheKey: stableKey }),
         system,
-        messages,
+        messages: modelMessages,
         tools,
         toolChoice,
         abortSignal: signal,

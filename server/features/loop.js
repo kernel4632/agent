@@ -24,7 +24,7 @@ const result = await Loop.run({
     },
     // --- 功能模块（必填，平齐的功能模块作为参数传）---
     buildContext: Context.build,       // 上下文构建模块
-    compressContext: Compact.run,     // 上下文压缩模块
+    compact: Compact.run,             // 上下文压缩模块
     executeTool: Tool.execute,             // 工具执行模块
     sessionId: "session-1",               // 压缩和工具输出使用的会话
 
@@ -37,6 +37,7 @@ const result = await Loop.run({
     onRetry: (info) => { },                // 请求失败重试中
     onPermission: async (permission) => { }, // 工具权限询问，返回 true 或 false
     onToolResult: (result) => { },         // 工具执行完
+    onCompact: (event) => { },             // 压缩过程通知
  })
  */
 
@@ -55,7 +56,7 @@ const run = async ({
     llm,
     retry = {},
     buildContext,
-    compressContext,
+    compact,
     executeTool,
     sessionId,
     signal,
@@ -66,9 +67,10 @@ const run = async ({
     onToolCall,
     onToolOutput,
     onToolResult,
+    onCompact,
 }) => {
-    if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compressContext !== 'function') {
-        throw new TypeError('messages, llm, buildContext and compressContext are required')
+    if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compact !== 'function') {
+        throw new TypeError('messages, llm, buildContext and compact are required')
     }
 
     onStart?.() // 外部需要时知道循环已经开始；没有回调就跳过。
@@ -78,23 +80,19 @@ const run = async ({
     while (true) {
         checkCancelled(signal) // 每一轮开始先响应外部 stop。
 
-        // Compact 每次都会被调用。未超限时它原样返回，Loop 就离开这个小循环。
-        let context = buildContext({ history: messages }) // 从完整历史构建本轮模型上下文。
-        while (true) {
-            const compacted = await compressContext({
-                sessionId,
+        // 先把 system、历史和工具一起交给 Context，得到接近真实请求的 Token 估算。
+        let context = buildContext({ history: messages, system, tools })
+        while (Number.isFinite(llm.maxTokens) && context.token >= llm.maxTokens * (llm.compactThreshold ?? 0.8)) {
+            // 自动压缩只在接近上限时触发；Compact 本身不判断上下文大小。
+            const content = await compact({
                 messages: context.messages,
-                token: context.token,
-                maxTokens: llm.maxTokens,
+                llm,
+                stream: llm.stream,
+                onCompact,
+                signal,
             })
-
-            if (compacted.messages === context.messages) { // 同一数组表示没有发生压缩，可以开始请求模型。
-                context = compacted
-                break
-            }
-
-            messages.push(...compacted.messages)
-            context = buildContext({ history: messages })
+            messages.push(Message.compact({ content })) // 总结写回 history，下一轮重新构建上下文。
+            context = buildContext({ history: messages, system, tools })
         }
 
         checkCancelled(signal)
@@ -102,7 +100,6 @@ const run = async ({
         const result = await Retry.run({
             operation: () => LLM.chat({
                 ...llm,
-                system,
                 messages: temporaryPrompt
                     ? [...context.messages, Message.user({ content: temporaryPrompt })]
                     : context.messages,
