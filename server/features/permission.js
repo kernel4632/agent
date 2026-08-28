@@ -72,11 +72,12 @@ const check = async ({ sessionId, callId, toolName, arguments: input = {}, signa
             }
         }
     }
-    if (action === 'allow') return true
+    if (action === 'allow') return true // 已有规则直接放行，不打扰外部。
 
     // 规则需要询问时，Permission 直接通知前端并等待 Permission.decide。
     if (!sessionId || !callId) return true
     const decision = await new Promise(resolve => {
+        // Permission 自己负责发起询问并等待 decide，不把等待细节交给 Agent。
         approvals.set(`${sessionId}:${callId}`, { sessionId, resolve, toolName, input, matchValue, toolRule })
         SSE.send({
             id: sessionId,

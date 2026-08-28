@@ -71,15 +71,15 @@ const run = async ({
         throw new TypeError('messages, llm, buildContext and compressContext are required')
     }
 
-    onStart?.()
-    let noToolCount = 0
-    let temporaryPrompt = null
+    onStart?.() // 外部需要时知道循环已经开始；没有回调就跳过。
+    let noToolCount = 0 // 记录连续没有工具调用的模型回合。
+    let temporaryPrompt = null // 工具提示只临时发送给模型，不写入 history。
 
     while (true) {
-        checkCancelled(signal)
+        checkCancelled(signal) // 每一轮开始先响应外部 stop。
 
         // Compact 每次都会被调用。未超限时它原样返回，Loop 就离开这个小循环。
-        let context = buildContext({ history: messages })
+        let context = buildContext({ history: messages }) // 从完整历史构建本轮模型上下文。
         while (true) {
             const compacted = await compressContext({
                 sessionId,
@@ -88,7 +88,7 @@ const run = async ({
                 maxTokens: llm.maxTokens,
             })
 
-            if (compacted.messages === context.messages) {
+            if (compacted.messages === context.messages) { // 同一数组表示没有发生压缩，可以开始请求模型。
                 context = compacted
                 break
             }
@@ -124,13 +124,13 @@ const run = async ({
 
         const toolCalls = result.toolCalls || []
         if (!toolCalls.length) {
-            const assistant = Message.assistant({ content: text.join('') || result.text || null })
-            messages.push(assistant)
-            noToolCount += 1
+            const assistant = Message.assistant({ content: text.join('') || result.text || null }) // 把本轮模型文字变成历史消息。
+            messages.push(assistant) // 即使本轮没有工具，也要保留模型回复。
+            noToolCount += 1 // 没有工具时增加计数，决定是否继续提醒模型。
 
             // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
             if (noToolCount === 2) {
-                    temporaryPrompt = '请继续使用工具完成任务。'
+                temporaryPrompt = '请继续使用工具完成任务。' // 内置提示词不进入 history，只影响下一次请求。
             }
             if (noToolCount >= 3) return { ...result, text: text.join('') || result.text || '' }
             continue
@@ -157,7 +157,7 @@ const run = async ({
                 toolName: call.toolName,
                 arguments: call.input,
                 signal,
-            }) ?? true
+            }) ?? true // 没有权限回调时按无人值守模式直接放行。
 
             if (!allowed) {
                 toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } })
@@ -176,6 +176,7 @@ const run = async ({
                 onToolResult?.({ ...call, result: value, output: value.output })
                 stop ||= value?.stop === true || value?.interrupted === true
             } catch (error) {
+                // 工具失败属于工具结果，不能让一次工具失败打断整个 Agent 循环。
                 if (error?.name === 'AbortError') {
                     toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
                     stop = true

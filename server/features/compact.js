@@ -54,9 +54,9 @@ const run = async ({ sessionId, messages, token, maxTokens, onCompact, stream = 
 
     if (!llm) ({ llm } = await getModelConfig(sessionId))
     // 没超限时返回原数组。Loop 用这个“同一个数组”判断是否需要重新构建。
-    if (token <= maxTokens) return { messages, token }
+    if (token <= maxTokens) return { messages, token } // 未超限时不发压缩事件，也不改变消息数组。
 
-    await onCompact?.({ type: 'compact-start', messages, token, maxTokens })
+    await onCompact?.({ type: 'compact-start', messages, token, maxTokens }) // 开始事件让外部进入压缩状态。
     const output = []
     let callbackQueue = Promise.resolve()
     const result = await LLM.chat({
@@ -71,7 +71,7 @@ const run = async ({ sessionId, messages, token, maxTokens, onCompact, stream = 
             const text = chunk.text ?? chunk.textDelta ?? chunk.delta
             if (!text) return
             output.push(text)
-            if (onCompact) callbackQueue = callbackQueue.then(() => onCompact({ type: 'compact-text', text }))
+            if (onCompact) callbackQueue = callbackQueue.then(() => onCompact({ type: 'compact-text', text })) // 串行通知，保持文字顺序。
         },
     })
     await callbackQueue
@@ -79,7 +79,7 @@ const run = async ({ sessionId, messages, token, maxTokens, onCompact, stream = 
     const summary = Message.compress({ content })
     if (!stream && content) await onCompact?.({ type: 'compact-text', text: content })
     const compacted = { messages: [summary], token: countTokens(content) }
-    await onCompact?.({ type: 'compact-finish', ...compacted })
+    await onCompact?.({ type: 'compact-finish', ...compacted }) // 完成事件让外部退出压缩状态。
     return compacted
 }
 
