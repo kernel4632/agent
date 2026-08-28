@@ -38,7 +38,6 @@ const result = await Loop.run({
     onText: (text) => { },                 // 流式文字增量
     onRetry: (info) => { },                // 请求失败重试中
     onToolCall: (call) => { },             // 模型调了工具
-    onApprove: async (approval) => { },    // 需要用户批准，返回 true/false
     onToolResult: (result) => { },         // 工具执行完
     onCompress: (summary) => { },          // 上下文压缩发生
     onFinish: (result) => { },             // 循环结束
@@ -72,7 +71,6 @@ const run = async ({
     onText,
     onRetry,
     onToolCall,
-    onApprove,
     onToolOutput,
     onToolResult,
     onCompress,
@@ -85,150 +83,148 @@ const run = async ({
     let noToolCount = 0
     let temporaryPrompt = null
 
-    try {
+    while (true) {
+        checkCancelled(signal)
+
+        // Compact 每次都会被调用。未超限时它原样返回，Loop 就离开这个小循环。
+        let context = buildContext({ history: messages })
         while (true) {
-            checkCancelled(signal)
+            const compacted = await compressContext({
+                sessionId,
+                messages: context.messages,
+                token: context.token,
+                maxTokens: llm.maxTokens ?? DEFAULT_MAX_TOKENS,
+                onText: onCompress,
+            })
 
-            // Compact 每次都会被调用。未超限时它原样返回，Loop 就离开这个小循环。
-            let context = buildContext({ history: messages })
-            while (true) {
-                const compacted = await compressContext({
-                    sessionId,
-                    messages: context.messages,
-                    token: context.token,
-                    maxTokens: llm.maxTokens ?? DEFAULT_MAX_TOKENS,
-                    onText: onCompress,
-                })
-
-                if (compacted.messages === context.messages) {
-                    context = compacted
-                    break
-                }
-
-                messages.push(...compacted.messages)
-                context = buildContext({ history: messages })
+            if (compacted.messages === context.messages) {
+                context = compacted
+                break
             }
 
-            checkCancelled(signal)
-            const text = []
-            const result = await Retry.run({
-                operation: () => LLM.chat({
-                    ...llm,
-                    system,
-                    messages: temporaryPrompt
-                        ? [...context.messages, Message.user({ content: temporaryPrompt })]
-                        : context.messages,
-                    tools,
-                    signal,
-                    onChunk: ({ chunk }) => {
-                        if (chunk?.type !== 'text-delta') return
-                        const delta = chunk.text ?? chunk.textDelta ?? chunk.delta
-                        if (!delta) return
-                        text.push(delta)
-                        onText?.(delta)
-                    },
-                }),
+            messages.push(...compacted.messages)
+            context = buildContext({ history: messages })
+        }
+
+        checkCancelled(signal)
+        const text = []
+        const result = await Retry.run({
+            operation: () => LLM.chat({
+                ...llm,
+                system,
+                messages: temporaryPrompt
+                    ? [...context.messages, Message.user({ content: temporaryPrompt })]
+                    : context.messages,
+                tools,
                 signal,
-                onRetry,
-                maxDelay: retry.maxDelay ?? 60,
-            })
-            temporaryPrompt = null
+                onChunk: ({ chunk }) => {
+                    if (chunk?.type !== 'text-delta') return
+                    const delta = chunk.text ?? chunk.textDelta ?? chunk.delta
+                    if (!delta) return
+                    text.push(delta)
+                    onText?.(delta)
+                },
+            }),
+            signal,
+            onRetry,
+            maxDelay: retry.maxDelay ?? 60,
+        })
+        temporaryPrompt = null
 
-            const toolCalls = result.toolCalls || []
-            if (!toolCalls.length) {
-                const assistant = Message.assistant({ content: text.join('') || result.text || null })
-                messages.push(assistant)
-                noToolCount += 1
+        const toolCalls = result.toolCalls || []
+        if (!toolCalls.length) {
+            const assistant = Message.assistant({ content: text.join('') || result.text || null })
+            messages.push(assistant)
+            noToolCount += 1
 
-                // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
-                if (noToolCount === 2) {
-                    if (typeof toolPrompt !== 'string' || !toolPrompt.trim()) {
-                        throw new Error('config.prompt.tool must be a non-empty string')
-                    }
-                    temporaryPrompt = toolPrompt
+            // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
+            if (noToolCount === 2) {
+                if (typeof toolPrompt !== 'string' || !toolPrompt.trim()) {
+                    throw new Error('config.prompt.tool must be a non-empty string')
                 }
-                if (noToolCount >= 3) return { ...result, text: text.join('') || result.text || '' }
+                temporaryPrompt = toolPrompt
+            }
+            if (noToolCount >= 3) return { ...result, text: text.join('') || result.text || '' }
+            continue
+        }
+        noToolCount = 0
+
+        // 工具回合先全部放在临时数组中，避免历史出现半截 assistant/tool 结构。
+        const toolResults = []
+        let stop = false
+        for (const call of toolCalls) {
+            onToolCall?.(call)
+
+            // 模型已经产生了完整工具调用。即使此刻被取消，也要给它补一条取消结果。
+            if (signal?.aborted) {
+                toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
+                stop = true
+                break
+            }
+
+            const decision = await checkApproval?.({
+                sessionId,
+                callId: call.toolCallId,
+                toolCallId: call.toolCallId,
+                toolName: call.toolName,
+                arguments: call.input,
+                signal,
+            }) ?? 'allow-always'
+
+            if (decision === 'deny') {
+                toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } })
                 continue
             }
-            noToolCount = 0
 
-            // 工具回合先全部放在临时数组中，避免历史出现半截 assistant/tool 结构。
-            const toolResults = []
-            let stop = false
-            for (const call of toolCalls) {
-                onToolCall?.(call)
-
-                // 模型已经产生了完整工具调用。即使此刻被取消，
-                // 也要给它补一条取消结果，不能让历史留下半截消息。
-                if (signal?.aborted) {
+            try {
+                const value = await executeTool({
+                    name: call.toolName,
+                    input: call.input,
+                    tool: tools,
+                    signal,
+                    onOutput: output => onToolOutput?.({ ...output, ...call }),
+                })
+                toolResults.push({ call, output: value.output })
+                onToolResult?.({ ...call, result: value, output: value.output })
+                stop ||= value?.stop === true || value?.interrupted === true
+            } catch (error) {
+                if (error?.name === 'AbortError') {
                     toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
                     stop = true
                     break
                 }
-
-                const allowed = await checkApproval?.({
-                    toolName: call.toolName,
-                    arguments: call.input,
-                    onAsk: approval => onApprove?.({ ...approval, ...call }),
-                }) ?? true
-
-                if (!allowed) {
-                    toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } })
-                    continue
-                }
-
-                try {
-                    const value = await executeTool({
-                        name: call.toolName,
-                        input: call.input,
-                        tool: tools,
-                        signal,
-                        onOutput: output => onToolOutput?.({ ...output, ...call }),
-                    })
-                    toolResults.push({ call, output: value.output })
-                    onToolResult?.({ ...call, result: value, output: value.output })
-                    stop ||= value?.stop === true || value?.interrupted === true
-                } catch (error) {
-                    if (error?.name === 'AbortError') {
-                        toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
-                        stop = true
-                        break
-                    }
-                    const output = { type: 'error-text', value: `工具执行失败：${error.message}` }
-                    toolResults.push({ call, output })
-                    onToolResult?.({ ...call, error: error.message, output })
-                }
-            }
-
-            // 取消时也为尚未执行的调用补一条结果，保证历史始终成对。
-            for (const call of toolCalls.slice(toolResults.length)) {
-                toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
-            }
-
-            messages.push(Message.assistant({
-                content: text.join('') || result.text || null,
-                toolCalls: toolCalls.map(call => ({
-                    id: call.toolCallId,
-                    name: call.toolName,
-                    arguments: JSON.stringify(call.input),
-                })),
-            }))
-            for (const { call, output } of toolResults) {
-                messages.push(Message.tool({
-                    toolCallId: call.toolCallId,
-                    toolName: call.toolName,
-                    content: output,
-                }))
-            }
-
-            if (stop) {
-                const finished = { ...result, text: text.join('') || result.text || '', stop: true }
-                if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
-                return finished
+                const output = { type: 'error-text', value: `工具执行失败：${error.message}` }
+                toolResults.push({ call, output })
+                onToolResult?.({ ...call, error: error.message, output })
             }
         }
-    } catch (error) {
-        throw error
+
+        // 取消时也为尚未执行的调用补一条结果，保证历史始终成对。
+        for (const call of toolCalls.slice(toolResults.length)) {
+            toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
+        }
+
+        messages.push(Message.assistant({
+            content: text.join('') || result.text || null,
+            toolCalls: toolCalls.map(call => ({
+                id: call.toolCallId,
+                name: call.toolName,
+                arguments: JSON.stringify(call.input),
+            })),
+        }))
+        for (const { call, output } of toolResults) {
+            messages.push(Message.tool({
+                toolCallId: call.toolCallId,
+                toolName: call.toolName,
+                content: output,
+            }))
+        }
+
+        if (stop) {
+            const finished = { ...result, text: text.join('') || result.text || '', stop: true }
+            if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
+            return finished
+        }
     }
 }
 

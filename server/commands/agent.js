@@ -16,7 +16,7 @@ const result = await Agent.stop({
 await Agent.decide({
     sessionId: "session-1",
     callId: "call-1",
-    decision: true,
+    decision: "allow-once", // allow-always / allow-once / deny
 })
 */
 
@@ -34,9 +34,6 @@ import SSE from '../utils/sse.js'
 
 // 每个 sessionId 只能同时运行一个 Agent。
 const running = new Map()
-const approvals = new Map()
-
-const approvalKey = (sessionId, callId) => `${sessionId}:${callId}`
 
 const send = async ({ sessionId, input }) => {
     if (typeof input !== 'string' || !input.trim()) throw new TypeError('input must be a non-empty string')
@@ -51,12 +48,6 @@ const send = async ({ sessionId, input }) => {
 
     const task = run({ session, history, controller }).finally(() => {
         running.delete(sessionId)
-        for (const [key, approval] of approvals) {
-            if (approval.sessionId === sessionId) {
-                approval.resolve(false)
-                approvals.delete(key)
-            }
-        }
     })
     running.set(sessionId, { controller, task })
     task.catch(() => {})
@@ -83,54 +74,33 @@ const run = async ({ session, history, controller }) => {
     const tools = await Tool.scan(Path.tools())
     const startLength = history.length
 
-    try {
-        const result = await Loop.run({
-            messages: history,
-            system: config.prompt?.system || '',
-            toolPrompt: config.prompt?.tool,
-            tools,
-            llm,
-            buildContext: Context.build,
-            compressContext: Compact.run,
-            checkApproval: Permission.check,
-            executeTool: Tool.execute,
-            sessionId: session.id,
-            signal: controller.signal,
-            onText: text => SSE.send({ id: session.id, data: { type: 'text-delta', text } }),
-            onRetry: info => SSE.send({ id: session.id, data: { type: 'retry', ...info } }),
-            onToolCall: call => SSE.send({ id: session.id, data: { ...call, type: 'tool-call' } }),
-            onApprove: approval => ask({ sessionId: session.id, ...approval }),
-            onToolOutput: output => SSE.send({ id: session.id, data: { ...output, type: 'tool-output' } }),
-            onToolResult: result => SSE.send({ id: session.id, data: { ...result, type: 'tool-result' } }),
-            onCompress: text => SSE.send({ id: session.id, data: { type: 'compress-delta', text } }),
-        })
-        await persistNewMessages(session.id, history, startLength)
-        await SSE.send({ id: session.id, data: { type: 'finish', ...result } })
-        return result
-    } catch (error) {
-        await persistNewMessages(session.id, history, startLength)
-        await SSE.send({ id: session.id, data: { type: 'error', message: error.message, name: error.name } })
-        throw error
-    }
-}
-
-const persistNewMessages = async (sessionId, history, startLength) => {
-    // Loop 只修改工作数组。这里把完整的新消息逐条交给 History，最后统一保存。
-    if (history.length === startLength) return
-    for (const message of history.slice(startLength)) {
-        await History.add({ sessionId, message })
-    }
-    await History.save({ sessionId })
-}
-
-const ask = ({ sessionId, callId, toolCallId, toolName, arguments: input }) => new Promise(resolve => {
-    callId ||= toolCallId
-    approvals.set(approvalKey(sessionId, callId), { sessionId, resolve })
-    SSE.send({
-        id: sessionId,
-        data: { type: 'permission', callID: callId, tool: toolName, input },
+    const result = await Loop.run({
+        messages: history,
+        system: config.prompt?.system || '',
+        toolPrompt: config.prompt?.tool,
+        tools,
+        llm,
+        buildContext: Context.build,
+        compressContext: Compact.run,
+        checkApproval: Permission.check,
+        executeTool: Tool.execute,
+        sessionId: session.id,
+        signal: controller.signal,
+        onText: text => SSE.send({ id: session.id, data: { type: 'text-delta', text } }),
+        onRetry: info => SSE.send({ id: session.id, data: { type: 'retry', ...info } }),
+        onToolCall: call => SSE.send({ id: session.id, data: { ...call, type: 'tool-call' } }),
+        onToolOutput: output => SSE.send({ id: session.id, data: { ...output, type: 'tool-output' } }),
+        onToolResult: result => SSE.send({ id: session.id, data: { ...result, type: 'tool-result' } }),
+        onCompress: text => SSE.send({ id: session.id, data: { type: 'compress-delta', text } }),
     })
-})
+    // Loop 只修改工作数组。循环成功结束后，一次性保存本轮新增消息。
+    for (const message of history.slice(startLength)) {
+        await History.add({ sessionId: session.id, message })
+    }
+    await History.save({ sessionId: session.id })
+    await SSE.send({ id: session.id, data: { type: 'finish', ...result } })
+    return result
+}
 
 const stop = async ({ sessionId }) => {
     const task = running.get(sessionId)
@@ -141,11 +111,7 @@ const stop = async ({ sessionId }) => {
 }
 
 const decide = async ({ sessionId, callId, decision }) => {
-    const approval = approvals.get(approvalKey(sessionId, callId))
-    if (!approval || approval.sessionId !== sessionId) return { ok: false }
-    approvals.delete(approvalKey(sessionId, callId))
-    approval.resolve(Boolean(decision))
-    return { ok: true }
+    return Permission.decide({ sessionId, callId, decision })
 }
 
 export default { send, stop, decide }

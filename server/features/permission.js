@@ -5,82 +5,113 @@ await Permission.load({
     path: "/path/to/permission.json",
 })
 
-// 2. 检查权限，先走规则表，如果是ask就向前端发请求，得到是批准还是拒绝
+// 2. 检查权限，规则为 ask 时自动向前端询问三种决定
 const result = await Permission.check({
+    sessionId: "session-1",
+    callId: "call-1",
     toolName: "edit",              // 工具名
     arguments: {                   // 工具参数，用于匹配
         path: "src/index.js",
     },
-    onAsk: async request => true,   // 规则为 ask 时询问前端，返回同意或拒绝
 })
-// result = true | false
+// result = 'allow-always' | 'allow-once' | 'deny'
 
-// 3. 保存规则
- await Permission.save({
-     path: "/path/to/permission.json",
- })
- */
+// 3. 前端提交审批决定
+await Permission.decide({
+    sessionId: "session-1",
+    callId: "call-1",
+    decision: "allow-once", // allow-always / allow-once / deny
+})
+
+// 4. 保存规则
+await Permission.save({
+    path: "/path/to/permission.json",
+})
+*/
 
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
 import picomatch from 'picomatch'
+import SSE from '../utils/sse.js'
 
 // 没有规则文件时，所有工具都先询问用户，不会自动执行。
 let rules = { '*': 'ask' }
-
-const flatten = value => {
-    // 所有工具都走同一条路：对象和数组继续展开，普通值变成可匹配文字。
-    if (Array.isArray(value)) return value.flatMap(flatten)
-    if (value && typeof value === 'object') return Object.values(value).flatMap(flatten)
-    return [String(value)]
-}
-
-const matchValue = input => flatten(input).join(' ')
-
-const resolveAction = ({ toolName, input }) => {
-    const globalRule = rules['*']
-    const toolRule = rules[toolName]
-
-    // 工具没有自己的规则时，直接使用全局规则；默认永远是 ask。
-    if (toolRule === undefined) return globalRule === 'allow' ? 'allow' : 'ask'
-    if (typeof toolRule === 'string') return toolRule === 'allow' ? 'allow' : 'ask'
-
-    const value = matchValue(input)
-    let action = globalRule === 'allow' ? 'allow' : 'ask'
-
-    // 对象属性保持 JSON 中的顺序。后面的匹配会覆盖前面的结果，
-    // 所以可以先写 "*": "ask"，再写更具体的 allow 规则。
-    for (const [pattern, result] of Object.entries(toolRule)) {
-        // bash 模式让 `*` 能匹配命令后的完整参数，包含 Windows 路径中的 `/`。
-        if (picomatch.isMatch(value, pattern, { bash: true, dot: true })) {
-            action = result === 'allow' ? 'allow' : 'ask'
-        }
-    }
-    return action
-}
+let permissionPath = null
+let configFile = false
+const approvals = new Map()
 
 const load = async ({ path }) => {
     const file = Bun.file(path)
     const data = await file.exists() ? await file.json() : { '*': 'ask' }
     // 既支持单独的权限文件，也支持从完整 config.json 读取 permission 字段。
+    configFile = Boolean(data.permission)
     rules = data.permission || data
+    permissionPath = path
     return rules
 }
 
-const check = async ({ toolName, arguments: input = {}, onAsk }) => {
-    const action = resolveAction({ toolName, input })
-    if (action === 'allow') return true
+const check = async ({ sessionId, callId, toolName, arguments: input = {}, signal }) => {
+    const values = []
+    const pending = [input]
+    while (pending.length) {
+        const value = pending.shift()
+        if (Array.isArray(value)) pending.push(...value)
+        else if (value && typeof value === 'object') pending.push(...Object.values(value))
+        else values.push(String(value))
+    }
+    const matchValue = values.join(' ')
+    const globalRule = rules['*']
+    const toolRule = rules[toolName]
+    let action = globalRule === 'allow' ? 'allow' : 'ask'
+    if (typeof toolRule === 'string') action = toolRule === 'allow' ? 'allow' : 'ask'
+    if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
+        for (const [pattern, result] of Object.entries(toolRule)) {
+            if (picomatch.isMatch(matchValue, pattern, { bash: true, dot: true })) {
+                action = result === 'allow' ? 'allow' : 'ask'
+            }
+        }
+    }
+    if (action === 'allow') return 'allow-always'
 
-    // Permission 不知道 SSE 或 sessionId。它只调用外部提供的询问函数，
-    // 等前端作出决定后，把结果统一变成 true 或 false。
-    if (typeof onAsk !== 'function') return false
-    return Boolean(await onAsk({ toolName, arguments: input }))
+    // 规则需要询问时，Permission 直接通知前端并等待 Permission.decide。
+    if (!sessionId || !callId) return 'allow-always'
+    const decision = await new Promise(resolve => {
+        approvals.set(`${sessionId}:${callId}`, { sessionId, resolve })
+        SSE.send({
+            id: sessionId,
+            data: { type: 'permission', callID: callId, tool: toolName, input },
+        })
+        signal?.addEventListener('abort', () => {
+            approvals.delete(`${sessionId}:${callId}`)
+            resolve('deny')
+        }, { once: true })
+    })
+    if (!['allow-always', 'allow-once', 'deny'].includes(decision)) return 'deny'
+    if (decision === 'allow-always') {
+        const pattern = matchValue.replace(/[\\*?\[\]{}()]/g, character => ({
+            '\\': '[\\\\]', '*': '[*]', '?': '[?]', '[': '[[]', ']': '[]]',
+            '{': '[{]', '}': '[}]', '(': '[(]', ')': '[)]',
+        }[character]))
+        if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[pattern] = 'allow'
+        else rules[toolName] = { '*': 'ask', [pattern]: 'allow' }
+        if (permissionPath) await save({ path: permissionPath })
+    }
+    return decision
+}
+
+const decide = async ({ sessionId, callId, decision }) => {
+    const approval = approvals.get(`${sessionId}:${callId}`)
+    if (!approval || approval.sessionId !== sessionId) return { ok: false }
+    approvals.delete(`${sessionId}:${callId}`)
+    approval.resolve(decision === true ? 'allow-once' : decision === false ? 'deny' : decision)
+    return { ok: true }
 }
 
 const save = async ({ path }) => {
     await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, JSON.stringify(rules, null, 2))
+    const data = configFile && await Bun.file(path).exists() ? await Bun.file(path).json() : rules
+    await writeFile(path, JSON.stringify(configFile ? { ...data, permission: rules } : data, null, 2))
 }
 
-export default { load, check, save }
+export default { load, check, decide, save }

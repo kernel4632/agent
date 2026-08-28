@@ -213,6 +213,14 @@ Content-Type: application/json
 
 `send` 只确认后台任务已启动。模型文字、工具过程和最终结果都通过 SSE 到达。
 
+`decision` 只能是下面三种值：
+
+| 值 | 含义 |
+| --- | --- |
+| `allow-always` | 始终允许，并把本次参数加入权限规则 |
+| `allow-once` | 只允许本次调用，不修改规则 |
+| `deny` | 拒绝本次调用 |
+
 同一个会话同时只能运行一个 Agent。再次发送时若收到 `409`，前端应提示用户先停止当前任务。
 
 ### SSE
@@ -231,10 +239,9 @@ Accept: text/event-stream
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具调用卡片 |
 | `tool-output` | `tool`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
-| `permission` | `callID`, `tool`, `input` | 显示允许和拒绝按钮 |
+| `permission` | `callID`, `tool`, `input` | 显示“始终允许”“允许一次”“拒绝” |
 | `compress-delta` | `text` | 显示上下文压缩进度 |
 | `finish` | `finishReason`, `usage`, `stop` | 停止流式状态，再刷新会话 |
-| `error` | `name`, `message` | 显示错误，再刷新会话 |
 
 工具结果 `output` 是 AI SDK 标准结构，常见形式：
 
@@ -272,7 +279,7 @@ await fetch(`/agent/decide/${sessionId}`, {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     callId: permission.callID,
-    decision: true
+    decision: 'allow-once'
   })
 })
 ```
@@ -297,9 +304,11 @@ const state = {
 收到 tool-call：创建工具卡片
 收到 tool-output：追加到工具卡片
 收到 tool-result：更新工具卡片
-收到 finish 或 error：重新 GET Session.read
+收到 finish：重新 GET Session.read
 断线重连：先重新 GET Session.read，再重新连接 SSE
 ```
+
+运行错误不会伪装成循环完成，也不会由 `agent.js` 发送 `error` SSE。前端应根据连接状态和请求结果显示错误，并在需要时重新读取会话。
 
 ## 部署注意事项
 
