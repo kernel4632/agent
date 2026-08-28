@@ -26,7 +26,6 @@ const result = await Loop.run({
     // --- 功能模块（必填，平齐的功能模块作为参数传）---
     buildContext: Context.build,       // 上下文构建模块
     compressContext: Compact.run,     // 上下文压缩模块
-    checkApproval: Permission.check,      // 工具审批模块
     executeTool: Tool.execute,             // 工具执行模块
     sessionId: "session-1",               // 压缩和工具输出使用的会话
 
@@ -37,18 +36,14 @@ const result = await Loop.run({
     onStart: () => { },                    // 循环开始
     onText: (text) => { },                 // 流式文字增量
     onRetry: (info) => { },                // 请求失败重试中
-    onToolCall: (call) => { },             // 模型调了工具
+    onPermission: async (permission) => { }, // 工具权限询问，返回三态决定
     onToolResult: (result) => { },         // 工具执行完
-    onCompress: (summary) => { },          // 上下文压缩发生
-    onFinish: (result) => { },             // 循环结束
  })
  */
 
 import Message from '../utils/message.js'
 import Retry from '../utils/retry.js'
 import LLM from '../utils/llm.js'
-
-const DEFAULT_MAX_TOKENS = 128000
 
 const checkCancelled = signal => {
     if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
@@ -63,17 +58,16 @@ const run = async ({
     retry = {},
     buildContext,
     compressContext,
-    checkApproval,
     executeTool,
     sessionId,
     signal,
     onStart,
+    onPermission,
     onText,
     onRetry,
     onToolCall,
     onToolOutput,
     onToolResult,
-    onCompress,
 }) => {
     if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compressContext !== 'function') {
         throw new TypeError('messages, llm, buildContext and compressContext are required')
@@ -93,8 +87,7 @@ const run = async ({
                 sessionId,
                 messages: context.messages,
                 token: context.token,
-                maxTokens: llm.maxTokens ?? DEFAULT_MAX_TOKENS,
-                onText: onCompress,
+                maxTokens: llm.maxTokens,
             })
 
             if (compacted.messages === context.messages) {
@@ -162,7 +155,7 @@ const run = async ({
                 break
             }
 
-            const decision = await checkApproval?.({
+            const decision = await onPermission?.({
                 sessionId,
                 callId: call.toolCallId,
                 toolCallId: call.toolCallId,

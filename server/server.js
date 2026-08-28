@@ -20,13 +20,13 @@
  * POST /agent/send/:sessionId
  *   body: { input }
  *   params: { sessionId }
- *   调用: Agent.send({ sessionId, input })
+ *   调用: Session.send({ sessionId, input })
  *   结果: { ok: true }
  *   说明: 启动后台 Agent 循环，执行过程通过事件路由推送。
  *
  * POST /agent/stop/:sessionId
  *   params: { sessionId }
- *   调用: Agent.stop({ sessionId })
+ *   调用: Session.stop({ sessionId })
  *   结果: { ok: true }
  *   说明: 停止指定会话正在运行的 Agent 循环。
  *
@@ -96,7 +96,6 @@
  */
 
 import { Elysia } from 'elysia'
-import Agent from './commands/agent.js'
 import Config from './commands/config.js'
 import Session from './commands/session.js'
 import Permission from './features/permission.js'
@@ -113,9 +112,9 @@ app.onError(({ error, set }) => {
 
 // Agent：启动任务、停止任务、处理工具审批。
 app.group('/agent', agent => agent
-    .post('/send/:sessionId', ({ params, body }) => Agent.send({ ...params, ...body }))
-    .post('/stop/:sessionId', ({ params }) => Agent.stop(params))
-    .post('/decide/:sessionId', ({ params, body }) => Agent.decide({ ...params, ...body })))
+    .post('/send/:sessionId', ({ params, body }) => Session.send({ ...params, ...body }))
+    .post('/stop/:sessionId', ({ params }) => Session.stop(params))
+    .post('/decide/:sessionId', ({ params, body }) => Session.decide({ ...params, ...body })))
 
 // Session：管理会话资料和会话历史。
 app.group('/session', session => session
@@ -124,7 +123,6 @@ app.group('/session', session => session
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
     .post('/rollback/:sessionId', async ({ params, body }) => {
-        await Agent.stop(params)
         return Session.rollback({ ...params, ...body })
     })
     .post('/redo/:sessionId', ({ params }) => Session.redo(params))
