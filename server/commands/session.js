@@ -48,12 +48,11 @@ await Session.compact({
 import { mkdir, rm } from 'node:fs/promises'
 import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
-import Agent from './agent.js'
+import Agent from '@kernel4632/agent-core'
 import Config from './config.js'
 import History from '../features/history.js'
 import Permission from '../features/permission.js'
 import Path from '../utils/path.js'
-import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 
 const agents = new Map()
@@ -119,7 +118,7 @@ const create = async ({ title, workspaceId, provider, model }) => {
         id: meta.id,
         history: History.get({ sessionId: meta.id }),
         config: agentConfig({ providerName: meta.provider, model: meta.model }),
-        tools: await Tool.scan(Path.tools()),
+        tools: await Agent.tool.scan(Path.tools()),
         callbacks: { onPermission: Permission.check },
     }))
     return { sessionId: meta.id }
@@ -136,7 +135,7 @@ const read = async ({ sessionId }) => {
         id: sessionId,
         history,
         config: agentConfig({ providerName: meta.provider, model: meta.model }),
-        tools: (await mkdir(Path.tools(), { recursive: true }), await Tool.scan(Path.tools())),
+        tools: (await mkdir(Path.tools(), { recursive: true }), await Agent.tool.scan(Path.tools())),
         callbacks: { onPermission: Permission.check },
     }))
     return { ...meta, history }
@@ -188,7 +187,7 @@ const compact = async ({ sessionId, onCompact }) => {
             id: sessionId,
             history: History.get({ sessionId }),
             config: agentConfig({ providerName: meta.provider, model: meta.model }),
-            tools: await Tool.scan(Path.tools()),
+            tools: await Agent.tool.scan(Path.tools()),
             callbacks: { onPermission: Permission.check },
         })
     }

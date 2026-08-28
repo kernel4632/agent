@@ -45,17 +45,17 @@ await agent.stop()
 // onToolResult: result => {}，工具执行结束时调用，result 包含工具调用信息和最终结果。
 // onCompact: event => {}，压缩过程通知，不改变压缩逻辑。
 // event.type 为 compact-start、compact-text 或 compact-finish。
-// compact-start: { type, messages, token, maxTokens }，压缩开始。
+// compact-start: { type, messages }，压缩开始。
 // compact-text: { type, text }，压缩内容；stream=true 时多次触发，否则触发一次。
-// compact-finish: { type, messages, token }，压缩完成后的总结和 Token 数。
+// compact-finish: { type, content }，压缩完成后的总结文本。
 */
 
 import { nanoid } from 'nanoid'
-import Context from '../features/context.js'
-import Compact from '../features/compact.js'
-import Loop from '../features/loop.js'
-import Tool from '../features/tool.js'
-import Message from '../utils/message.js'
+import Context from './features/context.js'
+import Compact from './features/compact.js'
+import Loop from './features/loop.js'
+import Tool from './features/tool.js'
+import Message from './utils/message.js'
 
 // 创建一台独立 Agent：传入的对象会成为这台机器公开、可继续修改的内部状态。
 const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callbacks = {} } = {}) => {

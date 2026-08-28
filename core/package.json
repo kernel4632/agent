@@ -1,0 +1,22 @@
+{
+  "name": "@kernel4632/agent-core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.41",
+    "@ai-sdk/google": "^4.0.50",
+    "@ai-sdk/openai": "^4.0.46",
+    "@ai-sdk/openai-compatible": "^3.0.29",
+    "ai": "^7.0.62",
+    "gpt-tokenizer": "^3.4.0",
+    "nanoid": "^5.1.5",
+    "p-retry": "^8.0.0"
+  }
+}
