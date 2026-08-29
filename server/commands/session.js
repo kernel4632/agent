@@ -211,18 +211,21 @@ const send = async ({ sessionId, input, ...options }) => {
         callbacks: {
             ...agent.callbacks,
             ...options.callbacks,
-            onText: text => SSE.send({ id: sessionId, data: { type: 'text-delta', text } }),
+            onStart: () => SSE.send({ id: sessionId, data: { type: 'agent-start' } }),
+            onLLMStart: request => SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } }),
+            onLLMFinish: result => SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result } }),
+            onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
             onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
             onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
             onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
             onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } }),
-            onCompact: event => SSE.send({ id: sessionId, data: { type: 'compact', ...event } }),
+            onCompact: event => SSE.send({ id: sessionId, data: event }),
         },
     })
     task.then(async result => {
         for (const message of agent.history.slice(startLength)) await History.add({ sessionId, message })
         await History.save({ sessionId })
-        await SSE.send({ id: sessionId, data: { type: 'finish', ...result } })
+        await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
     }).catch(() => {})
     return { ok: true }
 }

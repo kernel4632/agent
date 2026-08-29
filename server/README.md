@@ -236,12 +236,15 @@ Accept: text/event-stream
 | --- | --- | --- |
 | `text-delta` | `text` | 追加到当前 assistant 流式文本 |
 | `retry` | `attempt`, `error`, `delay` | 显示正在重试 |
+| `llm-start` | `messages`, `tools` | 显示正在请求模型 |
+| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `warnings` | 统计本轮模型请求并读取完整结果 |
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具调用卡片 |
 | `tool-output` | `tool`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
 | `permission` | `callID`, `tool`, `input` | 显示“始终允许”“允许一次”“拒绝” |
 | `compress-delta` | `text` | 显示上下文压缩进度 |
-| `finish` | `finishReason`, `usage`, `stop` | 停止流式状态，再刷新会话 |
+| `agent-start` | 无 | 标记 Agent 任务开始 |
+| `agent-finish` | `finishReason`, `usage`, `stop` | 标记 Agent 任务结束，再刷新会话 |
 
 工具结果 `output` 是 AI SDK 标准结构，常见形式：
 
@@ -304,7 +307,7 @@ const state = {
 收到 tool-call：创建工具卡片
 收到 tool-output：追加到工具卡片
 收到 tool-result：更新工具卡片
-收到 finish：重新 GET Session.read
+收到 agent-finish：重新 GET Session.read
 断线重连：先重新 GET Session.read，再重新连接 SSE
 ```
 

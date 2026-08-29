@@ -33,7 +33,9 @@ const result = await Loop.run({
 
     // --- 回调（全部可选）---
     onStart: () => { },                    // 循环开始
-    onText: (text) => { },                 // 流式文字增量
+    onLLMStart: (request) => { },          // 每次实际请求模型前
+    onLLMFinish: (result) => { },          // 本次模型请求完成，返回完整 result
+    onLLMEvent: event => {},               // 原样接收 AI SDK 的所有流事件
     onRetry: (info) => { },                // 请求失败重试中
     onPermission: async (permission) => { }, // 工具权限询问，返回 true 或 false
     onToolResult: (result) => { },         // 工具执行完
@@ -61,8 +63,10 @@ const run = async ({
     sessionId,
     signal,
     onStart,
+    onLLMStart,
+    onLLMFinish,
     onPermission,
-    onText,
+    onLLMEvent,
     onRetry,
     onToolCall,
     onToolOutput,
@@ -96,40 +100,40 @@ const run = async ({
         }
 
         checkCancelled(signal)
-        const text = []
         const result = await Retry.run({
-            operation: () => LLM.chat({
-                ...llm,
-                messages: temporaryPrompt
-                    ? [...context.messages, Message.user({ content: temporaryPrompt })]
-                    : context.messages,
-                tools,
-                signal,
-                onChunk: ({ chunk }) => {
-                    if (chunk?.type !== 'text-delta') return
-                    const delta = chunk.text ?? chunk.textDelta ?? chunk.delta
-                    if (!delta) return
-                    text.push(delta)
-                    onText?.(delta)
-                },
-            }),
+            operation: async () => {
+                const request = {
+                    messages: temporaryPrompt
+                        ? [...context.messages, Message.user({ content: temporaryPrompt })]
+                        : context.messages,
+                    tools,
+                }
+                await onLLMStart?.(request) // 每次重试都是一次真实模型请求。
+                return LLM.chat({
+                    ...llm,
+                    ...request,
+                    signal,
+                    onLLMEvent,
+                })
+            },
             signal,
             onRetry,
             maxDelay: retry.maxDelay ?? 60,
         })
+        await onLLMFinish?.(result) // 上层拿到完整 result，自行选择 usage 或其他字段。
         temporaryPrompt = null
 
         const toolCalls = result.toolCalls || []
+        const assistantMessages = result.responseMessages.filter(message => message.role === 'assistant')
         if (!toolCalls.length) {
-            const assistant = Message.assistant({ content: text.join('') || result.text || null }) // 把本轮模型文字变成历史消息。
-            messages.push(assistant) // 即使本轮没有工具，也要保留模型回复。
+            messages.push(...assistantMessages) // 只保存模型完整 assistant 消息，保留思考和厂商内容。
             noToolCount += 1 // 没有工具时增加计数，决定是否继续提醒模型。
 
             // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
             if (noToolCount === 2) {
                 temporaryPrompt = '请继续使用工具完成任务。' // 内置提示词不进入 history，只影响下一次请求。
             }
-            if (noToolCount >= 3) return { ...result, text: text.join('') || result.text || '' }
+            if (noToolCount >= 3) return { ...result, text: result.text || '' }
             continue
         }
         noToolCount = 0
@@ -190,24 +194,13 @@ const run = async ({
             toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
         }
 
-        messages.push(Message.assistant({
-            content: text.join('') || result.text || null,
-            toolCalls: toolCalls.map(call => ({
-                id: call.toolCallId,
-                name: call.toolName,
-                arguments: JSON.stringify(call.input),
-            })),
-        }))
+        messages.push(...assistantMessages) // AI SDK 的 tool 消息不用，工具结果由项目自己的执行器生成。
         for (const { call, output } of toolResults) {
-            messages.push(Message.tool({
-                toolCallId: call.toolCallId,
-                toolName: call.toolName,
-                content: output,
-            }))
+            messages.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
         }
 
         if (stop) {
-            const finished = { ...result, text: text.join('') || result.text || '', stop: true }
+            const finished = { ...result, text: result.text || '', stop: true }
             if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
             return finished
         }

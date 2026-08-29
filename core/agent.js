@@ -18,7 +18,7 @@ const agent = Agent.create({
 await agent.send({
     input: "帮我写个爬虫",
     callbacks: {
-        onText: text => console.log(text),
+        onLLMEvent: event => console.log(event),
         onPermission: async permission => true,
         onCompact: event => console.log(event),
     },
@@ -29,7 +29,7 @@ await agent.send({
     input: "继续",
     history: anotherHistory,
     config: anotherConfig,
-    callbacks: { onText: text => console.log(text) },
+    callbacks: { onLLMEvent: event => console.log(event) },
 })
 
 // 停止当前运行。
@@ -37,17 +37,15 @@ await agent.stop()
 
 // callbacks 中可使用下面这些回调：
 // onStart: () => {}，循环开始时调用，无返回值。
+// onLLMStart: ({ messages, tools }) => {}，每次实际请求模型前调用。
+// onLLMFinish: result => {}，模型请求完成时调用，result 是 LLM.chat 返回的完整结果。
 // onPermission: ({ sessionId, callId, toolCallId, toolName, arguments }) => true | false，需要等待时可以返回 Promise。
-// onText: text => {}，收到一段模型文字时调用，text 是字符串。
+// onLLMEvent: event => {}，原样收到 AI SDK 流中的每个事件。
 // onRetry: info => {}，模型请求重试时调用，info 是重试信息。
 // onToolCall: call => {}，模型请求调用工具时调用，call 包含 toolCallId、toolName、input。
 // onToolOutput: output => {}，工具产生实时输出时调用，output 包含工具调用信息和输出数据。
 // onToolResult: result => {}，工具执行结束时调用，result 包含工具调用信息和最终结果。
-// onCompact: event => {}，压缩过程通知，不改变压缩逻辑。
-// event.type 为 compact-start、compact-text 或 compact-finish。
-// compact-start: { type, messages }，压缩开始。
-// compact-text: { type, text }，压缩内容；stream=true 时多次触发，否则触发一次。
-// compact-finish: { type, content }，压缩完成后的总结文本。
+// onCompact: event => {}，接收 compact-start、所有 AI SDK 原生事件和 compact-finish。
 */
 
 import { nanoid } from 'nanoid'
@@ -120,13 +118,15 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
                 sessionId: agent.id,
                 signal: controller.signal,
                 onStart: agent.callbacks.onStart,
+                onLLMStart: agent.callbacks.onLLMStart,
+                onLLMFinish: agent.callbacks.onLLMFinish,
                 onPermission: agent.callbacks.onPermission,
-                onText: agent.callbacks.onText,
+                onLLMEvent: agent.callbacks.onLLMEvent,
                 onRetry: agent.callbacks.onRetry,
                 onToolCall: agent.callbacks.onToolCall,
                 onToolOutput: agent.callbacks.onToolOutput,
                 onToolResult: agent.callbacks.onToolResult,
-                onCompact: agent.callbacks.onCompact,
+                        onCompact: agent.callbacks.onCompact,
             })
             return result
         })()
@@ -141,8 +141,10 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
     // 停止指令：只操作当前 Agent 自己的控制器。
     agent.stop = async () => {
         if (!agent.running) return { ok: false } // 空闲 Agent 没有需要停止的任务。
-        agent.running.controller.abort() // 让 Loop、LLM 和 Worker 看到取消信号。
-        await agent.running.task.catch(() => {}) // 等待清理完成，但不把停止异常变成新的异常。
+        const running = agent.running // 保存当前运行对象，避免等待期间状态被其他逻辑替换。
+        running.controller.abort() // 让 Loop、LLM 和 Worker 看到取消信号。
+        await running.task.catch(() => {}) // 等待当前任务结束，但不把停止异常变成新的异常。
+        agent.running = null // 任务已结束后由 stop 直接清空状态，不依赖 finally 的微任务时序。
         return { ok: true }
     }
 

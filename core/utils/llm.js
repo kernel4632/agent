@@ -14,7 +14,7 @@ const result = await LLM.chat({
     toolChoice: "required",
     // --- 流式与回调 ---
     stream: true,
-    onChunk: (chunk) => { ... },    // 流式时每段文字回调
+    onLLMEvent: event => {},        // 流式时原样接收 AI SDK 的每个事件
     // --- 控制信号 ---
     signal: abortSignal,            // 取消信号，外部随时能打断
     // --- 自定义请求头或请求体 ---
@@ -40,13 +40,14 @@ const providers = {
     gemini: (settings, model) => createGoogle(settings).languageModel(model),
 }
 
-/* 只保留 Agent 真正需要的五种结果；其他 AI SDK 字段不进入项目自己的接口。 */
+/* 保留 AI SDK 结果中的通用字段；responseMessages 用来保存完整模型消息。 */
 const resultFields = [
     'text', // 模型最后给用户看的文字答案。
     'toolCalls', // 模型要求 Agent 执行的工具和工具参数。
     'finishReason', // 模型停止生成的原因，例如正常结束或要求调用工具。
     'usage', // 本次请求消耗的输入 Token、输出 Token 和总 Token。
     'warnings', // 请求成功但某些参数未被供应商支持或没有生效的提示。
+    'responseMessages', // AI SDK 生成的完整 assistant/tool 消息。
 ]
 
 const createModel = ({ protocol, model, baseURL, apiKey, options, cacheKey }) => {
@@ -91,7 +92,7 @@ const chat = async ({
     tools,
     toolChoice = 'required',
     stream = true,
-    onChunk,
+    onLLMEvent,
     signal,
     options = {},
 }) => {
@@ -113,7 +114,6 @@ const chat = async ({
         tools,
         toolChoice,
         abortSignal: signal,
-        onChunk,
     }
 
     if (!stream) return resolveResult(await generateText(input))
@@ -121,9 +121,12 @@ const chat = async ({
     // streamText 负责实时产生内容，consume 由内部完成，调用方只拿最终结果。
     const result = streamText(input)
     const text = []
-    for await (const delta of result.textStream) text.push(delta)
+    for await (const event of result.stream) {
+        await onLLMEvent?.(event) // 不过滤事件，文字、思考、工具和错误都交给上层。
+        if (event.type === 'text-delta') text.push(event.textDelta ?? event.text ?? event.delta ?? '')
+    }
     const output = await resolveResult(result)
-    return { ...output, text: text.join('') }
+    return { ...output, text: text.join('') || output.text }
 }
 
 export default { chat }
