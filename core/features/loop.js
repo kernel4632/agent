@@ -4,7 +4,7 @@ const result = await Loop.run({
     // --- 数据（必填）---
     history: [],                // 完整历史消息列表
     system: "你是编程助手",         // 系统提示词
-    tools: [],                  // 工具列表
+    tools: tools.schema,        // 给模型看的工具描述，来自 Tool.scan() 的 schema
 
     // --- LLM 参数（必填，内部传给 LLM.chat）---
     llm: {
@@ -25,7 +25,7 @@ const result = await Loop.run({
     // --- 功能模块（必填，平齐的功能模块作为参数传）---
     buildContext: Context.build,       // 上下文构建模块
     compact: Compact.run,             // 上下文压缩模块
-    executeTool: Tool.execute,             // 工具执行模块
+    executeTool: request => Tool.execute({ ...request, handlers: tools.handlers }), // 工具执行模块，handlers 由调用方补上
     sessionId: "session-1",               // 压缩和工具输出使用的会话
 
     // --- 控制（可选）---
@@ -108,7 +108,7 @@ const run = async ({
             if (!allowed) return { call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } } // 拒绝也是一条结果，模型需要知道。
 
             try {
-                const value = await executeTool({ name: call.toolName, input: call.input, tool: tools, signal, onOutput: output => onToolOutput?.({ ...output, ...call }) }) // 工具的实时输出带上 call 信息转给上层。
+                const value = await executeTool({ name: call.toolName, input: call.input, signal, onOutput: output => onToolOutput?.({ ...output, ...call }) }) // Loop 只说要执行哪个工具，怎么找到它由调用方负责。
                 onToolResult?.({ ...call, result: value, output: value.output })                                    // 通知上层这个工具已经执行完。
                 return { call, output: value.output, stop: value?.stop === true || value?.interrupted === true }    // 工具主动停止或被中断都要结束循环。
             } catch (error) {

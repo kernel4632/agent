@@ -1,18 +1,18 @@
 /* 
-目标被调用形式（绝对不可修改）：
-// 积木 1：扫描工具（Agent 循环开始时调用一次）
-const tools = await Tool.scan(directory = "/path/to/tools")
+目标被调用形式：
+// 积木 1：扫描工具目录，得到一份独立的工具集合
+const tools = await Tool.scan("/path/to/tools")
+// tools.schema   → 给 LLM 的 AI SDK 标准工具描述，直接放进 LLM.chat 的 tools
+// tools.handlers → 给执行器的工具处理表，直接放进 Tool.execute 的 handlers
 
 // 积木 2：执行工具（模型调工具时调用）
 const result = await Tool.execute({
     name: "finish",              // 要执行哪个工具
-    input: {                     // 工具参数，直接传给工具的 execute
-        result: "任务完成",
- },
- tool: tools,             // 工具表快照，用来找到 finish 这个工具
- signal: abortSignal,     // 触发即杀，工具瞬间死
- onOutput: output => {},  // 工具产生一段输出时调用，调用方决定如何展示或转发
-}) 
+    input: { result: "任务完成" }, // 工具参数，直接传给工具的 execute
+    handlers: tools.handlers,    // 工具处理表，用来找到 finish 怎么执行
+    signal: abortSignal,         // 触发即杀，工具瞬间死
+    onOutput: output => {},      // 工具产生一段输出时调用，调用方决定如何展示或转发
+})
 */
 
 import { pathToFileURL } from 'node:url'
@@ -20,24 +20,20 @@ import { jsonSchema } from 'ai'
 
 const workerFile = new URL('../utils/tool-worker.js', import.meta.url) // Worker 执行文件路径，启动 Worker 时用。
 
-// 工具名 → { url, index }，记住每个工具在哪个文件的第几个位置。
-// 执行时只传文件路径给 Worker，Worker 自己重新 import 拿到 execute 函数。
-// （函数没法直接传给 Worker，这是平台限制，不是设计选择）
-const locations = {}
-
-const standardOutput = (tool, result) => {
-    const output = result?.output ?? result                                                   // 工具可以返回 { output } 对象，也可以直接返回值。
-    if (typeof tool.toModelOutput === 'function') return tool.toModelOutput(output)          // 工具自定义输出格式时优先用它。
+// 把工具的返回值整理成模型能读懂的格式。
+const standardOutput = (handler, result) => {
+    const output = result?.output ?? result                                                      // 工具可以返回 { output } 对象，也可以直接返回值。
+    if (typeof handler.toModelOutput === 'function') return handler.toModelOutput(output)        // 工具自带格式化函数时优先用它。
     if (output === undefined || output === null || output === '') return { type: 'text', value: '工具执行成功，但没有输出' }
     if (typeof output === 'string') return { type: 'text', value: output }
     return { type: 'json', value: output }
 }
 
-// 当前工具表：{ 工具名 → 工具信息 }。scan() 每次成功后整体替换。
-let tools = {}
-
+// 扫描工具目录，返回一份完全独立的工具集合。
+// 不写任何模块级变量，所以多次扫描互不影响，多个 Agent 可以各用各的工具目录。
 const scan = async (directory) => {
-    const loaded = {} // 先装入临时对象，扫描失败不影响旧工具表。
+    const schema = {}   // 工具名 → 给 LLM 的工具描述（不含执行信息）。
+    const handlers = {} // 工具名 → 给执行器的处理信息（不给 LLM 看）。
     const scanId = Date.now()
     const files = []
 
@@ -51,23 +47,28 @@ const scan = async (directory) => {
         const exported = Array.isArray(module.default) ? module.default : [module.default]  // 一个文件可以导出一个工具，也可以导出一组工具。
 
         for (const [index, tool] of exported.entries()) {
-            const { execute, ...modelTool } = tool                                           // 把 execute 剥离，模型只需要描述和 Schema，不需要执行函数。
-            Object.assign(modelTool, {
+            const { execute, toModelOutput, ...modelTool } = tool // 执行相关的字段剥离出来，剩下的才给模型看。
+
+            // schema 只放模型需要的东西：工具叫什么、干什么、要什么参数。
+            schema[tool.name] = {
+                ...modelTool,
                 inputSchema: tool.inputSchema?.['~standard'] ? tool.inputSchema : jsonSchema(tool.inputSchema), // 统一转成 AI SDK 认识的格式。
-            })
-            loaded[tool.name] = modelTool         // 工具信息存工具表，用工具名作 key。
-            locations[tool.name] = { url, index } // 执行位置也用工具名存，执行时直接查。
+            }
+
+            // handlers 只放执行需要的东西，模型永远看不到这里。
+            // location 记住工具在哪个文件的第几个，因为函数没法传给 Worker（平台限制），
+            // 只能让 Worker 拿着文件路径自己重新 import 一次。
+            handlers[tool.name] = { execute, toModelOutput, location: { url, index } }
         }
     }
 
-    tools = loaded // 扫描成功后整体替换，中途失败时旧工具表继续有效。
-    return tools
+    return { schema, handlers }
 }
 
-const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
-    const selected = (Array.isArray(tool) ? tool.find(item => item.name === name) : tool[name]) ?? tools[name] // 工具表可以是对象也可以是数组，找不到就回退到当前工具表。
-    const location = locations[name] // 用工具名找到执行位置（文件路径 + 数组下标）。
-    if (!location) throw new Error(`Tool ${name} was not loaded by Tool.scan()`)
+// 执行一个工具。handlers 必须由调用方明确传入，不存在默认工具表。
+const execute = async ({ name, input, handlers, signal, onOutput }) => {
+    const handler = handlers?.[name] // 用工具名从处理表里找到这个工具怎么执行。
+    if (!handler) throw new Error(`Tool ${name} was not found in handlers`)
 
     return new Promise((resolve, reject) => {
         const worker = new Worker(workerFile) // 每次执行都开一个新 Worker，可以被主线程强制终止。
@@ -89,8 +90,8 @@ const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
             if (finished) return
 
             if (data.type === 'output') {
-                output.push(String(data.data))                              // 缓存流式输出，取消时拼进结果。
-                onOutput?.({ tool: name, stream: data.stream, data: data.data }) // 实时通知上层，上层决定如何展示。
+                output.push(String(data.data))                                   // 缓存流式输出，取消时拼进结果。
+                onOutput?.({ tool: name, stream: data.stream, data: data.data })  // 实时通知上层，上层决定如何展示。
                 return
             }
 
@@ -104,7 +105,7 @@ const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
                 return
             }
             const result = data.result && typeof data.result === 'object' ? data.result : {}
-            resolve({ ...result, output: standardOutput(selected, data.result) })
+            resolve({ ...result, output: standardOutput(handler, data.result) })
         })
 
         worker.addEventListener('error', error => {
@@ -115,7 +116,7 @@ const execute = async ({ name, input, tool = tools, signal, onOutput }) => {
             reject(error)
         })
 
-        worker.postMessage({ url: location.url, index: location.index, input }) // 告诉 Worker 去哪个文件、第几个工具、用什么参数。
+        worker.postMessage({ url: handler.location.url, index: handler.location.index, input }) // 告诉 Worker 去哪个文件、第几个工具、用什么参数。
     })
 }
 

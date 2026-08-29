@@ -1,4 +1,9 @@
 /*
+// 先扫描工具目录，得到一份独立的工具集合。
+const tools = await Agent.tool.scan("./tools")
+// tools.schema   → 给 LLM 的工具描述
+// tools.handlers → 给执行器的工具处理表
+
 // 创建一个独立 Agent。参数会成为 Agent 的公开内部状态。
 const agent = Agent.create({
     history: [],
@@ -10,7 +15,7 @@ const agent = Agent.create({
         stream: true,
         system: "你是一个编程助手。",
     },
-    tools: {},
+    tools,        // Agent.tool.scan() 的返回值，直接整份传进来
     callbacks: {},
 })
 
@@ -78,7 +83,7 @@ const buildLLM = config => ({
 
 
 // 创建一台独立 Agent：传入的对象会成为这台机器公开、可继续修改的内部状态。
-const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callbacks = {} } = {}) => {
+const create = ({ id = nanoid(), history = [], config = {}, tools = { schema: {}, handlers: {} }, callbacks = {} } = {}) => {
     const agent = {
         id,       // Agent 的身份只用于区分实例和权限等待。
         history,  // 直接保存外部传入的数组，外部可以和 Agent 共同修改它。
@@ -95,7 +100,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
             system: '',             // 没有系统提示词时仍允许 Agent 运行。
             ...config,              // 传入配置覆盖默认配置，且配置结构只包含 Agent 需要的字段。
         },
-        tools,                       // 工具表直接保存，后续 send 可以替换整张工具表。
+        tools,                       // Agent.tool.scan() 的返回值：{ schema, handlers }，后续 send 可以整份替换。
         callbacks: { ...callbacks }, // 回调逐项保存，后续 send 只覆盖传入的回调。
         running: null,               // null 表示空闲；运行对象保存当前停止控制器和任务。
     }
@@ -118,11 +123,11 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
         const task = Loop.run({
             history: agent.history,           // Loop 直接使用这份公开数组，执行结果也会继续写入这里。
             system: agent.config.system,      // 系统提示词本轮不变，直接取当前配置。
-            tools: agent.tools,               // 工具表快照，本轮 scan() 不影响这次循环。
+            tools: agent.tools.schema,        // Loop 只需要给模型看的工具描述。
             llm: buildLLM(agent.config),      // 统一从配置构建，两处使用完全一致。
             buildContext: Context.build,      // 上下文构建交给 Context 模块。
             compact: Compact.run,             // 压缩交给 Compact 模块。
-            executeTool: Tool.execute,        // 工具执行交给 Tool 模块。
+            executeTool: request => Tool.execute({ ...request, handlers: agent.tools.handlers }), // 执行器需要的处理表由 Agent 补上，Loop 不用知道它。
             sessionId: agent.id,             // 会话 ID 用于权限询问时区分实例。
             signal: controller.signal,        // 取消信号，stop() 触发时 Loop 立即响应。
             ...agent.callbacks,               // 所有回调一次展开，新增回调类型时这里不用改。
@@ -150,7 +155,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
     // 手动压缩：先停掉当前任务，再立即压缩当前上下文。
     agent.compact = async ({ onCompact, ...options } = {}) => {
         await agent.stop()  // 用户主动压缩时，先结束正在进行的 send 或压缩。
-        const context = Context.build({ history: agent.history, system: agent.config.system, tools: agent.tools })
+        const context = Context.build({ history: agent.history, system: agent.config.system, tools: agent.tools.schema })
         const controller = new AbortController()  // stop() 也可以中断手动压缩。
         const task = Compact.run({
             ...options,
