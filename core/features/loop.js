@@ -43,7 +43,7 @@ const result = await Loop.run({
  })
  */
 
-import Message from '../utils/history.js'
+import History from '../utils/history.js'
 import Retry from '../utils/retry.js'
 import LLM from '../utils/llm.js'
 

@@ -62,7 +62,7 @@ import Compact from './features/compact.js'   // 负责把上下文压缩成总�
 import Loop from './features/loop.js'         // 负责驱动"请求模型 → 执行工具"的主循环
 import Tool from './features/tool.js'         // 负责扫描和执行工具文件
 import LLM from './utils/llm.js'              // 底层模型请求封装，也暴露给调用方直接使用
-import Message from './utils/history.js'      // 负责创建标准格式的历史消息块
+import History from './utils/history.js'      // 负责创建标准格式的历史消息块
 
 
 // --- 内部工具：把 Agent 配置对象转换成 LLM.chat 需要的格式 ---
