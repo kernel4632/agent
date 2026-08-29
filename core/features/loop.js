@@ -95,50 +95,39 @@ const run = async ({
         }
         noToolCount = 0 // 有工具调用，计数清零。
 
-        // --- 逐个执行工具调用 ---
-        const toolResults = [] // 先全部放临时数组，避免历史出现半截 assistant/tool 结构。
-        let stop = false       // 任何工具要求停止，整个循环就结束。
-        for (const call of toolCalls) {
+        // --- 并行执行所有工具调用 ---
+        // Promise.all 让所有工具同时开跑，返回结果的顺序和 toolCalls 一致。
+        // 流式输出通过 onToolOutput 带上 toolCallId 实时发出，上层靠 ID 区分是哪个工具的输出。
+        const toolResults = await Promise.all(toolCalls.map(async call => {
             onToolCall?.(call) // 让上层知道即将执行哪个工具。
 
             // 模型已经产生了完整工具调用。即使此刻被取消，也要给它补一条取消结果。
-            if (signal?.aborted) {
-                toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
-                stop = true
-                break
-            }
+            if (signal?.aborted) return { call, output: { type: 'error-text', value: '工具执行已取消' }, stop: true }
 
             const allowed = await onPermission?.({ sessionId, callId: call.toolCallId, toolCallId: call.toolCallId, toolName: call.toolName, arguments: call.input, signal }) ?? true // 没有权限回调时按无人值守模式直接放行。
-            if (!allowed) {
-                toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } }) // 拒绝也是一条结果，模型需要知道。
-                continue
-            }
+            if (!allowed) return { call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } } // 拒绝也是一条结果，模型需要知道。
 
             try {
-                const value = await executeTool({ name: call.toolName, input: call.input, tool: tools, signal, onOutput: output => onToolOutput?.({ ...output, ...call }) }) // 工具的实时输出原样转给上层。
-                toolResults.push({ call, output: value.output })                        // 结果先入临时数组。
-                onToolResult?.({ ...call, result: value, output: value.output })        // 通知上层这个工具已经执行完。
-                stop ||= value?.stop === true || value?.interrupted === true            // 工具主动停止或被中断都要结束循环。
+                const value = await executeTool({ name: call.toolName, input: call.input, tool: tools, signal, onOutput: output => onToolOutput?.({ ...output, ...call }) }) // 工具的实时输出带上 call 信息转给上层。
+                onToolResult?.({ ...call, result: value, output: value.output })                                    // 通知上层这个工具已经执行完。
+                return { call, output: value.output, stop: value?.stop === true || value?.interrupted === true }    // 工具主动停止或被中断都要结束循环。
             } catch (error) {
                 // 工具失败属于工具结果，不能让一次工具失败打断整个 Agent 循环。
                 // 取消路径由 tool.js 的 stop() 用 resolve 处理，不会走到这里。
                 const output = { type: 'error-text', value: `工具执行失败：${error.message}` } // 失败信息也交给模型，让它自己决定怎么补救。
-                toolResults.push({ call, output })
                 onToolResult?.({ ...call, error: error.message, output })
+                return { call, output }
             }
-        }
-
-        // 为中途取消、尚未执行的调用补占位结果，保证历史始终成对。
-        for (const call of toolCalls.slice(toolResults.length)) toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
+        }))
 
         // --- 把本轮消息和工具结果写回历史 ---
         history.push(...assistantMessages) // AI SDK 的 tool 消息不用，工具结果由项目自己的执行器生成。
         for (const { call, output } of toolResults) history.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
 
         // --- 判断是否停止循环 ---
-        if (stop) {
-            if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError') // 取消导致的停止，仍然按异常向上抛。
-            return { reason: 'tool-stop' }                                                  // 工具主动要求停止时，返回结束原因。
+        if (toolResults.some(result => result.stop)) {                                          // 任何一个工具要求停止，整个循环就结束。
+            if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')      // 取消导致的停止，仍然按异常向上抛。
+            return { reason: 'tool-stop' }                                                       // 工具主动要求停止时，返回结束原因。
         }
     }
 }
