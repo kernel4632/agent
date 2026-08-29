@@ -121,11 +121,7 @@ const run = async ({
                 stop ||= value?.stop === true || value?.interrupted === true            // 工具主动停止或被中断都要结束循环。
             } catch (error) {
                 // 工具失败属于工具结果，不能让一次工具失败打断整个 Agent 循环。
-                if (error?.name === 'AbortError') {
-                    toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
-                    stop = true
-                    break
-                }
+                // 取消路径由 tool.js 的 stop() 用 resolve 处理，不会走到这里。
                 const output = { type: 'error-text', value: `工具执行失败：${error.message}` } // 失败信息也交给模型，让它自己决定怎么补救。
                 toolResults.push({ call, output })
                 onToolResult?.({ ...call, error: error.message, output })
