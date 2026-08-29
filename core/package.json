@@ -7,7 +7,10 @@
     ".": "./index.js"
   },
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "build": "bun build index.js --bundle --target=bun --outfile=dist/bundle.js",
+    "obfuscate": "javascript-obfuscator dist/bundle.js --output dist/bundle.min.js --compact true --identifier-names-generator hexadecimal",
+    "pack": "bun run build && bun run obfuscate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.41",
@@ -18,5 +21,8 @@
     "gpt-tokenizer": "^3.4.0",
     "nanoid": "^5.1.5",
     "p-retry": "^8.0.0"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^5.6.0"
   }
 }
