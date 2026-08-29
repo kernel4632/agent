@@ -47,102 +47,59 @@ import Message from '../utils/message.js'
 import Retry from '../utils/retry.js'
 import LLM from '../utils/llm.js'
 
-const checkCancelled = signal => {
-    if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
-}
-
 const run = async ({
-    messages,
-    system,
-    tools,
-    llm,
-    retry = {},
-    buildContext,
-    compact,
-    executeTool,
-    sessionId,
-    signal,
-    onStart,
-    onLLMStart,
-    onLLMFinish,
-    onPermission,
-    onLLMEvent,
-    onRetry,
-    onToolCall,
-    onToolOutput,
-    onToolResult,
-    onCompact,
+    messages, system, tools, llm, retry = {}, buildContext, compact, executeTool, sessionId, signal,                    // 数据、LLM 参数、功能模块和取消信号
+    onStart, onLLMStart, onLLMFinish, onPermission, onLLMEvent, onRetry, onToolCall, onToolOutput, onToolResult, onCompact, // 全部回调，没传的自动跳过
 }) => {
-    if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compact !== 'function') {
-        throw new TypeError('messages, llm, buildContext and compact are required')
-    }
+    if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compact !== 'function') throw new TypeError('messages, llm, buildContext and compact are required')
 
-    onStart?.() // 外部需要时知道循环已经开始；没有回调就跳过。
-    let noToolCount = 0 // 记录连续没有工具调用的模型回合。
-    let temporaryPrompt = null // 工具提示只临时发送给模型，不写入 history。
+    onStart?.()                // 外部需要时知道循环已经开始；没有回调就跳过。
+    let noToolCount = 0        // 记录连续没有工具调用的模型回合。
+    let temporaryPrompt = null  // 工具提示只临时发送给模型，不写入 history。
 
     while (true) {
-        checkCancelled(signal) // 每一轮开始先响应外部 stop。
+        // --- 每轮开始：先响应取消信号 ---
+        if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
 
-        // 先把 system、历史和工具一起交给 Context，得到接近真实请求的 Token 估算。
+        // --- 构建上下文，Token 超限时触发自动压缩 ---
         let context = buildContext({ history: messages, system, tools })
         while (Number.isFinite(llm.maxTokens) && context.token >= llm.maxTokens * (llm.compactThreshold ?? 0.8)) {
-            // 自动压缩只在接近上限时触发；Compact 本身不判断上下文大小。
-            const content = await compact({
-                messages: context.messages,
-                llm,
-                stream: llm.stream,
-                onCompact,
-                signal,
-            })
-            messages.push(Message.compact({ content })) // 总结写回 history，下一轮重新构建上下文。
-            context = buildContext({ history: messages, system, tools })
+            const content = await compact({ messages: context.messages, llm, stream: llm.stream, onCompact, signal }) // 自动压缩只在接近上限时触发；Compact 本身不判断上下文大小。
+            messages.push(Message.compact({ content }))                     // 总结写回 history，下一轮重新构建上下文。
+            context = buildContext({ history: messages, system, tools })     // 重新估算 Token，还超限就继续压。
         }
 
-        checkCancelled(signal)
+        // --- 请求模型（含自动重试）---
+        if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
         const result = await Retry.run({
             operation: async () => {
-                const request = {
-                    messages: temporaryPrompt
-                        ? [...context.messages, Message.user({ content: temporaryPrompt })]
-                        : context.messages,
-                    tools,
-                }
-                await onLLMStart?.(request) // 每次重试都是一次真实模型请求。
-                return LLM.chat({
-                    ...llm,
-                    ...request,
-                    signal,
-                    onLLMEvent,
-                })
+                const request = { messages: temporaryPrompt ? [...context.messages, Message.user({ content: temporaryPrompt })] : context.messages, tools } // 临时提示只挂在本次请求上。
+                await onLLMStart?.(request)                              // 每次重试都是一次真实模型请求。
+                return LLM.chat({ ...llm, ...request, signal, onLLMEvent }) // 配置和本次请求内容一起交给 LLM。
             },
-            signal,
-            onRetry,
-            maxDelay: retry.maxDelay ?? 60,
+            signal, onRetry, maxDelay: retry.maxDelay ?? 60, // 取消信号、重试通知和退避上限（秒）。
         })
         await onLLMFinish?.(result) // 上层拿到完整 result，自行选择 usage 或其他字段。
-        temporaryPrompt = null
+        temporaryPrompt = null      // 提示已经用过，下一轮默认不再携带。
 
-        const toolCalls = result.toolCalls || []
-        const assistantMessages = result.responseMessages.filter(message => message.role === 'assistant')
+        // --- 处理无工具调用的情况 ---
+        const toolCalls = result.toolCalls || []                                                        // 模型这轮想调用的工具。
+        const assistantMessages = result.responseMessages.filter(message => message.role === 'assistant') // 只保留 assistant 消息，保留思考和厂商内容。
+
         if (!toolCalls.length) {
-            messages.push(...assistantMessages) // 只保存模型完整 assistant 消息，保留思考和厂商内容。
-            noToolCount += 1 // 没有工具时增加计数，决定是否继续提醒模型。
-
-            // 第一次不调用工具继续请求；第二次加入临时工具提示；第三次才认定模型不会调用工具。
-            if (noToolCount === 2) {
-                temporaryPrompt = '请继续使用工具完成任务。' // 内置提示词不进入 history，只影响下一次请求。
-            }
-            if (noToolCount >= 3) return { ...result, text: result.text || '' }
+            messages.push(...assistantMessages)                                 // 保存模型完整 assistant 消息。
+            noToolCount += 1                                                    // 累计没有工具调用的轮次。
+            if (noToolCount === 2) temporaryPrompt = '请继续使用工具完成任务。'      // 第 2 轮：插入临时提示推一下模型。
+            if (noToolCount >= 3) return { ...result, text: result.text || '' }  // 第 3 轮：放弃，直接返回。
             continue
         }
-        noToolCount = 0
+        noToolCount = 0 // 有工具调用，计数清零。
 
-        // 工具回合先全部放在临时数组中，避免历史出现半截 assistant/tool 结构。
-        const toolResults = []
-        let stop = false
+        // --- 逐个执行工具调用 ---
+        const toolResults = [] // 先全部放临时数组，避免历史出现半截 assistant/tool 结构。
+        let stop = false       // 任何工具要求停止，整个循环就结束。
         for (const call of toolCalls) {
-            onToolCall?.(call)
+            onToolCall?.(call) // 让上层知道即将执行哪个工具。
 
             // 模型已经产生了完整工具调用。即使此刻被取消，也要给它补一条取消结果。
             if (signal?.aborted) {
@@ -151,31 +108,17 @@ const run = async ({
                 break
             }
 
-            const allowed = await onPermission?.({
-                sessionId,
-                callId: call.toolCallId,
-                toolCallId: call.toolCallId,
-                toolName: call.toolName,
-                arguments: call.input,
-                signal,
-            }) ?? true // 没有权限回调时按无人值守模式直接放行。
-
+            const allowed = await onPermission?.({ sessionId, callId: call.toolCallId, toolCallId: call.toolCallId, toolName: call.toolName, arguments: call.input, signal }) ?? true // 没有权限回调时按无人值守模式直接放行。
             if (!allowed) {
-                toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } })
+                toolResults.push({ call, output: { type: 'execution-denied', reason: '工具执行被用户拒绝' } }) // 拒绝也是一条结果，模型需要知道。
                 continue
             }
 
             try {
-                const value = await executeTool({
-                    name: call.toolName,
-                    input: call.input,
-                    tool: tools,
-                    signal,
-                    onOutput: output => onToolOutput?.({ ...output, ...call }),
-                })
-                toolResults.push({ call, output: value.output })
-                onToolResult?.({ ...call, result: value, output: value.output })
-                stop ||= value?.stop === true || value?.interrupted === true
+                const value = await executeTool({ name: call.toolName, input: call.input, tool: tools, signal, onOutput: output => onToolOutput?.({ ...output, ...call }) }) // 工具的实时输出原样转给上层。
+                toolResults.push({ call, output: value.output })                        // 结果先入临时数组。
+                onToolResult?.({ ...call, result: value, output: value.output })        // 通知上层这个工具已经执行完。
+                stop ||= value?.stop === true || value?.interrupted === true            // 工具主动停止或被中断都要结束循环。
             } catch (error) {
                 // 工具失败属于工具结果，不能让一次工具失败打断整个 Agent 循环。
                 if (error?.name === 'AbortError') {
@@ -183,26 +126,23 @@ const run = async ({
                     stop = true
                     break
                 }
-                const output = { type: 'error-text', value: `工具执行失败：${error.message}` }
+                const output = { type: 'error-text', value: `工具执行失败：${error.message}` } // 失败信息也交给模型，让它自己决定怎么补救。
                 toolResults.push({ call, output })
                 onToolResult?.({ ...call, error: error.message, output })
             }
         }
 
-        // 取消时也为尚未执行的调用补一条结果，保证历史始终成对。
-        for (const call of toolCalls.slice(toolResults.length)) {
-            toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
-        }
+        // 为中途取消、尚未执行的调用补占位结果，保证历史始终成对。
+        for (const call of toolCalls.slice(toolResults.length)) toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
 
+        // --- 把本轮消息和工具结果写回历史 ---
         messages.push(...assistantMessages) // AI SDK 的 tool 消息不用，工具结果由项目自己的执行器生成。
-        for (const { call, output } of toolResults) {
-            messages.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
-        }
+        for (const { call, output } of toolResults) messages.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
 
+        // --- 判断是否停止循环 ---
         if (stop) {
-            const finished = { ...result, text: result.text || '', stop: true }
-            if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
-            return finished
+            if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError') // 取消导致的停止，仍然按异常向上抛。
+            return { ...result, text: result.text || '', stop: true }                       // 工具主动要求停止时正常返回。
         }
     }
 }
