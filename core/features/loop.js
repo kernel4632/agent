@@ -89,8 +89,8 @@ const run = async ({
         if (!toolCalls.length) {
             messages.push(...assistantMessages)                                 // 保存模型完整 assistant 消息。
             noToolCount += 1                                                    // 累计没有工具调用的轮次。
-            if (noToolCount === 2) temporaryPrompt = '请继续使用工具完成任务。'      // 第 2 轮：插入临时提示推一下模型。
-            if (noToolCount >= 3) return { ...result, text: result.text || '' }  // 第 3 轮：放弃，直接返回。
+            if (noToolCount === 2) temporaryPrompt = '[错误] 你刚才的响应中没有使用工具！请继续使用工具（这是一条系统提醒消息，请勿以对话形式回复）'      // 第 2 轮：插入临时提示推一下模型。
+            if (noToolCount >= 3) return { reason: 'no-tool' }  // 第 3 轮：放弃，直接返回结束原因。
             continue
         }
         noToolCount = 0 // 有工具调用，计数清零。
@@ -142,7 +142,7 @@ const run = async ({
         // --- 判断是否停止循环 ---
         if (stop) {
             if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError') // 取消导致的停止，仍然按异常向上抛。
-            return { ...result, text: result.text || '', stop: true }                       // 工具主动要求停止时正常返回。
+            return { reason: 'tool-stop' }                                                  // 工具主动要求停止时，返回结束原因。
         }
     }
 }
