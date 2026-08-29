@@ -2,7 +2,7 @@
 目标被调用形式（绝对不可修改）：
 const result = await Loop.run({
     // --- 数据（必填）---
-    messages: [],               // 完整消息列表
+    history: [],                // 完整历史消息列表
     system: "你是编程助手",         // 系统提示词
     tools: [],                  // 工具列表
 
@@ -48,10 +48,10 @@ import Retry from '../utils/retry.js'
 import LLM from '../utils/llm.js'
 
 const run = async ({
-    messages, system, tools, llm, retry = {}, buildContext, compact, executeTool, sessionId, signal,                    // 数据、LLM 参数、功能模块和取消信号
+    history, system, tools, llm, retry = {}, buildContext, compact, executeTool, sessionId, signal,                     // 数据、LLM 参数、功能模块和取消信号
     onStart, onLLMStart, onLLMFinish, onPermission, onLLMEvent, onRetry, onToolCall, onToolOutput, onToolResult, onCompact, // 全部回调，没传的自动跳过
 }) => {
-    if (!Array.isArray(messages) || !llm || typeof buildContext !== 'function' || typeof compact !== 'function') throw new TypeError('messages, llm, buildContext and compact are required')
+    if (!Array.isArray(history) || !llm || typeof buildContext !== 'function' || typeof compact !== 'function') throw new TypeError('history, llm, buildContext and compact are required')
 
     onStart?.()                // 外部需要时知道循环已经开始；没有回调就跳过。
     let noToolCount = 0        // 记录连续没有工具调用的模型回合。
@@ -62,11 +62,11 @@ const run = async ({
         if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
 
         // --- 构建上下文，Token 超限时触发自动压缩 ---
-        let context = buildContext({ history: messages, system, tools })
+        let context = buildContext({ history, system, tools })
         while (Number.isFinite(llm.maxTokens) && context.token >= llm.maxTokens * (llm.compactThreshold ?? 0.8)) {
             const content = await compact({ messages: context.messages, llm, stream: llm.stream, onCompact, signal }) // 自动压缩只在接近上限时触发；Compact 本身不判断上下文大小。
-            messages.push(Message.compact({ content }))                     // 总结写回 history，下一轮重新构建上下文。
-            context = buildContext({ history: messages, system, tools })     // 重新估算 Token，还超限就继续压。
+            history.push(Message.compact({ content }))                      // 总结写回 history，下一轮重新构建上下文。
+            context = buildContext({ history, system, tools })               // 重新估算 Token，还超限就继续压。
         }
 
         // --- 请求模型（含自动重试）---
@@ -87,7 +87,7 @@ const run = async ({
         const assistantMessages = result.responseMessages.filter(message => message.role === 'assistant') // 只保留 assistant 消息，保留思考和厂商内容。
 
         if (!toolCalls.length) {
-            messages.push(...assistantMessages)                                 // 保存模型完整 assistant 消息。
+            history.push(...assistantMessages)                                  // 保存模型完整 assistant 消息。
             noToolCount += 1                                                    // 累计没有工具调用的轮次。
             if (noToolCount === 2) temporaryPrompt = '[错误] 你刚才的响应中没有使用工具！请继续使用工具（这是一条系统提醒消息，请勿以对话形式回复）'      // 第 2 轮：插入临时提示推一下模型。
             if (noToolCount >= 3) return { reason: 'no-tool' }  // 第 3 轮：放弃，直接返回结束原因。
@@ -136,8 +136,8 @@ const run = async ({
         for (const call of toolCalls.slice(toolResults.length)) toolResults.push({ call, output: { type: 'error-text', value: '工具执行已取消' } })
 
         // --- 把本轮消息和工具结果写回历史 ---
-        messages.push(...assistantMessages) // AI SDK 的 tool 消息不用，工具结果由项目自己的执行器生成。
-        for (const { call, output } of toolResults) messages.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
+        history.push(...assistantMessages) // AI SDK 的 tool 消息不用，工具结果由项目自己的执行器生成。
+        for (const { call, output } of toolResults) history.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
 
         // --- 判断是否停止循环 ---
         if (stop) {

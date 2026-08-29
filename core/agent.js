@@ -116,7 +116,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = {}, callback
 
         // Loop.run 本身就返回 Promise，直接赋值，不需要额外包一层 async 函数。
         const task = Loop.run({
-            messages: agent.history,          // Loop 直接使用这份公开数组，执行结果也会继续写入这里。
+            history: agent.history,           // Loop 直接使用这份公开数组，执行结果也会继续写入这里。
             system: agent.config.system,      // 系统提示词本轮不变，直接取当前配置。
             tools: agent.tools,               // 工具表快照，本轮 scan() 不影响这次循环。
             llm: buildLLM(agent.config),      // 统一从配置构建，两处使用完全一致。
