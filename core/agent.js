@@ -106,10 +106,10 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = { schema: {}
     }
 
 
-    // 发送指令：先更新本次传入的持久参数，再让 Loop 使用 Agent 当前状态。
+    // 发送指令：先停止旧任务，再更新本次传入的持久参数，最后启动新任务。
     agent.send = async ({ input, ...options }) => {
         if (typeof input !== 'string' || !input.trim()) throw new TypeError('input must be a non-empty string') // 没有本次输入就没有可执行指令。
-        if (agent.running) throw new Error(`Agent is already running: ${agent.id}`) // 同一台机器不能同时执行两次 send。
+        await agent.stop() // 每次 send 都先停止旧任务；空闲时 stop() 会直接返回，不影响正常发送。
         if ('history' in options) agent.history = options.history                                           // 传入空数组也代表明确覆盖历史。
         if ('config' in options) agent.config = { ...agent.config, ...options.config }                     // 配置按字段覆盖，未传字段继续保留。
         if ('tools' in options) agent.tools = options.tools                                                 // 工具是整体替换，不在 Agent 内部猜测如何合并。

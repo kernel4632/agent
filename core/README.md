@@ -355,7 +355,7 @@ import Agent from '@kernel4632/agent-core'
 
 #### `agent.send(options)`
 
-发送指令，启动 Agent 循环。同一时间只能运行一个 `send`。
+发送指令，启动 Agent 循环。如果上一次 `send` 还在运行，本次调用会先自动停止上一次任务，再启动新任务。
 
 ```js
 const result = await agent.send({
@@ -369,6 +369,16 @@ const result = await agent.send({
 // result.reason:
 //   'no-tool'    → 模型连续 3 轮没有调用工具，任务结束
 //   'tool-stop'  → 某个工具返回了 stop: true
+```
+
+连续发送时，建议保存并处理旧任务的 Promise，避免出现未处理的中止错误：
+
+```js
+const oldTask = agent.send({ input: '执行旧任务' })
+const newTask = agent.send({ input: '改执行新任务' }) // 自动停止旧任务
+
+await oldTask.catch(() => {}) // 旧任务可能以 AbortError 结束
+const result = await newTask
 ```
 
 #### `agent.stop()`
