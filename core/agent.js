@@ -62,7 +62,7 @@ import Compact from './features/compact.js'   // 负责把上下文压缩成总�
 import Loop from './features/loop.js'         // 负责驱动"请求模型 → 执行工具"的主循环
 import Tool from './features/tool.js'         // 负责扫描和执行工具文件
 import LLM from './utils/llm.js'              // 底层模型请求封装，也暴露给调用方直接使用
-import Message from './utils/message.js'      // 负责创建标准格式的历史消息块
+import Message from './utils/history.js'      // 负责创建标准格式的历史消息块
 
 
 // --- 内部工具：把 Agent 配置对象转换成 LLM.chat 需要的格式 ---
@@ -116,7 +116,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = { schema: {}
         if ('callbacks' in options) agent.callbacks = { ...agent.callbacks, ...options.callbacks }         // 回调逐项合并，避免替换一个回调时清掉其他回调。
 
         const controller = new AbortController()                    // stop() 通过它中断当前模型请求或工具。
-        agent.history.push(Message.user({ content: input }))       // 先把用户指令变成标准历史消息。
+        agent.history.push(History.user({ content: input }))       // 先把用户指令变成标准历史消息。
         agent.running = { controller }                              // 在启动异步任务前登记运行状态，阻止并发 send。
 
         // Loop.run 本身就返回 Promise，直接赋值，不需要额外包一层 async 函数。
@@ -168,7 +168,7 @@ const create = ({ id = nanoid(), history = [], config = {}, tools = { schema: {}
         agent.running = { controller, task }    // 手动压缩和 send 共用同一个运行状态。
         try {
             const content = await task
-            agent.history.push(Message.compact({ content }))  // 总结文本写回公开历史。
+            agent.history.push(History.compact({ content }))  // 总结文本写回公开历史。
             return content
         } finally {
             if (agent.running?.task === task) agent.running = null

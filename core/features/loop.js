@@ -43,7 +43,7 @@ const result = await Loop.run({
  })
  */
 
-import Message from '../utils/message.js'
+import Message from '../utils/history.js'
 import Retry from '../utils/retry.js'
 import LLM from '../utils/llm.js'
 
@@ -65,7 +65,7 @@ const run = async ({
         let context = buildContext({ history, system, tools })
         while (Number.isFinite(llm.maxTokens) && context.token >= llm.maxTokens * (llm.compactThreshold ?? 0.8)) {
             const content = await compact({ messages: context.messages, llm, stream: llm.stream, onCompact, signal }) // 自动压缩只在接近上限时触发；Compact 本身不判断上下文大小。
-            history.push(Message.compact({ content }))                      // 总结写回 history，下一轮重新构建上下文。
+            history.push(History.compact({ content }))                      // 总结写回 history，下一轮重新构建上下文。
             context = buildContext({ history, system, tools })               // 重新估算 Token，还超限就继续压。
         }
 
@@ -73,7 +73,7 @@ const run = async ({
         if (signal?.aborted) throw new DOMException('Agent loop aborted', 'AbortError')
         const result = await Retry.run({
             operation: async () => {
-                const request = { messages: temporaryPrompt ? [...context.messages, Message.user({ content: temporaryPrompt })] : context.messages, tools } // 临时提示只挂在本次请求上。
+                const request = { messages: temporaryPrompt ? [...context.messages, History.user({ content: temporaryPrompt })] : context.messages, tools } // 临时提示只挂在本次请求上。
                 await onLLMStart?.(request)                              // 每次重试都是一次真实模型请求。
                 return LLM.chat({ ...llm, ...request, signal, onLLMEvent }) // 配置和本次请求内容一起交给 LLM。
             },
@@ -122,7 +122,7 @@ const run = async ({
 
         // --- 把本轮消息和工具结果写回历史 ---
         history.push(...assistantMessages) // AI SDK 的 tool 消息不用，工具结果由项目自己的执行器生成。
-        for (const { call, output } of toolResults) history.push(Message.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
+        for (const { call, output } of toolResults) history.push(History.tool({ toolCallId: call.toolCallId, toolName: call.toolName, content: output }))
 
         // --- 判断是否停止循环 ---
         if (toolResults.some(result => result.stop)) {                                          // 任何一个工具要求停止，整个循环就结束。
