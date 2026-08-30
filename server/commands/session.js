@@ -49,27 +49,32 @@ import { mkdir, rm } from 'node:fs/promises'
 import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
-import Config from './config.js'
-import History from '../features/history.js'
-import Permission from '../features/permission.js'
-import Path from '../utils/path.js'
-import SSE from '../utils/sse.js'
+import Config from './config.js' // 读取全局模型配置。
+import History from '../features/history.js' // 读写当前会话消息。
+import Permission from '../features/permission.js' // 审批工具调用。
+import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
+import Path from '../utils/path.js' // 生成数据目录路径。
+import SSE from '../utils/sse.js' // 把运行过程反馈给前端。
 
-const agents = new Map()
-
+// --- 读取会话资料 ---
 const readMeta = async sessionId => {
     const file = Bun.file(Path.meta(sessionId))
+    // 元数据不存在说明会话不存在，必须反馈 404 语义给路由层。
     if (!await file.exists()) throw new Error(`Session not found: ${sessionId}`)
     return file.json()
 }
 
+// --- 保存会话资料 ---
 const writeMeta = async meta => {
+    // 先创建会话目录，再原子写入元数据，避免留下半份 JSON。
     await mkdir(Path.session(meta.id), { recursive: true })
     await writeFile(Path.meta(meta.id), JSON.stringify(meta, null, 2))
     return meta
 }
 
+// --- 选择默认模型 ---
 const firstModel = () => {
+    // 未指定模型时，使用配置中第一个启用的服务商和它的第一个模型。
     const provider = (Config.get().providers || []).find(item => item.enabled !== false)
     const model = provider?.models?.[0]
     return {
@@ -78,7 +83,9 @@ const firstModel = () => {
     }
 }
 
+// --- 生成 Agent 配置 ---
 const agentConfig = ({ providerName, model }) => {
+    // Agent 只接收当前会话需要的配置，不直接读取全局配置文件。
     const global = Config.get()
     const provider = (global.providers || []).find(item => item.name === providerName)
     let headers = provider?.headers || {}
@@ -97,7 +104,33 @@ const agentConfig = ({ providerName, model }) => {
     }
 }
 
+// --- 创建 Agent 实例 ---
+const createAgent = async ({ sessionId, history, meta }) => {
+    // 工具目录不存在时自动创建，保证首次启动也能扫描工具。
+    await mkdir(Path.tools(), { recursive: true })
+    const tools = await Agent.tool.scan(Path.tools())
+    const agent = Agent.create({
+        id: sessionId,
+        history,
+        config: agentConfig({ providerName: meta.provider, model: meta.model }),
+        tools,
+        callbacks: { onPermission: Permission.check },
+    })
+    Store.agents.set(sessionId, agent)
+    return agent
+}
+
+// --- 获取或创建 Agent ---
+const getAgent = async ({ sessionId, meta }) => {
+    const current = Store.agents.get(sessionId)
+    if (current) return current
+    await History.load({ sessionId })
+    return createAgent({ sessionId, history: History.get({ sessionId }), meta })
+}
+
+// --- 创建会话 ---
 const create = async ({ title, workspaceId, provider, model }) => {
+    // 空标题无法帮助用户识别会话，因此在修改任何数据前拒绝请求。
     if (typeof title !== 'string' || !title.trim()) throw new TypeError('title must be a non-empty string')
     const selected = firstModel()
     const meta = {
@@ -114,33 +147,23 @@ const create = async ({ title, workspaceId, provider, model }) => {
     await History.load({ sessionId: meta.id })
     await History.save({ sessionId: meta.id })
     await mkdir(Path.tools(), { recursive: true })
-    agents.set(meta.id, Agent.create({
-        id: meta.id,
-        history: History.get({ sessionId: meta.id }),
-        config: agentConfig({ providerName: meta.provider, model: meta.model }),
-        tools: await Agent.tool.scan(Path.tools()),
-        callbacks: { onPermission: Permission.check },
-    }))
+    await createAgent({ sessionId: meta.id, history: History.get({ sessionId: meta.id }), meta })
     return { sessionId: meta.id }
 }
 
+// --- 读取会话 ---
 const read = async ({ sessionId }) => {
     const meta = await readMeta(sessionId)
-    const agent = agents.get(sessionId)
+    const agent = Store.agents.get(sessionId)
     await History.load({ sessionId })
     const history = History.get({ sessionId })
     if (agent?.running) return { ...meta, history: agent.history }
     if (agent && !agent.running) agent.history = history
-    if (!agent) agents.set(sessionId, Agent.create({
-        id: sessionId,
-        history,
-        config: agentConfig({ providerName: meta.provider, model: meta.model }),
-        tools: (await mkdir(Path.tools(), { recursive: true }), await Agent.tool.scan(Path.tools())),
-        callbacks: { onPermission: Permission.check },
-    }))
+    if (!agent) await createAgent({ sessionId, history, meta })
     return { ...meta, history }
 }
 
+// --- 重命名会话 ---
 const rename = async ({ sessionId, title }) => {
     if (typeof title !== 'string' || !title.trim()) throw new TypeError('title must be a non-empty string')
     const meta = await readMeta(sessionId)
@@ -149,49 +172,41 @@ const rename = async ({ sessionId, title }) => {
     return writeMeta(meta)
 }
 
+// --- 删除会话 ---
 const remove = async ({ sessionId }) => {
     await readMeta(sessionId)
-    if (agents.get(sessionId)?.running) throw new Error(`Agent is already running: ${sessionId}`)
-    agents.delete(sessionId)
+    if (Store.agents.get(sessionId)?.running) throw new Error(`Agent is already running: ${sessionId}`)
+    Store.agents.delete(sessionId)
     await rm(Path.session(sessionId), { recursive: true, force: true })
     return { ok: true }
 }
 
+// --- 回退会话历史 ---
 const rollback = async ({ sessionId, messageId }) => {
     await readMeta(sessionId)
-    if (agents.get(sessionId)?.running) throw new Error(`Agent is already running: ${sessionId}`)
+    if (Store.agents.get(sessionId)?.running) throw new Error(`Agent is already running: ${sessionId}`)
     await History.load({ sessionId })
     await History.rollback({ sessionId, messageId })
     await History.save({ sessionId })
-    if (agents.has(sessionId)) agents.get(sessionId).history = History.get({ sessionId })
+    if (Store.agents.get(sessionId)) Store.agents.get(sessionId).history = History.get({ sessionId })
     return read({ sessionId })
 }
 
+// --- 恢复会话历史 ---
 const redo = async ({ sessionId }) => {
     await readMeta(sessionId)
-    if (agents.get(sessionId)?.running) throw new Error(`Agent is already running: ${sessionId}`)
+    if (Store.agents.get(sessionId)?.running) throw new Error(`Agent is already running: ${sessionId}`)
     await History.load({ sessionId })
     await History.redo({ sessionId })
     await History.save({ sessionId })
-    if (agents.has(sessionId)) agents.get(sessionId).history = History.get({ sessionId })
+    if (Store.agents.get(sessionId)) Store.agents.get(sessionId).history = History.get({ sessionId })
     return read({ sessionId })
 }
 
+// --- 压缩会话历史 ---
 const compact = async ({ sessionId, onCompact }) => {
     const meta = await readMeta(sessionId)
-    let agent = agents.get(sessionId)
-    if (!agent) {
-        await History.load({ sessionId })
-        await mkdir(Path.tools(), { recursive: true })
-        agent = Agent.create({
-            id: sessionId,
-            history: History.get({ sessionId }),
-            config: agentConfig({ providerName: meta.provider, model: meta.model }),
-            tools: await Agent.tool.scan(Path.tools()),
-            callbacks: { onPermission: Permission.check },
-        })
-    }
-    agents.set(sessionId, agent)
+    const agent = await getAgent({ sessionId, meta })
     if (agent.running) throw new Error(`Agent is already running: ${sessionId}`)
     const startLength = agent.history.length
     const content = await agent.compact({ onCompact })
@@ -200,9 +215,10 @@ const compact = async ({ sessionId, onCompact }) => {
     return { ...await read({ sessionId }), content }
 }
 
+// --- 启动 Agent 任务 ---
 const send = async ({ sessionId, input, ...options }) => {
     const meta = await readMeta(sessionId)
-    const agent = agents.get(sessionId) || (await read({ sessionId }), agents.get(sessionId))
+    const agent = await getAgent({ sessionId, meta })
     const startLength = options.history ? options.history.length : agent.history.length
     const task = agent.send({
         input,
@@ -230,8 +246,10 @@ const send = async ({ sessionId, input, ...options }) => {
     return { ok: true }
 }
 
-const stop = ({ sessionId }) => agents.get(sessionId)?.stop() || { ok: false }
+// --- 停止 Agent 任务 ---
+const stop = ({ sessionId }) => Store.agents.get(sessionId)?.stop() || { ok: false }
 
+// --- 处理工具审批 ---
 const decide = ({ sessionId, callId, decision }) => Permission.decide({ sessionId, callId, decision })
 
 export default { create, read, rename, remove, rollback, redo, compact, send, stop, decide }

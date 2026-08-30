@@ -1,8 +1,14 @@
-/* 读取文本或图片、完整写文件、列目录。每个工具都是目录发现的独立业务对象。 */
+/*
+ * 文件工具集合。
+ *
+ * 三个工具共享文件领域，但每个工具只有一个动作：读取、写入、列目录。
+ * 数据流：Agent 触发单个工具 → 操作文件 → 返回可理解的结果。
+ */
 import { mkdir, readdir } from 'node:fs/promises' // 创建父目录并读取目录条目。
 import { dirname } from 'node:path' // 从目标文件计算父目录。
 import { writeFile } from 'atomically' // 原子写入完整文本文件。
 
+// --- 读取文本或图片 ---
 const fileRead = { // 文本与图片读取共用一个工具名。
     name: 'file_read',
     description: 'Read a text file or inspect an image file.',
@@ -36,6 +42,7 @@ const fileRead = { // 文本与图片读取共用一个工具名。
     },
 }
 
+// --- 写入完整文本文件 ---
 const fileWrite = { // 完整替换一个文本文件。
     name: 'file_write',
     description: 'Write complete text content, creating parent directories.',
@@ -56,6 +63,7 @@ const fileWrite = { // 完整替换一个文本文件。
     },
 }
 
+// --- 列出目录直接子项 ---
 const fileList = { // 只列出当前目录的直接子项。
     name: 'file_list',
     description: 'List files and directories directly inside a directory.',

@@ -49,20 +49,14 @@ import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import Path from '../utils/path.js'
 import SSE from '../utils/sse.js'
+import Store from '../store.js' // 直接访问全部会话历史数据。
 
-// 一个 Map 管理全部会话。key 是 sessionId，value 是该会话的消息和回退记录。
-let sessions = new Map()
+/*
+ * 历史功能只负责历史规则：加载、追加、回退、恢复和保存。
+ * 数据流：Session 指令触发 → History 修改仓库 → 保存文件 → SSE 清理旧反馈。
+ */
 
-const getSession = sessionId => {
-    let session = sessions.get(sessionId)
-    if (!session) {
-        // 第一次收到这个 sessionId 时，自动创建一份空历史。
-        session = { messages: [], redo: [] }
-        sessions.set(sessionId, session)
-    }
-    return session
-}
-
+// --- 加载历史 ---
 const load = async ({ path, sessionId }) => {
     const sessionPath = !path && sessionId
     path ||= sessionId && Path.history(sessionId)
@@ -71,19 +65,27 @@ const load = async ({ path, sessionId }) => {
 
     // 历史文件第一次还不存在是正常情况，直接从空历史开始。
     if (!await file.exists()) {
-        if (sessionId) sessions.set(sessionId, { messages: [], redo: [] })
-        else sessions = new Map()
+        if (sessionId) Store.sessions.set(sessionId, { messages: [], redo: [] })
+        else Store.sessions.clear()
         return
     }
 
     const data = await file.json()
     // 会话文件只保存自己的记录；旧的总文件仍可恢复全部会话。
-    if (sessionPath) sessions.set(sessionId, data)
-    else sessions = new Map(Object.entries(data))
+    if (sessionPath) Store.sessions.set(sessionId, data)
+    else {
+        Store.sessions.clear()
+        Object.entries(data).forEach(([id, history]) => Store.sessions.set(id, history))
+    }
 }
 
+// --- 追加消息 ---
 const add = async ({ sessionId, message }) => {
-    const session = getSession(sessionId)
+    let session = Store.sessions.get(sessionId)
+    if (!session) {
+        session = { messages: [], redo: [] }
+        Store.sessions.set(sessionId, session)
+    }
     const record = { messageId: nanoid(), message }
 
     session.messages.push(record)
@@ -92,8 +94,9 @@ const add = async ({ sessionId, message }) => {
     return record
 }
 
+// --- 回退消息 ---
 const rollback = async ({ sessionId, messageId }) => {
-    const session = getSession(sessionId)
+    const session = Store.sessions.get(sessionId) || { messages: [], redo: [] }
     const index = session.messages.findIndex(record => record.messageId === messageId)
     if (index < 0) throw new Error(`Message not found: ${messageId}`)
 
@@ -101,26 +104,29 @@ const rollback = async ({ sessionId, messageId }) => {
     session.redo.push(session.messages.splice(index))
 }
 
+// --- 恢复回退内容 ---
 const redo = async ({ sessionId }) => {
-    const session = getSession(sessionId)
+    const session = Store.sessions.get(sessionId) || { messages: [], redo: [] }
     const records = session.redo.pop()
 
     // 没有可恢复的内容时什么也不做，调用方不需要专门判断。
     if (records) session.messages.push(...records)
 }
 
+// --- 读取当前历史 ---
 const get = ({ sessionId }) => {
     // 返回完整 History：保留 messageId 和消息上的全部字段。
     // 前端直接使用，模型调用前由 Context.build 统一过滤。
-    return getSession(sessionId).messages.map(({ messageId, message }) => ({ messageId, ...message }))
+    return (Store.sessions.get(sessionId)?.messages || []).map(({ messageId, message }) => ({ messageId, ...message }))
 }
 
+// --- 保存历史 ---
 const save = async ({ path, sessionId }) => {
     const sessionPath = !path && sessionId
     path ||= sessionId && Path.history(sessionId)
     if (!path) throw new TypeError('path or sessionId is required')
     // 会话文件只写当前记录；旧的总文件才写全部 Map。
-    const data = JSON.stringify(sessionPath ? getSession(sessionId) : Object.fromEntries(sessions), null, 2)
+    const data = JSON.stringify(sessionPath ? Store.sessions.get(sessionId) : Object.fromEntries(Store.sessions), null, 2)
     await mkdir(dirname(path), { recursive: true })
     // 原子写入会先写临时文件，再替换正式文件，避免留下半份 JSON。
     await writeFile(path, data)

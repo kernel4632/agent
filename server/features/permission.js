@@ -35,12 +35,18 @@ import { writeFile } from 'atomically'
 import picomatch from 'picomatch'
 import SSE from '../utils/sse.js'
 
+/*
+ * 权限功能只负责匹配规则和等待用户决定。
+ * 数据流：Agent 触发检查 → 匹配权限数据 → SSE 请求审批 → 用户决定 → 返回允许/拒绝。
+ */
+
 // 没有规则文件时，所有工具都先询问用户，不会自动执行。
 let rules = { '*': 'ask' }
 let permissionPath = null
 let configFile = false
 const approvals = new Map()
 
+// --- 加载权限规则 ---
 const load = async ({ path }) => {
     const file = Bun.file(path)
     const data = await file.exists() ? await file.json() : { '*': 'ask' }
@@ -51,6 +57,7 @@ const load = async ({ path }) => {
     return rules
 }
 
+// --- 检查工具权限 ---
 const check = async ({ sessionId, callId, toolName, arguments: input = {}, signal }) => {
     const values = []
     const pending = [input]
@@ -91,6 +98,7 @@ const check = async ({ sessionId, callId, toolName, arguments: input = {}, signa
     return decision
 }
 
+// --- 接收用户决定 ---
 const decide = async ({ sessionId, callId, decision }) => {
     const approval = approvals.get(`${sessionId}:${callId}`)
     if (!approval || approval.sessionId !== sessionId) return { ok: false }
@@ -108,6 +116,7 @@ const decide = async ({ sessionId, callId, decision }) => {
     return { ok: true }
 }
 
+// --- 保存权限规则 ---
 const save = async ({ path }) => {
     await mkdir(dirname(path), { recursive: true })
     const data = configFile && await Bun.file(path).exists() ? await Bun.file(path).json() : rules

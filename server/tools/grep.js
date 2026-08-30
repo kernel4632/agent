@@ -1,4 +1,9 @@
-/* 内容搜索交给成熟的 ripgrep，不在内核重写搜索器。 */
+/*
+ * 文件内容搜索工具。
+ *
+ * 工具把搜索交给 ripgrep，不承担会话业务；退出码 1 代表没有匹配。
+ * 数据流：Agent 触发工具 → 启动 ripgrep → 收集输出 → 返回文本反馈。
+ */
 import { rgPath } from '@vscode/ripgrep' // 使用随依赖提供的 ripgrep 可执行文件。
 
 export default {
@@ -12,6 +17,7 @@ export default {
         },
         required: ['path', 'pattern'],
     },
+    // --- 搜索文件内容 ---
     async execute({ path, pattern, include }) {
         const command = [rgPath, '--line-number', '--color', 'never']
         if (include) command.push('--glob', include)

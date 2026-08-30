@@ -1,4 +1,9 @@
-/* 
+/*
+ * SSE 实时反馈工具。
+ *
+ * 本文件集中处理连接、缓存、补发和心跳；业务指令只调用 connect/send/close。
+ * 数据流：Agent 产生事件 → SSE 缓存并推送 → 浏览器收到反馈 → History 保存后 reset。
+ *
 目标被调用形式（绝对不可修改）：
 // 连接
 await SSE.connect({ id: sessionId, request })
@@ -104,12 +109,14 @@ const connect = async ({ id, request }) => {
 }
 
 // 新任务开始时清空旧任务，当前任务产生的所有事件会一直保留。
+// --- 清理已保存历史的事件 ---
 const reset = async ({ id }) => {
     const state = sessionState(id)
     state.events = []
     state.nextId = 1
 }
 
+// --- 发送实时事件 ---
 const send = async ({ id, data }) => {
     if (typeof id !== 'string' || !id) throw new TypeError('id must be a non-empty string')
     const state = sessionState(id)
@@ -123,6 +130,7 @@ const send = async ({ id, data }) => {
     }
 }
 
+// --- 关闭实时连接 ---
 const close = async ({ id }) => {
     const state = sessions.get(id)
     if (!state) return

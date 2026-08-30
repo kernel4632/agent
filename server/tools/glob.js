@@ -1,4 +1,9 @@
-/* Bun.Glob 直接扫描目录，固定上限防止结果淹没上下文。 */
+/*
+ * 文件匹配工具。
+ *
+ * 工具只扫描用户指定目录，不修改任何数据。
+ * 数据流：Agent 触发工具 → 按模式扫描 → 限制结果数量 → 返回路径列表。
+ */
 export default {
     name: 'glob',
     description: 'Find files matching a glob pattern under a directory.',
@@ -10,6 +15,7 @@ export default {
         },
         required: ['path', 'pattern'], 
     },
+    // --- 查找匹配文件 ---
     async execute({ path, pattern }) {
         const files = [] // 保持扫描顺序的相对路径结果。
 
