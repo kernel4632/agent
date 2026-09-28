@@ -1,0 +1,12 @@
+// Load settings-only web components with the settings screen, not the homepage.
+import '@m3e/web/button'
+import '@m3e/web/content-pane'
+import '@m3e/web/dialog'
+import '@m3e/web/divider'
+import '@m3e/web/form-field'
+import '@m3e/web/heading'
+import '@m3e/web/icon-button'
+import '@m3e/web/list'
+import '@m3e/web/select'
+import '@m3e/web/switch'
+import '@m3e/web/textarea-autosize'

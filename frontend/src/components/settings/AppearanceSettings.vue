@@ -1,192 +1,62 @@
-<!--
-外观设置：配置 M3E 动态颜色、对比度、密度、动效和焦点指示器。
-设计思想：外观偏好只在前端持久化（localStorage），不发送到 Server。
-核心数据：appearance（对应 ThemeElement 的全部公开主题属性）。
-调用示例：<AppearanceSettings v-model:appearance="settingsDraft.appearance" />。
--->
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { DEFAULT_APPEARANCE } from '../../theme.js'
-
-const props = defineProps({
-  appearance: { type: Object, required: true },             // 接收外观设置对象（双向绑定）
-})
+defineProps({ appearance: { type: Object, required: true } })
 const emit = defineEmits(['change'])
-// --- 修改单个外观字段 ---
-function updateField(field, value) {
-  emit('change', { field, value })                          // 由草稿持有者执行写入，避免修改只读 props
-}
-
-function resetAppearance() {
-  for (const [field, value] of Object.entries(DEFAULT_APPEARANCE)) updateField(field, value)
-}
-
+const themes = [{ id: 'dark', label: '深色' }, { id: 'light', label: '浅色' }, { id: 'system', label: '跟随系统' }]
+const colors = [{ value: '#8badf4', label: '雾蓝' }, { value: '#85bfb1', label: '青绿' }, { value: '#c9b69a', label: '暖沙' }, { value: '#bba5d6', label: '丁香' }]
+const update = (field, value) => emit('change', { field, value })
+function reset() { for (const [field, value] of Object.entries(DEFAULT_APPEARANCE)) update(field, value) }
 </script>
 
 <template>
-  <m3e-content-pane class="appearance-settings">
-    <m3e-button type="button" variant="text" @click="resetAppearance">恢复默认</m3e-button>
-    <m3e-list class="appearance-settings__options">
-
-        <m3e-heading class="appearance-settings__group" variant="label" size="large" level="3">颜色</m3e-heading>
-        <m3e-list-item>
-          主题模式
-          <span slot="supporting-text">亮色、暗色或跟随系统</span>
-          <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
-            <m3e-select @input="updateField('theme', $event.currentTarget.value)">
-              <m3e-option value="system" :selected="(props.appearance.theme || 'system') === 'system'">跟随系统</m3e-option>
-              <m3e-option value="light" :selected="props.appearance.theme === 'light'">亮色</m3e-option>
-              <m3e-option value="dark" :selected="props.appearance.theme === 'dark'">暗色</m3e-option>
-            </m3e-select>
-          </m3e-form-field>
-        </m3e-list-item>
-        <m3e-divider></m3e-divider>
-
-        <m3e-list-item>
-          主题颜色
-          <span slot="supporting-text">用于生成完整 Material You 动态色板</span>
-          <label slot="trailing" class="appearance-settings__color-control">
-            <span class="appearance-settings__color-value">{{ props.appearance.color || DEFAULT_APPEARANCE.color }}</span>
-            <input
-              type="color"
-              :value="props.appearance.color || DEFAULT_APPEARANCE.color"
-              aria-label="主题颜色"
-              @input="updateField('color', $event.currentTarget.value)"
-            >
-          </label>
-        </m3e-list-item>
-        <m3e-divider></m3e-divider>
-
-        <m3e-list-item>
-          色板风格
-          <span slot="supporting-text">选择动态颜色的生成算法</span>
-          <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
-            <m3e-select @input="updateField('variant', $event.currentTarget.value)">
-              <m3e-option value="monochrome" :selected="props.appearance.variant === 'monochrome'">单色</m3e-option>
-              <m3e-option value="neutral" :selected="props.appearance.variant === 'neutral'">中性</m3e-option>
-              <m3e-option value="tonal-spot" :selected="(props.appearance.variant || DEFAULT_APPEARANCE.variant) === 'tonal-spot'">色调聚焦</m3e-option>
-              <m3e-option value="vibrant" :selected="props.appearance.variant === 'vibrant'">鲜明</m3e-option>
-              <m3e-option value="expressive" :selected="props.appearance.variant === 'expressive'">表现力</m3e-option>
-              <m3e-option value="fidelity" :selected="props.appearance.variant === 'fidelity'">忠实原色</m3e-option>
-              <m3e-option value="content" :selected="props.appearance.variant === 'content'">内容导向</m3e-option>
-              <m3e-option value="rainbow" :selected="props.appearance.variant === 'rainbow'">彩虹</m3e-option>
-              <m3e-option value="fruit-salad" :selected="props.appearance.variant === 'fruit-salad'">缤纷</m3e-option>
-            </m3e-select>
-          </m3e-form-field>
-        </m3e-list-item>
-        <m3e-divider></m3e-divider>
-
-        <m3e-list-item>
-          对比度
-          <span slot="supporting-text">调整文字、边界与容器的可辨识程度</span>
-          <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
-            <m3e-select @input="updateField('contrast', $event.currentTarget.value)">
-              <m3e-option value="standard" :selected="(props.appearance.contrast || DEFAULT_APPEARANCE.contrast) === 'standard'">标准</m3e-option>
-              <m3e-option value="medium" :selected="props.appearance.contrast === 'medium'">中等</m3e-option>
-              <m3e-option value="high" :selected="props.appearance.contrast === 'high'">高</m3e-option>
-            </m3e-select>
-          </m3e-form-field>
-        </m3e-list-item>
-
-        <m3e-heading class="appearance-settings__group" variant="label" size="large" level="3">界面</m3e-heading>
-        <m3e-list-item>
-          界面密度
-          <span slot="supporting-text">控制组件尺寸和信息紧凑程度</span>
-          <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
-            <m3e-select @input="updateField('density', Number($event.currentTarget.value))">
-              <m3e-option value="0" :selected="Number(props.appearance.density ?? DEFAULT_APPEARANCE.density) === 0">舒适</m3e-option>
-              <m3e-option value="-1" :selected="Number(props.appearance.density) === -1">紧凑</m3e-option>
-              <m3e-option value="-2" :selected="Number(props.appearance.density) === -2">高密度</m3e-option>
-            </m3e-select>
-          </m3e-form-field>
-        </m3e-list-item>
-        <m3e-divider></m3e-divider>
-
-        <m3e-list-item>
-          动效风格
-          <span slot="supporting-text">标准缓动或 Material 3 Expressive 弹性动效</span>
-          <m3e-form-field slot="trailing" class="appearance-settings__select" variant="outlined" hide-subscript="always">
-            <m3e-select @input="updateField('motion', $event.currentTarget.value)">
-              <m3e-option value="standard" :selected="props.appearance.motion === 'standard'">标准</m3e-option>
-              <m3e-option value="expressive" :selected="(props.appearance.motion || DEFAULT_APPEARANCE.motion) === 'expressive'">表现力</m3e-option>
-            </m3e-select>
-          </m3e-form-field>
-        </m3e-list-item>
-        <m3e-divider></m3e-divider>
-
-        <m3e-list-item>
-          增强焦点指示器
-          <span slot="supporting-text">为键盘导航显示更醒目的焦点轮廓</span>
-          <m3e-switch
-            slot="trailing"
-            :checked="Boolean(props.appearance.strongFocus)"
-            aria-label="增强焦点指示器"
-            @change="updateField('strongFocus', $event.currentTarget.checked)"
-          ></m3e-switch>
-        </m3e-list-item>
-
-    </m3e-list>
-  </m3e-content-pane>
+  <div class="appearance-settings">
+    <section class="appearance-section"><header><h3>界面主题</h3><p>让工作台适应你的环境。</p></header><fieldset class="theme-options"><legend class="sr-only">界面主题</legend><label v-for="theme in themes" :key="theme.id" class="theme-option" :class="{ selected: appearance.theme === theme.id }"><input type="radio" name="theme" :value="theme.id" :checked="appearance.theme === theme.id" @change="update('theme', theme.id)" /><span class="theme-preview" :class="`theme-preview--${theme.id}`"><i></i><span><b></b><b></b><em></em></span></span><span class="theme-option__label">{{ theme.label }}<AppIcon v-if="appearance.theme === theme.id" name="check" :size="14" /></span></label></fieldset></section>
+    <section class="appearance-section"><header><h3>强调色</h3><p>为你的工作台添一点自己的色彩。</p></header><fieldset class="color-options"><legend class="sr-only">强调色</legend><label v-for="color in colors" :key="color.value" :class="{ selected: appearance.color === color.value }"><input type="radio" name="accent" :checked="appearance.color === color.value" @change="update('color', color.value)" /><span :style="{ background: color.value }"><AppIcon v-if="appearance.color === color.value" name="check" :size="16" /></span><small>{{ color.label }}</small></label></fieldset></section>
+    <section class="appearance-section"><header><h3>舒适与可访问性</h3><p>专注内容，而不是界面本身。</p></header><div class="preference-rows"><label class="preference-row"><span><strong>减少界面动画</strong><small>关闭装饰动效和切换动画</small></span><input type="checkbox" role="switch" aria-label="减少界面动画" :checked="appearance.reduceMotion" @change="update('reduceMotion', $event.target.checked)" /></label><label class="preference-row"><span><strong>增强键盘焦点</strong><small>让键盘导航的位置更清晰</small></span><input type="checkbox" role="switch" aria-label="增强键盘焦点" :checked="appearance.strongFocus" @change="update('strongFocus', $event.target.checked)" /></label></div></section>
+    <footer><span><AppIcon name="info" :size="14" />仅影响当前浏览器，不修改模型或后端配置。</span><button type="button" class="text-button" @click="reset">恢复默认</button></footer>
+  </div>
 </template>
 
 <style scoped lang="scss">
-.appearance-settings {
-  display: flex;
-  min-height: 0;
-  overflow-y: auto;
-  flex-direction: column;
-  padding: 24px 40px 48px;
-  @include scrollbar-dark;
-}
-
-.appearance-settings__options {
-  display: flex;
-  width: min(640px, 100%);
-  margin: 0;
-  flex-direction: column;
-}
-
-.appearance-settings > m3e-button { width: min(640px, 100%); margin-bottom: 4px; }
-
-.appearance-settings__group {
-  display: block;
-  margin: 24px 16px 8px;
-  color: var(--md-sys-color-primary);
-}
-
-.appearance-settings__group:first-child { margin-top: 8px; }
-
-.appearance-settings__color-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.appearance-settings__color-value {
-  color: var(--md-sys-color-on-surface-variant);
-  font-family: ui-monospace, "Cascadia Code", monospace;
-  font-size: 13px;
-  text-transform: uppercase;
-}
-
-.appearance-settings__color-control input {
-  width: 48px;
-  height: 40px;
-  padding: 3px;
-  border: 1px solid var(--md-sys-color-outline);
-  border-radius: var(--md-sys-shape-corner-small);
-  background: transparent;
-  cursor: pointer;
-}
-
-/* --- 选择器固定宽度 --- */
-.appearance-settings__select {
-  width: 160px;
-  flex: 0 0 auto;
-}
-
-/* --- 移动端适配 --- */
-@media (max-width: 760px) {
-  .appearance-settings { padding: 20px 20px 40px; }
-  .appearance-settings__select { width: 100%; }
-}
+.appearance-settings { max-width: 850px; width: 100%; margin: 0 auto; padding: 28px 32px 40px; }
+.appearance-section { margin-bottom: 30px; }
+.appearance-section header { margin-bottom: 16px; }
+.appearance-section h3 { font-weight: 500; font-size: 14px; margin: 0 0 7px; }
+.appearance-section p { font-size: 11px; color: var(--la-muted); margin: 0; line-height: 1.8; }
+fieldset { border: 0; padding: 0; margin: 0; }
+.theme-options { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.theme-option { display: block; min-width: 0; cursor: pointer; border: 1px solid var(--la-line); border-radius: 11px; padding: 9px; position: relative; }
+.theme-option.selected { border-color: var(--la-accent); background: var(--la-accent-soft); }
+.theme-option > input, .color-options input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.theme-option:focus-within, .color-options label:focus-within { outline: 2px solid var(--la-accent); outline-offset: 4px; }
+.theme-preview { height: 90px; display: flex; border: 1px solid #65718b22; background: #111823; border-radius: 6px; overflow: hidden; }
+.theme-preview > i { width: 25%; background: #1e2632; border-right: 1px solid #9aafce22; }
+.theme-preview > span { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 13px 10px 10px; }
+.theme-preview b { display: block; width: 60%; height: 4px; background: #7789a64d; border-radius: 4px; }
+.theme-preview b:nth-child(2) { width: 85%; }
+.theme-preview em { width: 100%; height: 18px; margin-top: auto; border: 1px solid #a2b8d333; border-radius: 4px; background: #586d8e19; }
+.theme-preview--light { background: #e7edf6; } .theme-preview--light > i { background: #c7d0dd; }
+.theme-preview--system { background: linear-gradient(105deg, #111823 50%, #e7edf6 50%); }
+.theme-option__label { display: flex; align-items: center; justify-content: space-between; margin: 11px 3px 3px; font-size: 11px; color: var(--la-secondary); }
+.selected .theme-option__label { color: var(--la-accent); }
+.color-options { display: flex; gap: 10px; }
+.color-options label { position: relative; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--la-line); border-radius: 9px; cursor: pointer; }
+.color-options label.selected { background: var(--la-hover); border-color: var(--la-accent-border); }
+.color-options label > span { width: 24px; height: 24px; display: grid; place-items: center; color: #1e2c43; border-radius: 50%; }
+.color-options small { color: var(--la-secondary); font-size: 11px; }
+.preference-rows { border: 1px solid var(--la-line); border-radius: 11px; overflow: hidden; background: var(--la-hover); }
+.preference-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 18px; cursor: pointer; }
+.preference-row + .preference-row { border-top: 1px solid var(--la-line); }
+.preference-row strong { display: block; font-size: 12px; font-weight: 500; }
+.preference-row small { display: block; font-size: 10px; color: var(--la-muted); margin-top: 6px; }
+.preference-row input { appearance: none; position: relative; cursor: pointer; flex-shrink: 0; width: 36px; height: 21px; background: var(--la-muted); border: 0; border-radius: 20px; }
+.preference-row input::after { content: ''; position: absolute; width: 15px; height: 15px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform .15s; }
+.preference-row input:checked { background: var(--la-accent); }
+.preference-row input:checked::after { transform: translateX(15px); background: #213455; }
+footer { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; }
+footer > span { display: flex; align-items: flex-start; gap: 7px; font-size: 10px; line-height: 1.8; color: var(--la-muted); }
+footer svg { flex-shrink: 0; margin-top: 2px; }
+footer button { flex-shrink: 0; align-self: start; font-size: 11px; }
+@media (max-width: 760px) { .appearance-settings { padding: 24px 20px 32px; } .theme-options { gap: 8px; } .theme-preview { height: 66px; } .theme-option { padding: 6px; } .theme-preview > span { padding: 10px 6px 6px; } .color-options { display: grid; grid-template-columns: repeat(2, 1fr); } footer { flex-direction: column; } }
 </style>

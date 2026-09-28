@@ -11,13 +11,14 @@ export const ICON_STROKE_WIDTH = 2
 
 // --- M3E ThemeElement 的完整可配置面 ---
 export const DEFAULT_APPEARANCE = Object.freeze({
-  theme: 'system',
-  color: '#6750a4',
+  theme: 'dark',
+  color: '#8badf4',
   variant: 'tonal-spot',
   contrast: 'standard',
   density: 0,
-  motion: 'expressive',
+  motion: 'standard',
   strongFocus: false,
+  reduceMotion: false,
 })
 
 export function normalizeAppearance(value = {}) {

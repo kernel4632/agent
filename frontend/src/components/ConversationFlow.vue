@@ -1,271 +1,100 @@
-<!--
-对话流组件：从 store 读取当前活跃会话的消息列表，渲染用户消息气泡和助手执行活动流。
-用户消息参考 Grok 的右对齐气泡，Assistant 使用卡片流展示工具执行过程和文本回复。
-调用示例：<ConversationFlow />。
--->
 <script setup>
-import { computed, nextTick, ref } from 'vue'           // 引入响应式计算和滚动控制
-import { store } from '../store.js'                     // 引入全局会话数据
-import { renderMarkdown } from '../utils/markdown.js'   // 引入 Markdown 转 HTML 能力
-import { watchMessages } from '../watchers.js'          // 引入集中管理的消息监听
-import ToolExpansion from './ToolExpansion.vue'          // 复用工具标题、详情折叠与回退确认
-import { HugeiconsIcon } from '@hugeicons/vue'
-import { Refresh01Icon, Wrench01Icon, CommandLineIcon, Search01Icon, SquareArrowExpand01Icon } from '@hugeicons/core-free-icons'
-import { ICON_STROKE_WIDTH } from '../theme.js'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AppIcon from './AppIcon.vue'
+import { store } from '../store.js'
+import { Chat } from '../commands/chat.js'
+import { UI } from '../commands/ui.js'
+import { renderMarkdown } from '../utils/markdown.js'
+import 'highlight.js/styles/github-dark.css'
+import 'katex/dist/katex.min.css'
 
-const flowContainer = ref(null)                         // 容器引用，用于自动滚动到底部
-const session = computed(() => store.sessions[store.ui.activeSessionID] || null) // 当前活跃会话
-const messages = computed(() => session.value?.messages || []) // 当前会话消息列表
-
-
-// --- 自动滚动到底部 ---
-function scrollToBottom() {
-  nextTick(() => {
-    const container = flowContainer.value?.closest('.chat-page__scroll') // 滚动容器是外层 .chat-page__scroll
-    if (container) container.scrollTop = container.scrollHeight // 新消息后显示最新内容
-  })
-}
-
-// 通过 watchers.js 统一管理的消息变化监听，新消息到达时自动向下滚动
-watchMessages(messages, scrollToBottom)
-
-
-// --- 工具图标映射 ---
-function toolIcon(toolName) {
-  if (toolName?.includes('file') || toolName?.includes('edit')) return SquareArrowExpand01Icon // 文件类工具
-  if (toolName?.includes('shell') || toolName?.includes('command') || toolName?.includes('terminal')) return CommandLineIcon // 终端类工具
-  if (toolName?.includes('search') || toolName?.includes('grep')) return Search01Icon // 搜索类工具
-  return Wrench01Icon                                       // 其他工具使用通用图标
-}
+const root = ref(null)
+const session = computed(() => store.sessions[store.ui.activeSessionID])
+const messages = computed(() => session.value?.messages || [])
+const pinned = ref(true)
+const rollbackTarget = ref(null)
+const rollbackDialog = ref(null)
+let scrollParent
+function onScroll() { pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100 }
+function scrollToBottom() { nextTick(() => { if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight }) }
+watch(messages, scrollToBottom, { deep: true })
+onMounted(() => { scrollParent = root.value.closest('.chat-page__scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
+onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
+function requestRollback(message) { rollbackTarget.value = message; rollbackDialog.value.showModal() }
+async function confirmRollback() { if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id)) rollbackDialog.value?.close() }
+const toolLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 </script>
 
 <template>
-  <main ref="flowContainer" class="conversation-flow" aria-label="对话内容">
-    <template v-for="(message, index) in messages" :key="message.id || index">
-      <!-- 用户消息：紧凑气泡 -->
-      <section v-if="message.role === 'user'" class="conversation-flow__user-turn" aria-label="用户消息">
-        <p class="conversation-flow__user-message">{{ typeof message.content === 'string' ? message.content : '' }}</p>
-      </section>
-
-      <!-- 助手消息：活动流卡片 -->
-      <section v-else-if="message.role === 'assistant'" class="conversation-flow__assistant-turn" aria-label="Agent 执行过程">
-        <div class="conversation-flow__activity-list">
-          <!-- API 用量行 -->
-          <m3e-card v-if="message.request?.input || message.request?.output" class="conversation-flow__activity-card" variant="filled">
-            <div slot="content" class="conversation-flow__api-row">
-              <HugeiconsIcon :icon="Refresh01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-              <span>API 请求</span>
-              <span class="conversation-flow__api-cost">
-                <span>↑{{ message.request.input }}</span>
-                <span>↓{{ message.request.output }}</span>
-              </span>
-            </div>
-          </m3e-card>
-
-          <!-- 文本内容块（模型思考和回复）-->
-          <m3e-card v-if="message.content" class="conversation-flow__activity-card" variant="filled">
-            <div slot="content" class="conversation-flow__message-block" v-html="renderMarkdown(message.content)"></div>
-          </m3e-card>
-
-          <!-- 流式打字指示器 -->
-          <m3e-card v-if="message.isStreaming && !message.content && !(message.tools || []).length" class="conversation-flow__activity-card" variant="filled">
-            <div slot="content" class="conversation-flow__message-block">
-              <p class="conversation-flow__typing">正在思考...</p>
-            </div>
-          </m3e-card>
-
-          <!-- 工具调用卡片（模型决定执行的动作）-->
-          <m3e-card v-for="tool in (message.tools || [])" :key="tool.id" class="conversation-flow__activity-card" variant="filled">
-            <div slot="content">
-              <ToolExpansion :icon="toolIcon(tool.name)" :label="tool.status === 'running' ? '正在运行' : tool.status === 'completed' ? '已完成' : tool.status === 'error' ? '执行失败' : '等待中'" :parameter="tool.name + (tool.input?.command ? ' ' + tool.input.command : tool.input?.path ? ' ' + tool.input.path : '')" :open="tool.status === 'running'">
-                <pre v-if="tool.preview" class="conversation-flow__terminal"><code>{{ tool.preview }}</code></pre>
-              </ToolExpansion>
-            </div>
-          </m3e-card>
-
-          <!-- 错误显示 -->
-          <m3e-card v-if="message.error" class="conversation-flow__activity-card" variant="filled">
-            <div slot="content" class="conversation-flow__message-block">
-              <p class="conversation-flow__error">{{ message.error }}</p>
-            </div>
-          </m3e-card>
-        </div>
-      </section>
-    </template>
-  </main>
+  <div ref="root" class="conversation-flow" aria-label="对话内容">
+    <section v-for="message in messages" :key="message.id" class="message" :class="`message--${message.role}`" :aria-label="message.role === 'user' ? '你的消息' : 'la 的回复'">
+      <header class="message__author"><span v-if="message.role === 'assistant'" class="message__avatar"><AppIcon name="spark" :size="16" /></span><span v-else class="message__avatar message__avatar--user"><AppIcon name="globe" :size="16" /></span><strong>{{ message.role === 'user' ? '你' : 'la' }}</strong><span v-if="message.role === 'assistant'" class="message__model">{{ session.model }}</span></header>
+      <div v-if="message.role === 'user'" class="message__bubble">{{ message.content }}</div>
+      <template v-else>
+        <details v-if="message.reasoning" class="reasoning"><summary><AppIcon name="spark" :size="14" />思考过程<AppIcon name="down" :size="13" /></summary><p>{{ message.reasoning }}</p></details>
+        <div v-if="message.content" class="markdown-body" v-html="renderMarkdown(message.content)"></div>
+        <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
+        <details v-for="tool in message.tools || []" :key="tool.id" class="tool-card" :open="tool.status === 'waiting' || tool.status === 'running'">
+          <summary><AppIcon name="code" :size="16" /><strong>{{ tool.name }}</strong><span :class="{ 'tool-warning': tool.status === 'waiting' }">{{ toolLabel(tool.status) }}</span><AppIcon name="down" :size="14" /></summary>
+          <div class="tool-card__body"><pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre><pre v-if="tool.preview">{{ tool.preview }}</pre><div v-if="tool.status === 'waiting'" class="approval"><p>此操作需要你的许可。请检查上方工具及参数。</p><div><button class="button button--danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</button><button class="button" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</button><button class="button button--primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</button></div></div></div>
+        </details>
+        <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
+        <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
+      </template>
+      <div v-if="!message.isStreaming" class="message__actions"><button class="icon-button" aria-label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></button></div>
+    </section>
+    <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退"><h2>回到这条消息之前？</h2><p>此消息及之后的内容将从当前对话中回退。你可以在发送新消息前撤销此次回退。</p><div class="dialog-actions"><button class="button" @click="rollbackDialog.close()">取消</button><button class="button button--primary" @click="confirmRollback">确认回退</button></div></dialog>
+  </div>
 </template>
 
 <style scoped lang="scss">
-
-/* --- 对话流主容器：垂直排列用户和助手轮次 --- */
-.conversation-flow {
-  display: flex;
-  flex-direction: column;
-  gap: 48px;
-  width: min(960px, 100%);
-  margin: 0 auto;
-  padding: 56px 32px 24px;
-}
-
-/* --- 用户消息轮次：右对齐气泡布局 --- */
-.conversation-flow__user-turn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-/* --- 用户消息气泡：圆角矩形仿 Grok 右下方缺角 --- */
-.conversation-flow__user-message {
-  max-width: min(620px, 82%);
-  margin: 0;
-  padding: 14px 20px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 22px 22px 6px 22px;                                /* 右下缺角标识发送方 */
-  background: var(--md-sys-color-surface-dim);
-  color: var(--md-sys-color-on-surface);
-  font-size: 17px;
-  line-height: 1.55;
-}
-
-/* --- 消息操作栏：悬停时淡入的回退和复制 --- */
-.conversation-flow__message-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 14px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease;
-}
-
-.conversation-flow__user-turn:hover .conversation-flow__message-actions,
-.conversation-flow__user-turn:focus-within .conversation-flow__message-actions {
-  opacity: 1;                                                        /* 悬停或键盘聚焦时显示操作 */
-  pointer-events: auto;
-}
-
-/* --- 助手轮次：左对齐活动流卡片 --- */
-.conversation-flow__assistant-turn { min-width: 0; }
-
-.conversation-flow__activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* --- 活动卡片：透明无阴影容器 --- */
-.conversation-flow__activity-card {
-  --m3e-card-padding: 0;
-  --m3e-filled-card-container-color: transparent;
-  --m3e-filled-card-container-elevation: none;
-  min-width: 0;
-}
-
-/* --- API 请求行：低对比度用量摘要 --- */
-.conversation-flow__api-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 12px;
-  padding-inline: 12px;
-  color: var(--md-sys-color-outline);
-  font-size: 14px;
-  opacity: .42;                                                      /* 默认弱化避免干扰阅读流 */
-  transition: opacity 160ms ease, color 160ms ease;
-
-  &:hover,
-  &:focus-within {
-    color: var(--md-sys-color-outline);
-    opacity: 1;                                                      /* 悬停时恢复完整可见度 */
-  }
-
-  > m3e-icon {
-    flex: 0 0 20px;
-    font-size: 20px;
-  }
-}
-
-/* --- API 用量数字：右侧固定宽度 --- */
-.conversation-flow__api-cost {
-  display: flex;
-  margin-left: auto;
-  gap: 8px;
-  padding: 0;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-/* --- 助手文本消息块 --- */
-.conversation-flow__message-block {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding-inline: 12px;
-
-  p {
-    width: 100%;
-    margin: 0;
-    color: var(--md-sys-color-on-surface-variant);
-    font-size: 18px;
-    line-height: 1.65;
-  }
-
-  code {
-    color: var(--md-sys-color-on-surface);
-    font-family: "Cascadia Code", Consolas, monospace;
-  }
-}
-
-/* --- 代码差异块：暗底带行高亮 --- */
-.conversation-flow__code {
-  margin: 12px 0 0;
-  padding: 14px 16px;
-  overflow-x: auto;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px;
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface-variant);
-  font: 14px/1.7 "Cascadia Code", Consolas, monospace;
-  @include scrollbar-dark-horizontal;
-}
-
-/* --- 终端输出块：无边框等宽字体 --- */
-.conversation-flow__terminal {
-  margin: 0;
-  padding: 0;
-  overflow-x: auto;
-  color: var(--md-sys-color-on-surface-variant);
-  font: 17px/1.7 "Cascadia Code", Consolas, monospace;
-  @include scrollbar-dark-horizontal;
-}
-
-/* --- 代码语法高亮色彩 --- */
-.code-add { color: #86d986; }                                        /* 新增行绿色 */
-.code-prompt { color: #a66cff; }                                     /* 终端提示符紫色 */
-.code-command { color: #68a9ff; }                                    /* 命令蓝色 */
-.code-output { color: #a8a8a8; }                                     /* 输出灰色 */
-
-/* --- 移动端适配：收窄间距和字号 --- */
-@media (max-width: 640px) {
-  .conversation-flow {
-    gap: 36px;
-    padding: 32px 16px 56px;
-  }
-
-  .conversation-flow__user-message {
-    max-width: 92%;
-    font-size: 16px;
-  }
-
-  .conversation-flow__activity-list { gap: 12px; }
-
-  .conversation-flow__api-row,
-  .conversation-flow__message-block {
-    padding-inline: 2px;
-  }
-
-  .conversation-flow__message-block p { font-size: 16px; }
-}
+.conversation-flow { max-width: 900px; width: 100%; margin: 0 auto; padding: 32px 38px; display: flex; flex-direction: column; gap: 30px; }
+.message { min-width: 0; }
+.message__author { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; font-size: 12px; }
+.message__author strong { font-weight: 500; }
+.message__avatar { width: 27px; height: 27px; display: grid; place-items: center; background: #8ebaff16; border: 1px solid #8ebaff33; border-radius: 9px; color: var(--la-accent); }
+.message__avatar--user { border-radius: 50%; color: #d5e8fa; background: linear-gradient(130deg,#799ab2,#3c5381); }
+.message__model { font-size: 9px; color: var(--la-muted); }
+.message--user { display: flex; flex-direction: column; align-items: flex-end; }
+.message--user .message__author { flex-direction: row-reverse; }
+.message__bubble { max-width: 85%; padding: 13px 17px; font-size: 13px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--la-accent-border); border-radius: 13px 3px 13px 13px; background: var(--la-accent-soft); }
+.message__actions { display: flex; gap: 2px; margin-top: 7px; opacity: .55; }
+.message:hover .message__actions, .message:focus-within .message__actions { opacity: 1; }
+.message__actions .icon-button { width: 30px; height: 30px; }
+.markdown-body { color: var(--la-text); font-size: 13px; line-height: 1.95; overflow-wrap: anywhere; }
+.markdown-body :deep(p) { margin: 0 0 14px; }
+.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { line-height: 1.5; font-weight: 550; margin: 22px 0 12px; }
+.markdown-body :deep(h1) { font-size: 23px; } .markdown-body :deep(h2) { font-size: 19px; } .markdown-body :deep(h3) { font-size: 16px; }
+.markdown-body :deep(pre) { max-width: 100%; overflow-x: auto; border: 1px solid var(--la-line); padding: 16px; border-radius: 10px; background: #0a101b; color: #e0e5ef; line-height: 1.7; }
+.markdown-body :deep(code) { font: 12px/1.7 "Cascadia Code", Consolas, monospace; }
+.markdown-body :deep(:not(pre) > code) { padding: 2px 5px; background: var(--la-hover); border: 1px solid var(--la-line); border-radius: 4px; color: var(--la-accent); }
+.markdown-body :deep(a) { color: var(--la-accent); text-underline-offset: 4px; }
+.markdown-body :deep(img) { max-width: 100%; height: auto; border-radius: 8px; }
+.markdown-body :deep(table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown-body :deep(td), .markdown-body :deep(th) { padding: 8px 12px; border: 1px solid var(--la-line); }
+.markdown-body :deep(blockquote) { margin-left: 0; padding-left: 16px; border-left: 2px solid var(--la-accent-border); color: var(--la-secondary); }
+.markdown-body :deep(.katex-display) { overflow-x: auto; overflow-y: hidden; }
+.reasoning { padding: 10px 13px; margin-bottom: 16px; border: 1px solid var(--la-line); border-radius: 8px; color: var(--la-muted); font-size: 11px; }
+.reasoning summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.reasoning p { margin: 12px 0 0; white-space: pre-wrap; line-height: 1.8; }
+.typing { display: flex; align-items: center; gap: 4px; height: 32px; color: var(--la-muted); }
+.typing > span { width: 4px; height: 4px; background: var(--la-accent); border-radius: 50%; animation: pulse 1.3s infinite alternate; }
+.typing > span:nth-child(2) { animation-delay: .2s; } .typing > span:nth-child(3) { animation-delay: .4s; }
+.typing small { margin-left: 8px; font-size: 11px; }
+@keyframes pulse { to { opacity: .2; transform: translateY(-2px); } }
+.tool-card { border: 1px solid var(--la-line); background: var(--la-hover); border-radius: 9px; margin: 12px 0; overflow: hidden; }
+.tool-card summary { display: flex; align-items: center; gap: 10px; padding: 13px; font-size: 11px; cursor: pointer; }
+.tool-card summary strong { font-weight: 500; overflow-wrap: anywhere; }
+.tool-card summary > span { margin-left: auto; color: var(--la-muted); white-space: nowrap; font-size: 10px; }
+.tool-card summary > span.tool-warning { color: #d9ba8a; }
+.tool-card__body { padding: 0 14px 14px; }
+.tool-card pre { font: 11px/1.8 "Cascadia Code",Consolas,monospace; max-height: 320px; overflow: auto; margin: 0 0 12px; color: var(--la-secondary); }
+.approval p { font-size: 11px; color: var(--la-secondary); }
+.approval > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.approval .button { min-height: 34px; font-size: 11px; }
+.message__error { display: flex; align-items: flex-start; gap: 8px; color: var(--la-danger); font-size: 12px; line-height: 1.8; padding: 10px 0; overflow-wrap: anywhere; }
+.message__error > svg { flex-shrink: 0; margin-top: 3px; }
+.message__usage { font-size: 9px; color: var(--la-muted); margin-top: 14px; }
+.message__usage > span { padding: 0 7px; }
+@media (max-width: 760px) { .conversation-flow { padding: 24px 20px; gap: 24px; } .message__bubble { max-width: 95%; } .message__model { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 </style>

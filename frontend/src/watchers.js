@@ -7,6 +7,7 @@
 import { watch, nextTick } from 'vue'                                  // 引入 Vue 响应式监听
 import { store } from './store.js'                                    // 引入全局工作台数据，读取活跃会话和视图状态
 import { Chat } from './commands/chat.js'                             // 引入 SSE 订阅和取消订阅指令
+import { SESSION_INDEX_KEY } from './commands/workspace.js'
 
 
 // --- M3E token 需要同步到 :root 的列表 ---
@@ -68,6 +69,11 @@ function syncM3ETokens() {
 
 // --- 启动全局监听 ---
 export function startWatchers() {
+  watch(() => store.workspaces[0]?.sessions, sessions => {
+    if (!sessions) return
+    try { localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(sessions)) }
+    catch { store.ui.toast = '浏览器存储不可用，会话索引无法在刷新后保留' }
+  }, { deep: true })
   // 监听活跃会话切换：离开旧会话时断开 SSE，进入新会话时建立 SSE
   watch(() => store.ui.activeSessionID, (newID, oldID) => {
     if (oldID && oldID !== newID) Chat.unsubscribe(oldID)             // 离开旧会话时断开事件流

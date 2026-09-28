@@ -6,7 +6,7 @@
 import { defineConfig } from 'vite'                 // 引入 Vite 配置声明能力
 import vue from '@vitejs/plugin-vue'                // 引入 Vue 单文件组件编译能力
 
-const serverURL = process.env.AGENT_SERVER_URL ?? 'http://127.0.0.1:4632' // 读取当前开发 Server 地址
+const serverURL = process.env.AGENT_SERVER_URL ?? 'http://127.0.0.1:3000'
 
 function openAIProxy() {
   async function handle(request, response, next) {
@@ -22,6 +22,7 @@ function openAIProxy() {
           accept: 'application/json',
           ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
         },
+        signal: AbortSignal.timeout(20000),
       })
       response.statusCode = upstream.status
       response.setHeader('content-type', upstream.headers.get('content-type') || 'application/json')
@@ -71,5 +72,8 @@ export default defineConfig({                       // 导出前端开发与构�
         rewrite: (path) => path.replace(/^\/api/, ''), // Server 路由本身不包含 /api
       },
     },
+  },
+  preview: {
+    proxy: { '/api': { target: serverURL, changeOrigin: true, rewrite: path => path.replace(/^\/api/, '') } },
   },
 })

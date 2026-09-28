@@ -1,187 +1,195 @@
 import { expect, test } from '@playwright/test'
 
-async function capture(page, testInfo, name) {
-  await page.waitForTimeout(1250)
-  const path = testInfo.outputPath(`${name}.png`)
-  await page.screenshot({ path, fullPage: true })
-  await testInfo.attach(name, { path, contentType: 'image/png' })
-  await expectHealthyLayout(page)
-}
-
-async function layoutDiagnostics(page) {
-  return page.evaluate(() => {
-    const visible = (element) => {
-      const style = getComputedStyle(element)
-      const box = element.getBoundingClientRect()
-      return style.visibility !== 'hidden' && style.display !== 'none' && box.width > 0 && box.height > 0
+async function backend(page, { configured = true } = {}) {
+  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', shell: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } } }
+  const sessions = new Map()
+  const calls = []
+  const waiting = new Map()
+  const queued = new Map()
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  async function emit(id, events) {
+    const body = events.map((event, index) => `id: ${event.type === 'agent-finish' ? 1 : index + 1}\ndata: ${JSON.stringify(event)}\n\n`).join('')
+    const route = waiting.get(id)
+    if (route) { waiting.delete(id); await route.fulfill({ status: 200, contentType: 'text/event-stream', body }) }
+    else queued.set(id, body)
+  }
+  await page.route('**/api/**', async route => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace('/api', '')
+    const method = request.method()
+    const body = request.postDataJSON()
+    calls.push({ path, method, body })
+    const json = data => route.fulfill({ status: 200, json: data })
+    if (path === '/config/read') return json(config)
+    if (path === '/config/set') { config = body; return json(config) }
+    if (path === '/session/create') {
+      const id = `session-${sessions.size + 1}`
+      sessions.set(id, { id, title: body.title, provider: body.provider, model: body.model, history: [], createdAt: Date.now(), updatedAt: Date.now() })
+      return json({ sessionId: id })
     }
-    const describe = (element) => {
-      const self = `${element.tagName.toLowerCase()}${element.className ? `.${String(element.className).trim().replace(/\s+/g, '.')}` : ''}`
-      const parent = element.parentElement
-      return parent?.className ? `${self} in .${String(parent.className).trim().replace(/\s+/g, '.')}` : self
+    const id = path.split('/').at(-1)
+    const session = sessions.get(id)
+    if (path.startsWith('/sse/connect/')) {
+      if (queued.has(id)) { const eventBody = queued.get(id); queued.delete(id); return route.fulfill({ contentType: 'text/event-stream', body: eventBody }) }
+      waiting.set(id, route)
+      return
     }
-    const viewportEscapes = []
-    const undersizedControls = []
-    const clippedLabels = []
-    const italicElements = []
-
-    for (const element of document.querySelectorAll('m3e-button, m3e-icon-button, m3e-card, m3e-form-field, m3e-select, m3e-input-chip')) {
-      if (!visible(element)) continue
-      const box = element.getBoundingClientRect()
-      if (box.left < -1 || box.right > innerWidth + 1) {
-        const parentBox = element.parentElement?.getBoundingClientRect()
-        viewportEscapes.push({ element: describe(element), left: box.left, right: box.right, parentLeft: parentBox?.left, parentRight: parentBox?.right })
-      }
-      if (element.matches('m3e-icon-button') && !element.closest('.message-map') && (box.width < 38 || box.height < 38)) undersizedControls.push({ element: describe(element), width: box.width, height: box.height })
-      if (element.matches('m3e-button') && box.height < 36) undersizedControls.push({ element: describe(element), width: box.width, height: box.height })
-      if (element.matches('m3e-button') && element.scrollWidth > element.clientWidth + 2) clippedLabels.push({ element: describe(element), text: element.textContent.trim(), width: box.width, scrollWidth: element.scrollWidth })
+    if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
+    if (path.startsWith('/session/read/')) return json(session)
+    if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
+    if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
+    if (path.startsWith('/session/rollback/')) { session.redo = session.history; session.history = []; return json(session) }
+    if (path.startsWith('/session/redo/')) { session.history = session.redo || []; return json(session) }
+    if (path.startsWith('/agent/send/')) {
+      session.history.push({ messageId: 'user-1', id: 'core-user-1', role: 'user', content: body.input })
+      await json({ ok: true })
+      if (body.input === 'keep running') return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
+      const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
+      session.history.push({ messageId: 'assistant-1', role: 'assistant', content: [{ type: 'text', text }] })
+      return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'agent-finish' }])
     }
-
-    const nativeVisible = [...document.querySelectorAll('button, input:not([type="file"]), select, textarea')]
-      .filter((element) => visible(element) && !element.matches('input, .message-map__mark') && !element.closest('m3e-form-field, m3e-search-bar'))
-      .map(describe)
-
-    for (const element of document.querySelectorAll('h1, h2, h3, p, strong, small, m3e-button, m3e-form-field, m3e-select')) {
-      if (visible(element) && getComputedStyle(element).fontStyle !== 'normal') italicElements.push({ element: describe(element), text: element.textContent.trim().slice(0, 80), fontStyle: getComputedStyle(element).fontStyle })
-    }
-
-    return {
-      documentOverflow: document.documentElement.scrollWidth - innerWidth,
-      nativeVisible,
-      viewportEscapes,
-      undersizedControls,
-      clippedLabels,
-      italicElements,
-      fontStyle: getComputedStyle(document.body).fontStyle,
-    }
+    if (path.startsWith('/agent/stop/')) { await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
+    if (path.startsWith('/agent/decide/')) return json({ ok: true })
+    return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
+  return { calls, sessions, errors, emit, config: () => config }
 }
 
-async function expectHealthyLayout(page) {
-  const diagnostics = await layoutDiagnostics(page)
-  expect(diagnostics.documentOverflow, JSON.stringify(diagnostics, null, 2)).toBeLessThanOrEqual(0)
-  expect(diagnostics.nativeVisible, JSON.stringify(diagnostics, null, 2)).toEqual([])
-  expect(diagnostics.viewportEscapes, JSON.stringify(diagnostics, null, 2)).toEqual([])
-  expect(diagnostics.undersizedControls, JSON.stringify(diagnostics, null, 2)).toEqual([])
-  expect(diagnostics.clippedLabels, JSON.stringify(diagnostics, null, 2)).toEqual([])
-  expect(diagnostics.italicElements, JSON.stringify(diagnostics, null, 2)).toEqual([])
-  expect(diagnostics.fontStyle).toBe('normal')
+async function navigate(page, name) {
+  const menu = page.getByRole('button', { name: '打开导航', exact: true })
+  if (await menu.isVisible()) await menu.click()
+  await page.getByRole('button', { name, exact: true }).click()
 }
 
-async function openSettingsSection(page, label) {
-  await page.locator('.settings-nav m3e-button').filter({ hasText: label }).click()
-  await page.waitForTimeout(120)
+async function screenshot(page, testInfo, name) {
+  const layout = await page.evaluate(() => ['html', 'body', 'm3e-theme', '.preview-page', '.app-content', '.app-view', '.chat-page', '.chat-composer'].map(selector => {
+    const element = document.querySelector(selector)
+    if (!element) return null
+    const box = element.getBoundingClientRect()
+    return { selector, left: box.left, width: box.width, scrollLeft: element.scrollLeft, scrollWidth: element.scrollWidth }
+  }))
+  expect(layout.filter(Boolean).every(item => item.scrollLeft === 0), JSON.stringify(layout)).toBe(true)
+  if (testInfo.project.name === 'mobile') expect(layout.find(item => item.selector === '.app-content').left).toBe(0)
+  await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true, animations: 'disabled' })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0)
 }
 
-test('desktop screenshot and interaction matrix', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop')
-  const runtimeErrors = []
-  page.on('pageerror', (error) => runtimeErrors.push(error.message))
+test('empty home, accessible navigation and unsupported capabilities', async ({ page }, testInfo) => {
+  const mock = await backend(page, { configured: false })
   await page.goto('/')
-
-  await capture(page, testInfo, '01-home')
-  await page.locator('.icon-command[aria-label="收起侧边栏"]').click()
-  await capture(page, testInfo, '01-home-collapsed-rail')
-  await page.locator('.icon-command[aria-label="展开侧边栏"]').click()
-  await page.locator('.panel-heading m3e-icon-button').first().click()
-  await capture(page, testInfo, '02-add-workspace-dialog')
-  await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').first().click()
-  await page.locator('m3e-nav-menu-item[aria-label="新建对话"]').click()
-  await page.locator('m3e-nav-menu-item[aria-label="主页"]').click()
-  await page.waitForTimeout(300)
-
-  await page.locator('.home-session__actions m3e-icon-button').first().click()
-  await capture(page, testInfo, '03-session-rename')
-  await page.keyboard.press('Escape')
-  await page.locator('.home-session__actions m3e-icon-button').nth(1).click()
-  await capture(page, testInfo, '04-delete-session-dialog')
-  await page.locator('m3e-dialog[open] m3e-button').first().click()
-
-  await page.reload()
-  await page.locator('.home-session').first().click()
-  await capture(page, testInfo, '05-chat')
-  await expect(page.locator('.model-select m3e-select')).toContainText(/glm-5\.2|kimi-k2\.6/)
-
-  await page.locator('.composer__input textarea').fill('请只回复 UI_REAL_OK，不要调用工具。')
-  await page.locator('m3e-icon-button[aria-label="发送"]').click()
-  await capture(page, testInfo, '11-chat-running')
-  await expect(page.locator('.message--assistant')).toContainText('UI_REAL_OK', { timeout: 30_000 })
-  await capture(page, testInfo, '12-chat-finished')
-
-  await page.locator('.sidebar__settings').click()
-  await capture(page, testInfo, '13-settings-providers')
-  await page.locator('.provider-models m3e-button').click()
-  await expect(page.locator('.model-picker-loading')).toBeVisible()
-  await capture(page, testInfo, '14-model-picker-loading')
-  await page.waitForTimeout(350)
-  await capture(page, testInfo, '15-model-picker-dialog')
-  await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
-  if (await page.locator('.provider-model-list m3e-icon-button').count()) {
-    await page.locator('.provider-model-list m3e-icon-button').first().click()
-    await capture(page, testInfo, '16-model-settings-dialog')
-    await page.locator('m3e-dialog[open] [slot="actions"] m3e-button').click()
-  }
-
-  for (const [label, name] of [
-    ['工具管理', '16-settings-tools'],
-    ['MCP 管理', '17-settings-mcp'],
-    ['系统提示词定义', '19-settings-prompt'],
-    ['数据管理', '20-settings-data'],
-    ['外观', '22-settings-appearance'],
-  ]) {
-    await openSettingsSection(page, label)
-    await capture(page, testInfo, name)
-    if (label === '工具管理') {
-      await expect(page.locator('.tool-setting-row m3e-select').first()).toContainText('允许')
-      await page.locator('.tool-setting-row m3e-select').first().click()
-      await capture(page, testInfo, '16-settings-tool-permission-menu')
-      await page.keyboard.press('Escape')
-    }
-    if (label === 'MCP 管理') {
-      await page.locator('.simple-settings__heading m3e-button').click()
-      await capture(page, testInfo, '18-settings-mcp-added')
-    }
-  }
-
-  await expect(page.locator('.simple-settings > m3e-form-field m3e-select').first()).toContainText('简体中文')
-  await expect(page.locator('.simple-settings > m3e-form-field m3e-select').nth(1)).toContainText('舒适')
-  await page.locator('.simple-settings > m3e-form-field m3e-select').first().click()
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('Enter')
-  await capture(page, testInfo, '23-settings-english')
-
-  await expectHealthyLayout(page)
-  expect(runtimeErrors).toEqual([])
+  await expect(page.getByRole('heading', { name: /每个想法/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '添加工作区' })).toBeDisabled()
+  await screenshot(page, testInfo, 'home')
+  await page.keyboard.press('Control+k')
+  await expect(page.getByRole('searchbox', { name: '搜索会话' })).toBeFocused()
+  await page.getByRole('searchbox').fill('不存在的关键词')
+  await expect(page.getByText('没有找到相关会话')).toBeVisible()
+  await navigate(page, '设置')
+  await expect(page.getByRole('heading', { name: '模型供应商', exact: true })).toBeVisible()
+  if (testInfo.project.name === 'desktop') await expect(page.getByRole('button', { name: /工具管理/ })).toBeDisabled()
+  await screenshot(page, testInfo, 'settings')
+  expect(mock.calls.some(call => /workspace|health|login|session\/update/.test(call.path))).toBe(false)
+  expect(mock.errors).toEqual([])
 })
 
-test('mobile screenshot and interaction matrix', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile')
-  const runtimeErrors = []
-  page.on('pageerror', (error) => runtimeErrors.push(error.message))
+test('real contract: create, stream, rename, persistence, rollback and delete', async ({ page }, testInfo) => {
+  const mock = await backend(page)
   await page.goto('/')
+  await expect(page.getByLabel('新对话使用的模型')).toHaveValue(JSON.stringify(['Test Provider', 'test-model']))
+  await page.getByRole('button', { name: '开始新对话' }).click()
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('一个新的项目')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.getByRole('button', { name: '停止生成' })).toHaveCount(0)
+  await screenshot(page, testInfo, 'chat')
+  await page.getByRole('button', { name: '回退到此消息' }).click()
+  await page.getByRole('button', { name: '确认回退', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('一个新的项目')
+  await page.getByRole('button', { name: '撤销回退', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await navigate(page, '主页')
+  await page.getByRole('button', { name: '重命名 一个新的项目', exact: true }).click()
+  await page.getByRole('textbox', { name: '会话名称' }).fill('我的计划')
+  await page.getByRole('button', { name: '保存名称', exact: true }).click()
+  await page.reload()
+  await expect(page.locator('.session-row')).toContainText('我的计划')
+  await page.getByRole('button', { name: '删除 我的计划', exact: true }).click()
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(page.locator('.session-row')).toHaveCount(1)
+  await page.getByRole('button', { name: '删除 我的计划', exact: true }).click()
+  await page.getByRole('button', { name: '确认删除', exact: true }).click()
+  await expect(page.locator('.session-row')).toHaveCount(0)
+  expect(mock.calls.find(call => call.path.startsWith('/session/rollback/')).body).toEqual({ messageId: 'user-1' })
+  expect(mock.errors).toEqual([])
+})
 
-  await capture(page, testInfo, '01-mobile-sidebar')
-  const collapse = page.locator('m3e-icon-button[aria-label="收起侧边栏"]')
-  if (await collapse.count()) await collapse.click()
-  await page.locator('m3e-nav-menu-item[aria-label="新建对话"]').click()
-  await page.locator('m3e-nav-menu-item[aria-label="主页"]').click()
-  await page.waitForTimeout(300)
-  await capture(page, testInfo, '02-mobile-home')
-  await page.locator('.home-session').first().click()
-  await capture(page, testInfo, '03-mobile-chat')
-  await page.locator('m3e-icon-button[aria-label="展开侧边栏"]').click()
-  await page.locator('.sidebar__settings').click()
-  await expect(page.locator('.settings-content')).toBeVisible()
-  await capture(page, testInfo, '04-mobile-settings')
-  await page.locator('.provider-models').scrollIntoViewIfNeeded()
-  await capture(page, testInfo, '05-mobile-provider-models')
-  await openSettingsSection(page, '工具管理')
-  await capture(page, testInfo, '06-mobile-settings-tools')
-  await openSettingsSection(page, 'MCP 管理')
-  await capture(page, testInfo, '07-mobile-settings-mcp')
-  await openSettingsSection(page, '外观')
-  await capture(page, testInfo, '08-mobile-settings-appearance')
+test('settings save preserves uneditable backend configuration and secrets stay out of storage', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('textbox', { name: '供应商名' }).fill('Renamed provider')
+  await page.getByRole('textbox', { name: '手动添加模型 ID' }).fill('another-model')
+  await page.getByRole('button', { name: '添加模型', exact: true }).click()
+  await page.getByRole('button', { name: '保存设置', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('设置已保存')
+  const saved = mock.config()
+  expect(saved.prompt.summary).toBe('Keep this.')
+  expect(saved.permission).toEqual({ '*': 'ask', shell: { '*': 'ask' } })
+  expect(saved.mcp.sample.url).toBe('https://mcp.example.test')
+  expect(saved.providers[0].headers).toEqual({ 'x-preserve': 'yes' })
+  expect(saved.providers[0].modelSettings['test-model'].context).toBe(64000)
+  expect(saved.providers[0].models).toEqual(['test-model', 'another-model'])
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('test-only-key')
+  await page.getByRole('button', { name: '外观与通用', exact: true }).click()
+  await page.getByRole('radio', { name: '浅色', exact: true }).check()
+  await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'light')
+  await screenshot(page, testInfo, 'appearance-light')
+  await page.getByRole('radio', { name: '深色', exact: true }).check()
+  await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'dark')
+  await screenshot(page, testInfo, 'appearance')
+  const writes = mock.calls.filter(call => call.path === '/config/set').length
+  await page.getByRole('switch', { name: '减少界面动画' }).check()
+  await page.getByRole('button', { name: '保存设置', exact: true }).click()
+  await expect(page.locator('m3e-theme')).toHaveAttribute('reduced-motion', '')
+  expect(mock.calls.filter(call => call.path === '/config/set')).toHaveLength(writes)
+  expect(mock.errors).toEqual([])
+})
 
-  await expectHealthyLayout(page)
-  expect(runtimeErrors).toEqual([])
+test('tool approval uses the existing allow-always decision contract', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始新对话' }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+  await mock.emit('session-1', [{ type: 'agent-start' }, { type: 'permission', callID: 'call-1', tool: 'read', input: { path: 'example.txt' } }])
+  await expect(page.getByText('等待你的许可')).toBeVisible()
+  await screenshot(page, testInfo, 'approval')
+  await page.getByRole('button', { name: '始终允许此参数', exact: true }).click()
+  await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
+  expect(mock.calls.find(call => call.path === '/agent/decide/session-1').body).toEqual({ callId: 'call-1', decision: 'allow-always' })
+  expect(mock.errors).toEqual([])
+})
+
+test('Chinese IME does not submit and stop uses the existing endpoint', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始新对话' }).click()
+  const editor = page.getByRole('textbox', { name: '消息', exact: true })
+  await editor.fill('输入法正在选字')
+  await editor.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, keyCode: 229 })
+  expect(mock.calls.filter(call => call.path.startsWith('/agent/send/'))).toHaveLength(0)
+  await editor.fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
+  await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()
+  expect(mock.calls.some(call => call.path === '/agent/stop/session-1')).toBe(true)
+  expect(mock.errors).toEqual([])
+})
+
+test('connection failure is visible and does not replace the page with a blank screen', async ({ page }) => {
+  await page.route('**/api/config/read', route => route.fulfill({ status: 503, body: 'Unavailable' }))
+  await page.goto('/')
+  await expect(page.getByRole('alert')).toContainText('无法连接后端')
+  await expect(page.getByRole('heading', { name: /每个想法/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible()
 })

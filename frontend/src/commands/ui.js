@@ -64,6 +64,7 @@ async function leaveCurrentView() {
 async function openHome() {
   if (!await leaveCurrentView()) return false                        // 保存失败时保留设置页和草稿
   store.ui.view = 'home'                                             // 再反馈主页内容
+  collapseSidebarOnMobile()
   return true                                                        // 反馈导航完成
 }
 
@@ -103,7 +104,7 @@ function setSearch(value) {
 function notify(message) {
   store.ui.toast = message                                           // 立即展示用户动作结果
   window.clearTimeout(toastTimer)                                    // 新反馈取代旧计时器
-  toastTimer = window.setTimeout(() => { store.ui.toast = '' }, 1800) // 1800ms 兼顾阅读完成和节奏紧凑，比 2 秒更快收回视觉焦点
+  toastTimer = window.setTimeout(() => { store.ui.toast = '' }, 5000)
 }
 
 

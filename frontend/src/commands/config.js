@@ -12,6 +12,7 @@ async function load() {
   try {
     const raw = await AgentAPI.getConfig()               // 读取脱敏持久化配置
     apply(raw)                                            // 将 Server 数据转换为设置页面结构
+    store.ui.errorMessage = ''
     return true                                           // 反馈应用启动可以继续
   } catch (error) {
     store.ui.errorMessage = error.message                 // 页面展示真实连接或协议错误
@@ -32,7 +33,7 @@ function apply(raw) {
       protocol: p.protocol || 'openai-compatible',
       baseURL: p.baseURL || p.api || '',
       apiKey: p.apiKey || p.key || '',
-      models: Array.isArray(p.models) ? p.models : [],
+      models: Array.isArray(p.models) ? p.models.map(model => typeof model === 'string' ? model : model.id) : [],
       modelSettings: p.modelSettings || {},
       timeout: p.timeout || 120000,
       headers: p.headers || '{}',
@@ -44,10 +45,10 @@ function apply(raw) {
   }
 
   // 后端 permission 是规则数组，前端工具设置需要按工具名聚合
-  const permissionRules = Array.isArray(raw.permission) ? raw.permission : []
+  const permissionRules = Object.entries(raw.permission || {}).map(([tool, action]) => ({ tool, action }))
   const toolMap = {}
   for (const rule of permissionRules) {
-    if (!rule.tool || rule.tool === '*') continue          // 跳过通配符规则
+    if (!rule.tool || typeof rule.action !== 'string') continue
     if (!toolMap[rule.tool]) toolMap[rule.tool] = rule.action
   }
   const toolSettings = Object.entries(toolMap).map(([name, action]) => ({
@@ -62,7 +63,7 @@ function apply(raw) {
     definition: structuredClone(definition),
   }))
 
-  const firstProvider = Object.keys(providers)[0] || ''
+  const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || Object.keys(providers)[0] || ''
   const firstModels = providers[firstProvider]?.models || []
   const activeModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
 
@@ -70,7 +71,7 @@ function apply(raw) {
     providers,
     tools: toolSettings,
     mcp,
-    prompt: raw.prompts?.system || '',
+    prompt: raw.prompt?.system || '',
     appearance: store.config.appearance,
     activeProvider: firstProvider,
     activeModel,

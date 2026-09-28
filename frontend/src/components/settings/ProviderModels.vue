@@ -19,12 +19,25 @@ const emit = defineEmits(['update:models'])             // 输出变更后的模
 
 const chooserDialog = ref(null)                        // 远程模型选择弹窗引用
 const availableModels = ref([])                        // 远程获取后的去重候选模型列表
+const manualModel = ref('')
+const loading = ref(false)
+
+function addManualModel() {
+  const id = manualModel.value.trim()
+  if (!id) return
+  if (!props.models.some(model => model.id === id)) emit('update:models', [...props.models, { id, name: id, capabilities: ['文本', '工具'] }])
+  manualModel.value = ''
+}
 
 
 // --- 打开模型选择弹窗 ---
 async function openChooser() {
-  availableModels.value = await Settings.discoverModels(props.provider, props.models) // 调用指令获取去重后的完整列表
-  chooserDialog.value.show()                           // 数据就绪后打开弹窗
+  if (loading.value) return
+  loading.value = true
+  try {
+    availableModels.value = await Settings.discoverModels(props.provider, props.models)
+    chooserDialog.value.show()
+  } finally { loading.value = false }
 }
 
 
@@ -48,11 +61,13 @@ function removeModel(modelID) {
     <!-- 标题行：模型计数和获取按钮。 -->
     <div class="provider-models__heading">
       <m3e-heading variant="title" size="medium" level="3">模型列表 <span>{{ props.models.length }} 个已添加模型</span></m3e-heading>
-      <m3e-button type="button" variant="outlined" @click="openChooser">
+      <m3e-button type="button" variant="outlined" :disabled="loading" @click="openChooser">
         <HugeiconsIcon slot="icon" :icon="CloudDownloadIcon" :stroke-width="ICON_STROKE_WIDTH" />
-        获取模型列表
+        {{ loading ? '获取中…' : '获取模型列表' }}
       </m3e-button>
     </div>
+
+    <div class="manual-model"><label class="sr-only" for="manual-model-id">手动添加模型 ID</label><input id="manual-model-id" v-model="manualModel" class="field" placeholder="手动输入模型 ID" @keydown.enter.prevent="addManualModel" /><button type="button" class="button" :disabled="!manualModel.trim()" @click="addManualModel">添加模型</button></div>
 
     <!-- 已添加模型列表。 -->
     <m3e-list class="provider-models__list">
@@ -86,6 +101,9 @@ function removeModel(modelID) {
 <style scoped lang="scss">
 /* --- 模型管理面板：垂直排列标题和列表 --- */
 .provider-models { display: flex; flex-direction: column; gap: 16px; }
+.manual-model { display: flex; align-items: center; gap: 8px; }
+.manual-model .field { min-width: 0; flex: 1; font-size: 12px; }
+.manual-model .button { flex-shrink: 0; }
 
 /* --- 标题行：左侧计数，右侧获取按钮 --- */
 .provider-models__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

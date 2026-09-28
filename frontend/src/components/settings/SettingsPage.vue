@@ -1,198 +1,78 @@
-<!--
-设置页壳：维护整页草稿、分类切换与离开页面自动保存。
-设计思想：具体分类组件只修改草稿，保存时机由本页统一管理。
-核心数据：settingsDraft（隔离草稿）、selectedSectionID（当前分类）。
-调用示例：<SettingsPage @save="Settings.replaceDraftAndSave" />。
--->
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'          // 引入响应式计算、卸载钩子和本地状态
-import ProviderSettings from './ProviderSettings.vue'         // 引入供应商配置分类
-import ToolsSettings from './ToolsSettings.vue'               // 引入工具权限管理分类
-import MCPSettings from './MCPSettings.vue'                   // 引入 MCP 服务管理分类
-import PromptsSettings from './PromptsSettings.vue'           // 引入系统提示词编辑分类
-import AppearanceSettings from './AppearanceSettings.vue'     // 引入外观分类
-import SettingsNavigation from './SettingsNavigation.vue'     // 引入设置分类总览
-import SettingsPlaceholder from './SettingsPlaceholder.vue'   // 引入尚未实现分类的占位组件（数据管理）
-import { Settings } from '../../commands/settings.js'         // 引入设置草稿创建指令
-import { store } from '../../store.js'                        // 引入全局设置草稿状态
-import { Add01Icon, ArrowLeft01Icon, Share01Icon, Wrench01Icon, GridViewIcon, FileEditIcon, ColorsIcon, Database01Icon } from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/vue'
-import { ICON_STROKE_WIDTH } from '../../theme.js'
+import './register.js'
+import { computed, ref } from 'vue'
+import AppIcon from '../AppIcon.vue'
+import ProviderSettings from './ProviderSettings.vue'
+import PromptsSettings from './PromptsSettings.vue'
+import AppearanceSettings from './AppearanceSettings.vue'
+import { Settings } from '../../commands/settings.js'
+import { UI } from '../../commands/ui.js'
+import { store } from '../../store.js'
 
-const emit = defineEmits(['save'])                            // 离开设置页时向业务层提交完整设置快照
-
-const sections = [                                            // 设置分类定义，供导航和正文共同使用
-  { id: 'providers', label: '供应商配置', icon: Share01Icon, description: '配置模型供应商、凭据与模型能力。' },
-  { id: 'tools', label: '工具管理', icon: Wrench01Icon, description: '管理 Agent 可调用的本地与内置工具。' },
-  { id: 'mcp', label: 'MCP 管理', icon: GridViewIcon, description: '连接、启用并诊断 MCP 服务。' },
-  { id: 'prompts', label: '系统提示词定义', icon: FileEditIcon, description: '维护系统提示词和可复用规则片段。' },
-  { id: 'appearance', label: '外观', icon: ColorsIcon, description: '调整动态颜色、对比度、密度与界面动效。' },
-  { id: 'data', label: '数据管理', icon: Database01Icon, description: '导入、导出、清理或迁移本地数据。' },
+const sections = [
+  { id: 'providers', label: '模型供应商', icon: 'globe', description: '连接你信任的模型，找到适合你的搭档。' },
+  { id: 'prompts', label: '系统提示词', icon: 'document', description: '告诉 la 你的偏好，让每次对话更合拍。' },
+  { id: 'appearance', label: '外观与通用', icon: 'spark', description: '选择一个让你专注、舒适的工作环境。' },
+  { id: 'tools', label: '工具管理', icon: 'code', disabled: true },
+  { id: 'mcp', label: 'MCP 服务', icon: 'link', disabled: true },
+  { id: 'data', label: '数据管理', icon: 'folder', disabled: true },
 ]
-
-const selectedSectionID = ref(null)                           // 首次进入设置时展示分类总览
-const settingsTransitionName = ref('settings-forward')        // 根据进入或返回方向选择对应页面动效
-const selectedSection = computed(() => sections.find(section => section.id === selectedSectionID.value)) // 当前分类对象供正文标题和占位复用
-
-// 组件初始化时确保隔离草稿存在，避免从主页直接跳转到设置时草稿为空
+const selected = ref('providers')
+const section = computed(() => sections.find(item => item.id === selected.value))
+const draft = computed(() => store.settings.draft)
 if (!store.settings.draft) Settings.open()
 
-const settingsDraft = computed(() => store.settings.draft)    // 所有分类子组件共享的正式隔离草稿
-
-function updateAppearance({ field, value }) {
-  store.settings.draft.appearance[field] = value
-}
-
-function openSection(sectionID) {
-  settingsTransitionName.value = 'settings-forward'
-  selectedSectionID.value = sectionID
-}
-
-function closeSection() {
-  settingsTransitionName.value = 'settings-back'
-  selectedSectionID.value = null
-}
-
-function nextName(items, prefix) {
-  let number = items.length + 1
-  const names = new Set(items.map(item => item.name))
-  while (names.has(`${prefix} ${number}`)) number += 1
-  return `${prefix} ${number}`
-}
-
 function addProvider() {
-  const providers = settingsDraft.value.providers
-  providers.push({ id: `provider-${crypto.randomUUID()}`, name: nextName(providers, 'Provider'), enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', models: [] })
+  const providers = draft.value.providers
+  let number = providers.length + 1
+  while (providers.some(item => item.name === `Provider ${number}`)) number += 1
+  providers.push({ id: `provider-${crypto.randomUUID()}`, name: `Provider ${number}`, enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', models: [] })
 }
 
-function addMCP() {
-  const mcp = settingsDraft.value.mcp
-  mcp.push({ id: `mcp-${crypto.randomUUID()}`, name: nextName(mcp, 'MCP'), command: '', enabled: true, definition: { transport: 'stdio', args: [], env: {} } })
+async function save() {
+  if (await Settings.save()) { Settings.open(); UI.notify('设置已保存') }
 }
-
-
-// --- 离开设置页时保存当前草稿快照 ---
-function saveSettings() {
-  if (settingsDraft.value) emit('save', structuredClone(settingsDraft.value)) // 克隆后提交，避免外部继续引用内部响应式数据
-}
-
-
-onBeforeUnmount(saveSettings)                                 // 路由卸载或预览切换都视为离开设置页
 </script>
 
 <template>
-  <main class="settings-page">
-    <Transition :name="settingsTransitionName" mode="out-in">
-      <SettingsNavigation v-if="!selectedSectionID" key="overview" :items="sections" @select="openSection" />
-      <section v-else-if="settingsDraft" :key="selectedSectionID" class="settings-page__detail">
-        <header class="settings-page__detail-header">
-          <m3e-icon-button type="button" shape="rounded" aria-label="返回设置" title="返回设置" @click="closeSection">
-            <HugeiconsIcon :icon="ArrowLeft01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-          </m3e-icon-button>
-          <span class="settings-page__detail-title">
-            <m3e-heading variant="headline" size="small" level="1">{{ selectedSection.label }}</m3e-heading>
-            <span>{{ selectedSection.description }}</span>
-          </span>
-          <m3e-icon-button v-if="selectedSectionID === 'providers'" id="add-provider" class="settings-page__header-action" type="button" shape="rounded" aria-label="添加供应商" @click="addProvider">
-            <HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-          </m3e-icon-button>
-          <m3e-rich-tooltip v-if="selectedSectionID === 'providers'" for="add-provider">添加供应商</m3e-rich-tooltip>
-          <m3e-icon-button v-if="selectedSectionID === 'mcp'" id="add-mcp" class="settings-page__header-action" type="button" shape="rounded" aria-label="添加 MCP 服务" @click="addMCP">
-            <HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" />
-          </m3e-icon-button>
-          <m3e-rich-tooltip v-if="selectedSectionID === 'mcp'" for="add-mcp">添加 MCP 服务</m3e-rich-tooltip>
-        </header>
-        <ProviderSettings v-if="selectedSectionID === 'providers'" v-model:providers="settingsDraft.providers" />
-        <ToolsSettings v-else-if="selectedSectionID === 'tools'" v-model:tools="settingsDraft.tools" />
-        <MCPSettings v-else-if="selectedSectionID === 'mcp'" v-model:mcp="settingsDraft.mcp" />
-        <PromptsSettings v-else-if="selectedSectionID === 'prompts'" v-model:prompt="settingsDraft.prompt" />
-        <AppearanceSettings v-else-if="selectedSectionID === 'appearance'" :appearance="settingsDraft.appearance" @change="updateAppearance" />
-        <SettingsPlaceholder
-          v-else
-          :title="selectedSection.label"
-          :description="selectedSection.description"
-          :icon="selectedSection.icon"
-        />
-      </section>
-    </Transition>
-  </main>
+  <section class="settings-page" aria-label="设置">
+    <aside class="settings-nav"><div class="settings-nav__heading"><span class="eyebrow">MAKE IT YOURS</span><h2>设置与偏好</h2></div><nav aria-label="设置分类"><button v-for="item in sections" :key="item.id" :class="{ active: selected === item.id }" :disabled="item.disabled" :title="item.disabled ? '当前后端未提供此管理功能，暂不可用' : item.label" :aria-current="selected === item.id ? 'page' : undefined" @click="selected = item.id"><AppIcon :name="item.icon" :size="17" /><span>{{ item.label }}</span><small v-if="item.disabled">待支持</small></button></nav><p class="settings-nav__note">未接入的后端能力暂不开放。<br />工具审批仍可在对话中完成。</p></aside>
+    <div class="settings-content">
+      <header class="settings-heading"><div><h2>{{ section.label }}</h2><p>{{ section.description }}</p></div><button class="button button--primary" :disabled="store.settings.isSaving" @click="save"><AppIcon name="check" :size="16" />{{ store.settings.isSaving ? '保存中…' : '保存设置' }}</button></header>
+      <template v-if="draft">
+        <div v-if="selected === 'providers'" class="settings-provider-note"><span>API 凭据仅用于连接你配置的服务；不会保存在浏览器存储中。</span><button class="button" @click="addProvider"><AppIcon name="plus" :size="15" />添加供应商</button></div>
+        <ProviderSettings v-if="selected === 'providers'" v-model:providers="draft.providers" />
+        <PromptsSettings v-else-if="selected === 'prompts'" v-model:prompt="draft.prompt" />
+        <AppearanceSettings v-else :appearance="draft.appearance" @change="draft.appearance[$event.field] = $event.value" />
+      </template>
+      <footer class="settings-save-note"><AppIcon name="info" :size="14" />离开设置时也会保存。外观偏好仅保存在本浏览器。</footer>
+    </div>
+  </section>
 </template>
 
 <style scoped lang="scss">
-/* --- 设置页主容器 --- */
-.settings-page {
-  display: flex;
-  width: 100%;
-  min-height: 100%;
-  flex-direction: column;
-  background: var(--md-sys-color-background);
-}
-
-.settings-page__detail {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
-
-.settings-page__detail-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px 32px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.settings-page__detail-title {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.settings-page__detail-header span {
-  color: var(--md-sys-color-outline);
-  font-size: 13px;
-}
-
-.settings-page__header-action { margin-left: auto; }
-
-
-.settings-forward-enter-active,
-.settings-back-enter-active {
-  transition: opacity 220ms ease, transform 300ms var(--motion-spring-bouncy);
-}
-
-.settings-forward-leave-active,
-.settings-back-leave-active {
-  transition: opacity 120ms ease, transform 140ms ease;
-}
-
-.settings-forward-enter-from,
-.settings-back-leave-to {
-  opacity: 0;
-  transform: translateX(24px);
-}
-
-.settings-forward-leave-to,
-.settings-back-enter-from {
-  opacity: 0;
-  transform: translateX(-16px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .settings-forward-enter-active,
-  .settings-forward-leave-active,
-  .settings-back-enter-active,
-  .settings-back-leave-active {
-    transition: none;
-  }
-}
-
-/* --- 窄屏适配：纵向堆叠导航和内容 --- */
-@media (max-width: 760px) {
-  .settings-page__detail-header { padding: 14px 16px; }
-}
+.settings-page { height: 100%; display: flex; min-width: 0; overflow: hidden; }
+.settings-nav { width: 205px; flex: 0 0 205px; border-right: 1px solid var(--la-line); padding: 32px 16px; background: var(--la-hover); }
+.settings-nav__heading { padding: 0 12px 25px; }
+.settings-nav h2 { font-size: 18px; font-weight: 500; margin: 10px 0 0; }
+.settings-nav .eyebrow { font-size: 8px; }
+.settings-nav nav { display: grid; gap: 5px; }
+.settings-nav button { display: flex; gap: 10px; align-items: center; width: 100%; padding: 13px 12px; border: 1px solid transparent; border-radius: 8px; text-align: left; background: none; color: var(--la-secondary); cursor: pointer; font-size: 12px; }
+.settings-nav button.active { color: var(--la-accent); background: var(--la-accent-soft); border-color: var(--la-accent-border); }
+.settings-nav button:hover:not(:disabled) { background: var(--la-hover); }
+.settings-nav small { margin-left: auto; font-size: 8px; color: var(--la-muted); }
+.settings-nav__note { font-size: 9px; line-height: 1.9; color: var(--la-muted); padding: 20px 12px 0; margin-top: 18px; border-top: 1px solid var(--la-line); }
+.settings-content { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.settings-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 31px 30px 24px; border-bottom: 1px solid var(--la-line); }
+.settings-heading h2 { font-size: 21px; font-weight: 500; margin: 0 0 10px; }
+.settings-heading p { color: var(--la-muted); font-size: 11px; line-height: 1.8; margin: 0; }
+.settings-heading .button { flex-shrink: 0; }
+.settings-provider-note { padding: 16px 30px; display: flex; gap: 15px; justify-content: space-between; align-items: center; }
+.settings-provider-note > span { font-size: 10px; line-height: 1.8; color: var(--la-muted); }
+.settings-provider-note .button { flex-shrink: 0; }
+.settings-save-note { display: flex; align-items: center; gap: 7px; color: var(--la-muted); font-size: 10px; line-height: 1.8; border-top: 1px solid var(--la-line); padding: 17px 30px; margin-top: auto; }
+:deep(.provider-editor) { padding: 24px 26px 40px; gap: 24px; }
+:deep(.provider-settings) { flex: none; min-height: 400px; }
+@media (max-width: 1100px) { .settings-nav { width: 180px; flex-basis: 180px; padding-inline: 12px; } :deep(.provider-settings) { flex-direction: column; } :deep(.provider-list) { width: 100%; flex-basis: auto; min-height: auto; } }
+@media (max-width: 760px) { .settings-page { flex-direction: column; overflow-y: auto; } .settings-nav { width: 100%; flex: none; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--la-line); } .settings-nav__heading, .settings-nav__note { display: none; } .settings-nav nav { display: flex; overflow-x: auto; gap: 6px; padding: 2px; } .settings-nav button { width: auto; white-space: nowrap; padding: 10px 12px; } .settings-nav button:disabled { display: none; } .settings-content { overflow: visible; flex: none; } .settings-heading { padding: 22px 20px; gap: 10px; } .settings-heading h2 { font-size: 19px; } .settings-heading p { font-size: 10px; } .settings-provider-note { padding: 14px 20px; flex-wrap: wrap; } .settings-save-note { padding: 16px 20px; } :deep(.provider-editor) { padding: 22px 20px 32px; } }
 </style>

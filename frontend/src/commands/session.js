@@ -96,11 +96,11 @@ async function rename(sessionID, title) {
   const cleanTitle = title.trim()                       // 标题不保留首尾空白
   const found = locate(sessionID)                       // 查找摘要归属
   const session = store.sessions[sessionID]             // 查找完整会话
-  if (!cleanTitle || !found || !session) return false   // 无效输入不改变两份数据
+  if (!cleanTitle || !found) return false
   try {
-    const result = await AgentAPI.updateSession(sessionID, { title: cleanTitle }) // Server 完成验证和持久化
+    const result = await AgentAPI.renameSession(sessionID, cleanTitle)
     found.summary.title = result.title                  // 更新侧边栏和主页摘要
-    session.title = result.title                        // 更新对话页完整会话
+    if (session) session.title = result.title
     return true                                         // 标题编辑器退出编辑
   } catch (error) {
     UI.notify(error.message)                            // 保留编辑器内容并显示错误
@@ -131,35 +131,30 @@ async function remove(sessionID) {
 
 // --- 切换会话模型 ---
 async function selectModel(sessionID, provider, model) {
-  const session = store.sessions[sessionID]             // 读取当前会话
-  const found = locate(sessionID)                       // 读取摘要
-  const providerConfig = store.config.providers[provider] // 读取 `/config` 中的供应商模型目录
-  if (!session || !found || providerConfig?.enabled === false || !providerConfig?.models?.includes(model)) return false // 只接受已配置模型
-  try {
-    await AgentAPI.updateSession(sessionID, { model })    // 持久化本会话模型选择
-    session.provider = provider                         // 操作框即时反馈供应商
-    session.model = model                               // 操作框即时反馈模型
-    session.contextLimit = providerConfig.modelSettings?.[model]?.context || 128000 // 同步上下文上限
-    found.summary.model = model                         // 列表摘要即时反馈选择
-    return true                                         // 通知选择成功
-  } catch (error) {
-    UI.notify(error.message)                            // 展示 Server 配置错误
-    return false                                        // 保持旧选择
-  }
+  UI.notify('当前后端不支持切换已有会话的模型，请返回首页选择模型后新建对话')
+  return false
 }
 
 
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
-  const provider = findModelProvider(source.model)       // 从 `/config` 模型目录解析供应商
+  const provider = source.provider || findModelProvider(source.model)
 
   // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
   const sessionData = structuredClone(source)            // Server 返回的 Session 即为前端公开结构
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
-  for (const item of source.messages ?? []) {
+  for (const item of source.history ?? []) {
     const parts = Array.isArray(item.parts) ? item.parts
       : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
     const message = structuredClone(item)                // 复制消息避免归一化修改 Server 响应
+    message.id = item.messageId || item.id
+    if (item.role === 'tool') {
+      for (const result of parts.filter(part => part.type === 'tool-result')) {
+        const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
+        if (tool) { tool.status = result.output?.type === 'error-text' ? 'error' : 'completed'; tool.preview = formatToolOutput(result.output) }
+      }
+      continue
+    }
     message.reasoning = parts.filter((p) => p.type === 'reasoning').map((p) => p.reasoning || p.text || '').join('') // 合并推理块
     message.content = parts.filter((p) => p.type === 'text').map((p) => p.text || '').join('') // 合并文本块
     message.tools = parts
@@ -176,6 +171,10 @@ function normalize(source, previous = {}) {
   // 阶段二：组合最终前端会话结构，补齐仅前端使用的草稿和用量字段
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
+    workspaceID: source.workspaceId,
+    status: previous.status || 'idle',
+    connection: previous.connection || 'connecting',
+    canRedo: previous.canRedo || false,
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
     titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
     provider,                                           // 模型选择器显示供应商
@@ -233,6 +232,20 @@ function syncSummary(session) {
   Object.assign(found.summary, summaryOf(session))       // 将最新标题、状态、计数和时间写回列表
 }
 
+async function openByID(id) {
+  const sessionID = id.trim()
+  if (!/^[\w-]+$/.test(sessionID)) { UI.notify('请输入有效的会话 ID'); return false }
+  try {
+    const source = await AgentAPI.getSession(sessionID)
+    const session = normalize(source)
+    if (!locate(sessionID)) store.workspaces[0].sessions.unshift(summaryOf(session))
+    store.sessions[sessionID] = session
+    rememberOpened(sessionID)
+    await UI.openChat(sessionID)
+    return true
+  } catch (error) { UI.notify(error.message); return false }
+}
+
 
 // --- 完成标题编辑器保存 ---
 async function saveTitleEditing(currentTitle, draft, editing, emit) {
@@ -243,4 +256,4 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 }
 
 
-export const Session = { locate, create, open, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing } // 暴露会话全部业务动作
+export const Session = { locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing }

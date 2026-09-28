@@ -8,6 +8,8 @@ import { store } from '../store.js'                     // 引入已保存配置
 import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
 import { UI } from './ui.js'                            // 引入保存错误轻反馈
 
+let initialBackendDraft = ''
+
 
 // --- 隔离设置草稿数据 ---
 function isolateDraft(value) {
@@ -21,6 +23,7 @@ function open() {
   const providers = Object.entries(store.config.providers).map(([name, provider], index) => ({
     id: provider.id || `provider-${index + 1}`,         // 保留已有 ID，否则按顺序生成稳定身份
     name,                                                // 供应商键名即为编辑器显示名
+    sourceName: name,
     enabled: provider.enabled !== false,                 // 未明确关闭的供应商视为启用
     apiType: provider.protocol || 'openai-compatible',  // protocol 映射为前端选择器使用的 apiType 字段
     apiUrl: provider.baseURL || '',                      // Server 的 baseURL 对应编辑器中的请求地址
@@ -37,6 +40,7 @@ function open() {
     prompt: store.config.prompt,
     appearance: store.config.appearance,
   })
+  initialBackendDraft = JSON.stringify({ providers: store.settings.draft.providers, prompt: store.settings.draft.prompt })
 }
 
 
@@ -46,34 +50,36 @@ async function save() {
   if (!draft || store.settings.isSaving) return false
   store.settings.isSaving = true
   try {
+    if (JSON.stringify({ providers: draft.providers, prompt: draft.prompt }) === initialBackendDraft) {
+      store.config.appearance = isolateDraft(draft.appearance)
+      persistAppearance(draft.appearance)
+      store.settings.savedAt = Date.now()
+      store.settings.draft = null
+      return true
+    }
+    const names = (draft.providers || []).map(provider => provider.name.trim())
+    if (names.some(name => !name) || new Set(names).size !== names.length) throw new Error('供应商名称不能为空或重复')
     const providers = (draft.providers || []).map(provider => ({
-      name: provider.name,
+      ...(store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name)),
+      name: provider.name.trim(),
       baseURL: provider.apiUrl || '',
-      key: provider.apiKey || '',
+      apiKey: provider.apiKey || '',
       enabled: provider.enabled !== false,
       protocol: provider.apiType || 'openai-compatible',
-      models: (provider.models || []).map(model => ({
-        id: typeof model === 'string' ? model : model.id || model.name,
-        contextWindow: typeof model === 'string' ? 128000 : model.contextWindow ?? model.context ?? 128000,
-        maxOutput: typeof model === 'string' ? 16000 : model.maxOutput ?? model.maxOutputTokens ?? 16000,
-      })),
+      models: (provider.models || []).map(model => {
+        const id = typeof model === 'string' ? model : model.id || model.name
+        const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))?.models?.find(item => (typeof item === 'string' ? item : item.id) === id)
+        return original === undefined ? id : isolateDraft(original)
+      }),
     }))
-    const permission = Object.fromEntries(
-      (draft.tools || []).map(tool => [tool.name, tool.permission || (tool.enabled ? 'ask' : 'deny')])
-    )
-    const mcp = Object.fromEntries(
-      (draft.mcp || []).map(item => [item.name, { ...item.definition, command: item.command, enabled: item.enabled }])
-    )
-
     await AgentAPI.updateConfig({
+      ...JSON.parse(JSON.stringify(store.config.raw || {})),
       providers,
-      prompts: { system: draft.prompt },
-      permission,
-      mcp,
+      prompt: { ...store.config.raw?.prompt, system: draft.prompt },
     })
     store.config.appearance = isolateDraft(draft.appearance)
     persistAppearance(draft.appearance)
-    await Config.load()
+    if (!await Config.load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
     store.settings.savedAt = Date.now()
     store.settings.draft = null
     return true
