@@ -1,0 +1,51 @@
+// Theme surfaces and layout dimensions. Component styles consume these variables.
+m3e-theme {
+  --la-bg: #10141d;
+  --la-sidebar: #181b21;
+  --la-panel: #1b1e24;
+  --la-settings-nav: #181b21;
+  --la-setting-row: #22262e;
+  --la-input: #1a1e27;
+  --la-text: #e4e6eb;
+  --la-secondary: #b0b4bf;
+  --la-muted: #858c9b;
+  --la-line: #ffffff12;
+  --la-hover: #ffffff07;
+  --la-accent: #aac9ff;
+  --la-accent-soft: #8db7ff18;
+  --la-accent-border: #a8c9ff36;
+  --la-danger: #f0aaa9;
+  --la-on-accent: #10223e;
+  --la-action: #dde1e7;
+  --la-on-action: #1b1e24;
+  --la-radius: 4px;
+  --la-radius-panel: 6px;
+  --la-font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --la-chat-gutter: clamp(24px, 4vw, 64px);
+  --la-sidebar-width: 224px;
+}
+
+m3e-theme[scheme="light"] {
+  --la-bg: #f7f8fb;
+  --la-sidebar: #eeeff2;
+  --la-panel: #fafafa;
+  --la-settings-nav: #eeeef1;
+  --la-setting-row: #f0f1f4;
+  --la-input: #fff;
+  --la-text: #252735;
+  --la-secondary: #54576a;
+  --la-muted: #6b6e7e;
+  --la-line: #1b223e18;
+  --la-hover: #1b223e09;
+  --la-accent: #3966b1;
+  --la-accent-soft: #578adc12;
+  --la-accent-border: #648ed333;
+  --la-danger: #b44141;
+  --la-on-accent: #fff;
+  --la-action: #303642;
+  --la-on-action: #fff;
+}
+
+@media (max-width: 760px) {
+  m3e-theme { --la-chat-gutter: 18px; }
+}

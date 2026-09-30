@@ -20,7 +20,9 @@ function loadAppearance() {
 // --- 工作台唯一数据根 ---
 export const store = reactive({
   ui: {
-    view: 'home',                                      // 当前页面为 home、chat 或 settings
+    view: 'home',                                      // home 为尚未创建的对话，chat 为已有会话
+    settingsOpen: false,
+    settingsSection: 'appearance',
     sidebarOpen: window.innerWidth > 760,              // 760px 是移动端与桌面端的响应式断点，窄屏首次进入时收起侧栏优先展示主内容
     activeWorkspaceID: '',                             // 主页当前工作区身份
     activeSessionID: '',                               // 对话页当前会话身份

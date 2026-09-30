@@ -8,7 +8,7 @@
 }
 * { box-sizing: border-box; }
 html, body, #app { width: 100%; min-width: 320px; height: 100%; margin: 0; }
-body { overflow: hidden; background: #0c111c; }
+body { overflow: hidden; background: #10141d; }
 button, input, select, textarea { font: inherit; }
 button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
 button { touch-action: manipulation; }
@@ -19,55 +19,40 @@ button svg { flex-shrink: 0; }
 ::selection { background: #6e95df55; }
 * { scrollbar-width: thin; scrollbar-color: #63708a44 transparent; }
 m3e-theme {
-  --la-bg: #0c111c;
-  --la-sidebar: #11141b;
-  --la-panel: #141a25;
-  --la-input: #171e2b;
-  --la-text: #edf0f7;
-  --la-secondary: #a4aebe;
-  --la-muted: #788399;
-  --la-line: #adbfe314;
-  --la-hover: #b4c9f00b;
-  --la-accent: #a9c4ff;
-  --la-accent-soft: #719de915;
-  --la-accent-border: #9ab9ef29;
-  --la-danger: #f2a5a5;
-  --la-on-accent: #142747;
   display: block; height: 100%; color: var(--la-text); background: var(--la-bg); color-scheme: dark;
   --m3e-button-shape-square: 10px;
   --m3e-button-shape-round: 10px;
   --m3e-list-item-container-shape: 8px;
 }
 m3e-theme[scheme="light"] {
-  --la-bg: #f7f9fc; --la-sidebar: #f0f3f8; --la-panel: #fff; --la-input: #fff;
-  --la-text: #1b273c; --la-secondary: #52617b; --la-muted: #63728a;
-  --la-line: #20385f1a; --la-hover: #32497a09; --la-accent: #3966b1;
-  --la-accent-soft: #578adc12; --la-accent-border: #648ed333; --la-danger: #b44141;
-  --la-on-accent: #fff;
   color-scheme: light;
 }
 .preview-page { display: flex; width: 100%; height: 100dvh; overflow: hidden; }
-.brand-mark { width: 36px; height: 36px; position: relative; display: grid; place-items: center; border: 1px solid #a8c4fc66; border-radius: 11px; background: linear-gradient(145deg, #9ebdfa20, #46679a18); color: var(--la-text); font-size: 20px; font-weight: 500; letter-spacing: -2px; padding-right: 2px; }
-.brand-mark > span { width: 4px; height: 4px; position: absolute; top: 6px; right: 5px; border-radius: 50%; background: #a9c4ff; }
-.icon-button { display: inline-flex; justify-content: center; align-items: center; width: 36px; height: 36px; flex-shrink: 0; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--la-secondary); background: none; cursor: pointer; }
+.icon-button { display: inline-flex; justify-content: center; align-items: center; width: 34px; height: 34px; flex-shrink: 0; padding: 0; border: 1px solid transparent; border-radius: var(--la-radius); color: var(--la-secondary); background: none; cursor: pointer; }
 .icon-button:hover { background: var(--la-hover); color: var(--la-text); }
-.button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 39px; padding: 9px 15px; border: 1px solid var(--la-line); border-radius: 9px; background: var(--la-panel); color: var(--la-text); cursor: pointer; font-size: 12px; text-decoration: none; }
+.button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 36px; padding: 8px 14px; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: var(--la-panel); color: var(--la-text); cursor: pointer; font-size: 12px; text-decoration: none; }
 .button:hover { background: var(--la-hover); border-color: var(--la-accent-border); }
-.button--primary { background: var(--la-accent); color: var(--la-on-accent); border-color: transparent; font-weight: 600; }
-.button--primary:hover { background: color-mix(in srgb, var(--la-accent) 90%, white); }
+.button--primary { background: var(--la-action); color: var(--la-on-action); border-color: transparent; font-weight: 550; }
+.button--primary:hover { background: color-mix(in srgb, var(--la-action) 88%, var(--la-panel)); }
 .button--danger { color: var(--la-danger); }
 .text-button { border: 0; background: transparent; color: var(--la-accent); padding: 5px 0; cursor: pointer; font-size: 12px; }
-.status-dot { display: inline-block; width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: #8ac8b2; box-shadow: 0 0 8px #8ac8b233; }
+.status-dot { display: inline-block; width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--la-accent); }
 .eyebrow { color: var(--la-muted); font-size: 10px; line-height: 1.6; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; }
-.field { width: 100%; min-height: 42px; padding: 10px 12px; background: var(--la-input); color: var(--la-text); border: 1px solid var(--la-line); border-radius: 9px; outline-offset: 1px; }
+.field { width: 100%; min-height: 40px; padding: 10px 12px; background: var(--la-input); color: var(--la-text); border: 1px solid var(--la-line); border-radius: var(--la-radius); outline-offset: 1px; }
 .field::placeholder { color: var(--la-muted); }
-.dialog { width: min(460px, calc(100vw - 32px)); padding: 28px; background: var(--la-panel); color: var(--la-text); border: 1px solid var(--la-accent-border); border-radius: 18px; box-shadow: 0 30px 100px #0005; }
-.dialog::backdrop { background: #060a14b3; backdrop-filter: blur(5px); }
+.dialog { width: min(460px, calc(100vw - 32px)); padding: 28px; background: var(--la-panel); color: var(--la-text); border: 1px solid var(--la-line); border-radius: var(--la-radius-panel); box-shadow: 0 16px 48px #0004; }
+.dialog::backdrop { background: #060a1499; }
 .dialog h2 { margin: 0; font-size: 20px; font-weight: 550; }
 .dialog p { font-size: 12px; color: var(--la-secondary); line-height: 1.85; margin: 14px 0 24px; }
 .dialog label { display: grid; gap: 9px; font-size: 12px; color: var(--la-secondary); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.avatar { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: var(--la-hover); color: var(--la-secondary); }
+.avatar--assistant { font: 600 12px/1 var(--la-font-mono); }
+.switch { appearance: none; position: relative; flex: 0 0 36px; width: 36px; height: 20px; margin: 0; border: 0; border-radius: 20px; background: #646773; cursor: pointer; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch:checked { background: var(--la-accent); }
+.switch:checked::after { transform: translateX(16px); }
 .view-enter-active, .view-leave-active { transition: opacity .16s, transform .16s; }
 .view-enter-from { opacity: 0; transform: translateY(5px); }
 .view-leave-to { opacity: 0; }

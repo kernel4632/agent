@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import '@m3e/web/theme'
 import './styles/base.scss'
+import './styles/tokens.scss'
 import App from './App.vue'
 import { startWatchers } from './watchers.js'
 import { Config } from './commands/config.js'

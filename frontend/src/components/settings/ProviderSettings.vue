@@ -41,7 +41,7 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
 <template>
   <section class="provider-settings">
     <ProviderList :providers="props.providers" :selected-id="selectedProviderID" @select="selectedProviderID = $event" />
-    <ProviderEditor v-if="selectedProvider" :provider="selectedProvider" @update:provider="updateProvider" @delete="removeProvider" />
+    <ProviderEditor v-if="selectedProvider" :key="selectedProvider.id" :provider="selectedProvider" @update:provider="updateProvider" @delete="removeProvider" />
     <p v-else class="provider-settings__empty">添加一个供应商以开始配置</p>
   </section>
 </template>
@@ -49,6 +49,7 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
 <style scoped lang="scss">
 .provider-settings {
   display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1 1 auto;
 }

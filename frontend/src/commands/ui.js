@@ -55,8 +55,8 @@ export const activeModels = computed(() => {
 
 // --- 离开当前页面 ---
 async function leaveCurrentView() {
-  if (store.ui.view !== 'settings') return true                     // 非设置页无需执行保存
-  return Settings.save()                                            // 等待设置真实持久化后再导航
+  if (!store.ui.settingsOpen) return true
+  return closeSettings()
 }
 
 
@@ -80,11 +80,18 @@ async function openChat(sessionID) {
 
 
 // --- 打开设置页 ---
-async function openSettings() {
-  if (store.ui.view !== 'settings') Settings.open()                  // 首次进入时创建隔离草稿
-  store.ui.view = 'settings'                                         // 显示设置主页面
-  collapseSidebarOnMobile()                                          // 移动端优先展示设置内容
-  return true                                                        // 反馈设置页已经打开
+async function openSettings(section = 'appearance') {
+  if (!store.ui.settingsOpen) Settings.open()
+  store.ui.settingsSection = typeof section === 'string' ? section : 'appearance'
+  store.ui.settingsOpen = true
+  collapseSidebarOnMobile()
+  return true
+}
+
+async function closeSettings() {
+  if (!await Settings.save()) return false
+  store.ui.settingsOpen = false
+  return true
 }
 
 
@@ -127,4 +134,4 @@ function collapseSidebarOnMobile() {
 }
 
 
-export const UI = { openHome, openChat, openSettings, toggleSidebar, setSearch, notify, copy } // 暴露全部界面动作
+export const UI = { openHome, openChat, openSettings, closeSettings, toggleSidebar, setSearch, notify, copy }
