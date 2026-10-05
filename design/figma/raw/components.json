@@ -1,0 +1,84 @@
+{
+  "source": {
+    "figmaFile": "agent",
+    "fileKey": "XwwINqg57AQGyocLYDNCVN",
+    "extractedAt": "2026-10-05"
+  },
+  "note": "图标为 Hugeicons 库组件，前端直接用 @hugeicons 复用，不导入矢量。",
+  "components": [
+    {
+      "name": "用户头像",
+      "type": "COMPONENT",
+      "size": [
+        36,
+        36
+      ],
+      "category": "avatar"
+    },
+    {
+      "name": "助手头像",
+      "type": "COMPONENT",
+      "size": [
+        36,
+        36
+      ],
+      "category": "avatar"
+    },
+    {
+      "name": "Outgoing message",
+      "type": "COMPONENT",
+      "size": [
+        147,
+        99
+      ],
+      "category": "chat"
+    },
+    {
+      "name": "Agent message",
+      "type": "COMPONENT",
+      "size": [
+        227,
+        141
+      ],
+      "category": "chat"
+    },
+    {
+      "name": "Input composer",
+      "type": "COMPONENT",
+      "size": [
+        524,
+        149
+      ],
+      "category": "chat"
+    },
+    {
+      "name": "Auto Clear Toggle",
+      "type": "COMPONENT_SET",
+      "size": [
+        92,
+        120
+      ],
+      "category": "control",
+      "properties": {
+        "Property 1": {
+          "type": "VARIANT",
+          "default": "关",
+          "options": [
+            "关",
+            "开"
+          ]
+        }
+      },
+      "variants": [
+        {
+          "name": "Property 1=关",
+          "fill": "#4a4850"
+        },
+        {
+          "name": "Property 1=开",
+          "fill": "#a8c5ff"
+        }
+      ]
+    }
+  ]
+}

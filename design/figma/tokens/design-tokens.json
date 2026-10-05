@@ -1,0 +1,438 @@
+{
+  "source": {
+    "figmaFile": "agent",
+    "fileKey": "XwwINqg57AQGyocLYDNCVN",
+    "page": "Page 1",
+    "extractedAt": "2026-10-05",
+    "method": "figma-console-mcp (Desktop Bridge, port 9223)"
+  },
+  "note": "聚合统计，count 为该值在页面中的使用次数。部分数值为非整数，说明设计稿经过非整比例缩放，落地前端时应归整。",
+  "colors": {
+    "background": [
+      {
+        "value": "#080e1b",
+        "role": "图标/组件底板",
+        "count": 2
+      },
+      {
+        "value": "#121318",
+        "role": "设置页面/卡片/弹窗外层",
+        "count": 4
+      },
+      {
+        "value": "#1b1c22",
+        "role": "侧栏 / 输入框",
+        "count": 3
+      },
+      {
+        "value": "#38393e",
+        "role": "设置项行 / 搜索框",
+        "count": 10
+      },
+      {
+        "value": "#262b38",
+        "role": "推理状态块",
+        "count": 2
+      },
+      {
+        "value": "#333744",
+        "role": "发送按钮",
+        "count": 2
+      },
+      {
+        "value": "#414657",
+        "role": "会话项选中态",
+        "count": 1
+      },
+      {
+        "value": "#416092",
+        "role": "设置入口按钮",
+        "count": 1
+      },
+      {
+        "value": "#514f58",
+        "role": "设置导航选中态",
+        "count": 1
+      }
+    ],
+    "text": [
+      {
+        "value": "#f0f1f7",
+        "role": "侧栏主文本",
+        "count": 8
+      },
+      {
+        "value": "#f1f4fa",
+        "role": "聊天气泡文本",
+        "count": 7
+      },
+      {
+        "value": "#f4f3f7",
+        "role": "设置项标题",
+        "count": 11
+      },
+      {
+        "value": "#f7f7f8",
+        "role": "弹窗标题",
+        "count": 3
+      },
+      {
+        "value": "#f8f7fa",
+        "role": "页面标题",
+        "count": 1
+      },
+      {
+        "value": "#ffffff",
+        "role": "高对比文本/导航",
+        "count": 11
+      },
+      {
+        "value": "#aaa8b1",
+        "role": "设置项描述",
+        "count": 9
+      },
+      {
+        "value": "#b1bacb",
+        "role": "次要信息",
+        "count": 3
+      },
+      {
+        "value": "#b7c9f8",
+        "role": "日期分组",
+        "count": 2
+      },
+      {
+        "value": "#c8d0df",
+        "role": "输入占位",
+        "count": 2
+      },
+      {
+        "value": "#e8e6ec",
+        "role": "下拉值",
+        "count": 2
+      },
+      {
+        "value": "#758196",
+        "role": "token 统计",
+        "count": 2
+      },
+      {
+        "value": "#d8d6dd",
+        "role": "设置导航项",
+        "count": 3
+      }
+    ],
+    "accent": [
+      {
+        "value": "#a8c5ff",
+        "role": "开关开启 / 强调蓝",
+        "count": 3
+      },
+      {
+        "value": "#a978ff",
+        "role": "开关开启（紫，设计稿内）",
+        "count": 2
+      },
+      {
+        "value": "#22497e",
+        "role": "用户消息气泡",
+        "count": 2
+      },
+      {
+        "value": "#4a4850",
+        "role": "开关关闭",
+        "count": 3
+      },
+      {
+        "value": "#f6f5f8",
+        "role": "开关滑块",
+        "count": 3
+      }
+    ],
+    "stroke": [
+      {
+        "value": "#ffffff",
+        "role": "图标描边",
+        "count": 67
+      },
+      {
+        "value": "#b1bacb",
+        "role": "图标描边",
+        "count": 4
+      },
+      {
+        "value": "#f18b62",
+        "role": "图标描边",
+        "count": 2
+      },
+      {
+        "value": "#a8c5ff",
+        "role": "图标描边",
+        "count": 2
+      },
+      {
+        "value": "#8a38f5",
+        "role": "开关描边",
+        "count": 1
+      }
+    ],
+    "image": [
+      {
+        "value": "IMAGE",
+        "role": "聊天背景 / 头像位图",
+        "count": 9
+      }
+    ]
+  },
+  "typography": {
+    "primaryFamily": "HarmonyOS Sans SC",
+    "strayFamilies": [
+      "Alibaba Health Font 2.0 CN 85 B"
+    ],
+    "styles": [
+      {
+        "value": "HarmonyOS Sans SC Regular 16px lh:auto",
+        "count": 13,
+        "use": "设置项标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Bold 12.62px lh:auto",
+        "count": 8,
+        "use": "会话项 / 日期"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 13px lh:auto",
+        "count": 8,
+        "use": "设置项描述"
+      },
+      {
+        "value": "HarmonyOS Sans SC Bold 16px lh:auto",
+        "count": 2,
+        "use": "侧栏搜索/历史"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 14px lh:auto",
+        "count": 2,
+        "use": "下拉值"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 22px lh:auto",
+        "count": 1,
+        "use": "设置侧栏标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 18px lh:auto",
+        "count": 1,
+        "use": "侧栏分组标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 24px lh:auto",
+        "count": 1,
+        "use": "页面标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Bold 40px lh:auto",
+        "count": 1,
+        "use": "弹窗大标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 20px lh:auto",
+        "count": 1,
+        "use": "搜索框占位"
+      },
+      {
+        "value": "HarmonyOS Sans SC Bold 24px lh:auto",
+        "count": 1,
+        "use": "弹窗分组标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Medium 25px lh:auto",
+        "count": 1,
+        "use": "聊天标题"
+      },
+      {
+        "value": "HarmonyOS Sans SC Medium 22px lh:auto",
+        "count": 1,
+        "use": "账户名"
+      },
+      {
+        "value": "HarmonyOS Sans SC Medium 20px lh:auto",
+        "count": 3,
+        "use": "发送者名"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 16.21px lh:22.70",
+        "count": 2,
+        "use": "消息正文"
+      },
+      {
+        "value": "HarmonyOS Sans SC Regular 14.92px lh:20.75",
+        "count": 2,
+        "use": "用户气泡正文"
+      },
+      {
+        "value": "HarmonyOS Sans SC Medium 17.08px lh:23.91",
+        "count": 1,
+        "use": "输入占位"
+      },
+      {
+        "value": "HarmonyOS Sans SC Medium 13.62px lh:18.81",
+        "count": 2,
+        "use": "推理状态"
+      },
+      {
+        "value": "HarmonyOS Sans SC Medium 10.38px lh:14.27",
+        "count": 2,
+        "use": "token 统计"
+      }
+    ]
+  },
+  "effects": [
+    {
+      "value": "BACKGROUND_BLUR r20",
+      "count": 2,
+      "use": "侧栏 / 弹窗"
+    },
+    {
+      "value": "BACKGROUND_BLUR r5",
+      "count": 1,
+      "use": "推理状态"
+    },
+    {
+      "value": "BACKGROUND_BLUR r32.43",
+      "count": 1,
+      "use": "输入框"
+    },
+    {
+      "value": "BACKGROUND_BLUR r50",
+      "count": 1,
+      "use": "输入框"
+    }
+  ],
+  "cornerRadius": [
+    {
+      "value": 4,
+      "count": 8,
+      "use": "设置项行"
+    },
+    {
+      "value": 12,
+      "count": 6,
+      "use": "聊天容器/图标板/开关/卡片"
+    },
+    {
+      "value": 8,
+      "count": 5,
+      "use": "设置页面/导航项/下拉/气泡"
+    },
+    {
+      "value": 15,
+      "count": 5,
+      "use": "开关组件"
+    },
+    {
+      "value": 17,
+      "count": 1,
+      "use": "设置卡片（页面版）"
+    },
+    {
+      "value": 18,
+      "count": 1,
+      "use": "弹窗"
+    },
+    {
+      "value": 14,
+      "count": 1,
+      "use": "搜索框"
+    },
+    {
+      "value": 999,
+      "count": 3,
+      "use": "用户头像圆形"
+    }
+  ],
+  "itemSpacing": [
+    {
+      "value": 12,
+      "count": 18,
+      "use": "图标行/侧栏/设置导航/设置行"
+    },
+    {
+      "value": 8,
+      "count": 13,
+      "use": "消息/导航/账户"
+    },
+    {
+      "value": 5,
+      "count": 8,
+      "use": "设置项 Copy 组"
+    },
+    {
+      "value": 6,
+      "count": 4,
+      "use": "导航分组"
+    },
+    {
+      "value": 16,
+      "count": 3,
+      "use": "侧栏内容/弹窗头部/分区"
+    },
+    {
+      "value": 4,
+      "count": 3,
+      "use": "会话历史/设置卡片"
+    },
+    {
+      "value": 28,
+      "count": 1,
+      "use": "设置内容区"
+    },
+    {
+      "value": 26,
+      "count": 1,
+      "use": "弹窗滚动区"
+    },
+    {
+      "value": 24,
+      "count": 1,
+      "use": "弹窗主体"
+    }
+  ],
+  "padding": [
+    {
+      "value": "16/16/16/16",
+      "count": 10,
+      "use": "聊天容器/设置行/弹窗"
+    },
+    {
+      "value": "12/12/12/12",
+      "count": 7,
+      "use": "图标行/设置导航项/下拉"
+    },
+    {
+      "value": "24/24/24/24",
+      "count": 1,
+      "use": "设置侧栏"
+    },
+    {
+      "value": "48/48/48/48",
+      "count": 1,
+      "use": "设置内容区"
+    },
+    {
+      "value": "0/39/0/39",
+      "count": 1,
+      "use": "弹窗内容列"
+    },
+    {
+      "value": "12/16/12/16",
+      "count": 1,
+      "use": "搜索框"
+    },
+    {
+      "value": "30/30/16/30",
+      "count": 1,
+      "use": "输入框（组件版）"
+    }
+  ]
+}

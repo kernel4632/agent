@@ -18,39 +18,13 @@
 ## 开发
 
 ```powershell
-cd F:\opencodexm\la\agent\frontend
+cd frontend
 $env:AGENT_SERVER_URL = 'http://127.0.0.1:3000'
-& 'D:\la-dev\tools\bun-windows-x64\bun.exe' run dev
+bun install
+bun run dev
 ```
 
-通用环境可使用 `bun install`、`bun run dev`。前端默认监听 `127.0.0.1:5173`，Vite 将 `/api` 转发至 `AGENT_SERVER_URL`，默认 `http://127.0.0.1:3000`。
-
-本机环境组织：
-
-| 内容 | 位置 |
-| --- | --- |
-| 源码 | `F:\opencodexm\la\agent` |
-| Bun | `D:\la-dev\tools\bun-windows-x64\bun.exe` |
-| 依赖实体 | `D:\la-dev\packages\{frontend,server,core}\node_modules` |
-| Bun 缓存 | `D:\la-dev\cache\bun` |
-| 独立运行数据 | `D:\la-dev\data` |
-| 日志、截图、测试产物 | `D:\la-dev\logs`、`D:\la-dev\artifacts` |
-
-源码中的 `node_modules` 是指向 D 盘的 Windows junction。Node 解析要求实体目录仍命名为 `node_modules`。本机 Bun 的 `file:../core` 安装发生跨卷复制问题，已通过本地 package junction 引用原始 `core`，没有修改后端依赖声明。
-
-`D:\la-dev\tools\start-preview.ps1` 可启动本机预览。它通过外部启动脚本导入原始后端，监听回环地址 `127.0.0.1:3000`；不修改后端源文件，也不注入新 API。
-
-## GitHub 代理
-
-此仓库的本地 Git 配置将 GitHub 请求代理到 `socks5h://127.0.0.1:10819`。该端口通过 `us1` SSH 隧道访问网络，保留主机密钥验证。
-
-重新开启隧道：
-
-```powershell
-ssh -F D:\la-dev\ssh\config -N -D 127.0.0.1:10819 us1
-```
-
-SSH 凭据不在仓库内。不要将 `ssh_active_servers.txt`、私钥或浏览器配置提交到 Git。
+前端默认监听 `127.0.0.1:5173`，Vite 将 `/api` 转发至 `AGENT_SERVER_URL`，默认 `http://127.0.0.1:3000`。依赖使用 Bun 安装；若 `file:../core` 在部分环境跨卷复制出错，可将 `core` 以 junction 或软链接方式引用。
 
 ## 已对接的接口
 
@@ -84,11 +58,11 @@ SSH 凭据不在仓库内。不要将 `ssh_active_servers.txt`、私钥或浏览
 ## 验证
 
 ```powershell
-& 'D:\la-dev\tools\bun-windows-x64\bun.exe' run test
+cd frontend
+bun run test
 $env:PLAYWRIGHT_CHANNEL = 'chrome'
-$env:LA_TEST_OUTPUT_DIR = 'D:\la-dev\artifacts\ui-tests'
-& 'D:\la-dev\tools\bun-windows-x64\bun.exe' run test:ui
-& 'D:\la-dev\tools\bun-windows-x64\bun.exe' run build
+bun run test:ui
+bun run build
 ```
 
 浏览器测试使用现有 Chrome，不需下载新浏览器。其他环境可安装 Playwright Chromium 后不设置 `PLAYWRIGHT_CHANNEL`。

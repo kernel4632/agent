@@ -350,10 +350,4 @@ https://agent.example.com/sse/...       → 后端
 
 ## 前端生成文件
 
-真实 Agent 生成并验收过一份前端示例，当前保留在：
-
-```text
-C:\Users\17137\AppData\Local\Temp\opencode\agent-final-frontend\frontend
-```
-
-它不是后端仓库的一部分。可作为对接示例查看。
+真实 Agent 生成并验收过一份前端示例，作为对接参考。该示例不属于后端仓库。

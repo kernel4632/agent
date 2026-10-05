@@ -1,0 +1,2353 @@
+{
+  "source": {
+    "figmaFile": "agent",
+    "fileKey": "XwwINqg57AQGyocLYDNCVN",
+    "page": "Page 1",
+    "extractedAt": "2026-10-05"
+  },
+  "conventions": {
+    "box": "[x, y, width, height]，取绝对坐标四舍五入",
+    "auto": "[layoutMode, [padTop,padRight,padBottom,padLeft], itemSpacing, primaryAxisAlign, counterAxisAlign]",
+    "fill": "SOLID 为 #rrggbb，IMAGE 表示位图填充",
+    "vectorLeaves": "Hugeicons 图标内部矢量路径已省略，仅保留图标节点名"
+  },
+  "roots": [
+    {
+      "n": "AI Agent Chat",
+      "t": "FRAME",
+      "b": [
+        144,
+        -1812,
+        1023,
+        664
+      ],
+      "auto": [
+        "VERTICAL",
+        [
+          16,
+          16,
+          16,
+          16
+        ],
+        0,
+        "CENTER",
+        "CENTER"
+      ],
+      "fill": [
+        "IMAGE",
+        "#000000"
+      ],
+      "r": 12,
+      "c": [
+        {
+          "n": "Chat layout",
+          "t": "FRAME",
+          "b": [
+            160,
+            -1796,
+            991,
+            632
+          ],
+          "auto": [
+            "VERTICAL",
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            0,
+            "MIN",
+            "CENTER"
+          ],
+          "c": [
+            {
+              "n": "Chat header",
+              "t": "FRAME",
+              "b": [
+                160,
+                -1796,
+                991,
+                35
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                0,
+                "CENTER",
+                "CENTER"
+              ],
+              "c": [
+                {
+                  "n": "Conversation bar",
+                  "t": "FRAME",
+                  "b": [
+                    160,
+                    -1796,
+                    991,
+                    35
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    9.07971,
+                    "SPACE_BETWEEN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "menu-03",
+                      "t": "INSTANCE",
+                      "b": [
+                        160,
+                        -1790,
+                        24,
+                        24
+                      ]
+                    },
+                    {
+                      "n": "Conversation title",
+                      "t": "FRAME",
+                      "b": [
+                        184,
+                        -1795,
+                        904,
+                        34
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          11.673914,
+                          0,
+                          11.673914
+                        ],
+                        0,
+                        "MIN",
+                        "MIN"
+                      ],
+                      "c": [
+                        {
+                          "n": "问候并提供帮助",
+                          "t": "TEXT",
+                          "b": [
+                            196,
+                            -1795,
+                            112,
+                            21
+                          ],
+                          "fill": [
+                            "#f1f4fa"
+                          ],
+                          "txt": [
+                            "Alibaba Health Font 2.0 CN 85 B",
+                            16,
+                            "问候并提供帮助"
+                          ]
+                        },
+                        {
+                          "n": "阿柠 ANing / claude-opus-4-6 (Claude)",
+                          "t": "TEXT",
+                          "b": [
+                            196,
+                            -1774,
+                            148,
+                            13
+                          ],
+                          "fill": [
+                            "#b1bacb"
+                          ],
+                          "txt": [
+                            "Alibaba Health Font 2.0 CN 85 B",
+                            8,
+                            "阿柠ANing / claude-opus-4-6 (Claude)"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "Header actions",
+                      "t": "FRAME",
+                      "b": [
+                        1088,
+                        -1790,
+                        63,
+                        24
+                      ],
+                      "auto": [
+                        "HORIZONTAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        14.94261,
+                        "MIN",
+                        "CENTER"
+                      ],
+                      "c": [
+                        {
+                          "n": "audit-02",
+                          "t": "INSTANCE",
+                          "b": [
+                            1088,
+                            -1790,
+                            24,
+                            24
+                          ]
+                        },
+                        {
+                          "n": "bubble-chat-add",
+                          "t": "INSTANCE",
+                          "b": [
+                            1127,
+                            -1790,
+                            24,
+                            24
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "n": "Message thread",
+              "t": "FRAME",
+              "b": [
+                160,
+                -1761,
+                991,
+                488
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  24,
+                  8,
+                  0,
+                  8
+                ],
+                14.268116,
+                "MIN",
+                "CENTER"
+              ],
+              "c": [
+                {
+                  "n": "Outgoing message",
+                  "t": "INSTANCE",
+                  "b": [
+                    168,
+                    -1737,
+                    975,
+                    99
+                  ],
+                  "auto": [
+                    "VERTICAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    8,
+                    "MIN",
+                    "MAX"
+                  ],
+                  "c": [
+                    {
+                      "n": "Frame 4",
+                      "t": "FRAME",
+                      "b": [
+                        971,
+                        -1737,
+                        172,
+                        99
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        8,
+                        "MIN",
+                        "MAX"
+                      ],
+                      "c": [
+                        {
+                          "n": "Frame 6",
+                          "t": "FRAME",
+                          "b": [
+                            971,
+                            -1737,
+                            172,
+                            36
+                          ],
+                          "auto": [
+                            "HORIZONTAL",
+                            [
+                              0,
+                              0,
+                              0,
+                              0
+                            ],
+                            8,
+                            "CENTER",
+                            "CENTER"
+                          ],
+                          "c": [
+                            {
+                              "n": "主核Kernyr",
+                              "t": "TEXT",
+                              "b": [
+                                971,
+                                -1733,
+                                128,
+                                29
+                              ],
+                              "fill": [
+                                "#ffffff"
+                              ],
+                              "txt": [
+                                "HarmonyOS Sans SC Medium",
+                                25,
+                                "主核Kernyr"
+                              ]
+                            },
+                            {
+                              "n": "用户头像",
+                              "t": "INSTANCE",
+                              "b": [
+                                1107,
+                                -1737,
+                                36,
+                                36
+                              ],
+                              "fill": [
+                                "IMAGE"
+                              ],
+                              "r": 999
+                            }
+                          ]
+                        },
+                        {
+                          "n": "Frame 3",
+                          "t": "FRAME",
+                          "b": [
+                            1087,
+                            -1693,
+                            56,
+                            55
+                          ],
+                          "auto": [
+                            "VERTICAL",
+                            [
+                              0,
+                              0,
+                              0,
+                              0
+                            ],
+                            6,
+                            "MIN",
+                            "MAX"
+                          ],
+                          "c": [
+                            {
+                              "n": "User bubble",
+                              "t": "FRAME",
+                              "b": [
+                                1087,
+                                -1693,
+                                56,
+                                37
+                              ],
+                              "auto": [
+                                "HORIZONTAL",
+                                [
+                                  7.782609,
+                                  12.971015,
+                                  7.782609,
+                                  12.971015
+                                ],
+                                0,
+                                "MIN",
+                                "MIN"
+                              ],
+                              "fill": [
+                                "#22497e"
+                              ],
+                              "r": 8,
+                              "c": [
+                                {
+                                  "n": "你好",
+                                  "t": "TEXT",
+                                  "b": [
+                                    1100,
+                                    -1685,
+                                    30,
+                                    21
+                                  ],
+                                  "fill": [
+                                    "#f1f4fa"
+                                  ],
+                                  "txt": [
+                                    "HarmonyOS Sans SC Regular",
+                                    14.916667,
+                                    "你好"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "n": "User actions",
+                              "t": "FRAME",
+                              "b": [
+                                1098,
+                                -1650,
+                                45,
+                                12
+                              ],
+                              "auto": [
+                                "HORIZONTAL",
+                                [
+                                  0,
+                                  4,
+                                  0,
+                                  4
+                                ],
+                                12,
+                                "MIN",
+                                "CENTER"
+                              ],
+                              "c": [
+                                {
+                                  "n": "undo-03",
+                                  "t": "INSTANCE",
+                                  "b": [
+                                    1102,
+                                    -1650,
+                                    12,
+                                    12
+                                  ]
+                                },
+                                {
+                                  "n": "copy-01",
+                                  "t": "INSTANCE",
+                                  "b": [
+                                    1127,
+                                    -1650,
+                                    12,
+                                    12
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Agent message",
+                  "t": "INSTANCE",
+                  "b": [
+                    168,
+                    -1624,
+                    975,
+                    141
+                  ],
+                  "auto": [
+                    "VERTICAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    7.782609,
+                    "MIN",
+                    "MIN"
+                  ],
+                  "c": [
+                    {
+                      "n": "Agent identity",
+                      "t": "FRAME",
+                      "b": [
+                        168,
+                        -1624,
+                        142,
+                        36
+                      ],
+                      "auto": [
+                        "HORIZONTAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        8,
+                        "MIN",
+                        "CENTER"
+                      ],
+                      "c": [
+                        {
+                          "n": "助手头像",
+                          "t": "INSTANCE",
+                          "b": [
+                            168,
+                            -1624,
+                            36,
+                            36
+                          ],
+                          "fill": [
+                            "IMAGE"
+                          ],
+                          "r": 65
+                        },
+                        {
+                          "n": "阿柠 ANing",
+                          "t": "TEXT",
+                          "b": [
+                            212,
+                            -1613,
+                            98,
+                            15
+                          ],
+                          "fill": [
+                            "#f1f4fa"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Medium",
+                            20,
+                            "阿柠ANing"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "Reasoning status",
+                      "t": "FRAME",
+                      "b": [
+                        168,
+                        -1580,
+                        150,
+                        44
+                      ],
+                      "auto": [
+                        "HORIZONTAL",
+                        [
+                          11.673914,
+                          11.673914,
+                          11.673914,
+                          11.673914
+                        ],
+                        5.188406,
+                        "CENTER",
+                        "CENTER"
+                      ],
+                      "fill": [
+                        "#262b38"
+                      ],
+                      "r": 10.376812,
+                      "fx": [
+                        "BACKGROUND_BLUR"
+                      ],
+                      "c": [
+                        {
+                          "n": "Hugeicons icon",
+                          "t": "FRAME",
+                          "b": [
+                            180,
+                            -1565,
+                            14,
+                            14
+                          ]
+                        },
+                        {
+                          "n": "思考了 0.1 秒",
+                          "t": "TEXT",
+                          "b": [
+                            199,
+                            -1567,
+                            81,
+                            19
+                          ],
+                          "fill": [
+                            "#b1bacb"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Medium",
+                            13.619566,
+                            "思考了 0.1 秒"
+                          ]
+                        },
+                        {
+                          "n": "Hugeicons icon",
+                          "t": "FRAME",
+                          "b": [
+                            285,
+                            -1568,
+                            21,
+                            21
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "你好！有什么我可以帮你的吗？",
+                      "t": "TEXT",
+                      "b": [
+                        168,
+                        -1528,
+                        227,
+                        23
+                      ],
+                      "fill": [
+                        "#f1f4fa"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Regular",
+                        16.213768,
+                        "你好！有什么我可以帮你的吗？"
+                      ]
+                    },
+                    {
+                      "n": "Token stats",
+                      "t": "FRAME",
+                      "b": [
+                        168,
+                        -1497,
+                        202,
+                        15
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        1.945652,
+                        "MIN",
+                        "MIN"
+                      ],
+                      "c": [
+                        {
+                          "n": "↟ 32.5K tokens (26.1K cached)  ↳ 60 tokens",
+                          "t": "TEXT",
+                          "b": [
+                            168,
+                            -1497,
+                            202,
+                            15
+                          ],
+                          "fill": [
+                            "#758196"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Medium",
+                            10.376812,
+                            "↟ 32.5K tokens (26.1K cached)  ↳ 60 tokens"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Input composer",
+                  "t": "INSTANCE",
+                  "b": [
+                    160,
+                    -1273,
+                    991,
+                    109
+                  ],
+                  "auto": [
+                    "VERTICAL",
+                    [
+                      19.456522,
+                      19.456522,
+                      10.376812,
+                      19.456522
+                    ],
+                    15.029083,
+                    "SPACE_BETWEEN",
+                    "MIN"
+                  ],
+                  "fill": [
+                    "#1b1c22"
+                  ],
+                  "r": 19.456522,
+                  "fx": [
+                    "BACKGROUND_BLUR"
+                  ],
+                  "c": [
+                    {
+                      "n": "输入消息与 AI 聊天",
+                      "t": "TEXT",
+                      "b": [
+                        179,
+                        -1253,
+                        146,
+                        24
+                      ],
+                      "fill": [
+                        "#c8d0df"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Medium",
+                        17.078505,
+                        "输入消息与 AI 聊天"
+                      ]
+                    },
+                    {
+                      "n": "Composer actions",
+                      "t": "FRAME",
+                      "b": [
+                        179,
+                        -1204,
+                        952,
+                        30
+                      ],
+                      "auto": [
+                        "HORIZONTAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        12.296523,
+                        "SPACE_BETWEEN",
+                        "CENTER"
+                      ],
+                      "c": [
+                        {
+                          "n": "Composer modes",
+                          "t": "FRAME",
+                          "b": [
+                            179,
+                            -1200,
+                            58,
+                            22
+                          ],
+                          "auto": [
+                            "HORIZONTAL",
+                            [
+                              0,
+                              0,
+                              0,
+                              0
+                            ],
+                            16.395365,
+                            "MIN",
+                            "CENTER"
+                          ]
+                        },
+                        {
+                          "n": "Send actions",
+                          "t": "FRAME",
+                          "b": [
+                            1074,
+                            -1204,
+                            58,
+                            30
+                          ],
+                          "auto": [
+                            "HORIZONTAL",
+                            [
+                              0,
+                              0,
+                              0,
+                              0
+                            ],
+                            12,
+                            "MIN",
+                            "CENTER"
+                          ],
+                          "c": [
+                            {
+                              "n": "add-01",
+                              "t": "INSTANCE",
+                              "b": [
+                                1074,
+                                -1197,
+                                16,
+                                16
+                              ]
+                            },
+                            {
+                              "n": "Send button",
+                              "t": "FRAME",
+                              "b": [
+                                1101,
+                                -1204,
+                                30,
+                                30
+                              ],
+                              "auto": [
+                                "HORIZONTAL",
+                                [
+                                  0,
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                0,
+                                "CENTER",
+                                "CENTER"
+                              ],
+                              "fill": [
+                                "#333744"
+                              ],
+                              "r": 15.029083,
+                              "c": [
+                                {
+                                  "n": "arrow-up-02",
+                                  "t": "INSTANCE",
+                                  "b": [
+                                    1109,
+                                    -1197,
+                                    16,
+                                    16
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "n": "Sidebar / Complete",
+      "t": "FRAME",
+      "b": [
+        -167,
+        -1812,
+        251,
+        664
+      ],
+      "auto": [
+        "VERTICAL",
+        [
+          16.825338,
+          13.219908,
+          14.421719,
+          13.219908
+        ],
+        0,
+        "SPACE_BETWEEN",
+        "MIN"
+      ],
+      "fill": [
+        "#1b1c22"
+      ],
+      "fx": [
+        "BACKGROUND_BLUR"
+      ],
+      "c": [
+        {
+          "n": "Sidebar content",
+          "t": "FRAME",
+          "b": [
+            -154,
+            -1795,
+            224,
+            398
+          ],
+          "auto": [
+            "VERTICAL",
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            16,
+            "MIN",
+            "MIN"
+          ],
+          "c": [
+            {
+              "n": "User profile",
+              "t": "FRAME",
+              "b": [
+                -154,
+                -1795,
+                224,
+                41
+              ],
+              "auto": [
+                "HORIZONTAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                12.018099,
+                "MIN",
+                "CENTER"
+              ],
+              "c": [
+                {
+                  "n": "User avatar",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1795,
+                    41,
+                    41
+                  ],
+                  "fill": [
+                    "IMAGE"
+                  ],
+                  "r": 20.430767
+                },
+                {
+                  "n": "User identity",
+                  "t": "FRAME",
+                  "b": [
+                    -101,
+                    -1792,
+                    80,
+                    35
+                  ],
+                  "auto": [
+                    "VERTICAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    3.60543,
+                    "CENTER",
+                    "MIN"
+                  ],
+                  "c": [
+                    {
+                      "n": "主核 Kernyr",
+                      "t": "TEXT",
+                      "b": [
+                        -101,
+                        -1792,
+                        80,
+                        18
+                      ],
+                      "fill": [
+                        "#f0f1f7"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Bold",
+                        15.022624,
+                        "主核 Kernyr"
+                      ]
+                    },
+                    {
+                      "n": "下午好",
+                      "t": "TEXT",
+                      "b": [
+                        -101,
+                        -1770,
+                        46,
+                        13
+                      ],
+                      "fill": [
+                        "#f0f1f7"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Bold",
+                        11.417193,
+                        "下午好👋"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "n": "Navigation",
+              "t": "FRAME",
+              "b": [
+                -154,
+                -1738,
+                224,
+                66
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                8,
+                "MIN",
+                "MIN"
+              ],
+              "c": [
+                {
+                  "n": "Search conversations",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1738,
+                    224,
+                    29
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    9.614479,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "search-01",
+                      "t": "INSTANCE",
+                      "b": [
+                        -154,
+                        -1733,
+                        18,
+                        18
+                      ]
+                    },
+                    {
+                      "n": "搜索聊天",
+                      "t": "TEXT",
+                      "b": [
+                        -126,
+                        -1733,
+                        64,
+                        19
+                      ],
+                      "fill": [
+                        "#ffffff"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Bold",
+                        16,
+                        "搜索聊天"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Chat history",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1701,
+                    224,
+                    29
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    9.614479,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "history",
+                      "t": "INSTANCE",
+                      "b": [
+                        -154,
+                        -1696,
+                        18,
+                        18
+                      ]
+                    },
+                    {
+                      "n": "聊天历史",
+                      "t": "TEXT",
+                      "b": [
+                        -126,
+                        -1697,
+                        64,
+                        19
+                      ],
+                      "fill": [
+                        "#ffffff"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Bold",
+                        16,
+                        "聊天历史"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "n": "Conversation history",
+              "t": "FRAME",
+              "b": [
+                -154,
+                -1657,
+                224,
+                260
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                4,
+                "MIN",
+                "MIN"
+              ],
+              "c": [
+                {
+                  "n": "今天",
+                  "t": "TEXT",
+                  "b": [
+                    -154,
+                    -1657,
+                    26,
+                    15
+                  ],
+                  "fill": [
+                    "#b7c9f8"
+                  ],
+                  "txt": [
+                    "HarmonyOS Sans SC Bold",
+                    12.619003,
+                    "今天"
+                  ]
+                },
+                {
+                  "n": "思考块修改错误",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1638,
+                    224,
+                    34
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      0,
+                      9.614479,
+                      0,
+                      9.614479
+                    ],
+                    0,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#414657"
+                  ],
+                  "r": 9.614479,
+                  "selected": true
+                },
+                {
+                  "n": "问候交流",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1600,
+                    224,
+                    34
+                  ],
+                  "r": 9.614479
+                },
+                {
+                  "n": "加载鲸娘设定",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1562,
+                    224,
+                    34
+                  ],
+                  "r": 9.614479
+                },
+                {
+                  "n": "鲸鱼少女自介",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1525,
+                    224,
+                    34
+                  ],
+                  "r": 9.614479
+                },
+                {
+                  "n": "接收人设并说明限制",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1487,
+                    224,
+                    34
+                  ],
+                  "r": 9.614479
+                },
+                {
+                  "n": "昨天",
+                  "t": "TEXT",
+                  "b": [
+                    -154,
+                    -1449,
+                    26,
+                    15
+                  ],
+                  "fill": [
+                    "#b7c9f8"
+                  ],
+                  "txt": [
+                    "HarmonyOS Sans SC Bold",
+                    12.619003,
+                    "昨天"
+                  ]
+                },
+                {
+                  "n": "项目聊天界面梳理",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1430,
+                    224,
+                    34
+                  ],
+                  "r": 9.614479
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "n": "Sidebar footer",
+          "t": "FRAME",
+          "b": [
+            -154,
+            -1250,
+            224,
+            88
+          ],
+          "auto": [
+            "VERTICAL",
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            13.219908,
+            "MIN",
+            "MIN"
+          ],
+          "c": [
+            {
+              "n": "Current account",
+              "t": "FRAME",
+              "b": [
+                -154,
+                -1250,
+                224,
+                35
+              ],
+              "auto": [
+                "HORIZONTAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                8,
+                "SPACE_BETWEEN",
+                "CENTER"
+              ],
+              "c": [
+                {
+                  "n": "Frame 7",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1246,
+                    140,
+                    26
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    8,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "siri-new",
+                      "t": "INSTANCE",
+                      "b": [
+                        -154,
+                        -1245,
+                        24,
+                        24
+                      ]
+                    },
+                    {
+                      "n": "阿薇 AWei",
+                      "t": "TEXT",
+                      "b": [
+                        -122,
+                        -1246,
+                        108,
+                        26
+                      ],
+                      "fill": [
+                        "#ffffff"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Medium",
+                        22,
+                        "阿薇 AWei"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "助手头像",
+                  "t": "INSTANCE",
+                  "b": [
+                    43,
+                    -1247,
+                    27,
+                    27
+                  ],
+                  "fill": [
+                    "IMAGE"
+                  ],
+                  "r": 48.75
+                }
+              ]
+            },
+            {
+              "n": "Quick actions",
+              "t": "FRAME",
+              "b": [
+                -154,
+                -1202,
+                224,
+                40
+              ],
+              "auto": [
+                "HORIZONTAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                7.210859,
+                "SPACE_BETWEEN",
+                "MIN"
+              ],
+              "c": [
+                {
+                  "n": "Settings",
+                  "t": "FRAME",
+                  "b": [
+                    -154,
+                    -1202,
+                    40,
+                    40
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      8,
+                      8,
+                      8,
+                      8
+                    ],
+                    0,
+                    "CENTER",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#416092"
+                  ],
+                  "r": 26,
+                  "c": [
+                    {
+                      "n": "settings-03",
+                      "t": "INSTANCE",
+                      "b": [
+                        -146,
+                        -1194,
+                        24,
+                        24
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "n": "设置页面",
+      "t": "FRAME",
+      "b": [
+        1393,
+        -1726,
+        815,
+        493
+      ],
+      "auto": [
+        "HORIZONTAL",
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        0,
+        "CENTER",
+        "CENTER"
+      ],
+      "fill": [
+        "#121318"
+      ],
+      "r": 8,
+      "c": [
+        {
+          "n": "Sidebar",
+          "t": "FRAME",
+          "b": [
+            1393,
+            -1726,
+            172,
+            493
+          ],
+          "auto": [
+            "VERTICAL",
+            [
+              24,
+              24,
+              24,
+              24
+            ],
+            12,
+            "MIN",
+            "MIN"
+          ],
+          "fill": [
+            "#38393e"
+          ],
+          "c": [
+            {
+              "n": "Section Title",
+              "t": "TEXT",
+              "b": [
+                1417,
+                -1702,
+                44,
+                26
+              ],
+              "fill": [
+                "#f4f3f7"
+              ],
+              "txt": [
+                "HarmonyOS Sans SC Regular",
+                22,
+                "设置"
+              ]
+            },
+            {
+              "n": "Primary Navigation",
+              "t": "FRAME",
+              "b": [
+                1417,
+                -1664,
+                124,
+                108
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                6,
+                "MIN",
+                "MIN"
+              ],
+              "c": [
+                {
+                  "n": "General",
+                  "t": "FRAME",
+                  "b": [
+                    1417,
+                    -1664,
+                    124,
+                    48
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      12,
+                      12,
+                      12,
+                      12
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#514f58"
+                  ],
+                  "r": 8,
+                  "selected": true,
+                  "c": [
+                    {
+                      "n": "Label",
+                      "t": "TEXT",
+                      "b": [
+                        1429,
+                        -1649,
+                        32,
+                        19
+                      ],
+                      "fill": [
+                        "#f4f3f7"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Regular",
+                        16,
+                        "通用"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Shortcuts",
+                  "t": "FRAME",
+                  "b": [
+                    1417,
+                    -1610,
+                    124,
+                    48
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      12,
+                      12,
+                      12,
+                      12
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "r": 7,
+                  "c": [
+                    {
+                      "n": "Label",
+                      "t": "TEXT",
+                      "b": [
+                        1429,
+                        -1595,
+                        48,
+                        19
+                      ],
+                      "fill": [
+                        "#f4f3f7"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Regular",
+                        16,
+                        "快捷键"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "n": "Server Heading",
+              "t": "TEXT",
+              "b": [
+                1417,
+                -1544,
+                36,
+                21
+              ],
+              "fill": [
+                "#aaa8b1"
+              ],
+              "txt": [
+                "HarmonyOS Sans SC Regular",
+                18,
+                "通用"
+              ]
+            },
+            {
+              "n": "Server Navigation",
+              "t": "FRAME",
+              "b": [
+                1417,
+                -1511,
+                124,
+                162
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                6,
+                "MIN",
+                "MIN"
+              ],
+              "c": [
+                {
+                  "n": "Server",
+                  "t": "FRAME",
+                  "b": [
+                    1417,
+                    -1511,
+                    124,
+                    48
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      12,
+                      12,
+                      12,
+                      12
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "Label",
+                      "t": "TEXT",
+                      "b": [
+                        1429,
+                        -1496,
+                        48,
+                        19
+                      ],
+                      "fill": [
+                        "#d8d6dd"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Regular",
+                        16,
+                        "服务器"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Providers",
+                  "t": "FRAME",
+                  "b": [
+                    1417,
+                    -1457,
+                    124,
+                    48
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      12,
+                      12,
+                      12,
+                      12
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "Label",
+                      "t": "TEXT",
+                      "b": [
+                        1429,
+                        -1442,
+                        48,
+                        19
+                      ],
+                      "fill": [
+                        "#d8d6dd"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Regular",
+                        16,
+                        "提供商"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Models",
+                  "t": "FRAME",
+                  "b": [
+                    1417,
+                    -1403,
+                    124,
+                    48
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      12,
+                      12,
+                      12,
+                      12
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "c": [
+                    {
+                      "n": "Label",
+                      "t": "TEXT",
+                      "b": [
+                        1429,
+                        -1388,
+                        32,
+                        19
+                      ],
+                      "fill": [
+                        "#d8d6dd"
+                      ],
+                      "txt": [
+                        "HarmonyOS Sans SC Regular",
+                        16,
+                        "模型"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "n": "Content",
+          "t": "FRAME",
+          "b": [
+            1565,
+            -1726,
+            643,
+            493
+          ],
+          "auto": [
+            "VERTICAL",
+            [
+              48,
+              48,
+              48,
+              48
+            ],
+            28,
+            "MIN",
+            "MIN"
+          ],
+          "c": [
+            {
+              "n": "Page Title",
+              "t": "TEXT",
+              "b": [
+                1613,
+                -1678,
+                48,
+                28
+              ],
+              "fill": [
+                "#f8f7fa"
+              ],
+              "txt": [
+                "HarmonyOS Sans SC Regular",
+                24,
+                "通用"
+              ]
+            },
+            {
+              "n": "Settings Card",
+              "t": "FRAME",
+              "b": [
+                1613,
+                -1622,
+                547,
+                324
+              ],
+              "auto": [
+                "VERTICAL",
+                [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                4,
+                "CENTER",
+                "MIN"
+              ],
+              "fill": [
+                "#121318"
+              ],
+              "r": 17,
+              "c": [
+                {
+                  "n": "Language Row",
+                  "t": "FRAME",
+                  "b": [
+                    1613,
+                    -1622,
+                    547,
+                    72
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      16,
+                      16,
+                      16,
+                      16
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#38393e"
+                  ],
+                  "r": 4,
+                  "c": [
+                    {
+                      "n": "Copy",
+                      "t": "FRAME",
+                      "b": [
+                        1629,
+                        -1605,
+                        447,
+                        39
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        5,
+                        "CENTER",
+                        "MIN"
+                      ],
+                      "c": [
+                        {
+                          "n": "Label",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1605,
+                            32,
+                            19
+                          ],
+                          "fill": [
+                            "#f4f3f7"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            16,
+                            "语言"
+                          ]
+                        },
+                        {
+                          "n": "Description",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1581,
+                            117,
+                            15
+                          ],
+                          "fill": [
+                            "#aaa8b1"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            13,
+                            "更改界面的显示语言"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "Language Select",
+                      "t": "FRAME",
+                      "b": [
+                        2088,
+                        -1606,
+                        56,
+                        40
+                      ],
+                      "auto": [
+                        "HORIZONTAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        8,
+                        "CENTER",
+                        "CENTER"
+                      ],
+                      "c": [
+                        {
+                          "n": "Value",
+                          "t": "TEXT",
+                          "b": [
+                            2088,
+                            -1594,
+                            56,
+                            16
+                          ],
+                          "fill": [
+                            "#e8e6ec"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            14,
+                            "简体中文"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Permissions Row",
+                  "t": "FRAME",
+                  "b": [
+                    1613,
+                    -1546,
+                    547,
+                    80
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      16,
+                      16,
+                      16,
+                      16
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#38393e"
+                  ],
+                  "r": 4,
+                  "c": [
+                    {
+                      "n": "Copy",
+                      "t": "FRAME",
+                      "b": [
+                        1629,
+                        -1525,
+                        461,
+                        39
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        5,
+                        "CENTER",
+                        "MIN"
+                      ],
+                      "c": [
+                        {
+                          "n": "Label",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1525,
+                            96,
+                            19
+                          ],
+                          "fill": [
+                            "#f4f3f7"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            16,
+                            "自动接受权限"
+                          ]
+                        },
+                        {
+                          "n": "Description",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1501,
+                            130,
+                            15
+                          ],
+                          "fill": [
+                            "#aaa8b1"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            13,
+                            "权限请求将被自动批准"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "Permissions Toggle",
+                      "t": "FRAME",
+                      "b": [
+                        2102,
+                        -1518,
+                        42,
+                        24
+                      ],
+                      "fill": [
+                        "#4a4850"
+                      ],
+                      "r": 12,
+                      "c": [
+                        {
+                          "n": "Thumb",
+                          "t": "ELLIPSE",
+                          "b": [
+                            2105,
+                            -1515,
+                            18,
+                            18
+                          ],
+                          "fill": [
+                            "#f6f5f8"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Reasoning Row",
+                  "t": "FRAME",
+                  "b": [
+                    1613,
+                    -1462,
+                    547,
+                    80
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      16,
+                      16,
+                      16,
+                      16
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#38393e"
+                  ],
+                  "r": 4,
+                  "c": [
+                    {
+                      "n": "Copy",
+                      "t": "FRAME",
+                      "b": [
+                        1629,
+                        -1441,
+                        461,
+                        39
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        5,
+                        "CENTER",
+                        "MIN"
+                      ],
+                      "c": [
+                        {
+                          "n": "Label",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1441,
+                            96,
+                            19
+                          ],
+                          "fill": [
+                            "#f4f3f7"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            16,
+                            "显示推理摘要"
+                          ]
+                        },
+                        {
+                          "n": "Description",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1417,
+                            169,
+                            15
+                          ],
+                          "fill": [
+                            "#aaa8b1"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            13,
+                            "在时间线中显示模型推理摘要"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "Reasoning Toggle",
+                      "t": "FRAME",
+                      "b": [
+                        2102,
+                        -1434,
+                        42,
+                        24
+                      ],
+                      "fill": [
+                        "#a978ff"
+                      ],
+                      "r": 12,
+                      "c": [
+                        {
+                          "n": "Thumb",
+                          "t": "ELLIPSE",
+                          "b": [
+                            2123,
+                            -1431,
+                            18,
+                            18
+                          ],
+                          "fill": [
+                            "#f6f5f8"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "n": "Shell Expansion Row",
+                  "t": "FRAME",
+                  "b": [
+                    1613,
+                    -1378,
+                    547,
+                    80
+                  ],
+                  "auto": [
+                    "HORIZONTAL",
+                    [
+                      16,
+                      16,
+                      16,
+                      16
+                    ],
+                    12,
+                    "MIN",
+                    "CENTER"
+                  ],
+                  "fill": [
+                    "#38393e"
+                  ],
+                  "r": 4,
+                  "c": [
+                    {
+                      "n": "Copy",
+                      "t": "FRAME",
+                      "b": [
+                        1629,
+                        -1357,
+                        461,
+                        39
+                      ],
+                      "auto": [
+                        "VERTICAL",
+                        [
+                          0,
+                          0,
+                          0,
+                          0
+                        ],
+                        5,
+                        "CENTER",
+                        "MIN"
+                      ],
+                      "c": [
+                        {
+                          "n": "Label",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1357,
+                            140,
+                            19
+                          ],
+                          "fill": [
+                            "#f4f3f7"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            16,
+                            "展开 Shell 工具调用"
+                          ]
+                        },
+                        {
+                          "n": "Description",
+                          "t": "TEXT",
+                          "b": [
+                            1629,
+                            -1333,
+                            231,
+                            15
+                          ],
+                          "fill": [
+                            "#aaa8b1"
+                          ],
+                          "txt": [
+                            "HarmonyOS Sans SC Regular",
+                            13,
+                            "默认在时间线中展开 Shell 工具调用详情"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "n": "Shell Expansion Toggle",
+                      "t": "FRAME",
+                      "b": [
+                        2102,
+                        -1350,
+                        42,
+                        24
+                      ],
+                      "fill": [
+                        "#a978ff"
+                      ],
+                      "r": 12,
+                      "c": [
+                        {
+                          "n": "Thumb",
+                          "t": "ELLIPSE",
+                          "b": [
+                            2123,
+                            -1347,
+                            18,
+                            18
+                          ],
+                          "fill": [
+                            "#f6f5f8"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
