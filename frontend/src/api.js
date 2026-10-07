@@ -51,13 +51,20 @@ export const AgentAPI = {
   subscribeSession,
   // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。
   decideTool:       (sessionID, toolCallId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, decision }),
-  getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
-  // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
-  previewRollback:  (sessionID, messageId)      => request(`/session/rollback/preview/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
-  rollback:         (sessionID, messageId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files }),
-  redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
-  getConfig:        ()                          => request('/config/read'),
-  updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
-  // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
-  testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),
-}
+    getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
+    // 会话运行设置：模式（plan / build）、自动批准、能力开关。
+    getSettings:      (sessionID)                 => request(`/session/settings/${encodeURIComponent(sessionID)}`),
+    saveSettings:     (sessionID, change)         => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', change),
+    // 每次改过文件的工具调用；回退可以退到其中任意一次之前。
+    getToolCalls:     (sessionID)                 => request(`/session/tools/${encodeURIComponent(sessionID)}`),
+    // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
+    previewRollback:  (sessionID, messageId)      => request(`/session/rollback/preview/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
+    rollback:         (sessionID, messageId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files }),
+      // 工具级回退：只退这一次工具调用改的文件，对话不动。
+      rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/tool/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
+      redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
+      getConfig:        ()                          => request('/config/read'),
+      updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
+      // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
+      testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),
+    }

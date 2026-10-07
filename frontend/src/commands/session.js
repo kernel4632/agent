@@ -136,6 +136,52 @@ async function selectModel(sessionID, provider, model) {
 }
 
 
+// --- 改会话运行设置 ---
+async function saveSettings(sessionID, change) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  try {
+    const settings = await AgentAPI.saveSettings(sessionID, change)
+    session.settings = settings                             // 后端说的是准的，本地不自己拼
+    return settings
+  } catch (error) {
+    UI.notify(error.message)
+    return null
+  }
+}
+
+
+// --- 切换 plan / build 模式 ---
+async function toggleMode(sessionID) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  const next = session.settings.mode === 'plan' ? 'build' : 'plan'
+  const settings = await saveSettings(sessionID, { mode: next })
+  // 切到计划模式时要说清会发生什么，不然用户会疑惑"工具怎么少了一半"。
+  if (settings) UI.notify(next === 'plan' ? '已切到计划模式：只保留只读工具' : '已切到执行模式：可以使用全部工具')
+  return settings
+}
+
+
+// --- 切换自动批准 ---
+async function toggleAutoApprove(sessionID) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  const next = !session.settings.autoApprove
+  const settings = await saveSettings(sessionID, { autoApprove: next })
+  // 提醒一句这是降低门槛的操作：审批弹窗没了，但忽略规则仍然生效。
+  if (settings) UI.notify(next ? '已开启自动批准：工具不再逐个询问（密钥文件仍然拦得住）' : '已关闭自动批准：工具执行前会再问你')
+  return settings
+}
+
+
+// --- 切换一项模型能力开关 ---
+async function toggleCapability(sessionID, name) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  return saveSettings(sessionID, { capabilities: { [name]: !session.settings.capabilities[name] } })
+}
+
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
   const provider = source.provider || findModelProvider(source.model)
@@ -167,7 +213,6 @@ function normalize(source, previous = {}) {
       })
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }
-
   // 阶段二：组合最终前端会话结构，补齐仅前端使用的草稿和用量字段
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
@@ -175,6 +220,11 @@ function normalize(source, previous = {}) {
     status: previous.status || 'idle',
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
+    settings: source.settings || previous.settings || {  // 模式、自动批准、能力开关，后端读取时一并给出
+      mode: 'build',
+      autoApprove: false,
+      capabilities: { image: true, cache: true, stream: true },
+    },
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
     titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
     provider,                                           // 模型选择器显示供应商
@@ -254,5 +304,4 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
   emit('save', nextTitle, (saved) => { if (saved) editing.value = false }) // 页面 Command 决定是否退出
 }
 
-
-export const Session = { locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing }
+export const Session = { locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing, saveSettings, toggleMode, toggleAutoApprove, toggleCapability }

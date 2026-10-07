@@ -138,14 +138,21 @@ onUnmounted(() => {
         </div>
         <div class="app-view">
           <section class="chat-page" aria-label="聊天">
-            <div class="chat-page__scroll">
-              <HomePage v-if="!session?.messages.length" />
-              <ConversationFlow v-else :key="session.id" />
-            </div>
-            <div class="chat-page__composer">
-              <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
-              <div v-if="session?.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
-              <div v-if="session?.status === 'running' && now - session.lastEventAt > 45000" class="chat-notice" role="status">暂未收到新进度，可停止后重试。</div>
+                        <div class="chat-page__scroll">
+                          <HomePage v-if="!session?.messages.length" />
+                          <ConversationFlow v-else :key="session.id" />
+                        </div>
+                        <div class="chat-page__composer">
+                          <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
+                          <div v-if="session" class="chat-toolbar" role="group" aria-label="会话运行设置">
+                            <button class="chip" :class="{ 'chip--active': session.settings.mode === 'plan' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '计划模式只保留只读工具'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="14" />{{ session.settings.mode === 'plan' ? '计划模式' : '执行模式' }}</button>
+                            <button class="chip" :class="{ 'chip--active': session.settings.autoApprove }" title="开启后不再逐个询问工具执行（.agentignore 仍然生效）" @click="Session.toggleAutoApprove(session.id)"><AppIcon name="check" :size="14" />自动批准</button>
+                            <span class="chat-toolbar__divider" aria-hidden="true"></span>
+                            <button class="chip" :class="{ 'chip--active': session.settings.capabilities.image }" title="允许把图片发给模型" @click="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="14" />图像支持</button>
+                            <button class="chip" :class="{ 'chip--active': session.settings.capabilities.cache }" title="提示词缓存，命中就是省时间和省钱" @click="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="14" />提示缓存</button>
+                            <button class="chip" :class="{ 'chip--active': session.settings.capabilities.stream }" title="流式输出：回复边生成边显示" @click="Session.toggleCapability(session.id, 'stream')"><AppIcon name="spark" :size="14" />流式输出</button>
+                          </div>
+                          <div v-if="session?.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session?.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
               <ChatComposer ref="composer" v-model:draft="draft" :selected-model="session?.model || store.config.activeModel" :can-select-model="!session" :is-running="session?.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session?.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile" />
             </div>
@@ -190,11 +197,16 @@ onUnmounted(() => {
   display: flex;
   height: 100%;
   flex-direction: column;
-
   &__scroll { flex: 1; min-height: 0; overflow: auto; }
   &__composer { flex: none; width: 100%; padding: 14px var(--la-chat-gutter) 22px; }
 }
 .chat-notice { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; color: var(--la-secondary); font-size: 12px; line-height: 1.8; }
+.chat-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.chat-toolbar__divider { width: 1px; height: 16px; margin: 0 4px; background: var(--la-line); }
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border: 1px solid var(--la-line); border-radius: 999px; background: none; color: var(--la-muted); font-size: 11px; cursor: pointer; }
+.chip:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); border-color: var(--la-accent-border); }
+.chip--active { background: var(--la-accent-soft); border-color: var(--la-accent-border); color: var(--la-accent); }
+.chip:disabled { opacity: .45; }
 .connection-error { display: flex; align-items: center; gap: 10px; padding: 12px var(--la-chat-gutter); color: var(--la-danger); background: #c67a6412; font-size: 12px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 .app-toast { position: fixed; z-index: 50; bottom: 24px; left: 50%; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 10px 12px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-panel); color: var(--la-text); font-size: 13px; box-shadow: 0 8px 24px #0004; transform: translateX(-50%); }
