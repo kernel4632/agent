@@ -50,14 +50,17 @@ app.group('/session', session => session
     .post('/create', ({ body }) => Session.create(body))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
+    // 记过哪些工具调用，界面据此列出"可以退回到哪一步"。
+    .get('/tools/:sessionId', ({ params }) => Session.toolChanges(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
     // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
     .post('/rollback/preview/:sessionId', ({ params, body }) => Session.rollbackPreview({ ...params, ...body }))
     .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
+    // 工具级回退：只退某一次工具调用改的文件，对话不动。
+    .post('/rollback/tool/:sessionId', ({ params, body }) => Session.rollbackTool({ ...params, ...body }))
     .post('/redo/:sessionId', ({ params, body }) => Session.redo({ ...params, ...body }))
     .post('/compact/:sessionId', ({ params }) => Session.compact(params)))
-
 // --- 注册 Config 触发事件 ---
 app.group('/config', config => config
     .get('/read', () => Config.read(Path.config()))

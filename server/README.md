@@ -283,12 +283,11 @@ Content-Type: application/json
 | `404` | 会话不存在，或要回退的消息不在这个会话里 |
 | `409` | 该会话已有 Agent 正在运行 |
 | `500` | 后端执行失败 |
-
 ### 服务状态与工作区
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
-| `GET` | `/health` | `{ "ok": true, "version": "0.9.2", "sessions": 2, "running": 1 }` |
+| `GET` | `/health` | `{ "ok": true, "version": "0.10.1", "sessions": 2, "running": 1 }` |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 

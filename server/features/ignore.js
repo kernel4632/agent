@@ -37,13 +37,15 @@ const BUILT_IN = [
     // agent 自己的数据目录里有 API Key 和全部会话，不允许工具再去读它。
     '**/.agent/**',
 ]
-
 // --- 编译规则 ---
 const compile = list => list.flatMap(line => {
     const rule = line.trim()
     // 空行和 # 开头的注释不参与匹配。
     if (!rule || rule.startsWith('#')) return []
-    return [{ rule, matches: picomatch(rule, { dot: true, basename: true }) }]
+    // basename 不能设成 true：那样 picomatch 只拿文件名去比，凡规则里带 / 的都永远匹配不上，
+    // 内置的 **/.agent/** 和 **/.ssh/** 就一条也不生效，密钥目录等于没保护。
+    // 这里保留完整路径，判断时再按"完整路径"和"文件名"各比一次。
+    return [{ rule, matches: picomatch(rule, { dot: true }) }]
 })
 
 /*
@@ -72,14 +74,15 @@ const load = async () => {
  */
 const blockedBy = ({ toolName, input }) => {
     // 会碰哪些文件由 utils/tool-files.js 一处说了算，这里只负责判断它们该不该拦。
-    // 命中路径里的文件名也算：模型写的是绝对路径还是相对路径都不影响。
+    // 两种比法都要有：整条路径用来命中带目录的规则（数据目录、.ssh 那几条），
+    // 文件名用来命中 .env、*.pem 这类只看名字的规则，模型写绝对还是相对路径都不影响。
     for (const path of toolFiles({ toolName, input })) {
-        const hit = rules.find(entry => entry.matches(path) || entry.matches(basename(path)))
+        const name = basename(path)
+        const hit = rules.find(entry => entry.matches(path) || entry.matches(name))
         if (hit) return hit.rule
     }
     return null
 }
-
 /**
  * 这次调用要不要拦。
  * @param {{ toolName: string, input: object }} call 模型这次想调用的工具和参数。

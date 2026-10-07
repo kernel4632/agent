@@ -99,38 +99,47 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
         return false
     }
-    const matchValue = flatten(input)
-    const rule = decideByRules(toolName, matchValue)
-
-    // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
-    if (rule === 'allow') return allow({ sessionId, messageId, toolName, input })
-
-    // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
-    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolName, input }) // 没有会话上下文时按无人值守放行，避免任务卡死。
-
-    const decision = await new Promise(resolve => {
-        Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })
-        SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: toolName, input } })
-        signal?.addEventListener('abort', () => {
-            // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
-            Store.approvals.delete(`${sessionId}:${toolCallId}`)
-            resolve(false)
-        }, { once: true })
-    })
-    if (!decision) return false
-    return allow({ sessionId, messageId, toolName, input })
-}
-
-// --- 放行并留下快照 ---
-const allow = async ({ sessionId, messageId, toolName, input }) => {
-    // 快照要在工具执行之前记录，记下的才是被修改之前的文件内容。
-    await Snapshot.save({ sessionId, messageId, toolName, input })
-    return true
-}
-
-// --- 列出这个会话还在等谁批准 ---
-const pending = sessionId => {
-    // 审批请求只通过 SSE 推一次。前端刷新或换设备打开同一个会话时，
+        const matchValue = flatten(input)
+        const rule = decideByRules(toolName, matchValue)
+        // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
+        if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
+    
+        // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
+        if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName, input }) // 没有会话上下文时按无人值守放行，避免任务卡死。
+    
+        const decision = await new Promise(resolve => {
+            Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })
+            SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: toolName, input } })
+            signal?.addEventListener('abort', () => {
+                // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
+                Store.approvals.delete(`${sessionId}:${toolCallId}`)
+                resolve(false)
+            }, { once: true })
+        })
+        if (!decision) return false
+        return allow({ sessionId, messageId, toolCallId, toolName, input })
+    }
+    
+    /**
+     * 放行这次调用，并在工具真正执行之前把要改的文件存一份快照。
+     * 记录里同时留下消息 id 和工具调用 id，所以既能退回整轮对话，也能只退回这一次调用。
+     * @param {{ sessionId: string, messageId?: string, toolCallId?: string, toolName: string, input: object }} call
+     * @returns {Promise<boolean>} 恒定 true，配合 check 的返回值使用。
+     */
+    const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
+        // 快照要在工具执行之前记录，记下的才是被修改之前的文件内容。
+        await Snapshot.save({ sessionId, messageId, toolCallId, toolName, input })
+        return true
+    }
+    
+    /**
+     * 列出这个会话还在等谁批准。
+     * @param {string} sessionId 会话编号。
+     * @returns {Array<{ callID: string, tool: string, input: object }>} 待批准的调用；没有时是空数组。
+     * @remarks 审批请求只通过 SSE 推一次。前端刷新或换设备打开同一个会话时，
+     *   只有这里能告诉它"有个工具在等你"——否则会话看起来像卡住了。
+     */
+    const pending = sessionId => {
     // 只有这里能告诉它"有个工具在等你"——否则会话看起来像卡住了。
     return [...Store.approvals.entries()]
         .filter(([, approval]) => approval.sessionId === sessionId)

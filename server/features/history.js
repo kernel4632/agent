@@ -30,8 +30,12 @@ const load = async ({ sessionId }) => {
     }
     Store.sessions.set(sessionId, await file.json())
 }
-
-// --- 追加消息 ---
+/**
+ * 往历史末尾追加一条消息，并按发生的顺序编号。
+ * 新消息代表新的时间线，所以同时清空 redo——之前被回退的内容不能再恢复。
+ * @param {{ sessionId: string, message: object }} record 会话编号和 agent-core 形状的消息。
+ * @returns {Promise<{ messageId: string, message: object }>} 带 messageId 的记录，前端用它发起回退。
+ */
 const add = async ({ sessionId, message }) => {
     const session = Store.sessions.get(sessionId) || { messages: [], redo: [] } // 没加载过时先建空历史，避免调用方必须先 load。
     Store.sessions.set(sessionId, session)
@@ -41,8 +45,12 @@ const add = async ({ sessionId, message }) => {
     session.redo = [] // 新消息代表新的时间线，之前被回退的内容不能再恢复。
     return record
 }
-
-// --- 回退消息 ---
+/**
+ * 把目标消息和它之后的内容移到 redo，当前历史只保留它之前的部分。
+ * @param {{ sessionId: string, messageId: string }} target 要回退到这条消息之前。
+ * @returns {Promise<void>}
+ * @throws {Error} 找不到这条消息时按用户填错处理（404）。
+ */
 const rollback = async ({ sessionId, messageId }) => {
     const session = Store.sessions.get(sessionId)
     const index = session.messages.findIndex(record => record.messageId === messageId)
@@ -72,8 +80,12 @@ const get = ({ sessionId }) => {
     // 前端直接使用，模型调用前由 Agent Core 自己裁剪上下文。
     return (Store.sessions.get(sessionId)?.messages || []).map(({ messageId, message }) => ({ messageId, ...message }))
 }
-
-// --- 读取回退后仍然保留的消息块 ---
+/**
+ * 回退到这条消息之前以后，历史里还留着哪些消息块。
+ * 文件快照要靠它知道哪些改动该被恢复。
+ * @param {{ sessionId: string, messageId: string }} target 要回退到这条消息之前。
+ * @returns {string[]} 仍然保留的消息块 id。
+ */
 const idsBefore = ({ sessionId, messageId }) => {
     const session = Store.sessions.get(sessionId)
     const index = session.messages.findIndex(record => record.messageId === messageId)

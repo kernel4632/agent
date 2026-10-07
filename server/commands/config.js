@@ -37,13 +37,18 @@ const read = async path => {
     return config
 }
 
-// --- 替换配置 ---
+/**
+ * 整体替换当前配置并写回磁盘。不偷偷合并旧字段，保证用户提交的就是实际生效的。
+ * @param {object} newConfig 前端提交的完整配置对象。
+ * @returns {Promise<object>} 保存后的完整配置。
+ * @throws {Error} 提交的不是对象时按用户填错处理（400）。
+ */
 const set = async newConfig => {
     // 用户提交的配置必须是对象，否则挑一个字段来覆盖是无意义的。
+    // 这是用户填错，按 400 回给调用方；用 TypeError 会漏到入口那里变成 500。
     if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
-        throw new TypeError('config must be an object')
+        throw fail(400, 'config must be an object')
     }
-
     // 整体替换，不偷偷合并旧字段，保证用户提交的配置就是实际配置。
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Object.assign(Store.config, structuredClone(newConfig))
@@ -64,9 +69,20 @@ const firstModel = () => {
     }
 }
 
-// --- 把配置转换成 Agent 能用的形状 ---
-const resolve = ({ provider: name, model }) => {
-    // 设置页里字段名和 Agent 要的字段名不一样；转换只写在这一处，界面改字段名也只改这里。
+/**
+ * 把设置页里的配置转换成 agent-core 认的那份 config。
+ * 字段名转换只写在这一处，界面改字段名也只改这里。
+ *
+ * 这里刻意不做任何提示词注入：system 只用用户自己写的那段，没写就是空字符串。
+ * 工具用法、约束、角色设定都不塞进去——agent-core 默认就是原生工具模式（toolMode: 'native'），
+ * 在别处拼提示词会和模型自身的能力打架，也让"模型为什么不听话"变得无法排查。
+ *
+ * 每一项可选能力都只在用户明确改过时才写进 config，其余交给 agent-core 的默认值。
+ * @param {{ provider?: string, model?: string, settings?: object }} target 会话选的供应商和模型。
+ * @returns {object} 可以直接交给 Agent.create 的 config。
+ * @throws {Error} 供应商名不存在时按填错处理（400）。
+ */
+const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     const provider = (Store.config.providers || []).find(item => item.name === name)
     if (!provider) throw fail(400, `Provider not found: ${name}`)
 
@@ -80,11 +96,11 @@ const resolve = ({ provider: name, model }) => {
         protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
         maxTokens: settings.context || settings.contextWindow || 128000, // 上下文预算，到达 80% 时自动压缩
         stream: provider.stream ?? Store.config.stream ?? true,
-        system: Store.config.prompt?.system || '',
+        system: Store.config.prompt?.system || '', // 用户没写系统提示词就是空的，不注入任何东西
         provider: { headers, body: provider.body || {} }, // 请求头和额外请求体原样交给底层模型请求
+        ...overrides, // 会话级的能力开关，见 commands/settings.js
     }
 }
-
 // --- 真实试一次模型请求 ---
 const test = async ({ provider: name, model }) => {
     // 用户点名了供应商就查它；没点名才回退到配置里第一个能用的。

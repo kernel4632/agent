@@ -7,12 +7,11 @@
  *       "everything": { "command": "bun", "args": ["server.js"] }
  *     }
  *   }
- * 连上的服务给出一批工具（工具名是 服务名_原名），和内置工具一起交给模型。
- * 调用示例：
- *   const tools = await Mcp.tools()   // 全部已连服务的工具，拼进 Agent.tool.from(...)
- *   await Mcp.close()                 // 服务端退出前断开
- */
-
+  * 连上的服务给出一批工具（工具名是 服务名_原名），和内置工具一起交给模型。
+  * 调用示例：
+  *   const tools = await Mcp.tools()   // 全部已连服务的工具，拼进 Agent.tool.from(...)
+  *   await Mcp.close()                 // 断开全部服务；测试里用它收尾，进程退出时子进程会自己结束
+  */
 import { createMCPClient } from '@ai-sdk/mcp'
 import { Experimental_StdioMCPTransport as Stdio } from '@ai-sdk/mcp/mcp-stdio'
 import SSE from '../utils/sse.js' // 连不上时告诉用户是哪个服务出了问题。
@@ -50,8 +49,11 @@ const connect = async name => {
         return null
     }
 }
-
-// --- 取全部已连服务的工具 ---
+/**
+ * 取全部已连服务的工具，需要时先连上新增加的服务。
+ * 配置里已经删掉的服务会在这里断开连接并收回它的工具。
+ * @returns {Promise<object>} 工具名到工具对象的映射，名字带服务名前缀。
+ */
 const tools = async () => {
     const configured = Object.keys(Store.config.mcp || {})
     // 配置里已经删掉的服务，它们的连接和工具都不该再留着。
