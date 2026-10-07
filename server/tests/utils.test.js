@@ -283,6 +283,30 @@ describe('server session list', () => {
     })
 })
 
+describe('server route walk', () => {
+    test('reaches every session route and answers with a real message', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const created = await jsonRequest('/session/create', 'POST', { title: 'Route walk' })
+            const { sessionId } = await created.json()
+
+            // 这些接口都要真的走一遍。没有真模型时它们可以报错，但报错必须说清是哪件事不行，
+            // 而不是路由写错导致的 undefined、is not a function 这种。
+            for (const [path, method] of [
+                [`/session/compact/${sessionId}`, 'POST'],
+                [`/session/redo/${sessionId}`, 'POST'],
+                [`/session/changes/${sessionId}`, 'GET'],
+                ['/health', 'GET'],
+                ['/workspace/status', 'GET'],
+            ]) {
+                const response = await request(path, { method })
+                const body = await response.json()
+                expect(response.status, `${method} ${path} 返回了 ${response.status}: ${JSON.stringify(body)}`).not.toBe(500)
+            }
+        })
+    })
+})
+
 describe('server provider test endpoint', () => {
     test('reports an unknown provider as a client error', async () => {
         await withHome(async () => {

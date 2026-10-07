@@ -225,6 +225,8 @@ const compact = async ({ sessionId }) => {
     const meta = await readMeta(sessionId)
     const agent = await getAgent({ sessionId, meta })
     if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    // 模型地址没填时压缩必然失败。说清是配置问题，别报成程序错误让用户以为软件坏了。
+    if (!agent.config.baseURL || !agent.config.model) throw fail(400, `Session has no model configured: ${sessionId}`)
 
     // 压缩只往历史里追加一条总结，被总结的原文仍然留在磁盘上。
     const startLength = agent.history.length

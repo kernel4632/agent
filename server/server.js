@@ -54,7 +54,7 @@ app.group('/session', session => session
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
     .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
     .post('/redo/:sessionId', ({ params }) => Session.redo(params))
-    .post('/compact/:sessionId', ({ params }) => Session.compact({ ...params, ...body })))
+    .post('/compact/:sessionId', ({ params }) => Session.compact(params)))
 
 // --- 注册 Config 触发事件 ---
 app.group('/config', config => config
