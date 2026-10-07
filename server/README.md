@@ -15,8 +15,8 @@
 | 位置 | 只负责什么 | 不负责什么 |
 | --- | --- | --- |
 | `commands/` | 完成一个清晰的业务动作 | 不处理路由细节 |
-| `features/` | 实现可独立理解的业务规则（历史、工具审批） | 不返回 HTTP 响应 |
-| `store.js` | 保存内存中的数据结构（配置、会话历史、Agent 实例、待审批） | 不判断业务规则、不读 HTTP |
+| `features/` | 实现可独立理解的业务规则：历史、工具审批、忽略规则、文件快照、工作区 | 不返回 HTTP 响应 |
+| `store.js` | 保存内存中的数据结构（配置、会话历史、Agent 实例、快照清单、待审批） | 不判断业务规则、不读 HTTP |
 | `tools/` | 内置工具，一个文件放一类动作 | 不修改会话状态 |
 | `utils/` | 路径、SSE、带状态码的错误等通用能力 | 不组合业务流程 |
 
@@ -27,7 +27,19 @@ Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](h
 - 历史文件里的消息形状就是这个包的标准形状（`id`、`role`、`content` 块数组）
 
 加一个内置工具：往 `tools/` 放一个导出 `{ name, description, inputSchema, execute }` 的文件即可，重启后生效；删掉文件这个工具就消失。
-用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具。
+用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具；`tools/truncate.js` 是共享代码，没有 `name` 和 `execute`，扫描时会自动跳过。
+
+内置工具一共十二个：
+
+| 工具 | 做什么 |
+| --- | --- |
+| `file_read` / `file_write` / `file_list` | 读文件（含图片）、写完整文本、列目录 |
+| `edit` / `apply_patch` | 改一处唯一片段；`apply_patch` 一次改多个文件，全部校验通过才写盘 |
+| `grep` / `glob` | 按正则搜内容、按通配找文件，都会跳过 `node_modules` |
+| `shell` | 执行命令，带十分钟超时和输出截断 |
+| `todo` | 写下当前任务清单和进度，前端据此显示进度条 |
+| `webfetch` | 取网页正文 |
+| `finish` / `ask` | 结束任务；向用户提问并暂停 |
 
 ## 从零启动
 
@@ -67,6 +79,31 @@ $env:AGENT_HOME = "C:\temp\agent-data"
 ```text
 %USERPROFILE%\.agent
 ```
+
+目录里各是什么：
+
+```text
+.agent/
+  config.json        模型服务、系统提示词、工具权限规则 permission
+  .agentignore       额外的不许工具碰的文件规则（可选，写法同 .gitignore）
+  sessions/<id>/
+    meta.json        标题、供应商、模型、时间
+    history.json     对话历史，一条消息一个 messageId
+    checkpoints.json 每个消息点改了哪些文件
+    snapshots/       改文件之前的原样副本，回退时用来恢复
+  tools/             用户自己写的工具，和内置工具一起扫描
+```
+
+`.agentignore` 里写一条就多拦一类文件，写法同 `.gitignore`，例如：
+
+```text
+secrets/
+*.local.json
+assets/big-*.bin
+```
+
+`.env`、`*.pem`、`*.key`、`**/.ssh/**`、`**/.agent/**` 这些内置规则永远生效，改配置也关不掉，
+避免密钥或 agent 自己的数据被工具读进对话。
 
 ### 4. 创建模型配置
 
@@ -183,6 +220,28 @@ Content-Type: application/json
 | `409` | 该会话已有 Agent 正在运行 |
 | `500` | 后端执行失败 |
 
+### 服务状态与工作区
+
+| 方法 | 地址 | 结果 |
+| --- | --- | --- |
+| `GET` | `/health` | `{ "ok": true, "version": "0.3.0", "sessions": 2, "running": 1 }` |
+| `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
+| `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
+
+前端启动时先打 `/health`，能拿到 `version` 就说明后端在；拿不到就是连不上，可以直接提示用户。
+
+`/workspace/read` 的返回：
+
+```json
+{
+  "path": "D:/projects/app",
+  "files": ["src/main.js", "package.json"],
+  "git": { "branch": "main", "changed": 3, "modified": 2, "added": 0, "deleted": 0, "untracked": 1 }
+}
+```
+
+不是 git 仓库时 `git` 是 `null`，前端据此决定要不要显示分支。
+
 ### 配置
 
 | 方法 | 地址 | 请求体 | 结果 |
@@ -204,9 +263,14 @@ Content-Type: application/json
 | `GET` | `/session/read/:sessionId` | 无 | 会话元信息和完整 History |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
-| `POST` | `/session/rollback/:sessionId` | `{ "messageId" }` | 回退后的完整会话 |
+| `POST` | `/session/rollback/:sessionId` | `{ "messageId" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |
 | `POST` | `/session/redo/:sessionId` | 无 | 恢复后的完整会话 |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` 是这次的总结文本 |
+
+`POST /session/rollback/:sessionId` 会同时回退两样东西：对话消息，以及 agent 改过的文件。
+`restored` 列出被恢复的文件路径，前端可以在界面上显示"已把 3 个文件恢复到这一步之前"。
+这个能力靠 `features/snapshot.js` 实现：工具改文件之前先按内容存一份原样副本，
+所以同一个文件被反复改也只多存一份内容。
 
 会话读取示例：
 

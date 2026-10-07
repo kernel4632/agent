@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -12,6 +12,14 @@
     }
   ],
   "tags": [
+    {
+      "name": "Status",
+      "description": "确认后端是否可用。"
+    },
+    {
+      "name": "Workspace",
+      "description": "读取 agent 工作的目录、文件列表和 git 状态。"
+    },
     {
       "name": "Agent",
       "description": "控制 AI 执行任务。启动任务、停止任务、审批工具调用。"
@@ -30,6 +38,100 @@
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Status"],
+        "summary": "查询服务是否可用",
+        "description": "前端启动时先打这个接口：能拿到 version 就说明后端在，连不上就是后端没起来。同时给出内存里的会话数量和正在运行的任务数量。",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean", "example": true },
+                    "version": { "type": "string", "description": "后端版本号，来自 package.json", "example": "0.3.0" },
+                    "sessions": { "type": "integer", "description": "已经加载进内存的会话数量" },
+                    "running": { "type": "integer", "description": "正在执行任务的会话数量" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/read": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "读取当前工作区信息",
+        "description": "返回后端进程当前所在目录、这个目录下的文件列表（最多 200 个，已排除依赖和构建目录）以及 git 状态。对话里的 agent 需要这份信息才知道自己在哪个项目里工作。",
+        "operationId": "workspaceRead",
+        "responses": {
+          "200": {
+            "description": "工作区信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string", "example": "D:/projects/app" },
+                    "files": { "type": "array", "items": { "type": "string" }, "description": "工作区里的文件相对路径" },
+                    "git": {
+                      "description": "git 状态；不是 git 仓库时是 null",
+                      "oneOf": [
+                        { "type": "null" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "branch": { "type": "string", "example": "main" },
+                            "changed": { "type": "integer", "description": "有改动的文件总数" },
+                            "modified": { "type": "integer" },
+                            "added": { "type": "integer" },
+                            "deleted": { "type": "integer" },
+                            "untracked": { "type": "integer" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace/status": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "读取某个目录的 git 状态",
+        "description": "只想看某个子目录的分支和改动数量时用它。不是 git 仓库时 git 字段是 null。",
+        "operationId": "workspaceStatus",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "要检查的目录，不传就是后端进程的当前目录",
+            "schema": { "type": "string", "example": "D:/projects/app" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "目录的 git 状态",
+            "content": {
+              "application/json": {
+                "schema": { "type": ["object", "null"] }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/send/{sessionId}": {
       "post": {
         "tags": ["Agent"],
@@ -493,7 +595,7 @@
       "post": {
         "tags": ["Session"],
         "summary": "回退到某条消息之前的状态",
-        "description": "把对话历史回退到指定 messageId 之前的状态。这个操作要求会话当前没有任务在运行，否则返回 409；messageId 不在这个会话里时返回 404。回退后返回新的消息历史。",
+        "description": "回退到指定 messageId 之前的状态。同时回退两样东西：对话消息，以及 agent 通过工具改过的文件——文件会被恢复成那一刻的样子，任务期间新建的文件会被删掉。这个操作要求会话当前没有任务在运行，否则返回 409；messageId 不在这个会话里时返回 404。",
         "operationId": "sessionRollback",
         "parameters": [
           {
@@ -527,11 +629,24 @@
         },
         "responses": {
           "200": {
-            "description": "回退成功，返回回退后的完整对话内容",
+            "description": "回退成功，返回回退后的完整对话内容；restored 是被恢复的文件路径列表",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Session" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "restored": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "被恢复到这一步之前的文件路径；没改过文件时是空数组",
+                          "example": ["D:/projects/app/src/main.js"]
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -657,6 +772,54 @@
                 "schema": {
                   "$ref": "#/components/schemas/Config"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/test": {
+      "post": {
+        "tags": ["Config"],
+        "summary": "真实试一次模型请求",
+        "description": "用已保存的供应商配置发一条最小请求，确认请求地址、密钥和模型名能不能用。设置页的「测试连接」按钮走这个接口。不传参数就用配置里第一个启用的供应商。",
+        "operationId": "configTest",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": { "type": "string", "description": "供应商名称，不传就用第一个启用的" },
+                  "model": { "type": "string", "description": "模型名称，不传就用该供应商的第一个模型" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功，模型返回了内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean", "example": true },
+                    "provider": { "type": "string" },
+                    "model": { "type": "string" },
+                    "text": { "type": "string", "description": "模型返回的文字" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "供应商不存在，或者配置里没有任何模型可以试",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }

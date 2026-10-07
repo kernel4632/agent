@@ -36,6 +36,8 @@ function subscribeSession(sessionID, signal) {
 
 
 export const AgentAPI = {
+  getHealth:        ()                          => request('/health'),
+  getWorkspace:     ()                          => request('/workspace/read'),
   createSession:    async (workspaceID, provider, model) => {
     const { sessionId } = await request('/session/create', 'POST', { title: '新对话', provider, model })
     return request(`/session/read/${encodeURIComponent(sessionId)}`)
@@ -51,4 +53,6 @@ export const AgentAPI = {
   redo:             (sessionID)                 => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST'),
   getConfig:        ()                          => request('/config/read'),
   updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
+  // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
+  testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),
 }

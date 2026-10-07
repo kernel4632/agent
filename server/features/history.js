@@ -69,6 +69,14 @@ const get = ({ sessionId }) => {
     return (Store.sessions.get(sessionId)?.messages || []).map(({ messageId, message }) => ({ messageId, ...message }))
 }
 
+// --- 读取回退后仍然保留的消息块 ---
+const idsBefore = ({ sessionId, messageId }) => {
+    const session = Store.sessions.get(sessionId)
+    const index = session.messages.findIndex(record => record.messageId === messageId)
+    // 回退会把目标消息和它之后的整段一起移走，所以剩下的就是它前面的那些。
+    return session.messages.slice(0, index).map(record => record.message.id)
+}
+
 // --- 保存历史 ---
 const save = async ({ sessionId }) => {
     const path = Path.history(sessionId)
@@ -79,4 +87,4 @@ const save = async ({ sessionId }) => {
     await SSE.reset({ id: sessionId })
 }
 
-export default { load, add, rollback, redo, get, save }
+export default { load, add, rollback, redo, get, idsBefore, save }

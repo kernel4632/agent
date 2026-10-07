@@ -21,6 +21,8 @@ export default {
 
         // 结果达到上限后立即停止扫描，避免占满上下文。
         for await (const file of new Bun.Glob(pattern).scan({ cwd: path, dot: true })) {
+            // 依赖目录动辄几万个文件，模型要的是自己写的代码，不是第三方包。
+            if (file.includes('node_modules/') || file.includes('node_modules\\')) continue
             files.push(file) // 立即记录命中的路径。
             if (files.length >= 1000) break // 单次工具调用最多返回一千项。
         }

@@ -1,15 +1,15 @@
 /*
  * 会话与 Agent 指令：创建会话、读取会话、改标题、删除、回退、压缩、发送消息、停止。
  *
- * 每个会话在磁盘上是一个目录（meta.json + history.json），在内存里对应一台 Agent。
+ * 每个会话在磁盘上是一个目录（meta.json + history.json + snapshots/），在内存里对应一台 Agent。
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫' })
  *   await Session.send({ sessionId, input: '帮我写个爬虫' })   // 启动后台任务，过程走 SSE
  *   await Session.stop({ sessionId })
  *   const session = await Session.read({ sessionId })          // { id, title, provider, model, history }
- *   await Session.rollback({ sessionId, messageId })           // 回退到这条消息之前
+ *   await Session.rollback({ sessionId, messageId })           // 对话和文件一起回退到这条消息之前
  *   await Session.redo({ sessionId })
- *   await Session.compact({ sessionId, onCompact: event => {} })
+ *   await Session.compact({ sessionId })
  *   await Session.remove({ sessionId })
  */
 
@@ -17,13 +17,20 @@ import { mkdir, rm } from 'node:fs/promises'
 import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
+import Approval from '../features/approval.js' // 审批工具调用，顺带记录文件快照。
 import Config from './config.js' // 读取全局模型配置和权限规则。
-import Approval from '../features/approval.js' // 审批工具调用。
 import History from '../features/history.js' // 读写当前会话消息。
+import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
 import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
 import Path from '../utils/path.js' // 生成数据目录路径。
 import fail from '../utils/fail.js' // 找不到会话、输入为空等业务错误带上状态码。
 import SSE from '../utils/sse.js' // 把运行过程反馈给前端。
+// --- 准备数据目录 ---
+const prepare = async () => {
+    // 首次启动时数据目录还不存在，先建出来，后面所有读写都不用再判断目录在不在。
+    await mkdir(Path.root(), { recursive: true })
+    await mkdir(Path.tools(), { recursive: true })
+}
 
 // --- 读取会话资料 ---
 const readMeta = async sessionId => {
@@ -41,55 +48,18 @@ const writeMeta = async meta => {
     return meta
 }
 
-// --- 选择默认模型 ---
-const firstModel = () => {
-    // 未指定模型时，使用配置中第一个启用的服务商和它的第一个模型。
-    const provider = (Config.get().providers || []).find(item => item.enabled !== false)
-    const model = provider?.models?.[0]
-    return {
-        provider: provider?.name || '',
-        model: typeof model === 'string' ? model : model?.id || '',
-    }
-}
-
-// --- 生成 Agent 配置 ---
-const agentConfig = ({ providerName, model }) => {
-    // Agent 只接收当前会话需要的配置，不直接读取全局配置文件。
-    const global = Config.get()
-    const provider = (global.providers || []).find(item => item.name === providerName)
-    if (!provider) throw fail(400, `Provider not found: ${providerName}`)
-    let headers = provider.headers || {}
-    if (typeof headers === 'string') headers = JSON.parse(headers || '{}') // 设置页把请求头写成 JSON 文本。
-    const settings = provider.modelSettings?.[model] || {}
-    return {
-        baseURL: provider.baseURL || '',
-        apiKey: provider.apiKey || provider.key || '',
-        model,
-        protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
-        maxTokens: settings.context || settings.contextWindow || 128000, // 上下文预算，到达 80% 时自动压缩
-        stream: provider.stream ?? global.stream ?? true,
-        system: global.prompt?.system || '',
-        provider: { headers, body: provider.body || {} }, // 请求头和额外请求体原样交给底层模型请求
-    }
-}
-
-// --- 准备用户工具目录 ---
-const userTools = async () => {
-    const directory = Path.tools()
-    await mkdir(directory, { recursive: true }) // 首次启动还没有这个目录，先建出来。
-    return directory
-}
-
 // --- 创建 Agent 实例 ---
 const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
-    const tools = await Agent.tool.scan(new URL('../tools/', import.meta.url), await userTools())
+    // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
+    await mkdir(Path.tools(), { recursive: true })
+    const tools = await Agent.tool.scan(new URL('../tools/', import.meta.url), Path.tools())
     const agent = Agent.create({
         id: sessionId,
         history,
-        config: agentConfig({ providerName: meta.provider, model: meta.model }),
+        config: Config.resolve({ provider: meta.provider, model: meta.model }), // 配置格式转换只写在 Config 里。
         tools,
-        callbacks: { onPermission: Approval.check }, // 工具执行前先过一次权限规则。
+        callbacks: { onPermission: Approval.check }, // 工具执行前先过一次忽略规则和权限规则。
     })
     Store.agents.set(sessionId, agent)
     return agent
@@ -107,7 +77,7 @@ const getAgent = async ({ sessionId, meta }) => {
 const create = async ({ title, workspaceId, provider, model }) => {
     // 空标题无法帮助用户识别会话，因此在修改任何数据前拒绝请求。
     if (typeof title !== 'string' || !title.trim()) throw fail(400, 'title must be a non-empty string')
-    const selected = firstModel()
+    const selected = Config.firstModel()
     const meta = {
         id: nanoid(),
         title: title.trim(),
@@ -154,23 +124,28 @@ const remove = async ({ sessionId }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     Store.agents.delete(sessionId)
+    await Snapshot.remove({ sessionId }) // 会话没了，它的文件快照也不再需要。
     await rm(Path.session(sessionId), { recursive: true, force: true })
     return { ok: true }
 }
 
-// --- 回退会话历史 ---
+// --- 回退会话 ---
 const rollback = async ({ sessionId, messageId }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     await History.load({ sessionId })
+
+    // 先算出回退后还留下哪些消息块，再恢复文件；文件恢复失败时对话保持原样，
+    // 不会出现"消息没了但文件还在"的中间状态。
+    const restored = await Snapshot.restore({ sessionId, keep: History.idsBefore({ sessionId, messageId }) })
     await History.rollback({ sessionId, messageId })
     await History.save({ sessionId })
     const agent = Store.agents.get(sessionId)
     if (agent) agent.history = History.get({ sessionId })
-    return read({ sessionId })
+    return { ...await read({ sessionId }), restored }
 }
 
-// --- 恢复会话历史 ---
+// --- 恢复会话 ---
 const redo = async ({ sessionId }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
@@ -203,11 +178,15 @@ const send = async ({ sessionId, input }) => {
     const meta = await readMeta(sessionId)
     const agent = await getAgent({ sessionId, meta })
 
+    // 这一轮要改的文件都记在这条用户消息名下，回退到它就回到这轮开始前的样子。
+    // 消息块由 Agent 自己创建（send 会把用户输入写进历史），这里只借用它的 id。
+    const messageId = Agent.history.user({ content: input.trim() }).id
+
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
     const startLength = agent.history.length
     const task = agent.send({
         input: input.trim(),
-        config: agentConfig({ providerName: meta.provider, model: meta.model }),
+        config: Config.resolve({ provider: meta.provider, model: meta.model }),
         callbacks: {
             onStart: () => SSE.send({ id: sessionId, data: { type: 'agent-start' } }),
             onLLMStart: request => SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } }),
@@ -218,6 +197,7 @@ const send = async ({ sessionId, input }) => {
             onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
             onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } }),
             onCompact: event => SSE.send({ id: sessionId, data: event }),
+            onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({ sessionId, messageId, toolCallId, toolName, input: toolInput, signal }),
         },
     })
 
@@ -236,4 +216,10 @@ const stop = ({ sessionId }) => Store.agents.get(sessionId)?.stop() || { ok: fal
 // --- 处理工具审批 ---
 const decide = ({ sessionId, toolCallId, decision }) => Approval.decide({ sessionId, toolCallId, decision })
 
-export default { create, read, rename, remove, rollback, redo, compact, send, stop, decide }
+// --- 统计会话数量 ---
+const count = () => Store.sessions.size
+
+// --- 统计正在运行的任务 ---
+const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
+
+export default { prepare, create, read, rename, remove, rollback, redo, compact, send, stop, decide, count, runningCount }

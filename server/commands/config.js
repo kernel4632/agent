@@ -1,11 +1,13 @@
 /*
- * 配置指令：读取本机配置文件、替换配置、保存配置。
+ * 配置指令：读取本机配置文件、替换配置、保存配置、试一次模型请求。
  *
  * 配置里既有模型服务信息，也有工具权限规则 permission，所以本文件同时管着这两件事。
  * 调用示例：
  *   await Config.read(Path.config())            // 启动时读一次
  *   Config.get().providers                      // 取当前模型服务列表
  *   Config.get().permission                     // 取工具权限规则
+ *   Config.resolve({ provider: 'default', model: 'gpt-4o' })  // 取某套模型服务给 Agent 用的配置
+ *   await Config.test({ provider: 'default', model: 'gpt-4o' })  // 真实请求一次，确认能用
  *   await Config.set({ providers: [], permission: { '*': 'ask' } })  // 整体替换并保存
  *   await Config.save(Path.config())            // 只保存当前配置
  */
@@ -13,8 +15,13 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
+import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js' // 提供默认配置文件路径。
 import Store from '../store.js' // 直接访问程序当前使用的配置。
+import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
+
+// 后端自己的版本号写在 package.json 里，服务状态接口把它报给前端。
+import { version as packageVersion } from '../package.json' with { type: 'json' }
 
 // --- 读取配置 ---
 const read = async path => {
@@ -42,6 +49,55 @@ const set = async newConfig => {
 // --- 读取当前配置 ---
 const get = () => Store.config
 
+// --- 找出配置里第一个能用的模型 ---
+const firstModel = () => {
+    // 用户没有指定模型时，用第一个启用的服务商和它的第一个模型。
+    const provider = (Store.config.providers || []).find(item => item.enabled !== false)
+    const model = provider?.models?.[0]
+    return {
+        provider: provider?.name || '',
+        model: typeof model === 'string' ? model : model?.id || '',
+    }
+}
+
+// --- 把配置转换成 Agent 能用的形状 ---
+const resolve = ({ provider: name, model }) => {
+    // 设置页里字段名和 Agent 要的字段名不一样；转换只写在这一处，界面改字段名也只改这里。
+    const provider = (Store.config.providers || []).find(item => item.name === name)
+    if (!provider) throw fail(400, `Provider not found: ${name}`)
+
+    let headers = provider.headers || {}
+    if (typeof headers === 'string') headers = JSON.parse(headers || '{}') // 设置页把请求头写成 JSON 文本。
+    const settings = provider.modelSettings?.[model] || {}
+    return {
+        baseURL: provider.baseURL || '',
+        apiKey: provider.apiKey || provider.key || '',
+        model,
+        protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
+        maxTokens: settings.context || settings.contextWindow || 128000, // 上下文预算，到达 80% 时自动压缩
+        stream: provider.stream ?? Store.config.stream ?? true,
+        system: Store.config.prompt?.system || '',
+        provider: { headers, body: provider.body || {} }, // 请求头和额外请求体原样交给底层模型请求
+    }
+}
+
+// --- 真实试一次模型请求 ---
+const test = async ({ provider: name, model }) => {
+    const chosen = name ? { provider: name, model } : firstModel()
+    if (!chosen.provider || !chosen.model) throw fail(400, 'no provider or model configured to test')
+
+    // 用最小的真实请求验证这一整套配置：地址对不对、密钥能不能用、模型名存不存在。
+    const result = await Agent.llm.chat({
+        ...resolve(chosen),
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+    })
+    return { ok: true, provider: chosen.provider, model: chosen.model, text: result.text }
+}
+
+// --- 读取后端版本 ---
+const version = () => packageVersion
+
 // --- 保存配置 ---
 const save = async path => {
     await mkdir(dirname(path), { recursive: true })
@@ -50,4 +106,4 @@ const save = async path => {
     return Store.config
 }
 
-export default { read, set, get, save }
+export default { read, set, get, firstModel, resolve, test, version, save }
