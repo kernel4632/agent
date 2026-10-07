@@ -24,6 +24,7 @@ const config = () => join(root(), 'config.json')
 const ignore = () => join(root(), '.agentignore')
 
 // 会话目录保存元数据、历史记录和文件快照。
+const sessions = () => join(root(), 'sessions') // 所有会话目录的父目录，列出会话时用它。
 const session = id => join(root(), 'sessions', id) // 每条会话使用独立目录。
 const meta = id => join(session(id), 'meta.json') // 保存会话模型和工作区元数据。
 const history = id => join(session(id), 'history.json') // 保存可编辑的消息历史。
@@ -33,4 +34,4 @@ const checkpoints = id => join(session(id), 'checkpoints.json') // 记录每个�
 // 用户工具按目录扫描，删除文件后下一次扫描就不会再发现它；内置工具跟着代码走，不在这里。
 const tools = () => join(root(), 'tools')
 
-export default { root, config, ignore, session, meta, history, snapshots, checkpoints, tools }
+export default { root, config, ignore, sessions, session, meta, history, snapshots, checkpoints, tools }

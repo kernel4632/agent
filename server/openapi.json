@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -364,6 +364,36 @@
                     "summary": "任务出错",
                     "value": "data: {\"type\":\"error\",\"message\":\"Provider not found: openai\",\"name\":\"Error\"}\n\n"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/list": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "列出磁盘上的全部会话",
+        "description": "前端启动时用它填充侧边栏。只返回会话元信息，不返回历史，所以很快。会话存在磁盘上，因此换台机器、换浏览器、清掉缓存都能找回自己的会话。最近用过的排在前面。",
+        "operationId": "sessionList",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "按标题或模型名筛选，不传就是全部",
+            "schema": { "type": "string", "example": "爬虫" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话元信息列表，按最近更新时间从新到旧",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SessionMeta" }
                 }
               }
             }
@@ -983,6 +1013,25 @@
                 "items": {
                   "$ref": "#/components/schemas/Message"
                 }
+              },
+              "todos": {
+                "type": "array",
+                "description": "agent 最近一次调用 todo 工具写下的任务清单，直接从历史里取出来，界面可以直接渲染进度",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": { "type": "string", "description": "这一步要做什么" },
+                    "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] }
+                  }
+                },
+                "example": [
+                  { "text": "读现有实现", "status": "completed" },
+                  { "text": "改 session 指令", "status": "in_progress" }
+                ]
+              },
+              "running": {
+                "type": "boolean",
+                "description": "这个会话现在有没有任务在跑"
               }
             }
           }

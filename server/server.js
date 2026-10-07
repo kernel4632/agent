@@ -46,6 +46,7 @@ app.group('/agent', agent => agent
 
 // --- 注册 Session 触发事件 ---
 app.group('/session', session => session
+    .get('/list', ({ query }) => Session.list({ search: query.search }))
     .post('/create', ({ body }) => Session.create(body))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))

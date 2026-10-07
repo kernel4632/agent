@@ -259,8 +259,9 @@ Content-Type: application/json
 
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
+| `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `POST` | `/session/create` | `{ "title", "workspaceId?", "provider?", "model?" }` | `{ "sessionId" }` |
-| `GET` | `/session/read/:sessionId` | 无 | 会话元信息和完整 History |
+| `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、当前任务清单 `todos`、是否在跑 `running` |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
 | `POST` | `/session/rollback/:sessionId` | `{ "messageId" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |
@@ -272,6 +273,17 @@ Content-Type: application/json
 这个能力靠 `features/snapshot.js` 实现：工具改文件之前先按内容存一份原样副本，
 所以同一个文件被反复改也只多存一份内容。
 
+`GET /session/list` 是列表接口，不返回历史，只返回元信息：
+
+```json
+[
+  { "id": "session-id", "title": "写前端", "provider": "default", "model": "模型名", "createdAt": 1724745600000, "updatedAt": 1724745900000 }
+]
+```
+
+前端启动时用它填充侧边栏；搜索传 `?search=`，按标题和模型名匹配。**会话列表以这个接口为准**，
+不要在浏览器本地再存一份，否则换台机器或清掉缓存就找不回来了。
+
 会话读取示例：
 
 ```json
@@ -280,6 +292,8 @@ Content-Type: application/json
   "title": "写前端",
   "provider": "default",
   "model": "模型名",
+  "running": false,
+  "todos": [{ "text": "读现有实现", "status": "completed" }],
   "history": [
     {
       "messageId": "message-id",
@@ -290,6 +304,9 @@ Content-Type: application/json
   ]
 }
 ```
+
+`todos` 是 agent 最近一次调用 `todo` 工具写下的任务清单，直接从历史里取出来，界面上可以直接渲染进度。
+`running` 说明这个会话现在有没有任务在跑。
 
 `history` 中的每条消息都带 `messageId`（后端记录用的身份）和 `id`（消息块自己的身份）。回退按钮直接传目标消息的 `messageId`。
 
@@ -335,9 +352,17 @@ Content-Type: application/json
 
 | 值 | 含义 |
 | --- | --- |
-| `allow-always` | 始终允许，并把本次参数加入权限规则（写回配置文件） |
+| `allow-always` | 始终允许，并把这类操作加入权限规则（写回配置文件） |
 | `allow-once` | 只允许本次调用，不修改规则 |
 | `deny` | 拒绝本次调用 |
+
+`allow-always` 记住的是"用户心里认为的那个操作"，不是这串一模一样的参数：
+
+- 命令类工具记住命令本身，参数不算。允许一次 `git commit -m "第一个提交"`，
+  之后 `git commit -m "完全不同的信息"` 也不会再问；但 `git push` 是另一个操作，仍然会问。
+- 其他工具记住完整参数，比如"只允许读这一个文件"。
+
+这条规则让审批次数跟"用户实际做了几个决定"对得上，而不是跟"字符串变了多少次"对得上。
 
 同一个会话同时只能运行一个 Agent。再次发送时若收到 `409`，前端应提示用户先停止当前任务。
 

@@ -106,6 +106,47 @@ describe('server HTTP API', () => {
     })
 })
 
+describe('server session list', () => {
+    test('lists sessions from disk, newest first, and searches by title', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const first = await Session.create({ title: 'Alpha task' })
+            // 造一点时间差，好让排序有东西可排。
+            await Bun.sleep(5)
+            const second = await Session.create({ title: 'Beta task' })
+
+            const all = await Session.list({})
+            expect(all).toHaveLength(2)
+            // 最近用过的排在前面。
+            expect(all[0].id).toBe(second.sessionId)
+
+            // 搜索按标题匹配，找不到的不会出现在结果里。
+            const searched = await Session.list({ search: 'alpha' })
+            expect(searched).toHaveLength(1)
+            expect(searched[0].id).toBe(first.sessionId)
+        })
+    })
+
+    test('lists sessions through HTTP', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Session.create({ title: 'Visible' })
+
+            const response = await request('/session/list')
+            expect(response.status).toBe(200)
+            const sessions = await response.json()
+            expect(sessions.map(item => item.title)).toEqual(['Visible'])
+        })
+    })
+
+    test('returns an empty list when no session directory exists yet', async () => {
+        await withHome(async () => {
+            // 全新安装时 sessions/ 目录还不存在，列出空的而不是报错。
+            expect(await Session.list({})).toEqual([])
+        })
+    })
+})
+
 describe('server provider test endpoint', () => {
     test('reports an unknown provider as a client error', async () => {
         await withHome(async () => {
@@ -274,6 +315,22 @@ describe('server tool approval and SSE', () => {
             // 填错的决定不能把这条审批弄丢，用户还能重新选一次。
             await Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'allow-once' })
             expect(await pending).toBe(true)
+        })
+    })
+
+    test('remembers a whole command instead of one exact argument list', async () => {
+        await withHome(async () => {
+            await Config.set({ permission: { '*': 'ask' } })
+            const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'shell', input: { command: 'git commit -m "first message"' } })
+            await Approval.decide({ sessionId: 's', toolCallId: 's1', decision: 'allow-always' })
+            expect(await pending).toBe(true)
+
+            // 换一条提交信息还是同一个操作，不该再问一遍。
+            expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'shell', input: { command: 'git commit -m "totally different message"' } })).toBe(true)
+            // 另一个操作仍然要问。
+            const push = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'shell', input: { command: 'git push origin main' } })
+            await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
+            expect(await push).toBe(false)
         })
     })
 

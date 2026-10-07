@@ -13,7 +13,7 @@
  *   await Session.remove({ sessionId })
  */
 
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readdir, rm } from 'node:fs/promises'
 import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
@@ -31,6 +31,31 @@ const prepare = async () => {
     await mkdir(Path.root(), { recursive: true })
     await mkdir(Path.tools(), { recursive: true })
 }
+
+// --- 列出磁盘上的全部会话 ---
+const list = async ({ search = '' } = {}) => {
+    const root = Path.sessions()
+    // 第一次运行时这个目录还不存在，列出来是空的而不是报错。
+    const entries = await readdir(root).catch(() => [])
+    const sessions = []
+
+    for (const entry of entries) {
+        const file = Bun.file(Path.meta(entry))
+        // 目录里可能有别的残留文件，只认带 meta.json 的会话目录。
+        if (!await file.exists()) continue
+        const meta = await file.json()
+        // 搜索按标题和模型名匹配，用户记得的通常是这两样。
+        if (search && !`${meta.title} ${meta.model}`.toLowerCase().includes(search.toLowerCase())) continue
+        sessions.push(meta)
+    }
+
+    // 最近用过的排在前面，用户找回会话时不用往下翻。
+    sessions.sort((first, second) => (second.updatedAt || 0) - (first.updatedAt || 0))
+    return sessions
+}
+
+// --- 判断会话是否正在跑任务 ---
+const isRunning = sessionId => Boolean(Store.agents.get(sessionId)?.running)
 
 // --- 读取会话资料 ---
 const readMeta = async sessionId => {
@@ -107,7 +132,19 @@ const read = async ({ sessionId }) => {
     const history = History.get({ sessionId })
     if (agent) agent.history = history // 历史被回退或外部修改过，交回 Agent 手里的必须是最新的。
     else await createAgent({ sessionId, history, meta })
-    return { ...meta, history }
+    // 清单本来就在历史里（todo 工具的结果），这里只是提出来，让界面不用自己翻。
+    return { ...meta, history, todos: latestTodos(history), running: isRunning(sessionId) }
+}
+
+// --- 从历史里取出最新一份任务清单 ---
+const latestTodos = history => {
+    // 从后往前找最后一次 todo 调用，用户要看的是"现在还剩什么"。
+    for (const message of [...history].reverse()) {
+        for (const part of Array.isArray(message.content) ? message.content : []) {
+            if (part.type === 'tool-result' && part.toolName === 'todo' && part.output?.value?.items) return part.output.value.items
+        }
+    }
+    return []
 }
 
 // --- 重命名会话 ---
@@ -222,4 +259,4 @@ const count = () => Store.sessions.size
 // --- 统计正在运行的任务 ---
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
 
-export default { prepare, create, read, rename, remove, rollback, redo, compact, send, stop, decide, count, runningCount }
+export default { prepare, list, create, read, rename, remove, rollback, redo, compact, send, stop, decide, isRunning, count, runningCount }

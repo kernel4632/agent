@@ -49,11 +49,34 @@ const decideByRules = (toolName, matchValue) => {
     }
     return action
 }
+// 用户心里认为的"一个操作"：git commit -m "随便什么" 在他看来就是"提交"，
+// 所以记住 git commit 这一个前缀就够，不必每换一条提交信息就重新问一遍。
+// 写法参考 opencode 的 arity 表：参数丢掉，只留命令本身。
+const COMMAND_PREFIXES = [
+    'git commit', 'git checkout', 'git branch', 'git tag', 'git remote', 'git stash', 'git worktree',
+    'git push', 'git pull', 'git fetch', 'git merge', 'git rebase', 'git reset', 'git add',
+    'git log', 'git diff', 'git status', 'git show', 'git blame',
+    'bun run', 'bun x', 'bun test', 'bun install', 'bun add', 'bun remove',
+    'npm run', 'npm test', 'npm install', 'npm ci', 'npm publish',
+    'yarn run', 'yarn add', 'pnpm run', 'pnpm add',
+    'cargo run', 'cargo build', 'cargo test', 'cargo add', 'go run', 'go build', 'go test',
+    'docker compose', 'docker run', 'docker build', 'kubectl get', 'kubectl apply',
+    'pip install', 'python -m', 'uv run', 'poetry add', 'make',
+]
 
-// --- 把"始终允许"的参数写成规则 ---
-const remember = (toolName, matchValue) => {
+// --- 把一条命令归一成"用户心里的那个操作" ---
+const normalizeCommand = command => {
+    // 命中最长的前缀就用它，都不命中时只留第一个词（比如 ls、pwd、dir）。
+    const longest = COMMAND_PREFIXES.filter(prefix => String(command).startsWith(prefix)).sort((first, second) => second.length - first.length)[0]
+    return longest || String(command).trim().split(/\s+/).slice(0, 1).join(' ')
+}
+
+// --- 把"始终允许"写成规则 ---
+const remember = ({ toolName, input, matchValue }) => {
+    // 命令工具按归一化后的前缀记；其他工具按完整参数记，允许读这个文件就只允许读这个文件。
+    const pattern = toolName === 'shell' ? `${normalizeCommand(input.command)}*` : matchValue
     // 参数里可能出现通配符，先转义，保证这条规则只命中同一类参数。
-    const escaped = matchValue.replace(/[\\*?[\]{}()]/g, character => `[${character}]`)
+    const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
     const rules = Config.get().permission
     const toolRule = rules[toolName]
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[escaped] = 'allow'
@@ -107,7 +130,7 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     Store.approvals.delete(`${sessionId}:${toolCallId}`)
     if (decision === 'allow-always') {
         // 记住这类参数，并把规则写回配置文件，重启后依然生效。
-        remember(approval.toolName, approval.matchValue)
+        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue })
         await Config.save(Path.config())
     }
     approval.resolve(decision !== 'deny') // 允许一次和始终允许都放行本次调用。

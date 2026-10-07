@@ -38,6 +38,7 @@ function subscribeSession(sessionID, signal) {
 export const AgentAPI = {
   getHealth:        ()                          => request('/health'),
   getWorkspace:     ()                          => request('/workspace/read'),
+  getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   createSession:    async (workspaceID, provider, model) => {
     const { sessionId } = await request('/session/create', 'POST', { title: '新对话', provider, model })
     return request(`/session/read/${encodeURIComponent(sessionId)}`)
