@@ -23,6 +23,7 @@
 
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import matter from 'gray-matter' // 解析技能文件开头的 name 和 description。
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js' // 读一个不存在的技能时按填错处理。
 
@@ -31,19 +32,11 @@ import fail from '../utils/fail.js' // 读一个不存在的技能时按填错�
 const builtIn = () => fileURLToPath(new URL('../skills/', import.meta.url))
 // --- 拆出开头的 name 和 description ---
 const parse = text => {
-    // 技能文件开头是两行 --- 夹起来的小段，照着 agentskills 约定写的。
-    const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-    if (!match) return null // 没有这段就不算技能，跳过它。
-
-    const fields = {}
-    // 这个小段里每行是「字段名: 值」，值可能很长（description 常常一整段）。
-    for (const line of match[1].split('\n')) {
-        const separator = line.indexOf(':')
-        if (separator < 0) continue
-        fields[line.slice(0, separator).trim()] = line.slice(separator + 1).trim()
-    }
-    if (!fields.name || !fields.description) return null // 缺名字或说明的技能模型没法判断该不该用。
-    return { ...fields, body: text.slice(match[0].length).trim() }
+    // 技能文件开头是 front matter，交给 gray-matter 解析：值里有冒号、有引号、
+    // 换行写成多行都能正确处理，自己按行切开遇到这些就会解析错。
+    const { data, content } = matter(text)
+    if (!data.name || !data.description) return null // 缺名字或说明的技能模型没法判断该不该用。
+    return { name: data.name, description: data.description, body: content.trim() }
 }
 
 // --- 读一个目录里的技能 ---

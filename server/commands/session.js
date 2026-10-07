@@ -287,4 +287,4 @@ const count = () => Store.sessions.size
 // --- 统计正在运行的任务 ---
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
 
-export default { prepare, list, create, read, rename, remove, rollback, redo, changes, compact, send, stop, decide, isRunning, count, runningCount }
+export default { prepare, list, create, read, rename, remove, rollback, redo, changes, compact, send, stop, decide, count, runningCount }

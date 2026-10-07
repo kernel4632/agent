@@ -13,6 +13,7 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import picomatch from 'picomatch'
 import Path from '../utils/path.js'
+import { toolFiles } from '../utils/tool-files.js' // 一次调用会碰哪些文件。
 
 /*
  * 内置规则：这些文件里有密钥、凭据和机器私钥，模型读到就会进入对话历史和日志，
@@ -37,9 +38,6 @@ const BUILT_IN = [
     '**/.agent/**',
 ]
 
-// 只拦"会读或写文件"的工具；命令工具无法只看参数判断，交给权限规则处理。
-const FILE_TOOLS = ['file_read', 'file_write', 'file_list', 'edit', 'apply_patch', 'glob', 'grep']
-
 let patterns = BUILT_IN // 用户规则加载成功后追加到内置规则后面。
 let matchers = []
 
@@ -61,20 +59,11 @@ const load = async () => {
     return patterns
 }
 
-// --- 取出这次调用要碰的路径 ---
-const pathsOf = input => {
-    // 文件工具的参数里有 path，补丁工具的参数里是 patches 数组，两种都要看。
-    const found = []
-    if (typeof input?.path === 'string') found.push(input.path)
-    for (const patch of input?.patches || []) if (typeof patch?.path === 'string') found.push(patch.path)
-    return found
-}
-
 // --- 这次调用是不是被规则拦住 ---
 const blocks = ({ toolName, input }) => {
-    if (!FILE_TOOLS.includes(toolName)) return false // 命令工具的参数是一整条命令，交给权限规则判断。
-    // 只要能命中路径里的文件名就拦：模型写的是绝对路径还是相对路径都不影响。
-    return pathsOf(input).some(path => matchers.some(match => match(path) || match(basename(path))))
+    // 会碰哪些文件由 utils/tool-files.js 一处说了算，这里只负责判断它们该不该拦。
+    // 命中路径里的文件名就算：模型写的是绝对路径还是相对路径都不影响。
+    return toolFiles({ toolName, input }).some(path => matchers.some(match => match(path) || match(basename(path))))
 }
 
 export default { load, blocks }

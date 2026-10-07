@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import Path from '../utils/path.js'
 import Store from '../store.js' // 快照清单跟着会话一起放在内存里。
+import { toolFiles } from '../utils/tool-files.js' // 一次调用会碰哪些文件。
 
 // --- 内容指纹 ---
 const fingerprint = async path => {
@@ -25,16 +26,10 @@ const fingerprint = async path => {
 // --- 备份文件放在哪 ---
 const backupPath = (sessionId, hash) => join(Path.snapshots(sessionId), hash)
 
-// --- 工具会改哪些文件 ---
-const pathsOf = ({ toolName, input }) => {
-    // 补丁工具的参数是 patches 数组，其余文件工具是单个 path。
-    if (toolName === 'apply_patch') return (input?.patches || []).map(patch => patch.path).filter(Boolean)
-    return input?.path ? [input.path] : []
-}
-
 // --- 记录快照清单 ---
 const save = async ({ sessionId, messageId, toolName, input }) => {
-    const paths = pathsOf({ toolName, input })
+    // 会碰哪些文件由 utils/tool-files.js 一处说了算。
+    const paths = toolFiles({ toolName, input })
     if (!paths.length) return [] // file_list、glob、grep 这些不改文件，不需要快照。
 
     const store = await loadStore({ sessionId })

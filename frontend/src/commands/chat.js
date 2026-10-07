@@ -135,6 +135,18 @@ async function receive(sessionID, event) {
   } else if (event.type === 'tool-result') {
     const tool = toolFor(session, event, event.output?.type === 'execution-denied' ? 'rejected' : event.output?.type === 'error-text' || event.isError ? 'error' : 'completed')
     if (tool) tool.preview = outputText(event.output ?? event.result)
+  } else if (event.type === 'permission-blocked') {
+    // 这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不用等用户决定。
+    // 卡片要说清原因：用户看不到"谁来问过"，只看到工具没执行会以为是坏了。
+    const tool = toolFor(session, event, 'rejected')
+    if (tool) tool.preview = t('toolBlockedReason', { reason: event.reason })
+  } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
+    // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
+    const assistant = streaming(session) || createAssistant(session)
+    assistant.subagent = event.description
+  } else if (event.type === 'mcp-error') {
+    // 某个 MCP 服务没连上；只是跳过它，会话照常，所以提醒一句就好。
+    UI.notify(t('mcpFailed', { server: event.server, error: event.error }))
   } else if (event.type === 'retry') {
     const assistant = streaming(session) || createAssistant(session)
     assistant.retry = `连接重试 ${event.attempt || 1}，请稍候…`

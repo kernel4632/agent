@@ -1,13 +1,15 @@
 /*
- * 契约一致性检查：后端路由、接口文档、版本号三处必须说同一件事。
+ * 契约一致性检查：几处需要互相说同一件事的地方，改了一处忘了另一处就会失败。
  *
- * 这三处任何一处改了另两处没跟上，下次接手的人就会按错的名字写代码。
+ * 路由 / 接口文档 / 版本号，工具目录 / 忽略规则名单，都靠这里盯着。
  * 手工核对靠不住，所以让测试来盯。
  * 运行：cd server && bun test
  */
 import { describe, expect, test } from 'bun:test'
 import { fileURLToPath } from 'node:url'
+import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
+import { FILE_TOOLS } from '../utils/tool-files.js'
 
 // --- 从 Elysia 应用里取出全部路由 ---
 const routes = () => app.routes.map(route => ({
@@ -56,5 +58,54 @@ describe('接口契约', () => {
         const pkg = await readJson('package.json')
         const response = await app.handle(new Request('http://localhost/health'))
         expect((await response.json()).version).toBe(pkg.version)
+    })
+})
+
+// --- 工具与忽略规则 ---
+// tools/ 里每个工具的说明，用来判断它碰不碰文件。
+const toolDefinitions = async () => {
+    const tools = await Agent.tool.scan(fileURLToPath(new URL('../tools/', import.meta.url)))
+    return tools.schema
+}
+
+// --- SSE 事件 ---
+describe('SSE 事件', () => {
+    test('后端自己发的每个事件类型都在对接文档里写着', async () => {
+        // 从源码里提取，不另维护一份清单——清单会漂移，这正是要防的问题。
+        const sources = ['commands/session.js', 'features/approval.js', 'features/mcp.js', 'features/delegation.js']
+        const sent = new Set()
+        for (const name of sources) {
+            const code = await Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
+            // 只认 SSE 事件：它们都写成 data 里带一个 type 字段，
+            // 内容块里的 type（'text'、'object' 那些）不算。
+            for (const [, type] of code.matchAll(/data: \{ type: '([a-z][a-z-]+)'/g)) sent.add(type)
+        }
+
+        const documented = await Bun.file(fileURLToPath(new URL('../README.md', import.meta.url))).text()
+        // 少写一个，前端就不知道要处理它，用户界面上表现为"什么都没发生"。
+        expect([...sent].filter(type => !documented.includes(type))).toEqual([])
+    })
+})
+
+describe('工具名单', () => {
+    test('忽略规则登记的文件工具都真的存在', async () => {
+        const schema = await toolDefinitions()
+        // 名单里写着一个已经删掉的工具名，说明名单没跟着清理。
+        expect(FILE_TOOLS.filter(name => !(name in schema))).toEqual([])
+    })
+
+    test('碰文件的工具都登记进了忽略规则', async () => {
+        const schema = await toolDefinitions()
+        // 判断一个工具碰不碰文件，看它的参数里有没有 path 或 patches——
+        // 这是"能不能绕过 .agentignore 读到密钥"的唯一线索。
+        const touchesFiles = Object.entries(schema)
+            .filter(([, tool]) => {
+                const properties = tool.inputSchema?.jsonSchema?.properties || tool.inputSchema?.properties || {}
+                return 'path' in properties || 'patches' in properties
+            })
+            .map(([name]) => name)
+
+        // 漏登记的工具能读到 .env，而忽略规则完全不知道它存在。
+        expect(touchesFiles.filter(name => !FILE_TOOLS.includes(name))).toEqual([])
     })
 })
