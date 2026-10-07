@@ -1,23 +1,27 @@
-feat: 回退到工具调用这一级，并修好一个忽略规则漏洞
+feat: 会话级 plan/build 模式、自动批准、能力开关
 
-回退的粒度从"消息"下沉到"工具调用"。快照按 toolCallId 分组，所以能看到
-每一次改过文件的工具调用，可以只退其中一次：某一步改坏了不用把整轮对话和
-别的工具的成果一起丢掉。这是 roo code 和 opencode 的按消息回退都给不了的粒度。
+参考 opencode 的 plan / build 切换和 roo code 的 auto-approve，都做成会话级设置，
+存在会话目录的 settings.json 里，换台机器打开同一个会话还是同一份。
 
-新增两个接口：
-- GET  /session/tools/:sessionId          这个会话里哪些工具调用改过文件
-- POST /session/rollback/tool/:sessionId  退回指定那一次之前，files=false 只去记录
+- mode：plan 只给只读工具（读文件、搜代码、抓网页），build 给全套
+- autoApprove：开着就不再弹审批弹窗，但 .agentignore 仍然生效
+- capabilities.image / cache / stream：图像、提示词缓存、流式输出，默认全开
 
-顺带挖出并修掉一个真实的保护漏洞：忽略规则的 matcher 一直用 basename: true
-编译，picomatch 在这种模式下只拿文件名去比，于是规则里凡带 / 的都永远匹配不上——
-内置的 **/.agent/**、**/.ssh/**、**/.aws/**、**/.gnupg/** 四条一条都没生效。
-也就是说工具本来可以读到 agent 自己的数据目录（里面有 API Key 和全部会话）和
-用户的 SSH 私钥。现在整条路径和文件名各比一次，两种规则都能命中。
+plan 模式不是靠提示词实现的：后端把写工具从工具表里摘掉，模型看不到也调不到，
+而不是在系统提示词里写"请不要改文件"。这样不依赖模型听话，而且 system 能保持用户
+原样——后端不做任何提示词注入，用户没写就是空字符串，默认全原生。
 
-同时把 config 传错类型的状态码从 500 改成 400（那是用户填错，不是后端坏了），
-并修掉几处说错话的注释和过期的版本号示例。
+这三项都直接对应 agent-core 的字段名（capabilities / cache / stream），不做二次翻译，
+所以界面上看到的开关和真正发给模型的东西是同一件事。
 
-新增 tests/rollback.test.js 盯住工具级回退和这个安全默认，utils.test.js 已经
-接近 700 行，不再往里加。
+新增接口：
+- GET   /session/settings/:sessionId
+- PATCH /session/settings/:sessionId
+- GET   /session/tools/:sessionId（上一次提交漏了文档，这里补上）
 
-后端 0.10.1 -> 0.11.0。
+改 mode 会立刻重新装配工具表，所以要求会话没有任务在跑。
+
+新增 tests/settings.test.js，11 条测试盯着这三项真的改变了 Agent 拿到的东西，
+而不只是接口返回了什么。
+
+后端 0.11.0 -> 0.12.0。

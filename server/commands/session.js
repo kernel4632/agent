@@ -1,7 +1,7 @@
 /*
  * 会话与 Agent 指令：创建会话、读取会话、改标题、删除、回退、压缩、发送消息、停止。
  *
- * 每个会话在磁盘上是一个目录（meta.json + history.json + snapshots/），在内存里对应一台 Agent。
+ * 每个会话在磁盘上是一个目录（meta.json + history.json + settings.json + snapshots/），在内存里对应一台 Agent。
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫' })
  *   await Session.send({ sessionId, input: '帮我写个爬虫' })   // 启动后台任务，过程走 SSE
@@ -22,6 +22,7 @@ import Delegation from '../features/delegation.js' // 把独立探索工作委�
 import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
 import Skills from '../features/skills.js' // 数据目录里的技能，按需读正文。
 import Config from './config.js' // 读取全局模型配置和权限规则。
+import Settings from './settings.js' // 会话运行设置：模式、自动批准、能力开关。
 import History from '../features/history.js' // 读写当前会话消息。
 import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
 import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
@@ -76,13 +77,23 @@ const writeMeta = async meta => {
     return meta
 }
 
-// --- 创建 Agent 实例 ---
+/**
+ * 为一个会话建出 Agent 实例。
+ *
+ * 工具表在这里装配：内置工具、用户工具、MCP 服务、技能读写口，最后按会话模式筛一遍。
+ * plan 模式就是靠这一步只留只读工具，而不是往系统提示词里写"请不要改文件"。
+ * @param {{ sessionId: string, history: object[], meta: object }} input
+ * @returns {Promise<object>} 建好的 Agent 实例，已放进 Store.agents。
+ */
 const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
     // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
     await mkdir(Path.tools(), { recursive: true })
-    // 配置格式转换只写在 Config 里，子 agent 用的也是同一份。
-    const config = Config.resolve({ provider: meta.provider, model: meta.model })
+    // 会话的运行设置：模式、自动批准、能力开关。
+    const settings = await Settings.read({ sessionId })
+    // 配置格式转换只写在 Config 里，子 agent 用的也是同一份；
+    // 能力开关作为会话级覆盖并进去，system 保持用户原样，不做任何注入。
+    const config = Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) })
 
     // 三类工具一起交给模型：内置的文件工具、用户自己写的、设置里配的 MCP 服务。
     // 技能不作为工具全集出现，只给一个"读技能正文"的工具，正文等模型要用时才去读。
@@ -95,8 +106,15 @@ const createAgent = async ({ sessionId, history, meta }) => {
 
     // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
-    const tools = Agent.tool.merge(scanned, Agent.tool.adopt({ task: Delegation.build({ config, tools: scanned }) }))
+    const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ task: Delegation.build({ config, tools: scanned }) }))
 
+        // plan 模式只留只读工具。两份表要一起筛：schema 决定模型看不看得见，
+        // handlers 决定执行器找不找得到，只筛一份会出现"看不见但还能被调用"。
+        const allowed = Object.keys(merged.schema).filter(config.toolFilter)
+        const tools = {
+            schema: Object.fromEntries(allowed.map(name => [name, merged.schema[name]])),
+            handlers: Object.fromEntries(allowed.map(name => [name, merged.handlers[name]])),
+        }
     const agent = Agent.create({
         id: sessionId,
         history,
@@ -107,7 +125,6 @@ const createAgent = async ({ sessionId, history, meta }) => {
     Store.agents.set(sessionId, agent)
     return agent
 }
-
 // --- 获取或创建 Agent ---
 const getAgent = async ({ sessionId, meta }) => {
     const current = Store.agents.get(sessionId)
@@ -166,6 +183,7 @@ const read = async ({ sessionId }) => {
         todos: latestTodos(history),
         running: isRunning(sessionId),
         pending: Approval.pending(sessionId),
+        settings: await Settings.read({ sessionId }), // 模式和开关，界面据此显示当前状态。
         undoable: History.redoCount({ sessionId }),
     }
 }
@@ -195,6 +213,7 @@ const remove = async ({ sessionId }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     Store.agents.delete(sessionId)
+    Settings.remove({ sessionId })
     await Snapshot.remove({ sessionId }) // 会话没了，它的文件快照也不再需要。
     await rm(Path.session(sessionId), { recursive: true, force: true })
     return { ok: true }
@@ -263,30 +282,62 @@ const rollbackPreview = async ({ sessionId, messageId }) => {
             return { restored }
         }
         
-        /**
-         * 记过哪些工具调用，界面据此列出"可以退回到哪一步"。
-         * @param {{ sessionId: string }} session
-         * @returns {Promise<object[]>} 每次改过文件的工具调用，按发生顺序。
-         */
-        const toolChanges = async ({ sessionId }) => {
-            await readMeta(sessionId)
-            return Snapshot.entries({ sessionId })
+/**
+ * 读这条会话的运行设置：模式、自动批准、能力开关。
+ * @param {{ sessionId: string }} session
+ * @returns {Promise<object>} 完整设置。
+ */
+const readSettings = async ({ sessionId }) => {
+    await readMeta(sessionId)
+    return Settings.read({ sessionId })
+}
+
+/**
+ * 改这条会话的运行设置，只改点名的那几项。
+ *
+ * 改完要按新设置重新装配 Agent：工具表和能力开关都建在 Agent 上，
+ * 不重建的话切换模式要等下一次重启才生效，用户会以为按钮坏了。
+ * @param {{ sessionId: string } & object} change
+ * @returns {Promise<object>} 保存后的完整设置。
+ * @throws {Error} 会话正在跑任务时按冲突处理（409），否则会中途换掉工具表。
+ */
+const saveSettings = async ({ sessionId, ...change }) => {
+    const meta = await readMeta(sessionId)
+    if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+
+    const settings = await Settings.save({ sessionId, ...change })
+    // 重建 Agent，让新的模式和开关立刻生效；历史原样交回去，不丢消息。
+    Store.agents.delete(sessionId)
+    await History.load({ sessionId })
+    await createAgent({ sessionId, history: History.get({ sessionId }), meta })
+    return settings
+}
+
+
+    /**
+     * 记过哪些工具调用，界面据此列出"可以退回到哪一步"。
+     * @param {{ sessionId: string }} session
+     * @returns {Promise<object[]>} 每次改过文件的工具调用，按发生顺序。
+     */
+    const toolChanges = async ({ sessionId }) => {
+        await readMeta(sessionId)
+        return Snapshot.entries({ sessionId })
+    }
+    
+    /**
+     * 这一次回退会恢复哪些文件，以及它们各自改了什么。
+     * @param {{ sessionId: string, keep: (entry: object) => boolean }} scope keep 判断某条记录是否属于要保留的那一段。
+     * @returns {Promise<object[]>} 会被恢复的文件；结构同 Snapshot.diff 的每一项。
+     */
+    const changedFiles = async ({ sessionId, keep }) => {
+        const droppedPaths = new Set()
+        for (const entry of Snapshot.entries({ sessionId })) {
+            if (keep(entry)) continue
+            for (const path of entry.paths) droppedPaths.add(path)
         }
-        
-        /**
-         * 这一次回退会恢复哪些文件，以及它们各自改了什么。
-         * @param {{ sessionId: string, keep: (entry: object) => boolean }} scope keep 判断某条记录是否属于要保留的那一段。
-         * @returns {Promise<object[]>} 会被恢复的文件；结构同 Snapshot.diff 的每一项。
-         */
-        const changedFiles = async ({ sessionId, keep }) => {
-            const droppedPaths = new Set()
-            for (const entry of Snapshot.entries({ sessionId })) {
-                if (keep(entry)) continue
-                for (const path of entry.paths) droppedPaths.add(path)
-            }
-            return (await Snapshot.diff({ sessionId })).filter(file => droppedPaths.has(file.path))
-        }
-        
+        return (await Snapshot.diff({ sessionId })).filter(file => droppedPaths.has(file.path))
+    }
+    
         /**
          * 撤销最近一次回退，可以连着调用好几层，直到发新消息把可撤销的层清空。
          * @param {{ sessionId: string, files?: boolean }} target files 要和回退时传的一致。
@@ -386,5 +437,6 @@ const runningCount = () => [...Store.agents.values()].filter(agent => agent.runn
 export default {
     prepare, list, create, read, rename, remove,
     rollback, rollbackPreview, rollbackTool, redo,
+    readSettings, saveSettings,
     changes, toolChanges, compact, send, stop, decide, count, runningCount,
 }

@@ -324,15 +324,44 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `POST` | `/session/create` | `{ "title", "workspaceId?", "provider?", "model?" }` | `{ "sessionId" }` |
-| `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、任务清单 `todos`、是否在跑 `running`、待批准 `pending` |
+| `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、任务清单 `todos`、是否在跑 `running`、待批准 `pending`、运行设置 `settings` |
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：每个文件改动前后的内容 |
+| `GET` | `/session/settings/:sessionId` | 无 | 这条会话的运行设置：模式、自动批准、能力开关 |
+| `PATCH` | `/session/settings/:sessionId` | `{ "mode?", "autoApprove?", "capabilities?" }` | 保存后的完整设置 |
+| `GET` | `/session/tools/:sessionId` | 无 | 每次改过文件的工具调用，按发生顺序；用来列出可回退的点 |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
 | `POST` | `/session/rollback/preview/:sessionId` | `{ "messageId" }` | 这次回退会消失多少消息、恢复哪些文件 |
 | `POST` | `/session/rollback/:sessionId` | `{ "messageId", "files?" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |
+| `POST` | `/session/rollback/tool/:sessionId` | `{ "toolCallId", "files?" }` | 只退这一次工具调用改的文件，另带 `restored`；对话不动 |
 | `POST` | `/session/redo/:sessionId` | `{ "files?" }` | 撤销回退后的完整会话，另带 `restored` |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` 是这次的总结文本 |
 
+### 运行设置：模式、自动批准、能力开关
+
+这三项都直接对应 `@kernel4632/agent-core` 的字段，不做二次翻译，设置存在会话目录的 `settings.json` 里。
+
+```json
+{
+  "mode": "build",
+  "autoApprove": false,
+  "capabilities": { "image": true, "cache": true, "stream": true }
+}
+```
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `mode` | `build` | `plan` 只给只读工具（读文件、搜代码、抓网页），`build` 给全套工具 |
+| `autoApprove` | `false` | 开着就不再弹审批弹窗；`.agentignore` 仍然生效，密钥文件照样读不到 |
+| `capabilities.image` | `true` | 能不能把图片发给模型 |
+| `capabilities.cache` | `true` | 提示词缓存 |
+| `capabilities.stream` | `true` | 流式输出 |
+
+**`plan` 模式不是靠提示词实现的。** 后端把写工具从工具表里摘掉，模型看不到也调不到，而不是在系统提示词里写"请不要改文件"。这样不依赖模型听话，`system` 也能保持用户原样。
+
+**系统提示词默认是空的**，后端不做任何注入。用户没写 `prompt.system` 时 `config.system` 就是 `""`，模型拿到的是它自己的默认行为。
+
+改 `mode` 会立刻按新设置重新装配工具表（历史不动），所以要求会话没有任务在跑，否则返回 `409`。改 `autoApprove` 和 `capabilities` 只是换配置，不重建。
 `GET /session/changes/:sessionId` 给出 agent 到目前为止改动的文件，用来在界面上显示 diff：
 
 ```json

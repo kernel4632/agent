@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.11.0",
+    "version": "0.12.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1058,6 +1058,233 @@
         }
       }
     },
+    "/session/settings/{sessionId}": {
+      "get": {
+        "tags": [
+          "Session"
+        ],
+        "summary": "读这条会话的运行设置",
+        "description": "返回模式、自动批准和几项模型能力开关。这些设置存在会话目录的 settings.json 里，换台机器打开同一个会话还是同一份。",
+        "operationId": "sessionReadSettings",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "会话的唯一编号",
+            "schema": {
+              "type": "string",
+              "example": "V1StGXR8_Z5jdHi6B-myT"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "当前设置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "plan",
+                        "build"
+                      ],
+                      "default": "build",
+                      "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
+                    },
+                    "autoApprove": {
+                      "type": "boolean",
+                      "default": false,
+                      "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                    },
+                    "capabilities": {
+                      "type": "object",
+                      "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
+                      "properties": {
+                        "image": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "能不能把图片发给模型"
+                        },
+                        "cache": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "提示词缓存"
+                        },
+                        "stream": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "流式输出"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "找不到这个 sessionId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Session"
+        ],
+        "summary": "改这条会话的运行设置",
+        "description": "只改请求里点到的那几项，其余保持原样。改模式会立刻按新设置重新装配 Agent 的工具表（历史不动），所以要求会话没有任务在跑，否则返回 409。",
+        "operationId": "sessionSaveSettings",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "会话的唯一编号",
+            "schema": {
+              "type": "string",
+              "example": "V1StGXR8_Z5jdHi6B-myT"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "plan",
+                      "build"
+                    ],
+                    "default": "build",
+                    "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
+                  },
+                  "autoApprove": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
+                    "properties": {
+                      "image": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "能不能把图片发给模型"
+                      },
+                      "cache": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "提示词缓存"
+                      },
+                      "stream": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "流式输出"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的完整设置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "plan",
+                        "build"
+                      ],
+                      "default": "build",
+                      "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
+                    },
+                    "autoApprove": {
+                      "type": "boolean",
+                      "default": false,
+                      "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                    },
+                    "capabilities": {
+                      "type": "object",
+                      "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
+                      "properties": {
+                        "image": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "能不能把图片发给模型"
+                        },
+                        "cache": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "提示词缓存"
+                        },
+                        "stream": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "流式输出"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "mode 不是 plan 或 build",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "找不到这个 sessionId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "这个会话的 AI 任务正在运行，需要先停止再改模式",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/session/tools/{sessionId}": {
       "get": {
         "tags": [
@@ -1593,6 +1820,47 @@
                 "type": "integer",
                 "description": "还能撤销几次回退（0 表示没有可撤销的回退）。发新消息后清空",
                 "example": 1
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "plan",
+                      "build"
+                    ],
+                    "default": "build",
+                    "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
+                  },
+                  "autoApprove": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
+                    "properties": {
+                      "image": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "能不能把图片发给模型"
+                      },
+                      "cache": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "提示词缓存"
+                      },
+                      "stream": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "流式输出"
+                      }
+                    }
+                  }
+                },
+                "description": "这条会话当前的运行设置，等同于 GET /session/settings/{sessionId}"
               }
             }
           }

@@ -43,13 +43,15 @@ app.group('/agent', agent => agent
     .post('/send/:sessionId', ({ params, body }) => Session.send({ ...params, ...body }))
     .post('/stop/:sessionId', ({ params }) => Session.stop(params))
     .post('/decide/:sessionId', ({ params, body }) => Session.decide({ ...params, ...body })))
-
 // --- 注册 Session 触发事件 ---
 app.group('/session', session => session
     .get('/list', ({ query }) => Session.list({ search: query.search }))
     .post('/create', ({ body }) => Session.create(body))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
+    // 会话运行设置：模式（plan / build）、自动批准、能力开关。
+    .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
+    .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...body }))
     // 记过哪些工具调用，界面据此列出"可以退回到哪一步"。
     .get('/tools/:sessionId', ({ params }) => Session.toolChanges(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))

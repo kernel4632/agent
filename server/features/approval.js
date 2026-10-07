@@ -15,13 +15,17 @@ import Config from '../commands/config.js' // 权限规则就写在配置里，�
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
 import Snapshot from './snapshot.js' // 工具改文件之前先存一份原样。
-import Store from '../store.js' // 直接访问等待用户决定的审批表。
+import Store from '../store.js' // 直接访问等待用户决定的审批表和会话设置。
 import SSE from '../utils/sse.js' // 把审批请求推给前端。
 import fail from '../utils/fail.js' // 用户选了不认识的决定时按填错处理。
 
-// --- 把工具参数压成一行文字 ---
+/**
+ * 把工具参数摊平成一行文字，供规则里的模式去比对。
+ * 路径、命令、嵌套对象都会被摊开，所以规则写 `git commit*` 就能命中。
+ * @param {unknown} value 模型的原始参数。
+ * @returns {string} 摊平后的一行。
+ */
 const flatten = value => {
-    // 规则里的模式要和参数对比，所以参数里的路径、命令都摊平成一行。
     const values = []
     const pending = [value]
     while (pending.length) {
@@ -33,13 +37,17 @@ const flatten = value => {
     return values.join(' ')
 }
 
-// --- 按规则决定放行还是询问 ---
+/**
+ * 按规则决定放行还是询问。
+ * @param {string} toolName 工具名。
+ * @param {string} matchValue 摊平后的参数。
+ * @returns {'allow'|'ask'} 全局规则只是起点，具体工具的规则可以覆盖它。
+ */
 const decideByRules = (toolName, matchValue) => {
     // 没有规则时先问用户，不自动执行任何工具。
     const rules = Config.get().permission || { '*': 'ask' }
     const toolRule = rules[toolName]
-    let action = rules['*'] === 'allow' ? 'allow' : 'ask' // 全局规则只是起点，具体工具可以覆盖它。
-
+    let action = rules['*'] === 'allow' ? 'allow' : 'ask'
     if (typeof toolRule === 'string') action = toolRule === 'allow' ? 'allow' : 'ask' // 工具自己的规则优先。
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
         // 对象形式的规则按参数匹配：最后一条命中的模式说了算。
@@ -49,6 +57,7 @@ const decideByRules = (toolName, matchValue) => {
     }
     return action
 }
+
 // 用户心里认为的"一个操作"：git commit -m "随便什么" 在他看来就是"提交"，
 // 所以记住 git commit 这一个前缀就够，不必每换一条提交信息就重新问一遍。
 // 写法参考 opencode 的 arity 表：参数丢掉，只留命令本身。
@@ -64,16 +73,23 @@ const COMMAND_PREFIXES = [
     'pip install', 'python -m', 'uv run', 'poetry add', 'make',
 ]
 
-// --- 把一条命令归一成"用户心里的那个操作" ---
+/**
+ * 把一条命令归一成"用户心里的那个操作"。
+ * @param {string} command 模型要执行的整条命令。
+ * @returns {string} 命中最长的前缀就用它，都不命中时只留第一个词（比如 ls、pwd、dir）。
+ */
 const normalizeCommand = command => {
-    // 命中最长的前缀就用它，都不命中时只留第一个词（比如 ls、pwd、dir）。
     const longest = COMMAND_PREFIXES.filter(prefix => String(command).startsWith(prefix)).sort((first, second) => second.length - first.length)[0]
     return longest || String(command).trim().split(/\s+/).slice(0, 1).join(' ')
 }
 
-// --- 把"始终允许"写成规则 ---
+/**
+ * 把"始终允许"写成一条规则。
+ * 命令工具按归一化后的前缀记；其他工具按完整参数记，允许读这个文件就只允许读这个文件。
+ * @param {{ toolName: string, input: object, matchValue: string }} call
+ * @returns {void}
+ */
 const remember = ({ toolName, input, matchValue }) => {
-    // 命令工具按归一化后的前缀记；其他工具按完整参数记，允许读这个文件就只允许读这个文件。
     const pattern = toolName === 'shell' ? `${normalizeCommand(input.command)}*` : matchValue
     // 参数里可能出现通配符，先转义，保证这条规则只命中同一类参数。
     const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
@@ -81,6 +97,18 @@ const remember = ({ toolName, input, matchValue }) => {
     const toolRule = rules[toolName]
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[escaped] = 'allow'
     else rules[toolName] = { '*': 'ask', [escaped]: 'allow' }
+}
+
+/**
+ * 放行这次调用，并在工具真正执行之前把要改的文件存一份快照。
+ * 记录里同时留下消息 id 和工具调用 id，所以既能退回整轮对话，也能只退回这一次调用。
+ * @param {{ sessionId: string, messageId?: string, toolCallId?: string, toolName: string, input: object }} call
+ * @returns {Promise<boolean>} 恒定 true，配合 check 的返回值使用。
+ */
+const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
+    // 快照要在工具执行之前记录，记下的才是被修改之前的文件内容。
+    await Snapshot.save({ sessionId, messageId, toolCallId, toolName, input })
+    return true
 }
 
 /**
@@ -99,52 +127,44 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
         return false
     }
-        const matchValue = flatten(input)
-        const rule = decideByRules(toolName, matchValue)
-        // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
-        if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
-    
-        // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
-        if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName, input }) // 没有会话上下文时按无人值守放行，避免任务卡死。
-    
-        const decision = await new Promise(resolve => {
-            Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })
-            SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: toolName, input } })
-            signal?.addEventListener('abort', () => {
-                // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
-                Store.approvals.delete(`${sessionId}:${toolCallId}`)
-                resolve(false)
-            }, { once: true })
-        })
-        if (!decision) return false
-        return allow({ sessionId, messageId, toolCallId, toolName, input })
-    }
-    
-    /**
-     * 放行这次调用，并在工具真正执行之前把要改的文件存一份快照。
-     * 记录里同时留下消息 id 和工具调用 id，所以既能退回整轮对话，也能只退回这一次调用。
-     * @param {{ sessionId: string, messageId?: string, toolCallId?: string, toolName: string, input: object }} call
-     * @returns {Promise<boolean>} 恒定 true，配合 check 的返回值使用。
-     */
-    const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
-        // 快照要在工具执行之前记录，记下的才是被修改之前的文件内容。
-        await Snapshot.save({ sessionId, messageId, toolCallId, toolName, input })
-        return true
-    }
-    
-    /**
-     * 列出这个会话还在等谁批准。
-     * @param {string} sessionId 会话编号。
-     * @returns {Array<{ callID: string, tool: string, input: object }>} 待批准的调用；没有时是空数组。
-     * @remarks 审批请求只通过 SSE 推一次。前端刷新或换设备打开同一个会话时，
-     *   只有这里能告诉它"有个工具在等你"——否则会话看起来像卡住了。
-     */
-    const pending = sessionId => {
-    // 只有这里能告诉它"有个工具在等你"——否则会话看起来像卡住了。
+
+    const matchValue = flatten(input)
+    // 会话开了自动批准就跳过询问，但仍要按规则决定允许还是询问——
+    // 自动批准省掉的是"每次都问一遍"，不是把用户配的 deny 也一起放开。
+    const settings = Store.settings.get(sessionId)
+    const rule = settings?.autoApprove ? 'allow' : decideByRules(toolName, matchValue)
+    // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
+    if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
+
+    // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
+    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName, input }) // 没有会话上下文时按无人值守放行，避免任务卡死。
+
+    const decision = await new Promise(resolve => {
+        Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })
+        SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: toolName, input } })
+        signal?.addEventListener('abort', () => {
+            // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
+            Store.approvals.delete(`${sessionId}:${toolCallId}`)
+            resolve(false)
+        }, { once: true })
+    })
+    if (!decision) return false
+    return allow({ sessionId, messageId, toolCallId, toolName, input })
+}
+
+/**
+ * 列出这个会话还在等谁批准。
+ * @param {string} sessionId 会话编号。
+ * @returns {Array<{ callID: string, tool: string, input: object }>} 待批准的调用；没有时是空数组。
+ * @remarks 审批请求只通过 SSE 推一次。前端刷新或换设备打开同一个会话时，
+ *   只有这里能告诉它"有个工具在等你"——否则会话看起来像卡住了。
+ */
+const pending = sessionId => {
     return [...Store.approvals.entries()]
         .filter(([, approval]) => approval.sessionId === sessionId)
         .map(([key, approval]) => ({ callID: key.slice(sessionId.length + 1), tool: approval.toolName, input: approval.input }))
 }
+
 /**
  * 接收用户在界面上做的决定，唤醒正在等待的那次工具调用。
  * @param {{ sessionId: string, toolCallId: string, decision: 'allow-once'|'allow-always'|'deny' }} choice
