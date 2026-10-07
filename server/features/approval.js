@@ -121,6 +121,15 @@ const allow = async ({ sessionId, messageId, toolName, input }) => {
     return true
 }
 
+// --- 列出这个会话还在等谁批准 ---
+const pending = sessionId => {
+    // 审批请求只通过 SSE 推一次。前端刷新或换设备打开同一个会话时，
+    // 只有这里能告诉它"有个工具在等你"——否则会话看起来像卡住了。
+    return [...Store.approvals.entries()]
+        .filter(([, approval]) => approval.sessionId === sessionId)
+        .map(([key, approval]) => ({ callID: key.slice(sessionId.length + 1), tool: approval.toolName, input: approval.input }))
+}
+
 // --- 接收用户决定 ---
 const decide = async ({ sessionId, toolCallId, decision }) => {
     const approval = Store.approvals.get(`${sessionId}:${toolCallId}`)
@@ -137,4 +146,4 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     return { ok: true }
 }
 
-export default { check, decide }
+export default { check, decide, pending }

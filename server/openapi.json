@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1079,6 +1079,19 @@
               "running": {
                 "type": "boolean",
                 "description": "这个会话现在有没有任务在跑"
+              },
+              "pending": {
+                "type": "array",
+                "description": "正在等用户批准的工具调用。审批请求只在 SSE 里推过一次，刷新页面后靠这个字段恢复等待状态；批准、拒绝或停止任务后自动变空",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "callID": { "type": "string", "description": "传给 POST /agent/decide 的 toolCallId" },
+                    "tool": { "type": "string", "description": "工具名" },
+                    "input": { "type": "object", "description": "这次调用的参数，界面展示给用户看" }
+                  }
+                },
+                "example": [{ "callID": "call-1", "tool": "shell", "input": { "command": "rm -rf build" } }]
               }
             }
           }

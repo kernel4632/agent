@@ -462,6 +462,27 @@ describe('server tool approval and SSE', () => {
         })
     })
 
+    test('shows a waiting approval after the page is reloaded', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } })
+            const { sessionId } = await Session.create({ title: 'Waiting approval' })
+
+            // 用户提交了一个工具调用，正在等批准。
+            const waiting = Approval.check({ sessionId, toolCallId: 'w1', toolName: 'shell', input: { command: 'rm -rf build' } })
+            await Bun.sleep(0)
+
+            // 刷新页面后前端重新读会话，应当能看到"有个工具在等"。
+            const reloaded = await Session.read({ sessionId })
+            expect(reloaded.pending).toHaveLength(1)
+            expect(reloaded.pending[0]).toMatchObject({ callID: 'w1', tool: 'shell' })
+
+            // 批准之后就不再是等待状态了。
+            await Approval.decide({ sessionId, toolCallId: 'w1', decision: 'allow-once' })
+            expect(await waiting).toBe(true)
+            expect((await Session.read({ sessionId })).pending).toEqual([])
+        })
+    })
+
     test('refuses to touch files the ignore rules protect', async () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'allow' } })

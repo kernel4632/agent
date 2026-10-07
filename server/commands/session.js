@@ -142,7 +142,8 @@ const read = async ({ sessionId }) => {
     if (agent) agent.history = history // 历史被回退或外部修改过，交回 Agent 手里的必须是最新的。
     else await createAgent({ sessionId, history, meta })
     // 清单本来就在历史里（todo 工具的结果），这里只是提出来，让界面不用自己翻。
-    return { ...meta, history, todos: latestTodos(history), running: isRunning(sessionId) }
+    // 审批请求只在 SSE 里出现过一次，刷新页面后要靠这里才知道有工具在等待。
+    return { ...meta, history, todos: latestTodos(history), running: isRunning(sessionId), pending: Approval.pending(sessionId) }
 }
 
 // --- 从历史里取出最新一份任务清单 ---

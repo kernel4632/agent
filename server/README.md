@@ -309,7 +309,7 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `POST` | `/session/create` | `{ "title", "workspaceId?", "provider?", "model?" }` | `{ "sessionId" }` |
-| `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、当前任务清单 `todos`、是否在跑 `running` |
+| `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、任务清单 `todos`、是否在跑 `running`、待批准 `pending` |
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：每个文件改动前后的内容 |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
@@ -359,6 +359,7 @@ Content-Type: application/json
   "provider": "default",
   "model": "模型名",
   "running": false,
+  "pending": [{ "callID": "call-1", "tool": "shell", "input": { "command": "rm -rf build" } }],
   "todos": [{ "text": "读现有实现", "status": "completed" }],
   "history": [
     {
@@ -373,6 +374,10 @@ Content-Type: application/json
 
 `todos` 是 agent 最近一次调用 `todo` 工具写下的任务清单，直接从历史里取出来，界面上可以直接渲染进度。
 `running` 说明这个会话现在有没有任务在跑。
+
+`pending` 是正在等用户批准的工具调用。审批请求只在 SSE 里出现过一次，**刷新页面或换台设备打开
+同一个会话时，只有这个字段能告诉界面"有个工具在等你"**——否则会话看起来就像卡住了。
+批准、拒绝或任务被停止后，它自动变空。
 
 `history` 中的每条消息都带 `messageId`（后端记录用的身份）和 `id`（消息块自己的身份）。回退按钮直接传目标消息的 `messageId`。
 
