@@ -632,18 +632,26 @@ describe('server tool approval and SSE', () => {
         })
     })
 
-    test('refuses to touch files the ignore rules protect', async () => {
-        await withHome(async () => {
-            await Config.set({ permission: { '*': 'allow' } })
-            await Ignore.load()
-
-            // 密钥文件即使权限规则全部放行也读不到。
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'i1', toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(false)
-            // 普通源码照常放行。
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'i2', toolName: 'file_read', input: { path: 'D:/app/src/a.js' } })).toBe(true)
+        test('refuses to touch files the ignore rules protect', async () => {
+            await withHome(async () => {
+                await Config.set({ permission: { '*': 'allow' } })
+                await Ignore.load()
+    
+                // 密钥文件即使权限规则全部放行也读不到。
+                expect(await Approval.check({ sessionId: 's', toolCallId: 'i1', toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(false)
+                // 普通源码照常放行。
+                expect(await Approval.check({ sessionId: 's', toolCallId: 'i2', toolName: 'file_read', input: { path: 'D:/app/src/a.js' } })).toBe(true)
+            })
         })
-    })
-
+    
+        test('protects secret files even before the rules are loaded', async () => {
+            // 内置规则必须在模块加载时就生效，不能等 load() 才生效。
+            // 否则任何忘了先 load() 的调用方都会静默放行全部文件，连 .env 也一起漏掉。
+            expect(Ignore.blocks({ toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(true)
+            // 被拦住时要说清是哪一条规则挡下的，用户和界面都靠它判断。
+            expect(Ignore.blockedBy({ toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe('.env')
+            expect(Ignore.blockedBy({ toolName: 'file_read', input: { path: 'D:/app/src/a.js' } })).toBe(null)
+        })
     test('connects, sends, and closes an SSE session', async () => {
         const id = `sse-${crypto.randomUUID()}`
         const response = await SSE.connect({ id, request: new Request('http://localhost/sse') })

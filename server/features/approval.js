@@ -83,15 +83,22 @@ const remember = ({ toolName, input, matchValue }) => {
     else rules[toolName] = { '*': 'ask', [escaped]: 'allow' }
 }
 
-// --- 检查工具是否放行 ---
+/**
+ * 检查一个工具调用能不能执行；要改文件时，先把原样存一份进快照。
+ *
+ * 这是工具执行的唯一一道关口，忽略规则和权限规则都在这里判断，读文件和执行命令都绕不过它。
+ * @param {{ sessionId: string, messageId?: string, toolCallId?: string, toolName: string, input?: object, signal?: AbortSignal }} call
+ *   模型这次想调用的工具、参数和所在会话；没有 sessionId / toolCallId 时按无人值守放行。
+ * @returns {Promise<boolean>} true 表示放行；false 表示被忽略规则拦下，或用户选择了拒绝。
+ */
 const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal }) => {
     // Agent 只看这个返回值是不是 true，所以这里必须返回布尔值，不能返回对象。
     // 被拦住的原因通过 SSE 告诉界面，让用户知道是哪条规则挡下的。
-    if (Ignore.blocks({ toolName, input })) {
-        await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: 'ignored path' } })
+    const blocked = Ignore.blockedBy({ toolName, input })
+    if (blocked) {
+        await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
         return false
     }
-
     const matchValue = flatten(input)
     const rule = decideByRules(toolName, matchValue)
 
@@ -129,8 +136,12 @@ const pending = sessionId => {
         .filter(([, approval]) => approval.sessionId === sessionId)
         .map(([key, approval]) => ({ callID: key.slice(sessionId.length + 1), tool: approval.toolName, input: approval.input }))
 }
-
-// --- 接收用户决定 ---
+/**
+ * 接收用户在界面上做的决定，唤醒正在等待的那次工具调用。
+ * @param {{ sessionId: string, toolCallId: string, decision: 'allow-once'|'allow-always'|'deny' }} choice
+ *   用户点的按钮；不认识的取值按填错处理（400）。
+ * @returns {Promise<{ ok: boolean }>} false 表示这条审批已经结束或不存在，界面不该显示为成功。
+ */
 const decide = async ({ sessionId, toolCallId, decision }) => {
     const approval = Store.approvals.get(`${sessionId}:${toolCallId}`)
     if (!approval) return { ok: false } // 已经超时或被取消的审批不再处理。
