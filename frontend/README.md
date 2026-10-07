@@ -2,7 +2,7 @@
 
 基于 Figma `agent` 设计实现的 Vue 3 + Vite 前端。保留深色侧栏、蓝黑聊天区、柔和背景和紧凑设置的方向，补充响应式布局、浅色主题及键盘操作。
 
-**仅修改前端。`server/` 与 `core/` 没有改动。**
+**仅修改前端。`server/` 没有改动。**
 
 ## 界面与样式
 
@@ -24,7 +24,7 @@ bun install
 bun run dev
 ```
 
-前端默认监听 `127.0.0.1:5173`，Vite 将 `/api` 转发至 `AGENT_SERVER_URL`，默认 `http://127.0.0.1:3000`。依赖使用 Bun 安装；若 `file:../core` 在部分环境跨卷复制出错，可将 `core` 以 junction 或软链接方式引用。
+前端默认监听 `127.0.0.1:5173`，Vite 将 `/api` 转发至 `AGENT_SERVER_URL`，默认 `http://127.0.0.1:3000`。依赖使用 Bun 安装，后端 Agent 循环来自已发布的 `@kernel4632/agent-core` 包。
 
 ## 已对接的接口
 

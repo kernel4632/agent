@@ -1,17 +1,25 @@
+/*
+ * Web 服务入口：接收 HTTP 触发，交给对应的指令，再按状态码把错误发回去。
+ *
+ * 本文件只做三件事：注册路由、把错误转成 HTTP 反馈、启动服务。
+ * 业务读取、修改和保存都在 commands/ 与 features/ 内完成。
+ * 调用示例：
+ *   await start({ port: 3000 })          // 启动服务
+ *   await app.handle(new Request('http://localhost/config/read'))  // 测试里直接调用
+ */
+
 import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
 import Config from './commands/config.js' // 执行配置读写指令。
 import Session from './commands/session.js' // 执行会话和 Agent 指令。
-import Permission from './features/permission.js' // 启动时加载权限数据。
 import Path from './utils/path.js' // 提供配置文件路径。
 import SSE from './utils/sse.js' // 提供实时反馈连接。
 
-// 应用对象只负责路由；业务读取、修改和保存都在 commands/features 内完成。
 const app = new Elysia()
 
 // --- 转换业务错误 ---
 app.onError(({ error, set }) => {
-    // 指令抛出错误，入口只把错误转换成稳定的 HTTP 状态和 JSON 反馈。
-    set.status = error instanceof TypeError ? 400 : /not found/i.test(error.message) ? 404 : /already running/i.test(error.message) ? 409 : 500
+    // 指令抛出的错误自带状态码；没有状态码的说明是程序问题，按 500 返回并带上原因。
+    set.status = error.status || 500
     return { error: error.message }
 })
 
@@ -27,9 +35,7 @@ app.group('/session', session => session
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
-    .post('/rollback/:sessionId', async ({ params, body }) => {
-        return Session.rollback({ ...params, ...body })
-    })
+    .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
     .post('/redo/:sessionId', ({ params }) => Session.redo(params))
     .post('/compact/:sessionId', ({ params, body }) => Session.compact({ ...params, ...body })))
 
@@ -44,15 +50,15 @@ app.group('/sse', sse => sse
 
 // --- 启动应用 ---
 const start = async ({ port = process.env.PORT || 3000 } = {}) => {
-    // 先读取配置，后加载权限；这样 Agent 创建时能拿到完整运行规则。
+    // 权限规则就写在配置的 permission 字段里，读一次配置即可拿到完整运行规则。
     await Config.read(Path.config())
-    const permission = Config.get().permission
-    if (permission) await Permission.load({ path: Path.config() })
     return app.listen(port)
 }
 
 export { app, start }
 
 if (import.meta.main) {
-    start().then(server => console.log(`Agent server listening on ${server.hostname}:${server.port}`))
+    // 监听成功后打印真实地址，方便用户和日志确认服务开在哪个端口。
+    const port = process.env.PORT || 3000
+    start({ port }).then(() => console.log(`Agent server listening on http://localhost:${port}`))
 }

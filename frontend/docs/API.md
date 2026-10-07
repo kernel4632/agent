@@ -1,6 +1,6 @@
 # la 前后端接口文档
 
-本文记录本次前端实际对接的已有后端行为，基线为 `174f27c`。以 [server.js](../../server/server.js)、[Session 指令](../../server/commands/session.js)、[Config 指令](../../server/commands/config.js)、[SSE 实现](../../server/utils/sse.js) 为依据。本次交付没有修改 `server/` 或 `core/`，本文也不代表新增后端能力。
+本文记录前端实际对接的后端行为，基线为 `174f27c`。以 [server.js](../../server/server.js)、[Session 指令](../../server/commands/session.js)、[Config 指令](../../server/commands/config.js)、[SSE 实现](../../server/utils/sse.js) 为依据。后端最新说明见 [server/README.md](../../server/README.md) 与 [openapi.json](../../server/openapi.json)。
 
 前端实现入口：[api.js](../src/api.js)、[chat.js](../src/commands/chat.js)、[session.js](../src/commands/session.js)、[SSE 解析器](../src/utils/sse.js)。
 

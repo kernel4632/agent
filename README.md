@@ -22,8 +22,10 @@
 | 桌面 | Go + Wails |
 | CLI | Go + BubbleTea |
 | 前端 | Vue 3 + JavaScript |
-| 服务端 | Bun + Elysia + Vercel AI SDK |
+| 服务端 | Bun + Elysia + [@kernel4632/agent-core](https://github.com/kernel4632/agent-core) |
 | 分发 | `bun compile` 嵌入 Go 二进制 |
+
+Agent 循环（模型请求、工具执行、上下文压缩）由独立发布的 `@kernel4632/agent-core` 提供，本项目不再自带实现。
 
 ## 运行模式
 
@@ -35,36 +37,44 @@
 
 ## 数据目录
 
-默认数据目录为 `%USERPROFILE%/.agent`，可通过 `AGENT_DATA_DIR` 修改：
+默认数据目录为 `%USERPROFILE%/.agent`，可通过 `AGENT_HOME` 修改：
 
 ```text
 .agent/
   config.json
-  workspace.json
-  mcp.json
   sessions/
-  skills/
   tools/
 ```
 
-配置中的 API Key、敏感请求头和 MCP 环境变量可使用 `${ENV_NAME}` 占位符。服务从环境读取真实值，配置接口返回脱敏内容。
+- `config.json`：模型服务、系统提示词和工具权限规则（`permission` 字段）
+- `sessions/<id>/`：每个会话一个目录，放 `meta.json` 和 `history.json`
+- `tools/`：用户自己写的工具，启动时和内置工具一起扫描
+
+配置中的 API Key、敏感请求头和 MCP 环境变量可使用 `${ENV_NAME}` 占位符。
 
 ## HTTP API
 
-服务端只公开四个顶级资源：
+服务端公开以下资源：
 
-- `/health`：`GET` 获取服务状态和版本
-- `/config`：`GET` 获取脱敏配置，`PATCH` 修改配置
-- `/workspace`：`GET`、`POST`、`PATCH`、`DELETE` 管理工作区
-- `/session`：`GET`、`POST`、`PATCH`、`DELETE` 管理会话
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| `GET` | `/config/read` | 读取配置 |
+| `PATCH` | `/config/set` | 整体替换配置（含工具权限规则） |
+| `POST` | `/session/create` | 创建会话 |
+| `GET` | `/session/read/:sessionId` | 读取会话元信息和完整历史 |
+| `PATCH` | `/session/rename/:sessionId` | 修改标题 |
+| `DELETE` | `/session/remove/:sessionId` | 删除会话 |
+| `POST` | `/session/rollback/:sessionId` | 回退到某条消息之前 |
+| `POST` | `/session/redo/:sessionId` | 撤销上一次回退 |
+| `POST` | `/session/compact/:sessionId` | 手动压缩上下文 |
+| `POST` | `/agent/send/:sessionId` | 发送消息，任务在后台跑，过程走 SSE |
+| `POST` | `/agent/stop/:sessionId` | 停止当前任务 |
+| `POST` | `/agent/decide/:sessionId` | 处理 `deny`、`allow-once`、`allow-always` |
+| `GET` | `/sse/connect/:sessionId` | 订阅带递增事件 ID 的 SSE |
 
-会话操作使用以下子路径：
+错误响应统一是 `{ "error": "错误说明" }`：用户填错按 400、会话或消息不存在按 404、会话正在运行按 409、程序问题按 500。
 
-- `POST /session/send` 发送消息并启动后台执行
-- `POST /session/stop` 停止当前执行和等待中的工具
-- `GET /session/events` 订阅带递增事件 ID 的 SSE
-- `POST /session/approval` 处理 `deny`、`allow-once`、`always-allow`
-- `POST /session/history` 执行工具步骤回退、消息回退或撤销回退
+工作区索引目前只存在于前端浏览器中，服务端没有对应接口。
 
 ## 验证
 
@@ -73,3 +83,5 @@ cd server && bun run test
 cd frontend && bun run build
 cd frontend && bun run test:ui
 ```
+
+`server/` 的测试会真实启动服务端并调用每一个接口，包括填错参数的情况，全部在临时数据目录里跑。

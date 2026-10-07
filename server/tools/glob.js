@@ -1,8 +1,8 @@
 /*
- * 文件匹配工具。
+ * 文件匹配工具：按通配模式找文件。
  *
  * 工具只扫描用户指定目录，不修改任何数据。
- * 数据流：Agent 触发工具 → 按模式扫描 → 限制结果数量 → 返回路径列表。
+ * 调用示例：模型调用 glob({ path: 'src', pattern: '**\/*.js' })。
  */
 export default {
     name: 'glob',
@@ -13,7 +13,7 @@ export default {
             path: { type: 'string' },
             pattern: { type: 'string' },
         },
-        required: ['path', 'pattern'], 
+        required: ['path', 'pattern'],
     },
     // --- 查找匹配文件 ---
     async execute({ path, pattern }) {
@@ -24,6 +24,6 @@ export default {
             files.push(file) // 立即记录命中的路径。
             if (files.length >= 1000) break // 单次工具调用最多返回一千项。
         }
-        return { output: files } // 直接给模型可继续使用的路径数组。
+        return files // 直接给模型可继续使用的路径数组。
     },
 }

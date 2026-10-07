@@ -12,15 +12,22 @@
 
 目录职责固定如下：
 
-| 目录 | 只负责什么 | 不负责什么 |
+| 位置 | 只负责什么 | 不负责什么 |
 | --- | --- | --- |
 | `commands/` | 完成一个清晰的业务动作 | 不处理路由细节 |
-| `store/` | 保存内存中的数据结构 | 不判断业务规则、不读 HTTP |
-| `features/` | 实现可独立理解的业务规则 | 不返回 HTTP 响应 |
-| `tools/` | 执行 Agent 可调用的单个工具动作 | 不修改会话状态 |
-| `utils/` | 提供路径、SSE 等通用能力 | 不组合业务流程 |
+| `features/` | 实现可独立理解的业务规则（历史、工具审批） | 不返回 HTTP 响应 |
+| `store.js` | 保存内存中的数据结构（配置、会话历史、Agent 实例、待审批） | 不判断业务规则、不读 HTTP |
+| `tools/` | 内置工具，一个文件放一类动作 | 不修改会话状态 |
+| `utils/` | 路径、SSE、带状态码的错误等通用能力 | 不组合业务流程 |
 
-修改后端时，优先从请求入口顺着数据流阅读；函数中的段落标题和尾随注释说明了每一步的原因。
+Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：
+
+- 模型请求、工具执行、上下文压缩都由这个包负责
+- `commands/session.js` 只做三件事：把会话配置交给 Agent、把 Agent 的过程转成 SSE、把新消息写回历史文件
+- 历史文件里的消息形状就是这个包的标准形状（`id`、`role`、`content` 块数组）
+
+加一个内置工具：往 `tools/` 放一个导出 `{ name, description, inputSchema, execute }` 的文件即可，重启后生效；删掉文件这个工具就消失。
+用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具。
 
 ## 从零启动
 
@@ -49,7 +56,7 @@ bun install
 
 ### 3. 选择数据目录
 
-后端把配置、会话和历史保存在数据目录。开发时建议使用独立目录：
+后端把配置和会话保存在数据目录。开发时建议使用独立目录：
 
 ```powershell
 $env:AGENT_HOME = "C:\temp\agent-data"
@@ -75,9 +82,7 @@ notepad "C:\temp\agent-data\config.json"
 ```json
 {
   "prompt": {
-    "system": "你是一个编程 Agent。",
-    "summary": "总结当前会话。",
-    "tool": "请使用工具继续完成任务。"
+    "system": "你是一个编程 Agent。"
   },
   "providers": [
     {
@@ -173,8 +178,8 @@ Content-Type: application/json
 
 | 状态码 | 含义 |
 | --- | --- |
-| `400` | 请求参数不正确 |
-| `404` | 会话不存在 |
+| `400` | 请求参数不正确，比如标题为空、服务商不存在、审批决定不认识 |
+| `404` | 会话不存在，或要回退的消息不在这个会话里 |
 | `409` | 该会话已有 Agent 正在运行 |
 | `500` | 后端执行失败 |
 
@@ -186,6 +191,8 @@ Content-Type: application/json
 | `PATCH` | `/config/set` | 完整新配置 | 保存后的完整配置 |
 
 `PATCH /config/set` 是整体替换，不是局部合并。
+
+配置里的 `permission` 字段就是工具权限规则，规则为空（`{}`）时所有工具都会先问用户。
 
 > 注意：当前后端会返回完整配置，其中可能含有 `apiKey`。前端展示配置时必须遮蔽密钥，不能直接显示或写入日志。
 
@@ -199,7 +206,7 @@ Content-Type: application/json
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
 | `POST` | `/session/rollback/:sessionId` | `{ "messageId" }` | 回退后的完整会话 |
 | `POST` | `/session/redo/:sessionId` | 无 | 恢复后的完整会话 |
-| `POST` | `/session/compact/:sessionId` | `{ "maxTokens" }` | 压缩后的完整会话 |
+| `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` 是这次的总结文本 |
 
 会话读取示例：
 
@@ -212,6 +219,7 @@ Content-Type: application/json
   "history": [
     {
       "messageId": "message-id",
+      "id": "block-id",
       "role": "user",
       "content": "帮我做一个页面"
     }
@@ -219,7 +227,33 @@ Content-Type: application/json
 }
 ```
 
-`history` 中的每条消息都带 `messageId`。回退按钮直接传目标消息的 `messageId`。
+`history` 中的每条消息都带 `messageId`（后端记录用的身份）和 `id`（消息块自己的身份）。回退按钮直接传目标消息的 `messageId`。
+
+助手的 `content` 是内容块数组，可能同时包含思考块和文字块：
+
+```json
+{
+  "messageId": "message-id",
+  "id": "block-id",
+  "role": "assistant",
+  "content": [
+    { "type": "reasoning", "text": "先看看目录结构" },
+    { "type": "text", "text": "我来处理。" },
+    { "type": "tool-call", "toolCallId": "call-1", "toolName": "file_read", "input": { "path": "a.txt" } }
+  ]
+}
+```
+
+工具结果是一条独立的 `role: "tool"` 消息：
+
+```json
+{
+  "role": "tool",
+  "content": [
+    { "type": "tool-result", "toolCallId": "call-1", "toolName": "file_read", "output": { "type": "text", "value": "文件内容" } }
+  ]
+}
+```
 
 运行中的回退会先停止当前 Agent，再执行回退。
 
@@ -229,7 +263,7 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `POST` | `/agent/send/:sessionId` | `{ "input" }` | `{ "ok": true }` |
 | `POST` | `/agent/stop/:sessionId` | 无 | `{ "ok": true/false }` |
-| `POST` | `/agent/decide/:sessionId` | `{ "callId", "decision" }` | `{ "ok": true/false }` |
+| `POST` | `/agent/decide/:sessionId` | `{ "toolCallId", "decision" }` | `{ "ok": true/false }` |
 
 `send` 只确认后台任务已启动。模型文字、工具过程和最终结果都通过 SSE 到达。
 
@@ -237,7 +271,7 @@ Content-Type: application/json
 
 | 值 | 含义 |
 | --- | --- |
-| `allow-always` | 始终允许，并把本次参数加入权限规则 |
+| `allow-always` | 始终允许，并把本次参数加入权限规则（写回配置文件） |
 | `allow-once` | 只允许本次调用，不修改规则 |
 | `deny` | 拒绝本次调用 |
 
@@ -255,16 +289,29 @@ Accept: text/event-stream
 | `type` | 主要字段 | 前端行为 |
 | --- | --- | --- |
 | `text-delta` | `text` | 追加到当前 assistant 流式文本 |
+| `reasoning-delta` | `text` | 追加到当前 assistant 思考文本 |
 | `retry` | `attempt`, `error`, `delay` | 显示正在重试 |
 | `llm-start` | `messages`, `tools` | 显示正在请求模型 |
-| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `warnings` | 统计本轮模型请求并读取完整结果 |
+| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage` | 统计本轮模型请求并读取完整结果 |
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具调用卡片 |
-| `tool-output` | `tool`, `stream`, `data` | 追加工具实时输出 |
+| `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
-| `permission` | `callID`, `tool`, `input` | 显示“始终允许”“允许一次”“拒绝” |
-| `compress-delta` | `text` | 显示上下文压缩进度 |
+| `permission` | `callID`, `tool`, `input` | 显示"始终允许""允许一次""拒绝" |
+| `compact-start` / `compact-finish` | 无 / `text` | 显示上下文压缩进度 |
 | `agent-start` | 无 | 标记 Agent 任务开始 |
-| `agent-finish` | `finishReason`, `usage`, `stop` | 标记 Agent 任务结束，再刷新会话 |
+| `agent-finish` | `reason`, `usage`, `text`（失败时是 `error`） | 标记 Agent 任务结束，再刷新会话 |
+
+`tool-output` 里 `stream` 是 `stdout` 或 `stderr`，`data` 是这段原始输出，前端按字符串拼接即可。
+
+`permission` 的 `callID` 就是 `agent/decide` 要传的 `toolCallId`：
+
+```js
+await fetch(`/agent/decide/${sessionId}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ toolCallId: permission.callID, decision: 'allow-once' })
+})
+```
 
 工具结果 `output` 是 AI SDK 标准结构，常见形式：
 
@@ -281,6 +328,10 @@ Accept: text/event-stream
 ```
 
 ```json
+{ "type": "execution-denied", "reason": "工具执行被用户拒绝" }
+```
+
+```json
 {
   "type": "content",
   "value": [
@@ -292,19 +343,6 @@ Accept: text/event-stream
     }
   ]
 }
-```
-
-审批示例：
-
-```js
-await fetch(`/agent/decide/${sessionId}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    callId: permission.callID,
-    decision: 'allow-once'
-  })
-})
 ```
 
 ## 推荐前端状态
@@ -323,6 +361,7 @@ const state = {
 关键规则：
 
 ```text
+收到 agent-start：重新 GET Session.read，只保留到本轮用户消息为止，再新建流式气泡
 收到 text-delta：只追加到 streamMessage
 收到 tool-call：创建工具卡片
 收到 tool-output：追加到工具卡片
@@ -331,7 +370,7 @@ const state = {
 断线重连：先重新 GET Session.read，再重新连接 SSE
 ```
 
-运行错误不会伪装成循环完成，也不会由 `agent.js` 发送 `error` SSE。前端应根据连接状态和请求结果显示错误，并在需要时重新读取会话。
+任务失败不会伪装成正常结束，后端会发一条带 `error` 字段的 `agent-finish`，前端展示它并重新读取会话。
 
 ## 部署注意事项
 
@@ -348,6 +387,6 @@ https://agent.example.com/sse/...       → 后端
 
 反向代理必须关闭 SSE 缓冲，并允许长连接。
 
-## 前端生成文件
+## 接口文档
 
-真实 Agent 生成并验收过一份前端示例，作为对接参考。该示例不属于后端仓库。
+`openapi.json` 是每个接口的详细说明（参数、响应、错误），改接口时记得一起改。

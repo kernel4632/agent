@@ -1,24 +1,13 @@
 /*
- * SSE 实时反馈工具。
+ * SSE 实时反馈：把 Agent 运行过程推给前端，断线重连后补发。
  *
- * 本文件集中处理连接、缓存、补发和心跳；业务指令只调用 connect/send/close。
- * 数据流：Agent 产生事件 → SSE 缓存并推送 → 浏览器收到反馈 → History 保存后 reset。
- *
-目标被调用形式（绝对不可修改）：
-// 连接
-await SSE.connect({ id: sessionId, request })
-
-// 发消息，随便发，不用管连接状态
-await SSE.send({ id: sessionId, data: "你好" })
-await SSE.send({ id: sessionId, data: "还在吗" })
-await SSE.send({ id: sessionId, data: "任务完成了" })
-
-// 断开
-await SSE.close({ id: sessionId })
-
-调用方全程只做三件事：连接、发、断。断线、缓存、补发、心跳，全是内部自动的。
+ * 本文件集中处理连接、缓存、补发和心跳；业务指令只管 connect/send/close 三件事。
+ * 调用示例：
+ *   await SSE.connect({ id: sessionId, request })        // 前端建立连接
+ *   await SSE.send({ id: sessionId, data: { type: 'text-delta', text: '你' } })  // 随便发，不用管连接状态
+ *   await SSE.reset({ id: sessionId })                   // 历史已保存，清掉已经落盘的流式事件
+ *   await SSE.close({ id: sessionId })                   // 会话结束，断开并释放缓存
  */
-
 import { createResponse } from 'better-sse'
 
 const HEARTBEAT_MS = 15000
@@ -37,14 +26,8 @@ const sessionState = id => {
     return state
 }
 
-const remember = (state, data) => {
-    const event = { id: state.nextId++, data }
-    state.events.push(event)
-    return event
-}
-
+// --- 建立实时连接 ---
 const connect = async ({ id, request }) => {
-    if (typeof id !== 'string' || !id) throw new TypeError('id must be a non-empty string')
     const state = sessionState(id)
 
     // 同一个会话只允许一个浏览器连接，新连接建立时关闭旧连接。
@@ -71,13 +54,13 @@ const connect = async ({ id, request }) => {
     }, connection => {
         state.connection = connection
 
-        // History 由前端通过 Session 接口读取；SSE 只补发尚未写入 History 的流式事件。
+        // 会话历史由前端通过 Session 接口读取；SSE 只补发还没写进历史的流式事件。
         connection.batch(buffer => {
             for (const event of state.events) buffer.push(event.data, undefined, String(event.id))
         })
 
         // 网络断开时保留缓存，等客户端重新连接后再补发。
-        // 只有显式调用 close 才代表任务完成，才会清空缓存。
+        // 只有历史保存完成（reset）或会话结束（close）才清空缓存。
         connection.once('disconnected', () => {
             if (state.connection === connection) state.connection = null
             if (state.controller === controller) state.controller = null
@@ -108,9 +91,9 @@ const connect = async ({ id, request }) => {
     return new Response(body, { status: response.status, headers: response.headers })
 }
 
-// 新任务开始时清空旧任务，当前任务产生的所有事件会一直保留。
-// --- 清理已保存历史的事件 ---
+// --- 清掉已经落盘的事件 ---
 const reset = async ({ id }) => {
+    // 历史保存成功后才调用：此刻缓存里的事件都已经在历史里了，前端改为读历史。
     const state = sessionState(id)
     state.events = []
     state.nextId = 1
@@ -118,9 +101,9 @@ const reset = async ({ id }) => {
 
 // --- 发送实时事件 ---
 const send = async ({ id, data }) => {
-    if (typeof id !== 'string' || !id) throw new TypeError('id must be a non-empty string')
     const state = sessionState(id)
-    const event = remember(state, data)
+    const event = { id: state.nextId++, data }
+    state.events.push(event) // 先记下来，断线重连时能补发。
     if (state.connection?.isConnected) {
         try {
             state.connection.push(event.data, undefined, String(event.id))

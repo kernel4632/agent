@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -152,7 +152,7 @@
       "post": {
         "tags": ["Agent"],
         "summary": "审批 AI 使用工具的请求",
-        "description": "当 AI 需要调用某个工具时，如果配置了审批规则，服务器会通过 SSE 推送一个 permission 事件，里面包含 callId。你需要调用这个接口告诉服务器同意还是拒绝。decision 为 true 表示同意，false 表示拒绝。",
+        "description": "当 AI 需要调用某个工具时，如果权限规则要求询问，服务器会通过 SSE 推送一个 permission 事件，里面包含 callID。你需要调用这个接口告诉服务器放行还是拒绝。decision 只能是 allow-once（只允许本次）、allow-always（本次允许并记住这类操作）或 deny（拒绝）。",
         "operationId": "agentDecide",
         "parameters": [
           {
@@ -172,17 +172,18 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["callId", "decision"],
+                "required": ["toolCallId", "decision"],
                 "properties": {
-                  "callId": {
+                  "toolCallId": {
                     "type": "string",
                     "description": "工具调用的编号，从 SSE permission 事件的 callID 字段获取",
                     "example": "toolu_01XFx8EsZFm5kMvW8s6TuGHq"
                   },
                   "decision": {
-                    "type": "boolean",
-                    "description": "true 表示同意 AI 使用这个工具，false 表示拒绝",
-                    "example": true
+                    "type": "string",
+                    "enum": ["allow-once", "allow-always", "deny"],
+                    "description": "allow-once 只允许本次调用，allow-always 本次允许并把这类参数写成规则，deny 拒绝",
+                    "example": "allow-once"
                   }
                 }
               }
@@ -191,7 +192,7 @@
         },
         "responses": {
           "200": {
-            "description": "审批结果已处理。ok 为 true 表示找到了对应的等待审批记录，ok 为 false 表示找不到",
+            "description": "审批结果已处理。ok 为 true 表示找到了对应的等待审批记录，ok 为 false 表示找不到（可能已经超时或被取消）",
             "content": {
               "application/json": {
                 "schema": {
@@ -205,6 +206,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "decision 不是 allow-once、allow-always、deny 中的一个"
           }
         }
       }
@@ -213,7 +217,7 @@
       "get": {
         "tags": ["SSE"],
         "summary": "建立实时事件连接，接收 AI 的输出",
-        "description": "建立一个持续的连接，服务器会把 AI 运行过程中的所有事件推送过来。连接断开后会自动重连，之前没收到的事件也会补发。这个连接没有固定的结束时间，会一直保持直到你主动断开。\n\n服务器推送的事件类型如下：\n- **text-delta**：AI 正在生成文字，每次推送一小段\n- **tool-call**：AI 正在调用某个工具\n- **tool-output**：工具的原始输出\n- **tool-result**：工具执行的最终结果\n- **permission**：AI 请求你审批是否允许使用某个工具\n- **retry**：因为错误正在重试\n- **compress-delta**：AI 正在压缩历史记录，推送压缩过程的文字\n- **finish**：任务结束\n- **error**：任务因为错误终止",
+        "description": "建立一个持续的连接，服务器会把 AI 运行过程中的所有事件推送过来。连接断开后会自动重连，之前没收到的事件也会补发。这个连接没有固定的结束时间，会一直保持直到你主动断开。\n\n服务器推送的事件类型如下：\n- **agent-start**：AI 任务开始\n- **text-delta**：AI 正在生成文字，每次推送一小段\n- **reasoning-delta**：AI 正在思考，每次推送一小段\n- **llm-start** / **llm-finish**：一次模型请求开始 / 结束，finish 里带完整文字和用量\n- **tool-call**：AI 正在调用某个工具\n- **tool-output**：工具的实时输出，stream 是 stdout 或 stderr\n- **tool-result**：工具执行的最终结果\n- **permission**：AI 请求你审批是否允许使用某个工具\n- **retry**：因为错误正在重试\n- **compact-start** / **compact-finish**：AI 正在压缩历史记录，过程中推送事件\n- **agent-finish**：任务结束，带上结束原因和用量；任务失败时带 error 字段",
         "operationId": "sseConnect",
         "parameters": [
           {
@@ -489,7 +493,7 @@
       "post": {
         "tags": ["Session"],
         "summary": "回退到某条消息之前的状态",
-        "description": "把对话历史回退到指定消息 messageId 出现之前的状态。这个操作会先停止当前正在运行的 AI 任务，再执行回退。回退后返回新的消息历史。",
+        "description": "把对话历史回退到指定 messageId 之前的状态。这个操作要求会话当前没有任务在运行，否则返回 409；messageId 不在这个会话里时返回 404。回退后返回新的消息历史。",
         "operationId": "sessionRollback",
         "parameters": [
           {
@@ -533,7 +537,15 @@
             }
           },
           "404": {
-            "description": "找不到这个 sessionId",
+            "description": "找不到这个 sessionId，或 messageId 不在这个会话的历史里",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "这个会话的 AI 任务正在运行，需要先停止再回退",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -587,7 +599,7 @@
       "post": {
         "tags": ["Session"],
         "summary": "压缩对话历史，减少 token 用量",
-        "description": "当对话历史太长时，让 AI 把之前的内容总结成一段简短的文字，替换掉原来的长历史。这样可以节省后续调用时消耗的 token 数量（token 可以理解为 AI 处理文字的计费单位）。压缩过程中会通过 SSE 推送 compress-delta 事件。",
+        "description": "让 AI 把当前上下文总结成一段文字，总结作为一条新消息追加到历史里，原文仍然保留在磁盘上。压缩过程通过 SSE 推送 compact-start、AI SDK 原生事件和 compact-finish。会话正在运行时返回 409。",
         "operationId": "sessionCompact",
         "parameters": [
           {
@@ -601,26 +613,9 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "maxTokens": {
-                    "type": "integer",
-                    "description": "压缩后的历史记录最多允许占用多少 token（可选）",
-                    "example": 8000
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "压缩完成，返回压缩后的完整对话内容",
+            "description": "压缩完成，返回压缩后的完整对话内容，另带 content 字段是这次的总结文本",
             "content": {
               "application/json": {
                 "schema": {
@@ -631,6 +626,14 @@
           },
           "404": {
             "description": "找不到这个 sessionId",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "这个会话的 AI 任务正在运行，需要先停止再压缩",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -769,11 +772,16 @@
       },
       "Message": {
         "type": "object",
-        "description": "一条消息记录",
+        "description": "一条消息记录。messageId 是后端记录用的身份（回退时传它），id 是消息块自己的身份",
         "properties": {
+          "messageId": {
+            "type": "string",
+            "description": "后端记录这条消息用的唯一编号，回退接口接收的就是它",
+            "example": "V1StGXR8_Z5jdHi6B-myT"
+          },
           "id": {
             "type": "string",
-            "description": "这条消息的唯一编号",
+            "description": "消息块的唯一编号",
             "example": "msg_01ABC"
           },
           "role": {
@@ -896,15 +904,16 @@
                 "description": "发给 AI 的系统提示词，用于设定 AI 的行为方式",
                 "example": "你是一个编程助手，帮用户解决代码问题。"
               },
-              "tool": {
-                "type": "string",
-                "description": "关于工具使用的额外提示词（可选）"
-              }
             }
           },
           "permission": {
-            "description": "工具调用的审批规则配置（可选）。填写后，AI 在调用某些工具时会先向用户请求审批",
-            "type": "object"
+            "type": "object",
+            "description": "工具权限规则。键是工具名，值是 allow、ask，或按参数匹配的对象；为空对象时所有工具都先问用户",
+            "example": {
+              "*": "ask",
+              "file_read": "allow",
+              "shell": { "*": "ask", "dir": "allow" }
+            }
           }
         }
       }

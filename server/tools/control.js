@@ -1,8 +1,8 @@
 /*
  * Agent 控制工具。
  *
- * 工具只描述模型可以触发的结束动作，不读取 store，也不发送 HTTP 响应。
- * 数据流：模型触发工具 → 工具返回 stop → Agent 循环停止 → Session 反馈结果。
+ * 工具只描述模型可以触发的结束动作，不读取会话数据，也不发送 HTTP 反馈。
+ * 调用示例：模型调用 finish 或 ask 后，工具返回 stop: true，Agent 循环停止，等待用户下一条消息。
  */
 
 // --- 结束 Agent 循环 ---
@@ -15,7 +15,7 @@ const finish = { // 模型确认任务完成时调用。
         required: ['result'],
     },
     // finish 的结果会让主循环停止，不再请求下一轮模型。
-    execute: input => ({ output: input, stop: true }), // 把结果原样展示并停止循环。
+    execute: input => ({ stop: true, output: { type: 'text', value: input.result } }),
 }
 
 // --- 暂停 Agent 循环并询问用户 ---
@@ -27,8 +27,8 @@ const ask = { // 模型缺少外部信息时调用。
         properties: { question: { type: 'string' } },
         required: ['question'],
     },
-    // ask 同样停止循环，等待用户补充信息后再发送新消息。
-    execute: input => ({ output: input, stop: true }), // 保留问题并等待下一条用户消息。
+    // ask 同样停止循环，等用户补充信息后再发送新消息。
+    execute: input => ({ stop: true, output: { type: 'text', value: input.question } }),
 }
 
 export default [finish, ask] // 一个文件导出两个控制工具。
