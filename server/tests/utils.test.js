@@ -5,7 +5,7 @@
  * 运行：cd server && bun test
  */
 import { describe, expect, test } from 'bun:test'
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import Agent from '@kernel4632/agent-core'
@@ -16,6 +16,7 @@ import History from '../features/history.js'
 import Ignore from '../features/ignore.js'
 import Mcp from '../features/mcp.js'
 import Session from '../commands/session.js'
+import Skills from '../features/skills.js'
 import Snapshot from '../features/snapshot.js'
 import Store from '../store.js'
 import { app } from '../server.js'
@@ -103,6 +104,59 @@ describe('server HTTP API', () => {
             const response = await jsonRequest('/session/create', 'POST', { title: 'No provider', provider: 'missing' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: expect.stringContaining('missing') })
+        })
+    })
+})
+
+describe('server skills', () => {
+    test('lists skills from the data directory and reads one on demand', async () => {
+        await withHome(async root => {
+            // 用户往 skills/ 放一个技能文件夹，agent 就能用上它。
+            await mkdir(join(root, 'skills', 'review-pr'), { recursive: true })
+            await writeFile(join(root, 'skills', 'review-pr', 'SKILL.md'), `---
+name: review-pr
+description: 审查一个 PR 时用这个
+---
+
+第一步：读 diff。
+`)
+
+            const list = await Skills.list()
+            expect(list).toHaveLength(1)
+            expect(list[0].name).toBe('review-pr')
+            expect(await Skills.read('review-pr')).toContain('第一步')
+            // 模型看到的是清单，不是所有正文。
+            const tools = await Skills.tools()
+            expect(JSON.stringify(tools.skill.description)).toContain('review-pr')
+        })
+    })
+
+    test('skips files without a header and reports an unknown skill as missing', async () => {
+        await withHome(async root => {
+            await mkdir(join(root, 'skills', 'broken'), { recursive: true })
+            // 没有开头那段就认不出是什么技能，跳过它，不让它挡住别的技能。
+            await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
+
+            expect(await Skills.list()).toEqual([])
+            // 一个技能都没有时不给出工具，模型不会去调一个必然失败的东西。
+            expect(await Skills.tools()).toEqual({})
+            await expect(Skills.read('nope')).rejects.toMatchObject({ status: 404 })
+        })
+    })
+
+    test('gives the agent a skill tool only when skills exist', async () => {
+        await withHome(async root => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const first = await Session.create({ title: 'No skills' })
+            const withoutSkills = (await import('../store.js')).default.agents.get(first.sessionId)
+            expect(withoutSkills.tools.schema.skill).toBeUndefined()
+
+            // 放进一个技能后再建会话，工具就出现了。
+            await mkdir(join(root, 'skills', 'demo'), { recursive: true })
+            await writeFile(join(root, 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: 演示\n---\n正文')
+            const second = await Session.create({ title: 'With skills' })
+            const withSkills = (await import('../store.js')).default.agents.get(second.sessionId)
+            expect(withSkills.tools.schema.skill).toBeDefined()
         })
     })
 })

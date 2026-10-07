@@ -29,6 +29,32 @@ Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](h
 加一个内置工具：往 `tools/` 放一个导出 `{ name, description, inputSchema, execute }` 的文件即可，重启后生效；删掉文件这个工具就消失。
 用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具；`tools/truncate.js` 是共享代码，没有 `name` 和 `execute`，扫描时会自动跳过。
 
+### 放技能（skills）
+
+数据目录的 `skills/` 里一个文件夹放一份 `SKILL.md`，agent 需要时会自己去读：
+
+```text
+skills/
+  review-pr/
+    SKILL.md
+```
+
+```markdown
+---
+name: review-pr
+description: 审查一个 PR 时用这个
+---
+
+第一步：读 diff。
+第二步：……
+```
+
+只有开头的 `name` 和 `description` 会一直待在模型眼前，**正文等它真要用了才读**——
+技能正文常常几千字，全塞进上下文会把每个会话都撑满，而大部分技能这一次用不上。
+所以 agent 的工具表里会出现一个 `skill` 工具，用来按需读正文。
+
+格式不对的文件直接跳过，不会挡住别的技能；目录里一个技能都没有时，这个工具根本不出现。
+
 ### 接外部工具服务（MCP）
 
 配置文件的 `mcp` 字段里写一个服务，它给出的工具就会和内置工具一起交给模型：
@@ -113,6 +139,7 @@ $env:AGENT_HOME = "C:\temp\agent-data"
     checkpoints.json 每个消息点改了哪些文件
     snapshots/       改文件之前的原样副本，回退时用来恢复
   tools/             用户自己写的工具，和内置工具一起扫描
+  skills/            技能，一个文件夹一份 SKILL.md，agent 需要时自己读
 ```
 
 `.agentignore` 里写一条就多拦一类文件，写法同 `.gitignore`，例如：

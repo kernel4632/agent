@@ -34,4 +34,7 @@ const checkpoints = id => join(session(id), 'checkpoints.json') // 记录每个�
 // 用户工具按目录扫描，删除文件后下一次扫描就不会再发现它；内置工具跟着代码走，不在这里。
 const tools = () => join(root(), 'tools')
 
-export default { root, config, ignore, sessions, session, meta, history, snapshots, checkpoints, tools }
+// 技能也是按目录扫描，每个技能一个文件夹，里面放 SKILL.md。
+const skills = () => join(root(), 'skills')
+
+export default { root, config, ignore, sessions, session, meta, history, snapshots, checkpoints, skills, tools }
