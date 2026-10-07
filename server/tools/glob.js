@@ -2,8 +2,11 @@
  * 文件匹配工具：按通配模式找文件。
  *
  * 工具只扫描用户指定目录，不修改任何数据。
+ * 跳过哪些目录由 utils/skip.js 一处说了算，这里不自己写一份名单。
  * 调用示例：模型调用 glob({ path: 'src', pattern: '**\/*.js' })。
  */
+import Skip from '../utils/skip.js' // 依赖目录不算用户要找的文件。
+
 export default {
     name: 'glob',
     description: 'Find files matching a glob pattern under a directory.',
@@ -22,7 +25,7 @@ export default {
         // 结果达到上限后立即停止扫描，避免占满上下文。
         for await (const file of new Bun.Glob(pattern).scan({ cwd: path, dot: true })) {
             // 依赖目录动辄几万个文件，模型要的是自己写的代码，不是第三方包。
-            if (file.includes('node_modules/') || file.includes('node_modules\\')) continue
+            if (Skip.search(file)) continue
             files.push(file) // 立即记录命中的路径。
             if (files.length >= 1000) break // 单次工具调用最多返回一千项。
         }

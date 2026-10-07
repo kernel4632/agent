@@ -2,10 +2,15 @@
  * 文件内容搜索工具。
  *
  * 工具把搜索交给 ripgrep，不承担会话业务；退出码 1 代表没有匹配。
+ * 跳过哪些目录由 utils/skip.js 一处说了算，这里不自己写一份名单。
  * 调用示例：模型调用 grep({ path: 'src', pattern: 'TODO', include: '*.js' })。
  */
 import { rgPath } from '@vscode/ripgrep' // 使用随依赖提供的 ripgrep 可执行文件。
+import Skip from '../utils/skip.js' // 依赖目录不算用户要找的代码。
 import { truncate } from './truncate.js' // 命中太多时只留头尾。
+
+// --- 拼出 ripgrep 的排除参数 ---
+const excludeArgs = () => Skip.dependencies.flatMap(name => ['--glob', `!**/${name}/**`])
 
 export default {
     name: 'grep',
@@ -21,8 +26,8 @@ export default {
     },
     // --- 搜索文件内容 ---
     async execute({ path, pattern, include }, { abortSignal }) {
-        // 第三方依赖目录不是用户要搜的目标，在 ripgrep 层就排除掉，也省掉无谓的扫描。
-        const command = [rgPath, '--line-number', '--color', 'never', '--glob', '!**/node_modules/**']
+        // 第三方依赖不是用户要搜的目标，在 ripgrep 层就排除掉，也省掉无谓的扫描。
+        const command = [rgPath, '--line-number', '--color', 'never', ...excludeArgs()]
         if (include) command.push('--glob', include)
         command.push(pattern, '.')
 

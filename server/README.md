@@ -262,11 +262,29 @@ Content-Type: application/json
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `POST` | `/session/create` | `{ "title", "workspaceId?", "provider?", "model?" }` | `{ "sessionId" }` |
 | `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、当前任务清单 `todos`、是否在跑 `running` |
+| `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：每个文件改动前后的内容 |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
 | `POST` | `/session/rollback/:sessionId` | `{ "messageId" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |
 | `POST` | `/session/redo/:sessionId` | 无 | 恢复后的完整会话 |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` 是这次的总结文本 |
+
+`GET /session/changes/:sessionId` 给出 agent 到目前为止改动的文件，用来在界面上显示 diff：
+
+```json
+[
+  {
+    "path": "D:/projects/app/src/main.js",
+    "before": "旧内容",
+    "after": "新内容",
+    "added": false,
+    "deleted": false
+  }
+]
+```
+
+`added` 为 true 表示这个文件是任务期间新建的（`before` 是空串），`deleted` 为 true 表示被删掉了。
+内容没变过的文件不会出现在结果里。这份数据来自文件快照，所以和回退能看到的是同一件事。
 
 `POST /session/rollback/:sessionId` 会同时回退两样东西：对话消息，以及 agent 改过的文件。
 `restored` 列出被恢复的文件路径，前端可以在界面上显示"已把 3 个文件恢复到这一步之前"。

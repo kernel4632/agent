@@ -49,6 +49,7 @@ app.group('/session', session => session
     .get('/list', ({ query }) => Session.list({ search: query.search }))
     .post('/create', ({ body }) => Session.create(body))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .get('/changes/:sessionId', ({ params }) => Session.changes(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
     .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))

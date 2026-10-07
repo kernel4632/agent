@@ -7,12 +7,14 @@
  *   await Workspace.status({ path: 'D:/app' })   // 只看某个目录的 git 状态
  */
 
+import Path from '../utils/path.js' // 生成数据目录路径。
+import Skip from '../utils/skip.js' // 哪些目录不用列，名单只写一处。
 
 // 文件树最多列这么多项；工作区里动辄几万个文件，界面和模型都只需要知道结构。
 const FILE_LIMIT = 200
 
-// 这些目录里的文件不是用户写的代码，列出来只会把有用的信息挤掉。
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'target', '__pycache__', '.venv', 'venv', '.cache', 'coverage'])
+// 只扫三层，够让模型知道项目结构，又不会把整棵树塞进上下文。
+const MAX_DEPTH = 3
 
 // --- 一次 git 命令 ---
 const git = async (args, cwd) => {
@@ -42,13 +44,11 @@ const status = async ({ path }) => {
 // --- 列出工作区文件 ---
 const files = async path => {
     const found = []
-    // 只扫三层，够让模型知道项目结构，又不会把整棵树塞进上下文。
     for await (const entry of new Bun.Glob('**/*').scan({ cwd: path, onlyFiles: true, dot: false })) {
         // Windows 上扫描结果用反斜杠分隔；接口对外统一用正斜杠，前端不用分平台处理。
         const normalized = entry.replace(/\\/g, '/')
-        const segments = normalized.split('/')
-        if (segments.some(segment => SKIP_DIRS.has(segment))) continue
-        if (segments.length > 3) continue
+        if (Skip.listing(normalized)) continue
+        if (normalized.split('/').length > MAX_DEPTH) continue
         found.push(normalized)
         if (found.length >= FILE_LIMIT) break
     }

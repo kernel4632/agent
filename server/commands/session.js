@@ -182,6 +182,13 @@ const rollback = async ({ sessionId, messageId }) => {
     return { ...await read({ sessionId }), restored }
 }
 
+// --- 看这次任务改了哪些文件 ---
+const changes = async ({ sessionId }) => {
+    await readMeta(sessionId)
+    // 快照记的是"任务开始时的原样"，所以这里给出的就是 agent 实际造成的改动。
+    return Snapshot.diff({ sessionId })
+}
+
 // --- 恢复会话 ---
 const redo = async ({ sessionId }) => {
     await readMeta(sessionId)
@@ -259,4 +266,4 @@ const count = () => Store.sessions.size
 // --- 统计正在运行的任务 ---
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
 
-export default { prepare, list, create, read, rename, remove, rollback, redo, compact, send, stop, decide, isRunning, count, runningCount }
+export default { prepare, list, create, read, rename, remove, rollback, redo, changes, compact, send, stop, decide, isRunning, count, runningCount }

@@ -261,6 +261,42 @@ describe('server file snapshots', () => {
         })
     })
 
+    test('shows what the task changed, including added and deleted files', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            const edited = join(tmpdir(), `agent-diff-edit-${crypto.randomUUID()}.txt`)
+            const removed = join(tmpdir(), `agent-diff-removed-${crypto.randomUUID()}.txt`)
+            const created = join(tmpdir(), `agent-diff-new-${crypto.randomUUID()}.txt`)
+            await writeFile(edited, 'before')
+            await writeFile(removed, 'will be deleted')
+
+            const { sessionId } = await Session.create({ title: 'Diff task' })
+            const added = await History.add({ sessionId, message: Agent.history.user({ content: 'change things' }) })
+            await History.save({ sessionId })
+            const messageId = added.message.id
+
+            // 三个文件各来一次改动：改内容、删掉、新建。
+            await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'file_write', input: { path: edited } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'file_write', input: { path: removed } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'file_write', input: { path: created } })
+            await writeFile(edited, 'after')
+            await rm(removed, { force: true })
+            await writeFile(created, 'brand new')
+
+            const changes = await Session.changes({ sessionId })
+            const byPath = Object.fromEntries(changes.map(item => [item.path, item]))
+
+            expect(byPath[resolve(edited)]).toMatchObject({ before: 'before', after: 'after', added: false, deleted: false })
+            expect(byPath[resolve(removed)]).toMatchObject({ before: 'will be deleted', after: '', deleted: true })
+            expect(byPath[resolve(created)]).toMatchObject({ before: '', after: 'brand new', added: true })
+            // 没被碰过的文件不该出现在结果里。
+            expect(changes).toHaveLength(3)
+
+            await rm(edited, { force: true })
+            await rm(created, { force: true })
+        })
+    })
+
     test('deletes a file that did not exist before the task', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })

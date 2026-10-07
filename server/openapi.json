@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -691,6 +691,53 @@
           },
           "409": {
             "description": "这个会话的 AI 任务正在运行，需要先停止再回退",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/changes/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "看 agent 改了哪些文件",
+        "description": "返回 agent 到目前为止改动过的文件，每个都给出改动前和改动后的完整内容，界面可以据此显示 diff。数据来自文件快照，和回退能看到的是同一件事。内容没变过的文件不会出现在结果里。",
+        "operationId": "sessionChanges",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "会话的唯一编号",
+            "schema": { "type": "string", "example": "V1StGXR8_Z5jdHi6B-myT" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "改动列表；没改过任何文件时是空数组",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": { "type": "string", "description": "文件的绝对路径" },
+                      "before": { "type": "string", "description": "任务开始时这个文件的内容；原来是新建的就是空串" },
+                      "after": { "type": "string", "description": "当前内容；被删掉的就是空串" },
+                      "added": { "type": "boolean", "description": "这个文件是任务期间新建的" },
+                      "deleted": { "type": "boolean", "description": "这个文件被删掉了" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "找不到这个 sessionId",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }

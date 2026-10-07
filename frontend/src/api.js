@@ -50,6 +50,7 @@ export const AgentAPI = {
   stopSession:      (sessionID)                 => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST'),
   subscribeSession,
   decideTool:       (sessionID, callId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { callId, decision }),
+  getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
   rollback:         (sessionID, messageId)      => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
   redo:             (sessionID)                 => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST'),
   getConfig:        ()                          => request('/config/read'),

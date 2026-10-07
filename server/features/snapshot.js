@@ -5,6 +5,7 @@
  * 调用示例：
  *   await Snapshot.save({ sessionId, messageId, toolName, input })   // 工具即将改这些文件，先存一份
  *   await Snapshot.restore({ sessionId, keep })                      // keep 是回退后还留下的消息块 id
+ *   await Snapshot.diff({ sessionId })                               // 这些文件现在和任务开始时有什么不同
  *   await Snapshot.remove({ sessionId })                             // 会话删掉时清理
  */
 
@@ -101,6 +102,32 @@ const restore = async ({ sessionId, keep }) => {
     return restored
 }
 
+// --- 这些文件现在和记录时有什么不同 ---
+const diff = async ({ sessionId }) => {
+    const store = await loadStore({ sessionId })
+    const changed = new Map()
+
+    // 每个文件只要最早那份记录：那是这一串改动开始前的样子。
+    for (const entry of store.checkpoints) {
+        for (const [path, hash] of Object.entries(entry.files)) {
+            if (!changed.has(path)) changed.set(path, hash)
+        }
+    }
+
+    const files = []
+    for (const [path, original] of changed) {
+        const exists = await Bun.file(path).exists()
+        const current = exists ? await fingerprint(path) : null
+        // 内容没变就不列出来，用户要看的是"到底改了什么"。
+        if (current === original) continue
+
+        const before = original === null ? '' : await Bun.file(backupPath(sessionId, original)).text()
+        const after = exists ? await Bun.file(path).text() : ''
+        files.push({ path, before, after, added: original === null, deleted: current === null })
+    }
+    return files
+}
+
 // --- 读取快照清单 ---
 const loadStore = async ({ sessionId }) => {
     if (Store.snapshots.has(sessionId)) return Store.snapshots.get(sessionId)
@@ -124,4 +151,4 @@ const remove = async ({ sessionId }) => {
     await rm(Path.checkpoints(sessionId), { force: true })
 }
 
-export default { save, restore, remove }
+export default { save, restore, diff, remove }
