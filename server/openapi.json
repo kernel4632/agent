@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1167,11 +1167,22 @@
           },
           "permission": {
             "type": "object",
-            "description": "工具权限规则。键是工具名，值是 allow、ask，或按参数匹配的对象；为空对象时所有工具都先问用户",
+            "description": "工具权限规则。键是工具名，值是 allow、ask，或按参数匹配的对象；为空对象时所有工具都先问用户。这一层管不住的文件由数据目录的 .agentignore 兜底",
             "example": {
               "*": "ask",
               "file_read": "allow",
               "shell": { "*": "ask", "dir": "allow" }
+            }
+          },
+          "mcp": {
+            "type": "object",
+            "description": "外部工具服务（MCP）。键是服务名，工具名会带上服务名前缀；配置改动后下次建会话时连接跟着变。某个服务连不上只会跳过它，不影响会话创建",
+            "example": {
+              "everything": {
+                "command": "bun",
+                "args": ["node_modules/@modelcontextprotocol/server-everything/dist/index.js"],
+                "enabled": true
+              }
             }
           }
         }

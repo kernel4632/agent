@@ -14,6 +14,7 @@ import Approval from '../features/approval.js'
 import Config from '../commands/config.js'
 import History from '../features/history.js'
 import Ignore from '../features/ignore.js'
+import Mcp from '../features/mcp.js'
 import Session from '../commands/session.js'
 import Snapshot from '../features/snapshot.js'
 import Store from '../store.js'
@@ -102,6 +103,43 @@ describe('server HTTP API', () => {
             const response = await jsonRequest('/session/create', 'POST', { title: 'No provider', provider: 'missing' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: expect.stringContaining('missing') })
+        })
+    })
+})
+
+describe('server MCP', () => {
+    test('connects a configured MCP server and exposes its tools to the agent', async () => {
+        await withHome(async () => {
+            // 用一个真的 stdio MCP 服务验证整条路：连上 → 拿到工具 → 交给 Agent。
+            await Config.set({
+                providers: [{ name: 'local', models: ['model'] }],
+                mcp: { everything: { command: 'bun', args: ['node_modules/@modelcontextprotocol/server-everything/dist/index.js'] } },
+            })
+
+            const mcpTools = await Mcp.tools()
+            expect(Object.keys(mcpTools).length).toBeGreaterThan(0)
+
+            const { sessionId } = await Session.create({ title: 'MCP task' })
+            const agent = (await import('../store.js')).default.agents.get(sessionId)
+            // 服务给的工具名前面带了服务名，和内置工具摆在同一份工具表里。
+            expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining(['everything_echo', 'file_read']))
+
+            await Mcp.close()
+        })
+    })
+
+    test('does not fail when a configured server cannot start', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [{ name: 'local', models: ['model'] }],
+                // 一个根本不存在的命令：连不上不该让整个会话创建失败。
+                mcp: { broken: { command: 'definitely-not-a-real-command-xyz' } },
+            })
+
+            const { sessionId } = await Session.create({ title: 'Broken MCP task' })
+            const session = await Session.read({ sessionId })
+            expect(session.id).toBe(sessionId)
+            await Mcp.close()
         })
     })
 })

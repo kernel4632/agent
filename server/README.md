@@ -29,6 +29,27 @@ Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](h
 加一个内置工具：往 `tools/` 放一个导出 `{ name, description, inputSchema, execute }` 的文件即可，重启后生效；删掉文件这个工具就消失。
 用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具；`tools/truncate.js` 是共享代码，没有 `name` 和 `execute`，扫描时会自动跳过。
 
+### 接外部工具服务（MCP）
+
+配置文件的 `mcp` 字段里写一个服务，它给出的工具就会和内置工具一起交给模型：
+
+```json
+{
+  "mcp": {
+    "everything": {
+      "command": "bun",
+      "args": ["node_modules/@modelcontextprotocol/server-everything/dist/index.js"],
+      "env": { "SOME_KEY": "值" },
+      "enabled": true
+    }
+  }
+}
+```
+
+- 键名是服务名，工具名会带上这个前缀（上面服务里的 `echo` 变成 `everything_echo`），两个服务撞名时不会互相覆盖
+- 连上是慢的，所以连过一次就留着；配置里删掉某个服务，下一次建会话时它的连接和工具一起消失
+- 某个服务连不上只会跳过它，会话照常创建，失败原因通过 SSE 的 `mcp-error` 事件推给前端
+
 内置工具一共十二个：
 
 | 工具 | 做什么 |

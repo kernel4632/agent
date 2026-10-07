@@ -18,6 +18,7 @@ import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
 import Approval from '../features/approval.js' // 审批工具调用，顺带记录文件快照。
+import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
 import Config from './config.js' // 读取全局模型配置和权限规则。
 import History from '../features/history.js' // 读写当前会话消息。
 import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
@@ -78,7 +79,8 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
     // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
     await mkdir(Path.tools(), { recursive: true })
-    const tools = await Agent.tool.scan(new URL('../tools/', import.meta.url), Path.tools())
+    // MCP 工具从设置里配置的外部服务来，和文件工具一起交给模型。
+    const tools = await Agent.tool.from(new URL('../tools/', import.meta.url), Path.tools(), await Mcp.tools())
     const agent = Agent.create({
         id: sessionId,
         history,
