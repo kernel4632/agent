@@ -26,9 +26,9 @@ app.onError(({ error, set }) => {
 })
 
 // --- 服务状态 ---
-app.get('/health', () => ({
+app.get('/health', async () => ({
     ok: true,
-    version: Config.version(), // 前端在启动时就能确认自己连的是哪个版本的后端。
+    version: await Config.version(), // 前端在启动时就能确认自己连的是哪个版本的后端。
     sessions: Session.count(), // 有多少条会话正在内存里被使用。
     running: Session.runningCount(), // 有多少条会话正在跑任务。
 }))

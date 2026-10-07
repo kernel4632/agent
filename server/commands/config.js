@@ -14,6 +14,7 @@
 
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js' // 提供默认配置文件路径。
@@ -21,7 +22,10 @@ import Store from '../store.js' // 直接访问程序当前使用的配置。
 import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
 
 // 后端自己的版本号写在 package.json 里，服务状态接口把它报给前端。
-import { version as packageVersion } from '../package.json' with { type: 'json' }
+// 用运行时读取而不是 import 断言：Bun 里对 .json 的 import 断言不稳，换环境容易炸。
+// 路径按本文件位置算，不依赖启动时所在的目录。
+const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
+let cachedVersion = null
 
 // --- 读取配置 ---
 const read = async path => {
@@ -111,7 +115,11 @@ const attempt = async chosen => {
 }
 
 // --- 读取后端版本 ---
-const version = () => packageVersion
+const version = async () => {
+    // 版本号在进程运行期间不会变，读一次就留着。
+    cachedVersion ??= (await Bun.file(packageFile).json()).version
+    return cachedVersion
+}
 
 // --- 保存配置 ---
 const save = async path => {

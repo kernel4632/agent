@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.9.0",
+    "version": "0.9.1",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1175,7 +1175,7 @@
                 "type": "string",
                 "description": "发给 AI 的系统提示词，用于设定 AI 的行为方式",
                 "example": "你是一个编程助手，帮用户解决代码问题。"
-              },
+              }
             }
           },
           "permission": {
