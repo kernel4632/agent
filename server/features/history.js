@@ -50,10 +50,11 @@ const rollback = async ({ sessionId, messageId }) => {
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
 
     // 从目标消息开始的整段内容都移到 redo；当前历史只保留目标消息之前的内容。
+    // 每回退一次就往 redo 里压一层，所以可以连续回退好几步。
     session.redo.push(session.messages.splice(index))
 }
 
-// --- 恢复回退内容 ---
+// --- 撤销最近一次回退 ---
 const redo = async ({ sessionId }) => {
     const session = Store.sessions.get(sessionId)
     const records = session.redo.pop()
@@ -61,6 +62,9 @@ const redo = async ({ sessionId }) => {
     // 没有可恢复的内容时什么也不做，调用方不需要专门判断。
     if (records) session.messages.push(...records)
 }
+
+// --- 还有几次回退可以撤销 ---
+const redoCount = ({ sessionId }) => Store.sessions.get(sessionId)?.redo.length || 0
 
 // --- 读取当前历史 ---
 const get = ({ sessionId }) => {
@@ -87,4 +91,4 @@ const save = async ({ sessionId }) => {
     await SSE.reset({ id: sessionId })
 }
 
-export default { load, add, rollback, redo, get, idsBefore, save }
+export default { load, add, rollback, redo, redoCount, get, idsBefore, save }

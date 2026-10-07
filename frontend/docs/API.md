@@ -23,22 +23,28 @@
 
 | 方法 | 路径 | 请求体 | 主要返回 | 前端使用 |
 | --- | --- | --- | --- | --- |
+| GET | `/health` | 无 | `{ ok, version, sessions, running }` | 是 |
+| GET | `/workspace/read` | 无 | 工作区路径与文件列表 | 是 |
+| GET | `/workspace/status` | `?path=` | 该路径的 git 状态 | 否 |
 | GET | `/config/read` | 无 | 完整配置对象 | 是 |
 | PATCH | `/config/set` | 完整配置对象 | 保存后的配置 | 是 |
+| POST | `/config/test` | `{ provider, model }` | `{ ok, reply }` 或错误 | 是，设置页的"测试连接" |
+| GET | `/session/list` | `?search=` | 会话摘要数组 | 是 |
 | POST | `/session/create` | `{ title, provider?, model?, workspaceId? }` | `{ sessionId }` | 是，不发送 `workspaceId` |
 | GET | `/session/read/:sessionId` | 无 | 会话元信息与 `history` | 是 |
 | PATCH | `/session/rename/:sessionId` | `{ title }` | 会话元信息 | 是 |
 | DELETE | `/session/remove/:sessionId` | 无 | `{ ok: true }` | 是 |
-| POST | `/session/rollback/:sessionId` | `{ messageId }` | 回退后的完整会话 | 是 |
-| POST | `/session/redo/:sessionId` | 无 | 恢复后的完整会话 | 是 |
+| GET | `/session/changes/:sessionId` | 无 | 任务改过的文件及前后内容 | 是 |
+| POST | `/session/rollback/preview/:sessionId` | `{ messageId }` | `{ messages, files }` | 是 |
+| POST | `/session/rollback/:sessionId` | `{ messageId, files? }` | 回退后的完整会话及 `restored` | 是 |
+| POST | `/session/redo/:sessionId` | `{ files? }` | 恢复后的完整会话及 `restored` | 是 |
 | POST | `/session/compact/:sessionId` | 可省略 | 完整会话及 `content` | 无前端入口 |
 | POST | `/agent/send/:sessionId` | `{ input }` | `{ ok: true }` | 是 |
 | POST | `/agent/stop/:sessionId` | 无 | `{ ok: boolean }` | 是 |
-| POST | `/agent/decide/:sessionId` | `{ callId, decision }` | `{ ok: boolean }` | 是 |
+| POST | `/agent/decide/:sessionId` | `{ toolCallId, decision }` | `{ ok: boolean }` | 是 |
 | GET | `/sse/connect/:sessionId` | 无 | SSE 字节流 | 是 |
 
-不要使用根 README 中的 `/health`、`/workspace`、`/config`、`/session/events` 等路径；当前 `server.js` 没有注册这些接口。创建返回字段是 `sessionId`，不是 `sessionID` 或完整会话对象。
-
+**以 `server.js` 里真实注册的路由为准**，README 里提到的路径不一定存在。创建返回字段是 `sessionId`，不是 `sessionID` 或完整会话对象。会话列表以 `/session/list` 为准，前端不在浏览器里另存一份。
 ## 3. 配置
 
 ### 读取与保存
@@ -129,8 +135,7 @@ GET /api/session/read/example-session-id
 }
 ```
 
-时间戳为毫秒。读取结果不保证包含 `status`、`eventID`、`messages` 或 `rollback` 字段。运行时返回的是 Agent 内存历史；尚未持久化的消息可能只有核心 `id`，没有历史存储层的 `messageId`。**回退必须使用已保存历史的 `messageId`，不能拿 `id` 替代**。前端运行期间禁用回退。
-
+时间戳为毫秒。读取结果包含 `running`、`pending`、`todos` 和 `undoable`：`pending` 是正在等用户批准的工具调用（刷新页面后靠它恢复审批卡片），`todos` 是 agent 最近一次 `todo` 调用写下的清单，`undoable` 是还能撤销几次回退。运行时返回的是 Agent 内存历史；尚未持久化的消息可能只有核心 `id`，没有历史存储层的 `messageId`。**回退必须使用已保存历史的 `messageId`，不能拿 `id` 替代**。会话运行期间禁止回退（后端返回 409）。
 `content` 可以为字符串或 AI SDK 内容块数组。常用内容块包括：
 
 ```json
@@ -160,12 +165,12 @@ GET /api/session/read/example-session-id
 | --- | --- |
 | 重命名 | `PATCH /session/rename/:sessionId`，提交 `{ title: "新标题" }`，返回元信息而非完整历史 |
 | 删除 | `DELETE /session/remove/:sessionId`，永久删除后端会话目录；运行时拒绝 |
-| 回退 | `POST /session/rollback/:sessionId`，提交 `{ messageId }`，将目标消息及之后的历史移入 redo；运行时拒绝，不会自动停止 |
-| 撤销回退 | `POST /session/redo/:sessionId`，恢复最近一段被回退记录；没有可恢复内容时保持现状；运行时拒绝 |
+| 预览回退 | `POST /session/rollback/preview/:sessionId`，提交 `{ messageId }`，返回 `{ messages, files }`：会消失多少条消息、哪些文件会被恢复（带改动前后内容） |
+| 回退 | `POST /session/rollback/:sessionId`，提交 `{ messageId, files }`；`files` 默认 `true`，同时把文件恢复成那一刻的样子（任务期间新建的文件会被删掉），传 `false` 则只退对话、不动工作区。返回回退后的完整会话和 `restored` 文件列表 |
+| 撤销回退 | `POST /session/redo/:sessionId`，提交 `{ files }`，弹掉最近一层回退；可以连调好几层，没有可撤销内容时保持现状 |
 | 压缩 | 已有 `POST /session/compact/:sessionId`，运行时拒绝；当前指令不使用请求体中的 `maxTokens`，前端不提供入口 |
 
-发送新消息后，后端新历史的追加会清空 redo。当前前端只在本次操作后展示撤销按钮，不声明能够从后端读取完整 redo 状态。
-
+**可撤销的层数由后端说了算**：`GET /session/read` 的 `undoable` 就是还剩几层，刷新页面也不会丢。发送新消息时后端会把这些层清空（新消息代表新的时间线）。前端不在本地维护这个计数。
 ## 5. 发送、停止和审批
 
 ### 发送
@@ -243,10 +248,12 @@ data: {"type":"text-delta","text":"你好"}
 | `permission` | `callID`, `tool`, `input` | 展示三个审批按钮；注意字段名为 `callID` |
 | `agent-finish` | 核心返回的结束信息 | 标记空闲，重新读取后端完整历史 |
 | `error` | `errorText` 或 `error.message` | 展示错误；当前服务器不保证后台错误都会发出此事件 |
+| `permission-blocked` | `tool`, `input`, `reason` | 工具碰到 `.agentignore` 护着的文件，被直接拦下，卡片显示原因 |
+| `subagent-tool` / `subagent-tool-result` | `description` | 子任务在做事，助手气泡上显示描述 |
+| `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，提示一句，会话照常继续 |
 | 压缩相关事件及其他 AI SDK 事件 | 核心透传字段 | 不提供专用展示，不推断为执行成功 |
 
 工具输出常见结构为 `{ type: "text", value: "..." }`、`{ type: "json", value: {...} }`、`{ type: "error-text", value: "..." }`、`{ type: "execution-denied", reason: "..." }`。字段来自当前工具和核心回调，不能假设每个供应商事件都有相同可选字段。
-
 连接顺序：
 
 1. 读取会话完整历史并渲染。
@@ -264,31 +271,28 @@ data: {"type":"text-delta","text":"你好"}
 { "error": "Session not found: example-session-id" }
 ```
 
-| 状态 | 当前路由层映射 |
+| 状态 | 什么时候返回 |
 | --- | --- |
-| 400 | `TypeError`，例如空会话标题 |
-| 404 | 错误消息包含 `not found` |
-| 409 | 错误消息包含 `already running`，如运行时删除或回退 |
+| 400 | 参数填错，例如空标题、没配模型的压缩请求 |
+| 404 | 找不到这个会话或这条消息 |
+| 409 | 会话正在跑任务，不能删除、回退或撤销回退 |
 | 500 | 其他错误 |
 
-这是实际错误映射，不是完整参数校验规范。未知路由和异常请求不应被假定总有某一状态。代理返回非 JSON 错误时，前端显示 HTTP 状态及连接提示。普通请求成功也不代表后台 Agent 必然完成。
-
+状态码由业务代码自己带上（`utils/fail.js`），不是靠匹配错误文字猜出来的。未知路由和异常请求不应被假定总有某一状态。代理返回非 JSON 错误时，前端显示 HTTP 状态及连接提示。普通请求成功也不代表后台 Agent 必然完成。
 ## 8. 未实现能力与本地数据
 
 | 能力 | 当前处理 |
 | --- | --- |
-| 工作区管理 | 后端未注册接口，前端入口禁用 |
-| 全量会话列表 | 后端未注册接口，使用 `la.session-index.v1` 保存当前浏览器创建或通过 ID 打开的摘要 |
+| 工作区 CRUD | 只有 `/workspace/read` 和 `/workspace/status` 两个只读接口，没有新建、重命名、删除工作区的接口 |
 | 已有会话模型切换 | 没有更新接口；仅支持新建时选择模型 |
 | 工具、MCP、数据管理 | 不开放管理操作；配置写入保留已有相关字段 |
 | 登录或远程认证 | 没有对应接口，不创建伪登录流程 |
-| 图片/二进制上传 | 不支持 |
-| 工具步骤 checkpoint 回退 | 没有对应 API，仅支持历史消息回退 |
+| 图片/二进制上传 | 不支持，附件只支持文本内容 |
+| 做到一半的单个工具步骤回退 | 回退以消息为粒度；没有"只撤销某一个工具调用"的接口 |
 
-浏览器索引不是后端会话数据库，也不是权限边界。清除本地存储会丢失索引，不删除后端历史。可使用会话页的复制 ID 按钮，在另一浏览器通过 ID 重新打开。
+浏览器只保存外观偏好（`agent.appearance`），会话和消息都在后端。清除浏览器存储不会丢历史，会话页的复制 ID 按钮可以在别的浏览器里凭 ID 重新打开。
 
 ## 9. 最小浏览器调用示例
-
 以下代码需要从已配置同源代理的前端页面运行，且后端已配置有效模型：
 
 ```js

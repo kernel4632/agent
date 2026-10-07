@@ -1,15 +1,19 @@
 /*
  * 契约一致性检查：几处需要互相说同一件事的地方，改了一处忘了另一处就会失败。
  *
- * 路由 / 接口文档 / 版本号，工具目录 / 忽略规则名单，都靠这里盯着。
+ * 路由 / 接口文档 / 版本号，工具目录 / 忽略规则名单，前后端请求字段，都靠这里盯着。
  * 手工核对靠不住，所以让测试来盯。
  * 运行：cd server && bun test
  */
+
 import { describe, expect, test } from 'bun:test'
 import { fileURLToPath } from 'node:url'
 import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
 import { FILE_TOOLS } from '../utils/tool-files.js'
+
+// 从仓库里读一个文件，契约检查都建立在"以代码为准"上。
+const source = name => Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
 
 // --- 从 Elysia 应用里取出全部路由 ---
 const routes = () => app.routes.map(route => ({
@@ -75,15 +79,32 @@ describe('SSE 事件', () => {
         const sources = ['commands/session.js', 'features/approval.js', 'features/mcp.js', 'features/delegation.js']
         const sent = new Set()
         for (const name of sources) {
-            const code = await Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
+            const code = await source(name)
             // 只认 SSE 事件：它们都写成 data 里带一个 type 字段，
             // 内容块里的 type（'text'、'object' 那些）不算。
             for (const [, type] of code.matchAll(/data: \{ type: '([a-z][a-z-]+)'/g)) sent.add(type)
         }
 
-        const documented = await Bun.file(fileURLToPath(new URL('../README.md', import.meta.url))).text()
+        const documented = await source('README.md')
         // 少写一个，前端就不知道要处理它，用户界面上表现为"什么都没发生"。
         expect([...sent].filter(type => !documented.includes(type))).toEqual([])
+    })
+})
+// --- 前后端请求字段 ---
+describe('请求字段', () => {
+    test('前端发审批决定时用的字段名和后端读的一致', async () => {
+        // 这两个名字对不上时后端只是返回 ok:false，没有任何报错，
+        // 表现是"点了允许但工具一直没动"，很难查。所以在这里固定住。
+        // 仓库根目录按测试文件自己的位置推，不看运行目录在哪。
+        const root = new URL('../../', import.meta.url)
+        const [frontend, backend] = await Promise.all([
+            Bun.file(fileURLToPath(new URL('frontend/src/api.js', root))).text(),
+            Bun.file(fileURLToPath(new URL('server/commands/session.js', root))).text(),
+        ])
+        const sentBody = frontend.match(/decideTool:[^\n]*\{\s*([A-Za-z]+),\s*decision\s*\}/)?.[1]
+        const readField = backend.match(/decide\(\{\s*sessionId,\s*([A-Za-z]+),\s*decision\s*\}\)/)?.[1]
+        expect(sentBody).toBeTruthy() // 前端没有这个调用时，这条检查本身就该报出来。
+        expect(sentBody).toBe(readField)
     })
 })
 

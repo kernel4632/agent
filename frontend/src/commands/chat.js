@@ -67,7 +67,6 @@ async function send(sessionID, content) {
   try {
     await AgentAPI.sendMessage(sessionID, input)
     session.files = []
-    session.canRedo = false
     return true
   } catch (error) {
     const assistant = streaming(session)
@@ -209,26 +208,35 @@ function removeFile(sessionID, fileID) {
   if (session) session.files = session.files.filter(file => file.id !== fileID)
 }
 
-async function rollbackMessage(sessionID, messageID) {
+// --- 回退前先看会改动什么 ---
+async function previewRollback(sessionID, messageID) {
+  try {
+    return await AgentAPI.previewRollback(sessionID, messageID)
+  } catch (error) {
+    UI.notify(error.message)
+    return null
+  }
+}
+
+async function rollbackMessage(sessionID, messageID, files = true) {
   try {
     const session = store.sessions[sessionID]
     const message = session.messages.find(item => item.id === messageID)
-    await AgentAPI.rollback(sessionID, messageID)
+    const result = await AgentAPI.rollback(sessionID, messageID, files)
     await Session.refresh(sessionID)
     store.sessions[sessionID].draft = message?.content || ''
-    store.sessions[sessionID].canRedo = true
-    UI.notify('已回退至此消息之前')
+    // 回到输入框的那条消息，用户能在原处改一改重发，这是回退最常见的用途。
+    UI.notify(result.restored?.length ? `已回退，并恢复 ${result.restored.length} 个文件` : '已回退至此消息之前')
     return true
   } catch (error) { UI.notify(error.message); return false }
 }
 
-async function undoRollback(sessionID) {
+async function undoRollback(sessionID, files = true) {
   try {
-    await AgentAPI.redo(sessionID)
+    const result = await AgentAPI.redo(sessionID, files)
     await Session.refresh(sessionID)
-    store.sessions[sessionID].canRedo = false
-    UI.notify('已恢复对话')
+    UI.notify(result.restored?.length ? `已撤销回退，并还原 ${result.restored.length} 个文件` : '已撤销回退')
   } catch (error) { UI.notify(error.message) }
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, receive, stop, decide, attach, removeFile, rollbackMessage, undoRollback }
+export const Chat = { current, subscribe, unsubscribe, send, receive, stop, decide, attach, removeFile, previewRollback, rollbackMessage, undoRollback }

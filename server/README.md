@@ -329,8 +329,9 @@ Content-Type: application/json
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：每个文件改动前后的内容 |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
-| `POST` | `/session/rollback/:sessionId` | `{ "messageId" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |
-| `POST` | `/session/redo/:sessionId` | 无 | 恢复后的完整会话 |
+| `POST` | `/session/rollback/preview/:sessionId` | `{ "messageId" }` | 这次回退会消失多少消息、恢复哪些文件 |
+| `POST` | `/session/rollback/:sessionId` | `{ "messageId", "files?" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |
+| `POST` | `/session/redo/:sessionId` | `{ "files?" }` | 撤销回退后的完整会话，另带 `restored` |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` 是这次的总结文本 |
 
 `GET /session/changes/:sessionId` 给出 agent 到目前为止改动的文件，用来在界面上显示 diff：
@@ -350,10 +351,28 @@ Content-Type: application/json
 `added` 为 true 表示这个文件是任务期间新建的（`before` 是空串），`deleted` 为 true 表示被删掉了。
 内容没变过的文件不会出现在结果里。这份数据来自文件快照，所以和回退能看到的是同一件事。
 
-`POST /session/rollback/:sessionId` 会同时回退两样东西：对话消息，以及 agent 改过的文件。
-`restored` 列出被恢复的文件路径，前端可以在界面上显示"已把 3 个文件恢复到这一步之前"。
-这个能力靠 `features/snapshot.js` 实现：工具改文件之前先按内容存一份原样副本，
-所以同一个文件被反复改也只多存一份内容。
+### 回退：可以只退对话，也可以连着撤销
+
+**对话和文件是两件可以分开的事。** `files` 传 `false` 就只退对话、不动文件——用户可能想
+把对话退回去接着问，也可能想留着对话看 agent 到底改了什么。不传就是两样都退。
+
+回退之前先调 `POST /session/rollback/preview/:sessionId` 看代价，别让用户盲目确认：
+
+```json
+{
+  "messages": 4,
+  "files": [{ "path": "D:/app/src/a.js", "before": "旧", "after": "新", "added": false, "deleted": false }]
+}
+```
+
+**可以连着回退好几步，再一步步撤销回来。** 每回退一次就压一层；`POST /session/redo` 弹掉
+最上面一层（对话和文件一起回去）。发新消息会清空这些层——新消息代表新的时间线，
+退回到更早的状态已经没有意义了。
+
+`GET /session/read` 返回的 `undoable` 是还剩几层可以撤销，界面据此决定要不要显示"撤销回退"。
+
+文件能恢复靠 `features/snapshot.js`：工具改文件之前先按内容存一份原样副本，所以同一个文件
+被反复改也只多存一份内容。撤销回退时连"回退前是什么样"也存过一份，所以撤销能让文件回到回退前的状态。
 
 `GET /session/list` 是列表接口，不返回历史，只返回元信息：
 

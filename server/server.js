@@ -52,8 +52,10 @@ app.group('/session', session => session
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
+    // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
+    .post('/rollback/preview/:sessionId', ({ params, body }) => Session.rollbackPreview({ ...params, ...body }))
     .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
-    .post('/redo/:sessionId', ({ params }) => Session.redo(params))
+    .post('/redo/:sessionId', ({ params, body }) => Session.redo({ ...params, ...body }))
     .post('/compact/:sessionId', ({ params }) => Session.compact(params)))
 
 // --- 注册 Config 触发事件 ---

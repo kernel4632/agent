@@ -159,7 +159,15 @@ const read = async ({ sessionId }) => {
     else await createAgent({ sessionId, history, meta })
     // 清单本来就在历史里（todo 工具的结果），这里只是提出来，让界面不用自己翻。
     // 审批请求只在 SSE 里出现过一次，刷新页面后要靠这里才知道有工具在等待。
-    return { ...meta, history, todos: latestTodos(history), running: isRunning(sessionId), pending: Approval.pending(sessionId) }
+    // undoable 是还能撤销几次回退，界面据此决定要不要显示"撤销回退"。
+    return {
+        ...meta,
+        history,
+        todos: latestTodos(history),
+        running: isRunning(sessionId),
+        pending: Approval.pending(sessionId),
+        undoable: History.redoCount({ sessionId }),
+    }
 }
 
 // --- 从历史里取出最新一份任务清单 ---
@@ -193,14 +201,19 @@ const remove = async ({ sessionId }) => {
 }
 
 // --- 回退会话 ---
-const rollback = async ({ sessionId, messageId }) => {
+const rollback = async ({ sessionId, messageId, files = true }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     await History.load({ sessionId })
 
-    // 先算出回退后还留下哪些消息块，再恢复文件；文件恢复失败时对话保持原样，
-    // 不会出现"消息没了但文件还在"的中间状态。
-    const restored = await Snapshot.restore({ sessionId, keep: History.idsBefore({ sessionId, messageId }) })
+    // 对话和文件是两件可以分开的事：用户可能只想把对话退回去接着问，也可能只想丢掉
+    // agent 改的文件而留着对话看它做了什么。files 传 false 就只退对话。
+    let restored = []
+    if (files) {
+        // 先算出回退后还留下哪些消息块，再恢复文件；文件恢复失败时对话保持原样，
+        // 不会出现"消息没了但文件还在"的中间状态。
+        restored = await Snapshot.restore({ sessionId, keep: History.idsBefore({ sessionId, messageId }) })
+    }
     await History.rollback({ sessionId, messageId })
     await History.save({ sessionId })
     const agent = Store.agents.get(sessionId)
@@ -215,16 +228,43 @@ const changes = async ({ sessionId }) => {
     return Snapshot.diff({ sessionId })
 }
 
-// --- 恢复会话 ---
-const redo = async ({ sessionId }) => {
+// --- 回退之前先看会改动什么 ---
+const rollbackPreview = async ({ sessionId, messageId }) => {
+    await readMeta(sessionId)
+    await History.load({ sessionId })
+    // 用户点回退之前要能看清代价：多少条消息会消失、哪些文件会被恢复。
+    const history = History.get({ sessionId })
+    const index = history.findIndex(message => message.messageId === messageId)
+    if (index < 0) throw fail(404, `Message not found: ${messageId}`)
+
+    const keep = history.slice(0, index).map(message => message.id)
+    // 只列会被回退掉的那一段碰过的文件。
+    const droppedPaths = new Set()
+    for (const entry of Snapshot.active({ sessionId })) {
+        if (keep.includes(entry.messageId)) continue
+        for (const path of Object.keys(entry.files)) droppedPaths.add(path)
+    }
+
+    return {
+        messages: history.length - index,                                     // 会消失的消息条数
+        files: (await Snapshot.diff({ sessionId })).filter(file => droppedPaths.has(file.path)),
+    }
+}
+
+// --- 撤销回退 ---
+const redo = async ({ sessionId, files = true }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     await History.load({ sessionId })
+
+    // 撤销回退也是对话和文件分开的两件事，和回退时一一对应。
+    // 每撤销一次就退掉一层，所以可以连着撤销好几步。
+    const restored = files ? await Snapshot.undo({ sessionId }) : []
     await History.redo({ sessionId })
     await History.save({ sessionId })
     const agent = Store.agents.get(sessionId)
     if (agent) agent.history = History.get({ sessionId })
-    return read({ sessionId })
+    return { ...await read({ sessionId }), restored }
 }
 
 // --- 压缩会话历史 ---
@@ -250,9 +290,8 @@ const send = async ({ sessionId, input }) => {
     const meta = await readMeta(sessionId)
     const agent = await getAgent({ sessionId, meta })
 
-    // 这一轮要改的文件都记在这条用户消息名下，回退到它就回到这轮开始前的样子。
-    // 消息块由 Agent 自己创建（send 会把用户输入写进历史），这里只借用它的 id。
-    const messageId = Agent.history.user({ content: input.trim() }).id
+    // 新消息代表新的时间线，之前的回退不能再撤销了。
+    await Snapshot.clearUndo({ sessionId })
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
     const startLength = agent.history.length
@@ -269,7 +308,18 @@ const send = async ({ sessionId, input }) => {
             onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
             onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } }),
             onCompact: event => SSE.send({ id: sessionId, data: event }),
-            onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({ sessionId, messageId, toolCallId, toolName, input: toolInput, signal }),
+            // 快照挂在这一轮的用户消息上，回退到它就回到这轮开始前的样子。
+            // 这个 id 必须在这时候才取：Agent 内部要先 await 停止上一个任务，才会把用户消息
+            // 写进历史，所以 send 一返回就取会取到上一轮的那条。这里已经是跑工具的阶段，
+            // 消息早就进去了。也不要自己造一个 id —— 那样和历史里那条对不上，回退会找不到快照。
+            onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({
+                sessionId,
+                messageId: agent.history.findLast(message => message.role === 'user')?.id,
+                toolCallId,
+                toolName,
+                input: toolInput,
+                signal,
+            }),
         },
     })
 
@@ -294,4 +344,4 @@ const count = () => Store.sessions.size
 // --- 统计正在运行的任务 ---
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
 
-export default { prepare, list, create, read, rename, remove, rollback, redo, changes, compact, send, stop, decide, count, runningCount }
+export default { prepare, list, create, read, rename, remove, rollback, rollbackPreview, redo, changes, compact, send, stop, decide, count, runningCount }

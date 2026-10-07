@@ -146,7 +146,7 @@ onUnmounted(() => {
               <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
               <div v-if="session?.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session?.status === 'running' && now - session.lastEventAt > 45000" class="chat-notice" role="status">暂未收到新进度，可停止后重试。</div>
-              <div v-if="session?.canRedo" class="chat-notice"><span>对话已回退</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
+              <div v-if="session?.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
               <ChatComposer ref="composer" v-model:draft="draft" :selected-model="session?.model || store.config.activeModel" :can-select-model="!session" :is-running="session?.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session?.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile" />
             </div>
           </section>

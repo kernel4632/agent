@@ -34,21 +34,20 @@ bun run dev
 
 | 功能 | 实际接口 |
 | --- | --- |
-| 配置读取、整体保存 | `GET /config/read`、`PATCH /config/set` |
-| 新建、读取、重命名、删除会话 | `/session/create`、`/session/read/:sessionId`、`/session/rename/:sessionId`、`/session/remove/:sessionId` |
+| 服务状态、工作区 | `GET /health`、`GET /workspace/read` |
+| 配置读取、整体保存、连接测试 | `GET /config/read`、`PATCH /config/set`、`POST /config/test` |
+| 会话列表、新建、读取、重命名、删除 | `GET /session/list`、`/session/create`、`/session/read/:sessionId`、`/session/rename/:sessionId`、`/session/remove/:sessionId` |
+| 任务改过的文件 | `GET /session/changes/:sessionId` |
+| 回退预览、回退、撤销回退 | `POST /session/rollback/preview/:sessionId`、`POST /session/rollback/:sessionId`、`POST /session/redo/:sessionId` |
 | 发送、停止 | `POST /agent/send/:sessionId`、`POST /agent/stop/:sessionId` |
 | 工具审批 | `POST /agent/decide/:sessionId` |
-| 回退、撤销回退 | `POST /session/rollback/:sessionId`、`POST /session/redo/:sessionId` |
 | 事件流 | `GET /sse/connect/:sessionId` |
 
-发送字段为 `{ input }`，审批字段为 `{ callId, decision }`，历史读取字段为 `history`。SSE 按标准事件帧读取，不按 NDJSON 解析；现有后端会在保存后重置事件 ID，因此不发送 `Last-Event-ID`，重连时先读取历史，再重放当前轮次。
-
+发送字段为 `{ input }`，审批字段为 `{ toolCallId, decision }`，历史读取字段为 `history`。回退提交 `{ messageId, files }`：`files` 默认 `true`（对话和文件一起退），传 `false` 只退对话；还能撤销几层看读取结果里的 `undoable`。SSE 按标准事件帧读取，不按 NDJSON 解析；现有后端会在保存后重置事件 ID，因此不发送 `Last-Event-ID`，重连时先读取历史，再重放当前轮次。
 配置保存保留未编辑的提供商参数、提示词字段、权限与 MCP 配置。仅修改外观时只写浏览器 localStorage，不发送后端配置写请求。API Key 只保存在表单内存和后端配置中，不写入浏览器持久存储。
 
 ## 明确的能力边界
-
-- 后端没有工作区管理接口：相关入口禁用，不创建伪工作区或目录权限。
-- 后端没有全量会话列表接口：浏览器只保存自己创建或手动打开过的会话 ID 和摘要。可通过 ID 打开其他已有会话。清除浏览器存储不会删除后端内容，但会丢失本机索引。
+- 后端只有只读的工作区接口（读取和 git 状态）：没有新建、重命名、删除工作区的能力，相关入口禁用。
 - 后端没有会话模型更新接口：在首页选择模型，再新建会话。已有会话内不提供虚假的模型切换。
 - 工具管理、MCP 管理、数据管理没有完整接口：设置中标注待支持并禁用；工具审批使用现有接口。
 - 附件只支持文本和代码，每个不超过 1 MiB；读取后作为本轮输入的一部分发送。不是服务器文件上传，不支持图片或二进制文件。

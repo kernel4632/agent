@@ -402,6 +402,34 @@ describe('server session history', () => {
             expect(reloaded.history.map(item => item.content)).toEqual(['hello'])
         })
     })
+
+    test('undoes several rollbacks in a row, and a new message clears the undo history', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const { sessionId } = await Session.create({ title: 'Multi undo' })
+            const first = await History.add({ sessionId, message: Agent.history.user({ content: '一' }) })
+            await History.add({ sessionId, message: Agent.history.user({ content: '二' }) })
+            await History.add({ sessionId, message: Agent.history.user({ content: '三' }) })
+            await History.save({ sessionId })
+
+            // 回退一次，就多一层可以撤销。
+            await Session.rollback({ sessionId, messageId: first.messageId, files: false })
+            expect((await Session.read({ sessionId })).history).toHaveLength(0)
+            expect((await Session.read({ sessionId })).undoable).toBe(1)
+
+            // 连着撤销，能一步步回到最开始。
+            await Session.redo({ sessionId, files: false })
+            expect((await Session.read({ sessionId })).history).toHaveLength(3)
+            expect((await Session.read({ sessionId })).undoable).toBe(0)
+
+            // 再回退一次，然后发新消息：新消息代表新的时间线，之前的回退不能再撤销。
+            await Session.rollback({ sessionId, messageId: first.messageId, files: false })
+            expect((await Session.read({ sessionId })).undoable).toBe(1)
+            History.add({ sessionId, message: Agent.history.user({ content: '新的' }) })
+            await History.save({ sessionId })
+            expect((await Session.read({ sessionId })).undoable).toBe(0)
+        })
+    })
 })
 
 describe('server file snapshots', () => {
@@ -464,6 +492,49 @@ describe('server file snapshots', () => {
 
             await rm(edited, { force: true })
             await rm(created, { force: true })
+        })
+    })
+    test('previews a rollback and can roll back the conversation without touching files', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            const target = join(tmpdir(), `agent-preview-${crypto.randomUUID()}.txt`)
+            await writeFile(target, 'original')
+
+            const { sessionId } = await Session.create({ title: 'Preview task' })
+            const first = await History.add({ sessionId, message: Agent.history.user({ content: '第一步' }) })
+            const second = await History.add({ sessionId, message: Agent.history.user({ content: '第二步' }) })
+            await History.save({ sessionId })
+
+            // 第二轮的快照挂在第二条消息上。
+            await Snapshot.save({ sessionId, messageId: second.message.id, toolName: 'file_write', input: { path: target } })
+            await writeFile(target, 'changed in step two')
+
+            // 回退之前先看代价：从第一条开始的整段会消失，只列出这一段碰过的文件。
+            const preview = await Session.rollbackPreview({ sessionId, messageId: first.messageId })
+            expect(preview.messages).toBe(2)
+            expect(preview.files.map(file => file.path)).toEqual([resolve(target)])
+            expect(preview.files[0]).toMatchObject({ before: 'original', after: 'changed in step two' })
+
+            // files=false 只退对话：文件保持 agent 改过的样子。
+            const rolledBack = await Session.rollback({ sessionId, messageId: first.messageId, files: false })
+            expect(rolledBack.restored).toEqual([])
+            expect(rolledBack.history).toHaveLength(0)
+            expect(await readFile(target, 'utf8')).toBe('changed in step two')
+
+            // 撤销回退时也传 files=false，只把对话放回来。
+            await Session.redo({ sessionId, files: false })
+            expect((await Session.read({ sessionId })).history).toHaveLength(2)
+
+            // 这次带着文件一起退：文件回到最初的 'original'。
+            const withFiles = await Session.rollback({ sessionId, messageId: first.messageId })
+            expect(withFiles.restored).toContain(resolve(target))
+            expect(await readFile(target, 'utf8')).toBe('original')
+
+            // 撤销回退把文件改回回退前的样子，对话也一起回来。
+            await Session.redo({ sessionId })
+            expect(await readFile(target, 'utf8')).toBe('changed in step two')
+
+            await rm(target, { force: true })
         })
     })
 

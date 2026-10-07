@@ -14,14 +14,27 @@ const messages = computed(() => session.value?.messages || [])
 const pinned = ref(true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
+const rollbackPreview = ref(null)
+const rollbackFiles = ref(true)
 let scrollParent
 function onScroll() { pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100 }
 function scrollToBottom() { nextTick(() => { if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight }) }
 watch(messages, scrollToBottom, { deep: true })
 onMounted(() => { scrollParent = root.value.closest('.chat-page__scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
 onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
-function requestRollback(message) { rollbackTarget.value = message; rollbackDialog.value.showModal() }
-async function confirmRollback() { if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id)) rollbackDialog.value?.close() }
+const rollbackSummary = computed(() => {
+  if (!rollbackPreview.value) return '此消息及之后的内容将从对话中回退。'
+  return `从这条消息开始的 ${rollbackPreview.value.messages} 条对话会被去掉，你可以在发送新消息前撤销这次回退。`
+})
+async function requestRollback(message) {
+  rollbackTarget.value = message
+  rollbackPreview.value = null
+  rollbackFiles.value = true
+  // 点开就已经能看到代价：多少条消息、哪些文件。等确认时再说太晚了。
+  rollbackDialog.value.showModal()
+  rollbackPreview.value = await Chat.previewRollback(session.value.id, message.id)
+}
+async function confirmRollback() { if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id, rollbackFiles.value)) rollbackDialog.value?.close() }
 const toolLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 </script>
 
@@ -43,7 +56,20 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
       </template>
       <div v-if="!message.isStreaming" class="message__actions"><button class="icon-button" aria-label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></button></div>
     </section>
-    <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退"><h2>回到这条消息之前？</h2><p>此消息及之后的内容将从当前对话中回退。你可以在发送新消息前撤销此次回退。</p><div class="dialog-actions"><button class="button" @click="rollbackDialog.close()">取消</button><button class="button button--primary" @click="confirmRollback">确认回退</button></div></dialog>
+    <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退">
+      <h2>回到这条消息之前？</h2>
+      <p>{{ rollbackSummary }}</p>
+      <label v-if="rollbackPreview?.files.length" class="rollback-files">
+        <span>这一段的改动（{{ rollbackPreview.files.length }} 个文件）</span>
+        <ul><li v-for="file in rollbackPreview.files" :key="file.path">{{ file.path }}</li></ul>
+      </label>
+      <label class="rollback-choice">
+        <input v-model="rollbackFiles" type="checkbox" />
+        <span>同时把文件改回原样</span>
+      </label>
+      <p class="rollback-hint">{{ rollbackFiles ? '文件和对话一起退回这一步之前。' : '只退对话，工作区里的文件保持现在的样子。' }}</p>
+      <div class="dialog-actions"><button class="button" @click="rollbackDialog.close()">取消</button><button class="button button--primary" @click="confirmRollback">确认回退</button></div>
+    </dialog>
   </div>
 </template>
 
@@ -92,6 +118,13 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 .approval p { font-size: 11px; color: var(--la-secondary); }
 .approval > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .approval .button { min-height: 34px; font-size: 11px; }
+.rollback-files { display: grid; gap: 8px; margin: 0 0 18px; }
+.rollback-files > span { font-size: 11px; color: var(--la-muted); }
+.rollback-files ul { margin: 0; padding: 10px 12px; list-style: none; max-height: 160px; overflow: auto; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: var(--la-input); }
+.rollback-files li { font: 11px/1.9 var(--la-font-mono); color: var(--la-secondary); overflow-wrap: anywhere; }
+.rollback-choice { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--la-text); }
+.rollback-choice input { width: 15px; height: 15px; accent-color: var(--la-accent); }
+.rollback-hint { margin: 10px 0 0 !important; font-size: 11px !important; color: var(--la-muted) !important; }
 .message__error { display: flex; align-items: flex-start; gap: 8px; color: var(--la-danger); font-size: 12px; line-height: 1.8; padding: 10px 0; overflow-wrap: anywhere; }
 .message__error > svg { flex-shrink: 0; margin-top: 3px; }
 .message__usage { font-size: 9px; color: var(--la-muted); margin-top: 14px; }

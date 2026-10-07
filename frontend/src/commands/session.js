@@ -174,7 +174,7 @@ function normalize(source, previous = {}) {
     workspaceID: source.workspaceId,
     status: previous.status || 'idle',
     connection: previous.connection || 'connecting',
-    canRedo: previous.canRedo || false,
+    undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
     titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
     provider,                                           // 模型选择器显示供应商
@@ -187,7 +187,6 @@ function normalize(source, previous = {}) {
     inputTokens: previous.inputTokens || 0,              // 保留当前页面累计输入
     outputTokens: previous.outputTokens || 0,            // 保留当前页面累计输出
     cacheTokens: previous.cacheTokens || 0,              // 保留当前页面缓存用量
-    rollback: source.rollback ? { ...source.rollback, preview: source.rollback.target?.content || (source.rollback.target?.step ? t('toolStep', { step: source.rollback.target.step }) : '') } : null, // 转换回退预览
   }
 }
 

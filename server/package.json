@@ -1,6 +1,6 @@
 {
   "name": "universal-agent",
-  "version": "0.9.5",
+  "version": "0.10.0",
   "type": "module",
   "scripts": {
     "start": "bun run server.js",

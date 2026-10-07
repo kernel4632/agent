@@ -49,10 +49,13 @@ export const AgentAPI = {
   sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
   stopSession:      (sessionID)                 => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST'),
   subscribeSession,
-  decideTool:       (sessionID, callId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { callId, decision }),
+  // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。
+  decideTool:       (sessionID, toolCallId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, decision }),
   getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
-  rollback:         (sessionID, messageId)      => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
-  redo:             (sessionID)                 => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST'),
+  // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
+  previewRollback:  (sessionID, messageId)      => request(`/session/rollback/preview/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
+  rollback:         (sessionID, messageId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files }),
+  redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
   getConfig:        ()                          => request('/config/read'),
   updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
   // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。

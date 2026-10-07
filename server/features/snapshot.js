@@ -2,9 +2,13 @@
  * 文件快照：工具改文件之前先把原样存一份，回退时能把文件恢复回去。
  *
  * 快照按"消息块"分组，一个消息块对应一份文件清单；备份按内容命名，同一份内容只存一次。
+ * 回退掉的记录不丢弃，放进 redone 栈里，撤销回退时还能拿回来——所以可以连退回退好几步，
+ * 再逐步撤销，直到发新消息才清空。
  * 调用示例：
  *   await Snapshot.save({ sessionId, messageId, toolName, input })   // 工具即将改这些文件，先存一份
  *   await Snapshot.restore({ sessionId, keep })                      // keep 是回退后还留下的消息块 id
+ *   await Snapshot.undo({ sessionId })                               // 撤销最近一次回退，文件也恢复
+ *   Snapshot.active({ sessionId })                                   // 当前还没被回退掉的记录
  *   await Snapshot.diff({ sessionId })                               // 这些文件现在和任务开始时有什么不同
  *   await Snapshot.remove({ sessionId })                             // 会话删掉时清理
  */
@@ -26,6 +30,19 @@ const fingerprint = async path => {
 // --- 备份文件放在哪 ---
 const backupPath = (sessionId, hash) => join(Path.snapshots(sessionId), hash)
 
+// --- 把一个文件现在的样子存进备份区 ---
+const backup = async ({ sessionId, path }) => {
+    // 返回内容指纹；文件不存在时返回 null，撤销回退时据此把它删掉。
+    if (!await Bun.file(path).exists()) return null
+    const hash = await fingerprint(path)
+    const target = backupPath(sessionId, hash)
+    if (!await Bun.file(target).exists()) {
+        await mkdir(Path.snapshots(sessionId), { recursive: true })
+        await cp(path, target)
+    }
+    return hash
+}
+
 // --- 记录快照清单 ---
 const save = async ({ sessionId, messageId, toolName, input }) => {
     // 会碰哪些文件由 utils/tool-files.js 一处说了算。
@@ -45,21 +62,16 @@ const save = async ({ sessionId, messageId, toolName, input }) => {
         const absolute = resolve(path)
         if (absolute in entry.files) continue // 本轮已经存过，要留的是这一轮开始时的样子。
 
-        const exists = await Bun.file(absolute).exists()
         // 文件还不存在说明这次是新建；回退时应当把它删掉，所以记成 null。
-        entry.files[absolute] = exists ? await fingerprint(absolute) : null
-        if (exists) {
-            const target = backupPath(sessionId, entry.files[absolute])
-            if (!await Bun.file(target).exists()) {
-                await mkdir(Path.snapshots(sessionId), { recursive: true })
-                await cp(absolute, target)
-            }
-        }
+        entry.files[absolute] = await backup({ sessionId, path: absolute })
         recorded.push(absolute)
     }
     await writeStore({ sessionId, store })
     return recorded
 }
+
+// --- 当前生效的快照记录 ---
+const active = ({ sessionId }) => Store.snapshots.get(sessionId)?.checkpoints || []
 
 // --- 把文件恢复到回退点之前 ---
 const restore = async ({ sessionId, keep }) => {
@@ -81,6 +93,10 @@ const restore = async ({ sessionId, keep }) => {
         for (const [path, hash] of Object.entries(entry.files)) wanted.delete(path)
     }
 
+    // 恢复之前先把"现在是什么样"存下来，撤销回退时才能把文件还原回去。
+    const after = {}
+    for (const path of wanted.keys()) after[path] = await backup({ sessionId, path })
+
     const restored = []
     for (const [path, hash] of wanted) {
         if (hash === null) {
@@ -93,8 +109,39 @@ const restore = async ({ sessionId, keep }) => {
     }
 
     store.checkpoints = kept
+    store.redone.push({ entries: dropped, after }) // 留着，撤销回退要用。
     await writeStore({ sessionId, store })
     return restored
+}
+
+// --- 撤销最近一次回退 ---
+const undo = async ({ sessionId }) => {
+    const store = await loadStore({ sessionId })
+    const last = store.redone.pop()
+    if (!last) return [] // 没有可撤销的回退时什么也不做。
+
+    const restored = []
+    for (const [path, hash] of Object.entries(last.after)) {
+        if (hash === null) {
+            await rm(path, { force: true }) // 回退前这个文件不存在，撤销回退就是回到"不存在"。
+        } else {
+            await mkdir(dirname(path), { recursive: true })
+            await cp(backupPath(sessionId, hash), path)
+        }
+        restored.push(path)
+    }
+
+    store.checkpoints.push(...last.entries)
+    await writeStore({ sessionId, store })
+    return restored
+}
+// --- 发新消息后，之前的回退不能再撤销 ---
+const clearUndo = async ({ sessionId }) => {
+    // 新消息代表新的时间线，回退到更早的状态已经没有意义了。
+    const store = await loadStore({ sessionId })
+    if (!store.redone.length) return
+    store.redone = []
+    await writeStore({ sessionId, store })
 }
 
 // --- 这些文件现在和记录时有什么不同 ---
@@ -128,7 +175,9 @@ const loadStore = async ({ sessionId }) => {
     if (Store.snapshots.has(sessionId)) return Store.snapshots.get(sessionId)
     const file = Bun.file(Path.checkpoints(sessionId))
     // 第一次运行的会话还没有快照文件，从空清单开始。
-    const store = await file.exists() ? await file.json() : { checkpoints: [] }
+    const store = await file.exists() ? await file.json() : { checkpoints: [], redone: [] }
+    // 更早版本写的文件里没有 redone 这一项，补上。
+    store.redone ||= []
     Store.snapshots.set(sessionId, store)
     return store
 }
@@ -146,4 +195,4 @@ const remove = async ({ sessionId }) => {
     await rm(Path.checkpoints(sessionId), { force: true })
 }
 
-export default { save, restore, diff, remove }
+export default { save, active, restore, undo, clearUndo, diff, remove }
