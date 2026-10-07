@@ -31,7 +31,10 @@ Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](h
 
 ### 放技能（skills）
 
-数据目录的 `skills/` 里一个文件夹放一份 `SKILL.md`，agent 需要时会自己去读：
+技能和工具一样分两处：内置的在 `server/skills/`（跟着代码走），用户自己的在数据目录 `skills/`。
+同名时用户版本覆盖内置版本，改内置技能的行为不用去动代码。
+
+一个文件夹放一份 `SKILL.md`，agent 需要时会自己去读：
 
 ```text
 skills/
@@ -76,17 +79,28 @@ description: 审查一个 PR 时用这个
 - 连上是慢的，所以连过一次就留着；配置里删掉某个服务，下一次建会话时它的连接和工具一起消失
 - 某个服务连不上只会跳过它，会话照常创建，失败原因通过 SSE 的 `mcp-error` 事件推给前端
 
-内置工具一共十二个：
+内置工具一共十三个：
 
 | 工具 | 做什么 |
 | --- | --- |
 | `file_read` / `file_write` / `file_list` | 读文件（含图片）、写完整文本、列目录 |
 | `edit` / `apply_patch` | 改一处唯一片段；`apply_patch` 一次改多个文件，全部校验通过才写盘 |
-| `grep` / `glob` | 按正则搜内容、按通配找文件，都会跳过 `node_modules` |
+| `grep` / `glob` | 按正则搜内容、按通配找文件，跳过哪些目录由 `utils/skip.js` 一处说了算 |
 | `shell` | 执行命令，带十分钟超时和输出截断 |
 | `todo` | 写下当前任务清单和进度，前端据此显示进度条 |
 | `webfetch` | 取网页正文 |
+| `task` | 把一件独立的探索工作委托给子 agent，只拿回结论 |
 | `finish` / `ask` | 结束任务；向用户提问并暂停 |
+
+`task` 是唯一一个内存工具（其余都是文件工具）：它需要模型配置和工具表，这两样只有主进程有。
+它的用处是**省上下文**——让子 agent 去翻一堆文件，翻的过程全留在子 agent 自己的历史里，
+主 agent 只拿到结论，历史干净得像没读过那些文件。子 agent 拿不到 `task` 工具，所以套不下去；
+它失败只作为一条结论回来，不会打断主任务；主任务被停止时它一起停。
+
+> **关于联网搜索**：这里没有 `websearch` 工具。搜索需要外部服务的 API Key，本项目不替你选一家；
+> 而"不需要 Key 的搜索"要么违反服务条款、要么随时会坏。做一个没配 Key 就必然失败的工具，
+> 比没有这个工具更糟——模型会以为它能搜。需要搜索就配一个 MCP 搜索服务（比如 tavily 或
+> brave 的 MCP 服务），见上面的「接外部工具服务」。
 
 ## 从零启动
 
@@ -141,6 +155,8 @@ $env:AGENT_HOME = "C:\temp\agent-data"
   tools/             用户自己写的工具，和内置工具一起扫描
   skills/            技能，一个文件夹一份 SKILL.md，agent 需要时自己读
 ```
+
+内置工具在 `server/tools/`，内置技能在 `server/skills/`；两处都是同名时用户版本覆盖内置版本。
 
 `.agentignore` 里写一条就多拦一类文件，写法同 `.gitignore`，例如：
 
@@ -272,7 +288,7 @@ Content-Type: application/json
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
-| `GET` | `/health` | `{ "ok": true, "version": "0.8.1", "sessions": 2, "running": 1 }` |
+| `GET` | `/health` | `{ "ok": true, "version": "0.9.0", "sessions": 2, "running": 1 }` |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 
@@ -457,6 +473,10 @@ Accept: text/event-stream
 | `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
 | `permission` | `callID`, `tool`, `input` | 显示"始终允许""允许一次""拒绝" |
+| `permission-blocked` | `tool`, `input`, `reason` | 这个工具碰到了 `.agentignore` 护着的文件，已被拦下，不用等用户决定 |
+| `subagent-tool` | `description`, `toolName`, `input` | 子任务正在用工具，可以显示"正在查 XXX" |
+| `subagent-tool-result` | `description`, `toolName`, `output` | 子任务的工具跑完了 |
+| `mcp-error` | `server`, `error` | 某个 MCP 服务没连上；只是跳过它，会话照常 |
 | `compact-start` / `compact-finish` | 无 / `text` | 显示上下文压缩进度 |
 | `agent-start` | 无 | 标记 Agent 任务开始 |
 | `agent-finish` | `reason`, `usage`, `text`（失败时是 `error`） | 标记 Agent 任务结束，再刷新会话 |

@@ -13,15 +13,22 @@
  * 而且大部分技能这一次根本用不上。所以这里只把"有哪些技能、各是干什么的"告诉模型，
  * 正文等它真的要用了再用 read 工具去读。
  * 调用示例：
- *   const skills = await Skills.list()      // [{ name, description, path }]
+ * 技能有两处，和工具一样：内置的跟着代码走（server/skills/），用户自己的放在数据目录（skills/），
+ * 同名时用户版覆盖内置版。
+ * 调用示例：
+ *   const skills = await Skills.list()      // [{ name, description }]
  *   const text = await Skills.read('review-pr')
  *   const tools = await Skills.tools()      // 只有有技能时才给出 read 工具
  */
 
 import { mkdir } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js' // 读一个不存在的技能时按填错处理。
 
+// 内置技能跟着代码走，换台机器、新克隆一份也都在这。
+// Glob 只收字符串路径，所以这里把 URL 转成平台路径。
+const builtIn = () => fileURLToPath(new URL('../skills/', import.meta.url))
 // --- 拆出开头的 name 和 description ---
 const parse = text => {
     // 技能文件开头是两行 --- 夹起来的小段，照着 agentskills 约定写的。
@@ -39,18 +46,27 @@ const parse = text => {
     return { ...fields, body: text.slice(match[0].length).trim() }
 }
 
-// --- 列出全部技能 ---
-const list = async () => {
+// --- 读一个目录里的技能 ---
+const scan = async directory => {
     const found = []
-    // 数据目录里第一次还没有 skills/，先建出来，用户放进去就会被发现。
-    await mkdir(Path.skills(), { recursive: true })
-
-    for await (const file of new Bun.Glob('*/SKILL.md').scan({ cwd: Path.skills() })) {
-        const skill = parse(await Bun.file(`${Path.skills()}/${file}`).text())
+    for await (const file of new Bun.Glob('*/SKILL.md').scan({ cwd: directory })) {
+        const skill = parse(await Bun.file(`${directory}/${file}`).text())
         // 格式不对的文件直接跳过：技能目录是用户自己管的，坏文件不该挡住其他技能。
         if (skill) found.push({ name: skill.name, description: skill.description, body: skill.body })
     }
     return found
+}
+
+// --- 列出全部技能 ---
+const list = async () => {
+    // 数据目录里第一次还没有 skills/，先建出来，用户放进去就会被发现。
+    await mkdir(Path.skills(), { recursive: true })
+
+    const skills = new Map()
+    // 先放内置的，再用用户的覆盖同名的，用户想改内置技能的行为不用去动代码。
+    for (const skill of await scan(builtIn())) skills.set(skill.name, skill)
+    for (const skill of await scan(Path.skills())) skills.set(skill.name, skill)
+    return [...skills.values()]
 }
 
 // --- 读一个技能的正文 ---

@@ -18,6 +18,7 @@ import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
 import Approval from '../features/approval.js' // 审批工具调用，顺带记录文件快照。
+import Delegation from '../features/delegation.js' // 把独立探索工作委托给子 agent。
 import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
 import Skills from '../features/skills.js' // 数据目录里的技能，按需读正文。
 import Config from './config.js' // 读取全局模型配置和权限规则。
@@ -80,18 +81,26 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
     // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
     await mkdir(Path.tools(), { recursive: true })
+    // 配置格式转换只写在 Config 里，子 agent 用的也是同一份。
+    const config = Config.resolve({ provider: meta.provider, model: meta.model })
+
     // 三类工具一起交给模型：内置的文件工具、用户自己写的、设置里配的 MCP 服务。
-    // 技能不作为工具全集出现，只给一个"读技能正文"的工具，正文等模型要用时再去读。
-    const tools = await Agent.tool.from(
+    // 技能不作为工具全集出现，只给一个"读技能正文"的工具，正文等模型要用时才去读。
+    const scanned = await Agent.tool.from(
         new URL('../tools/', import.meta.url),
         Path.tools(),
         await Mcp.tools(),
         await Skills.tools(),
     )
+
+    // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
+    // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
+    const tools = Agent.tool.merge(scanned, Agent.tool.adopt({ task: Delegation.build({ config, tools: scanned }) }))
+
     const agent = Agent.create({
         id: sessionId,
         history,
-        config: Config.resolve({ provider: meta.provider, model: meta.model }), // 配置格式转换只写在 Config 里。
+        config,
         tools,
         callbacks: { onPermission: Approval.check }, // 工具执行前先过一次忽略规则和权限规则。
     })

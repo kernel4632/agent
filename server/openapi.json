@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.8.1",
+    "version": "0.9.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -319,7 +319,7 @@
       "get": {
         "tags": ["SSE"],
         "summary": "建立实时事件连接，接收 AI 的输出",
-        "description": "建立一个持续的连接，服务器会把 AI 运行过程中的所有事件推送过来。连接断开后会自动重连，之前没收到的事件也会补发。这个连接没有固定的结束时间，会一直保持直到你主动断开。\n\n服务器推送的事件类型如下：\n- **agent-start**：AI 任务开始\n- **text-delta**：AI 正在生成文字，每次推送一小段\n- **reasoning-delta**：AI 正在思考，每次推送一小段\n- **llm-start** / **llm-finish**：一次模型请求开始 / 结束，finish 里带完整文字和用量\n- **tool-call**：AI 正在调用某个工具\n- **tool-output**：工具的实时输出，stream 是 stdout 或 stderr\n- **tool-result**：工具执行的最终结果\n- **permission**：AI 请求你审批是否允许使用某个工具\n- **retry**：因为错误正在重试\n- **compact-start** / **compact-finish**：AI 正在压缩历史记录，过程中推送事件\n- **agent-finish**：任务结束，带上结束原因和用量；任务失败时带 error 字段",
+        "description": "建立一个持续的连接，服务器会把 AI 运行过程中的所有事件推送过来。连接断开后会自动重连，之前没收到的事件也会补发。这个连接没有固定的结束时间，会一直保持直到你主动断开。\n\n服务器推送的事件类型如下：\n- **agent-start**：AI 任务开始\n- **text-delta**：AI 正在生成文字，每次推送一小段\n- **reasoning-delta**：AI 正在思考，每次推送一小段\n- **llm-start** / **llm-finish**：一次模型请求开始 / 结束，finish 里带完整文字和用量\n- **tool-call**：AI 正在调用某个工具\n- **tool-output**：工具的实时输出，stream 是 stdout 或 stderr\n- **tool-result**：工具执行的最终结果\n- **permission**：AI 请求你审批是否允许使用某个工具\n- **permission-blocked**：这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不需要用户决定\n- **subagent-tool** / **subagent-tool-result**：子任务正在用工具 / 用完了，可以显示「正在查 XXX」\n- **mcp-error**：某个 MCP 服务没连上，只是跳过它，会话照常\n- **retry**：因为错误正在重试\n- **compact-start** / **compact-finish**：AI 正在压缩历史记录，过程中推送事件\n- **agent-finish**：任务结束，带上结束原因和用量；任务失败时带 error 字段",
         "operationId": "sseConnect",
         "parameters": [
           {

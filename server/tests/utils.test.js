@@ -14,6 +14,7 @@ import Approval from '../features/approval.js'
 import Config from '../commands/config.js'
 import History from '../features/history.js'
 import Ignore from '../features/ignore.js'
+import Delegation from '../features/delegation.js'
 import Mcp from '../features/mcp.js'
 import Session from '../commands/session.js'
 import Skills from '../features/skills.js'
@@ -108,6 +109,39 @@ describe('server HTTP API', () => {
     })
 })
 
+describe('server delegation', () => {
+    test('builds a task tool whose sub-agent cannot delegate again', async () => {
+        await withHome(async () => {
+            const scanned = await (await import('@kernel4632/agent-core')).default.tool.from('./tools')
+            const task = Delegation.build({ config: { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }, tools: scanned })
+
+            // 和别的工具合起来之后，主 agent 的工具表里有 task。
+            const merged = (await import('@kernel4632/agent-core')).default.tool.merge(scanned, (await import('@kernel4632/agent-core')).default.tool.adopt({ task }))
+            expect(Object.keys(merged.schema)).toContain('task')
+
+            // 真跑一次：子 agent 连不上模型，错误作为结论回来，不该抛出去打断主任务。
+            const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
+            expect(result.description).toBe('查点东西')
+            expect(typeof result.error).toBe('string')
+        })
+    })
+
+    test('stops the sub-agent when the main task is stopped', async () => {
+        await withHome(async () => {
+            const scanned = await (await import('@kernel4632/agent-core')).default.tool.from('./tools')
+            const task = Delegation.build({ config: { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }, tools: scanned })
+
+            // 一进来就是已取消状态，子 agent 不该继续跑下去。
+            const controller = new AbortController()
+            controller.abort()
+            const result = await task.execute({ description: '查东西', prompt: '看看' }, { abortSignal: controller.signal })
+            expect(result.description).toBe('查东西')
+            // 取消或失败都只作为结论返回，不往外抛。
+            expect(result.error || result.reason).toBeDefined()
+        })
+    })
+})
+
 describe('server skills', () => {
     test('lists skills from the data directory and reads one on demand', async () => {
         await withHome(async root => {
@@ -121,9 +155,9 @@ description: 审查一个 PR 时用这个
 第一步：读 diff。
 `)
 
+            // 清单里既有内置技能，也有用户刚放进去的这个。
             const list = await Skills.list()
-            expect(list).toHaveLength(1)
-            expect(list[0].name).toBe('review-pr')
+            expect(list.map(item => item.name)).toContain('review-pr')
             expect(await Skills.read('review-pr')).toContain('第一步')
             // 模型看到的是清单，不是所有正文。
             const tools = await Skills.tools()
@@ -131,32 +165,42 @@ description: 审查一个 PR 时用这个
         })
     })
 
-    test('skips files without a header and reports an unknown skill as missing', async () => {
+    test('skips a file without a header and reports an unknown skill as missing', async () => {
         await withHome(async root => {
             await mkdir(join(root, 'skills', 'broken'), { recursive: true })
             // 没有开头那段就认不出是什么技能，跳过它，不让它挡住别的技能。
             await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
 
-            expect(await Skills.list()).toEqual([])
-            // 一个技能都没有时不给出工具，模型不会去调一个必然失败的东西。
-            expect(await Skills.tools()).toEqual({})
+            // 坏文件不出现在清单里，但内置技能照常在。
+            const names = (await Skills.list()).map(item => item.name)
+            expect(names).not.toContain('broken')
+            expect(names).toContain('elysiajs')
             await expect(Skills.read('nope')).rejects.toMatchObject({ status: 404 })
         })
     })
 
-    test('gives the agent a skill tool only when skills exist', async () => {
+    test('lets a user skill replace a built-in one with the same name', async () => {
         await withHome(async root => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
-            const first = await Session.create({ title: 'No skills' })
-            const withoutSkills = (await import('../store.js')).default.agents.get(first.sessionId)
-            expect(withoutSkills.tools.schema.skill).toBeUndefined()
+            // 内置有 elysiajs；用户在数据目录里放一个同名的，应当以用户的为准。
+            await mkdir(join(root, 'skills', 'elysiajs'), { recursive: true })
+            await writeFile(join(root, 'skills', 'elysiajs', 'SKILL.md'), '---\nname: elysiajs\ndescription: 我们公司自己的写法\n---\n用我们自己的约定')
 
-            // 放进一个技能后再建会话，工具就出现了。
-            await mkdir(join(root, 'skills', 'demo'), { recursive: true })
-            await writeFile(join(root, 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: 演示\n---\n正文')
-            const second = await Session.create({ title: 'With skills' })
-            const withSkills = (await import('../store.js')).default.agents.get(second.sessionId)
-            expect(withSkills.tools.schema.skill).toBeDefined()
+            const found = (await Skills.list()).filter(item => item.name === 'elysiajs')
+            expect(found).toHaveLength(1)
+            expect(found[0].description).toBe('我们公司自己的写法')
+            expect(await Skills.read('elysiajs')).toContain('我们自己的约定')
+        })
+    })
+
+    test('gives the agent a skill tool listing the built-in skills', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const { sessionId } = await Session.create({ title: 'With skills' })
+            const agent = (await import('../store.js')).default.agents.get(sessionId)
+
+            // 内置技能跟着代码走，任何环境上都该有。
+            expect(agent.tools.schema.skill).toBeDefined()
+            expect(agent.tools.schema.skill.description).toContain('elysiajs')
         })
     })
 })
