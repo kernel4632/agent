@@ -83,9 +83,24 @@ const resolve = ({ provider: name, model }) => {
 
 // --- 真实试一次模型请求 ---
 const test = async ({ provider: name, model }) => {
-    const chosen = name ? { provider: name, model } : firstModel()
-    if (!chosen.provider || !chosen.model) throw fail(400, 'no provider or model configured to test')
+    // 用户点名了供应商就查它；没点名才回退到配置里第一个能用的。
+    if (name) {
+        const provider = (Store.config.providers || []).find(item => item.name === name)
+        // 名字写错时说清是哪个名字不存在，否则用户会以为自己压根没配过供应商。
+        if (!provider) throw fail(400, `Provider not found: ${name}`)
+        const first = provider.models?.[0]
+        const chosen = model || (typeof first === 'string' ? first : first?.id)
+        if (!chosen) throw fail(400, `Provider has no model to test: ${name}`)
+        return attempt({ provider: name, model: chosen })
+    }
 
+    const chosen = firstModel()
+    if (!chosen.provider || !chosen.model) throw fail(400, 'no provider or model configured to test')
+    return attempt(chosen)
+}
+
+// --- 发一次最小的真实请求 ---
+const attempt = async chosen => {
     // 用最小的真实请求验证这一整套配置：地址对不对、密钥能不能用、模型名存不存在。
     const result = await Agent.llm.chat({
         ...resolve(chosen),

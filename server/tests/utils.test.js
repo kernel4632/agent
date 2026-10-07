@@ -246,15 +246,25 @@ describe('server provider test endpoint', () => {
             // 这里不真的打模型服务：供应商不存在时在发请求之前就该被挡下。
             const response = await jsonRequest('/config/test', 'POST', { provider: 'nope', model: 'm' })
             expect(response.status).toBe(400)
-            expect(await response.json()).toMatchObject({ error: expect.stringContaining('nope') })
+            // 说清是哪个名字不存在，别让用户以为自己压根没配过供应商。
+            expect(await response.json()).toMatchObject({ error: 'Provider not found: nope' })
         })
     })
 
-    test('reports a missing model as a client error', async () => {
+    test('reports a provider without any model as a client error', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: [] }] })
+            const response = await jsonRequest('/config/test', 'POST', { provider: 'local' })
+            expect(response.status).toBe(400)
+            expect(await response.json()).toMatchObject({ error: expect.stringContaining('local') })
+        })
+    })
+
+    test('reports an empty configuration as a client error', async () => {
         await withHome(async () => {
             const response = await jsonRequest('/config/test', 'POST', {})
             expect(response.status).toBe(400)
-            expect(await response.json()).toMatchObject({ error: expect.stringContaining('no provider') })
+            expect(await response.json()).toMatchObject({ error: 'no provider or model configured to test' })
         })
     })
 })

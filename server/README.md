@@ -272,7 +272,7 @@ Content-Type: application/json
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
-| `GET` | `/health` | `{ "ok": true, "version": "0.3.0", "sessions": 2, "running": 1 }` |
+| `GET` | `/health` | `{ "ok": true, "version": "0.8.1", "sessions": 2, "running": 1 }` |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 
