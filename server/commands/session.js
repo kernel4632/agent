@@ -116,14 +116,21 @@ const getAgent = async ({ sessionId, meta }) => {
     return createAgent({ sessionId, history: History.get({ sessionId }), meta })
 }
 
+// --- 整理用户填的标题 ---
+const cleanTitle = title => {
+    // 好几个指令都从用户那里收标题，所以检查只写在这里一处。
+    // 先去掉首尾空格再看是不是空的，否则只填空格的标题也能存进去。
+    if (typeof title !== 'string' || !title.trim()) throw fail(400, 'title must be a non-empty string')
+    return title.trim()
+}
+
 // --- 创建会话 ---
 const create = async ({ title, workspaceId, provider, model }) => {
-    // 空标题无法帮助用户识别会话，因此在修改任何数据前拒绝请求。
-    if (typeof title !== 'string' || !title.trim()) throw fail(400, 'title must be a non-empty string')
+    const clean = cleanTitle(title)
     const selected = Config.firstModel()
     const meta = {
         id: nanoid(),
-        title: title.trim(),
+        title: clean,
         workspaceId,
         provider: provider || selected.provider,
         model: model || selected.model,
@@ -168,9 +175,9 @@ const latestTodos = history => {
 
 // --- 重命名会话 ---
 const rename = async ({ sessionId, title }) => {
-    if (typeof title !== 'string' || !title.trim()) throw fail(400, 'title must be a non-empty string')
+    const clean = cleanTitle(title)
     const meta = await readMeta(sessionId)
-    meta.title = title.trim()
+    meta.title = clean
     meta.updatedAt = Date.now()
     return writeMeta(meta)
 }
