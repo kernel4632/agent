@@ -1,6 +1,6 @@
 {
   "name": "universal-agent",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
@@ -23,7 +23,6 @@
   },
   "devDependencies": {
     "ai": "^7.0.62",
-    "@modelcontextprotocol/server-everything": "^2026.7.4",
-    "jsonc-parser": "^3.3.1"
+    "@modelcontextprotocol/server-everything": "^2026.7.4"
   }
 }
