@@ -408,6 +408,8 @@ const send = async ({ sessionId, input }) => {
 
     // 新消息代表新的时间线，之前的回退不能再撤销了。
     await Snapshot.clearUndo({ sessionId })
+    // 自动批准的计数也跟着归零：用户刚发了新指令，是新的开始。
+    Store.autoApproved.set(sessionId, 0)
 
     // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
     const settings = await Settings.read({ sessionId })

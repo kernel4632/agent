@@ -91,6 +91,37 @@ test('auto-approve switches send one category at a time', async t => {
   assert.deepEqual(calls[0].body, { autoApprove: { write: true } })
 })
 
+test('per-use models send one use at a time, and clearing means share with the main model', async t => {
+  // 三件事各配各的模型，一次只发点名的这一件，另外两件后端保持原样。
+  // 清空某一项要发 null（＝改回共用），发 {} 的话后端会当成"没说要改"。
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
+    return Response.json({ ok: true })
+  })
+
+  await AgentAPI.saveSettings('session-test', { uses: { compact: { provider: 'local', model: '小模型' } } })
+  await AgentAPI.saveSettings('session-test', { uses: { title: null } })
+
+  assert.deepEqual(calls[0].body, { uses: { compact: { provider: 'local', model: '小模型' } } })
+  assert.deepEqual(calls[1].body, { uses: { title: null } })
+})
+
+test('auto-approve limits are sent as plain numbers', async t => {
+  // 上限是数字，0 表示不设上限。前端如果把输入框的字符串直接发上去，
+  // 后端会当成认不出来的值而保持原样，表现是"填了但没生效"。
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
+    return Response.json({ ok: true })
+  })
+
+  await AgentAPI.saveSettings('session-test', { autoApproveLimits: { requests: 0 } })
+
+  assert.equal(typeof calls[0].body.autoApproveLimits.requests, 'number')
+  assert.deepEqual(calls[0].body, { autoApproveLimits: { requests: 0 } })
+})
+
 test('non-JSON HTTP error retains meaningful status', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('proxy unavailable', { status: 502 }))
   await assert.rejects(AgentAPI.getConfig(), error => error.status === 502 && error.message.includes('502'))

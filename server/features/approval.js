@@ -120,7 +120,7 @@ const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
  * @returns {Promise<boolean>} true 表示放行；false 表示被忽略规则拦下，或用户选择了拒绝。
  */
 const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal }) => {
-    // Agent 只看这个返回值是不是 true，所以这里必须返回布尔值，不能返回对象。
+    // Agent 只看这个返回值是不是布尔值，所以这里必须返回布尔值，不能返回对象。
     // 被拦住的原因通过 SSE 告诉界面，让用户知道是哪条规则挡下的。
     const blocked = Ignore.blockedBy({ toolName, input })
     if (blocked) {
@@ -137,7 +137,35 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         // MCP 工具名带服务名前缀，要靠配置里的服务名才认得出它属于 MCP 那一类。
         mcpServers: Object.keys(Config.get().mcp || {}),
     })
-    const rule = auto ? 'allow' : decideByRules(toolName, matchValue)
+    /*
+     * 自动批准的刹车：连着放行了太多次就停下来问一次。
+     * 模型跑偏的典型表现不是"一件坏事"，而是"同一件小事做了五十遍"——
+     * 比如反复重试同一个失败的命令。次数是这里唯一数得准的东西：
+     * 每一笔请求的 token 用量 agent-core 只在 send 结束时给一次，
+     * 中途累加会和压缩、重试这些内部请求对不上，所以花费那一档先只存不判。
+     *
+     * 停下来问一次之后计数清零，用户说继续就再放行这么多。
+     */
+    const limit = settings?.autoApproveLimits?.requests || 0
+    const used = Store.autoApproved.get(sessionId) || 0
+    const capped = auto && limit > 0 && used >= limit
+    if (auto && !capped) Store.autoApproved.set(sessionId, used + 1)
+    if (capped) {
+        /*
+         * 告诉用户为什么突然又要他点了，不然会以为自动批准坏了。
+         *
+         * 这里不能 await：这一句后面紧跟着登记审批、等用户决定，
+         * 而调用方（agent-core）拿到的是一个"还没登记"的 promise。
+         * 一旦在这里让出微任务，审批就晚一步才进队列，界面上什么都看不到——
+         * 用户看到的是"卡住了"，而 agent 就在那里一直等一个永远不会来的回答。
+         * SSE 的 send 本来只是往缓冲区里放一条，不 await 也照样按顺序发出去。
+         */
+        SSE.send({
+            id: sessionId,
+            data: { type: 'permission-limit', limit, reason: `已连续自动批准 ${limit} 次，确认要继续吗` },
+        })
+    }
+    const rule = auto && !capped ? 'allow' : decideByRules(toolName, matchValue)
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
 
@@ -182,6 +210,12 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     if (!['allow-once', 'allow-always', 'deny'].includes(decision)) throw fail(400, `decision must be allow-once, allow-always or deny, got: ${decision}`)
 
     Store.approvals.delete(`${sessionId}:${toolCallId}`)
+    /*
+     * 用户答过一次之后重新计数。
+     * 他刚看过一眼并说了继续，接下来这 N 次就当是新的开始——
+     * 不然计数一到顶就再也回不去，自动批准等于永久失灵。
+     */
+    if (decision !== 'deny') Store.autoApproved.set(sessionId, 0)
     if (decision === 'allow-always') {
         // 记住这类参数，并把规则写回配置文件，重启后依然生效。
         remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue })

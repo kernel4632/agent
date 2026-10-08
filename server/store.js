@@ -25,7 +25,10 @@ const snapshots = new Map()
 // 正在等待用户决定的工具审批；key 是 `${sessionId}:${toolCallId}`，value 里带着唤醒 Agent 的 resolve。
 const approvals = new Map()
 
-// 每个会话的运行设置；value 是 { mode, autoApprove, capabilities }。
+// 每个会话的运行设置；value 是 { mode, autoApprove, capabilities, uses, ... }。
 const settings = new Map()
 
-export default { config, agents, sessions, snapshots, approvals, settings }
+// 每个会话已经连续自动批准了多少次。到设置里的上限就停下来问一次，问过之后清零。
+const autoApproved = new Map()
+
+export default { config, agents, sessions, snapshots, approvals, settings, autoApproved }

@@ -225,6 +225,8 @@ const approves = ({ settings, toolName, mcpServers }) => {
  */
 const remove = ({ sessionId }) => {
     Store.settings.delete(sessionId)
+    // 自动批准的计数也跟着会话一起清掉，不然会留一条永远没人读的记录。
+    Store.autoApproved.delete(sessionId)
 }
 export default {
     read, save, toAgentConfig, approves, remove,

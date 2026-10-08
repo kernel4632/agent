@@ -84,6 +84,13 @@ describe('接口契约', () => {
         expect(listed).toEqual(KINDS.map(item => item.kind))
     })
 
+    test('界面上"按用途配模型"的下拉框和代码里的用途是同一组', async () => {
+        const frontend = await source('../frontend/src/commands/session.js')
+        // 少一项，用户就永远配不了那个用途的模型，而他只会以为"这个功能没有"。
+        const listed = [...frontend.matchAll(/^  (\w+): '[^']+',$/gm)].map(([, use]) => use)
+        expect(listed).toEqual(USES.map(item => item.use))
+    })
+
     test('每个类别在界面上都配了图标', async () => {
         const frontend = await source('../frontend/src/commands/session.js')
         // 缺图标时 AppIcon 会退回默认的 spark，看着像是"这个开关还没做完"。

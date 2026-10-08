@@ -2,6 +2,7 @@ import { AgentAPI } from '../api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { Session } from './session.js'
+import { Tabs } from './tabs.js'                          // 后端起好标题后同步顶部标签文字
 import { UI } from './ui.js'
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
@@ -155,6 +156,14 @@ async function receive(sessionID, event) {
     assistant.isStreaming = false
     session.status = 'idle'
     UI.notify(assistant.error)
+  } else if (event.type === 'title') {
+    // 后端起好标题后单独推一条，不用等下一次刷新整条会话。
+    const session = store.sessions[sessionID]
+    if (session) {
+      session.title = event.title
+      Session.syncSummary(session)
+      Tabs.syncTitles(Object.values(store.sessions))
+    }
   } else if (event.type === 'agent-finish') {
     session.status = 'idle'
     const error = event.error || session.messages.findLast(message => message.error)?.error
@@ -162,10 +171,6 @@ async function receive(sessionID, event) {
     const refreshed = store.sessions[sessionID]
     refreshed.status = 'idle'
     if (error) refreshed.messages.push({ id: `error_${event.eventID}`, role: 'assistant', content: '', tools: [], error })
-    if (refreshed.title === '新对话') {
-      const first = refreshed.messages.find(message => message.role === 'user')
-      if (first) await Session.rename(sessionID, first.content.split('\n')[0].slice(0, 32))
-    }
   }
   Session.syncSummary(store.sessions[sessionID])
 }

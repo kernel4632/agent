@@ -184,6 +184,17 @@ async function toggleMode(sessionID) {
 const labelOf = kind => AUTO_APPROVE_KINDS.find(item => item.kind === kind)?.label || kind
 
 
+/*
+ * 哪件事可以单独指定模型，以及它在界面上叫什么。
+ * 键名以后端 commands/settings.js 的 USES 为准，这里有契约测试盯着不会漏。
+ */
+const USE_LABELS = {
+  compact: '压缩上下文',
+  title: '生成标题',
+  subtask: '子任务',
+}
+
+
 // --- 切换某一类的自动批准 ---
 async function toggleAutoApprove(sessionID, kind) {
   const session = store.sessions[sessionID]
@@ -203,6 +214,40 @@ async function toggleCapability(sessionID, name) {
   if (!session) return null
   return saveSettings(sessionID, { capabilities: { [name]: !session.settings.capabilities[name] } })
 }
+
+
+// --- 切换自动生成标题 ---
+async function toggleAutoTitle(sessionID) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  const next = !session.settings.autoTitle
+  return saveSettings(sessionID, { autoTitle: next })
+}
+
+
+// --- 改某一件事用的模型 ---
+// target 传 null 表示改回和主模型共用（后端认这个意思）。
+async function setUse(sessionID, use, target) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  // 只提交点名的这一件事，另外两件后端会保持原样。
+  const settings = await saveSettings(sessionID, { uses: { [use]: target } })
+  if (settings) UI.notify(target ? `「${useLabel(use)}」改用 ${target.model}` : `「${useLabel(use)}」改回和主模型共用`)
+  return settings
+}
+
+
+// --- 改自动批准的上限 ---
+// 上限是防止"开着自动批准结果跑飞了"的刹车，0 表示不设上限。
+async function setLimit(sessionID, name, value) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  return saveSettings(sessionID, { autoApproveLimits: { [name]: value } })
+}
+
+
+// --- 用途的中文名 ---
+const useLabel = use => USE_LABELS[use] || use
 
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
@@ -242,11 +287,16 @@ function normalize(source, previous = {}) {
     status: previous.status || 'idle',
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
-    settings: source.settings || previous.settings || {  // 模式、自动批准、能力开关，后端读取时一并给出
+    // 模式、自动批准、能力开关、按用途的模型，后端读取时一并给出。
+    // 缺字段时用下面这份兜底，它和后端 DEFAULTS 是同一套值（有契约测试盯着）。
+    settings: source.settings || previous.settings || {
       mode: 'build',
       // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
       autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
+      autoApproveLimits: { requests: 50, cost: 2 },
       capabilities: { image: true, cache: true, stream: true },
+      uses: {},        // 空＝每件事都用主模型
+      autoTitle: true, // 第一次聊完自动起标题
     },
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
     titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
@@ -327,6 +377,9 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
   emit('save', nextTitle, (saved) => { if (saved) editing.value = false }) // 页面 Command 决定是否退出
 }
 
-export const Session = { locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing, saveSettings, toggleMode, toggleAutoApprove, toggleCapability }
-// 界面按这份名单画自动批准的开关，所以它跟着 Session 一起给出去。
-export { AUTO_APPROVE_KINDS }
+export const Session = {
+  locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing,
+  saveSettings, toggleMode, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit,
+}
+// 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
+export { AUTO_APPROVE_KINDS, USE_LABELS }

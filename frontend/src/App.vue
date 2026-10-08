@@ -5,7 +5,7 @@ import Sidebar from './components/Sidebar.vue'
 import HomePage from './components/HomePage.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import { store } from './store.js'
-import { Session, AUTO_APPROVE_KINDS } from './commands/session.js'
+import { Session, AUTO_APPROVE_KINDS, USE_LABELS } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { Config } from './commands/config.js'
 import { UI, activeSession } from './commands/ui.js'
@@ -27,6 +27,25 @@ const draft = computed({
 })
 const files = computed(() => session.value?.files ?? homeFiles.value)
 const sidebarCollapsed = computed({ get: () => !store.ui.sidebarOpen, set: value => { store.ui.sidebarOpen = !value } })
+// "更多"面板开着没有。默认收起：常用的是上面那几个开关，这里都是配一次就不动的。
+const moreOpen = ref(false)
+
+// 所有供应商下的所有模型，按"供应商/模型"给出，供按下拉框选。
+const allModels = () => Object.entries(store.config.providers || {})
+  .flatMap(([provider, entry]) => (entry.models || []).map(model => ({ provider, model })))
+
+// 某一件事当前选的是哪个模型；没单独配过就是空串（＝和主模型共用）。
+const useKey = (session, use) => {
+  const target = session.settings.uses?.[use]
+  return target ? `${target.provider}/${target.model}` : ''
+}
+
+// 把下拉框的值翻回后端认的 { provider, model }；空串表示改回共用。
+const targetFrom = (session, value) => {
+  if (!value) return null
+  const [provider, ...rest] = value.split('/')
+  return { provider, model: rest.join('/') }
+}
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
 const system = window.matchMedia('(prefers-color-scheme: dark)')
 const systemDark = ref(system.matches)
@@ -152,6 +171,31 @@ onUnmounted(() => {
                             <button class="chip" :class="{ 'chip--active': session.settings.capabilities.image }" title="允许把图片发给模型" @click="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="14" />图像支持</button>
                             <button class="chip" :class="{ 'chip--active': session.settings.capabilities.cache }" title="提示词缓存，命中就是省时间和省钱" @click="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="14" />提示缓存</button>
                             <button class="chip" :class="{ 'chip--active': session.settings.capabilities.stream }" title="流式输出：回复边生成边显示" @click="Session.toggleCapability(session.id, 'stream')"><AppIcon name="spark" :size="14" />流式输出</button>
+                            <button class="chip" :class="{ 'chip--active': session.settings.autoTitle }" title="第一次聊完让模型起个标题；关掉就一直叫「新对话」" @click="Session.toggleAutoTitle(session.id)"><AppIcon name="edit" :size="14" />自动标题</button>
+                            <button class="chip" :class="{ 'chip--active': moreOpen }" :aria-expanded="moreOpen" title="按用途分别指定模型，以及自动批准跑飞了的刹车" @click="moreOpen = !moreOpen"><AppIcon name="settings" :size="14" />更多</button>
+                          </div>
+                          <div v-if="session && moreOpen" class="chat-more">
+                            <section class="chat-more__group" aria-label="按用途指定模型">
+                              <h2>哪件事用哪个模型</h2>
+                              <p>不选就和主模型（{{ session.model }}）共用</p>
+                              <label v-for="(label, use) in USE_LABELS" :key="use" class="chat-more__row">
+                                <span>{{ label }}</span>
+                                <select :value="useKey(session, use)" @change="Session.setUse(session.id, use, targetFrom(session, $event.target.value))">
+                                  <option value="">和主模型共用</option>
+                                  <option v-for="item in allModels()" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.provider }} / {{ item.model }}</option>
+                                </select>
+                              </label>
+                            </section>
+                            <section class="chat-more__group" aria-label="自动批准的刹车">
+                              <h2>自动批准的上限</h2>
+                              <p>到量就停下来问一句；填 0 表示不设上限</p>
+                              <label class="chat-more__row"><span>连续次数</span>
+                                <input type="number" min="0" :value="session.settings.autoApproveLimits?.requests" @change="Session.setLimit(session.id, 'requests', Number($event.target.value))" />
+                              </label>
+                              <label class="chat-more__row"><span>累计花费（美元）</span>
+                                <input type="number" min="0" step="0.5" :value="session.settings.autoApproveLimits?.cost" @change="Session.setLimit(session.id, 'cost', Number($event.target.value))" />
+                              </label>
+                            </section>
                           </div>
                           <div v-if="session?.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session?.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
@@ -212,6 +256,13 @@ onUnmounted(() => {
 .chip--compact { min-height: 24px; padding: 2px 8px; }
 /* "自动批准"这四个字是分组标题，不是能点的开关，所以看着要弱一些。 */
 .chip-label { padding: 0 2px; color: var(--la-muted); font-size: 11px; }
+/* "更多"面板：配一次就不动的东西收在这里，不占工具栏的位置。 */
+.chat-more { display: flex; flex-wrap: wrap; gap: 20px; margin: -4px 0 12px; padding: 12px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-panel); }
+.chat-more__group { flex: 1 1 240px; min-width: 0; }
+.chat-more__group h2 { margin: 0; font-size: 12px; font-weight: 550; }
+.chat-more__group p { margin: 4px 0 8px; color: var(--la-muted); font-size: 11px; line-height: 1.5; }
+.chat-more__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 12px; color: var(--la-secondary); }
+.chat-more__row select, .chat-more__row input { flex: 0 1 150px; min-width: 0; padding: 3px 6px; border: 1px solid var(--la-line); border-radius: 6px; background: var(--la-bg); color: var(--la-text); font-size: 12px; }
 .connection-error { display: flex; align-items: center; gap: 10px; padding: 12px var(--la-chat-gutter); color: var(--la-danger); background: #c67a6412; font-size: 12px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 .app-toast { position: fixed; z-index: 50; bottom: 24px; left: 50%; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 10px 12px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-panel); color: var(--la-text); font-size: 13px; box-shadow: 0 8px 24px #0004; transform: translateX(-50%); }

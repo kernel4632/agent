@@ -41,6 +41,7 @@ const withHome = async callback => {
     Store.snapshots.clear()
     Store.approvals.clear()
     Store.settings.clear()
+    Store.autoApproved.clear()
     try {
         return await callback(root)
     } finally {
@@ -570,6 +571,53 @@ describe('自动批准的刹车', () => {
             const sessionId = await newSession()
             const settings = await Session.saveSettings({ sessionId, autoApproveLimits: { requests: 0, cost: 0 } })
             expect(settings.autoApproveLimits).toEqual({ requests: 0, cost: 0 })
+        })
+    })
+
+    test('连续放行到上限就停下来问一次', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimits: { requests: 3 } })
+
+            // 前三笔按自动批准直接过。
+            for (const index of [1, 2, 3]) {
+                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'file_read', input: { path: `D:/app/${index}.js` } }))
+                    .toEqual({ allowed: true, asked: false })
+            }
+            // 第四笔要被刹住：模型跑偏的典型表现是"同一件小事做了很多遍"。
+            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'file_read', input: { path: 'D:/app/4.js' } }))
+                .toEqual({ allowed: false, asked: true })
+        })
+    })
+
+    test('答过一次就重新计数，自动批准不会永久失灵', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimits: { requests: 2 } })
+
+            await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/1.js' } })
+            await runCheck({ sessionId, toolCallId: 'r2', toolName: 'file_read', input: { path: 'D:/app/2.js' } })
+            // 第三笔被刹住，用户答了一次"继续"。
+            const blocked = Approval.check({ sessionId, toolCallId: 'r3', toolName: 'file_read', input: { path: 'D:/app/3.js' } })
+            expect(Store.approvals.has(`${sessionId}:r3`)).toBe(true)
+            await Approval.decide({ sessionId, toolCallId: 'r3', decision: 'allow-once' })
+            expect(await blocked).toBe(true)
+
+            // 计数归零，接下来又能自动放行两笔——不然一到顶就再也回不去。
+            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'file_read', input: { path: 'D:/app/4.js' } }))
+                .toEqual({ allowed: true, asked: false })
+        })
+    })
+
+    test('上限设 0 时不刹，一路自动放行', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimits: { requests: 0 } })
+
+            for (const index of [1, 2, 3, 4, 5]) {
+                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'file_read', input: { path: `D:/app/${index}.js` } }))
+                    .toEqual({ allowed: true, asked: false })
+            }
         })
     })
 
