@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
 import { FILE_TOOLS } from '../utils/tool-files.js'
+import { KINDS, TABLE } from '../utils/tool-kind.js' // 工具分类表，查"新加的工具登记了没有"。
 
 // 从仓库里读一个文件，契约检查都建立在"以代码为准"上。
 const source = name => Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
@@ -51,11 +52,17 @@ describe('接口契约', () => {
             }
         }
     })
-
     test('接口文档的版本和后端版本一致', async () => {
         const [openapi, pkg] = await Promise.all([readJson('openapi.json'), readJson('package.json')])
         // 两处版本不一致时，前端没法靠 /health 判断自己连的是哪一版。
         expect(openapi.info.version).toBe(pkg.version)
+    })
+
+    test('自动批准的类别和代码里的类别是同一组', async () => {
+        const openapi = await readJson('openapi.json')
+        // 文档里写了四类、代码里变成三类，前端就会多画一个永远不生效的开关。
+        // 类别名单只有 utils/tool-kind.js 一处，文档跟着它走。
+        expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(KINDS)
     })
 
     test('健康检查报的版本就是 package.json 里的版本', async () => {
@@ -128,5 +135,15 @@ describe('工具名单', () => {
 
         // 漏登记的工具能读到 .env，而忽略规则完全不知道它存在。
         expect(touchesFiles.filter(name => !FILE_TOOLS.includes(name))).toEqual([])
+    })
+
+    test('每个内置工具都在分类表里有一行', async () => {
+        const schema = await toolDefinitions()
+        // 分类表是自动批准和 plan 模式共用的唯一来源。漏了一行不会报错，
+        // 表现是"这个工具永远要问用户"，很难联想到是忘了登记。
+        // 表里写了 'other' 也算登记过——todo / finish / ask 就是这种：
+        // 它们不碰磁盘也不连外部服务，本来就不该有自动批准开关。
+        const missing = Object.keys(schema).filter(name => !(name in TABLE))
+        expect(missing).toEqual([])
     })
 })

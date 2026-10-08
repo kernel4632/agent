@@ -22,7 +22,8 @@ import Delegation from '../features/delegation.js' // 把独立探索工作委�
 import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
 import Skills from '../features/skills.js' // 数据目录里的技能，按需读正文。
 import Config from './config.js' // 读取全局模型配置和权限规则。
-import Settings from './settings.js' // 会话运行设置：模式、自动批准、能力开关。
+import Settings from './settings.js'
+import Kind from '../utils/tool-kind.js' // 工具分类只有一处，plan 模式用不着自己写名单。 // 会话运行设置：模式、自动批准、能力开关。
 import History from '../features/history.js' // 读写当前会话消息。
 import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
 import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
@@ -106,9 +107,10 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
     const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ task: Delegation.build({ config, tools: scanned }) }))
-    // plan 模式去掉写工具。omit 会把 schema 和 handlers 一起筛，
-    // 所以不会出现"模型看不见、却还能被执行"的隐蔽状态（早先手工筛两份就是怕这个）。
-    const tools = config.readOnly ? Agent.tool.omit(merged, Settings.WRITE_TOOLS) : merged
+    // plan 模式去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
+    // 这里只是把它对当前工具表算一遍，不另外维护一份名单。
+    // omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
+    const tools = config.readOnly ? Agent.tool.omit(merged, Kind.writing(Object.keys(merged.schema))) : merged
     const agent = Agent.create({
         id: sessionId,
         history,
@@ -289,23 +291,39 @@ const readSettings = async ({ sessionId }) => {
 /**
  * 改这条会话的运行设置，只改点名的那几项。
  *
- * 改完要按新设置重新装配 Agent：工具表和能力开关都建在 Agent 上，
- * 不重建的话切换模式要等下一次重启才生效，用户会以为按钮坏了。
+ * 只有模式和能力开关需要重新装配 Agent（工具表和能力都建在 Agent 上），
+ * 自动批准不用：审批时是现读设置的，改完下一次工具调用就按新设置走。
+ * 所以自动批准可以在任务跑着的时候随时改——用户看到模型在乱改文件时，
+ * 要能当场把"写入"关掉，而不是先停下来再改。
  * @param {{ sessionId: string } & object} change
  * @returns {Promise<object>} 保存后的完整设置。
- * @throws {Error} 会话正在跑任务时按冲突处理（409），否则会中途换掉工具表。
+ * @throws {Error} 需要换工具表或能力时任务正在跑，按冲突处理（409）。
  */
 const saveSettings = async ({ sessionId, ...change }) => {
     const meta = await readMeta(sessionId)
-    if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    const current = await Settings.read({ sessionId })
 
-    const settings = await Settings.save({ sessionId, ...change })
-    // 重建 Agent，让新的模式和开关立刻生效；历史原样交回去，不丢消息。
+    // 改的是自动批准，别的都没动——不重建，也就没有"任务在跑"这一说。
+    const onlyAutoApprove = Object.keys(change).every(key => key === 'autoApprove')
+    // 模式和能力换掉之后必须重建 Agent 才生效，所以这时候不能让任务在跑。
+    // 这一关要在写盘之前过：被拒的改动不该留在磁盘上。
+    if (!onlyAutoApprove && Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+
+    const saved = await Settings.save({ sessionId, ...change })
+    if (onlyAutoApprove) return saved
+    // 什么都没变就不白重建一次，免得把正在等待的审批也一并打散。
+    if (settingsEqual(current, saved)) return saved
+
+    // 历史原样交回去，不丢消息。
     Store.agents.delete(sessionId)
     await History.load({ sessionId })
     await createAgent({ sessionId, history: History.get({ sessionId }), meta })
-    return settings
+    return saved
 }
+
+// --- 两份设置是不是同一份 ---
+// 只比结构，不做深比较——设置的形状就是普通对象套布尔值，不会更深。
+const settingsEqual = (first, second) => JSON.stringify(first) === JSON.stringify(second)
 
 
     /**

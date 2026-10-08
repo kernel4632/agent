@@ -344,7 +344,7 @@ Content-Type: application/json
 ```json
 {
   "mode": "build",
-  "autoApprove": false,
+  "autoApprove": { "read": false, "write": false, "command": false, "mcp": false },
   "capabilities": { "image": true, "cache": true, "stream": true }
 }
 ```
@@ -352,16 +352,33 @@ Content-Type: application/json
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `mode` | `build` | `plan` 只给只读工具（读文件、搜代码、抓网页），`build` 给全套工具 |
-| `autoApprove` | `false` | 开着就不再弹审批弹窗；`.agentignore` 仍然生效，密钥文件照样读不到 |
+| `autoApprove.read` | `false` | 读文件和搜索不再弹审批（`file_read`、`file_list`、`glob`、`grep`、`webfetch`、`skill`） |
+| `autoApprove.write` | `false` | 改文件不再弹审批（`file_write`、`edit`、`apply_patch`） |
+| `autoApprove.command` | `false` | 执行命令不再弹审批（`shell`） |
+| `autoApprove.mcp` | `false` | MCP 服务给的工具不再弹审批，按配置里的服务名前缀认 |
 | `capabilities.image` | `true` | 能不能把图片发给模型 |
 | `capabilities.cache` | `true` | 提示词缓存 |
 | `capabilities.stream` | `true` | 流式输出 |
+
+**自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`file_read` 直接过，`file_write` 和 `shell` 照样进等待队列。四类可以随时单独改，改一类不动别类。
+
+PATCH 时只写要改的那一类就行，其余保持原样：
+
+```json
+{ "autoApprove": { "read": true } }
+```
+
+**认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使四类全开也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准和 plan 模式都从那里读；新加内置工具时在表里补一行即可。
+
+**开了自动批准也绕不过 `.agentignore`。** 自动批准省掉的是"问一遍"，密钥文件（`.env`、`*.pem`、`**/.ssh/**` 等）照样读不到，被拦住时会收到 `permission-blocked` 事件，带上是哪条规则挡的。
 
 **`plan` 模式不是靠提示词实现的。** 后端把写工具从工具表里摘掉，模型看不到也调不到，而不是在系统提示词里写"请不要改文件"。这样不依赖模型听话，`system` 也能保持用户原样。
 
 **系统提示词默认是空的**，后端不做任何注入。用户没写 `prompt.system` 时 `config.system` 就是 `""`，模型拿到的是它自己的默认行为。
 
-改 `mode` 会立刻按新设置重新装配工具表（历史不动），所以要求会话没有任务在跑，否则返回 `409`。改 `autoApprove` 和 `capabilities` 只是换配置，不重建。
+改 `mode` 会立刻按新设置重新装配工具表（历史不动），所以要求会话没有任务在跑，否则返回 `409`。
+
+**`autoApprove` 可以在任务跑着的时候随时改。** 审批时是现读设置的，改完下一次工具调用就按新设置走，不用重建 Agent，也不受 `409` 限制——用户看到模型在乱改文件时要能当场把"写入"关掉。`capabilities` 换了要重建 Agent，所以同样要求没有任务在跑。
 `GET /session/changes/:sessionId` 给出 agent 到目前为止改动的文件，用来在界面上显示 diff：
 
 ```json

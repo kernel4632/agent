@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.12.1",
+    "version": "0.13.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1096,9 +1096,7 @@
                       "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
                     },
                     "autoApprove": {
-                      "type": "boolean",
-                      "default": false,
-                      "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                      "$ref": "#/components/schemas/AutoApprove"
                     },
                     "capabilities": {
                       "type": "object",
@@ -1174,9 +1172,7 @@
                     "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
                   },
                   "autoApprove": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                    "$ref": "#/components/schemas/AutoApprove"
                   },
                   "capabilities": {
                     "type": "object",
@@ -1222,9 +1218,7 @@
                       "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
                     },
                     "autoApprove": {
-                      "type": "boolean",
-                      "default": false,
-                      "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                      "$ref": "#/components/schemas/AutoApprove"
                     },
                     "capabilities": {
                       "type": "object",
@@ -1834,9 +1828,7 @@
                     "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
                   },
                   "autoApprove": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "开着就不再弹审批弹窗，但 .agentignore 仍然生效"
+                    "$ref": "#/components/schemas/AutoApprove"
                   },
                   "capabilities": {
                     "type": "object",
@@ -1975,6 +1967,32 @@
                 "enabled": true
               }
             }
+          }
+        }
+      },
+      "AutoApprove": {
+        "type": "object",
+        "description": "自动批准：按类别分别开关，可以随时改。未分类的工具没有这个选项，一律要问",
+        "properties": {
+          "read": {
+            "type": "boolean",
+            "default": false,
+            "description": "读文件、列目录、搜索（file_read / file_list / glob / grep / webfetch / skill）"
+          },
+          "write": {
+            "type": "boolean",
+            "default": false,
+            "description": "改文件（file_write / edit / apply_patch）"
+          },
+          "command": {
+            "type": "boolean",
+            "default": false,
+            "description": "执行命令（shell）"
+          },
+          "mcp": {
+            "type": "boolean",
+            "default": false,
+            "description": "MCP 服务提供的工具，按配置里的服务名前缀认"
           }
         }
       }

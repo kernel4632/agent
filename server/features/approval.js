@@ -9,9 +9,9 @@
  *   await Approval.decide({ sessionId, toolCallId, decision: 'allow-once' })
  *   // decision 只能是 allow-once / allow-always / deny
  */
-
 import picomatch from 'picomatch'
 import Config from '../commands/config.js' // 权限规则就写在配置里，不再单独存一份。
+import Settings from '../commands/settings.js' // 自动批准是按类别分的，判断逻辑只写在那里。
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
 import Snapshot from './snapshot.js' // 工具改文件之前先存一份原样。
@@ -127,12 +127,17 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
         return false
     }
-
     const matchValue = flatten(input)
-    // 会话开了自动批准就跳过询问，但仍要按规则决定允许还是询问——
-    // 自动批准省掉的是"每次都问一遍"，不是把用户配的 deny 也一起放开。
+    // 这一类开了自动批准就跳过询问。按类别分（读取 / 写入 / 命令 / MCP），
+    // 所以可以"读随便读、写还是问我"这种组合。未分类的工具一律要问。
     const settings = Store.settings.get(sessionId)
-    const rule = settings?.autoApprove ? 'allow' : decideByRules(toolName, matchValue)
+    const auto = Settings.approves({
+        settings,
+        toolName,
+        // MCP 工具名带服务名前缀，要靠配置里的服务名才认得出它属于 MCP 那一类。
+        mcpServers: Object.keys(Config.get().mcp || {}),
+    })
+    const rule = auto ? 'allow' : decideByRules(toolName, matchValue)
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
 

@@ -14,8 +14,8 @@ import Agent from '@kernel4632/agent-core'
 import Config from '../commands/config.js'
 import Session from '../commands/session.js'
 import Settings from '../commands/settings.js'
+import Kind from '../utils/tool-kind.js'
 import Store from '../store.js'
-
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-core-upgrade-${crypto.randomUUID()}`)
@@ -73,15 +73,19 @@ describe('工具子集', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: '只读模式' })
             await Session.saveSettings({ sessionId, mode: 'plan' })
-
             const { tools } = Store.agents.get(sessionId)
-            // 写工具在 schema 里不该出现（模型看不到）……
-            for (const name of Settings.WRITE_TOOLS) {
+
+            // 要检查的是"该被去掉的那些是不是真没了"，所以名单得从完整的内置工具表上算，
+            // 不能从筛选后的表上算——筛过之后写工具本来就不在里面，那样等于什么都没查。
+            const all = Object.keys((await Agent.tool.scan(new URL('../tools/', import.meta.url))).schema)
+            const writing = Kind.writing(all)
+            expect(writing.length, '至少要有一个能改磁盘的工具，否则这条检查没有意义').toBeGreaterThan(0)
+
+            for (const name of writing) {
+                // schema 里不该出现：模型看不到它，就不会想着去调。
                 expect(tools.schema[name], `${name} 不该在 plan 模式的 schema 里`).toBeUndefined()
-            }
-            // ……而且在 handlers 里也不该出现。只筛一份就会出现"看不见却还能被执行"。
-            for (const name of Settings.WRITE_TOOLS) {
-                expect(tools.handlers?.[name] === undefined || !(name in tools.handlers), `${name} 还能被执行`).toBe(true)
+                // handlers 里也不该出现。只筛一份就会出现"看不见却还能被执行"。
+                expect(name in (tools.handlers || {}), `${name} 还能被执行`).toBe(false)
             }
             // 只读工具要留着，不然计划模式什么都干不了。
             expect(tools.schema.file_read).toBeDefined()

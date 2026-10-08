@@ -1,14 +1,15 @@
 /*
- * 会话运行设置：模式（plan / build）、自动批准、以及几项模型能力开关。
+ * 会话运行设置：模式（plan / build）、按类别的自动批准、以及几项模型能力开关。
  *
  * 这里的每一项都直接对应 agent-core 的 config 字段，不自己发明一套概念：
  *   mode        → 决定这次会话能用哪些工具（plan 只给只读工具）
- *   autoApprove → 免掉逐个工具的审批弹窗，规则本身仍写在 permission 里
+ *   autoApprove → 免掉逐个工具的审批弹窗，按类别分别开关，规则本身仍写在 permission 里
  *   capabilities→ 图像、提示缓存、流式输出这些按模型能力开关，默认全开
  * 设置存在会话目录的 settings.json 里，所以换台机器打开同一个会话还是这套设置。
  * 调用示例：
  *   const settings = await Settings.read({ sessionId })          // 读这条会话的运行设置
  *   await Settings.save({ sessionId, mode: 'plan' })             // 只改点名的那几项
+ *   await Settings.save({ sessionId, autoApprove: { read: true } })   // 只让"读取"免询问
  *   Settings.toAgentConfig({ settings })                         // 变成 agent-core 认的字段
  */
 
@@ -18,14 +19,17 @@ import { writeFile } from 'atomically'
 import Path from '../utils/path.js'
 import Store from '../store.js' // 设置跟着会话一起放在内存里，避免每次都读盘。
 import fail from '../utils/fail.js' // 填错模式名时按填错处理。
+import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不重复写。
 
 /*
  * 默认值。刻意和 agent-core 的默认保持一致，做到"默认全原生"：
  * 不写任何提示词注入，能力全开，流式和提示词缓存都按 agent-core 的默认开着。
+ *
+ * 自动批准默认全部关闭——不替用户预先放行任何东西。
  */
 const DEFAULTS = {
     mode: 'build',
-    autoApprove: false,
+    autoApprove: { read: false, write: false, command: false, mcp: false },
     capabilities: {
         image: true,
         cache: true,
@@ -38,12 +42,6 @@ const DEFAULTS = {
 // build 给全套工具，正常干活。
 const MODES = ['plan', 'build']
 
-/*
- * plan 模式要去掉的工具：能改磁盘的。
- * 用"去掉写工具"而不是"只留读工具"：内置工具增加时（比如新加一个只读工具），
- * 它会自动在 plan 模式下可用，不用回来改这份名单。名单里写的是要禁用的少数。
- */
-const WRITE_TOOLS = ['file_write', 'edit', 'apply_patch', 'shell']
 /**
  * 把用户给的值夹到合法范围内，不认识的值直接忽略。
  * 宁可保持原样也不把一份坏设置写进磁盘——坏设置会让会话再也建不起来。
@@ -54,11 +52,20 @@ const WRITE_TOOLS = ['file_write', 'edit', 'apply_patch', 'shell']
 const normalize = (input = {}, base = DEFAULTS) => {
     const merged = { ...base, ...input }
     if (!MODES.includes(merged.mode)) throw fail(400, `mode must be plan or build, got: ${input.mode}`)
+
+    // 自动批准按类别合并：只改了 read 的话，write / command / mcp 保持原样。
+    // 布尔值是老版本的写法（一个总开关），读到时摊到每一类上，旧设置不至于失效。
+    const source = typeof input.autoApprove === 'boolean'
+        ? Object.fromEntries(Kind.KINDS.map(kind => [kind, input.autoApprove]))
+        : (input.autoApprove || {})
+    const autoApprove = {}
+    for (const kind of Kind.KINDS) autoApprove[kind] = (source[kind] ?? base.autoApprove[kind]) === true
+
     const capabilities = { ...base.capabilities, ...(input.capabilities || {}) }
     // 只留认识的键，界面传了别的东西也不会被存进去。
     return {
         mode: merged.mode,
-        autoApprove: Boolean(merged.autoApprove),
+        autoApprove,
         capabilities: {
             image: capabilities.image !== false,
             cache: capabilities.cache !== false,
@@ -76,7 +83,7 @@ const read = async ({ sessionId }) => {
     if (Store.settings.has(sessionId)) return Store.settings.get(sessionId)
     const file = Bun.file(Path.settings(sessionId))
     // 第一次跑的会话还没有设置文件，用默认值就行。
-    const settings = file.exists ? await loadOrDefault(file) : DEFAULTS
+    const settings = await file.exists() ? await loadOrDefault(file) : DEFAULTS
     Store.settings.set(sessionId, settings)
     return settings
 }
@@ -107,6 +114,7 @@ const save = async ({ sessionId, ...change }) => {
     await writeFile(path, JSON.stringify(settings, null, 2))
     return settings
 }
+
 /**
  * 把设置翻译成 agent-core 认的 config 字段。
  *
@@ -126,6 +134,19 @@ const toAgentConfig = ({ settings }) => ({
 })
 
 /**
+ * 这次工具调用开了自动批准没有。
+ * @param {{ settings?: object, toolName: string, mcpServers?: string[] }} call
+ *   settings 是这条会话的运行设置；没有设置时按"全部要问"处理。
+ * @returns {boolean} true 表示这一类免询问。
+ */
+const approves = ({ settings, toolName, mcpServers }) => {
+    if (!settings) return false
+    const kind = Kind.of({ toolName, mcpServers })
+    // 未分类的工具（other）没有自动批准这个选项，一律要问。
+    return settings.autoApprove[kind] === true
+}
+
+/**
  * 会话删除时清掉内存里的设置。
  * @param {{ sessionId: string }} session
  * @returns {void}
@@ -133,4 +154,4 @@ const toAgentConfig = ({ settings }) => ({
 const remove = ({ sessionId }) => {
     Store.settings.delete(sessionId)
 }
-export default { read, save, toAgentConfig, remove, DEFAULTS, MODES, WRITE_TOOLS }
+export default { read, save, toAgentConfig, approves, remove, DEFAULTS, MODES, KINDS: Kind.KINDS }
