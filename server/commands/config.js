@@ -90,6 +90,10 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     if (typeof headers === 'string') headers = JSON.parse(headers || '{}') // 设置页把请求头写成 JSON 文本。
     const settings = provider.modelSettings?.[model] || {}
     return {
+        // model 必须在这里传下去。少了它 agent-core 直接报
+        // "model and messages are required"，而且不是启动时报，是每次发消息时报，
+        // 表现是"这个 agent 一句话都说不出来"。所以下面有专门的测试盯着这一行。
+        model,
         baseURL: provider.baseURL || '',
         apiKey: provider.apiKey || provider.key || '',
         protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
