@@ -81,10 +81,15 @@ const tools = async () => {
     return {
         skill: {
             name: 'skill',
-            description: `Read the full instructions of one skill. Available skills:\n${catalogue}`,
+            description: [
+                `Read the full instructions of a skill. Call this BEFORE attempting work that matches one of the skills below — the instructions tell you exactly how to do it right.`,
+                `Available skills:\n${catalogue}`,
+                `Parameters:`,
+                `- name (required): the skill to read, from the list above.`,
+            ].join('\n'),
             inputSchema: {
                 type: 'object',
-                properties: { name: { type: 'string', description: '技能名，从上面的清单里选' } },
+                properties: { name: { type: 'string', description: 'the skill to read, from the list above' } },
                 required: ['name'],
             },
             execute: ({ name }) => read(name),

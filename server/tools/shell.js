@@ -12,7 +12,15 @@ const TIMEOUT_MS = 10 * 60 * 1000
 
 export default {
     name: 'shell',
-    description: 'Run a shell command in a directory and return its output and exit code.',
+    description: [
+        'Run a shell command and return its output (stdout and stderr) and exit code. Long output is truncated, keeping the head and tail.',
+        'Use this for anything not covered by a dedicated tool: installing dependencies, running builds and tests, git operations, starting dev servers.',
+        'Prefer dedicated tools when they fit (file_read to inspect a file, grep to search) — they are cheaper and more precise.',
+        'The command runs once and waits for completion; interactive prompts that need typing will hang — pass flags like -y or set env vars instead.',
+        'Parameters:',
+        '- command (required): the command line to run.',
+        '- directory (optional): working directory; defaults to the current one.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {

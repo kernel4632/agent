@@ -12,7 +12,13 @@ const TIMEOUT_MS = 30 * 1000
 
 export default {
     name: 'webfetch',
-    description: 'Fetch a web page and return its readable text content.',
+    description: [
+        'Fetch a web page over HTTP(S) and return its readable text content, with markup stripped.',
+        'Use this to read documentation, look up references, or check any URL the user gives you.',
+        'The whole page becomes one text block; very long pages are truncated. It returns content only — no login, no POST bodies.',
+        'Parameters:',
+        '- url (required): the address to fetch, starting with http:// or https://.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {

@@ -14,7 +14,15 @@ const excludeArgs = () => Skip.dependencies.flatMap(name => ['--glob', `!**/${na
 
 export default {
     name: 'grep',
-    description: 'Search file contents with a regular expression using ripgrep.',
+    description: [
+        'Search file contents for a regular expression and return the matching lines with file and line number.',
+        'Use this to find where something is defined, used or mentioned across a codebase — faster and cheaper than reading files one by one.',
+        'Then use file_read on the hits you care about to see full context.',
+        'Parameters:',
+        '- path (required): file or directory to search in.',
+        '- pattern (required): regular expression to look for.',
+        '- include (optional): glob filter for which files to search, e.g. *.js.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {

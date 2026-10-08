@@ -8,13 +8,22 @@ import { writeFile } from 'atomically' // 用原子替换避免编辑时留下�
 
 export default {
     name: 'edit',
-    description: 'Replace one exact, uniquely occurring text block in a file.',
+    description: [
+        'Replace one exact text block in a file with new text. The old block must appear exactly once in the file.',
+        'Use this to change part of an existing file — preferred over rewriting the whole file whenever the rest of the content should stay as-is.',
+        'Read the file first so the old text you supply matches byte-for-byte, including whitespace and indentation.',
+        'If the old text occurs zero or multiple times the edit fails — then use file_read and try again with a longer, unique block.',
+        'Parameters:',
+        '- path (required): file to edit.',
+        '- oldText (required): the exact existing text to be replaced.',
+        '- newText (required): the replacement text.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
-            path: { type: 'string' },
-            oldText: { type: 'string' },
-            newText: { type: 'string' },
+            path: { type: 'string', description: 'file to edit' },
+            oldText: { type: 'string', description: 'the exact existing text to replace' },
+            newText: { type: 'string', description: 'the replacement text' },
         },
         required: ['path', 'oldText', 'newText'],
     },

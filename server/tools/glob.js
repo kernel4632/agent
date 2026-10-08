@@ -9,7 +9,14 @@ import Skip from '../utils/skip.js' // 依赖目录不算用户要找的文件�
 
 export default {
     name: 'glob',
-    description: 'Find files matching a glob pattern under a directory.',
+    description: [
+        'Find files whose names match a glob pattern (e.g. **/*.test.js, src/*.ts), searching under a directory.',
+        'Use this to locate files by name pattern when you do not know the exact path — before reading, editing or listing them.',
+        'Returns matching paths, not contents. Follow up with file_read on the files you care about.',
+        'Parameters:',
+        '- path (required): directory to search in.',
+        '- pattern (required): glob pattern for file names.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {

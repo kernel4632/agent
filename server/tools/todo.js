@@ -13,7 +13,14 @@ const STATUSES = ['pending', 'in_progress', 'completed'] // 三种状态，前�
 
 export default {
     name: 'todo',
-    description: 'Write the task list for the current work. Call it again whenever progress changes so the user can see where you are.',
+    description: [
+        'Write the task list for the current work; each item is a short sentence with a status (pending / in_progress / completed).',
+        'Use this at the start of any multi-step task, and call it again whenever progress changes, so the user can see where you are.',
+        'This list is for the user to track your progress — it does not perform any actions. Single trivial steps do not need a list.',
+        'Send the full list every time (it replaces the previous one), marking items completed as you go.',
+        'Parameters:',
+        '- items (required): the complete list; each entry has text and status.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {

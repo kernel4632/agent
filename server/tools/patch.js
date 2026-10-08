@@ -16,13 +16,20 @@ import { writeFile } from 'atomically' // 原子替换，避免写入中断留�
 
 export default {
     name: 'apply_patch',
-    description: 'Replace one unique text block in each of several files. All files are checked first; if any block is missing or ambiguous, nothing is written.',
+    description: [
+        'Apply several exact-match text replacements across multiple files in one atomic step: either every edit succeeds, or nothing is written.',
+        'Use this when one logical change touches several files at once, so related files never end up half-updated.',
+        'Each old block must appear exactly once within its file. All files are checked before anything is written; if any block is missing or ambiguous, nothing changes and the failure is reported.',
+        'Read the involved files first so every oldText matches byte-for-byte.',
+        'Parameters:',
+        '- patches (required): list of edits; each entry is path, oldText (exact existing text), newText (replacement).',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
             patches: {
                 type: 'array',
-                description: '要改的文件列表，每个元素是 path + oldText + newText',
+                description: 'edits to apply; each entry has path, oldText, newText',
                 items: {
                     type: 'object',
                     properties: {

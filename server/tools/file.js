@@ -11,7 +11,13 @@ import { writeFile } from 'atomically' // 原子写入完整文本文件。
 // --- 读取文本或图片 ---
 const fileRead = {
     name: 'file_read',
-    description: 'Read a text file or inspect an image file.',
+    description: [
+        'Read the contents of a file at the given path. Returns the raw text, or the image itself when the file is an image.',
+        'Use this whenever you need to know what is inside a file: before editing it, before referencing it, or when the user asks about it.',
+        'Do not guess file contents from names — read first, then act.',
+        'Parameters:',
+        '- path (required): file to read.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: { path: { type: 'string' } },
@@ -43,7 +49,14 @@ const fileRead = {
 // --- 写入完整文本文件 ---
 const fileWrite = {
     name: 'file_write',
-    description: 'Write complete text content, creating parent directories.',
+    description: [
+        'Write the complete new content of a file, replacing whatever was there before. Parent directories are created automatically.',
+        'Use this to create a new file, or to rewrite a file entirely from scratch.',
+        'You must supply the FULL content — partial content will overwrite and destroy the rest of the file. To change only part of a file, use the edit tool instead.',
+        'Parameters:',
+        '- path (required): file to write.',
+        '- content (required): the complete new content of the file.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
@@ -62,7 +75,12 @@ const fileWrite = {
 // --- 列出目录直接子项 ---
 const fileList = {
     name: 'file_list',
-    description: 'List files and directories directly inside a directory.',
+    description: [
+        'List the files and subdirectories directly inside a directory (not recursive; subdirectory names end with /).',
+        'Use this to discover what exists somewhere before reading specific files, or to locate a file you only know the approximate location of.',
+        'Parameters:',
+        '- path (required): directory to list.',
+    ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: { path: { type: 'string' } },

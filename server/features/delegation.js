@@ -41,9 +41,13 @@ const build = ({ config, tools, sessionId }) => {
         name: 'task',
         description: [
             'Delegate one self-contained piece of research to a separate agent and get back only its conclusion.',
-            'Use it when finding the answer means reading many files: those files stay out of your own context.',
-            'The sub-agent cannot ask you questions, so state everything it needs in the prompt.',
-        ].join(' '),
+            'Use it when finding the answer means reading many files: those files stay out of your own context, so you keep room for the real work.',
+            'The sub-agent runs with the same read tools but cannot ask you questions and cannot delegate further — so state everything it needs in the prompt: what to look into, what to answer.',
+            'Do not use it for a single quick lookup — that is cheaper to do yourself with file_read or grep.',
+            'Parameters:',
+            '- description (required): a few words naming this delegation, shown to the user.',
+            '- prompt (required): the complete instructions — the sub-agent cannot see this conversation.',
+        ].join('\n'),
         inputSchema: {
             type: 'object',
             properties: {
