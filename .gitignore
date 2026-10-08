@@ -36,6 +36,12 @@ Agent.mm
 参考图/
 .playwright-mcp/
 
+# 提交和核对时用的临时文件
+commit-msg.txt
+commit-result.txt
+clean-report.txt
+*-out.txt
+
 # Local UI audit screenshots
 /*-fix*.png
 /*-check*.png
