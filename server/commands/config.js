@@ -127,13 +127,6 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
         maxContextTokens: budget.context || budget.contextWindow || 128000,
         stream: provider.stream ?? Store.config.stream ?? true,
         system: Store.config.prompt?.system || '', // 用户没写系统提示词就是空的，不注入任何东西
-        /*
-         * 一直连不上时别无限重试。
-         * agent-core 默认"除取消和上下文超长外全都重试，次数不限、也不设总时长"，
-         * 也就是密钥填错或服务挂了会一直重试下去，用户看到的是"它一直在转，什么都不说"。
-         * 给一个总时长上限，到点把真实错误交到上层，用户才能看见"是密钥不对"。
-         */
-        retryMaxElapsed: rest.retryMaxElapsed || 120000,
         ...rest, // 会话级的能力开关，见 commands/settings.js
     }
 
