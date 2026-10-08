@@ -60,9 +60,27 @@ describe('接口契约', () => {
 
     test('自动批准的类别和代码里的类别是同一组', async () => {
         const openapi = await readJson('openapi.json')
-        // 文档里写了四类、代码里变成三类，前端就会多画一个永远不生效的开关。
+        // 文档和代码的类别对不上时，前端会多画一个永远不生效的开关（或者少画一个真有用的）。
         // 类别名单只有 utils/tool-kind.js 一处，文档跟着它走。
-        expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(KINDS)
+        expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(KINDS.map(item => item.kind))
+    })
+
+    test('界面上的自动批准开关和代码里的类别是同一组', async () => {
+        // 前端那份清单是为了配图标，但类别的名字得跟着代码走。
+        // 少写一类，用户就少一个能开关的权限，而且在界面上完全看不出来。
+        const frontend = await source('../frontend/src/commands/session.js')
+        const listed = [...frontend.matchAll(/\{ kind: '([a-z]+)', label:/g)].map(([, kind]) => kind)
+        expect(listed).toEqual(KINDS.map(item => item.kind))
+    })
+
+    test('每个类别在界面上都配了图标', async () => {
+        const frontend = await source('../frontend/src/commands/session.js')
+        // 缺图标时 AppIcon 会退回默认的 spark，看着像是"这个开关还没做完"。
+        const icons = [...frontend.matchAll(/icon: '([a-z]+)'/g)].map(([, icon]) => icon)
+        expect(icons).toHaveLength(KINDS.length)
+        // 图标名得在 AppIcon 里真的存在，不然渲染出来是一个空形状。
+        const iconComponent = await source('../frontend/src/components/AppIcon.vue')
+        for (const icon of icons) expect(iconComponent, `AppIcon 里没有 ${icon}`).toContain(`${icon}: [`)
     })
 
     test('健康检查报的版本就是 package.json 里的版本', async () => {

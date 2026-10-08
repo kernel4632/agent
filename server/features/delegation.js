@@ -15,6 +15,7 @@
  */
 
 import Agent from '@kernel4632/agent-core'
+import Approval from './approval.js' // 子 agent 也要过同一道审批关口。
 import SSE from '../utils/sse.js' // 子任务的进度也推给前端，用户看得见它在忙什么。
 
 // --- 做出一张"子 agent 能用的工具表" ---
@@ -26,7 +27,13 @@ const subTools = tools => {
 }
 
 // --- 造出 task 工具 ---
-const build = ({ config, tools }) => {
+/**
+ * 造出 task 工具。
+ * @param {{ config: object, tools: object, sessionId?: string }} input
+ *   sessionId 是这条会话的编号：子 agent 的审批要回到同一个会话，
+ *   用户才能在界面上看到并回答"子任务想读这个文件"。
+ */
+const build = ({ config, tools, sessionId }) => {
     const usable = subTools(tools)
     let counter = 0
 
@@ -58,6 +65,13 @@ const build = ({ config, tools }) => {
                 callbacks: {
                     onToolCall: call => SSE.send({ id, data: { type: 'subagent-tool', description, ...call } }),
                     onToolResult: result => SSE.send({ id, data: { type: 'subagent-tool-result', description, ...result } }),
+                    /*
+                     * 子 agent 走的是同一道审批关口。这一句不能省：
+                     * 少了它，子任务里的读文件和执行命令完全不问用户，.agentignore 也拦不住，
+                     * 而且不报任何错——表现只是"某些密钥文件莫名其妙被读到了"。
+                     * 审批请求回到主会话，用户看到的是"子任务想读这个文件"。
+                     */
+                    onPermission: call => Approval.check({ sessionId, ...call }),
                 },
             })
 

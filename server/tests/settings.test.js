@@ -3,7 +3,7 @@
  *
  * 这三项都会改变 agent 实际拿到的东西（工具表、config），所以每条都要真的读回
  * 建好的 Agent 来验证，而不是只看接口返回了什么。
- * 自动批准要能一类一类地开关：开着"读取"不等于放行"写入"和"命令"，
+ * 自动批准要能一类一类地开关：开着"读取"不等于放行"写入"和"执行命令"，
  * 所以每条用例都同时看"这一类过没过"和"别类是不是还在问"。
  * 每个测试在自己的临时数据目录里跑，互不影响。
  * 运行：cd server && bun test
@@ -13,13 +13,21 @@ import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
+import Agent from '@kernel4632/agent-core'
 import Approval from '../features/approval.js'
 import Config from '../commands/config.js'
+import Delegation from '../features/delegation.js'
 import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import Session from '../commands/session.js'
 import Store from '../store.js'
 import { app } from '../server.js'
+
+// 每类都关掉的那份默认值，断言里要用。
+const allOff = () => Object.fromEntries(Settings.KINDS.map(item => [item.kind, false]))
+
+// 每类都打开的那份，用来验证"全开"不改变需要批准这个行为。
+const allOn = () => Object.fromEntries(Settings.KINDS.map(item => [item.kind, true]))
 
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
@@ -65,14 +73,14 @@ const runCheck = async ({ sessionId, toolCallId, toolName, input = {} }) => {
 }
 
 describe('会话运行设置', () => {
-    test('默认是 build 模式、四类自动批准全关、能力全开', async () => {
+    test('默认是 build 模式、每类自动批准全关、能力全开', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             const settings = await Session.readSettings({ sessionId })
             // 默认值要和 agent-core 的默认一致，做到"默认全原生"。
             expect(settings).toEqual({
                 mode: 'build',
-                autoApprove: { read: false, write: false, command: false, mcp: false },
+                autoApprove: allOff(),
                 capabilities: { image: true, cache: true, stream: true },
             })
         })
@@ -99,6 +107,8 @@ describe('会话运行设置', () => {
             expect(planTools).toContain('file_read')
             expect(planTools).toContain('grep')
             expect(planTools).toContain('glob')
+            // 子任务本身不算"能改磁盘"，plan 模式里留着。
+            expect(planTools).toContain('task')
 
             // 切回 build 又能改文件了。
             await Session.saveSettings({ sessionId, mode: 'build' })
@@ -141,6 +151,92 @@ describe('会话运行设置', () => {
         })
     })
 
+    test('上一版存下的设置文件里类别少几项，读回来也会补齐', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            // 上一版只有 read / write / command / mcp 四类，subtask 是这次新加的。
+            await writeFile(Path.settings(sessionId), JSON.stringify({
+                mode: 'build',
+                autoApprove: { read: true, write: false, command: false, mcp: false },
+                capabilities: { image: true, cache: true, stream: true },
+            }))
+            Store.settings.clear()
+
+            const settings = await Session.readSettings({ sessionId })
+            // 老设置里开着的读取保持开着，新加的那类补成关（不替用户放行）。
+            expect(settings.autoApprove).toEqual({ read: true, write: false, command: false, mcp: false, subtask: false })
+        })
+    })
+
+    test('plan 模式的子任务手里也没有写工具，不能借它绕过"只看不做"', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const { sessionId } = await Session.create({ title: '只读委托' })
+            await Session.saveSettings({ sessionId, mode: 'plan' })
+
+            /*
+             * 必须看子 agent 真正拿到的那张表，不能看主 agent 的。
+             * 先装 task、后筛工具表时，主 agent 的表看起来是对的（写工具确实没了），
+             * 但 task 早就把未筛的表记在自己闭包里了，子任务照样能改文件——
+             * plan 模式形同虚设，而且完全不报错。
+             */
+            const captured = []
+            const original = Agent.create
+            Agent.create = options => { captured.push(options); return original(options) }
+            try {
+                // 跑的是 session.js 真正装上去的那个 task，不是这里另外拼一个。
+                // 另外拼一个的话，传进去的就是筛过的表，等于绕开了要检查的那一步。
+                const task = Store.agents.get(sessionId).tools.handlers.task
+                await task.execute({ description: '查一下', prompt: '查一下' }, {}).catch(() => {})
+            } finally {
+                Agent.create = original
+            }
+
+            const subSchema = Object.keys(captured[0]?.tools?.schema || {})
+            expect(subSchema.length, '子 agent 得真有工具表，否则这条检查没意义').toBeGreaterThan(0)
+            expect(subSchema).not.toContain('file_write')
+            expect(subSchema).not.toContain('edit')
+            expect(subSchema).not.toContain('apply_patch')
+            expect(subSchema).not.toContain('shell')
+            // 只读工具要留着，不然子任务什么都查不了。
+            expect(subSchema).toContain('file_read')
+            expect(subSchema).toContain('grep')
+        })
+    })
+
+    test('子任务上带了审批回调，而且回的是同一个会话', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            /*
+             * task 建子 agent 时会带上 onPermission。少了它，agent-core 直接放行，
+             * 子任务里的读文件和执行命令完全不问用户，.agentignore 也拦不住，
+             * 而且不报任何错——表现只是"某个密钥文件莫名其妙被读到了"。
+             * 这里盯住那次 Agent.create 实际收到了什么，不靠跑一轮真模型。
+             */
+            const calls = []
+            const original = Agent.create
+            Agent.create = options => { calls.push(options); return original(options) }
+            try {
+                const taskTool = Delegation.build({
+                    config: {},
+                    tools: Store.agents.get(sessionId).tools,
+                    sessionId,
+                })
+                // 起一次子任务：它会立刻失败（没有真模型配置），但 Agent.create 已经被调到。
+                await taskTool.execute({ description: '查一下', prompt: '查一下' }, {}).catch(() => {})
+            } finally {
+                Agent.create = original
+            }
+
+            const callbacks = calls[0]?.callbacks
+            expect(typeof callbacks?.onPermission).toBe('function')
+            // 审批请求要回到主会话，否则界面上看不到"子任务想读这个文件"。
+            expect(Store.settings.has(sessionId)).toBe(true)
+            // 密钥文件在这条路上也读不到。
+            expect(await Approval.check({ sessionId, toolCallId: 'sub-1', toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(false)
+        })
+    })
+
     test('能力开关会真的写进交给 agent-core 的 config', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
@@ -156,10 +252,10 @@ describe('会话运行设置', () => {
 })
 
 describe('自动批准按类别开关', () => {
-    test('默认四类全关，读文件也要先问', async () => {
+    test('默认每类全关，读文件也要先问', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            // 规则是 ask；四类都没开，所以这次调用进等待队列。
+            // 规则是 ask；每类都没开，所以这次调用进等待队列。
             const check = await runCheck({ sessionId, toolCallId: 'call-1', toolName: 'file_read', input: { path: 'D:/app/a.js' } })
             expect(check).toEqual({ allowed: false, asked: true })
         })
@@ -197,13 +293,26 @@ describe('自动批准按类别开关', () => {
         })
     })
 
-    test('只开命令：命令直接过，它改的文件因此也没人问——所以命令要单独一个开关', async () => {
+    test('只开执行命令：命令直接过，写文件照样要问', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, autoApprove: { command: true } })
 
             expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'shell', input: { command: 'bun test' } }))
                 .toEqual({ allowed: true, asked: false })
+            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
+                .toEqual({ allowed: false, asked: true })
+        })
+    })
+
+    test('只开子任务：开子任务直接过，它自己要改文件仍会问', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await Session.saveSettings({ sessionId, autoApprove: { subtask: true } })
+
+            expect(await runCheck({ sessionId, toolCallId: 't1', toolName: 'task', input: { description: '查一下', prompt: '查一下用法' } }))
+                .toEqual({ allowed: true, asked: false })
+            // 子任务自己拿的工具表还是照常走审批，不能借"授权开子任务"绕过写入那一关。
             expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
                 .toEqual({ allowed: false, asked: true })
         })
@@ -234,14 +343,27 @@ describe('自动批准按类别开关', () => {
         })
     })
 
-    test('认不出类别的工具一律要问，四类全开也一样', async () => {
+    test('认不出类别的工具一律要问，每类全开也一样', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true, write: true, command: true, mcp: true } })
+            await Session.saveSettings({ sessionId, autoApprove: allOn() })
 
             // 用户自己放进去的工具没人给它分类，不能因为"不知道它是什么"就替用户放行。
             expect(await runCheck({ sessionId, toolCallId: 'u1', toolName: '我写的脚本', input: { run: true } }))
                 .toEqual({ allowed: false, asked: true })
+        })
+    })
+
+    test('记清单和结束循环本来就不问，不设开关', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            // 每类都关着，一件不改文件的小事也不该弹窗——不然用户只会一直点同意。
+            expect(await runCheck({ sessionId, toolCallId: 'd1', toolName: 'todo', input: { items: [] } }))
+                .toEqual({ allowed: true, asked: false })
+            expect(await runCheck({ sessionId, toolCallId: 'd2', toolName: 'finish', input: { result: '好了' } }))
+                .toEqual({ allowed: true, asked: false })
+            // 它们也不该出现在自动批准的设置里，没有开关可点。
+            expect(Settings.KINDS.map(item => item.kind)).not.toContain('never')
         })
     })
 
@@ -251,19 +373,43 @@ describe('自动批准按类别开关', () => {
 
             // 先只开读取。
             let settings = await Session.saveSettings({ sessionId, autoApprove: { read: true } })
-            expect(settings.autoApprove).toEqual({ read: true, write: false, command: false, mcp: false })
+            expect(settings.autoApprove).toEqual({ ...allOff(), read: true })
 
-            // 再加开命令：读取那一位不能被动到。
+            // 再加开执行命令：读取那一位不能被动到。
             settings = await Session.saveSettings({ sessionId, autoApprove: { command: true } })
-            expect(settings.autoApprove).toEqual({ read: true, write: false, command: true, mcp: false })
+            expect(settings.autoApprove).toEqual({ ...allOff(), read: true, command: true })
 
             // 关掉读取：命令和其余几位照旧。
             settings = await Session.saveSettings({ sessionId, autoApprove: { read: false } })
-            expect(settings.autoApprove).toEqual({ read: false, write: false, command: true, mcp: false })
+            expect(settings.autoApprove).toEqual({ ...allOff(), command: true })
             expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/a.js' } }))
                 .toEqual({ allowed: false, asked: true })
             expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'shell', input: { command: 'ls' } }))
                 .toEqual({ allowed: true, asked: false })
+        })
+    })
+
+    test('界面传了认不出的类别名时不存进去，只认清单里那几类', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const settings = await Session.saveSettings({ sessionId, autoApprove: { read: true, 乱写: true } })
+            expect(settings.autoApprove).toEqual({ ...allOff(), read: true })
+        })
+    })
+
+    test('老版本设置文件里的那个总开关还能读，摊到每一类上', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            // 更早的一版只有一个 autoApprove 布尔。用户升级后不该发现自己的设置丢了。
+            await writeFile(Path.settings(sessionId), JSON.stringify({
+                mode: 'build',
+                autoApprove: true,
+                capabilities: { image: true, cache: true, stream: true },
+            }))
+            Store.settings.clear()
+
+            const settings = await Session.readSettings({ sessionId })
+            expect(settings.autoApprove).toEqual(allOn())
         })
     })
 
@@ -295,30 +441,6 @@ describe('自动批准按类别开关', () => {
             await expect(Session.saveSettings({ sessionId, mode: 'plan' })).rejects.toThrow(/already running/i)
             // 被拒的改动不该留在磁盘上。
             expect((await Settings.read({ sessionId })).mode).toBe('build')
-        })
-    })
-
-    test('界面传了认不出的类别名时不存进去，只认那四类', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            const settings = await Session.saveSettings({ sessionId, autoApprove: { read: true, 乱写: true } })
-            expect(settings.autoApprove).toEqual({ read: true, write: false, command: false, mcp: false })
-        })
-    })
-
-    test('老版本设置文件里的那个总开关还能读，摊到每一类上', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            // 上一版只有一个 autoApprove 布尔。用户升级后不该发现自己的设置丢了。
-            await writeFile(Path.settings(sessionId), JSON.stringify({
-                mode: 'build',
-                autoApprove: true,
-                capabilities: { image: true, cache: true, stream: true },
-            }))
-            Store.settings.clear()
-
-            const settings = await Session.readSettings({ sessionId })
-            expect(settings.autoApprove).toEqual({ read: true, write: true, command: true, mcp: true })
         })
     })
 
@@ -370,7 +492,7 @@ describe('设置接口', () => {
                 body: JSON.stringify({ autoApprove: { read: true } }),
             }))
             expect(response.status).toBe(200)
-            expect((await response.json()).autoApprove).toEqual({ read: true, write: false, command: false, mcp: false })
+            expect((await response.json()).autoApprove).toEqual({ ...allOff(), read: true })
         })
     })
 
@@ -381,7 +503,7 @@ describe('设置接口', () => {
             const session = await Session.read({ sessionId })
             expect(session.settings).toMatchObject({
                 mode: 'plan',
-                autoApprove: { read: true, write: false, command: false, mcp: false },
+                autoApprove: { ...allOff(), read: true },
             })
         })
     })

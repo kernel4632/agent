@@ -26,10 +26,13 @@ import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不
  * 不写任何提示词注入，能力全开，流式和提示词缓存都按 agent-core 的默认开着。
  *
  * 自动批准默认全部关闭——不替用户预先放行任何东西。
+ * 这份默认值由下面的 normalize 从 Kind.KINDS 现算出来，所以加一类不用回来改这里。
  */
+const autoApproveDefaults = () => Object.fromEntries(Kind.KINDS.map(item => [item.kind, false]))
+
 const DEFAULTS = {
     mode: 'build',
-    autoApprove: { read: false, write: false, command: false, mcp: false },
+    autoApprove: autoApproveDefaults(),
     capabilities: {
         image: true,
         cache: true,
@@ -53,13 +56,13 @@ const normalize = (input = {}, base = DEFAULTS) => {
     const merged = { ...base, ...input }
     if (!MODES.includes(merged.mode)) throw fail(400, `mode must be plan or build, got: ${input.mode}`)
 
-    // 自动批准按类别合并：只改了 read 的话，write / command / mcp 保持原样。
+    // 自动批准按类别合并：只改了 read 的话，别的几类保持原样。
     // 布尔值是老版本的写法（一个总开关），读到时摊到每一类上，旧设置不至于失效。
     const source = typeof input.autoApprove === 'boolean'
-        ? Object.fromEntries(Kind.KINDS.map(kind => [kind, input.autoApprove]))
+        ? Object.fromEntries(Kind.KINDS.map(item => [item.kind, input.autoApprove]))
         : (input.autoApprove || {})
     const autoApprove = {}
-    for (const kind of Kind.KINDS) autoApprove[kind] = (source[kind] ?? base.autoApprove[kind]) === true
+    for (const item of Kind.KINDS) autoApprove[item.kind] = (source[item.kind] ?? base.autoApprove[item.kind]) === true
 
     const capabilities = { ...base.capabilities, ...(input.capabilities || {}) }
     // 只留认识的键，界面传了别的东西也不会被存进去。
@@ -134,15 +137,21 @@ const toAgentConfig = ({ settings }) => ({
 })
 
 /**
- * 这次工具调用开了自动批准没有。
+ * 这次工具调用还该不该问用户。
+ *
+ * 三种结果：开了自动批准 → 不问；不需要批准的工具（记清单、结束循环）→ 不问；
+ * 其余（没开自动批准、或者根本没分类）→ 问。
  * @param {{ settings?: object, toolName: string, mcpServers?: string[] }} call
  *   settings 是这条会话的运行设置；没有设置时按"全部要问"处理。
  * @returns {boolean} true 表示这一类免询问。
  */
 const approves = ({ settings, toolName, mcpServers }) => {
-    if (!settings) return false
     const kind = Kind.of({ toolName, mcpServers })
-    // 未分类的工具（other）没有自动批准这个选项，一律要问。
+    // 记清单和结束循环没有"要不要批准"这回事，问也只会让用户一直点同意。
+    if (kind === 'never') return true
+    // 没读到设置时宁可按"要问"处理，不替用户放行。
+    if (!settings) return false
+    // 没分类的工具（other）没有自动批准这个选项，一律要问。
     return settings.autoApprove[kind] === true
 }
 

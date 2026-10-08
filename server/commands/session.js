@@ -104,13 +104,19 @@ const createAgent = async ({ sessionId, history, meta }) => {
         await Skills.tools(),
     )
 
+    /*
+     * plan 模式去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
+     * 这里只是把它对当前工具表算一遍，不另外维护一份名单。
+     * omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
+     *
+     * 这一步必须在装 task 之前做：子 agent 拿的是这里选出来的这张表。
+     * 反过来（先装 task 再筛）会留一个口子——plan 模式的模型自己虽然改不了文件，
+     * 但它可以开一个子任务，让子任务去改，等于绕过了"只看不做"。
+     */
+    const allowed = config.readOnly ? Agent.tool.omit(scanned, Kind.writing(Object.keys(scanned.schema))) : scanned
     // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
-    const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ task: Delegation.build({ config, tools: scanned }) }))
-    // plan 模式去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
-    // 这里只是把它对当前工具表算一遍，不另外维护一份名单。
-    // omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
-    const tools = config.readOnly ? Agent.tool.omit(merged, Kind.writing(Object.keys(merged.schema))) : merged
+    const tools = Agent.tool.merge(allowed, Agent.tool.adopt({ task: Delegation.build({ config, tools: allowed, sessionId }) }))
     const agent = Agent.create({
         id: sessionId,
         history,

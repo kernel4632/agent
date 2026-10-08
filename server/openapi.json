@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.13.0",
+    "version": "0.14.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1972,27 +1972,32 @@
       },
       "AutoApprove": {
         "type": "object",
-        "description": "自动批准：按类别分别开关，可以随时改。未分类的工具没有这个选项，一律要问",
+        "description": "自动批准：按类别分别开关，可以随时改。没开的那类逐个询问；未分类的工具一律要问",
         "properties": {
           "read": {
             "type": "boolean",
             "default": false,
-            "description": "读文件、列目录、搜索（file_read / file_list / glob / grep / webfetch / skill）"
+            "description": "读文件、列目录、搜代码、抓网页"
           },
           "write": {
             "type": "boolean",
             "default": false,
-            "description": "改文件（file_write / edit / apply_patch）"
+            "description": "改文件、打补丁"
           },
           "command": {
             "type": "boolean",
             "default": false,
-            "description": "执行命令（shell）"
+            "description": "跑命令"
           },
           "mcp": {
             "type": "boolean",
             "default": false,
-            "description": "MCP 服务提供的工具，按配置里的服务名前缀认"
+            "description": "MCP 服务提供的工具"
+          },
+          "subtask": {
+            "type": "boolean",
+            "default": false,
+            "description": "开一个子任务去干活"
           }
         }
       }

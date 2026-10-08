@@ -12,12 +12,17 @@ import { t } from '../i18n.js'                          // 引入当前语言默
 // --- 自动批准的四个类别 ---
 // 界面上一个类别一个开关，可以按类别随时开关。这里的名字只用来说给用户听，
 // 判断哪类工具免询问是后端的事（见 server/utils/tool-kind.js，那边是唯一来源）。
-// 每一类给一个自己的图标，和工具栏上其他开关一致：亮点就是开着，暗点就是还问你。
+/*
+ * 每一类给一个自己的图标，和工具栏上其他开关一致：亮点就是开着，暗点就是还问你。
+ * 类别的名字（读取 / 写入 / …）以服务端 utils/tool-kind.js 为准，这里只补图标；
+ * 少写一类会有契约测试报出来，不会静默地少一个开关。
+ */
 const AUTO_APPROVE_KINDS = [
   { kind: 'read', label: '读取', icon: 'eye', hint: '读文件、列目录、搜索不用再问' },
   { kind: 'write', label: '写入', icon: 'edit', hint: '改文件、打补丁不用再问' },
-  { kind: 'command', label: '命令', icon: 'code', hint: '执行命令不用再问' },
-  { kind: 'mcp', label: 'MCP', icon: 'globe', hint: '外部工具服务提供的工具不用再问' },
+  { kind: 'command', label: '执行命令', icon: 'code', hint: '跑命令不用再问' },
+  { kind: 'mcp', label: '使用 MCP', icon: 'globe', hint: 'MCP 服务提供的工具不用再问' },
+  { kind: 'subtask', label: '子任务', icon: 'folder', hint: '开子任务不用再问；子任务自己动文件仍按各类判断' },
 ]
 
 
@@ -239,8 +244,8 @@ function normalize(source, previous = {}) {
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
     settings: source.settings || previous.settings || {  // 模式、自动批准、能力开关，后端读取时一并给出
       mode: 'build',
-      // 四类全关：不替用户预先放行任何东西。
-      autoApprove: { read: false, write: false, command: false, mcp: false },
+      // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
+      autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
       capabilities: { image: true, cache: true, stream: true },
     },
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串

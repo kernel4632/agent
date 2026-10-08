@@ -344,7 +344,7 @@ Content-Type: application/json
 ```json
 {
   "mode": "build",
-  "autoApprove": { "read": false, "write": false, "command": false, "mcp": false },
+  "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
   "capabilities": { "image": true, "cache": true, "stream": true }
 }
 ```
@@ -356,11 +356,14 @@ Content-Type: application/json
 | `autoApprove.write` | `false` | 改文件不再弹审批（`file_write`、`edit`、`apply_patch`） |
 | `autoApprove.command` | `false` | 执行命令不再弹审批（`shell`） |
 | `autoApprove.mcp` | `false` | MCP 服务给的工具不再弹审批，按配置里的服务名前缀认 |
+| `autoApprove.subtask` | `false` | 开子任务不再弹审批（`task`）。子 agent 自己动文件时仍按上面几类分别判断 |
 | `capabilities.image` | `true` | 能不能把图片发给模型 |
 | `capabilities.cache` | `true` | 提示词缓存 |
 | `capabilities.stream` | `true` | 流式输出 |
 
-**自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`file_read` 直接过，`file_write` 和 `shell` 照样进等待队列。四类可以随时单独改，改一类不动别类。
+**自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`file_read` 直接过，`file_write` 和 `shell` 照样进等待队列。每一类可以随时单独改，改一类不动别类。
+
+这套开关的类别和界面上的选项对齐 roo code，但只保留我们真有的东西。它那边还有「切换模式」和「追问」两项自动批准：我们没有"由模型自己切换模式"这回事（模式是用户在界面上切的），也没有"到点自动选一个追问答案"的机制，所以不设这两个开关——真加了就是永远不生效的空开关。
 
 PATCH 时只写要改的那一类就行，其余保持原样：
 
@@ -368,7 +371,11 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 { "autoApprove": { "read": true } }
 ```
 
-**认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使四类全开也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准和 plan 模式都从那里读；新加内置工具时在表里补一行即可。
+**认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准、plan 模式和契约检查都从那里读；新加内置工具时在表里补一行即可（漏了会有测试报出来）。
+
+**记清单和结束循环不问。** `todo`、`finish`、`ask` 是控制循环用的，既不碰磁盘也不碰外部服务，本来就没有"要不要批准"这回事，所以不设开关。每次都要问一遍的话，用户只会一直点同意，审批弹窗也就没意义了。
+
+**子任务走同一道审批关口。** `task` 建子 agent 时带着同一个审批回调，回到同一条会话。少了它，子任务里的读文件和执行命令完全不问用户，`.agentignore` 也拦不住，而且不报任何错——表现只是"某个密钥文件莫名其妙被读到了"。
 
 **开了自动批准也绕不过 `.agentignore`。** 自动批准省掉的是"问一遍"，密钥文件（`.env`、`*.pem`、`**/.ssh/**` 等）照样读不到，被拦住时会收到 `permission-blocked` 事件，带上是哪条规则挡的。
 
