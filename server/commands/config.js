@@ -92,9 +92,11 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     return {
         baseURL: provider.baseURL || '',
         apiKey: provider.apiKey || provider.key || '',
-        model,
         protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
-        maxTokens: settings.context || settings.contextWindow || 128000, // 上下文预算，到达 80% 时自动压缩
+        // 上下文预算，到达 80% 时自动压缩。字段名是 maxContextTokens，不是 maxTokens——
+        // agent-core 0.26 起 maxTokens 指"单次生成的最大输出"，会映射成请求体的 maxOutputTokens。
+        // 名字写错不会报任何错，只会把 128000 当成输出上限发出去，模型会被莫名截断。
+        maxContextTokens: settings.context || settings.contextWindow || 128000,
         stream: provider.stream ?? Store.config.stream ?? true,
         system: Store.config.prompt?.system || '', // 用户没写系统提示词就是空的，不注入任何东西
         provider: { headers, body: provider.body || {} }, // 请求头和额外请求体原样交给底层模型请求

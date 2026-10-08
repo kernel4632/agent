@@ -76,12 +76,11 @@ const writeMeta = async meta => {
     await writeFile(Path.meta(meta.id), JSON.stringify(meta, null, 2))
     return meta
 }
-
 /**
  * 为一个会话建出 Agent 实例。
  *
- * 工具表在这里装配：内置工具、用户工具、MCP 服务、技能读写口，最后按会话模式筛一遍。
- * plan 模式就是靠这一步只留只读工具，而不是往系统提示词里写"请不要改文件"。
+ * 工具表在这里装配：内置工具、用户工具、MCP 服务、技能读写口，最后按会话模式去掉写工具。
+ * plan 模式就是靠这一步做到只读，而不是往系统提示词里写"请不要改文件"。
  * @param {{ sessionId: string, history: object[], meta: object }} input
  * @returns {Promise<object>} 建好的 Agent 实例，已放进 Store.agents。
  */
@@ -107,14 +106,9 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
     const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ task: Delegation.build({ config, tools: scanned }) }))
-
-        // plan 模式只留只读工具。两份表要一起筛：schema 决定模型看不看得见，
-        // handlers 决定执行器找不找得到，只筛一份会出现"看不见但还能被调用"。
-        const allowed = Object.keys(merged.schema).filter(config.toolFilter)
-        const tools = {
-            schema: Object.fromEntries(allowed.map(name => [name, merged.schema[name]])),
-            handlers: Object.fromEntries(allowed.map(name => [name, merged.handlers[name]])),
-        }
+    // plan 模式去掉写工具。omit 会把 schema 和 handlers 一起筛，
+    // 所以不会出现"模型看不见、却还能被执行"的隐蔽状态（早先手工筛两份就是怕这个）。
+    const tools = config.readOnly ? Agent.tool.omit(merged, Settings.WRITE_TOOLS) : merged
     const agent = Agent.create({
         id: sessionId,
         history,

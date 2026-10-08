@@ -38,9 +38,12 @@ const DEFAULTS = {
 // build 给全套工具，正常干活。
 const MODES = ['plan', 'build']
 
-// plan 模式下允许出现的工具：只读的、不改磁盘的。
-const READ_ONLY_TOOLS = new Set(['file_read', 'file_list', 'glob', 'grep', 'webfetch', 'todo', 'skill', 'finish', 'ask'])
-
+/*
+ * plan 模式要去掉的工具：能改磁盘的。
+ * 用"去掉写工具"而不是"只留读工具"：内置工具增加时（比如新加一个只读工具），
+ * 它会自动在 plan 模式下可用，不用回来改这份名单。名单里写的是要禁用的少数。
+ */
+const WRITE_TOOLS = ['file_write', 'edit', 'apply_patch', 'shell']
 /**
  * 把用户给的值夹到合法范围内，不认识的值直接忽略。
  * 宁可保持原样也不把一份坏设置写进磁盘——坏设置会让会话再也建不起来。
@@ -104,23 +107,22 @@ const save = async ({ sessionId, ...change }) => {
     await writeFile(path, JSON.stringify(settings, null, 2))
     return settings
 }
-
 /**
  * 把设置翻译成 agent-core 认的 config 字段。
  *
  * plan 模式怎么实现的：不去改系统提示词，而是不给写工具。
- * 提示词注入会让模型"被告知"不要写，工具表为空则是"没法写"——
+ * 提示词注入会让模型"被告知"不要写，去掉工具则是"没法写"——
  * 后者不依赖模型听话，而且 system 保持为空，默认全原生。
  * @param {{ settings: object }} input
- * @returns {{ capabilities: object, cache: boolean, stream: boolean, toolFilter: (name: string) => boolean }}
- *   toolFilter 用来在装配工具表时筛掉不允许的工具。
+ * @returns {{ capabilities: object, cache: boolean, stream: boolean, readOnly: boolean }}
+ *   readOnly 由装配工具表的那一处转成 Agent.tool.omit。
  */
 const toAgentConfig = ({ settings }) => ({
     capabilities: { image: settings.capabilities.image },
     // 提示词缓存和流式输出是 agent-core 自己的字段，不是 capabilities 的一部分。
     cache: settings.capabilities.cache,
     stream: settings.capabilities.stream,
-    toolFilter: name => settings.mode !== 'plan' || READ_ONLY_TOOLS.has(name),
+    readOnly: settings.mode === 'plan',
 })
 
 /**
@@ -131,5 +133,4 @@ const toAgentConfig = ({ settings }) => ({
 const remove = ({ sessionId }) => {
     Store.settings.delete(sessionId)
 }
-
-export default { read, save, toAgentConfig, remove, DEFAULTS, MODES, READ_ONLY_TOOLS }
+export default { read, save, toAgentConfig, remove, DEFAULTS, MODES, WRITE_TOOLS }
