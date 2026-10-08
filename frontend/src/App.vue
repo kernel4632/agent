@@ -188,12 +188,9 @@ onUnmounted(() => {
                             </section>
                             <section class="chat-more__group" aria-label="自动批准的刹车">
                               <h2>自动批准的上限</h2>
-                              <p>到量就停下来问一句；填 0 表示不设上限</p>
+                              <p>连着自动批准这么多次就停下来问一句；填 0 表示不设上限</p>
                               <label class="chat-more__row"><span>连续次数</span>
-                                <input type="number" min="0" :value="session.settings.autoApproveLimits?.requests" @change="Session.setLimit(session.id, 'requests', Number($event.target.value))" />
-                              </label>
-                              <label class="chat-more__row"><span>累计花费（美元）</span>
-                                <input type="number" min="0" step="0.5" :value="session.settings.autoApproveLimits?.cost" @change="Session.setLimit(session.id, 'cost', Number($event.target.value))" />
+                                <input type="number" min="0" :value="session.settings.autoApproveLimit" @change="Session.setLimit(session.id, Number($event.target.value))" />
                               </label>
                             </section>
                           </div>

@@ -72,7 +72,7 @@ describe('接口契约', () => {
         const settings = openapi.components.schemas.Session.allOf[1].properties.settings.properties
         expect(Object.keys(settings.uses.properties)).toEqual(USES.map(item => item.use))
         // 上限和自动标题也得在文档里，前端照着写才不用猜默认值。
-        expect(Object.keys(settings.autoApproveLimits.properties)).toEqual(['requests', 'cost'])
+        expect(settings.autoApproveLimit.type).toBe('number')
         expect(settings.autoTitle.type).toBe('boolean')
     })
 
@@ -181,5 +181,13 @@ describe('工具名单', () => {
         // 它们不碰磁盘也不连外部服务，本来就不该有自动批准开关。
         const missing = Object.keys(schema).filter(name => !(name in TABLE))
         expect(missing).toEqual([])
+    })
+
+    test('自动批准的刹车在文档里写的是单个数字', async () => {
+        const openapi = await readJson('openapi.json')
+        const settings = openapi.components.schemas.Session.allOf[1].properties.settings.properties
+        // 之前写成 { requests, cost } 两个数字，cost 那档没有意义（用户都是无限 token），
+        // 收成单个数字后文档也得跟着变，不然前端照着旧形状写就是坏的。
+        expect(settings.autoApproveLimit.type).toBe('number')
     })
 })

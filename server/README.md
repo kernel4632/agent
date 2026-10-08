@@ -341,14 +341,14 @@ Content-Type: application/json
 
 这三项都直接对应 `@kernel4632/agent-core` 的字段，不做二次翻译，设置存在会话目录的 `settings.json` 里。
 
-```json
 {
   "mode": "build",
   "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
-  "autoApproveLimits": { "requests": 50, "cost": 2 },
+  "autoApproveLimit": 50,
   "capabilities": { "image": true, "cache": true, "stream": true },
   "uses": {},
   "autoTitle": true
+}
 }
 ```
 
@@ -360,8 +360,7 @@ Content-Type: application/json
 | `autoApprove.command` | `false` | 执行命令不再弹审批（`shell`） |
 | `autoApprove.mcp` | `false` | MCP 服务给的工具不再弹审批，按配置里的服务名前缀认 |
 | `autoApprove.subtask` | `false` | 开子任务不再弹审批（`task`）。子 agent 自己动文件时仍按上面几类分别判断 |
-| `autoApproveLimits.requests` | `50` | 连续自动批准这么多次之后停下来问一句；`0` 表示不设上限 |
-| `autoApproveLimits.cost` | `2` | 累计花到这么多之后停下来问一句；`0` 表示不设上限 |
+| `autoApproveLimit` | `50` | 连着自动批准这么多次之后停下来问一句；`0` 表示不设上限 |
 | `capabilities.image` | `true` | 能不能把图片发给模型 |
 | `capabilities.cache` | `true` | 提示词缓存 |
 | `capabilities.stream` | `true` | 流式输出 |
@@ -420,13 +419,11 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 
 ### 自动批准的刹车
 
-`autoApproveLimits` 是防止"开着自动批准结果跑飞了"的：连续自动批准到 `requests` 次，就停下来问用户一次。设 `0` 表示不设上限。
+`autoApproveLimit` 是防止"开着自动批准结果跑飞了"的：连着自动批准这么多次，就停下来问用户一次。设 `0` 表示不设上限。
 
-**模型跑偏的典型表现不是"做了一件坏事"，而是"同一件小事做了五十遍"**——比如反复重试同一个失败的命令。次数是这里唯一数得准的东西，所以先做这一档。
+**模型跑偏的典型表现不是"做了一件坏事"，而是"同一件小事做了五十遍"**——比如反复重试同一个失败的命令，所以数次数就够了。不做花费上限：我们的用户都是无限 token，没有预算的概念，设了也没有意义。
 
-`cost` 这一项**目前只存不判**：每一笔请求的 token 用量 agent-core 只在 `send` 结束时给一次，中途累加会和压缩、重试这些内部请求对不上；而 `usage` 里只有 token 数、没有价格（各家中转站的价格表都不一样）。等 agent-core 给出"本次 send 到目前的累计用量"再接上，见仓库根目录 `AGENT-CORE-FEEDBACK.md` 的第 3 条。
-
-这是唯一一处"默认不是最宽松"的地方。已经开了自动批准，再不设上限，跑飞了就是真花钱，所以给一个宽松但有数的档（50 次）。
+这是唯一一处"默认不是最宽松"的地方。已经开了自动批准，再不设上限，同一件小事做五十遍都没人管，所以给一个宽松但有数的档（50 次）。
 
 到上限时会收到 `permission-limit` 事件，之后那次调用进正常的等待队列。**用户答过一次就重新计数**——他刚看过一眼并说了继续，接下来这 N 次算新的开始；不这样做的话计数一到顶就再也回不去，自动批准等于永久失灵。发新消息也会清零。
 

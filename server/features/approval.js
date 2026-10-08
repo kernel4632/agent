@@ -140,13 +140,10 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     /*
      * 自动批准的刹车：连着放行了太多次就停下来问一次。
      * 模型跑偏的典型表现不是"一件坏事"，而是"同一件小事做了五十遍"——
-     * 比如反复重试同一个失败的命令。次数是这里唯一数得准的东西：
-     * 每一笔请求的 token 用量 agent-core 只在 send 结束时给一次，
-     * 中途累加会和压缩、重试这些内部请求对不上，所以花费那一档先只存不判。
-     *
+     * 比如反复重试同一个失败的命令，所以数次数就够了。
      * 停下来问一次之后计数清零，用户说继续就再放行这么多。
      */
-    const limit = settings?.autoApproveLimits?.requests || 0
+    const limit = settings?.autoApproveLimit || 0
     const used = Store.autoApproved.get(sessionId) || 0
     const capped = auto && limit > 0 && used >= limit
     if (auto && !capped) Store.autoApproved.set(sessionId, used + 1)

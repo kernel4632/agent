@@ -107,8 +107,8 @@ test('per-use models send one use at a time, and clearing means share with the m
   assert.deepEqual(calls[1].body, { uses: { title: null } })
 })
 
-test('auto-approve limits are sent as plain numbers', async t => {
-  // 上限是数字，0 表示不设上限。前端如果把输入框的字符串直接发上去，
+test('auto-approve limit is sent as a plain number', async t => {
+  // 上限是一个数字，0 表示不设上限。前端如果把输入框的字符串直接发上去，
   // 后端会当成认不出来的值而保持原样，表现是"填了但没生效"。
   const calls = []
   t.mock.method(globalThis, 'fetch', async (url, options) => {
@@ -116,10 +116,10 @@ test('auto-approve limits are sent as plain numbers', async t => {
     return Response.json({ ok: true })
   })
 
-  await AgentAPI.saveSettings('session-test', { autoApproveLimits: { requests: 0 } })
+  await AgentAPI.saveSettings('session-test', { autoApproveLimit: 0 })
 
-  assert.equal(typeof calls[0].body.autoApproveLimits.requests, 'number')
-  assert.deepEqual(calls[0].body, { autoApproveLimits: { requests: 0 } })
+  assert.equal(typeof calls[0].body.autoApproveLimit, 'number')
+  assert.deepEqual(calls[0].body, { autoApproveLimit: 0 })
 })
 
 test('non-JSON HTTP error retains meaningful status', async t => {

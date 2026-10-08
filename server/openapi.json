@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.15.1",
+    "version": "0.15.2",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1119,21 +1119,6 @@
                         }
                       }
                     },
-                    "autoApproveLimits": {
-                      "type": "object",
-                      "properties": {
-                        "requests": {
-                          "type": "number",
-                          "default": 50,
-                          "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
-                        },
-                        "cost": {
-                          "type": "number",
-                          "default": 2,
-                          "description": "累计花到多少之后停下来问；0 表示不设上限"
-                        }
-                      }
-                    },
                     "uses": {
                       "type": "object",
                       "properties": {
@@ -1179,6 +1164,11 @@
                       "type": "boolean",
                       "default": true,
                       "description": "第一次聊完让模型起个标题"
+                    },
+                    "autoApproveLimit": {
+                      "type": "number",
+                      "default": 50,
+                      "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
                     }
                   }
                 }
@@ -1256,21 +1246,6 @@
                       }
                     }
                   },
-                  "autoApproveLimits": {
-                    "type": "object",
-                    "properties": {
-                      "requests": {
-                        "type": "number",
-                        "default": 50,
-                        "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
-                      },
-                      "cost": {
-                        "type": "number",
-                        "default": 2,
-                        "description": "累计花到多少之后停下来问；0 表示不设上限"
-                      }
-                    }
-                  },
                   "uses": {
                     "type": "object",
                     "properties": {
@@ -1316,6 +1291,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "第一次聊完让模型起个标题"
+                  },
+                  "autoApproveLimit": {
+                    "type": "number",
+                    "default": 50,
+                    "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
                   }
                 }
               }
@@ -1360,21 +1340,6 @@
                           "type": "boolean",
                           "default": true,
                           "description": "流式输出"
-                        }
-                      }
-                    },
-                    "autoApproveLimits": {
-                      "type": "object",
-                      "properties": {
-                        "requests": {
-                          "type": "number",
-                          "default": 50,
-                          "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
-                        },
-                        "cost": {
-                          "type": "number",
-                          "default": 2,
-                          "description": "累计花到多少之后停下来问；0 表示不设上限"
                         }
                       }
                     },
@@ -1423,6 +1388,11 @@
                       "type": "boolean",
                       "default": true,
                       "description": "第一次聊完让模型起个标题"
+                    },
+                    "autoApproveLimit": {
+                      "type": "number",
+                      "default": 50,
+                      "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
                     }
                   }
                 }
@@ -2034,21 +2004,6 @@
                       }
                     }
                   },
-                  "autoApproveLimits": {
-                    "type": "object",
-                    "properties": {
-                      "requests": {
-                        "type": "number",
-                        "default": 50,
-                        "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
-                      },
-                      "cost": {
-                        "type": "number",
-                        "default": 2,
-                        "description": "累计花到多少之后停下来问；0 表示不设上限"
-                      }
-                    }
-                  },
                   "uses": {
                     "type": "object",
                     "properties": {
@@ -2094,6 +2049,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "第一次聊完让模型起个标题"
+                  },
+                  "autoApproveLimit": {
+                    "type": "number",
+                    "default": 50,
+                    "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
                   }
                 },
                 "description": "这条会话当前的运行设置，等同于 GET /session/settings/{sessionId}"

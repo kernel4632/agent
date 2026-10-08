@@ -239,10 +239,10 @@ async function setUse(sessionID, use, target) {
 
 // --- 改自动批准的上限 ---
 // 上限是防止"开着自动批准结果跑飞了"的刹车，0 表示不设上限。
-async function setLimit(sessionID, name, value) {
+async function setLimit(sessionID, value) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  return saveSettings(sessionID, { autoApproveLimits: { [name]: value } })
+  return saveSettings(sessionID, { autoApproveLimit: value })
 }
 
 
@@ -293,7 +293,7 @@ function normalize(source, previous = {}) {
       mode: 'build',
       // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
       autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
-      autoApproveLimits: { requests: 50, cost: 2 },
+      autoApproveLimit: 50,
       capabilities: { image: true, cache: true, stream: true },
       uses: {},        // 空＝每件事都用主模型
       autoTitle: true, // 第一次聊完自动起标题

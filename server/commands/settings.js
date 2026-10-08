@@ -6,7 +6,7 @@
  *   autoApprove → 免掉逐个工具的审批弹窗，按类别分别开关，规则本身仍写在 permission 里
  *   capabilities→ 图像、提示缓存、流式输出这些按模型能力开关，默认全开
  *   uses        → 哪件事用哪个模型（压缩 / 标题 / 子任务），不点名就和主模型共用
- *   limits      → 自动批准跑飞了的刹车：连续多少次、花到多少就停下来问
+ *   autoApproveLimit → 自动批准的刹车：连着放行多少次就停下来问
  * 设置存在会话目录的 settings.json 里，所以换台机器打开同一个会话还是这套设置。
  * 调用示例：
  *   const settings = await Settings.read({ sessionId })          // 读这条会话的运行设置
@@ -41,13 +41,12 @@ export const USES = [
 const USE_NAMES = USES.map(item => item.use)
 
 /*
- * 自动批准的刹车。开着自动批准时，如果模型连着跑了很多轮、或者花了很多钱，
- * 说明它可能已经跑偏了，这时候停下来问用户一句，比让它一直跑下去好。
- *   次数：连续自动批准了多少次之后停下来问。0 表示不设上限。
- *   花费：累计花到多少之后停下来问。0 表示不设上限。
- * 次数和花费的单位不一样，所以是两个字段，不是一个"上限"。
+ * 自动批准的刹车：连着放行这么多次就停下来问一句。0 表示不设上限。
+ * 模型跑偏的典型表现不是"做了一件坏事"，而是"同一件小事做了五十遍"——
+ * 比如反复重试同一个失败的命令，所以数次数就够了。
+ * 不做花费上限：我们的用户都是无限 token，没有预算概念，设了也没有意义。
  */
-const LIMIT_NAMES = ['requests', 'cost']
+const APPROVE_LIMIT = 50
 
 /*
  * 默认值。刻意和 agent-core 的默认保持一致，做到"默认全原生"：
@@ -56,16 +55,16 @@ const LIMIT_NAMES = ['requests', 'cost']
  * 自动批准默认全部关闭——不替用户预先放行任何东西。
  * 这份默认值由下面的 normalize 从 Kind.KINDS 现算出来，所以加一类不用回来改这里。
  *
- * 刹车默认开着（50 次 / 2 美元）。这是唯一一处"默认不是最宽松"的地方：
- * 已经开了自动批准，再完全不设上限，跑飞了就是真花钱，所以给一个宽松但有数的档。
- * 用户想彻底放开就把对应那一项设成 0。
+ * 刹车默认开着（50 次）。这是唯一一处"默认不是最宽松"的地方：
+ * 已经开了自动批准，再完全不设上限，跑飞了一直做同一件小事都没人管。
+ * 用户想彻底放开就设成 0。
  */
 const autoApproveDefaults = () => Object.fromEntries(Kind.KINDS.map(item => [item.kind, false]))
 
 const DEFAULTS = {
     mode: 'build',
     autoApprove: autoApproveDefaults(),
-    autoApproveLimits: { requests: 50, cost: 2 },
+    autoApproveLimit: APPROVE_LIMIT,
     capabilities: {
         image: true,
         cache: true,
@@ -118,15 +117,13 @@ const normalize = (input = {}, base = DEFAULTS) => {
         else delete uses[name]
     }
 
-    const limits = { ...base.autoApproveLimits, ...(input.autoApproveLimits || {}) }
+    // 刹车：连着放行这么多次就停下来问。只收非负整数，0 表示不设上限，别的值保持原样。
+    const rawLimit = input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit
+    const parsedLimit = Number(rawLimit)
     return {
         mode: merged.mode,
         autoApprove,
-        // 上限只收非负数字，0 表示不设上限。写成负数或别的东西时保持原样。
-        autoApproveLimits: Object.fromEntries(LIMIT_NAMES.map(name => {
-            const value = Number(limits[name])
-            return [name, Number.isFinite(value) && value >= 0 ? value : base.autoApproveLimits[name]]
-        })),
+        autoApproveLimit: Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : base.autoApproveLimit,
         capabilities: {
             image: capabilities.image !== false,
             cache: capabilities.cache !== false,

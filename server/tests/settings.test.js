@@ -84,7 +84,7 @@ describe('会话运行设置', () => {
             expect(settings).toEqual({
                 mode: 'build',
                 autoApprove: allOff(),
-                autoApproveLimits: { requests: 50, cost: 2 },
+                autoApproveLimit: 50,
                 capabilities: { image: true, cache: true, stream: true },
                 uses: {},        // 空对象＝每件事都用主模型，这是绝大多数人的用法
                 autoTitle: true, // 第一次聊完自动起标题
@@ -560,24 +560,24 @@ describe('自动批准的刹车', () => {
     test('默认给一个宽松但有数的档，不是完全不管', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            const { autoApproveLimits } = await Session.readSettings({ sessionId })
-            // 开了自动批准又不设上限，跑飞了就是真花钱，所以默认给个数。
-            expect(autoApproveLimits).toEqual({ requests: 50, cost: 2 })
+            const { autoApproveLimit } = await Session.readSettings({ sessionId })
+            // 开了自动批准又不设上限，同一件小事做五十遍都没人管，所以默认给个数。
+            expect(autoApproveLimit).toBe(50)
         })
     })
 
     test('0 表示不设上限，用户想彻底放开就设 0', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            const settings = await Session.saveSettings({ sessionId, autoApproveLimits: { requests: 0, cost: 0 } })
-            expect(settings.autoApproveLimits).toEqual({ requests: 0, cost: 0 })
+            const settings = await Session.saveSettings({ sessionId, autoApproveLimit: 0 })
+            expect(settings.autoApproveLimit).toBe(0)
         })
     })
 
     test('连续放行到上限就停下来问一次', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimits: { requests: 3 } })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 3 })
 
             // 前三笔按自动批准直接过。
             for (const index of [1, 2, 3]) {
@@ -593,7 +593,7 @@ describe('自动批准的刹车', () => {
     test('答过一次就重新计数，自动批准不会永久失灵', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimits: { requests: 2 } })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 2 })
 
             await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/1.js' } })
             await runCheck({ sessionId, toolCallId: 'r2', toolName: 'file_read', input: { path: 'D:/app/2.js' } })
@@ -612,7 +612,7 @@ describe('自动批准的刹车', () => {
     test('上限设 0 时不刹，一路自动放行', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimits: { requests: 0 } })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 0 })
 
             for (const index of [1, 2, 3, 4, 5]) {
                 expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'file_read', input: { path: `D:/app/${index}.js` } }))
@@ -621,13 +621,15 @@ describe('自动批准的刹车', () => {
         })
     })
 
-    test('填了负数或不是数字时保持原样，不把上限设成没意义的值', async () => {
+    test('填了负数、小数或不是数字时保持原样，不把上限设成没意义的值', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApproveLimits: { requests: 10 } })
-            const settings = await Session.saveSettings({ sessionId, autoApproveLimits: { requests: -5, cost: '很多' } })
-            // 认不出来的值不动那一项，requests 保持上一次的 10，cost 保持默认的 2。
-            expect(settings.autoApproveLimits).toEqual({ requests: 10, cost: 2 })
+            await Session.saveSettings({ sessionId, autoApproveLimit: 10 })
+            const settings = await Session.saveSettings({ sessionId, autoApproveLimit: -5 })
+            // 认不出来的值保持上一次的 10。
+            expect(settings.autoApproveLimit).toBe(10)
+            const fractional = await Session.saveSettings({ sessionId, autoApproveLimit: 2.5 })
+            expect(fractional.autoApproveLimit).toBe(10)
         })
     })
 })
