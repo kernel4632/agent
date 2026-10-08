@@ -5,7 +5,7 @@ import Sidebar from './components/Sidebar.vue'
 import HomePage from './components/HomePage.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import { store } from './store.js'
-import { Session } from './commands/session.js'
+import { Session, AUTO_APPROVE_KINDS } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { Config } from './commands/config.js'
 import { UI, activeSession } from './commands/ui.js'
@@ -146,7 +146,8 @@ onUnmounted(() => {
                           <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
                           <div v-if="session" class="chat-toolbar" role="group" aria-label="会话运行设置">
                             <button class="chip" :class="{ 'chip--active': session.settings.mode === 'plan' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '计划模式只保留只读工具'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="14" />{{ session.settings.mode === 'plan' ? '计划模式' : '执行模式' }}</button>
-                            <button class="chip" :class="{ 'chip--active': session.settings.autoApprove }" title="开启后不再逐个询问工具执行（.agentignore 仍然生效）" @click="Session.toggleAutoApprove(session.id)"><AppIcon name="check" :size="14" />自动批准</button>
+                            <span class="chip-label">自动批准</span>
+                            <button v-for="item in AUTO_APPROVE_KINDS" :key="item.kind" class="chip chip--compact" :class="{ 'chip--active': session.settings.autoApprove?.[item.kind] }" :title="`自动批准「${item.label}」：${item.hint}（.agentignore 仍然生效）`" @click="Session.toggleAutoApprove(session.id, item.kind)"><AppIcon :name="item.icon" :size="14" />{{ item.label }}</button>
                             <span class="chat-toolbar__divider" aria-hidden="true"></span>
                             <button class="chip" :class="{ 'chip--active': session.settings.capabilities.image }" title="允许把图片发给模型" @click="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="14" />图像支持</button>
                             <button class="chip" :class="{ 'chip--active': session.settings.capabilities.cache }" title="提示词缓存，命中就是省时间和省钱" @click="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="14" />提示缓存</button>
@@ -207,6 +208,10 @@ onUnmounted(() => {
 .chip:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); border-color: var(--la-accent-border); }
 .chip--active { background: var(--la-accent-soft); border-color: var(--la-accent-border); color: var(--la-accent); }
 .chip:disabled { opacity: .45; }
+/* 四个类别排在一起，收紧一点，免得把工具栏挤成两行。 */
+.chip--compact { min-height: 24px; padding: 2px 8px; }
+/* "自动批准"这四个字是分组标题，不是能点的开关，所以看着要弱一些。 */
+.chip-label { padding: 0 2px; color: var(--la-muted); font-size: 11px; }
 .connection-error { display: flex; align-items: center; gap: 10px; padding: 12px var(--la-chat-gutter); color: var(--la-danger); background: #c67a6412; font-size: 12px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 .app-toast { position: fixed; z-index: 50; bottom: 24px; left: 50%; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 10px 12px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-panel); color: var(--la-text); font-size: 13px; box-shadow: 0 8px 24px #0004; transform: translateX(-50%); }

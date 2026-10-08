@@ -9,6 +9,18 @@ import { UI } from './ui.js'                            // 引入导航和反馈
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
 
 
+// --- 自动批准的四个类别 ---
+// 界面上一个类别一个开关，可以按类别随时开关。这里的名字只用来说给用户听，
+// 判断哪类工具免询问是后端的事（见 server/utils/tool-kind.js，那边是唯一来源）。
+// 每一类给一个自己的图标，和工具栏上其他开关一致：亮点就是开着，暗点就是还问你。
+const AUTO_APPROVE_KINDS = [
+  { kind: 'read', label: '读取', icon: 'eye', hint: '读文件、列目录、搜索不用再问' },
+  { kind: 'write', label: '写入', icon: 'edit', hint: '改文件、打补丁不用再问' },
+  { kind: 'command', label: '命令', icon: 'code', hint: '执行命令不用再问' },
+  { kind: 'mcp', label: 'MCP', icon: 'globe', hint: '外部工具服务提供的工具不用再问' },
+]
+
+
 // --- 查找会话摘要和所属工作区 ---
 function locate(sessionID) {
   for (const workspace of store.workspaces) {
@@ -163,14 +175,19 @@ async function toggleMode(sessionID) {
 }
 
 
-// --- 切换自动批准 ---
-async function toggleAutoApprove(sessionID) {
+// --- 类别的中文名 ---
+const labelOf = kind => AUTO_APPROVE_KINDS.find(item => item.kind === kind)?.label || kind
+
+
+// --- 切换某一类的自动批准 ---
+async function toggleAutoApprove(sessionID, kind) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  const next = !session.settings.autoApprove
-  const settings = await saveSettings(sessionID, { autoApprove: next })
+  // 只提交点名的这一类，其余三类后端会保持原样。
+  const next = !session.settings.autoApprove?.[kind]
+  const settings = await saveSettings(sessionID, { autoApprove: { [kind]: next } })
   // 提醒一句这是降低门槛的操作：审批弹窗没了，但忽略规则仍然生效。
-  if (settings) UI.notify(next ? '已开启自动批准：工具不再逐个询问（密钥文件仍然拦得住）' : '已关闭自动批准：工具执行前会再问你')
+  if (settings) UI.notify(next ? `已开启「${labelOf(kind)}」的自动批准（密钥文件仍然拦得住）` : `已关闭「${labelOf(kind)}」的自动批准：执行前会再问你`)
   return settings
 }
 
@@ -222,7 +239,8 @@ function normalize(source, previous = {}) {
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
     settings: source.settings || previous.settings || {  // 模式、自动批准、能力开关，后端读取时一并给出
       mode: 'build',
-      autoApprove: false,
+      // 四类全关：不替用户预先放行任何东西。
+      autoApprove: { read: false, write: false, command: false, mcp: false },
       capabilities: { image: true, cache: true, stream: true },
     },
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
@@ -305,3 +323,5 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 }
 
 export const Session = { locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing, saveSettings, toggleMode, toggleAutoApprove, toggleCapability }
+// 界面按这份名单画自动批准的开关，所以它跟着 Session 一起给出去。
+export { AUTO_APPROVE_KINDS }

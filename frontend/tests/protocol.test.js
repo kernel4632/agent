@@ -73,6 +73,24 @@ test('API uses only routes and payloads implemented in server/server.js', async 
   assert.equal(calls[14].url.includes('after='), false)
 })
 
+test('auto-approve switches send one category at a time', async t => {
+  // 后端按类别分开关，前端一次只发点名的那一类，其余三类由后端保持原样。
+  // 字段名或形状对不上时后端不会报错，只会静默地把整份 autoApprove 当成没改过，
+  // 表现是"点了开关但下次还是弹审批"，很难查。所以在这里固定住。
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
+    return Response.json({ ok: true })
+  })
+
+  await AgentAPI.saveSettings('session-test', { autoApprove: { write: true } })
+
+  assert.equal(calls[0].url, '/api/session/settings/session-test')
+  assert.equal(calls[0].options.method, 'PATCH')
+  // 一次一个类别，不是把四类一起发上去——四类一起发会把用户没碰过的开关覆盖掉。
+  assert.deepEqual(calls[0].body, { autoApprove: { write: true } })
+})
+
 test('non-JSON HTTP error retains meaningful status', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('proxy unavailable', { status: 502 }))
   await assert.rejects(AgentAPI.getConfig(), error => error.status === 502 && error.message.includes('502'))
