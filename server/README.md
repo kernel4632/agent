@@ -345,7 +345,10 @@ Content-Type: application/json
 {
   "mode": "build",
   "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
-  "capabilities": { "image": true, "cache": true, "stream": true }
+  "autoApproveLimits": { "requests": 50, "cost": 2 },
+  "capabilities": { "image": true, "cache": true, "stream": true },
+  "uses": {},
+  "autoTitle": true
 }
 ```
 
@@ -357,9 +360,13 @@ Content-Type: application/json
 | `autoApprove.command` | `false` | 执行命令不再弹审批（`shell`） |
 | `autoApprove.mcp` | `false` | MCP 服务给的工具不再弹审批，按配置里的服务名前缀认 |
 | `autoApprove.subtask` | `false` | 开子任务不再弹审批（`task`）。子 agent 自己动文件时仍按上面几类分别判断 |
+| `autoApproveLimits.requests` | `50` | 连续自动批准这么多次之后停下来问一句；`0` 表示不设上限 |
+| `autoApproveLimits.cost` | `2` | 累计花到这么多之后停下来问一句；`0` 表示不设上限 |
 | `capabilities.image` | `true` | 能不能把图片发给模型 |
 | `capabilities.cache` | `true` | 提示词缓存 |
 | `capabilities.stream` | `true` | 流式输出 |
+| `uses` | `{}` | 哪件事用哪个模型，见下节。空＝都用主模型 |
+| `autoTitle` | `true` | 第一次聊完让模型起个标题 |
 
 **自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`file_read` 直接过，`file_write` 和 `shell` 照样进等待队列。每一类可以随时单独改，改一类不动别类。
 
@@ -382,6 +389,40 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 **`plan` 模式不是靠提示词实现的。** 后端把写工具从工具表里摘掉，模型看不到也调不到，而不是在系统提示词里写"请不要改文件"。这样不依赖模型听话，`system` 也能保持用户原样。
 
 **系统提示词默认是空的**，后端不做任何注入。用户没写 `prompt.system` 时 `config.system` 就是 `""`，模型拿到的是它自己的默认行为。
+
+### 哪件事用哪个模型
+
+总结和起标题不需要主模型那么聪明，用便宜快的小模型就够。所以这三件事可以各配一个模型：
+
+| `uses` 里的键 | 用在哪儿 | 底层是什么 |
+| --- | --- | --- |
+| `compact` | 上下文压缩时的总结 | agent-core 自带的 `config.compact`，我们只是接出来 |
+| `title` | 第一次聊完生成会话标题 | 走 `Agent.llm.chat` 单独问一次 |
+| `subtask` | 子 agent 干活时的模型 | 子 agent 的 config |
+
+```json
+{ "uses": { "compact": { "provider": "deepseek", "model": "deepseek-chat" } } }
+```
+
+**不写就是和主模型共用**，这是绝大多数人的用法——不该逼着用户为每件事都配一遍。PATCH 时只写要点的那一件事，其余保持原样；把某一项传 `null` 表示改回共用。
+
+只写 `provider` 不写 `model` 的那一项会被丢掉，按"没配"处理：半条配置发出去只会变成一次没有模型的请求。
+
+**压缩只换连接那一半。** `system` 和上下文预算仍按主模型算——压缩请求有多大是由主模型的预算决定的，跟压缩模型自己的窗口无关。给压缩模型另配 `maxContextTokens` 会让"压到多大"变成另一套标准，反而更难查。
+
+### 自动生成标题
+
+第一次聊完，后端拿用户的开头几句话让模型起一个短标题（默认 12 个字以内），存在 `meta.json` 的 `title` 里。用户手动改过标题就不再动它；关掉 `autoTitle` 就一直是"新对话"。
+
+起好之后通过 SSE 推一条 `title` 事件，界面不用等下一次刷新。**起标题失败（模型连不上等）只返回 null，不报错**——名字只是顺手的好事，不该影响用户干活。
+
+这一项不用重试：agent-core 默认会一直重试（退避 5s、10s、20s… 不设总时长），那意味着服务挂掉时光给会话起个名字就能拖十几分钟，而这一轮早就结束了。
+
+### 自动批准的刹车
+
+`autoApproveLimits` 是防止"开着自动批准结果跑飞了"的：连续自动批准到 `requests` 次、或者累计花到 `cost`（美元），就停下来问用户一句"要继续吗"。两项都设 `0` 表示不设上限。
+
+这是唯一一处"默认不是最宽松"的地方。已经开了自动批准，再不设上限，跑飞了就是真花钱，所以给一个宽松但有数的档。
 
 改 `mode` 会立刻按新设置重新装配工具表（历史不动），所以要求会话没有任务在跑，否则返回 `409`。
 
@@ -549,6 +590,7 @@ Accept: text/event-stream
 | `subagent-tool-result` | `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上；只是跳过它，会话照常 |
 | `compact-start` / `compact-finish` | 无 / `text` | 显示上下文压缩进度 |
+| `title` | `title` | 后端起好了会话标题，更新侧边栏和标签文字，不用等下一次刷新 |
 | `agent-start` | 无 | 标记 Agent 任务开始 |
 | `agent-finish` | `reason`, `usage`, `text`（失败时是 `error`） | 标记 Agent 任务结束，再刷新会话 |
 

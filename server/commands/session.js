@@ -21,15 +21,23 @@ import Approval from '../features/approval.js' // 审批工具调用，顺带记
 import Delegation from '../features/delegation.js' // 把独立探索工作委托给子 agent。
 import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
 import Skills from '../features/skills.js' // 数据目录里的技能，按需读正文。
+import Title from '../features/title.js' // 第一次聊完让模型起个标题。
 import Config from './config.js' // 读取全局模型配置和权限规则。
-import Settings from './settings.js'
-import Kind from '../utils/tool-kind.js' // 工具分类只有一处，plan 模式用不着自己写名单。 // 会话运行设置：模式、自动批准、能力开关。
+import Settings from './settings.js' // 会话运行设置：模式、自动批准、能力开关。
+import Kind from '../utils/tool-kind.js' // 工具分类只有一处，plan 模式用不着自己写名单。
 import History from '../features/history.js' // 读写当前会话消息。
 import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
 import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
 import Path from '../utils/path.js' // 生成数据目录路径。
 import fail from '../utils/fail.js' // 找不到会话、输入为空等业务错误带上状态码。
 import SSE from '../utils/sse.js' // 把运行过程反馈给前端。
+/*
+ * 还没起标题的会话叫什么。
+ * 会话一建出来就叫这个名字，起标题时判断"该不该动手"也看它——
+ * 用户手动改过标题之后就不该被覆盖，而改过的标题一定不等于这个名字。
+ */
+const UNTITLED = '新对话'
+
 // --- 准备数据目录 ---
 const prepare = async () => {
     // 首次启动时数据目录还不存在，先建出来，后面所有读写都不用再判断目录在不在。
@@ -401,11 +409,14 @@ const send = async ({ sessionId, input }) => {
     // 新消息代表新的时间线，之前的回退不能再撤销了。
     await Snapshot.clearUndo({ sessionId })
 
+    // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
+    const settings = await Settings.read({ sessionId })
+
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
     const startLength = agent.history.length
     const task = agent.send({
         input: input.trim(),
-        config: Config.resolve({ provider: meta.provider, model: meta.model }),
+        config: Config.resolve({ provider: meta.provider, model: meta.model, uses: settings.uses }),
         callbacks: {
             onStart: () => SSE.send({ id: sessionId, data: { type: 'agent-start' } }),
             onLLMStart: request => SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } }),
@@ -435,9 +446,43 @@ const send = async ({ sessionId, input }) => {
     task.then(async result => {
         for (const message of agent.history.slice(startLength)) await History.add({ sessionId, message })
         await History.save({ sessionId })
+        // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
+        await titleFor({ sessionId, meta, settings, agent })
         await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
     }).catch(error => SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } }))
     return { ok: true }
+}
+
+/**
+ * 第一次聊完之后给会话起个标题。
+ *
+ * 只在这几种情况下动手，其余一律跳过：
+ *   - 用户开着自动起标题（关掉就一直叫"新对话"，这是他的选择）
+ *   - 还没有标题（用户改过标题就不该被覆盖掉）
+ *   - 历史里已经有一轮问答（第一句话就是起标题的依据）
+ * @param {{ sessionId: string, meta: object, settings: object, agent: object }} context
+ * @returns {Promise<void>} 起不出标题也照常返回，不影响这一轮。
+ */
+const titleFor = async ({ sessionId, meta, settings, agent }) => {
+    if (!settings.autoTitle) return
+    const fresh = await readMeta(sessionId)
+    if (fresh.title !== UNTITLED) return
+
+    // 起标题用哪份连接：用户为"标题"单独指定过就用那个，否则和主模型共用。
+    const target = settings.uses?.title || { provider: meta.provider, model: meta.model }
+    const title = await Title.generate({
+        connection: Config.connection(target),
+        // 用写回磁盘的那份历史，不是 agent 手里的——回退过的历史已经落在磁盘上了。
+        messages: History.get({ sessionId }),
+    })
+    // 起不出来（模型连不上等）就保持"新对话"，不要往界面上推一条空标题。
+    if (!title) return
+
+    fresh.title = title
+    fresh.updatedAt = Date.now()
+    await writeMeta(fresh)
+    // 告诉界面新标题是什么，免得侧边栏要等下一次刷新才变。
+    await SSE.send({ id: sessionId, data: { type: 'title', title } })
 }
 
 // --- 停止 Agent 任务 ---

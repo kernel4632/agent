@@ -21,6 +21,7 @@ import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import Session from '../commands/session.js'
 import Store from '../store.js'
+import Title from '../features/title.js'
 import { app } from '../server.js'
 
 // 每类都关掉的那份默认值，断言里要用。
@@ -77,11 +78,15 @@ describe('会话运行设置', () => {
         await withHome(async () => {
             const sessionId = await newSession()
             const settings = await Session.readSettings({ sessionId })
-            // 默认值要和 agent-core 的默认一致，做到"默认全原生"。
+            // 除了自动批准那两档刹车，其余默认值和 agent-core 一致，做到"默认全原生"。
+            // 刹车默认给一个宽松但有数的档：已经开了自动批准，完全不设上限跑飞了就是真花钱。
             expect(settings).toEqual({
                 mode: 'build',
                 autoApprove: allOff(),
+                autoApproveLimits: { requests: 50, cost: 2 },
                 capabilities: { image: true, cache: true, stream: true },
+                uses: {},        // 空对象＝每件事都用主模型，这是绝大多数人的用法
+                autoTitle: true, // 第一次聊完自动起标题
             })
         })
     })
@@ -451,6 +456,172 @@ describe('自动批准按类别开关', () => {
             // 自动批准省掉的是"问一遍"，不是把 .agentignore 也一起关掉。
             const check = await runCheck({ sessionId, toolCallId: 'call-3', toolName: 'file_read', input: { path: 'D:/app/.env' } })
             expect(check).toEqual({ allowed: false, asked: false })
+        })
+    })
+})
+
+describe('哪件事用哪个模型', () => {
+    test('不点名就和主模型共用，不给用户增加负担', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            // uses 是空的，压缩、标题、子任务全都跟主模型走。
+            expect((await Session.readSettings({ sessionId })).uses).toEqual({})
+        })
+    })
+
+    test('给压缩单独配一个模型时，真的写进 agent-core 的 config.compact', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [
+                    { name: 'local', models: ['主模型'] },
+                    { name: 'cheap', models: ['小模型'] },
+                ],
+                permission: { '*': 'ask' },
+            })
+            const { sessionId } = await Session.create({ title: '分开配模型' })
+            await Session.saveSettings({ sessionId, uses: { compact: { provider: 'cheap', model: '小模型' } } })
+
+            const { config } = Store.agents.get(sessionId)
+            // agent-core 自带 config.compact，我们只是把它接出来，不另造一套。
+            expect(config.compact).toBeDefined()
+            expect(config.compact.model).toBe('小模型')
+            // 压缩只换连接，不换主模型的 system 和上下文预算：
+            // 压缩请求有多大由主模型的预算决定，跟压缩模型自己的窗口无关。
+            expect(config.compact.system).toBeUndefined()
+            expect(config.compact.maxContextTokens).toBeUndefined()
+            expect(config.model).toBe('主模型')
+        })
+    })
+
+    test('三件事可以各配各的，互不影响', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [{ name: 'local', models: ['主模型', '小模型', '标题模型'] }],
+                permission: { '*': 'ask' },
+            })
+            const { sessionId } = await Session.create({ title: '三件都配' })
+            const settings = await Session.saveSettings({
+                sessionId,
+                uses: {
+                    compact: { provider: 'local', model: '小模型' },
+                    title: { provider: 'local', model: '标题模型' },
+                    subtask: { provider: 'local', model: '主模型' },
+                },
+            })
+            expect(settings.uses).toEqual({
+                compact: { provider: 'local', model: '小模型' },
+                title: { provider: 'local', model: '标题模型' },
+                subtask: { provider: 'local', model: '主模型' },
+            })
+        })
+    })
+
+    test('清空某一项表示改回和主模型共用，不会留下半条记录', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [
+                    { name: 'local', models: ['主模型'] },
+                    { name: 'cheap', models: ['小模型'] },
+                ],
+                permission: { '*': 'ask' },
+            })
+            const { sessionId } = await Session.create({ title: '改回共用' })
+            await Session.saveSettings({ sessionId, uses: { compact: { provider: 'cheap', model: '小模型' } } })
+
+            // 用户把这一项清掉（传 null），要真的回到"共用"。
+            const settings = await Session.saveSettings({ sessionId, uses: { compact: null } })
+            expect(settings.uses).toEqual({})
+        })
+    })
+
+    test('只填了供应商没填模型时不算配过，免得发出一个没有模型的请求', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const settings = await Session.saveSettings({ sessionId, uses: { compact: { provider: 'local' } } })
+            // 缺一半配置就按"没配"处理，不能存成 { provider: 'local' } 让后面去猜模型。
+            expect(settings.uses).toEqual({})
+        })
+    })
+
+    test('界面上没这个用途时不认，只认清单里那三件', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const settings = await Session.saveSettings({
+                sessionId,
+                uses: { 乱写: { provider: 'local', model: 'x' } },
+            })
+            expect(settings.uses).toEqual({})
+        })
+    })
+})
+
+describe('自动批准的刹车', () => {
+    test('默认给一个宽松但有数的档，不是完全不管', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const { autoApproveLimits } = await Session.readSettings({ sessionId })
+            // 开了自动批准又不设上限，跑飞了就是真花钱，所以默认给个数。
+            expect(autoApproveLimits).toEqual({ requests: 50, cost: 2 })
+        })
+    })
+
+    test('0 表示不设上限，用户想彻底放开就设 0', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const settings = await Session.saveSettings({ sessionId, autoApproveLimits: { requests: 0, cost: 0 } })
+            expect(settings.autoApproveLimits).toEqual({ requests: 0, cost: 0 })
+        })
+    })
+
+    test('填了负数或不是数字时保持原样，不把上限设成没意义的值', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await Session.saveSettings({ sessionId, autoApproveLimits: { requests: 10 } })
+            const settings = await Session.saveSettings({ sessionId, autoApproveLimits: { requests: -5, cost: '很多' } })
+            // 认不出来的值不动那一项，requests 保持上一次的 10，cost 保持默认的 2。
+            expect(settings.autoApproveLimits).toEqual({ requests: 10, cost: 2 })
+        })
+    })
+})
+
+describe('自动生成标题', () => {
+    test('默认开着，用户可以在设置里关掉', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            expect((await Session.readSettings({ sessionId })).autoTitle).toBe(true)
+            expect((await Session.saveSettings({ sessionId, autoTitle: false })).autoTitle).toBe(false)
+        })
+    })
+
+    test('模型回的东西被收拾成能直接当标题的样子', async () => {
+        // 模型不会老老实实只回标题，常见包装都要去掉，不然侧边栏会显示「"标题："修复登录"」这种。
+        expect(Title.clean('"修复登录跳转"')).toBe('修复登录跳转')
+        expect(Title.clean('标题：修复登录跳转')).toBe('修复登录跳转')
+        expect(Title.clean('修复登录跳转。')).toBe('修复登录跳转')
+        expect(Title.clean('修复登录跳转\n这句是解释，不该进来')).toBe('修复登录跳转')
+        expect(Title.clean('《修复登录跳转》')).toBe('修复登录跳转')
+        // 太长的硬截，总不能把一整段话塞进侧边栏。
+        expect(Title.clean('一'.repeat(80)).length).toBe(Title.MAX_LENGTH)
+        // 什么都收拾不出来时返回空串，调用方据此保持"新对话"。
+        expect(Title.clean('')).toBe('')
+    })
+
+    test('模型连不上时返回 null，不把这一轮弄挂', async () => {
+        await withHome(async () => {
+            // 指向一个不存在的地址，起标题会失败。
+            const title = await Title.generate({
+                connection: { baseURL: 'http://127.0.0.1:1/v1', model: 'x', protocol: 'chat' },
+                messages: [{ role: 'user', content: '帮我看看这个文件为什么读不了' }],
+            })
+            // 起标题失败不该影响用户干活，只是没有标题。
+            expect(title).toBeNull()
+        })
+    })
+
+    test('一条消息都没有时不起标题，省一次请求', async () => {
+        await withHome(async () => {
+            const title = await Title.generate({ connection: {}, messages: [] })
+            expect(title).toBeNull()
         })
     })
 })

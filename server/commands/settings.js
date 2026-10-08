@@ -1,10 +1,12 @@
 /*
- * 会话运行设置：模式（plan / build）、按类别的自动批准、以及几项模型能力开关。
+ * 会话运行设置：模式、按类别的自动批准、用哪个模型干哪件事、以及几项能力开关。
  *
  * 这里的每一项都直接对应 agent-core 的 config 字段，不自己发明一套概念：
  *   mode        → 决定这次会话能用哪些工具（plan 只给只读工具）
  *   autoApprove → 免掉逐个工具的审批弹窗，按类别分别开关，规则本身仍写在 permission 里
  *   capabilities→ 图像、提示缓存、流式输出这些按模型能力开关，默认全开
+ *   uses        → 哪件事用哪个模型（压缩 / 标题 / 子任务），不点名就和主模型共用
+ *   limits      → 自动批准跑飞了的刹车：连续多少次、花到多少就停下来问
  * 设置存在会话目录的 settings.json 里，所以换台机器打开同一个会话还是这套设置。
  * 调用示例：
  *   const settings = await Settings.read({ sessionId })          // 读这条会话的运行设置
@@ -22,22 +24,57 @@ import fail from '../utils/fail.js' // 填错模式名时按填错处理。
 import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不重复写。
 
 /*
+ * 哪件事可以单独指定模型。不点名就和主模型共用——这一条很重要：
+ * 用户大部分时候只想选一次模型，不该被逼着为每件事都配一遍。
+ *   compact → 压缩上下文时的总结（agent-core 自带的 config.compact，我们只是把它接出来）
+ *   title   → 生成会话标题
+ *   subtask → 开子任务时的那个子 agent
+ * 界面按这份清单画选择框，加一项只改这里。
+ */
+export const USES = [
+    { use: 'compact', label: '压缩上下文', hint: '把长对话总结成一段，不需要主模型那么聪明' },
+    { use: 'title', label: '生成标题', hint: '给会话起一个短标题，用便宜快的小模型就够' },
+    { use: 'subtask', label: '子任务', hint: '子 agent 干活时用的模型' },
+]
+
+// 哪几件事可以单独指定模型，查一遍就知道该不该认这个字段。
+const USE_NAMES = USES.map(item => item.use)
+
+/*
+ * 自动批准的刹车。开着自动批准时，如果模型连着跑了很多轮、或者花了很多钱，
+ * 说明它可能已经跑偏了，这时候停下来问用户一句，比让它一直跑下去好。
+ *   次数：连续自动批准了多少次之后停下来问。0 表示不设上限。
+ *   花费：累计花到多少之后停下来问。0 表示不设上限。
+ * 次数和花费的单位不一样，所以是两个字段，不是一个"上限"。
+ */
+const LIMIT_NAMES = ['requests', 'cost']
+
+/*
  * 默认值。刻意和 agent-core 的默认保持一致，做到"默认全原生"：
  * 不写任何提示词注入，能力全开，流式和提示词缓存都按 agent-core 的默认开着。
  *
  * 自动批准默认全部关闭——不替用户预先放行任何东西。
  * 这份默认值由下面的 normalize 从 Kind.KINDS 现算出来，所以加一类不用回来改这里。
+ *
+ * 刹车默认开着（50 次 / 2 美元）。这是唯一一处"默认不是最宽松"的地方：
+ * 已经开了自动批准，再完全不设上限，跑飞了就是真花钱，所以给一个宽松但有数的档。
+ * 用户想彻底放开就把对应那一项设成 0。
  */
 const autoApproveDefaults = () => Object.fromEntries(Kind.KINDS.map(item => [item.kind, false]))
 
 const DEFAULTS = {
     mode: 'build',
     autoApprove: autoApproveDefaults(),
+    autoApproveLimits: { requests: 50, cost: 2 },
     capabilities: {
         image: true,
         cache: true,
         stream: true,
     },
+    // 空对象表示"都用主模型"，这是绝大多数人的用法。
+    uses: {},
+    // 标题默认自动生成；用户关掉就一直是"新对话"。
+    autoTitle: true,
 }
 
 // 两种模式，对应 opencode 的 plan / build：
@@ -65,15 +102,39 @@ const normalize = (input = {}, base = DEFAULTS) => {
     for (const item of Kind.KINDS) autoApprove[item.kind] = (source[item.kind] ?? base.autoApprove[item.kind]) === true
 
     const capabilities = { ...base.capabilities, ...(input.capabilities || {}) }
-    // 只留认识的键，界面传了别的东西也不会被存进去。
+
+    /*
+     * 哪件事用哪个模型。只留三件事里认识的，并且只留"名字和模型都填全了"的：
+     *   { compact: { provider: 'local', model: '小模型' } }
+     * 用户把某件事清空（传 null 或空对象）表示改回"和主模型共用"，
+     * 所以这里遇到空值要把它删掉，不能留着半条记录让后面去猜。
+     */
+    const uses = { ...base.uses }
+    const changed = input.uses || {}
+    for (const name of USE_NAMES) {
+        if (!(name in changed)) continue
+        const target = changed[name]
+        if (target?.provider && target?.model) uses[name] = { provider: target.provider, model: target.model }
+        else delete uses[name]
+    }
+
+    const limits = { ...base.autoApproveLimits, ...(input.autoApproveLimits || {}) }
     return {
         mode: merged.mode,
         autoApprove,
+        // 上限只收非负数字，0 表示不设上限。写成负数或别的东西时保持原样。
+        autoApproveLimits: Object.fromEntries(LIMIT_NAMES.map(name => {
+            const value = Number(limits[name])
+            return [name, Number.isFinite(value) && value >= 0 ? value : base.autoApproveLimits[name]]
+        })),
         capabilities: {
             image: capabilities.image !== false,
             cache: capabilities.cache !== false,
             stream: capabilities.stream !== false,
         },
+        uses,
+        // 只有明确传 false 才关，别的值都当开着。
+        autoTitle: merged.autoTitle !== false,
     }
 }
 
@@ -134,6 +195,8 @@ const toAgentConfig = ({ settings }) => ({
     cache: settings.capabilities.cache,
     stream: settings.capabilities.stream,
     readOnly: settings.mode === 'plan',
+    // 哪件事用哪个模型，交给 Config.resolve 翻成 agent-core 认的 config.compact 那些。
+    uses: settings.uses,
 })
 
 /**
@@ -163,4 +226,9 @@ const approves = ({ settings, toolName, mcpServers }) => {
 const remove = ({ sessionId }) => {
     Store.settings.delete(sessionId)
 }
-export default { read, save, toAgentConfig, approves, remove, DEFAULTS, MODES, KINDS: Kind.KINDS }
+export default {
+    read, save, toAgentConfig, approves, remove,
+    DEFAULTS, MODES, USES,
+    // 类别清单也从这里给出去，界面画开关时不用再引第二个模块。
+    KINDS: Kind.KINDS,
+}

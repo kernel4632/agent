@@ -12,6 +12,7 @@ import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
 import { FILE_TOOLS } from '../utils/tool-files.js'
 import { KINDS, TABLE } from '../utils/tool-kind.js' // 工具分类表，查"新加的工具登记了没有"。
+import { USES } from '../commands/settings.js' // 哪件事可以单独配模型，文档跟着它走。
 
 // 从仓库里读一个文件，契约检查都建立在"以代码为准"上。
 const source = name => Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
@@ -63,6 +64,16 @@ describe('接口契约', () => {
         // 文档和代码的类别对不上时，前端会多画一个永远不生效的开关（或者少画一个真有用的）。
         // 类别名单只有 utils/tool-kind.js 一处，文档跟着它走。
         expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(KINDS.map(item => item.kind))
+    })
+
+    test('文档里"按用途配模型"的那几项和代码是同一组', async () => {
+        const openapi = await readJson('openapi.json')
+        // 少写一项，用户就永远配不了那个用途的模型，而且界面上看不出来。
+        const settings = openapi.components.schemas.Session.allOf[1].properties.settings.properties
+        expect(Object.keys(settings.uses.properties)).toEqual(USES.map(item => item.use))
+        // 上限和自动标题也得在文档里，前端照着写才不用猜默认值。
+        expect(Object.keys(settings.autoApproveLimits.properties)).toEqual(['requests', 'cost'])
+        expect(settings.autoTitle.type).toBe('boolean')
     })
 
     test('界面上的自动批准开关和代码里的类别是同一组', async () => {

@@ -70,6 +70,33 @@ const firstModel = () => {
 }
 
 /**
+ * 怎么连上某个模型：地址、密钥、协议、请求头。
+ *
+ * 只回答"连接"这件事，不回答"这次会话怎么用它"。分出来是因为压缩要另换模型，
+ * 而换的只是连接那一半——system 和上下文预算仍按主模型的来。
+ * @param {{ provider?: string, model?: string }} target 哪个供应商的哪个模型。
+ * @returns {object} 交给 agent-core / Agent.llm.chat 的连接字段。
+ * @throws {Error} 供应商名不存在时按填错处理（400）。
+ */
+const connection = ({ provider: name, model }) => {
+    const provider = (Store.config.providers || []).find(item => item.name === name)
+    if (!provider) throw fail(400, `Provider not found: ${name}`)
+
+    let headers = provider.headers || {}
+    if (typeof headers === 'string') headers = JSON.parse(headers || '{}') // 设置页把请求头写成 JSON 文本。
+    return {
+        // model 必须在这里传下去。少了它 agent-core 直接报
+        // "model and messages are required"，而且不是启动时报，是每次发消息时报，
+        // 表现是"这个 agent 一句话都说不出来"。有专门的测试盯着这一行。
+        model,
+        baseURL: provider.baseURL || '',
+        apiKey: provider.apiKey || provider.key || '',
+        protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
+        provider: { headers, body: provider.body || {} }, // 请求头和额外请求体原样交给底层模型请求
+    }
+}
+
+/**
  * 把设置页里的配置转换成 agent-core 认的那份 config。
  * 字段名转换只写在这一处，界面改字段名也只改这里。
  *
@@ -78,34 +105,46 @@ const firstModel = () => {
  * 在别处拼提示词会和模型自身的能力打架，也让"模型为什么不听话"变得无法排查。
  *
  * 每一项可选能力都只在用户明确改过时才写进 config，其余交给 agent-core 的默认值。
- * @param {{ provider?: string, model?: string, settings?: object }} target 会话选的供应商和模型。
+ * @param {{ provider?: string, model?: string, settings?: object, uses?: object }} target
+ *   会话选的供应商和模型，加上按用途单独指定的模型（见 commands/settings.js 的 USES）。
  * @returns {object} 可以直接交给 Agent.create 的 config。
  * @throws {Error} 供应商名不存在时按填错处理（400）。
  */
 const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     const provider = (Store.config.providers || []).find(item => item.name === name)
     if (!provider) throw fail(400, `Provider not found: ${name}`)
-
-    let headers = provider.headers || {}
-    if (typeof headers === 'string') headers = JSON.parse(headers || '{}') // 设置页把请求头写成 JSON 文本。
-    const settings = provider.modelSettings?.[model] || {}
-    return {
-        // model 必须在这里传下去。少了它 agent-core 直接报
-        // "model and messages are required"，而且不是启动时报，是每次发消息时报，
-        // 表现是"这个 agent 一句话都说不出来"。所以下面有专门的测试盯着这一行。
-        model,
-        baseURL: provider.baseURL || '',
-        apiKey: provider.apiKey || provider.key || '',
-        protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
+    // 这个模型的上下文预算和流式偏好写在设置页里，缺省时按全局那档。
+    const budget = provider.modelSettings?.[model] || {}
+    // uses 跟着 settings 一起进来（见 commands/settings.js 的 toAgentConfig），
+    // 在这里取出来单独处理，不能跟着 overrides 摊进 config——那样会多出一个 agent-core
+    // 不认识的 uses 字段，而真正要的 config.compact 反而没建出来。
+    const { uses = {}, ...rest } = overrides
+    const config = {
+        ...connection({ provider: name, model }),
         // 上下文预算，到达 80% 时自动压缩。字段名是 maxContextTokens，不是 maxTokens——
-        // agent-core 0.26 起 maxTokens 指"单次生成的最大输出"，会映射成请求体的 maxOutputTokens。
+        // agent-core 0.26 起 maxTokens 指"单次生成的最大输出"，会映射到请求体的 maxOutputTokens。
         // 名字写错不会报任何错，只会把 128000 当成输出上限发出去，模型会被莫名截断。
-        maxContextTokens: settings.context || settings.contextWindow || 128000,
+        maxContextTokens: budget.context || budget.contextWindow || 128000,
         stream: provider.stream ?? Store.config.stream ?? true,
         system: Store.config.prompt?.system || '', // 用户没写系统提示词就是空的，不注入任何东西
-        provider: { headers, body: provider.body || {} }, // 请求头和额外请求体原样交给底层模型请求
-        ...overrides, // 会话级的能力开关，见 commands/settings.js
+        /*
+         * 一直连不上时别无限重试。
+         * agent-core 默认"除取消和上下文超长外全都重试，次数不限、也不设总时长"，
+         * 也就是密钥填错或服务挂了会一直重试下去，用户看到的是"它一直在转，什么都不说"。
+         * 给一个总时长上限，到点把真实错误交到上层，用户才能看见"是密钥不对"。
+         */
+        retryMaxElapsed: rest.retryMaxElapsed || 120000,
+        ...rest, // 会话级的能力开关，见 commands/settings.js
     }
+
+    /*
+     * 压缩可以另换一个模型，总结不需要主模型那么聪明。
+     * 只换连接那一半：system 留给用户自己写的，上下文预算也仍按主模型算——
+     * 压缩请求有多大是由主模型的预算决定的，跟压缩模型自己的窗口无关。
+     * 给压缩模型配它自己的 maxContextTokens 会让"压到多大"变成另一套标准，反而更难排查。
+     */
+    if (uses.compact) config.compact = connection(uses.compact)
+    return config
 }
 // --- 真实试一次模型请求 ---
 const test = async ({ provider: name, model }) => {
@@ -151,4 +190,4 @@ const save = async path => {
     return Store.config
 }
 
-export default { read, set, get, firstModel, resolve, test, version, save }
+export default { read, set, get, firstModel, connection, resolve, test, version, save }

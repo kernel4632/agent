@@ -1118,6 +1118,67 @@
                           "description": "流式输出"
                         }
                       }
+                    },
+                    "autoApproveLimits": {
+                      "type": "object",
+                      "properties": {
+                        "requests": {
+                          "type": "number",
+                          "default": 50,
+                          "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
+                        },
+                        "cost": {
+                          "type": "number",
+                          "default": 2,
+                          "description": "累计花到多少之后停下来问；0 表示不设上限"
+                        }
+                      }
+                    },
+                    "uses": {
+                      "type": "object",
+                      "properties": {
+                        "compact": {
+                          "type": "object",
+                          "description": "把长对话总结成一段，不需要主模型那么聪明",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "title": {
+                          "type": "object",
+                          "description": "给会话起一个短标题，用便宜快的小模型就够",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "subtask": {
+                          "type": "object",
+                          "description": "子 agent 干活时用的模型",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "autoTitle": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "第一次聊完让模型起个标题"
                     }
                   }
                 }
@@ -1194,6 +1255,67 @@
                         "description": "流式输出"
                       }
                     }
+                  },
+                  "autoApproveLimits": {
+                    "type": "object",
+                    "properties": {
+                      "requests": {
+                        "type": "number",
+                        "default": 50,
+                        "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
+                      },
+                      "cost": {
+                        "type": "number",
+                        "default": 2,
+                        "description": "累计花到多少之后停下来问；0 表示不设上限"
+                      }
+                    }
+                  },
+                  "uses": {
+                    "type": "object",
+                    "properties": {
+                      "compact": {
+                        "type": "object",
+                        "description": "把长对话总结成一段，不需要主模型那么聪明",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "title": {
+                        "type": "object",
+                        "description": "给会话起一个短标题，用便宜快的小模型就够",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "subtask": {
+                        "type": "object",
+                        "description": "子 agent 干活时用的模型",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "autoTitle": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "第一次聊完让模型起个标题"
                   }
                 }
               }
@@ -1240,6 +1362,67 @@
                           "description": "流式输出"
                         }
                       }
+                    },
+                    "autoApproveLimits": {
+                      "type": "object",
+                      "properties": {
+                        "requests": {
+                          "type": "number",
+                          "default": 50,
+                          "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
+                        },
+                        "cost": {
+                          "type": "number",
+                          "default": 2,
+                          "description": "累计花到多少之后停下来问；0 表示不设上限"
+                        }
+                      }
+                    },
+                    "uses": {
+                      "type": "object",
+                      "properties": {
+                        "compact": {
+                          "type": "object",
+                          "description": "把长对话总结成一段，不需要主模型那么聪明",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "title": {
+                          "type": "object",
+                          "description": "给会话起一个短标题，用便宜快的小模型就够",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "subtask": {
+                          "type": "object",
+                          "description": "子 agent 干活时用的模型",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "autoTitle": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "第一次聊完让模型起个标题"
                     }
                   }
                 }
@@ -1850,6 +2033,67 @@
                         "description": "流式输出"
                       }
                     }
+                  },
+                  "autoApproveLimits": {
+                    "type": "object",
+                    "properties": {
+                      "requests": {
+                        "type": "number",
+                        "default": 50,
+                        "description": "连续自动批准多少次之后停下来问；0 表示不设上限"
+                      },
+                      "cost": {
+                        "type": "number",
+                        "default": 2,
+                        "description": "累计花到多少之后停下来问；0 表示不设上限"
+                      }
+                    }
+                  },
+                  "uses": {
+                    "type": "object",
+                    "properties": {
+                      "compact": {
+                        "type": "object",
+                        "description": "把长对话总结成一段，不需要主模型那么聪明",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "title": {
+                        "type": "object",
+                        "description": "给会话起一个短标题，用便宜快的小模型就够",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "subtask": {
+                        "type": "object",
+                        "description": "子 agent 干活时用的模型",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "autoTitle": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "第一次聊完让模型起个标题"
                   }
                 },
                 "description": "这条会话当前的运行设置，等同于 GET /session/settings/{sessionId}"
