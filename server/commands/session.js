@@ -116,18 +116,32 @@ const createAgent = async ({ sessionId, history, meta }) => {
     )
 
     /*
-     * plan 模式去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
+     * 自定义模式可以点名只给哪些工具；内置的 build / plan 不点名。
+     * 点名的名单里不存在的工具直接忽略，用户写错一个名字不该让整个会话打不开。
+     */
+    const toolNames = Settings.toolsFor({ mode: settings.mode })
+    let allowed = toolNames
+        ? Agent.tool.pick(scanned, toolNames.filter(name => name in scanned.schema))
+        : scanned
+
+    /*
+     * readOnly 模式去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
      * 这里只是把它对当前工具表算一遍，不另外维护一份名单。
      * omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
      *
      * 这一步必须在装 task 之前做：子 agent 拿的是这里选出来的这张表。
-     * 反过来（先装 task 再筛）会留一个口子——plan 模式的模型自己虽然改不了文件，
+     * 反过来（先装 task 再筛）会留一个口子——只读模式的模型自己虽然改不了文件，
      * 但它可以开一个子任务，让子任务去改，等于绕过了"只看不做"。
      */
-    const allowed = config.readOnly ? Agent.tool.omit(scanned, Kind.writing(Object.keys(scanned.schema))) : scanned
+    if (config.readOnly) allowed = Agent.tool.omit(allowed, Kind.writing(Object.keys(allowed.schema)))
+
     // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
-    const tools = Agent.tool.merge(allowed, Agent.tool.adopt({ task: Delegation.build({ config, tools: allowed, sessionId }) }))
+    // 自定义模式没点名 task 时就不装，让"只留几个工具"真的只留那几个。
+    const withTask = !toolNames || toolNames.includes('task')
+    const tools = withTask
+        ? Agent.tool.merge(allowed, Agent.tool.adopt({ task: Delegation.build({ config, tools: allowed, sessionId }) }))
+        : allowed
     const agent = Agent.create({
         id: sessionId,
         history,

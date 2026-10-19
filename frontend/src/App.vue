@@ -164,7 +164,7 @@ onUnmounted(() => {
                         <div class="chat-page__composer">
                           <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
                           <div v-if="session" class="chat-toolbar" role="group" aria-label="会话运行设置">
-                            <button class="chip" :class="{ 'chip--active': session.settings.mode === 'plan' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '计划模式只保留只读工具'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="14" />{{ session.settings.mode === 'plan' ? '计划模式' : '执行模式' }}</button>
+                            <button class="chip" :class="{ 'chip--active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="14" />{{ Session.modeLabel(session.settings.mode) }}</button>
                             <span class="chip-label">自动批准</span>
                             <button v-for="item in AUTO_APPROVE_KINDS" :key="item.kind" class="chip chip--compact" :class="{ 'chip--active': session.settings.autoApprove?.[item.kind] }" :title="`自动批准「${item.label}」：${item.hint}（.agentignore 仍然生效）`" @click="Session.toggleAutoApprove(session.id, item.kind)"><AppIcon :name="item.icon" :size="14" />{{ item.label }}</button>
                             <span class="chat-toolbar__divider" aria-hidden="true"></span>

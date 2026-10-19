@@ -67,11 +67,26 @@ function apply(raw) {
   const firstModels = providers[firstProvider]?.models || []
   const activeModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
 
+  // 模式清单：两个内置的，加上配置里自定义的。自定义模式只收合法名字，内置两个不能覆盖。
+  const customModes = Object.entries(raw.modes || {})
+    .filter(([name, value]) => /^[a-zA-Z0-9_-]+$/.test(name) && value && typeof value === 'object' && !['plan', 'build'].includes(name))
+    .map(([name, value]) => ({
+      name,
+      label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : name,
+      readOnly: value.readOnly === true,
+    }))
+  const modes = [
+    { name: 'build', label: '执行模式', readOnly: false },
+    { name: 'plan', label: '计划模式', readOnly: true },
+    ...customModes,
+  ]
+
   Object.assign(store.config, {
     providers,
     tools: toolSettings,
     mcp,
     prompt: raw.prompt?.system || '',
+    modes,
     appearance: store.config.appearance,
     activeProvider: firstProvider,
     activeModel,

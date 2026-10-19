@@ -19,6 +19,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
 import Path from '../utils/path.js'
+import Config from './config.js' // 自定义模式写在全局配置里。
 import Store from '../store.js' // 设置跟着会话一起放在内存里，避免每次都读盘。
 import fail from '../utils/fail.js' // 填错模式名时按填错处理。
 import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不重复写。
@@ -76,10 +77,50 @@ const DEFAULTS = {
     autoTitle: true,
 }
 
-// 两种模式，对应 opencode 的 plan / build：
+// 两种内置模式，对应 opencode 的 plan / build：
 // plan 只给只读工具，模型只能看不能改，用来先把方案说清楚；
-// build 给全套工具，正常干活。
+// build 给全套工具，正常干活。自定义模式不能占用这两个名字。
 const MODES = ['plan', 'build']
+
+/**
+ * 当前可用的模式：两个内置的，加上配置里自定义的。
+ *
+ * 自定义模式的写法：
+ *   "modes": { "review": { "label": "审查", "readOnly": true, "tools": ["file_read", "grep"] } }
+ * tools 不写表示按 readOnly 规则决定；写了就只给名单里的工具。
+ * 名字只收字母、数字、- 和 _，避免写进 settings.json 后变成一个打不开的会话。
+ * @returns {Array<{ name: string, label: string, readOnly: boolean, tools: string[]|null }>}
+ */
+const modes = () => {
+    const custom = Object.entries(Config.get().modes || {})
+        .filter(([name, value]) => /^[a-zA-Z0-9_-]+$/.test(name) && value && typeof value === 'object' && !Array.isArray(value))
+        .filter(([name]) => !MODES.includes(name))
+        .map(([name, value]) => ({
+            name,
+            label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : name,
+            readOnly: value.readOnly === true,
+            tools: Array.isArray(value.tools) ? value.tools.filter(item => typeof item === 'string') : null,
+        }))
+    return [
+        { name: 'build', label: '执行模式', readOnly: false, tools: null },
+        { name: 'plan', label: '计划模式', readOnly: true, tools: null },
+        ...custom,
+    ]
+}
+
+/**
+ * 查一个模式是不是存在。
+ * @param {string} name 模式名。
+ * @returns {object|null} 模式定义；不认识时是 null。
+ */
+const modeInfo = name => modes().find(item => item.name === name) || null
+
+/**
+ * 这个模式点名的工具；内置模式不点名，返回 null。
+ * @param {{ mode: string }} settings 会话设置。
+ * @returns {string[]|null} 工具名单或 null。
+ */
+const toolsFor = ({ mode }) => modeInfo(mode)?.tools || null
 
 /**
  * 把用户给的值夹到合法范围内，不认识的值直接忽略。
@@ -90,7 +131,7 @@ const MODES = ['plan', 'build']
  */
 const normalize = (input = {}, base = DEFAULTS) => {
     const merged = { ...base, ...input }
-    if (!MODES.includes(merged.mode)) throw fail(400, `mode must be plan or build, got: ${input.mode}`)
+    if (!modeInfo(merged.mode)) throw fail(400, `mode must be one of ${modes().map(item => item.name).join(', ')}, got: ${input.mode}`)
 
     // 自动批准按类别合并：只改了 read 的话，别的几类保持原样。
     // 布尔值是老版本的写法（一个总开关），读到时摊到每一类上，旧设置不至于失效。
@@ -191,7 +232,8 @@ const toAgentConfig = ({ settings }) => ({
     // 提示词缓存和流式输出是 agent-core 自己的字段，不是 capabilities 的一部分。
     cache: settings.capabilities.cache,
     stream: settings.capabilities.stream,
-    readOnly: settings.mode === 'plan',
+    // 自定义模式也可以声明 readOnly；不认识或已被删掉时按可写处理，不让会话打不开。
+    readOnly: modeInfo(settings.mode)?.readOnly === true,
     // 哪件事用哪个模型，交给 Config.resolve 翻成 agent-core 认的 config.compact 那些。
     uses: settings.uses,
 })
@@ -226,7 +268,7 @@ const remove = ({ sessionId }) => {
     Store.autoApproved.delete(sessionId)
 }
 export default {
-    read, save, toAgentConfig, approves, remove,
+    read, save, toAgentConfig, approves, remove, modes, toolsFor,
     DEFAULTS, MODES, USES,
     // 类别清单也从这里给出去，界面画开关时不用再引第二个模块。
     KINDS: Kind.KINDS,

@@ -382,7 +382,7 @@ Content-Type: application/json
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `mode` | `build` | `plan` 只给只读工具（读文件、搜代码、抓网页），`build` 给全套工具 |
+| `mode` | `build` | `plan` 只给只读工具（读文件、搜代码、抓网页），`build` 给全套工具；也可以填 `modes` 里自定义的名字 |
 | `autoApprove.read` | `false` | 读文件和搜索不再弹审批（`file_read`、`file_list`、`glob`、`grep`、`webfetch`、`skill`） |
 | `autoApprove.write` | `false` | 改文件不再弹审批（`file_write`、`edit`、`apply_patch`） |
 | `autoApprove.command` | `false` | 执行命令不再弹审批（`shell`） |
@@ -404,6 +404,33 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 ```json
 { "autoApprove": { "read": true } }
 ```
+
+### 自定义模式
+
+除了 `build` 和 `plan`，可以在全局配置里定义自己的模式：
+
+```json
+{
+  "modes": {
+    "review": {
+      "label": "审查",
+      "tools": ["file_read", "file_list", "glob", "grep", "skill"]
+    },
+    "audit": {
+      "label": "审计",
+      "readOnly": true
+    }
+  }
+}
+```
+
+| 字段 | 必填 | 作用 |
+| --- | --- | --- |
+| `label` | 否 | 界面上显示的名字，不写就用模式名 |
+| `tools` | 否 | 只给名单里的工具；不写表示按 `readOnly` 规则决定。`task` 也要点名才会装 |
+| `readOnly` | 否 | `true` 时去掉写文件和执行命令的工具 |
+
+模式名只能包含字母、数字、`-` 和 `_`。`build` / `plan` 是内置的，不能覆盖；写错模式名返回 `400`。自定义模式里写了不存在的工具名会被直接忽略，不会让会话打不开。
 
 **认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准、plan 模式和契约检查都从那里读；新加内置工具时在表里补一行即可（漏了会有测试报出来）。
 

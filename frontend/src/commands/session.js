@@ -168,15 +168,27 @@ async function saveSettings(sessionID, change) {
 }
 
 
-// --- 切换 plan / build 模式 ---
+// --- 按配置里的顺序切换模式 ---
 async function toggleMode(sessionID) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  const next = session.settings.mode === 'plan' ? 'build' : 'plan'
-  const settings = await saveSettings(sessionID, { mode: next })
-  // 切到计划模式时要说清会发生什么，不然用户会疑惑"工具怎么少了一半"。
-  if (settings) UI.notify(next === 'plan' ? '已切到计划模式：只保留只读工具' : '已切到执行模式：可以使用全部工具')
+  const modes = store.config.modes?.length ? store.config.modes : [
+    { name: 'build', label: '执行模式', readOnly: false },
+    { name: 'plan', label: '计划模式', readOnly: true },
+  ]
+  // 找不到当前模式（比如配置刚删掉它）就从第一个开始。
+  const index = modes.findIndex(item => item.name === session.settings.mode)
+  const next = modes[(index + 1) % modes.length]
+  const settings = await saveSettings(sessionID, { mode: next.name })
+  // 切到只读模式时要说清会发生什么，不然用户会疑惑"工具怎么少了一半"。
+  if (settings) UI.notify(next.readOnly ? `已切到${next.label}：只保留只读工具` : `已切到${next.label}`)
   return settings
+}
+
+
+// --- 模式在界面上叫什么 ---
+function modeLabel(name) {
+  return (store.config.modes || []).find(item => item.name === name)?.label || name
 }
 
 
@@ -379,7 +391,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 
 export const Session = {
   locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing,
-  saveSettings, toggleMode, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit,
+  saveSettings, toggleMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
 export { AUTO_APPROVE_KINDS, USE_LABELS }

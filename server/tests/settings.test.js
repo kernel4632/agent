@@ -136,9 +136,58 @@ describe('会话运行设置', () => {
     test('模式名写错时按填错处理，不改动已有设置', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await expect(Session.saveSettings({ sessionId, mode: 'hacker' })).rejects.toThrow(/must be plan or build/i)
+            await expect(Session.saveSettings({ sessionId, mode: 'hacker' })).rejects.toThrow(/mode must be/i)
             // 坏输入不能把设置改坏，也不能留下半个状态。
             expect((await Session.readSettings({ sessionId })).mode).toBe('build')
+        })
+    })
+
+    test('自定义模式可以点名只给哪些工具', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession({
+                extra: { modes: { review: { label: '审查', tools: ['file_read', 'file_list'] } } },
+            })
+            await Session.saveSettings({ sessionId, mode: 'review' })
+
+            // 点名之外的工具一个都不给，task 没点名也不装。
+            expect(toolNames(sessionId)).toEqual(['file_list', 'file_read'])
+        })
+    })
+
+    test('自定义 readOnly 模式去掉写工具，但保留读取和子任务', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession({
+                extra: { modes: { audit: { label: '审计', readOnly: true } } },
+            })
+            await Session.saveSettings({ sessionId, mode: 'audit' })
+
+            const names = toolNames(sessionId)
+            expect(names).toContain('file_read')
+            expect(names).toContain('task')
+            expect(names).not.toContain('file_write')
+            expect(names).not.toContain('shell')
+        })
+    })
+
+    test('自定义模式点名 task 时才装任务工具', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession({
+                extra: { modes: { solo: { label: '单干', tools: ['file_read', 'task'] } } },
+            })
+            await Session.saveSettings({ sessionId, mode: 'solo' })
+
+            expect(toolNames(sessionId)).toEqual(['file_read', 'task'])
+        })
+    })
+
+    test('自定义模式里写错的工具名直接忽略，不会让会话打不开', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession({
+                extra: { modes: { odd: { label: '怪模式', tools: ['file_read', 'not_a_tool'] } } },
+            })
+            await Session.saveSettings({ sessionId, mode: 'odd' })
+
+            expect(toolNames(sessionId)).toEqual(['file_read'])
         })
     })
 
