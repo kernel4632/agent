@@ -20,6 +20,23 @@ import Store from '../store.js' // 直接访问等待用户决定的审批表和
 import SSE from '../utils/sse.js' // 把审批请求推给前端。
 import fail from '../utils/fail.js' // 用户选了不认识的决定时按填错处理。
 
+// 同一个工具调用连续出现这么多次，就停下来问一次。
+// 模型跑偏的典型表现不是"做了一件坏事"，而是"同一件小事反复重试"。
+const LOOP_LIMIT = 3
+
+/**
+ * 把参数变成稳定的字符串，键的顺序不影响结果。
+ * @param {unknown} value 模型的原始参数。
+ * @returns {string} 用来判断"是不是同一个调用"的键。
+ */
+const stable = value => {
+    if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
+    if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`
+    }
+    return JSON.stringify(value)
+}
+
 /**
  * 把工具参数摊平成一行文字，供规则里的模式去比对。
  * 路径、命令、嵌套对象都会被摊开，所以规则写 `git commit*` 就能命中。
@@ -154,6 +171,22 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         return false
     }
 
+    /*
+     * 同一个调用连续出现时先停下来问一次。
+     * 自动批准可以放行普通调用，但不能替用户决定"要不要让模型继续重试同一个动作"。
+     */
+    let looping = false
+    if (sessionId) {
+        const key = `${toolName}:${stable(input)}`
+        const previous = Store.recentCalls.get(sessionId)
+        const count = previous?.key === key ? previous.count + 1 : 1
+        Store.recentCalls.set(sessionId, { key, count })
+        looping = count >= LOOP_LIMIT
+        if (looping) {
+            SSE.send({ id: sessionId, data: { type: 'permission-limit', limit: LOOP_LIMIT, reason: `同一个工具调用连续出现 ${LOOP_LIMIT} 次，确认要继续吗` } })
+        }
+    }
+
     // 这一类开了自动批准就跳过询问。按类别分（读取 / 写入 / 命令 / MCP），
     // 所以可以"读随便读、写还是问我"这种组合。未分类的工具一律要问。
     const settings = Store.settings.get(sessionId)
@@ -183,7 +216,13 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
             data: { type: 'permission-limit', limit, reason: `已连续自动批准 ${limit} 次，确认要继续吗` },
         })
     }
-    const rule = auto && !capped ? 'allow' : decision
+    /*
+     * 两种刹车都要压过"规则说 allow"：
+     *   - 同一个调用连续重复；
+     *   - 自动批准已经连着放行了太多次。
+     * 否则用户写了 "*": "allow" 之后，刹车就成了摆设。
+     */
+    const rule = looping || (auto && capped) ? 'ask' : auto ? 'allow' : decision
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
 
@@ -228,6 +267,8 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     if (!['allow-once', 'allow-always', 'deny'].includes(decision)) throw fail(400, `decision must be allow-once, allow-always or deny, got: ${decision}`)
 
     Store.approvals.delete(`${sessionId}:${toolCallId}`)
+    // 用户刚看过一眼，重复调用的计数也重新开始。
+    Store.recentCalls.delete(sessionId)
     /*
      * 用户答过一次之后重新计数。
      * 他刚看过一眼并说了继续，接下来这 N 次就当是新的开始——

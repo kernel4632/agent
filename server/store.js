@@ -31,5 +31,8 @@ const settings = new Map()
 // 每个会话已经连续自动批准了多少次。到设置里的上限就停下来问一次，问过之后清零。
 const autoApproved = new Map()
 
+// 每个会话最近一次工具调用和它连续出现了几次；用来发现"同一个动作反复重试"。
+const recentCalls = new Map()
+
 // 当前工作区自动读到的项目规则；没有规则时是空字符串。
-export default { config, agents, sessions, snapshots, approvals, settings, autoApproved, rules: '' }
+export default { config, agents, sessions, snapshots, approvals, settings, autoApproved, recentCalls, rules: '' }

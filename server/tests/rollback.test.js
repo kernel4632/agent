@@ -29,6 +29,8 @@ const withHome = async callback => {
     Store.sessions.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
+    Store.settings.clear()
+    Store.recentCalls.clear()
     try {
         return await callback(root)
     } finally {
@@ -176,6 +178,55 @@ describe('权限规则的拒绝动作', () => {
             expect(Approval.pending(sessionId)).toHaveLength(1)
             await Approval.decide({ sessionId, toolCallId: 'unknown-1', decision: 'deny' })
             expect(await task).toBe(false)
+        })
+    })
+})
+
+describe('重复调用的刹车', () => {
+    test('同一个调用连续三次会停下来问，答过之后重新计数', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            const { sessionId } = await Session.create({ title: 'Loop guard' })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
+
+            const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'file_read', input: { path: 'a.txt' } })
+            expect(await call('a1')).toBe(true)
+            expect(await call('a2')).toBe(true)
+
+            // 第三次不再替用户直接放行，而是停下来问一次。
+            const third = call('a3')
+            await Bun.sleep(0)
+            expect(Approval.pending(sessionId)).toHaveLength(1)
+            await Approval.decide({ sessionId, toolCallId: 'a3', decision: 'allow-once' })
+            expect(await third).toBe(true)
+
+            // 用户刚确认过，计数从头开始，下一次仍然直接放行。
+            expect(await Approval.check({ sessionId, toolCallId: 'a4', toolName: 'file_read', input: { path: 'a.txt' } })).toBe(true)
+        })
+    })
+
+    test('不同参数不累计', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            const { sessionId } = await Session.create({ title: 'Different inputs' })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
+
+            for (const path of ['a.txt', 'b.txt', 'c.txt', 'd.txt']) {
+                expect(await Approval.check({ sessionId, toolCallId: path, toolName: 'file_read', input: { path } })).toBe(true)
+            }
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
+    test('deny 仍然优先于重复刹车', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow', file_read: 'deny' } })
+            const { sessionId } = await Session.create({ title: 'Deny first' })
+
+            for (const id of ['d1', 'd2', 'd3']) {
+                expect(await Approval.check({ sessionId, toolCallId: id, toolName: 'file_read', input: { path: 'a.txt' } })).toBe(false)
+            }
+            expect(Approval.pending(sessionId)).toEqual([])
         })
     })
 })

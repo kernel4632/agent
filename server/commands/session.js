@@ -226,6 +226,7 @@ const remove = async ({ sessionId }) => {
     await readMeta(sessionId)
     if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     Store.agents.delete(sessionId)
+    Store.recentCalls.delete(sessionId)
     Settings.remove({ sessionId })
     await Snapshot.remove({ sessionId }) // 会话没了，它的文件快照也不再需要。
     await rm(Path.session(sessionId), { recursive: true, force: true })
@@ -413,6 +414,8 @@ const send = async ({ sessionId, input }) => {
     await Snapshot.clearUndo({ sessionId })
     // 自动批准的计数也跟着归零：用户刚发了新指令，是新的开始。
     Store.autoApproved.set(sessionId, 0)
+    // 重复调用的判断也重新开始，上一轮的连续重试不该影响这一轮。
+    Store.recentCalls.delete(sessionId)
 
     // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
     // 发消息前重读规则，用户刚改过 AGENTS.md 也能在这一轮生效。
