@@ -110,13 +110,22 @@ describe('server HTTP API', () => {
 })
 
 describe('server delegation', () => {
-    test('builds a task tool whose sub-agent cannot delegate again', async () => {
+    test('子 agent 可以再委托一层，最底层不能再往下开', async () => {
         await withHome(async () => {
-            const scanned = await (await import('@kernel4632/agent-core')).default.tool.from('./tools')
-            const task = Delegation.build({ config: { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }, tools: scanned })
+            const Agent = (await import('@kernel4632/agent-core')).default
+            const scanned = await Agent.tool.from('./tools')
+            const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
+
+            // 第 1 层还带 task；第 2 层只剩普通工具，不会无限套娃。
+            const middle = Delegation.toolsForDepth({ config, tools: scanned, depth: 1, maxDepth: 2 })
+            expect(Object.keys(middle.schema)).toContain('task')
+            const bottom = Delegation.toolsForDepth({ config, tools: scanned, depth: 2, maxDepth: 2 })
+            expect(Object.keys(bottom.schema)).not.toContain('task')
+            expect(Object.keys(bottom.schema)).toContain('file_read')
 
             // 和别的工具合起来之后，主 agent 的工具表里有 task。
-            const merged = (await import('@kernel4632/agent-core')).default.tool.merge(scanned, (await import('@kernel4632/agent-core')).default.tool.adopt({ task }))
+            const task = Delegation.build({ config, tools: scanned })
+            const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ task }))
             expect(Object.keys(merged.schema)).toContain('task')
 
             // 真跑一次：子 agent 连不上模型，错误作为结论回来，不该抛出去打断主任务。

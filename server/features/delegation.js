@@ -6,7 +6,7 @@
  * 子 agent 在自己的历史里翻，只把结论交回来，主 agent 的历史干净得像没读过那些文件。
  *
  * 说明几点取舍：
- *   - 子 agent 拿不到 task 工具，所以不能再往下委托，不会无限套娃。
+ *   - 子 agent 可以再往下委托一层，最多两层；最底层拿不到 task，不会无限套娃。
  *   - 子 agent 的报错只作为结论文本回到主 agent，不会打断整个任务。
  *   - 主任务被停止时子任务一起停（共用一个取消信号）。
  * 调用示例：
@@ -18,23 +18,42 @@ import Agent from '@kernel4632/agent-core'
 import Approval from './approval.js' // 子 agent 也要过同一道审批关口。
 import SSE from '../utils/sse.js' // 子任务的进度也推给前端，用户看得见它在忙什么。
 
+// 最多往下开两层：主 agent → 子 agent → 孙 agent。再深就很难看清谁在干什么了。
+const MAX_DEPTH = 2
+
 // --- 做出一张"子 agent 能用的工具表" ---
 const subTools = tools => {
-    // 从主 agent 的工具里去掉 task：子 agent 不能再委托，否则可以无限套下去。
+    // 从主 agent 的工具里去掉 task：这一层要装自己的 task，不能沿用上一层的。
     const schema = { ...tools.schema }
     delete schema.task
     return { schema, handlers: tools.handlers }
 }
 
+/**
+ * 某一层的 agent 能拿到哪些工具。
+ * 第 1 层还能再委托一次；到第 2 层就只剩普通工具了。
+ * @param {{ config: object, tools: object, sessionId?: string, depth: number, maxDepth?: number }} input
+ * @returns {object} 可以直接交给 Agent.create 的工具表。
+ */
+const toolsForDepth = ({ config, tools, sessionId, depth, maxDepth = MAX_DEPTH }) => {
+    const base = subTools(tools)
+    if (depth >= maxDepth) return base
+    return Agent.tool.merge(base, Agent.tool.adopt({
+        task: build({ config, tools, sessionId, depth, maxDepth }),
+    }))
+}
+
 // --- 造出 task 工具 ---
 /**
  * 造出 task 工具。
- * @param {{ config: object, tools: object, sessionId?: string }} input
+ * @param {{ config: object, tools: object, sessionId?: string, depth?: number, maxDepth?: number }} input
  *   sessionId 是这条会话的编号：子 agent 的审批要回到同一个会话，
  *   用户才能在界面上看到并回答"子任务想读这个文件"。
+ *   depth 是当前这一层，用来决定子 agent 还能不能再委托。
  */
-const build = ({ config, tools, sessionId }) => {
-    const usable = subTools(tools)
+const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) => {
+    // 子 agent 在下一层；还留有余量时，它自己也会拿到一个 task 工具。
+    const usable = toolsForDepth({ config, tools, sessionId, depth: depth + 1, maxDepth })
     let counter = 0
 
     return {
@@ -42,7 +61,8 @@ const build = ({ config, tools, sessionId }) => {
         description: [
             'Delegate one self-contained piece of research to a separate agent and get back only its conclusion.',
             'Use it when finding the answer means reading many files: those files stay out of your own context, so you keep room for the real work.',
-            'The sub-agent runs with the same read tools but cannot ask you questions and cannot delegate further — so state everything it needs in the prompt: what to look into, what to answer.',
+            'The sub-agent runs with the same tools, can delegate one level further, and cannot ask you questions — so state everything it needs in the prompt: what to look into, what to answer.',
+            'If you have several independent pieces, emit several task calls in the same step — they run in parallel.',
             'Do not use it for a single quick lookup — that is cheaper to do yourself with file_read or grep.',
             'Parameters:',
             '- description (required): a few words naming this delegation, shown to the user.',
@@ -59,7 +79,8 @@ const build = ({ config, tools, sessionId }) => {
 
         async execute({ description, prompt }, { abortSignal }) {
             // 每次委托一个独立编号，前端据此把子任务的进度和别的任务分开。
-            const id = `task-${++counter}`
+            // 带上层级，避免不同层的 task-1 在事件流里撞名字。
+            const id = `task-${depth}-${++counter}`
 
             // 子 agent 有自己的历史，跑完就丢。配置和主 agent 一样。
             const agent = Agent.create({
@@ -97,4 +118,4 @@ const build = ({ config, tools, sessionId }) => {
     }
 }
 
-export default { build }
+export default { build, toolsForDepth, MAX_DEPTH }
