@@ -119,6 +119,67 @@ describe('工具级回退', () => {
     })
 })
 
+describe('权限规则的拒绝动作', () => {
+    test('deny 优先于自动批准，不会留下等待中的审批', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow', shell: 'deny' } })
+            const { sessionId } = await Session.create({ title: 'Deny wins' })
+            // 命令类全开也不该绕过一条明确的拒绝。
+            await Session.saveSettings({ sessionId, autoApprove: { command: true } })
+
+            const allowed = await Approval.check({ sessionId, toolCallId: 'deny-1', toolName: 'shell', input: { command: 'rm -rf build' } })
+            expect(allowed).toBe(false)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
+    test('对象规则按最后一条命中的模式决定', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [{ name: 'local', models: ['model'] }],
+                permission: { shell: { '*': 'ask', 'git *': 'allow', 'git push *': 'deny' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Last match' })
+
+            expect(await Approval.check({ sessionId, toolCallId: 'git-status', toolName: 'shell', input: { command: 'git status' } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'git-push', toolName: 'shell', input: { command: 'git push origin main' } })).toBe(false)
+        })
+    })
+
+    test('工具自己的 allow 可以覆盖全局 deny', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny', shell: 'allow' } })
+            const { sessionId } = await Session.create({ title: 'Override' })
+
+            expect(await Approval.check({ sessionId, toolCallId: 'shell-ok', toolName: 'shell', input: { command: 'ls' } })).toBe(true)
+        })
+    })
+
+    test('全局 deny 不拦记清单和结束循环', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny' } })
+            const { sessionId } = await Session.create({ title: 'Internal tools' })
+
+            expect(await Approval.check({ sessionId, toolCallId: 'todo-1', toolName: 'todo', input: { items: [] } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'shell-deny', toolName: 'shell', input: { command: 'ls' } })).toBe(false)
+        })
+    })
+
+    test('认不出的规则值按询问处理，不会自动放行', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { shell: 'maybe' } })
+            const { sessionId } = await Session.create({ title: 'Unknown action' })
+
+            const task = Approval.check({ sessionId, toolCallId: 'unknown-1', toolName: 'shell', input: { command: 'ls' } })
+            await Bun.sleep(0)
+            // 写错一个词不能变成 allow；它应该老老实实停下来问。
+            expect(Approval.pending(sessionId)).toHaveLength(1)
+            await Approval.decide({ sessionId, toolCallId: 'unknown-1', decision: 'deny' })
+            expect(await task).toBe(false)
+        })
+    })
+})
+
 describe('忽略规则的安全默认', () => {
     test('还没调用 load 时，内置规则就已经生效', async () => {
         // 内置规则必须在模块加载时就生效，不能等 load()。

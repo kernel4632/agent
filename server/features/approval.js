@@ -12,6 +12,7 @@
 import picomatch from 'picomatch'
 import Config from '../commands/config.js' // 权限规则就写在配置里，不再单独存一份。
 import Settings from '../commands/settings.js' // 自动批准是按类别分的，判断逻辑只写在那里。
+import Kind from '../utils/tool-kind.js' // 内部工具不参与审批，也不该被 deny 规则拦住。
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
 import Snapshot from './snapshot.js' // 工具改文件之前先存一份原样。
@@ -38,24 +39,32 @@ const flatten = value => {
 }
 
 /**
- * 按规则决定放行还是询问。
+ * 把规则里的动作夹到三种合法值里。
+ * 认不出的写法一律按"询问"处理，不能因为写错一个词就悄悄放行。
+ * @param {unknown} value 规则里写的动作。
+ * @returns {'allow'|'ask'|'deny'} 规范化后的动作。
+ */
+const normalize = value => value === 'allow' ? 'allow' : value === 'deny' ? 'deny' : 'ask'
+
+/**
+ * 按规则决定放行、询问还是拒绝。
  * @param {string} toolName 工具名。
  * @param {string} matchValue 摊平后的参数。
- * @returns {'allow'|'ask'} 全局规则只是起点，具体工具的规则可以覆盖它。
+ * @returns {'allow'|'ask'|'deny'} 全局规则只是起点，具体工具的规则可以覆盖它。
  */
 const decideByRules = (toolName, matchValue) => {
     // 没有规则时先问用户，不自动执行任何工具。
     const rules = Config.get().permission || { '*': 'ask' }
     const toolRule = rules[toolName]
-    let action = rules['*'] === 'allow' ? 'allow' : 'ask'
-    if (typeof toolRule === 'string') action = toolRule === 'allow' ? 'allow' : 'ask' // 工具自己的规则优先。
+    let decision = normalize(rules['*'])
+    if (typeof toolRule === 'string') decision = normalize(toolRule) // 工具自己的规则优先。
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
         // 对象形式的规则按参数匹配：最后一条命中的模式说了算。
         for (const [pattern, result] of Object.entries(toolRule)) {
-            if (picomatch.isMatch(matchValue, pattern, { bash: true, dot: true })) action = result === 'allow' ? 'allow' : 'ask'
+            if (picomatch.isMatch(matchValue, pattern, { bash: true, dot: true })) decision = normalize(result)
         }
     }
-    return action
+    return decision
 }
 
 // 用户心里认为的"一个操作"：git commit -m "随便什么" 在他看来就是"提交"，
@@ -128,15 +137,27 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         return false
     }
     const matchValue = flatten(input)
+    const mcpServers = Object.keys(Config.get().mcp || {})
+    /*
+     * 内部工具（记清单、结束循环）不碰磁盘也不碰外部服务，没有"要不要批准"这回事。
+     * 这一步放在 deny 之前：用户写 "*": "deny" 时，循环本身仍然要能收尾。
+     */
+    if (Kind.of({ toolName, mcpServers }) === 'never') return allow({ sessionId, messageId, toolCallId, toolName, input })
+
+    /*
+     * deny 是硬规则。自动批准只省掉"询问"，不能把一条明确的拒绝变成放行——
+     * 用户写下 "shell": "deny" 之后，即使命令类全开着，也不该执行。
+     */
+    const decision = decideByRules(toolName, matchValue)
+    if (decision === 'deny') {
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: '被权限规则拒绝' } })
+        return false
+    }
+
     // 这一类开了自动批准就跳过询问。按类别分（读取 / 写入 / 命令 / MCP），
     // 所以可以"读随便读、写还是问我"这种组合。未分类的工具一律要问。
     const settings = Store.settings.get(sessionId)
-    const auto = Settings.approves({
-        settings,
-        toolName,
-        // MCP 工具名带服务名前缀，要靠配置里的服务名才认得出它属于 MCP 那一类。
-        mcpServers: Object.keys(Config.get().mcp || {}),
-    })
+    const auto = Settings.approves({ settings, toolName, mcpServers })
     /*
      * 自动批准的刹车：连着放行了太多次就停下来问一次。
      * 模型跑偏的典型表现不是"一件坏事"，而是"同一件小事做了五十遍"——
@@ -162,14 +183,14 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
             data: { type: 'permission-limit', limit, reason: `已连续自动批准 ${limit} 次，确认要继续吗` },
         })
     }
-    const rule = auto && !capped ? 'allow' : decideByRules(toolName, matchValue)
+    const rule = auto && !capped ? 'allow' : decision
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
 
     // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
     if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName, input }) // 没有会话上下文时按无人值守放行，避免任务卡死。
 
-    const decision = await new Promise(resolve => {
+    const answer = await new Promise(resolve => {
         Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })
         SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: toolName, input } })
         signal?.addEventListener('abort', () => {
@@ -178,7 +199,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
             resolve(false)
         }, { once: true })
     })
-    if (!decision) return false
+    if (!answer) return false
     return allow({ sessionId, messageId, toolCallId, toolName, input })
 }
 
