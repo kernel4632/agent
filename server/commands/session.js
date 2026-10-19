@@ -20,6 +20,7 @@ import Agent from '@kernel4632/agent-core'
 import Approval from '../features/approval.js' // 审批工具调用，顺带记录文件快照。
 import Delegation from '../features/delegation.js' // 把独立探索工作委托给子 agent。
 import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
+import Rules from '../features/rules.js' // 工作区的项目规则，跟着 system 一起交给模型。
 import Skills from '../features/skills.js' // 数据目录里的技能，按需读正文。
 import Title from '../features/title.js' // 第一次聊完让模型起个标题。
 import Config from './config.js' // 读取全局模型配置和权限规则。
@@ -97,6 +98,8 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
     // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
     await mkdir(Path.tools(), { recursive: true })
+    // 规则跟着工作区走；每次重建 Agent 都重读一次，用户改完规则不用重启服务。
+    await Rules.load()
     // 会话的运行设置：模式、自动批准、能力开关。
     const settings = await Settings.read({ sessionId })
     // 配置格式转换只写在 Config 里，子 agent 用的也是同一份；
@@ -412,6 +415,8 @@ const send = async ({ sessionId, input }) => {
     Store.autoApproved.set(sessionId, 0)
 
     // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
+    // 发消息前重读规则，用户刚改过 AGENTS.md 也能在这一轮生效。
+    await Rules.load()
     const settings = await Settings.read({ sessionId })
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。

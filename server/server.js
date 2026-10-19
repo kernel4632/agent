@@ -14,6 +14,7 @@ import Session from './commands/session.js' // 执行会话和 Agent 指令。
 import Ignore from './features/ignore.js' // 启动时读一次忽略规则。
 import Workspace from './features/workspace.js' // 读工作区信息和 git 状态。
 import Path from './utils/path.js' // 提供配置文件路径。
+import Rules from './features/rules.js' // 启动时读一次工作区规则。
 import SSE from './utils/sse.js' // 提供实时反馈连接。
 
 const app = new Elysia()
@@ -78,6 +79,7 @@ const start = async ({ port = process.env.PORT || 3000 } = {}) => {
     // 权限规则就写在配置的 permission 字段里，读一次配置即可拿到完整运行规则。
     await Config.read(Path.config())
     await Ignore.load() // 忽略规则启动时读一次，之后每次工具调用直接用编译好的规则。
+    await Rules.load() // 项目规则也读一次，第一条消息就能用上。
     return app.listen(port)
 }
 

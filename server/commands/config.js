@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js' // 提供默认配置文件路径。
+import Rules from '../features/rules.js' // 把工作区的项目规则拼进系统提示词。
 import Store from '../store.js' // 直接访问程序当前使用的配置。
 import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
 
@@ -100,8 +101,8 @@ const connection = ({ provider: name, model }) => {
  * 把设置页里的配置转换成 agent-core 认的那份 config。
  * 字段名转换只写在这一处，界面改字段名也只改这里。
  *
- * 这里刻意不做任何提示词注入：system 只用用户自己写的那段，没写就是空字符串。
- * 工具用法、约束、角色设定都不塞进去——agent-core 默认就是原生工具模式（toolMode: 'native'），
+ * system 只由两部分组成：用户自己写的那段，加上工作区里真实存在的规则文件。
+ * 工具用法、角色设定都不塞进去——agent-core 默认就是原生工具模式（toolMode: 'native'），
  * 在别处拼提示词会和模型自身的能力打架，也让"模型为什么不听话"变得无法排查。
  *
  * 每一项可选能力都只在用户明确改过时才写进 config，其余交给 agent-core 的默认值。
@@ -126,7 +127,8 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
         // 名字写错不会报任何错，只会把 128000 当成输出上限发出去，模型会被莫名截断。
         maxContextTokens: budget.context || budget.contextWindow || 128000,
         stream: provider.stream ?? Store.config.stream ?? true,
-        system: Store.config.prompt?.system || '', // 用户没写系统提示词就是空的，不注入任何东西
+        // 用户没写提示词、项目也没有规则时，这里仍然是空字符串。
+        system: Rules.apply({ system: Store.config.prompt?.system || '', rules: Store.rules }),
         ...rest, // 会话级的能力开关，见 commands/settings.js
     }
 

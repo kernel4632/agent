@@ -54,7 +54,8 @@ const withHome = async callback => {
 // 直接建一条会话，省得每个测试重复写。
 // extra 用来补配置里要多出来的部分（比如 MCP 服务），默认的权限规则是"全部先问"。
 const newSession = async ({ title = '设置测试', extra = {} } = {}) => {
-    await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' }, ...extra })
+    // 设置测试不依赖真实工作区里的 AGENTS.md，关掉规则读取保持用例独立。
+    await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' }, rules: { enabled: false }, ...extra })
     const { sessionId } = await Session.create({ title })
     return sessionId
 }

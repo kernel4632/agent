@@ -31,4 +31,5 @@ const settings = new Map()
 // 每个会话已经连续自动批准了多少次。到设置里的上限就停下来问一次，问过之后清零。
 const autoApproved = new Map()
 
-export default { config, agents, sessions, snapshots, approvals, settings, autoApproved }
+// 当前工作区自动读到的项目规则；没有规则时是空字符串。
+export default { config, agents, sessions, snapshots, approvals, settings, autoApproved, rules: '' }
