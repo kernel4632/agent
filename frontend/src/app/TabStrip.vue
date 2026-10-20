@@ -5,6 +5,7 @@ select 和 close 都会带回完整的标签对象，调用方不再需要按 ke
 -->
 <script setup>
 import AppIcon from '../ui/AppIcon.vue'
+import Button from '../ui/Button.vue'
 
 defineProps({
   tabs: { type: Array, default: () => [] },              // 每项包含 key、title、color，其余字段原样保留
@@ -17,14 +18,15 @@ const emit = defineEmits(['select', 'close', 'new'])
 <template>
   <div class="titlebar__tabs" role="tablist" aria-label="打开的会话">
     <div v-for="tab in tabs" :key="tab.key" class="tab" :class="{ 'is-active': activeKey === tab.key }" role="tab" :aria-selected="activeKey === tab.key">
-      <button class="tab__main" @click="emit('select', tab)">
+      <!-- plain 只保留 ui-button，尺寸和外观继续由本文件的 tab__main 等 class 负责。 -->
+      <Button variant="plain" class="tab__main" @click="emit('select', tab)">
         <span class="tab__avatar" :style="{ background: tab.color }" aria-hidden="true">{{ (tab.title || '新').slice(0, 1) }}</span>
         <span class="tab__title">{{ tab.title }}</span>
-      </button>
+      </Button>
       <!-- 关闭按钮阻止冒泡，避免先切换标签再关闭。 -->
-      <button class="tab__close" :aria-label="`关闭 ${tab.title}`" @click.stop="emit('close', tab)"><AppIcon name="close" :size="11" /></button>
+      <Button variant="plain" class="tab__close" :aria-label="`关闭 ${tab.title}`" @click.stop="emit('close', tab)"><AppIcon name="close" :size="11" /></Button>
     </div>
-    <button class="tab-new" aria-label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="plus" :size="15" /></button>
+    <Button variant="plain" class="tab-new" aria-label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="plus" :size="15" /></Button>
   </div>
 </template>
 

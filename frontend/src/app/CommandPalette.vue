@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import Button from '../ui/Button.vue'
 
 const props = defineProps({
   open: Boolean,                                        // 面板是否显示
@@ -63,9 +64,10 @@ function keydown(event) {
     <div class="command-palette__panel">
       <input ref="input" v-model="query" class="command-palette__input" type="search" aria-label="搜索命令" placeholder="搜索命令或会话" @keydown="keydown" />
       <div class="command-palette__list" role="listbox" aria-label="命令">
-        <button v-for="(item, itemIndex) in visibleItems" :key="item.id" class="command-palette__item" :class="{ 'is-active': itemIndex === index }" role="option" :aria-selected="itemIndex === index" @click="emit('select', item)">
+        <!-- 搜索框仍是原生 input；命令项只换 Button 外壳，role 和选中状态原样保留。 -->
+        <Button v-for="(item, itemIndex) in visibleItems" :key="item.id" variant="plain" class="command-palette__item" :class="{ 'is-active': itemIndex === index }" role="option" :aria-selected="itemIndex === index" @click="emit('select', item)">
           <span>{{ item.label }}</span><small>{{ item.hint }}</small>
-        </button>
+        </Button>
         <p v-if="!visibleItems.length" class="command-palette__empty">没有匹配的命令</p>
       </div>
     </div>

@@ -3,24 +3,34 @@
 调用示例：<ProjectList :workspaces="workspaces" :workspace="workspace" @select="choose" @settings="openSettings" />
 -->
 <script setup>
+import { computed } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
+import Button from '../ui/Button.vue'
 import IconButton from '../ui/IconButton.vue'
+import Select from '../ui/Select.vue'
 import { avatarColor, initial } from '../ui/avatar.js'
 import { UI } from '../commands/ui.js'
 
-defineProps({
+const props = defineProps({
   workspaces: { type: Array, default: () => [] },
   workspace: { type: Object, default: null },
 })
 const emit = defineEmits(['select', 'settings'])
+
+// 窄屏下拉使用统一 Select，名称缺失时和工作区列表一样退回路径。
+const workspaceOptions = computed(() => props.workspaces.map(item => ({ value: item.id, label: item.name || item.path })))
 </script>
 
 <template>
   <div class="home-mobile-project">
     <span class="project-avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(workspace?.name) }}</span>
-    <select :value="workspace?.id" aria-label="选择项目" @change="emit('select', $event.target.value)">
-      <option v-for="item in workspaces" :key="item.id" :value="item.id">{{ item.name || item.path }}</option>
-    </select>
+    <Select
+      class="home-mobile-project__select"
+      label="选择项目"
+      :model-value="workspace?.id"
+      :options="workspaceOptions"
+      @update:model-value="emit('select', $event)"
+    />
   </div>
 
   <aside class="home-projects" aria-label="项目">
@@ -29,15 +39,15 @@ const emit = defineEmits(['select', 'settings'])
       <IconButton label="管理工作区" title="管理工作区" @click="emit('settings')"><AppIcon name="plus" :size="15" /></IconButton>
     </header>
     <div class="home-projects__list">
-      <button v-for="item in workspaces" :key="item.id" class="project-row" :class="{ 'is-active': item.id === workspace?.id }" @click="emit('select', item.id)">
+      <Button v-for="item in workspaces" :key="item.id" variant="plain" class="project-row" :class="{ 'is-active': item.id === workspace?.id }" @click="emit('select', item.id)">
         <span class="project-avatar" :style="{ background: avatarColor(item.id) }">{{ initial(item.name) }}</span>
         <span class="project-row__name">{{ item.name || item.path }}</span>
-      </button>
+      </Button>
       <p v-if="!workspaces.length" class="home-projects__empty">还没有工作区</p>
     </div>
     <div class="home-projects__bottom">
-      <button class="project-row" @click="emit('settings')"><AppIcon name="settings" :size="15" /><span class="project-row__name">设置</span></button>
-      <button class="project-row" @click="UI.notify('帮助文档暂未接入')"><AppIcon name="info" :size="15" /><span class="project-row__name">帮助</span></button>
+      <Button variant="plain" class="project-row" @click="emit('settings')"><AppIcon name="settings" :size="15" /><span class="project-row__name">设置</span></Button>
+      <Button variant="plain" class="project-row" @click="UI.notify('帮助文档暂未接入')"><AppIcon name="info" :size="15" /><span class="project-row__name">帮助</span></Button>
     </div>
   </aside>
 </template>
@@ -100,6 +110,19 @@ const emit = defineEmits(['select', 'settings'])
     border-radius: 6px;
     background: var(--la-layer-01);
   }
-  .home-mobile-project select { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--la-text); font-size: 13px; }
+  .home-mobile-project__select { flex: 1; min-width: 0; }
+  /* 覆盖统一下拉的 36px 输入框外观，保持原来透明、无边框的行内样式。 */
+  .home-mobile-project :deep(.ui-select__input) {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--la-text);
+    font-size: 13px;
+  }
+  .home-mobile-project :deep(.ui-select__input:focus) { box-shadow: none; }
 }
 </style>

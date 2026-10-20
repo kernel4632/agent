@@ -84,11 +84,12 @@ async function submitDialog() {
       <template v-if="visible.length">
         <div class="group-label">最近会话</div>
         <div v-for="item in visible" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
-          <button class="home-session__main" @click="emit('open', item.id)">
+          <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
+          <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
             <span class="home-session__avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(item.title) }}</span>
             <span class="home-session__title">{{ item.title || '新会话' }}</span>
             <span class="home-session__project">{{ workspace?.name }}</span>
-          </button>
+          </Button>
           <details class="home-session__menu">
             <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
             <div class="home-session__menu-pop">

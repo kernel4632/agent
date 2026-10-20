@@ -1,6 +1,7 @@
 <!--
 通用下拉框：把原生 select 包成统一接口，保留键盘操作和浏览器自带的弹出列表。
 label 写入 aria-label，caption 是可选可见标题；small 用于列表行内的紧凑选择。
+class/style 落在根节点，selectClass 追加到内部 select，供必须直接定位原生控件的既有选择器使用。
 调用示例：<Select v-model="permission" :options="permissionOptions" label="文件读取权限" />
           <Select v-model="transport" :options="transportOptions" caption="传输方式" />
 -->
@@ -16,6 +17,7 @@ const props = defineProps({
   caption: { type: String, default: '' },               // 可选的可见标题
   disabled: Boolean,
   size: { type: String, default: 'normal' },            // normal 36px，small 28px 无边框
+  selectClass: { type: String, default: '' },            // 追加到内部 select 的 class，供既有选择器直接定位原生控件
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -45,7 +47,7 @@ function onChange(event) {
     <span v-if="caption" class="ui-select__caption">{{ caption }}</span>
     <select
       v-bind="selectAttrs"
-      class="field ui-select__input"
+      :class="['field', 'ui-select__input', selectClass]"
       :value="modelValue"
       :aria-label="label || undefined"
       :disabled="disabled"

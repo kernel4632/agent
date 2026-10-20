@@ -7,6 +7,7 @@
 <script setup>
 import { computed } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
+import Button from '../ui/Button.vue'
 import IconButton from '../ui/IconButton.vue'
 import { UI } from '../commands/ui.js'
 
@@ -42,12 +43,12 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
     <div class="session-review__body">
       <section class="session-review__section">
         <h2>本次改动</h2>
-        <button v-for="file in changedFiles" :key="file" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</button>
+        <Button v-for="file in changedFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
         <p v-if="!changedFiles.length">本次会话没有文件改动</p>
       </section>
       <section class="session-review__section">
         <h2>工作区文件</h2>
-        <button v-for="file in workspaceFiles" :key="file" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</button>
+        <Button v-for="file in workspaceFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
         <p v-if="!workspaceFiles.length">没有可显示的文件</p>
       </section>
     </div>
