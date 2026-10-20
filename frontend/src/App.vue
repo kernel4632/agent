@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watchEffect } from 'vue'
 import AppIcon from './components/AppIcon.vue'
 import HomeView from './home/HomeView.vue'
+import DraftView from './draft/DraftView.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import Titlebar from './app/Titlebar.vue'
 import CommandPalette from './app/CommandPalette.vue'
@@ -16,7 +17,7 @@ import { normalizeAppearance } from './theme.js'
 
 const ConversationFlow = defineAsyncComponent(() => import('./components/ConversationFlow.vue'))
 const SettingsPage = defineAsyncComponent(() => import('./components/settings/SettingsPage.vue'))
-const composer = ref(null)
+const draftView = ref(null)
 const homeDraft = ref('')
 const homeFiles = ref([])
 const creating = ref(false)
@@ -95,7 +96,7 @@ async function openDraft() {
   homeFiles.value = []
   draftKey.value = Tabs.createDraft()
   await nextTick()
-  composer.value?.focus()
+  draftView.value?.focus()
 }
 
 // 回到项目 / 会话总览。
@@ -112,7 +113,7 @@ async function openTab(tab) {
     draftOpen.value = true
     await UI.openHome()
     await nextTick()
-    composer.value?.focus()
+    draftView.value?.focus()
     return
   }
   draftOpen.value = false
@@ -283,21 +284,19 @@ onUnmounted(() => {
           @settings="UI.openSettings()"
         />
 
-        <section v-else-if="mode === 'draft'" class="panel draft-panel" aria-label="新会话">
-          <div class="draft-stage">
-            <div class="draft-inner">
-              <div class="draft-wordmark" aria-hidden="true">la</div>
-              <div class="draft-form">
-                <ChatComposer ref="composer" v-model:draft="draft" :selected-model="store.config.activeModel" can-select-model :is-running="false" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="homeFiles" :context-tokens="0" @submit="submitMessage" @attach="attachFiles" @remove-file="removeFile" />
-                <div class="draft-meta">
-                  <span class="project-avatar project-avatar--blue" aria-hidden="true">{{ (selectedWorkspace?.name || 'la').slice(0, 1) }}</span>
-                  <span>{{ selectedWorkspace?.name || '本地工作区' }}</span>
-                  <span class="draft-meta__path">{{ selectedWorkspace?.path }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <DraftView
+          v-else-if="mode === 'draft'"
+          ref="draftView"
+          class="panel"
+          v-model:draft="draft"
+          :workspace="selectedWorkspace"
+          :model="store.config.activeModel"
+          :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
+          :files="homeFiles"
+          @submit="submitMessage"
+          @attach="attachFiles"
+          @remove-file="removeFile"
+        />
 
         <section v-else class="panel session-panel" aria-label="聊天">
           <header class="session-header">
@@ -365,7 +364,7 @@ onUnmounted(() => {
               </div>
               <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
-              <ChatComposer ref="composer" v-model:draft="draft" :selected-model="session.model" :can-select-model="false" :is-running="session.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile">
+              <ChatComposer v-model:draft="draft" :selected-model="session.model" :can-select-model="false" :is-running="session.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile">
                 <template #status>
                   <button type="button" class="composer-mode" :class="{ 'is-active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="12" />{{ Session.modeLabel(session.settings.mode) }}</button>
                   <button type="button" class="composer-mode" :class="{ 'is-active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="12" />自动批准 {{ autoApproveCount }}/{{ AUTO_APPROVE_KINDS.length }}</button>
@@ -407,15 +406,6 @@ onUnmounted(() => {
 .panel { flex: 1; min-height: 0; margin: var(--la-content-inset); border-radius: 10px; background: var(--la-panel); box-shadow: var(--la-shadow-raised); overflow: hidden; }
 .connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
-.draft-panel { position: relative; }
-.draft-stage { display: flex; min-height: 100%; flex-direction: column; align-items: center; overflow: auto; padding: clamp(40px, 18vh, 180px) 24px 48px; }
-.draft-inner { width: 100%; max-width: 880px; padding: 0; }
-.draft-wordmark { width: 80%; max-width: 720px; margin: 0 auto; color: var(--la-text); font-family: var(--la-font-sans); font-size: clamp(120px, 18vw, 220px); font-weight: 700; line-height: .9; letter-spacing: -.08em; text-align: center; opacity: .11; user-select: none; }
-.draft-form { position: relative; margin-top: 32px; }
-.draft-meta { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
-.draft-meta__path { opacity: .7; }
-.project-avatar { display: grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border-radius: 3px; color: #fff; font: 600 8px/1 var(--la-font-mono); }
-.project-avatar--blue { background: #3250df; }
 .session-panel { display: flex; flex-direction: column; }
 .session-header { display: flex; flex: 0 0 48px; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 10px; border-bottom: .5px solid var(--la-line); }
 .session-header__project { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--la-muted); cursor: pointer; }
@@ -459,9 +449,6 @@ onUnmounted(() => {
 .composer-mode.is-active { color: var(--la-accent); }
 .composer-mode:disabled { opacity: .5; }
 @media (max-width: 767px) {
-  .draft-stage { padding: clamp(32px, 12vh, 96px) 12px 32px; }
-  .draft-wordmark { font-size: clamp(96px, 28vw, 160px); }
-  .draft-meta__path { display: none; }
   .session-composer { padding: 6px 8px max(10px, env(safe-area-inset-bottom)); }
   .session-model { max-width: 110px; font-size: 11px; }
   .session-header { padding-inline: 6px; }

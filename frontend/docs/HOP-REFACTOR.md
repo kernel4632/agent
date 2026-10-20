@@ -82,7 +82,7 @@ src/
 - 删除旧 `src/components/HomePage.vue`。
 - 验收：`.home-panel`、`.home-session`、搜索框和菜单角色不变；桌面和手机都通过。
 
-### [ ] 阶段 4：新会话页
+### [x] 阶段 4：新会话页
 
 - 新建 `src/draft/DraftView.vue`，把字标、输入区、项目路径从 `App.vue` 移出。
 - 组件只接收工作区、模型和发送事件；创建会话仍在 `App.vue` 或 `commands/session.js`。

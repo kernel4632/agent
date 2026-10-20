@@ -7,6 +7,7 @@
 import { computed } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import IconButton from '../ui/IconButton.vue'
+import { avatarColor } from '../ui/avatar.js'
 import TabStrip from './TabStrip.vue'
 import { store } from '../store.js'
 
@@ -16,18 +17,10 @@ defineProps({
 
 const emit = defineEmits(['home', 'new', 'select', 'close', 'palette', 'settings'])
 
-// 标签头像色：同一个 key 永远得到同一种颜色，刷新后也不会变。
-const tabPalette = ['#3250df', '#2eaf5a', '#ee7330', '#e4429e', '#623be2', '#0096b8']
-function tabColor(key) {
-  let value = 0
-  for (const char of key) value = (value * 31 + char.charCodeAt(0)) >>> 0
-  return tabPalette[value % tabPalette.length]
-}
-
 // 会话读取后标题可能更新；还没读取到完整会话时沿用标签创建时的标题。
 const tabs = computed(() => store.tabs.items.map(tab => {
   const title = store.sessions[tab.sessionID]?.title || tab.title || '新会话'
-  return { ...tab, title, color: tabColor(tab.key) }
+  return { ...tab, title, color: avatarColor(tab.key) }
 }))
 </script>
 
