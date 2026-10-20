@@ -38,7 +38,7 @@ src/
   store.js
 ```
 
-`ui/` 不是业务层，只负责把“按钮、输入框、下拉框、开关、弹窗”包成稳定接口。页面只 import `ui/`，不直接写原生控件。自研组件库到位后，替换 `ui/` 里的实现即可。
+`ui/` 不是业务层，只负责把“按钮、输入框、下拉框、开关、弹窗”包成稳定接口。普通按钮、文本输入、下拉框和开关必须走 `ui/`；编辑器、文件选择、复选/单选等专用控件在对应组件到位前可以保留原生实现，但要在文件头注明原因。自研组件库到位后，替换 `ui/` 里的实现即可。
 
 ## UI 控件接口
 
@@ -46,13 +46,14 @@ src/
 
 | 控件 | 必要 props | 事件 / 插槽 |
 |---|---|---|
-| `UiButton.vue` | `variant`（default/primary/danger/ghost）、`size`（normal/small）、`disabled`、`type` | `click`，默认插槽 |
-| `UiIconButton.vue` | `label`、`title`、`size`（normal/small）、`active`、`disabled`、`type` | `click`，默认插槽放图标 |
-| `UiField.vue` | `modelValue`、`type`、`placeholder`、`label`、`disabled`、`multiline`、`rows` | `update:modelValue`，`leading` / `trailing` 插槽 |
-| `UiSelect.vue` | `modelValue`、`options`、`label`、`disabled` | `update:modelValue` |
-| `UiSwitch.vue` | `modelValue`、`label`、`disabled` | `update:modelValue` |
-| `UiDialog.vue` | `open`、`title`、`label`、`fit` | `update:open`，默认插槽，`actions` 插槽 |
-| `UiMenu.vue` | `label`、`items` 或默认插槽 | `select` |
+| `Button.vue` | `variant`（default/primary/danger/ghost/plain）、`size`（normal/small）、`disabled`、`type` | `click`，默认插槽 |
+| `IconButton.vue` | `label`、`title`、`size`（normal/small）、`active`、`disabled`、`type` | `click`，默认插槽放图标 |
+| `Field.vue` | `modelValue`、`type`、`placeholder`、`label`、`caption`、`disabled`、`multiline`、`rows`、`size`（normal/small） | `update:modelValue`，`leading` / `trailing` 插槽 |
+| `Select.vue` | `modelValue`、`options`、`label`、`caption`、`disabled`、`size`（normal/small）、`selectClass` | `update:modelValue` |
+| `Switch.vue` | `modelValue`、`label`、`disabled` | `update:modelValue` |
+| `Dialog.vue` | `open`、`label` | `update:open`，默认插槽 |
+
+`UiMenu`、搜索框、编辑器、文件选择、复选/单选控件还没抽成通用组件；需要时再加，不提前造空壳。
 
 ## 阶段
 
@@ -88,7 +89,7 @@ src/
 - 组件只接收工作区、模型和发送事件；创建会话仍在 `App.vue` 或 `commands/session.js`。
 - 验收：草稿页截图、发送、附件、模型选择不变。
 
-### [ ] 阶段 5：会话页
+### [x] 阶段 5：会话页
 
 拆成三个小步，每步单独审查和提交。
 
@@ -122,7 +123,7 @@ src/
 - 删除 `SettingsNavigation.vue`、`SettingsPlaceholder.vue`、`register.js`。
 - 验收：新增/删除一个设置页只改登记表和一个页面文件；现有设置测试全过。
 
-### [ ] 阶段 7：把设置页控件换到 ui/
+### [x] 阶段 7：把设置页控件换到 ui/
 
 拆成三个小步，每步单独审查和提交。
 
@@ -172,12 +173,21 @@ src/
 - 给新组件补文件头：管什么、怎么调用、调用示例；业务步骤补注释。
 - 验收：`App.vue` 200 行以内；构建、单测、UI 全过。
 
-### [ ] 阶段 9：最终审查
+### [x] 阶段 9：最终审查
 
 - 按 HOP 的五个问题逐项检查：找得到、敢改、加一个同类只放一个文件、删一个干净、零上下文能接手。
 - 检查 `ui/` 是否是唯一组件库入口，`theme/` 是否是唯一主题入口，设置页是否只有一个登记点。
 - 更新本文件的勾选状态。
 - 跑完整验证并提交推送。
+
+#### 审查结果
+
+- `App.vue` 189 行，只保留主题、标题栏、视图切换、草稿创建和跨视图接线。
+- 普通按钮、文本输入、下拉框、开关都走 `ui/`；`Button.vue`、`IconButton.vue`、`Field.vue`、`Select.vue`、`Switch.vue`、`Dialog.vue`、`AppIcon.vue` 是唯一入口。
+- `theme/` 只有 `ThemeProvider.vue` 一个 `m3e-theme` 包装；`watchers.js` 不再接触主题。
+- 设置页只有一个登记表 `settings/pages.js`；设置壳、导航、页面包装和原设置组件都在 `settings/` 下。
+- 还保留的原生专用控件：命令面板搜索框、Composer 编辑器/隐藏文件框、时间线回退复选框、外观主题/颜色单选框。文件头已注明原因，等对应编辑器/选择组件到位再替换。
+- 验证：前端 `bun run test` 7/7、`bun run build`、`bun run test:ui` 28/28；后端 `bun test` 170/170。
 
 ## 每个阶段的审查门
 

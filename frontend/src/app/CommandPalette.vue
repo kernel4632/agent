@@ -62,6 +62,7 @@ function keydown(event) {
 <template>
   <div v-if="open" class="command-palette" role="dialog" aria-label="命令面板" @click.self="emit('update:open', false)">
     <div class="command-palette__panel">
+      <!-- 搜索框是命令面板专用输入，保留原生以直接聚焦和即时过滤；后续换成搜索控件。 -->
       <input ref="input" v-model="query" class="command-palette__input" type="search" aria-label="搜索命令" placeholder="搜索命令或会话" @keydown="keydown" />
       <div class="command-palette__list" role="listbox" aria-label="命令">
         <!-- 搜索框仍是原生 input；命令项只换 Button 外壳，role 和选中状态原样保留。 -->
