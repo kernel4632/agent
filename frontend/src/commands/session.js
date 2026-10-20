@@ -6,6 +6,7 @@ Server 会话会被归一化为现有 M3E 组件可直接渲染的消息与工�
 import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约
 import { store } from '../store.js'                     // 引入工作区摘要与完整会话
 import { UI } from './ui.js'                            // 引入导航和反馈指令
+import { Tabs } from './tabs.js'                        // 同步顶部会话标签
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
 
 
@@ -89,6 +90,7 @@ async function open(sessionID) {
     store.sessions[sessionID] = normalize(loaded, store.sessions[sessionID]) // 保留当前草稿并替换服务数据
     store.ui.activeWorkspaceID = found.workspace.id     // 侧边栏与主页保持正确工作区归属
     rememberOpened(sessionID)                           // 读取成功后才加入侧边栏，失败时不制造空标签
+    Tabs.openSession(sessionID, store.sessions[sessionID]?.title || '新会话')
     await UI.openChat(sessionID)                        // 数据就绪后再打开对话页
     return true                                         // 反馈页面已经切换
   } catch (error) {
@@ -118,6 +120,8 @@ async function rename(sessionID, title) {
     const result = await AgentAPI.renameSession(sessionID, cleanTitle)
     found.summary.title = result.title                  // 更新侧边栏和主页摘要
     if (session) session.title = result.title
+    const tab = store.tabs.items.find(item => item.sessionID === sessionID)
+    if (tab) Tabs.setTitle(tab.key, result.title)
     return true                                         // 标题编辑器退出编辑
   } catch (error) {
     UI.notify(error.message)                            // 保留编辑器内容并显示错误
@@ -136,6 +140,7 @@ async function remove(sessionID) {
     delete store.sessions[sessionID]                    // 删除当前已加载详情
     const openedIndex = store.ui.openedSessionIDs.indexOf(sessionID) // 查找侧边栏中的已打开会话
     if (openedIndex >= 0) store.ui.openedSessionIDs.splice(openedIndex, 1) // 删除后同步关闭对应侧边栏项
+    Tabs.removeSession(sessionID)
     if (store.ui.activeSessionID === sessionID) await UI.openHome() // 删除当前页后等待返回主页
     UI.notify(t('sessionDeleted'))                      // 反馈用户动作完成
     return true                                         // 通知确认弹窗关闭

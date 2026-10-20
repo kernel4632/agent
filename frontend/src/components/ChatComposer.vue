@@ -98,7 +98,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
       <div class="chat-composer__toolbar">
-        <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>la</span></slot></div>
+        <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>Build</span></slot></div>
         <div class="chat-composer__actions">
           <select v-if="canSelectModel && models.length" class="chat-composer__model" aria-label="新对话使用的模型" :value="selection" :disabled="busy" @change="chooseModel">
             <option v-for="item in models" :key="JSON.stringify(item)" :value="JSON.stringify([item.provider, item.model])">{{ item.provider }} / {{ item.model }}</option>
@@ -119,13 +119,13 @@ defineExpose({ focus: () => editor.value?.focus() })
 <style scoped lang="scss">
 .chat-composer {
   position: relative;
-  padding: 10px 12px 6px;
-  border: 1px solid var(--la-line);
-  border-left: 2px solid var(--la-accent);
-  border-radius: 2px;
-  background: var(--la-term-panel);
+  padding: 12px 14px 8px;
+  border: .5px solid var(--la-line);
+  border-radius: 10px;
+  background: var(--la-layer-01);
+  box-shadow: var(--la-shadow-raised);
 
-  &:focus-within { border-color: var(--la-accent-border); border-left-color: var(--la-accent); }
+  &:focus-within { border-color: var(--la-line-strong); }
   &__slash {
     position: absolute;
     right: 0;
@@ -134,13 +134,12 @@ defineExpose({ focus: () => editor.value?.focus() })
     z-index: 20;
     display: grid;
     max-height: 240px;
-    padding: 6px;
+    padding: 4px;
     overflow-y: auto;
-    gap: 2px;
-    border: 1px solid var(--la-line);
-    border-radius: 2px;
-    background: var(--la-titlebar);
-    box-shadow: 0 12px 30px #0006;
+    gap: 1px;
+    border-radius: 8px;
+    background: var(--la-layer-01);
+    box-shadow: var(--la-shadow-floating);
   }
   &__slash-item {
     display: flex;
@@ -148,7 +147,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     gap: 10px;
     padding: 7px 9px;
     border: 0;
-    border-radius: 2px;
+    border-radius: 4px;
     background: transparent;
     color: var(--la-secondary);
     text-align: left;
@@ -156,41 +155,69 @@ defineExpose({ focus: () => editor.value?.focus() })
   }
   &__slash-item.is-active, &__slash-item:hover { background: var(--la-hover); color: var(--la-text); }
   &__slash-name { flex: none; color: var(--la-accent); font: 12px/1.6 var(--la-font-mono); white-space: nowrap; }
-  &__slash-description { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  &__slash-description { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   &__editor {
     display: block;
     width: 100%;
-    min-height: 48px;
+    min-height: 44px;
     max-height: 220px;
-    padding: 0 2px 8px;
+    padding: 0 0 8px;
     resize: none;
     field-sizing: content;
     border: 0;
     outline: 0;
     background: transparent;
     color: var(--la-text);
-    font: 13px/1.65 var(--la-font-mono);
+    font: 13px/20px var(--la-font-sans);
+    letter-spacing: -.04px;
 
     &::placeholder { color: var(--la-muted); }
   }
-  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 5px; min-width: 0; }
-  &__toolbar { justify-content: space-between; padding-top: 6px; border-top: 1px solid var(--la-line); }
-  &__agent { color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); }
+  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  &__toolbar { justify-content: space-between; padding-top: 6px; border-top: .5px solid var(--la-line); }
+  &__agent { color: var(--la-muted); font-size: 12px; }
   &__agent svg { color: var(--la-muted); }
-  &__model { max-width: 230px; overflow: hidden; border: 0; background: transparent; color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+  &__model {
+    max-width: 230px;
+    height: 28px;
+    padding: 0 4px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--la-secondary);
+    font: 12px/20px var(--la-font-sans);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  &__model:hover { background: var(--la-layer-02); color: var(--la-text); }
   &__model option { background: var(--la-panel); color: var(--la-text); }
-  &__send { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; padding: 0; border: 1px solid var(--la-accent-border); border-radius: 2px; background: var(--la-accent-soft); color: var(--la-accent); cursor: pointer; }
-  &__send:disabled { border-color: var(--la-line); background: transparent; color: var(--la-muted); }
+  &__send {
+    display: grid;
+    place-items: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: var(--la-accent-solid);
+    color: #fff;
+    cursor: pointer;
+  }
+  &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, #000); }
+  &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
   &__files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  &__files > span { display: flex; align-items: center; gap: 6px; max-width: 100%; padding-left: 8px; border: 1px solid var(--la-line); border-radius: 2px; color: var(--la-secondary); font-size: 11px; overflow-wrap: anywhere; }
+  &__files > span { display: flex; align-items: center; gap: 6px; max-width: 100%; padding-left: 8px; border-radius: 6px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 12px; overflow-wrap: anywhere; }
 }
-.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 5px 2px 0; color: var(--la-muted); font: 9px/1.6 var(--la-font-mono); }
-@media (max-width: 760px) {
+.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; color: var(--la-muted); font-size: 12px; font-weight: 440; }
+@media (max-width: 767px) {
   .chat-composer {
-    padding: 10px 12px 6px;
+    padding: 10px 12px 8px;
     &__editor { font-size: 16px; }
     &__agent span { display: none; }
-    &__model { max-width: 150px; font-size: 10px; }
+    &__model { max-width: 150px; font-size: 12px; }
     &__send { width: 32px; height: 32px; flex-basis: 32px; }
   }
   .composer-footnote > span:first-child { display: none; }

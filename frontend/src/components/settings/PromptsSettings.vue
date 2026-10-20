@@ -13,8 +13,8 @@ defineEmits(['update:prompt'])
 
 <style scoped lang="scss">
 .prompts-settings {
-  display: grid; gap: 12px; color: var(--la-secondary); font-size: 12px;
-  textarea { min-height: 300px; resize: vertical; background: var(--la-setting-row); line-height: 1.8; }
-  span { text-align: right; color: var(--la-muted); }
+  display: grid; gap: 8px; color: var(--la-muted); font-size: 13px;
+  textarea { min-height: 320px; height: auto; padding: 12px; resize: vertical; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); line-height: 20px; }
+  span { text-align: right; color: var(--la-muted); font-size: 12px; }
 }
 </style>

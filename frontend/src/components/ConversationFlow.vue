@@ -47,14 +47,13 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 <template>
   <div ref="root" class="conversation-flow" aria-label="对话内容">
     <section v-for="message in messages" :key="message.id" class="message" :class="`message--${message.role}`" :aria-label="message.role === 'user' ? '你的消息' : 'la 的回复'">
-      <header v-if="message.role === 'assistant'" class="message__author"><span class="message__avatar"><AppIcon name="spark" :size="14" /></span><strong>la</strong><span class="message__model">{{ session.model }}</span></header>
       <div v-if="message.role === 'user'" class="message__bubble">{{ message.content }}</div>
       <template v-else>
-        <details v-if="message.reasoning" class="reasoning"><summary><span class="reasoning__mark">~</span>思考过程<AppIcon name="down" :size="12" /></summary><p>{{ message.reasoning }}</p></details>
+        <details v-if="message.reasoning" class="reasoning"><summary><AppIcon name="spark" :size="14" />思考过程<AppIcon name="down" :size="12" /></summary><p>{{ message.reasoning }}</p></details>
         <div v-if="message.content" class="markdown-body" v-html="renderMarkdown(message.content)"></div>
         <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
         <details v-for="tool in message.tools || []" :key="tool.id" class="tool-card" :open="tool.status === 'waiting' || tool.status === 'running'">
-          <summary><span class="tool-card__mark">*</span><strong>{{ tool.name }}</strong><span :class="{ 'tool-warning': tool.status === 'waiting' }">{{ toolLabel(tool.status) }}</span><AppIcon name="down" :size="12" /></summary>
+          <summary><AppIcon name="code" :size="14" /><strong>{{ tool.name }}</strong><span :class="{ 'tool-warning': tool.status === 'waiting' }">{{ toolLabel(tool.status) }}</span><AppIcon name="down" :size="12" /></summary>
           <div class="tool-card__body"><pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre><pre v-if="tool.preview">{{ tool.preview }}</pre><div v-if="tool.status === 'waiting'" class="approval"><p>此操作需要你的许可。请检查上方工具及参数。</p><div><button class="button button--danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</button><button class="button" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</button><button class="button button--primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</button></div></div></div>
         </details>
         <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
@@ -80,60 +79,70 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 </template>
 
 <style scoped lang="scss">
-.conversation-flow { width: 100%; max-width: 1000px; margin: 0 auto; padding: 24px var(--la-chat-gutter) 28px; display: flex; flex-direction: column; gap: 20px; }
+.conversation-flow { width: 100%; max-width: 860px; margin: 0 auto; padding: 20px var(--la-chat-gutter) 28px; display: flex; flex-direction: column; gap: 24px; }
 .message { min-width: 0; }
-.message__author { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); }
-.message__author strong { color: var(--la-secondary); font-weight: 500; }
-.message__avatar { display: grid; place-items: center; color: var(--la-accent); }
-.message__model { overflow: hidden; color: var(--la-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.message__bubble { width: 100%; padding: 10px 12px; border: 1px solid var(--la-line); border-left: 2px solid var(--la-accent); border-radius: 0; background: var(--la-term-panel); color: var(--la-text); font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
-.message__actions { display: flex; gap: 1px; margin-top: 5px; opacity: .35; }
+.message--user { display: flex; flex-direction: column; align-items: flex-end; }
+.message__bubble {
+  max-width: min(82%, 64ch);
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.message__actions { display: flex; gap: 1px; margin-top: 4px; opacity: 0; }
+.message--user .message__actions { justify-content: flex-end; }
 .message:hover .message__actions, .message:focus-within .message__actions { opacity: 1; }
 .message__actions .icon-button { width: 24px; height: 24px; }
 .markdown-body { color: var(--la-text); font-size: 13.5px; line-height: 1.9; overflow-wrap: anywhere; }
 .markdown-body :deep(p) { margin: 0 0 12px; }
-.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { line-height: 1.5; font-weight: 550; margin: 20px 0 10px; }
-.markdown-body :deep(h1) { font-size: 20px; } .markdown-body :deep(h2) { font-size: 17px; } .markdown-body :deep(h3) { font-size: 14px; }
-.markdown-body :deep(pre) { max-width: 100%; overflow-x: auto; border: 1px solid var(--la-line); padding: 12px; border-radius: 2px; background: #08080a; color: #dfe3ea; line-height: 1.7; }
-.markdown-body :deep(code) { font: 11.5px/1.7 var(--la-font-mono); }
-.markdown-body :deep(:not(pre) > code) { padding: 1px 4px; background: var(--la-hover); border: 1px solid var(--la-line); border-radius: 2px; color: var(--la-accent); }
+.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { line-height: 1.5; font-weight: 530; margin: 20px 0 10px; }
+.markdown-body :deep(h1) { font-size: 20px; } .markdown-body :deep(h2) { font-size: 17px; } .markdown-body :deep(h3) { font-size: 15px; }
+.markdown-body :deep(pre) { max-width: 100%; overflow-x: auto; border: .5px solid var(--la-line); padding: 12px; border-radius: 8px; background: var(--la-layer-01); color: var(--la-text); line-height: 1.7; }
+.markdown-body :deep(code) { font: 12px/1.7 var(--la-font-mono); }
+.markdown-body :deep(:not(pre) > code) { padding: 1px 4px; background: var(--la-layer-02); border-radius: 4px; color: var(--la-text); }
 .markdown-body :deep(a) { color: var(--la-accent); text-underline-offset: 4px; }
-.markdown-body :deep(img) { max-width: 100%; height: auto; border-radius: 2px; }
+.markdown-body :deep(img) { max-width: 100%; height: auto; border-radius: 8px; }
 .markdown-body :deep(table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
-.markdown-body :deep(td), .markdown-body :deep(th) { padding: 6px 9px; border: 1px solid var(--la-line); }
+.markdown-body :deep(td), .markdown-body :deep(th) { padding: 6px 9px; border: .5px solid var(--la-line); }
 .markdown-body :deep(blockquote) { margin-left: 0; padding-left: 14px; border-left: 2px solid var(--la-accent-border); color: var(--la-secondary); }
 .markdown-body :deep(.katex-display) { overflow-x: auto; overflow-y: hidden; }
-.reasoning { padding: 4px 0 4px 10px; margin: 4px 0 10px; border: 0; border-left: 1px solid var(--la-line); border-radius: 0; color: var(--la-muted); font-size: 11px; }
-.reasoning summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-family: var(--la-font-mono); }
-.reasoning__mark { color: var(--la-accent); font-family: var(--la-font-mono); }
-.reasoning p { margin: 8px 0 0; white-space: pre-wrap; line-height: 1.8; }
-.typing { display: flex; align-items: center; gap: 4px; height: 32px; color: var(--la-muted); }
+.reasoning { padding: 0; margin: 2px 0 8px; border: 0; color: var(--la-muted); font-size: 13px; }
+.reasoning summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 440; }
+.reasoning p { margin: 8px 0 0 20px; white-space: pre-wrap; line-height: 20px; font-size: 13px; }
+.typing { display: flex; align-items: center; gap: 4px; height: 28px; color: var(--la-muted); }
 .typing > span { width: 4px; height: 4px; background: var(--la-accent); border-radius: 50%; animation: pulse 1.3s infinite alternate; }
 .typing > span:nth-child(2) { animation-delay: .2s; } .typing > span:nth-child(3) { animation-delay: .4s; }
-.typing small { margin-left: 8px; font-size: 11px; }
+.typing small { margin-left: 8px; font-size: 13px; }
 @keyframes pulse { to { opacity: .2; transform: translateY(-2px); } }
-.tool-card { margin: 5px 0; border: 0; border-radius: 0; background: transparent; overflow: visible; }
-.tool-card summary { display: flex; align-items: center; gap: 7px; padding: 3px 0; color: var(--la-secondary); font: 11px/1.7 var(--la-font-mono); cursor: pointer; }
-.tool-card__mark { color: var(--la-accent); font: 12px/1 var(--la-font-mono); }
-.tool-card summary strong { color: var(--la-text); font-weight: 500; overflow-wrap: anywhere; }
-.tool-card summary > span:not(.tool-card__mark) { margin-left: auto; color: var(--la-muted); white-space: nowrap; font-size: 10px; }
-.tool-card summary > span.tool-warning { color: #d9ba8a; }
-.tool-card__body { margin: 2px 0 6px 5px; padding: 4px 0 4px 12px; border-left: 1px solid var(--la-line); }
-.tool-card pre { font: 11px/1.75 var(--la-font-mono); max-height: 320px; overflow: auto; margin: 0 0 8px; color: var(--la-secondary); }
-.approval { padding: 8px 10px; border-left: 2px solid var(--la-accent-border); background: var(--la-term-panel); }
-.approval p { margin: 0 0 8px; font: 11px/1.7 var(--la-font-mono); color: var(--la-secondary); }
-.approval > div { display: flex; flex-wrap: wrap; gap: 6px; }
-.approval .button { min-height: 30px; border-radius: 2px; font-size: 11px; }
+.tool-card { margin: 2px 0; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.tool-card summary { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 0; color: var(--la-muted); font-size: 13px; cursor: pointer; }
+.tool-card summary strong { color: var(--la-text); font-weight: 530; overflow-wrap: anywhere; }
+.tool-card summary > span { margin-left: auto; color: var(--la-muted); white-space: nowrap; font-size: 12px; }
+.tool-card summary > span.tool-warning { color: var(--la-warning); }
+.tool-card__body { margin: 4px 0 8px 6px; padding: 12px; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
+.tool-card pre { font: 12px/1.75 var(--la-font-mono); max-height: 320px; overflow: auto; margin: 0 0 8px; color: var(--la-secondary); }
+.approval { padding: 12px; border-radius: 8px; background: var(--la-layer-02); }
+.approval p { margin: 0 0 10px; font-size: 13px; line-height: 20px; color: var(--la-secondary); }
+.approval > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.approval .button { height: 28px; font-size: 13px; }
 .rollback-files { display: grid; gap: 8px; margin: 0 0 18px; }
-.rollback-files > span { font-size: 11px; color: var(--la-muted); }
-.rollback-files ul { margin: 0; padding: 10px 12px; list-style: none; max-height: 160px; overflow: auto; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: var(--la-input); }
-.rollback-files li { font: 11px/1.9 var(--la-font-mono); color: var(--la-secondary); overflow-wrap: anywhere; }
-.rollback-choice { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--la-text); }
+.rollback-files > span { font-size: 13px; color: var(--la-muted); }
+.rollback-files ul { margin: 0; padding: 10px 12px; list-style: none; max-height: 160px; overflow: auto; border-radius: 6px; background: var(--la-layer-02); }
+.rollback-files li { font: 12px/1.9 var(--la-font-mono); color: var(--la-secondary); overflow-wrap: anywhere; }
+.rollback-choice { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--la-text); }
 .rollback-choice input { width: 15px; height: 15px; accent-color: var(--la-accent); }
-.rollback-hint { margin: 10px 0 0 !important; font-size: 11px !important; color: var(--la-muted) !important; }
-.message__error { display: flex; align-items: flex-start; gap: 8px; color: var(--la-danger); font-size: 12px; line-height: 1.8; padding: 10px 0; overflow-wrap: anywhere; }
+.rollback-hint { margin: 10px 0 0 !important; font-size: 12px !important; color: var(--la-muted) !important; }
+.message__error { display: flex; align-items: flex-start; gap: 8px; color: var(--la-danger); font-size: 13px; line-height: 20px; padding: 8px 0; overflow-wrap: anywhere; }
 .message__error > svg { flex-shrink: 0; margin-top: 3px; }
-.message__usage { margin-top: 8px; color: var(--la-muted); font: 9px/1.6 var(--la-font-mono); }
+.message__usage { margin-top: 6px; color: var(--la-muted); font-size: 12px; }
 .message__usage > span { padding: 0 7px; }
-@media (max-width: 760px) { .conversation-flow { padding: 18px 12px 22px; gap: 18px; } .message__model { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+@media (max-width: 767px) {
+  .conversation-flow { padding: 16px 12px 22px; gap: 20px; }
+  .message__bubble { max-width: 90%; }
+}
 </style>

@@ -1,7 +1,5 @@
 <script setup>
-// 设置页用到的 M3E 组件按需注册；之前这个文件没被引入，开关等组件是隐形的。
-import './register.js'
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import ProviderSettings from './ProviderSettings.vue'
 import PromptsSettings from './PromptsSettings.vue'
@@ -22,11 +20,14 @@ const sections = [
   { id: 'mcp', label: 'MCP 服务', icon: 'link' },
   { id: 'data', label: '数据管理', icon: 'folder', disabled: true },
 ]
-const dialog = ref(null)
+const groups = [
+  { label: '偏好', ids: ['appearance'] },
+  { label: '服务', ids: ['providers', 'prompts', 'advanced', 'tools', 'mcp'] },
+  { label: '其他', ids: ['data'] },
+].map(group => ({ ...group, items: sections.filter(item => group.ids.includes(item.id)) }))
 const selected = ref(store.ui.settingsSection)
 const section = computed(() => sections.find(item => item.id === selected.value) || sections[0])
 const draft = computed(() => store.settings.draft)
-onMounted(() => dialog.value.showModal())
 
 function addProvider() {
   const providers = draft.value.providers
@@ -40,20 +41,24 @@ async function save() {
 </script>
 
 <template>
-  <dialog ref="dialog" class="settings-dialog" aria-label="设置" @cancel.prevent="UI.closeSettings()">
+  <section class="settings-screen" aria-label="设置">
     <div class="settings-page">
       <aside class="settings-nav">
+        <button class="settings-back" @click="UI.closeSettings()"><AppIcon name="arrow" :size="14" class="settings-back-icon" />返回应用</button>
         <h2>设置</h2>
         <nav aria-label="设置分类">
-          <button v-for="item in sections" :key="item.id" :class="{ active: selected === item.id }" :disabled="item.disabled" :title="item.disabled ? '暂不支持此管理功能' : item.label" :aria-current="selected === item.id ? 'page' : undefined" @click="selected = item.id">
-            <AppIcon :name="item.icon" :size="16" /><span>{{ item.label }}</span><small v-if="item.disabled">待支持</small>
-          </button>
+          <section v-for="group in groups" :key="group.label" class="settings-nav-group">
+            <div class="settings-nav-group__label">{{ group.label }}</div>
+            <button v-for="item in group.items" :key="item.id" :class="{ active: selected === item.id }" :disabled="item.disabled" :title="item.disabled ? '暂不支持此管理功能' : item.label" :aria-current="selected === item.id ? 'page' : undefined" @click="selected = item.id">
+              <AppIcon :name="item.icon" :size="16" /><span>{{ item.label }}</span><small v-if="item.disabled">待支持</small>
+            </button>
+          </section>
         </nav>
       </aside>
       <div class="settings-content">
         <header class="settings-heading">
           <h2>{{ section.label }}</h2>
-          <button class="icon-button" aria-label="关闭设置" :disabled="store.settings.isSaving" @click="UI.closeSettings()"><AppIcon name="close" :size="20" /></button>
+          <button class="icon-button" aria-label="关闭设置" :disabled="store.settings.isSaving" @click="UI.closeSettings()"><AppIcon name="close" :size="18" /></button>
         </header>
         <div v-if="draft" class="settings-body">
           <template v-if="selected === 'providers'">
@@ -79,60 +84,104 @@ async function save() {
         </footer>
       </div>
     </div>
-  </dialog>
+  </section>
 </template>
 
 <style scoped lang="scss">
-.settings-dialog {
-  width: min(880px, calc(100vw - 48px));
-  height: min(680px, calc(100dvh - 64px));
-  max-width: none;
-  max-height: none;
-  padding: 0;
-  border: 1px solid var(--la-line);
-  border-radius: var(--la-radius-panel);
+.settings-screen {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  margin: var(--la-content-inset);
+  overflow: hidden;
+  border-radius: 10px;
   background: var(--la-panel);
-  color: var(--la-text);
-  box-shadow: 0 24px 70px #0008;
-
-  &::backdrop { background: #000a; backdrop-filter: blur(3px); }
+  box-shadow: var(--la-shadow-raised);
+  container: settings-screen / inline-size;
 }
-.settings-page { display: flex; height: 100%; }
+.settings-page { display: flex; width: 100%; max-width: 1048px; height: 100%; margin: 0 auto; }
 .settings-nav {
-  flex: 0 0 184px;
-  padding: 18px 10px;
-  border-right: 1px solid var(--la-line);
-  background: var(--la-settings-nav);
-
-  h2 { margin: 0 10px 18px; font-size: 14px; font-weight: 600; }
-  nav { display: grid; gap: 1px; }
-  button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--la-radius); background: transparent; color: var(--la-secondary); text-align: left; font-size: 12px; cursor: pointer; }
-  button.active { color: var(--la-text); background: var(--la-setting-row); }
-  button:hover:not(:disabled) { background: var(--la-hover); }
-  small { margin-left: auto; font-size: 9px; color: var(--la-muted); }
+  display: flex;
+  width: 328px;
+  min-width: 328px;
+  flex: 0 0 328px;
+  flex-direction: column;
+  gap: 16px;
+  padding: 50px 64px 48px 24px;
 }
-.settings-content { display: flex; flex: 1; min-width: 0; flex-direction: column; }
-.settings-heading { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 16px 22px 10px 28px; }
-.settings-heading h2 { margin: 0; font-size: 17px; font-weight: 550; letter-spacing: -.01em; }
-.settings-body { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 28px 20px; }
-.settings-provider-note { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; color: var(--la-muted); font-size: 11px; }
-.settings-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 22px; border-top: 1px solid var(--la-line); color: var(--la-muted); font-size: 10px; }
-.settings-footer > span { overflow-wrap: anywhere; }
-.settings-footer .button { flex-shrink: 0; min-height: 28px; padding: 4px 10px; background: var(--la-setting-row); font-size: 11px; }
-@media (max-width: 760px) {
-  .settings-dialog { width: calc(100vw - 20px); height: calc(100dvh - 28px); }
+.settings-back {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--la-muted);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.settings-back:hover { background: var(--la-layer-03); color: var(--la-text); }
+.settings-back-icon { transform: rotate(180deg); }
+.settings-nav h2 { margin: 0 6px; color: var(--la-text); font-size: 15px; font-weight: 640; line-height: 20px; }
+.settings-nav nav { display: flex; flex-direction: column; gap: 16px; }
+.settings-nav-group { display: flex; flex-direction: column; gap: 4px; }
+.settings-nav-group__label { display: flex; height: 28px; align-items: center; padding: 0 6px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
+.settings-nav nav button {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--la-muted);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 440;
+  cursor: pointer;
+}
+.settings-nav nav button.active { background: var(--la-layer-03); color: var(--la-text); }
+.settings-nav nav button:hover:not(:disabled) { background: var(--la-hover); }
+.settings-nav small { margin-left: auto; color: var(--la-muted); font-size: 11px; }
+.settings-content { display: flex; max-width: 720px; min-width: 0; flex: 1; flex-direction: column; }
+.settings-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 48px 0 0;
+  background: var(--la-panel);
+}
+.settings-heading h2 { margin: 0; color: var(--la-text); font-size: 15px; font-weight: 640; line-height: 20px; }
+.settings-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 32px; overflow-y: auto; padding: 24px 4px 80px; }
+.settings-provider-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--la-muted); font-size: 13px; }
+.settings-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: .5px solid var(--la-line); color: var(--la-muted); font-size: 13px; }
+.settings-footer .button { flex-shrink: 0; }
+@media (max-width: 1047px) {
+  .settings-nav { width: 240px; min-width: 240px; flex-basis: 240px; padding-left: 16px; padding-right: 24px; }
+}
+@media (max-width: 767px) {
   .settings-page { flex-direction: column; }
-  .settings-nav {
-    flex: none;
-    padding: 12px;
-    h2 { display: none; }
-    nav { display: flex; overflow-x: auto; }
-    button { width: auto; flex: none; padding: 10px; white-space: nowrap; }
-    button:disabled { display: none; }
-  }
-  .settings-content { min-height: 0; }
-  .settings-heading { padding: 14px 16px 8px; }
-  .settings-body { padding: 8px 16px 20px; }
+  .settings-nav { width: 100%; min-width: 0; flex: none; gap: 4px; padding: 8px 12px; border-bottom: .5px solid var(--la-line); }
+  .settings-back { display: none; }
+  .settings-nav h2 { display: none; }
+  .settings-nav nav { flex-direction: row; gap: 2px; overflow-x: auto; }
+  .settings-nav-group { display: contents; }
+  .settings-nav-group__label { display: none; }
+  .settings-nav nav button { width: auto; flex: none; padding: 0 8px; white-space: nowrap; }
+  .settings-nav nav button:disabled { display: none; }
+  .settings-content { max-width: none; min-height: 0; }
+  .settings-heading { padding: 12px 16px 0; }
+  .settings-body { padding: 16px 16px 48px; }
   .settings-footer { padding: 12px 16px; }
 }
 </style>

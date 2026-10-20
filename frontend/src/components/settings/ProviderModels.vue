@@ -34,14 +34,16 @@ async function discover() {
 
 <style scoped lang="scss">
 .provider-models {
+  display: grid;
+  gap: 12px;
   header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  h3 { font-size: 13px; font-weight: 500; }
+  h3 { margin: 0; font-size: 13px; font-weight: 530; }
   small { color: var(--la-muted); margin-left: 6px; }
-  &__add { display: flex; gap: 8px; margin-bottom: 12px; }
-  &__add .field { min-width: 0; font-size: 12px; }
+  &__add { display: flex; gap: 8px; }
+  &__add .field { min-width: 0; font-size: 13px; }
   &__add .button { flex: none; }
-  &__row { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px 5px 12px; margin-bottom: 2px; border-radius: 5px; background: var(--la-setting-row); font-size: 12px; overflow-wrap: anywhere; }
-  p { text-align: center; color: var(--la-muted); font-size: 12px; }
+  &__row { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 0 10px; border-radius: 4px; background: var(--la-layer-01); font-size: 13px; overflow-wrap: anywhere; }
+  p { margin: 0; text-align: center; color: var(--la-muted); font-size: 13px; }
 }
 .model-choices { display: grid; gap: 6px; margin-top: 16px; max-height: 50vh; overflow: auto; }
 .model-choices .button { justify-content: space-between; overflow-wrap: anywhere; }

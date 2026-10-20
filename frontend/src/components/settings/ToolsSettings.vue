@@ -6,96 +6,85 @@
 -->
 <script setup>
 const props = defineProps({
-  tools: { type: Array, required: true },                   // 接收工具配置数组（双向绑定）
+  tools: { type: Array, required: true },
 })
-const emit = defineEmits(['update:tools'])                   // 输出变更后的工具数组
+const emit = defineEmits(['update:tools'])
 
-// 分类的中文名，和 utils/tool-kind.js 的 kind 对应。
 const KIND_LABELS = { read: '读取', write: '写入', command: '执行命令', mcp: 'MCP', subtask: '子任务', other: '自定义' }
 const kindLabel = tool => KIND_LABELS[tool.kind] || '工具'
 
-
-// --- 切换工具启用状态 ---
 function toggleTool(index) {
   const updated = props.tools.map((tool, i) => i === index
-    ? { ...tool, enabled: !tool.enabled, permission: !tool.enabled ? 'ask' : 'deny' } // 启用时默认为询问权限
+    ? { ...tool, enabled: !tool.enabled, permission: !tool.enabled ? 'ask' : 'deny' }
     : tool)
-  emit('update:tools', updated)                             // 完整数组上抛触发响应式更新
+  emit('update:tools', updated)
 }
 
-
-// --- 修改工具权限级别 ---
 function updatePermission(index, permission) {
   const updated = props.tools.map((tool, i) => i === index
-    ? { ...tool, permission, enabled: permission !== 'deny' } // deny 等价于禁用
+    ? { ...tool, permission, enabled: permission !== 'deny' }
     : tool)
-  emit('update:tools', updated)                             // 完整数组上抛
+  emit('update:tools', updated)
 }
 </script>
 
 <template>
-  <m3e-content-pane class="tools-settings">
-    <m3e-list class="tools-settings__list">
-      <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name">
-        {{ tool.title || tool.name }}
-        <span slot="supporting-text">{{ kindLabel(tool) }}</span>
-        <div slot="trailing" class="tools-settings__controls">
-          <m3e-form-field class="tools-settings__permission" variant="outlined" hide-subscript="always">
-            <m3e-select @input="updatePermission(index, $event.currentTarget.value)">
-              <m3e-option value="allow" :selected="tool.permission === 'allow'">自动执行</m3e-option>
-              <m3e-option value="ask" :selected="tool.permission === 'ask'">每次询问</m3e-option>
-              <m3e-option value="deny" :selected="tool.permission === 'deny'">禁止调用</m3e-option>
-            </m3e-select>
-          </m3e-form-field>
+  <section class="tools-settings" aria-label="工具管理">
+    <div class="settings-list">
+      <div v-for="(tool, index) in props.tools" :key="tool.name" class="settings-row">
+        <div class="settings-row__copy">
+          <strong>{{ tool.title || tool.name }}</strong>
+          <small>{{ kindLabel(tool) }}</small>
+        </div>
+        <div class="settings-row__control">
+          <select class="tool-select" :value="tool.permission" :aria-label="`${tool.name} 权限`" @change="updatePermission(index, $event.target.value)">
+            <option value="allow">自动执行</option>
+            <option value="ask">每次询问</option>
+            <option value="deny">禁止调用</option>
+          </select>
           <input class="switch" type="checkbox" role="switch" :aria-label="`切换 ${tool.name}`" :checked="tool.enabled" @change="toggleTool(index)" />
         </div>
-      </m3e-list-item>
-      <m3e-divider v-if="props.tools.length"></m3e-divider>
+      </div>
       <p v-if="!props.tools.length" class="tools-settings__empty">暂无可配置的工具</p>
-    </m3e-list>
-  </m3e-content-pane>
+    </div>
+  </section>
 </template>
 
 <style scoped lang="scss">
-.tools-settings {
-  display: flex;
-  min-height: 0;
-  overflow-y: auto;
-  flex-direction: column;
-  padding: 8px 0 24px;
-  @include scrollbar-dark;
+.tools-settings { display: flex; min-height: 0; flex-direction: column; }
+.settings-list {
+  padding-inline: 20px;
+  border-radius: 8px;
+  background: var(--la-layer-01);
+  box-shadow: inset 0 0 0 .5px var(--la-line);
 }
-
-.tools-settings__list {
-  display: flex;
-  width: 100%;
-  margin: 0;
-  flex-direction: column;
-}
-
-.tools-settings__controls {
+.settings-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-}
+  gap: 16px;
+  padding-block: 20px;
+  border-bottom: .5px solid var(--la-line);
 
-/* --- 权限选择器 --- */
-.tools-settings__permission {
-  width: 140px;
-  flex: 0 0 auto;
+  &:last-child { border-bottom: 0; }
 }
-
-/* --- 空状态 --- */
-.tools-settings__empty {
-  margin: 0;
-  padding: 24px 16px;
-  color: var(--md-sys-color-outline);
-  text-align: center;
+.settings-row__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.settings-row__copy strong { color: var(--la-text); font-size: 13px; font-weight: 530; line-height: 16px; }
+.settings-row__copy small { color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
+.settings-row__control { display: flex; flex: none; align-items: center; gap: 12px; }
+.tool-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  font-size: 13px;
+  cursor: pointer;
 }
-
-/* --- 移动端适配 --- */
-@media (max-width: 760px) {
-  .tools-settings { padding: 20px 20px 40px; }
-  .tools-settings__controls { gap: 8px; }
+.tool-select:focus-visible { outline: 2px solid var(--la-accent-border); outline-offset: 2px; }
+.tools-settings__empty { margin: 0; padding: 24px 0; color: var(--la-muted); text-align: center; font-size: 13px; }
+@media (max-width: 767px) {
+  .settings-row { flex-wrap: wrap; padding-block: 16px; }
+  .settings-row__control { width: 100%; justify-content: space-between; }
 }
 </style>

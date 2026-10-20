@@ -32,32 +32,36 @@ function reset() { for (const [field, value] of Object.entries(DEFAULT_APPEARANC
 
 <style scoped lang="scss">
 .preference-group {
-  margin-bottom: 24px;
-  h3 { margin: 0 0 2px; color: var(--la-muted); font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  h3 { margin: 0; color: var(--la-text); font-size: 13px; font-weight: 530; line-height: 16px; }
 }
 .preference-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 54px;
-  padding: 10px 2px;
+  min-height: 0;
+  padding: 20px;
   margin: 0;
-  background: transparent;
-  border-bottom: 1px solid var(--la-line);
+  background: var(--la-layer-01);
+  border-bottom: .5px solid var(--la-line);
 
-  strong { display: block; font-size: 12px; font-weight: 450; }
-  small { display: block; margin-top: 3px; color: var(--la-muted); font-size: 11px; line-height: 1.5; }
+  &:nth-child(2) { border-radius: 8px 8px 0 0; }
+  &:last-child { border-bottom: 0; border-radius: 0 0 8px 8px; }
+  &:nth-child(2):last-child { border-radius: 8px; }
+  strong { display: block; color: var(--la-text); font-size: 13px; font-weight: 530; line-height: 16px; }
+  small { display: block; margin-top: 4px; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
 }
 fieldset { display: flex; flex: none; gap: 4px; margin: 0; padding: 0; border: 0; }
 .theme-options {
   padding: 2px;
-  border: 1px solid var(--la-line);
-  border-radius: var(--la-radius);
-  background: var(--la-input);
+  border-radius: 6px;
+  background: var(--la-layer-02);
 
-  label { position: relative; padding: 5px 9px; border-radius: 4px; color: var(--la-muted); font-size: 11px; cursor: pointer; }
-  label.selected { color: var(--la-text); background: var(--la-setting-row); }
+  label { position: relative; padding: 4px 9px; border-radius: 4px; color: var(--la-muted); font-size: 13px; cursor: pointer; }
+  label.selected { color: var(--la-text); background: var(--la-layer-03); }
   input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   label:focus-within { outline: 2px solid var(--la-accent); }
 }
@@ -65,13 +69,13 @@ fieldset { display: flex; flex: none; gap: 4px; margin: 0; padding: 0; border: 0
   gap: 8px;
   label { position: relative; display: block; width: 24px; height: 24px; cursor: pointer; }
   input { position: absolute; opacity: 0; }
-  span { display: block; width: 22px; height: 22px; border: 3px solid var(--la-panel); border-radius: 50%; background: var(--swatch); }
-  input:checked + span { outline: 1px solid var(--swatch); }
+  span { display: block; width: 22px; height: 22px; border: 2px solid var(--la-layer-01); border-radius: 50%; background: var(--swatch); }
+  input:checked + span { outline: 1px solid var(--swatch); outline-offset: 1px; }
   input:focus-visible + span { outline: 2px solid var(--la-text); }
 }
-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--la-line); color: var(--la-muted); font-size: 10px; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding-top: 12px; border-top: .5px solid var(--la-line); color: var(--la-muted); font-size: 13px; }
 @media (max-width: 540px) {
-  .preference-row { flex-wrap: wrap; padding: 14px 12px; }
+  .preference-row { flex-wrap: wrap; padding: 16px; }
   .theme-options { margin-left: auto; }
 }
 </style>

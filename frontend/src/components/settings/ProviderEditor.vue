@@ -24,12 +24,12 @@ const update = patch => emit('update:provider', { ...props.provider, ...patch })
 <style scoped lang="scss">
 .provider-editor {
   display: grid; gap: 16px; min-width: 0;
-  &__field { display: grid; flex: 1; min-width: 0; gap: 8px; color: var(--la-secondary); font-size: 12px; }
-  .field { background: var(--la-setting-row); font-size: 13px; }
-  &__enabled { display: flex; align-items: center; justify-content: space-between; color: var(--la-secondary); font-size: 12px; }
+  &__field { display: grid; flex: 1; min-width: 0; gap: 6px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
+  .field { background: var(--la-layer-02); font-size: 13px; }
+  &__enabled { display: flex; align-items: center; justify-content: space-between; color: var(--la-secondary); font-size: 13px; }
   &__secret { display: flex; align-items: end; gap: 12px; }
   &__secret button { margin-bottom: 9px; }
   &__delete { color: var(--la-danger); }
-  footer { padding-top: 12px; border-top: 1px solid var(--la-line); }
+  footer { padding-top: 12px; border-top: .5px solid var(--la-line); }
 }
 </style>

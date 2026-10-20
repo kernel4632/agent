@@ -96,21 +96,19 @@ function applyModes() {
 <style scoped lang="scss">
 .advanced-settings {
   display: grid;
-  gap: 14px;
+  gap: 32px;
   color: var(--la-secondary);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .advanced-settings__block {
   display: grid;
-  gap: 8px;
-  padding: 12px 2px;
+  gap: 12px;
+  padding: 20px;
   border: 0;
-  border-bottom: 1px solid var(--la-line);
-  border-radius: 0;
-  background: transparent;
-
-  &:last-child { border-bottom: 0; }
+  border-radius: 8px;
+  background: var(--la-layer-01);
+  box-shadow: inset 0 0 0 .5px var(--la-line);
 }
 
 .advanced-settings__head {
@@ -123,20 +121,22 @@ function applyModes() {
 h3 {
   margin: 0;
   color: var(--la-text);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 530;
+  line-height: 16px;
 }
 
 p {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--la-muted);
-  line-height: 1.6;
-  font-size: 11px;
+  line-height: 20px;
+  font-size: 13px;
+  font-weight: 440;
 }
 
 code {
   font-family: var(--la-font-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 label {

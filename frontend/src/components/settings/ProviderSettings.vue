@@ -50,6 +50,7 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
 .provider-settings {
   display: flex;
   flex-direction: column;
+  gap: 24px;
   min-height: 0;
   flex: 1 1 auto;
 }
