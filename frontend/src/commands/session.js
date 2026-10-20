@@ -165,11 +165,11 @@ async function selectModel(sessionID, provider, model) {
 
 
 // --- 从当前会话分出一个新分支 ---
-async function fork(sessionID) {
+async function fork(sessionID, messageId) {
   const session = store.sessions[sessionID]
   if (!session) return null
   try {
-    const { sessionId } = await AgentAPI.forkSession(sessionID, {})
+    const { sessionId } = await AgentAPI.forkSession(sessionID, messageId ? { messageId } : {})
     await openByID(sessionId)
     UI.notify('已创建分支')
     return sessionId

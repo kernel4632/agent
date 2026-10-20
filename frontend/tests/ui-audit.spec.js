@@ -18,7 +18,7 @@ async function backend(page, { configured = true } = {}) {
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api', '')
     const method = request.method()
-    const body = request.postDataJSON()
+    const body = request.postData() ? request.postDataJSON() : undefined
     calls.push({ path, method, body })
     const json = data => route.fulfill({ status: 200, json: data })
     if (path === '/config/read') return json(config)
@@ -359,6 +359,18 @@ test('advanced, tools and MCP settings write back', async ({ page }) => {
   expect(saved.diagnostics.command).toBe('bun run typecheck')
   expect(saved.snapshot.shell).toBe(true)
   expect(saved.modes.review).toEqual({ label: '审查', tools: ['file_read'] })
+})
+
+test('message action forks the conversation at that message', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await page.getByRole('button', { name: '从这里分支', exact: true }).click()
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/fork/session-1')?.body)
+    .toEqual({ messageId: 'user-1' })
 })
 
 test('compaction threshold is sent as a number', async ({ page }) => {

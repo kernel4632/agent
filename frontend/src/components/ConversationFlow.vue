@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
+import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import 'highlight.js/styles/github-dark.css'
@@ -35,6 +36,11 @@ async function requestRollback(message) {
   rollbackPreview.value = await Chat.previewRollback(session.value.id, message.id)
 }
 async function confirmRollback() { if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id, rollbackFiles.value)) rollbackDialog.value?.close() }
+
+// 从这条用户消息分出一个新对话，原对话不动。
+async function forkFrom(message) {
+  await Session.fork(session.value.id, message.id)
+}
 const toolLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 </script>
 
@@ -54,7 +60,7 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
         <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
         <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
       </template>
-      <div v-if="!message.isStreaming" class="message__actions"><button class="icon-button" aria-label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></button></div>
+      <div v-if="!message.isStreaming" class="message__actions"><button class="icon-button" aria-label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(message)"><AppIcon name="branch" :size="14" /></button></div>
     </section>
     <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退">
       <h2>回到这条消息之前？</h2>
