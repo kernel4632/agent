@@ -35,6 +35,7 @@ export const store = reactive({
 
   workspaces: [],                                      // 由 `/workspace/read` 和 `/session/list` 组装出的目录与会话摘要
   sessions: {},                                       // 已读取的完整会话，以 Session ID 为键
+  commands: [],                                       // 可用的斜杠命令，输入 / 时展开
   config: {
     providers: {},                                    // 设置页可编辑供应商目录
     tools: [],                                        // 工具运行目录与权限

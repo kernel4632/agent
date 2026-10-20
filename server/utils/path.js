@@ -37,4 +37,7 @@ const tools = () => join(root(), 'tools')
 // 技能也是按目录扫描，每个技能一个文件夹，里面放 SKILL.md。
 const skills = () => join(root(), 'skills')
 
-export default { root, config, ignore, sessions, session, meta, history, settings, snapshots, checkpoints, skills, tools }
+// 斜杠命令：一个 Markdown 文件一条，正文就是展开后的提示词。
+const commands = () => join(root(), 'commands')
+
+export default { root, config, ignore, sessions, session, meta, history, settings, snapshots, checkpoints, skills, tools, commands }

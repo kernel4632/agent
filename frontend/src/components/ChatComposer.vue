@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
@@ -12,15 +12,72 @@ const editor = ref(null)
 const models = computed(() => Object.entries(store.config.providers).flatMap(([provider, config]) => config.enabled ? config.models.map(model => ({ provider, model })) : []))
 const selection = computed(() => JSON.stringify([store.config.activeProvider, store.config.activeModel]))
 
+// --- 斜杠命令菜单 ---
+const slashIndex = ref(0)
+const slashDismissed = ref(false)
+const slashMatches = computed(() => {
+  if (slashDismissed.value || !store.commands?.length) return []
+  // 只在输入框里只有 /名字 时给提示；输入参数后菜单自动收起。
+  const match = draft.value.match(/^\/([a-zA-Z0-9_-]*)$/)
+  if (!match) return []
+  const query = match[1].toLowerCase()
+  return store.commands.filter(item => item.name.toLowerCase().startsWith(query)).slice(0, 8)
+})
+
+watch(draft, () => {
+  slashDismissed.value = false
+  slashIndex.value = 0
+})
+
+// 选中命令只补全名字，参数由用户接着输入；发送时再展开正文。
+function chooseCommand(command) {
+  draft.value = `/${command.name} `
+  slashDismissed.value = true
+  nextTick(() => editor.value?.focus())
+}
+
+// 把 /name 参数 展开成命令正文；不认识的命令原样发送。
+function expand(text) {
+  const match = text.match(/^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/)
+  if (!match) return text
+  const command = store.commands?.find(item => item.name === match[1])
+  if (!command) return text
+  const args = match[2].trim()
+  if (command.prompt.includes('$ARGUMENTS')) return command.prompt.replaceAll('$ARGUMENTS', args)
+  return args ? `${command.prompt}\n\n${args}` : command.prompt
+}
+
 function chooseModel(event) {
   const [provider, model] = JSON.parse(event.target.value)
   store.config.activeProvider = provider
   store.config.activeModel = model
 }
 function submit() {
-  if (draft.value.trim() && props.selectedModel && !props.isRunning && !props.busy) emit('submit', draft.value)
+  if (draft.value.trim() && props.selectedModel && !props.isRunning && !props.busy) emit('submit', expand(draft.value))
 }
 function keydown(event) {
+  if (slashMatches.value.length) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      slashIndex.value = (slashIndex.value + 1) % slashMatches.value.length
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      slashIndex.value = (slashIndex.value - 1 + slashMatches.value.length) % slashMatches.value.length
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault()
+      chooseCommand(slashMatches.value[slashIndex.value])
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      slashDismissed.value = true
+      return
+    }
+  }
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit() }
 }
 function addFiles(event) { emit('attach', [...event.target.files]); event.target.value = '' }
@@ -33,7 +90,13 @@ defineExpose({ focus: () => editor.value?.focus() })
       <div v-if="files.length" class="chat-composer__files">
         <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="14" />{{ file.name }}<button type="button" class="icon-button" :aria-label="`移除附件 ${file.name}`" @click="emit('remove-file', file.id)"><AppIcon name="close" :size="13" /></button></span>
       </div>
-      <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" placeholder="输入消息与 AI 聊天" rows="2" @keydown="keydown"></textarea>
+      <div v-if="slashMatches.length" class="chat-composer__slash" role="listbox" aria-label="斜杠命令">
+        <button v-for="(command, index) in slashMatches" :key="command.name" type="button" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
+          <span class="chat-composer__slash-name">/{{ command.name }}</span>
+          <span class="chat-composer__slash-description">{{ command.description }}</span>
+        </button>
+      </div>
+      <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
       <div class="chat-composer__toolbar">
         <span class="chat-composer__agent"><AppIcon name="spark" :size="17" /><span>Agent</span></span>
         <div class="chat-composer__actions">
@@ -55,12 +118,44 @@ defineExpose({ focus: () => editor.value?.focus() })
 
 <style scoped lang="scss">
 .chat-composer {
+  position: relative;
   padding: 16px 16px 10px;
   border: 1px solid var(--la-line);
   border-radius: var(--la-radius-panel);
   background: var(--la-input);
 
   &:focus-within { border-color: var(--la-accent-border); }
+  &__slash {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 20;
+    display: grid;
+    max-height: 240px;
+    padding: 6px;
+    overflow-y: auto;
+    gap: 2px;
+    border: 1px solid var(--la-line);
+    border-radius: var(--la-radius);
+    background: var(--la-panel);
+    box-shadow: 0 12px 30px #0004;
+  }
+  &__slash-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--la-secondary);
+    text-align: left;
+    cursor: pointer;
+  }
+  &__slash-item.is-active, &__slash-item:hover { background: var(--la-hover); color: var(--la-text); }
+  &__slash-name { flex: none; color: var(--la-accent); font: 12px/1.6 var(--la-font-mono); white-space: nowrap; }
+  &__slash-description { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   &__editor {
     display: block;
     width: 100%;

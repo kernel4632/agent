@@ -12,6 +12,12 @@ async function load() {
   try {
     const raw = await AgentAPI.getConfig()               // 读取脱敏持久化配置
     apply(raw)                                            // 将 Server 数据转换为设置页面结构
+    try {
+      const commands = await AgentAPI.getCommands()       // 读取用户自定义的斜杠命令
+      store.commands = Array.isArray(commands) ? commands : []
+    } catch {
+      store.commands = []                                 // 旧后端没有这个接口时不影响启动
+    }
     store.ui.errorMessage = ''
     return true                                           // 反馈应用启动可以继续
   } catch (error) {

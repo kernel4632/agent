@@ -132,6 +132,28 @@ description: 审查一个 PR 时用这个
 
 输出会截到 8000 字符，附在 `[diagnostics exit N]` 后面。命令失败、超时或根本不存在都只作为一条说明返回，不会把已经成功的写入变成失败。
 
+### 斜杠命令
+
+把 Markdown 文件放进下面任一目录，输入框里就能用 `/名字` 调用：
+
+| 位置 | 作用 |
+| --- | --- |
+| `<数据目录>/commands/*.md` | 全局命令 |
+| `<工作区>/.roo/commands/*.md` | 兼容 roo code |
+| `<工作区>/.agent/commands/*.md` | 项目命令，优先于前两者 |
+
+```md
+---
+name: review
+description: 审查当前改动
+---
+请审查当前工作区的改动，重点看……
+```
+
+- 不写 `name` 就用文件名；不写 `description` 就用正文第一行。
+- 正文里的 `$ARGUMENTS` 会换成命令后面的文字；没有这个占位符时，参数追加在最后。
+- 名字只能是字母、数字、`-` 和 `_`；正文为空或名字不合法的文件会被跳过。
+
 > **关于联网搜索**：这里没有 `websearch` 工具。搜索需要外部服务的 API Key，本项目不替你选一家；
 > 而"不需要 Key 的搜索"要么违反服务条款、要么随时会坏。做一个没配 Key 就必然失败的工具，
 > 比没有这个工具更糟——模型会以为它能搜。需要搜索就配一个 MCP 搜索服务（比如 tavily 或
@@ -326,6 +348,7 @@ Content-Type: application/json
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
 | `GET` | `/health` | `{ "ok": true, "version": "0.10.1", "sessions": 2, "running": 1 }` |
+| `GET` | `/command/list` | 可用的斜杠命令：名字、说明、提示词正文 |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 

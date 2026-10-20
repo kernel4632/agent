@@ -9,6 +9,7 @@
  */
 
 import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
+import Commands from './features/commands.js' // 扫描用户自定义的斜杠命令。
 import Config from './commands/config.js' // 执行配置读写指令。
 import Session from './commands/session.js' // 执行会话和 Agent 指令。
 import Ignore from './features/ignore.js' // 启动时读一次忽略规则。
@@ -38,6 +39,9 @@ app.get('/health', async () => ({
 app.group('/workspace', workspace => workspace
     .get('/read', () => Workspace.read())
     .get('/status', ({ query }) => Workspace.status({ path: query.path })))
+
+// --- 斜杠命令 ---
+app.get('/command/list', () => Commands.list())
 
 // --- 注册 Agent 触发事件 ---
 app.group('/agent', agent => agent

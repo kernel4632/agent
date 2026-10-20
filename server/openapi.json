@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.27.0",
+    "version": "0.28.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -70,6 +70,45 @@
                     "running": {
                       "type": "integer",
                       "description": "正在执行任务的会话数量"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/command/list": {
+      "get": {
+        "tags": [
+          "Command"
+        ],
+        "summary": "列出斜杠命令",
+        "description": "扫描数据目录 commands/、工作区 .roo/commands/ 和 .agent/commands/ 下的 Markdown。同名时后读到的覆盖前面的，正文里的 $ARGUMENTS 由前端替换。",
+        "operationId": "commandList",
+        "responses": {
+          "200": {
+            "description": "命令列表，按名字排序",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "命令名，写在 /name 里"
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "菜单里显示的一句说明"
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "description": "展开后的提示词正文"
+                      }
                     }
                   }
                 }

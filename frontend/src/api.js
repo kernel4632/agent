@@ -37,6 +37,8 @@ function subscribeSession(sessionID, signal) {
 
 export const AgentAPI = {
   getHealth:        ()                          => request('/health'),
+  // 用户自定义的斜杠命令；旧后端没有这个接口时由调用方兜底。
+  getCommands:      ()                          => request('/command/list'),
   getWorkspace:     ()                          => request('/workspace/read'),
   getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   createSession:    async (workspaceID, provider, model) => {
