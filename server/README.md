@@ -344,6 +344,21 @@ Content-Type: application/json
 
 `deny` 是硬规则：即使这一类开了自动批准，明确的拒绝也不会被绕过。写错的动作（比如 `"maybe"`）按 `"ask"` 处理，不会因为拼错一个词就自动放行。`todo`、`finish`、`ask` 是控制循环用的内部工具，不受 `deny` 影响。
 
+**工作区外的路径要单独放行。** 配置了 `external_directory` 之后，文件工具和 `shell` 的 `directory` 落在后端启动目录之外时，会按这份规则判断，默认 `ask`；不配置时保持原来的行为。它和工具本身的规则是两道关：即使写着 `"*": "allow"`，只要配了 `external_directory`，也不会顺手翻到工作区外。
+
+```json
+{
+  "permission": {
+    "external_directory": {
+      "~/projects/shared/**": "allow",
+      "D:/secrets/**": "deny"
+    }
+  }
+}
+```
+
+路径按真实路径判断，符号链接也按它指向的位置算；`~` 和 `$HOME` 会展开。`shell` 命令字符串里的路径不解析，只检查 `directory` 参数。没有会话上下文（无人值守）时，工作区外的路径直接拒绝，不静默放行。
+
 > 注意：当前后端会返回完整配置，其中可能含有 `apiKey`。前端展示配置时必须遮蔽密钥，不能直接显示或写入日志。
 
 ### 会话

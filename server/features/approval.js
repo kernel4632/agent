@@ -12,6 +12,7 @@
 import picomatch from 'picomatch'
 import Config from '../commands/config.js' // 权限规则就写在配置里，不再单独存一份。
 import Settings from '../commands/settings.js' // 自动批准是按类别分的，判断逻辑只写在那里。
+import Boundary from './boundary.js' // 工作区外的路径要单独过 external_directory 规则。
 import Kind from '../utils/tool-kind.js' // 内部工具不参与审批，也不该被 deny 规则拦住。
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
@@ -172,6 +173,17 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     }
 
     /*
+     * 工作区外的路径单独过一道 external_directory 规则。
+     * 默认是 ask，所以即使工具本身的规则写着 allow，也不会顺手翻到工作区外面。
+     */
+    const external = await Boundary.check({ toolName, input })
+    if (external.effect === 'deny') {
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
+        return false
+    }
+    const externalAsk = external.effect === 'ask'
+
+    /*
      * 同一个调用连续出现时先停下来问一次。
      * 自动批准可以放行普通调用，但不能替用户决定"要不要让模型继续重试同一个动作"。
      */
@@ -222,12 +234,13 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      *   - 自动批准已经连着放行了太多次。
      * 否则用户写了 "*": "allow" 之后，刹车就成了摆设。
      */
-    const rule = looping || (auto && capped) ? 'ask' : auto ? 'allow' : decision
+    const rule = looping || (auto && capped) || externalAsk ? 'ask' : auto ? 'allow' : decision
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
 
     // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
-    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName, input }) // 没有会话上下文时按无人值守放行，避免任务卡死。
+    // 没有会话上下文时按无人值守放行；但工作区外的路径不能这样静默放行。
+    if (!sessionId || !toolCallId) return externalAsk ? false : allow({ sessionId, messageId, toolCallId, toolName, input })
 
     const answer = await new Promise(resolve => {
         Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })

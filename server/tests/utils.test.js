@@ -575,6 +575,7 @@ describe('server tool approval and SSE', () => {
 
             await Config.set({ permission: { '*': 'ask' } })
             const pending = Approval.check({ sessionId: 's', toolCallId: 'c2', toolName: 'shell', input: {} })
+            await Bun.sleep(0)
             expect(await Approval.decide({ sessionId: 's', toolCallId: 'c2', decision: 'deny' })).toEqual({ ok: true })
             expect(await pending).toBe(false)
         })
@@ -584,6 +585,7 @@ describe('server tool approval and SSE', () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
             const pending = Approval.check({ sessionId: 's', toolCallId: 'c3', toolName: 'file_read', input: { path: 'a.txt' } })
+            await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 'c3', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
@@ -596,6 +598,7 @@ describe('server tool approval and SSE', () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
             const pending = Approval.check({ sessionId: 's', toolCallId: 'c5', toolName: 'shell', input: {} })
+            await Bun.sleep(0)
             await expect(Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'maybe' })).rejects.toMatchObject({ status: 400 })
 
             // 填错的决定不能把这条审批弄丢，用户还能重新选一次。
@@ -608,6 +611,7 @@ describe('server tool approval and SSE', () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
             const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'shell', input: { command: 'git commit -m "first message"' } })
+            await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's1', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
@@ -615,6 +619,7 @@ describe('server tool approval and SSE', () => {
             expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'shell', input: { command: 'git commit -m "totally different message"' } })).toBe(true)
             // 另一个操作仍然要问。
             const push = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'shell', input: { command: 'git push origin main' } })
+            await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
             expect(await push).toBe(false)
         })

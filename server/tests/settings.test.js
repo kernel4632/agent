@@ -69,7 +69,8 @@ const toolNames = sessionId => Object.keys(Store.agents.get(sessionId).tools.sch
  */
 const runCheck = async ({ sessionId, toolCallId, toolName, input = {} }) => {
     const result = Approval.check({ sessionId, toolCallId, toolName, input })
-    // 要问的时候这条审批会同步进队列，所以这一步立刻就能看出来。
+    // 审批前还要过工作区边界（可能是异步的），等一个微任务再看向队列。
+    await Bun.sleep(0)
     const asked = Store.approvals.has(`${sessionId}:${toolCallId}`)
     if (asked) await Approval.decide({ sessionId, toolCallId, decision: 'deny' })
     return { allowed: await result, asked }
@@ -649,6 +650,7 @@ describe('自动批准的刹车', () => {
             await runCheck({ sessionId, toolCallId: 'r2', toolName: 'file_read', input: { path: 'D:/app/2.js' } })
             // 第三笔被刹住，用户答了一次"继续"。
             const blocked = Approval.check({ sessionId, toolCallId: 'r3', toolName: 'file_read', input: { path: 'D:/app/3.js' } })
+            await Bun.sleep(0)
             expect(Store.approvals.has(`${sessionId}:r3`)).toBe(true)
             await Approval.decide({ sessionId, toolCallId: 'r3', decision: 'allow-once' })
             expect(await blocked).toBe(true)
