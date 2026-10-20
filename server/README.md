@@ -349,6 +349,7 @@ Content-Type: application/json
 | --- | --- | --- |
 | `GET` | `/health` | `{ "ok": true, "version": "0.10.1", "sessions": 2, "running": 1 }` |
 | `GET` | `/command/list` | 可用的斜杠命令：名字、说明、提示词正文 |
+| `GET` | `/tool/list` | 内置工具和用户工具的名称、分类、当前权限动作 |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 

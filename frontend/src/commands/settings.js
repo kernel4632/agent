@@ -19,6 +19,7 @@ function backendSnapshot(draft) {
     rules: draft.rules,
     modes: draft.modeDefinitions,
     mcp: draft.mcp,
+    tools: draft.tools,
     diagnostics: draft.diagnostics,
     snapshot: draft.snapshot,
   })
@@ -92,6 +93,17 @@ async function save() {
         return original === undefined ? id : isolateDraft(original)
       }),
     }))
+    // 工具开关写回 permission；对象规则里的参数模式保留，只改默认动作。
+    const permission = { ...(store.config.raw?.permission || {}) }
+    for (const tool of draft.tools || []) {
+      const current = permission[tool.name]
+      if (current && typeof current === 'object' && !Array.isArray(current)) {
+        permission[tool.name] = { ...current, '*': tool.permission }
+      } else {
+        permission[tool.name] = tool.permission
+      }
+    }
+
     // MCP 数组转回后端认的对象：键是服务名；远程服务存 url，本地服务存 command。
     const mcp = {}
     for (const item of draft.mcp || []) {
@@ -110,6 +122,7 @@ async function save() {
       ...JSON.parse(JSON.stringify(store.config.raw || {})),
       providers,
       mcp,
+      permission,
       prompt: { ...store.config.raw?.prompt, system: draft.prompt },
       rules: draft.rules,
       modes: draft.modeDefinitions,

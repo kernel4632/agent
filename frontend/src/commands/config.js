@@ -11,7 +11,13 @@ import { store } from '../store.js'                     // 引入全局配置
 async function load() {
   try {
     const raw = await AgentAPI.getConfig()               // 读取脱敏持久化配置
-    apply(raw)                                            // 将 Server 数据转换为设置页面结构
+    let catalog = []
+    try {
+      catalog = await AgentAPI.getTools()                 // 全部工具和当前权限
+    } catch {
+      catalog = []                                       // 旧后端没有目录接口时退回权限表
+    }
+    apply(raw, catalog)                                   // 将 Server 数据转换为设置页面结构
     try {
       const commands = await AgentAPI.getCommands()       // 读取用户自定义的斜杠命令
       store.commands = Array.isArray(commands) ? commands : []
@@ -28,7 +34,7 @@ async function load() {
 
 
 // --- 应用 Server 配置到设置结构 ---
-function apply(raw) {
+function apply(raw, catalog = []) {
   // 后端 providers 是数组，每项包含 name、baseURL、apiKey、models 等字段
   const providerList = Array.isArray(raw.providers) ? raw.providers : []
   const providers = {}
@@ -50,16 +56,12 @@ function apply(raw) {
     providers['默认供应商'] = { enabled: true, protocol: 'openai-compatible', baseURL: '', apiKey: '', models: [], modelSettings: {}, timeout: 120000, headers: '{}' }
   }
 
-  // 后端 permission 是规则数组，前端工具设置需要按工具名聚合
-  const permissionRules = Object.entries(raw.permission || {}).map(([tool, action]) => ({ tool, action }))
-  const toolMap = {}
-  for (const rule of permissionRules) {
-    if (!rule.tool || typeof rule.action !== 'string') continue
-    if (!toolMap[rule.tool]) toolMap[rule.tool] = rule.action
-  }
-  const toolSettings = Object.entries(toolMap).map(([name, action]) => ({
-    name, title: name, enabled: action !== 'deny', permission: action,
-  }))
+  // 工具目录由 /tool/list 给出；旧后端没有目录时退回只看 permission 里的字符串规则。
+  const toolSettings = Array.isArray(catalog) && catalog.length
+    ? catalog.map(tool => ({ name: tool.name, title: tool.name, enabled: tool.permission !== 'deny', permission: tool.permission }))
+    : Object.entries(raw.permission || {})
+      .filter(([, action]) => typeof action === 'string')
+      .map(([name, action]) => ({ name, title: name, enabled: action !== 'deny', permission: action }))
 
   const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => ({
     id: name,

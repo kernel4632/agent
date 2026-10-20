@@ -12,6 +12,7 @@ import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
 import Commands from './features/commands.js' // 扫描用户自定义的斜杠命令。
 import Config from './commands/config.js' // 执行配置读写指令。
 import Session from './commands/session.js' // 执行会话和 Agent 指令。
+import Tools from './commands/tools.js' // 给设置页列出全部工具和当前权限。
 import Ignore from './features/ignore.js' // 启动时读一次忽略规则。
 import Workspace from './features/workspace.js' // 读工作区信息和 git 状态。
 import Path from './utils/path.js' // 提供配置文件路径。
@@ -42,6 +43,9 @@ app.group('/workspace', workspace => workspace
 
 // --- 斜杠命令 ---
 app.get('/command/list', () => Commands.list())
+
+// --- 工具目录 ---
+app.get('/tool/list', () => Tools.list())
 
 // --- 注册 Agent 触发事件 ---
 app.group('/agent', agent => agent
