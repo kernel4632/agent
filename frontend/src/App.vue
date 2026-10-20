@@ -1,7 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watchEffect } from 'vue'
 import AppIcon from './components/AppIcon.vue'
-import HomePage from './components/HomePage.vue'
+import HomeView from './home/HomeView.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import Titlebar from './app/Titlebar.vue'
 import CommandPalette from './app/CommandPalette.vue'
@@ -271,7 +271,7 @@ onUnmounted(() => {
 
         <SettingsPage v-if="mode === 'settings'" class="settings-panel" />
 
-        <HomePage
+        <HomeView
           v-else-if="mode === 'home'"
           class="panel"
           :workspaces="store.workspaces"

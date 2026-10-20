@@ -74,7 +74,7 @@ src/
 - 新建 `src/app/Toast.vue`，提示条从 `App.vue` 移出。
 - 验收：命令面板和提示条的行为、`role`、`aria-label` 不变；`App.vue` 继续变薄。
 
-### [ ] 阶段 3：首页
+### [x] 阶段 3：首页
 
 - 新建 `src/home/HomeView.vue`、`ProjectList.vue`、`SessionList.vue`。
 - 项目列表、会话搜索、会话菜单、重命名/删除弹窗各归自己的文件。
