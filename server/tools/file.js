@@ -7,6 +7,7 @@
 import { mkdir, readdir } from 'node:fs/promises' // 创建父目录并读取目录条目。
 import { dirname } from 'node:path' // 从目标文件计算父目录。
 import { writeFile } from 'atomically' // 原子写入完整文本文件。
+import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断命令。
 
 // --- 读取文本或图片 ---
 const fileRead = {
@@ -68,7 +69,7 @@ const fileWrite = {
     async execute({ path, content }) {
         await mkdir(dirname(path), { recursive: true }) // 新文件允许自动创建父目录。
         await writeFile(path, content) // 一次原子替换全部文本。
-        return `Wrote ${Buffer.byteLength(content)} bytes to ${path}` // 报告实际写入字节数。
+        return `Wrote ${Buffer.byteLength(content)} bytes to ${path}${await Diagnose.afterWrite()}` // 报告实际写入字节数，附带诊断。
     },
 }
 

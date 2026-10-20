@@ -5,6 +5,7 @@
  * 调用示例：模型调用 edit({ path: 'src/a.js', oldText: '旧代码', newText: '新代码' })。
  */
 import { writeFile } from 'atomically' // 用原子替换避免编辑时留下半文件。
+import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断命令。
 
 export default {
     name: 'edit',
@@ -33,6 +34,6 @@ export default {
         const matches = content.split(oldText).length - 1 // 统计目标片段出现次数。
         if (matches !== 1) throw new Error(`oldText must occur exactly once, found ${matches}`) // 避免改错重复片段。
         await writeFile(path, content.replace(oldText, newText)) // 只替换已验证的唯一片段。
-        return `Edited ${path}` // 返回用户可读的编辑确认。
+        return `Edited ${path}${await Diagnose.afterWrite()}` // 返回用户可读的编辑确认，附带诊断。
     },
 }
