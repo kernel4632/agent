@@ -5,7 +5,7 @@
 <SessionHeader v-model:review-open="reviewOpen" :session="session" :workspace="selectedWorkspace" :models="modelOptions" @switch-model="switchModel" />
 -->
 <script setup>
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import IconButton from '../ui/IconButton.vue'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'

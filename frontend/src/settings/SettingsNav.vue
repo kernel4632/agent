@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import Button from '../ui/Button.vue'
 import { groupSettingsPages } from './pages.js'
 

@@ -19,7 +19,7 @@
 -->
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
 

@@ -97,8 +97,8 @@ describe('接口契约', () => {
         const icons = [...frontend.matchAll(/icon: '([a-z]+)'/g)].map(([, icon]) => icon)
         expect(icons).toHaveLength(KINDS.length)
         // 图标名得在 AppIcon 里真的存在，不然渲染出来是一个空形状。
-        const iconComponent = await source('../frontend/src/components/AppIcon.vue')
-        for (const icon of icons) expect(iconComponent, `AppIcon 里没有 ${icon}`).toContain(`${icon}: [`)
+        const iconComponent = await source('../frontend/src/ui/AppIcon.vue')
+        for (const icon of icons) expect(iconComponent, `AppIcon 里没有 ${icon}`).toMatch(new RegExp(`(?:^|\\n)\\s*'?${icon}'?\\s*:`))
     })
 
     test('健康检查报的版本就是 package.json 里的版本', async () => {

@@ -4,7 +4,7 @@
 调用示例：<ToolsPage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
 -->
 <script setup>
-import ToolsSettings from '../../components/settings/ToolsSettings.vue'
+import ToolsSettings from '../components/ToolsSettings.vue'
 
 defineProps({ draft: { type: Object, required: true } })
 </script>

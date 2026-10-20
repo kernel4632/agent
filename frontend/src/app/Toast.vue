@@ -3,7 +3,7 @@
 调用示例：<Toast v-if="!settingsOpen" :message="store.ui.toast" @close="store.ui.toast = ''" />
 -->
 <script setup>
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import IconButton from '../ui/IconButton.vue'
 
 defineProps({

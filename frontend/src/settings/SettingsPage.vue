@@ -5,14 +5,14 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import AppIcon from '../AppIcon.vue'
-import Button from '../../ui/Button.vue'
-import IconButton from '../../ui/IconButton.vue'
-import SettingsNav from '../../settings/SettingsNav.vue'
-import { settingsPages } from '../../settings/pages.js'
-import { Settings } from '../../commands/settings.js'
-import { UI } from '../../commands/ui.js'
-import { store } from '../../store.js'
+import AppIcon from '../ui/AppIcon.vue'
+import Button from '../ui/Button.vue'
+import IconButton from '../ui/IconButton.vue'
+import SettingsNav from './SettingsNav.vue'
+import { settingsPages } from './pages.js'
+import { Settings } from '../commands/settings.js'
+import { UI } from '../commands/ui.js'
+import { store } from '../store.js'
 
 const selected = ref(store.ui.settingsSection)
 const currentPage = computed(() => settingsPages.find(page => page.id === selected.value) || settingsPages[0])

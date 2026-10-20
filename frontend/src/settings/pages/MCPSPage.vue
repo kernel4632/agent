@@ -4,7 +4,7 @@ MCP 服务页包装：只负责把设置草稿的 mcp 字段接到 MCPSettings�
 调用示例：<MCPSPage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
 -->
 <script setup>
-import MCPSettings from '../../components/settings/MCPSettings.vue'
+import MCPSettings from '../components/MCPSettings.vue'
 
 defineProps({ draft: { type: Object, required: true } })
 </script>

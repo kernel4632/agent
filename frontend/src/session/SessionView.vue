@@ -11,7 +11,7 @@
 -->
 <script setup>
 import { computed, defineAsyncComponent, ref } from 'vue'
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import Composer from '../composer/Composer.vue'
 import SessionHeader from './SessionHeader.vue'
 import SessionFilePanel from './SessionFilePanel.vue'

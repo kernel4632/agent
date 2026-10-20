@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import AppIcon from '../AppIcon.vue'
+import AppIcon from '../../ui/AppIcon.vue'
 import Button from '../../ui/Button.vue'
 import Field from '../../ui/Field.vue'
 import IconButton from '../../ui/IconButton.vue'

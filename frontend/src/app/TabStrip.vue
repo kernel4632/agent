@@ -4,7 +4,7 @@ select 和 close 都会带回完整的标签对象，调用方不再需要按 ke
 调用示例：<TabStrip :tabs="tabs" :active-key="activeKey" @select="openTab" @close="closeTab" @new="openDraft" />
 -->
 <script setup>
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 
 defineProps({
   tabs: { type: Array, default: () => [] },              // 每项包含 key、title、color，其余字段原样保留

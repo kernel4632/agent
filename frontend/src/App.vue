@@ -1,6 +1,6 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import AppIcon from './components/AppIcon.vue'
+import AppIcon from './ui/AppIcon.vue'
 import HomeView from './home/HomeView.vue'
 import DraftView from './draft/DraftView.vue'
 import SessionView from './session/SessionView.vue'
@@ -16,7 +16,7 @@ import { UI, activeSession } from './commands/ui.js'
 import { Tabs } from './commands/tabs.js'
 import { normalizeAppearance } from './theme/index.js'
 
-const SettingsPage = defineAsyncComponent(() => import('./components/settings/SettingsPage.vue'))
+const SettingsPage = defineAsyncComponent(() => import('./settings/SettingsPage.vue'))
 const draftView = ref(null)
 const homeDraft = ref('')
 const homeFiles = ref([])

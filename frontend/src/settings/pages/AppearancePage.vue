@@ -4,7 +4,7 @@
 调用示例：<AppearancePage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
 -->
 <script setup>
-import AppearanceSettings from '../../components/settings/AppearanceSettings.vue'
+import AppearanceSettings from '../components/AppearanceSettings.vue'
 
 defineProps({ draft: { type: Object, required: true } })
 </script>

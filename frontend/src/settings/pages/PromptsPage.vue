@@ -4,7 +4,7 @@
 调用示例：<PromptsPage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
 -->
 <script setup>
-import PromptsSettings from '../../components/settings/PromptsSettings.vue'
+import PromptsSettings from '../components/PromptsSettings.vue'
 
 defineProps({ draft: { type: Object, required: true } })
 </script>

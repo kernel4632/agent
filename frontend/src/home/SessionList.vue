@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import Button from '../ui/Button.vue'
 import Dialog from '../ui/Dialog.vue'
 import Field from '../ui/Field.vue'

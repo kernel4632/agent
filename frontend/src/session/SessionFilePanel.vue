@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import IconButton from '../ui/IconButton.vue'
 import { UI } from '../commands/ui.js'
 

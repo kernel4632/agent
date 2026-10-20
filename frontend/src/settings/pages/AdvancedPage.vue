@@ -4,7 +4,7 @@
 调用示例：<AdvancedPage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
 -->
 <script setup>
-import AdvancedSettings from '../../components/settings/AdvancedSettings.vue'
+import AdvancedSettings from '../components/AdvancedSettings.vue'
 
 defineProps({ draft: { type: Object, required: true } })
 </script>

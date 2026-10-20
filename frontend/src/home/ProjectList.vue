@@ -3,7 +3,7 @@
 调用示例：<ProjectList :workspaces="workspaces" :workspace="workspace" @select="choose" @settings="openSettings" />
 -->
 <script setup>
-import AppIcon from '../components/AppIcon.vue'
+import AppIcon from '../ui/AppIcon.vue'
 import IconButton from '../ui/IconButton.vue'
 import { avatarColor, initial } from '../ui/avatar.js'
 import { UI } from '../commands/ui.js'
