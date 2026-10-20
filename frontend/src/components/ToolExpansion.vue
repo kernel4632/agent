@@ -7,7 +7,7 @@
 import { ref } from 'vue'                              // 保存回退按钮与确认菜单的元素引用
 import { HugeiconsIcon } from '@hugeicons/vue'
 import { UndoIcon } from '@hugeicons/core-free-icons'
-import { ICON_STROKE_WIDTH } from '../theme.js'
+import { ICON_STROKE_WIDTH } from '../theme/index.js'
 
 const props = defineProps({
   icon: { type: Object, required: true },

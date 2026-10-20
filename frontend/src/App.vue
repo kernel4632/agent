@@ -1,5 +1,5 @@
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watchEffect } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import AppIcon from './components/AppIcon.vue'
 import HomeView from './home/HomeView.vue'
 import DraftView from './draft/DraftView.vue'
@@ -7,13 +7,14 @@ import SessionView from './session/SessionView.vue'
 import Titlebar from './app/Titlebar.vue'
 import CommandPalette from './app/CommandPalette.vue'
 import Toast from './app/Toast.vue'
+import ThemeProvider from './theme/ThemeProvider.vue'
 import { store } from './store.js'
 import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { Config } from './commands/config.js'
 import { UI, activeSession } from './commands/ui.js'
 import { Tabs } from './commands/tabs.js'
-import { normalizeAppearance } from './theme.js'
+import { normalizeAppearance } from './theme/index.js'
 
 const SettingsPage = defineAsyncComponent(() => import('./components/settings/SettingsPage.vue'))
 const draftView = ref(null)
@@ -26,10 +27,6 @@ const session = computed(() => store.ui.view === 'chat' ? activeSession.value : 
 const selectedWorkspace = computed(() => store.workspaces.find(item => item.id === store.ui.activeWorkspaceID) || store.workspaces[0])
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : draftOpen.value ? 'draft' : session.value ? 'session' : 'home')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
-const system = window.matchMedia('(prefers-color-scheme: dark)')
-const systemDark = ref(system.matches)
-const scheme = computed(() => appearance.value.theme === 'system' ? systemDark.value ? 'dark' : 'light' : appearance.value.theme)
-const updateSystem = event => { systemDark.value = event.matches }
 
 // 打开草稿页，并把草稿登记成顶部标签。
 async function openDraft() {
@@ -103,21 +100,6 @@ function runPalette(item) {
   closePalette()
   void item?.run?.()
 }
-
-watchEffect(() => {
-  const theme = document.querySelector('m3e-theme')
-  if (!theme) return
-  theme.setAttribute('scheme', scheme.value)
-  for (const key of ['color', 'variant', 'contrast', 'density', 'motion']) theme.setAttribute(key, String(appearance.value[key]))
-  theme.toggleAttribute('strong-focus', appearance.value.strongFocus)
-  theme.toggleAttribute('reduced-motion', appearance.value.reduceMotion)
-  const accent = scheme.value === 'dark'
-    ? `color-mix(in srgb, ${appearance.value.color} 70%, white 30%)`
-    : appearance.value.color
-  theme.style.setProperty('--la-accent', accent)
-  theme.style.setProperty('--la-accent-soft', `color-mix(in srgb, ${accent} 10%, transparent)`)
-  theme.style.setProperty('--la-accent-border', `color-mix(in srgb, ${accent} 30%, transparent)`)
-}, { flush: 'post' })
 
 async function newConversation() { await openDraft() }
 
@@ -193,17 +175,15 @@ async function retryConnection() {
 
 onMounted(() => {
   Tabs.restore()
-  system.addEventListener('change', updateSystem)
   window.addEventListener('keydown', shortcuts)
 })
 onUnmounted(() => {
-  system.removeEventListener('change', updateSystem)
   window.removeEventListener('keydown', shortcuts)
 })
 </script>
 
 <template>
-  <m3e-theme :scheme="scheme">
+  <ThemeProvider :appearance="appearance">
     <div class="preview-page">
       <Titlebar :mode="mode" @home="goHome" @new="openDraft" @select="openTab" @close="closeTab" @palette="openPalette" @settings="UI.openSettings()" />
 
@@ -247,7 +227,7 @@ onUnmounted(() => {
 
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
     </div>
-  </m3e-theme>
+  </ThemeProvider>
 </template>
 
 <style scoped lang="scss">

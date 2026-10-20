@@ -6,7 +6,7 @@
 <script setup>
 import Button from '../../ui/Button.vue'
 import Switch from '../../ui/Switch.vue'
-import { DEFAULT_APPEARANCE } from '../../theme.js'
+import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 defineProps({ appearance: { type: Object, required: true } })
 const emit = defineEmits(['change'])
 const update = (field, value) => emit('change', { field, value })

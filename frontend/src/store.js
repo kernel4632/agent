@@ -4,7 +4,7 @@
 调用示例：store.workspaces、store.sessions[sessionID]、store.ui.activeSessionID。
 */
 import { reactive } from 'vue'                         // 引入唯一响应式数据根
-import { normalizeAppearance } from './theme.js'
+import { normalizeAppearance } from './theme/index.js'
 
 
 // --- 从 localStorage 恢复外观偏好 ---

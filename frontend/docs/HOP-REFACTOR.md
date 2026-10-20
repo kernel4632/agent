@@ -151,11 +151,26 @@ src/
 
 ### [ ] 阶段 8：主题和样式收口
 
-- 新建 `src/theme/ThemeProvider.vue`，把 `m3e-theme` 的属性设置、accent 写入和 token 同步从 `App.vue`、`watchers.js` 移进去。
-- 把布局尺寸、头像色、内容宽度收进 `tokens.scss`；页面里不再写 `280px`、`860px`、`720px`、`#3250df` 这类值。
-- 删除 `Sidebar.vue`、`ToolExpansion.vue` 和 7 个不跑的旧 spec。
-- 给所有新组件补文件头：管什么、怎么调用、调用示例；脚本里的业务步骤补注释。
-- 验收：`App.vue` 200 行以内；没有未引用文件；构建、单测、UI 全过。
+#### [x] 8a：主题适配层
+
+- 新建 `src/theme/ThemeProvider.vue`、`theme/m3e.js`，把 M3E 属性、accent、token 同步和系统主题监听从 `App.vue`、`watchers.js` 移进去。
+- `theme.js` 移到 `theme/index.js`，App 不再直接接触 M3E。
+- 验收：主题切换、深色/浅色/跟随系统、减少动画、强焦点和 token 同步保持，UI 全过。
+
+#### [ ] 8b：样式 token 和死文件清理
+
+- 把布局尺寸、内容宽度、settings 导航宽度收进 `tokens.scss`；去掉 `280px`、`860px`、`720px` 这类重复值。
+- 把遗留的 `var(--md-sys-color-outline)`、硬编码错误色换成 `--la-*`。
+- 删除 `Sidebar.vue`、`ToolExpansion.vue` 和 7 个不跑的旧 spec；清掉 sidebar 相关死状态、命令和 i18n 文案。
+- 验收：没有未引用文件；构建、单测、UI 全过。
+
+#### [ ] 8c：目录收口和 App 瘦身
+
+- 把设置组件移到 `src/settings/components/`，把 `SettingsPage.vue` 移到 `src/settings/`，设置页只在 `settings/` 下。
+- 把 `AppIcon.vue` 移到 `src/ui/`，`components/` 只剩真正共享的组件或删除。
+- 把连接错误条和全局快捷键从 `App.vue` 移到 `src/app/`，目标 200 行以内。
+- 给新组件补文件头：管什么、怎么调用、调用示例；业务步骤补注释。
+- 验收：`App.vue` 200 行以内；构建、单测、UI 全过。
 
 ### [ ] 阶段 9：最终审查
 
