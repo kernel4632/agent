@@ -22,21 +22,27 @@ function rememberWorkspace(id) {
 
 // --- 加载会话列表 ---
 async function load() {
-  const reading = [AgentAPI.getSessionList(), AgentAPI.getWorkspace().catch(() => null)]
-  const [sessions, workspace] = await Promise.all(reading)
+  try {
+    const reading = [AgentAPI.getSessionList(), AgentAPI.getWorkspace().catch(() => null)]
+    const [sessions, workspace] = await Promise.all(reading)
 
-  const id = workspace?.path || 'local'
-  // 会话按 Server 的记录组装；一条都没有时列表是空的，这是真实状态，不造假数据。
-  store.workspaces.splice(0, store.workspaces.length, {
-    id,
-    name: workspace?.path?.split(/[/\\]/).filter(Boolean).pop() || '本机会话',
-    path: workspace?.path || '',
-    git: workspace?.git || null,
-    sessions: sessions.map(summaryOf),
-  })
-  store.ui.activeWorkspaceID = id
-  rememberWorkspace(id)
-  return true
+    const id = workspace?.path || 'local'
+    // 会话按 Server 的记录组装；一条都没有时列表是空的，这是真实状态，不造假数据。
+    store.workspaces.splice(0, store.workspaces.length, {
+      id,
+      name: workspace?.path?.split(/[/\\]/).filter(Boolean).pop() || '本机会话',
+      path: workspace?.path || '',
+      git: workspace?.git || null,
+      sessions: sessions.map(summaryOf),
+    })
+    store.ui.activeWorkspaceID = id
+    rememberWorkspace(id)
+    return true
+  } catch (error) {
+    // 启动时后端没起来不该在控制台留下未处理的 rejection；用可见的错误提示代替。
+    store.ui.errorMessage = error.message
+    return false
+  }
 }
 
 // --- 重新加载会话列表 ---

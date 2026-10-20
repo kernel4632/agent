@@ -58,18 +58,23 @@ function apply(raw, catalog = []) {
 
   // 工具目录由 /tool/list 给出；旧后端没有目录时退回只看 permission 里的字符串规则。
   const toolSettings = Array.isArray(catalog) && catalog.length
-    ? catalog.map(tool => ({ name: tool.name, title: tool.name, enabled: tool.permission !== 'deny', permission: tool.permission }))
+    ? catalog.map(tool => ({ name: tool.name, title: tool.name, enabled: tool.permission !== 'deny', permission: tool.permission, original: tool.permission }))
     : Object.entries(raw.permission || {})
       .filter(([, action]) => typeof action === 'string')
-      .map(([name, action]) => ({ name, title: name, enabled: action !== 'deny', permission: action }))
+      .map(([name, action]) => ({ name, title: name, enabled: action !== 'deny', permission: action, original: action }))
 
-  const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => ({
-    id: name,
-    name,
-    command: definition.command || definition.url || '',
-    enabled: definition.enabled !== false,
-    definition: structuredClone(definition),
-  }))
+  const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => {
+    // 老配置可能只写了 url 没写 transport；补成 sse，保存时才不会被当成 stdio 命令。
+    const normalized = structuredClone(definition || {})
+    if (!normalized.transport) normalized.transport = normalized.url ? 'sse' : 'stdio'
+    return {
+      id: name,
+      name,
+      command: normalized.command || normalized.url || '',
+      enabled: normalized.enabled !== false,
+      definition: normalized,
+    }
+  })
 
   const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || Object.keys(providers)[0] || ''
   const firstModels = providers[firstProvider]?.models || []

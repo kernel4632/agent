@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 async function backend(page, { configured = true } = {}) {
-  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', shell: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } } }
+  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', shell: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, modes: {}, diagnostics: {}, snapshot: {} }
   const sessions = new Map()
   const calls = []
   const waiting = new Map()
@@ -23,31 +23,96 @@ async function backend(page, { configured = true } = {}) {
     const json = data => route.fulfill({ status: 200, json: data })
     if (path === '/config/read') return json(config)
     if (path === '/config/set') { config = body; return json(config) }
+    if (path === '/session/list') return json([...sessions.values()])
+    if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: [], git: null })
+    if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
+    if (path === '/tool/list') return json([
+      { name: 'file_read', kind: 'read', permission: 'ask' },
+      { name: 'shell', kind: 'command', permission: 'ask' },
+      { name: 'task', kind: 'subtask', permission: 'ask' },
+    ])
+    if (path === '/command/list') return json([
+      { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
+    ])
     if (path === '/session/create') {
       const id = `session-${sessions.size + 1}`
-      sessions.set(id, { id, title: body.title, provider: body.provider, model: body.model, history: [], createdAt: Date.now(), updatedAt: Date.now() })
+      sessions.set(id, {
+        id,
+        title: body.title,
+        provider: body.provider,
+        model: body.model,
+        history: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        settings: {
+          mode: 'build',
+          autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
+          autoApproveLimit: 50,
+          compactThreshold: 0.8,
+          capabilities: { image: true, cache: true, stream: true },
+          uses: {},
+          autoTitle: true,
+        },
+        todos: [],
+        running: false,
+        pending: [],
+        undoable: 0,
+      })
       return json({ sessionId: id })
     }
     const id = path.split('/').at(-1)
     const session = sessions.get(id)
+    if (path.startsWith('/session/model/')) {
+      session.provider = body.provider
+      session.model = body.model
+      return json(session)
+    }
+    if (path.startsWith('/session/fork/')) {
+      const newId = `session-${sessions.size + 1}`
+      sessions.set(newId, {
+        ...session,
+        id: newId,
+        title: (body && body.title) || `${session.title}（分支）`,
+        history: structuredClone(session.history),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+      return json({ sessionId: newId })
+    }
     if (path.startsWith('/sse/connect/')) {
       if (queued.has(id)) { const eventBody = queued.get(id); queued.delete(id); return route.fulfill({ contentType: 'text/event-stream', body: eventBody }) }
       waiting.set(id, route)
       return
     }
     if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
+    if (path.startsWith('/session/settings/')) {
+      if (method === 'PATCH') session.settings = { ...session.settings, ...body }
+      return json(session.settings)
+    }
     if (path.startsWith('/session/read/')) return json(session)
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
-    if (path.startsWith('/session/rollback/')) { session.redo = session.history; session.history = []; return json(session) }
-    if (path.startsWith('/session/redo/')) { session.history = session.redo || []; return json(session) }
+    if (path.startsWith('/session/rollback/preview/')) return json({ messages: 1, files: [] })
+    if (path.startsWith('/session/rollback/')) {
+      session.redo = session.history
+      session.history = []
+      session.undoable = 1
+      return json({ ...session, restored: [] })
+    }
+    if (path.startsWith('/session/redo/')) {
+      session.history = session.redo || []
+      session.redo = []
+      session.undoable = 0
+      return json({ ...session, restored: [] })
+    }
     if (path.startsWith('/agent/send/')) {
       session.history.push({ messageId: 'user-1', id: 'core-user-1', role: 'user', content: body.input })
       await json({ ok: true })
       if (body.input === 'keep running') return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({ messageId: 'assistant-1', role: 'assistant', content: [{ type: 'text', text }] })
-      return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'agent-finish' }])
+      session.title = '一个新的项目'
+      return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) { await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
     if (path.startsWith('/agent/decide/')) return json({ ok: true })
@@ -88,9 +153,10 @@ test('empty home, accessible navigation and unsupported capabilities', async ({ 
   if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: '收起侧边栏' }).click()
   await navigate(page, '设置')
   await expect(page.getByRole('heading', { name: '通用', exact: true, level: 2 })).toBeVisible()
-  if (testInfo.project.name === 'desktop') await expect(page.getByRole('button', { name: /工具管理/ })).toBeDisabled()
+  if (testInfo.project.name === 'desktop') await expect(page.getByRole('button', { name: /工具管理/ })).toBeEnabled()
   await screenshot(page, testInfo, 'settings')
-  expect(mock.calls.some(call => /workspace|health|login|session\/update/.test(call.path))).toBe(false)
+  // 工作区和健康检查是启动时正常读取；这里只盯未实现的能力，不把只读请求算进来。
+  expect(mock.calls.some(call => /login|session\/update/.test(call.path))).toBe(false)
   expect(mock.errors).toEqual([])
 })
 
@@ -174,7 +240,7 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   await screenshot(page, testInfo, 'approval')
   await page.getByRole('button', { name: '始终允许此参数', exact: true }).click()
   await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
-  expect(mock.calls.find(call => call.path === '/agent/decide/session-1').body).toEqual({ callId: 'call-1', decision: 'allow-always' })
+  expect(mock.calls.find(call => call.path === '/agent/decide/session-1').body).toEqual({ toolCallId: 'call-1', decision: 'allow-always' })
   expect(mock.errors).toEqual([])
 })
 
@@ -223,4 +289,88 @@ test('settings close keeps the chat draft and failed save keeps the dialog open'
   await page.getByRole('button', { name: '关闭设置' }).click()
   await expect(editor).toHaveValue('尚未发送的草稿')
   expect(mock.errors).toEqual([])
+})
+
+test('slash command expands into the prompt before sending', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  const editor = page.getByRole('textbox', { name: '消息', exact: true })
+  await editor.fill('/')
+  await expect(page.getByRole('option', { name: /review/ })).toBeVisible()
+  await editor.press('Enter')
+  await expect(editor).toHaveValue('/review ')
+  await editor.type('focus')
+  await editor.press('Enter')
+  await expect.poll(() => mock.calls.filter(call => call.path.startsWith('/agent/send/')).at(-1)?.body?.input)
+    .toBe('请审查当前改动。\nfocus')
+})
+
+test('existing conversation switches model from the header', async ({ page }) => {
+  const mock = await backend(page)
+  mock.config().providers[0].models.push('another-model')
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await page.locator('.app-header__model').selectOption({ label: 'Test Provider / another-model' })
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/model/session-1')?.body)
+    .toEqual({ provider: 'Test Provider', model: 'another-model' })
+  await expect(page.locator('.app-header__model')).toHaveValue('Test Provider/another-model')
+})
+
+test('conversation can be forked from the header', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await page.getByRole('button', { name: '创建分支', exact: true }).click()
+  await expect.poll(() => mock.calls.some(call => call.path === '/session/fork/session-1')).toBe(true)
+  await expect(page.getByRole('heading', { name: '一个新的项目（分支）' })).toBeVisible()
+})
+
+test('advanced, tools and MCP settings write back', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+
+  await page.getByRole('button', { name: '高级', exact: true }).click()
+  // m3e-switch 暴露的是自定义元素，角色查询拿不到名字；按所在区块点它。
+  await page.locator('.advanced-settings__block', { hasText: '项目规则' }).locator('m3e-switch').click()
+  await page.getByLabel('命令', { exact: true }).fill('bun run typecheck')
+  await page.locator('.advanced-settings__block', { hasText: 'shell 改动快照' }).locator('m3e-switch').click()
+  await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['file_read'] } }, null, 2))
+  await page.getByRole('button', { name: '应用模式', exact: true }).click()
+
+  await page.getByRole('button', { name: '工具管理', exact: true }).click()
+  await expect(page.getByText('file_read', { exact: true })).toBeVisible()
+  await expect(page.getByText('shell', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'MCP 服务', exact: true }).click()
+  await expect(page.getByText('sample', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '保存设置', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('设置已保存')
+  const saved = mock.config()
+  expect(saved.rules.enabled).toBe(false)
+  expect(saved.diagnostics.command).toBe('bun run typecheck')
+  expect(saved.snapshot.shell).toBe(true)
+  expect(saved.modes.review).toEqual({ label: '审查', tools: ['file_read'] })
+})
+
+test('compaction threshold is sent as a number', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  const threshold = page.getByLabel('阈值', { exact: true })
+  await threshold.fill('0.6')
+  await threshold.press('Tab')
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1')?.body?.compactThreshold).toBe(0.6)
 })

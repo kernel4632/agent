@@ -59,7 +59,7 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
     <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退">
       <h2>回到这条消息之前？</h2>
       <p>{{ rollbackSummary }}</p>
-      <label v-if="rollbackPreview?.files.length" class="rollback-files">
+      <label v-if="rollbackPreview?.files?.length" class="rollback-files">
         <span>这一段的改动（{{ rollbackPreview.files.length }} 个文件）</span>
         <ul><li v-for="file in rollbackPreview.files" :key="file.path">{{ file.path }}</li></ul>
       </label>

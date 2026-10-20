@@ -93,9 +93,11 @@ async function save() {
         return original === undefined ? id : isolateDraft(original)
       }),
     }))
-    // 工具开关写回 permission；对象规则里的参数模式保留，只改默认动作。
+    // 工具开关写回 permission；只写用户真的改过的那几个，没动过的规则保持原样。
+    // 对象规则里的参数模式也要保留，只改默认动作。
     const permission = { ...(store.config.raw?.permission || {}) }
     for (const tool of draft.tools || []) {
+      if (tool.original !== undefined && tool.permission === tool.original) continue
       const current = permission[tool.name]
       if (current && typeof current === 'object' && !Array.isArray(current)) {
         permission[tool.name] = { ...current, '*': tool.permission }

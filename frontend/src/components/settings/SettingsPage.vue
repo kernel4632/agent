@@ -1,4 +1,6 @@
 <script setup>
+// 设置页用到的 M3E 组件按需注册；之前这个文件没被引入，开关等组件是隐形的。
+import './register.js'
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import ProviderSettings from './ProviderSettings.vue'
