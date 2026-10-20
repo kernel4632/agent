@@ -157,7 +157,7 @@ src/
 - `theme.js` 移到 `theme/index.js`，App 不再直接接触 M3E。
 - 验收：主题切换、深色/浅色/跟随系统、减少动画、强焦点和 token 同步保持，UI 全过。
 
-#### [ ] 8b：样式 token 和死文件清理
+#### [x] 8b：样式 token 和死文件清理
 
 - 把布局尺寸、内容宽度、settings 导航宽度收进 `tokens.scss`；去掉 `280px`、`860px`、`720px` 这类重复值。
 - 把遗留的 `var(--md-sys-color-outline)`、硬编码错误色换成 `--la-*`。

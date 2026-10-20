@@ -45,7 +45,7 @@ const workspace = computed(() => props.workspaces.find(item => item.id === props
   max-width: 1080px;
   height: 100%;
   min-height: 0;
-  grid-template-columns: 280px minmax(0, 720px);
+  grid-template-columns: var(--la-home-projects-width) minmax(0, var(--la-content-width));
   gap: 32px;
   margin: 0 auto;
   padding: 24px 24px 48px;

@@ -8,7 +8,6 @@ import { store } from './store.js'                                    // 引入�
 const messages = {                                                    // 全部界面文案按语言分组
   'zh-CN': {
     home: '主页', newChat: '新建对话', sessions: '会话', settings: '设置', mainNav: '主要导航', agentHome: 'Agent 主页',
-    collapseSidebar: '收起侧边栏', expandSidebar: '展开侧边栏', closeSidebar: '关闭侧边栏',
     search: '搜索工作区或会话', workspace: '工作区', addWorkspace: '添加工作区', noWorkspace: '没有匹配的工作区',
     sessionCount: '{count} 个会话', today: '今天', yesterday: '昨天', earlier: '更早', messageCount: '{count} 条消息',
     noMatchingSessions: '没有匹配的会话', noSessions: '这个工作区还没有会话', name: '名称', path: '路径',
@@ -35,7 +34,6 @@ const messages = {                                                    // 全部�
   },
   'en-US': {
     home: 'Home', newChat: 'New chat', sessions: 'Sessions', settings: 'Settings', mainNav: 'Main navigation', agentHome: 'Agent home',
-    collapseSidebar: 'Collapse sidebar', expandSidebar: 'Expand sidebar', closeSidebar: 'Close sidebar',
     search: 'Search workspaces or sessions', workspace: 'Workspaces', addWorkspace: 'Add workspace', noWorkspace: 'No matching workspaces',
     sessionCount: '{count} sessions', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier', messageCount: '{count} messages',
     noMatchingSessions: 'No matching sessions', noSessions: 'This workspace has no sessions yet', name: 'Name', path: 'Path',

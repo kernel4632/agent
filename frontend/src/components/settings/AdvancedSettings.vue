@@ -207,7 +207,7 @@ code {
 }
 
 .advanced-settings__error {
-  color: #fca5a5;
+  color: var(--la-danger);
   overflow-wrap: anywhere;
 }
 

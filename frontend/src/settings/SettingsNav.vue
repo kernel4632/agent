@@ -41,9 +41,9 @@ function selectPage(page) {
 <style scoped lang="scss">
 .settings-nav {
   display: flex;
-  width: 328px;
-  min-width: 328px;
-  flex: 0 0 328px;
+  width: var(--la-settings-nav-width);
+  min-width: var(--la-settings-nav-width);
+  flex: 0 0 var(--la-settings-nav-width);
   flex-direction: column;
   gap: 16px;
   padding: 48px 64px 48px 24px;
@@ -88,7 +88,7 @@ function selectPage(page) {
 .settings-nav nav button:hover:not(:disabled) { background: var(--la-hover); }
 .settings-nav small { margin-left: auto; color: var(--la-muted); font-size: 11px; }
 @media (max-width: 1047px) {
-  .settings-nav { width: 240px; min-width: 240px; flex-basis: 240px; padding-left: 16px; padding-right: 24px; }
+  .settings-nav { width: var(--la-settings-nav-width-compact); min-width: var(--la-settings-nav-width-compact); flex-basis: var(--la-settings-nav-width-compact); padding-left: 16px; padding-right: 24px; }
 }
 @media (max-width: 799px) {
   .settings-nav { width: 100%; min-width: 0; flex: none; gap: 4px; padding: 8px 12px; border-bottom: .5px solid var(--la-line); }

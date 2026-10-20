@@ -85,7 +85,7 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 </template>
 
 <style scoped lang="scss">
-.conversation-flow { width: 100%; max-width: 860px; margin: 0 auto; padding: 20px 20px 24px; display: flex; flex-direction: column; gap: 24px; }
+.conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 20px 20px 24px; display: flex; flex-direction: column; gap: 24px; }
 .message { min-width: 0; }
 .message--user { display: flex; flex-direction: column; align-items: flex-end; }
 .message__bubble {

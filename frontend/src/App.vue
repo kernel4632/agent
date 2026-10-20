@@ -232,7 +232,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .app-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
-.panel { flex: 1; min-height: 0; margin: var(--la-content-inset); border-radius: 10px; background: var(--la-panel); box-shadow: var(--la-shadow-raised); overflow: hidden; }
+.panel { flex: 1; min-height: 0; margin: var(--la-content-inset); border-radius: var(--la-radius-panel); background: var(--la-panel); box-shadow: var(--la-shadow-raised); overflow: hidden; }
 .connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 @media (max-width: 767px) {

@@ -171,7 +171,7 @@ const targetFrom = (session, value) => {
 .session-body { display: flex; min-height: 0; flex: 1; }
 .session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-composer { width: 100%; max-width: 860px; flex: none; margin: 0 auto; padding: 8px 20px 16px; }
+.session-composer { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 8px 20px 16px; }
 .chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 9px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
 .chat-more { display: flex; flex-wrap: wrap; gap: 20px; max-height: 340px; margin-bottom: 8px; padding: 16px; overflow-y: auto; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
 .chat-more__group { flex: 1 1 240px; min-width: 0; }

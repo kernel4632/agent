@@ -58,7 +58,7 @@ defineExpose({ focus: () => composer.value?.focus() })
 .draft-panel { position: relative; }
 .draft-stage { display: flex; min-height: 100%; flex-direction: column; align-items: center; overflow: auto; padding: clamp(40px, 18vh, 180px) 24px 48px; }
 .draft-inner { width: 100%; max-width: 880px; padding: 0; }
-.draft-wordmark { width: 80%; max-width: 720px; margin: 0 auto; color: var(--la-text); font-family: var(--la-font-sans); font-size: clamp(120px, 18vw, 220px); font-weight: 700; line-height: .9; letter-spacing: -.08em; text-align: center; opacity: .11; user-select: none; }
+.draft-wordmark { width: 80%; max-width: var(--la-content-width); margin: 0 auto; color: var(--la-text); font-family: var(--la-font-sans); font-size: clamp(120px, 18vw, 220px); font-weight: 700; line-height: .9; letter-spacing: -.08em; text-align: center; opacity: .11; user-select: none; }
 .draft-form { position: relative; margin-top: 32px; }
 .draft-meta { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
 .draft-meta__path { opacity: .7; }

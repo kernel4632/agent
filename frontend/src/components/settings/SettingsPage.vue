@@ -57,15 +57,15 @@ async function save() {
   min-height: 0;
   margin: var(--la-content-inset);
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--la-radius-panel);
   background: var(--la-panel);
   box-shadow: var(--la-shadow-raised);
   container: settings-screen / inline-size;
 }
-.settings-page { display: flex; width: 100%; max-width: 1048px; height: 100%; margin: 0 auto; }
+.settings-page { display: flex; width: 100%; max-width: var(--la-settings-page-width); height: 100%; margin: 0 auto; }
 
 /* --- 内容区、标题和保存栏 --- */
-.settings-content { display: flex; max-width: 720px; min-width: 0; flex: 1; flex-direction: column; }
+.settings-content { display: flex; max-width: var(--la-settings-content-width); min-width: 0; flex: 1; flex-direction: column; }
 .settings-heading {
   position: sticky;
   top: 0;

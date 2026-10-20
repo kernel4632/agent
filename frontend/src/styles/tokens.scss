@@ -35,8 +35,15 @@ m3e-theme {
   --la-radius-panel: 10px;
   --la-titlebar-height: 36px;
   --la-content-inset: 8px;
-  --la-sidebar-width: 280px;
   --la-chat-gutter: 24px;
+  --la-content-width: 720px;
+  --la-chat-width: 860px;
+  --la-home-projects-width: 280px;
+  --la-review-width: 280px;
+  --la-settings-nav-width: 328px;
+  --la-settings-nav-width-compact: 240px;
+  --la-settings-content-width: 720px;
+  --la-settings-page-width: 1048px;
   --la-font-sans: "Maple Mono NF CN", "MapleMono NF CN", Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
   --la-font-mono: "Maple Mono NF CN", "MapleMono NF CN", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   --la-shadow-raised: 0 2px 4px #00000030, 0 1px 2px #00000030, 0 0 0 .5px #ffffff29, 0 -.5px 0 #ffffff0f;
@@ -82,5 +89,5 @@ m3e-theme[scheme="light"] {
 }
 
 @media (max-width: 760px) {
-  m3e-theme { --la-chat-gutter: 12px; --la-sidebar-width: 86vw; }
+  m3e-theme { --la-chat-gutter: 12px; }
 }

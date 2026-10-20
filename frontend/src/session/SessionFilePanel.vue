@@ -55,7 +55,7 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
 </template>
 
 <style scoped lang="scss">
-.session-review { display: flex; width: 280px; flex: 0 0 280px; flex-direction: column; min-height: 0; border-left: .5px solid var(--la-line); background: var(--la-panel); }
+.session-review { display: flex; width: var(--la-review-width); flex: 0 0 var(--la-review-width); flex-direction: column; min-height: 0; border-left: .5px solid var(--la-line); background: var(--la-panel); }
 .session-review__head { display: flex; height: 48px; flex: none; align-items: center; justify-content: space-between; padding: 0 8px 0 14px; border-bottom: .5px solid var(--la-line); color: var(--la-text); font-size: 13px; font-weight: 530; }
 .session-review__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow-y: auto; padding: 8px 10px 20px; }
 .session-review__section { display: flex; flex-direction: column; gap: 2px; }

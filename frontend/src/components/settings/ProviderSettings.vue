@@ -64,7 +64,7 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
   align-items: center;
   justify-content: center;
   min-height: 420px;
-  color: var(--md-sys-color-outline);
+  color: var(--la-muted);
 }
 
 /* --- 窄屏适配：纵向堆叠 --- */
