@@ -114,7 +114,7 @@ src/
 - `App.vue` 只保留 `<SessionView :session="session" :workspace="selectedWorkspace" />`。
 - 验收：`App.vue` 不再出现会话正文、输入区和设置面板；会话页所有测试通过。
 
-### [ ] 阶段 6：设置页登记表
+### [x] 阶段 6：设置页登记表
 
 - 新建 `src/settings/pages.js`，一个数组登记页面：`id`、`label`、`icon`、`group`、`component`。
 - 新建 `src/settings/SettingsNav.vue`，导航只读登记表。
