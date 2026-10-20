@@ -1,11 +1,11 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
-import { UI } from '../commands/ui.js'
 import { Session } from '../commands/session.js'
+import { version } from '../../package.json'
 const collapsed = defineModel('collapsed', { type: Boolean, default: false })
-const props = defineProps({ conversations: { type: Array, default: () => [] }, activeConversationId: String, activeView: String })
-const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'settings', 'search'])
+const props = defineProps({ conversations: { type: Array, default: () => [] }, activeConversationId: String, activeView: String, overlay: Boolean })
+const emit = defineEmits(['home', 'new-conversation', 'select-conversation', 'settings', 'search', 'close'])
 const searchOpen = ref(false)
 const search = ref('')
 const searchInput = ref(null)
@@ -38,17 +38,21 @@ async function submitDialog() {
   try {
     const ok = mode.value === 'rename' ? await Session.rename(target.value.id, value.value)
       : mode.value === 'delete' ? await Session.remove(target.value.id) : await Session.openByID(value.value)
-    if (ok) dialog.value.close()
+    if (ok) {
+      dialog.value.close()
+      if (mode.value === 'open') emit('close')
+    }
   } finally { busy.value = false }
 }
 </script>
 
 <template>
-  <button v-if="!collapsed" class="sidebar-backdrop" aria-label="关闭导航" @click="collapsed = true"></button>
-  <aside class="sidebar" :class="{ 'is-collapsed': collapsed }" aria-label="侧边栏">
+  <button v-if="!collapsed && !overlay" class="sidebar-backdrop" aria-label="关闭导航" @click="collapsed = true"></button>
+  <aside class="sidebar" :class="{ 'is-collapsed': collapsed, 'is-overlay': overlay }" aria-label="侧边栏">
     <header class="sidebar__brand">
-       <button class="brand-button" aria-label="主页" @click="emit('new-conversation')"><span class="avatar avatar--user"><AppIcon name="globe" :size="20" /></span><span v-if="!collapsed" class="brand-word">我的空间<small>本地工作区</small></span></button>
-      <button v-if="!collapsed" class="icon-button sidebar__toggle" aria-label="收起侧边栏" @click="collapsed = true"><AppIcon name="panel" :size="18" /></button>
+       <button class="brand-button" aria-label="主页" @click="emit('new-conversation')"><span class="avatar avatar--user"><AppIcon name="globe" :size="18" /></span><span v-if="!collapsed" class="brand-word">我的空间<small>本地工作区</small></span></button>
+      <button v-if="overlay" class="icon-button sidebar__toggle" aria-label="收起侧边栏" @click="emit('close')"><AppIcon name="close" :size="16" /></button>
+      <button v-else-if="!collapsed" class="icon-button sidebar__toggle" aria-label="收起侧边栏" @click="collapsed = true"><AppIcon name="panel" :size="18" /></button>
     </header>
     <button v-if="collapsed" class="icon-button sidebar__expand" aria-label="展开侧边栏" @click="collapsed = false"><AppIcon name="panel" /></button>
     <button class="sidebar__new" aria-label="新建对话" @click="emit('new-conversation')"><AppIcon name="plus" /><span>新建对话</span><kbd>N</kbd></button>
@@ -61,7 +65,7 @@ async function submitDialog() {
        <div v-if="search && !visibleConversations.length" class="sidebar__empty sidebar__empty--search"><p>没有找到相关会话</p><button class="text-button" @click="search = ''">清除搜索</button></div>
        <div v-else-if="!conversations.length" class="sidebar__empty"><AppIcon name="chat" :size="25" /><p>新的对话，从这里开始</p><span>你的会话会显示在这里</span></div>
        <div v-for="conversation in visibleConversations" :key="conversation.id" class="session-row" :class="{ active: activeConversationId === conversation.id }">
-         <button class="sidebar__conversation" :title="conversation.title || '新对话'" @click="Session.open(conversation.id)"><span>{{ conversation.title || '新对话' }}</span><i v-if="conversation.status === 'running'" class="status-dot"></i></button>
+         <button class="sidebar__conversation" :title="conversation.title || '新对话'" @click="emit('select-conversation', conversation.id)"><span>{{ conversation.title || '新对话' }}</span><i v-if="conversation.status === 'running'" class="status-dot"></i></button>
          <div class="session-row__actions">
            <button class="icon-button" :aria-label="`重命名 ${conversation.title}`" @click="openDialog('rename', conversation)"><AppIcon name="edit" :size="13" /></button>
            <button class="icon-button" :aria-label="`删除 ${conversation.title}`" @click="openDialog('delete', conversation)"><AppIcon name="trash" :size="13" /></button>
@@ -70,7 +74,7 @@ async function submitDialog() {
     </div>
     <div class="sidebar__bottom">
        <div v-if="!collapsed" class="sidebar__assistant"><span class="avatar avatar--assistant"><AppIcon name="spark" :size="16" /></span><span>la<small>你的 AI 助手</small></span><span class="status-dot"></span></div>
-       <button class="sidebar__settings" aria-label="设置" @click="UI.openSettings()"><AppIcon name="settings" :size="18" /><span>设置</span><span class="sidebar__version">v0.1</span></button>
+       <button class="sidebar__settings" aria-label="设置" @click="emit('settings')"><AppIcon name="settings" :size="18" /><span>设置</span><span class="sidebar__version">v{{ version }}</span></button>
      </div>
    </aside>
    <dialog ref="dialog" class="dialog" :aria-label="mode === 'delete' ? '删除会话' : mode === 'rename' ? '重命名会话' : '打开已有会话'" @cancel="busy && $event.preventDefault()">
@@ -133,6 +137,22 @@ kbd { margin-left: auto; color: var(--la-muted); font: 10px/1.6 var(--la-font-mo
   &:hover &__actions, &:focus-within &__actions { opacity: 1; }
   &__actions .icon-button { width: 24px; height: 26px; }
   .sidebar__conversation { min-width: 0; }
+}
+.sidebar.is-overlay {
+  position: fixed;
+  top: var(--la-titlebar-height);
+  bottom: var(--la-statusbar-height);
+  left: 0;
+  z-index: 80;
+  width: var(--la-sidebar-width);
+  flex-basis: var(--la-sidebar-width);
+  height: auto;
+  box-shadow: 24px 0 60px #000c;
+  animation: drawer-in .16s ease-out;
+}
+@keyframes drawer-in { from { transform: translateX(-12px); opacity: 0; } }
+@media (max-width: 760px) {
+  .sidebar.is-overlay { width: 86vw; flex-basis: 86vw; }
 }
 .is-collapsed { width: 64px; flex-basis: 64px; padding-inline: 8px; }
 .is-collapsed .sidebar__brand { justify-content: center; margin-bottom: 18px; }

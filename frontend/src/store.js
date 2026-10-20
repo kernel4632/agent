@@ -23,7 +23,7 @@ export const store = reactive({
     view: 'home',                                      // home 为尚未创建的对话，chat 为已有会话
     settingsOpen: false,
     settingsSection: 'appearance',
-    sidebarOpen: window.innerWidth > 760,              // 760px 是移动端与桌面端的响应式断点，窄屏首次进入时收起侧栏优先展示主内容
+    sidebarOpen: false,                                // 会话列表默认收进抽屉，主界面保持 opencode 式单栏终端布局
     activeWorkspaceID: '',                             // 主页当前工作区身份
     activeSessionID: '',                               // 对话页当前会话身份
     openedSessionIDs: [],                              // 用户本次运行中主动打开的会话，顺序即侧边栏顺序

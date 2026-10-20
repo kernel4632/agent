@@ -8,7 +8,7 @@
 }
 * { box-sizing: border-box; }
 html, body, #app { width: 100%; min-width: 320px; height: 100%; margin: 0; }
-body { overflow: hidden; background: #0a0a0b; }
+body { overflow: hidden; background: #050506; }
 button, input, select, textarea { font: inherit; }
 button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
 button { touch-action: manipulation; }
@@ -37,6 +37,8 @@ m3e-theme[scheme="light"] {
 .button--danger { color: var(--la-danger); }
 .text-button { border: 0; background: transparent; color: var(--la-accent); padding: 5px 0; cursor: pointer; font-size: 12px; }
 .status-dot { display: inline-block; width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--la-accent); }
+.status-dot.is-running { box-shadow: 0 0 0 3px var(--la-accent-soft); animation: status-pulse 1.4s ease-in-out infinite; }
+@keyframes status-pulse { 50% { opacity: .45; } }
 .eyebrow { color: var(--la-muted); font-size: 10px; line-height: 1.6; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; }
 .field { width: 100%; min-height: 34px; padding: 8px 10px; background: var(--la-input); color: var(--la-text); border: 1px solid var(--la-line); border-radius: var(--la-radius); outline-offset: 1px; }
 .field::placeholder { color: var(--la-muted); }

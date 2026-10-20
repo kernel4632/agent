@@ -121,9 +121,13 @@ async function backend(page, { configured = true } = {}) {
   return { calls, sessions, errors, emit, config: () => config }
 }
 
-async function navigate(page, name) {
+async function openDrawer(page) {
   const menu = page.getByRole('button', { name: '打开导航', exact: true })
   if (await menu.isVisible()) await menu.click()
+}
+
+async function navigate(page, name) {
+  await openDrawer(page)
   await page.getByRole('button', { name, exact: true }).click()
 }
 
@@ -148,6 +152,7 @@ test('empty home, accessible navigation and unsupported capabilities', async ({ 
   await screenshot(page, testInfo, 'home')
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('searchbox', { name: '搜索会话' })).toBeFocused()
+  await screenshot(page, testInfo, 'drawer')
   await page.getByRole('searchbox').fill('不存在的关键词')
   await expect(page.getByText('没有找到相关会话')).toBeVisible()
   if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: '收起侧边栏' }).click()
@@ -176,13 +181,13 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await page.getByRole('button', { name: '撤销回退', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
   await navigate(page, '主页')
-  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: '打开导航' }).click()
+  await openDrawer(page)
   await page.locator('.session-row').hover()
   await page.getByRole('button', { name: '重命名 一个新的项目', exact: true }).click()
   await page.getByRole('textbox', { name: '会话名称' }).fill('我的计划')
   await page.getByRole('button', { name: '保存名称', exact: true }).click()
   await page.reload()
-  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: '打开导航' }).click()
+  await openDrawer(page)
   await page.locator('.session-row').hover()
   await expect(page.locator('.session-row')).toContainText('我的计划')
   await page.getByRole('button', { name: '删除 我的计划', exact: true }).click()
@@ -308,7 +313,7 @@ test('slash command expands into the prompt before sending', async ({ page }) =>
     .toBe('请审查当前改动。\nfocus')
 })
 
-test('existing conversation switches model from the header', async ({ page }) => {
+test('existing conversation switches model from the session bar', async ({ page }) => {
   const mock = await backend(page)
   mock.config().providers[0].models.push('another-model')
   await page.goto('/')
@@ -316,10 +321,10 @@ test('existing conversation switches model from the header', async ({ page }) =>
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.locator('.app-header__model').selectOption({ label: 'Test Provider / another-model' })
+  await page.locator('.sessionbar__model').selectOption({ label: 'Test Provider / another-model' })
   await expect.poll(() => mock.calls.find(call => call.path === '/session/model/session-1')?.body)
     .toEqual({ provider: 'Test Provider', model: 'another-model' })
-  await expect(page.locator('.app-header__model')).toHaveValue('Test Provider/another-model')
+  await expect(page.locator('.sessionbar__model')).toHaveValue('Test Provider/another-model')
 })
 
 test('conversation can be forked from the header', async ({ page }) => {
@@ -401,7 +406,7 @@ test('compaction threshold is sent as a number', async ({ page }) => {
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.getByRole('button', { name: '会话设置', exact: true }).click()
+  await page.getByRole('button', { name: /自动批准/ }).click()
   const threshold = page.getByLabel('阈值', { exact: true })
   await threshold.fill('0.6')
   await threshold.press('Tab')

@@ -18,8 +18,6 @@ const composer = ref(null)
 const homeDraft = ref('')
 const homeFiles = ref([])
 const creating = ref(false)
-const now = ref(Date.now())
-const mobile = ref(window.innerWidth <= 760)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const draft = computed({
   get: () => session.value ? session.value.draft : homeDraft.value,
@@ -71,8 +69,23 @@ const system = window.matchMedia('(prefers-color-scheme: dark)')
 const systemDark = ref(system.matches)
 const scheme = computed(() => appearance.value.theme === 'system' ? systemDark.value ? 'dark' : 'light' : appearance.value.theme)
 const updateSystem = event => { systemDark.value = event.matches }
-const resize = () => { mobile.value = window.innerWidth <= 760 }
-let clock
+
+function toggleDrawer() { store.ui.sidebarOpen = !store.ui.sidebarOpen }
+function closeDrawer() { store.ui.sidebarOpen = false }
+async function openSearch() {
+  store.ui.sidebarOpen = true
+  await nextTick()
+  sidebar.value?.focusSearch()
+}
+async function openSettingsFromDrawer(section) {
+  closeDrawer()
+  await nextTick()
+  UI.openSettings(section)
+}
+async function selectConversation(id) {
+  closeDrawer()
+  await Session.open(id)
+}
 
 watchEffect(() => {
   const theme = document.querySelector('m3e-theme')
@@ -87,6 +100,7 @@ watchEffect(() => {
 }, { flush: 'post' })
 
 async function newConversation() {
+  closeDrawer()
   if (creating.value || !await UI.openHome()) return
   homeDraft.value = ''
   homeFiles.value = []
@@ -131,9 +145,19 @@ function shortcuts(event) {
   if (document.querySelector('dialog[open]')) return
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
-    sidebar.value?.focusSearch()
+    void openSearch()
+    return
   }
-  if (event.key === 'Escape' && mobile.value) store.ui.sidebarOpen = false
+  if ((event.ctrlKey || event.metaKey) && event.key === ',') {
+    event.preventDefault()
+    UI.openSettings()
+    return
+  }
+  if (event.key === 'Escape') {
+    if (store.ui.sidebarOpen) { closeDrawer(); return }
+    if (session.value?.status === 'running') Chat.stop(session.value.id)
+    return
+  }
   if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing && !event.target.closest('input,textarea,select,[contenteditable]')) void newConversation()
 }
 
@@ -145,40 +169,52 @@ async function retryConnection() {
 
 onMounted(() => {
   system.addEventListener('change', updateSystem)
-  window.addEventListener('resize', resize)
   window.addEventListener('keydown', shortcuts)
-  clock = setInterval(() => { now.value = Date.now() }, 5000)
 })
 onUnmounted(() => {
   system.removeEventListener('change', updateSystem)
-  window.removeEventListener('resize', resize)
   window.removeEventListener('keydown', shortcuts)
-  clearInterval(clock)
 })
 </script>
 
 <template>
   <m3e-theme :scheme="scheme">
     <div class="preview-page">
-      <Sidebar ref="sidebar" v-model:collapsed="sidebarCollapsed" :conversations="store.workspaces[0]?.sessions || []" :active-conversation-id="session?.id" @new-conversation="newConversation" />
-      <main class="app-content" :inert="mobile && store.ui.sidebarOpen">
-        <header class="app-header">
-          <div class="app-header__location">
-            <button class="icon-button mobile-menu" aria-label="打开导航" @click="UI.toggleSidebar(true)"><AppIcon name="menu" /></button>
-            <div>
-              <h1>{{ session?.title || '新对话' }}</h1>
-              <select v-if="session" class="app-header__model" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模型' : '切换模型'" @change="switchModel($event.target.value)">
-                <option v-for="item in modelOptions" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.provider }} / {{ item.model }}</option>
-              </select>
-              <p v-else>与 la 一起工作</p>
+      <header class="titlebar">
+        <button class="icon-button titlebar__menu" :aria-label="store.ui.sidebarOpen ? '关闭导航' : '打开导航'" @click="toggleDrawer"><AppIcon :name="store.ui.sidebarOpen ? 'close' : 'menu'" :size="15" /></button>
+        <span class="titlebar__mark"><AppIcon name="spark" :size="14" /></span>
+        <span class="titlebar__brand">la</span>
+        <span class="titlebar__sep" aria-hidden="true">|</span>
+        <span class="titlebar__session" :title="session?.title || '新对话'">{{ session?.title || '新对话' }}</span>
+        <span class="titlebar__meta">本地工作区</span>
+        <div class="titlebar__actions">
+          <button v-if="session" class="icon-button titlebar__copy" title="复制会话 ID" aria-label="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="15" /></button>
+          <button v-if="session" class="icon-button" title="创建分支" aria-label="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="15" /></button>
+          <button class="icon-button" aria-label="对话设置" title="设置" @click="UI.openSettings()"><AppIcon name="settings" :size="15" /></button>
+        </div>
+      </header>
+      <div class="terminal__body">
+        <button v-if="store.ui.sidebarOpen" class="terminal__backdrop" aria-label="关闭导航" @click="closeDrawer"></button>
+        <Sidebar v-if="store.ui.sidebarOpen" ref="sidebar" v-model:collapsed="sidebarCollapsed" overlay :conversations="store.workspaces[0]?.sessions || []" :active-conversation-id="session?.id" @close="closeDrawer" @new-conversation="newConversation" @select-conversation="selectConversation" @settings="openSettingsFromDrawer" />
+        <main class="app-content" :inert="store.ui.sidebarOpen">
+          <header class="sessionbar">
+            <div class="sessionbar__inner">
+              <div class="sessionbar__title">
+                <span class="sessionbar__hash" aria-hidden="true">#</span>
+                <h1>{{ session?.title || '新对话' }}</h1>
+                <span v-if="session" class="sessionbar__mode">{{ Session.modeLabel(session.settings.mode) }}</span>
+              </div>
+              <div class="sessionbar__meta">
+                <select v-if="session" class="sessionbar__model" aria-label="当前会话模型" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模型' : '切换模型'" @change="switchModel($event.target.value)">
+                  <option v-for="item in modelOptions" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.provider }} / {{ item.model }}</option>
+                </select>
+                <span v-if="session">{{ session.messages.length }} 条消息</span>
+                <span v-else>本地工作区</span>
+                <span v-if="session?.contextTokens">{{ session.contextTokens.toLocaleString() }} tok</span>
+                <span class="sessionbar__status"><i class="status-dot" :class="{ 'is-running': session?.status === 'running' }"></i>{{ session?.status === 'running' ? '运行中' : '就绪' }}</span>
+              </div>
             </div>
-          </div>
-          <div class="app-header__actions">
-            <button v-if="session" class="icon-button" title="复制会话 ID" aria-label="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="17" /></button>
-            <button v-if="session" class="icon-button" title="创建分支" aria-label="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="17" /></button>
-            <button class="icon-button" aria-label="对话设置" title="设置" @click="UI.openSettings()"><AppIcon name="settings" :size="18" /></button>
-          </div>
-        </header>
+          </header>
         <div v-if="store.ui.errorMessage" class="connection-error" role="alert">
           <AppIcon name="info" :size="18" /><span>无法连接后端：{{ store.ui.errorMessage }}</span><button class="text-button" @click="retryConnection">重试</button>
         </div>
@@ -190,11 +226,6 @@ onUnmounted(() => {
                         </div>
                         <div class="chat-page__composer">
                           <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
-                          <div v-if="session" class="chat-toolbar" role="group" aria-label="会话运行设置">
-                            <button class="chip" :class="{ 'chip--active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="13" />{{ Session.modeLabel(session.settings.mode) }}</button>
-                            <button class="chip" :class="{ 'chip--active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="13" />自动批准 {{ autoApproveCount }}/{{ AUTO_APPROVE_KINDS.length }}</button>
-                            <button class="chip" :class="{ 'chip--active': moreOpen }" :aria-expanded="moreOpen" title="会话设置：能力、按用途配模型、压缩" @click="moreOpen = !moreOpen"><AppIcon name="settings" :size="13" />会话设置</button>
-                          </div>
                           <div v-if="session && moreOpen" class="chat-more">
                             <section class="chat-more__group" aria-label="自动批准">
                               <h2>自动批准</h2>
@@ -241,11 +272,31 @@ onUnmounted(() => {
                           </div>
                           <div v-if="session?.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session?.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
-              <ChatComposer ref="composer" v-model:draft="draft" :selected-model="session?.model || store.config.activeModel" :can-select-model="!session" :is-running="session?.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session?.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile" />
+              <ChatComposer ref="composer" v-model:draft="draft" :selected-model="session?.model || store.config.activeModel" :can-select-model="!session" :is-running="session?.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session?.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile">
+                <template #status>
+                  <template v-if="session">
+                    <button type="button" class="composer-mode" :class="{ 'is-active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="12" />{{ Session.modeLabel(session.settings.mode) }}</button>
+                    <button type="button" class="composer-mode" :class="{ 'is-active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="12" />自动批准 {{ autoApproveCount }}/{{ AUTO_APPROVE_KINDS.length }}</button>
+                  </template>
+                </template>
+              </ChatComposer>
             </div>
           </section>
         </div>
       </main>
+      </div>
+      <footer class="statusbar">
+        <div class="statusbar__left">
+          <span class="status-dot" :class="{ 'is-running': session?.status === 'running' }"></span>
+          <span>{{ session?.status === 'running' ? '运行中 · esc 停止' : '就绪' }}</span>
+          <span v-if="session" class="statusbar__muted">{{ session.messages.length }} 条消息</span>
+        </div>
+        <div class="statusbar__right">
+          <span><kbd>Ctrl K</kbd> 会话</span>
+          <span><kbd>N</kbd> 新对话</span>
+          <span><kbd>Ctrl ,</kbd> 设置</span>
+        </div>
+      </footer>
       <SettingsPage v-if="store.ui.settingsOpen" />
       <div v-if="store.ui.toast && !store.ui.settingsOpen" class="app-toast" role="status">
         <AppIcon name="info" :size="17" />{{ store.ui.toast }}
@@ -256,6 +307,35 @@ onUnmounted(() => {
 </template>
 
 <style scoped lang="scss">
+.preview-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--la-bg);
+}
+.titlebar {
+  display: flex;
+  flex: 0 0 var(--la-titlebar-height);
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--la-line);
+  background: var(--la-titlebar);
+  color: var(--la-titlebar-text);
+  user-select: none;
+}
+.titlebar__menu { width: 24px; height: 24px; color: var(--la-secondary); }
+.titlebar__mark { display: grid; place-items: center; color: var(--la-accent); }
+.titlebar__brand { color: var(--la-titlebar-text); font: 600 11px/1 var(--la-font-mono); letter-spacing: .04em; }
+.titlebar__sep { color: var(--la-muted); font: 10px/1 var(--la-font-mono); }
+.titlebar__session { min-width: 0; overflow: hidden; color: var(--la-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.titlebar__meta { max-width: 260px; margin-left: auto; overflow: hidden; color: var(--la-muted); font: 10px/1 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.titlebar__actions { display: flex; gap: 2px; margin-left: 6px; }
+.titlebar__actions .icon-button { width: 24px; height: 24px; }
+.terminal__body { position: relative; display: flex; flex: 1; min-height: 0; }
+.terminal__backdrop { position: fixed; z-index: 60; inset: var(--la-titlebar-height) 0 var(--la-statusbar-height); padding: 0; border: 0; background: #0009; cursor: pointer; }
 .app-content {
   display: flex;
   flex: 1;
@@ -264,68 +344,56 @@ onUnmounted(() => {
   height: 100%;
   background: var(--la-bg);
 }
-.app-header {
-  display: flex;
-  flex: 0 0 56px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 var(--la-chat-gutter);
-  border-bottom: 1px solid var(--la-line);
-
-  &__location { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  &__location > div { min-width: 0; }
-  h1 { margin: 0; overflow: hidden; font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
-  p { margin: 3px 0 0; color: var(--la-muted); font-size: 10px; }
-  &__model {
-    max-width: 280px;
-    margin: 2px 0 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--la-muted);
-    font: 10px/1.6 var(--la-font-mono);
-    text-overflow: ellipsis;
-    cursor: pointer;
-  }
-  &__model:disabled { cursor: default; opacity: .6; }
-  &__model option { background: var(--la-panel); color: var(--la-text); }
-  &__actions { display: flex; gap: 2px; }
-}
-.mobile-menu { display: none; }
+.sessionbar { flex: 0 0 42px; border-bottom: 1px solid var(--la-line); }
+.sessionbar__inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 100%; max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+.sessionbar__title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sessionbar__hash { color: var(--la-accent); font: 600 14px/1 var(--la-font-mono); }
+.sessionbar h1 { margin: 0; overflow: hidden; font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.sessionbar__mode { padding: 1px 5px; border: 1px solid var(--la-line); color: var(--la-muted); font: 9px/1.6 var(--la-font-mono); text-transform: uppercase; }
+.sessionbar__meta { display: flex; align-items: center; gap: 14px; color: var(--la-muted); font: 10px/1 var(--la-font-mono); white-space: nowrap; }
+.sessionbar__model { max-width: 230px; overflow: hidden; border: 0; background: transparent; color: var(--la-muted); font: 10px/1 var(--la-font-mono); text-overflow: ellipsis; cursor: pointer; }
+.sessionbar__model option { background: var(--la-panel); color: var(--la-text); }
+.sessionbar__status { display: flex; align-items: center; gap: 6px; }
 .app-view { flex: 1; min-height: 0; }
 .chat-page {
   display: flex;
   height: 100%;
   flex-direction: column;
   &__scroll { flex: 1; min-height: 0; overflow: auto; }
-  &__composer { flex: none; width: 100%; max-width: 820px; margin: 0 auto; padding: 10px var(--la-chat-gutter) 18px; }
+  &__composer { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 10px var(--la-chat-gutter) 12px; }
 }
-.chat-notice { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: var(--la-secondary); font-size: 12px; line-height: 1.8; }
-.chat-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 10px; }
-.chat-toolbar__divider { width: 1px; height: 14px; margin: 0 3px; background: var(--la-line); }
-.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 8px; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: none; color: var(--la-muted); font-size: 10px; cursor: pointer; }
+.chat-notice { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 5px 9px; border-left: 2px solid var(--la-accent-border); color: var(--la-secondary); font: 11px/1.7 var(--la-font-mono); }
+.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 2px 7px; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: none; color: var(--la-muted); font-size: 10px; cursor: pointer; }
 .chip:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); border-color: var(--la-accent-border); }
 .chip--active { background: var(--la-accent-soft); border-color: var(--la-accent-border); color: var(--la-accent); }
 .chip:disabled { opacity: .45; }
-/* 四个类别排在一起，收紧一点，免得把工具栏挤成两行。 */
-.chip--compact { min-height: 22px; padding: 2px 7px; }
-/* "自动批准"这四个字是分组标题，不是能点的开关，所以看着要弱一些。 */
-.chip-label { padding: 0 2px; color: var(--la-muted); font-size: 10px; }
-/* "更多"面板：配一次就不动的东西收在这里，不占工具栏的位置。 */
-.chat-more { display: flex; flex-wrap: wrap; gap: 16px; max-height: 360px; margin: -2px 0 10px; padding: 10px 12px; overflow-y: auto; border: 1px solid var(--la-line); border-radius: 8px; background: var(--la-panel); }
+.chip--compact { min-height: 20px; padding: 1px 6px; }
+.chat-more { display: flex; flex-wrap: wrap; gap: 16px; max-height: 320px; margin: 0 0 8px; padding: 10px 12px; overflow-y: auto; border: 1px solid var(--la-line); border-left: 2px solid var(--la-accent-border); border-radius: 2px; background: var(--la-term-panel); }
 .chat-more__group { flex: 1 1 220px; min-width: 0; }
 .chat-more__group h2 { margin: 0; font-size: 11px; font-weight: 550; }
 .chat-more__group p { margin: 3px 0 7px; color: var(--la-muted); font-size: 10px; line-height: 1.5; }
 .chat-more__chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chat-more__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 12px; color: var(--la-secondary); }
-.chat-more__row select, .chat-more__row input { flex: 0 1 150px; min-width: 0; padding: 3px 6px; border: 1px solid var(--la-line); border-radius: 6px; background: var(--la-bg); color: var(--la-text); font-size: 12px; }
-.connection-error { display: flex; align-items: center; gap: 10px; padding: 12px var(--la-chat-gutter); color: var(--la-danger); background: #c67a6412; font-size: 12px; }
+.chat-more__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 11px; color: var(--la-secondary); }
+.chat-more__row select, .chat-more__row input { flex: 0 1 150px; min-width: 0; padding: 3px 6px; border: 1px solid var(--la-line); border-radius: 2px; background: var(--la-bg); color: var(--la-text); font-size: 11px; }
+.composer-mode { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; border-radius: 2px; background: transparent; color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); cursor: pointer; }
+.composer-mode:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
+.composer-mode.is-active { color: var(--la-accent); }
+.composer-mode:disabled { opacity: .45; }
+.connection-error { display: flex; align-items: center; gap: 10px; padding: 8px 24px; border-left: 2px solid var(--la-danger); color: var(--la-danger); background: #f28b820d; font: 11px/1.7 var(--la-font-mono); }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
-.app-toast { position: fixed; z-index: 50; bottom: 24px; left: 50%; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 10px 12px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-panel); color: var(--la-text); font-size: 13px; box-shadow: 0 8px 24px #0004; transform: translateX(-50%); }
+.statusbar { display: flex; flex: 0 0 var(--la-statusbar-height); align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-top: 1px solid var(--la-line); background: var(--la-statusbar); color: var(--la-muted); font: 10px/1 var(--la-font-mono); user-select: none; }
+.statusbar__left, .statusbar__right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.statusbar__right kbd { color: var(--la-secondary); font: inherit; }
+.statusbar__muted { color: var(--la-muted); }
+.app-toast { position: fixed; z-index: 90; bottom: calc(var(--la-statusbar-height) + 12px); left: 50%; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 9px 11px; border: 1px solid var(--la-line); border-radius: 3px; background: var(--la-titlebar); color: var(--la-text); font-size: 12px; box-shadow: 0 8px 24px #0006; transform: translateX(-50%); }
 @media (max-width: 760px) {
-  .mobile-menu { display: flex; }
-  .app-header { flex-basis: 64px; padding-left: 8px; }
-  .chat-page__composer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .titlebar__meta { display: none; }
+  .titlebar__copy { display: none; }
+  .sessionbar__inner { padding: 0 12px; }
+  .sessionbar__meta > span:not(.sessionbar__status) { display: none; }
+  .sessionbar__model { max-width: 112px; font-size: 9px; }
+  .sessionbar__mode { display: none; }
+  .chat-page__composer { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .statusbar__right span:nth-child(n+2) { display: none; }
 }
 </style>

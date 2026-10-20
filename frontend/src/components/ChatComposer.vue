@@ -98,7 +98,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
       <div class="chat-composer__toolbar">
-        <span class="chat-composer__agent"><AppIcon name="spark" :size="17" /><span>Agent</span></span>
+        <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>la</span></slot></div>
         <div class="chat-composer__actions">
           <select v-if="canSelectModel && models.length" class="chat-composer__model" aria-label="新对话使用的模型" :value="selection" :disabled="busy" @change="chooseModel">
             <option v-for="item in models" :key="JSON.stringify(item)" :value="JSON.stringify([item.provider, item.model])">{{ item.provider }} / {{ item.model }}</option>
@@ -119,12 +119,13 @@ defineExpose({ focus: () => editor.value?.focus() })
 <style scoped lang="scss">
 .chat-composer {
   position: relative;
-  padding: 12px 12px 8px;
+  padding: 10px 12px 6px;
   border: 1px solid var(--la-line);
-  border-radius: 8px;
-  background: var(--la-input);
+  border-left: 2px solid var(--la-accent);
+  border-radius: 2px;
+  background: var(--la-term-panel);
 
-  &:focus-within { border-color: var(--la-accent-border); }
+  &:focus-within { border-color: var(--la-accent-border); border-left-color: var(--la-accent); }
   &__slash {
     position: absolute;
     right: 0;
@@ -137,17 +138,17 @@ defineExpose({ focus: () => editor.value?.focus() })
     overflow-y: auto;
     gap: 2px;
     border: 1px solid var(--la-line);
-    border-radius: var(--la-radius);
-    background: var(--la-panel);
-    box-shadow: 0 12px 30px #0004;
+    border-radius: 2px;
+    background: var(--la-titlebar);
+    box-shadow: 0 12px 30px #0006;
   }
   &__slash-item {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    padding: 8px 10px;
+    padding: 7px 9px;
     border: 0;
-    border-radius: 7px;
+    border-radius: 2px;
     background: transparent;
     color: var(--la-secondary);
     text-align: left;
@@ -159,7 +160,7 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__editor {
     display: block;
     width: 100%;
-    min-height: 44px;
+    min-height: 48px;
     max-height: 220px;
     padding: 0 2px 8px;
     resize: none;
@@ -168,30 +169,29 @@ defineExpose({ focus: () => editor.value?.focus() })
     outline: 0;
     background: transparent;
     color: var(--la-text);
-    font-size: 13px;
-    line-height: 1.7;
+    font: 13px/1.65 var(--la-font-mono);
 
     &::placeholder { color: var(--la-muted); }
   }
-  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 7px; min-width: 0; }
-  &__toolbar { justify-content: space-between; }
-  &__agent { color: var(--la-muted); font-size: 11px; }
+  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  &__toolbar { justify-content: space-between; padding-top: 6px; border-top: 1px solid var(--la-line); }
+  &__agent { color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); }
   &__agent svg { color: var(--la-muted); }
   &__model { max-width: 230px; overflow: hidden; border: 0; background: transparent; color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
   &__model option { background: var(--la-panel); color: var(--la-text); }
-  &__send { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--la-radius); background: var(--la-action); color: var(--la-on-action); cursor: pointer; }
-  &__send:disabled { background: var(--la-hover); color: var(--la-muted); }
-  &__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-  &__files > span { display: flex; align-items: center; gap: 6px; max-width: 100%; padding-left: 9px; border: 1px solid var(--la-line); border-radius: 6px; color: var(--la-secondary); font-size: 12px; overflow-wrap: anywhere; }
+  &__send { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; padding: 0; border: 1px solid var(--la-accent-border); border-radius: 2px; background: var(--la-accent-soft); color: var(--la-accent); cursor: pointer; }
+  &__send:disabled { border-color: var(--la-line); background: transparent; color: var(--la-muted); }
+  &__files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  &__files > span { display: flex; align-items: center; gap: 6px; max-width: 100%; padding-left: 8px; border: 1px solid var(--la-line); border-radius: 2px; color: var(--la-secondary); font-size: 11px; overflow-wrap: anywhere; }
 }
-.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 8px 4px 0; color: var(--la-muted); font-size: 10px; }
+.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 5px 2px 0; color: var(--la-muted); font: 9px/1.6 var(--la-font-mono); }
 @media (max-width: 760px) {
   .chat-composer {
-    padding: 14px 12px 8px;
+    padding: 10px 12px 6px;
     &__editor { font-size: 16px; }
     &__agent span { display: none; }
-    &__model { max-width: 150px; font-size: 11px; }
-    &__send { width: 40px; height: 40px; flex-basis: 40px; }
+    &__model { max-width: 150px; font-size: 10px; }
+    &__send { width: 32px; height: 32px; flex-basis: 32px; }
   }
   .composer-footnote > span:first-child { display: none; }
   .composer-footnote { justify-content: center; }
