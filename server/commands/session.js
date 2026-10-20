@@ -98,10 +98,10 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
     // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
     await mkdir(Path.tools(), { recursive: true })
-    // 规则跟着工作区走；每次重建 Agent 都重读一次，用户改完规则不用重启服务。
-    await Rules.load()
     // 会话的运行设置：模式、自动批准、能力开关。
     const settings = await Settings.read({ sessionId })
+    // 规则跟着工作区和模式走；每次重建 Agent 都重读一次，用户改完规则不用重启服务。
+    await Rules.load({ mode: settings.mode })
     // 配置格式转换只写在 Config 里，子 agent 用的也是同一份；
     // 能力开关作为会话级覆盖并进去，system 保持用户原样，不做任何注入。
     const config = Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) })
@@ -432,9 +432,9 @@ const send = async ({ sessionId, input }) => {
     Store.recentCalls.delete(sessionId)
 
     // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
-    // 发消息前重读规则，用户刚改过 AGENTS.md 也能在这一轮生效。
-    await Rules.load()
     const settings = await Settings.read({ sessionId })
+    // 发消息前重读规则，用户刚改过 AGENTS.md 或模式专属规则也能在这一轮生效。
+    await Rules.load({ mode: settings.mode })
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
     const startLength = agent.history.length

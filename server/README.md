@@ -490,6 +490,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 | `AGENTS.md` | 从工作区往上找最近的一份 | 和 git 找仓库根一样；项目放在子目录里也能找到 |
 | 自己的规则 | `<项目根>/.agent/rules/**/*.md` | 按路径排序读取 |
 | roo code 的规则 | `<项目根>/.roo/rules/**/*.md` | 兼容 roo code 的写法，两种可以同时用 |
+| 模式专属规则 | `<项目根>/.agent/rules-<mode>/**/*.md`、`.roo/rules-<mode>/**/*.md` | 只在使用对应模式时读取，例如 `rules-plan` |
 
 总长度上限 32KB、最多 20 个文件，超出部分会截断并标注。不想用规则时把 `rules.enabled` 设为 `false`，`system` 就只剩用户自己写的那段。
 

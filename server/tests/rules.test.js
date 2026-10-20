@@ -76,6 +76,33 @@ describe('项目规则', () => {
         })
     })
 
+    test('模式专属规则只在对应模式下读取', async () => {
+        await withHome(async root => {
+            await mkdir(join(root, '.roo', 'rules-ask'), { recursive: true })
+            await mkdir(join(root, '.agent', 'rules-build'), { recursive: true })
+            await writeFile(join(root, '.roo', 'rules-ask', 'a.md'), '询问规则')
+            await writeFile(join(root, '.agent', 'rules-build', 'b.md'), '构建规则')
+
+            const ask = await Rules.read({ workspace: root, stopAt: root, mode: 'ask' })
+            expect(ask).toContain('询问规则')
+            expect(ask).not.toContain('构建规则')
+
+            const build = await Rules.read({ workspace: root, stopAt: root, mode: 'build' })
+            expect(build).toContain('构建规则')
+            expect(build).not.toContain('询问规则')
+        })
+    })
+
+    test('模式名不合法时不会拼出工作区外的路径', async () => {
+        await withHome(async root => {
+            await mkdir(join(root, '.roo', 'rules-ask'), { recursive: true })
+            await writeFile(join(root, '.roo', 'rules-ask', 'a.md'), '不该被读到')
+
+            // ../evil 不是合法模式名，只读通用目录，通用目录是空的。
+            expect(await Rules.read({ workspace: root, stopAt: root, mode: '../evil' })).toBe('')
+        })
+    })
+
     test('关掉规则读取后系统提示词保持用户原样', async () => {
         await withHome(async root => {
             await writeFile(join(root, 'AGENTS.md'), '不该出现')

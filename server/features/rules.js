@@ -21,6 +21,20 @@ const MAX_FILES = 20
 // 本项目自己的规则目录，加上 roo code 的规则目录。
 const DIRS = ['.agent/rules', '.roo/rules']
 
+// 模式名只收合法字符，避免拼出一个跑到工作区外面的路径。
+const SAFE_MODE = /^[a-zA-Z0-9_-]+$/
+
+/**
+ * 这次要读哪些规则目录：通用目录，加上 `rules-<mode>`。
+ * @param {string} [mode] 当前模式名。
+ * @returns {string[]} 相对项目根的目录列表。
+ */
+const dirsFor = mode => {
+    const dirs = [...DIRS]
+    if (typeof mode === 'string' && SAFE_MODE.test(mode)) dirs.push(`.agent/rules-${mode}`, `.roo/rules-${mode}`)
+    return dirs
+}
+
 // --- 读一个文本文件，读不到就当没有 ---
 const text = async path => {
     try {
@@ -50,12 +64,12 @@ const findAgents = async ({ workspace, stopAt }) => {
 
 /**
  * 列出规则目录里的 Markdown 文件。
- * @param {string} root 项目根目录。
+ * @param {{ root: string, mode?: string }} input 项目根目录和当前模式。
  * @returns {Promise<string[]>} 排序后的绝对路径；目录不存在时是空数组。
  */
-const listRules = async root => {
+const listRules = async ({ root, mode }) => {
     const found = []
-    for (const dir of DIRS) {
+    for (const dir of dirsFor(mode)) {
         const base = join(root, dir)
         try {
             for await (const entry of new Bun.Glob('**/*.md').scan({ cwd: base, onlyFiles: true, dot: true })) {
@@ -97,13 +111,13 @@ const compose = async ({ files, root }) => {
 
 /**
  * 读工作区的全部规则。
- * @param {{ workspace?: string, stopAt?: string }} target 工作区，以及向上搜索的边界。
+ * @param {{ workspace?: string, stopAt?: string, mode?: string }} target 工作区、向上搜索的边界和当前模式。
  * @returns {Promise<string>} 可以直接拼进 system 的规则文本；没有规则时是空字符串。
  */
-const read = async ({ workspace = process.cwd(), stopAt } = {}) => {
+const read = async ({ workspace = process.cwd(), stopAt, mode } = {}) => {
     const agents = await findAgents({ workspace, stopAt })
     const root = agents ? dirname(agents) : resolve(workspace)
-    const files = agents ? [agents, ...await listRules(root)] : await listRules(root)
+    const files = agents ? [agents, ...await listRules({ root, mode })] : await listRules({ root, mode })
     const body = await compose({ files, root })
     if (!body) return ''
     return `# 项目规则\n\n下面这些规则来自项目文件，必须遵守。\n\n${body}`
@@ -111,11 +125,11 @@ const read = async ({ workspace = process.cwd(), stopAt } = {}) => {
 
 /**
  * 读一次并记在内存里，供 Config.resolve 使用。
- * @param {{ workspace?: string, stopAt?: string, config?: object }} options 工作区、向上搜索的边界和当前配置。
+ * @param {{ workspace?: string, stopAt?: string, mode?: string, config?: object }} options 工作区、边界、模式和当前配置。
  * @returns {Promise<string>} 本次生效的规则文本。
  */
-const load = async ({ workspace = process.cwd(), stopAt, config = Store.config } = {}) => {
-    Store.rules = config.rules?.enabled === false ? '' : await read({ workspace, stopAt })
+const load = async ({ workspace = process.cwd(), stopAt, mode, config = Store.config } = {}) => {
+    Store.rules = config.rules?.enabled === false ? '' : await read({ workspace, stopAt, mode })
     return Store.rules
 }
 
