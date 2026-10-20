@@ -1,6 +1,6 @@
 <!--
 会话顶部：项目图标、会话标题、模型下拉框、文件面板开关、复制会话 ID 和创建分支。
-模型切换只把选中的值上抛，具体请求仍由 App 处理；复制和分支直接调用现有命令。
+模型切换只把选中的值上抛，具体请求由 SessionView 处理；复制和分支直接调用现有命令。
 调用示例：
 <SessionHeader v-model:review-open="reviewOpen" :session="session" :workspace="selectedWorkspace" :models="modelOptions" @switch-model="switchModel" />
 -->
