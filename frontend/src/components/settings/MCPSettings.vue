@@ -2,16 +2,29 @@
 MCP 服务管理：展示已配置的 MCP 服务连接，支持编辑、删除和启用/禁用。
 设计思想：左侧列表选择，右侧编辑面板修改详情，与供应商配置保持一致的交互模式。
 核心数据：mcp（MCP 配置数组，每项含 id、name、command、enabled、definition）。
+控件统一用 ui/；args 按行拆分、env 按 JSON 解析和删除确认仍在本组件完成。
 调用示例：<MCPSettings v-model:mcp="settingsDraft.mcp" />。
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
+import Button from '../../ui/Button.vue'
+import Field from '../../ui/Field.vue'
+import IconButton from '../../ui/IconButton.vue'
+import Select from '../../ui/Select.vue'
+import Switch from '../../ui/Switch.vue'
 
 const props = defineProps({
   mcp: { type: Array, required: true },
 })
 const emit = defineEmits(['update:mcp'])
+
+// 三种传输方式和保存到 definition.transport 的值一一对应。
+const TRANSPORT_OPTIONS = [
+  { value: 'stdio', label: 'stdio（标准输入输出）' },
+  { value: 'sse', label: 'SSE（HTTP 流）' },
+  { value: 'http', label: 'HTTP（流）' },
+]
 
 const selectedID = ref(props.mcp[0]?.id ?? '')
 const selectedItem = computed(() => props.mcp.find(item => item.id === selectedID.value) ?? null)
@@ -83,56 +96,72 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
     <aside class="mcp-list">
       <header class="mcp-list__head">
         <span>服务列表</span>
-        <button type="button" class="icon-button" aria-label="添加 MCP 服务" title="添加 MCP 服务" @click="addMCP"><AppIcon name="plus" :size="15" /></button>
+        <IconButton label="添加 MCP 服务" title="添加 MCP 服务" @click="addMCP"><AppIcon name="plus" :size="15" /></IconButton>
       </header>
       <div class="mcp-list__items">
-        <button v-for="item in props.mcp" :key="item.id" type="button" class="mcp-item" :class="{ 'is-selected': item.id === selectedID }" @click="selectedID = item.id">
+        <Button
+          v-for="item in props.mcp"
+          :key="item.id"
+          variant="plain"
+          class="mcp-item"
+          :class="{ 'is-selected': item.id === selectedID }"
+          @click="selectedID = item.id"
+        >
           <span class="mcp-item__name">{{ item.name }}</span>
           <span class="mcp-item__command">{{ item.command || '未配置命令' }}</span>
           <span class="mcp-item__state" :class="{ 'is-enabled': item.enabled }">{{ item.enabled ? '启用' : '停用' }}</span>
-        </button>
+        </Button>
         <p v-if="!props.mcp.length" class="mcp-list__empty">还没有 MCP 服务</p>
       </div>
     </aside>
 
     <form v-if="selectedItem" class="mcp-form" @submit.prevent>
       <div class="mcp-form__top">
-        <label class="mcp-field">
-          <span>服务名称</span>
-          <input class="field" :value="selectedItem.name" @input="updateField('name', $event.currentTarget.value)" />
-        </label>
+        <Field class="mcp-field" caption="服务名称" :model-value="selectedItem.name" @update:model-value="updateField('name', $event)" />
         <label class="mcp-enabled">
           <span>{{ selectedItem.enabled ? '已启用' : '已停用' }}</span>
-          <input class="switch" type="checkbox" role="switch" :aria-label="`启用 ${selectedItem.name}`" :checked="selectedItem.enabled" @change="toggleEnabled" />
+          <Switch :model-value="selectedItem.enabled" :label="`启用 ${selectedItem.name}`" @update:model-value="toggleEnabled" />
         </label>
       </div>
 
-      <label class="mcp-field">
-        <span>传输方式</span>
-        <select class="field" :value="selectedItem.definition?.transport || 'stdio'" @change="updateDefinition('transport', $event.currentTarget.value)">
-          <option value="stdio">stdio（标准输入输出）</option>
-          <option value="sse">SSE（HTTP 流）</option>
-          <option value="http">HTTP（流）</option>
-        </select>
-      </label>
+      <Select
+        caption="传输方式"
+        :model-value="selectedItem.definition?.transport || 'stdio'"
+        :options="TRANSPORT_OPTIONS"
+        @update:model-value="updateDefinition('transport', $event)"
+      />
 
-      <label class="mcp-field">
-        <span>{{ remote ? '服务地址（URL）' : '启动命令' }}</span>
-        <input class="field" :value="selectedItem.command" :placeholder="remote ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'" @input="updateField('command', $event.currentTarget.value)" />
-      </label>
+      <Field
+        :caption="remote ? '服务地址（URL）' : '启动命令'"
+        :model-value="selectedItem.command"
+        :placeholder="remote ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
+        @update:model-value="updateField('command', $event)"
+      />
 
-      <label v-if="!remote" class="mcp-field">
-        <span>启动参数（每行一个）</span>
-        <textarea class="field mcp-textarea" :value="(selectedItem.definition?.args || []).join('\n')" rows="3" placeholder="--port&#10;3000" @input="updateDefinition('args', $event.currentTarget.value.split('\n').filter(Boolean))"></textarea>
-      </label>
+      <Field
+        v-if="!remote"
+        class="mcp-textarea"
+        caption="启动参数（每行一个）"
+        multiline
+        :rows="3"
+        :model-value="(selectedItem.definition?.args || []).join('\n')"
+        placeholder="--port&#10;3000"
+        @update:model-value="updateDefinition('args', $event.split('\n').filter(Boolean))"
+      />
 
-      <label v-if="!remote" class="mcp-field">
-        <span>环境变量（JSON 格式）</span>
-        <textarea class="field mcp-textarea" :value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)" rows="4" placeholder='{"API_KEY": "xxx"}' @input="tryUpdateEnv($event.currentTarget.value)"></textarea>
-      </label>
+      <Field
+        v-if="!remote"
+        class="mcp-textarea"
+        caption="环境变量（JSON 格式）"
+        multiline
+        :rows="4"
+        :model-value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)"
+        placeholder='{"API_KEY": "xxx"}'
+        @update:model-value="tryUpdateEnv"
+      />
 
       <footer class="mcp-actions">
-        <button type="button" class="button button--danger" @click="requestRemove"><AppIcon name="trash" :size="14" />删除此服务</button>
+        <Button variant="danger" @click="requestRemove"><AppIcon name="trash" :size="14" />删除此服务</Button>
       </footer>
     </form>
 
@@ -142,8 +171,8 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
       <h2>删除 MCP 服务？</h2>
       <p>此 MCP 服务的未保存配置将被移除。</p>
       <div class="dialog-actions">
-        <button type="button" class="button" @click="deleteDialog.close()">取消</button>
-        <button type="button" class="button button--danger" @click="removeMCP">删除</button>
+        <Button @click="deleteDialog.close()">取消</Button>
+        <Button variant="danger" @click="removeMCP">删除</Button>
       </div>
     </dialog>
   </section>
@@ -164,9 +193,14 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 .mcp-form { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .mcp-form__top { display: flex; align-items: end; gap: 16px; }
 .mcp-form__top .mcp-field { flex: 1; }
-.mcp-field { display: flex; min-width: 0; flex-direction: column; gap: 6px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
-.mcp-field .field { height: 36px; }
-.mcp-textarea { height: auto; min-height: 88px; padding: 8px 10px; resize: vertical; line-height: 20px; }
+/* 启动参数和环境变量沿用原来的 88px 高度、内边距和行高。 */
+.mcp-textarea :deep(.ui-field__input--multiline) {
+  min-height: 88px;
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+  line-height: 20px;
+}
 .mcp-enabled { display: flex; height: 36px; flex: none; align-items: center; gap: 8px; color: var(--la-muted); font-size: 13px; }
 .mcp-actions { padding-top: 12px; border-top: .5px solid var(--la-line); }
 .mcp-empty { align-self: center; justify-self: center; color: var(--la-muted); font-size: 13px; }

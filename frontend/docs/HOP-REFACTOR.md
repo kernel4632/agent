@@ -135,7 +135,7 @@ src/
 - 提示词 textarea 换到 `Field multiline`。
 - 验收：设置外壳、导航、外观、提示词行为不变，构建、单测、UI 全过。
 
-#### [ ] 7b：迁移高级、工具和 MCP 页
+#### [x] 7b：迁移高级、工具和 MCP 页
 
 - 高级页的输入框、数字框、开关、JSON textarea、应用按钮换到 `Field` / `Switch` / `Button`。
 - 工具页的权限下拉和开关换到 `Select` / `Switch`。
