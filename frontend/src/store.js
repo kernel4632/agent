@@ -41,6 +41,10 @@ export const store = reactive({
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
     modes: [],                                         // 可用模式：build、plan 和配置里自定义的
+    modeDefinitions: {},                               // 自定义模式的原始定义，设置页编辑用
+    rules: { enabled: true },                          // 是否自动读取项目规则
+    diagnostics: {},                                   // 写后诊断命令
+    snapshot: {},                                      // shell 改动快照设置
     appearance: loadAppearance(),                       // 从 localStorage 恢复外观偏好
     activeProvider: '',                               // Server 当前供应商
     activeModel: '',                                  // Server 当前模型

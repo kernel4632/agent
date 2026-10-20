@@ -11,6 +11,19 @@ import { UI } from './ui.js'                            // 引入保存错误轻
 let initialBackendDraft = ''
 
 
+// --- 后端配置里由设置页负责的字段 ---
+function backendSnapshot(draft) {
+  return JSON.stringify({
+    providers: draft.providers,
+    prompt: draft.prompt,
+    rules: draft.rules,
+    modes: draft.modeDefinitions,
+    diagnostics: draft.diagnostics,
+    snapshot: draft.snapshot,
+  })
+}
+
+
 // --- 隔离设置草稿数据 ---
 function isolateDraft(value) {
   return JSON.parse(JSON.stringify(value))              // 设置只包含 JSON 数据，隔离后修改不影响已保存配置
@@ -38,9 +51,13 @@ function open() {
     tools: store.config.tools,
     mcp: store.config.mcp,
     prompt: store.config.prompt,
+    rules: store.config.rules,
+    modeDefinitions: store.config.modeDefinitions,
+    diagnostics: store.config.diagnostics,
+    snapshot: store.config.snapshot,
     appearance: store.config.appearance,
   })
-  initialBackendDraft = JSON.stringify({ providers: store.settings.draft.providers, prompt: store.settings.draft.prompt })
+  initialBackendDraft = backendSnapshot(store.settings.draft)
 }
 
 
@@ -50,7 +67,7 @@ async function save() {
   if (!draft || store.settings.isSaving) return false
   store.settings.isSaving = true
   try {
-    if (JSON.stringify({ providers: draft.providers, prompt: draft.prompt }) === initialBackendDraft) {
+    if (backendSnapshot(draft) === initialBackendDraft) {
       store.config.appearance = isolateDraft(draft.appearance)
       persistAppearance(draft.appearance)
       store.settings.savedAt = Date.now()
@@ -76,6 +93,10 @@ async function save() {
       ...JSON.parse(JSON.stringify(store.config.raw || {})),
       providers,
       prompt: { ...store.config.raw?.prompt, system: draft.prompt },
+      rules: draft.rules,
+      modes: draft.modeDefinitions,
+      diagnostics: draft.diagnostics,
+      snapshot: draft.snapshot,
     })
     store.config.appearance = isolateDraft(draft.appearance)
     persistAppearance(draft.appearance)

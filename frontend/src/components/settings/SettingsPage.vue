@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import ProviderSettings from './ProviderSettings.vue'
 import PromptsSettings from './PromptsSettings.vue'
+import AdvancedSettings from './AdvancedSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
 import { Settings } from '../../commands/settings.js'
 import { UI } from '../../commands/ui.js'
@@ -12,6 +13,7 @@ const sections = [
   { id: 'appearance', label: '通用', icon: 'settings' },
   { id: 'providers', label: '模型供应商', icon: 'globe' },
   { id: 'prompts', label: '系统提示词', icon: 'document' },
+  { id: 'advanced', label: '高级', icon: 'code' },
   { id: 'tools', label: '工具管理', icon: 'code', disabled: true },
   { id: 'mcp', label: 'MCP 服务', icon: 'link', disabled: true },
   { id: 'data', label: '数据管理', icon: 'folder', disabled: true },
@@ -55,6 +57,13 @@ async function save() {
             <ProviderSettings v-model:providers="draft.providers" />
           </template>
           <PromptsSettings v-else-if="selected === 'prompts'" v-model:prompt="draft.prompt" />
+          <AdvancedSettings
+            v-else-if="selected === 'advanced'"
+            v-model:rules="draft.rules"
+            v-model:modes="draft.modeDefinitions"
+            v-model:diagnostics="draft.diagnostics"
+            v-model:snapshot="draft.snapshot"
+          />
           <AppearanceSettings v-else :appearance="draft.appearance" @change="draft.appearance[$event.field] = $event.value" />
         </div>
         <footer class="settings-footer">
