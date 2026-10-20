@@ -374,6 +374,21 @@ test('message action forks the conversation at that message', async ({ page }) =
     .toEqual({ messageId: 'user-1' })
 })
 
+test('MCP service can be added and saved', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: 'MCP 服务', exact: true }).click()
+  await page.getByRole('button', { name: '添加 MCP 服务', exact: true }).click()
+  await expect(page.getByText('MCP 2', { exact: true })).toBeVisible()
+  await page.locator('.mcp-settings__field-full input').fill('npx test-server')
+  await page.getByRole('button', { name: '保存设置', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('设置已保存')
+  const saved = mock.config()
+  expect(saved.mcp['MCP 2'].command).toBe('npx test-server')
+  expect(saved.mcp['MCP 2'].enabled).toBe(true)
+})
+
 test('compaction threshold is sent as a number', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
