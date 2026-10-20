@@ -16,13 +16,24 @@
  *   await Snapshot.remove({ sessionId })                // 会话删掉时清理
  */
 
-import { cp, mkdir, rm } from 'node:fs/promises'
+import { cp, mkdir, rm, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import Path from '../utils/path.js'
+import Skip from '../utils/skip.js' // 扫工作区时跳过依赖和构建产物。
 import Store from '../store.js' // 快照清单跟着会话一起放在内存里。
 import fail from '../utils/fail.js' // 回退到一个不存在的工具调用时按填错处理。
 import { toolFiles } from '../utils/tool-files.js' // 一次调用会碰哪些文件。
+
+// shell 快照最多看这么多文件、单文件最大这么大；超过就跳过，不把整台机器扫一遍。
+const DEFAULT_MAX_FILES = 2000
+const DEFAULT_MAX_BYTES = 2 * 1024 * 1024
+
+// 正在等结果的 shell 调用：key 是 `${sessionId}:${toolCallId}`，value 是命令执行前的工作区清单。
+const shells = new Map()
+
+// 文件指纹缓存：路径 → { size, mtimeMs, hash }，文件没变时不用重新读一遍。
+const manifests = new Map()
 /** 按文件内容算指纹，同一份内容只备份一次，反复改同一个文件也不会堆出很多份。 */
 const fingerprint = async path => {
     const content = await Bun.file(path).arrayBuffer()
@@ -39,7 +50,15 @@ const backupPath = (sessionId, hash) => join(Path.snapshots(sessionId), hash)
  */
 const backup = async ({ sessionId, path }) => {
     if (!await Bun.file(path).exists()) return null
-    const hash = await fingerprint(path)
+    return backupKnown({ sessionId, path, hash: await fingerprint(path) })
+}
+
+/**
+ * 用已经算好的指纹备份，避免刚算完又算一遍。
+ * @param {{ sessionId: string, path: string, hash: string }} target
+ * @returns {Promise<string>} 内容指纹。
+ */
+const backupKnown = async ({ sessionId, path, hash }) => {
     const target = backupPath(sessionId, hash)
     if (!await Bun.file(target).exists()) {
         await mkdir(Path.snapshots(sessionId), { recursive: true })
@@ -72,6 +91,7 @@ const save = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
     for (const path of paths) {
         const absolute = resolve(path)
         if (absolute in entry.files) continue // 这次调用已经存过，要留的是它开始时的样子。
+        manifests.delete(absolute) // 文件马上要改，下一次统计不要用旧的指纹。
 
         // 文件还不存在说明这次是新建；回退时应当把它删掉，所以记成 null。
         entry.files[absolute] = await backup({ sessionId, path: absolute })
@@ -79,6 +99,110 @@ const save = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
     }
     await writeStore({ sessionId, store })
     return recorded
+}
+
+/**
+ * 扫一遍工作区，记下每个文件的指纹；需要时顺手备份。
+ * 跳过依赖、构建产物和过大的文件，避免一次 shell 命令把整台机器读一遍。
+ * @param {{ sessionId: string, backupFiles?: boolean, maxFiles?: number, maxBytes?: number }} input
+ * @returns {Promise<{ skipped: boolean, reason?: string, manifest?: Map<string, string> }>}
+ */
+const captureWorkspace = async ({ sessionId, backupFiles = false, maxFiles = DEFAULT_MAX_FILES, maxBytes = DEFAULT_MAX_BYTES }) => {
+    const root = process.cwd()
+    const manifest = new Map()
+    for await (const entry of new Bun.Glob('**/*').scan({ cwd: root, onlyFiles: true, dot: true })) {
+        const relativePath = entry.replace(/\\/g, '/')
+        if (Skip.listing(relativePath)) continue
+
+        const absolute = resolve(root, entry)
+        const info = await stat(absolute).catch(() => null)
+        if (!info || !info.isFile() || info.size > maxBytes) continue
+        if (manifest.size >= maxFiles) return { skipped: true, reason: `文件数超过 ${maxFiles}` }
+
+        let hash
+        const cached = manifests.get(absolute)
+        if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs && cached.ctimeMs === info.ctimeMs) {
+            // 文件没动过，直接用上次的指纹。
+            hash = cached.hash
+        } else {
+            try {
+                hash = await fingerprint(absolute)
+            } catch {
+                continue // 读不了的文件（权限、被占用）跳过，不因为一个文件放弃整次快照。
+            }
+            manifests.set(absolute, { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, hash })
+        }
+        if (backupFiles) await backupKnown({ sessionId, path: absolute, hash })
+        manifest.set(absolute, hash)
+    }
+    return { skipped: false, manifest }
+}
+
+/**
+ * shell 命令执行前：把整个工作区备份一份，等命令结束后再对比。
+ * @param {{ sessionId: string, messageId?: string, toolCallId?: string }} call
+ * @returns {Promise<{ skipped: boolean, reason?: string, files?: number }>}
+ */
+const beginShell = async ({ sessionId, messageId, toolCallId } = {}) => {
+    // 默认关：扫工作区有成本，用户明确打开才做。
+    if (Store.config.snapshot?.shell !== true) return { skipped: true, reason: 'disabled' }
+    if (!sessionId || !toolCallId) return { skipped: true, reason: 'no call id' }
+
+    const result = await captureWorkspace({
+        sessionId,
+        backupFiles: true,
+        maxFiles: Number(Store.config.snapshot?.maxFiles) || DEFAULT_MAX_FILES,
+        maxBytes: Number(Store.config.snapshot?.maxBytes) || DEFAULT_MAX_BYTES,
+    })
+    if (result.skipped) return result
+
+    const key = `${sessionId}:${toolCallId}`
+    // 万一命令没有结果（进程被杀、任务被停），十五分钟后把这份清单丢掉，不让它一直占内存。
+    const timer = setTimeout(() => shells.delete(key), 15 * 60 * 1000)
+    timer.unref?.()
+    shells.set(key, { manifest: result.manifest, messageId, toolCallId, timer })
+    return { skipped: false, files: result.manifest.size }
+}
+
+/**
+ * shell 命令结束后：和命令前的清单对比，只把真正变过的文件记成一次检查点。
+ * @param {{ sessionId: string, toolCallId?: string }} call
+ * @returns {Promise<{ skipped: boolean, reason?: string, changed?: number }>}
+ */
+const endShell = async ({ sessionId, toolCallId } = {}) => {
+    const key = `${sessionId}:${toolCallId}`
+    const state = shells.get(key)
+    if (!state) return { skipped: true, reason: 'no snapshot' }
+    shells.delete(key)
+    clearTimeout(state.timer)
+
+    const result = await captureWorkspace({
+        sessionId,
+        maxFiles: Number(Store.config.snapshot?.maxFiles) || DEFAULT_MAX_FILES,
+        maxBytes: Number(Store.config.snapshot?.maxBytes) || DEFAULT_MAX_BYTES,
+    })
+    if (result.skipped) return result
+
+    const files = {}
+    // 新增的文件记 null；改过的文件记命令前那份指纹。
+    for (const [path, hash] of result.manifest) {
+        const before = state.manifest.get(path)
+        if (before === undefined) files[path] = null
+        else if (before !== hash) files[path] = before
+    }
+    // 命令删掉的文件也要记下来，回退时才能恢复。
+    for (const [path, hash] of state.manifest) {
+        if (!result.manifest.has(path)) files[path] = hash
+    }
+    if (!Object.keys(files).length) return { skipped: false, changed: 0 }
+
+    const store = await loadStore({ sessionId })
+    // 同一个工具调用重试时只保留第一次记录。
+    if (!store.checkpoints.some(entry => entry.id === toolCallId)) {
+        store.checkpoints.push({ id: toolCallId, messageId: state.messageId, toolCallId, toolName: 'shell', files })
+        await writeStore({ sessionId, store })
+    }
+    return { skipped: false, changed: Object.keys(files).length }
 }
 
 /**
@@ -121,6 +245,15 @@ const restoreToMessage = async ({ sessionId, keepMessages }) => {
     return restore({ sessionId, keepIds })
 }
 
+// --- 丢掉这个会话还在等结果的 shell 快照 ---
+const clearShells = sessionId => {
+    for (const [key, state] of shells) {
+        if (!key.startsWith(`${sessionId}:`)) continue
+        clearTimeout(state.timer)
+        shells.delete(key)
+    }
+}
+
 /**
  * 把文件恢复到 keepIds 之后的样子，并把被删掉的记录压进 redone 栈留着撤销。
  * 同一个文件被好几轮改过时，从后往前找最后一次记录，那才是回退点的样子。
@@ -128,20 +261,22 @@ const restoreToMessage = async ({ sessionId, keepMessages }) => {
  * @returns {Promise<string[]>} 被恢复的文件绝对路径。
  */
 const restore = async ({ sessionId, keepIds }) => {
+    // 回退时正在跑的 shell 没有意义了，丢掉它等结果的快照。
+    clearShells(sessionId)
     const store = await loadStore({ sessionId })
     const dropped = store.checkpoints.filter(entry => !keepIds.includes(entry.id))
     if (!dropped.length) return []
     const kept = store.checkpoints.filter(entry => keepIds.includes(entry.id))
 
+    /*
+     * 每个文件取"最早被回退掉的那次记录"里的原样，那才是回退点的状态。
+     * 更早的记录属于回退点之前，不能拿来覆盖；否则连续改同一个文件时会退错。
+     */
     const wanted = new Map()
-    for (const entry of [...dropped].reverse()) {
+    for (const entry of dropped) {
         for (const [path, hash] of Object.entries(entry.files)) {
             if (!wanted.has(path)) wanted.set(path, hash)
         }
-    }
-    // 被回退掉的轮次里改过、但更早的轮次也留下记录的文件，要用更早那份覆盖回来。
-    for (const entry of [...kept].reverse()) {
-        for (const [path, hash] of Object.entries(entry.files)) wanted.delete(path)
     }
 
     // 恢复之前先把"现在是什么样"存下来，撤销回退时才能把文件还原回去。
@@ -170,6 +305,7 @@ const writeFiles = async ({ sessionId, wanted }) => {
             await cp(backupPath(sessionId, hash), path)
         }
         restored.push(path)
+        manifests.delete(resolve(path)) // 文件刚被改过，下一次统计重新算指纹。
     }
     return restored
 }
@@ -180,6 +316,7 @@ const writeFiles = async ({ sessionId, wanted }) => {
  * @returns {Promise<string[]>} 被还原的文件路径；没有可撤销的回退时是空数组。
  */
 const undo = async ({ sessionId }) => {
+    clearShells(sessionId)
     const store = await loadStore({ sessionId })
     const last = store.redone.pop()
     if (!last) return [] // 没有可撤销的回退时什么也不做。
@@ -280,9 +417,10 @@ const dropTool = async ({ sessionId, toolCallId }) => {
  * @returns {Promise<void>}
  */
 const remove = async ({ sessionId }) => {
+    clearShells(sessionId)
     Store.snapshots.delete(sessionId)
     await rm(Path.snapshots(sessionId), { recursive: true, force: true })
     await rm(Path.checkpoints(sessionId), { force: true })
 }
 
-export default { save, entries, restoreToTool, restoreToMessage, dropTool, undo, clearUndo, diff, remove }
+export default { save, beginShell, endShell, entries, restoreToTool, restoreToMessage, dropTool, undo, clearUndo, diff, remove }

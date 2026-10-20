@@ -449,7 +449,14 @@ const send = async ({ sessionId, input }) => {
             onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
             onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
             onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
-            onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } }),
+            onToolResult: result => {
+                // shell 改了哪些文件只有跑完才知道；和命令前的清单对比后记一次检查点。
+                const toolCallId = result.toolCallId || result.callID
+                if (result.toolName === 'shell' && toolCallId) {
+                    Snapshot.endShell({ sessionId, toolCallId }).catch(() => {})
+                }
+                SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
+            },
                         onCompact: event => SSE.send({ id: sessionId, data: event }),
                         // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
                         // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await

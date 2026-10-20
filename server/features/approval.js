@@ -134,7 +134,16 @@ const remember = ({ toolName, input, matchValue }) => {
  */
 const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
     // 快照要在工具执行之前记录，记下的才是被修改之前的文件内容。
-    await Snapshot.save({ sessionId, messageId, toolCallId, toolName, input })
+    // shell 不知道会改哪些文件，所以先把整个工作区备份一份；命令结束后再对比。
+    if (toolName === 'shell') {
+        try {
+            await Snapshot.beginShell({ sessionId, messageId, toolCallId })
+        } catch {
+            // 快照失败不该把工具挡下来；没有快照只是少一层回退保护。
+        }
+    } else {
+        await Snapshot.save({ sessionId, messageId, toolCallId, toolName, input })
+    }
     return true
 }
 

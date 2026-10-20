@@ -7,7 +7,7 @@
  * 运行：cd server && bun test
  */
 import { describe, expect, test } from 'bun:test'
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import Agent from '@kernel4632/agent-core'
@@ -17,6 +17,7 @@ import Config from '../commands/config.js'
 import History from '../features/history.js'
 import Ignore from '../features/ignore.js'
 import Session from '../commands/session.js'
+import Snapshot from '../features/snapshot.js'
 
 // 每个测试使用独立目录和干净的内存数据，避免测试之间互相影响。
 const withHome = async callback => {
@@ -45,6 +46,20 @@ const tempFile = async (prefix, content) => {
     const path = join(tmpdir(), `${prefix}-${crypto.randomUUID()}.txt`)
     await writeFile(path, content)
     return path
+}
+
+// 造一个临时工作区，并在测试期间把进程的工作目录切过去；结束时恢复。
+const withWorkspace = async callback => {
+    const root = join(tmpdir(), `agent-workspace-${crypto.randomUUID()}`)
+    await mkdir(root, { recursive: true })
+    const previous = process.cwd()
+    process.chdir(root)
+    try {
+        return await callback(root)
+    } finally {
+        process.chdir(previous)
+        await rm(root, { recursive: true, force: true })
+    }
 }
 
 describe('工具级回退', () => {
@@ -115,6 +130,25 @@ describe('工具级回退', () => {
             // 这是它和消息级回退的关键区别：对话一条都没少，只有文件回去了。
             expect((await Session.read({ sessionId })).history).toHaveLength(1)
             expect(await readFile(target, 'utf8')).toBe('before')
+
+            await rm(target, { force: true })
+        })
+    })
+
+    test('连续改同一个文件时，回退后一次会恢复成前一次的结果', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            const target = await tempFile('agent-twice', 'v0')
+
+            const { sessionId } = await Session.create({ title: 'Two edits' })
+            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'file_write', input: { path: target } })
+            await writeFile(target, 'v1')
+            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'file_write', input: { path: target } })
+            await writeFile(target, 'v2')
+
+            // 回退第二次：文件要回到第一次改完的 v1，而不是停在 v2。
+            await Session.rollbackTool({ sessionId, toolCallId: 't2' })
+            expect(await readFile(target, 'utf8')).toBe('v1')
 
             await rm(target, { force: true })
         })
@@ -227,6 +261,103 @@ describe('重复调用的刹车', () => {
                 expect(await Approval.check({ sessionId, toolCallId: id, toolName: 'file_read', input: { path: 'a.txt' } })).toBe(false)
             }
             expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+})
+
+describe('shell 改动的快照', () => {
+    test('shell 改了、删了、加了文件都能回退，也能撤销回退', async () => {
+        await withHome(async () => {
+            await withWorkspace(async root => {
+                await writeFile(join(root, 'a.txt'), 'a0')
+                await writeFile(join(root, 'b.txt'), 'b0')
+                await writeFile(join(root, 'c.txt'), 'c0')
+
+                await Config.set({
+                    providers: [{ name: 'local', models: ['model'] }],
+                    permission: { '*': 'allow' },
+                    snapshot: { shell: true },
+                })
+                const { sessionId } = await Session.create({ title: 'Shell snapshot' })
+
+                const started = await Snapshot.beginShell({ sessionId, messageId: 'message-1', toolCallId: 'shell-1' })
+                expect(started.skipped).toBe(false)
+
+                // 模拟 shell：改一个、删一个、加一个，c 不动。
+                await writeFile(join(root, 'a.txt'), 'a1')
+                await rm(join(root, 'b.txt'))
+                await writeFile(join(root, 'd.txt'), 'd1')
+                const ended = await Snapshot.endShell({ sessionId, toolCallId: 'shell-1' })
+                expect(ended.changed).toBe(3)
+
+                const changes = await Session.toolChanges({ sessionId })
+                expect(changes.map(entry => entry.toolCallId)).toContain('shell-1')
+
+                await Session.rollbackTool({ sessionId, toolCallId: 'shell-1' })
+                expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('a0')
+                expect(await readFile(join(root, 'b.txt'), 'utf8')).toBe('b0')
+                expect(await Bun.file(join(root, 'd.txt')).exists()).toBe(false)
+                expect(await readFile(join(root, 'c.txt'), 'utf8')).toBe('c0')
+
+                // 撤销回退：文件和命令跑完时一样。
+                await Session.redo({ sessionId })
+                expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('a1')
+                expect(await readFile(join(root, 'd.txt'), 'utf8')).toBe('d1')
+                expect(await Bun.file(join(root, 'b.txt')).exists()).toBe(false)
+            })
+        })
+    })
+
+    test('没打开 snapshot.shell 时不为 shell 建检查点', async () => {
+        await withHome(async () => {
+            await withWorkspace(async root => {
+                await writeFile(join(root, 'a.txt'), 'a0')
+                await Config.set({
+                    providers: [{ name: 'local', models: ['model'] }],
+                    permission: { '*': 'allow' },
+                    snapshot: { shell: false },
+                })
+                const { sessionId } = await Session.create({ title: 'Shell off' })
+
+                expect((await Snapshot.beginShell({ sessionId, messageId: 'm', toolCallId: 'shell-off' })).skipped).toBe(true)
+                await writeFile(join(root, 'a.txt'), 'a1')
+                expect((await Snapshot.endShell({ sessionId, toolCallId: 'shell-off' })).skipped).toBe(true)
+                expect(await Session.toolChanges({ sessionId })).toEqual([])
+            })
+        })
+    })
+
+    test('shell 没改任何文件时不建检查点', async () => {
+        await withHome(async () => {
+            await withWorkspace(async root => {
+                await writeFile(join(root, 'a.txt'), 'a0')
+                await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' }, snapshot: { shell: true } })
+                const { sessionId } = await Session.create({ title: 'Shell no change' })
+
+                await Snapshot.beginShell({ sessionId, messageId: 'm', toolCallId: 'shell-quiet' })
+                const ended = await Snapshot.endShell({ sessionId, toolCallId: 'shell-quiet' })
+                expect(ended.changed).toBe(0)
+                expect(await Session.toolChanges({ sessionId })).toEqual([])
+            })
+        })
+    })
+
+    test('文件数超过上限时整次快照跳过，不影响命令本身', async () => {
+        await withHome(async () => {
+            await withWorkspace(async root => {
+                await writeFile(join(root, 'a.txt'), 'a0')
+                await writeFile(join(root, 'b.txt'), 'b0')
+                await Config.set({
+                    providers: [{ name: 'local', models: ['model'] }],
+                    permission: { '*': 'allow' },
+                    snapshot: { shell: true, maxFiles: 1 },
+                })
+                const { sessionId } = await Session.create({ title: 'Shell too big' })
+
+                const started = await Snapshot.beginShell({ sessionId, messageId: 'm', toolCallId: 'shell-big' })
+                expect(started.skipped).toBe(true)
+                expect(await Session.toolChanges({ sessionId })).toEqual([])
+            })
         })
     })
 })
