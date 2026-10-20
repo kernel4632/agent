@@ -389,6 +389,7 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `POST` | `/session/create` | `{ "title", "workspaceId?", "provider?", "model?" }` | `{ "sessionId" }` |
+| `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和运行设置；不复制文件快照 |
 | `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、任务清单 `todos`、是否在跑 `running`、待批准 `pending`、运行设置 `settings` |
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：每个文件改动前后的内容 |
 | `GET` | `/session/settings/:sessionId` | 无 | 这条会话的运行设置：模式、自动批准、能力开关 |

@@ -43,6 +43,8 @@ export const AgentAPI = {
     const { sessionId } = await request('/session/create', 'POST', { title: '新对话', provider, model })
     return request(`/session/read/${encodeURIComponent(sessionId)}`)
   },
+  // 从现有会话分出一个新分支；可以只复制到某条消息。
+  forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
   getSession:       (sessionID)                 => request(`/session/read/${encodeURIComponent(sessionID)}`),
   renameSession:    (sessionID, title)          => request(`/session/rename/${encodeURIComponent(sessionID)}`, 'PATCH', { title }),
   // 已有会话切换模型；任务运行中后端返回 409。

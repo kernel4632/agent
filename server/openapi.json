@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.25.0",
+    "version": "0.26.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -546,6 +546,87 @@
           },
           "400": {
             "description": "title 不能为空或不是字符串",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/fork/{sessionId}": {
+      "post": {
+        "tags": [
+          "Session"
+        ],
+        "summary": "从对话分出新分支",
+        "description": "复制现有对话的历史和运行设置，生成一条新会话。默认复制全部历史；传 messageId 时只复制到这条消息（含）。文件快照不复制。",
+        "operationId": "sessionFork",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "原会话的唯一编号",
+            "schema": {
+              "type": "string",
+              "example": "V1StGXR8_Z5jdHi6B-myT"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "新分支的名称；不填就是「原标题（分支）」",
+                    "example": "写爬虫脚本（分支）"
+                  },
+                  "messageId": {
+                    "type": "string",
+                    "description": "只复制到这条消息（含）；不填就复制全部历史"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，返回新分支的对话编号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "description": "新分支的会话编号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "原会话或指定的消息不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "原会话正在运行任务，停止后才能分支",
             "content": {
               "application/json": {
                 "schema": {

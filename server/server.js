@@ -48,6 +48,8 @@ app.group('/agent', agent => agent
 app.group('/session', session => session
     .get('/list', ({ query }) => Session.list({ search: query.search }))
     .post('/create', ({ body }) => Session.create(body))
+    // 从现有会话分出一个新分支；可以指定只复制到哪条消息。
+    .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...body }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
     // 会话运行设置：模式（plan / build）、自动批准、能力开关。

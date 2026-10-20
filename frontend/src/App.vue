@@ -174,6 +174,7 @@ onUnmounted(() => {
           </div>
           <div class="app-header__actions">
             <button v-if="session" class="icon-button" title="复制会话 ID" aria-label="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="17" /></button>
+            <button v-if="session" class="icon-button" title="创建分支" aria-label="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="17" /></button>
             <button class="icon-button" aria-label="对话设置" title="设置" @click="UI.openSettings()"><AppIcon name="settings" :size="18" /></button>
           </div>
         </header>

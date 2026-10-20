@@ -164,6 +164,22 @@ async function selectModel(sessionID, provider, model) {
 }
 
 
+// --- 从当前会话分出一个新分支 ---
+async function fork(sessionID) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  try {
+    const { sessionId } = await AgentAPI.forkSession(sessionID, {})
+    await openByID(sessionId)
+    UI.notify('已创建分支')
+    return sessionId
+  } catch (error) {
+    UI.notify(error.message)
+    return null
+  }
+}
+
+
 // --- 改会话运行设置 ---
 async function saveSettings(sessionID, change) {
   const session = store.sessions[sessionID]
@@ -401,7 +417,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 }
 
 export const Session = {
-  locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, normalize, syncSummary, saveTitleEditing,
+  locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, fork, normalize, syncSummary, saveTitleEditing,
   saveSettings, toggleMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。

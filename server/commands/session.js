@@ -189,9 +189,52 @@ const create = async ({ title, workspaceId, provider, model }) => {
     return { sessionId: meta.id }
 }
 
+/**
+ * 从一条会话分出一个新分支。
+ * 默认复制全部历史；给 messageId 时只复制到这条消息（含）。
+ * 文件快照不复制：分支和原会话共用同一个工作区，之前的文件改动不属于分支自己的时间线。
+ * @param {{ sessionId: string, title?: string, messageId?: string }} source
+ * @returns {Promise<{ sessionId: string }>} 新分支的编号。
+ * @throws {Error} 会话在跑或消息不存在时按冲突 / 找不到处理。
+ */
+const fork = async ({ sessionId, title, messageId }) => {
+    const source = await readMeta(sessionId)
+    if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+
+    await History.load({ sessionId })
+    const messages = History.get({ sessionId })
+    let kept = messages
+    if (messageId) {
+        const index = messages.findIndex(message => message.messageId === messageId)
+        if (index < 0) throw fail(404, `Message not found: ${messageId}`)
+        kept = messages.slice(0, index + 1)
+    }
+
+    const id = nanoid()
+    const clean = typeof title === 'string' && title.trim() ? title.trim() : `${source.title}（分支）`
+    const meta = {
+        ...source,
+        id,
+        title: clean.slice(0, 120),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    }
+    await writeMeta(meta)
+
+    // 历史复制到新目录，消息块重新编号，分支之后的操作不会影响原会话。
+    await History.load({ sessionId: id })
+    for (const { messageId: ignored, ...message } of kept) await History.add({ sessionId: id, message })
+    await History.save({ sessionId: id })
+
+    // 分支沿用原会话的模式、自动批准和能力开关。
+    const settings = await Settings.read({ sessionId })
+    await Settings.save({ sessionId: id, ...settings })
+    await createAgent({ sessionId: id, history: History.get({ sessionId: id }), meta })
+    return { sessionId: id }
+}
+
 // --- 读取会话 ---
-const read = async ({ sessionId }) => {
-    const meta = await readMeta(sessionId)
+const read = async ({ sessionId }) => {    const meta = await readMeta(sessionId)
     const agent = Store.agents.get(sessionId)
 
     // 运行中的会话以 Agent 手里的历史为准，磁盘上还没有这一轮的新消息。
@@ -557,7 +600,7 @@ const count = () => Store.sessions.size
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
 
 export default {
-    prepare, list, create, read, rename, remove, setModel,
+    prepare, list, create, read, rename, remove, setModel, fork,
     rollback, rollbackPreview, rollbackTool, redo,
     readSettings, saveSettings,
     changes, toolChanges, compact, send, stop, decide, count, runningCount,

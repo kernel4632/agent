@@ -17,6 +17,7 @@ import Agent from '@kernel4632/agent-core'
 import Approval from '../features/approval.js'
 import Config from '../commands/config.js'
 import Delegation from '../features/delegation.js'
+import History from '../features/history.js'
 import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import Session from '../commands/session.js'
@@ -776,6 +777,57 @@ describe('会话模型切换', () => {
             }))
             expect(response.status).toBe(200)
             expect((await response.json()).model).toBe('other')
+        })
+    })
+})
+
+describe('会话分支', () => {
+    test('分支复制历史和运行设置', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await History.add({ sessionId, message: Agent.history.user({ content: '第一句' }) })
+            await History.add({ sessionId, message: Agent.history.assistant({ content: '第二句' }) })
+            await History.save({ sessionId })
+            await Session.saveSettings({ sessionId, mode: 'plan' })
+
+            const { sessionId: branchId } = await Session.fork({ sessionId })
+            expect(branchId).not.toBe(sessionId)
+
+            const branch = await Session.read({ sessionId: branchId })
+            expect(branch.title).toBe('设置测试（分支）')
+            expect(branch.history).toHaveLength(2)
+            expect(branch.settings.mode).toBe('plan')
+        })
+    })
+
+    test('可以只分支到某条消息', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const first = await History.add({ sessionId, message: Agent.history.user({ content: '只留这一句' }) })
+            await History.add({ sessionId, message: Agent.history.assistant({ content: '后面这句不要' }) })
+            await History.save({ sessionId })
+
+            const { sessionId: branchId } = await Session.fork({ sessionId, messageId: first.messageId })
+            const branch = await Session.read({ sessionId: branchId })
+            expect(branch.history).toHaveLength(1)
+            expect(branch.history[0].content).toBe('只留这一句')
+        })
+    })
+
+    test('消息不存在时按填错处理', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await expect(Session.fork({ sessionId, messageId: 'missing' })).rejects.toMatchObject({ status: 404 })
+        })
+    })
+
+    test('HTTP 接口能创建分支', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const response = await app.handle(new Request(`http://localhost/session/fork/${sessionId}`, { method: 'POST' }))
+            expect(response.status).toBe(200)
+            const { sessionId: branchId } = await response.json()
+            expect(branchId).not.toBe(sessionId)
         })
     })
 })
