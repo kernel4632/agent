@@ -148,8 +148,19 @@ async function remove(sessionID) {
 
 // --- 切换会话模型 ---
 async function selectModel(sessionID, provider, model) {
-  UI.notify('当前后端不支持切换已有会话的模型，请返回首页选择模型后新建对话')
-  return false
+  const session = store.sessions[sessionID]
+  if (!session) return false
+  try {
+    const meta = await AgentAPI.setSessionModel(sessionID, provider, model)
+    session.provider = meta.provider
+    session.model = meta.model
+    session.contextLimit = store.config.providers[provider]?.modelSettings?.[model]?.context || session.contextLimit || 128000
+    UI.notify(`已切到 ${meta.model}`)
+    return true
+  } catch (error) {
+    UI.notify(error.message)                            // 运行中冲突等错误直接展示
+    return false
+  }
 }
 
 

@@ -34,6 +34,25 @@ const moreOpen = ref(false)
 const allModels = () => Object.entries(store.config.providers || {})
   .flatMap(([provider, entry]) => (entry.models || []).map(model => ({ provider, model })))
 
+// 会话顶部模型下拉框的选项；当前模型不在配置里时也保留一条，避免选择框显示空白。
+const modelOptions = computed(() => {
+  const list = allModels()
+  const current = session.value ? `${session.value.provider}/${session.value.model}` : ''
+  if (current && !list.some(item => `${item.provider}/${item.model}` === current)) {
+    list.unshift({ provider: session.value.provider, model: session.value.model })
+  }
+  return list
+})
+
+// --- 已有会话切换模型 ---
+async function switchModel(value) {
+  if (!session.value || !value) return
+  const [provider, ...rest] = value.split('/')
+  const model = rest.join('/')
+  if (provider === session.value.provider && model === session.value.model) return
+  await Session.selectModel(session.value.id, provider, model)
+}
+
 // 某一件事当前选的是哪个模型；没单独配过就是空串（＝和主模型共用）。
 const useKey = (session, use) => {
   const target = session.settings.uses?.[use]
@@ -145,7 +164,13 @@ onUnmounted(() => {
         <header class="app-header">
           <div class="app-header__location">
             <button class="icon-button mobile-menu" aria-label="打开导航" @click="UI.toggleSidebar(true)"><AppIcon name="menu" /></button>
-            <div><h1>{{ session?.title || '新对话' }}</h1><p>{{ session?.model || '与 la 一起工作' }}</p></div>
+            <div>
+              <h1>{{ session?.title || '新对话' }}</h1>
+              <select v-if="session" class="app-header__model" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模型' : '切换模型'" @change="switchModel($event.target.value)">
+                <option v-for="item in modelOptions" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.provider }} / {{ item.model }}</option>
+              </select>
+              <p v-else>与 la 一起工作</p>
+            </div>
           </div>
           <div class="app-header__actions">
             <button v-if="session" class="icon-button" title="复制会话 ID" aria-label="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="17" /></button>
@@ -231,6 +256,19 @@ onUnmounted(() => {
   &__location > div { min-width: 0; }
   h1 { margin: 0; overflow: hidden; font-size: 14px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
   p { margin: 5px 0 0; color: var(--la-muted); font-size: 11px; }
+  &__model {
+    max-width: 280px;
+    margin: 3px 0 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--la-muted);
+    font: 11px/1.6 var(--la-font-mono);
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  &__model:disabled { cursor: default; opacity: .6; }
+  &__model option { background: var(--la-panel); color: var(--la-text); }
   &__actions { display: flex; gap: 6px; }
 }
 .mobile-menu { display: none; }

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.24.0",
+    "version": "0.25.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -664,6 +664,92 @@
           },
           "404": {
             "description": "找不到这个 sessionId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/model/{sessionId}": {
+      "patch": {
+        "tags": [
+          "Session"
+        ],
+        "summary": "切换对话使用的模型",
+        "description": "修改这条对话使用的供应商和模型。任务运行中不能切换，需要先停止。",
+        "operationId": "sessionSetModel",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "会话的唯一编号",
+            "schema": {
+              "type": "string",
+              "example": "V1StGXR8_Z5jdHi6B-myT"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "description": "供应商名称，必须是配置里已有的供应商",
+                    "example": "default"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "模型名；不填就保留当前模型",
+                    "example": "gpt-4o"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "切换成功，返回更新后的对话基本信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "provider 或 model 为空，或者供应商不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "找不到这个 sessionId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行，停止后才能切换",
             "content": {
               "application/json": {
                 "schema": {

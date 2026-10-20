@@ -728,6 +728,58 @@ describe('自动生成标题', () => {
     })
 })
 
+describe('会话模型切换', () => {
+    test('改供应商和模型后，元信息和 Agent 的 config 都跟着换', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [
+                    { name: 'local', models: ['first', 'second'] },
+                    { name: 'other', models: ['third'] },
+                ],
+                rules: { enabled: false },
+            })
+            const { sessionId } = await Session.create({ title: 'Switch model' })
+
+            const meta = await Session.setModel({ sessionId, provider: 'other', model: 'third' })
+            expect(meta.provider).toBe('other')
+            expect(meta.model).toBe('third')
+            expect((await Session.read({ sessionId })).model).toBe('third')
+            // 压缩等功能用 Agent 自己的 config，必须跟着换。
+            expect(Store.agents.get(sessionId).config.model).toBe('third')
+        })
+    })
+
+    test('供应商不存在时按填错处理，不改动原模型', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await expect(Session.setModel({ sessionId, provider: 'missing', model: 'x' })).rejects.toMatchObject({ status: 400 })
+            expect((await Session.read({ sessionId })).model).toBe('model')
+        })
+    })
+
+    test('任务运行中不能切换模型', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            Store.agents.get(sessionId).running = true
+            await expect(Session.setModel({ sessionId, provider: 'local', model: 'other' })).rejects.toMatchObject({ status: 409 })
+            Store.agents.get(sessionId).running = false
+        })
+    })
+
+    test('HTTP 接口能切换模型', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const response = await app.handle(new Request(`http://localhost/session/model/${sessionId}`, {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ provider: 'local', model: 'other' }),
+            }))
+            expect(response.status).toBe(200)
+            expect((await response.json()).model).toBe('other')
+        })
+    })
+})
+
 describe('设置接口', () => {
     test('读设置和改设置都能通过 HTTP 走通', async () => {
         await withHome(async () => {

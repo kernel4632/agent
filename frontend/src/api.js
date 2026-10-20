@@ -45,6 +45,8 @@ export const AgentAPI = {
   },
   getSession:       (sessionID)                 => request(`/session/read/${encodeURIComponent(sessionID)}`),
   renameSession:    (sessionID, title)          => request(`/session/rename/${encodeURIComponent(sessionID)}`, 'PATCH', { title }),
+  // 已有会话切换模型；任务运行中后端返回 409。
+  setSessionModel:  (sessionID, provider, model) => request(`/session/model/${encodeURIComponent(sessionID)}`, 'PATCH', { provider, model }),
   removeSession:    (sessionID)                 => request(`/session/remove/${encodeURIComponent(sessionID)}`, 'DELETE'),
   sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
   stopSession:      (sessionID)                 => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST'),

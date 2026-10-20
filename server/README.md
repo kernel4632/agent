@@ -395,6 +395,7 @@ Content-Type: application/json
 | `PATCH` | `/session/settings/:sessionId` | `{ "mode?", "autoApprove?", "capabilities?" }` | 保存后的完整设置 |
 | `GET` | `/session/tools/:sessionId` | 无 | 每次改过文件的工具调用，按发生顺序；用来列出可回退的点 |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
+| `PATCH` | `/session/model/:sessionId` | `{ "provider?", "model?" }` | 更新后的会话元信息；任务运行中返回 `409` |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
 | `POST` | `/session/rollback/preview/:sessionId` | `{ "messageId" }` | 这次回退会消失多少消息、恢复哪些文件 |
 | `POST` | `/session/rollback/:sessionId` | `{ "messageId", "files?" }` | 回退后的完整会话，另带 `restored` 是被恢复的文件列表 |

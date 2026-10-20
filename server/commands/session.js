@@ -235,6 +235,34 @@ const rename = async ({ sessionId, title }) => {
     return writeMeta(meta)
 }
 
+/**
+ * 换这条会话使用的模型。
+ * 供应商必须在配置里存在；模型名不做白名单校验，用户可以先填一个还没写进列表的名字。
+ * @param {{ sessionId: string, provider?: string, model?: string }} change
+ * @returns {Promise<object>} 更新后的会话元信息。
+ * @throws {Error} 任务在跑时按冲突处理（409），供应商不存在按填错处理（400）。
+ */
+const setModel = async ({ sessionId, provider, model }) => {
+    const meta = await readMeta(sessionId)
+    if (Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+
+    const chosenProvider = typeof provider === 'string' && provider.trim() ? provider.trim() : meta.provider
+    const chosenModel = typeof model === 'string' && model.trim() ? model.trim() : meta.model
+    if (!chosenProvider || !chosenModel) throw fail(400, 'provider and model must be non-empty strings')
+    Config.connection({ provider: chosenProvider, model: chosenModel }) // 供应商不存在时在这里报 400。
+
+    meta.provider = chosenProvider
+    meta.model = chosenModel
+    meta.updatedAt = Date.now()
+    await writeMeta(meta)
+
+    // 重建 Agent：压缩等功能用的是 Agent 自己手里的 config，只改 meta 不会跟着换。
+    Store.agents.delete(sessionId)
+    await History.load({ sessionId })
+    await createAgent({ sessionId, history: History.get({ sessionId }), meta })
+    return meta
+}
+
 // --- 删除会话 ---
 const remove = async ({ sessionId }) => {
     await readMeta(sessionId)
@@ -529,7 +557,7 @@ const count = () => Store.sessions.size
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length
 
 export default {
-    prepare, list, create, read, rename, remove,
+    prepare, list, create, read, rename, remove, setModel,
     rollback, rollbackPreview, rollbackTool, redo,
     readSettings, saveSettings,
     changes, toolChanges, compact, send, stop, decide, count, runningCount,

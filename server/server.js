@@ -56,6 +56,8 @@ app.group('/session', session => session
     // 记过哪些工具调用，界面据此列出"可以退回到哪一步"。
     .get('/tools/:sessionId', ({ params }) => Session.toolChanges(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
+    // 换这条会话使用的模型；任务在跑时返回 409。
+    .patch('/model/:sessionId', ({ params, body }) => Session.setModel({ ...params, ...body }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
     // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
     .post('/rollback/preview/:sessionId', ({ params, body }) => Session.rollbackPreview({ ...params, ...body }))
