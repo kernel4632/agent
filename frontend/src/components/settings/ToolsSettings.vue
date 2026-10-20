@@ -10,6 +10,10 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:tools'])                   // 输出变更后的工具数组
 
+// 分类的中文名，和 utils/tool-kind.js 的 kind 对应。
+const KIND_LABELS = { read: '读取', write: '写入', command: '执行命令', mcp: 'MCP', subtask: '子任务', other: '自定义' }
+const kindLabel = tool => KIND_LABELS[tool.kind] || '工具'
+
 
 // --- 切换工具启用状态 ---
 function toggleTool(index) {
@@ -34,16 +38,16 @@ function updatePermission(index, permission) {
     <m3e-list class="tools-settings__list">
       <m3e-list-item v-for="(tool, index) in props.tools" :key="tool.name">
         {{ tool.title || tool.name }}
-        <span slot="supporting-text">{{ tool.name }}</span>
+        <span slot="supporting-text">{{ kindLabel(tool) }}</span>
         <div slot="trailing" class="tools-settings__controls">
           <m3e-form-field class="tools-settings__permission" variant="outlined" hide-subscript="always">
             <m3e-select @input="updatePermission(index, $event.currentTarget.value)">
-              <m3e-option value="allow">自动执行</m3e-option>
-              <m3e-option value="ask">每次询问</m3e-option>
-              <m3e-option value="deny">禁止调用</m3e-option>
+              <m3e-option value="allow" :selected="tool.permission === 'allow'">自动执行</m3e-option>
+              <m3e-option value="ask" :selected="tool.permission === 'ask'">每次询问</m3e-option>
+              <m3e-option value="deny" :selected="tool.permission === 'deny'">禁止调用</m3e-option>
             </m3e-select>
           </m3e-form-field>
-          <m3e-switch role="switch" :aria-checked="tool.enabled" :aria-label="`切换 ${tool.name}`" :checked="tool.enabled" @change="toggleTool(index)"></m3e-switch>
+          <input class="switch" type="checkbox" role="switch" :aria-label="`切换 ${tool.name}`" :checked="tool.enabled" @change="toggleTool(index)" />
         </div>
       </m3e-list-item>
       <m3e-divider v-if="props.tools.length"></m3e-divider>
@@ -58,13 +62,13 @@ function updatePermission(index, permission) {
   min-height: 0;
   overflow-y: auto;
   flex-direction: column;
-  padding: 24px 40px 48px;
+  padding: 8px 0 24px;
   @include scrollbar-dark;
 }
 
 .tools-settings__list {
   display: flex;
-  width: min(720px, 100%);
+  width: 100%;
   margin: 0;
   flex-direction: column;
 }

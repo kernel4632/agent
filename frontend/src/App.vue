@@ -29,6 +29,7 @@ const files = computed(() => session.value?.files ?? homeFiles.value)
 const sidebarCollapsed = computed({ get: () => !store.ui.sidebarOpen, set: value => { store.ui.sidebarOpen = !value } })
 // "更多"面板开着没有。默认收起：常用的是上面那几个开关，这里都是配一次就不动的。
 const moreOpen = ref(false)
+const autoApproveCount = computed(() => AUTO_APPROVE_KINDS.filter(item => session.value?.settings.autoApprove?.[item.kind]).length)
 
 // 所有供应商下的所有模型，按"供应商/模型"给出，供按下拉框选。
 const allModels = () => Object.entries(store.config.providers || {})
@@ -190,17 +191,28 @@ onUnmounted(() => {
                         <div class="chat-page__composer">
                           <div v-if="session && !session.model" class="chat-notice"><span>此对话还未配置模型，请连接模型后新建对话。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
                           <div v-if="session" class="chat-toolbar" role="group" aria-label="会话运行设置">
-                            <button class="chip" :class="{ 'chip--active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="14" />{{ Session.modeLabel(session.settings.mode) }}</button>
-                            <span class="chip-label">自动批准</span>
-                            <button v-for="item in AUTO_APPROVE_KINDS" :key="item.kind" class="chip chip--compact" :class="{ 'chip--active': session.settings.autoApprove?.[item.kind] }" :title="`自动批准「${item.label}」：${item.hint}（.agentignore 仍然生效）`" @click="Session.toggleAutoApprove(session.id, item.kind)"><AppIcon :name="item.icon" :size="14" />{{ item.label }}</button>
-                            <span class="chat-toolbar__divider" aria-hidden="true"></span>
-                            <button class="chip" :class="{ 'chip--active': session.settings.capabilities.image }" title="允许把图片发给模型" @click="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="14" />图像支持</button>
-                            <button class="chip" :class="{ 'chip--active': session.settings.capabilities.cache }" title="提示词缓存，命中就是省时间和省钱" @click="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="14" />提示缓存</button>
-                            <button class="chip" :class="{ 'chip--active': session.settings.capabilities.stream }" title="流式输出：回复边生成边显示" @click="Session.toggleCapability(session.id, 'stream')"><AppIcon name="spark" :size="14" />流式输出</button>
-                            <button class="chip" :class="{ 'chip--active': session.settings.autoTitle }" title="第一次聊完让模型起个标题；关掉就一直叫「新对话」" @click="Session.toggleAutoTitle(session.id)"><AppIcon name="edit" :size="14" />自动标题</button>
-                            <button class="chip" :class="{ 'chip--active': moreOpen }" :aria-expanded="moreOpen" title="按用途分别指定模型，以及自动批准跑飞了的刹车" @click="moreOpen = !moreOpen"><AppIcon name="settings" :size="14" />更多</button>
+                            <button class="chip" :class="{ 'chip--active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="13" />{{ Session.modeLabel(session.settings.mode) }}</button>
+                            <button class="chip" :class="{ 'chip--active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="13" />自动批准 {{ autoApproveCount }}/{{ AUTO_APPROVE_KINDS.length }}</button>
+                            <button class="chip" :class="{ 'chip--active': moreOpen }" :aria-expanded="moreOpen" title="会话设置：能力、按用途配模型、压缩" @click="moreOpen = !moreOpen"><AppIcon name="settings" :size="13" />会话设置</button>
                           </div>
                           <div v-if="session && moreOpen" class="chat-more">
+                            <section class="chat-more__group" aria-label="自动批准">
+                              <h2>自动批准</h2>
+                              <p>按类别跳过审批；.agentignore 仍然生效。</p>
+                              <div class="chat-more__chips">
+                                <button v-for="item in AUTO_APPROVE_KINDS" :key="item.kind" class="chip chip--compact" :class="{ 'chip--active': session.settings.autoApprove?.[item.kind] }" :title="`自动批准「${item.label}」：${item.hint}`" @click="Session.toggleAutoApprove(session.id, item.kind)"><AppIcon :name="item.icon" :size="12" />{{ item.label }}</button>
+                              </div>
+                            </section>
+                            <section class="chat-more__group" aria-label="模型能力">
+                              <h2>模型能力</h2>
+                              <p>按模型支持情况开关。</p>
+                              <div class="chat-more__chips">
+                                <button class="chip chip--compact" :class="{ 'chip--active': session.settings.capabilities.image }" title="允许把图片发给模型" @click="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="12" />图像</button>
+                                <button class="chip chip--compact" :class="{ 'chip--active': session.settings.capabilities.cache }" title="提示词缓存，命中就是省时间和省钱" @click="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="12" />缓存</button>
+                                <button class="chip chip--compact" :class="{ 'chip--active': session.settings.capabilities.stream }" title="流式输出：回复边生成边显示" @click="Session.toggleCapability(session.id, 'stream')"><AppIcon name="spark" :size="12" />流式</button>
+                                <button class="chip chip--compact" :class="{ 'chip--active': session.settings.autoTitle }" title="第一次聊完让模型起个标题" @click="Session.toggleAutoTitle(session.id)"><AppIcon name="edit" :size="12" />自动标题</button>
+                              </div>
+                            </section>
                             <section class="chat-more__group" aria-label="按用途指定模型">
                               <h2>哪件事用哪个模型</h2>
                               <p>不选就和主模型（{{ session.model }}）共用</p>
@@ -254,30 +266,31 @@ onUnmounted(() => {
 }
 .app-header {
   display: flex;
-  flex: 0 0 72px;
+  flex: 0 0 56px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 0 var(--la-chat-gutter);
+  border-bottom: 1px solid var(--la-line);
 
-  &__location { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  &__location { display: flex; align-items: center; gap: 9px; min-width: 0; }
   &__location > div { min-width: 0; }
-  h1 { margin: 0; overflow: hidden; font-size: 14px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
-  p { margin: 5px 0 0; color: var(--la-muted); font-size: 11px; }
+  h1 { margin: 0; overflow: hidden; font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+  p { margin: 3px 0 0; color: var(--la-muted); font-size: 10px; }
   &__model {
     max-width: 280px;
-    margin: 3px 0 0;
+    margin: 2px 0 0;
     padding: 0;
     border: 0;
     background: transparent;
     color: var(--la-muted);
-    font: 11px/1.6 var(--la-font-mono);
+    font: 10px/1.6 var(--la-font-mono);
     text-overflow: ellipsis;
     cursor: pointer;
   }
   &__model:disabled { cursor: default; opacity: .6; }
   &__model option { background: var(--la-panel); color: var(--la-text); }
-  &__actions { display: flex; gap: 6px; }
+  &__actions { display: flex; gap: 2px; }
 }
 .mobile-menu { display: none; }
 .app-view { flex: 1; min-height: 0; }
@@ -286,24 +299,25 @@ onUnmounted(() => {
   height: 100%;
   flex-direction: column;
   &__scroll { flex: 1; min-height: 0; overflow: auto; }
-  &__composer { flex: none; width: 100%; padding: 14px var(--la-chat-gutter) 22px; }
+  &__composer { flex: none; width: 100%; max-width: 820px; margin: 0 auto; padding: 10px var(--la-chat-gutter) 18px; }
 }
-.chat-notice { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; color: var(--la-secondary); font-size: 12px; line-height: 1.8; }
-.chat-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
-.chat-toolbar__divider { width: 1px; height: 16px; margin: 0 4px; background: var(--la-line); }
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border: 1px solid var(--la-line); border-radius: 999px; background: none; color: var(--la-muted); font-size: 11px; cursor: pointer; }
+.chat-notice { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: var(--la-secondary); font-size: 12px; line-height: 1.8; }
+.chat-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 10px; }
+.chat-toolbar__divider { width: 1px; height: 14px; margin: 0 3px; background: var(--la-line); }
+.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 8px; border: 1px solid var(--la-line); border-radius: var(--la-radius); background: none; color: var(--la-muted); font-size: 10px; cursor: pointer; }
 .chip:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); border-color: var(--la-accent-border); }
 .chip--active { background: var(--la-accent-soft); border-color: var(--la-accent-border); color: var(--la-accent); }
 .chip:disabled { opacity: .45; }
 /* 四个类别排在一起，收紧一点，免得把工具栏挤成两行。 */
-.chip--compact { min-height: 24px; padding: 2px 8px; }
+.chip--compact { min-height: 22px; padding: 2px 7px; }
 /* "自动批准"这四个字是分组标题，不是能点的开关，所以看着要弱一些。 */
-.chip-label { padding: 0 2px; color: var(--la-muted); font-size: 11px; }
+.chip-label { padding: 0 2px; color: var(--la-muted); font-size: 10px; }
 /* "更多"面板：配一次就不动的东西收在这里，不占工具栏的位置。 */
-.chat-more { display: flex; flex-wrap: wrap; gap: 20px; margin: -4px 0 12px; padding: 12px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-panel); }
-.chat-more__group { flex: 1 1 240px; min-width: 0; }
-.chat-more__group h2 { margin: 0; font-size: 12px; font-weight: 550; }
-.chat-more__group p { margin: 4px 0 8px; color: var(--la-muted); font-size: 11px; line-height: 1.5; }
+.chat-more { display: flex; flex-wrap: wrap; gap: 16px; max-height: 360px; margin: -2px 0 10px; padding: 10px 12px; overflow-y: auto; border: 1px solid var(--la-line); border-radius: 8px; background: var(--la-panel); }
+.chat-more__group { flex: 1 1 220px; min-width: 0; }
+.chat-more__group h2 { margin: 0; font-size: 11px; font-weight: 550; }
+.chat-more__group p { margin: 3px 0 7px; color: var(--la-muted); font-size: 10px; line-height: 1.5; }
+.chat-more__chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chat-more__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 12px; color: var(--la-secondary); }
 .chat-more__row select, .chat-more__row input { flex: 0 1 150px; min-width: 0; padding: 3px 6px; border: 1px solid var(--la-line); border-radius: 6px; background: var(--la-bg); color: var(--la-text); font-size: 12px; }
 .connection-error { display: flex; align-items: center; gap: 10px; padding: 12px var(--la-chat-gutter); color: var(--la-danger); background: #c67a6412; font-size: 12px; }

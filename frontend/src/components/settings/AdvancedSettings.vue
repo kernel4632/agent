@@ -53,7 +53,7 @@ function applyModes() {
           <h3>项目规则</h3>
           <p>自动读取 AGENTS.md、<code>.agent/rules</code> 和 <code>.roo/rules</code>，拼进系统提示词。</p>
         </div>
-        <m3e-switch role="switch" :aria-checked="rulesOn" :checked="rulesOn" aria-label="读取项目规则" @change="setRules(!rulesOn)"></m3e-switch>
+        <input class="switch" type="checkbox" role="switch" aria-label="读取项目规则" :checked="rulesOn" @change="setRules($event.target.checked)" />
       </div>
     </div>
 
@@ -73,7 +73,7 @@ function applyModes() {
           <h3>shell 改动快照</h3>
           <p>执行命令前扫一遍工作区，命令改过的文件也能回退。文件多时命令会变慢。</p>
         </div>
-        <m3e-switch role="switch" :aria-checked="snapshot.shell === true" :checked="snapshot.shell === true" aria-label="记录 shell 改动" @change="setSnapshot({ shell: !(snapshot.shell === true) })"></m3e-switch>
+        <input class="switch" type="checkbox" role="switch" aria-label="记录 shell 改动" :checked="snapshot.shell === true" @change="setSnapshot({ shell: $event.target.checked })" />
       </div>
       <div class="advanced-settings__row">
         <label>最多文件数<input class="field" type="number" min="1" :value="snapshot.maxFiles" @input="setSnapshot({ maxFiles: Number($event.target.value) || 2000 })" /></label>
@@ -103,11 +103,14 @@ function applyModes() {
 
 .advanced-settings__block {
   display: grid;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--la-line);
-  border-radius: var(--la-radius);
-  background: var(--la-setting-row);
+  gap: 8px;
+  padding: 12px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--la-line);
+  border-radius: 0;
+  background: transparent;
+
+  &:last-child { border-bottom: 0; }
 }
 
 .advanced-settings__head {
@@ -120,14 +123,15 @@ function applyModes() {
 h3 {
   margin: 0;
   color: var(--la-text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 p {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--la-muted);
   line-height: 1.6;
+  font-size: 11px;
 }
 
 code {
@@ -147,7 +151,7 @@ label {
 }
 
 .advanced-settings__modes {
-  min-height: 170px;
+  min-height: 120px;
   font-family: var(--la-font-mono);
   font-size: 11px;
   line-height: 1.6;

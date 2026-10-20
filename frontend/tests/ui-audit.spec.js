@@ -200,6 +200,8 @@ test('settings save preserves uneditable backend configuration and secrets stay 
   await page.goto('/')
   await navigate(page, '设置')
   await page.getByRole('button', { name: '模型供应商', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '供应商名' })).toBeVisible()
+  await screenshot(page, testInfo, 'settings-providers')
   await page.getByRole('textbox', { name: '供应商名' }).fill('Renamed provider')
   await page.getByRole('textbox', { name: '手动添加模型 ID' }).fill('another-model')
   await page.getByRole('button', { name: '添加模型', exact: true }).click()
@@ -332,26 +334,29 @@ test('conversation can be forked from the header', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '一个新的项目（分支）' })).toBeVisible()
 })
 
-test('advanced, tools and MCP settings write back', async ({ page }) => {
+test('advanced, tools and MCP settings write back', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '设置')
 
   await page.getByRole('button', { name: '高级', exact: true }).click()
+  await screenshot(page, testInfo, 'settings-advanced')
   await page.getByRole('switch', { name: '读取项目规则' }).click()
-  await expect(page.getByRole('switch', { name: '读取项目规则' })).toHaveAttribute('aria-checked', 'false')
+  await expect(page.getByRole('switch', { name: '读取项目规则' })).not.toBeChecked()
   await page.getByLabel('命令', { exact: true }).fill('bun run typecheck')
   await page.getByRole('switch', { name: '记录 shell 改动' }).click()
-  await expect(page.getByRole('switch', { name: '记录 shell 改动' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('switch', { name: '记录 shell 改动' })).toBeChecked()
   await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['file_read'] } }, null, 2))
   await page.getByRole('button', { name: '应用模式', exact: true }).click()
 
   await page.getByRole('button', { name: '工具管理', exact: true }).click()
-  await expect(page.getByText('file_read', { exact: true })).toBeVisible()
-  await expect(page.getByText('shell', { exact: true })).toBeVisible()
+  await expect(page.getByText('file_read')).toBeVisible()
+  await expect(page.getByText('shell')).toBeVisible()
+  await screenshot(page, testInfo, 'settings-tools')
 
   await page.getByRole('button', { name: 'MCP 服务', exact: true }).click()
   await expect(page.getByText('sample', { exact: true })).toBeVisible()
+  await screenshot(page, testInfo, 'settings-mcp')
 
   await page.getByRole('button', { name: '保存设置', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('设置已保存')
@@ -396,7 +401,7 @@ test('compaction threshold is sent as a number', async ({ page }) => {
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '会话设置', exact: true }).click()
   const threshold = page.getByLabel('阈值', { exact: true })
   await threshold.fill('0.6')
   await threshold.press('Tab')

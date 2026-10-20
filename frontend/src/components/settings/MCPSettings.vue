@@ -98,7 +98,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
     <!-- 左侧 MCP 列表。 -->
     <aside class="mcp-settings__list" aria-label="MCP 服务列表">
       <header class="mcp-settings__list-head">
-        <span>MCP 服务</span>
+        <span>服务列表</span>
         <button type="button" class="icon-button" aria-label="添加 MCP 服务" title="添加 MCP 服务" @click="addMCP"><HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" :size="16" /></button>
       </header>
       <m3e-action-list class="mcp-settings__items" aria-label="MCP 服务">
@@ -128,7 +128,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
             </m3e-form-field>
             <label class="mcp-settings__enabled">
               <span>{{ selectedItem.enabled ? '已启用' : '已停用' }}</span>
-              <m3e-switch role="switch" :aria-checked="selectedItem.enabled" :aria-label="`启用 ${selectedItem.name}`" :checked="selectedItem.enabled" @change="toggleEnabled"></m3e-switch>
+              <input class="switch" type="checkbox" role="switch" :aria-label="`启用 ${selectedItem.name}`" :checked="selectedItem.enabled" @change="toggleEnabled" />
             </label>
         </header>
 
@@ -242,8 +242,8 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   width: 100%;
 
   &.is-selected {
-    --m3e-list-item-container-color: var(--md-sys-color-surface-container-highest);
-    --m3e-list-item-label-text-color: var(--md-sys-color-on-surface);
+    --m3e-list-item-container-color: var(--la-hover);
+    --m3e-list-item-label-text-color: var(--la-text);
   }
 }
 
@@ -272,15 +272,15 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 /* --- 右侧编辑面板 --- */
 .mcp-settings__form {
   display: flex;
-  width: min(720px, 100%);
+  width: 100%;
   min-width: 0;
   min-height: 0;
-  margin: 0 auto;
+  margin: 0;
   overflow-y: auto;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 28px;
-  padding: 36px 40px 72px;
+  gap: 14px;
+  padding: 16px 20px 24px;
   @include scrollbar-dark;
 }
 
@@ -306,8 +306,8 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 
 /* --- 操作按钮区 --- */
 .mcp-settings__actions {
-  padding-top: 12px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-top: 10px;
+  border-top: 1px solid var(--la-line);
 }
 
 .mcp-settings__dialog-actions { display: flex; gap: 8px; }

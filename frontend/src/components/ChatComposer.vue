@@ -119,9 +119,9 @@ defineExpose({ focus: () => editor.value?.focus() })
 <style scoped lang="scss">
 .chat-composer {
   position: relative;
-  padding: 16px 16px 10px;
+  padding: 12px 12px 8px;
   border: 1px solid var(--la-line);
-  border-radius: var(--la-radius-panel);
+  border-radius: 8px;
   background: var(--la-input);
 
   &:focus-within { border-color: var(--la-accent-border); }
@@ -159,32 +159,32 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__editor {
     display: block;
     width: 100%;
-    min-height: 54px;
+    min-height: 44px;
     max-height: 220px;
-    padding: 0 2px 12px;
+    padding: 0 2px 8px;
     resize: none;
     field-sizing: content;
     border: 0;
     outline: 0;
     background: transparent;
     color: var(--la-text);
-    font-size: 14px;
-    line-height: 1.8;
+    font-size: 13px;
+    line-height: 1.7;
 
-    &::placeholder { color: var(--la-secondary); }
+    &::placeholder { color: var(--la-muted); }
   }
-  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 7px; min-width: 0; }
   &__toolbar { justify-content: space-between; }
-  &__agent { color: var(--la-muted); font-size: 12px; }
+  &__agent { color: var(--la-muted); font-size: 11px; }
   &__agent svg { color: var(--la-muted); }
-  &__model { max-width: 230px; overflow: hidden; border: 0; background: transparent; color: var(--la-secondary); font: 11px/1.6 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+  &__model { max-width: 230px; overflow: hidden; border: 0; background: transparent; color: var(--la-muted); font: 10px/1.6 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
   &__model option { background: var(--la-panel); color: var(--la-text); }
-  &__send { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--la-radius); background: var(--la-action); color: var(--la-on-action); cursor: pointer; }
-  &__send:disabled { background: var(--la-hover); color: var(--la-secondary); }
+  &__send { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--la-radius); background: var(--la-action); color: var(--la-on-action); cursor: pointer; }
+  &__send:disabled { background: var(--la-hover); color: var(--la-muted); }
   &__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   &__files > span { display: flex; align-items: center; gap: 6px; max-width: 100%; padding-left: 9px; border: 1px solid var(--la-line); border-radius: 6px; color: var(--la-secondary); font-size: 12px; overflow-wrap: anywhere; }
 }
-.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px 0; color: var(--la-muted); font-size: 10px; }
+.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 8px 4px 0; color: var(--la-muted); font-size: 10px; }
 @media (max-width: 760px) {
   .chat-composer {
     padding: 14px 12px 8px;

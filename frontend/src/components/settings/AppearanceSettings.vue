@@ -33,30 +33,30 @@ function reset() { for (const [field, value] of Object.entries(DEFAULT_APPEARANC
 <style scoped lang="scss">
 .preference-group {
   margin-bottom: 24px;
-  h3 { margin: 0 0 10px; font-size: 13px; font-weight: 500; }
+  h3 { margin: 0 0 2px; color: var(--la-muted); font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
 }
 .preference-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 66px;
-  padding: 14px 16px;
-  margin-bottom: 2px;
-  background: var(--la-setting-row);
+  min-height: 54px;
+  padding: 10px 2px;
+  margin: 0;
+  background: transparent;
+  border-bottom: 1px solid var(--la-line);
 
-  &:nth-child(2) { border-radius: 7px 7px 0 0; }
-  &:last-child { border-radius: 0 0 7px 7px; }
-  strong { display: block; font-size: 13px; font-weight: 450; }
-  small { display: block; margin-top: 5px; color: var(--la-secondary); font-size: 11px; line-height: 1.5; }
+  strong { display: block; font-size: 12px; font-weight: 450; }
+  small { display: block; margin-top: 3px; color: var(--la-muted); font-size: 11px; line-height: 1.5; }
 }
 fieldset { display: flex; flex: none; gap: 4px; margin: 0; padding: 0; border: 0; }
 .theme-options {
-  padding: 3px;
-  border-radius: 6px;
-  background: var(--la-panel);
+  padding: 2px;
+  border: 1px solid var(--la-line);
+  border-radius: var(--la-radius);
+  background: var(--la-input);
 
-  label { position: relative; padding: 6px 8px; border-radius: 4px; color: var(--la-secondary); font-size: 11px; cursor: pointer; }
+  label { position: relative; padding: 5px 9px; border-radius: 4px; color: var(--la-muted); font-size: 11px; cursor: pointer; }
   label.selected { color: var(--la-text); background: var(--la-setting-row); }
   input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   label:focus-within { outline: 2px solid var(--la-accent); }
@@ -65,11 +65,11 @@ fieldset { display: flex; flex: none; gap: 4px; margin: 0; padding: 0; border: 0
   gap: 8px;
   label { position: relative; display: block; width: 24px; height: 24px; cursor: pointer; }
   input { position: absolute; opacity: 0; }
-  span { display: block; width: 24px; height: 24px; border: 4px solid var(--la-setting-row); border-radius: 50%; background: var(--swatch); }
+  span { display: block; width: 22px; height: 22px; border: 3px solid var(--la-panel); border-radius: 50%; background: var(--swatch); }
   input:checked + span { outline: 1px solid var(--swatch); }
   input:focus-visible + span { outline: 2px solid var(--la-text); }
 }
-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--la-muted); font-size: 11px; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--la-line); color: var(--la-muted); font-size: 10px; }
 @media (max-width: 540px) {
   .preference-row { flex-wrap: wrap; padding: 14px 12px; }
   .theme-options { margin-left: auto; }

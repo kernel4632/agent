@@ -80,20 +80,20 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 </template>
 
 <style scoped lang="scss">
-.conversation-flow { width: 100%; margin: 0; padding: 28px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 26px; }
+.conversation-flow { width: 100%; max-width: 820px; margin: 0 auto; padding: 24px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 22px; }
 .message { min-width: 0; }
-.message__author { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; font-size: 12px; }
+.message__author { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; }
 .message__author strong { font-weight: 500; }
-.message__avatar { width: 28px; height: 28px; display: grid; place-items: center; background: var(--la-hover); border: 1px solid var(--la-line); border-radius: var(--la-radius); color: var(--la-secondary); }
+.message__avatar { width: 22px; height: 22px; display: grid; place-items: center; background: var(--la-hover); border: 1px solid var(--la-line); border-radius: var(--la-radius); color: var(--la-secondary); }
 .message__avatar--user { color: var(--la-secondary); background: var(--la-hover); }
 .message__model { font: 10px/1.6 var(--la-font-mono); color: var(--la-muted); }
 .message--user { display: flex; flex-direction: column; align-items: flex-end; }
 .message--user .message__author { flex-direction: row-reverse; }
-.message__bubble { max-width: 85%; padding: 11px 13px; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--la-line); border-radius: var(--la-radius-panel); background: var(--la-setting-row); }
+.message__bubble { max-width: 82%; padding: 8px 11px; font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--la-line); border-radius: 8px; background: var(--la-setting-row); }
 .message__actions { display: flex; gap: 2px; margin-top: 7px; opacity: .55; }
 .message:hover .message__actions, .message:focus-within .message__actions { opacity: 1; }
 .message__actions .icon-button { width: 30px; height: 30px; }
-.markdown-body { color: var(--la-text); font-size: 13px; line-height: 1.95; overflow-wrap: anywhere; }
+.markdown-body { color: var(--la-text); font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
 .markdown-body :deep(p) { margin: 0 0 14px; }
 .markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { line-height: 1.5; font-weight: 550; margin: 22px 0 12px; }
 .markdown-body :deep(h1) { font-size: 23px; } .markdown-body :deep(h2) { font-size: 19px; } .markdown-body :deep(h3) { font-size: 16px; }
@@ -114,8 +114,8 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 .typing > span:nth-child(2) { animation-delay: .2s; } .typing > span:nth-child(3) { animation-delay: .4s; }
 .typing small { margin-left: 8px; font-size: 11px; }
 @keyframes pulse { to { opacity: .2; transform: translateY(-2px); } }
-.tool-card { border: 1px solid var(--la-line); background: var(--la-hover); border-radius: 7px; margin: 12px 0; overflow: hidden; }
-.tool-card summary { display: flex; align-items: center; gap: 10px; padding: 13px; font-size: 11px; cursor: pointer; }
+.tool-card { border: 1px solid var(--la-line); background: var(--la-input); border-radius: var(--la-radius); margin: 10px 0; overflow: hidden; }
+.tool-card summary { display: flex; align-items: center; gap: 9px; padding: 9px 11px; font-size: 11px; cursor: pointer; }
 .tool-card summary strong { font-weight: 500; overflow-wrap: anywhere; }
 .tool-card summary > span { margin-left: auto; color: var(--la-muted); white-space: nowrap; font-size: 10px; }
 .tool-card summary > span.tool-warning { color: #d9ba8a; }

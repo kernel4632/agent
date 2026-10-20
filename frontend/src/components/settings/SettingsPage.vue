@@ -75,7 +75,7 @@ async function save() {
         <footer class="settings-footer">
           <span v-if="store.ui.toast" role="status">{{ store.ui.toast }}</span>
           <span v-else>关闭时自动保存</span>
-          <button class="button button--primary" :disabled="store.settings.isSaving" @click="save">{{ store.settings.isSaving ? '保存中…' : '保存设置' }}</button>
+          <button class="button" :disabled="store.settings.isSaving" @click="save">{{ store.settings.isSaving ? '保存中…' : '保存设置' }}</button>
         </footer>
       </div>
     </div>
@@ -84,8 +84,8 @@ async function save() {
 
 <style scoped lang="scss">
 .settings-dialog {
-  width: min(820px, calc(100vw - 48px));
-  height: min(660px, calc(100dvh - 64px));
+  width: min(880px, calc(100vw - 48px));
+  height: min(680px, calc(100dvh - 64px));
   max-width: none;
   max-height: none;
   padding: 0;
@@ -93,31 +93,32 @@ async function save() {
   border-radius: var(--la-radius-panel);
   background: var(--la-panel);
   color: var(--la-text);
-  box-shadow: 0 20px 60px #0006;
+  box-shadow: 0 24px 70px #0008;
 
-  &::backdrop { background: #0007; backdrop-filter: blur(4px); }
+  &::backdrop { background: #000a; backdrop-filter: blur(3px); }
 }
 .settings-page { display: flex; height: 100%; }
 .settings-nav {
-  flex: 0 0 176px;
-  padding: 25px 12px;
+  flex: 0 0 184px;
+  padding: 18px 10px;
+  border-right: 1px solid var(--la-line);
   background: var(--la-settings-nav);
 
-  h2 { margin: 0 12px 22px; font-size: 17px; font-weight: 600; }
-  nav { display: grid; gap: 4px; }
-  button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--la-radius); background: transparent; color: var(--la-secondary); text-align: left; font-size: 12px; cursor: pointer; }
+  h2 { margin: 0 10px 18px; font-size: 14px; font-weight: 600; }
+  nav { display: grid; gap: 1px; }
+  button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--la-radius); background: transparent; color: var(--la-secondary); text-align: left; font-size: 12px; cursor: pointer; }
   button.active { color: var(--la-text); background: var(--la-setting-row); }
   button:hover:not(:disabled) { background: var(--la-hover); }
-  small { margin-left: auto; font-size: 9px; }
+  small { margin-left: auto; font-size: 9px; color: var(--la-muted); }
 }
 .settings-content { display: flex; flex: 1; min-width: 0; flex-direction: column; }
-.settings-heading { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 20px 24px 12px 28px; }
-.settings-heading h2 { margin: 0; font-size: 19px; font-weight: 550; }
-.settings-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 28px 24px; }
-.settings-provider-note { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; color: var(--la-secondary); font-size: 12px; }
-.settings-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 28px; border-top: 1px solid var(--la-line); color: var(--la-muted); font-size: 11px; }
+.settings-heading { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 16px 22px 10px 28px; }
+.settings-heading h2 { margin: 0; font-size: 17px; font-weight: 550; letter-spacing: -.01em; }
+.settings-body { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 28px 20px; }
+.settings-provider-note { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; color: var(--la-muted); font-size: 11px; }
+.settings-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 22px; border-top: 1px solid var(--la-line); color: var(--la-muted); font-size: 10px; }
 .settings-footer > span { overflow-wrap: anywhere; }
-.settings-footer .button { flex-shrink: 0; }
+.settings-footer .button { flex-shrink: 0; min-height: 28px; padding: 4px 10px; background: var(--la-setting-row); font-size: 11px; }
 @media (max-width: 760px) {
   .settings-dialog { width: calc(100vw - 20px); height: calc(100dvh - 28px); }
   .settings-page { flex-direction: column; }
