@@ -219,6 +219,13 @@ onUnmounted(() => {
                                 <input type="number" min="0" :value="session.settings.autoApproveLimit" @change="Session.setLimit(session.id, Number($event.target.value))" />
                               </label>
                             </section>
+                            <section class="chat-more__group" aria-label="上下文压缩">
+                              <h2>自动压缩</h2>
+                              <p>上下文用到这个比例时自动总结；范围 0.1 到 0.99</p>
+                              <label class="chat-more__row"><span>阈值</span>
+                                <input type="number" min="0.1" max="0.99" step="0.05" :value="session.settings.compactThreshold ?? 0.8" @change="Session.setCompactThreshold(session.id, Number($event.target.value))" />
+                              </label>
+                            </section>
                           </div>
                           <div v-if="session?.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session?.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>

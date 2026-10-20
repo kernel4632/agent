@@ -449,6 +449,7 @@ Content-Type: application/json
   "mode": "build",
   "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
   "autoApproveLimit": 50,
+  "compactThreshold": 0.8,
   "capabilities": { "image": true, "cache": true, "stream": true },
   "uses": {},
   "autoTitle": true
@@ -465,6 +466,7 @@ Content-Type: application/json
 | `autoApprove.mcp` | `false` | MCP 服务给的工具不再弹审批，按配置里的服务名前缀认 |
 | `autoApprove.subtask` | `false` | 开子任务不再弹审批（`task`）。子 agent 自己动文件时仍按上面几类分别判断 |
 | `autoApproveLimit` | `50` | 连着自动批准这么多次之后停下来问一句；`0` 表示不设上限 |
+| `compactThreshold` | `0.8` | 上下文用到这个比例时自动压缩，范围 `0.1` 到 `0.99` |
 | `capabilities.image` | `true` | 能不能把图片发给模型 |
 | `capabilities.cache` | `true` | 提示词缓存 |
 | `capabilities.stream` | `true` | 流式输出 |

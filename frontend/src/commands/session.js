@@ -285,6 +285,15 @@ async function setLimit(sessionID, value) {
 }
 
 
+// --- 改自动压缩阈值 ---
+async function setCompactThreshold(sessionID, value) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  const threshold = Math.min(0.99, Math.max(0.1, Number(value) || 0.8))
+  return saveSettings(sessionID, { compactThreshold: threshold })
+}
+
+
 // --- 用途的中文名 ---
 const useLabel = use => USE_LABELS[use] || use
 
@@ -333,6 +342,7 @@ function normalize(source, previous = {}) {
       // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
       autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
       autoApproveLimit: 50,
+      compactThreshold: 0.8,
       capabilities: { image: true, cache: true, stream: true },
       uses: {},        // 空＝每件事都用主模型
       autoTitle: true, // 第一次聊完自动起标题
@@ -418,7 +428,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 
 export const Session = {
   locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, fork, normalize, syncSummary, saveTitleEditing,
-  saveSettings, toggleMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit,
+  saveSettings, toggleMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
 export { AUTO_APPROVE_KINDS, USE_LABELS }

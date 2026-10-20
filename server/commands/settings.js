@@ -66,6 +66,8 @@ const DEFAULTS = {
     mode: 'build',
     autoApprove: autoApproveDefaults(),
     autoApproveLimit: APPROVE_LIMIT,
+    // 上下文用到 80% 时自动总结，和 agent-core 的默认一致。
+    compactThreshold: 0.8,
     capabilities: {
         image: true,
         cache: true,
@@ -158,6 +160,13 @@ const normalize = (input = {}, base = DEFAULTS) => {
         else delete uses[name]
     }
 
+    // 自动压缩阈值：只收 0.1 到 0.99，写错保持原值。
+    const rawThreshold = input.compactThreshold === undefined ? base.compactThreshold : input.compactThreshold
+    const parsedThreshold = Number(rawThreshold)
+    const compactThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0.1 && parsedThreshold <= 0.99
+        ? parsedThreshold
+        : base.compactThreshold
+
     // 刹车：连着放行这么多次就停下来问。只收非负整数，0 表示不设上限，别的值保持原样。
     const rawLimit = input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit
     const parsedLimit = Number(rawLimit)
@@ -165,6 +174,7 @@ const normalize = (input = {}, base = DEFAULTS) => {
         mode: merged.mode,
         autoApprove,
         autoApproveLimit: Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : base.autoApproveLimit,
+        compactThreshold,
         capabilities: {
             image: capabilities.image !== false,
             cache: capabilities.cache !== false,
@@ -234,6 +244,8 @@ const toAgentConfig = ({ settings }) => ({
     stream: settings.capabilities.stream,
     // 自定义模式也可以声明 readOnly；不认识或已被删掉时按可写处理，不让会话打不开。
     readOnly: modeInfo(settings.mode)?.readOnly === true,
+    // 上下文用到这个比例时自动压缩；agent-core 自己认这个字段。
+    compactThreshold: settings.compactThreshold,
     // 哪件事用哪个模型，交给 Config.resolve 翻成 agent-core 认的 config.compact 那些。
     uses: settings.uses,
 })

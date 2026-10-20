@@ -88,6 +88,7 @@ describe('会话运行设置', () => {
                 mode: 'build',
                 autoApprove: allOff(),
                 autoApproveLimit: 50,
+                compactThreshold: 0.8,
                 capabilities: { image: true, cache: true, stream: true },
                 uses: {},        // 空对象＝每件事都用主模型，这是绝大多数人的用法
                 autoTitle: true, // 第一次聊完自动起标题
@@ -671,6 +672,19 @@ describe('自动批准的刹车', () => {
                 expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'file_read', input: { path: `D:/app/${index}.js` } }))
                     .toEqual({ allowed: true, asked: false })
             }
+        })
+    })
+
+    test('自动压缩阈值可改，写错时保持原值', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await Session.saveSettings({ sessionId, compactThreshold: 0.6 })
+            expect((await Session.readSettings({ sessionId })).compactThreshold).toBe(0.6)
+            expect(Store.agents.get(sessionId).config.compactThreshold).toBe(0.6)
+
+            // 1.5 超出范围，不能写进去；保留刚才的 0.6。
+            await Session.saveSettings({ sessionId, compactThreshold: 1.5 })
+            expect((await Session.readSettings({ sessionId })).compactThreshold).toBe(0.6)
         })
     })
 
