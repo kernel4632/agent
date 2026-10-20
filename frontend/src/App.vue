@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import AppIcon from './components/AppIcon.vue'
 import HomePage from './components/HomePage.vue'
 import ChatComposer from './components/ChatComposer.vue'
+import Titlebar from './app/Titlebar.vue'
 import { store } from './store.js'
 import { Session, AUTO_APPROVE_KINDS, USE_LABELS } from './commands/session.js'
 import { Chat } from './commands/chat.js'
@@ -133,14 +134,6 @@ async function closeTab(tab) {
 async function openSession(id) {
   draftOpen.value = false
   await Session.open(id)
-}
-
-const tabTitle = tab => store.sessions[tab.sessionID]?.title || tab.title || '新会话'
-const tabColor = tab => {
-  const palette = ['#3250df', '#2eaf5a', '#ee7330', '#e4429e', '#623be2', '#0096b8']
-  let value = 0
-  for (const char of tab.key) value = (value * 31 + char.charCodeAt(0)) >>> 0
-  return palette[value % palette.length]
 }
 
 // --- 命令面板：opencode 的 Ctrl/Cmd + K ---
@@ -297,24 +290,7 @@ onUnmounted(() => {
 <template>
   <m3e-theme :scheme="scheme">
     <div class="preview-page">
-      <header class="titlebar">
-        <span class="titlebar__channel" aria-hidden="true">la</span>
-        <button class="titlebar__home" :class="{ 'is-active': mode === 'home' }" aria-label="主页" @click="goHome"><AppIcon name="grid-plus" :size="16" /></button>
-        <div class="titlebar__tabs" role="tablist" aria-label="打开的会话">
-          <div v-for="tab in store.tabs.items" :key="tab.key" class="tab" :class="{ 'is-active': store.tabs.activeKey === tab.key }" role="tab" :aria-selected="store.tabs.activeKey === tab.key">
-            <button class="tab__main" @click="openTab(tab)">
-              <span class="tab__avatar" :style="{ background: tabColor(tab) }" aria-hidden="true">{{ (tabTitle(tab) || '新').slice(0, 1) }}</span>
-              <span class="tab__title">{{ tabTitle(tab) }}</span>
-            </button>
-            <button class="tab__close" :aria-label="`关闭 ${tabTitle(tab)}`" @click.stop="closeTab(tab)"><AppIcon name="close" :size="11" /></button>
-          </div>
-          <button class="tab-new" aria-label="新建对话" title="新建对话" @click="openDraft"><AppIcon name="plus" :size="15" /></button>
-        </div>
-        <div class="titlebar__right">
-          <button class="icon-button" aria-label="命令面板" title="命令面板 (Ctrl K)" @click="openPalette"><AppIcon name="search" :size="15" /></button>
-          <button class="icon-button" aria-label="设置" title="设置" @click="UI.openSettings()"><AppIcon name="settings" :size="16" /></button>
-        </div>
-      </header>
+      <Titlebar :mode="mode" @home="goHome" @new="openDraft" @select="openTab" @close="closeTab" @palette="openPalette" @settings="UI.openSettings()" />
 
       <main class="app-main">
         <div v-if="store.ui.errorMessage" class="connection-error" role="alert">
@@ -468,56 +444,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped lang="scss">
-.titlebar {
-  display: flex;
-  flex: 0 0 var(--la-titlebar-height);
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  background: var(--la-bg);
-  user-select: none;
-}
-.titlebar__channel {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  border-radius: 4px;
-  background: var(--la-accent-solid);
-  color: #fff;
-  box-shadow: var(--la-shadow-raised);
-  font: 600 8px/1 var(--la-font-mono);
-  letter-spacing: .02em;
-}
-.titlebar__home {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--la-muted);
-  cursor: pointer;
-}
-.titlebar__home:hover, .titlebar__home.is-active { background: var(--la-layer-02); color: var(--la-text); }
-.titlebar__tabs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; }
-.titlebar__tabs::-webkit-scrollbar { display: none; }
-.tab { display: flex; align-items: center; min-width: 0; height: 28px; flex: 0 1 auto; border-radius: 6px; color: var(--la-secondary); }
-.tab:hover { background: var(--la-hover); color: var(--la-text); }
-.tab.is-active { background: var(--la-layer-02); color: var(--la-text); }
-.tab__main { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; padding: 0 8px; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.tab__avatar { display: grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border-radius: 3px; color: #fff; font: 600 8px/1 var(--la-font-mono); }
-.tab__title { max-width: 190px; overflow: hidden; font-size: 13px; font-weight: 440; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
-.tab__close { display: grid; place-items: center; width: 20px; height: 20px; margin-right: 4px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--la-muted); opacity: 0; cursor: pointer; }
-.tab.is-active .tab__close, .tab:hover .tab__close, .tab:focus-within .tab__close { opacity: 1; }
-.tab__close:hover { background: var(--la-hover); color: var(--la-text); }
-.tab-new { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--la-muted); cursor: pointer; }
-.tab-new:hover { background: var(--la-hover); color: var(--la-text); }
-.titlebar__right { display: flex; align-items: center; gap: 2px; margin-left: 2px; }
 .app-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .panel { flex: 1; min-height: 0; margin: var(--la-content-inset); border-radius: 10px; background: var(--la-panel); box-shadow: var(--la-shadow-raised); overflow: hidden; }
 .connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
@@ -627,9 +553,6 @@ onUnmounted(() => {
 .command-palette__empty { margin: 0; padding: 16px 10px; color: var(--la-muted); font-size: 13px; }
 .app-toast { position: fixed; z-index: 60; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); padding: 8px 10px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-text); box-shadow: var(--la-shadow-overlay); font-size: 13px; transform: translateX(-50%); }
 @media (max-width: 767px) {
-  .titlebar { padding: 0 6px; }
-  .titlebar__channel { display: none; }
-  .tab__title { max-width: 120px; }
   .draft-stage { padding: clamp(32px, 12vh, 96px) 12px 32px; }
   .draft-wordmark { font-size: clamp(96px, 28vw, 160px); }
   .draft-meta__path { display: none; }
