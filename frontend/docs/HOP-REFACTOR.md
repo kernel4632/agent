@@ -90,10 +90,29 @@ src/
 
 ### [ ] 阶段 5：会话页
 
-- 新建 `src/session/SessionView.vue`、`SessionHeader.vue`、`SessionFilePanel.vue` 和 `src/composer/Composer.vue`（由 `ChatComposer.vue` 改名）。
-- 时间线由 `ConversationFlow.vue` 改名并移动到 `src/session/Timeline.vue`。
-- 文件面板、模型切换、分支、重连提示、自动批准面板都从 `App.vue` 移出。
-- 验收：会话页所有测试通过；`App.vue` 不再出现会话正文和输入区模板。
+拆成三个小步，每步单独审查和提交。
+
+#### [x] 5a：移动共享输入区和时间线
+
+- `ChatComposer.vue` 移动到 `src/composer/Composer.vue`。
+- `ConversationFlow.vue` 移动到 `src/session/Timeline.vue`。
+- 更新 App、DraftView 的 import；组件行为、class、测试断言不变。
+- 验收：构建、单测、UI 全过。
+
+#### [ ] 5b：拆会话顶部和文件面板
+
+- 新建 `src/session/SessionHeader.vue`、`src/session/SessionFilePanel.vue`。
+- 顶部负责标题、项目图标、模型选择、复制、分支、文件面板开关。
+- 文件面板负责本次改动文件和工作区文件列表，自己读 `session` / `workspace`。
+- App 只保留 `reviewOpen` 和事件接线，或把开关状态放进会话组件。
+- 验收：会话页测试通过；`App.vue` 不再出现文件面板模板和样式。
+
+#### [ ] 5c：拆整个会话视图
+
+- 新建 `src/session/SessionView.vue`，组合顶部、时间线、输入区、文件面板、重连提示和自动批准面板。
+- 模型切换、按用途选模型、自动批准、文件列表都收进会话视图。
+- `App.vue` 只保留 `<SessionView :session="session" :workspace="selectedWorkspace" />`。
+- 验收：`App.vue` 不再出现会话正文、输入区和设置面板；会话页所有测试通过。
 
 ### [ ] 阶段 6：设置页登记表
 

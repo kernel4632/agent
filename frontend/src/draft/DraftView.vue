@@ -16,7 +16,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import ChatComposer from '../components/ChatComposer.vue'
+import Composer from '../composer/Composer.vue'
 import { avatarColor, initial } from '../ui/avatar.js'
 
 const props = defineProps({
@@ -42,7 +42,7 @@ defineExpose({ focus: () => composer.value?.focus() })
       <div class="draft-inner">
         <div class="draft-wordmark" aria-hidden="true">la</div>
         <div class="draft-form">
-          <ChatComposer ref="composer" v-model:draft="draft" :selected-model="model" can-select-model :is-running="false" :busy="busy" :files="files" :context-tokens="0" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
+          <Composer ref="composer" v-model:draft="draft" :selected-model="model" can-select-model :is-running="false" :busy="busy" :files="files" :context-tokens="0" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
           <div class="draft-meta">
             <span class="project-avatar" :style="{ background: avatarColor(workspace?.id) }" aria-hidden="true">{{ initial(projectName) }}</span>
             <span>{{ projectName }}</span>

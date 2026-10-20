@@ -1,6 +1,12 @@
+<!--
+会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
+只被会话页使用；自己从 store 读当前会话，不需要传 props。
+调用示例：
+<Timeline :key="session.id" />
+-->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppIcon from './AppIcon.vue'
+import AppIcon from '../components/AppIcon.vue'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'

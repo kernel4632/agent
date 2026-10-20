@@ -1,6 +1,25 @@
+<!--
+会话输入区：消息输入、斜杠命令、附件、模型选择、发送和停止。
+会话页和新建会话页共用；只通过 v-model:draft 和事件与外面交互。
+调用示例：
+<Composer
+  ref="composer"
+  v-model:draft="draft"
+  :selected-model="model"
+  :can-select-model="false"
+  :is-running="false"
+  :busy="false"
+  :files="files"
+  :context-tokens="0"
+  @submit="submitMessage"
+  @stop="stop"
+  @attach="attachFiles"
+  @remove-file="removeFile"
+/>
+-->
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import AppIcon from './AppIcon.vue'
+import AppIcon from '../components/AppIcon.vue'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
 

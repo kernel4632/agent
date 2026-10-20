@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import AppIcon from './components/AppIcon.vue'
 import HomeView from './home/HomeView.vue'
 import DraftView from './draft/DraftView.vue'
-import ChatComposer from './components/ChatComposer.vue'
+import Composer from './composer/Composer.vue'
 import Titlebar from './app/Titlebar.vue'
 import CommandPalette from './app/CommandPalette.vue'
 import Toast from './app/Toast.vue'
@@ -15,7 +15,7 @@ import { UI, activeSession } from './commands/ui.js'
 import { Tabs } from './commands/tabs.js'
 import { normalizeAppearance } from './theme.js'
 
-const ConversationFlow = defineAsyncComponent(() => import('./components/ConversationFlow.vue'))
+const Timeline = defineAsyncComponent(() => import('./session/Timeline.vue'))
 const SettingsPage = defineAsyncComponent(() => import('./components/settings/SettingsPage.vue'))
 const draftView = ref(null)
 const homeDraft = ref('')
@@ -314,7 +314,7 @@ onUnmounted(() => {
           <div class="session-body">
             <div class="session-main">
             <div class="session-scroll">
-              <ConversationFlow :key="session.id" />
+              <Timeline :key="session.id" />
             </div>
             <div class="session-composer">
               <div v-if="!session.model" class="chat-notice"><span>此对话还未配置模型。</span><button class="text-button" @click="UI.openSettings('providers')">连接模型</button></div>
@@ -364,12 +364,12 @@ onUnmounted(() => {
               </div>
               <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
               <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><button class="text-button" @click="Chat.undoRollback(session.id)">撤销回退</button></div>
-              <ChatComposer v-model:draft="draft" :selected-model="session.model" :can-select-model="false" :is-running="session.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile">
+              <Composer v-model:draft="draft" :selected-model="session.model" :can-select-model="false" :is-running="session.status === 'running'" :busy="creating || store.ui.isLoading || !!store.ui.errorMessage" :files="files" :context-tokens="session.contextTokens || 0" @submit="submitMessage" @stop="Chat.stop(session.id)" @attach="attachFiles" @remove-file="removeFile">
                 <template #status>
                   <button type="button" class="composer-mode" :class="{ 'is-active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="12" />{{ Session.modeLabel(session.settings.mode) }}</button>
                   <button type="button" class="composer-mode" :class="{ 'is-active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="12" />自动批准 {{ autoApproveCount }}/{{ AUTO_APPROVE_KINDS.length }}</button>
                 </template>
-              </ChatComposer>
+              </Composer>
             </div>
             </div>
             <aside v-if="reviewOpen" class="session-review" aria-label="文件面板">
