@@ -4,6 +4,8 @@ import AppIcon from './components/AppIcon.vue'
 import HomePage from './components/HomePage.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import Titlebar from './app/Titlebar.vue'
+import CommandPalette from './app/CommandPalette.vue'
+import Toast from './app/Toast.vue'
 import { store } from './store.js'
 import { Session, AUTO_APPROVE_KINDS, USE_LABELS } from './commands/session.js'
 import { Chat } from './commands/chat.js'
@@ -138,11 +140,7 @@ async function openSession(id) {
 
 // --- 命令面板：opencode 的 Ctrl/Cmd + K ---
 const paletteOpen = ref(false)
-const paletteQuery = ref('')
-const paletteInput = ref(null)
-const paletteIndex = ref(0)
 const paletteItems = computed(() => {
-  const query = paletteQuery.value.trim().toLowerCase()
   const items = [
     { id: 'new', label: '新建会话', hint: 'N', run: openDraft },
     { id: 'home', label: '主页', hint: '', run: goHome },
@@ -154,38 +152,12 @@ const paletteItems = computed(() => {
     }
   }
   return items
-    .filter(item => !query || item.label.toLowerCase().includes(query) || (item.hint || '').toLowerCase().includes(query))
-    .slice(0, 12)
 })
-async function openPalette() {
-  paletteOpen.value = true
-  paletteQuery.value = ''
-  paletteIndex.value = 0
-  await nextTick()
-  paletteInput.value?.focus()
-}
+function openPalette() { paletteOpen.value = true }
 function closePalette() { paletteOpen.value = false }
 function runPalette(item) {
   closePalette()
   void item?.run?.()
-}
-function paletteKeydown(event) {
-  if (event.key === 'Escape') { event.preventDefault(); closePalette(); return }
-  if (!paletteItems.value.length) return
-  if (event.key === 'ArrowDown') {
-    event.preventDefault()
-    paletteIndex.value = (paletteIndex.value + 1) % paletteItems.value.length
-    return
-  }
-  if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    paletteIndex.value = (paletteIndex.value - 1 + paletteItems.value.length) % paletteItems.value.length
-    return
-  }
-  if (event.key === 'Enter' && !event.isComposing) {
-    event.preventDefault()
-    runPalette(paletteItems.value[paletteIndex.value])
-  }
 }
 
 watchEffect(() => {
@@ -422,23 +394,10 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <div v-if="store.ui.toast && !store.ui.settingsOpen" class="app-toast" role="status">
-          <AppIcon name="info" :size="16" />{{ store.ui.toast }}
-          <button class="icon-button" aria-label="关闭提示" @click="store.ui.toast = ''"><AppIcon name="close" :size="13" /></button>
-        </div>
+        <Toast v-if="store.ui.toast && !store.ui.settingsOpen" :message="store.ui.toast" @close="store.ui.toast = ''" />
       </main>
 
-      <div v-if="paletteOpen" class="command-palette" role="dialog" aria-label="命令面板" @click.self="closePalette">
-        <div class="command-palette__panel">
-          <input ref="paletteInput" v-model="paletteQuery" class="command-palette__input" type="search" aria-label="搜索命令" placeholder="搜索命令或会话" @keydown="paletteKeydown" />
-          <div class="command-palette__list" role="listbox" aria-label="命令">
-            <button v-for="(item, index) in paletteItems" :key="item.id" class="command-palette__item" :class="{ 'is-active': index === paletteIndex }" role="option" :aria-selected="index === paletteIndex" @click="runPalette(item)">
-              <span>{{ item.label }}</span><small>{{ item.hint }}</small>
-            </button>
-            <p v-if="!paletteItems.length" class="command-palette__empty">没有匹配的命令</p>
-          </div>
-        </div>
-      </div>
+      <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
     </div>
   </m3e-theme>
 </template>
@@ -499,59 +458,6 @@ onUnmounted(() => {
 .composer-mode:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
 .composer-mode.is-active { color: var(--la-accent); }
 .composer-mode:disabled { opacity: .5; }
-.command-palette {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 12vh 16px 16px;
-  background: var(--la-scrim);
-}
-.command-palette__panel {
-  display: flex;
-  width: min(560px, 100%);
-  max-height: min(480px, 70vh);
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--la-layer-01);
-  box-shadow: var(--la-shadow-overlay);
-}
-.command-palette__input {
-  height: 44px;
-  flex: none;
-  padding: 0 14px;
-  border: 0;
-  border-bottom: .5px solid var(--la-line);
-  outline: 0;
-  background: transparent;
-  color: var(--la-text);
-  font: 13px/20px var(--la-font-sans);
-}
-.command-palette__input::placeholder { color: var(--la-muted); }
-.command-palette__list { min-height: 0; overflow-y: auto; padding: 4px; }
-.command-palette__item {
-  display: flex;
-  width: 100%;
-  height: 32px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--la-text);
-  text-align: left;
-  font-size: 13px;
-  cursor: pointer;
-}
-.command-palette__item:hover, .command-palette__item.is-active { background: var(--la-layer-03); }
-.command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.command-palette__empty { margin: 0; padding: 16px 10px; color: var(--la-muted); font-size: 13px; }
-.app-toast { position: fixed; z-index: 60; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); padding: 8px 10px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-text); box-shadow: var(--la-shadow-overlay); font-size: 13px; transform: translateX(-50%); }
 @media (max-width: 767px) {
   .draft-stage { padding: clamp(32px, 12vh, 96px) 12px 32px; }
   .draft-wordmark { font-size: clamp(96px, 28vw, 160px); }
