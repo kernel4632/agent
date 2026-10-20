@@ -1,17 +1,23 @@
+<!--
+应用外壳：只负责视图切换、顶部标签和跨视图事件接线。
+页面在 home/、draft/、session/、settings/；命令面板、提示条和快捷键在 app/；导航、设置、反馈等动作由 commands/ 提供。
+入口：main.js 挂载本组件；调用示例：<Titlebar @palette="openPalette" />、<ConnectionError :message="store.ui.errorMessage" />、<CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />。
+-->
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import AppIcon from './ui/AppIcon.vue'
 import HomeView from './home/HomeView.vue'
 import DraftView from './draft/DraftView.vue'
 import SessionView from './session/SessionView.vue'
 import Titlebar from './app/Titlebar.vue'
 import CommandPalette from './app/CommandPalette.vue'
+import ConnectionError from './app/ConnectionError.vue'
 import Toast from './app/Toast.vue'
+import { usePalette } from './app/usePalette.js'
+import { createShortcutHandler } from './app/shortcuts.js'
 import ThemeProvider from './theme/ThemeProvider.vue'
 import { store } from './store.js'
 import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
-import { Config } from './commands/config.js'
 import { UI, activeSession } from './commands/ui.js'
 import { Tabs } from './commands/tabs.js'
 import { normalizeAppearance } from './theme/index.js'
@@ -79,29 +85,8 @@ async function openSession(id) {
   await Session.open(id)
 }
 
-// --- 命令面板：opencode 的 Ctrl/Cmd + K ---
-const paletteOpen = ref(false)
-const paletteItems = computed(() => {
-  const items = [
-    { id: 'new', label: '新建会话', hint: 'N', run: openDraft },
-    { id: 'home', label: '主页', hint: '', run: goHome },
-    { id: 'settings', label: '设置', hint: 'Ctrl ,', run: () => UI.openSettings() },
-  ]
-  for (const workspace of store.workspaces) {
-    for (const item of workspace.sessions || []) {
-      items.push({ id: `session:${item.id}`, label: item.title || '新会话', hint: workspace.name, run: () => openSession(item.id) })
-    }
-  }
-  return items
-})
-function openPalette() { paletteOpen.value = true }
-function closePalette() { paletteOpen.value = false }
-function runPalette(item) {
-  closePalette()
-  void item?.run?.()
-}
-
-async function newConversation() { await openDraft() }
+// --- 命令面板：列表和开关交给 app/usePalette，这里只把导航动作接进去 ---
+const { open: paletteOpen, items: paletteItems, openPalette, closePalette, run: runPalette } = usePalette({ openDraft, goHome, openSession })
 
 // 草稿页发送：先创建会话，把草稿和附件交过去，再走正常发送。
 async function submitMessage(content) {
@@ -143,43 +128,24 @@ function removeFile(id) {
   homeFiles.value = homeFiles.value.filter(file => file.id !== id)
 }
 
-function shortcuts(event) {
-  if (document.querySelector('dialog[open]')) return
-  if (paletteOpen.value) {
-    if (event.key === 'Escape') closePalette()
-    return
-  }
-  if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'k' || event.key.toLowerCase() === 'p')) {
-    event.preventDefault()
-    void openPalette()
-    return
-  }
-  if ((event.ctrlKey || event.metaKey) && event.key === ',') {
-    event.preventDefault()
-    UI.openSettings()
-    return
-  }
-  if (event.key === 'Escape') {
-    if (store.ui.settingsOpen) { event.preventDefault(); void UI.closeSettings(); return }
-    if (session.value?.status === 'running') Chat.stop(session.value.id)
-    return
-  }
-  if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing && !event.target.closest('input,textarea,select,[contenteditable]')) void newConversation()
-}
-
-async function retryConnection() {
-  store.ui.isLoading = true
-  await Config.load()
-  store.ui.isLoading = false
-}
+// --- 全局快捷键：keydown 细节在 app/shortcuts，这里只接状态读取和动作 ---
+const shortcuts = createShortcutHandler({
+  paletteOpen: () => paletteOpen.value,
+  openPalette,
+  closePalette,
+  openSettings: () => UI.openSettings(),
+  isSettingsOpen: () => store.ui.settingsOpen,
+  closeSettings: () => UI.closeSettings(),
+  session: () => session.value,
+  stopSession: id => Chat.stop(id),
+  newConversation: openDraft,
+})
 
 onMounted(() => {
-  Tabs.restore()
+  Tabs.restore()                                                     // 恢复上次打开的标签
   window.addEventListener('keydown', shortcuts)
 })
-onUnmounted(() => {
-  window.removeEventListener('keydown', shortcuts)
-})
+onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 </script>
 
 <template>
@@ -188,9 +154,7 @@ onUnmounted(() => {
       <Titlebar :mode="mode" @home="goHome" @new="openDraft" @select="openTab" @close="closeTab" @palette="openPalette" @settings="UI.openSettings()" />
 
       <main class="app-main">
-        <div v-if="store.ui.errorMessage" class="connection-error" role="alert">
-          <AppIcon name="info" :size="16" /><span>无法连接后端：{{ store.ui.errorMessage }}</span><button class="text-button" @click="retryConnection">重试</button>
-        </div>
+        <ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
 
         <SettingsPage v-if="mode === 'settings'" class="settings-panel" />
 
@@ -233,9 +197,4 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .app-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .panel { flex: 1; min-height: 0; margin: var(--la-content-inset); border-radius: var(--la-radius-panel); background: var(--la-panel); box-shadow: var(--la-shadow-raised); overflow: hidden; }
-.connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
-.connection-error span { flex: 1; overflow-wrap: anywhere; }
-@media (max-width: 767px) {
-  .connection-error { margin-inline: 8px; }
-}
 </style>

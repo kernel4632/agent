@@ -149,7 +149,7 @@ src/
 - 扫描 `src/settings`，普通按钮/文本输入/下拉框/开关不再直接出现；主题/颜色单选、列表选中项若没有对应控件，记录为下一阶段组件库缺口。
 - 验收：供应商增删改、模型发现/添加/移除、API Key 显示切换不变，UI 全过。
 
-### [ ] 阶段 8：主题和样式收口
+### [x] 阶段 8：主题和样式收口
 
 #### [x] 8a：主题适配层
 
@@ -164,7 +164,7 @@ src/
 - 删除 `Sidebar.vue`、`ToolExpansion.vue` 和 7 个不跑的旧 spec；清掉 sidebar 相关死状态、命令和 i18n 文案。
 - 验收：没有未引用文件；构建、单测、UI 全过。
 
-#### [ ] 8c：目录收口和 App 瘦身
+#### [x] 8c：目录收口和 App 瘦身
 
 - 把设置组件移到 `src/settings/components/`，把 `SettingsPage.vue` 移到 `src/settings/`，设置页只在 `settings/` 下。
 - 把 `AppIcon.vue` 移到 `src/ui/`，`components/` 只剩真正共享的组件或删除。

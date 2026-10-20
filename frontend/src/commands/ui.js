@@ -2,11 +2,12 @@
 界面指令：负责页面导航、设置开关、短时反馈和当前会话派生数据。
 组件只表达用户点了什么，跨页面状态修改集中在这里。
 派生视图数据也集中在这里，入口组件只消费不计算。
-调用示例：UI.openHome()、UI.openChat(id)、UI.openSettings()、UI.notify('已保存')。
+调用示例：UI.openHome()、UI.openChat(id)、UI.openSettings()、UI.notify('已保存')、UI.retry()。
 */
 import { computed } from 'vue'                                          // 引入响应式派生计算
 import { store } from '../store.js'                                     // 引入唯一工作台数据根
 import { Settings } from './settings.js'                                // 引入离开设置时的自动保存动作
+import { Config } from './config.js'                                    // 引入重新读取后端配置的动作用于重试
 import { t } from '../i18n.js'                                          // 引入当前语言反馈文案
 
 let toastTimer = null                                                    // 同一时间只保留一条全局反馈计时器
@@ -78,4 +79,15 @@ async function copy(text) {
 }
 
 
-export const UI = { openHome, openChat, openSettings, closeSettings, notify, copy }
+// --- 重试连接后端 ---
+async function retry() {
+  store.ui.isLoading = true                                          // 重试期间禁用发送等依赖连接的入口
+  try {
+    await Config.load()                                              // 成功后 Config.load 会清空错误文案
+  } finally {
+    store.ui.isLoading = false                                       // 无论成败都恢复可操作状态
+  }
+}
+
+
+export const UI = { openHome, openChat, openSettings, closeSettings, notify, copy, retry }

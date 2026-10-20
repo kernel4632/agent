@@ -1,3 +1,8 @@
+<!--
+图标适配层：把应用里稳定的图标名映射到 Hugeicons，其余代码只写 name。
+新增图标只改下面 icons 表：左边是应用内名称，右边是 Hugeicons 导出。
+调用示例：<AppIcon name="settings" />、<AppIcon name="info" :size="16" />
+-->
 <script setup>
 import { HugeiconsIcon } from '@hugeicons/vue'
 import {
