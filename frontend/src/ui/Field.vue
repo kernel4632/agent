@@ -1,10 +1,13 @@
 <!--
 通用输入框：单行输入和搜索框共用，multiline 时渲染 textarea。
 label 写入 aria-label，caption 是可选可见标题；leading / trailing 插槽放图标。
+size="small" 用于设置面板行内的紧凑输入框（28px），默认 normal 保持 36px。
+class/style 落在根节点，min/max/step/@change 等其他属性直接透传给输入控件。
 调用示例：
 <Field v-model="query" type="search" label="搜索会话" placeholder="搜索会话">
   <template #leading><AppIcon name="search" /></template>
 </Field>
+<Field v-model="limit" size="small" type="number" label="连续次数" @change="saveLimit" />
 -->
 <script setup>
 import { computed, useAttrs } from 'vue'
@@ -20,6 +23,7 @@ const props = defineProps({
   disabled: Boolean,
   multiline: Boolean,                                  // 为 true 时渲染 textarea
   rows: { type: [Number, String], default: undefined },
+  size: { type: String, default: 'normal' },           // normal 36px，small 28px 紧凑输入框
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -36,7 +40,7 @@ const inputAttrs = computed(() => {
 </script>
 
 <template>
-  <label v-bind="rootAttrs" class="ui-field" :class="{ 'ui-field--labeled': caption }">
+  <label v-bind="rootAttrs" class="ui-field" :class="{ 'ui-field--labeled': caption, 'ui-field--small': size === 'small' }">
     <span v-if="caption" class="ui-field__caption">{{ caption }}</span>
     <span class="ui-field__control">
       <span v-if="$slots.leading" class="ui-field__leading"><slot name="leading" /></span>
@@ -75,4 +79,14 @@ const inputAttrs = computed(() => {
 .ui-field__leading, .ui-field__trailing { display: inline-flex; flex: none; align-items: center; color: var(--la-muted); }
 .ui-field__input { width: 100%; min-width: 0; }
 .ui-field__input--multiline { height: auto; min-height: 72px; padding: 8px 10px; resize: vertical; }
+/* 设置面板行内的紧凑输入框：28px、面板底色、细边框，和原来的原生数字框一致。 */
+.ui-field--small .ui-field__input {
+  height: 28px;
+  padding: 0 7px;
+  border: .5px solid var(--la-line);
+  border-radius: 4px;
+  background: var(--la-panel);
+  color: var(--la-text);
+  font-size: 12px;
+}
 </style>

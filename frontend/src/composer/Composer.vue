@@ -1,6 +1,7 @@
 <!--
 会话输入区：消息输入、斜杠命令、附件、模型选择、发送和停止。
 会话页和新建会话页共用；只通过 v-model:draft 和事件与外面交互。
+消息编辑器和隐藏的 file input 是编辑器专用控件，保留原生实现，等后续编辑器组件到位后再替换。
 调用示例：
 <Composer
   ref="composer"
@@ -20,6 +21,9 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
+import Button from '../ui/Button.vue'
+import IconButton from '../ui/IconButton.vue'
+import Select from '../ui/Select.vue'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
 
@@ -30,6 +34,11 @@ const fileInput = ref(null)
 const editor = ref(null)
 const models = computed(() => Object.entries(store.config.providers).flatMap(([provider, config]) => config.enabled ? config.models.map(model => ({ provider, model })) : []))
 const selection = computed(() => JSON.stringify([store.config.activeProvider, store.config.activeModel]))
+// 下拉框的 value 仍是 [供应商, 模型] 的 JSON 字符串，和原来原生 select 的取值方式一致。
+const modelOptions = computed(() => models.value.map(item => ({
+  value: JSON.stringify([item.provider, item.model]),
+  label: `${item.provider} / ${item.model}`,
+})))
 
 // --- 斜杠命令菜单 ---
 const slashIndex = ref(0)
@@ -66,8 +75,9 @@ function expand(text) {
   return args ? `${command.prompt}\n\n${args}` : command.prompt
 }
 
-function chooseModel(event) {
-  const [provider, model] = JSON.parse(event.target.value)
+// Select 只上抛字符串值，这里再解析回供应商和模型；和原来读 event.target.value 一样。
+function chooseModel(value) {
+  const [provider, model] = JSON.parse(value)
   store.config.activeProvider = provider
   store.config.activeModel = model
 }
@@ -107,28 +117,28 @@ defineExpose({ focus: () => editor.value?.focus() })
   <div class="composer-area">
     <form class="chat-composer" aria-label="对话编辑器" @submit.prevent="submit">
       <div v-if="files.length" class="chat-composer__files">
-        <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="14" />{{ file.name }}<button type="button" class="icon-button" :aria-label="`移除附件 ${file.name}`" @click="emit('remove-file', file.id)"><AppIcon name="close" :size="13" /></button></span>
+        <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="14" />{{ file.name }}<IconButton :label="`移除附件 ${file.name}`" @click="emit('remove-file', file.id)"><AppIcon name="close" :size="13" /></IconButton></span>
       </div>
       <div v-if="slashMatches.length" class="chat-composer__slash" role="listbox" aria-label="斜杠命令">
-        <button v-for="(command, index) in slashMatches" :key="command.name" type="button" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
+        <Button v-for="(command, index) in slashMatches" :key="command.name" variant="plain" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
           <span class="chat-composer__slash-name">/{{ command.name }}</span>
           <span class="chat-composer__slash-description">{{ command.description }}</span>
-        </button>
+        </Button>
       </div>
+      <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
       <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
       <div class="chat-composer__toolbar">
         <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>Build</span></slot></div>
         <div class="chat-composer__actions">
-          <select v-if="canSelectModel && models.length" class="chat-composer__model" aria-label="新对话使用的模型" :value="selection" :disabled="busy" @change="chooseModel">
-            <option v-for="item in models" :key="JSON.stringify(item)" :value="JSON.stringify([item.provider, item.model])">{{ item.provider }} / {{ item.model }}</option>
-          </select>
-          <button v-else-if="!selectedModel" type="button" class="text-button" @click="UI.openSettings('providers')">连接模型</button>
+          <Select v-if="canSelectModel && models.length" class="chat-composer__model" label="新对话使用的模型" :model-value="selection" :options="modelOptions" :disabled="busy" @update:model-value="chooseModel" />
+          <Button v-else-if="!selectedModel" variant="ghost" @click="UI.openSettings('providers')">连接模型</Button>
           <span v-else class="chat-composer__model" :title="selectedModel">{{ selectedModel }}</span>
-          <button class="icon-button" type="button" aria-label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="19" /></button>
-          <button v-if="isRunning" class="chat-composer__send" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="15" /></button>
-          <button v-else class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></button>
+          <IconButton label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="19" /></IconButton>
+          <Button v-if="isRunning" variant="plain" class="chat-composer__send" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="15" /></Button>
+          <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
         </div>
       </div>
+      <!-- 隐藏的 file input 是编辑器专用控件：由上面的附件按钮触发，保留原生实现。 -->
       <input ref="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.css,.scss,.html,.vue,.py,.go,.rs,.yaml,.yml,.csv,.xml,.sh,.log" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
     </form>
     <div class="composer-footnote"><span>Enter 发送 · Shift + Enter 换行</span><span v-if="contextTokens">{{ contextTokens.toLocaleString() }} tokens</span><span v-else>请核实重要信息</span></div>
@@ -210,8 +220,22 @@ defineExpose({ focus: () => editor.value?.focus() })
     white-space: nowrap;
     cursor: pointer;
   }
+  /* Select 的根节点负责限宽，内层 select 保持原来的透明、单行省略外观。 */
+  &__model :deep(.ui-select__input) {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  &__model :deep(.ui-select__input:focus) { box-shadow: none; }
   &__model:hover { background: var(--la-layer-02); color: var(--la-text); }
-  &__model option { background: var(--la-panel); color: var(--la-text); }
+  &__model :deep(.ui-select__input option) { background: var(--la-panel); color: var(--la-text); }
   &__send {
     display: grid;
     place-items: center;

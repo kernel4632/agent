@@ -1,12 +1,15 @@
 <!--
 会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
 只被会话页使用；自己从 store 读当前会话，不需要传 props。
+按钮和图标按钮走 ui/；回退勾选框暂留原生，等 checkbox / switch 控件到位后再换。
 调用示例：
 <Timeline :key="session.id" />
 -->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../ui/AppIcon.vue'
+import Button from '../ui/Button.vue'
+import IconButton from '../ui/IconButton.vue'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
@@ -60,12 +63,12 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
         <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
         <details v-for="tool in message.tools || []" :key="tool.id" class="tool-card" :open="tool.status === 'waiting' || tool.status === 'running'">
           <summary><AppIcon name="code" :size="14" /><strong>{{ tool.name }}</strong><span :class="{ 'tool-warning': tool.status === 'waiting' }">{{ toolLabel(tool.status) }}</span><AppIcon name="down" :size="12" /></summary>
-          <div class="tool-card__body"><pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre><pre v-if="tool.preview">{{ tool.preview }}</pre><div v-if="tool.status === 'waiting'" class="approval"><p>此操作需要你的许可。请检查上方工具及参数。</p><div><button class="button button--danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</button><button class="button" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</button><button class="button button--primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</button></div></div></div>
+          <div class="tool-card__body"><pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre><pre v-if="tool.preview">{{ tool.preview }}</pre><div v-if="tool.status === 'waiting'" class="approval"><p>此操作需要你的许可。请检查上方工具及参数。</p><div><Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button><Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button><Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button></div></div></div>
         </details>
         <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
         <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
       </template>
-      <div v-if="!message.isStreaming" class="message__actions"><button class="icon-button" aria-label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></button><button v-if="message.role === 'user' && !message.id.startsWith('pending_')" class="icon-button" aria-label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(message)"><AppIcon name="branch" :size="14" /></button></div>
+      <div v-if="!message.isStreaming" class="message__actions"><IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton><IconButton v-if="message.role === 'user' && !message.id.startsWith('pending_')" size="small" label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton><IconButton v-if="message.role === 'user' && !message.id.startsWith('pending_')" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(message)"><AppIcon name="branch" :size="14" /></IconButton></div>
     </section>
     <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退">
       <h2>回到这条消息之前？</h2>
@@ -74,12 +77,13 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
         <span>这一段的改动（{{ rollbackPreview.files.length }} 个文件）</span>
         <ul><li v-for="file in rollbackPreview.files" :key="file.path">{{ file.path }}</li></ul>
       </label>
+      <!-- 回退勾选框是专用 checkbox，本阶段保留原生；后续换成 ui 的 checkbox / switch 控件。 -->
       <label class="rollback-choice">
         <input v-model="rollbackFiles" type="checkbox" />
         <span>同时把文件改回原样</span>
       </label>
       <p class="rollback-hint">{{ rollbackFiles ? '文件和对话一起退回这一步之前。' : '只退对话，工作区里的文件保持现在的样子。' }}</p>
-      <div class="dialog-actions"><button class="button" @click="rollbackDialog.close()">取消</button><button class="button button--primary" @click="confirmRollback">确认回退</button></div>
+      <div class="dialog-actions"><Button @click="rollbackDialog.close()">取消</Button><Button variant="primary" @click="confirmRollback">确认回退</Button></div>
     </dialog>
   </div>
 </template>
@@ -103,7 +107,6 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 .message__actions { display: flex; gap: 1px; margin-top: 4px; opacity: 0; }
 .message--user .message__actions { justify-content: flex-end; }
 .message:hover .message__actions, .message:focus-within .message__actions { opacity: 1; }
-.message__actions .icon-button { width: 24px; height: 24px; }
 .markdown-body { color: var(--la-text); font-size: 13.5px; line-height: 1.9; overflow-wrap: anywhere; }
 .markdown-body :deep(p) { margin: 0 0 12px; }
 .markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { line-height: 1.5; font-weight: 530; margin: 20px 0 10px; }
