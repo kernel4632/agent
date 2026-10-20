@@ -4,10 +4,11 @@
  * MCP 服务的配置写在配置文件的 mcp 字段里，一个服务一项，键是服务名：
  *   {
  *     "mcp": {
- *       "everything": { "command": "bun", "args": ["server.js"] }
+ *       "everything": { "command": "bun", "args": ["server.js"] },
+ *       "remote": { "transport": "sse", "url": "https://example.com/sse" }
  *     }
  *   }
-  * 连上的服务给出一批工具（工具名是 服务名_原名），和内置工具一起交给模型。
+ * 连上的服务给出一批工具（工具名是 服务名_原名），和内置工具一起交给模型。
   * 调用示例：
   *   const tools = await Mcp.tools()   // 全部已连服务的工具，拼进 Agent.tool.from(...)
   *   await Mcp.close()                 // 断开全部服务；测试里用它收尾，进程退出时子进程会自己结束
@@ -32,14 +33,25 @@ const connect = async name => {
     if (definition.enabled === false) return null // 用户先禁用了，等打开再连。
 
     try {
-        const client = await createMCPClient({
-            transport: new Stdio({
+        /*
+         * 三种传输方式：
+         *   - stdio：本地进程，用 command/args/env。
+         *   - sse / http：远程地址，用 url；老配置把地址写在 command 里也认。
+         */
+        const transport = definition.transport === 'sse' || definition.transport === 'http'
+            ? {
+                type: definition.transport,
+                url: definition.url || definition.command,
+                headers: definition.headers,
+            }
+            : new Stdio({
                 command: definition.command,
                 args: definition.args || [],
                 // 服务自己的环境变量写在配置里，方便带 API Key 之类的凭据。
                 env: { ...process.env, ...(definition.env || {}) },
-            }),
-        })
+            })
+
+        const client = await createMCPClient({ transport })
         const tools = await client.tools()
         connections.set(name, { client, tools })
         return tools

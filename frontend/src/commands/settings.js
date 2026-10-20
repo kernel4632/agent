@@ -18,6 +18,7 @@ function backendSnapshot(draft) {
     prompt: draft.prompt,
     rules: draft.rules,
     modes: draft.modeDefinitions,
+    mcp: draft.mcp,
     diagnostics: draft.diagnostics,
     snapshot: draft.snapshot,
   })
@@ -76,6 +77,8 @@ async function save() {
     }
     const names = (draft.providers || []).map(provider => provider.name.trim())
     if (names.some(name => !name) || new Set(names).size !== names.length) throw new Error('供应商名称不能为空或重复')
+    const mcpNames = (draft.mcp || []).map(item => (item.name || '').trim())
+    if (mcpNames.some(name => !name) || new Set(mcpNames).size !== mcpNames.length) throw new Error('MCP 服务名称不能为空或重复')
     const providers = (draft.providers || []).map(provider => ({
       ...(store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name)),
       name: provider.name.trim(),
@@ -89,9 +92,24 @@ async function save() {
         return original === undefined ? id : isolateDraft(original)
       }),
     }))
+    // MCP 数组转回后端认的对象：键是服务名；远程服务存 url，本地服务存 command。
+    const mcp = {}
+    for (const item of draft.mcp || []) {
+      const definition = { ...(item.definition || {}) }
+      if (definition.transport === 'sse' || definition.transport === 'http') {
+        definition.url = item.command || ''
+        delete definition.command
+      } else {
+        definition.command = item.command || ''
+        delete definition.url
+      }
+      definition.enabled = item.enabled !== false
+      mcp[(item.name || '').trim()] = definition
+    }
     await AgentAPI.updateConfig({
       ...JSON.parse(JSON.stringify(store.config.raw || {})),
       providers,
+      mcp,
       prompt: { ...store.config.raw?.prompt, system: draft.prompt },
       rules: draft.rules,
       modes: draft.modeDefinitions,

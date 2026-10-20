@@ -75,6 +75,19 @@ description: 审查一个 PR 时用这个
 }
 ```
 
+远程服务用 `transport` 指定传输方式，地址写在 `url`：
+
+```json
+{
+  "mcp": {
+    "remote-sse": { "transport": "sse", "url": "https://example.com/sse" },
+    "remote-http": { "transport": "http", "url": "https://example.com/mcp" }
+  }
+}
+```
+
+需要请求头时加 `"headers": { "Authorization": "Bearer ..." }`。
+
 - 键名是服务名，工具名会带上这个前缀（上面服务里的 `echo` 变成 `everything_echo`），两个服务撞名时不会互相覆盖
 - 连上是慢的，所以连过一次就留着；配置里删掉某个服务，下一次建会话时它的连接和工具一起消失
 - 某个服务连不上只会跳过它，会话照常创建，失败原因通过 SSE 的 `mcp-error` 事件推给前端

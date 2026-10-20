@@ -4,6 +4,7 @@ import AppIcon from '../AppIcon.vue'
 import ProviderSettings from './ProviderSettings.vue'
 import PromptsSettings from './PromptsSettings.vue'
 import AdvancedSettings from './AdvancedSettings.vue'
+import MCPSettings from './MCPSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
 import { Settings } from '../../commands/settings.js'
 import { UI } from '../../commands/ui.js'
@@ -15,7 +16,7 @@ const sections = [
   { id: 'prompts', label: '系统提示词', icon: 'document' },
   { id: 'advanced', label: '高级', icon: 'code' },
   { id: 'tools', label: '工具管理', icon: 'code', disabled: true },
-  { id: 'mcp', label: 'MCP 服务', icon: 'link', disabled: true },
+  { id: 'mcp', label: 'MCP 服务', icon: 'link' },
   { id: 'data', label: '数据管理', icon: 'folder', disabled: true },
 ]
 const dialog = ref(null)
@@ -64,6 +65,7 @@ async function save() {
             v-model:diagnostics="draft.diagnostics"
             v-model:snapshot="draft.snapshot"
           />
+          <MCPSettings v-else-if="selected === 'mcp'" v-model:mcp="draft.mcp" />
           <AppearanceSettings v-else :appearance="draft.appearance" @change="draft.appearance[$event.field] = $event.value" />
         </div>
         <footer class="settings-footer">

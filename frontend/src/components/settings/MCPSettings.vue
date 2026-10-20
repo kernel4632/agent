@@ -7,7 +7,7 @@ MCP 服务管理：展示已配置的 MCP 服务连接，支持编辑、删除�
 <script setup>
 import { computed, ref, watch } from 'vue'                  // 引入响应式状态、计算和监听
 import { HugeiconsIcon } from '@hugeicons/vue'
-import { Delete01Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, Delete01Icon } from '@hugeicons/core-free-icons'
 import { ICON_STROKE_WIDTH } from '../../theme.js'
 
 const props = defineProps({
@@ -17,11 +17,27 @@ const emit = defineEmits(['update:mcp'])                     // 输出变更后�
 
 const selectedID = ref(props.mcp[0]?.id ?? '')              // 默认选中首个 MCP 服务
 const selectedItem = computed(() => props.mcp.find(item => item.id === selectedID.value) ?? null) // 选中项完整对象
+const remote = computed(() => ['sse', 'http'].includes(selectedItem.value?.definition?.transport)) // 远程服务填 URL，本地服务填命令
 const deleteDialog = ref(null)
 
 
 function requestRemove() {
   deleteDialog.value.show()
+}
+
+// --- 新增一个空服务 ---
+function addMCP() {
+  let number = props.mcp.length + 1
+  while (props.mcp.some(item => item.name === `MCP ${number}`)) number += 1
+  const id = crypto.randomUUID()
+  emit('update:mcp', [...props.mcp, {
+    id,
+    name: `MCP ${number}`,
+    command: '',
+    enabled: true,
+    definition: { transport: 'stdio', args: [], env: {} },
+  }])
+  selectedID.value = id
 }
 
 function removeMCP() {
@@ -81,6 +97,10 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   <section class="mcp-settings">
     <!-- 左侧 MCP 列表。 -->
     <aside class="mcp-settings__list" aria-label="MCP 服务列表">
+      <header class="mcp-settings__list-head">
+        <span>MCP 服务</span>
+        <button type="button" class="icon-button" aria-label="添加 MCP 服务" title="添加 MCP 服务" @click="addMCP"><HugeiconsIcon :icon="Add01Icon" :stroke-width="ICON_STROKE_WIDTH" :size="16" /></button>
+      </header>
       <m3e-action-list class="mcp-settings__items" aria-label="MCP 服务">
         <m3e-list-action
           v-for="item in props.mcp"
@@ -118,21 +138,22 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
               <m3e-select @change="updateDefinition('transport', $event.currentTarget.value)">
                 <m3e-option value="stdio" :selected="(selectedItem.definition?.transport || 'stdio') === 'stdio'">stdio（标准输入输出）</m3e-option>
                 <m3e-option value="sse" :selected="selectedItem.definition?.transport === 'sse'">SSE（HTTP 流）</m3e-option>
+                <m3e-option value="http" :selected="selectedItem.definition?.transport === 'http'">HTTP（流）</m3e-option>
               </m3e-select>
         </m3e-form-field>
 
         <!-- 启动命令。 -->
         <m3e-form-field class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
-              <label slot="label">{{ selectedItem.definition?.transport === 'sse' ? '服务地址（URL）' : '启动命令' }}</label>
+              <label slot="label">{{ remote ? '服务地址（URL）' : '启动命令' }}</label>
               <input
                 :value="selectedItem.command"
-                :placeholder="selectedItem.definition?.transport === 'sse' ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
+                :placeholder="remote ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
                 @input="updateField('command', $event.currentTarget.value)"
               />
         </m3e-form-field>
 
         <!-- 启动参数（仅 stdio）。 -->
-        <m3e-form-field v-if="selectedItem.definition?.transport !== 'sse'" class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
+        <m3e-form-field v-if="!remote" class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
               <label slot="label">启动参数（每行一个）</label>
               <textarea
                 :value="(selectedItem.definition?.args || []).join('\n')"
@@ -143,7 +164,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
         </m3e-form-field>
 
         <!-- 环境变量（仅 stdio）。 -->
-        <m3e-form-field v-if="selectedItem.definition?.transport !== 'sse'" class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
+        <m3e-form-field v-if="!remote" class="mcp-settings__field-full" variant="outlined" hide-subscript="always">
               <label slot="label">环境变量（JSON 格式）</label>
               <textarea
                 :value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)"
@@ -203,6 +224,16 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   flex-direction: column;
   gap: 4px;
   padding: 4px;
+}
+
+.mcp-settings__list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 8px 10px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
 }
 
 .mcp-settings__list-item {
