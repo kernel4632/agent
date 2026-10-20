@@ -19,8 +19,20 @@ const homeFiles = ref([])
 const creating = ref(false)
 const draftOpen = ref(false)
 const draftKey = ref('')
+const reviewOpen = ref(false)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const selectedWorkspace = computed(() => store.workspaces.find(item => item.id === store.ui.activeWorkspaceID) || store.workspaces[0])
+const workspaceFiles = computed(() => selectedWorkspace.value?.files || [])
+const changedFiles = computed(() => {
+  const files = new Set()
+  for (const message of session.value?.messages || []) {
+    for (const tool of message.tools || []) {
+      const path = tool.input?.path ?? tool.input?.filePath ?? tool.input?.file_path
+      if (typeof path === 'string' && path) files.add(path)
+    }
+  }
+  return [...files]
+})
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : draftOpen.value ? 'draft' : session.value ? 'session' : 'home')
 const draft = computed({
   get: () => session.value ? session.value.draft : homeDraft.value,
@@ -131,6 +143,58 @@ const tabColor = tab => {
   return palette[value % palette.length]
 }
 
+// --- 命令面板：opencode 的 Ctrl/Cmd + K ---
+const paletteOpen = ref(false)
+const paletteQuery = ref('')
+const paletteInput = ref(null)
+const paletteIndex = ref(0)
+const paletteItems = computed(() => {
+  const query = paletteQuery.value.trim().toLowerCase()
+  const items = [
+    { id: 'new', label: '新建会话', hint: 'N', run: openDraft },
+    { id: 'home', label: '主页', hint: '', run: goHome },
+    { id: 'settings', label: '设置', hint: 'Ctrl ,', run: () => UI.openSettings() },
+  ]
+  for (const workspace of store.workspaces) {
+    for (const item of workspace.sessions || []) {
+      items.push({ id: `session:${item.id}`, label: item.title || '新会话', hint: workspace.name, run: () => openSession(item.id) })
+    }
+  }
+  return items
+    .filter(item => !query || item.label.toLowerCase().includes(query) || (item.hint || '').toLowerCase().includes(query))
+    .slice(0, 12)
+})
+async function openPalette() {
+  paletteOpen.value = true
+  paletteQuery.value = ''
+  paletteIndex.value = 0
+  await nextTick()
+  paletteInput.value?.focus()
+}
+function closePalette() { paletteOpen.value = false }
+function runPalette(item) {
+  closePalette()
+  void item?.run?.()
+}
+function paletteKeydown(event) {
+  if (event.key === 'Escape') { event.preventDefault(); closePalette(); return }
+  if (!paletteItems.value.length) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    paletteIndex.value = (paletteIndex.value + 1) % paletteItems.value.length
+    return
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    paletteIndex.value = (paletteIndex.value - 1 + paletteItems.value.length) % paletteItems.value.length
+    return
+  }
+  if (event.key === 'Enter' && !event.isComposing) {
+    event.preventDefault()
+    runPalette(paletteItems.value[paletteIndex.value])
+  }
+}
+
 watchEffect(() => {
   const theme = document.querySelector('m3e-theme')
   if (!theme) return
@@ -138,9 +202,12 @@ watchEffect(() => {
   for (const key of ['color', 'variant', 'contrast', 'density', 'motion']) theme.setAttribute(key, String(appearance.value[key]))
   theme.toggleAttribute('strong-focus', appearance.value.strongFocus)
   theme.toggleAttribute('reduced-motion', appearance.value.reduceMotion)
-  theme.style.setProperty('--la-accent', `color-mix(in srgb, ${appearance.value.color} ${scheme.value === 'dark' ? '85%, white 15%' : '65%, #163154 35%'})`)
-  theme.style.setProperty('--la-accent-soft', `color-mix(in srgb, ${appearance.value.color} 10%, transparent)`)
-  theme.style.setProperty('--la-accent-border', `color-mix(in srgb, ${appearance.value.color} 30%, transparent)`)
+  const accent = scheme.value === 'dark'
+    ? `color-mix(in srgb, ${appearance.value.color} 70%, white 30%)`
+    : appearance.value.color
+  theme.style.setProperty('--la-accent', accent)
+  theme.style.setProperty('--la-accent-soft', `color-mix(in srgb, ${accent} 10%, transparent)`)
+  theme.style.setProperty('--la-accent-border', `color-mix(in srgb, ${accent} 30%, transparent)`)
 }, { flush: 'post' })
 
 async function newConversation() { await openDraft() }
@@ -188,6 +255,15 @@ function removeFile(id) {
 
 function shortcuts(event) {
   if (document.querySelector('dialog[open]')) return
+  if (paletteOpen.value) {
+    if (event.key === 'Escape') closePalette()
+    return
+  }
+  if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'k' || event.key.toLowerCase() === 'p')) {
+    event.preventDefault()
+    void openPalette()
+    return
+  }
   if ((event.ctrlKey || event.metaKey) && event.key === ',') {
     event.preventDefault()
     UI.openSettings()
@@ -235,6 +311,7 @@ onUnmounted(() => {
           <button class="tab-new" aria-label="新建对话" title="新建对话" @click="openDraft"><AppIcon name="plus" :size="15" /></button>
         </div>
         <div class="titlebar__right">
+          <button class="icon-button" aria-label="命令面板" title="命令面板 (Ctrl K)" @click="openPalette"><AppIcon name="search" :size="15" /></button>
           <button class="icon-button" aria-label="设置" title="设置" @click="UI.openSettings()"><AppIcon name="settings" :size="16" /></button>
         </div>
       </header>
@@ -282,11 +359,13 @@ onUnmounted(() => {
               <option v-for="item in modelOptions" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.provider }} / {{ item.model }}</option>
             </select>
             <div class="session-header__actions">
+              <button class="icon-button session-review-toggle" :class="{ 'is-active': reviewOpen }" title="文件面板" aria-label="文件面板" @click="reviewOpen = !reviewOpen"><AppIcon name="panel" :size="15" /></button>
               <button class="icon-button" title="复制会话 ID" aria-label="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="15" /></button>
               <button class="icon-button" title="创建分支" aria-label="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="15" /></button>
             </div>
           </header>
           <div class="session-body">
+            <div class="session-main">
             <div class="session-scroll">
               <ConversationFlow :key="session.id" />
             </div>
@@ -345,6 +424,25 @@ onUnmounted(() => {
                 </template>
               </ChatComposer>
             </div>
+            </div>
+            <aside v-if="reviewOpen" class="session-review" aria-label="文件面板">
+              <header class="session-review__head">
+                <span>文件</span>
+                <button class="icon-button" aria-label="关闭文件面板" @click="reviewOpen = false"><AppIcon name="close" :size="14" /></button>
+              </header>
+              <div class="session-review__body">
+                <section class="session-review__section">
+                  <h2>本次改动</h2>
+                  <button v-for="file in changedFiles" :key="file" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</button>
+                  <p v-if="!changedFiles.length">本次会话没有文件改动</p>
+                </section>
+                <section class="session-review__section">
+                  <h2>工作区文件</h2>
+                  <button v-for="file in workspaceFiles" :key="file" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</button>
+                  <p v-if="!workspaceFiles.length">没有可显示的文件</p>
+                </section>
+              </div>
+            </aside>
           </div>
         </section>
 
@@ -353,6 +451,18 @@ onUnmounted(() => {
           <button class="icon-button" aria-label="关闭提示" @click="store.ui.toast = ''"><AppIcon name="close" :size="13" /></button>
         </div>
       </main>
+
+      <div v-if="paletteOpen" class="command-palette" role="dialog" aria-label="命令面板" @click.self="closePalette">
+        <div class="command-palette__panel">
+          <input ref="paletteInput" v-model="paletteQuery" class="command-palette__input" type="search" aria-label="搜索命令" placeholder="搜索命令或会话" @keydown="paletteKeydown" />
+          <div class="command-palette__list" role="listbox" aria-label="命令">
+            <button v-for="(item, index) in paletteItems" :key="item.id" class="command-palette__item" :class="{ 'is-active': index === paletteIndex }" role="option" :aria-selected="index === paletteIndex" @click="runPalette(item)">
+              <span>{{ item.label }}</span><small>{{ item.hint }}</small>
+            </button>
+            <p v-if="!paletteItems.length" class="command-palette__empty">没有匹配的命令</p>
+          </div>
+        </div>
+      </div>
     </div>
   </m3e-theme>
 </template>
@@ -413,8 +523,8 @@ onUnmounted(() => {
 .connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 .draft-panel { position: relative; }
-.draft-stage { position: relative; height: 100%; overflow: auto; }
-.draft-inner { position: absolute; top: 25.375%; left: 50%; width: 100%; max-width: 880px; padding: 0 24px; transform: translateX(-50%); }
+.draft-stage { display: flex; min-height: 100%; flex-direction: column; align-items: center; overflow: auto; padding: clamp(40px, 18vh, 180px) 24px 48px; }
+.draft-inner { width: 100%; max-width: 880px; padding: 0; }
 .draft-wordmark { width: 80%; max-width: 720px; margin: 0 auto; color: var(--la-text); font-family: var(--la-font-sans); font-size: clamp(120px, 18vw, 220px); font-weight: 700; line-height: .9; letter-spacing: -.08em; text-align: center; opacity: .11; user-select: none; }
 .draft-form { position: relative; margin-top: 32px; }
 .draft-meta { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
@@ -430,8 +540,21 @@ onUnmounted(() => {
 .session-model option { background: var(--la-panel); color: var(--la-text); }
 .session-header__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .session-model + .session-header__actions { margin-left: 4px; }
-.session-body { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.session-body { display: flex; min-height: 0; flex: 1; }
+.session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
+.session-review-toggle.is-active { background: var(--la-layer-03); color: var(--la-text); }
+.session-review { display: flex; width: 280px; flex: 0 0 280px; flex-direction: column; min-height: 0; border-left: .5px solid var(--la-line); background: var(--la-panel); }
+.session-review__head { display: flex; height: 48px; flex: none; align-items: center; justify-content: space-between; padding: 0 8px 0 14px; border-bottom: .5px solid var(--la-line); color: var(--la-text); font-size: 13px; font-weight: 530; }
+.session-review__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow-y: auto; padding: 8px 10px 20px; }
+.session-review__section { display: flex; flex-direction: column; gap: 2px; }
+.session-review__section h2 { margin: 8px 4px 4px; color: var(--la-muted); font-size: 12px; font-weight: 530; }
+.session-review__section p { margin: 4px; color: var(--la-muted); font-size: 12px; line-height: 18px; }
+.session-review__file { display: block; width: 100%; min-height: 24px; padding: 3px 6px; overflow: hidden; border: 0; border-radius: 4px; background: transparent; color: var(--la-secondary); text-align: left; font: 12px/18px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.session-review__file:hover { background: var(--la-hover); color: var(--la-text); }
+@media (max-width: 1023px) {
+  .session-review, .session-review-toggle { display: none; }
+}
 .session-composer { width: 100%; max-width: 860px; flex: none; margin: 0 auto; padding: 8px 20px 16px; }
 .chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 9px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
 .chat-more { display: flex; flex-wrap: wrap; gap: 20px; max-height: 340px; margin-bottom: 8px; padding: 16px; overflow-y: auto; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
@@ -450,12 +573,64 @@ onUnmounted(() => {
 .composer-mode:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
 .composer-mode.is-active { color: var(--la-accent); }
 .composer-mode:disabled { opacity: .5; }
+.command-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 16px 16px;
+  background: var(--la-scrim);
+}
+.command-palette__panel {
+  display: flex;
+  width: min(560px, 100%);
+  max-height: min(480px, 70vh);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--la-layer-01);
+  box-shadow: var(--la-shadow-overlay);
+}
+.command-palette__input {
+  height: 44px;
+  flex: none;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: .5px solid var(--la-line);
+  outline: 0;
+  background: transparent;
+  color: var(--la-text);
+  font: 13px/20px var(--la-font-sans);
+}
+.command-palette__input::placeholder { color: var(--la-muted); }
+.command-palette__list { min-height: 0; overflow-y: auto; padding: 4px; }
+.command-palette__item {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--la-text);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.command-palette__item:hover, .command-palette__item.is-active { background: var(--la-layer-03); }
+.command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.command-palette__empty { margin: 0; padding: 16px 10px; color: var(--la-muted); font-size: 13px; }
 .app-toast { position: fixed; z-index: 60; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); padding: 8px 10px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-text); box-shadow: var(--la-shadow-overlay); font-size: 13px; transform: translateX(-50%); }
 @media (max-width: 767px) {
   .titlebar { padding: 0 6px; }
   .titlebar__channel { display: none; }
   .tab__title { max-width: 120px; }
-  .draft-inner { top: 18%; padding: 0 12px; }
+  .draft-stage { padding: clamp(32px, 12vh, 96px) 12px 32px; }
   .draft-wordmark { font-size: clamp(96px, 28vw, 160px); }
   .draft-meta__path { display: none; }
   .session-composer { padding: 6px 8px max(10px, env(safe-area-inset-bottom)); }

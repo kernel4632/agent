@@ -317,8 +317,8 @@ async function submitDialog() {
 .home-empty strong { color: var(--la-text); font-size: 13px; font-weight: 530; }
 .home-empty p { max-width: 360px; margin: 0 0 8px; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
 .home-mobile-project { display: none; }
-@media (max-width: 767px) {
-  .home-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); align-content: start; gap: 8px; padding: 12px; }
+@media (max-width: 1023px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); align-content: start; gap: 8px; padding: 16px 16px 32px; }
   .home-projects { display: none; }
   .home-mobile-project {
     display: flex;
@@ -330,6 +330,10 @@ async function submitDialog() {
     background: var(--la-layer-01);
   }
   .home-mobile-project select { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--la-text); font-size: 13px; }
+  .home-sessions { padding-top: 0; }
+}
+@media (max-width: 767px) {
+  .home-grid { padding: 12px; }
   .home-sessions { padding-top: 4px; }
   .home-session__project { display: none; }
   .home-session { height: 48px; }

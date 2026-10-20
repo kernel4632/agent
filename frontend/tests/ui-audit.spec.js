@@ -24,7 +24,7 @@ async function backend(page, { configured = true } = {}) {
     if (path === '/config/read') return json(config)
     if (path === '/config/set') { config = body; return json(config) }
     if (path === '/session/list') return json([...sessions.values()])
-    if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: [], git: null })
+    if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
     if (path === '/tool/list') return json([
       { name: 'file_read', kind: 'read', permission: 'ask' },
@@ -144,7 +144,12 @@ test('empty home, accessible navigation and unsupported capabilities', async ({ 
   await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: '搜索会话' })).toBeVisible()
   await screenshot(page, testInfo, 'home')
-  await page.getByRole('searchbox').fill('不存在的关键词')
+  await page.keyboard.press('Control+k')
+  await expect(page.getByRole('dialog', { name: '命令面板' })).toBeVisible()
+  await expect(page.getByRole('searchbox', { name: '搜索命令' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: '命令面板' })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: '搜索会话' }).fill('不存在的关键词')
   await expect(page.getByText('没有找到匹配的会话')).toBeVisible()
   await page.getByRole('button', { name: '清除搜索' }).click()
   await page.getByRole('button', { name: '新建会话', exact: true }).first().click()
@@ -170,6 +175,13 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
   await expect(page.getByRole('button', { name: '停止生成' })).toHaveCount(0)
   await screenshot(page, testInfo, 'chat')
+  if (testInfo.project.name === 'desktop') {
+    await page.getByRole('button', { name: '文件面板', exact: true }).click()
+    await expect(page.getByRole('complementary', { name: '文件面板' })).toBeVisible()
+    await expect(page.getByText('src/main.js', { exact: true })).toBeVisible()
+    await screenshot(page, testInfo, 'review')
+    await page.getByRole('button', { name: '关闭文件面板', exact: true }).click()
+  }
   await page.locator('.message--user').first().hover()
   await page.getByRole('button', { name: '回退到此消息' }).click()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()

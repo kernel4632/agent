@@ -33,6 +33,7 @@ async function load() {
       name: workspace?.path?.split(/[/\\]/).filter(Boolean).pop() || '本机会话',
       path: workspace?.path || '',
       git: workspace?.git || null,
+      files: Array.isArray(workspace?.files) ? workspace.files : [],
       sessions: sessions.map(summaryOf),
     })
     store.ui.activeWorkspaceID = id

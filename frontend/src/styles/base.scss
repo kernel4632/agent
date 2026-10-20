@@ -1,10 +1,11 @@
 :root {
-  font-family: var(--la-font-sans);
+  font-family: "Maple Mono NF CN", "MapleMono NF CN", Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   font-size: 13px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 20px;
-  letter-spacing: -.04px;
+  letter-spacing: 0;
+  font-variant-ligatures: none;
   --motion-spring-bouncy: cubic-bezier(.22,1,.36,1);
   --motion-duration-spring: 220ms;
   --motion-duration-press: 80ms;
@@ -24,6 +25,7 @@ button svg { flex-shrink: 0; }
 m3e-theme {
   display: block;
   height: 100%;
+  font-family: var(--la-font-sans);
   color: var(--la-text);
   background: var(--la-bg);
   color-scheme: dark;
@@ -91,12 +93,12 @@ m3e-theme[scheme="light"] { color-scheme: light; }
 .switch {
   appearance: none; position: relative; flex: 0 0 24px; width: 24px; height: 16px; margin: 0; padding: 0;
   border: 0; border-radius: 4px; background: var(--la-layer-04); cursor: pointer;
-  box-shadow: inset 0 1px 1px #00000014, inset 0 0 0 .5px #0000001a;
+  box-shadow: inset 0 1px 2px #00000014, inset 0 0 0 1px var(--la-line-strong);
 }
 .switch::after {
   content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
-  border-radius: 2px; border: .5px solid #ffffffcc;
-  background: #f2f2f2; box-shadow: 0 .5px .5px #00000066;
+  border-radius: 2px; border: .5px solid #0000001f;
+  background: #fff; box-shadow: 0 1px 1px #00000024;
   transition: transform .09s ease-out;
 }
 .switch:checked { background: var(--la-accent-solid); box-shadow: inset 0 2px 2px #0000001a; }

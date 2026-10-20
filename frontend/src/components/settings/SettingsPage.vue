@@ -107,7 +107,7 @@ async function save() {
   flex: 0 0 328px;
   flex-direction: column;
   gap: 16px;
-  padding: 50px 64px 48px 24px;
+  padding: 48px 64px 48px 24px;
 }
 .settings-back {
   display: flex;
@@ -169,7 +169,7 @@ async function save() {
 @media (max-width: 1047px) {
   .settings-nav { width: 240px; min-width: 240px; flex-basis: 240px; padding-left: 16px; padding-right: 24px; }
 }
-@media (max-width: 767px) {
+@media (max-width: 799px) {
   .settings-page { flex-direction: column; }
   .settings-nav { width: 100%; min-width: 0; flex: none; gap: 4px; padding: 8px 12px; border-bottom: .5px solid var(--la-line); }
   .settings-back { display: none; }
