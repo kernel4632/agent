@@ -128,7 +128,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
             </m3e-form-field>
             <label class="mcp-settings__enabled">
               <span>{{ selectedItem.enabled ? '已启用' : '已停用' }}</span>
-              <m3e-switch :checked="selectedItem.enabled" @change="toggleEnabled"></m3e-switch>
+              <m3e-switch role="switch" :aria-checked="selectedItem.enabled" :aria-label="`启用 ${selectedItem.name}`" :checked="selectedItem.enabled" @change="toggleEnabled"></m3e-switch>
             </label>
         </header>
 

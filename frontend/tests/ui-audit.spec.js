@@ -338,10 +338,11 @@ test('advanced, tools and MCP settings write back', async ({ page }) => {
   await navigate(page, '设置')
 
   await page.getByRole('button', { name: '高级', exact: true }).click()
-  // m3e-switch 暴露的是自定义元素，角色查询拿不到名字；按所在区块点它。
-  await page.locator('.advanced-settings__block', { hasText: '项目规则' }).locator('m3e-switch').click()
+  await page.getByRole('switch', { name: '读取项目规则' }).click()
+  await expect(page.getByRole('switch', { name: '读取项目规则' })).toHaveAttribute('aria-checked', 'false')
   await page.getByLabel('命令', { exact: true }).fill('bun run typecheck')
-  await page.locator('.advanced-settings__block', { hasText: 'shell 改动快照' }).locator('m3e-switch').click()
+  await page.getByRole('switch', { name: '记录 shell 改动' }).click()
+  await expect(page.getByRole('switch', { name: '记录 shell 改动' })).toHaveAttribute('aria-checked', 'true')
   await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['file_read'] } }, null, 2))
   await page.getByRole('button', { name: '应用模式', exact: true }).click()
 

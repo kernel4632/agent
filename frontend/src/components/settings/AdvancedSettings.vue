@@ -53,7 +53,7 @@ function applyModes() {
           <h3>项目规则</h3>
           <p>自动读取 AGENTS.md、<code>.agent/rules</code> 和 <code>.roo/rules</code>，拼进系统提示词。</p>
         </div>
-        <m3e-switch :checked="rulesOn" aria-label="读取项目规则" @change="setRules(!rulesOn)"></m3e-switch>
+        <m3e-switch role="switch" :aria-checked="rulesOn" :checked="rulesOn" aria-label="读取项目规则" @change="setRules(!rulesOn)"></m3e-switch>
       </div>
     </div>
 
@@ -73,7 +73,7 @@ function applyModes() {
           <h3>shell 改动快照</h3>
           <p>执行命令前扫一遍工作区，命令改过的文件也能回退。文件多时命令会变慢。</p>
         </div>
-        <m3e-switch :checked="snapshot.shell === true" aria-label="记录 shell 改动" @change="setSnapshot({ shell: !(snapshot.shell === true) })"></m3e-switch>
+        <m3e-switch role="switch" :aria-checked="snapshot.shell === true" :checked="snapshot.shell === true" aria-label="记录 shell 改动" @change="setSnapshot({ shell: !(snapshot.shell === true) })"></m3e-switch>
       </div>
       <div class="advanced-settings__row">
         <label>最多文件数<input class="field" type="number" min="1" :value="snapshot.maxFiles" @input="setSnapshot({ maxFiles: Number($event.target.value) || 2000 })" /></label>

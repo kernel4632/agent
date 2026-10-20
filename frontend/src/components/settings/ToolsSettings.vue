@@ -43,7 +43,7 @@ function updatePermission(index, permission) {
               <m3e-option value="deny">禁止调用</m3e-option>
             </m3e-select>
           </m3e-form-field>
-          <m3e-switch :checked="tool.enabled" @change="toggleTool(index)"></m3e-switch>
+          <m3e-switch role="switch" :aria-checked="tool.enabled" :aria-label="`切换 ${tool.name}`" :checked="tool.enabled" @change="toggleTool(index)"></m3e-switch>
         </div>
       </m3e-list-item>
       <m3e-divider v-if="props.tools.length"></m3e-divider>
