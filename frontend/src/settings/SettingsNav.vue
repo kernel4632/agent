@@ -6,6 +6,7 @@
 <script setup>
 import { computed } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
+import Button from '../ui/Button.vue'
 import { groupSettingsPages } from './pages.js'
 
 const props = defineProps({
@@ -24,14 +25,14 @@ function selectPage(page) {
 
 <template>
   <aside class="settings-nav">
-    <button class="settings-back" @click="emit('back')"><AppIcon name="arrow" :size="14" class="settings-back-icon" />返回应用</button>
+    <Button variant="plain" class="settings-back" @click="emit('back')"><AppIcon name="arrow" :size="14" class="settings-back-icon" />返回应用</Button>
     <h2>设置</h2>
     <nav aria-label="设置分类">
       <section v-for="group in groups" :key="group.label" class="settings-nav-group">
         <div class="settings-nav-group__label">{{ group.label }}</div>
-        <button v-for="item in group.items" :key="item.id" :class="{ active: activeId === item.id }" :disabled="item.disabled" :title="item.disabled ? '暂不支持此管理功能' : item.label" :aria-current="activeId === item.id ? 'page' : undefined" @click="selectPage(item)">
+        <Button v-for="item in group.items" :key="item.id" variant="plain" :class="{ active: activeId === item.id }" :disabled="item.disabled" :title="item.disabled ? '暂不支持此管理功能' : item.label" :aria-current="activeId === item.id ? 'page' : undefined" @click="selectPage(item)">
           <AppIcon :name="item.icon" :size="16" /><span>{{ item.label }}</span><small v-if="item.disabled">待支持</small>
-        </button>
+        </Button>
       </section>
     </nav>
   </aside>

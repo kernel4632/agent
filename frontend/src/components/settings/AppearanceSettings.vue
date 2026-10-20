@@ -1,4 +1,11 @@
+<!--
+外观设置：主题、强调色、动画和键盘焦点偏好；所有改动只通过 change 事件交给上层写回草稿。
+主题和颜色是专用单选控件，等组件库提供对应选择控件后再迁移；开关和恢复默认已经走 ui/。
+调用示例：<AppearanceSettings :appearance="draft.appearance" @change="draft.appearance[$event.field] = $event.value" />
+-->
 <script setup>
+import Button from '../../ui/Button.vue'
+import Switch from '../../ui/Switch.vue'
 import { DEFAULT_APPEARANCE } from '../../theme.js'
 defineProps({ appearance: { type: Object, required: true } })
 const emit = defineEmits(['change'])
@@ -12,6 +19,7 @@ function reset() { for (const [field, value] of Object.entries(DEFAULT_APPEARANC
   <div class="appearance-settings">
     <section class="preference-group">
       <h3>外观</h3>
+      <!-- 主题和颜色单选框是专用选择控件，等组件库有对应选择控件再替换。 -->
       <div class="preference-row">
         <span><strong>界面主题</strong><small>选择工作区的显示方式</small></span>
         <fieldset class="theme-options"><legend class="sr-only">界面主题</legend><label v-for="theme in themes" :key="theme.id" :class="{ selected: appearance.theme === theme.id }"><input type="radio" name="theme" :checked="appearance.theme === theme.id" @change="update('theme', theme.id)" />{{ theme.label }}</label></fieldset>
@@ -23,10 +31,10 @@ function reset() { for (const [field, value] of Object.entries(DEFAULT_APPEARANC
     </section>
     <section class="preference-group">
       <h3>通用</h3>
-      <label class="preference-row"><span><strong>减少界面动画</strong><small>关闭过渡动画，减少视觉干扰</small></span><input class="switch" type="checkbox" role="switch" aria-label="减少界面动画" :checked="appearance.reduceMotion" @change="update('reduceMotion', $event.target.checked)" /></label>
-      <label class="preference-row"><span><strong>增强键盘焦点</strong><small>让键盘操作的位置更清晰</small></span><input class="switch" type="checkbox" role="switch" aria-label="增强键盘焦点" :checked="appearance.strongFocus" @change="update('strongFocus', $event.target.checked)" /></label>
+      <label class="preference-row"><span><strong>减少界面动画</strong><small>关闭过渡动画，减少视觉干扰</small></span><Switch :model-value="appearance.reduceMotion" label="减少界面动画" @update:model-value="update('reduceMotion', $event)" /></label>
+      <label class="preference-row"><span><strong>增强键盘焦点</strong><small>让键盘操作的位置更清晰</small></span><Switch :model-value="appearance.strongFocus" label="增强键盘焦点" @update:model-value="update('strongFocus', $event)" /></label>
     </section>
-    <footer><span>外观偏好保存在当前浏览器。</span><button class="text-button" @click="reset">恢复默认</button></footer>
+    <footer><span>外观偏好保存在当前浏览器。</span><Button variant="ghost" @click="reset">恢复默认</Button></footer>
   </div>
 </template>
 

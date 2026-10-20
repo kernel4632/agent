@@ -5,6 +5,7 @@
 -->
 <script setup>
 import AppIcon from '../../components/AppIcon.vue'
+import Button from '../../ui/Button.vue'
 import ProviderSettings from '../../components/settings/ProviderSettings.vue'
 
 const props = defineProps({ draft: { type: Object, required: true } })
@@ -19,7 +20,7 @@ function addProvider() {
 </script>
 
 <template>
-  <div class="settings-provider-note"><span>管理模型连接</span><button class="button" @click="addProvider"><AppIcon name="plus" :size="14" />添加供应商</button></div>
+  <div class="settings-provider-note"><span>管理模型连接</span><Button @click="addProvider"><AppIcon name="plus" :size="14" />添加供应商</Button></div>
   <ProviderSettings v-model:providers="draft.providers" />
 </template>
 

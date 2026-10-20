@@ -6,6 +6,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
+import Button from '../../ui/Button.vue'
+import IconButton from '../../ui/IconButton.vue'
 import SettingsNav from '../../settings/SettingsNav.vue'
 import { settingsPages } from '../../settings/pages.js'
 import { Settings } from '../../commands/settings.js'
@@ -32,7 +34,7 @@ async function save() {
       <div class="settings-content">
         <header class="settings-heading">
           <h2>{{ currentPage.label }}</h2>
-          <button class="icon-button" aria-label="关闭设置" :disabled="store.settings.isSaving" @click="UI.closeSettings()"><AppIcon name="close" :size="18" /></button>
+          <IconButton label="关闭设置" :disabled="store.settings.isSaving" @click="UI.closeSettings()"><AppIcon name="close" :size="18" /></IconButton>
         </header>
         <div v-if="draft" class="settings-body">
           <component :is="currentPage.component" v-if="currentPage.component" :draft="draft" />
@@ -40,7 +42,7 @@ async function save() {
         <footer class="settings-footer">
           <span v-if="store.ui.toast" role="status">{{ store.ui.toast }}</span>
           <span v-else>关闭时自动保存</span>
-          <button class="button" :disabled="store.settings.isSaving" @click="save">{{ store.settings.isSaving ? '保存中…' : '保存设置' }}</button>
+          <Button :disabled="store.settings.isSaving" @click="save">{{ store.settings.isSaving ? '保存中…' : '保存设置' }}</Button>
         </footer>
       </div>
     </div>
