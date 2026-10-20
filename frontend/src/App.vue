@@ -4,6 +4,8 @@ import AppIcon from './components/AppIcon.vue'
 import HomeView from './home/HomeView.vue'
 import DraftView from './draft/DraftView.vue'
 import Composer from './composer/Composer.vue'
+import SessionHeader from './session/SessionHeader.vue'
+import SessionFilePanel from './session/SessionFilePanel.vue'
 import Titlebar from './app/Titlebar.vue'
 import CommandPalette from './app/CommandPalette.vue'
 import Toast from './app/Toast.vue'
@@ -26,17 +28,6 @@ const draftKey = ref('')
 const reviewOpen = ref(false)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const selectedWorkspace = computed(() => store.workspaces.find(item => item.id === store.ui.activeWorkspaceID) || store.workspaces[0])
-const workspaceFiles = computed(() => selectedWorkspace.value?.files || [])
-const changedFiles = computed(() => {
-  const files = new Set()
-  for (const message of session.value?.messages || []) {
-    for (const tool of message.tools || []) {
-      const path = tool.input?.path ?? tool.input?.filePath ?? tool.input?.file_path
-      if (typeof path === 'string' && path) files.add(path)
-    }
-  }
-  return [...files]
-})
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : draftOpen.value ? 'draft' : session.value ? 'session' : 'home')
 const draft = computed({
   get: () => session.value ? session.value.draft : homeDraft.value,
@@ -299,18 +290,7 @@ onUnmounted(() => {
         />
 
         <section v-else class="panel session-panel" aria-label="聊天">
-          <header class="session-header">
-            <button class="session-header__project" :title="selectedWorkspace?.path" aria-label="项目"><AppIcon name="folder" :size="16" /></button>
-            <h1>{{ session?.title || '新会话' }}</h1>
-            <select v-if="session" class="session-model" aria-label="当前会话模型" :value="`${session.provider}/${session.model}`" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模型' : '切换模型'" @change="switchModel($event.target.value)">
-              <option v-for="item in modelOptions" :key="`${item.provider}/${item.model}`" :value="`${item.provider}/${item.model}`">{{ item.provider }} / {{ item.model }}</option>
-            </select>
-            <div class="session-header__actions">
-              <button class="icon-button session-review-toggle" :class="{ 'is-active': reviewOpen }" title="文件面板" aria-label="文件面板" @click="reviewOpen = !reviewOpen"><AppIcon name="panel" :size="15" /></button>
-              <button class="icon-button" title="复制会话 ID" aria-label="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="15" /></button>
-              <button class="icon-button" title="创建分支" aria-label="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="15" /></button>
-            </div>
-          </header>
+          <SessionHeader v-model:review-open="reviewOpen" :session="session" :workspace="selectedWorkspace" :models="modelOptions" @switch-model="switchModel" />
           <div class="session-body">
             <div class="session-main">
             <div class="session-scroll">
@@ -372,24 +352,7 @@ onUnmounted(() => {
               </Composer>
             </div>
             </div>
-            <aside v-if="reviewOpen" class="session-review" aria-label="文件面板">
-              <header class="session-review__head">
-                <span>文件</span>
-                <button class="icon-button" aria-label="关闭文件面板" @click="reviewOpen = false"><AppIcon name="close" :size="14" /></button>
-              </header>
-              <div class="session-review__body">
-                <section class="session-review__section">
-                  <h2>本次改动</h2>
-                  <button v-for="file in changedFiles" :key="file" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</button>
-                  <p v-if="!changedFiles.length">本次会话没有文件改动</p>
-                </section>
-                <section class="session-review__section">
-                  <h2>工作区文件</h2>
-                  <button v-for="file in workspaceFiles" :key="file" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</button>
-                  <p v-if="!workspaceFiles.length">没有可显示的文件</p>
-                </section>
-              </div>
-            </aside>
+            <SessionFilePanel v-model:open="reviewOpen" :session="session" :workspace="selectedWorkspace" />
           </div>
         </section>
 
@@ -407,29 +370,9 @@ onUnmounted(() => {
 .connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 .session-panel { display: flex; flex-direction: column; }
-.session-header { display: flex; flex: 0 0 48px; align-items: center; gap: 6px; min-width: 0; padding: 0 8px 0 10px; border-bottom: .5px solid var(--la-line); }
-.session-header__project { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--la-muted); cursor: pointer; }
-.session-header__project:hover { background: var(--la-hover); color: var(--la-text); }
-.session-header h1 { min-width: 0; margin: 0; overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 530; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
-.session-model { max-width: 220px; min-width: 0; margin-left: auto; overflow: hidden; border: 0; background: transparent; color: var(--la-muted); font-size: 12px; text-overflow: ellipsis; cursor: pointer; }
-.session-model option { background: var(--la-panel); color: var(--la-text); }
-.session-header__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-.session-model + .session-header__actions { margin-left: 4px; }
 .session-body { display: flex; min-height: 0; flex: 1; }
 .session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-review-toggle.is-active { background: var(--la-layer-03); color: var(--la-text); }
-.session-review { display: flex; width: 280px; flex: 0 0 280px; flex-direction: column; min-height: 0; border-left: .5px solid var(--la-line); background: var(--la-panel); }
-.session-review__head { display: flex; height: 48px; flex: none; align-items: center; justify-content: space-between; padding: 0 8px 0 14px; border-bottom: .5px solid var(--la-line); color: var(--la-text); font-size: 13px; font-weight: 530; }
-.session-review__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow-y: auto; padding: 8px 10px 20px; }
-.session-review__section { display: flex; flex-direction: column; gap: 2px; }
-.session-review__section h2 { margin: 8px 4px 4px; color: var(--la-muted); font-size: 12px; font-weight: 530; }
-.session-review__section p { margin: 4px; color: var(--la-muted); font-size: 12px; line-height: 18px; }
-.session-review__file { display: block; width: 100%; min-height: 24px; padding: 3px 6px; overflow: hidden; border: 0; border-radius: 4px; background: transparent; color: var(--la-secondary); text-align: left; font: 12px/18px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.session-review__file:hover { background: var(--la-hover); color: var(--la-text); }
-@media (max-width: 1023px) {
-  .session-review, .session-review-toggle { display: none; }
-}
 .session-composer { width: 100%; max-width: 860px; flex: none; margin: 0 auto; padding: 8px 20px 16px; }
 .chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 9px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
 .chat-more { display: flex; flex-wrap: wrap; gap: 20px; max-height: 340px; margin-bottom: 8px; padding: 16px; overflow-y: auto; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
@@ -450,8 +393,6 @@ onUnmounted(() => {
 .composer-mode:disabled { opacity: .5; }
 @media (max-width: 767px) {
   .session-composer { padding: 6px 8px max(10px, env(safe-area-inset-bottom)); }
-  .session-model { max-width: 110px; font-size: 11px; }
-  .session-header { padding-inline: 6px; }
   .connection-error { margin-inline: 8px; }
   .chat-more { gap: 16px; padding: 12px; }
 }

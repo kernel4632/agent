@@ -99,7 +99,7 @@ src/
 - 更新 App、DraftView 的 import；组件行为、class、测试断言不变。
 - 验收：构建、单测、UI 全过。
 
-#### [ ] 5b：拆会话顶部和文件面板
+#### [x] 5b：拆会话顶部和文件面板
 
 - 新建 `src/session/SessionHeader.vue`、`src/session/SessionFilePanel.vue`。
 - 顶部负责标题、项目图标、模型选择、复制、分支、文件面板开关。
