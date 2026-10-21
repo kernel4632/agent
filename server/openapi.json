@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.33.0",
+    "version": "0.34.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -2392,12 +2392,16 @@
           },
           "prompt": {
             "type": "object",
-            "description": "系统提示词配置",
+            "description": "系统提示词配置。第一次读取时填入默认值；用户保存空字符串后不会再次填回",
             "properties": {
               "system": {
                 "type": "string",
-                "description": "发给 AI 的系统提示词，用于设定 AI 的行为方式",
+                "description": "发给 AI 的系统提示词，用于设定 AI 的行为方式；允许为空字符串",
                 "example": "你是一个编程助手，帮用户解决代码问题。"
+              },
+              "defaultSeeded": {
+                "type": "boolean",
+                "description": "内部标记：是否已经给过默认提示词。用户主动清空后仍为 true，避免默认值被重新填入"
               }
             }
           },

@@ -57,12 +57,17 @@ describe('server HTTP API', () => {
         await withHome(async () => {
             const initial = await request('/config/read')
             expect(initial.status).toBe(200)
-            expect(await initial.json()).toEqual({})
+            expect(await initial.json()).toMatchObject({
+                prompt: { system: expect.any(String), defaultSeeded: true },
+            })
 
             const value = { providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } }
             const saved = await jsonRequest('/config/set', 'PATCH', value)
             expect(saved.status).toBe(200)
-            expect(await saved.json()).toEqual(value)
+            expect(await saved.json()).toMatchObject({
+                ...value,
+                prompt: { system: expect.any(String), defaultSeeded: true },
+            })
         })
     })
 

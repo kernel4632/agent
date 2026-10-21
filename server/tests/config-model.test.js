@@ -79,6 +79,33 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
+    test('模型没有调用工具时只请求一次，不会把回答显示两遍', async () => {
+        await withHome(async () => {
+            await withFakeModel(async ({ port, seen }) => {
+                await Config.set({
+                    providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${port}/v1` }],
+                })
+                const tools = Agent.tool.adopt({
+                    attempt_completion: {
+                        name: 'attempt_completion',
+                        description: 'finish',
+                        inputSchema: { type: 'object', properties: {} },
+                        execute: () => ({ stop: true, output: { type: 'text', value: 'ok' } }),
+                    },
+                })
+                const agent = Agent.create({
+                    history: [],
+                    config: { ...Config.resolve({ provider: 'fake', model: 'm' }), stream: false },
+                    tools,
+                })
+
+                const result = await agent.send({ input: '你好' })
+                expect(result.reason).toBe('no-tool')
+                expect(seen).toHaveLength(1)
+            })
+        })
+    })
+
     test('resolve 返回的字段里有 model', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['m1'] }] })

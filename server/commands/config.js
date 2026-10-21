@@ -21,6 +21,7 @@ import Path from '../utils/path.js' // 提供默认配置文件路径。
 import Rules from '../features/rules.js' // 把工作区的项目规则拼进系统提示词。
 import Store from '../store.js' // 直接访问程序当前使用的配置。
 import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
+import { DEFAULT_SYSTEM_PROMPT, seedPrompt } from '../defaults/system-prompt.js' // 首次使用时填默认提示词。
 
 // 后端自己的版本号写在 package.json 里，服务状态接口把它报给前端。
 // 用运行时读取而不是 import 断言：Bun 里对 .json 的 import 断言不稳，换环境容易炸。
@@ -33,6 +34,9 @@ const read = async path => {
     // 第一次启动时配置文件还不存在，从空对象开始。
     const file = Bun.file(path)
     const config = await file.exists() ? await file.json() : {}
+    // 旧配置没有 prompt.defaultSeeded，也没有写过提示词时，填入默认值；
+    // 已经明确保存过空提示词的配置带 true，不会被重新填回默认值。
+    seedPrompt(config)
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Object.assign(Store.config, config)
     return config
@@ -51,8 +55,12 @@ const set = async newConfig => {
         throw fail(400, 'config must be an object')
     }
     // 整体替换，不偷偷合并旧字段，保证用户提交的配置就是实际配置。
+    // 提交里没有 prompt 时给默认提示词；提交里明确写了空字符串则保留，
+    // 这样“保存一个空提示词”不会被下一次读取重新填满。
+    const next = structuredClone(newConfig)
+    seedPrompt(next, { seedDefault: next.prompt === undefined })
     Object.keys(Store.config).forEach(key => delete Store.config[key])
-    Object.assign(Store.config, structuredClone(newConfig))
+    Object.assign(Store.config, next)
     return save(Path.config())
 }
 
@@ -127,8 +135,11 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
         // 名字写错不会报任何错，只会把 128000 当成输出上限发出去，模型会被莫名截断。
         maxContextTokens: budget.context || budget.contextWindow || 128000,
         stream: provider.stream ?? Store.config.stream ?? true,
-        // 用户没写提示词、项目也没有规则时，这里仍然是空字符串。
-        system: Rules.apply({ system: Store.config.prompt?.system || '', rules: Store.rules }),
+        // prompt 经过 Config.read / set 后会带上默认值；用户主动清空时保持空字符串。
+        system: Rules.apply({ system: Store.config.prompt?.system ?? DEFAULT_SYSTEM_PROMPT, rules: Store.rules }),
+        // agent-core 默认在没有工具调用时会继续请求模型，简单的“你好”会被显示两次。
+        // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
+        noToolRounds: 1,
         ...rest, // 会话级的能力开关，见 commands/settings.js
     }
 

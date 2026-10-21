@@ -126,13 +126,14 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('plan 模式不通过系统提示词约束，system 始终是用户原样', async () => {
+    test('plan 模式不通过系统提示词约束，system 只保留默认提示词', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, mode: 'plan' })
             // 靠的是不给写工具，而不是往提示词里写"请不要改文件"。
-            // 用户没写提示词时 system 就得是空串，不能有任何注入。
-            expect(Store.agents.get(sessionId).config.system).toBe('')
+            const system = Store.agents.get(sessionId).config.system
+            expect(system).toContain('attempt_completion')
+            expect(system).not.toContain('请不要改文件')
         })
     })
 
