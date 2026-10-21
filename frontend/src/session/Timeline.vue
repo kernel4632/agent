@@ -72,14 +72,20 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 <template>
   <div ref="root" class="conversation-flow" aria-label="对话内容">
     <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
-      <div v-if="turn.role === 'user'" class="message__block">
-        <div class="message__text message__bubble">{{ turn.messages[0].content }}</div>
+      <template v-if="turn.role === 'user'">
+        <header class="user-head">
+          <span class="user-head__name">你</span>
+          <span class="user-head__avatar" aria-hidden="true">你</span>
+        </header>
+        <div class="message__block">
+          <div class="message__text message__bubble">{{ turn.messages[0].content }}</div>
+        </div>
         <div v-if="!turn.messages[0].isStreaming" class="message__actions">
           <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(turn.messages[0].content)"><AppIcon name="copy" :size="14" /></IconButton>
           <IconButton v-if="canRollback(turn.messages[0])" size="small" label="回退到这条消息" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(turn.messages[0])"><AppIcon name="undo" :size="14" /></IconButton>
           <IconButton v-if="canRollback(turn.messages[0])" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(turn.messages[0])"><AppIcon name="branch" :size="14" /></IconButton>
         </div>
-      </div>
+      </template>
       <template v-else>
         <header class="assistant-head">
           <span class="assistant-head__avatar" :class="{ 'is-thinking': turnStreaming(turn) }" aria-hidden="true"><AppIcon name="spark" :size="15" /></span>
@@ -158,31 +164,46 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 </template>
 
 <style scoped lang="scss">
-.conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 10px 20px 18px; display: flex; flex-direction: column; gap: 4px; }
+.conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 10px 20px 18px; display: flex; flex-direction: column; gap: 12px; }
 .message { display: block; min-width: 0; animation: row-in .18s ease-out both; }
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-/* 用户消息：正文和操作在同一行。 */
+/* 用户消息：Rikka 式右侧头像、名字和气泡。 */
+.message--user { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.user-head { display: flex; align-items: center; gap: 6px; padding-right: 2px; }
+.user-head__name { color: var(--la-muted); font-size: 12px; line-height: 16px; }
+.user-head__avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+  background: var(--la-accent-soft);
+  color: var(--md-sys-color-on-primary-container, var(--la-text));
+  font-size: 12px;
+  line-height: 1;
+}
 .message__block {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
+  width: auto;
+  max-width: min(82%, 640px);
   min-width: 0;
-  padding: 7px 8px 7px 12px;
-  border: .5px solid var(--la-line);
-  border-radius: 12px;
-  background: var(--la-layer-02);
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--la-accent-soft);
+  color: var(--md-sys-color-on-primary-container, var(--la-text));
 }
 .message__text {
-  width: 100%;
-  color: var(--la-text);
+  width: auto;
+  color: inherit;
   font-size: 13.5px;
   line-height: 20px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.message--user .message__bubble { width: auto; min-width: 0; flex: 1; }
+.message--user .message__bubble { width: auto; max-width: 100%; }
+.message--user .message__actions { align-self: flex-end; margin-top: 2px; }
 
 /* 助手标题行：头像、名字、模型每轮只出现一次。 */
 .assistant-head { display: flex; align-items: center; gap: 6px; min-height: 28px; min-width: 0; }
@@ -340,7 +361,7 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 @media (max-width: 767px) {
   .conversation-flow { padding: 10px 12px 18px; gap: 4px; }
   .message__actions { opacity: 1; transform: none; }
-  .message__block { padding: 7px 6px 7px 10px; }
+  .message__block { max-width: 88%; padding: 8px 12px; }
   .message__text { max-width: 100%; }
   .thinking-card { padding: 2px 8px; border-radius: 14px; }
   .flow-content__body { padding-left: 22px; }
