@@ -317,7 +317,11 @@ function normalize(source, previous = {}) {
     if (item.role === 'tool') {
       for (const result of parts.filter(part => part.type === 'tool-result')) {
         const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
-        if (tool) { tool.status = result.output?.type === 'error-text' ? 'error' : 'completed'; tool.preview = formatToolOutput(result.output) }
+        if (tool) {
+          tool.status = result.output?.type === 'error-text' ? 'error' : 'completed'
+          tool.output = result.output
+          tool.preview = formatToolOutput(result.output)
+        }
       }
       continue
     }
@@ -328,8 +332,9 @@ function normalize(source, previous = {}) {
       .map((p) => {
         const call = p.toolInvocation || p                // 兼容 UIMessage parts 和旧格式
         const status = call.state === 'result' ? (call.result?.isError ? 'error' : 'completed') : 'running'
-        const preview = call.state === 'result' ? formatToolOutput(call.result) : ''
-        return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, status, checkpoint: null }
+        const output = call.state === 'result' ? (call.result?.output ?? call.result) : null
+        const preview = output ? formatToolOutput(output) : ''
+        return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
       })
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }

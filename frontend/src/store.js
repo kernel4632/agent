@@ -36,7 +36,8 @@ export const store = reactive({
   commands: [],                                       // 可用的斜杠命令，输入 / 时展开
   config: {
     providers: {},                                    // 设置页可编辑供应商目录
-    tools: [],                                        // 工具运行目录与权限
+    tools: [],                                        // 设置页可见的工具与权限
+    toolCatalog: [],                                  // 全部工具（含渲染信息，控制工具也在）
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
     modes: [],                                         // 可用模式：build、plan 和配置里自定义的

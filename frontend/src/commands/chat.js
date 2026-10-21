@@ -85,7 +85,7 @@ function toolFor(session, event, status) {
   let tool = session.messages.flatMap(message => message.tools || []).find(item => item.id === id)
   if (!tool) {
     const assistant = streaming(session) || createAssistant(session)
-    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', status }
+    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status }
     assistant.tools.push(tool)
   }
   if (status) tool.status = status
@@ -131,15 +131,25 @@ async function receive(sessionID, event) {
     toolFor(session, event, 'waiting')
   } else if (event.type === 'tool-output') {
     const tool = toolFor(session, event)
-    if (tool) tool.preview += outputText(event.data ?? event.output)
+    if (tool) {
+      const chunk = event.data ?? event.output
+      if (chunk != null) tool.output = chunk
+      tool.preview += outputText(chunk)
+    }
   } else if (event.type === 'tool-result') {
     const tool = toolFor(session, event, event.output?.type === 'execution-denied' ? 'rejected' : event.output?.type === 'error-text' || event.isError ? 'error' : 'completed')
-    if (tool) tool.preview = outputText(event.output ?? event.result)
+    if (tool) {
+      tool.output = event.output ?? event.result
+      tool.preview = outputText(tool.output)
+    }
   } else if (event.type === 'permission-blocked') {
     // 这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不用等用户决定。
     // 卡片要说清原因：用户看不到"谁来问过"，只看到工具没执行会以为是坏了。
     const tool = toolFor(session, event, 'rejected')
-    if (tool) tool.preview = t('toolBlockedReason', { reason: event.reason })
+    if (tool) {
+      tool.output = { type: 'error-text', value: t('toolBlockedReason', { reason: event.reason }) }
+      tool.preview = outputText(tool.output)
+    }
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
     // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
     const assistant = streaming(session) || createAssistant(session)

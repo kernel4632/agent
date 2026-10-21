@@ -57,8 +57,21 @@ function apply(raw, catalog = []) {
   }
 
   // 工具目录由 /tool/list 给出；旧后端没有目录时退回只看 permission 里的字符串规则。
-  const toolSettings = Array.isArray(catalog) && catalog.length
-    ? catalog.map(tool => ({ name: tool.name, title: tool.name, kind: tool.kind, enabled: tool.permission !== 'deny', permission: tool.permission, original: tool.permission }))
+  // toolCatalog 给对话页找渲染器，tools 只放设置页需要画权限开关的工具。
+  const toolCatalog = Array.isArray(catalog) ? catalog : []
+  const toolSettings = toolCatalog.length
+    ? toolCatalog
+      .filter(tool => tool.configurable !== false)
+      .map(tool => ({
+        name: tool.name,
+        title: tool.name,
+        kind: tool.kind,
+        enabled: tool.permission !== 'deny',
+        permission: tool.permission,
+        original: tool.permission,
+        // 工具脚本声明的渲染信息；设置页保存时不会把它写回 permission。
+        ui: tool.ui && typeof tool.ui === 'object' && !Array.isArray(tool.ui) ? tool.ui : null,
+      }))
     : Object.entries(raw.permission || {})
       .filter(([, action]) => typeof action === 'string')
       .map(([name, action]) => ({ name, title: name, kind: 'other', enabled: action !== 'deny', permission: action, original: action }))
@@ -97,6 +110,7 @@ function apply(raw, catalog = []) {
   Object.assign(store.config, {
     providers,
     tools: toolSettings,
+    toolCatalog,
     mcp,
     prompt: raw.prompt?.system || '',
     modes,

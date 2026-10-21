@@ -27,9 +27,22 @@ async function backend(page, { configured = true } = {}) {
     if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
     if (path === '/tool/list') return json([
-      { name: 'read_file', kind: 'read', permission: 'ask' },
-      { name: 'execute_command', kind: 'command', permission: 'ask' },
-      { name: 'new_task', kind: 'subtask', permission: 'ask' },
+      {
+        name: 'read_file', kind: 'read', permission: 'ask', configurable: true,
+        ui: { view: 'file-read', icon: 'document', title: '读取文件', summary: '{path}' },
+      },
+      {
+        name: 'execute_command', kind: 'command', permission: 'ask', configurable: true,
+        ui: { view: 'command', icon: 'code', title: '执行命令', summary: '{command}' },
+      },
+      {
+        name: 'new_task', kind: 'subtask', permission: 'ask', configurable: true,
+        ui: { view: 'subtask', icon: 'branch', title: '创建子任务', summary: '{description}' },
+      },
+      {
+        name: 'update_todo_list', kind: 'never', permission: 'ask', configurable: false,
+        ui: { view: 'todo', icon: 'check', title: '任务清单', summary: '当前进度' },
+      },
     ])
     if (path === '/command/list') return json([
       { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
@@ -308,6 +321,34 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   await page.getByRole('button', { name: '始终允许此参数', exact: true }).click()
   await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
   expect(mock.calls.find(call => call.path === '/agent/decide/session-1').body).toEqual({ toolCallId: 'call-1', decision: 'allow-always' })
+  expect(mock.errors).toEqual([])
+})
+
+test('tool row renders the ui declared by the tool', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '- [x] 读现有实现\n- [-] 改 session 指令\n- [ ] 补测试' } },
+    { type: 'tool-result', toolCallId: 'todo-1', toolName: 'update_todo_list', output: { type: 'json', value: { items: [
+      { text: '读现有实现', status: 'completed' },
+      { text: '改 session 指令', status: 'in_progress' },
+      { text: '补测试', status: 'pending' },
+    ] } } },
+  ])
+
+  const label = page.getByText('任务清单 · 当前进度', { exact: true })
+  await expect(label).toBeVisible()
+  await label.click()
+  await expect(page.getByText('读现有实现', { exact: true })).toBeVisible()
+  await expect(page.getByText('补测试', { exact: true })).toBeVisible()
+  await expect(page.locator('.todo-item__status')).toHaveText(['已完成', '进行中', '待处理'])
+  await screenshot(page, testInfo, 'tool-todo')
   expect(mock.errors).toEqual([])
 })
 

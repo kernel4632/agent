@@ -17,6 +17,8 @@ import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import { groupMessageTurns } from './turns.js'
+import ToolView from './tools/ToolView.vue'
+import { toolIcon, toolLabel } from './tool-ui.js'
 import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
 
@@ -58,7 +60,7 @@ async function confirmRollback() { if (await Chat.rollbackMessage(session.value.
 async function forkFrom(message) {
   await Session.fork(session.value.id, message.id)
 }
-const toolLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
+const toolStatusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 
 // 展开状态按行 key 记住。没点过时按默认值算：思考收起，工具等待/执行中展开。
 const expanded = ref({})
@@ -137,18 +139,17 @@ onMounted(pinPreviews)
                 </div>
               </div>
               <div v-for="(tool, index) in message.tools || []" :key="tool.id" class="list-row list-row--tool" :class="{ 'is-live': tool.status === 'running' }">
-                <span class="list-row__icon"><AppIcon name="code" :size="14" /></span>
+                <span class="list-row__icon"><AppIcon :name="toolIcon(tool)" :size="14" /></span>
                 <div class="list-row__main">
                   <button type="button" class="list-row__toggle tool-toggle" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))">
-                    <span class="list-row__label" :class="{ 'is-live': tool.status === 'running' }">{{ tool.name }}</span>
-                    <span class="list-row__status" :class="toolStatusClass(tool.status)">{{ toolLabel(tool.status) }}</span>
+                    <span class="list-row__label" :class="{ 'is-live': tool.status === 'running' }" :title="tool.name">{{ toolLabel(tool) }}</span>
+                    <span class="list-row__status" :class="toolStatusClass(tool.status)">{{ toolStatusLabel(tool.status) }}</span>
                     <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }" aria-hidden="true" />
                   </button>
                   <div class="flow-content" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }">
                     <div class="flow-content__inner">
                       <div class="flow-content__body tool-body">
-                        <pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre>
-                        <pre v-if="tool.preview">{{ tool.preview }}</pre>
+                        <ToolView :tool="tool" />
                         <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
                           <p>此操作需要你的许可。请检查上方工具及参数。</p>
                           <div>
