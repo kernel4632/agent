@@ -96,6 +96,7 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
           <div v-for="message in turn.messages" :key="message.id" class="assistant-message">
             <div class="assistant-message__content">
               <div v-if="message.reasoning || message.tools?.length" class="thinking-card">
+                <div class="thinking-card__rows">
                 <div v-if="message.reasoning" class="flow-item reasoning" :class="{ 'is-live': message.isStreaming && !message.content }">
                   <button type="button" class="flow-row" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))">
                     <AppIcon name="spark" :size="16" class="flow-row__icon" />
@@ -131,21 +132,20 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
                     </div>
                   </div>
                 </div>
-                <div v-if="!message.isStreaming" class="thinking-card__actions">
-                  <div class="message__actions assistant-message__actions">
-                    <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
-                    <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
-                  </div>
+                </div>
+                <div v-if="!message.isStreaming" class="message__actions thinking-card__actions assistant-message__actions">
+                  <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+                  <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
                 </div>
               </div>
               <div v-if="message.content" class="assistant-text-row markdown-body" v-html="renderMarkdown(message.content)"></div>
-              <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
-              <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
-              <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
-              <div v-if="!message.isStreaming && !(message.reasoning || message.tools?.length)" class="message__actions assistant-message__actions">
+              <div v-if="!message.isStreaming && !(message.reasoning || message.tools?.length)" class="message__actions assistant-text-actions">
                 <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
                 <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
               </div>
+              <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
+              <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
+              <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
             </div>
           </div>
         </div>
@@ -238,11 +238,17 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
   transform: none;
 }
 .thinking-card__actions {
-  margin: 0 -6px;
-  padding: 1px 6px;
-  border-top: .5px solid var(--la-line);
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding-top: 3px;
 }
-.thinking-card__actions .message__actions.assistant-message__actions { padding: 1px 0; }
+.assistant-text-row { min-width: 0; }
+.message__actions.assistant-text-actions {
+  justify-content: flex-start;
+  margin: 1px 0 0;
+  padding: 0;
+  transform: none;
+}
 
 /* 操作行：桌面低透明度，悬停或聚焦时清晰；手机常显。 */
 .message__actions {
@@ -278,14 +284,16 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 /* 思考和工具共用一个紧凑卡片，行间只有分隔线。 */
 .thinking-card {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
-  padding: 2px 10px;
+  padding: 2px 8px 2px 10px;
   border-radius: 16px;
   background: var(--la-layer-01);
   box-shadow: inset 0 0 0 .5px var(--la-line);
 }
+.thinking-card__rows { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .flow-item { min-width: 0; animation: flow-in .17s ease-out both; }
 .flow-item + .flow-item { border-top: .5px solid var(--la-line); }
 @keyframes flow-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
