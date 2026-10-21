@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 async function backend(page, { configured = true } = {}) {
-  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', shell: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, modes: {}, diagnostics: {}, snapshot: {} }
+  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, modes: {}, diagnostics: {}, snapshot: {} }
   const sessions = new Map()
   const calls = []
   const waiting = new Map()
@@ -27,9 +27,9 @@ async function backend(page, { configured = true } = {}) {
     if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
     if (path === '/tool/list') return json([
-      { name: 'file_read', kind: 'read', permission: 'ask' },
-      { name: 'shell', kind: 'command', permission: 'ask' },
-      { name: 'task', kind: 'subtask', permission: 'ask' },
+      { name: 'read_file', kind: 'read', permission: 'ask' },
+      { name: 'execute_command', kind: 'command', permission: 'ask' },
+      { name: 'new_task', kind: 'subtask', permission: 'ask' },
     ])
     if (path === '/command/list') return json([
       { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
@@ -273,7 +273,7 @@ test('settings save preserves uneditable backend configuration and secrets stay 
   await expect(page.getByRole('status')).toContainText('设置已保存')
   const saved = mock.config()
   expect(saved.prompt.summary).toBe('Keep this.')
-  expect(saved.permission).toEqual({ '*': 'ask', shell: { '*': 'ask' } })
+  expect(saved.permission).toEqual({ '*': 'ask', execute_command: { '*': 'ask' } })
   expect(saved.mcp.sample.url).toBe('https://mcp.example.test')
   expect(saved.providers[0].headers).toEqual({ 'x-preserve': 'yes' })
   expect(saved.providers[0].modelSettings['test-model'].context).toBe(64000)
@@ -414,13 +414,13 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await page.getByLabel('命令', { exact: true }).fill('bun run typecheck')
   await page.getByRole('switch', { name: '记录 shell 改动' }).click()
   await expect(page.getByRole('switch', { name: '记录 shell 改动' })).toBeChecked()
-  await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['file_read'] } }, null, 2))
+  await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['read_file'] } }, null, 2))
   await page.getByRole('button', { name: '应用模式', exact: true }).click()
 
   await page.getByRole('button', { name: '返回设置', exact: true }).click()
   await page.getByRole('button', { name: /工具管理/ }).click()
-  await expect(page.getByText('file_read')).toBeVisible()
-  await expect(page.getByText('shell')).toBeVisible()
+  await expect(page.getByText('read_file')).toBeVisible()
+  await expect(page.getByText('execute_command')).toBeVisible()
   await screenshot(page, testInfo, 'settings-tools')
 
   await page.getByRole('button', { name: '返回设置', exact: true }).click()
@@ -434,7 +434,7 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   expect(saved.rules.enabled).toBe(false)
   expect(saved.diagnostics.command).toBe('bun run typecheck')
   expect(saved.snapshot.shell).toBe(true)
-  expect(saved.modes.review).toEqual({ label: '审查', tools: ['file_read'] })
+  expect(saved.modes.review).toEqual({ label: '审查', tools: ['read_file'] })
 })
 
 test('message action forks the conversation at that message', async ({ page }) => {
