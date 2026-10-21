@@ -120,6 +120,7 @@ onMounted(pinPreviews)
                   <button type="button" class="list-row__toggle" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))">
                     <span class="list-row__label" :class="{ 'is-live': message.isStreaming && !message.content }">思考过程</span>
                     <span v-if="message.isStreaming && !message.content" class="list-row__status is-running">思考中</span>
+                    <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(reasoningKey(message)) }" aria-hidden="true" />
                   </button>
                   <div v-if="message.isStreaming && message.reasoning" :ref="element => bindPreview(message.id, element)" class="thinking-preview">
                     <span class="thinking-preview__text">{{ latestReasoning(message) }}</span><span class="thinking-preview__caret" aria-hidden="true">▍</span>
@@ -133,7 +134,6 @@ onMounted(pinPreviews)
                     <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
                     <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
                   </template>
-                  <IconButton class="row-chevron" size="small" :label="rowOpen(reasoningKey(message)) ? '收起思考过程' : '展开思考过程'" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))"><AppIcon name="down" :size="14" /></IconButton>
                 </div>
               </div>
               <div v-for="(tool, index) in message.tools || []" :key="tool.id" class="list-row list-row--tool" :class="{ 'is-live': tool.status === 'running' }">
@@ -142,6 +142,7 @@ onMounted(pinPreviews)
                   <button type="button" class="list-row__toggle tool-toggle" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))">
                     <span class="list-row__label" :class="{ 'is-live': tool.status === 'running' }">{{ tool.name }}</span>
                     <span class="list-row__status" :class="toolStatusClass(tool.status)">{{ toolLabel(tool.status) }}</span>
+                    <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }" aria-hidden="true" />
                   </button>
                   <div class="flow-content" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }">
                     <div class="flow-content__inner">
@@ -165,7 +166,6 @@ onMounted(pinPreviews)
                     <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
                     <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
                   </template>
-                  <IconButton class="row-chevron" size="small" :label="rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) ? '收起工具详情' : '展开工具详情'" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))"><AppIcon name="down" :size="14" /></IconButton>
                 </div>
               </div>
               <div v-if="message.content" class="list-row list-row--text">
@@ -324,8 +324,10 @@ onMounted(pinPreviews)
 .tool-toggle .list-row__status { margin-left: auto; }
 @keyframes soft-pulse { 50% { opacity: .5; } }
 .list-row--thinking.is-live .list-row__icon, .list-row--tool.is-live .list-row__icon { color: var(--la-accent); }
-.row-chevron { flex: 0 0 auto; color: var(--la-muted); transition: transform .18s ease, color .16s ease; }
-.row-chevron[aria-expanded="true"] { transform: rotate(180deg); }
+.row-caret { flex: 0 0 auto; color: var(--la-muted); transition: transform .18s ease, color .16s ease; }
+.list-row--thinking .row-caret { margin-left: auto; }
+.tool-toggle .row-caret { margin-left: 2px; }
+.row-caret.is-open { transform: rotate(180deg); }
 
 /* 思考流式预览：只显示最后一段，上下渐隐，并带闪烁光标。 */
 .thinking-preview {
