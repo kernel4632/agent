@@ -15,12 +15,16 @@ import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { renderMarkdown } from '../utils/markdown.js'
+import { groupMessageTurns } from './turns.js'
 import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
 
 const root = ref(null)
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
+// 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
+const turns = computed(() => groupMessageTurns(messages.value))
+const turnStreaming = turn => turn.messages.some(message => message.isStreaming)
 const pinned = ref(true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
@@ -67,67 +71,71 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 
 <template>
   <div ref="root" class="conversation-flow" aria-label="对话内容">
-    <article v-for="message in messages" :key="message.id" class="message" :class="`message--${message.role}`" :aria-label="message.role === 'user' ? '你的消息' : 'la 的回复'">
-      <div v-if="message.role === 'user'" class="message__block">
-        <div class="message__text message__bubble">{{ message.content }}</div>
-        <div v-if="!message.isStreaming" class="message__actions">
-          <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
-          <IconButton v-if="canRollback(message)" size="small" label="回退到这条消息" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
-          <IconButton v-if="canRollback(message)" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(message)"><AppIcon name="branch" :size="14" /></IconButton>
+    <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
+      <div v-if="turn.role === 'user'" class="message__block">
+        <div class="message__text message__bubble">{{ turn.messages[0].content }}</div>
+        <div v-if="!turn.messages[0].isStreaming" class="message__actions">
+          <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(turn.messages[0].content)"><AppIcon name="copy" :size="14" /></IconButton>
+          <IconButton v-if="canRollback(turn.messages[0])" size="small" label="回退到这条消息" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(turn.messages[0])"><AppIcon name="undo" :size="14" /></IconButton>
+          <IconButton v-if="canRollback(turn.messages[0])" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(turn.messages[0])"><AppIcon name="branch" :size="14" /></IconButton>
         </div>
       </div>
       <template v-else>
         <header class="assistant-head">
-          <span class="assistant-head__avatar" :class="{ 'is-thinking': message.isStreaming }" aria-hidden="true"><AppIcon name="spark" :size="15" /></span>
+          <span class="assistant-head__avatar" :class="{ 'is-thinking': turnStreaming(turn) }" aria-hidden="true"><AppIcon name="spark" :size="15" /></span>
           <span class="assistant-head__name">la</span>
           <span class="assistant-head__model" :title="session.model">{{ session.model }}</span>
-          <div v-if="!message.isStreaming" class="message__actions">
-            <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
-            <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
-          </div>
         </header>
-        <div class="message__body">
-          <div v-if="message.reasoning || message.tools?.length" class="thinking-card">
-            <div v-if="message.reasoning" class="flow-item reasoning" :class="{ 'is-live': message.isStreaming && !message.content }">
-              <button type="button" class="flow-row" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))">
-                <AppIcon name="spark" :size="16" class="flow-row__icon" />
-                <span class="flow-row__label" :class="{ 'is-live': message.isStreaming && !message.content }">思考过程</span>
-                <span v-if="message.isStreaming && !message.content" class="flow-row__status status--running">思考中</span>
-                <AppIcon name="down" :size="14" class="flow-row__chevron" />
-              </button>
-              <div class="flow-content" :class="{ 'is-open': rowOpen(reasoningKey(message)) }">
-                <div class="flow-content__inner"><div class="flow-content__body"><p class="reasoning-text">{{ message.reasoning }}</p></div></div>
-              </div>
-            </div>
-            <div v-for="tool in message.tools || []" :key="tool.id" class="flow-item tool-card" :class="{ 'is-live': tool.status === 'running' }">
-              <button type="button" class="flow-row" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))">
-                <AppIcon name="code" :size="16" class="flow-row__icon" />
-                <span class="flow-row__label" :class="{ 'is-live': tool.status === 'running' }">{{ tool.name }}</span>
-                <span class="flow-row__status" :class="toolStatusClass(tool.status)">{{ toolLabel(tool.status) }}</span>
-                <AppIcon name="down" :size="14" class="flow-row__chevron" />
-              </button>
-              <div class="flow-content" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }">
-                <div class="flow-content__inner">
-                  <div class="flow-content__body tool-card__body">
-                    <pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre>
-                    <pre v-if="tool.preview">{{ tool.preview }}</pre>
-                    <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
-                      <p>此操作需要你的许可。请检查上方工具及参数。</p>
-                      <div>
-                        <Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button>
-                        <Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button>
-                        <Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button>
+        <div class="assistant-thread">
+          <div v-for="message in turn.messages" :key="message.id" class="assistant-message">
+            <div class="assistant-message__content">
+              <div v-if="message.reasoning || message.tools?.length" class="thinking-card">
+                <div v-if="message.reasoning" class="flow-item reasoning" :class="{ 'is-live': message.isStreaming && !message.content }">
+                  <button type="button" class="flow-row" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))">
+                    <AppIcon name="spark" :size="16" class="flow-row__icon" />
+                    <span class="flow-row__label" :class="{ 'is-live': message.isStreaming && !message.content }">思考过程</span>
+                    <span v-if="message.isStreaming && !message.content" class="flow-row__status status--running">思考中</span>
+                    <AppIcon name="down" :size="14" class="flow-row__chevron" />
+                  </button>
+                  <div class="flow-content" :class="{ 'is-open': rowOpen(reasoningKey(message)) }">
+                    <div class="flow-content__inner"><div class="flow-content__body"><p class="reasoning-text">{{ message.reasoning }}</p></div></div>
+                  </div>
+                </div>
+                <div v-for="tool in message.tools || []" :key="tool.id" class="flow-item tool-card" :class="{ 'is-live': tool.status === 'running' }">
+                  <button type="button" class="flow-row" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))">
+                    <AppIcon name="code" :size="16" class="flow-row__icon" />
+                    <span class="flow-row__label" :class="{ 'is-live': tool.status === 'running' }">{{ tool.name }}</span>
+                    <span class="flow-row__status" :class="toolStatusClass(tool.status)">{{ toolLabel(tool.status) }}</span>
+                    <AppIcon name="down" :size="14" class="flow-row__chevron" />
+                  </button>
+                  <div class="flow-content" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }">
+                    <div class="flow-content__inner">
+                      <div class="flow-content__body tool-card__body">
+                        <pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre>
+                        <pre v-if="tool.preview">{{ tool.preview }}</pre>
+                        <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
+                          <p>此操作需要你的许可。请检查上方工具及参数。</p>
+                          <div>
+                            <Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button>
+                            <Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button>
+                            <Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              <div v-if="message.content" class="assistant-text-row markdown-body" v-html="renderMarkdown(message.content)"></div>
+              <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
+              <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
+              <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
+            </div>
+            <div v-if="!message.isStreaming" class="message__actions assistant-message__actions">
+              <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+              <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
             </div>
           </div>
-          <div v-if="message.content" class="assistant-text-row markdown-body" v-html="renderMarkdown(message.content)"></div>
-          <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
-          <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
-          <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
         </div>
       </template>
     </article>
@@ -176,7 +184,7 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 }
 .message--user .message__bubble { width: auto; min-width: 0; flex: 1; }
 
-/* 助手标题行：头像、名字、模型和操作共用一排。 */
+/* 助手标题行：头像、名字、模型每轮只出现一次。 */
 .assistant-head { display: flex; align-items: center; gap: 6px; min-height: 28px; min-width: 0; }
 .assistant-head__avatar {
   display: grid;
@@ -193,7 +201,11 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 @keyframes avatar-breathe { 50% { opacity: .78; transform: scale(1.05); } }
 .assistant-head__name { flex: 0 0 auto; color: var(--la-text); font-size: 13px; font-weight: 600; }
 .assistant-head__model { min-width: 0; overflow: hidden; color: var(--la-muted); font: 12px/1.4 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
-.message__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* 一轮助手发言：标题下面接多条消息，消息之间只留 4px。 */
+.assistant-thread { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin-top: 2px; }
+.assistant-message { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.assistant-message__content { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.assistant-message__actions { margin-top: 2px; }
 
 /* 操作行：桌面低透明度，悬停或聚焦时清晰；手机常显。 */
 .message__actions {

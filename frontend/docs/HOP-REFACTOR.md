@@ -187,7 +187,7 @@ src/
 - `theme/` 只有 `ThemeProvider.vue` 一个 `m3e-theme` 包装；`watchers.js` 不再接触主题。
 - 设置页只有一个登记表 `settings/pages.js`；设置壳、导航、页面包装和原设置组件都在 `settings/` 下。
 - 还保留的原生专用控件：命令面板搜索框、Composer 编辑器/隐藏文件框、时间线回退复选框、外观主题/颜色单选框。文件头已注明原因，等对应编辑器/选择组件到位再替换。
-- 验证：前端 `bun run test` 7/7、`bun run build`、`bun run test:ui` 30/30；后端 `bun test` 170/170。
+- 验证：前端 `bun run test` 11/11、`bun run build`、`bun run test:ui` 30/30；后端 `bun test` 170/170。
 
 ## 每个阶段的审查门
 
