@@ -12,6 +12,13 @@ const TIMEOUT_MS = 10 * 60 * 1000
 
 export default {
     name: 'execute_command',
+    ui: {
+        view: 'command',
+        icon: 'code',
+        title: '执行命令',
+        summary: '{command}',
+        actions: [{ id: 'copy-command', label: '复制命令', icon: 'copy', type: 'copy', value: 'command' }],
+    },
     description: [
         'Execute a CLI command on the system and return its output (stdout and stderr) and exit code. Long output is truncated, keeping the head and tail.',
         'Use this for anything not covered by a dedicated tool: installing dependencies, running builds and tests, git operations, starting dev servers.',

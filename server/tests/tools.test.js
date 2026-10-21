@@ -38,6 +38,7 @@ describe('工具目录', () => {
                 "export default {",
                 "    name: 'my_tool',",
                 "    description: 'test tool',",
+                "    ui: { view: 'custom', title: '我的工具' },",
                 "    inputSchema: { type: 'object', properties: {} },",
                 "    async execute() { return 'ok' },",
                 "}",
@@ -46,10 +47,17 @@ describe('工具目录', () => {
             const tools = await Tools.list()
             const byName = Object.fromEntries(tools.map(item => [item.name, item]))
             expect(byName.read_file.permission).toBe('deny')
+            expect(byName.read_file.ui?.view).toBe('file-read')
             expect(byName.execute_command.permission).toBe('ask')
+            expect(byName.execute_command.ui?.view).toBe('command')
             expect(byName.my_tool.permission).toBe('ask')
             expect(byName.my_tool.kind).toBe('other')
+            expect(byName.my_tool.ui?.view).toBe('custom')
             expect(byName.new_task).toBeDefined()
+            expect(byName.new_task.ui?.view).toBe('subtask')
+            expect(byName.update_todo_list.configurable).toBe(false)
+            expect(byName.update_todo_list.ui?.view).toBe('todo')
+            expect(byName.attempt_completion.ui?.view).toBe('completion')
         })
     })
 

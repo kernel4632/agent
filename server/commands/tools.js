@@ -11,6 +11,7 @@ import { mkdir } from 'node:fs/promises'
 import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js'
 import Store from '../store.js'
+import Delegation from '../features/delegation.js' // new_task 的界面描述在运行时工具里。
 import { TABLE } from '../utils/tool-kind.js'
 import { canonical, previousNames } from '../utils/tool-names.js' // 旧 permission 配置继续生效。
 
@@ -33,7 +34,9 @@ const permissionOf = name => {
 
 /**
  * 列出内置工具和用户工具。
- * @returns {Promise<Array<{ name: string, kind: string, permission: string }>>} 按名字排序的工具目录。
+ * ui 是工具脚本自己声明的展示信息，前端据此选择渲染器；没有声明时前端退回通用行。
+ * configurable=false 的控制工具只给对话页用，不出现在权限设置里。
+ * @returns {Promise<Array<{ name: string, kind: string, permission: string, configurable: boolean, ui?: object }>>} 按名字排序的工具目录。
  */
 const list = async () => {
     // 首次运行还没建用户工具目录时先建出来，扫描空目录不报错。
@@ -42,10 +45,18 @@ const list = async () => {
     const scanned = await Agent.tool.from(new URL('../tools/', import.meta.url), Path.tools())
     const names = new Set([...Object.keys(TABLE), ...Object.keys(scanned.schema)])
     return [...names]
-        // 记清单 / 结束循环这些控制工具没有"要不要批准"这回事，不放进设置页。
-        .filter(name => TABLE[name] !== 'never')
         .sort()
-        .map(name => ({ name, kind: TABLE[name] || 'other', permission: permissionOf(name) }))
+        .map(name => {
+            const ui = scanned.schema[name]?.ui || (name === 'new_task' ? Delegation.ui : null)
+            return {
+                name,
+                kind: TABLE[name] || 'other',
+                permission: permissionOf(name),
+                // 控制工具也要把 ui 交给对话页，但设置页不画它们的权限开关。
+                configurable: TABLE[name] !== 'never',
+                ...(ui && typeof ui === 'object' && !Array.isArray(ui) ? { ui } : {}),
+            }
+        })
 }
 
 export default { list }

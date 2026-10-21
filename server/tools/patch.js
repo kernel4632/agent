@@ -17,6 +17,12 @@ import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断�
 
 export default {
     name: 'apply_patch',
+    ui: {
+        view: 'patch',
+        icon: 'edit',
+        title: '批量修改',
+        summary: '批量修改文件',
+    },
     description: [
         'Apply several exact-match text replacements across multiple files in one atomic step: either every edit succeeds, or nothing is written.',
         'Use this when one logical change touches several files at once, so related files never end up half-updated.',

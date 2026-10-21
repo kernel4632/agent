@@ -14,6 +14,13 @@ import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断�
 // --- 读取文本或图片 ---
 const readFileTool = {
     name: 'read_file',
+    ui: {
+        view: 'file-read',
+        icon: 'document',
+        title: '读取文件',
+        summary: '{path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
+    },
     description: [
         'Read the contents of a file at the given path. Returns the raw text, or the image itself when the file is an image.',
         'Use this whenever you need to know what is inside a file: before editing it, before referencing it, or when the user asks about it.',
@@ -52,6 +59,13 @@ const readFileTool = {
 // --- 写入完整文本文件 ---
 const writeToFile = {
     name: 'write_to_file',
+    ui: {
+        view: 'file-write',
+        icon: 'edit',
+        title: '写入文件',
+        summary: '{path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
+    },
     description: [
         'Write the complete new content of a file, replacing whatever was there before. Parent directories are created automatically.',
         'Use this to create a new file, or to rewrite a file entirely from scratch.',
@@ -78,6 +92,13 @@ const writeToFile = {
 // --- 列出目录 ---
 const listFiles = {
     name: 'list_files',
+    ui: {
+        view: 'file-list',
+        icon: 'folder',
+        title: '列出目录',
+        summary: '{path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
+    },
     description: [
         'List files and subdirectories inside a directory. Subdirectory names end with /.',
         'Use this to discover what exists somewhere before reading specific files, or to locate a file you only know the approximate location of.',

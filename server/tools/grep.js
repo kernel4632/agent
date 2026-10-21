@@ -14,6 +14,13 @@ const excludeArgs = () => Skip.dependencies.flatMap(name => ['--glob', `!**/${na
 
 export default {
     name: 'search_files',
+    ui: {
+        view: 'search',
+        icon: 'search',
+        title: '搜索文件',
+        summary: '{regex}',
+        actions: [{ id: 'copy-regex', label: '复制正则', icon: 'copy', type: 'copy', value: 'regex' }],
+    },
     description: [
         'Search file contents for a regular expression and return the matching lines with file and line number.',
         'Use this to find where something is defined, used or mentioned across a codebase — faster and cheaper than reading files one by one.',

@@ -21,6 +21,14 @@ import SSE from '../utils/sse.js' // 子任务的进度也推给前端，用户�
 // 最多往下开两层：主 agent → 子 agent → 孙 agent。再深就很难看清谁在干什么了。
 const MAX_DEPTH = 2
 
+// new_task 是运行时装配的工具，不在 tools/ 目录里；把界面描述一起导出给工具目录。
+export const TASK_UI = {
+    view: 'subtask',
+    icon: 'branch',
+    title: '创建子任务',
+    summary: '{description}',
+}
+
 // --- 做出一张"子 agent 能用的工具表" ---
 const subTools = tools => {
     // 从主 agent 的工具里去掉 new_task：这一层要装自己的 new_task，不能沿用上一层的。
@@ -58,6 +66,7 @@ const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) =>
 
     return {
         name: 'new_task',
+        ui: TASK_UI,
         description: [
             'Delegate one self-contained piece of research to a separate agent and get back only its conclusion.',
             'Use it when finding the answer means reading many files: those files stay out of your own context, so you keep room for the real work.',
@@ -118,4 +127,4 @@ const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) =>
     }
 }
 
-export default { build, toolsForDepth, MAX_DEPTH }
+export default { build, toolsForDepth, MAX_DEPTH, ui: TASK_UI }

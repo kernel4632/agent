@@ -10,6 +10,13 @@ import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断�
 
 export default {
     name: 'edit',
+    ui: {
+        view: 'edit',
+        icon: 'edit',
+        title: '编辑文件',
+        summary: '{file_path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'file_path' }],
+    },
     description: [
         'Replace a specific text block in a file with new text. By default the old block must appear exactly once.',
         'Use this to change part of an existing file — preferred over rewriting the whole file whenever the rest of the content should stay as-is.',

@@ -25,6 +25,12 @@ const parseTodos = text => String(text)
 
 export default {
     name: 'update_todo_list',
+    ui: {
+        view: 'todo',
+        icon: 'check',
+        title: '任务清单',
+        summary: '当前进度',
+    },
     description: [
         'Replace the entire TODO list with an updated checklist reflecting the current state of the task.',
         'Always send the full list — it replaces the previous one; do not send only the changes. Mark items completed as you go.',

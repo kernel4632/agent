@@ -12,6 +12,16 @@ const TIMEOUT_MS = 30 * 1000
 
 export default {
     name: 'webfetch',
+    ui: {
+        view: 'web',
+        icon: 'globe',
+        title: '读取网页',
+        summary: '{url}',
+        actions: [
+            { id: 'open-url', label: '打开网页', icon: 'globe', type: 'open', value: 'url' },
+            { id: 'copy-url', label: '复制网址', icon: 'copy', type: 'copy', value: 'url' },
+        ],
+    },
     description: [
         'Fetch a web page over HTTP(S) and return its readable text content, with markup stripped.',
         'Use this to read documentation, look up references, or check any URL the user gives you.',

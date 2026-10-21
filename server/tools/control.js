@@ -10,6 +10,12 @@
 // --- 结束 Agent 循环 ---
 const attemptCompletion = {
     name: 'attempt_completion',
+    ui: {
+        view: 'completion',
+        icon: 'check',
+        title: '完成任务',
+        summary: '最终结果',
+    },
     description: [
         'After each tool use, wait for its result before deciding what to do next.',
         'When the task is complete — the requested work is done or the question is fully answered — use this tool to present the final result to the user and end the current task. This is the only tool that ends the task.',
@@ -30,6 +36,12 @@ const attemptCompletion = {
 // --- 暂停 Agent 循环并询问用户 ---
 const askFollowupQuestion = {
     name: 'ask_followup_question',
+    ui: {
+        view: 'question',
+        icon: 'info',
+        title: '询问用户',
+        summary: '{question}',
+    },
     description: [
         'Ask the user a question to gather additional information needed to complete the task, then stop and wait for the answer.',
         'Use it only when you are blocked by missing information: which file to change, which account to use, which approach to take. Do not use it to hand the work back with a vague "what should I do?".',

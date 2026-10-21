@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.32.0",
+    "version": "0.33.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -147,6 +147,15 @@
                       "permission": {
                         "type": "string",
                         "description": "当前生效的权限动作：allow / ask / deny"
+                      },
+                      "configurable": {
+                        "type": "boolean",
+                        "description": "false 表示控制工具，只参与对话渲染，不出现在权限设置页"
+                      },
+                      "ui": {
+                        "type": "object",
+                        "description": "工具脚本声明的展示信息：view、icon、title、summary、actions。没有声明时前端使用通用工具行",
+                        "additionalProperties": true
                       }
                     }
                   }

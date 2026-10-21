@@ -9,6 +9,13 @@ import Skip from '../utils/skip.js' // 依赖目录不算用户要找的文件�
 
 export default {
     name: 'glob',
+    ui: {
+        view: 'file-list',
+        icon: 'folder',
+        title: '查找文件',
+        summary: '{pattern}',
+        actions: [{ id: 'copy-pattern', label: '复制模式', icon: 'copy', type: 'copy', value: 'pattern' }],
+    },
     description: [
         'Find files whose names match a glob pattern (e.g. **/*.test.js, src/*.ts), searching under a directory.',
         'Use this to locate files by name pattern when you do not know the exact path — before reading, editing or listing them.',

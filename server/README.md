@@ -109,6 +109,26 @@ description: 审查一个 PR 时用这个
 
 旧工具名（`file_read`、`file_write`、`file_list`、`grep`、`shell`、`todo`、`ask`、`task`、`finish`）仍能用于已有自定义模式和权限规则，运行时会自动换成新名字；新会话和工具列表只显示新名字。
 
+### 工具自带的界面
+
+工具脚本除了 `name`、`description`、`inputSchema`、`execute`，还可以写一个可序列化的 `ui`。`GET /tool/list` 会把它一起交给前端，前端按 `view` 选渲染器：
+
+```js
+ui: {
+    view: 'command',          // 前端渲染器：文件、命令、搜索、清单、网页等
+    icon: 'code',
+    title: '执行命令',
+    summary: '{command}',     // 行标题里的参数摘要
+    actions: [
+        { id: 'copy-command', label: '复制命令', icon: 'copy', type: 'copy', value: 'command' },
+    ],
+}
+```
+
+前端把调用参数和工具结果交给 [`ToolView.vue`](../frontend/src/session/tools/ToolView.vue)，没有 `ui` 的工具仍走原来的通用行。`actions` 是声明式交互，`type: 'copy'` 复制 `value` 指向的参数字段，`type: 'open'` 打开网址；以后加重跑命令、打开文件等动作，只需要扩展 `type`，不用在对话组件里为每个工具写条件分支。工具脚本只传数据，不直接传 Vue 组件，这样后端扫描和前端打包仍然是分开的。
+
+`GET /tool/list` 会同时返回控制工具（`update_todo_list`、`attempt_completion`、`ask_followup_question`），但它们的 `configurable` 是 `false`，设置页不会给它们画权限开关；对话页仍然能用它们的 `ui`。
+
 `new_task` 是唯一一个内存工具（其余都是文件工具）：它需要模型配置和工具表，这两样只有主进程有。
 它的用处是**省上下文**——让子 agent 去翻一堆文件，翻的过程全留在子 agent 自己的历史里，
 主 agent 只拿到结论，历史干净得像没读过那些文件。子 agent 还能再往下委托一层，最多两层；
@@ -353,7 +373,7 @@ Content-Type: application/json
 | --- | --- | --- |
 | `GET` | `/health` | `{ "ok": true, "version": "0.10.1", "sessions": 2, "running": 1 }` |
 | `GET` | `/command/list` | 可用的斜杠命令：名字、说明、提示词正文 |
-| `GET` | `/tool/list` | 内置工具和用户工具的名称、分类、当前权限动作 |
+| `GET` | `/tool/list` | 内置工具和用户工具的名称、分类、当前权限动作，以及工具自带的 `ui` 展示信息和 `configurable` 标记 |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 
