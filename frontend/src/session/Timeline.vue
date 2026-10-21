@@ -131,15 +131,21 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
                     </div>
                   </div>
                 </div>
+                <div v-if="!message.isStreaming" class="thinking-card__actions">
+                  <div class="message__actions assistant-message__actions">
+                    <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+                    <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
+                  </div>
+                </div>
               </div>
               <div v-if="message.content" class="assistant-text-row markdown-body" v-html="renderMarkdown(message.content)"></div>
               <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
               <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
               <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
-            </div>
-            <div v-if="!message.isStreaming" class="message__actions assistant-message__actions">
-              <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
-              <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
+              <div v-if="!message.isStreaming && !(message.reasoning || message.tools?.length)" class="message__actions assistant-message__actions">
+                <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+                <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
+              </div>
             </div>
           </div>
         </div>
@@ -224,9 +230,19 @@ const toolStatusClass = status => `is-${status || 'waiting'}`
 .assistant-head__model { min-width: 0; overflow: hidden; color: var(--la-muted); font: 12px/1.4 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
 /* 一轮助手发言：标题下面接多条消息，消息之间只留 4px。 */
 .assistant-thread { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin-top: 2px; }
-.assistant-message { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.assistant-message__content { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
-.assistant-message__actions { margin-top: 2px; }
+.assistant-message { display: block; min-width: 0; }
+.assistant-message__content { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.message__actions.assistant-message__actions {
+  justify-content: flex-start;
+  margin: 0;
+  transform: none;
+}
+.thinking-card__actions {
+  margin: 0 -6px;
+  padding: 1px 6px;
+  border-top: .5px solid var(--la-line);
+}
+.thinking-card__actions .message__actions.assistant-message__actions { padding: 1px 0; }
 
 /* 操作行：桌面低透明度，悬停或聚焦时清晰；手机常显。 */
 .message__actions {
