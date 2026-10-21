@@ -697,7 +697,7 @@ describe('server Agent integration boundary', () => {
             const agent = (await import('../store.js')).default.agents.get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
                 'file_read', 'file_write', 'file_list', 'edit', 'apply_patch',
-                'shell', 'glob', 'grep', 'todo', 'webfetch', 'finish', 'ask',
+                'shell', 'glob', 'grep', 'todo', 'webfetch', 'attempt_completion', 'ask',
             ]))
         })
     })

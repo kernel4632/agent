@@ -419,7 +419,7 @@ describe('自动批准按类别开关', () => {
             // 每类都关着，一件不改文件的小事也不该弹窗——不然用户只会一直点同意。
             expect(await runCheck({ sessionId, toolCallId: 'd1', toolName: 'todo', input: { items: [] } }))
                 .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'd2', toolName: 'finish', input: { result: '好了' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'd2', toolName: 'attempt_completion', input: { result: '好了' } }))
                 .toEqual({ allowed: true, asked: false })
             // 它们也不该出现在自动批准的设置里，没有开关可点。
             expect(Settings.KINDS.map(item => item.kind)).not.toContain('never')

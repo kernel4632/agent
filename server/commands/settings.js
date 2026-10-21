@@ -122,7 +122,12 @@ const modeInfo = name => modes().find(item => item.name === name) || null
  * @param {{ mode: string }} settings 会话设置。
  * @returns {string[]|null} 工具名单或 null。
  */
-const toolsFor = ({ mode }) => modeInfo(mode)?.tools || null
+const TOOL_ALIASES = { finish: 'attempt_completion' } // 旧自定义模式仍能点名已改名的工具。
+
+const toolsFor = ({ mode }) => {
+    const tools = modeInfo(mode)?.tools
+    return tools ? [...new Set(tools.map(name => TOOL_ALIASES[name] || name))] : null
+}
 
 /**
  * 把用户给的值夹到合法范围内，不认识的值直接忽略。

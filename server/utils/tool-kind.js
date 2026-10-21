@@ -58,7 +58,7 @@ const BUILT_IN = {
      * 用户只会一直点同意，审批弹窗也就没意义了。
      */
     todo: 'never',
-    finish: 'never',
+    attempt_completion: 'never',
     ask: 'never',
 }
 

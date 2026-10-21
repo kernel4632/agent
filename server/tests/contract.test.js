@@ -177,7 +177,7 @@ describe('工具名单', () => {
         const schema = await toolDefinitions()
         // 分类表是自动批准和 plan 模式共用的唯一来源。漏了一行不会报错，
         // 表现是"这个工具永远要问用户"，很难联想到是忘了登记。
-        // 表里写了 'other' 也算登记过——todo / finish / ask 就是这种：
+        // 表里写了 'other' 也算登记过——todo / attempt_completion / ask 就是这种：
         // 它们不碰磁盘也不连外部服务，本来就不该有自动批准开关。
         const missing = Object.keys(schema).filter(name => !(name in TABLE))
         expect(missing).toEqual([])
