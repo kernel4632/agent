@@ -20,6 +20,7 @@ import Snapshot from './snapshot.js' // 工具改文件之前先存一份原样�
 import Store from '../store.js' // 直接访问等待用户决定的审批表和会话设置。
 import SSE from '../utils/sse.js' // 把审批请求推给前端。
 import fail from '../utils/fail.js' // 用户选了不认识的决定时按填错处理。
+import { canonical, previousNames } from '../utils/tool-names.js' // 新名字生效，旧权限规则继续认。
 
 // 同一个工具调用连续出现这么多次，就停下来问一次。
 // 模型跑偏的典型表现不是"做了一件坏事"，而是"同一件小事反复重试"。
@@ -73,7 +74,9 @@ const normalize = value => value === 'allow' ? 'allow' : value === 'deny' ? 'den
 const decideByRules = (toolName, matchValue) => {
     // 没有规则时先问用户，不自动执行任何工具。
     const rules = Config.get().permission || { '*': 'ask' }
-    const toolRule = rules[toolName]
+    const name = canonical(toolName)
+    // 先看新名字，再看旧名字；用户的旧 permission 配置不会因为改名失效。
+    const toolRule = [name, ...previousNames(name)].map(item => rules[item]).find(rule => rule !== undefined)
     let decision = normalize(rules['*'])
     if (typeof toolRule === 'string') decision = normalize(toolRule) // 工具自己的规则优先。
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
@@ -117,13 +120,14 @@ const normalizeCommand = command => {
  * @returns {void}
  */
 const remember = ({ toolName, input, matchValue }) => {
-    const pattern = toolName === 'shell' ? `${normalizeCommand(input.command)}*` : matchValue
+    const name = canonical(toolName)
+    const pattern = name === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
     // 参数里可能出现通配符，先转义，保证这条规则只命中同一类参数。
     const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
     const rules = Config.get().permission
-    const toolRule = rules[toolName]
+    const toolRule = rules[name]
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[escaped] = 'allow'
-    else rules[toolName] = { '*': 'ask', [escaped]: 'allow' }
+    else rules[name] = { '*': 'ask', [escaped]: 'allow' }
 }
 
 /**
@@ -133,16 +137,17 @@ const remember = ({ toolName, input, matchValue }) => {
  * @returns {Promise<boolean>} 恒定 true，配合 check 的返回值使用。
  */
 const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
+    const name = canonical(toolName)
     // 快照要在工具执行之前记录，记下的才是被修改之前的文件内容。
-    // shell 不知道会改哪些文件，所以先把整个工作区备份一份；命令结束后再对比。
-    if (toolName === 'shell') {
+    // execute_command 不知道会改哪些文件，所以先把整个工作区备份一份；命令结束后再对比。
+    if (name === 'execute_command') {
         try {
             await Snapshot.beginShell({ sessionId, messageId, toolCallId })
         } catch {
             // 快照失败不该把工具挡下来；没有快照只是少一层回退保护。
         }
     } else {
-        await Snapshot.save({ sessionId, messageId, toolCallId, toolName, input })
+        await Snapshot.save({ sessionId, messageId, toolCallId, toolName: name, input })
     }
     return true
 }
@@ -158,9 +163,10 @@ const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
 const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal }) => {
     // Agent 只看这个返回值是不是布尔值，所以这里必须返回布尔值，不能返回对象。
     // 被拦住的原因通过 SSE 告诉界面，让用户知道是哪条规则挡下的。
-    const blocked = Ignore.blockedBy({ toolName, input })
+    const name = canonical(toolName)
+    const blocked = Ignore.blockedBy({ toolName: name, input })
     if (blocked) {
-        await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
+        await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
         return false
     }
     const matchValue = flatten(input)
@@ -169,15 +175,15 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      * 内部工具（记清单、结束循环）不碰磁盘也不碰外部服务，没有"要不要批准"这回事。
      * 这一步放在 deny 之前：用户写 "*": "deny" 时，循环本身仍然要能收尾。
      */
-    if (Kind.of({ toolName, mcpServers }) === 'never') return allow({ sessionId, messageId, toolCallId, toolName, input })
+    if (Kind.of({ toolName: name, mcpServers }) === 'never') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     /*
      * deny 是硬规则。自动批准只省掉"询问"，不能把一条明确的拒绝变成放行——
-     * 用户写下 "shell": "deny" 之后，即使命令类全开着，也不该执行。
+     * 用户写下 "execute_command": "deny" 之后，即使命令类全开着，也不该执行。
      */
-    const decision = decideByRules(toolName, matchValue)
+    const decision = decideByRules(name, matchValue)
     if (decision === 'deny') {
-        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: '被权限规则拒绝' } })
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: '被权限规则拒绝' } })
         return false
     }
 
@@ -185,9 +191,9 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      * 工作区外的路径单独过一道 external_directory 规则。
      * 默认是 ask，所以即使工具本身的规则写着 allow，也不会顺手翻到工作区外面。
      */
-    const external = await Boundary.check({ toolName, input })
+    const external = await Boundary.check({ toolName: name, input })
     if (external.effect === 'deny') {
-        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: toolName, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
         return false
     }
     const externalAsk = external.effect === 'ask'
@@ -198,7 +204,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      */
     let looping = false
     if (sessionId) {
-        const key = `${toolName}:${stable(input)}`
+        const key = `${name}:${stable(input)}`
         const previous = Store.recentCalls.get(sessionId)
         const count = previous?.key === key ? previous.count + 1 : 1
         Store.recentCalls.set(sessionId, { key, count })
@@ -211,7 +217,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     // 这一类开了自动批准就跳过询问。按类别分（读取 / 写入 / 命令 / MCP），
     // 所以可以"读随便读、写还是问我"这种组合。未分类的工具一律要问。
     const settings = Store.settings.get(sessionId)
-    const auto = Settings.approves({ settings, toolName, mcpServers })
+    const auto = Settings.approves({ settings, toolName: name, mcpServers })
     /*
      * 自动批准的刹车：连着放行了太多次就停下来问一次。
      * 模型跑偏的典型表现不是"一件坏事"，而是"同一件小事做了五十遍"——
@@ -245,15 +251,15 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      */
     const rule = looping || (auto && capped) || externalAsk ? 'ask' : auto ? 'allow' : decision
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
-    if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName, input })
+    if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
     // 没有会话上下文时按无人值守放行；但工作区外的路径不能这样静默放行。
-    if (!sessionId || !toolCallId) return externalAsk ? false : allow({ sessionId, messageId, toolCallId, toolName, input })
+    if (!sessionId || !toolCallId) return externalAsk ? false : allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     const answer = await new Promise(resolve => {
-        Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName, input, matchValue, resolve })
-        SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: toolName, input } })
+        Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName: name, input, matchValue, resolve })
+        SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: name, input } })
         signal?.addEventListener('abort', () => {
             // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
             Store.approvals.delete(`${sessionId}:${toolCallId}`)
@@ -261,7 +267,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         }, { once: true })
     })
     if (!answer) return false
-    return allow({ sessionId, messageId, toolCallId, toolName, input })
+    return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 }
 
 /**

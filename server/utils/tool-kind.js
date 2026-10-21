@@ -6,11 +6,13 @@
  *   - plan 模式按类别去掉能改磁盘的工具
  * 加一个内置工具只改这张表，不用去别处同步。
  * 调用示例：
- *   Kind.of({ toolName: 'file_write' })                                   // 'write'
+ *   Kind.of({ toolName: 'write_to_file' })                                // 'write'
  *   Kind.of({ toolName: 'everything_echo', mcpServers: ['everything'] })  // 'mcp'
  *   Kind.of({ toolName: '我的脚本' })                                      // 'other'，没分类
  *   Kind.writing(Object.keys(agent.tools.schema))                         // 能改磁盘的那些工具名
  */
+
+import { canonical } from './tool-names.js' // 旧工具名也要能分到同一类。
 
 /*
  * 自动批准能分别开关的类别。这份清单和 roo code 的设置面板对齐：
@@ -38,28 +40,28 @@ const WRITING = ['write', 'command']
  */
 const BUILT_IN = {
     // 看和查
-    file_read: 'read',
-    file_list: 'read',
+    read_file: 'read',
+    list_files: 'read',
     glob: 'read',
-    grep: 'read',
+    search_files: 'read',
     webfetch: 'read',
     skill: 'read',
     // 改
-    file_write: 'write',
+    write_to_file: 'write',
     edit: 'write',
     apply_patch: 'write',
     // 跑
-    shell: 'command',
+    execute_command: 'command',
     // 开子任务
-    task: 'subtask',
+    new_task: 'subtask',
     /*
      * never：这几件是控制循环用的，既不碰磁盘也不碰外部服务，
      * 本来就没有"要不要批准"这回事。记清单和结束循环每次都要问一遍的话，
      * 用户只会一直点同意，审批弹窗也就没意义了。
      */
-    todo: 'never',
+    update_todo_list: 'never',
     attempt_completion: 'never',
-    ask: 'never',
+    ask_followup_question: 'never',
 }
 
 /**
@@ -72,7 +74,7 @@ const BUILT_IN = {
  */
 const of = ({ toolName, mcpServers = [] }) => {
     if (mcpServers.some(name => toolName.startsWith(`${name}_`))) return 'mcp'
-    return BUILT_IN[toolName] || 'other'
+    return BUILT_IN[canonical(toolName)] || 'other'
 }
 
 /**

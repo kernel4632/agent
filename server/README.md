@@ -96,23 +96,27 @@ description: 审查一个 PR 时用这个
 
 | 工具 | 做什么 |
 | --- | --- |
-| `file_read` / `file_write` / `file_list` | 读文件（含图片）、写完整文本、列目录 |
-| `edit` / `apply_patch` | 改一处唯一片段；`apply_patch` 一次改多个文件，全部校验通过才写盘 |
-| `grep` / `glob` | 按正则搜内容、按通配找文件，跳过哪些目录由 `utils/skip.js` 一处说了算 |
-| `shell` | 执行命令，带十分钟超时和输出截断 |
-| `todo` | 写下当前任务清单和进度，前端据此显示进度条 |
-| `webfetch` | 取网页正文 |
-| `task` | 把一件独立的探索工作委托给子 agent，只拿回结论 |
-| `attempt_completion` / `ask` | 结束任务；向用户提问并暂停 |
+| `read_file` / `write_to_file` / `list_files` | 读文件（含图片）、写完整文本、列目录 |
+| `edit` / `apply_patch` | 精确替换片段（默认只改一处，可设 `replace_all`）；`apply_patch` 一次改多个文件，全部校验通过才写盘 |
+| `search_files` / `glob` | 按正则搜内容、按通配找文件，跳过哪些目录由 `utils/skip.js` 一处说了算 |
+| `execute_command` | 执行命令，带十分钟超时和输出截断 |
+| `update_todo_list` | 写下当前任务清单和进度，前端据此显示进度条 |
+| `webfetch` | 取网页正文（Roo Code 没有同名内置工具，这是本项目自己的补充） |
+| `new_task` | 把一件独立的探索工作委托给子 agent，只拿回结论 |
+| `attempt_completion` / `ask_followup_question` | 结束任务；向用户提问并暂停 |
 
-`task` 是唯一一个内存工具（其余都是文件工具）：它需要模型配置和工具表，这两样只有主进程有。
+`glob` 和 `webfetch` 是本项目自己的工具，Roo Code 当前没有同名内置工具；其余工具名和主要参数按 Roo Code 对齐。`apply_patch` 保留了本项目"一次提交多个文件、全部校验通过才写盘"的行为。
+
+旧工具名（`file_read`、`file_write`、`file_list`、`grep`、`shell`、`todo`、`ask`、`task`、`finish`）仍能用于已有自定义模式和权限规则，运行时会自动换成新名字；新会话和工具列表只显示新名字。
+
+`new_task` 是唯一一个内存工具（其余都是文件工具）：它需要模型配置和工具表，这两样只有主进程有。
 它的用处是**省上下文**——让子 agent 去翻一堆文件，翻的过程全留在子 agent 自己的历史里，
 主 agent 只拿到结论，历史干净得像没读过那些文件。子 agent 还能再往下委托一层，最多两层；
 同一轮里可以同时开几个互不依赖的子任务，它们会并行跑。它失败只作为一条结论回来，不会打断主任务；主任务被停止时它一起停。
 
 ### 写后诊断
 
-`file_write`、`edit`、`apply_patch` 写完之后，可以指定一条诊断命令，把结果附在工具返回值后面交给模型：
+`write_to_file`、`edit`、`apply_patch` 写完之后，可以指定一条诊断命令，把结果附在工具返回值后面交给模型：
 
 ```json
 {
@@ -392,7 +396,7 @@ Content-Type: application/json
 {
   "permission": {
     "*": "ask",
-    "shell": {
+    "execute_command": {
       "*": "ask",
       "git *": "allow",
       "git push *": "deny"
@@ -401,9 +405,9 @@ Content-Type: application/json
 }
 ```
 
-`deny` 是硬规则：即使这一类开了自动批准，明确的拒绝也不会被绕过。写错的动作（比如 `"maybe"`）按 `"ask"` 处理，不会因为拼错一个词就自动放行。`todo`、`attempt_completion`、`ask` 是控制循环用的内部工具，不受 `deny` 影响。
+`deny` 是硬规则：即使这一类开了自动批准，明确的拒绝也不会被绕过。写错的动作（比如 `"maybe"`）按 `"ask"` 处理，不会因为拼错一个词就自动放行。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
 
-**工作区外的路径要单独放行。** 配置了 `external_directory` 之后，文件工具和 `shell` 的 `directory` 落在后端启动目录之外时，会按这份规则判断，默认 `ask`；不配置时保持原来的行为。它和工具本身的规则是两道关：即使写着 `"*": "allow"`，只要配了 `external_directory`，也不会顺手翻到工作区外。
+**工作区外的路径要单独放行。** 配置了 `external_directory` 之后，文件工具和 `execute_command` 的 `cwd` 落在后端启动目录之外时，会按这份规则判断，默认 `ask`；不配置时保持原来的行为。它和工具本身的规则是两道关：即使写着 `"*": "allow"`，只要配了 `external_directory`，也不会顺手翻到工作区外。
 
 ```json
 {
@@ -416,7 +420,7 @@ Content-Type: application/json
 }
 ```
 
-路径按真实路径判断，符号链接也按它指向的位置算；`~` 和 `$HOME` 会展开。`shell` 命令字符串里的路径不解析，只检查 `directory` 参数。没有会话上下文（无人值守）时，工作区外的路径直接拒绝，不静默放行。
+路径按真实路径判断，符号链接也按它指向的位置算；`~` 和 `$HOME` 会展开。`execute_command` 命令字符串里的路径不解析，只检查 `cwd` 参数。没有会话上下文（无人值守）时，工作区外的路径直接拒绝，不静默放行。
 
 > 注意：当前后端会返回完整配置，其中可能含有 `apiKey`。前端展示配置时必须遮蔽密钥，不能直接显示或写入日志。
 
@@ -460,11 +464,11 @@ Content-Type: application/json
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `mode` | `build` | `plan` 只给只读工具（读文件、搜代码、抓网页），`build` 给全套工具；也可以填 `modes` 里自定义的名字 |
-| `autoApprove.read` | `false` | 读文件和搜索不再弹审批（`file_read`、`file_list`、`glob`、`grep`、`webfetch`、`skill`） |
-| `autoApprove.write` | `false` | 改文件不再弹审批（`file_write`、`edit`、`apply_patch`） |
-| `autoApprove.command` | `false` | 执行命令不再弹审批（`shell`） |
+| `autoApprove.read` | `false` | 读文件和搜索不再弹审批（`read_file`、`list_files`、`glob`、`search_files`、`webfetch`、`skill`） |
+| `autoApprove.write` | `false` | 改文件不再弹审批（`write_to_file`、`edit`、`apply_patch`） |
+| `autoApprove.command` | `false` | 执行命令不再弹审批（`execute_command`） |
 | `autoApprove.mcp` | `false` | MCP 服务给的工具不再弹审批，按配置里的服务名前缀认 |
-| `autoApprove.subtask` | `false` | 开子任务不再弹审批（`task`）。子 agent 自己动文件时仍按上面几类分别判断 |
+| `autoApprove.subtask` | `false` | 开子任务不再弹审批（`new_task`）。子 agent 自己动文件时仍按上面几类分别判断 |
 | `autoApproveLimit` | `50` | 连着自动批准这么多次之后停下来问一句；`0` 表示不设上限 |
 | `compactThreshold` | `0.8` | 上下文用到这个比例时自动压缩，范围 `0.1` 到 `0.99` |
 | `capabilities.image` | `true` | 能不能把图片发给模型 |
@@ -473,7 +477,7 @@ Content-Type: application/json
 | `uses` | `{}` | 哪件事用哪个模型，见下节。空＝都用主模型 |
 | `autoTitle` | `true` | 第一次聊完让模型起个标题 |
 
-**自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`file_read` 直接过，`file_write` 和 `shell` 照样进等待队列。每一类可以随时单独改，改一类不动别类。
+**自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`read_file` 直接过，`write_to_file` 和 `execute_command` 照样进等待队列。每一类可以随时单独改，改一类不动别类。
 
 这套开关的类别和界面上的选项对齐 roo code，但只保留我们真有的东西。它那边还有「切换模式」和「追问」两项自动批准：我们没有"由模型自己切换模式"这回事（模式是用户在界面上切的），也没有"到点自动选一个追问答案"的机制，所以不设这两个开关——真加了就是永远不生效的空开关。
 
@@ -492,7 +496,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
   "modes": {
     "review": {
       "label": "审查",
-      "tools": ["file_read", "file_list", "glob", "grep", "skill"]
+      "tools": ["read_file", "list_files", "glob", "search_files", "skill"]
     },
     "audit": {
       "label": "审计",
@@ -505,16 +509,16 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 | 字段 | 必填 | 作用 |
 | --- | --- | --- |
 | `label` | 否 | 界面上显示的名字，不写就用模式名 |
-| `tools` | 否 | 只给名单里的工具；不写表示按 `readOnly` 规则决定。`task` 也要点名才会装 |
+| `tools` | 否 | 只给名单里的工具；不写表示按 `readOnly` 规则决定。`new_task` 也要点名才会装 |
 | `readOnly` | 否 | `true` 时去掉写文件和执行命令的工具 |
 
 模式名只能包含字母、数字、`-` 和 `_`。`build` / `plan` 是内置的，不能覆盖；写错模式名返回 `400`。自定义模式里写了不存在的工具名会被直接忽略，不会让会话打不开。
 
 **认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准、plan 模式和契约检查都从那里读；新加内置工具时在表里补一行即可（漏了会有测试报出来）。
 
-**记清单和结束循环不问。** `todo`、`attempt_completion`、`ask` 是控制循环用的，既不碰磁盘也不碰外部服务，本来就没有"要不要批准"这回事，所以不设开关。每次都要问一遍的话，用户只会一直点同意，审批弹窗也就没意义了。
+**记清单和结束循环不问。** `update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的，既不碰磁盘也不碰外部服务，本来就没有"要不要批准"这回事，所以不设开关。每次都要问一遍的话，用户只会一直点同意，审批弹窗也就没意义了。
 
-**子任务走同一道审批关口。** `task` 建子 agent 时带着同一个审批回调，回到同一条会话。少了它，子任务里的读文件和执行命令完全不问用户，`.agentignore` 也拦不住，而且不报任何错——表现只是"某个密钥文件莫名其妙被读到了"。
+**子任务走同一道审批关口。** `new_task` 建子 agent 时带着同一个审批回调，回到同一条会话。少了它，子任务里的读文件和执行命令完全不问用户，`.agentignore` 也拦不住，而且不报任何错——表现只是"某个密钥文件莫名其妙被读到了"。
 
 **开了自动批准也绕不过 `.agentignore` 和 `deny`。** 自动批准省掉的是"问一遍"，密钥文件（`.env`、`*.pem`、`**/.ssh/**` 等）照样读不到，被忽略规则拦住时会收到 `permission-blocked` 事件，带上是哪条规则挡的；被 `deny` 拦住时同样收到这个事件，原因写的是权限规则拒绝。
 
@@ -622,7 +626,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 文件能恢复靠 `features/snapshot.js`：工具改文件之前先按内容存一份原样副本，所以同一个文件
 被反复改也只多存一份内容。撤销回退时连"回退前是什么样"也存过一份，所以撤销能让文件回到回退前的状态。
 
-**shell 命令改的文件也能退。** shell 不知道会改哪些文件，所以命令执行前先扫一遍工作区、按内容备份，命令结束后再对比清单，只把真正变了的文件记成一次检查点。跳过 `node_modules`、`dist` 这类目录，单文件超过 2MB 不纳入；文件数超过 2000 就整次跳过，避免一条命令把整个仓库读一遍。
+**execute_command 改的文件也能退。** 命令不知道会改哪些文件，所以执行前先扫一遍工作区、按内容备份，命令结束后再对比清单，只把真正变了的文件记成一次检查点。跳过 `node_modules`、`dist` 这类目录，单文件超过 2MB 不纳入；文件数超过 2000 就整次跳过，避免一条命令把整个仓库读一遍。
 
 配置在 `config.json`：
 
@@ -630,7 +634,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 { "snapshot": { "shell": true, "maxFiles": 2000, "maxBytes": 2097152 } }
 ```
 
-`shell` 默认关；设为 `true` 打开（打开后会先扫一遍工作区，命令多时能感到变慢）。`maxFiles` / `maxBytes` 可以按项目大小调整。
+`snapshot.shell` 默认关；设为 `true` 打开（打开后会先扫一遍工作区，命令多时能感到变慢）。`maxFiles` / `maxBytes` 可以按项目大小调整。这个配置键沿用旧名字，和工具名无关。
 
 `GET /session/list` 是列表接口，不返回历史，只返回元信息：
 
@@ -652,7 +656,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
   "provider": "default",
   "model": "模型名",
   "running": false,
-  "pending": [{ "callID": "call-1", "tool": "shell", "input": { "command": "rm -rf build" } }],
+  "pending": [{ "callID": "call-1", "tool": "execute_command", "input": { "command": "rm -rf build" } }],
   "todos": [{ "text": "读现有实现", "status": "completed" }],
   "history": [
     {
@@ -665,7 +669,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 }
 ```
 
-`todos` 是 agent 最近一次调用 `todo` 工具写下的任务清单，直接从历史里取出来，界面上可以直接渲染进度。
+`todos` 是 agent 最近一次调用 `update_todo_list` 工具写下的任务清单，直接从历史里取出来，界面上可以直接渲染进度。
 `running` 说明这个会话现在有没有任务在跑。
 
 `pending` 是正在等用户批准的工具调用。审批请求只在 SSE 里出现过一次，**刷新页面或换台设备打开
@@ -684,7 +688,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
   "content": [
     { "type": "reasoning", "text": "先看看目录结构" },
     { "type": "text", "text": "我来处理。" },
-    { "type": "tool-call", "toolCallId": "call-1", "toolName": "file_read", "input": { "path": "a.txt" } }
+    { "type": "tool-call", "toolCallId": "call-1", "toolName": "read_file", "input": { "path": "a.txt" } }
   ]
 }
 ```
@@ -695,7 +699,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 {
   "role": "tool",
   "content": [
-    { "type": "tool-result", "toolCallId": "call-1", "toolName": "file_read", "output": { "type": "text", "value": "文件内容" } }
+    { "type": "tool-result", "toolCallId": "call-1", "toolName": "read_file", "output": { "type": "text", "value": "文件内容" } }
   ]
 }
 ```

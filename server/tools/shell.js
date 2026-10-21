@@ -1,9 +1,9 @@
 /*
  * 命令工具：在指定目录执行一条命令，把输出和退出码一起交给模型。
  *
+ * 名字和参数对齐 Roo Code：execute_command({ command, cwd })。
  * 输出会两路给出：一路实时转发给前端边跑边看，一路读回来放进工具结果。
  * 必须自己读回来——只返回退出码的话，模型看不到命令说了什么（已实测确认）。
- * 调用示例：模型调用 shell({ command: 'git status', directory: 'D:/projects/app' })。
  */
 import { truncate } from './truncate.js' // 长输出只留头尾，避免一次性塞满上下文。
 
@@ -11,30 +11,30 @@ import { truncate } from './truncate.js' // 长输出只留头尾，避免一次
 const TIMEOUT_MS = 10 * 60 * 1000
 
 export default {
-    name: 'shell',
+    name: 'execute_command',
     description: [
-        'Run a shell command and return its output (stdout and stderr) and exit code. Long output is truncated, keeping the head and tail.',
+        'Execute a CLI command on the system and return its output (stdout and stderr) and exit code. Long output is truncated, keeping the head and tail.',
         'Use this for anything not covered by a dedicated tool: installing dependencies, running builds and tests, git operations, starting dev servers.',
-        'Prefer dedicated tools when they fit (file_read to inspect a file, grep to search) — they are cheaper and more precise.',
+        'Prefer dedicated tools when they fit (read_file to inspect a file, search_files to search) — they are cheaper and more precise.',
         'The command runs once and waits for completion; interactive prompts that need typing will hang — pass flags like -y or set env vars instead.',
         'Parameters:',
         '- command (required): the command line to run.',
-        '- directory (optional): working directory; defaults to the current one.',
+        '- cwd (optional): working directory; defaults to the current one.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
             command: { type: 'string' },
-            directory: { type: 'string' },
+            cwd: { type: 'string' },
         },
         required: ['command'],
     },
 
     // --- 执行命令 ---
-    async execute({ command, directory }, { abortSignal }) {
+    async execute({ command, cwd, directory }, { abortSignal }) {
         const process = Bun.spawn({
             cmd: ['cmd.exe', '/d', '/s', '/c', command],
-            cwd: directory,
+            cwd: cwd ?? directory, // 旧调用仍可传 directory。
             stdout: 'pipe',
             stderr: 'pipe',
         })

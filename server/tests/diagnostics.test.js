@@ -67,10 +67,10 @@ describe('写后诊断', () => {
         })
     })
 
-    test('file_write 的返回值里带上诊断输出', async () => {
+    test('write_to_file 的返回值里带上诊断输出', async () => {
         await withHome(async root => {
             await writeConfig(root, { command: echo('DIAG-OK') })
-            const write = fileTools.find(tool => tool.name === 'file_write')
+            const write = fileTools.find(tool => tool.name === 'write_to_file')
             const target = join(root, 'written.txt')
             const result = await write.execute({ path: target, content: 'hello' })
             expect(result).toContain('Wrote')
@@ -84,7 +84,7 @@ describe('写后诊断', () => {
             await writeConfig(root, { command: echo('EDIT-DIAG') })
             const target = join(root, 'edited.txt')
             await writeFile(target, 'old text')
-            const result = await editTool.execute({ path: target, oldText: 'old', newText: 'new' })
+            const result = await editTool.execute({ file_path: target, old_string: 'old', new_string: 'new' })
             expect(result).toContain('Edited')
             expect(result).toContain('EDIT-DIAG')
             expect(await Bun.file(target).text()).toBe('new text')

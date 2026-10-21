@@ -12,7 +12,7 @@ export default {
     description: [
         'Find files whose names match a glob pattern (e.g. **/*.test.js, src/*.ts), searching under a directory.',
         'Use this to locate files by name pattern when you do not know the exact path — before reading, editing or listing them.',
-        'Returns matching paths, not contents. Follow up with file_read on the files you care about.',
+        'Returns matching paths, not contents. Follow up with read_file on the files you care about.',
         'Parameters:',
         '- path (required): directory to search in.',
         '- pattern (required): glob pattern for file names.',

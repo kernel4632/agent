@@ -75,9 +75,9 @@ describe('工具级回退', () => {
             const messageId = added.message.id
 
             // 同一轮里的两次工具调用，各自记一份快照。
-            await Approval.check({ sessionId, messageId, toolCallId: 'call-a', toolName: 'file_write', input: { path: first } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'call-a', toolName: 'write_to_file', input: { path: first } })
             await writeFile(first, 'a1')
-            await Approval.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'file_write', input: { path: second } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'write_to_file', input: { path: second } })
             await writeFile(second, 'b1')
 
             // 两次调用都记下了，界面据此列出可回退的点。
@@ -123,7 +123,7 @@ describe('工具级回退', () => {
             const added = await History.add({ sessionId, message: Agent.history.user({ content: '改一个文件' }) })
             await History.save({ sessionId })
 
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'file_write', input: { path: target } })
+            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'after')
 
             await Session.rollbackTool({ sessionId, toolCallId: 'call-x' })
@@ -141,9 +141,9 @@ describe('工具级回退', () => {
             const target = await tempFile('agent-twice', 'v0')
 
             const { sessionId } = await Session.create({ title: 'Two edits' })
-            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'file_write', input: { path: target } })
+            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'v1')
-            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'file_write', input: { path: target } })
+            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'v2')
 
             // 回退第二次：文件要回到第一次改完的 v1，而不是停在 v2。
@@ -163,7 +163,7 @@ describe('权限规则的拒绝动作', () => {
             // 命令类全开也不该绕过一条明确的拒绝。
             await Session.saveSettings({ sessionId, autoApprove: { command: true } })
 
-            const allowed = await Approval.check({ sessionId, toolCallId: 'deny-1', toolName: 'shell', input: { command: 'rm -rf build' } })
+            const allowed = await Approval.check({ sessionId, toolCallId: 'deny-1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
             expect(allowed).toBe(false)
             expect(Approval.pending(sessionId)).toEqual([])
         })
@@ -177,8 +177,8 @@ describe('权限规则的拒绝动作', () => {
             })
             const { sessionId } = await Session.create({ title: 'Last match' })
 
-            expect(await Approval.check({ sessionId, toolCallId: 'git-status', toolName: 'shell', input: { command: 'git status' } })).toBe(true)
-            expect(await Approval.check({ sessionId, toolCallId: 'git-push', toolName: 'shell', input: { command: 'git push origin main' } })).toBe(false)
+            expect(await Approval.check({ sessionId, toolCallId: 'git-status', toolName: 'execute_command', input: { command: 'git status' } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'git-push', toolName: 'execute_command', input: { command: 'git push origin main' } })).toBe(false)
         })
     })
 
@@ -187,7 +187,7 @@ describe('权限规则的拒绝动作', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny', shell: 'allow' } })
             const { sessionId } = await Session.create({ title: 'Override' })
 
-            expect(await Approval.check({ sessionId, toolCallId: 'shell-ok', toolName: 'shell', input: { command: 'ls' } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'shell-ok', toolName: 'execute_command', input: { command: 'ls' } })).toBe(true)
         })
     })
 
@@ -196,8 +196,8 @@ describe('权限规则的拒绝动作', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny' } })
             const { sessionId } = await Session.create({ title: 'Internal tools' })
 
-            expect(await Approval.check({ sessionId, toolCallId: 'todo-1', toolName: 'todo', input: { items: [] } })).toBe(true)
-            expect(await Approval.check({ sessionId, toolCallId: 'shell-deny', toolName: 'shell', input: { command: 'ls' } })).toBe(false)
+            expect(await Approval.check({ sessionId, toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '' } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'shell-deny', toolName: 'execute_command', input: { command: 'ls' } })).toBe(false)
         })
     })
 
@@ -206,7 +206,7 @@ describe('权限规则的拒绝动作', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { shell: 'maybe' } })
             const { sessionId } = await Session.create({ title: 'Unknown action' })
 
-            const task = Approval.check({ sessionId, toolCallId: 'unknown-1', toolName: 'shell', input: { command: 'ls' } })
+            const task = Approval.check({ sessionId, toolCallId: 'unknown-1', toolName: 'execute_command', input: { command: 'ls' } })
             await Bun.sleep(0)
             // 写错一个词不能变成 allow；它应该老老实实停下来问。
             expect(Approval.pending(sessionId)).toHaveLength(1)
@@ -223,7 +223,7 @@ describe('重复调用的刹车', () => {
             const { sessionId } = await Session.create({ title: 'Loop guard' })
             await Session.saveSettings({ sessionId, autoApprove: { read: true } })
 
-            const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'file_read', input: { path: 'a.txt' } })
+            const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })
             expect(await call('a1')).toBe(true)
             expect(await call('a2')).toBe(true)
 
@@ -235,7 +235,7 @@ describe('重复调用的刹车', () => {
             expect(await third).toBe(true)
 
             // 用户刚确认过，计数从头开始，下一次仍然直接放行。
-            expect(await Approval.check({ sessionId, toolCallId: 'a4', toolName: 'file_read', input: { path: 'a.txt' } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'a4', toolName: 'read_file', input: { path: 'a.txt' } })).toBe(true)
         })
     })
 
@@ -246,7 +246,7 @@ describe('重复调用的刹车', () => {
             await Session.saveSettings({ sessionId, autoApprove: { read: true } })
 
             for (const path of ['a.txt', 'b.txt', 'c.txt', 'd.txt']) {
-                expect(await Approval.check({ sessionId, toolCallId: path, toolName: 'file_read', input: { path } })).toBe(true)
+                expect(await Approval.check({ sessionId, toolCallId: path, toolName: 'read_file', input: { path } })).toBe(true)
             }
             expect(Approval.pending(sessionId)).toEqual([])
         })
@@ -258,7 +258,7 @@ describe('重复调用的刹车', () => {
             const { sessionId } = await Session.create({ title: 'Deny first' })
 
             for (const id of ['d1', 'd2', 'd3']) {
-                expect(await Approval.check({ sessionId, toolCallId: id, toolName: 'file_read', input: { path: 'a.txt' } })).toBe(false)
+                expect(await Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })).toBe(false)
             }
             expect(Approval.pending(sessionId)).toEqual([])
         })
@@ -366,15 +366,15 @@ describe('忽略规则的安全默认', () => {
     test('还没调用 load 时，内置规则就已经生效', async () => {
         // 内置规则必须在模块加载时就生效，不能等 load()。
         // 否则任何忘了先 load() 的调用方都会静默放行全部文件，连 .env 也一起漏掉。
-        expect(Ignore.blocks({ toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(true)
+        expect(Ignore.blocks({ toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe(true)
         // 被拦住时要说清是哪一条规则挡下的，用户和界面都靠它判断。
-        expect(Ignore.blockedBy({ toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe('.env')
-        expect(Ignore.blockedBy({ toolName: 'file_read', input: { path: 'D:/app/src/a.js' } })).toBe(null)
+        expect(Ignore.blockedBy({ toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe('.env')
+        expect(Ignore.blockedBy({ toolName: 'read_file', input: { path: 'D:/app/src/a.js' } })).toBe(null)
     })
 
     test('agent 自己的数据目录也在保护范围内', async () => {
         // 数据目录里有 API Key 和全部会话，工具不该能读到它。
-        expect(Ignore.blocks({ toolName: 'file_read', input: { path: 'C:/Users/me/.agent/config.json' } })).toBe(true)
+        expect(Ignore.blocks({ toolName: 'read_file', input: { path: 'C:/Users/me/.agent/config.json' } })).toBe(true)
     })
 })
 

@@ -26,6 +26,7 @@ import Title from '../features/title.js' // 第一次聊完让模型起个标题
 import Config from './config.js' // 读取全局模型配置和权限规则。
 import Settings from './settings.js' // 会话运行设置：模式、自动批准、能力开关。
 import Kind from '../utils/tool-kind.js' // 工具分类只有一处，plan 模式用不着自己写名单。
+import { canonical } from '../utils/tool-names.js' // 历史里旧工具名也能认出对应结果。
 import History from '../features/history.js' // 读写当前会话消息。
 import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
 import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
@@ -129,18 +130,18 @@ const createAgent = async ({ sessionId, history, meta }) => {
      * 这里只是把它对当前工具表算一遍，不另外维护一份名单。
      * omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
      *
-     * 这一步必须在装 task 之前做：子 agent 拿的是这里选出来的这张表。
-     * 反过来（先装 task 再筛）会留一个口子——只读模式的模型自己虽然改不了文件，
+     * 这一步必须在装 new_task 之前做：子 agent 拿的是这里选出来的这张表。
+     * 反过来（先装 new_task 再筛）会留一个口子——只读模式的模型自己虽然改不了文件，
      * 但它可以开一个子任务，让子任务去改，等于绕过了"只看不做"。
      */
     if (config.readOnly) allowed = Agent.tool.omit(allowed, Kind.writing(Object.keys(allowed.schema)))
 
-    // task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
+    // new_task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
-    // 自定义模式没点名 task 时就不装，让"只留几个工具"真的只留那几个。
-    const withTask = !toolNames || toolNames.includes('task')
+    // 自定义模式没点名 new_task 时就不装，让"只留几个工具"真的只留那几个。
+    const withTask = !toolNames || toolNames.includes('new_task')
     const tools = withTask
-        ? Agent.tool.merge(allowed, Agent.tool.adopt({ task: Delegation.build({ config, tools: allowed, sessionId }) }))
+        ? Agent.tool.merge(allowed, Agent.tool.adopt({ new_task: Delegation.build({ config, tools: allowed, sessionId }) }))
         : allowed
     const agent = Agent.create({
         id: sessionId,
@@ -244,7 +245,7 @@ const read = async ({ sessionId }) => {    const meta = await readMeta(sessionId
     const history = History.get({ sessionId })
     if (agent) agent.history = history // 历史被回退或外部修改过，交回 Agent 手里的必须是最新的。
     else await createAgent({ sessionId, history, meta })
-    // 清单本来就在历史里（todo 工具的结果），这里只是提出来，让界面不用自己翻。
+    // 清单本来就在历史里（update_todo_list 工具的结果），这里只是提出来，让界面不用自己翻。
     // 审批请求只在 SSE 里出现过一次，刷新页面后要靠这里才知道有工具在等待。
     // undoable 是还能撤销几次回退，界面据此决定要不要显示"撤销回退"。
     return {
@@ -260,10 +261,11 @@ const read = async ({ sessionId }) => {    const meta = await readMeta(sessionId
 
 // --- 从历史里取出最新一份任务清单 ---
 const latestTodos = history => {
-    // 从后往前找最后一次 todo 调用，用户要看的是"现在还剩什么"。
+    // 从后往前找最后一次清单调用，用户要看的是"现在还剩什么"。
     for (const message of [...history].reverse()) {
         for (const part of Array.isArray(message.content) ? message.content : []) {
-            if (part.type === 'tool-result' && part.toolName === 'todo' && part.output?.value?.items) return part.output.value.items
+            if (part.type !== 'tool-result' || canonical(part.toolName) !== 'update_todo_list') continue
+            if (part.output?.value?.items) return part.output.value.items
         }
     }
     return []
@@ -521,9 +523,9 @@ const send = async ({ sessionId, input }) => {
             onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
             onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
             onToolResult: result => {
-                // shell 改了哪些文件只有跑完才知道；和命令前的清单对比后记一次检查点。
+                // execute_command 改了哪些文件只有跑完才知道；和命令前的清单对比后记一次检查点。
                 const toolCallId = result.toolCallId || result.callID
-                if (result.toolName === 'shell' && toolCallId) {
+                if (canonical(result.toolName) === 'execute_command' && toolCallId) {
                     Snapshot.endShell({ sessionId, toolCallId }).catch(() => {})
                 }
                 SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })

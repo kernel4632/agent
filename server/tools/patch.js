@@ -21,7 +21,7 @@ export default {
         'Apply several exact-match text replacements across multiple files in one atomic step: either every edit succeeds, or nothing is written.',
         'Use this when one logical change touches several files at once, so related files never end up half-updated.',
         'Each old block must appear exactly once within its file. All files are checked before anything is written; if any block is missing or ambiguous, nothing changes and the failure is reported.',
-        'Read the involved files first so every oldText matches byte-for-byte.',
+        'Read the involved files first so every oldText matches byte-for-byte. For a single file, edit is simpler.',
         'Parameters:',
         '- patches (required): list of edits; each entry is path, oldText (exact existing text), newText (replacement).',
     ].join('\n'),

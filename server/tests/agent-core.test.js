@@ -88,8 +88,8 @@ describe('工具子集', () => {
                 expect(name in (tools.handlers || {}), `${name} 还能被执行`).toBe(false)
             }
             // 只读工具要留着，不然计划模式什么都干不了。
-            expect(tools.schema.file_read).toBeDefined()
-            expect(tools.schema.grep).toBeDefined()
+            expect(tools.schema.read_file).toBeDefined()
+            expect(tools.schema.search_files).toBeDefined()
         })
     })
 
@@ -97,18 +97,18 @@ describe('工具子集', () => {
         const scanned = await Agent.tool.scan(new URL('../tools/', import.meta.url))
         const before = Object.keys(scanned.schema).length
 
-        const missing = Agent.tool.omit(scanned, ['file_write', 'shell']).schema
-        expect(missing.file_write).toBeUndefined()
-        expect(missing.shell).toBeUndefined()
+        const missing = Agent.tool.omit(scanned, ['write_to_file', 'execute_command']).schema
+        expect(missing.write_to_file).toBeUndefined()
+        expect(missing.execute_command).toBeUndefined()
         // 原集合还是完整的——子集是新对象，不是就地删。
         expect(Object.keys(scanned.schema)).toHaveLength(before)
-        expect(scanned.schema.file_write).toBeDefined()
+        expect(scanned.schema.write_to_file).toBeDefined()
     })
 
     test('拿不存在或空的集合去 omit 不会炸', async () => {
         // agent-core 明确保证空集合和 undefined 也安全，这里把这条保证用起来。
-        expect(() => Agent.tool.omit(undefined, ['file_write'])).not.toThrow()
-        expect(() => Agent.tool.omit(Agent.tool.adopt(null), ['file_write'])).not.toThrow()
+        expect(() => Agent.tool.omit(undefined, ['write_to_file'])).not.toThrow()
+        expect(() => Agent.tool.omit(Agent.tool.adopt(null), ['write_to_file'])).not.toThrow()
     })
 })
 
@@ -122,7 +122,7 @@ describe('onPermission 的返回值', () => {
             // 我们本来返回的就是布尔，这里钉住，免得以后为了带原因又改成对象——
             // 那会让所有工具都被拒绝，而且不报错。
             const callbacks = Store.agents.get(sessionId).callbacks
-            const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c1', toolName: 'file_read', input: { path: 'D:/app/a.js' } })
+            const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c1', toolName: 'read_file', input: { path: 'D:/app/a.js' } })
             expect(typeof allowed).toBe('boolean')
             expect(allowed).toBe(true)
         })
@@ -134,7 +134,7 @@ describe('onPermission 的返回值', () => {
             const { sessionId } = await Session.create({ title: '拦住密钥' })
             const callbacks = Store.agents.get(sessionId).callbacks
 
-            const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c2', toolName: 'file_read', input: { path: 'D:/app/.env' } })
+            const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c2', toolName: 'read_file', input: { path: 'D:/app/.env' } })
             expect(allowed).toBe(false)
         })
     })

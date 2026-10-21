@@ -4,7 +4,7 @@
  * 内置工具的名字来自 utils/tool-kind.js 的分类表，用户自己写的工具靠在数据目录里扫一遍。
  * MCP 工具要连上服务才知道名字，这里不连；它们统一由自动批准里的 `mcp` 类别管。
  * 调用示例：
- *   await Tools.list()   // [{ name: 'file_read', kind: 'read', permission: 'ask' }, ...]
+ *   await Tools.list()   // [{ name: 'read_file', kind: 'read', permission: 'ask' }, ...]
  */
 
 import { mkdir } from 'node:fs/promises'
@@ -12,6 +12,7 @@ import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js'
 import Store from '../store.js'
 import { TABLE } from '../utils/tool-kind.js'
+import { canonical, previousNames } from '../utils/tool-names.js' // 旧 permission 配置继续生效。
 
 /**
  * 这个工具当前生效的权限动作。
@@ -21,7 +22,8 @@ import { TABLE } from '../utils/tool-kind.js'
  */
 const permissionOf = name => {
     const rules = Store.config.permission || {}
-    const rule = rules[name]
+    // 新名字优先，旧名字兜底，改名不会让用户原来的 deny 规则失效。
+    const rule = [canonical(name), ...previousNames(name)].map(item => rules[item]).find(item => item !== undefined)
     if (typeof rule === 'string') return rule === 'allow' ? 'allow' : rule === 'deny' ? 'deny' : 'ask'
     if (rule && typeof rule === 'object' && !Array.isArray(rule)) {
         return typeof rule['*'] === 'string' ? rule['*'] : 'ask'

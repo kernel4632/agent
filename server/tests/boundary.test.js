@@ -57,7 +57,7 @@ describe('工作区边界', () => {
     test('工作区里的文件直接放行', async () => {
         await withHome(async () => {
             await withWorkspace(async ({ workspace, insideFile }) => {
-                const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: insideFile } })
+                const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: insideFile } })
                 expect(result.effect).toBe('allow')
                 expect(result.paths).toEqual([])
             })
@@ -68,7 +68,7 @@ describe('工作区边界', () => {
         await withHome(async () => {
             await withWorkspace(async ({ workspace, outsideFile }) => {
                 Store.config.permission = { '*': 'allow' }
-                const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: outsideFile } })
+                const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: outsideFile } })
                 expect(result.effect).toBe('allow')
             })
         })
@@ -78,7 +78,7 @@ describe('工作区边界', () => {
         await withHome(async () => {
             await withWorkspace(async ({ workspace, outsideFile }) => {
                 Store.config.permission = { '*': 'allow', external_directory: { '*': 'ask' } }
-                const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: outsideFile } })
+                const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: outsideFile } })
                 expect(result.effect).toBe('ask')
                 expect(result.paths).toEqual([outsideFile])
             })
@@ -92,7 +92,7 @@ describe('工作区边界', () => {
                     '*': 'allow',
                     external_directory: { [`${outside.replace(/\\/g, '/')}/**`]: 'allow' },
                 }
-                const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: outsideFile } })
+                const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: outsideFile } })
                 expect(result.effect).toBe('allow')
             })
         })
@@ -102,7 +102,7 @@ describe('工作区边界', () => {
         await withHome(async () => {
             await withWorkspace(async ({ workspace, outsideFile }) => {
                 Store.config.permission = { external_directory: { '*': 'deny' } }
-                const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: outsideFile } })
+                const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: outsideFile } })
                 expect(result.effect).toBe('deny')
             })
         })
@@ -117,7 +117,7 @@ describe('工作区边界', () => {
                 try {
                     // 用相对路径从工作区出发绕到外面。
                     const relative = `../outside/${outsideFile.split(/[\\/]/).pop()}`
-                    const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: relative } })
+                    const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: relative } })
                     expect(result.effect).toBe('ask')
                 } finally {
                     process.chdir(previous)
@@ -130,7 +130,7 @@ describe('工作区边界', () => {
         await withHome(async () => {
             await withWorkspace(async ({ workspace, outside }) => {
                 Store.config.permission = { '*': 'allow', external_directory: { '*': 'ask' } }
-                const result = await Boundary.check({ workspace, toolName: 'shell', input: { command: 'ls', directory: outside } })
+                const result = await Boundary.check({ workspace, toolName: 'execute_command', input: { command: 'ls', directory: outside } })
                 expect(result.effect).toBe('ask')
             })
         })
@@ -146,7 +146,7 @@ describe('工作区边界', () => {
                 } catch {
                     return // 当前环境不允许建链接时跳过，不把环境问题算成失败。
                 }
-                const result = await Boundary.check({ workspace, toolName: 'file_read', input: { path: join(link, outsideFile.split(/[\\/]/).pop()) } })
+                const result = await Boundary.check({ workspace, toolName: 'read_file', input: { path: join(link, outsideFile.split(/[\\/]/).pop()) } })
                 expect(result.effect).toBe('ask')
             })
         })

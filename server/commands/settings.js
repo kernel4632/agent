@@ -23,6 +23,7 @@ import Config from './config.js' // 自定义模式写在全局配置里。
 import Store from '../store.js' // 设置跟着会话一起放在内存里，避免每次都读盘。
 import fail from '../utils/fail.js' // 填错模式名时按填错处理。
 import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不重复写。
+import { canonical } from '../utils/tool-names.js' // 旧自定义模式里的工具名继续有效。
 
 /*
  * 哪件事可以单独指定模型。不点名就和主模型共用——这一条很重要：
@@ -88,7 +89,7 @@ const MODES = ['plan', 'build']
  * 当前可用的模式：两个内置的，加上配置里自定义的。
  *
  * 自定义模式的写法：
- *   "modes": { "review": { "label": "审查", "readOnly": true, "tools": ["file_read", "grep"] } }
+ *   "modes": { "review": { "label": "审查", "readOnly": true, "tools": ["read_file", "search_files"] } }
  * tools 不写表示按 readOnly 规则决定；写了就只给名单里的工具。
  * 名字只收字母、数字、- 和 _，避免写进 settings.json 后变成一个打不开的会话。
  * @returns {Array<{ name: string, label: string, readOnly: boolean, tools: string[]|null }>}
@@ -122,11 +123,9 @@ const modeInfo = name => modes().find(item => item.name === name) || null
  * @param {{ mode: string }} settings 会话设置。
  * @returns {string[]|null} 工具名单或 null。
  */
-const TOOL_ALIASES = { finish: 'attempt_completion' } // 旧自定义模式仍能点名已改名的工具。
-
 const toolsFor = ({ mode }) => {
     const tools = modeInfo(mode)?.tools
-    return tools ? [...new Set(tools.map(name => TOOL_ALIASES[name] || name))] : null
+    return tools ? [...new Set(tools.map(name => canonical(name)))] : null
 }
 
 /**

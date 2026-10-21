@@ -1,17 +1,19 @@
 /*
  * 文件工具：读取文件、写入完整文本、列出目录。
  *
+ * 名字和参数对齐 Roo Code：read_file / write_to_file / list_files。
  * 三个工具共用文件领域，每个工具只做一个动作。
- * 调用示例：模型调用 file_read({ path: 'a.txt' }) / file_write({ path, content }) / file_list({ path })。
+ * 调用示例：模型调用 read_file({ path: 'a.txt' }) / write_to_file({ path, content }) / list_files({ path, recursive: true })。
  */
 import { mkdir, readdir } from 'node:fs/promises' // 创建父目录并读取目录条目。
-import { dirname } from 'node:path' // 从目标文件计算父目录。
+import { dirname, join, relative } from 'node:path' // 从目标文件计算父目录，拼出递归列表的相对路径。
 import { writeFile } from 'atomically' // 原子写入完整文本文件。
+import Skip from '../utils/skip.js' // 递归列目录时跳过依赖和构建产物。
 import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断命令。
 
 // --- 读取文本或图片 ---
-const fileRead = {
-    name: 'file_read',
+const readFileTool = {
+    name: 'read_file',
     description: [
         'Read the contents of a file at the given path. Returns the raw text, or the image itself when the file is an image.',
         'Use this whenever you need to know what is inside a file: before editing it, before referencing it, or when the user asks about it.',
@@ -48,8 +50,8 @@ const fileRead = {
 }
 
 // --- 写入完整文本文件 ---
-const fileWrite = {
-    name: 'file_write',
+const writeToFile = {
+    name: 'write_to_file',
     description: [
         'Write the complete new content of a file, replacing whatever was there before. Parent directories are created automatically.',
         'Use this to create a new file, or to rewrite a file entirely from scratch.',
@@ -73,24 +75,45 @@ const fileWrite = {
     },
 }
 
-// --- 列出目录直接子项 ---
-const fileList = {
-    name: 'file_list',
+// --- 列出目录 ---
+const listFiles = {
+    name: 'list_files',
     description: [
-        'List the files and subdirectories directly inside a directory (not recursive; subdirectory names end with /).',
+        'List files and subdirectories inside a directory. Subdirectory names end with /.',
         'Use this to discover what exists somewhere before reading specific files, or to locate a file you only know the approximate location of.',
+        'Set recursive to true to walk nested directories; the default only lists direct children.',
         'Parameters:',
         '- path (required): directory to list.',
+        '- recursive (optional): true to include nested files and directories.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
-        properties: { path: { type: 'string' } },
+        properties: {
+            path: { type: 'string' },
+            recursive: { type: 'boolean' },
+        },
         required: ['path'],
     },
-    async execute({ path }) {
-        const entries = await readdir(path, { withFileTypes: true }) // 同时取得每项是否目录。
-        return entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`) // 用斜杠标记目录。
+    async execute({ path, recursive = false }) {
+        if (!recursive) {
+            const entries = await readdir(path, { withFileTypes: true }) // 同时取得每项是否目录。
+            return entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`) // 用斜杠标记目录。
+        }
+
+        const entries = [] // 递归时返回相对路径，避免整条绝对路径重复出现。
+        const walk = async directory => {
+            const children = await readdir(directory, { withFileTypes: true })
+            for (const entry of children) {
+                const absolute = join(directory, entry.name)
+                const relativePath = relative(path, absolute).replace(/\\/g, '/')
+                if (Skip.listing(relativePath)) continue // 依赖和构建产物不列给模型。
+                entries.push(`${relativePath}${entry.isDirectory() ? '/' : ''}`)
+                if (entry.isDirectory()) await walk(absolute)
+            }
+        }
+        await walk(path)
+        return entries
     },
 }
 
-export default [fileRead, fileWrite, fileList] // 一个文件导出三个文件系统工具。
+export default [readFileTool, writeToFile, listFiles] // 一个文件导出三个文件系统工具。

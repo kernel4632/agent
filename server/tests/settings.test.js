@@ -102,27 +102,27 @@ describe('会话运行设置', () => {
 
             // build 模式下能改文件的工具都在。
             const buildTools = toolNames(sessionId)
-            expect(buildTools).toContain('file_write')
-            expect(buildTools).toContain('shell')
+            expect(buildTools).toContain('write_to_file')
+            expect(buildTools).toContain('execute_command')
             expect(buildTools).toContain('apply_patch')
 
             // 切到 plan 之后，能改文件的工具一个都不该剩下。
             await Session.saveSettings({ sessionId, mode: 'plan' })
             const planTools = toolNames(sessionId)
-            expect(planTools).not.toContain('file_write')
+            expect(planTools).not.toContain('write_to_file')
             expect(planTools).not.toContain('edit')
             expect(planTools).not.toContain('apply_patch')
-            expect(planTools).not.toContain('shell')
+            expect(planTools).not.toContain('execute_command')
             // 看和查的工具要留着，不然 plan 模式什么都干不了。
-            expect(planTools).toContain('file_read')
-            expect(planTools).toContain('grep')
+            expect(planTools).toContain('read_file')
+            expect(planTools).toContain('search_files')
             expect(planTools).toContain('glob')
             // 子任务本身不算"能改磁盘"，plan 模式里留着。
-            expect(planTools).toContain('task')
+            expect(planTools).toContain('new_task')
 
             // 切回 build 又能改文件了。
             await Session.saveSettings({ sessionId, mode: 'build' })
-            expect(toolNames(sessionId)).toContain('file_write')
+            expect(toolNames(sessionId)).toContain('write_to_file')
         })
     })
 
@@ -148,12 +148,12 @@ describe('会话运行设置', () => {
     test('自定义模式可以点名只给哪些工具', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { review: { label: '审查', tools: ['file_read', 'file_list'] } } },
+                extra: { modes: { review: { label: '审查', tools: ['read_file', 'list_files'] } } },
             })
             await Session.saveSettings({ sessionId, mode: 'review' })
 
             // 点名之外的工具一个都不给，task 没点名也不装。
-            expect(toolNames(sessionId)).toEqual(['file_list', 'file_read'])
+            expect(toolNames(sessionId)).toEqual(['list_files', 'read_file'])
         })
     })
 
@@ -165,32 +165,45 @@ describe('会话运行设置', () => {
             await Session.saveSettings({ sessionId, mode: 'audit' })
 
             const names = toolNames(sessionId)
-            expect(names).toContain('file_read')
-            expect(names).toContain('task')
-            expect(names).not.toContain('file_write')
-            expect(names).not.toContain('shell')
+            expect(names).toContain('read_file')
+            expect(names).toContain('new_task')
+            expect(names).not.toContain('write_to_file')
+            expect(names).not.toContain('execute_command')
         })
     })
 
     test('自定义模式点名 task 时才装任务工具', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { solo: { label: '单干', tools: ['file_read', 'task'] } } },
+                extra: { modes: { solo: { label: '单干', tools: ['read_file', 'new_task'] } } },
             })
             await Session.saveSettings({ sessionId, mode: 'solo' })
 
-            expect(toolNames(sessionId)).toEqual(['file_read', 'task'])
+            expect(toolNames(sessionId)).toEqual(['new_task', 'read_file'])
+        })
+    })
+
+    test('旧自定义模式里的工具名自动换成新名字', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession({
+                extra: { modes: { legacy: { label: '旧模式', tools: ['file_read', 'file_list', 'task', 'finish'] } } },
+            })
+            await Session.saveSettings({ sessionId, mode: 'legacy' })
+
+            expect(toolNames(sessionId)).toEqual(expect.arrayContaining([
+                'read_file', 'list_files', 'new_task', 'attempt_completion',
+            ]))
         })
     })
 
     test('自定义模式里写错的工具名直接忽略，不会让会话打不开', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { odd: { label: '怪模式', tools: ['file_read', 'not_a_tool'] } } },
+                extra: { modes: { odd: { label: '怪模式', tools: ['read_file', 'not_a_tool'] } } },
             })
             await Session.saveSettings({ sessionId, mode: 'odd' })
 
-            expect(toolNames(sessionId)).toEqual(['file_read'])
+            expect(toolNames(sessionId)).toEqual(['read_file'])
         })
     })
 
@@ -245,7 +258,7 @@ describe('会话运行设置', () => {
             try {
                 // 跑的是 session.js 真正装上去的那个 task，不是这里另外拼一个。
                 // 另外拼一个的话，传进去的就是筛过的表，等于绕开了要检查的那一步。
-                const task = Store.agents.get(sessionId).tools.handlers.task
+                const task = Store.agents.get(sessionId).tools.handlers.new_task
                 await task.execute({ description: '查一下', prompt: '查一下' }, {}).catch(() => {})
             } finally {
                 Agent.create = original
@@ -253,13 +266,13 @@ describe('会话运行设置', () => {
 
             const subSchema = Object.keys(captured[0]?.tools?.schema || {})
             expect(subSchema.length, '子 agent 得真有工具表，否则这条检查没意义').toBeGreaterThan(0)
-            expect(subSchema).not.toContain('file_write')
+            expect(subSchema).not.toContain('write_to_file')
             expect(subSchema).not.toContain('edit')
             expect(subSchema).not.toContain('apply_patch')
-            expect(subSchema).not.toContain('shell')
+            expect(subSchema).not.toContain('execute_command')
             // 只读工具要留着，不然子任务什么都查不了。
-            expect(subSchema).toContain('file_read')
-            expect(subSchema).toContain('grep')
+            expect(subSchema).toContain('read_file')
+            expect(subSchema).toContain('search_files')
         })
     })
 
@@ -292,7 +305,7 @@ describe('会话运行设置', () => {
             // 审批请求要回到主会话，否则界面上看不到"子任务想读这个文件"。
             expect(Store.settings.has(sessionId)).toBe(true)
             // 密钥文件在这条路上也读不到。
-            expect(await Approval.check({ sessionId, toolCallId: 'sub-1', toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(false)
+            expect(await Approval.check({ sessionId, toolCallId: 'sub-1', toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe(false)
         })
     })
 
@@ -315,7 +328,7 @@ describe('自动批准按类别开关', () => {
         await withHome(async () => {
             const sessionId = await newSession()
             // 规则是 ask；每类都没开，所以这次调用进等待队列。
-            const check = await runCheck({ sessionId, toolCallId: 'call-1', toolName: 'file_read', input: { path: 'D:/app/a.js' } })
+            const check = await runCheck({ sessionId, toolCallId: 'call-1', toolName: 'read_file', input: { path: 'D:/app/a.js' } })
             expect(check).toEqual({ allowed: false, asked: true })
         })
     })
@@ -325,12 +338,12 @@ describe('自动批准按类别开关', () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, autoApprove: { read: true } })
 
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/a.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
                 .toEqual({ allowed: true, asked: false })
             // 这是"细颗粒度"的关键：开了读取不该顺带把写入和命令也放行。
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
                 .toEqual({ allowed: false, asked: true })
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'shell', input: { command: 'rm -rf build' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'rm -rf build' } }))
                 .toEqual({ allowed: false, asked: true })
         })
     })
@@ -341,13 +354,13 @@ describe('自动批准按类别开关', () => {
             await Session.saveSettings({ sessionId, autoApprove: { write: true } })
 
             // edit 和 apply_patch 和 file_write 是同一类，开一个就都过。
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
                 .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'w2', toolName: 'edit', input: { path: 'D:/app/b.js', oldText: 'x', newText: 'y' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'w2', toolName: 'edit', input: { file_path: 'D:/app/b.js', old_string: 'x', new_string: 'y' } }))
                 .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/a.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
                 .toEqual({ allowed: false, asked: true })
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'shell', input: { command: 'ls' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'ls' } }))
                 .toEqual({ allowed: false, asked: true })
         })
     })
@@ -357,9 +370,9 @@ describe('自动批准按类别开关', () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, autoApprove: { command: true } })
 
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'shell', input: { command: 'bun test' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'bun test' } }))
                 .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
                 .toEqual({ allowed: false, asked: true })
         })
     })
@@ -369,10 +382,10 @@ describe('自动批准按类别开关', () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, autoApprove: { subtask: true } })
 
-            expect(await runCheck({ sessionId, toolCallId: 't1', toolName: 'task', input: { description: '查一下', prompt: '查一下用法' } }))
+            expect(await runCheck({ sessionId, toolCallId: 't1', toolName: 'new_task', input: { description: '查一下', prompt: '查一下用法' } }))
                 .toEqual({ allowed: true, asked: false })
             // 子任务自己拿的工具表还是照常走审批，不能借"授权开子任务"绕过写入那一关。
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
                 .toEqual({ allowed: false, asked: true })
         })
     })
@@ -385,7 +398,7 @@ describe('自动批准按类别开关', () => {
             // 配置里有 everything 这个服务，带这个前缀的工具就归 MCP 那一类。
             expect(await runCheck({ sessionId, toolCallId: 'm1', toolName: 'everything_echo', input: { message: 'hi' } }))
                 .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/a.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
                 .toEqual({ allowed: false, asked: true })
         })
     })
@@ -417,7 +430,7 @@ describe('自动批准按类别开关', () => {
         await withHome(async () => {
             const sessionId = await newSession()
             // 每类都关着，一件不改文件的小事也不该弹窗——不然用户只会一直点同意。
-            expect(await runCheck({ sessionId, toolCallId: 'd1', toolName: 'todo', input: { items: [] } }))
+            expect(await runCheck({ sessionId, toolCallId: 'd1', toolName: 'update_todo_list', input: { todos: '' } }))
                 .toEqual({ allowed: true, asked: false })
             expect(await runCheck({ sessionId, toolCallId: 'd2', toolName: 'attempt_completion', input: { result: '好了' } }))
                 .toEqual({ allowed: true, asked: false })
@@ -441,9 +454,9 @@ describe('自动批准按类别开关', () => {
             // 关掉读取：命令和其余几位照旧。
             settings = await Session.saveSettings({ sessionId, autoApprove: { read: false } })
             expect(settings.autoApprove).toEqual({ ...allOff(), command: true })
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/a.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
                 .toEqual({ allowed: false, asked: true })
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'shell', input: { command: 'ls' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'ls' } }))
                 .toEqual({ allowed: true, asked: false })
         })
     })
@@ -482,13 +495,13 @@ describe('自动批准按类别开关', () => {
             // 自动批准是审批时现读设置的，不用重建 Agent，所以不受 running 限制。
             const settings = await Session.saveSettings({ sessionId, autoApprove: { write: false } })
             expect(settings.autoApprove.write).toBe(false)
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'file_write', input: { path: 'D:/app/b.js', content: 'x' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
                 .toEqual({ allowed: false, asked: true })
 
             // 反过来也能开：任务跑着的时候把读取放开。
             const opened = await Session.saveSettings({ sessionId, autoApprove: { read: true } })
             expect(opened.autoApprove.read).toBe(true)
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/a.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
                 .toEqual({ allowed: true, asked: false })
         })
     })
@@ -508,7 +521,7 @@ describe('自动批准按类别开关', () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, autoApprove: { read: true } })
             // 自动批准省掉的是"问一遍"，不是把 .agentignore 也一起关掉。
-            const check = await runCheck({ sessionId, toolCallId: 'call-3', toolName: 'file_read', input: { path: 'D:/app/.env' } })
+            const check = await runCheck({ sessionId, toolCallId: 'call-3', toolName: 'read_file', input: { path: 'D:/app/.env' } })
             expect(check).toEqual({ allowed: false, asked: false })
         })
     })
@@ -634,11 +647,11 @@ describe('自动批准的刹车', () => {
 
             // 前三笔按自动批准直接过。
             for (const index of [1, 2, 3]) {
-                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'file_read', input: { path: `D:/app/${index}.js` } }))
+                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'read_file', input: { path: `D:/app/${index}.js` } }))
                     .toEqual({ allowed: true, asked: false })
             }
             // 第四笔要被刹住：模型跑偏的典型表现是"同一件小事做了很多遍"。
-            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'file_read', input: { path: 'D:/app/4.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'read_file', input: { path: 'D:/app/4.js' } }))
                 .toEqual({ allowed: false, asked: true })
         })
     })
@@ -648,17 +661,17 @@ describe('自动批准的刹车', () => {
             const sessionId = await newSession()
             await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 2 })
 
-            await runCheck({ sessionId, toolCallId: 'r1', toolName: 'file_read', input: { path: 'D:/app/1.js' } })
-            await runCheck({ sessionId, toolCallId: 'r2', toolName: 'file_read', input: { path: 'D:/app/2.js' } })
+            await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/1.js' } })
+            await runCheck({ sessionId, toolCallId: 'r2', toolName: 'read_file', input: { path: 'D:/app/2.js' } })
             // 第三笔被刹住，用户答了一次"继续"。
-            const blocked = Approval.check({ sessionId, toolCallId: 'r3', toolName: 'file_read', input: { path: 'D:/app/3.js' } })
+            const blocked = Approval.check({ sessionId, toolCallId: 'r3', toolName: 'read_file', input: { path: 'D:/app/3.js' } })
             await Bun.sleep(0)
             expect(Store.approvals.has(`${sessionId}:r3`)).toBe(true)
             await Approval.decide({ sessionId, toolCallId: 'r3', decision: 'allow-once' })
             expect(await blocked).toBe(true)
 
             // 计数归零，接下来又能自动放行两笔——不然一到顶就再也回不去。
-            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'file_read', input: { path: 'D:/app/4.js' } }))
+            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'read_file', input: { path: 'D:/app/4.js' } }))
                 .toEqual({ allowed: true, asked: false })
         })
     })
@@ -669,7 +682,7 @@ describe('自动批准的刹车', () => {
             await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 0 })
 
             for (const index of [1, 2, 3, 4, 5]) {
-                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'file_read', input: { path: `D:/app/${index}.js` } }))
+                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'read_file', input: { path: `D:/app/${index}.js` } }))
                     .toEqual({ allowed: true, asked: false })
             }
         })

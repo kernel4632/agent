@@ -76,7 +76,7 @@ const backupKnown = async ({ sessionId, path, hash }) => {
 const save = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
     // 会碰哪些文件由 utils/tool-files.js 一处说了算。
     const paths = toolFiles({ toolName, input })
-    if (!paths.length) return [] // file_list、glob、grep 这些不改文件，不需要快照。
+    if (!paths.length) return [] // list_files、glob、search_files 这些不改文件，不需要快照。
 
     const store = await loadStore({ sessionId })
     // 一次工具调用可能出现多次（重试、流式），只在第一次记，要留的是它开始之前的样子。
@@ -139,7 +139,7 @@ const captureWorkspace = async ({ sessionId, backupFiles = false, maxFiles = DEF
 }
 
 /**
- * shell 命令执行前：把整个工作区备份一份，等命令结束后再对比。
+ * execute_command 执行前：把整个工作区备份一份，等命令结束后再对比。
  * @param {{ sessionId: string, messageId?: string, toolCallId?: string }} call
  * @returns {Promise<{ skipped: boolean, reason?: string, files?: number }>}
  */
@@ -165,7 +165,7 @@ const beginShell = async ({ sessionId, messageId, toolCallId } = {}) => {
 }
 
 /**
- * shell 命令结束后：和命令前的清单对比，只把真正变过的文件记成一次检查点。
+ * execute_command 结束后：和命令前的清单对比，只把真正变过的文件记成一次检查点。
  * @param {{ sessionId: string, toolCallId?: string }} call
  * @returns {Promise<{ skipped: boolean, reason?: string, changed?: number }>}
  */
@@ -199,7 +199,7 @@ const endShell = async ({ sessionId, toolCallId } = {}) => {
     const store = await loadStore({ sessionId })
     // 同一个工具调用重试时只保留第一次记录。
     if (!store.checkpoints.some(entry => entry.id === toolCallId)) {
-        store.checkpoints.push({ id: toolCallId, messageId: state.messageId, toolCallId, toolName: 'shell', files })
+        store.checkpoints.push({ id: toolCallId, messageId: state.messageId, toolCallId, toolName: 'execute_command', files })
         await writeStore({ sessionId, store })
     }
     return { skipped: false, changed: Object.keys(files).length }

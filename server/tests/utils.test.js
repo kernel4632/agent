@@ -118,15 +118,15 @@ describe('server delegation', () => {
 
             // 第 1 层还带 task；第 2 层只剩普通工具，不会无限套娃。
             const middle = Delegation.toolsForDepth({ config, tools: scanned, depth: 1, maxDepth: 2 })
-            expect(Object.keys(middle.schema)).toContain('task')
+            expect(Object.keys(middle.schema)).toContain('new_task')
             const bottom = Delegation.toolsForDepth({ config, tools: scanned, depth: 2, maxDepth: 2 })
-            expect(Object.keys(bottom.schema)).not.toContain('task')
-            expect(Object.keys(bottom.schema)).toContain('file_read')
+            expect(Object.keys(bottom.schema)).not.toContain('new_task')
+            expect(Object.keys(bottom.schema)).toContain('read_file')
 
             // 和别的工具合起来之后，主 agent 的工具表里有 task。
             const task = Delegation.build({ config, tools: scanned })
-            const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ task }))
-            expect(Object.keys(merged.schema)).toContain('task')
+            const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ new_task: task }))
+            expect(Object.keys(merged.schema)).toContain('new_task')
 
             // 真跑一次：子 agent 连不上模型，错误作为结论回来，不该抛出去打断主任务。
             const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
@@ -229,7 +229,7 @@ describe('server MCP', () => {
             const { sessionId } = await Session.create({ title: 'MCP task' })
             const agent = (await import('../store.js')).default.agents.get(sessionId)
             // 服务给的工具名前面带了服务名，和内置工具摆在同一份工具表里。
-            expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining(['everything_echo', 'file_read']))
+            expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining(['everything_echo', 'read_file']))
 
             await Mcp.close()
         })
@@ -452,7 +452,7 @@ describe('server file snapshots', () => {
             const { sessionId } = await Session.create({ title: 'Snapshot task' })
             // 快照挂在用户消息的块 id 上，这里直接构造一条同样的消息。
             const blockId = Agent.history.user({ content: 'change the file' }).id
-            const record = await Snapshot.save({ sessionId, messageId: blockId, toolName: 'file_write', input: { path: target } })
+            const record = await Snapshot.save({ sessionId, messageId: blockId, toolName: 'write_to_file', input: { path: target } })
             expect(record).toContain(resolve(target))
 
             // 工具改文件，随后回退到这条用户消息之前。
@@ -483,9 +483,9 @@ describe('server file snapshots', () => {
             const messageId = added.message.id
 
             // 三个文件各来一次改动：改内容、删掉、新建。
-            await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'file_write', input: { path: edited } })
-            await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'file_write', input: { path: removed } })
-            await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'file_write', input: { path: created } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'write_to_file', input: { path: edited } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'write_to_file', input: { path: removed } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'write_to_file', input: { path: created } })
             await writeFile(edited, 'after')
             await rm(removed, { force: true })
             await writeFile(created, 'brand new')
@@ -515,7 +515,7 @@ describe('server file snapshots', () => {
             await History.save({ sessionId })
 
             // 第二轮的快照挂在第二条消息上。
-            await Snapshot.save({ sessionId, messageId: second.message.id, toolName: 'file_write', input: { path: target } })
+            await Snapshot.save({ sessionId, messageId: second.message.id, toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'changed in step two')
 
             // 回退之前先看代价：从第一条开始的整段会消失，只列出这一段碰过的文件。
@@ -557,7 +557,7 @@ describe('server file snapshots', () => {
             await History.save({ sessionId })
 
             // 文件在任务开始时还不存在，工具新建了它。
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'file_write', input: { path: target } })
+            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'created by agent')
 
             const rolledBack = await Session.rollback({ sessionId, messageId: added.messageId })
@@ -571,10 +571,10 @@ describe('server tool approval and SSE', () => {
     test('allows configured tools and returns a denial decision', async () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'allow' } })
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'c1', toolName: 'shell', input: {} })).toBe(true)
+            expect(await Approval.check({ sessionId: 's', toolCallId: 'c1', toolName: 'execute_command', input: {} })).toBe(true)
 
             await Config.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 'c2', toolName: 'shell', input: {} })
+            const pending = Approval.check({ sessionId: 's', toolCallId: 'c2', toolName: 'execute_command', input: {} })
             await Bun.sleep(0)
             expect(await Approval.decide({ sessionId: 's', toolCallId: 'c2', decision: 'deny' })).toEqual({ ok: true })
             expect(await pending).toBe(false)
@@ -584,20 +584,20 @@ describe('server tool approval and SSE', () => {
     test('writes an always-allow decision back into the configuration file', async () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 'c3', toolName: 'file_read', input: { path: 'a.txt' } })
+            const pending = Approval.check({ sessionId: 's', toolCallId: 'c3', toolName: 'read_file', input: { path: 'a.txt' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 'c3', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
             // 同一条命令再次执行时规则已经命中，不再需要用户确认。
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'c4', toolName: 'file_read', input: { path: 'a.txt' } })).toBe(true)
+            expect(await Approval.check({ sessionId: 's', toolCallId: 'c4', toolName: 'read_file', input: { path: 'a.txt' } })).toBe(true)
         })
     })
 
     test('rejects an unknown decision with a client error and keeps waiting', async () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 'c5', toolName: 'shell', input: {} })
+            const pending = Approval.check({ sessionId: 's', toolCallId: 'c5', toolName: 'execute_command', input: {} })
             await Bun.sleep(0)
             await expect(Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'maybe' })).rejects.toMatchObject({ status: 400 })
 
@@ -610,15 +610,15 @@ describe('server tool approval and SSE', () => {
     test('remembers a whole command instead of one exact argument list', async () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'shell', input: { command: 'git commit -m "first message"' } })
+            const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'execute_command', input: { command: 'git commit -m "first message"' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's1', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
             // 换一条提交信息还是同一个操作，不该再问一遍。
-            expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'shell', input: { command: 'git commit -m "totally different message"' } })).toBe(true)
+            expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'execute_command', input: { command: 'git commit -m "totally different message"' } })).toBe(true)
             // 另一个操作仍然要问。
-            const push = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'shell', input: { command: 'git push origin main' } })
+            const push = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'execute_command', input: { command: 'git push origin main' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
             expect(await push).toBe(false)
@@ -631,13 +631,13 @@ describe('server tool approval and SSE', () => {
             const { sessionId } = await Session.create({ title: 'Waiting approval' })
 
             // 用户提交了一个工具调用，正在等批准。
-            const waiting = Approval.check({ sessionId, toolCallId: 'w1', toolName: 'shell', input: { command: 'rm -rf build' } })
+            const waiting = Approval.check({ sessionId, toolCallId: 'w1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
             await Bun.sleep(0)
 
             // 刷新页面后前端重新读会话，应当能看到"有个工具在等"。
             const reloaded = await Session.read({ sessionId })
             expect(reloaded.pending).toHaveLength(1)
-            expect(reloaded.pending[0]).toMatchObject({ callID: 'w1', tool: 'shell' })
+            expect(reloaded.pending[0]).toMatchObject({ callID: 'w1', tool: 'execute_command' })
 
             // 批准之后就不再是等待状态了。
             await Approval.decide({ sessionId, toolCallId: 'w1', decision: 'allow-once' })
@@ -652,19 +652,19 @@ describe('server tool approval and SSE', () => {
                 await Ignore.load()
     
                 // 密钥文件即使权限规则全部放行也读不到。
-                expect(await Approval.check({ sessionId: 's', toolCallId: 'i1', toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(false)
+                expect(await Approval.check({ sessionId: 's', toolCallId: 'i1', toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe(false)
                 // 普通源码照常放行。
-                expect(await Approval.check({ sessionId: 's', toolCallId: 'i2', toolName: 'file_read', input: { path: 'D:/app/src/a.js' } })).toBe(true)
+                expect(await Approval.check({ sessionId: 's', toolCallId: 'i2', toolName: 'read_file', input: { path: 'D:/app/src/a.js' } })).toBe(true)
             })
         })
     
         test('protects secret files even before the rules are loaded', async () => {
             // 内置规则必须在模块加载时就生效，不能等 load() 才生效。
             // 否则任何忘了先 load() 的调用方都会静默放行全部文件，连 .env 也一起漏掉。
-            expect(Ignore.blocks({ toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe(true)
+            expect(Ignore.blocks({ toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe(true)
             // 被拦住时要说清是哪一条规则挡下的，用户和界面都靠它判断。
-            expect(Ignore.blockedBy({ toolName: 'file_read', input: { path: 'D:/app/.env' } })).toBe('.env')
-            expect(Ignore.blockedBy({ toolName: 'file_read', input: { path: 'D:/app/src/a.js' } })).toBe(null)
+            expect(Ignore.blockedBy({ toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe('.env')
+            expect(Ignore.blockedBy({ toolName: 'read_file', input: { path: 'D:/app/src/a.js' } })).toBe(null)
         })
     test('connects, sends, and closes an SSE session', async () => {
         const id = `sse-${crypto.randomUUID()}`
@@ -696,8 +696,8 @@ describe('server Agent integration boundary', () => {
             const { sessionId } = await Session.create({ title: 'Tool scan' })
             const agent = (await import('../store.js')).default.agents.get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
-                'file_read', 'file_write', 'file_list', 'edit', 'apply_patch',
-                'shell', 'glob', 'grep', 'todo', 'webfetch', 'attempt_completion', 'ask',
+                'read_file', 'write_to_file', 'list_files', 'edit', 'apply_patch',
+                'execute_command', 'glob', 'search_files', 'update_todo_list', 'webfetch', 'attempt_completion', 'ask_followup_question',
             ]))
         })
     })

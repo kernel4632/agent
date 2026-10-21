@@ -5,8 +5,8 @@
  * 内置的敏感文件规则在模块加载时就编译好了，永远生效，用户改不掉，避免误配把密钥暴露出去。
  * 调用示例：
  *   await Ignore.load()                                                      // 启动时读一次用户规则
- *   Ignore.blocks({ toolName: 'file_read', input: { path: 'secret.env' } })  // true / false
- *   Ignore.blockedBy({ toolName: 'file_read', input: { path: 'secret.env' } })  // '.env'，给用户看是哪条规则
+ *   Ignore.blocks({ toolName: 'read_file', input: { path: 'secret.env' } })  // true / false
+ *   Ignore.blockedBy({ toolName: 'read_file', input: { path: 'secret.env' } })  // '.env'，给用户看是哪条规则
  */
 
 import { readFile } from 'node:fs/promises'

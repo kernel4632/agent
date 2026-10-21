@@ -5,10 +5,10 @@
  * 用户可能允许读随便读，但不希望模型顺手翻到桌面、下载目录或别的项目里。
  * 不配置 external_directory 时保持原来的行为；配置之后默认 ask，写错规则值也按 ask 处理。
  *
- * 只检查能直接看出路径的工具（file_read、file_write、edit、apply_patch、
- * file_list、glob、grep）和 shell 的 directory；shell 命令里面的路径不解析。
+ * 只检查能直接看出路径的工具（read_file、write_to_file、edit、apply_patch、
+ * list_files、glob、search_files）和 execute_command 的 cwd；命令字符串里的路径不解析。
  * 调用示例：
- *   await Boundary.check({ toolName: 'file_read', input: { path: 'D:/other/a.txt' } })
+ *   await Boundary.check({ toolName: 'read_file', input: { path: 'D:/other/a.txt' } })
  *   // { effect: 'allow' | 'ask' | 'deny', paths: [...] }
  */
 
@@ -18,6 +18,7 @@ import { homedir } from 'node:os'
 import picomatch from 'picomatch'
 import Store from '../store.js'
 import { toolFiles } from '../utils/tool-files.js'
+import { canonical } from '../utils/tool-names.js' // 旧工具名也能走到同一条检查。
 
 // --- 路径统一用正斜杠，Windows 和 POSIX 的规则写法一致 ---
 const slash = value => String(value).replace(/\\/g, '/')
@@ -53,13 +54,15 @@ const normalize = value => value === 'allow' ? 'allow' : value === 'deny' ? 'den
 
 /**
  * 一次工具调用直接点名的路径。
- * shell 只检查它声明的目录，命令字符串里的路径不解析。
+ * execute_command 只检查它声明的目录，命令字符串里的路径不解析。
  * @param {{ toolName: string, input: object }} call 工具名和参数。
  * @returns {string[]} 可能在工作区外的路径。
  */
 const pathsFor = ({ toolName, input }) => {
-    const paths = [...toolFiles({ toolName, input })]
-    if (toolName === 'shell' && typeof input?.directory === 'string') paths.push(input.directory)
+    const name = canonical(toolName)
+    const paths = [...toolFiles({ toolName: name, input })]
+    const directory = input?.cwd ?? input?.directory // 新参数 cwd，旧调用 directory。
+    if (name === 'execute_command' && typeof directory === 'string') paths.push(directory)
     return paths.filter(path => typeof path === 'string' && path.trim())
 }
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.30.0",
+    "version": "0.32.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -2145,7 +2145,7 @@
               },
               "todos": {
                 "type": "array",
-                "description": "agent 最近一次调用 todo 工具写下的任务清单，直接从历史里取出来，界面可以直接渲染进度",
+                "description": "agent 最近一次调用 update_todo_list 工具写下的任务清单，直接从历史里取出来，界面可以直接渲染进度",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -2201,7 +2201,7 @@
                 "example": [
                   {
                     "callID": "call-1",
-                    "tool": "shell",
+                    "tool": "execute_command",
                     "input": {
                       "command": "rm -rf build"
                     }
@@ -2397,10 +2397,10 @@
             "description": "工具权限规则。键是工具名，值是 allow、ask，或按参数匹配的对象；为空对象时所有工具都先问用户。这一层管不住的文件由数据目录的 .agentignore 兜底",
             "example": {
               "*": "ask",
-              "file_read": "allow",
-              "shell": {
+              "read_file": "allow",
+              "execute_command": {
                 "*": "ask",
-                "dir": "allow"
+                "git *": "allow"
               }
             }
           },

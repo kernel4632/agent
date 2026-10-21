@@ -32,7 +32,7 @@ const withHome = async callback => {
 describe('工具目录', () => {
     test('内置工具和用户工具都在，权限跟着配置走', async () => {
         await withHome(async root => {
-            await Config.set({ permission: { '*': 'ask', file_read: 'deny' } })
+            await Config.set({ permission: { '*': 'ask', read_file: 'deny' } })
             await mkdir(join(root, 'tools'), { recursive: true })
             await writeFile(join(root, 'tools', 'mine.js'), [
                 "export default {",
@@ -45,11 +45,11 @@ describe('工具目录', () => {
 
             const tools = await Tools.list()
             const byName = Object.fromEntries(tools.map(item => [item.name, item]))
-            expect(byName.file_read.permission).toBe('deny')
-            expect(byName.shell.permission).toBe('ask')
+            expect(byName.read_file.permission).toBe('deny')
+            expect(byName.execute_command.permission).toBe('ask')
             expect(byName.my_tool.permission).toBe('ask')
             expect(byName.my_tool.kind).toBe('other')
-            expect(byName.task).toBeDefined()
+            expect(byName.new_task).toBeDefined()
         })
     })
 
@@ -59,7 +59,7 @@ describe('工具目录', () => {
             expect(response.status).toBe(200)
             const tools = await response.json()
             expect(Array.isArray(tools)).toBe(true)
-            expect(tools.some(item => item.name === 'file_read')).toBe(true)
+            expect(tools.some(item => item.name === 'read_file')).toBe(true)
         })
     })
 })

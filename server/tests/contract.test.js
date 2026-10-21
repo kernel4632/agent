@@ -160,12 +160,12 @@ describe('工具名单', () => {
 
     test('碰文件的工具都登记进了忽略规则', async () => {
         const schema = await toolDefinitions()
-        // 判断一个工具碰不碰文件，看它的参数里有没有 path 或 patches——
+        // 判断一个工具碰不碰文件，看它的参数里有没有 path、file_path 或 patches——
         // 这是"能不能绕过 .agentignore 读到密钥"的唯一线索。
         const touchesFiles = Object.entries(schema)
             .filter(([, tool]) => {
                 const properties = tool.inputSchema?.jsonSchema?.properties || tool.inputSchema?.properties || {}
-                return 'path' in properties || 'patches' in properties
+                return 'path' in properties || 'file_path' in properties || 'patches' in properties
             })
             .map(([name]) => name)
 
@@ -177,7 +177,7 @@ describe('工具名单', () => {
         const schema = await toolDefinitions()
         // 分类表是自动批准和 plan 模式共用的唯一来源。漏了一行不会报错，
         // 表现是"这个工具永远要问用户"，很难联想到是忘了登记。
-        // 表里写了 'other' 也算登记过——todo / attempt_completion / ask 就是这种：
+        // 表里写了 'other' 也算登记过——update_todo_list / attempt_completion / ask_followup_question 就是这种：
         // 它们不碰磁盘也不连外部服务，本来就不该有自动批准开关。
         const missing = Object.keys(schema).filter(name => !(name in TABLE))
         expect(missing).toEqual([])

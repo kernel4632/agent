@@ -31,7 +31,7 @@ const readConfig = async () => {
 const run = async ({ command, cwd = process.cwd(), timeout = 30000 }) => {
     const limit = Math.min(Math.max(Number(timeout) || 30000, 1000), 120000)
     const child = Bun.spawn({
-        // 和 shell 工具一样：Windows 走 cmd，其它平台走 sh。
+        // 和 execute_command 一样：Windows 走 cmd，其它平台走 sh。
         cmd: process.platform === 'win32' ? ['cmd.exe', '/d', '/s', '/c', command] : ['sh', '-c', command],
         cwd,
         stdout: 'pipe',
