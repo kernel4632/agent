@@ -30,13 +30,16 @@ let scrollParent
 function onScroll() { pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100 }
 function scrollToBottom() { nextTick(() => { if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight }) }
 watch(messages, scrollToBottom, { deep: true })
-onMounted(() => { scrollParent = root.value.closest('.chat-page__scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
+onMounted(() => { scrollParent = root.value?.closest('.session-scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
 onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
 const rollbackSummary = computed(() => {
   if (!rollbackPreview.value) return '此消息及之后的内容将从对话中回退。'
   return `从这条消息开始的 ${rollbackPreview.value.messages} 条对话会被去掉，你可以在发送新消息前撤销这次回退。`
 })
+// 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
+const canRollback = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
 async function requestRollback(message) {
+  if (!canRollback(message) || session.value?.status === 'running') return
   rollbackTarget.value = message
   rollbackPreview.value = null
   rollbackFiles.value = true
@@ -55,23 +58,39 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 
 <template>
   <div ref="root" class="conversation-flow" aria-label="对话内容">
-    <section v-for="message in messages" :key="message.id" class="message" :class="`message--${message.role}`" :aria-label="message.role === 'user' ? '你的消息' : 'la 的回复'">
-      <div v-if="message.role === 'user'" class="message__bubble">{{ message.content }}</div>
-      <template v-else>
-        <details v-if="message.reasoning" class="reasoning"><summary><AppIcon name="spark" :size="14" />思考过程<AppIcon name="down" :size="12" /></summary><p>{{ message.reasoning }}</p></details>
-        <div v-if="message.content" class="markdown-body" v-html="renderMarkdown(message.content)"></div>
-        <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
-        <details v-for="tool in message.tools || []" :key="tool.id" class="tool-card" :open="tool.status === 'waiting' || tool.status === 'running'">
-          <summary><AppIcon name="code" :size="14" /><strong>{{ tool.name }}</strong><span :class="{ 'tool-warning': tool.status === 'waiting' }">{{ toolLabel(tool.status) }}</span><AppIcon name="down" :size="12" /></summary>
-          <div class="tool-card__body"><pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre><pre v-if="tool.preview">{{ tool.preview }}</pre><div v-if="tool.status === 'waiting'" class="approval"><p>此操作需要你的许可。请检查上方工具及参数。</p><div><Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button><Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button><Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button></div></div></div>
-        </details>
-        <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
-        <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
-      </template>
-      <div v-if="!message.isStreaming" class="message__actions"><IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton><IconButton v-if="message.role === 'user' && !message.id.startsWith('pending_')" size="small" label="回退到此消息" title="回退到此消息之前" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton><IconButton v-if="message.role === 'user' && !message.id.startsWith('pending_')" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(message)"><AppIcon name="branch" :size="14" /></IconButton></div>
-    </section>
+    <article v-for="message in messages" :key="message.id" class="message" :class="`message--${message.role}`" :aria-label="message.role === 'user' ? '你的消息' : 'la 的回复'">
+      <div class="message__avatar" :class="{ 'message__avatar--assistant': message.role === 'assistant' }" aria-hidden="true">
+        <AppIcon v-if="message.role === 'assistant'" name="spark" :size="16" />
+        <template v-else>你</template>
+      </div>
+      <div class="message__body">
+        <div class="message__meta">
+          <strong>{{ message.role === 'user' ? '你' : 'la' }}</strong>
+          <span v-if="message.role === 'assistant'">{{ session.model }}</span>
+        </div>
+        <template v-if="message.role === 'user'">
+          <div class="message__text message__bubble">{{ message.content }}</div>
+        </template>
+        <template v-else>
+          <details v-if="message.reasoning" class="reasoning"><summary><AppIcon name="spark" :size="14" />思考过程<AppIcon name="down" :size="12" /></summary><p>{{ message.reasoning }}</p></details>
+          <div v-if="message.content" class="markdown-body" v-html="renderMarkdown(message.content)"></div>
+          <div v-if="message.isStreaming && !message.content" class="typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
+          <details v-for="tool in message.tools || []" :key="tool.id" class="tool-card" :open="tool.status === 'waiting' || tool.status === 'running'">
+            <summary><AppIcon name="code" :size="14" /><strong>{{ tool.name }}</strong><span :class="{ 'tool-warning': tool.status === 'waiting' }">{{ toolLabel(tool.status) }}</span><AppIcon name="down" :size="12" /></summary>
+            <div class="tool-card__body"><pre v-if="Object.keys(tool.input || {}).length">{{ JSON.stringify(tool.input, null, 2) }}</pre><pre v-if="tool.preview">{{ tool.preview }}</pre><div v-if="tool.status === 'waiting'" class="approval"><p>此操作需要你的许可。请检查上方工具及参数。</p><div><Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button><Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button><Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button></div></div></div>
+          </details>
+          <p v-if="message.error" class="message__error" role="alert"><AppIcon name="info" :size="16" />{{ message.error }}</p>
+          <div v-if="message.request?.input || message.request?.output" class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div>
+        </template>
+        <div v-if="!message.isStreaming" class="message__actions">
+          <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+          <IconButton v-if="canRollback(message)" size="small" :label="message.role === 'user' ? '回退到这条消息' : '回退到这条回复'" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
+          <IconButton v-if="message.role === 'user' && canRollback(message)" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(message)"><AppIcon name="branch" :size="14" /></IconButton>
+        </div>
+      </div>
+    </article>
     <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退">
-      <h2>回到这条消息之前？</h2>
+      <h2>{{ rollbackTarget?.role === 'assistant' ? '回到这条回复之前？' : '回到这条消息之前？' }}</h2>
       <p>{{ rollbackSummary }}</p>
       <label v-if="rollbackPreview?.files?.length" class="rollback-files">
         <span>这一段的改动（{{ rollbackPreview.files.length }} 个文件）</span>
@@ -90,11 +109,28 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 
 <style scoped lang="scss">
 .conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 20px 20px 24px; display: flex; flex-direction: column; gap: 24px; }
-.message { min-width: 0; }
-.message--user { display: flex; flex-direction: column; align-items: flex-end; }
-.message__bubble {
-  max-width: min(82%, 64ch);
-  padding: 8px 12px;
+.message { display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 10px; min-width: 0; }
+.message__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  font-size: 12px;
+  line-height: 1;
+  user-select: none;
+}
+.message__avatar--assistant { background: var(--la-accent-soft); color: var(--la-accent); }
+.message__body { display: flex; flex-direction: column; min-width: 0; }
+.message__meta { display: flex; align-items: baseline; gap: 8px; min-width: 0; min-height: 30px; color: var(--la-secondary); font-size: 12px; line-height: 30px; }
+.message__meta strong { color: var(--la-text); font-size: 13px; font-weight: 530; }
+.message__meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.message__text {
+  max-width: 100%;
+  padding: 10px 14px;
   border: 0;
   border-radius: 16px;
   background: var(--la-layer-02);
@@ -104,8 +140,9 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.message__actions { display: flex; gap: 1px; margin-top: 4px; opacity: 0; }
-.message--user .message__actions { justify-content: flex-end; }
+.message--user .message__bubble { width: 100%; }
+.message--assistant .message__body > * { max-width: 100%; }
+.message__actions { display: flex; flex-wrap: wrap; gap: 1px; margin-top: 5px; opacity: .45; transition: opacity .12s ease; }
 .message:hover .message__actions, .message:focus-within .message__actions { opacity: 1; }
 .markdown-body { color: var(--la-text); font-size: 13.5px; line-height: 1.9; overflow-wrap: anywhere; }
 .markdown-body :deep(p) { margin: 0 0 12px; }
@@ -152,6 +189,12 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
 .message__usage > span { padding: 0 7px; }
 @media (max-width: 767px) {
   .conversation-flow { padding: 16px 12px 22px; gap: 20px; }
-  .message__bubble { max-width: 90%; }
+  .message { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+  .message__avatar { width: 28px; height: 28px; }
+  .message__actions { opacity: 1; }
+  .message__text { max-width: 100%; }
+}
+@media (hover: none) {
+  .message__actions { opacity: 1; }
 }
 </style>

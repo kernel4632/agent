@@ -209,7 +209,7 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
     await page.getByRole('button', { name: '关闭文件面板', exact: true }).click()
   }
   await page.locator('.message--user').first().hover()
-  await page.getByRole('button', { name: '回退到此消息' }).click()
+  await page.getByRole('button', { name: '回退到这条消息' }).click()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('一个新的项目')
   await page.getByRole('button', { name: '撤销回退', exact: true }).click()
@@ -235,7 +235,27 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await page.getByRole('button', { name: '删除', exact: true }).click()
   await page.getByRole('button', { name: '确认删除', exact: true }).click()
   await expect(page.locator('.home-session')).toHaveCount(0)
-  expect(mock.calls.find(call => call.path.startsWith('/session/rollback/')).body).toEqual({ messageId: 'user-1' })
+  expect(mock.calls.find(call => call.path === '/session/rollback/preview/session-1').body).toEqual({ messageId: 'user-1' })
+  expect(mock.errors).toEqual([])
+})
+
+test('assistant reply block can be rolled back to that reply', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+
+  await page.locator('.message--assistant').first().hover()
+  await page.getByRole('button', { name: '回退到这条回复', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '回到这条回复之前？', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '确认回退', exact: true }).click()
+
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/rollback/session-1')?.body)
+    .toEqual({ messageId: 'assistant-1', files: true })
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: '撤销回退', exact: true })).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 

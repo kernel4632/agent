@@ -229,9 +229,10 @@ async function rollbackMessage(sessionID, messageID, files = true) {
     const message = session.messages.find(item => item.id === messageID)
     const result = await AgentAPI.rollback(sessionID, messageID, files)
     await Session.refresh(sessionID)
-    store.sessions[sessionID].draft = message?.content || ''
-    // 回到输入框的那条消息，用户能在原处改一改重发，这是回退最常见的用途。
-    UI.notify(result.restored?.length ? `已回退，并恢复 ${result.restored.length} 个文件` : '已回退至此消息之前')
+    // 只有回退到用户消息时才把正文放回输入框；助手回复不是用户的草稿。
+    store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
+    const where = message?.role === 'user' ? '已回退到用户消息之前' : '已回退到助手回复之前'
+    UI.notify(result.restored?.length ? `${where}，并恢复 ${result.restored.length} 个文件` : where)
     return true
   } catch (error) { UI.notify(error.message); return false }
 }
