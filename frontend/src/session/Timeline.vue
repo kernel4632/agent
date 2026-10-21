@@ -96,7 +96,7 @@ const toolLabel = status => ({ waiting: '等待你的许可', running: '正在�
   max-width: min(82%, 64ch);
   padding: 8px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--la-layer-02);
   color: var(--la-text);
   font-size: 13px;

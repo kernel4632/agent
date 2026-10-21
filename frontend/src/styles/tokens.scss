@@ -1,93 +1,55 @@
-// opencode v2 GUI tokens. Keep the app's --la-* aliases so components can migrate gradually.
+// Material You + RikkaHub layout tokens. Components keep using --la-* so a future
+// component library can swap the mapping without touching every page.
 m3e-theme {
-  color-scheme: dark;
-  --la-bg: #080808;
-  --la-panel: #161616;
-  --la-layer-01: #242424;
-  --la-layer-02: #2e2e2e;
-  --la-layer-03: #3a3a3a;
-  --la-layer-04: #5c5c5c;
-  --la-input: var(--la-layer-02);
-  --la-setting-row: var(--la-layer-01);
-  --la-settings-nav: var(--la-panel);
-  --la-titlebar: var(--la-panel);
-  --la-statusbar: var(--la-bg);
-  --la-term-panel: var(--la-layer-01);
-  --la-text: #fafafa;
-  --la-secondary: #aeaeae;
-  --la-muted: #808080;
-  --la-line: #ffffff14;
-  --la-line-strong: #ffffff1a;
-  --la-hover: #ffffff0f;
-  --la-pressed: #ffffff1a;
-  --la-scrim: #00000099;
-  --la-accent: #7698fd;
-  --la-accent-solid: #3b5cf6;
-  --la-accent-soft: #7698fd24;
-  --la-accent-border: #7698fd4d;
-  --la-danger: #f17471;
-  --la-success: #6bd586;
-  --la-warning: #f2cf76;
-  --la-on-accent: #ffffff;
-  --la-action: #fafafa;
-  --la-on-action: #161616;
-  --la-radius: 6px;
-  --la-radius-panel: 10px;
-  --la-titlebar-height: 36px;
+  color-scheme: light;
+
+  // Material 3 role aliases
+  --la-bg: var(--md-sys-color-surface);
+  --la-panel: var(--md-sys-color-surface-container-low);
+  --la-layer-01: var(--md-sys-color-surface-container);
+  --la-layer-02: var(--md-sys-color-surface-container-high);
+  --la-layer-03: var(--md-sys-color-surface-container-highest);
+  --la-layer-04: var(--md-sys-color-outline-variant);
+  --la-input: var(--md-sys-color-surface-container-high);
+  --la-text: var(--md-sys-color-on-surface);
+  --la-secondary: var(--md-sys-color-on-surface-variant);
+  --la-muted: var(--md-sys-color-outline);
+  --la-line: color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+  --la-line-strong: var(--md-sys-color-outline-variant);
+  --la-hover: color-mix(in srgb, var(--md-sys-color-on-surface) 7%, transparent);
+  --la-pressed: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+  --la-scrim: color-mix(in srgb, var(--md-sys-color-scrim) 60%, transparent);
+  --la-accent: var(--md-sys-color-primary);
+  --la-accent-solid: var(--md-sys-color-primary);
+  --la-accent-soft: var(--md-sys-color-primary-container);
+  --la-accent-border: color-mix(in srgb, var(--md-sys-color-primary) 42%, transparent);
+  --la-danger: var(--md-sys-color-error);
+  --la-success: light-dark(#198b43, #6bd586);
+  --la-warning: light-dark(#8a5a00, #f2cf76);
+  --la-on-accent: var(--md-sys-color-on-primary);
+  --la-action: var(--md-sys-color-primary);
+  --la-on-action: var(--md-sys-color-on-primary);
+
+  // Expressive shape and spacing
+  --la-radius: 10px;
+  --la-radius-panel: 24px;
   --la-content-inset: 8px;
-  --la-chat-gutter: 24px;
-  --la-content-width: 720px;
-  --la-chat-width: 860px;
-  --la-home-projects-width: 280px;
+  --la-drawer-width: 300px;
+  --la-settings-width: 760px;
+  --la-topbar-height: 64px;
   --la-review-width: 280px;
-  --la-settings-nav-width: 328px;
-  --la-settings-nav-width-compact: 240px;
-  --la-settings-content-width: 720px;
-  --la-settings-page-width: 1048px;
+  --la-chat-width: 960px;
   --la-font-sans: "Maple Mono NF CN", "MapleMono NF CN", Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
   --la-font-mono: "Maple Mono NF CN", "MapleMono NF CN", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  --la-shadow-raised: 0 2px 4px #00000030, 0 1px 2px #00000030, 0 0 0 .5px #ffffff29, 0 -.5px 0 #ffffff0f;
-  --la-shadow-floating: 0 8px 16px #00000030, 0 4px 8px #00000030, 0 0 0 .5px #ffffff29, 0 -.5px 0 #ffffff0f;
-  --la-shadow-overlay: 0 16px 32px #00000030, 0 8px 16px #00000030, 0 0 0 .5px #ffffff29, 0 -.5px 0 #ffffff0f;
+  --la-shadow-raised: 0 1px 2px rgba(0, 0, 0, .08), 0 1px 3px 1px rgba(0, 0, 0, .06);
+  --la-shadow-floating: 0 4px 8px 3px rgba(0, 0, 0, .08), 0 1px 3px rgba(0, 0, 0, .14);
+  --la-shadow-overlay: 0 8px 12px 6px rgba(0, 0, 0, .1), 0 4px 4px rgba(0, 0, 0, .16);
+}
+
+m3e-theme[scheme="dark"] {
+  color-scheme: dark;
 }
 
 m3e-theme[scheme="light"] {
   color-scheme: light;
-  --la-bg: #fafafa;
-  --la-panel: #ffffff;
-  --la-layer-01: #fafafa;
-  --la-layer-02: #f2f2f2;
-  --la-layer-03: #eeeeee;
-  --la-layer-04: #dbdbdb;
-  --la-input: var(--la-layer-02);
-  --la-setting-row: var(--la-layer-01);
-  --la-settings-nav: var(--la-panel);
-  --la-titlebar: var(--la-panel);
-  --la-statusbar: var(--la-bg);
-  --la-term-panel: var(--la-layer-01);
-  --la-text: #161616;
-  --la-secondary: #5c5c5c;
-  --la-muted: #808080;
-  --la-line: #00000014;
-  --la-line-strong: #0000001a;
-  --la-hover: #0000000a;
-  --la-pressed: #00000014;
-  --la-scrim: #00000066;
-  --la-accent: #3b5cf6;
-  --la-accent-solid: #3b5cf6;
-  --la-accent-soft: #3b5cf614;
-  --la-accent-border: #3b5cf64d;
-  --la-danger: #d92e3c;
-  --la-success: #198b43;
-  --la-warning: #cb9f34;
-  --la-on-accent: #ffffff;
-  --la-action: #161616;
-  --la-on-action: #ffffff;
-  --la-shadow-raised: 0 2px 4px #0000000a, 0 1px 2px #00000014, 0 0 0 .5px #0000001f;
-  --la-shadow-floating: 0 8px 16px #0000000a, 0 4px 8px #00000014, 0 0 0 .5px #0000001f;
-  --la-shadow-overlay: 0 16px 32px #0000000a, 0 8px 16px #00000014, 0 0 0 .5px #0000001f;
-}
-
-@media (max-width: 760px) {
-  m3e-theme { --la-chat-gutter: 12px; }
 }

@@ -148,11 +148,11 @@ defineExpose({ focus: () => editor.value?.focus() })
 <style scoped lang="scss">
 .chat-composer {
   position: relative;
-  padding: 12px 14px 8px;
+  padding: 10px 12px 8px;
   border: .5px solid var(--la-line);
-  border-radius: 10px;
+  border-radius: 24px;
   background: var(--la-layer-01);
-  box-shadow: var(--la-shadow-raised);
+  box-shadow: none;
 
   &:focus-within { border-color: var(--la-line-strong); }
   &__slash {
@@ -188,31 +188,32 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__editor {
     display: block;
     width: 100%;
-    min-height: 44px;
+    min-height: 42px;
     max-height: 220px;
-    padding: 0 0 8px;
+    padding: 2px 4px 8px;
     resize: none;
     field-sizing: content;
     border: 0;
     outline: 0;
     background: transparent;
     color: var(--la-text);
-    font: 13px/20px var(--la-font-sans);
+    font: 14px/21px var(--la-font-sans);
     letter-spacing: -.04px;
 
     &::placeholder { color: var(--la-muted); }
   }
   &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  &__toolbar { justify-content: space-between; padding-top: 6px; border-top: .5px solid var(--la-line); }
+  &__toolbar { justify-content: space-between; gap: 8px; padding: 2px 2px 0; }
+  &__actions { justify-content: flex-end; gap: 2px; }
   &__agent { color: var(--la-muted); font-size: 12px; }
   &__agent svg { color: var(--la-muted); }
   &__model {
     max-width: 230px;
-    height: 28px;
-    padding: 0 4px;
+    height: 30px;
+    padding: 0 6px;
     overflow: hidden;
     border: 0;
-    border-radius: 4px;
+    border-radius: 999px;
     background: transparent;
     color: var(--la-secondary);
     font: 12px/20px var(--la-font-sans);
@@ -239,12 +240,12 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__send {
     display: grid;
     place-items: center;
-    flex: 0 0 28px;
-    width: 28px;
-    height: 28px;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: 50%;
     background: var(--la-accent-solid);
     color: #fff;
     cursor: pointer;
@@ -257,11 +258,11 @@ defineExpose({ focus: () => editor.value?.focus() })
 .composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; color: var(--la-muted); font-size: 12px; font-weight: 440; }
 @media (max-width: 767px) {
   .chat-composer {
-    padding: 10px 12px 8px;
+    padding: 9px 10px 7px;
     &__editor { font-size: 16px; }
     &__agent span { display: none; }
     &__model { max-width: 150px; font-size: 12px; }
-    &__send { width: 32px; height: 32px; flex-basis: 32px; }
+    &__send { width: 36px; height: 36px; flex-basis: 36px; }
   }
   .composer-footnote > span:first-child { display: none; }
   .composer-footnote { justify-content: center; }

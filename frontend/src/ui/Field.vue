@@ -3,6 +3,7 @@
 label 写入 aria-label，caption 是可选可见标题；leading / trailing 插槽放图标。
 size="small" 用于设置面板行内的紧凑输入框（28px），默认 normal 保持 36px。
 class/style 落在根节点，min/max/step/@change 等其他属性直接透传给输入控件。
+调用方可以通过组件 ref 的 focus() 把焦点交给内部输入框。
 调用示例：
 <Field v-model="query" type="search" label="搜索会话" placeholder="搜索会话">
   <template #leading><AppIcon name="search" /></template>
@@ -10,7 +11,7 @@ class/style 落在根节点，min/max/step/@change 等其他属性直接透传�
 <Field v-model="limit" size="small" type="number" label="连续次数" @change="saveLimit" />
 -->
 <script setup>
-import { computed, useAttrs } from 'vue'
+import { computed, ref, useAttrs } from 'vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -28,6 +29,11 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 const attrs = useAttrs()
+const input = ref(null)
+const textarea = ref(null)
+
+// 同一时间只渲染一个输入控件；搜索框和对话框都通过这个入口聚焦。
+defineExpose({ focus: () => (textarea.value || input.value)?.focus() })
 
 // class/style 留给根节点（搜索框要靠 class 变成整块底色），其余属性交给真正的输入控件。
 const rootAttrs = computed(() => ({ class: attrs.class, style: attrs.style }))
@@ -46,6 +52,7 @@ const inputAttrs = computed(() => {
       <span v-if="$slots.leading" class="ui-field__leading"><slot name="leading" /></span>
       <textarea
         v-if="multiline"
+        ref="textarea"
         v-bind="inputAttrs"
         class="field ui-field__input ui-field__input--multiline"
         :value="modelValue"
@@ -57,6 +64,7 @@ const inputAttrs = computed(() => {
       />
       <input
         v-else
+        ref="input"
         v-bind="inputAttrs"
         class="field ui-field__input"
         :type="type"

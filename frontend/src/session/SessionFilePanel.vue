@@ -62,7 +62,7 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
 .session-review__section { display: flex; flex-direction: column; gap: 2px; }
 .session-review__section h2 { margin: 8px 4px 4px; color: var(--la-muted); font-size: 12px; font-weight: 530; }
 .session-review__section p { margin: 4px; color: var(--la-muted); font-size: 12px; line-height: 18px; }
-.session-review__file { display: block; width: 100%; min-height: 24px; padding: 3px 6px; overflow: hidden; border: 0; border-radius: 4px; background: transparent; color: var(--la-secondary); text-align: left; font: 12px/18px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.session-review__file { display: block; width: 100%; min-height: 26px; padding: 4px 8px; overflow: hidden; border: 0; border-radius: 8px; background: transparent; color: var(--la-secondary); text-align: left; font: 12px/18px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .session-review__file:hover { background: var(--la-hover); color: var(--la-text); }
 @media (max-width: 1023px) {
   .session-review { display: none; }

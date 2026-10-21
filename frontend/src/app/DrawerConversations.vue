@@ -1,6 +1,7 @@
 <!--
-首页会话列：搜索、最近会话、更多菜单和重命名/删除弹窗都在这里。
-调用示例：<SessionList :workspace="workspace" :active-session-id="id" @open="openSession" @new="openDraft" />
+抽屉会话列：搜索、按日期分组的会话、更多菜单和重命名/删除弹窗都在这里。
+放在 app/AppDrawer.vue 的会话区内，桌面和手机的抽屉共用这一份逻辑。
+调用示例：<DrawerConversations :workspace="workspace" :active-session-id="id" :show-search="searchOpen" @open="openSession" @new="openDraft" />
 -->
 <script setup>
 import { computed, ref } from 'vue'
@@ -14,16 +15,58 @@ import { Session } from '../commands/session.js'
 const props = defineProps({
   workspace: { type: Object, default: null },
   activeSessionId: String,
+  showSearch: Boolean,                                  // 只有点抽屉“搜索对话”后才显示搜索框
 })
 const emit = defineEmits(['open', 'new'])
 
 // --- 搜索 ---
 const search = ref('')
+const searchField = ref(null)
 const sessions = computed(() => props.workspace?.sessions || [])
+const stampOf = item => Number(item.updatedAt || item.createdAt) || 0
 const visible = computed(() => {
   const query = search.value.trim().toLowerCase()
-  return sessions.value.filter(item => !query || (item.title || '').toLowerCase().includes(query))
+  return sessions.value
+    .filter(item => !query || (item.title || '').toLowerCase().includes(query))
+    .slice()
+    .sort((first, second) => stampOf(second) - stampOf(first))
 })
+
+// 按最后更新时间分成今天、昨天、更早；时间戳缺失时归到更早。
+const groups = computed(() => {
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const startOfYesterday = new Date(startOfToday)
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
+  const buckets = [
+    { key: 'today', label: '今天', items: [] },
+    { key: 'yesterday', label: '昨天', items: [] },
+    { key: 'earlier', label: '更早', items: [] },
+  ]
+  for (const item of visible.value) {
+    const stamp = stampOf(item)
+    if (stamp >= startOfToday.getTime()) buckets[0].items.push(item)
+    else if (stamp >= startOfYesterday.getTime()) buckets[1].items.push(item)
+    else buckets[2].items.push(item)
+  }
+  return buckets.filter(group => group.items.length)
+})
+
+// 今天显示时间，更早显示月/日；组标题已经说明大致范围。
+function timeLabel(item) {
+  const stamp = stampOf(item)
+  if (!stamp) return ''
+  const date = new Date(stamp)
+  if (Number.isNaN(date.getTime())) return ''
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
+// 抽屉动作行的“搜索对话”把焦点交给这里的搜索框。
+defineExpose({ focusSearch: () => searchField.value?.focus() })
 
 // --- 重命名 / 删除 ---
 const dialogOpen = ref(false)
@@ -73,30 +116,31 @@ async function submitDialog() {
 
 <template>
   <div class="home-sessions">
-    <div class="home-sessions__top">
-      <Field v-model="search" class="home-search" type="search" label="搜索会话" placeholder="搜索会话">
-        <template #leading><AppIcon name="search" :size="15" /></template>
+    <div v-if="showSearch" class="home-sessions__top">
+      <Field ref="searchField" v-model="search" class="home-search" type="search" label="搜索会话" placeholder="搜索对话">
+        <template #leading><AppIcon name="search" :size="16" /></template>
       </Field>
-      <Button v-if="sessions.length" variant="ghost" class="home-new" @click="emit('new')"><AppIcon name="edit" :size="14" />新建会话</Button>
     </div>
 
     <div class="home-sessions__list">
-      <template v-if="visible.length">
-        <div class="group-label">最近会话</div>
-        <div v-for="item in visible" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
-          <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
-          <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
-            <span class="home-session__avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(item.title) }}</span>
-            <span class="home-session__title">{{ item.title || '新会话' }}</span>
-            <span class="home-session__project">{{ workspace?.name }}</span>
-          </Button>
-          <details class="home-session__menu">
-            <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
-            <div class="home-session__menu-pop">
-              <Button variant="ghost" @click.prevent="openRename(item)">重命名</Button>
-              <Button variant="ghost" @click.prevent="openDelete(item)">删除</Button>
-            </div>
-          </details>
+      <template v-if="groups.length">
+        <div v-for="group in groups" :key="group.key" class="home-sessions__group">
+          <div class="group-label">{{ group.label }}</div>
+          <div v-for="item in group.items" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
+            <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
+            <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
+              <span class="home-session__avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(item.title) }}</span>
+              <span class="home-session__title">{{ item.title || '新会话' }}</span>
+              <span class="home-session__time">{{ timeLabel(item) }}</span>
+            </Button>
+            <details class="home-session__menu">
+              <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
+              <div class="home-session__menu-pop">
+                <Button variant="ghost" @click.prevent="openRename(item)">重命名</Button>
+                <Button variant="ghost" @click.prevent="openDelete(item)">删除</Button>
+              </div>
+            </details>
+          </div>
         </div>
       </template>
       <div v-else class="home-empty">
@@ -123,7 +167,7 @@ async function submitDialog() {
 
 <style scoped lang="scss">
 .home-sessions { display: flex; min-height: 0; flex-direction: column; }
-.home-sessions__top { display: flex; flex: none; align-items: center; gap: 8px; margin-bottom: 8px; }
+.home-sessions__top { display: flex; flex: none; align-items: center; margin-bottom: 8px; }
 .home-search {
   display: flex;
   height: 36px;
@@ -131,8 +175,8 @@ async function submitDialog() {
   flex: 1;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
-  border-radius: 6px;
+  padding: 0 12px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--la-layer-02) 60%, transparent);
   color: var(--la-muted);
 }
@@ -140,35 +184,23 @@ async function submitDialog() {
 .home-search :deep(input) { width: 100%; min-width: 0; height: auto; padding: 0; border: 0; outline: 0; background: transparent; color: var(--la-text); font-size: 13px; }
 .home-search :deep(input::placeholder) { color: var(--la-muted); }
 .home-search :deep(input:focus) { box-shadow: none; }
-.home-new {
-  display: flex;
-  height: 28px;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--la-secondary);
-  font-size: 13px;
-  font-weight: 530;
-  cursor: pointer;
-}
-.home-new:hover { background: var(--la-hover); color: var(--la-text); text-decoration: none; }
-.home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 1px; overflow-y: auto; padding-right: 4px; }
-.group-label { display: flex; height: 28px; flex: none; align-items: center; padding: 0 6px; color: var(--la-muted); font-size: 13px; font-weight: 440; }
-.home-session { display: flex; height: 40px; flex: none; align-items: center; border-radius: 6px; }
-.home-session:hover, .home-session.is-active { background: var(--la-layer-01); }
+.home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
+.home-sessions__group { display: flex; flex-direction: column; gap: 1px; }
+.home-sessions__group + .home-sessions__group { margin-top: 8px; }
+.group-label { display: flex; height: 28px; flex: none; align-items: center; padding: 0 10px; color: var(--la-muted); font-size: 12px; font-weight: 530; letter-spacing: .02em; }
+.home-session { display: flex; height: 40px; flex: none; align-items: center; border-radius: 999px; }
+.home-session:hover { background: var(--la-hover); }
+.home-session.is-active { background: var(--la-layer-02); }
 .home-session__main {
   display: flex;
   height: 100%;
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
+  gap: 9px;
+  padding: 0 10px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--la-secondary);
   text-align: left;
@@ -177,23 +209,22 @@ async function submitDialog() {
 .home-session__avatar {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  border-radius: 3px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 6px;
   color: #fff;
   font: 600 8px/1 var(--la-font-mono);
 }
-.home-session__title { min-width: 0; overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 530; text-overflow: ellipsis; white-space: nowrap; }
-.home-session__project { margin-left: auto; color: var(--la-muted); font-size: 13px; font-weight: 440; white-space: nowrap; opacity: 0; transition: opacity .12s ease; }
-.home-session:hover .home-session__project, .home-session.is-active .home-session__project { opacity: 1; }
+.home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 530; text-overflow: ellipsis; white-space: nowrap; }
+.home-session__time { flex: none; color: var(--la-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .home-session__menu { position: relative; flex: none; margin-right: 4px; }
 .home-session__menu summary {
   display: grid;
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
+  border-radius: 999px;
   color: var(--la-muted);
   cursor: pointer;
   opacity: 0;
@@ -211,7 +242,7 @@ async function submitDialog() {
   z-index: 20;
   width: 140px;
   padding: 4px;
-  border-radius: 6px;
+  border-radius: 12px;
   background: var(--la-layer-01);
   box-shadow: var(--la-shadow-floating);
 }
@@ -230,7 +261,7 @@ async function submitDialog() {
   cursor: pointer;
 }
 .home-session__menu-pop button:hover { background: var(--la-hover); text-decoration: none; }
-.home-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 52px 16px; text-align: center; }
+.home-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; text-align: center; }
 .home-empty strong { color: var(--la-text); font-size: 13px; font-weight: 530; }
 .home-empty p { max-width: 360px; margin: 0 0 8px; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
 @media (max-width: 1023px) {
@@ -238,7 +269,6 @@ async function submitDialog() {
 }
 @media (max-width: 767px) {
   .home-sessions { padding-top: 4px; }
-  .home-session__project { display: none; }
   .home-session { height: 48px; }
   .home-session__menu summary { opacity: 1; }
 }

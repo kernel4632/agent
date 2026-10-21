@@ -1,6 +1,7 @@
 <!--
-会话页：把顶部、时间线、输入区、文件面板和运行设置组装成完整的一页。
-只负责会话自己的交互；打开/关闭标签、草稿页和全局快捷键仍由 App.vue 管。
+会话页：把时间线、输入区、文件面板和运行设置组装成完整的一页。
+顶部标题和模型切换由 App 外的 TopBar 提供，这里不再带内部标题栏。
+只负责会话自己的交互；打开会话、新建对话和全局快捷键仍由 App.vue 管。
 普通按钮、下拉框和数字输入统一走 ui/；芯片和模式按钮用 Button plain 保留原样式。
 调用示例：
 <SessionView
@@ -8,6 +9,7 @@
   :session="session"
   :workspace="selectedWorkspace"
   :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
+  v-model:review-open="reviewOpen"
 />
 -->
 <script setup>
@@ -17,7 +19,6 @@ import Button from '../ui/Button.vue'
 import Field from '../ui/Field.vue'
 import Select from '../ui/Select.vue'
 import Composer from '../composer/Composer.vue'
-import SessionHeader from './SessionHeader.vue'
 import SessionFilePanel from './SessionFilePanel.vue'
 import { store } from '../store.js'
 import { Session, AUTO_APPROVE_KINDS, USE_LABELS } from '../commands/session.js'
@@ -29,12 +30,13 @@ const Timeline = defineAsyncComponent(() => import('./Timeline.vue'))
 
 const props = defineProps({
   session: { type: Object, required: true }, // 当前打开的完整会话
-  workspace: Object,                         // 会话所属工作区，给顶部和文件面板使用
+  workspace: Object,                         // 会话所属工作区，给文件面板使用
   busy: Boolean,                             // 创建中、加载中或有连接错误时禁止发送
+  reviewOpen: Boolean,                       // 右侧文件面板是否打开，由 App 统一控制
 })
+const emit = defineEmits(['update:reviewOpen'])
 
 // --- 页面内的开关 ---
-const reviewOpen = ref(false)
 // "更多"面板默认收起：常用的是上面那几个开关，这里都是配一次就不动的。
 const moreOpen = ref(false)
 
@@ -61,31 +63,12 @@ function stop() { void Chat.stop(props.session.id) }
 function attachFiles(selected) { void Chat.attach(props.session.id, selected) }
 function removeFile(id) { Chat.removeFile(props.session.id, id) }
 
-// --- 顶部模型切换 ---
-// 所有供应商下的所有模型，按"供应商/模型"给出，供下拉框选。
-const allModels = () => Object.entries(store.config.providers || {})
-  .flatMap(([provider, entry]) => (entry.models || []).map(model => ({ provider, model })))
-
-// 会话顶部模型下拉框的选项；当前模型不在配置里时也保留一条，避免选择框显示空白。
-const modelOptions = computed(() => {
-  const list = allModels()
-  const current = `${props.session.provider}/${props.session.model}`
-  if (current && !list.some(item => `${item.provider}/${item.model}` === current)) {
-    list.unshift({ provider: props.session.provider, model: props.session.model })
-  }
-  return list
-})
-
-async function switchModel(value) {
-  if (!value) return
-  const [provider, ...rest] = value.split('/')
-  const model = rest.join('/')
-  if (provider === props.session.provider && model === props.session.model) return
-  await Session.selectModel(props.session.id, provider, model)
-}
-
 // --- 自动批准和按用途模型 ---
 const autoApproveCount = computed(() => AUTO_APPROVE_KINDS.filter(item => props.session.settings.autoApprove?.[item.kind]).length)
+
+// 所有供应商下的所有模型，按用途指定时使用。
+const allModels = () => Object.entries(store.config.providers || {})
+  .flatMap(([provider, entry]) => (entry.models || []).map(model => ({ provider, model })))
 
 // 按用途指定模型的下拉选项：空串表示和主模型共用，其余列出所有供应商下的模型。
 const useModelOptions = computed(() => [
@@ -108,8 +91,7 @@ const targetFrom = (session, value) => {
 </script>
 
 <template>
-  <section class="panel session-panel" aria-label="聊天">
-    <SessionHeader v-model:review-open="reviewOpen" :session="session" :workspace="workspace" :models="modelOptions" @switch-model="switchModel" />
+  <section class="session-panel" aria-label="聊天">
     <div class="session-body">
       <div class="session-main">
         <div class="session-scroll">
@@ -168,19 +150,19 @@ const targetFrom = (session, value) => {
           </Composer>
         </div>
       </div>
-      <SessionFilePanel v-model:open="reviewOpen" :session="session" :workspace="workspace" />
+      <SessionFilePanel :open="reviewOpen" :session="session" :workspace="workspace" @update:open="emit('update:reviewOpen', $event)" />
     </div>
   </section>
 </template>
 
 <style scoped lang="scss">
-.session-panel { display: flex; flex-direction: column; }
+.session-panel { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .session-body { display: flex; min-height: 0; flex: 1; }
 .session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
 .session-composer { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 8px 20px 16px; }
-.chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 9px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
-.chat-more { display: flex; flex-wrap: wrap; gap: 20px; max-height: 340px; margin-bottom: 8px; padding: 16px; overflow-y: auto; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
+.chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; border-radius: 12px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
+.chat-more { display: flex; flex-wrap: wrap; gap: 20px; max-height: 340px; margin-bottom: 8px; padding: 16px; overflow-y: auto; border-radius: 16px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
 .chat-more__group { flex: 1 1 240px; min-width: 0; }
 .chat-more__group h2 { margin: 0; color: var(--la-text); font-size: 13px; font-weight: 530; line-height: 16px; }
 .chat-more__group p { margin: 6px 0 10px; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
@@ -198,12 +180,12 @@ const targetFrom = (session, value) => {
   color: var(--la-text);
   font-size: 12px;
 }
-.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 7px; border: 0; border-radius: 4px; background: var(--la-layer-02); color: var(--la-muted); font-size: 12px; cursor: pointer; }
+.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 9px; border: 0; border-radius: 999px; background: var(--la-layer-02); color: var(--la-muted); font-size: 12px; cursor: pointer; }
 .chip:hover:not(:disabled) { color: var(--la-text); background: var(--la-layer-03); }
 .chip--active { background: var(--la-accent-soft); color: var(--la-accent); }
 .chip:disabled { opacity: .5; }
 .chip--compact { min-height: 22px; padding: 1px 6px; }
-.composer-mode { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; border-radius: 4px; background: transparent; color: var(--la-muted); font-size: 12px; font-weight: 440; cursor: pointer; }
+.composer-mode { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 0; border-radius: 999px; background: transparent; color: var(--la-muted); font-size: 12px; font-weight: 440; cursor: pointer; }
 .composer-mode:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
 .composer-mode.is-active { color: var(--la-accent); }
 .composer-mode:disabled { opacity: .5; }

@@ -121,29 +121,50 @@ async function backend(page, { configured = true } = {}) {
   return { calls, sessions, errors, emit, config: () => config }
 }
 
+// 手机没有常驻主页，会话列表在左侧抽屉；桌面横向布局下抽屉常驻、菜单按钮隐藏。
+async function openDrawer(page) {
+  const menu = page.getByRole('button', { name: '打开会话抽屉', exact: true })
+  if (await menu.isVisible()) {
+    // 手机抽屉关闭时带 0.22s 滑出动画；等它完全隐藏再点菜单，避免点到正在移动的按钮。
+    const drawer = page.locator('.app-drawer')
+    const open = await drawer.evaluate(element => element.classList.contains('is-open')).catch(() => false)
+    if (!open) {
+      await expect(drawer).toBeHidden()
+      await menu.click()
+    }
+  }
+  await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
+}
+
 async function navigate(page, name) {
-  await page.getByRole('button', { name, exact: true }).first().click()
+  await openDrawer(page)
+  const drawer = page.getByRole('region', { name: '项目与会话' })
+  if (name === '新建对话') return drawer.getByRole('button', { name: '新建对话', exact: true }).click()
+  if (name === '设置') return drawer.getByRole('button', { name: '设置', exact: true }).click()
+  return drawer.getByRole('button', { name, exact: true }).first().click()
 }
 
 async function screenshot(page, testInfo, name) {
-  const layout = await page.evaluate(() => ['html', 'body', 'm3e-theme', '.preview-page', '.app-main', '.home-panel', '.session-panel', '.chat-composer'].map(selector => {
+  const layout = await page.evaluate(() => ['html', 'body', 'm3e-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
     const element = document.querySelector(selector)
     if (!element) return null
     const box = element.getBoundingClientRect()
     return { selector, left: box.left, width: box.width, scrollLeft: element.scrollLeft, scrollWidth: element.scrollWidth }
   }))
   expect(layout.filter(Boolean).every(item => item.scrollLeft === 0), JSON.stringify(layout)).toBe(true)
-  if (testInfo.project.name === 'mobile') expect(layout.find(item => item.selector === '.app-main').left).toBe(0)
+  if (testInfo.project.name === 'mobile') expect(layout.find(item => item.selector === '.rikka-main').left).toBe(0)
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true, animations: 'disabled' })
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0)
 }
 
-test('empty home, accessible navigation and unsupported capabilities', async ({ page }, testInfo) => {
+test('empty chat and drawer, accessible navigation and unsupported capabilities', async ({ page }, testInfo) => {
   const mock = await backend(page, { configured: false })
   await page.goto('/')
+  await openDrawer(page)
   await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
+  await page.getByRole('region', { name: '项目与会话' }).getByRole('button', { name: '搜索对话', exact: true }).click()
   await expect(page.getByRole('searchbox', { name: '搜索会话' })).toBeVisible()
-  await screenshot(page, testInfo, 'home')
+  await screenshot(page, testInfo, 'drawer')
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('dialog', { name: '命令面板' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: '搜索命令' })).toBeFocused()
@@ -155,11 +176,16 @@ test('empty home, accessible navigation and unsupported capabilities', async ({ 
   await page.getByRole('button', { name: '新建会话', exact: true }).first().click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'draft')
-  await page.getByRole('button', { name: '主页', exact: true }).click()
   await navigate(page, '设置')
-  await expect(page.getByRole('heading', { name: '通用', exact: true, level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
+  const general = page.getByRole('button', { name: /通用/ })
+  await expect(general).toBeVisible()
+  await expect(general).toBeEnabled()
   if (testInfo.project.name === 'desktop') await expect(page.getByRole('button', { name: /工具管理/ })).toBeEnabled()
   await screenshot(page, testInfo, 'settings')
+  await general.click()
+  await expect(page.getByRole('heading', { name: '通用', exact: true, level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '通用', exact: true, level: 3 })).toBeVisible()
   // 工作区和健康检查是启动时正常读取；这里只盯未实现的能力，不把只读请求算进来。
   expect(mock.calls.some(call => /login|session\/update/.test(call.path))).toBe(false)
   expect(mock.errors).toEqual([])
@@ -188,7 +214,7 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('一个新的项目')
   await page.getByRole('button', { name: '撤销回退', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await navigate(page, '主页')
+  await openDrawer(page)
   const created = page.locator('.home-session').filter({ hasText: '一个新的项目' })
   await created.hover()
   await created.locator('.home-session__menu summary').click()
@@ -196,6 +222,7 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await page.getByRole('textbox', { name: '会话名称' }).fill('我的计划')
   await page.getByRole('button', { name: '保存名称', exact: true }).click()
   await page.reload()
+  await openDrawer(page)
   const renamed = page.locator('.home-session').filter({ hasText: '我的计划' })
   await expect(renamed).toBeVisible()
   await renamed.hover()
@@ -216,7 +243,7 @@ test('settings save preserves uneditable backend configuration and secrets stay 
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '设置')
-  await page.getByRole('button', { name: '模型供应商', exact: true }).click()
+  await page.getByRole('button', { name: /模型供应商/ }).click()
   await expect(page.getByRole('textbox', { name: '供应商名' })).toBeVisible()
   await screenshot(page, testInfo, 'settings-providers')
   await page.getByRole('textbox', { name: '供应商名' }).fill('Renamed provider')
@@ -232,7 +259,8 @@ test('settings save preserves uneditable backend configuration and secrets stay 
   expect(saved.providers[0].modelSettings['test-model'].context).toBe(64000)
   expect(saved.providers[0].models).toEqual(['test-model', 'another-model'])
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('test-only-key')
-  await page.getByRole('button', { name: '通用', exact: true }).click()
+  await page.getByRole('button', { name: '返回设置', exact: true }).click()
+  await page.getByRole('button', { name: /通用/ }).click()
   await page.getByRole('radio', { name: '浅色', exact: true }).check()
   await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'light')
   await screenshot(page, testInfo, 'appearance-light')
@@ -283,6 +311,7 @@ test('connection failure is visible and does not replace the page with a blank s
   await page.route('**/api/config/read', route => route.fulfill({ status: 503, body: 'Unavailable' }))
   await page.goto('/')
   await expect(page.getByRole('alert')).toContainText('无法连接后端')
+  await openDrawer(page)
   await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible()
 })
@@ -294,13 +323,14 @@ test('settings close keeps the chat draft and failed save keeps the dialog open'
   const editor = page.getByRole('textbox', { name: '消息', exact: true })
   await editor.fill('尚未发送的草稿')
   await navigate(page, '设置')
+  await page.getByRole('button', { name: /通用/ }).click()
   await page.getByRole('switch', { name: '增强键盘焦点' }).check()
   await page.keyboard.press('Escape')
   await expect(page.locator('.settings-screen')).toHaveCount(0)
   await expect(editor).toHaveValue('尚未发送的草稿')
   expect(mock.calls.some(call => call.path === '/config/set')).toBe(false)
   await navigate(page, '设置')
-  await page.getByRole('button', { name: '模型供应商', exact: true }).click()
+  await page.getByRole('button', { name: /模型供应商/ }).click()
   await page.getByRole('textbox', { name: '供应商名' }).fill('')
   await page.getByRole('button', { name: '关闭设置' }).click()
   await expect(page.locator('.settings-screen')).toBeVisible()
@@ -357,7 +387,7 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await page.goto('/')
   await navigate(page, '设置')
 
-  await page.getByRole('button', { name: '高级', exact: true }).click()
+  await page.getByRole('button', { name: /高级/ }).click()
   await screenshot(page, testInfo, 'settings-advanced')
   await page.getByRole('switch', { name: '读取项目规则' }).click()
   await expect(page.getByRole('switch', { name: '读取项目规则' })).not.toBeChecked()
@@ -367,12 +397,14 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['file_read'] } }, null, 2))
   await page.getByRole('button', { name: '应用模式', exact: true }).click()
 
-  await page.getByRole('button', { name: '工具管理', exact: true }).click()
+  await page.getByRole('button', { name: '返回设置', exact: true }).click()
+  await page.getByRole('button', { name: /工具管理/ }).click()
   await expect(page.getByText('file_read')).toBeVisible()
   await expect(page.getByText('shell')).toBeVisible()
   await screenshot(page, testInfo, 'settings-tools')
 
-  await page.getByRole('button', { name: 'MCP 服务', exact: true }).click()
+  await page.getByRole('button', { name: '返回设置', exact: true }).click()
+  await page.getByRole('button', { name: /MCP 服务/ }).click()
   await expect(page.getByText('sample', { exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'settings-mcp')
 
@@ -402,7 +434,7 @@ test('MCP service can be added and saved', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '设置')
-  await page.getByRole('button', { name: 'MCP 服务', exact: true }).click()
+  await page.getByRole('button', { name: /MCP 服务/ }).click()
   await page.getByRole('button', { name: '添加 MCP 服务', exact: true }).click()
   await expect(page.getByText('MCP 2', { exact: true })).toBeVisible()
   await page.getByLabel('启动命令').fill('npx test-server')

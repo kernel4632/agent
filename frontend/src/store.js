@@ -22,7 +22,7 @@ export const store = reactive({
   ui: {
     view: 'home',                                      // home 为尚未创建的对话，chat 为已有会话
     settingsOpen: false,
-    settingsSection: 'appearance',
+    settingsSection: '',                               // 空字符串表示设置首页；传页面 id 才直接进入详情
     activeWorkspaceID: '',                             // 主页当前工作区身份
     activeSessionID: '',                               // 对话页当前会话身份
     openedSessionIDs: [],                              // 用户本次运行中主动打开的会话，顺序即标签顺序

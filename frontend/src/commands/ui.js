@@ -44,9 +44,9 @@ async function openChat(sessionID) {
 
 
 // --- 打开设置页 ---
-async function openSettings(section = 'appearance') {
+async function openSettings(section = '') {
   if (!store.ui.settingsOpen) Settings.open()
-  store.ui.settingsSection = typeof section === 'string' ? section : 'appearance'
+  store.ui.settingsSection = typeof section === 'string' ? section : ''
   store.ui.settingsOpen = true
   return true
 }
