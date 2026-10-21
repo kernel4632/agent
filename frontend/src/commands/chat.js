@@ -186,13 +186,32 @@ async function receive(sessionID, event) {
 }
 
 async function stop(sessionID) {
+  const session = store.sessions[sessionID]
+  // 停止是用户动作，先把本地状态收回来：停止按钮立刻消失，重连提示也关掉。
+  // SSE 订阅本身会无限重连；不在这里 abort，界面会一直显示“正在重连”。
+  if (session) {
+    session.status = 'idle'
+    session.connection = 'idle'
+    const assistant = streaming(session)
+    if (assistant) {
+      assistant.retry = ''
+      assistant.isStreaming = false
+    }
+  }
+  unsubscribe(sessionID)
   try {
     await AgentAPI.stopSession(sessionID)
     await Session.refresh(sessionID)
     store.sessions[sessionID].status = 'idle'
+    store.sessions[sessionID].connection = 'idle'
     UI.notify('已停止生成')
     return true
-  } catch (error) { UI.notify(error.message); return false }
+  } catch (error) {
+    // 停止请求失败时也要刷新，避免界面一直停在“已停止”的假状态。
+    try { await Session.refresh(sessionID) } catch { /* 保留原错误提示 */ }
+    UI.notify(error.message)
+    return false
+  }
 }
 
 async function decide(sessionID, callID, decision) {
