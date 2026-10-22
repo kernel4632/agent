@@ -1,19 +1,19 @@
 <!--
 供应商模型列表：展示已选模型，支持从供应商发现模型、手动添加和移除，弹窗内切换选中模型。
 数据只通过 update:models 交给上层；发现请求、手动输入和弹窗开关是本地状态。
-控件统一用 ui/ 的 Button、Field、IconButton；原生 dialog 暂留，等 Dialog 支持受控开关后再换。
+控件统一用 ui/ 的 Button、Field、IconButton、Dialog。
 调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="setModels" />
 -->
 <script setup>
 import { ref } from 'vue'
-import { AppIcon, Button, Field, IconButton } from '../../ui/index.js'
+import { AppIcon, Button, Dialog, Field, IconButton } from '../../ui/index.js'
 import { Settings } from '../../commands/settings.js'
 
 const props = defineProps({ provider: Object, models: Array })
 const emit = defineEmits(['update:models'])
 const manual = ref('')
 const loading = ref(false)
-const chooser = ref(null)
+const chooserOpen = ref(false)
 const available = ref([])
 
 // 手动添加：去掉首尾空白，空值或已存在的模型不重复写入。
@@ -28,7 +28,7 @@ function add() {
 async function discover() {
   if (loading.value) return
   loading.value = true
-  try { available.value = await Settings.discoverModels(props.provider, props.models); chooser.value.showModal() }
+  try { available.value = await Settings.discoverModels(props.provider, props.models); chooserOpen.value = true }
   finally { loading.value = false }
 }
 </script>
@@ -49,7 +49,13 @@ async function discover() {
     <div v-for="model in models" :key="model.id" class="provider-models__row"><span>{{ model.name }}</span><IconButton :label="`移除模型 ${model.name}`" @click="emit('update:models', models.filter(item => item.id !== model.id))"><AppIcon name="close" :size="14" /></IconButton></div>
     <p v-if="!models.length">尚未添加模型</p>
   </section>
-  <dialog ref="chooser" class="dialog" aria-label="选择模型"><h2>选择模型</h2><div class="model-choices"><Button v-for="model in available" :key="model.id" :aria-pressed="models.some(item => item.id === model.id)" @click="emit('update:models', Settings.toggleModelInList(models, model))">{{ model.name }}<AppIcon v-if="models.some(item => item.id === model.id)" name="check" :size="14" /></Button></div><div class="dialog-actions"><Button @click="chooser.close()">关闭</Button></div></dialog>
+  <Dialog :open="chooserOpen" label="选择模型" @update:open="chooserOpen = $event">
+    <h2>选择模型</h2>
+    <div class="model-choices">
+      <Button v-for="model in available" :key="model.id" :aria-pressed="models.some(item => item.id === model.id)" @click="emit('update:models', Settings.toggleModelInList(models, model))">{{ model.name }}<AppIcon v-if="models.some(item => item.id === model.id)" name="check" :size="14" /></Button>
+    </div>
+    <div class="dialog-actions"><Button @click="chooserOpen = false">关闭</Button></div>
+  </Dialog>
 </template>
 
 <style scoped lang="scss">

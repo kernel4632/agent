@@ -7,7 +7,7 @@ MCP 服务管理：展示已配置的 MCP 服务连接，支持编辑、删除�
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { AppIcon, Button, Field, IconButton, Select, Switch } from '../../ui/index.js'
+import { AppIcon, Button, Dialog, Field, IconButton, Select, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   mcp: { type: Array, required: true },
@@ -24,10 +24,10 @@ const TRANSPORT_OPTIONS = [
 const selectedID = ref(props.mcp[0]?.id ?? '')
 const selectedItem = computed(() => props.mcp.find(item => item.id === selectedID.value) ?? null)
 const remote = computed(() => ['sse', 'http'].includes(selectedItem.value?.definition?.transport))
-const deleteDialog = ref(null)
+const deleteOpen = ref(false)
 
 function requestRemove() {
-  deleteDialog.value?.showModal()
+  deleteOpen.value = true
 }
 
 function addMCP() {
@@ -50,7 +50,7 @@ function removeMCP() {
   const nextItem = props.mcp[index + 1] ?? props.mcp[index - 1]
   emit('update:mcp', props.mcp.filter(item => item.id !== selectedID.value))
   selectedID.value = nextItem?.id ?? ''
-  deleteDialog.value?.close()
+  deleteOpen.value = false
 }
 
 function updateField(field, value) {
@@ -162,14 +162,14 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 
     <p v-else class="mcp-empty">添加一个 MCP 服务以开始配置</p>
 
-    <dialog ref="deleteDialog" class="dialog" aria-label="删除 MCP 服务确认">
+    <Dialog :open="deleteOpen" label="删除 MCP 服务确认" @update:open="deleteOpen = $event">
       <h2>删除 MCP 服务？</h2>
       <p>此 MCP 服务的未保存配置将被移除。</p>
       <div class="dialog-actions">
-        <Button @click="deleteDialog.close()">取消</Button>
+        <Button @click="deleteOpen = false">取消</Button>
         <Button variant="danger" @click="removeMCP">删除</Button>
       </div>
-    </dialog>
+    </Dialog>
   </section>
 </template>
 

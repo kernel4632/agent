@@ -1,12 +1,12 @@
 <!--
 供应商编辑面板：编辑名称、启用状态、接口类型、API 地址和 API Key，并接入模型列表与删除确认。
 所有字段只通过 update:provider 交给上层写回；显示 API Key 和删除确认弹窗是本地临时状态。
-控件统一用 ui/ 的 Field、Select、Switch、Button；原生 dialog 暂留，等 Dialog 支持受控开关后再换。
+控件统一用 ui/ 的 Field、Select、Switch、Button、Dialog。
 调用示例：<ProviderEditor :provider="selectedProvider" @update:provider="saveProvider" @delete="removeProvider" />
 -->
 <script setup>
 import { ref } from 'vue'
-import { Button, Field, Select, Switch } from '../../ui/index.js'
+import { Button, Dialog, Field, Select, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
 
 const props = defineProps({ provider: { type: Object, required: true } })
@@ -14,7 +14,7 @@ const emit = defineEmits(['delete', 'update:provider'])
 
 // API Key 默认隐藏，点“显示”只在当前面板内切换类型，不改动草稿里的值。
 const showApiKey = ref(false)
-const deleteDialog = ref(null)
+const deleteOpen = ref(false)
 
 // 接口类型目前只有 OpenAI 兼容一种，保留下拉框以便以后扩展。
 const API_TYPE_OPTIONS = [{ value: 'openai-compatible', label: 'OpenAI 兼容' }]
@@ -75,9 +75,16 @@ const update = patch => emit('update:provider', { ...props.provider, ...patch })
       >{{ showApiKey ? '隐藏' : '显示' }}</Button>
     </div>
     <ProviderModels :provider="provider" :models="provider.models" @update:models="update({ models: $event })" />
-    <footer><Button variant="ghost" class="provider-editor__delete" @click="deleteDialog.showModal()">删除供应商</Button></footer>
+    <footer><Button variant="ghost" class="provider-editor__delete" @click="deleteOpen = true">删除供应商</Button></footer>
   </div>
-  <dialog ref="deleteDialog" class="dialog" aria-label="删除供应商确认"><h2>删除供应商？</h2><p>保存设置后，此供应商配置将被移除。</p><div class="dialog-actions"><Button @click="deleteDialog.close()">取消</Button><Button variant="danger" @click="emit('delete')">删除</Button></div></dialog>
+  <Dialog :open="deleteOpen" label="删除供应商确认" @update:open="deleteOpen = $event">
+    <h2>删除供应商？</h2>
+    <p>保存设置后，此供应商配置将被移除。</p>
+    <div class="dialog-actions">
+      <Button @click="deleteOpen = false">取消</Button>
+      <Button variant="danger" @click="emit('delete'); deleteOpen = false">删除</Button>
+    </div>
+  </Dialog>
 </template>
 
 <style scoped lang="scss">

@@ -11,5 +11,5 @@
 - `Select` 的 `selectClass` 和页面里的 `:deep(.ui-select__input)`
 - `Field` 的 `@change` 透传
 - `Button` 的 `variant="plain"` 列表行皮肤
-- 四个原生 `<dialog>`：`Timeline.vue`、`MCPSettings.vue`、`ProviderEditor.vue`、`ProviderModels.vue`
-- `Timeline.vue` 的思考行、工具行、回退弹窗仍可继续拆成独立组件
+- `ToolView.vue` 仍按 `view` 在一个文件里放多种结果视图
+- `Composer.vue` 的附件条、斜杠菜单和工具栏仍可继续拆成独立组件
