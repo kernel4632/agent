@@ -121,13 +121,16 @@ async function backend(page, { configured = true } = {}) {
     if (path.startsWith('/agent/send/')) {
       session.history.push({ messageId: 'user-1', id: 'core-user-1', role: 'user', content: body.input })
       await json({ ok: true })
-      if (body.input === 'keep running') return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
+      if (body.input === 'keep running') {
+        session.running = true
+        return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
+      }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({ messageId: 'assistant-1', role: 'assistant', content: [{ type: 'text', text }] })
       session.title = '一个新的项目'
       return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
-    if (path.startsWith('/agent/stop/')) { await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
+    if (path.startsWith('/agent/stop/')) { session.running = false; await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
     if (path.startsWith('/agent/decide/')) return json({ ok: true })
     return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
@@ -365,6 +368,27 @@ test('Chinese IME does not submit and stop uses the existing endpoint', async ({
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()
   expect(mock.calls.some(call => call.path === '/agent/stop/session-1')).toBe(true)
+  expect(mock.errors).toEqual([])
+})
+
+test('retry keeps the stop button available after reconnecting', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+
+  // 刷新会重新读取会话；后端仍在 running，输入区必须继续显示停止按钮。
+  await page.reload()
+  await openDrawer(page)
+  await page.locator('.home-session__main').filter({ hasText: '新对话' }).click()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [{ type: 'retry', attempt: 1 }])
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
+  await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 

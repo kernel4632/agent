@@ -342,7 +342,9 @@ function normalize(source, previous = {}) {
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
     workspaceID: source.workspaceId,
-    status: previous.status || 'idle',
+    // 刷新或重连时以后端真实 running 为准；否则正在重试的会话会显示成空闲，
+    // 输入区只剩发送按钮，用户就没法点停止。
+    status: source.running ? 'running' : 'idle',
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
     // 模式、自动批准、能力开关、按用途的模型，后端读取时一并给出。

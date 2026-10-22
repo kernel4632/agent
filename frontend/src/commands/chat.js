@@ -158,7 +158,10 @@ async function receive(sessionID, event) {
     // 某个 MCP 服务没连上；只是跳过它，会话照常，所以提醒一句就好。
     UI.notify(t('mcpFailed', { server: event.server, error: event.error }))
   } else if (event.type === 'retry') {
+    // 重试也是“正在运行”，即使 agent-start 在断线时丢了，停止按钮也必须出现。
+    session.status = 'running'
     const assistant = streaming(session) || createAssistant(session)
+    assistant.isStreaming = true
     assistant.retry = `连接重试 ${event.attempt || 1}，请稍候…`
   } else if (event.type === 'error') {
     const assistant = streaming(session) || createAssistant(session)
