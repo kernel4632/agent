@@ -56,6 +56,27 @@ const modelOpen = ref(false)
 const modelQuery = ref('')
 const searchOpen = ref(false)
 const addOpen = ref(false)
+const focused = ref(false)
+const fullscreenOpen = ref(false)
+const fullscreenDialog = ref(null)
+const fullscreenEditor = ref(null)
+const placeholder = computed(() => store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天')
+
+watch(fullscreenOpen, async open => {
+  const dialog = fullscreenDialog.value
+  if (!dialog) return
+  if (open) {
+    if (!dialog.open) dialog.showModal()
+    await nextTick()
+    fullscreenEditor.value?.focus()
+  } else if (dialog.open) {
+    dialog.close()
+  }
+})
+
+function closeFullscreen() {
+  fullscreenOpen.value = false
+}
 
 function openModelSheet() {
   modelQuery.value = ''
@@ -144,7 +165,10 @@ defineExpose({ focus: () => editor.value?.focus() })
     <ComposerAttachments :files="files" @remove="emit('remove-file', $event)" />
     <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
-    <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
+    <div class="chat-composer__editor-wrap">
+      <textarea ref="editor" v-model="draft" class="chat-composer__editor" :class="{ 'has-fullscreen': focused }" aria-label="消息" :placeholder="placeholder" rows="2" @focus="focused = true" @blur="focused = false" @keydown="keydown"></textarea>
+      <button v-if="focused" type="button" class="chat-composer__fullscreen" aria-label="全屏输入" title="全屏输入" @mousedown.prevent @click="fullscreenOpen = true"><AppIcon name="fullscreen" :size="20" /></button>
+    </div>
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
         <button type="button" class="composer-option" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" title="选择模型" @click="openModelSheet"><AppIcon name="spark" :size="24" /></button>
@@ -200,6 +224,17 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
     </div>
   </Sheet>
+
+  <dialog ref="fullscreenDialog" class="composer-fullscreen" aria-label="全屏输入" @cancel.prevent="closeFullscreen">
+    <div class="composer-fullscreen__frame">
+      <section class="composer-fullscreen__panel">
+        <div class="composer-fullscreen__actions">
+          <button type="button" @click="closeFullscreen">保存</button>
+        </div>
+        <textarea ref="fullscreenEditor" v-model="draft" class="composer-fullscreen__editor" aria-label="消息" :placeholder="placeholder"></textarea>
+      </section>
+    </div>
+  </dialog>
 </template>
 
 <style scoped lang="scss">
@@ -212,6 +247,7 @@ defineExpose({ focus: () => editor.value?.focus() })
   box-shadow: none;
 
   &:focus-within { border-color: var(--la-line-strong); }
+  &__editor-wrap { position: relative; min-width: 0; }
   &__editor {
     display: block;
     width: 100%;
@@ -227,8 +263,25 @@ defineExpose({ focus: () => editor.value?.focus() })
     font: 15px/22px var(--la-font-sans);
     letter-spacing: 0;
 
+    &.has-fullscreen { padding-right: 38px; }
     &::placeholder { color: var(--la-muted); }
   }
+  &__fullscreen {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--la-muted);
+    cursor: pointer;
+  }
+  &__fullscreen:hover { background: var(--la-hover); color: var(--la-text); }
   &__bottom { display: flex; min-height: 40px; align-items: center; gap: 4px; padding: 0 4px 1px; }
   &__options { display: flex; min-width: 0; flex: 1; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
   &__options::-webkit-scrollbar { display: none; }
@@ -288,6 +341,63 @@ defineExpose({ focus: () => editor.value?.focus() })
 .model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
 .model-row__icon { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-fullscreen {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.composer-fullscreen::backdrop { background: color-mix(in srgb, #000 32%, transparent); }
+.composer-fullscreen__frame {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.composer-fullscreen__panel {
+  display: flex;
+  width: min(800px, 100%);
+  height: 90%;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px 16px 0 0;
+  background: var(--la-bg);
+}
+.composer-fullscreen__actions { display: flex; flex: none; justify-content: flex-end; }
+.composer-fullscreen__actions button {
+  min-width: 64px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--la-accent);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.composer-fullscreen__actions button:hover { background: var(--la-hover); }
+.composer-fullscreen__editor {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  padding: 16px;
+  resize: none;
+  border: 0;
+  border-radius: 32px;
+  outline: 0;
+  background: transparent;
+  color: var(--la-text);
+  font: 16px/24px var(--la-font-sans);
+}
+.composer-fullscreen__editor::placeholder { color: var(--la-muted); }
 @media (max-width: 767px) {
   .chat-composer {
     padding: 4px 8px;

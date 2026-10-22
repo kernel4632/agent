@@ -353,6 +353,23 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   expect(mock.errors).toEqual([])
 })
 
+test('composer fullscreen editor keeps the draft', async ({ page }, testInfo) => {
+  await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  const editor = page.getByRole('textbox', { name: '消息', exact: true })
+  await editor.fill('全屏草稿')
+  await editor.focus()
+  await page.getByRole('button', { name: '全屏输入', exact: true }).click()
+  const fullscreen = page.getByRole('dialog', { name: '全屏输入' })
+  await expect(fullscreen).toBeVisible()
+  await screenshot(page, testInfo, 'composer-fullscreen')
+  await fullscreen.getByRole('textbox', { name: '消息', exact: true }).fill('全屏里修改')
+  await fullscreen.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(fullscreen).toHaveCount(0)
+  await expect(editor).toHaveValue('全屏里修改')
+})
+
 test('Chinese IME does not submit and stop uses the existing endpoint', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
