@@ -7,12 +7,7 @@ MCP 服务管理：展示已配置的 MCP 服务连接，支持编辑、删除�
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import AppIcon from '../../ui/AppIcon.vue'
-import Button from '../../ui/Button.vue'
-import Field from '../../ui/Field.vue'
-import IconButton from '../../ui/IconButton.vue'
-import Select from '../../ui/Select.vue'
-import Switch from '../../ui/Switch.vue'
+import { AppIcon, Button, Field, IconButton, Select, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   mcp: { type: Array, required: true },

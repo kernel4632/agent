@@ -2,15 +2,13 @@
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；自己从 store 读当前会话，不需要传 props。
   整个对话流是一列三行布局的列表：图标、文本、右侧操作；不使用卡片容器。
-  按钮和图标按钮走 ui/；回退勾选框暂留原生，等 checkbox / switch 控件到位后再换。
+  按钮和图标按钮走 ui/；回退弹窗独立为 RollbackDialog，时间线只负责发起和确认。
   调用示例：
   <Timeline :key="session.id" />
 -->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
-import IconButton from '../ui/IconButton.vue'
+import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
@@ -18,10 +16,15 @@ import { UI } from '../commands/ui.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import { groupMessageTurns } from './turns.js'
 import ToolView from './tools/ToolView.vue'
+import RollbackDialog from './RollbackDialog.vue'
 import { toolIcon, toolLabel } from './tool-ui.js'
 import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
 
+const props = defineProps({
+    // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
+    scrollRoot: { type: Object, default: null },
+})
 const root = ref(null)
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
@@ -32,29 +35,25 @@ const pinned = ref(true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
 const rollbackPreview = ref(null)
-const rollbackFiles = ref(true)
 let scrollParent
 function onScroll() { pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100 }
 function scrollToBottom() { nextTick(() => { if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight }) }
 watch(messages, scrollToBottom, { deep: true })
-onMounted(() => { scrollParent = root.value?.closest('.session-scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
+onMounted(() => { scrollParent = props.scrollRoot || root.value?.closest('.session-scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
 onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
-const rollbackSummary = computed(() => {
-  if (!rollbackPreview.value) return '此消息及之后的内容将从对话中回退。'
-  return `从这条消息开始的 ${rollbackPreview.value.messages} 条对话会被去掉，你可以在发送新消息前撤销这次回退。`
-})
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
 const canRollback = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
 async function requestRollback(message) {
   if (!canRollback(message) || session.value?.status === 'running') return
   rollbackTarget.value = message
   rollbackPreview.value = null
-  rollbackFiles.value = true
   // 点开就已经能看到代价：多少条消息、哪些文件。等确认时再说太晚了。
-  rollbackDialog.value.showModal()
+  rollbackDialog.value?.show()
   rollbackPreview.value = await Chat.previewRollback(session.value.id, message.id)
 }
-async function confirmRollback() { if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id, rollbackFiles.value)) rollbackDialog.value?.close() }
+async function confirmRollback(restoreFiles) {
+  if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id, restoreFiles)) rollbackDialog.value?.close()
+}
 
 // 从这条用户消息分出一个新对话，原对话不动。
 async function forkFrom(message) {
@@ -90,7 +89,7 @@ onMounted(pinPreviews)
 </script>
 
 <template>
-  <div ref="root" class="conversation-flow" aria-label="对话内容">
+  <div ref="root" class="conversation-flow" role="log" aria-label="对话内容">
     <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <template v-if="turn.role === 'user'">
         <div class="list-row list-row--user">
@@ -115,100 +114,89 @@ onMounted(pinPreviews)
         </div>
         <div class="assistant-thread">
           <div v-for="message in turn.messages" :key="message.id" class="assistant-message">
-            <div class="assistant-message__content">
-              <div v-if="message.reasoning" class="list-row list-row--thinking" :class="{ 'is-live': message.isStreaming && !message.content }">
-                <span class="list-row__icon"><AppIcon name="spark" :size="14" /></span>
-                <div class="list-row__main">
-                  <button type="button" class="list-row__toggle" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))">
-                    <span class="list-row__label" :class="{ 'is-live': message.isStreaming && !message.content }">思考过程</span>
-                    <span v-if="message.isStreaming && !message.content" class="list-row__status is-running">思考中</span>
-                    <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(reasoningKey(message)) }" aria-hidden="true" />
-                  </button>
-                  <div v-if="message.isStreaming && message.reasoning" :ref="element => bindPreview(message.id, element)" class="thinking-preview">
-                    <span class="thinking-preview__text">{{ latestReasoning(message) }}</span><span class="thinking-preview__caret" aria-hidden="true">▍</span>
-                  </div>
-                  <div class="flow-content" :class="{ 'is-open': rowOpen(reasoningKey(message)) }">
-                    <div class="flow-content__inner"><div class="flow-content__body"><p class="reasoning-text">{{ message.reasoning }}</p></div></div>
-                  </div>
+            <div v-if="message.reasoning" class="list-row list-row--thinking" :class="{ 'is-live': message.isStreaming && !message.content }">
+              <span class="list-row__icon"><AppIcon name="spark" :size="14" /></span>
+              <div class="list-row__main">
+                <button type="button" class="list-row__toggle" :aria-expanded="rowOpen(reasoningKey(message))" @click="toggleRow(reasoningKey(message))">
+                  <span class="list-row__label" :class="{ 'is-live': message.isStreaming && !message.content }">思考过程</span>
+                  <span v-if="message.isStreaming && !message.content" class="list-row__status is-running">思考中</span>
+                  <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(reasoningKey(message)) }" aria-hidden="true" />
+                </button>
+                <div v-if="message.isStreaming && message.reasoning" :ref="element => bindPreview(message.id, element)" class="thinking-preview">
+                  <span class="thinking-preview__text">{{ latestReasoning(message) }}</span><span class="thinking-preview__caret" aria-hidden="true">▍</span>
                 </div>
-                <div class="list-row__actions message__actions">
-                  <template v-if="!message.isStreaming && messageActionKind(message) === 'thinking'">
-                    <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
-                    <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
-                  </template>
+                <div class="flow-content" :class="{ 'is-open': rowOpen(reasoningKey(message)) }">
+                  <div class="flow-content__inner"><div class="flow-content__body"><p class="reasoning-text">{{ message.reasoning }}</p></div></div>
                 </div>
               </div>
-              <div v-for="(tool, index) in message.tools || []" :key="tool.id" class="list-row list-row--tool" :class="{ 'is-live': tool.status === 'running' }">
-                <span class="list-row__icon"><AppIcon :name="toolIcon(tool)" :size="14" /></span>
-                <div class="list-row__main">
-                  <button type="button" class="list-row__toggle tool-toggle" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))">
-                    <span class="list-row__label" :class="{ 'is-live': tool.status === 'running' }" :title="tool.name">{{ toolLabel(tool) }}</span>
-                    <span class="list-row__status" :class="toolStatusClass(tool.status)">{{ toolStatusLabel(tool.status) }}</span>
-                    <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }" aria-hidden="true" />
-                  </button>
-                  <div class="flow-content" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }">
-                    <div class="flow-content__inner">
-                      <div class="flow-content__body tool-body">
-                        <ToolView :tool="tool" />
-                        <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
-                          <p>此操作需要你的许可。请检查上方工具及参数。</p>
-                          <div>
-                            <Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button>
-                            <Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button>
-                            <Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button>
-                          </div>
+              <div class="list-row__actions message__actions">
+                <template v-if="!message.isStreaming && messageActionKind(message) === 'thinking'">
+                  <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+                  <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
+                </template>
+              </div>
+            </div>
+            <div v-for="(tool, index) in message.tools || []" :key="tool.id" class="list-row list-row--tool" :class="{ 'is-live': tool.status === 'running' }">
+              <span class="list-row__icon"><AppIcon :name="toolIcon(tool)" :size="14" /></span>
+              <div class="list-row__main">
+                <button type="button" class="list-row__toggle tool-toggle" :aria-expanded="rowOpen(toolKey(message, tool), toolDefaultOpen(tool))" @click="toggleRow(toolKey(message, tool), toolDefaultOpen(tool))">
+                  <span class="list-row__label" :class="{ 'is-live': tool.status === 'running' }" :title="tool.name">{{ toolLabel(tool) }}</span>
+                  <span class="list-row__status" :class="toolStatusClass(tool.status)">{{ toolStatusLabel(tool.status) }}</span>
+                  <AppIcon name="down" :size="14" class="row-caret" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }" aria-hidden="true" />
+                </button>
+                <div class="flow-content" :class="{ 'is-open': rowOpen(toolKey(message, tool), toolDefaultOpen(tool)) }">
+                  <div class="flow-content__inner">
+                    <div class="flow-content__body tool-body">
+                      <ToolView :tool="tool" />
+                      <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
+                        <p>此操作需要你的许可。请检查上方工具及参数。</p>
+                        <div>
+                          <Button variant="danger" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'deny')">拒绝</Button>
+                          <Button :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'always-allow')">始终允许此参数</Button>
+                          <Button variant="primary" :disabled="tool.deciding" @click="Chat.decide(session.id, tool.id, 'allow-once')">允许一次</Button>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="list-row__actions message__actions">
-                  <template v-if="!message.isStreaming && messageActionKind(message) === 'tool' && index === (message.tools || []).length - 1">
-                    <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
-                    <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
-                  </template>
-                </div>
               </div>
-              <div v-if="message.content" class="list-row list-row--text">
-                <span class="list-row__icon"><AppIcon name="document" :size="14" /></span>
-                <div class="list-row__main markdown-body" v-html="renderMarkdown(message.content)"></div>
-                <div v-if="!message.isStreaming && messageActionKind(message) === 'text'" class="list-row__actions message__actions">
+              <div class="list-row__actions message__actions">
+                <template v-if="!message.isStreaming && messageActionKind(message) === 'tool' && index === (message.tools || []).length - 1">
                   <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
                   <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
-                </div>
+                </template>
               </div>
-              <div v-if="message.isStreaming && !message.content" class="list-row list-row--progress">
-                <span class="list-row__icon"><AppIcon name="spark" :size="14" /></span>
-                <div class="list-row__main typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
+            </div>
+            <div v-if="message.content" class="list-row list-row--text">
+              <span class="list-row__icon"><AppIcon name="document" :size="14" /></span>
+              <div class="list-row__main markdown-body" v-html="renderMarkdown(message.content)"></div>
+              <div v-if="!message.isStreaming && messageActionKind(message) === 'text'" class="list-row__actions message__actions">
+                <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+                <IconButton v-if="canRollback(message)" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(message)"><AppIcon name="undo" :size="14" /></IconButton>
               </div>
-              <div v-if="message.error" class="list-row list-row--error">
-                <span class="list-row__icon"><AppIcon name="info" :size="14" /></span>
-                <div class="list-row__main"><p class="message__error" role="alert">{{ message.error }}</p></div>
-              </div>
-              <div v-if="message.request?.input || message.request?.output" class="list-row list-row--usage">
-                <span class="list-row__icon"><AppIcon name="clock" :size="13" /></span>
-                <div class="list-row__main"><div class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div></div>
-              </div>
+            </div>
+            <div v-if="message.isStreaming && !message.content" class="list-row list-row--progress">
+              <span class="list-row__icon"><AppIcon name="spark" :size="14" /></span>
+              <div class="list-row__main typing" role="status"><span></span><span></span><span></span><small>{{ message.retry || '正在思考' }}</small></div>
+            </div>
+            <div v-if="message.error" class="list-row list-row--error">
+              <span class="list-row__icon"><AppIcon name="info" :size="14" /></span>
+              <div class="list-row__main"><p class="message__error" role="alert">{{ message.error }}</p></div>
+            </div>
+            <div v-if="message.request?.input || message.request?.output" class="list-row list-row--usage">
+              <span class="list-row__icon"><AppIcon name="clock" :size="13" /></span>
+              <div class="list-row__main"><div class="message__usage">输入 {{ message.request.input.toLocaleString() }} <span>·</span>输出 {{ message.request.output.toLocaleString() }} tokens</div></div>
             </div>
           </div>
         </div>
       </template>
     </article>
-    <dialog ref="rollbackDialog" class="dialog" aria-label="确认回退">
-      <h2>{{ rollbackTarget?.role === 'assistant' ? '回到这条回复之前？' : '回到这条消息之前？' }}</h2>
-      <p>{{ rollbackSummary }}</p>
-      <label v-if="rollbackPreview?.files?.length" class="rollback-files">
-        <span>这一段的改动（{{ rollbackPreview.files.length }} 个文件）</span>
-        <ul><li v-for="file in rollbackPreview.files" :key="file.path">{{ file.path }}</li></ul>
-      </label>
-      <!-- 回退勾选框是专用 checkbox，本阶段保留原生；后续换成 ui 的 checkbox / switch 控件。 -->
-      <label class="rollback-choice">
-        <input v-model="rollbackFiles" type="checkbox" />
-        <span>同时把文件改回原样</span>
-      </label>
-      <p class="rollback-hint">{{ rollbackFiles ? '文件和对话一起退回这一步之前。' : '只退对话，工作区里的文件保持现在的样子。' }}</p>
-      <div class="dialog-actions"><Button @click="rollbackDialog.close()">取消</Button><Button variant="primary" @click="confirmRollback">确认回退</Button></div>
-    </dialog>
+    <RollbackDialog
+      ref="rollbackDialog"
+      :target="rollbackTarget"
+      :preview="rollbackPreview"
+      @confirm="confirmRollback"
+    />
   </div>
 </template>
 
@@ -282,8 +270,7 @@ onMounted(pinPreviews)
 .assistant-head__model { min-width: 0; overflow: hidden; color: var(--la-muted); font: 12px/1.4 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
 /* 一轮助手发言内部不额外留白，轮次之间由 conversation-flow 的 12px 控制。 */
 .assistant-thread { display: flex; flex-direction: column; min-width: 0; }
-.assistant-message { display: block; min-width: 0; }
-.assistant-message__content { display: flex; flex-direction: column; min-width: 0; }
+.assistant-message { display: flex; flex-direction: column; min-width: 0; }
 
 /* 思考行和工具行的标题按钮：只占文本列，图标和右侧操作单独成列。 */
 .list-row__toggle {
@@ -405,14 +392,6 @@ onMounted(pinPreviews)
 .list-row--error .list-row__icon { color: var(--la-danger); }
 .message__usage { margin: 0; color: var(--la-muted); font-size: 11.5px; line-height: 18px; }
 .message__usage > span { padding: 0 6px; }
-
-.rollback-files { display: grid; gap: 8px; margin: 0 0 16px; }
-.rollback-files > span { font-size: 13px; color: var(--la-muted); }
-.rollback-files ul { margin: 0; padding: 10px 12px; list-style: none; max-height: 160px; overflow: auto; border-radius: 6px; background: var(--la-layer-02); }
-.rollback-files li { font: 12px/1.9 var(--la-font-mono); color: var(--la-secondary); overflow-wrap: anywhere; }
-.rollback-choice { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--la-text); }
-.rollback-choice input { width: 15px; height: 15px; accent-color: var(--la-accent); }
-.rollback-hint { margin: 10px 0 0 !important; font-size: 12px !important; color: var(--la-muted) !important; }
 
 @media (max-width: 767px) {
   .conversation-flow { padding: 8px 12px 18px; gap: 12px; }

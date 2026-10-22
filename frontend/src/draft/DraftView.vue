@@ -16,10 +16,8 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
+import { AppIcon, Button, avatarColor, initial } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
-import { avatarColor, initial } from '../ui/avatar.js'
 
 const props = defineProps({
   workspace: { type: Object, default: null }, // 当前选中的工作区，用来显示名称、路径和头像
@@ -47,22 +45,20 @@ defineExpose({ focus: () => composer.value?.focus() })
 
 <template>
   <section class="draft-panel" aria-label="新会话">
-    <div class="draft-stage">
-      <div class="draft-empty">
-        <span class="draft-empty__icon" aria-hidden="true"><AppIcon name="spark" :size="30" /></span>
-        <p>描述你想完成的任务，la 会和你一起一步步做。</p>
-      </div>
+    <div class="draft-empty">
+      <span class="draft-empty__icon" aria-hidden="true"><AppIcon name="spark" :size="30" /></span>
+      <p>描述你想完成的任务，la 会和你一起一步步做。</p>
+    </div>
 
-      <div class="draft-form">
-        <div class="draft-suggestions" role="group" aria-label="建议">
-          <Button v-for="item in suggestions" :key="item" variant="plain" class="draft-suggestion" @click="useSuggestion(item)">{{ item }}</Button>
-        </div>
-        <Composer ref="composer" v-model:draft="draft" :selected-model="model" can-select-model :is-running="false" :busy="busy" :files="files" :context-tokens="0" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
-        <div class="draft-meta">
-          <span class="project-avatar" :style="{ background: avatarColor(workspace?.id) }" aria-hidden="true">{{ initial(projectName) }}</span>
-          <span>{{ projectName }}</span>
-          <span class="draft-meta__path">{{ workspace?.path }}</span>
-        </div>
+    <div class="draft-form">
+      <div class="draft-suggestions" role="group" aria-label="建议">
+        <Button v-for="item in suggestions" :key="item" variant="plain" class="draft-suggestion" @click="useSuggestion(item)">{{ item }}</Button>
+      </div>
+      <Composer ref="composer" v-model:draft="draft" :selected-model="model" can-select-model :is-running="false" :busy="busy" :files="files" :context-tokens="0" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
+      <div class="draft-meta">
+        <span class="project-avatar" :style="{ background: avatarColor(workspace?.id) }" aria-hidden="true">{{ initial(projectName) }}</span>
+        <span>{{ projectName }}</span>
+        <span class="draft-meta__path">{{ workspace?.path }}</span>
       </div>
     </div>
   </section>
@@ -70,7 +66,6 @@ defineExpose({ focus: () => composer.value?.focus() })
 
 <style scoped lang="scss">
 .draft-panel { display: flex; flex: 1; min-height: 0; flex-direction: column; }
-.draft-stage { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .draft-empty {
   display: flex;
   min-height: 0;

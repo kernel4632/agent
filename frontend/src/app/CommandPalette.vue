@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import Button from '../ui/Button.vue'
+import { Button } from '../ui/index.js'
 
 const props = defineProps({
   open: Boolean,                                        // 面板是否显示

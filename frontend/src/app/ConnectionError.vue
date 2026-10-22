@@ -4,8 +4,7 @@
 调用示例：<ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
 -->
 <script setup>
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
+import { AppIcon, Button } from '../ui/index.js'
 import { UI } from '../commands/ui.js'
 
 defineProps({

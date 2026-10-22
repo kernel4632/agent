@@ -13,9 +13,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import IconButton from '../ui/IconButton.vue'
-import Select from '../ui/Select.vue'
+import { AppIcon, IconButton, Select } from '../ui/index.js'
 import { store } from '../store.js'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'

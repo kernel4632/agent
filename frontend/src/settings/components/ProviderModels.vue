@@ -6,10 +6,7 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import AppIcon from '../../ui/AppIcon.vue'
-import Button from '../../ui/Button.vue'
-import Field from '../../ui/Field.vue'
-import IconButton from '../../ui/IconButton.vue'
+import { AppIcon, Button, Field, IconButton } from '../../ui/index.js'
 import { Settings } from '../../commands/settings.js'
 
 const props = defineProps({ provider: Object, models: Array })

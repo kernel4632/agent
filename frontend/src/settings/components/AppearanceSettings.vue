@@ -4,8 +4,7 @@
 调用示例：<AppearanceSettings :appearance="draft.appearance" @change="draft.appearance[$event.field] = $event.value" />
 -->
 <script setup>
-import Button from '../../ui/Button.vue'
-import Switch from '../../ui/Switch.vue'
+import { Button, Switch } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 defineProps({ appearance: { type: Object, required: true } })
 const emit = defineEmits(['change'])

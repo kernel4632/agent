@@ -6,10 +6,7 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import Button from '../../ui/Button.vue'
-import Field from '../../ui/Field.vue'
-import Select from '../../ui/Select.vue'
-import Switch from '../../ui/Switch.vue'
+import { Button, Field, Select, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
 
 const props = defineProps({ provider: { type: Object, required: true } })

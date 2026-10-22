@@ -4,7 +4,7 @@
 调用示例：<ProviderList :providers="providers" :selected-id="selectedId" @select="selectProvider" />
 -->
 <script setup>
-import Button from '../../ui/Button.vue'
+import { Button } from '../../ui/index.js'
 
 defineProps({ providers: { type: Array, required: true }, selectedId: String })
 defineEmits(['select'])

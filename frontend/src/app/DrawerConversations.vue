@@ -5,11 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
-import Dialog from '../ui/Dialog.vue'
-import Field from '../ui/Field.vue'
-import { avatarColor, initial } from '../ui/avatar.js'
+import { AppIcon, Button, Dialog, Field, avatarColor, initial } from '../ui/index.js'
 import { Session } from '../commands/session.js'
 
 const props = defineProps({
@@ -116,32 +112,32 @@ async function submitDialog() {
 
 <template>
   <div class="home-sessions">
-    <div v-if="showSearch" class="home-sessions__top">
-      <Field ref="searchField" v-model="search" class="home-search" type="search" label="搜索会话" placeholder="搜索对话">
-        <template #leading><AppIcon name="search" :size="16" /></template>
-      </Field>
-    </div>
+    <Field v-if="showSearch" ref="searchField" v-model="search" class="home-search" type="search" label="搜索会话" placeholder="搜索对话">
+      <template #leading><AppIcon name="search" :size="16" /></template>
+    </Field>
 
-    <div class="home-sessions__list">
+    <nav class="home-sessions__list" aria-label="会话列表">
       <template v-if="groups.length">
-        <div v-for="group in groups" :key="group.key" class="home-sessions__group">
-          <div class="group-label">{{ group.label }}</div>
-          <div v-for="item in group.items" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
-            <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
-            <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
-              <span class="home-session__avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(item.title) }}</span>
-              <span class="home-session__title">{{ item.title || '新会话' }}</span>
-              <span class="home-session__time">{{ timeLabel(item) }}</span>
-            </Button>
-            <details class="home-session__menu">
-              <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
-              <div class="home-session__menu-pop">
-                <Button variant="ghost" @click.prevent="openRename(item)">重命名</Button>
-                <Button variant="ghost" @click.prevent="openDelete(item)">删除</Button>
-              </div>
-            </details>
-          </div>
-        </div>
+        <section v-for="group in groups" :key="group.key" class="home-sessions__group">
+          <h2 class="group-label">{{ group.label }}</h2>
+          <ul class="home-sessions__items">
+            <li v-for="item in group.items" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
+              <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
+              <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
+                <span class="home-session__avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(item.title) }}</span>
+                <span class="home-session__title">{{ item.title || '新会话' }}</span>
+                <span class="home-session__time">{{ timeLabel(item) }}</span>
+              </Button>
+              <details class="home-session__menu">
+                <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
+                <div class="home-session__menu-pop">
+                  <Button variant="ghost" @click.prevent="openRename(item)">重命名</Button>
+                  <Button variant="ghost" @click.prevent="openDelete(item)">删除</Button>
+                </div>
+              </details>
+            </li>
+          </ul>
+        </section>
       </template>
       <div v-else class="home-empty">
         <strong>{{ search ? '没有找到匹配的会话' : '还没有会话' }}</strong>
@@ -149,7 +145,7 @@ async function submitDialog() {
         <Button v-if="!search" @click="emit('new')"><AppIcon name="edit" :size="14" />新建会话</Button>
         <Button v-else variant="ghost" @click="search = ''">清除搜索</Button>
       </div>
-    </div>
+    </nav>
 
     <Dialog :open="dialogOpen" :label="dialogMode === 'rename' ? '重命名会话' : '删除会话'" @update:open="setDialogOpen">
       <form @submit.prevent="submitDialog">
@@ -166,15 +162,15 @@ async function submitDialog() {
 </template>
 
 <style scoped lang="scss">
-.home-sessions { display: flex; min-height: 0; flex-direction: column; }
-.home-sessions__top { display: flex; flex: none; align-items: center; margin-bottom: 8px; }
+.home-sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .home-search {
   display: flex;
   height: 36px;
   min-width: 0;
-  flex: 1;
+  flex: none;
   align-items: center;
   gap: 8px;
+  margin-bottom: 8px;
   padding: 0 12px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--la-layer-02) 60%, transparent);
@@ -187,7 +183,8 @@ async function submitDialog() {
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
 .home-sessions__group { display: flex; flex-direction: column; gap: 1px; }
 .home-sessions__group + .home-sessions__group { margin-top: 8px; }
-.group-label { display: flex; height: 28px; flex: none; align-items: center; padding: 0 10px; color: var(--la-muted); font-size: 12px; font-weight: 530; letter-spacing: .02em; }
+.home-sessions__items { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.group-label { display: flex; height: 28px; flex: none; align-items: center; margin: 0; padding: 0 10px; color: var(--la-muted); font-size: 12px; font-weight: 530; letter-spacing: .02em; }
 .home-session { display: flex; height: 40px; flex: none; align-items: center; border-radius: 999px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }

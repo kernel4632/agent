@@ -6,9 +6,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
-import IconButton from '../ui/IconButton.vue'
+import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
 import { Settings } from '../commands/settings.js'
 import { UI } from '../commands/ui.js'
@@ -57,40 +55,36 @@ async function save() {
     </header>
 
     <div class="settings-scroll">
-      <div class="settings-column">
-        <template v-if="selectedPage">
-          <div v-if="draft" class="settings-detail">
-            <component :is="selectedPage.component" :draft="draft" />
-          </div>
-        </template>
+      <template v-if="selectedPage">
+        <component v-if="draft" :is="selectedPage.component" :draft="draft" />
+      </template>
 
-        <template v-else>
-          <section v-for="group in groups" :key="group.label" class="settings-group">
-            <h2 class="settings-group__label">{{ group.label }}</h2>
-            <div class="settings-card">
-              <Button
-                v-for="page in group.items"
-                :key="page.id"
-                variant="plain"
-                class="settings-row"
-                :disabled="page.disabled"
-                :title="page.disabled ? '暂不支持此管理功能' : undefined"
-                @click="openPage(page)"
-              >
-                <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true">
-                  <AppIcon :name="page.icon" :size="20" />
-                </span>
-                <span class="settings-row__text">
-                  <span class="settings-row__title">{{ page.label }}</span>
-                  <span class="settings-row__description">{{ page.description }}</span>
-                </span>
-                <span v-if="page.disabled" class="settings-row__badge">待支持</span>
-                <AppIcon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
-              </Button>
-            </div>
-          </section>
-        </template>
-      </div>
+      <template v-else>
+        <section v-for="group in groups" :key="group.label" class="settings-group">
+          <h2 class="settings-group__label">{{ group.label }}</h2>
+          <div class="settings-card">
+            <Button
+              v-for="page in group.items"
+              :key="page.id"
+              variant="plain"
+              class="settings-row"
+              :disabled="page.disabled"
+              :title="page.disabled ? '暂不支持此管理功能' : undefined"
+              @click="openPage(page)"
+            >
+              <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true">
+                <AppIcon :name="page.icon" :size="20" />
+              </span>
+              <span class="settings-row__text">
+                <span class="settings-row__title">{{ page.label }}</span>
+                <span class="settings-row__description">{{ page.description }}</span>
+              </span>
+              <span v-if="page.disabled" class="settings-row__badge">待支持</span>
+              <AppIcon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
+            </Button>
+          </div>
+        </section>
+      </template>
     </div>
 
     <footer v-if="selectedPage" class="settings-footer">
@@ -116,7 +110,7 @@ async function save() {
   background: var(--la-bg);
 }
 .settings-topbar { flex: none; padding: 8px 16px 0; background: var(--la-bg); }
-.settings-topbar__inner, .settings-footer__inner, .settings-column { width: 100%; max-width: var(--la-settings-width); margin: 0 auto; }
+.settings-topbar__inner, .settings-footer__inner { width: 100%; max-width: var(--la-settings-width); margin: 0 auto; }
 .settings-topbar__actions { display: flex; min-height: 40px; align-items: center; }
 .settings-topbar__close { margin-left: auto; }
 .settings-back-icon { transform: rotate(180deg); }
@@ -131,6 +125,7 @@ async function save() {
 }
 .settings-topbar__heading p { margin: 4px 0 0; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 19px; }
 .settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 16px 32px; overscroll-behavior: contain; }
+.settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
 
 /* --- 首页：按 group 排列的圆角卡片和 64px 行 --- */
 .settings-group { display: flex; flex-direction: column; gap: 8px; }
@@ -212,7 +207,6 @@ async function save() {
 .settings-row__arrow { flex: none; color: var(--la-muted); }
 
 /* --- 详情：现有页面组件 + 底部保存栏 --- */
-.settings-detail { display: flex; min-width: 0; flex-direction: column; gap: 32px; }
 .settings-footer { flex: none; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: .5px solid var(--la-line); background: var(--la-bg); }
 .settings-footer__inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .settings-footer__note { min-width: 0; overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }

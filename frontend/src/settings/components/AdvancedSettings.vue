@@ -5,9 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import Button from '../../ui/Button.vue'
-import Field from '../../ui/Field.vue'
-import Switch from '../../ui/Switch.vue'
+import { Button, Field, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   rules: { type: Object, default: () => ({}) },

@@ -4,8 +4,7 @@
 调用示例：<ProvidersPage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
 -->
 <script setup>
-import AppIcon from '../../ui/AppIcon.vue'
-import Button from '../../ui/Button.vue'
+import { AppIcon, Button } from '../../ui/index.js'
 import ProviderSettings from '../components/ProviderSettings.vue'
 
 const props = defineProps({ draft: { type: Object, required: true } })

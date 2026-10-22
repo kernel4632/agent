@@ -6,8 +6,7 @@
 调用示例：<ToolsSettings v-model:tools="settingsDraft.tools" />。
 -->
 <script setup>
-import Select from '../../ui/Select.vue'
-import Switch from '../../ui/Switch.vue'
+import { Select, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   tools: { type: Array, required: true },

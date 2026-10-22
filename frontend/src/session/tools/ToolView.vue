@@ -5,8 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import AppIcon from '../../ui/AppIcon.vue'
-import Button from '../../ui/Button.vue'
+import { AppIcon, Button } from '../../ui/index.js'
 import { UI } from '../../commands/ui.js'
 import {
     actionTarget,

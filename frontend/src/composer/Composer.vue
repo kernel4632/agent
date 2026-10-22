@@ -20,10 +20,7 @@
 -->
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
-import IconButton from '../ui/IconButton.vue'
-import Select from '../ui/Select.vue'
+import { AppIcon, Button, IconButton, Select } from '../ui/index.js'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
 
@@ -114,35 +111,33 @@ defineExpose({ focus: () => editor.value?.focus() })
 </script>
 
 <template>
-  <div class="composer-area">
-    <form class="chat-composer" aria-label="对话编辑器" @submit.prevent="submit">
-      <div v-if="files.length" class="chat-composer__files">
-        <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="14" />{{ file.name }}<IconButton :label="`移除附件 ${file.name}`" @click="emit('remove-file', file.id)"><AppIcon name="close" :size="13" /></IconButton></span>
+  <form class="chat-composer" aria-label="对话编辑器" @submit.prevent="submit">
+    <div v-if="files.length" class="chat-composer__files">
+      <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="14" />{{ file.name }}<IconButton :label="`移除附件 ${file.name}`" @click="emit('remove-file', file.id)"><AppIcon name="close" :size="13" /></IconButton></span>
+    </div>
+    <div v-if="slashMatches.length" class="chat-composer__slash" role="listbox" aria-label="斜杠命令">
+      <Button v-for="(command, index) in slashMatches" :key="command.name" variant="plain" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
+        <span class="chat-composer__slash-name">/{{ command.name }}</span>
+        <span class="chat-composer__slash-description">{{ command.description }}</span>
+      </Button>
+    </div>
+    <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
+    <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
+    <div class="chat-composer__toolbar">
+      <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>Build</span></slot></div>
+      <div class="chat-composer__actions">
+        <Select v-if="canSelectModel && models.length" class="chat-composer__model" label="新对话使用的模型" :model-value="selection" :options="modelOptions" :disabled="busy" @update:model-value="chooseModel" />
+        <Button v-else-if="!selectedModel" variant="ghost" @click="UI.openSettings('providers')">连接模型</Button>
+        <span v-else class="chat-composer__model" :title="selectedModel">{{ selectedModel }}</span>
+        <IconButton label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="19" /></IconButton>
+        <Button v-if="isRunning" variant="plain" class="chat-composer__send" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="15" /></Button>
+        <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
       </div>
-      <div v-if="slashMatches.length" class="chat-composer__slash" role="listbox" aria-label="斜杠命令">
-        <Button v-for="(command, index) in slashMatches" :key="command.name" variant="plain" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
-          <span class="chat-composer__slash-name">/{{ command.name }}</span>
-          <span class="chat-composer__slash-description">{{ command.description }}</span>
-        </Button>
-      </div>
-      <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
-      <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
-      <div class="chat-composer__toolbar">
-        <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>Build</span></slot></div>
-        <div class="chat-composer__actions">
-          <Select v-if="canSelectModel && models.length" class="chat-composer__model" label="新对话使用的模型" :model-value="selection" :options="modelOptions" :disabled="busy" @update:model-value="chooseModel" />
-          <Button v-else-if="!selectedModel" variant="ghost" @click="UI.openSettings('providers')">连接模型</Button>
-          <span v-else class="chat-composer__model" :title="selectedModel">{{ selectedModel }}</span>
-          <IconButton label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="19" /></IconButton>
-          <Button v-if="isRunning" variant="plain" class="chat-composer__send" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="15" /></Button>
-          <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
-        </div>
-      </div>
-      <!-- 隐藏的 file input 是编辑器专用控件：由上面的附件按钮触发，保留原生实现。 -->
-      <input ref="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.css,.scss,.html,.vue,.py,.go,.rs,.yaml,.yml,.csv,.xml,.sh,.log" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
-    </form>
-    <div class="composer-footnote"><span>Enter 发送 · Shift + Enter 换行</span><span v-if="contextTokens">{{ contextTokens.toLocaleString() }} tokens</span><span v-else>请核实重要信息</span></div>
-  </div>
+    </div>
+    <!-- 隐藏的 file input 是编辑器专用控件：由上面的附件按钮触发，保留原生实现。 -->
+    <input ref="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.css,.scss,.html,.vue,.py,.go,.rs,.yaml,.yml,.csv,.xml,.sh,.log" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
+  </form>
+  <div class="composer-footnote"><span>Enter 发送 · Shift + Enter 换行</span><span v-if="contextTokens">{{ contextTokens.toLocaleString() }} tokens</span><span v-else>请核实重要信息</span></div>
 </template>
 
 <style scoped lang="scss">

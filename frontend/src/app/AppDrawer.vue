@@ -6,12 +6,8 @@
 -->
 <script setup>
 import { computed, nextTick, ref } from 'vue'
-import AppIcon from '../ui/AppIcon.vue'
-import Button from '../ui/Button.vue'
-import IconButton from '../ui/IconButton.vue'
-import Select from '../ui/Select.vue'
+import { AppIcon, Button, IconButton, Select, avatarColor, initial } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
-import { avatarColor, initial } from '../ui/avatar.js'
 import { store } from '../store.js'
 
 defineProps({
@@ -68,7 +64,7 @@ function newConversation() {
 </script>
 
 <template>
-  <aside class="home-panel app-drawer" :class="{ 'is-open': open }" role="region" aria-label="项目与会话">
+  <aside class="app-drawer" :class="{ 'is-open': open }" role="region" aria-label="项目与会话">
     <div class="app-drawer__sheet">
       <header class="app-drawer__user">
         <span class="app-drawer__avatar" :style="{ background: avatarColor('la') }" aria-hidden="true">{{ initial('la') }}</span>
@@ -92,16 +88,15 @@ function newConversation() {
         />
       </div>
 
-      <div class="app-drawer__sessions">
-        <DrawerConversations
-          ref="conversations"
-          :workspace="workspace"
-          :active-session-id="store.ui.activeSessionID"
-          :show-search="searchOpen"
-          @open="openConversation"
-          @new="newConversation"
-        />
-      </div>
+      <DrawerConversations
+        ref="conversations"
+        class="app-drawer__sessions"
+        :workspace="workspace"
+        :active-session-id="store.ui.activeSessionID"
+        :show-search="searchOpen"
+        @open="openConversation"
+        @new="newConversation"
+      />
 
       <footer class="app-drawer__footer">
         <Select
@@ -234,8 +229,7 @@ function newConversation() {
 }
 .app-drawer__workspace :deep(.ui-select__input:hover) { color: var(--la-text); }
 .app-drawer__workspace :deep(.ui-select__input:focus) { box-shadow: none; }
-.app-drawer__sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; padding: 0 4px; }
-.app-drawer__sessions :deep(.home-sessions) { min-height: 0; flex: 1; }
+.app-drawer__sessions { min-height: 0; flex: 1; overflow: hidden; padding: 0 4px; }
 
 /* --- 底部模型与设置 --- */
 .app-drawer__footer {

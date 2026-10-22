@@ -4,7 +4,7 @@
 调用示例：<PromptsSettings v-model:prompt="draft.prompt" />
 -->
 <script setup>
-import Field from '../../ui/Field.vue'
+import { Field } from '../../ui/index.js'
 
 defineProps({ prompt: String })
 defineEmits(['update:prompt'])
