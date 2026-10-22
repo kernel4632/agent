@@ -76,10 +76,10 @@ const autoApproveCount = computed(() => AUTO_APPROVE_KINDS.filter(item => props.
         <SessionMorePanel v-if="moreOpen" :session="session" />
         <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
         <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
-        <Composer v-model:draft="draft" :selected-model="session.model" :can-select-model="false" :is-running="session.status === 'running'" :busy="busy" :files="files" :context-tokens="session.contextTokens || 0" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile">
+        <Composer v-model:draft="draft" :selected-model="session.model" :can-select-model="false" :is-running="session.status === 'running'" :busy="busy" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile">
           <template #status>
-            <Button variant="plain" class="composer-mode" aria-label="切换模式" :class="{ 'is-active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : '点击切换模式'" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="12" />{{ Session.modeLabel(session.settings.mode) }}</Button>
-            <Button variant="plain" class="composer-mode composer-mode--auto" aria-label="自动批准和模型能力" :class="{ 'is-active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="12" /><span class="composer-mode__label">自动批准 {{ autoApproveCount }}/{{ AUTO_APPROVE_KINDS.length }}</span></Button>
+            <Button variant="plain" class="composer-mode" :aria-label="`切换模式（当前 ${Session.modeLabel(session.settings.mode)}）`" :class="{ 'is-active': session.settings.mode !== 'build' }" :disabled="session.status === 'running'" :title="session.status === 'running' ? '任务运行中，停止后才能切换模式' : `当前 ${Session.modeLabel(session.settings.mode)}，点击切换模式`" @click="Session.toggleMode(session.id)"><AppIcon name="eye" :size="18" /></Button>
+            <Button variant="plain" class="composer-mode composer-mode--auto" :aria-label="`自动批准 ${autoApproveCount}/${AUTO_APPROVE_KINDS.length}`" :class="{ 'is-active': autoApproveCount > 0 }" :aria-expanded="moreOpen" title="自动批准和模型能力" @click="moreOpen = !moreOpen"><AppIcon name="check" :size="18" /></Button>
           </template>
         </Composer>
       </div>
@@ -92,15 +92,13 @@ const autoApproveCount = computed(() => AUTO_APPROVE_KINDS.filter(item => props.
 .session-panel { display: flex; min-height: 0; flex: 1; }
 .session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-composer { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 8px 20px 16px; }
+.session-composer { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 0 8px 8px; }
 .chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; border-radius: 12px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
-.composer-mode { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 0; border-radius: 999px; background: transparent; color: var(--la-muted); font-size: 12px; font-weight: 440; cursor: pointer; }
+.composer-mode { display: inline-grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--la-muted); cursor: pointer; }
 .composer-mode:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
 .composer-mode.is-active { color: var(--la-accent); }
 .composer-mode:disabled { opacity: .5; }
 @media (max-width: 767px) {
-  .session-composer { padding: 6px 8px max(10px, env(safe-area-inset-bottom)); }
-  .composer-mode { white-space: nowrap; flex-shrink: 0; font-size: 10px; }
-  .composer-mode--auto .composer-mode__label { display: none; }
+  .session-composer { padding: 0 8px max(8px, env(safe-area-inset-bottom)); }
 }
 </style>

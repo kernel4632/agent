@@ -1,6 +1,6 @@
 <!--
-会话顶部栏：左边菜单（只在手机）、中间标题和模型副标题，右边文件、复制、分支和新建对话。
-只读取传入的会话和工作区；切换模型、复制和分支都调用现有命令。
+会话顶部栏：左边菜单（只在手机）、中间标题和模型副标题，右边文件面板和新建对话。
+只读取传入的会话和工作区；切换模型调用现有命令。
 调用示例：
 <TopBar
   :session="session"
@@ -12,11 +12,10 @@
 />
 -->
 <script setup>
-import { computed } from 'vue'
-import { AppIcon, IconButton, Select } from '../ui/index.js'
+import { computed, ref } from 'vue'
+import { AppIcon, Button, Dialog, Field, IconButton, Select } from '../ui/index.js'
 import { store } from '../store.js'
 import { Session } from '../commands/session.js'
-import { UI } from '../commands/ui.js'
 
 const props = defineProps({
   session: { type: Object, default: null },              // 当前打开的完整会话
@@ -25,8 +24,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['menu', 'new', 'update:reviewOpen'])
 
-const title = computed(() => props.session ? props.session.title || '新会话' : '你好，有什么可以帮您')
-const draftSubtitle = computed(() => `${props.workspace?.name || '本地工作区'} / ${store.config.activeModel || '未选择模型'}`)
+const title = computed(() => props.session ? props.session.title || '新会话' : '新对话')
+const draftSubtitle = computed(() => `la / ${store.config.activeModel || '未选择模型'}`)
 
 // 会话模型下拉：列出所有供应商下的模型，当前模型不在配置里时也保留一条。
 const allModels = computed(() => Object.entries(store.config.providers || {})
@@ -40,7 +39,7 @@ const modelOptions = computed(() => {
   }
   return list.map(item => ({
     value: `${item.provider}/${item.model}`,
-    label: `${item.provider} / ${item.model}`,
+    label: `${item.model} (${item.provider})`,
   }))
 })
 
@@ -55,6 +54,20 @@ async function switchModel(value) {
   if (provider === props.session.provider && model === props.session.model) return
   await Session.selectModel(props.session.id, provider, model)
 }
+
+const renameOpen = ref(false)
+const titleDraft = ref('')
+
+function openRename() {
+  if (!props.session) return
+  titleDraft.value = props.session.title || ''
+  renameOpen.value = true
+}
+
+async function saveTitle() {
+  if (!props.session || !titleDraft.value.trim()) return
+  if (await Session.rename(props.session.id, titleDraft.value)) renameOpen.value = false
+}
 </script>
 
 <template>
@@ -62,7 +75,7 @@ async function switchModel(value) {
     <IconButton class="topbar__menu" label="打开会话抽屉" title="打开会话抽屉" @click="emit('menu')"><AppIcon name="menu" :size="18" /></IconButton>
 
     <div class="topbar__heading">
-      <h1 :title="title">{{ title }}</h1>
+      <h1 :title="title"><button v-if="session" type="button" class="topbar__title" @click="openRename">{{ title }}</button><template v-else>{{ title }}</template></h1>
       <Select
         v-if="session"
         class="topbar__model session-model-field"
@@ -78,12 +91,22 @@ async function switchModel(value) {
     </div>
 
     <div class="topbar__actions">
-      <IconButton v-if="session" class="topbar__review session-review-toggle" label="文件面板" title="文件面板" :active="reviewOpen" @click="emit('update:reviewOpen', !reviewOpen)"><AppIcon name="list" :size="18" /></IconButton>
-      <IconButton v-if="session" class="topbar__copy" label="复制会话 ID" title="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="15" /></IconButton>
-      <IconButton v-if="session" label="创建分支" title="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="15" /></IconButton>
+      <IconButton v-if="session" class="topbar__review session-review-toggle" label="文件面板" title="文件面板" :active="reviewOpen" @click="emit('update:reviewOpen', !reviewOpen)"><AppIcon :name="reviewOpen ? 'close' : 'list'" :size="18" /></IconButton>
       <IconButton label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="new-chat" :size="18" /></IconButton>
     </div>
   </header>
+
+  <Dialog :open="renameOpen" label="重命名会话" @update:open="renameOpen = $event">
+    <form @submit.prevent="saveTitle">
+      <h2>重命名会话</h2>
+      <p>给这段对话一个容易记住的名字。</p>
+      <Field v-model="titleDraft" caption="会话标题" label="会话标题" required maxlength="120" />
+      <div class="dialog-actions">
+        <Button type="button" @click="renameOpen = false">取消</Button>
+        <Button type="submit" :disabled="!titleDraft.trim()">保存标题</Button>
+      </div>
+    </form>
+  </Dialog>
 </template>
 
 <style scoped lang="scss">
@@ -104,12 +127,28 @@ async function switchModel(value) {
   overflow: hidden;
   color: var(--la-text);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 20px;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.topbar__title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.topbar__title:hover { color: var(--la-accent); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .topbar__subtitle { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--la-text) 65%, transparent); font-size: 8px; font-weight: 400; line-height: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .topbar__model { display: block; max-width: min(320px, 42vw); min-width: 0; }
 .topbar__model :deep(.ui-select__input) {
@@ -123,6 +162,7 @@ async function switchModel(value) {
   font-size: 8px;
   line-height: 12px;
   text-overflow: ellipsis;
+  appearance: none;
   cursor: pointer;
 }
 .topbar__model :deep(.ui-select__input:focus) { box-shadow: none; }
@@ -139,7 +179,7 @@ async function switchModel(value) {
   .topbar__heading h1 { font-size: 17px; line-height: 23px; }
   .topbar__model { max-width: 38vw; }
 }
-@media (min-width: 1000px) and (orientation: landscape) {
+@media (min-width: 1100px) and (orientation: landscape) {
   .topbar__menu { display: none; }
 }
 </style>

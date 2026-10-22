@@ -34,6 +34,7 @@ import {
   PencilEdit01Icon,
   Search01Icon,
   Settings03Icon,
+  Sorting01Icon,
   SparklesIcon,
   Tick02Icon,
 } from '@hugeicons/core-free-icons'
@@ -73,6 +74,7 @@ const icons = {
   link: Link01Icon,
   eye: EyeIcon,
   'grid-plus': Grid2X2PlusIcon,
+  sort: Sorting01Icon,
   more: MoreVerticalIcon,
 }
 </script>

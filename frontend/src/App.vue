@@ -147,7 +147,6 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
             v-else-if="mode === 'draft'"
             ref="draftView"
             v-model:draft="homeDraft"
-            :workspace="selectedWorkspace"
             :model="store.config.activeModel"
             :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
             :files="homeFiles"

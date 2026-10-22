@@ -449,22 +449,10 @@ test('existing conversation switches model from the session bar', async ({ page 
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.locator('.session-model').selectOption({ label: 'Test Provider / another-model' })
+  await page.locator('.session-model').selectOption({ label: 'another-model (Test Provider)' })
   await expect.poll(() => mock.calls.find(call => call.path === '/session/model/session-1')?.body)
     .toEqual({ provider: 'Test Provider', model: 'another-model' })
   await expect(page.locator('.session-model')).toHaveValue('Test Provider/another-model')
-})
-
-test('conversation can be forked from the header', async ({ page }) => {
-  const mock = await backend(page)
-  await page.goto('/')
-  await navigate(page, '新建对话')
-  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
-  await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.getByRole('button', { name: '创建分支', exact: true }).click()
-  await expect.poll(() => mock.calls.some(call => call.path === '/session/fork/session-1')).toBe(true)
-  await expect(page.getByRole('heading', { name: '一个新的项目（分支）' })).toBeVisible()
 })
 
 test('advanced, tools and MCP settings write back', async ({ page }, testInfo) => {
@@ -510,7 +498,7 @@ test('message action forks the conversation at that message', async ({ page }) =
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
   await page.locator('.message--user').first().hover()
-  await page.getByRole('button', { name: '从这里分支', exact: true }).click()
+  await page.locator('.message--user').first().getByRole('button', { name: '从这里分支', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/fork/session-1')?.body)
     .toEqual({ messageId: 'user-1' })
 })

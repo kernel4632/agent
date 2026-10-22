@@ -12,6 +12,7 @@ const props = defineProps({
   workspace: { type: Object, default: null },
   activeSessionId: String,
   showSearch: Boolean,                                  // 只有点抽屉“搜索对话”后才显示搜索框
+  sortOrder: { type: String, default: 'updated' },      // updated 按修改时间，created 按创建时间
 })
 const emit = defineEmits(['open', 'new'])
 
@@ -19,7 +20,7 @@ const emit = defineEmits(['open', 'new'])
 const search = ref('')
 const searchField = ref(null)
 const sessions = computed(() => props.workspace?.sessions || [])
-const stampOf = item => Number(item.updatedAt || item.createdAt) || 0
+const stampOf = item => Number(props.sortOrder === 'created' ? item.createdAt : item.updatedAt || item.createdAt) || 0
 const visible = computed(() => {
   const query = search.value.trim().toLowerCase()
   return sessions.value
@@ -166,11 +167,10 @@ async function submitDialog() {
 .home-search :deep(input::placeholder) { color: var(--la-muted); }
 .home-search :deep(input:focus) { box-shadow: none; }
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
-.home-sessions__group { display: flex; flex-direction: column; gap: 1px; }
-.home-sessions__group + .home-sessions__group { margin-top: 8px; }
-.home-sessions__items { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
-.group-label { display: flex; height: 32px; flex: none; align-items: center; margin: 0; padding: 0 12px; color: var(--la-accent); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
-.home-session { display: flex; min-height: 40px; flex: none; align-items: center; border-radius: 999px; }
+.home-sessions__group { display: flex; flex-direction: column; gap: 8px; }
+.home-sessions__items { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.group-label { display: flex; height: 32px; flex: none; align-items: center; margin: 0; padding: 0 12px; border-radius: 8px; background: var(--la-panel); color: var(--la-accent); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.home-session { display: flex; min-height: 36px; flex: none; align-items: center; border-radius: 999px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
 .home-session__main {

@@ -26,7 +26,7 @@ import { UI } from '../commands/ui.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
 
-const props = defineProps({ selectedModel: { type: String, default: '' }, canSelectModel: Boolean, isRunning: Boolean, busy: Boolean, files: { type: Array, default: () => [] }, contextTokens: { type: Number, default: 0 } })
+const props = defineProps({ selectedModel: { type: String, default: '' }, canSelectModel: Boolean, isRunning: Boolean, busy: Boolean, files: { type: Array, default: () => [] } })
 const draft = defineModel('draft', { type: String, default: '' })
 const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file'])
 const fileInput = ref(null)
@@ -119,7 +119,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
     <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
     <div class="chat-composer__toolbar">
-      <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="14" /><span>Build</span></slot></div>
+      <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="18" /></slot></div>
       <div class="chat-composer__actions">
         <Select v-if="canSelectModel && models.length" class="chat-composer__model" label="新对话使用的模型" :model-value="selection" :options="modelOptions" :disabled="busy" @update:model-value="chooseModel" />
         <Button v-else-if="!selectedModel" variant="ghost" @click="UI.openSettings('providers')">连接模型</Button>
@@ -131,7 +131,6 @@ defineExpose({ focus: () => editor.value?.focus() })
     <!-- 隐藏的 file input 是编辑器专用控件：由上面的附件按钮触发，保留原生实现。 -->
     <input ref="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.css,.scss,.html,.vue,.py,.go,.rs,.yaml,.yml,.csv,.xml,.sh,.log" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
   </form>
-  <div class="composer-footnote"><span>Enter 发送 · Shift + Enter 换行</span><span v-if="contextTokens">{{ contextTokens.toLocaleString() }} tokens</span><span v-else>请核实重要信息</span></div>
 </template>
 
 <style scoped lang="scss">
@@ -213,16 +212,13 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
   &__send.is-stop { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 }
-.composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; color: var(--la-muted); font-size: 12px; font-weight: 440; }
 @media (max-width: 767px) {
   .chat-composer {
-    padding: 9px 10px 7px;
+    padding: 4px 8px;
     &__editor { font-size: 16px; }
     &__agent span { display: none; }
     &__model { max-width: 150px; font-size: 12px; }
     &__send { width: 30px; height: 30px; flex-basis: 30px; }
   }
-  .composer-footnote > span:first-child { display: none; }
-  .composer-footnote { justify-content: center; }
 }
 </style>

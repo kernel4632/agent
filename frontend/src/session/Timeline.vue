@@ -29,7 +29,6 @@ const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
 const turns = computed(() => groupMessageTurns(messages.value))
-const turnStreaming = turn => turn.messages.some(message => message.isStreaming)
 const pinned = ref(true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
@@ -64,12 +63,13 @@ async function forkFrom(message) {
   <div ref="root" class="conversation-flow" role="log" aria-label="对话内容">
     <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <template v-if="turn.role === 'user'">
-        <div class="list-row list-row--user">
-          <span class="list-row__icon user-head__avatar" aria-hidden="true">你</span>
-          <div class="list-row__main">
-            <div class="message__text message__bubble">{{ turn.messages[0].content }}</div>
+        <div class="rikka-message rikka-message--user">
+          <div class="rikka-message__head">
+            <span class="rikka-message__name">你</span>
+            <span class="rikka-avatar rikka-avatar--user" aria-hidden="true">你</span>
           </div>
-          <div v-if="!turn.messages[0].isStreaming" class="list-row__actions message__actions">
+          <div class="rikka-bubble rikka-bubble--user">{{ turn.messages[0].content }}</div>
+          <div v-if="!turn.messages[0].isStreaming" class="rikka-message__actions">
             <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(turn.messages[0].content)"><AppIcon name="copy" :size="14" /></IconButton>
             <IconButton v-if="canRollback(turn.messages[0])" size="small" label="回退到这条消息" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(turn.messages[0])"><AppIcon name="undo" :size="14" /></IconButton>
             <IconButton v-if="canRollback(turn.messages[0])" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(turn.messages[0])"><AppIcon name="branch" :size="14" /></IconButton>
@@ -77,22 +77,17 @@ async function forkFrom(message) {
         </div>
       </template>
       <template v-else>
-        <div class="list-row list-row--head">
-          <span class="list-row__icon assistant-head__avatar" :class="{ 'is-thinking': turnStreaming(turn) }" aria-hidden="true"><AppIcon name="spark" :size="12" /></span>
-          <div class="list-row__main assistant-head">
-            <span class="assistant-head__name">la</span>
-            <span class="assistant-head__model" :title="session.model">{{ session.model }}</span>
-          </div>
-        </div>
         <div class="assistant-thread">
           <AssistantMessage
             v-for="message in turn.messages"
             :key="message.id"
             :message="message"
             :session-id="session.id"
+            :model="session.model"
             :running="session.status === 'running'"
             :can-rollback="canRollback(message)"
             @rollback="requestRollback(message)"
+            @fork="forkFrom(message)"
           />
         </div>
       </template>
@@ -107,7 +102,7 @@ async function forkFrom(message) {
 </template>
 
 <style scoped lang="scss">
-.conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 8px 20px 18px; display: flex; flex-direction: column; gap: 12px; }
+.conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .message { display: block; min-width: 0; animation: row-in .18s ease-out both; }
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
