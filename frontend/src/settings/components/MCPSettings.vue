@@ -164,7 +164,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 
     <Dialog :open="deleteOpen" label="删除 MCP 服务确认" @update:open="deleteOpen = $event">
       <h2>删除 MCP 服务？</h2>
-      <p>此 MCP 服务的未保存配置将被移除。</p>
+      <p>删除后会自动保存，这个 MCP 服务会从列表中移除。</p>
       <div class="dialog-actions">
         <Button @click="deleteOpen = false">取消</Button>
         <Button variant="danger" @click="removeMCP">删除</Button>

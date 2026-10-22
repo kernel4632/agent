@@ -70,18 +70,52 @@ m3e-theme[scheme="light"] { color-scheme: light; }
 .field:focus { border-color: var(--la-accent-border); box-shadow: 0 0 0 2px var(--la-accent-soft); }
 
 /* Dialogs */
+/* RikkaHub / Material 3 AlertDialog：28px 圆角、24px 内边距、surfaceContainerHigh。 */
 .dialog {
-  width: min(480px, calc(100vw - 32px));
-  padding: 16px;
-  border: 0; border-radius: 6px;
-  background: var(--la-layer-01); color: var(--la-text);
-  box-shadow: var(--la-shadow-overlay);
+  width: min(560px, calc(100vw - 48px));
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
+  padding: 24px;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 28px;
+  background: var(--md-sys-color-surface-container-high, var(--la-layer-02));
+  color: var(--la-text);
+  box-shadow: 0 24px 38px 3px rgba(0, 0, 0, .14), 0 9px 46px 8px rgba(0, 0, 0, .12), 0 11px 15px -7px rgba(0, 0, 0, .20);
 }
-.dialog::backdrop { background: var(--la-scrim); }
-.dialog h2 { margin: 0; font-size: 15px; font-weight: 530; line-height: 20px; letter-spacing: -.13px; }
-.dialog p { margin: 6px 0 16px; color: var(--la-secondary); font-size: 13px; font-weight: 440; line-height: 20px; }
-.dialog label { display: grid; gap: 8px; color: var(--la-secondary); font-size: 13px; }
-.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.dialog[open] { animation: dialog-in .16s cubic-bezier(.2, 0, 0, 1); }
+@keyframes dialog-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+.dialog::backdrop { background: color-mix(in srgb, #000 32%, transparent); }
+.dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; letter-spacing: 0; }
+.dialog p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
+.dialog label { display: grid; gap: 8px; color: var(--la-secondary); font-size: 14px; }
+.dialog .field {
+  height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--md-sys-color-outline, var(--la-line-strong));
+  border-radius: 4px;
+  background: transparent;
+  color: var(--la-text);
+  font-size: 16px;
+}
+.dialog .field:focus { border-color: var(--md-sys-color-primary, var(--la-accent)); box-shadow: inset 0 0 0 1px var(--md-sys-color-primary, var(--la-accent)); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+/* AlertDialog 的动作是 TextButton，不是实心主按钮。 */
+.dialog-actions .button {
+  height: 40px;
+  min-width: 64px;
+  padding: 0 12px;
+  border-radius: 20px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--md-sys-color-primary, var(--la-accent));
+  font-size: 14px;
+  font-weight: 500;
+}
+.dialog-actions .button:hover:not(:disabled) { background: color-mix(in srgb, var(--md-sys-color-primary, var(--la-accent)) 8%, transparent); }
+.dialog-actions .button--danger { color: var(--md-sys-color-error, var(--la-danger)); }
+.dialog-actions .button--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--md-sys-color-error, var(--la-danger)) 8%, transparent); }
+.dialog-actions .button:disabled { opacity: .38; }
 
 /* Misc */
 .status-dot { display: inline-block; width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--la-accent); }

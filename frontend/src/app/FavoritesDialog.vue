@@ -42,12 +42,12 @@ function openItem(item) {
 </template>
 
 <style scoped lang="scss">
-.favorites-dialog { width: min(560px, 86vw); }
-.favorites-dialog h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 650; }
-.favorites-dialog > p { margin: 6px 0 14px; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.favorites-dialog { width: 100%; min-width: 0; }
+.favorites-dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; }
+.favorites-dialog > p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
 .favorites-list { display: grid; max-height: 55vh; gap: 6px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
 .favorites-list li { position: relative; display: flex; align-items: stretch; border-radius: 12px; background: var(--la-layer-01); }
-.favorite-item { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; padding: 10px 36px 10px 12px; text-align: left; }
+.favorite-item { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; padding: 10px 36px 10px 12px; border: 0; border-radius: 12px; background: transparent; text-align: left; }
 .favorite-item__head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .favorite-item__head > span { overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .favorite-item__head small { flex: none; color: var(--la-accent); font-size: 11px; }

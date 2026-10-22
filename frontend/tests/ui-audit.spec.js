@@ -505,7 +505,7 @@ test('message action forks the conversation at that message', async ({ page }) =
     .toEqual({ messageId: 'user-1' })
 })
 
-test('message favorites and session stats use existing data', async ({ page }) => {
+test('message favorites and session stats use existing data', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -521,6 +521,7 @@ test('message favorites and session stats use existing data', async ({ page }) =
   const favorites = page.getByRole('dialog', { name: '收藏的消息' })
   await expect(favorites).toContainText('一个新的项目')
   await expect(favorites).toContainText('你好')
+  await screenshot(page, testInfo, 'favorites-dialog')
   await favorites.getByRole('button', { name: '关闭', exact: true }).click()
 
   await drawer.getByRole('button', { name: '会话统计', exact: true }).click()

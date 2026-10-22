@@ -81,9 +81,9 @@ async function exportSession() {
 </template>
 
 <style scoped lang="scss">
-.stats-dialog { width: min(440px, 86vw); }
-.stats-dialog h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 650; }
-.stats-dialog > p { margin: 6px 0 14px; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.stats-dialog { width: 100%; min-width: 0; }
+.stats-dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; }
+.stats-dialog > p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .stats-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding: 12px 10px; border-radius: 12px; background: var(--la-layer-01); }
 .stats-grid strong { color: var(--la-text); font-size: 20px; font-weight: 600; line-height: 26px; }

@@ -148,7 +148,7 @@ async function saveTitle() {
   cursor: text;
 }
 .topbar__title:hover { color: var(--la-accent); }
-.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .topbar__subtitle { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--la-text) 65%, transparent); font-size: 8px; font-weight: 400; line-height: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .topbar__model { display: block; max-width: min(320px, 42vw); min-width: 0; }
 .topbar__model :deep(.ui-select__input) {
