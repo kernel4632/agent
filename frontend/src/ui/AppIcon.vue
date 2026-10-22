@@ -13,20 +13,24 @@ import {
   ArrowUp02Icon,
   Attachment01Icon,
   Cancel01Icon,
+  ChartColumnIcon,
   Clock01Icon,
   CodeIcon,
   Copy01Icon,
   Delete01Icon,
+  Download01Icon,
   EyeIcon,
   File02Icon,
   Folder01Icon,
   GitForkIcon,
   Grid2X2PlusIcon,
   Home01Icon,
+  InLoveIcon,
   InformationCircleIcon,
   InternetIcon,
   LeftToRightListBulletIcon,
   Link01Icon,
+  LookTopIcon,
   Menu03Icon,
   Message01Icon,
   MessageAdd01Icon,
@@ -37,6 +41,8 @@ import {
   Sorting01Icon,
   SparklesIcon,
   Tick02Icon,
+  VolumeHighIcon,
+  VolumeOffIcon,
 } from '@hugeicons/core-free-icons'
 
 defineProps({ name: { type: String, default: 'spark' }, size: { type: [Number, String], default: 20 } })
@@ -76,6 +82,12 @@ const icons = {
   'grid-plus': Grid2X2PlusIcon,
   sort: Sorting01Icon,
   more: MoreVerticalIcon,
+  assistant: LookTopIcon,
+  favorite: InLoveIcon,
+  stats: ChartColumnIcon,
+  volume: VolumeHighIcon,
+  'volume-off': VolumeOffIcon,
+  download: Download01Icon,
 }
 </script>
 

@@ -503,6 +503,31 @@ test('message action forks the conversation at that message', async ({ page }) =
     .toEqual({ messageId: 'user-1' })
 })
 
+test('message favorites and session stats use existing data', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+
+  await page.locator('.message--user').first().hover()
+  await page.locator('.message--user').first().getByRole('button', { name: '收藏消息', exact: true }).click()
+  await openDrawer(page)
+  const drawer = page.getByRole('region', { name: '项目与会话' })
+  await drawer.getByRole('button', { name: '收藏的消息', exact: true }).click()
+  const favorites = page.getByRole('dialog', { name: '收藏的消息' })
+  await expect(favorites).toContainText('一个新的项目')
+  await expect(favorites).toContainText('你好')
+  await favorites.getByRole('button', { name: '关闭', exact: true }).click()
+
+  await drawer.getByRole('button', { name: '会话统计', exact: true }).click()
+  const stats = page.getByRole('dialog', { name: '会话统计' })
+  await expect(stats).toContainText('助手回复')
+  await expect(stats).toContainText('输入 tokens')
+  await stats.getByRole('button', { name: '关闭', exact: true }).click()
+})
+
 test('MCP service can be added and saved', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

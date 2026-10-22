@@ -3,9 +3,10 @@
   Timeline 只按轮次排列这些组件；消息自己的展开状态和复制/回退动作留在这里。
 -->
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppIcon, IconButton } from '../ui/index.js'
 import { UI } from '../commands/ui.js'
+import { isFavorite, toggleFavorite } from '../commands/favorites.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import './conversation.scss'
 import ToolCallRow from './ToolCallRow.vue'
@@ -13,6 +14,7 @@ import ToolCallRow from './ToolCallRow.vue'
 const props = defineProps({
   message: { type: Object, required: true },
   sessionId: { type: String, required: true },
+  sessionTitle: { type: String, default: '' },
   model: { type: String, default: '' },
   running: Boolean,
   canRollback: Boolean,
@@ -21,7 +23,44 @@ const emit = defineEmits(['rollback', 'fork'])
 
 const reasoningOpen = ref(false)
 const preview = ref(null)
+const speaking = ref(false)
+const favorite = computed(() => isFavorite(props.sessionId, props.message.id))
 const latestReasoning = computed(() => (props.message.reasoning || '').slice(-600))
+
+function toggleMessageFavorite() {
+  const added = toggleFavorite({
+    sessionID: props.sessionId,
+    sessionTitle: props.sessionTitle,
+    message: props.message,
+    role: 'assistant',
+  })
+  UI.notify(added ? '已收藏这条回复' : '已取消收藏')
+}
+
+// 浏览器朗读是 RikkaHub TTS 在网页里的可用映射；不支持时只提示，不影响消息。
+function toggleSpeech() {
+  if (!props.message.content) return
+  if (!('speechSynthesis' in window)) {
+    UI.notify('当前浏览器不支持朗读')
+    return
+  }
+  if (speaking.value) {
+    window.speechSynthesis.cancel()
+    speaking.value = false
+    return
+  }
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(props.message.content)
+  utterance.lang = 'zh-CN'
+  utterance.onend = () => { speaking.value = false }
+  utterance.onerror = () => { speaking.value = false }
+  speaking.value = true
+  window.speechSynthesis.speak(utterance)
+}
+
+onBeforeUnmount(() => {
+  if (speaking.value && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+})
 
 async function pinPreview() {
   await nextTick()
@@ -89,6 +128,8 @@ onMounted(pinPreview)
 
     <div v-if="!message.isStreaming" class="rikka-message__actions">
       <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(message.content)"><AppIcon name="copy" :size="14" /></IconButton>
+      <IconButton v-if="message.content" size="small" :label="speaking ? '停止朗读' : '朗读回复'" :title="speaking ? '停止朗读' : '朗读回复'" @click="toggleSpeech"><AppIcon :name="speaking ? 'volume-off' : 'volume'" :size="14" /></IconButton>
+      <IconButton size="small" :label="favorite ? '取消收藏' : '收藏消息'" :title="favorite ? '取消收藏' : '收藏消息'" @click="toggleMessageFavorite"><AppIcon name="favorite" :size="14" /></IconButton>
       <IconButton v-if="canRollback" size="small" label="回退到这条回复" title="删除这条消息及之后的内容" :disabled="running" @click="emit('rollback')"><AppIcon name="undo" :size="14" /></IconButton>
       <IconButton v-if="canRollback" size="small" label="从这里分支" title="从这条回复分出新的对话" :disabled="running" @click="$emit('fork')"><AppIcon name="branch" :size="14" /></IconButton>
     </div>

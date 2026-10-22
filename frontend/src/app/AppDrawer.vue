@@ -8,6 +8,8 @@
 import { computed, nextTick, ref } from 'vue'
 import { AppIcon, Button, IconButton, avatarColor, initial } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
+import FavoritesDialog from './FavoritesDialog.vue'
+import SessionStatsDialog from './SessionStatsDialog.vue'
 import WorkspaceBar from './WorkspaceBar.vue'
 import { store } from '../store.js'
 
@@ -35,6 +37,9 @@ async function openSearch() {
 
 // 工作区选择器同时决定会话列表内容；id 失效时退回第一个。
 const workspace = computed(() => store.workspaces.find(item => item.id === store.ui.activeWorkspaceID) || store.workspaces[0] || null)
+const activeSession = computed(() => store.sessions[store.ui.activeSessionID] || null)
+const favoritesOpen = ref(false)
+const statsOpen = ref(false)
 
 // 选中会话或新建后先交给 App 导航，再收起手机抽屉。
 function openConversation(id) {
@@ -94,9 +99,17 @@ function newConversation() {
         </Button>
         <IconButton label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="18" /></IconButton>
       </footer>
+      <div class="app-drawer__footer-actions">
+        <button type="button" aria-label="助手管理" title="助手管理" @click="emit('settings')"><AppIcon name="assistant" :size="19" /></button>
+        <button type="button" aria-label="收藏的消息" title="收藏的消息" @click="favoritesOpen = true"><AppIcon name="favorite" :size="19" /></button>
+        <button type="button" aria-label="会话统计" title="会话统计" :disabled="!activeSession" @click="statsOpen = true"><AppIcon name="stats" :size="19" /></button>
+        <button type="button" aria-label="打开设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="19" /></button>
+      </div>
     </div>
   </aside>
 
+  <FavoritesDialog :open="favoritesOpen" @update:open="favoritesOpen = $event" @open-session="openConversation" />
+  <SessionStatsDialog :open="statsOpen" :session="activeSession" @update:open="statsOpen = $event" />
   <div class="app-drawer__scrim" :class="{ 'is-open': open }" aria-hidden="true" @click="emit('close')"></div>
 </template>
 
@@ -243,6 +256,20 @@ function newConversation() {
 .assistant-picker__identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
 .assistant-picker__identity strong { color: var(--la-text); font-size: 14px; font-weight: 500; line-height: 18px; }
 .assistant-picker__identity small { overflow: hidden; color: var(--la-muted); font-size: 11px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.app-drawer__footer-actions { display: flex; flex: none; justify-content: space-around; padding: 6px 8px 2px; }
+.app-drawer__footer-actions button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--la-accent-soft);
+  color: var(--la-accent);
+  cursor: pointer;
+}
+.app-drawer__footer-actions button:hover:not(:disabled) { background: var(--la-layer-02); color: var(--la-text); }
+.app-drawer__footer-actions button:disabled { opacity: .4; cursor: default; }
 
 /* --- 桌面横向：抽屉常驻，去掉遮罩和关闭按钮 --- */
 /* RikkaHub uses 1100dp; desktop 1024 laptops get the permanent drawer too. */

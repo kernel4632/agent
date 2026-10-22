@@ -13,6 +13,7 @@ import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
+import { isFavorite, toggleFavorite } from '../commands/favorites.js'
 import { groupMessageTurns } from './turns.js'
 import './conversation.scss'
 import AssistantMessage from './AssistantMessage.vue'
@@ -41,6 +42,17 @@ onMounted(() => { scrollParent = props.scrollRoot || root.value?.closest('.sessi
 onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
 const canRollback = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
+
+function toggleMessageFavorite(message) {
+  const added = toggleFavorite({
+    sessionID: session.value.id,
+    sessionTitle: session.value.title,
+    message,
+    role: 'user',
+  })
+  UI.notify(added ? '已收藏这条消息' : '已取消收藏')
+}
+
 async function requestRollback(message) {
   if (!canRollback(message) || session.value?.status === 'running') return
   rollbackTarget.value = message
@@ -71,6 +83,7 @@ async function forkFrom(message) {
           <div class="rikka-bubble rikka-bubble--user">{{ turn.messages[0].content }}</div>
           <div v-if="!turn.messages[0].isStreaming" class="rikka-message__actions">
             <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(turn.messages[0].content)"><AppIcon name="copy" :size="14" /></IconButton>
+            <IconButton size="small" :label="isFavorite(session.id, turn.messages[0].id) ? '取消收藏' : '收藏消息'" :title="isFavorite(session.id, turn.messages[0].id) ? '取消收藏' : '收藏消息'" @click="toggleMessageFavorite(turn.messages[0])"><AppIcon name="favorite" :size="14" /></IconButton>
             <IconButton v-if="canRollback(turn.messages[0])" size="small" label="回退到这条消息" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(turn.messages[0])"><AppIcon name="undo" :size="14" /></IconButton>
             <IconButton v-if="canRollback(turn.messages[0])" size="small" label="从这里分支" title="从这条消息分出新的对话" :disabled="session.status === 'running'" @click="forkFrom(turn.messages[0])"><AppIcon name="branch" :size="14" /></IconButton>
           </div>
@@ -83,6 +96,7 @@ async function forkFrom(message) {
             :key="message.id"
             :message="message"
             :session-id="session.id"
+            :session-title="session.title"
             :model="session.model"
             :running="session.status === 'running'"
             :can-rollback="canRollback(message)"
