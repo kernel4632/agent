@@ -163,11 +163,11 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
     <p v-else class="mcp-empty">添加一个 MCP 服务以开始配置</p>
 
     <Dialog :open="deleteOpen" label="删除 MCP 服务确认" @update:open="deleteOpen = $event">
-      <h2>删除 MCP 服务？</h2>
+      <h2>删除 MCP 服务</h2>
       <p>删除后会自动保存，这个 MCP 服务会从列表中移除。</p>
       <div class="dialog-actions">
         <Button @click="deleteOpen = false">取消</Button>
-        <Button variant="danger" @click="removeMCP">删除</Button>
+        <Button @click="removeMCP">删除</Button>
       </div>
     </Dialog>
   </section>

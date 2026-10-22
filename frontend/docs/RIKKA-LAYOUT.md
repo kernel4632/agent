@@ -156,11 +156,12 @@ App
 
 ### [x] R9：对话框统一成 RikkaHub 的 Material 3 AlertDialog
 
-- 所有 `Dialog` 共用一套样式：最大 560px、28px 圆角、24px 内边距、`surfaceContainerHigh` 背景、32% 黑色遮罩。
-- 标题用 24px/32px、400 字重；正文 14px/20px；输入框改成 52px 高的描边输入框。
-- 底部动作改成 Material 3 TextButton：40px 高、20px 圆角、主色文字；危险操作使用 error 色，不再用实心主按钮。
+- 所有 `Dialog` 按 Compose `AlertDialog(title, text, confirmButton, dismissButton)` 的结构排：标题、内容、底部动作，没有额外说明段或字段标题。
+- 对话框宽度按内容收缩，范围 280–560px；28px 圆角、24px 内边距、`surfaceContainerHigh` 背景、32% 黑色遮罩。
+- 标题 24px/32px、400 字重；正文 14px/20px；输入框是 56px 高的 M3 描边输入框，编辑标题时只显示标题、输入框和动作。
+- 底部动作是 Material 3 TextButton：40px 高、至少 64px 宽、20px 圆角；删除动作和 RikkaHub 源码一样使用默认主色，不额外改成红色实心按钮。
 - 删除供应商和 MCP 的提示改成“删除后会自动保存”，不再提到保存按钮。
-- 收藏弹窗和统计弹窗不再自己写宽度，统一由对话框控制，避免内容被裁切。
+- 收藏弹窗和统计弹窗不再自己写固定宽度，统一由对话框控制，避免内容被裁切。
 
 ## 仍和 RikkaHub 不同的地方
 

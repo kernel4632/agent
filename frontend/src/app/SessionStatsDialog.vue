@@ -81,7 +81,7 @@ async function exportSession() {
 </template>
 
 <style scoped lang="scss">
-.stats-dialog { width: 100%; min-width: 0; }
+.stats-dialog { width: 392px; max-width: calc(100vw - 96px); min-width: 0; }
 .stats-dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; }
 .stats-dialog > p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }

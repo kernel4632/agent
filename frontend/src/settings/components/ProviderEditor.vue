@@ -78,11 +78,11 @@ const update = patch => emit('update:provider', { ...props.provider, ...patch })
     <footer><Button variant="ghost" class="provider-editor__delete" @click="deleteOpen = true">删除供应商</Button></footer>
   </div>
   <Dialog :open="deleteOpen" label="删除供应商确认" @update:open="deleteOpen = $event">
-    <h2>删除供应商？</h2>
+    <h2>删除供应商</h2>
     <p>删除后会自动保存，此供应商配置将被移除。</p>
     <div class="dialog-actions">
       <Button @click="deleteOpen = false">取消</Button>
-      <Button variant="danger" @click="emit('delete'); deleteOpen = false">删除</Button>
+      <Button @click="emit('delete'); deleteOpen = false">删除</Button>
     </div>
   </Dialog>
 </template>

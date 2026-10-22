@@ -72,8 +72,9 @@ m3e-theme[scheme="light"] { color-scheme: light; }
 /* Dialogs */
 /* RikkaHub / Material 3 AlertDialog：28px 圆角、24px 内边距、surfaceContainerHigh。 */
 .dialog {
-  width: min(560px, calc(100vw - 48px));
-  max-width: 560px;
+  width: fit-content;
+  min-width: 280px;
+  max-width: min(560px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   padding: 24px;
   overflow-y: auto;
@@ -86,11 +87,14 @@ m3e-theme[scheme="light"] { color-scheme: light; }
 .dialog[open] { animation: dialog-in .16s cubic-bezier(.2, 0, 0, 1); }
 @keyframes dialog-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
 .dialog::backdrop { background: color-mix(in srgb, #000 32%, transparent); }
+.dialog > *, .dialog form > * { min-width: 0; }
 .dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; letter-spacing: 0; }
 .dialog p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
 .dialog label { display: grid; gap: 8px; color: var(--la-secondary); font-size: 14px; }
+.dialog .ui-field__caption { display: none; }
+.dialog h2 + .ui-field { margin-top: 16px; }
 .dialog .field {
-  height: 52px;
+  height: 56px;
   padding: 0 16px;
   border: 1px solid var(--md-sys-color-outline, var(--la-line-strong));
   border-radius: 4px;

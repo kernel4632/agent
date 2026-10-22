@@ -42,7 +42,7 @@ function openItem(item) {
 </template>
 
 <style scoped lang="scss">
-.favorites-dialog { width: 100%; min-width: 0; }
+.favorites-dialog { width: 512px; max-width: calc(100vw - 96px); min-width: 0; }
 .favorites-dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; }
 .favorites-dialog > p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
 .favorites-list { display: grid; max-height: 55vh; gap: 6px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }

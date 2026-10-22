@@ -98,12 +98,11 @@ async function saveTitle() {
 
   <Dialog :open="renameOpen" label="重命名会话" @update:open="renameOpen = $event">
     <form @submit.prevent="saveTitle">
-      <h2>重命名会话</h2>
-      <p>给这段对话一个容易记住的名字。</p>
-      <Field v-model="titleDraft" caption="会话标题" label="会话标题" required maxlength="120" />
+      <h2>编辑标题</h2>
+      <Field v-model="titleDraft" label="标题" placeholder="输入标题" required maxlength="120" />
       <div class="dialog-actions">
         <Button type="button" @click="renameOpen = false">取消</Button>
-        <Button type="submit" :disabled="!titleDraft.trim()">保存标题</Button>
+        <Button type="submit" :disabled="!titleDraft.trim()">保存</Button>
       </div>
     </form>
   </Dialog>

@@ -135,12 +135,12 @@ async function submitDialog() {
 
     <Dialog :open="dialogOpen" :label="dialogMode === 'rename' ? '重命名会话' : '删除会话'" @update:open="setDialogOpen">
       <form @submit.prevent="submitDialog">
-        <h2>{{ dialogMode === 'rename' ? '重命名会话' : '删除这段对话？' }}</h2>
-        <p>{{ dialogMode === 'rename' ? '给这段对话起一个容易记住的名字。' : '会话和历史记录将从服务器永久删除，无法恢复。' }}</p>
-        <Field v-if="dialogMode === 'rename'" v-model="value" caption="会话名称" label="会话名称" required maxlength="120" />
+        <h2>{{ dialogMode === 'rename' ? '重命名会话' : '删除对话' }}</h2>
+        <p v-if="dialogMode === 'delete'">会话和历史记录将从服务器永久删除，无法恢复。</p>
+        <Field v-if="dialogMode === 'rename'" v-model="value" label="会话标题" placeholder="输入会话标题" required maxlength="120" />
         <div class="dialog-actions">
           <Button type="button" :disabled="busy" @click="setDialogOpen(false)">取消</Button>
-          <Button type="submit" :variant="dialogMode === 'delete' ? 'danger' : 'default'" :disabled="busy">{{ dialogMode === 'rename' ? '保存名称' : '确认删除' }}</Button>
+          <Button type="submit" :disabled="busy">{{ dialogMode === 'rename' ? '保存' : '删除' }}</Button>
         </div>
       </form>
     </Dialog>
