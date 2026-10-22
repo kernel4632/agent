@@ -19,7 +19,7 @@
 />
 -->
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { AppIcon, Button, Field, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
@@ -71,37 +71,6 @@ async function chooseModel(provider, model) {
   }
   nextTick(() => editor.value?.focus())
 }
-
-// --- 语音输入：浏览器支持时显示麦克风，和 RikkaHub 一样只在可用时出现。 ---
-const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
-const asrAvailable = Boolean(SpeechRecognition)
-const listening = ref(false)
-let recognition = null
-
-function toggleListening() {
-  if (!SpeechRecognition) return
-  if (listening.value) {
-    recognition?.stop()
-    return
-  }
-  recognition = new SpeechRecognition()
-  recognition.lang = 'zh-CN'
-  recognition.continuous = false
-  recognition.interimResults = false
-  const base = draft.value
-  recognition.onresult = event => {
-    const transcript = Array.from(event.results).map(result => result[0]?.transcript || '').join('')
-    draft.value = `${base}${base && transcript ? ' ' : ''}${transcript}`
-  }
-  recognition.onend = () => { listening.value = false }
-  recognition.onerror = () => { listening.value = false; UI.notify('语音输入失败') }
-  listening.value = true
-  recognition.start()
-}
-
-onBeforeUnmount(() => {
-  if (listening.value) recognition?.stop()
-})
 
 // --- 斜杠命令菜单 ---
 const slashIndex = ref(0)
@@ -183,7 +152,6 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
-        <button v-if="asrAvailable" type="button" class="composer-action" :class="{ 'is-active': listening }" :aria-label="listening ? '停止语音输入' : '语音输入'" :title="listening ? '停止语音输入' : '语音输入'" @click="toggleListening"><AppIcon name="mic" :size="18" /></button>
         <Button v-if="isRunning" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
         <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
       </div>
