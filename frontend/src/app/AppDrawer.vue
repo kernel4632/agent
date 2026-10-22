@@ -8,6 +8,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { AppIcon, Button, IconButton, Select, avatarColor, initial } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
+import WorkspaceBar from './WorkspaceBar.vue'
 import { store } from '../store.js'
 
 defineProps({
@@ -27,7 +28,6 @@ async function openSearch() {
 
 // 工作区选择器同时决定会话列表内容；id 失效时退回第一个。
 const workspace = computed(() => store.workspaces.find(item => item.id === store.ui.activeWorkspaceID) || store.workspaces[0] || null)
-const workspaceOptions = computed(() => store.workspaces.map(item => ({ value: item.id, label: item.name || item.path })))
 
 // 底部模型选择只列已启用的供应商，值仍是 [供应商, 模型] 的 JSON 字符串。
 const models = computed(() => Object.entries(store.config.providers || {}).flatMap(([provider, entry]) => {
@@ -39,10 +39,6 @@ const modelOptions = computed(() => models.value.map(item => ({
   label: `${item.provider} / ${item.model}`,
 })))
 const modelSelection = computed(() => JSON.stringify([store.config.activeProvider, store.config.activeModel]))
-
-function chooseWorkspace(id) {
-  store.ui.activeWorkspaceID = id
-}
 
 function chooseModel(value) {
   if (!value) return
@@ -73,20 +69,11 @@ function newConversation() {
       </header>
 
       <div class="app-drawer__actions">
-        <Button variant="plain" class="drawer-action" @click="newConversation"><AppIcon name="plus" :size="18" /><span>新建对话</span></Button>
+        <Button variant="plain" class="drawer-action" @click="newConversation"><AppIcon name="new-chat" :size="18" /><span>新建对话</span></Button>
         <Button variant="plain" class="drawer-action" @click="openSearch"><AppIcon name="search" :size="18" /><span>搜索对话</span></Button>
       </div>
 
-      <div class="app-drawer__workspace-row">
-        <span class="app-drawer__workspace-avatar" :style="{ background: avatarColor(workspace?.id) }" aria-hidden="true">{{ initial(workspace?.name || '本地工作区') }}</span>
-        <Select
-          class="app-drawer__workspace"
-          label="选择项目"
-          :model-value="store.ui.activeWorkspaceID"
-          :options="workspaceOptions"
-          @update:model-value="chooseWorkspace"
-        />
-      </div>
+      <WorkspaceBar :workspaces="store.workspaces" :active-id="store.ui.activeWorkspaceID" @select="store.ui.activeWorkspaceID = $event" />
 
       <DrawerConversations
         ref="conversations"
@@ -155,36 +142,36 @@ function newConversation() {
 .app-drawer__scrim.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
 
 /* --- 用户区和常用动作 --- */
-.app-drawer__user { display: flex; flex: none; align-items: center; gap: 10px; padding: 4px 4px 0; }
+.app-drawer__user { display: flex; flex: none; align-items: center; gap: 14px; padding: 8px; }
 .app-drawer__avatar {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  border-radius: 12px;
-  color: #fff;
-  font: 600 14px/1 var(--la-font-mono);
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border-radius: 18px;
+  color: var(--la-on-accent);
+  font: 600 18px/1 var(--la-font-mono);
 }
-.app-drawer__identity { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
-.app-drawer__identity strong { color: var(--la-text); font-size: 14px; font-weight: 650; line-height: 18px; }
+.app-drawer__identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.app-drawer__identity strong { color: var(--la-text); font-size: 16px; font-weight: 500; line-height: 24px; }
 .app-drawer__identity small { color: var(--la-muted); font-size: 12px; line-height: 16px; }
 .app-drawer__close { margin-left: auto; }
 .app-drawer__actions { display: flex; flex: none; flex-direction: column; gap: 2px; }
 .drawer-action {
   display: flex;
   width: 100%;
-  height: 36px;
+  min-height: 44px;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 12px;
+  padding: 10px 8px;
   border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--la-secondary);
+  border-radius: 12px;
+  background: var(--la-layer-01);
+  color: var(--la-text);
   text-align: left;
-  font-size: 13px;
-  font-weight: 530;
+  font-size: 14px;
+  font-weight: 400;
   cursor: pointer;
 }
 .drawer-action:hover { background: var(--la-hover); color: var(--la-text); text-decoration: none; }
@@ -192,43 +179,6 @@ function newConversation() {
 .drawer-action:hover svg { color: var(--la-secondary); }
 
 /* --- 工作区与会话 --- */
-.app-drawer__workspace-row {
-  display: flex;
-  height: 36px;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border-radius: 999px;
-}
-.app-drawer__workspace-row:hover { background: var(--la-hover); }
-.app-drawer__workspace-avatar {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  border-radius: 6px;
-  color: #fff;
-  font: 600 9px/1 var(--la-font-mono);
-}
-.app-drawer__workspace { min-width: 0; flex: 1; }
-.app-drawer__workspace :deep(.ui-select__input) {
-  width: 100%;
-  height: 36px;
-  padding: 0 18px 0 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--la-secondary);
-  font-size: 13px;
-  font-weight: 530;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-.app-drawer__workspace :deep(.ui-select__input:hover) { color: var(--la-text); }
-.app-drawer__workspace :deep(.ui-select__input:focus) { box-shadow: none; }
 .app-drawer__sessions { min-height: 0; flex: 1; overflow: hidden; padding: 0 4px; }
 
 /* --- 底部模型与设置 --- */
@@ -255,7 +205,7 @@ function newConversation() {
 
 /* --- 桌面横向：抽屉常驻，去掉遮罩和关闭按钮 --- */
 /* RikkaHub uses 1100dp; desktop 1024 laptops get the permanent drawer too. */
-@media (min-width: 1000px) and (orientation: landscape) {
+@media (min-width: 1100px) and (orientation: landscape) {
   .app-drawer {
     position: relative;
     inset: auto;

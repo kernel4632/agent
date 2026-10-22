@@ -78,10 +78,10 @@ async function switchModel(value) {
     </div>
 
     <div class="topbar__actions">
-      <IconButton v-if="session" class="topbar__review session-review-toggle" label="文件面板" title="文件面板" :active="reviewOpen" @click="emit('update:reviewOpen', !reviewOpen)"><AppIcon name="panel" :size="15" /></IconButton>
+      <IconButton v-if="session" class="topbar__review session-review-toggle" label="文件面板" title="文件面板" :active="reviewOpen" @click="emit('update:reviewOpen', !reviewOpen)"><AppIcon name="list" :size="18" /></IconButton>
       <IconButton v-if="session" class="topbar__copy" label="复制会话 ID" title="复制会话 ID" @click="UI.copy(session.id)"><AppIcon name="link" :size="15" /></IconButton>
       <IconButton v-if="session" label="创建分支" title="创建分支" :disabled="session.status === 'running'" @click="Session.fork(session.id)"><AppIcon name="branch" :size="15" /></IconButton>
-      <IconButton label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="plus" :size="17" /></IconButton>
+      <IconButton label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="new-chat" :size="18" /></IconButton>
     </div>
   </header>
 </template>
@@ -103,24 +103,25 @@ async function switchModel(value) {
   margin: 0;
   overflow: hidden;
   color: var(--la-text);
-  font-size: 18px;
-  font-weight: 650;
-  line-height: 24px;
-  letter-spacing: -.2px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.topbar__subtitle { min-width: 0; overflow: hidden; color: var(--la-muted); font-size: 12px; font-weight: 440; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.topbar__subtitle { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--la-text) 65%, transparent); font-size: 8px; font-weight: 400; line-height: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .topbar__model { display: block; max-width: min(320px, 42vw); min-width: 0; }
 .topbar__model :deep(.ui-select__input) {
   width: 100%;
-  height: 20px;
+  height: 12px;
   padding: 0;
   overflow: hidden;
   border: 0;
   background: transparent;
-  color: var(--la-muted);
-  font-size: 12px;
+  color: color-mix(in srgb, var(--la-text) 65%, transparent);
+  font-size: 8px;
+  line-height: 12px;
   text-overflow: ellipsis;
   cursor: pointer;
 }

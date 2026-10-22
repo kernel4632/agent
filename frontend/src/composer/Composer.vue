@@ -123,9 +123,8 @@ defineExpose({ focus: () => editor.value?.focus() })
       <div class="chat-composer__actions">
         <Select v-if="canSelectModel && models.length" class="chat-composer__model" label="新对话使用的模型" :model-value="selection" :options="modelOptions" :disabled="busy" @update:model-value="chooseModel" />
         <Button v-else-if="!selectedModel" variant="ghost" @click="UI.openSettings('providers')">连接模型</Button>
-        <span v-else class="chat-composer__model" :title="selectedModel">{{ selectedModel }}</span>
-        <IconButton label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="19" /></IconButton>
-        <Button v-if="isRunning" variant="plain" class="chat-composer__send" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="15" /></Button>
+        <IconButton label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="18" /></IconButton>
+        <Button v-if="isRunning" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
         <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
       </div>
     </div>
@@ -138,10 +137,10 @@ defineExpose({ focus: () => editor.value?.focus() })
 <style scoped lang="scss">
 .chat-composer {
   position: relative;
-  padding: 10px 12px 8px;
-  border: .5px solid var(--la-line);
-  border-radius: 24px;
-  background: var(--la-layer-01);
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--la-line-strong) 50%, transparent);
+  border-radius: 20px;
+  background: var(--la-panel);
   box-shadow: none;
 
   &:focus-within { border-color: var(--la-line-strong); }
@@ -150,20 +149,20 @@ defineExpose({ focus: () => editor.value?.focus() })
     width: 100%;
     min-height: 42px;
     max-height: 220px;
-    padding: 2px 4px 8px;
+    padding: 6px 4px 8px;
     resize: none;
     field-sizing: content;
     border: 0;
     outline: 0;
     background: transparent;
     color: var(--la-text);
-    font: 14px/21px var(--la-font-sans);
-    letter-spacing: -.04px;
+    font: 15px/22px var(--la-font-sans);
+    letter-spacing: 0;
 
     &::placeholder { color: var(--la-muted); }
   }
   &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  &__toolbar { justify-content: space-between; gap: 8px; padding: 2px 2px 0; }
+  &__toolbar { justify-content: space-between; gap: 8px; padding: 0 0 2px; }
   &__actions { justify-content: flex-end; gap: 2px; }
   &__agent { color: var(--la-muted); font-size: 12px; }
   &__agent svg { color: var(--la-muted); }
@@ -200,18 +199,19 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__send {
     display: grid;
     place-items: center;
-    flex: 0 0 36px;
-    width: 36px;
-    height: 36px;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
     padding: 0;
     border: 0;
     border-radius: 50%;
     background: var(--la-accent-solid);
-    color: #fff;
+    color: var(--la-on-action);
     cursor: pointer;
   }
-  &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, #000); }
+  &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, var(--la-on-action)); }
   &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
+  &__send.is-stop { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 }
 .composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; color: var(--la-muted); font-size: 12px; font-weight: 440; }
 @media (max-width: 767px) {
@@ -220,7 +220,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     &__editor { font-size: 16px; }
     &__agent span { display: none; }
     &__model { max-width: 150px; font-size: 12px; }
-    &__send { width: 36px; height: 36px; flex-basis: 36px; }
+    &__send { width: 30px; height: 30px; flex-basis: 30px; }
   }
   .composer-footnote > span:first-child { display: none; }
   .composer-footnote { justify-content: center; }

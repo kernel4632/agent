@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { AppIcon, Button, Dialog, Field, avatarColor, initial } from '../ui/index.js'
+import { AppIcon, Button, Dialog, Field } from '../ui/index.js'
 import { Session } from '../commands/session.js'
 
 const props = defineProps({
@@ -47,19 +47,6 @@ const groups = computed(() => {
   }
   return buckets.filter(group => group.items.length)
 })
-
-// 今天显示时间，更早显示月/日；组标题已经说明大致范围。
-function timeLabel(item) {
-  const stamp = stampOf(item)
-  if (!stamp) return ''
-  const date = new Date(stamp)
-  if (Number.isNaN(date.getTime())) return ''
-  const today = new Date()
-  if (date.toDateString() === today.toDateString()) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-  }
-  return `${date.getMonth() + 1}/${date.getDate()}`
-}
 
 // 抽屉动作行的“搜索对话”把焦点交给这里的搜索框。
 defineExpose({ focusSearch: () => searchField.value?.focus() })
@@ -124,9 +111,7 @@ async function submitDialog() {
             <li v-for="item in group.items" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
               <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
               <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
-                <span class="home-session__avatar" :style="{ background: avatarColor(workspace?.id) }">{{ initial(item.title) }}</span>
                 <span class="home-session__title">{{ item.title || '新会话' }}</span>
-                <span class="home-session__time">{{ timeLabel(item) }}</span>
               </Button>
               <details class="home-session__menu">
                 <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
@@ -184,8 +169,8 @@ async function submitDialog() {
 .home-sessions__group { display: flex; flex-direction: column; gap: 1px; }
 .home-sessions__group + .home-sessions__group { margin-top: 8px; }
 .home-sessions__items { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
-.group-label { display: flex; height: 28px; flex: none; align-items: center; margin: 0; padding: 0 10px; color: var(--la-muted); font-size: 12px; font-weight: 530; letter-spacing: .02em; }
-.home-session { display: flex; height: 40px; flex: none; align-items: center; border-radius: 999px; }
+.group-label { display: flex; height: 32px; flex: none; align-items: center; margin: 0; padding: 0 12px; color: var(--la-accent); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.home-session { display: flex; min-height: 40px; flex: none; align-items: center; border-radius: 999px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
 .home-session__main {
@@ -203,18 +188,7 @@ async function submitDialog() {
   text-align: left;
   cursor: pointer;
 }
-.home-session__avatar {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border-radius: 6px;
-  color: #fff;
-  font: 600 8px/1 var(--la-font-mono);
-}
-.home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 530; text-overflow: ellipsis; white-space: nowrap; }
-.home-session__time { flex: none; color: var(--la-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 14px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .home-session__menu { position: relative; flex: none; margin-right: 4px; }
 .home-session__menu summary {
   display: grid;
