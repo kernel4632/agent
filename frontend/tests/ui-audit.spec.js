@@ -211,7 +211,7 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
-  await expect(page.getByLabel('新对话使用的模型')).toHaveValue(JSON.stringify(['Test Provider', 'test-model']))
+  await expect(page.getByRole('button', { name: '选择模型（当前 test-model）' })).toBeVisible()
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('一个新的项目')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
@@ -445,7 +445,7 @@ test('slash command expands into the prompt before sending', async ({ page }) =>
     .toBe('请审查当前改动。\nfocus')
 })
 
-test('existing conversation switches model from the session bar', async ({ page }) => {
+test('existing conversation switches model from the input bar', async ({ page }, testInfo) => {
   const mock = await backend(page)
   mock.config().providers[0].models.push('another-model')
   await page.goto('/')
@@ -453,10 +453,12 @@ test('existing conversation switches model from the session bar', async ({ page 
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.locator('.session-model').selectOption({ label: 'another-model (Test Provider)' })
+  await page.getByRole('button', { name: '选择模型（当前 test-model）' }).click()
+  await screenshot(page, testInfo, 'model-sheet')
+  await page.getByRole('button', { name: 'another-model', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/model/session-1')?.body)
     .toEqual({ provider: 'Test Provider', model: 'another-model' })
-  await expect(page.locator('.session-model')).toHaveValue('Test Provider/another-model')
+  await expect(page.getByRole('button', { name: '选择模型（当前 another-model）' })).toBeVisible()
 })
 
 test('advanced, tools and MCP settings write back', async ({ page }, testInfo) => {
@@ -550,14 +552,16 @@ test('MCP service can be added and saved', async ({ page }) => {
   expect(saved.mcp['MCP 2'].enabled).toBe(true)
 })
 
-test('compaction threshold is sent as a number', async ({ page }) => {
+test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.markdown-body')).toContainText('一步步实现')
-  await page.getByRole('button', { name: /自动批准/ }).click()
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await screenshot(page, testInfo, 'composer-options')
+  await page.getByRole('button', { name: '对话设置', exact: true }).click()
   const threshold = page.getByLabel('阈值', { exact: true })
   await threshold.fill('0.6')
   await threshold.press('Tab')

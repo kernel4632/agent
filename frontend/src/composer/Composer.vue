@@ -19,25 +19,89 @@
 />
 -->
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
-import { AppIcon, Button, IconButton, Select } from '../ui/index.js'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { AppIcon, Button, Field, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
+import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
 
-const props = defineProps({ selectedModel: { type: String, default: '' }, canSelectModel: Boolean, isRunning: Boolean, busy: Boolean, files: { type: Array, default: () => [] } })
+const props = defineProps({
+  selectedModel: { type: String, default: '' },
+  selectedProvider: { type: String, default: '' },
+  sessionId: { type: String, default: '' },
+  mode: { type: String, default: '' },
+  showSessionControls: Boolean,
+  isRunning: Boolean,
+  busy: Boolean,
+  files: { type: Array, default: () => [] },
+})
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file'])
+const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-mode'])
 const fileInput = ref(null)
 const editor = ref(null)
-const models = computed(() => Object.entries(store.config.providers).flatMap(([provider, config]) => config.enabled ? config.models.map(model => ({ provider, model })) : []))
-const selection = computed(() => JSON.stringify([store.config.activeProvider, store.config.activeModel]))
-// 下拉框的 value 仍是 [供应商, 模型] 的 JSON 字符串，和原来原生 select 的取值方式一致。
-const modelOptions = computed(() => models.value.map(item => ({
-  value: JSON.stringify([item.provider, item.model]),
-  label: `${item.provider} / ${item.model}`,
-})))
+const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
+const modelGroups = computed(() => Object.entries(store.config.providers)
+  .filter(([, config]) => config.enabled)
+  .map(([provider, config]) => ({
+    provider,
+    models: config.models
+      .map(model => typeof model === 'string' ? model : model.id || model.name)
+      .filter(model => !modelQuery.value.trim() || model.toLowerCase().includes(modelQuery.value.trim().toLowerCase())),
+  }))
+  .filter(group => group.models.length))
+
+const modelOpen = ref(false)
+const modelQuery = ref('')
+const searchOpen = ref(false)
+const addOpen = ref(false)
+
+function openModelSheet() {
+  modelQuery.value = ''
+  modelOpen.value = true
+}
+
+async function chooseModel(provider, model) {
+  modelOpen.value = false
+  if (props.sessionId) await Session.selectModel(props.sessionId, provider, model)
+  else {
+    store.config.activeProvider = provider
+    store.config.activeModel = model
+  }
+  nextTick(() => editor.value?.focus())
+}
+
+// --- 语音输入：浏览器支持时显示麦克风，和 RikkaHub 一样只在可用时出现。 ---
+const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
+const asrAvailable = Boolean(SpeechRecognition)
+const listening = ref(false)
+let recognition = null
+
+function toggleListening() {
+  if (!SpeechRecognition) return
+  if (listening.value) {
+    recognition?.stop()
+    return
+  }
+  recognition = new SpeechRecognition()
+  recognition.lang = 'zh-CN'
+  recognition.continuous = false
+  recognition.interimResults = false
+  const base = draft.value
+  recognition.onresult = event => {
+    const transcript = Array.from(event.results).map(result => result[0]?.transcript || '').join('')
+    draft.value = `${base}${base && transcript ? ' ' : ''}${transcript}`
+  }
+  recognition.onend = () => { listening.value = false }
+  recognition.onerror = () => { listening.value = false; UI.notify('语音输入失败') }
+  listening.value = true
+  recognition.start()
+}
+
+onBeforeUnmount(() => {
+  if (listening.value) recognition?.stop()
+})
 
 // --- 斜杠命令菜单 ---
 const slashIndex = ref(0)
@@ -74,12 +138,6 @@ function expand(text) {
   return args ? `${command.prompt}\n\n${args}` : command.prompt
 }
 
-// Select 只上抛字符串值，这里再解析回供应商和模型；和原来读 event.target.value 一样。
-function chooseModel(value) {
-  const [provider, model] = JSON.parse(value)
-  store.config.activeProvider = provider
-  store.config.activeModel = model
-}
 function submit() {
   if (draft.value.trim() && props.selectedModel && !props.isRunning && !props.busy) emit('submit', expand(draft.value))
 }
@@ -118,19 +176,62 @@ defineExpose({ focus: () => editor.value?.focus() })
     <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
     <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
-    <div class="chat-composer__toolbar">
-      <div class="chat-composer__agent"><slot name="status"><AppIcon name="spark" :size="18" /></slot></div>
-      <div class="chat-composer__actions">
-        <Select v-if="canSelectModel && models.length" class="chat-composer__model" label="新对话使用的模型" :model-value="selection" :options="modelOptions" :disabled="busy" @update:model-value="chooseModel" />
-        <Button v-else-if="!selectedModel" variant="ghost" @click="UI.openSettings('providers')">连接模型</Button>
-        <IconButton label="添加文本附件" title="添加文本或代码文件" :disabled="isRunning || busy" @click="fileInput.click()"><AppIcon name="plus" :size="18" /></IconButton>
+    <div class="chat-composer__bottom">
+      <div class="chat-composer__options">
+        <button type="button" class="composer-option" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" title="选择模型" @click="openModelSheet"><AppIcon name="spark" :size="24" /></button>
+        <button type="button" class="composer-option" aria-label="联网搜索" title="联网搜索" @click="searchOpen = true"><AppIcon name="search" :size="24" /></button>
+      </div>
+      <div class="chat-composer__right">
+        <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
+        <button v-if="asrAvailable" type="button" class="composer-action" :class="{ 'is-active': listening }" :aria-label="listening ? '停止语音输入' : '语音输入'" :title="listening ? '停止语音输入' : '语音输入'" @click="toggleListening"><AppIcon name="mic" :size="18" /></button>
         <Button v-if="isRunning" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
         <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
       </div>
     </div>
-    <!-- 隐藏的 file input 是编辑器专用控件：由上面的附件按钮触发，保留原生实现。 -->
+    <!-- 隐藏的 file input 是编辑器专用控件：由更多选项里的附件按钮触发，保留原生实现。 -->
     <input ref="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.css,.scss,.html,.vue,.py,.go,.rs,.yaml,.yml,.csv,.xml,.sh,.log" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
   </form>
+
+  <Sheet :open="modelOpen" label="选择模型" @update:open="modelOpen = $event">
+    <div class="composer-sheet composer-sheet--models">
+      <Field v-model="modelQuery" type="search" label="搜索模型" placeholder="搜索模型">
+        <template #leading><AppIcon name="search" :size="20" /></template>
+      </Field>
+      <div v-if="modelGroups.length" class="model-list">
+        <section v-for="group in modelGroups" :key="group.provider" class="model-group">
+          <h3>{{ group.provider }}</h3>
+          <button v-for="model in group.models" :key="model" type="button" class="model-row" :class="{ 'is-selected': model === selectedModel && group.provider === currentProvider }" @click="chooseModel(group.provider, model)">
+            <span class="model-row__icon"><AppIcon name="spark" :size="20" /></span>
+            <span class="model-row__name">{{ model }}</span>
+            <AppIcon v-if="model === selectedModel && group.provider === currentProvider" name="check" :size="20" />
+          </button>
+        </section>
+      </div>
+      <div v-else class="composer-sheet__empty">
+        <p>还没有可用模型。</p>
+        <Button @click="modelOpen = false; UI.openSettings('providers')">打开模型设置</Button>
+      </div>
+    </div>
+  </Sheet>
+
+  <Sheet :open="searchOpen" label="联网搜索" @update:open="searchOpen = $event">
+    <div class="composer-sheet">
+      <h2>联网搜索</h2>
+      <p class="composer-sheet__hint">当前后端没有配置搜索服务。需要联网时可以让模型调用网页抓取工具。</p>
+      <div class="composer-sheet__actions"><Button @click="searchOpen = false">关闭</Button></div>
+    </div>
+  </Sheet>
+
+  <Sheet :open="addOpen" label="更多选项" @update:open="addOpen = $event">
+    <div class="composer-sheet">
+      <h2>更多选项</h2>
+      <div class="composer-sheet__list">
+        <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
+        <button v-if="showSessionControls" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>对话设置</span></button>
+        <button v-if="showSessionControls" type="button" :title="mode ? `当前模式：${mode}` : undefined" @click="addOpen = false; emit('toggle-mode')"><AppIcon name="eye" :size="20" /><span>切换执行模式</span></button>
+      </div>
+    </div>
+  </Sheet>
 </template>
 
 <style scoped lang="scss">
@@ -160,41 +261,10 @@ defineExpose({ focus: () => editor.value?.focus() })
 
     &::placeholder { color: var(--la-muted); }
   }
-  &__toolbar, &__actions, &__agent { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  &__toolbar { justify-content: space-between; gap: 8px; padding: 0 0 2px; }
-  &__actions { justify-content: flex-end; gap: 2px; }
-  &__agent { color: var(--la-muted); font-size: 12px; }
-  &__agent svg { color: var(--la-muted); }
-  &__model {
-    max-width: 230px;
-    height: 30px;
-    padding: 0 6px;
-    overflow: hidden;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--la-secondary);
-    font: 12px/20px var(--la-font-sans);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  /* Select 的根节点负责限宽，内层 select 保持原来的透明、单行省略外观。 */
-  &__model :deep(.ui-select__input) {
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    overflow: hidden;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-overflow: ellipsis;
-    cursor: pointer;
-  }
-  &__model :deep(.ui-select__input:focus) { box-shadow: none; }
-  &__model:hover { background: var(--la-layer-02); color: var(--la-text); }
-  &__model :deep(.ui-select__input option) { background: var(--la-panel); color: var(--la-text); }
+  &__bottom { display: flex; min-height: 40px; align-items: center; gap: 4px; padding: 0 4px 1px; }
+  &__options { display: flex; min-width: 0; flex: 1; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  &__options::-webkit-scrollbar { display: none; }
+  &__right { display: flex; flex: none; align-items: center; gap: 4px; }
   &__send {
     display: grid;
     place-items: center;
@@ -212,12 +282,48 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
   &__send.is-stop { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 }
+.composer-option, .composer-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--la-text);
+  cursor: pointer;
+}
+.composer-option { width: 40px; height: 40px; }
+.composer-action { width: 30px; height: 30px; }
+.composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
+.composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
+.composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
+.composer-sheet { display: grid; gap: 12px; min-width: 0; padding-bottom: 4px; }
+.composer-sheet--models { min-height: 78vh; grid-template-rows: auto minmax(0, 1fr); }
+.composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 22px; font-weight: 400; line-height: 28px; }
+.composer-sheet .ui-field__caption { display: none; }
+.composer-sheet .field { height: 56px; border: 1px solid var(--la-line-strong); border-radius: 4px; background: transparent; font-size: 16px; }
+.composer-sheet .field:focus { border-color: var(--la-accent); box-shadow: inset 0 0 0 1px var(--la-accent); }
+.composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 20px; }
+.composer-sheet__actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.composer-sheet__empty { display: grid; gap: 12px; justify-items: start; padding: 12px 0; color: var(--la-secondary); }
+.composer-sheet__empty p { margin: 0; font-size: 14px; }
+.composer-sheet__list { display: grid; gap: 2px; }
+.composer-sheet__list button { display: flex; min-height: 48px; align-items: center; gap: 14px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--la-text); text-align: left; font-size: 14px; cursor: pointer; }
+.composer-sheet__list button:hover:not(:disabled) { background: var(--la-hover); }
+.composer-sheet__list button:disabled { opacity: .38; cursor: default; }
+.model-list { display: flex; min-height: 0; flex-direction: column; gap: 8px; overflow-y: auto; padding-bottom: 8px; }
+.model-group { display: grid; flex: none; gap: 8px; }
+.model-group h3 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 12px; background: var(--la-panel); color: var(--la-accent); font-size: 12px; font-weight: 700; }
+.model-row { display: flex; min-height: 64px; align-items: center; gap: 12px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--la-bg); color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
+.model-row:hover { background: var(--la-layer-01); }
+.model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
+.model-row__icon { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
+.model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 767px) {
   .chat-composer {
     padding: 4px 8px;
     &__editor { font-size: 16px; }
-    &__agent span { display: none; }
-    &__model { max-width: 150px; font-size: 12px; }
     &__send { width: 30px; height: 30px; flex-basis: 30px; }
   }
 }

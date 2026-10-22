@@ -48,7 +48,7 @@ defineExpose({ focus: () => composer.value?.focus() })
       <div class="draft-suggestions" role="group" aria-label="建议">
         <Button v-for="item in suggestions" :key="item" variant="plain" class="draft-suggestion" @click="useSuggestion(item)">{{ item }}</Button>
       </div>
-      <Composer ref="composer" v-model:draft="draft" :selected-model="model" can-select-model :is-running="false" :busy="busy" :files="files" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
+      <Composer ref="composer" v-model:draft="draft" :selected-model="model" :is-running="false" :busy="busy" :files="files" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
     </div>
   </section>
 </template>
