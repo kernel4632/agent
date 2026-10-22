@@ -1,5 +1,5 @@
 <!--
-应用抽屉：手机从左侧滑出，桌面常驻；用户、工作区、会话和模型选择都放在这里。
+应用抽屉：始终从左侧覆盖滑出，不占主内容宽度；用户、工作区、会话和模型选择都放在这里。
 只读取 store 并把选择写回，打开会话和新建会话交给 App.vue 统一导航。
 调用示例：
 <AppDrawer :open="drawerOpen" @close="drawerOpen = false" @new="openDraft" @open="openSession" @settings="openSettings" />
@@ -273,19 +273,4 @@ function newConversation() {
 
 /* --- 桌面横向：抽屉常驻，去掉遮罩和关闭按钮 --- */
 /* RikkaHub uses 1100dp; desktop 1024 laptops get the permanent drawer too. */
-@media (min-width: 1100px) and (orientation: landscape) {
-  .app-drawer {
-    position: relative;
-    inset: auto;
-    z-index: 1;
-    width: var(--la-drawer-width);
-    flex: 0 0 var(--la-drawer-width);
-    transform: none;
-    visibility: visible;
-    transition: none;
-  }
-  .app-drawer__sheet { border-radius: 16px; }
-  .app-drawer__close { display: none; }
-  .app-drawer__scrim { display: none; }
-}
 </style>

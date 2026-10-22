@@ -33,28 +33,45 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
 </script>
 
 <template>
-  <aside v-if="open" class="session-review" aria-label="文件面板">
-    <header class="session-review__head">
-      <h2>文件</h2>
-      <IconButton label="关闭文件面板" @click="emit('update:open', false)"><AppIcon name="close" :size="14" /></IconButton>
-    </header>
-    <div class="session-review__body">
-      <section class="session-review__section">
-        <h3>本次改动</h3>
-        <Button v-for="file in changedFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
-        <p v-if="!changedFiles.length">本次会话没有文件改动</p>
-      </section>
-      <section class="session-review__section">
-        <h3>工作区文件</h3>
-        <Button v-for="file in workspaceFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
-        <p v-if="!workspaceFiles.length">没有可显示的文件</p>
-      </section>
-    </div>
-  </aside>
+  <template v-if="open">
+    <div class="session-review__scrim" aria-hidden="true" @click="emit('update:open', false)"></div>
+    <aside class="session-review" aria-label="文件面板">
+      <header class="session-review__head">
+        <h2>文件</h2>
+        <IconButton label="关闭文件面板" @click="emit('update:open', false)"><AppIcon name="close" :size="14" /></IconButton>
+      </header>
+      <div class="session-review__body">
+        <section class="session-review__section">
+          <h3>本次改动</h3>
+          <Button v-for="file in changedFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
+          <p v-if="!changedFiles.length">本次会话没有文件改动</p>
+        </section>
+        <section class="session-review__section">
+          <h3>工作区文件</h3>
+          <Button v-for="file in workspaceFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
+          <p v-if="!workspaceFiles.length">没有可显示的文件</p>
+        </section>
+      </div>
+    </aside>
+  </template>
 </template>
 
 <style scoped lang="scss">
-.session-review { display: flex; width: var(--la-review-width); flex: 0 0 var(--la-review-width); flex-direction: column; min-height: 0; border-left: .5px solid var(--la-line); background: var(--la-panel); }
+.session-review {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 43;
+  display: flex;
+  width: min(320px, 86vw);
+  max-width: 100vw;
+  flex-direction: column;
+  border-left: .5px solid var(--la-line);
+  background: var(--la-panel);
+  box-shadow: -12px 0 36px rgba(0, 0, 0, .18);
+  animation: review-in .2s cubic-bezier(.2, 0, 0, 1);
+}
+@keyframes review-in { from { transform: translateX(24px); opacity: .5; } to { transform: none; opacity: 1; } }
+.session-review__scrim { position: fixed; inset: 0; z-index: 42; background: color-mix(in srgb, #000 32%, transparent); }
 .session-review__head { display: flex; height: 48px; flex: none; align-items: center; justify-content: space-between; padding: 0 8px 0 14px; border-bottom: .5px solid var(--la-line); color: var(--la-text); }
 .session-review__head h2 { margin: 0; font-size: 13px; font-weight: 530; }
 .session-review__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow-y: auto; padding: 8px 10px 20px; }
@@ -63,7 +80,4 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
 .session-review__section p { margin: 4px; color: var(--la-muted); font-size: 12px; line-height: 18px; }
 .session-review__file { display: block; width: 100%; min-height: 26px; padding: 4px 8px; overflow: hidden; border: 0; border-radius: 8px; background: transparent; color: var(--la-secondary); text-align: left; font: 12px/18px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .session-review__file:hover { background: var(--la-hover); color: var(--la-text); }
-@media (max-width: 1023px) {
-  .session-review { display: none; }
-}
 </style>

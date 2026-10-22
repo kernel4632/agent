@@ -114,13 +114,7 @@ async function saveTitle() {
 .topbar__actions { display: flex; flex: none; align-items: center; gap: 2px; }
 
 /* 文件面板在面板本身隐藏的尺寸下也一起隐藏，避免点了没有反应。 */
-@media (max-width: 1023px) {
-  .topbar__review { display: none; }
-}
 @media (max-width: 767px) {
   .topbar { padding: 0 8px; gap: 2px; }
-}
-@media (min-width: 1100px) and (orientation: landscape) {
-  .topbar__menu { display: none; }
 }
 </style>
