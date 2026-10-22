@@ -23,6 +23,7 @@ function backendSnapshot(draft) {
     diagnostics: draft.diagnostics,
     snapshot: draft.snapshot,
   })
+  // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
 
 
@@ -63,17 +64,28 @@ function open() {
 }
 
 
-// --- 离开设置页并保存 ---
-async function save() {
+// --- 保存设置：关闭时保存整份，输入变化时自动保存但保留草稿 ---
+let lastAutoSaveError = ''
+
+let persistQueue = Promise.resolve()
+
+function persist(options = {}) {
+  const result = persistQueue.then(() => doPersist(options))
+  persistQueue = result.then(() => undefined, () => undefined)
+  return result
+}
+
+async function doPersist({ keepDraft = false, silent = false } = {}) {
   const draft = store.settings.draft
-  if (!draft || store.settings.isSaving) return false
+  if (!draft) return false
   store.settings.isSaving = true
   try {
     if (backendSnapshot(draft) === initialBackendDraft) {
       store.config.appearance = isolateDraft(draft.appearance)
       persistAppearance(draft.appearance)
       store.settings.savedAt = Date.now()
-      store.settings.draft = null
+      lastAutoSaveError = ''
+      if (!keepDraft) store.settings.draft = null
       return true
     }
     const names = (draft.providers || []).map(provider => provider.name.trim())
@@ -135,14 +147,26 @@ async function save() {
     persistAppearance(draft.appearance)
     if (!await Config.load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
     store.settings.savedAt = Date.now()
-    store.settings.draft = null
+    initialBackendDraft = backendSnapshot(draft)
+    lastAutoSaveError = ''
+    if (!keepDraft) store.settings.draft = null
     return true
   } catch (error) {
-    UI.notify(error.message)
+    if (!silent || lastAutoSaveError !== error.message) UI.notify(error.message)
+    lastAutoSaveError = error.message
     return false
   } finally {
     store.settings.isSaving = false
   }
+}
+
+async function save() {
+  return persist()
+}
+
+// 输入变化时调用：成功后保留草稿和当前焦点，不重建正在编辑的页面。
+async function autoSave() {
+  return persist({ keepDraft: true, silent: true })
 }
 
 
@@ -212,4 +236,4 @@ function toggleModelInList(models, model) {
 }
 
 
-export const Settings = { open, save, replaceDraftAndSave, discoverModels, toggleModelInList }
+export const Settings = { open, save, autoSave, replaceDraftAndSave, discoverModels, toggleModelInList }

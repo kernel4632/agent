@@ -5,7 +5,7 @@
 调用示例：<SettingsPage />；打开首页用 UI.openSettings()，直接进详情用 UI.openSettings('providers')。
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
 import { Settings } from '../commands/settings.js'
@@ -27,15 +27,36 @@ function openPage(page) {
   store.ui.settingsSection = page.id
 }
 
-// 返回只回到设置首页，不关闭设置；关闭仍走 UI.closeSettings()，保留自动保存。
+// 返回设置首页时先落盘当前页面的修改，避免切换页面时丢掉刚输入的内容。
 function goHome() {
+  window.clearTimeout(autoSaveTimer)
+  void Settings.autoSave()
   selected.value = ''
   store.ui.settingsSection = ''
 }
 
-// 保存成功后重新打开一份草稿，让详情页可以继续修改；toast 文案保持原样。
-async function save() {
-  if (await Settings.save()) { Settings.open(); UI.notify('设置已保存') }
+// RikkaHub 的设置是边改边存：停止输入约 600ms 后自动提交，不再需要保存按钮。
+let autoSaveTimer = null
+
+function scheduleAutoSave() {
+  if (!store.settings.draft) return
+  window.clearTimeout(autoSaveTimer)
+  autoSaveTimer = window.setTimeout(runAutoSave, 600)
+}
+
+async function runAutoSave() {
+  autoSaveTimer = null
+  await Settings.autoSave()
+}
+
+watch(() => store.settings.draft, scheduleAutoSave, { deep: true })
+
+onBeforeUnmount(() => window.clearTimeout(autoSaveTimer))
+
+// 只有返回动作：详情页回到设置首页，首页返回聊天页。关闭时仍会补一次保存。
+function goBack() {
+  if (selectedPage.value) return goHome()
+  void UI.closeSettings()
 }
 </script>
 
@@ -44,12 +65,10 @@ async function save() {
     <header class="settings-topbar">
       <div class="settings-topbar__inner">
         <div class="settings-topbar__actions">
-          <IconButton v-if="selectedPage" label="返回设置" @click="goHome"><AppIcon name="arrow" :size="18" class="settings-back-icon" /></IconButton>
-          <IconButton class="settings-topbar__close" label="关闭设置" :disabled="store.settings.isSaving" @click="UI.closeSettings()"><AppIcon name="close" :size="18" /></IconButton>
+          <IconButton label="返回" @click="goBack"><AppIcon name="arrow" :size="18" class="settings-back-icon" /></IconButton>
         </div>
         <div class="settings-topbar__heading">
           <h1 :title="title">{{ title }}</h1>
-          <p v-if="!selectedPage">外观、模型、工具和扩展</p>
         </div>
       </div>
     </header>
@@ -87,13 +106,6 @@ async function save() {
       </template>
     </div>
 
-    <footer v-if="selectedPage" class="settings-footer">
-      <div class="settings-footer__inner">
-        <span v-if="store.ui.toast" class="settings-footer__note" role="status">{{ store.ui.toast }}</span>
-        <span v-else class="settings-footer__note">关闭时自动保存</span>
-        <Button variant="primary" :disabled="store.settings.isSaving" @click="save">{{ store.settings.isSaving ? '保存中…' : '保存设置' }}</Button>
-      </div>
-    </footer>
   </section>
 </template>
 
@@ -110,26 +122,24 @@ async function save() {
   background: var(--la-bg);
 }
 .settings-topbar { flex: none; padding: 8px 16px 0; background: var(--la-bg); }
-.settings-topbar__inner, .settings-footer__inner { width: 100%; max-width: var(--la-settings-width); margin: 0 auto; }
+.settings-topbar__inner { width: 100%; max-width: var(--la-settings-width); margin: 0 auto; }
 .settings-topbar__actions { display: flex; min-height: 40px; align-items: center; }
-.settings-topbar__close { margin-left: auto; }
 .settings-back-icon { transform: rotate(180deg); }
 .settings-topbar__heading { padding: 2px 2px 14px; }
 .settings-topbar__heading h1 {
   margin: 0;
   color: var(--la-text);
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 40px;
-  letter-spacing: -.5px;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 36px;
+  letter-spacing: 0;
 }
-.settings-topbar__heading p { margin: 4px 0 0; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 19px; }
-.settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 4px 16px 32px; overscroll-behavior: contain; }
+.settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 16px 32px; overscroll-behavior: contain; }
 .settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
 
 /* --- 首页：按 group 排列的圆角卡片和 64px 行 --- */
 .settings-group { display: flex; flex-direction: column; gap: 8px; }
-.settings-group + .settings-group { margin-top: 24px; }
+.settings-group + .settings-group { margin-top: 16px; }
 .settings-group__label {
   margin: 0;
   padding: 0 4px;
@@ -206,18 +216,12 @@ async function save() {
 }
 .settings-row__arrow { flex: none; color: var(--la-muted); }
 
-/* --- 详情：现有页面组件 + 底部保存栏 --- */
-.settings-footer { flex: none; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: .5px solid var(--la-line); background: var(--la-bg); }
-.settings-footer__inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.settings-footer__note { min-width: 0; overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.settings-footer .button { flex-shrink: 0; }
-
 /* --- 窄屏：全宽、16px 内边距，行内容只截断不换行 --- */
 @media (max-width: 767px) {
   .settings-topbar { padding-top: 4px; }
   .settings-topbar__actions { min-height: 36px; }
   .settings-topbar__heading { padding-bottom: 12px; }
-  .settings-topbar__heading h1 { font-size: 28px; line-height: 36px; }
+  .settings-topbar__heading h1 { font-size: 24px; line-height: 32px; }
   .settings-scroll { padding-bottom: 24px; }
 }
 </style>

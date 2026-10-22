@@ -165,7 +165,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         </main>
       </div>
 
-      <Toast v-if="store.ui.toast && !store.ui.settingsOpen" :message="store.ui.toast" @close="store.ui.toast = ''" />
+      <Toast v-if="store.ui.toast" :message="store.ui.toast" @close="store.ui.toast = ''" />
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
     </div>
   </ThemeProvider>
