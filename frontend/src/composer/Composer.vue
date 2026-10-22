@@ -23,6 +23,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { AppIcon, Button, IconButton, Select } from '../ui/index.js'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
+import ComposerAttachments from './ComposerAttachments.vue'
+import ComposerSlashMenu from './ComposerSlashMenu.vue'
 
 const props = defineProps({ selectedModel: { type: String, default: '' }, canSelectModel: Boolean, isRunning: Boolean, busy: Boolean, files: { type: Array, default: () => [] }, contextTokens: { type: Number, default: 0 } })
 const draft = defineModel('draft', { type: String, default: '' })
@@ -112,15 +114,8 @@ defineExpose({ focus: () => editor.value?.focus() })
 
 <template>
   <form class="chat-composer" aria-label="对话编辑器" @submit.prevent="submit">
-    <div v-if="files.length" class="chat-composer__files">
-      <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="14" />{{ file.name }}<IconButton :label="`移除附件 ${file.name}`" @click="emit('remove-file', file.id)"><AppIcon name="close" :size="13" /></IconButton></span>
-    </div>
-    <div v-if="slashMatches.length" class="chat-composer__slash" role="listbox" aria-label="斜杠命令">
-      <Button v-for="(command, index) in slashMatches" :key="command.name" variant="plain" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
-        <span class="chat-composer__slash-name">/{{ command.name }}</span>
-        <span class="chat-composer__slash-description">{{ command.description }}</span>
-      </Button>
-    </div>
+    <ComposerAttachments :files="files" @remove="emit('remove-file', $event)" />
+    <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
     <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天'" rows="2" @keydown="keydown"></textarea>
     <div class="chat-composer__toolbar">
@@ -150,36 +145,6 @@ defineExpose({ focus: () => editor.value?.focus() })
   box-shadow: none;
 
   &:focus-within { border-color: var(--la-line-strong); }
-  &__slash {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 8px);
-    left: 0;
-    z-index: 20;
-    display: grid;
-    max-height: 240px;
-    padding: 4px;
-    overflow-y: auto;
-    gap: 1px;
-    border-radius: 8px;
-    background: var(--la-layer-01);
-    box-shadow: var(--la-shadow-floating);
-  }
-  &__slash-item {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 7px 9px;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--la-secondary);
-    text-align: left;
-    cursor: pointer;
-  }
-  &__slash-item.is-active, &__slash-item:hover { background: var(--la-hover); color: var(--la-text); }
-  &__slash-name { flex: none; color: var(--la-accent); font: 12px/1.6 var(--la-font-mono); white-space: nowrap; }
-  &__slash-description { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   &__editor {
     display: block;
     width: 100%;
@@ -247,8 +212,6 @@ defineExpose({ focus: () => editor.value?.focus() })
   }
   &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, #000); }
   &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
-  &__files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  &__files > span { display: flex; align-items: center; gap: 6px; max-width: 100%; padding-left: 8px; border-radius: 6px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 12px; overflow-wrap: anywhere; }
 }
 .composer-footnote { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px 0; color: var(--la-muted); font-size: 12px; font-weight: 440; }
 @media (max-width: 767px) {

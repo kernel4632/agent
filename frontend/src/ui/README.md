@@ -11,5 +11,4 @@
 - `Select` 的 `selectClass` 和页面里的 `:deep(.ui-select__input)`
 - `Field` 的 `@change` 透传
 - `Button` 的 `variant="plain"` 列表行皮肤
-- `ToolView.vue` 仍按 `view` 在一个文件里放多种结果视图
-- `Composer.vue` 的附件条、斜杠菜单和工具栏仍可继续拆成独立组件
+- `Composer.vue` 的工具栏和原生编辑器仍是该组件自己的布局
