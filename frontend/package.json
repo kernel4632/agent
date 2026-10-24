@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.28.5",
+  "version": "0.29.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -14,6 +14,7 @@
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/vue": "1.0.7",
+    "@kernel4632/kima": "^0.6.1",
     "@m3e/icons": "^1.0.11",
     "@m3e/web": "^2.7.1",
     "dompurify": "latest",
@@ -23,7 +24,7 @@
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.10",
     "mermaid": "^11.16.0",
-    "vue": "latest"
+    "vue": "^3.5.44"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

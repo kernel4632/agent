@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watchEffect } from 'vue'
+import { applyPalette } from '@kernel4632/kima/theme'
 import { syncM3ETokens } from './m3e.js'
 
 const props = defineProps({
@@ -36,6 +37,9 @@ watchEffect(() => {
   element.style.setProperty('--la-accent', accent)
   element.style.setProperty('--la-accent-soft', `color-mix(in srgb, ${accent} 10%, transparent)`)
   element.style.setProperty('--la-accent-border', `color-mix(in srgb, ${accent} 30%, transparent)`)
+  // KIMA 与 M3E 共用同一套深浅色和强调色，避免组件库自成一套主题。
+  document.documentElement.setAttribute('data-kima-theme', scheme.value)
+  applyPalette(appearance.color, { isDark: scheme.value === 'dark' })
 }, { flush: 'post' })
 
 // 挂载：跟随系统主题，并在 M3E 首次渲染后导出 token。

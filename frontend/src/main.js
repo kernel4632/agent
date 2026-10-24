@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import '@m3e/web/theme'
+import '@kernel4632/kima/style.css'
 import './styles/base.scss'
 import './styles/tokens.scss'
 import App from './App.vue'

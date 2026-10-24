@@ -297,9 +297,11 @@ test('settings auto-save preserves uneditable backend configuration and secrets 
   await page.getByRole('button', { name: /通用/ }).click()
   await page.getByRole('radio', { name: '浅色', exact: true }).check()
   await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'light')
+  await expect(page.locator('html')).toHaveAttribute('data-kima-theme', 'light')
   await screenshot(page, testInfo, 'appearance-light')
   await page.getByRole('radio', { name: '深色', exact: true }).check()
   await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'dark')
+  await expect(page.locator('html')).toHaveAttribute('data-kima-theme', 'dark')
   await screenshot(page, testInfo, 'appearance')
   const writes = mock.calls.filter(call => call.path === '/config/set').length
   await page.getByRole('switch', { name: '减少界面动画' }).check()
