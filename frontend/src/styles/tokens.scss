@@ -1,34 +1,35 @@
-// Material You + RikkaHub layout tokens. Components keep using --la-* so a future
-// component library can swap the mapping without touching every page.
+// Material You + RikkaHub layout tokens. Components keep using --la-* so the
+// visual layer can be swapped without touching every page. KIMA is the source
+// of color roles and fonts; layout widths stay app-owned.
 m3e-theme {
   color-scheme: light;
 
-  // Material 3 role aliases
-  --la-bg: var(--md-sys-color-surface);
-  --la-panel: var(--md-sys-color-surface-container-low);
-  --la-layer-01: var(--md-sys-color-surface-container);
-  --la-layer-02: var(--md-sys-color-surface-container-high);
-  --la-layer-03: var(--md-sys-color-surface-container-highest);
-  --la-layer-04: var(--md-sys-color-outline-variant);
-  --la-input: var(--md-sys-color-surface-container-high);
-  --la-text: var(--md-sys-color-on-surface);
-  --la-secondary: var(--md-sys-color-on-surface-variant);
-  --la-muted: var(--md-sys-color-outline);
-  --la-line: color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
-  --la-line-strong: var(--md-sys-color-outline-variant);
-  --la-hover: color-mix(in srgb, var(--md-sys-color-on-surface) 7%, transparent);
-  --la-pressed: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
-  --la-scrim: color-mix(in srgb, var(--md-sys-color-scrim) 60%, transparent);
-  --la-accent: var(--md-sys-color-primary);
-  --la-accent-solid: var(--md-sys-color-primary);
-  --la-accent-soft: var(--md-sys-color-primary-container);
-  --la-accent-border: color-mix(in srgb, var(--md-sys-color-primary) 42%, transparent);
-  --la-danger: var(--md-sys-color-error);
-  --la-success: light-dark(#198b43, #6bd586);
-  --la-warning: light-dark(#8a5a00, #f2cf76);
-  --la-on-accent: var(--md-sys-color-on-primary);
-  --la-action: var(--md-sys-color-primary);
-  --la-on-action: var(--md-sys-color-on-primary);
+  // KIMA color roles
+  --la-bg: var(--kima-color-surface);
+  --la-panel: var(--kima-color-surface-container-low);
+  --la-layer-01: var(--kima-color-surface-container);
+  --la-layer-02: var(--kima-color-surface-container-high);
+  --la-layer-03: var(--kima-color-surface-container-highest);
+  --la-layer-04: var(--kima-color-outline-variant);
+  --la-input: var(--kima-color-surface-container-high);
+  --la-text: var(--kima-color-on-surface);
+  --la-secondary: var(--kima-color-on-surface-variant);
+  --la-muted: var(--kima-color-outline);
+  --la-line: color-mix(in srgb, var(--kima-color-outline-variant) 72%, transparent);
+  --la-line-strong: var(--kima-color-outline-variant);
+  --la-hover: color-mix(in srgb, var(--kima-color-on-surface) 7%, transparent);
+  --la-pressed: color-mix(in srgb, var(--kima-color-on-surface) 12%, transparent);
+  --la-scrim: color-mix(in srgb, var(--kima-color-scrim) 60%, transparent);
+  --la-accent: var(--kima-color-primary);
+  --la-accent-solid: var(--kima-color-primary);
+  --la-accent-soft: var(--kima-color-primary-container);
+  --la-accent-border: color-mix(in srgb, var(--kima-color-primary) 42%, transparent);
+  --la-danger: var(--kima-color-error);
+  --la-success: var(--kima-color-success);
+  --la-warning: var(--kima-color-warning);
+  --la-on-accent: var(--kima-color-on-primary);
+  --la-action: var(--kima-color-primary);
+  --la-on-action: var(--kima-color-on-primary);
 
   // Expressive shape and spacing
   --la-radius: 10px;
@@ -39,11 +40,11 @@ m3e-theme {
   --la-topbar-height: 64px;
   --la-review-width: 280px;
   --la-chat-width: 800px;
-  --la-font-sans: "Maple Mono NF CN", "MapleMono NF CN", Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
-  --la-font-mono: "Maple Mono NF CN", "MapleMono NF CN", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  --la-shadow-raised: 0 1px 2px rgba(0, 0, 0, .08), 0 1px 3px 1px rgba(0, 0, 0, .06);
-  --la-shadow-floating: 0 4px 8px 3px rgba(0, 0, 0, .08), 0 1px 3px rgba(0, 0, 0, .14);
-  --la-shadow-overlay: 0 8px 12px 6px rgba(0, 0, 0, .1), 0 4px 4px rgba(0, 0, 0, .16);
+  --la-font-sans: var(--kima-font-family);
+  --la-font-mono: var(--kima-font-family);
+  --la-shadow-raised: var(--kima-elevation-1);
+  --la-shadow-floating: var(--kima-elevation-3);
+  --la-shadow-overlay: var(--kima-elevation-4);
 }
 
 m3e-theme[scheme="dark"] {

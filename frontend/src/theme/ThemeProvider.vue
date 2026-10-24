@@ -30,13 +30,6 @@ watchEffect(() => {
   for (const key of ['color', 'variant', 'contrast', 'density', 'motion']) element.setAttribute(key, String(appearance[key]))
   element.toggleAttribute('strong-focus', appearance.strongFocus)
   element.toggleAttribute('reduced-motion', appearance.reduceMotion)
-  // 深色下提亮强调色，保证在深色背景上仍然清楚。
-  const accent = scheme.value === 'dark'
-    ? `color-mix(in srgb, ${appearance.color} 70%, white 30%)`
-    : appearance.color
-  element.style.setProperty('--la-accent', accent)
-  element.style.setProperty('--la-accent-soft', `color-mix(in srgb, ${accent} 10%, transparent)`)
-  element.style.setProperty('--la-accent-border', `color-mix(in srgb, ${accent} 30%, transparent)`)
   // KIMA 与 M3E 共用同一套深浅色和强调色，避免组件库自成一套主题。
   document.documentElement.setAttribute('data-kima-theme', scheme.value)
   applyPalette(appearance.color, { isDark: scheme.value === 'dark' })

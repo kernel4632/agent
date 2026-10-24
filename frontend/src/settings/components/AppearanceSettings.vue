@@ -3,7 +3,8 @@
 控件全部使用 KIMA：KimaRadioGroup、KimaSelect、KimaSwitch、KimaButton、KimaDivider、KimaFlex、KimaGrid、KimaTypography。
 -->
 <script setup>
-import { KimaButton, KimaDivider, KimaFlex, KimaGrid, KimaRadioGroup, KimaSelect, KimaSwitch, KimaTypography } from '@kernel4632/kima'
+import { KimaButton, KimaDivider, KimaFlex, KimaGrid, KimaRadioGroup, KimaSwitch, KimaTypography } from '@kernel4632/kima'
+import { Select } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 
 defineProps({ appearance: { type: Object, required: true } })
@@ -39,9 +40,9 @@ function reset() {
       <KimaFlex direction="column" :gap="2">
         <KimaTypography>强调色</KimaTypography>
         <KimaTypography type="caption">按钮与选中状态的颜色</KimaTypography>
-        <KimaSelect
+        <Select
           label="强调色"
-          :items="colors"
+          :options="colors"
           :model-value="appearance.color"
           @update:model-value="update('color', $event)"
         />

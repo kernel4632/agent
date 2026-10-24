@@ -6,7 +6,8 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import { KimaButton, KimaDialog, KimaDivider, KimaFlex, KimaSelect, KimaSwitch, KimaTextField, KimaTypography } from '@kernel4632/kima'
+import { KimaButton, KimaDialog, KimaDivider, KimaFlex, KimaSwitch, KimaTextField, KimaTypography } from '@kernel4632/kima'
+import { Select } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
 
 const props = defineProps({ provider: { type: Object, required: true } })
@@ -32,10 +33,10 @@ const update = patch => emit('update:provider', { ...props.provider, ...patch })
     >启用此供应商</KimaSwitch>
 
     <KimaTypography type="caption">接口类型</KimaTypography>
-    <KimaSelect
+    <Select
       label="接口类型"
       :model-value="provider.apiType"
-      :items="API_TYPE_OPTIONS"
+      :options="API_TYPE_OPTIONS"
       @update:model-value="update({ apiType: $event })"
     />
 
