@@ -497,8 +497,8 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
 
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /工具管理/ }).click()
-  await expect(page.getByText('read_file')).toBeVisible()
-  await expect(page.getByText('execute_command')).toBeVisible()
+  await expect(page.getByText('read_file', { exact: true })).toBeVisible()
+  await expect(page.getByText('execute_command', { exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'settings-tools')
 
   await page.getByRole('button', { name: '返回', exact: true }).click()

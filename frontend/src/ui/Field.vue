@@ -1,43 +1,33 @@
 <!--
-通用输入框：单行输入和搜索框共用，multiline 时渲染 textarea。
-label 写入 aria-label，caption 是可选可见标题；leading / trailing 插槽放图标。
-size="small" 用于设置面板行内的紧凑输入框（28px），默认 normal 保持 36px。
-class/style 落在根节点，min/max/step/@change 等其他属性直接透传给输入控件。
-调用方可以通过组件 ref 的 focus() 把焦点交给内部输入框。
-调用示例：
-<Field v-model="query" type="search" label="搜索会话" placeholder="搜索会话">
-  <template #leading><AppIcon name="search" /></template>
-</Field>
-<Field v-model="limit" size="small" type="number" label="连续次数" @change="saveLimit" />
+通用输入框：保留原来的 Field API（label/caption/multiline/size/leading/trailing），
+实际渲染 KIMA 的 KimaTextField / KimaTextarea。KIMA 不画可见标签，caption 由本层排版。
+调用示例：<Field v-model="query" label="搜索会话" placeholder="搜索会话" />
 -->
 <script setup>
 import { computed, ref, useAttrs } from 'vue'
+import { KimaTextarea, KimaTextField } from '@kernel4632/kima'
 
 defineOptions({ inheritAttrs: false })
 
+const fieldRef = ref(null)
+defineExpose({ focus: () => fieldRef.value?.focus() })
+
 const props = defineProps({
-  modelValue: { type: [String, Number], default: '' }, // 输入内容，配合 v-model 使用
-  type: { type: String, default: 'text' },             // 单行输入的类型，例如 search
+  modelValue: { type: [String, Number], default: '' },
+  type: { type: String, default: 'text' },
   placeholder: { type: String, default: '' },
-  label: { type: String, default: '' },                // 屏幕阅读器读到的名称（aria-label）
-  caption: { type: String, default: '' },              // 可选的可见标题
+  label: { type: String, default: '' },
+  caption: { type: String, default: '' },
   disabled: Boolean,
-  multiline: Boolean,                                  // 为 true 时渲染 textarea
+  multiline: Boolean,
   rows: { type: [Number, String], default: undefined },
-  size: { type: String, default: 'normal' },           // normal 36px，small 28px 紧凑输入框
+  size: { type: String, default: 'normal' },
 })
-
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'change'])
 const attrs = useAttrs()
-const input = ref(null)
-const textarea = ref(null)
 
-// 同一时间只渲染一个输入控件；搜索框和对话框都通过这个入口聚焦。
-defineExpose({ focus: () => (textarea.value || input.value)?.focus() })
-
-// class/style 留给根节点（搜索框要靠 class 变成整块底色），其余属性交给真正的输入控件。
 const rootAttrs = computed(() => ({ class: attrs.class, style: attrs.style }))
-const inputAttrs = computed(() => {
+const controlAttrs = computed(() => {
   const rest = { ...attrs }
   delete rest.class
   delete rest.style
@@ -50,29 +40,29 @@ const inputAttrs = computed(() => {
     <span v-if="caption" class="ui-field__caption">{{ caption }}</span>
     <span class="ui-field__control">
       <span v-if="$slots.leading" class="ui-field__leading"><slot name="leading" /></span>
-      <textarea
+      <KimaTextarea
         v-if="multiline"
-        ref="textarea"
-        v-bind="inputAttrs"
-        class="field ui-field__input ui-field__input--multiline"
-        :value="modelValue"
-        :rows="rows || undefined"
-        :placeholder="placeholder"
-        :aria-label="label || undefined"
+        ref="fieldRef"
+        v-bind="controlAttrs"
+        :model-value="String(modelValue ?? '')"
+        :label="label || caption || undefined"
+        :placeholder="placeholder || undefined"
+        :rows="Number(rows) || 4"
         :disabled="disabled"
-        @input="emit('update:modelValue', $event.target.value)"
+        @update:model-value="emit('update:modelValue', $event)"
+        @change="emit('change', $event)"
       />
-      <input
+      <KimaTextField
         v-else
-        ref="input"
-        v-bind="inputAttrs"
-        class="field ui-field__input"
+        ref="fieldRef"
+        v-bind="controlAttrs"
+        :model-value="String(modelValue ?? '')"
         :type="type"
-        :value="modelValue"
-        :placeholder="placeholder"
-        :aria-label="label || undefined"
+        :label="label || caption || undefined"
+        :placeholder="placeholder || undefined"
         :disabled="disabled"
-        @input="emit('update:modelValue', $event.target.value)"
+        @update:model-value="emit('update:modelValue', $event)"
+        @change="emit('change', $event)"
       />
       <span v-if="$slots.trailing" class="ui-field__trailing"><slot name="trailing" /></span>
     </span>
@@ -81,20 +71,11 @@ const inputAttrs = computed(() => {
 
 <style scoped lang="scss">
 .ui-field { width: 100%; min-width: 0; }
-.ui-field--labeled { display: grid; gap: 8px; }
-.ui-field__caption { color: var(--la-secondary); font-size: 13px; font-weight: 440; line-height: 20px; }
+.ui-field--labeled { display: grid; gap: 6px; }
+.ui-field__caption { color: var(--kima-color-on-surface-variant); font-size: 13px; line-height: 20px; }
 .ui-field__control { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; }
-.ui-field__leading, .ui-field__trailing { display: inline-flex; flex: none; align-items: center; color: var(--la-muted); }
-.ui-field__input { width: 100%; min-width: 0; }
-.ui-field__input--multiline { height: auto; min-height: 72px; padding: 8px 10px; resize: vertical; }
-/* 设置面板行内的紧凑输入框：28px、面板底色、细边框，和原来的原生数字框一致。 */
-.ui-field--small .ui-field__input {
-  height: 28px;
-  padding: 0 7px;
-  border: .5px solid var(--la-line);
-  border-radius: 4px;
-  background: var(--la-panel);
-  color: var(--la-text);
-  font-size: 12px;
-}
+.ui-field__leading, .ui-field__trailing { display: inline-flex; flex: none; align-items: center; color: var(--kima-color-on-surface-variant); }
+.ui-field--small { --kima-field-height: 40px; --kima-field-padding: 12px; }
+.ui-field__control > :deep(.kima-text-field),
+.ui-field__control > :deep(.kima-textarea) { flex: 1; min-width: 0; }
 </style>

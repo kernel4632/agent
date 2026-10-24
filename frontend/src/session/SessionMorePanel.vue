@@ -66,7 +66,7 @@ const targetFrom = (session, value) => {
       <h2>自动批准的上限</h2>
       <p>连着自动批准这么多次就停下来问一句；填 0 表示不设上限</p>
       <div class="chat-more__row"><span>连续次数</span>
-        <Field size="small" class="chat-more__field" type="number" label="连续次数" min="0" :model-value="session.settings.autoApproveLimit" @change="Session.setLimit(session.id, Number($event.target.value))" />
+        <Field size="small" class="chat-more__field" type="number" label="连续次数" min="0" :model-value="session.settings.autoApproveLimit" @change="Session.setLimit(session.id, Number($event))" />
       </div>
     </section>
 
@@ -74,7 +74,7 @@ const targetFrom = (session, value) => {
       <h2>自动压缩</h2>
       <p>上下文用到这个比例时自动总结；范围 0.1 到 0.99</p>
       <div class="chat-more__row"><span>阈值</span>
-        <Field size="small" class="chat-more__field" type="number" label="阈值" min="0.1" max="0.99" step="0.05" :model-value="session.settings.compactThreshold ?? 0.8" @change="Session.setCompactThreshold(session.id, Number($event.target.value))" />
+        <Field size="small" class="chat-more__field" type="number" label="阈值" min="0.1" max="0.99" step="0.05" :model-value="session.settings.compactThreshold ?? 0.8" @change="Session.setCompactThreshold(session.id, Number($event))" />
       </div>
     </section>
   </div>

@@ -1,47 +1,62 @@
 <!--
-通用按钮：统一默认、主要、危险、纯文字和 plain 按钮的语义。
-样式复用全局 .button / .button--primary / .button--danger / .text-button；plain 只输出 ui-button，留给导航项和列表项自己的样式。
-以后换组件库只改这里。
+通用按钮：保留原来的 variant/size API，但实际渲染 KIMA 的 KimaButton。
+primary → filled，default → outlined，ghost → text，danger → text + 危险色，plain → 自定义行按钮（KIMA 没有适合导航行的 plain 尺寸）。
 调用示例：<Button variant="primary" @click="save">保存</Button>
-          <Button variant="plain" class="settings-back" @click="back">返回</Button>
 -->
 <script setup>
 import { computed } from 'vue'
-
-defineOptions({ inheritAttrs: false })
+import { KimaButton } from '@kernel4632/kima'
 
 const props = defineProps({
-  variant: { type: String, default: 'default' },        // default、primary、danger、ghost（纯文字）或 plain（不加全局按钮外观）
-  size: { type: String, default: 'normal' },            // normal 28px，small 24px
+  variant: { type: String, default: 'default' },
+  size: { type: String, default: 'normal' },
   disabled: Boolean,
-  type: { type: String, default: 'button' },            // 表单提交按钮传 submit
+  type: { type: String, default: 'button' },
 })
-
 const emit = defineEmits(['click'])
 
-// plain 只保留 ui-button 标记，尺寸和视觉交给调用方；ghost 用文字按钮样式，其余变体走全局 .button 系列。
-const classes = computed(() => {
-  if (props.variant === 'plain') return ['ui-button']
-  return [
-    props.variant === 'ghost' ? 'text-button' : 'button',
-    'ui-button',
-    {
-      'button--primary': props.variant === 'primary',
-      'button--danger': props.variant === 'danger',
-      'button--small': props.size === 'small' && props.variant !== 'ghost',
-    },
-  ]
-})
+const kimaVariant = computed(() => ({
+  primary: 'filled',
+  default: 'outlined',
+  ghost: 'text',
+  danger: 'text',
+  plain: 'text',
+}[props.variant] || 'outlined'))
 </script>
 
 <template>
   <button
+    v-if="variant === 'plain'"
     v-bind="$attrs"
-    :class="classes"
+    class="ui-button ui-button--plain"
     :type="type"
     :disabled="disabled"
     @click="emit('click', $event)"
-  >
-    <slot />
-  </button>
+  ><slot /></button>
+  <KimaButton
+    v-else
+    v-bind="$attrs"
+    :variant="kimaVariant"
+    :class="['ui-button', { 'ui-button--danger': variant === 'danger', 'ui-button--small': size === 'small' }]"
+    :type="type"
+    :disabled="disabled"
+    @click="emit('click', $event)"
+  ><slot /></KimaButton>
 </template>
+
+<style scoped lang="scss">
+.ui-button--danger { color: var(--kima-color-error); }
+.ui-button--small { --kima-button-height-s: 40px; --kima-button-min-width: 0; }
+.ui-button--plain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+</style>
