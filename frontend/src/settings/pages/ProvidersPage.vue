@@ -1,17 +1,15 @@
 <!--
 模型供应商页包装：只负责把设置草稿的 providers 字段接到 ProviderSettings。
 “管理模型连接 / 添加供应商”这一行属于本页；新增供应商只改 draft.providers，保存由设置页自动完成。
-添加供应商按钮使用 KIMA 的 KimaButton；样式/密度问题见 kima#1、kima#2。
-调用示例：<ProvidersPage :draft="draft" />，由 SettingsPage 按登记表动态渲染。
+控件全部使用 KIMA：KimaFlex、KimaTypography、KimaButton。
 -->
 <script setup>
-import { KimaButton } from '@kernel4632/kima'
-import { AppIcon } from '../../ui/index.js'
+import { KimaButton, KimaFlex, KimaIcon, KimaTypography } from '@kernel4632/kima'
+import { Add01Icon } from '@hugeicons/core-free-icons'
 import ProviderSettings from '../components/ProviderSettings.vue'
 
 const props = defineProps({ draft: { type: Object, required: true } })
 
-// 找第一个没被占用的默认名称，避免新增后出现两个同名供应商。
 function addProvider() {
   const providers = props.draft.providers
   let number = providers.length + 1
@@ -21,10 +19,12 @@ function addProvider() {
 </script>
 
 <template>
-  <div class="settings-provider-note"><span>管理模型连接</span><KimaButton variant="tonal" @click="addProvider"><template #leading><AppIcon name="plus" :size="14" /></template>添加供应商</KimaButton></div>
+  <KimaFlex justify="space-between" align="center" :gap="3">
+    <KimaTypography type="caption">管理模型连接</KimaTypography>
+    <KimaButton variant="tonal" @click="addProvider">
+      <template #leading><KimaIcon :icon="Add01Icon" :size="14" /></template>
+      添加供应商
+    </KimaButton>
+  </KimaFlex>
   <ProviderSettings v-model:providers="draft.providers" />
 </template>
-
-<style scoped lang="scss">
-.settings-provider-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--la-muted); font-size: 13px; }
-</style>
