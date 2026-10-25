@@ -11,18 +11,16 @@ import { Session } from '../commands/session.js'
 const props = defineProps({
   workspace: { type: Object, default: null },
   activeSessionId: String,
-  showSearch: Boolean,                                  // 只有点抽屉“搜索对话”后才显示搜索框
+  query: { type: String, default: '' },                 // 搜索框在 AppDrawer，列表只负责过滤
   sortOrder: { type: String, default: 'updated' },      // updated 按修改时间，created 按创建时间
 })
-const emit = defineEmits(['open', 'new'])
+const emit = defineEmits(['open', 'new', 'update:query'])
 
 // --- 搜索 ---
-const search = ref('')
-const searchField = ref(null)
 const sessions = computed(() => props.workspace?.sessions || [])
 const stampOf = item => Number(props.sortOrder === 'created' ? item.createdAt : item.updatedAt || item.createdAt) || 0
 const visible = computed(() => {
-  const query = search.value.trim().toLowerCase()
+  const query = props.query.trim().toLowerCase()
   return sessions.value
     .filter(item => !query || (item.title || '').toLowerCase().includes(query))
     .slice()
@@ -48,9 +46,6 @@ const groups = computed(() => {
   }
   return buckets.filter(group => group.items.length)
 })
-
-// 抽屉动作行的“搜索对话”把焦点交给这里的搜索框。
-defineExpose({ focusSearch: () => searchField.value?.focus() })
 
 // --- 重命名 / 删除 ---
 const dialogOpen = ref(false)
@@ -100,10 +95,6 @@ async function submitDialog() {
 
 <template>
   <div class="home-sessions">
-    <Field v-if="showSearch" ref="searchField" v-model="search" class="home-search" type="search" label="搜索会话" placeholder="搜索对话">
-      <template #leading><AppIcon name="search" :size="16" /></template>
-    </Field>
-
     <nav class="home-sessions__list" aria-label="会话列表">
       <template v-if="groups.length">
         <section v-for="group in groups" :key="group.key" class="home-sessions__group">
@@ -126,10 +117,9 @@ async function submitDialog() {
         </section>
       </template>
       <div v-else class="home-empty">
-        <strong>{{ search ? '没有找到匹配的会话' : '还没有会话' }}</strong>
-        <p>{{ search ? '换个关键词试试。' : '新建一个会话，开始和 la 一起工作。' }}</p>
-        <Button v-if="!search" @click="emit('new')"><AppIcon name="edit" :size="14" />新建会话</Button>
-        <Button v-else variant="ghost" @click="search = ''">清除搜索</Button>
+        <strong>{{ query ? '没有找到匹配的会话' : '还没有会话' }}</strong>
+        <p>{{ query ? '换个关键词试试。' : '点上面的「新建对话」开始。' }}</p>
+        <Button v-if="query" variant="ghost" @click="emit('update:query', '')">清除搜索</Button>
       </div>
     </nav>
 
@@ -148,11 +138,6 @@ async function submitDialog() {
 
 <style scoped lang="scss">
 .home-sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.home-search {
-  display: block;
-  flex: none;
-  margin-bottom: 12px;
-}
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
 .home-sessions__group { display: flex; flex-direction: column; gap: 6px; }
 .home-sessions__items { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
