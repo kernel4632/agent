@@ -55,6 +55,8 @@ export const AgentAPI = {
   setSessionModel:  (sessionID, provider, model) => request(`/session/model/${encodeURIComponent(sessionID)}`, 'PATCH', { provider, model }),
   removeSession:    (sessionID)                 => request(`/session/remove/${encodeURIComponent(sessionID)}`, 'DELETE'),
   sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
+  // 继续被中断的助手回复；内部提示不会作为用户消息保存。
+  resumeSession:    (sessionID)                 => request(`/agent/resume/${encodeURIComponent(sessionID)}`, 'POST'),
   stopSession:      (sessionID)                 => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST'),
   subscribeSession,
   // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。

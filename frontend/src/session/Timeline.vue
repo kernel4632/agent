@@ -14,6 +14,8 @@ import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { groupMessageTurns } from './turns.js'
 import { renderMarkdown } from '../utils/markdown.js'
+import { hasStopTool } from './stop-tools.js'
+import { AppIcon, Button } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import './conversation.scss'
 import AssistantTurn from './AssistantTurn.vue'
@@ -74,6 +76,19 @@ function onUserMenu(message, action) {
   else if (action === 'rollback') requestRollback(message)
   else if (action === 'fork') forkFrom(message)
 }
+
+// 只有最后一轮助手没有调用结束工具时才提供继续；正常收尾的回复不再追着模型跑。
+const canContinue = computed(() => {
+  if (!session.value || session.value.status === 'running') return false
+  const turn = turns.value.at(-1)
+  if (!turn || turn.role !== 'assistant') return false
+  return !hasStopTool(turn.messages) && canRollback(turn.messages.at(-1))
+})
+
+async function continueAssistant() {
+  if (!session.value || !canContinue.value) return
+  await Chat.resume(session.value.id)
+}
 </script>
 
 <template>
@@ -104,6 +119,11 @@ function onUserMenu(message, action) {
         />
       </template>
     </article>
+    <div v-if="canContinue" class="continue-row">
+      <Button variant="tonal" class="continue-button" @click="continueAssistant">
+        <AppIcon name="play" :size="18" /><span>继续助手</span>
+      </Button>
+    </div>
     <RollbackDialog
       ref="rollbackDialog"
       :target="rollbackTarget"
@@ -117,5 +137,7 @@ function onUserMenu(message, action) {
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
 .message { display: block; min-width: 0; animation: row-in .18s ease-out both; }
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.continue-row { display: flex; justify-content: flex-start; padding: 2px 0 18px; animation: row-in .2s ease-out both; }
+.continue-button { min-height: 44px; padding: 0 20px; border-radius: 999px; gap: 8px; }
 
 </style>

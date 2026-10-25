@@ -38,6 +38,7 @@ import {
   MessageAdd01Icon,
   MoreVerticalIcon,
   PencilEdit01Icon,
+  PlayIcon,
   Search01Icon,
   Settings03Icon,
   Sorting01Icon,
@@ -92,6 +93,7 @@ const icons = {
   volume: VolumeHighIcon,
   'volume-off': VolumeOffIcon,
   download: Download01Icon,
+  play: PlayIcon,
 }
 </script>
 

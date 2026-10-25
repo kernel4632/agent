@@ -731,10 +731,13 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
 | `POST` | `/agent/send/:sessionId` | `{ "input" }` | `{ "ok": true }` |
+| `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }` |
 | `POST` | `/agent/stop/:sessionId` | 无 | `{ "ok": true/false }` |
 | `POST` | `/agent/decide/:sessionId` | `{ "toolCallId", "decision" }` | `{ "ok": true/false }` |
 
 `send` 只确认后台任务已启动。模型文字、工具过程和最终结果都通过 SSE 到达。
+
+`resume` 用于继续被中断的助手：不需要请求体，内部提示不会进入历史，也不会在界面上显示成用户消息。最后一条消息必须是助手回复；已有任务在跑时返回 `409`。继续过程通过 SSE 的 `agent-resume` 事件通知前端。
 
 `decision` 只能是下面三种值：
 
@@ -782,6 +785,7 @@ Accept: text/event-stream
 | `permission-limit` | `limit`, `reason` | 自动批准连着放行到上限了，接下来要你确认一次 |
 | `title` | `title` | 后端起好了会话标题，更新侧边栏和标签文字，不用等下一次刷新 |
 | `agent-start` | 无 | 标记 Agent 任务开始 |
+| `agent-resume` | 无 | 标记继续任务开始；保留现有时间线，不重新读取历史 |
 | `agent-finish` | `reason`, `usage`, `text`（失败时是 `error`） | 标记 Agent 任务结束，再刷新会话 |
 
 `tool-output` 里 `stream` 是 `stdout` 或 `stderr`，`data` 是这段原始输出，前端按字符串拼接即可。

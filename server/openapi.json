@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.34.1",
+    "version": "0.35.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -350,6 +350,66 @@
           },
           "409": {
             "description": "这个会话的 AI 任务已经在运行中，不能同时启动第二个",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/resume/{sessionId}": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "继续被中断的助手回复",
+        "description": "当上一轮助手没有调用结束工具就停止时，从现有进度继续。后端会发一条只给模型看的内部提示，它不会作为用户消息出现在历史或界面里。同一会话已有任务运行时返回 409；最后一条消息不是助手回复时也返回 409。",
+        "operationId": "agentResume",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "会话的唯一编号",
+            "schema": {
+              "type": "string",
+              "example": "V1StGXR8_Z5jdHi6B-myT"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已开始继续；后续进度和结束都通过 SSE 推送",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "找不到这个 sessionId 对应的会话",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "会话正在运行，或者最后一条消息不是助手回复",
             "content": {
               "application/json": {
                 "schema": {

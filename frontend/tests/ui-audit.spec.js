@@ -131,6 +131,17 @@ async function backend(page, { configured = true } = {}) {
       return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) { session.running = false; await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
+    if (path.startsWith('/agent/resume/')) {
+      await json({ ok: true })
+      session.running = false
+      session.history.push({ messageId: 'assistant-2', role: 'assistant', content: [{ type: 'text', text: '继续完成' }] })
+      return emit(id, [
+        { type: 'agent-resume' },
+        { type: 'text-delta', text: '继续完成' },
+        { type: 'llm-finish', text: '继续完成', usage: { inputTokens: 12, outputTokens: 6 } },
+        { type: 'agent-finish' },
+      ])
+    }
     if (path.startsWith('/agent/decide/')) return json({ ok: true })
     return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
@@ -414,6 +425,36 @@ test('auto-continued assistant messages render as one continuous reply', async (
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   expect(await page.locator('.rikka-bubble--assistant').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
   await screenshot(page, testInfo, 'assistant-turn')
+  expect(mock.errors).toEqual([])
+})
+
+test('continue resumes an interrupted assistant without a user message', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('开始')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  const session = mock.sessions.get('session-1')
+  session.title = '继续测试'
+  session.history = [
+    { messageId: 'user-1', id: 'core-user-1', role: 'user', content: '开始' },
+    { messageId: 'assistant-1', role: 'assistant', content: [{ type: 'text', text: '做到一半' }] },
+  ]
+  await page.reload()
+  await navigate(page, '继续测试')
+
+  await expect(page.getByText('做到一半', { exact: true })).toBeVisible()
+  const resume = page.getByRole('button', { name: '继续助手', exact: true })
+  await expect(resume).toBeVisible()
+  await screenshot(page, testInfo, 'continue-assistant')
+  await resume.click()
+
+  await expect.poll(() => mock.calls.filter(call => call.path === '/agent/resume/session-1')).toHaveLength(1)
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('继续完成')
+  await expect(page.locator('.rikka-bubble--user')).toHaveCount(1)
+  await expect(page.getByText('继续', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.rikka-bubble--assistant')).toHaveCount(1)
   expect(mock.errors).toEqual([])
 })
 

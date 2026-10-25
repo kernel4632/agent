@@ -8,7 +8,8 @@ import { computed, ref, watch } from 'vue'
 import { AppIcon } from '../ui/index.js'
 import { UI } from '../commands/ui.js'
 import { renderMarkdown } from '../utils/markdown.js'
-import { canonicalToolName, outputText } from './tool-ui.js'
+import { outputText } from './tool-ui.js'
+import { isStopTool } from './stop-tools.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import ReasoningStep from './ReasoningStep.vue'
 import ToolCallRow from './ToolCallRow.vue'
@@ -20,8 +21,6 @@ const props = defineProps({
 })
 const emit = defineEmits(['rollback', 'fork'])
 
-const STOP_TOOLS = new Set(['attempt_completion', 'ask_followup_question'])
-const isStopTool = tool => STOP_TOOLS.has(canonicalToolName(tool.name))
 const actionable = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
 
 const expandedSteps = ref(false)

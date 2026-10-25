@@ -237,9 +237,22 @@ const fork = async ({ sessionId, title, messageId }) => {
 // --- 读取会话 ---
 const read = async ({ sessionId }) => {    const meta = await readMeta(sessionId)
     const agent = Store.agents.get(sessionId)
+    // 继续指令只给模型看，不能作为用户消息出现在界面上。
+    const visible = history => history.filter(message => !message.internal)
 
     // 运行中的会话以 Agent 手里的历史为准，磁盘上还没有这一轮的新消息。
-    if (agent?.running) return { ...meta, history: agent.history }
+    if (agent?.running) {
+        const history = visible(agent.history)
+        return {
+            ...meta,
+            history,
+            todos: latestTodos(history),
+            running: true,
+            pending: Approval.pending(sessionId),
+            settings: await Settings.read({ sessionId }),
+            undoable: History.redoCount({ sessionId }),
+        }
+    }
 
     await History.load({ sessionId })
     const history = History.get({ sessionId })
@@ -491,11 +504,40 @@ const compact = async ({ sessionId }) => {
 }
 
 // --- 启动 Agent 任务 ---
-const send = async ({ sessionId, input }) => {
+const send = ({ sessionId, input }) => run({ sessionId, input })
+
+// 继续被中断的助手回复：内部发一条提示，但不作为用户消息保存。
+const resume = ({ sessionId }) => run({ sessionId, input: CONTINUE_PROMPT, resume: true })
+
+const CONTINUE_PROMPT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。'
+
+// 把 Agent 内存里的新消息同步到历史文件；内部提示和已保存的消息都跳过。
+const saving = new Map()
+const syncHistory = ({ sessionId, agent }) => {
+    const previous = saving.get(sessionId) || Promise.resolve()
+    const task = previous.catch(() => {}).then(async () => {
+        const existing = new Set(History.get({ sessionId }).map(message => message.id))
+        for (const message of agent.history) {
+            if (message.internal || existing.has(message.id)) continue
+            existing.add(message.id)
+            await History.add({ sessionId, message })
+        }
+        await History.save({ sessionId })
+    })
+    saving.set(sessionId, task)
+    task.finally(() => { if (saving.get(sessionId) === task) saving.delete(sessionId) }).catch(() => {})
+    return task
+}
+
+const run = async ({ sessionId, input, resume = false }) => {
     // 用户输入在这里检查一次：去掉首尾空格后不能为空。
     if (typeof input !== 'string' || !input.trim()) throw fail(400, 'input must be a non-empty string')
     const meta = await readMeta(sessionId)
     const agent = await getAgent({ sessionId, meta })
+    if (resume && agent.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    if (resume && [...agent.history].reverse().find(message => !message.internal)?.role !== 'assistant') {
+        throw fail(409, '最后一条消息不是助手回复，不能继续')
+    }
 
     // 新消息代表新的时间线，之前的回退不能再撤销了。
     await Snapshot.clearUndo({ sessionId })
@@ -510,12 +552,11 @@ const send = async ({ sessionId, input }) => {
     await Rules.load({ mode: settings.mode })
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
-    const startLength = agent.history.length
     const task = agent.send({
         input: input.trim(),
         config: Config.resolve({ provider: meta.provider, model: meta.model, uses: settings.uses }),
         callbacks: {
-            onStart: () => SSE.send({ id: sessionId, data: { type: 'agent-start' } }),
+            onStart: () => SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } }),
             onLLMStart: request => SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } }),
             onLLMFinish: result => SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result } }),
             onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
@@ -538,7 +579,7 @@ const send = async ({ sessionId, input }) => {
                         // 那条对不上，回退会找不到快照。
                         onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({
                             sessionId,
-                            messageId: agent.history.findLast(message => message.role === 'user')?.id,
+                            messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
                             toolCallId,
                             toolName,
                             input: toolInput,
@@ -546,14 +587,22 @@ const send = async ({ sessionId, input }) => {
                         }),
                     },
                 })
+    // 继续指令只是给模型看的上下文，不属于用户发过的消息。
+    if (resume) {
+        const marker = agent.history[agent.history.length - 1]
+        if (marker?.role === 'user') marker.internal = true
+    }
     // 任务结束后把这一轮新增的消息写进历史文件，再通知前端刷新。
     task.then(async result => {
-        for (const message of agent.history.slice(startLength)) await History.add({ sessionId, message })
-        await History.save({ sessionId })
+        await syncHistory({ sessionId, agent })
         // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
-        await titleFor({ sessionId, meta, settings, agent })
+        if (!resume) await titleFor({ sessionId, meta, settings, agent })
         await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
-    }).catch(error => SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } }))
+    }).catch(async error => {
+        // 失败和中断也要留下已经产生的进度，用户才能从断点继续。
+        await syncHistory({ sessionId, agent }).catch(() => {})
+        await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
+    })
     return { ok: true }
 }
 
@@ -590,7 +639,14 @@ const titleFor = async ({ sessionId, meta, settings, agent }) => {
 }
 
 // --- 停止 Agent 任务 ---
-const stop = ({ sessionId }) => Store.agents.get(sessionId)?.stop() || { ok: false }
+const stop = async ({ sessionId }) => {
+    const agent = Store.agents.get(sessionId)
+    if (!agent) return { ok: false }
+    const result = await agent.stop()
+    // 中断也把已经产生的消息落盘，刷新后还能看到进度并从断点继续。
+    await syncHistory({ sessionId, agent }).catch(() => {})
+    return result
+}
 
 // --- 处理工具审批 ---
 const decide = ({ sessionId, toolCallId, decision }) => Approval.decide({ sessionId, toolCallId, decision })
@@ -605,5 +661,5 @@ export default {
     prepare, list, create, read, rename, remove, setModel, fork,
     rollback, rollbackPreview, rollbackTool, redo,
     readSettings, saveSettings,
-    changes, toolChanges, compact, send, stop, decide, count, runningCount,
+    changes, toolChanges, compact, send, resume, stop, decide, count, runningCount,
 }

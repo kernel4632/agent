@@ -50,6 +50,7 @@ app.get('/tool/list', () => Tools.list())
 // --- 注册 Agent 触发事件 ---
 app.group('/agent', agent => agent
     .post('/send/:sessionId', ({ params, body }) => Session.send({ ...params, ...body }))
+    .post('/resume/:sessionId', ({ params }) => Session.resume(params))
     .post('/stop/:sessionId', ({ params }) => Session.stop(params))
     .post('/decide/:sessionId', ({ params, body }) => Session.decide({ ...params, ...body })))
 // --- 注册 Session 触发事件 ---

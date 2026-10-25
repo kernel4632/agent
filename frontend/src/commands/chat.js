@@ -79,6 +79,25 @@ async function send(sessionID, content) {
   }
 }
 
+// 继续被中断的助手：不往时间线塞"继续"用户消息，直接复用当前进度。
+async function resume(sessionID) {
+  const session = store.sessions[sessionID]
+  if (!session || session.status === 'running') return false
+  void subscribe(sessionID)
+  session.status = 'running'
+  session.connection = 'connecting'
+  session.lastEventAt = Date.now()
+  try {
+    await AgentAPI.resumeSession(sessionID)
+    return true
+  } catch (error) {
+    session.status = 'idle'
+    session.connection = 'idle'
+    UI.notify(error.message)
+    return false
+  }
+}
+
 function toolFor(session, event, status) {
   const id = event.toolCallId || event.callID || event.callId
   if (!id) return null
@@ -116,6 +135,11 @@ async function receive(sessionID, event) {
     session.messages = snapshot.messages.slice(0, lastUser + 1)
     createAssistant(session)
     session.status = 'running'
+  } else if (event.type === 'agent-resume') {
+    // 继续不重置时间线，保留已经看到的进度，只在末尾接一段新的流式回复。
+    session.status = 'running'
+    session.connection = 'connected'
+    if (!streaming(session)) createAssistant(session)
   } else if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
     const assistant = streaming(session) || createAssistant(session)
     assistant[event.type === 'text-delta' ? 'content' : 'reasoning'] += event.text || event.textDelta || event.delta || ''
@@ -283,4 +307,4 @@ async function undoRollback(sessionID, files = true) {
   } catch (error) { UI.notify(error.message) }
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, receive, stop, decide, attach, removeFile, previewRollback, rollbackMessage, undoRollback }
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile, previewRollback, rollbackMessage, undoRollback }
