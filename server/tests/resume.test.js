@@ -106,6 +106,38 @@ describe('继续被中断的助手', () => {
         })
     })
 
+    test('每一步结束后就把进度写进历史', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            await History.add({ sessionId, message: { id: 'a0', role: 'assistant', content: text('旧进度') } })
+            await History.save({ sessionId })
+
+            const agent = {
+                history: [{ id: 'a0', role: 'assistant', content: text('旧进度') }],
+                running: null,
+                stop: async () => ({ ok: true }),
+                send(options) {
+                    agent.history.push({ id: 'u1', role: 'user', content: text('新任务') })
+                    options.callbacks.onStart()
+                    setTimeout(() => {
+                        agent.history.push({ id: 'a1', role: 'assistant', content: text('已完成一步') })
+                        options.callbacks.onStep()
+                    }, 0)
+                    // 模拟下一步开始前进程被关掉，任务永远不返回。
+                    return new Promise(() => {})
+                },
+            }
+            Store.agents.set(sessionId, agent)
+
+            expect(await Session.send({ sessionId, input: '新任务' })).toEqual({ ok: true })
+            for (let attempt = 0; attempt < 50 && History.get({ sessionId }).length < 3; attempt += 1) await Bun.sleep(10)
+
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.id)).toEqual(['a0', 'u1', 'a1'])
+            expect(history.at(-1).content).toEqual(text('已完成一步'))
+        })
+    })
+
     test('任务在跑或最后一条不是助手回复时拒绝继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()

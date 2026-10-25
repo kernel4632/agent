@@ -571,6 +571,8 @@ const run = async ({ sessionId, input, resume = false }) => {
                 }
                 SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
             },
+            // 每完成一步就落盘；关掉软件或进程被杀时，已完成的进度还在。
+            onStep: () => { void syncHistory({ sessionId, agent }).catch(() => {}) },
                         onCompact: event => SSE.send({ id: sessionId, data: event }),
                         // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
                         // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await
@@ -592,6 +594,8 @@ const run = async ({ sessionId, input, resume = false }) => {
         const marker = agent.history[agent.history.length - 1]
         if (marker?.role === 'user') marker.internal = true
     }
+    // 先把用户消息或恢复前的进度落盘；第一轮模型还没返回就关掉软件也不丢这一轮。
+    void syncHistory({ sessionId, agent }).catch(() => {})
     // 任务结束后把这一轮新增的消息写进历史文件，再通知前端刷新。
     task.then(async result => {
         await syncHistory({ sessionId, agent })
