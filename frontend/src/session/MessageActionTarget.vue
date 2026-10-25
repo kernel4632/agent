@@ -100,7 +100,7 @@ onBeforeUnmount(cancelPress)
 </template>
 
 <style scoped lang="scss">
-.message-action-target { display: block; min-width: 0; }
+.message-action-target { display: block; width: 100%; min-width: 0; }
 .message-actions {
   position: fixed;
   inset: 0;

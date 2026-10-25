@@ -16,7 +16,7 @@ import { groupMessageTurns } from './turns.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import './conversation.scss'
-import AssistantMessage from './AssistantMessage.vue'
+import AssistantTurn from './AssistantTurn.vue'
 import RollbackDialog from './RollbackDialog.vue'
 import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
@@ -95,18 +95,13 @@ function onUserMenu(message, action) {
         </MessageActionTarget>
       </template>
       <template v-else>
-        <div class="assistant-thread">
-          <AssistantMessage
-            v-for="message in turn.messages"
-            :key="message.id"
-            :message="message"
-            :session-id="session.id"
-            :running="session.status === 'running'"
-            :can-rollback="canRollback(message)"
-            @rollback="requestRollback(message)"
-            @fork="forkFrom(message)"
-          />
-        </div>
+        <AssistantTurn
+          :messages="turn.messages"
+          :session-id="session.id"
+          :running="session.status === 'running'"
+          @rollback="requestRollback"
+          @fork="forkFrom"
+        />
       </template>
     </article>
     <RollbackDialog

@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import '@m3e/web/theme'
 import '@kernel4632/kima/styles/button.css'
+import '@kernel4632/kima/styles/card.css'
 import '@kernel4632/kima/styles/icon.css'
 import '@kernel4632/kima/styles/icon-button.css'
 import '@kernel4632/kima/styles/text-field.css'

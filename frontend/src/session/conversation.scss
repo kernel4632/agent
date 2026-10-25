@@ -61,9 +61,9 @@
 @keyframes avatar-breathe { 50% { opacity: .78; transform: scale(1.05); } }
 .assistant-head__name { flex: 0 0 auto; color: var(--la-text); font-size: 13px; font-weight: 600; }
 .assistant-head__model { min-width: 0; overflow: hidden; color: var(--la-muted); font: 12px/1.4 var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; }
-/* 一轮助手发言内部不额外留白，轮次之间由 conversation-flow 的 12px 控制。 */
-.assistant-thread { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* 一轮助手发言是一条连续消息：思考卡片和正文之间只留 8px。 */
 .assistant-message { display: flex; flex-direction: column; min-width: 0; }
+.rikka-message--assistant { gap: 8px; }
 
 /* 思考行和工具行的标题按钮：只占文本列，图标和右侧操作单独成列。 */
 .list-row__toggle {
@@ -214,8 +214,9 @@
 }
 .rikka-bubble--assistant {
   max-width: 100%;
-  border-top-left-radius: 6px;
-  background: var(--la-layer-02);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .rikka-bubble--user .markdown-body,
 .rikka-bubble--assistant .markdown-body { font-size: 16px; line-height: 1.7; }
@@ -233,7 +234,6 @@
 /* 思考与工具共用一张时间线卡片，步骤可以整体折叠。 */
 .cot-card {
   width: 100%;
-  margin-bottom: 4px;
   padding: 4px 12px;
   border-radius: 20px;
   background: var(--la-layer-02);
@@ -335,10 +335,7 @@
   mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
 }
 .reasoning-text { margin: 0; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
-.rikka-message__actions { display: flex; align-items: center; gap: 2px; min-height: 24px; opacity: 0; transform: translateX(4px); transition: opacity .16s ease, transform .16s ease; }
-.rikka-message:hover .rikka-message__actions, .rikka-message:focus-within .rikka-message__actions { opacity: 1; transform: none; }
 @media (max-width: 767px) {
-  .rikka-message__actions { opacity: 1; transform: none; }
   .rikka-bubble--user { max-width: 100%; }
 }
 

@@ -386,6 +386,37 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   expect(mock.errors).toEqual([])
 })
 
+test('auto-continued assistant messages render as one continuous reply', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'text-delta', text: '第一段。' },
+    { type: 'llm-finish', text: '第一段。', usage: { inputTokens: 10, outputTokens: 4 } },
+    { type: 'tool-call', toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '- [ ] 继续' } },
+    { type: 'tool-result', toolCallId: 'todo-1', toolName: 'update_todo_list', output: { type: 'json', value: { items: [{ text: '继续', status: 'pending' }] } } },
+    { type: 'text-delta', text: '第二段。' },
+    { type: 'llm-finish', text: '第二段。', usage: { inputTokens: 12, outputTokens: 5 } },
+    { type: 'tool-call', toolCallId: 'done-1', toolName: 'attempt_completion', input: { result: '最终结果。' } },
+    { type: 'tool-result', toolCallId: 'done-1', toolName: 'attempt_completion', output: { type: 'text', value: '最终结果。' } },
+  ])
+
+  await expect(page.locator('.rikka-bubble--assistant')).toHaveCount(1)
+  await expect(page.locator('.cot-card')).toHaveCount(1)
+  await expect(page.locator('.rikka-bubble--assistant')).toContainText('第一段。')
+  await expect(page.locator('.rikka-bubble--assistant')).toContainText('第二段。')
+  await expect(page.locator('.rikka-bubble--assistant')).toContainText('最终结果。')
+  await expect(page.locator('.cot-step--tool')).toHaveCount(1)
+  expect(await page.locator('.rikka-bubble--assistant').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+  await screenshot(page, testInfo, 'assistant-turn')
+  expect(mock.errors).toEqual([])
+})
+
 test('batch delete removes several sessions in one pass', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
