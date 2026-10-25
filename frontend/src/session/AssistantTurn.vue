@@ -153,7 +153,8 @@ watch(streaming, value => {
 
       <div v-if="content" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }">
         <div class="markdown-body" v-html="renderMarkdown(content)"></div>
-        <span v-if="streaming" class="stream-caret" aria-hidden="true"></span>
+        <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
+        <span v-if="streaming && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>
 
       <div v-if="streaming && !content && !steps.length" class="typing" role="status">

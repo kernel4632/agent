@@ -30,6 +30,13 @@ const emit = defineEmits(['remove'])
 <style scoped lang="scss">
 .chat-composer__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .chat-composer__file { max-width: 100%; }
+/* 长文件名只截一行，不能把输入框越撑越高；完整名字仍在移除按钮的无障碍名称里。 */
+.chat-composer__file :deep(.kima-chip__text) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .attachments-enter-active, .attachments-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .attachments-enter-from, .attachments-leave-to { opacity: 0; transform: translateY(6px); }
 </style>

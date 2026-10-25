@@ -72,7 +72,7 @@ function userMenuItems(message) {
 }
 
 function onUserMenu(message, action) {
-  if (action === 'copy') UI.copy(message.content)
+  if (action === 'copy') UI.copy(message.displayContent ?? message.content)
   else if (action === 'rollback') requestRollback(message)
   else if (action === 'fork') forkFrom(message)
 }
@@ -97,14 +97,20 @@ async function continueAssistant() {
       <template v-if="turn.role === 'user'">
         <MessageActionTarget
           :items="userMenuItems(turn.messages[0])"
-          :preview="turn.messages[0].content"
+          :preview="turn.messages[0].displayContent ?? turn.messages[0].content"
           role-label="你的消息"
           label="消息操作"
           @select="onUserMenu(turn.messages[0], $event)"
         >
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user">
-              <div class="markdown-body" v-html="renderMarkdown(turn.messages[0].content)"></div>
+              <div class="markdown-body" v-html="renderMarkdown(turn.messages[0].displayContent ?? turn.messages[0].content)"></div>
+              <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
+                <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
+                  <AppIcon name="document" :size="14" />
+                  <span class="user-attachment__name">{{ file.name }}</span>
+                </span>
+              </div>
             </div>
           </div>
         </MessageActionTarget>

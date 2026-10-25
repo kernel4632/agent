@@ -98,7 +98,8 @@ const update = patch => emit('update:provider', { ...props.provider, ...patch })
   border-radius: 20px;
   background: var(--la-layer-01);
 }
-.provider-field { display: grid; gap: 8px; }
+.provider-field { display: grid; gap: 8px; min-width: 0; }
+.provider-field > * { min-width: 0; max-width: 100%; }
 .provider-field__label {
   color: var(--kima-color-on-surface-variant);
   font-family: var(--kima-font-family);

@@ -9,6 +9,7 @@ import { UI } from './ui.js'                            // 引入导航和反馈
 import { Tabs } from './tabs.js'                        // 同步顶部会话标签
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
 import { formatToolOutput, toolStatus } from '../session/tool-ui.js' // 工具状态和文本只有一处判断
+import { splitUserAttachments } from '../utils/user-message.js'      // 历史里的附件正文不能跑进用户气泡
 
 
 // --- 自动批准的四个类别 ---
@@ -354,6 +355,11 @@ function normalize(source, previous = {}) {
     }
     message.reasoning = parts.filter((p) => p.type === 'reasoning').map((p) => p.reasoning || p.text || '').join('') // 合并推理块
     message.content = parts.filter((p) => p.type === 'text').map((p) => p.text || '').join('') // 合并文本块
+    if (item.role === 'user') {
+      const parsed = splitUserAttachments(message.content) // 历史只保存拼好的输入，附件正文不能进气泡
+      message.displayContent = parsed.content              // content 保留完整输入，回退和重新发送仍然可用
+      message.attachments = parsed.attachments
+    }
     message.tools = parts
       .filter((p) => p.type === 'tool-invocation' || p.type === 'tool-call')
       .map((p) => {

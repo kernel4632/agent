@@ -71,9 +71,17 @@ async function send(sessionID, content) {
   if (!session || !content.trim() || session.status === 'running' || stopping.has(sessionID)) return false
   const provider = store.config.providers[session.provider]
   if (!session.model || !provider?.baseURL || provider.enabled === false) { UI.notify('请先配置并启用此会话使用的模型供应商'); return false }
-  const input = content.trim() + session.files.map(file => `\n\n附件 ${JSON.stringify(file.name)}:\n${file.content}`).join('')
+  const files = session.files || []
+  const input = content.trim() + files.map(file => `\n\n附件 ${JSON.stringify(file.name)}:\n${file.content}`).join('')
   void subscribe(sessionID)
-  session.messages.push({ id: `pending_${crypto.randomUUID()}`, role: 'user', content: input })
+  // content 保留完整输入（回退后还能重新发送附件正文），气泡只读 displayContent。
+  session.messages.push({
+    id: `pending_${crypto.randomUUID()}`,
+    role: 'user',
+    content: input,
+    displayContent: content.trim(),
+    attachments: files.map(file => ({ id: file.id, name: file.name })),
+  })
   createAssistant(session)
   session.status = 'running'
   session.lastEventAt = Date.now()

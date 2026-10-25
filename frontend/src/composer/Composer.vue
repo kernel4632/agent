@@ -297,7 +297,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     color: var(--la-muted);
     opacity: 0;
     pointer-events: none;
-    transform: translate(10px, -10px) scale(.8) rotate(-8deg);
+    transform: translate(4px, -4px) scale(.8) rotate(-8deg);
     transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-slow) var(--kima-curve-emphasized), color var(--kima-duration-effects) var(--kima-curve-standard), background-color var(--kima-duration-effects) var(--kima-curve-standard);
   }
   &__expand-button:hover {

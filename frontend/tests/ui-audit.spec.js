@@ -246,6 +246,7 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   const label = page.getByText('任务清单 · 当前进度', { exact: true })
   await expect(label).toBeVisible()
   await expect(page.locator('.cot-step--tool .cot-step__head')).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
   await expect(page.locator('.cot-step--tool').getByText('读现有实现', { exact: true })).toBeVisible()
   await expect(page.locator('.cot-step--tool').getByText('补测试', { exact: true })).toBeVisible()
   const panel = page.locator('.session-todos')
@@ -280,6 +281,8 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await expect(page.locator('.rikka-bubble--assistant')).toHaveCount(1)
   await expect(page.locator('.cot-card')).toHaveCount(1)
   await expect(page.locator('.rikka-bubble--assistant')).toContainText('最终结果。')
+  // 结束工具结果已完整时不再闪流式光标。
+  await expect(page.locator('.rikka-bubble--assistant .stream-caret')).toHaveCount(0)
   // 非结束正文只进时间线，不能和结束工具的结果拼成一个气泡。
   await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第一段。')
   await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第二段。')
@@ -690,6 +693,93 @@ test('session row menu stays inside the drawer and centers on its row', async ({
   await expect(trigger.locator('svg').last()).toBeHidden()
   await page.keyboard.press('Escape')
   await expect(popup).toBeHidden()
+  expect(mock.errors).toEqual([])
+})
+
+test('settings pages start at the top instead of keeping the previous scroll', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  const scroll = page.locator('.settings-scroll')
+  await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
+
+  // 首页滚到底再打开详情，详情必须从顶部开始。
+  await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await page.getByRole('button', { name: /模型供应商/ }).click()
+  await expect(page.getByRole('heading', { name: '模型供应商', exact: true, level: 1 })).toBeVisible()
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBe(0)
+
+  // 详情滚到中间再返回，首页也必须从顶部开始。
+  await scroll.evaluate(element => { element.scrollTop = 600 })
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBe(0)
+  expect(mock.errors).toEqual([])
+})
+
+test('long attachment names stay on one line in the composer', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.locator('input[type=file]').setInputFiles({
+    name: '一个非常长的附件名字用来检查附件条会不会把输入框撑破.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('hello'),
+  })
+  const chip = page.locator('.chat-composer__file')
+  const text = chip.locator('.kima-chip__text')
+  await expect(chip).toBeVisible()
+  expect(await text.evaluate(element => getComputedStyle(element).whiteSpace)).toBe('nowrap')
+  expect(await chip.evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(44)
+  expect(mock.errors).toEqual([])
+})
+
+test('attachment content stays out of the user bubble', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.locator('input[type=file]').setInputFiles({
+    name: '一个非常长的附件名字用来检查气泡里的文件名会不会把消息撑长.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('这段附件正文不应该出现在用户气泡里'),
+  })
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('看看附件')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const bubble = page.locator('.rikka-bubble--user')
+  await expect(bubble).toContainText('看看附件')
+  await expect(bubble.locator('.user-attachment')).toContainText('一个非常长的附件名字')
+  await expect(bubble).not.toContainText('这段附件正文不应该出现在用户气泡里')
+  await expect(bubble.locator('.user-attachment__name')).toHaveCSS('white-space', 'nowrap')
+  expect(await bubble.evaluate(element => element.getBoundingClientRect().height)).toBeLessThan(180)
+  expect(mock.errors).toEqual([])
+})
+
+test('narrow settings keep controls readable and inside the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 })
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.waitForTimeout(500)
+  await page.getByRole('button', { name: /工具管理/ }).click()
+  await expect(page.getByRole('heading', { name: '工具管理', exact: true, level: 1 })).toBeVisible()
+  const labels = page.locator('.settings-row__select .kima-select__trigger-label')
+  await expect(labels.first()).toHaveText('每次询问')
+  const clipped = await labels.evaluateAll(nodes => nodes.filter(node => {
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    return range.getBoundingClientRect().width > node.getBoundingClientRect().width + 0.1
+  }).length)
+  expect(clipped).toBe(0)
+
+  // 高级页的多行输入也不能把设置卡片撑出 320px 屏幕。
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.waitForTimeout(400)
+  await page.getByRole('button', { name: /高级/ }).click()
+  await expect(page.getByRole('heading', { name: '高级', exact: true, level: 1 })).toBeVisible()
+  const overflow = await page.locator('.settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
   expect(mock.errors).toEqual([])
 })
 

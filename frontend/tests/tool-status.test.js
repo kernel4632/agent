@@ -110,6 +110,17 @@ test('历史归一化保留正文和工具的原始顺序', () => {
     assert.deepEqual(normalized.messages[0].steps.map(step => step.type), ['reasoning', 'text', 'tool', 'text'])
 })
 
+test('历史里的用户附件只留下文件名，附件正文仍保留给回退', () => {
+    const raw = '看看附件\n\n附件 "a.txt":\nsecret'
+    const normalized = Session.normalize({
+        id: 'session-1',
+        history: [{ messageId: 'user-1', role: 'user', content: raw }],
+    })
+    assert.equal(normalized.messages[0].displayContent, '看看附件')
+    assert.equal(normalized.messages[0].content, raw)
+    assert.deepEqual(normalized.messages[0].attachments, [{ name: 'a.txt' }])
+})
+
 test('被拒绝的 attempt_completion 不算收尾，继续按钮才会出现', async () => {
     const normalized = Session.normalize({ id: 'session-1', history: historyFor(cases[0]) }).messages
     const tool = normalized[0].tools[0]

@@ -107,4 +107,10 @@ function updatePermission(index, permission) {
   .settings-row__control { width: 100%; justify-content: space-between; }
   .settings-row__select { width: auto; flex: 1; }
 }
+/* 320px 下权限下拉只剩一百多像素，“每次询问”会被截成“每次…”。 */
+/* 收紧列表和控件间距，把空间还给文字。 */
+@media (max-width: 360px) {
+  .settings-list { padding-inline: 16px; }
+  .settings-row__control { gap: 10px; }
+}
 </style>

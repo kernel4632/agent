@@ -20,6 +20,11 @@ const now = ref(Date.now())
 let timer = null
 
 const statusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
+const statusText = computed(() => {
+  // 任务清单的工具完成只代表“清单已更新”，不是清单里的任务都完成了。
+  if (canonicalToolName(props.tool.name) === 'update_todo_list' && props.tool.status === 'completed') return '已更新'
+  return statusLabel(props.tool.status)
+})
 const statusClass = status => `is-${status || 'waiting'}`
 const running = computed(() => props.tool.status === 'running' || props.tool.status === 'waiting')
 const duration = computed(() => {
@@ -53,8 +58,8 @@ function decide(decision) {
     <span class="cot-step__icon"><AppIcon :name="toolIcon(tool)" :size="16" /></span>
     <div class="cot-step__main">
       <button type="button" class="cot-step__head" :aria-expanded="open" @click="open = !open">
-        <span class="cot-step__label" :class="{ 'is-live': running }" :title="tool.name">{{ toolLabel(tool) }}</span>
-        <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusLabel(tool.status) }}</span><template v-if="duration"> · {{ duration }}</template></span>
+        <span class="cot-step__label" :class="{ 'is-live': running }" :title="toolLabel(tool)">{{ toolLabel(tool) }}</span>
+        <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
         <AppIcon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': open }" aria-hidden="true" />
       </button>
       <div class="cot-collapse" :class="{ 'is-open': open }" :inert="!open" :aria-hidden="!open">

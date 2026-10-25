@@ -143,6 +143,7 @@ function applyModes() {
 <style scoped lang="scss">
 .advanced-settings {
   display: grid;
+  min-width: 0;
   gap: 24px;
   color: var(--la-secondary);
   font-size: 14px;
@@ -150,19 +151,24 @@ function applyModes() {
 
 .advanced-settings__block {
   display: grid;
+  min-width: 0;
   gap: 20px;
   padding: 24px;
   border: 0;
   border-radius: 20px;
   background: var(--la-layer-01);
 }
+/* 多行输入自带较宽的默认列宽，不能让 320px 下的卡片被它撑出屏幕。 */
+.advanced-settings__block > * { min-width: 0; max-width: 100%; }
 
 .advanced-settings__head {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
 }
+.advanced-settings__head > div { min-width: 0; }
 
 .advanced-settings__intro { display: grid; gap: 4px; }
 .advanced-settings__intro p { margin: 0; }
@@ -190,9 +196,11 @@ code {
 
 .advanced-settings__row {
   display: grid;
+  min-width: 0;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+.advanced-settings__row > * { min-width: 0; }
 
 .advanced-settings__actions {
   display: flex;

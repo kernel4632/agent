@@ -5,7 +5,7 @@
 调用示例：<SettingsPage />；打开首页用 UI.openSettings()，直接进详情用 UI.openSettings('providers')。
 -->
 <script setup>
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
 import { Settings } from '../commands/settings.js'
@@ -17,6 +17,12 @@ const selected = computed({
   get: () => store.ui.settingsSection || '',
   set: value => { store.ui.settingsSection = value },
 })
+const scroll = ref(null)
+
+// 换设置页时从顶部开始：上一页滚到一半，新页面不能接着从中间显示。
+function resetScroll() {
+  if (scroll.value) scroll.value.scrollTop = 0
+}
 const selectedPage = computed(() => {
   const page = settingsPages.find(item => item.id === selected.value)
   return page?.component && !page.disabled ? page : null
@@ -76,8 +82,8 @@ function goBack() {
       </div>
     </header>
 
-    <div class="settings-scroll">
-      <Transition name="settings-view" mode="out-in">
+    <div ref="scroll" class="settings-scroll">
+      <Transition name="settings-view" mode="out-in" @before-enter="resetScroll">
         <!-- 详情页自己可能是多根组件（如模型供应商页），统一包一层单根容器，过渡才有落点。 -->
         <div v-if="selectedPage && draft" :key="selected" class="settings-detail">
           <component :is="selectedPage.component" :draft="draft" />

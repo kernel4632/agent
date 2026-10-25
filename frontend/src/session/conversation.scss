@@ -156,7 +156,7 @@
 .approval { display: grid; gap: 8px; padding: 4px 0 2px; }
 .approval p { margin: 0; color: var(--la-secondary); font-size: 12.5px; line-height: 18px; }
 .approval > div { display: flex; flex-wrap: wrap; gap: 6px; }
-.approval .button { height: 26px; padding: 0 10px; font-size: 12px; }
+.approval .button { height: 40px; padding: 0 14px; font-size: 13px; }
 
 /* 助手正文直接铺开，不加背景块。 */
 .markdown-body { min-width: 0; color: var(--la-text); font-size: 13.5px; line-height: 1.8; overflow-wrap: anywhere; }
@@ -190,7 +190,7 @@
   .conversation-flow { padding: 8px 16px 18px; gap: 12px; }
   .list-row { gap: 7px; padding: 3px 2px; }
   .list-row__actions { opacity: 1; transform: none; }
-  .approval .button { height: 28px; }
+  .approval .button { height: 44px; }
 }
 @media (hover: none) {
   .list-row__actions { opacity: 1; transform: none; }
@@ -209,7 +209,6 @@
   color: var(--md-sys-color-on-primary-container);
   font-size: 16px;
   line-height: 24px;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .rikka-bubble--assistant {
@@ -219,6 +218,21 @@
   background: transparent;
   animation: surface-in var(--la-motion-enter) var(--kima-curve-standard) both;
 }
+/* 附件在气泡里只留文件名；正文和附件内容都已交给模型，不再重复显示。 */
+.user-attachments { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.user-attachment {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 12px;
+  line-height: 18px;
+}
+.user-attachment__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rikka-bubble--user .markdown-body,
 .rikka-bubble--assistant .markdown-body { font-size: 16px; line-height: 1.7; }
 .stream-caret {

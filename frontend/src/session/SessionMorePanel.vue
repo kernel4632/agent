@@ -115,6 +115,6 @@ const targetFrom = (session, value) => {
 /* KimaSelect 的弹层是控件内绝对定位，不走 portal；面板最底部一行的弹层可能被滚动容器裁掉。等 KIMA 修复：https://github.com/kernel4632/kima/issues/5 */
 @media (max-width: 767px) {
   .chat-more { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 16px; max-height: 60vh; }
-  .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 150px; max-width: 150px; }
+  .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 160px; max-width: 160px; }
 }
 </style>

@@ -128,7 +128,9 @@ function keydown(event) {
   cursor: pointer;
 }
 .command-palette__item:hover, .command-palette__item.is-active { background: var(--la-layer-03); }
-.command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+/* 窄屏或长标题时先截断名称，右侧提示最多占一半，不能把行撑出面板。 */
+.command-palette__item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.command-palette__item small { max-width: 50%; flex: 0 1 auto; overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .command-palette__empty { margin: 0; padding: 24px 14px; color: var(--la-muted); font-size: 14px; }
 .palette-enter-active, .palette-leave-active { transition: opacity .18s ease; }
 .palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition: transform var(--kima-duration-medium) var(--kima-curve-standard), opacity var(--kima-duration-effects) var(--kima-curve-standard); }
