@@ -162,7 +162,7 @@ async function submitDialog() {
 
 <style scoped lang="scss">
 .home-sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
+.home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; }
 .home-sessions__group { display: flex; flex-direction: column; gap: 6px; }
 .session-list { display: grid; gap: 2px; }
 :global(.session-list .kima-list__item) {
@@ -172,13 +172,13 @@ async function submitDialog() {
   border-radius: 12px;
   background: transparent;
 }
-.group-label { display: flex; height: 30px; flex: none; align-items: center; margin: 0; padding: 0 10px; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.group-label { display: flex; height: 30px; flex: none; align-items: center; margin: 0; padding: 0 12px; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; letter-spacing: 0; }
 .home-session { display: flex; width: 100%; min-height: 48px; flex: none; align-items: center; border-radius: 12px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
 .home-session.is-selected { background: var(--la-accent-soft); }
 .home-session__check { flex: none; margin-left: 8px; }
-.session-check-enter-active, .session-check-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.session-check-enter-active, .session-check-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .session-check-enter-from, .session-check-leave-to { opacity: 0; transform: scale(.8); }
 .home-session__main {
   display: flex;

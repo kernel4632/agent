@@ -30,6 +30,6 @@ const emit = defineEmits(['remove'])
 <style scoped lang="scss">
 .chat-composer__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .chat-composer__file { max-width: 100%; }
-.attachments-enter-active, .attachments-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.attachments-enter-active, .attachments-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .attachments-enter-from, .attachments-leave-to { opacity: 0; transform: translateY(6px); }
 </style>

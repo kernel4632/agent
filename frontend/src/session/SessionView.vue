@@ -128,7 +128,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
   background: var(--la-warning);
 }
 /* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
-.notice-enter-active, .panel-enter-active { transition: opacity .18s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.notice-enter-active, .panel-enter-active { transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .notice-leave-active, .panel-leave-active { transition: opacity .14s ease, transform .14s ease; }
 .notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(6px); }
 .panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(10px) scale(.99); }

@@ -141,7 +141,7 @@ async function continueAssistant() {
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .continue-row { display: flex; justify-content: flex-start; padding: 2px 0 18px; }
 .continue-button { min-height: 44px; padding: 0 20px; border-radius: 999px; gap: 8px; }
-.continue-enter-active { transition: opacity .18s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.continue-enter-active { transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .continue-leave-active { transition: opacity .14s ease, transform .14s ease; }
 .continue-enter-from, .continue-leave-to { opacity: 0; transform: translateY(8px); }
 

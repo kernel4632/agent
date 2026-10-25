@@ -137,7 +137,7 @@ async function confirmDelete() {
   gap: 10px;
   font-size: 16px;
 }
-.drawer-action-enter-active, .drawer-action-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.drawer-action-enter-active, .drawer-action-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .drawer-action-enter-from, .drawer-action-leave-to { opacity: 0; transform: translateY(6px); }
 .app-drawer__confirm { margin: 0 0 20px; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
 

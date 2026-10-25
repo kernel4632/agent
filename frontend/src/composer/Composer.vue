@@ -376,7 +376,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 .model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 斜杠菜单和发送/停止按钮的切换都从操作点附近出现。 */
-.slash-enter-active, .slash-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.slash-enter-active, .slash-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .slash-enter-from, .slash-leave-to { opacity: 0; transform: translateY(6px); }
 .send-enter-active, .send-leave-active { transition: opacity .14s ease, transform .18s ease; }
 .send-enter-from, .send-leave-to { opacity: 0; transform: scale(.86); }

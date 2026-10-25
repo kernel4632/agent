@@ -131,7 +131,7 @@ function keydown(event) {
 .command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .command-palette__empty { margin: 0; padding: 24px 14px; color: var(--la-muted); font-size: 14px; }
 .palette-enter-active, .palette-leave-active { transition: opacity .18s ease; }
-.palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition: transform .24s cubic-bezier(.2, 0, 0, 1), opacity .18s ease; }
+.palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition: transform var(--kima-duration-medium) var(--kima-curve-standard), opacity var(--kima-duration-effects) var(--kima-curve-standard); }
 .palette-enter-from, .palette-leave-to { opacity: 0; }
 .palette-enter-from .command-palette__panel, .palette-leave-to .command-palette__panel { opacity: 0; transform: translateY(-10px) scale(.98); }
 @media (prefers-reduced-motion: reduce) {

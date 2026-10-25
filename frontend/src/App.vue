@@ -181,11 +181,11 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 .rikka-main { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; }
 .app-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
 /* 页面切换像 KIMA 的注意力引导：进入时轻微上移并淡入，离开更快。 */
-.view-enter-active { transition: opacity .2s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.view-enter-active { transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .view-leave-active { transition: opacity .14s ease, transform .14s ease; }
 .view-enter-from { opacity: 0; transform: translateY(10px); }
 .view-leave-to { opacity: 0; transform: translateY(-6px); }
-.alert-enter-active, .alert-leave-active { transition: opacity .18s ease, transform .22s cubic-bezier(.2, 0, 0, 1); }
+.alert-enter-active, .alert-leave-active { transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .alert-enter-from, .alert-leave-to { opacity: 0; transform: translateY(-8px); }
 @media (prefers-reduced-motion: reduce) {
   .view-enter-active, .view-leave-active, .alert-enter-active, .alert-leave-active { transition-duration: .01ms; }

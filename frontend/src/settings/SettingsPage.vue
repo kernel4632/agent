@@ -137,7 +137,7 @@ function goBack() {
 .settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 24px 48px; overscroll-behavior: contain; }
 .settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
 .settings-home { display: block; }
-.settings-view-enter-active { transition: opacity .2s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.settings-view-enter-active { transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
 .settings-view-leave-active { transition: opacity .14s ease, transform .14s ease; }
 .settings-view-enter-from { opacity: 0; transform: translateX(12px); }
 .settings-view-leave-to { opacity: 0; transform: translateX(-8px); }
