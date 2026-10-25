@@ -79,7 +79,7 @@ function onUserMenu(message, action) {
 
 // 只有最后一轮助手没有调用结束工具时才提供继续；正常收尾的回复不再追着模型跑。
 const canContinue = computed(() => {
-  if (!session.value || session.value.status === 'running') return false
+  if (!session.value || session.value.status === 'running' || session.value.stopping) return false
   const turn = turns.value.at(-1)
   if (!turn || turn.role !== 'assistant') return false
   return !hasStopTool(turn.messages) && canRollback(turn.messages.at(-1))

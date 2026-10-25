@@ -57,7 +57,8 @@ export const AgentAPI = {
   sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
   // 继续被中断的助手回复；内部提示不会作为用户消息保存。
   resumeSession:    (sessionID)                 => request(`/agent/resume/${encodeURIComponent(sessionID)}`, 'POST'),
-  stopSession:      (sessionID)                 => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST'),
+  // 停止时可以带上已经流出的半段回复，Server 先保存再停，刷新后不会丢正文。
+  stopSession:      (sessionID, partial)        => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST', partial ? { partial } : undefined),
   subscribeSession,
   // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。
   decideTool:       (sessionID, toolCallId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, decision }),

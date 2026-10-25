@@ -22,9 +22,9 @@ export async function readAttachments(files) {
   const accepted = []
   const errors = []
   for (const file of files) {
-    const error = attachmentError(file)
-    if (error) { errors.push(error); continue }
-    accepted.push({ id: crypto.randomUUID(), name: file.name, content: await file.text() })
+    const error = attachmentError(file)                   // 大小和扩展名一起检查
+    if (error) { errors.push(error); continue }           // 失败的文件不读取内容
+    accepted.push({ id: crypto.randomUUID(), name: file.name, content: await file.text() }) // 只保存文本内容
   }
-  return { files: accepted, errors }
+  return { files: accepted, errors }                       // 调用方统一提示错误
 }

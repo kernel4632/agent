@@ -194,7 +194,24 @@ export async function backend(page, { configured = true } = {}) {
       session.title = '一个新的项目'
       return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
-    if (path.startsWith('/agent/stop/')) { session.running = false; await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
+    if (path.startsWith('/agent/stop/')) {
+      session.running = false
+      session.pending = []
+      // 真实后端会保存停止前已经流出的半段回复；mock 也写进历史，刷新后不能丢。
+      const partial = body?.partial
+      if (partial?.content || partial?.reasoning) {
+        session.history.push({
+          messageId: 'assistant-stopped',
+          role: 'assistant',
+          content: [
+            ...(partial.reasoning ? [{ type: 'reasoning', text: partial.reasoning }] : []),
+            ...(partial.content ? [{ type: 'text', text: partial.content }] : []),
+          ],
+        })
+      }
+      await json({ ok: true })
+      return emit(id, [{ type: 'agent-finish', reason: 'stopped' }])
+    }
     if (path.startsWith('/agent/resume/')) {
       await json({ ok: true })
       session.running = false

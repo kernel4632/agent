@@ -99,7 +99,7 @@ const save = async ({ sessionId }) => {
     await mkdir(dirname(path), { recursive: true })
     // 原子写入会先写临时文件，再替换正式文件，避免留下半份 JSON。
     await writeFile(path, JSON.stringify(Store.sessions.get(sessionId), null, 2))
-    // 历史落盘后清掉已经包含在其中的事件；断线重连时前端会先读历史，再接收新事件。
+    // 历史落盘后清掉已包含的事件；断线重连会先读历史，再接收新事件。
     await SSE.reset({ id: sessionId })
 }
 

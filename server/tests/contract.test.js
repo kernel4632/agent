@@ -72,11 +72,9 @@ describe('接口契约', () => {
         expect(pairs(frontendToolUi)).toEqual(pairs(serverAliases))
 
         const serverStops = [...control.matchAll(/name: '([^']+)'/g)].map(match => match[1]).sort()
-        const frontendStops = [...stopTools.matchAll(/'([a-z_]+)'/g)]
-            .map(match => match[1])
-            .filter(name => serverStops.includes(name))
-            .sort()
-        // 结束工具一改，前端就会把“任务完成”误判成“需要继续”。
+        const stopBlock = stopTools.slice(stopTools.indexOf('STOP_TOOLS = new Set(['), stopTools.indexOf('])', stopTools.indexOf('STOP_TOOLS = new Set([')))
+        const frontendStops = [...stopBlock.matchAll(/'([^']+)'/g)].map(match => match[1]).sort()
+        // 结束工具一改，前端就会把“任务完成”误判成“需要继续”；两边必须完全相等，不能只查一个方向。
         expect(frontendStops).toEqual(serverStops)
     })
 

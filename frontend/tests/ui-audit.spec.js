@@ -382,6 +382,22 @@ test('Chinese IME does not submit and stop uses the existing endpoint', async ({
   expect(mock.errors).toEqual([])
 })
 
+test('stop keeps the partial assistant text and offers continue', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
+  const stopCall = mock.calls.find(call => call.path === '/agent/stop/session-1')
+  expect(stopCall.body.partial).toMatchObject({ content: '正在处理' })
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '继续助手', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('retry keeps the stop button available after reconnecting', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -557,12 +573,16 @@ test('MCP service can be added and saved', async ({ page }) => {
   const env = page.getByLabel('环境变量（JSON 格式）')
   await env.fill('{bad')
   await expect(page.getByRole('alert')).toContainText('环境变量必须是 JSON 对象')
+  // 改其他字段不能把写错的 JSON 冲掉，否则用户会以为自己白改了。
+  await page.getByRole('switch', { name: '启用此服务' }).click()
+  await expect(env).toHaveValue('{bad')
+  await expect(page.getByRole('alert')).toContainText('环境变量必须是 JSON 对象')
   await env.fill('{"API_KEY":"x"}')
   await expect(page.getByRole('alert')).toHaveCount(0)
   await expect.poll(() => mock.config().mcp['MCP 2']?.env).toEqual({ API_KEY: 'x' })
 
   const saved = mock.config()
-  expect(saved.mcp['MCP 2'].enabled).toBe(true)
+  expect(saved.mcp['MCP 2'].enabled).toBe(false) // 上面为了保住错误草稿把开关关掉了
 })
 
 test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
@@ -652,6 +672,7 @@ test('session row menu stays inside the drawer and centers on its row', async ({
   expect(popupBox.x).toBeGreaterThanOrEqual(panelBox.x - 1)
   expect(popupBox.x + popupBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width + 1)
   expect(popupBox.y).toBeGreaterThanOrEqual(0)
+  expect(popupBox.y + popupBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1)
 
   // 只隐藏 KIMA 生成的箭头，插槽里的“更多”图标必须还在。
   await expect(trigger.locator('svg').first()).toBeVisible()

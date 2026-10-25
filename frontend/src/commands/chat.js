@@ -19,6 +19,7 @@ import { readAttachments } from '../utils/attachments.js'          // 附件大�
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
+const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
 
 function createAssistant(session) {
   const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
@@ -67,7 +68,7 @@ function unsubscribe(sessionID) {
 
 async function send(sessionID, content) {
   const session = store.sessions[sessionID]
-  if (!session || !content.trim() || session.status === 'running') return false
+  if (!session || !content.trim() || session.status === 'running' || stopping.has(sessionID)) return false
   const provider = store.config.providers[session.provider]
   if (!session.model || !provider?.baseURL || provider.enabled === false) { UI.notify('请先配置并启用此会话使用的模型供应商'); return false }
   const input = content.trim() + session.files.map(file => `\n\n附件 ${JSON.stringify(file.name)}:\n${file.content}`).join('')
@@ -94,7 +95,7 @@ async function send(sessionID, content) {
 // 继续被中断的助手：不往时间线塞"继续"用户消息，直接复用当前进度。
 async function resume(sessionID) {
   const session = store.sessions[sessionID]
-  if (!session || session.status === 'running') return false
+  if (!session || session.status === 'running' || stopping.has(sessionID)) return false
   void subscribe(sessionID)
   session.status = 'running'
   session.connection = 'connecting'
@@ -189,12 +190,13 @@ async function receiveRun(sessionID, session, event) {
 // --- 消息内容：正文、思考过程、子任务提示 ---
 function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
-    const assistant = streaming(session) || createAssistant(session)
-    assistant[event.type === 'text-delta' ? 'content' : 'reasoning'] += event.text || event.textDelta || event.delta || ''
+    const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
+    const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
+    assistant[field] += event.text || event.textDelta || event.delta || '' // 不同兼容字段都认
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
     // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
-    const assistant = streaming(session) || createAssistant(session)
-    assistant.subagent = event.description
+    const assistant = streaming(session) || createAssistant(session) // 子任务事件也要有承载消息
+    assistant.subagent = event.description                             // 只显示一句描述
   }
 }
 
@@ -247,10 +249,13 @@ async function stop(sessionID) {
   const session = store.sessions[sessionID]
   // 停止是用户动作，先把本地状态收回来：停止按钮立刻消失，重连提示也关掉。
   // SSE 订阅本身会无限重连；不在这里 abort，界面会一直显示“正在重连”。
+  stopping.add(sessionID)
+  if (session) session.stopping = true                   // 输入框暂时禁用，防止停止请求还没回来又发新消息
+  const assistant = session ? streaming(session) : null
+  const partial = assistant ? { content: assistant.content, reasoning: assistant.reasoning } : undefined // 把已经流出的半段正文交给服务端保存
   if (session) {
     session.status = 'idle'
     session.connection = 'idle'
-    const assistant = streaming(session)
     if (assistant) {
       assistant.retry = ''
       assistant.isStreaming = false
@@ -259,7 +264,7 @@ async function stop(sessionID) {
   }
   unsubscribe(sessionID)
   try {
-    await AgentAPI.stopSession(sessionID)
+    await AgentAPI.stopSession(sessionID, partial)
     await Session.refresh(sessionID)
     store.sessions[sessionID].status = 'idle'
     store.sessions[sessionID].connection = 'idle'
@@ -270,6 +275,9 @@ async function stop(sessionID) {
     try { await Session.refresh(sessionID) } catch { /* 保留原错误提示 */ }
     UI.notify(error.message)
     return false
+  } finally {
+    stopping.delete(sessionID)
+    if (store.sessions[sessionID]) store.sessions[sessionID].stopping = false
   }
 }
 

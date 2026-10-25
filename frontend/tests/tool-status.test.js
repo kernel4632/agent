@@ -27,6 +27,13 @@ const cases = [
         preview: '命令执行失败',
     },
     {
+        name: 'error-json',
+        output: { type: 'error-json', value: { message: '失败了' } },
+        isError: false,
+        status: 'error',
+        preview: JSON.stringify({ message: '失败了' }, null, 2),
+    },
+    {
         name: 'isError',
         output: { type: 'json', value: { message: '失败了' } },
         isError: true,

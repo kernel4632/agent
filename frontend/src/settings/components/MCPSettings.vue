@@ -28,6 +28,7 @@ const remote = computed(() => ['sse', 'http'].includes(selectedItem.value?.defin
 const deleteOpen = ref(false)
 const envError = ref('')                              // 环境变量 JSON 写错时的可见原因
 const envText = ref('')                               // 编辑中的原始文本；写错时也要留在输入框里
+const envDirty = ref(false)                           // 用户改过但还没解析成功，不能被自动保存或其它字段刷新覆盖
 
 function requestRemove() {
   deleteOpen.value = true
@@ -77,9 +78,11 @@ function toggleEnabled() {
 
 function tryUpdateEnv(text) {
   envText.value = text                                  // 先留住用户正在输入的内容，解析失败也不回退
+  envDirty.value = true                                 // 在解析成功前，任何外部刷新都不能覆盖这段草稿
   try {
     const env = JSON.parse(text)
     if (typeof env !== 'object' || env === null || Array.isArray(env)) throw new Error('必须是 JSON 对象')
+    envDirty.value = false
     envError.value = ''
     updateDefinition('env', env)
   } catch (error) {
@@ -94,10 +97,15 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   else if (!ids.includes(selectedID.value)) selectedID.value = ids[0] ?? ''
 })
 
-watch(selectedItem, item => {
-  envText.value = JSON.stringify(item?.definition?.env || {}, null, 2) // 换服务时重新显示它自己的环境变量
-  envError.value = ''                                                   // 上一个服务的错误不要留在下面
-}, { immediate: true })
+// 换服务或外部真的改了 env 时才重写草稿；用户还没解析成功的草稿不能被覆盖。
+function resetEnvDraft({ force = false } = {}) {
+  if (!force && envDirty.value) return
+  envText.value = JSON.stringify(selectedItem.value?.definition?.env || {}, null, 2)
+  envError.value = ''
+  envDirty.value = false
+}
+watch(selectedID, () => resetEnvDraft({ force: true }), { immediate: true })
+watch(() => selectedItem.value?.definition?.env, () => resetEnvDraft(), { deep: true })
 </script>
 
 <template>

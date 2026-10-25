@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.36.1",
+    "version": "0.37.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -427,7 +427,7 @@
           "Agent"
         ],
         "summary": "停止正在运行的 AI 任务",
-        "description": "立即终止指定会话中正在执行的 AI 任务。如果这个会话当前没有任务在运行，返回 { ok: false }；停止成功返回 { ok: true }。",
+        "description": "立即终止指定会话中正在执行的 AI 任务。可以带 partial 把界面已经流出的半段回复交给服务端保存；不带时只保存 Agent 已有的历史。如果这个会话当前没有任务在运行，返回 { ok: false }；停止成功返回 { ok: true }。",
         "operationId": "agentStop",
         "parameters": [
           {
@@ -441,6 +441,32 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "partial": {
+                    "type": "object",
+                    "description": "停止前界面上已经显示的半段回复；服务端会在停止后补进历史",
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "已经流出的正文"
+                      },
+                      "reasoning": {
+                        "type": "string",
+                        "description": "已经流出的思考内容"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "操作完成。ok 为 true 表示成功停止，ok 为 false 表示当前没有任务在运行",

@@ -94,7 +94,7 @@ export function outputValue(tool) {
 export function toolStatus(output, isError = false) {
     if (isError) return 'error'
     if (output?.type === 'execution-denied') return 'rejected'
-    if (output?.type === 'error-text') return 'error'
+    if (output?.type === 'error-text' || output?.type === 'error-json') return 'error'
     return 'completed'
 }
 

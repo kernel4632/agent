@@ -13,11 +13,13 @@ const MOVING = /^(opacity|transform)$/
 // 采样式探针不会因为断言慢半拍而漏掉 200ms 的切换动画。
 async function watchMotion(page) {
   await page.evaluate(() => {
+    window.__stopMotion?.()                              // 先停掉上一次采样器，避免旧帧写进新数组
     window.__motion = []
     window.__motionFrames = 0
     const seen = new Set()
     let alive = true
     function tick() {
+      if (!alive) return                                 // 采样器被停掉后不再申请下一帧
       let active = false
       for (const animation of document.getAnimations()) {
         if (animation.playState !== 'running') continue
@@ -40,10 +42,13 @@ async function watchMotion(page) {
         })
       }
       if (active) window.__motionFrames += 1
-      if (alive) requestAnimationFrame(tick)
+      requestAnimationFrame(tick)
     }
     tick()
-    window.__stopMotion = () => ({ list: window.__motion, frames: window.__motionFrames })
+    window.__stopMotion = () => {
+      alive = false
+      return { list: window.__motion, frames: window.__motionFrames }
+    }
   })
 }
 
@@ -216,6 +221,25 @@ test.describe('chat motion', () => {
     await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2)
     await expect(toggle).not.toBeChecked()
     await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)
+  })
+
+  test('composer fullscreen keeps a height transition', async ({ page }) => {
+    await backend(page)
+    await page.goto('/')
+    await navigate(page, '新建对话')
+    const editor = page.getByRole('textbox', { name: '消息', exact: true })
+    const transition = await editor.evaluate(element => ({
+      property: getComputedStyle(element).transitionProperty,
+      duration: getComputedStyle(element).transitionDuration,
+    }))
+    expect(transition.property).toContain('min-height')
+    expect(transition.duration).not.toBe('0s')
+
+    await page.locator('.chat-composer__expand-corner').hover()
+    await page.getByRole('button', { name: '全屏输入', exact: true }).click()
+    await expect(page.locator('.chat-composer')).toHaveClass(/is-expanded/)
+    const running = await editor.evaluate(element => element.getAnimations().some(animation => animation.transitionProperty === 'min-height' && animation.playState === 'running'))
+    expect(running).toBe(true) // 真的在过渡高度，而不是只写了 CSS
   })
 
   test('slash menu and message action layer animate', async ({ page }) => {

@@ -165,6 +165,8 @@ async function submitDialog() {
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; }
 .home-sessions__group { display: flex; flex-direction: column; gap: 6px; }
 .session-list { display: grid; gap: 2px; }
+/* KIMA 0.7.1 的 KimaList 行带 20px 内边距和底色，没有 plain 导航行变体；
+   这里把行容器还原成透明，选中/hover 由内部 .home-session 负责。等 KIMA 增加 plain 行后删除。 */
 :global(.session-list .kima-list__item) {
   display: flex;
   min-height: 48px;

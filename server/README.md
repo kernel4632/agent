@@ -732,12 +732,14 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 | --- | --- | --- | --- |
 | `POST` | `/agent/send/:sessionId` | `{ "input" }` | `{ "ok": true }` |
 | `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }` |
-| `POST` | `/agent/stop/:sessionId` | 无 | `{ "ok": true/false }` |
+| `POST` | `/agent/stop/:sessionId` | 可选 `{ "partial": { "content", "reasoning" } }` | `{ "ok": true/false }` |
 | `POST` | `/agent/decide/:sessionId` | `{ "toolCallId", "decision" }` | `{ "ok": true/false }` |
 
 `send` 只确认后台任务已启动。模型文字、工具过程和最终结果都通过 SSE 到达。
 
 `resume` 用于继续被中断的助手：不需要请求体，内部提示不会进入历史，也不会在界面上显示成用户消息。最后一条消息必须是助手回复；已有任务在跑时返回 `409`。继续过程通过 SSE 的 `agent-resume` 事件通知前端。
+
+`stop` 可以带 `partial`（界面上已经流出的正文和思考）。服务端会先等 Agent 停下，再把这段补进历史，最后只发一次 `agent-finish`。这样停止后刷新不会丢掉半段回复。
 
 `decision` 只能是下面三种值：
 
@@ -789,6 +791,8 @@ Accept: text/event-stream
 | `agent-finish` | `reason`, `usage`, `text`（失败时是 `error`） | 标记 Agent 任务结束，再刷新会话 |
 
 `tool-output` 里 `stream` 是 `stdout` 或 `stderr`，`data` 是这段原始输出，前端按字符串拼接即可。
+
+用户主动停止时只发一条 `agent-finish`，`reason` 是 `stopped`，不会再补一条 `error` 的结束事件。
 
 `permission` 的 `callID` 就是 `agent/decide` 要传的 `toolCallId`：
 

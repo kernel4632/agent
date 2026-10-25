@@ -246,7 +246,7 @@ const read = async ({ sessionId }) => {
         history = visible(agent.history)
     } else {
         await History.load({ sessionId })
-        history = History.get({ sessionId })
+        history = visible(History.get({ sessionId }))        // 磁盘里即使有内部提示也不能回到界面
         if (agent) agent.history = history                  // 历史被回退或外部修改过，交回 Agent 手里的必须是最新的。
         else await createAgent({ sessionId, history, meta })
     }
@@ -507,11 +507,12 @@ const resume = ({ sessionId }) => run({ sessionId, input: CONTINUE_PROMPT, resum
 // --- 取一条消息里的纯文本 ---
 // 继续提示可能是字符串，也可能是内容块数组，两种都要能核对。
 const textOf = message => {
-    if (typeof message?.content === 'string') return message.content
-    return (Array.isArray(message?.content) ? message.content : [])
-        .filter(part => part?.type === 'text')
-        .map(part => part.text || '')
-        .join('')
+    if (typeof message?.content === 'string') return message.content          // 简单文本消息
+    const parts = Array.isArray(message?.content) ? message.content : []      // 内容块数组或空数组
+    return parts
+        .filter(part => part?.type === 'text')                                // 只取正文块
+        .map(part => part.text || '')                                         // 空块按空字符串
+        .join('')                                                             // 拼回一整段
 }
 
 // --- 给继续提示打内部标记 ---
@@ -521,7 +522,7 @@ const textOf = message => {
 const tagContinuePrompt = ({ agent, previousLast }) => {
     const marker = agent.history.at(-1)                               // 发送后历史末尾应该是新追加的提示
     if (marker === previousLast) return false                         // 没有新消息，不能拿旧消息顶替
-    if (marker?.role !== 'user' || textOf(marker) !== CONTINUE_PROMPT) return false // 身份和内容都要对上
+    if (marker?.role !== 'user' || textOf(marker) !== CONTINUE_PROMPT) return false // 不是继续提示就不动它
     marker.internal = true                                            // 只给模型看，保存和界面都会跳过它
     return true
 }
@@ -529,6 +530,12 @@ const tagContinuePrompt = ({ agent, previousLast }) => {
 // --- 把 Agent 内存里的新消息同步到历史文件 ---
 // 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
 const saveQueue = new Map()
+// 每一轮 run 一个 token；只有当前 token 能发终态，避免 stop 和正常完成各发一条。
+const activeRuns = new Map()
+const stopping = new Set()                                 // stop 处理期间不允许同一会话启动新 run（服务端兜底，不只靠前端）
+const finishRun = (sessionId, token) => {
+    if (activeRuns.get(sessionId) === token) activeRuns.delete(sessionId)
+}
 const syncHistory = async ({ sessionId, agent }) => {
     const previous = saveQueue.get(sessionId) || Promise.resolve()
     const task = previous.catch(() => {}).then(async () => {            // 前一次失败也要让后一次继续
@@ -542,7 +549,7 @@ const syncHistory = async ({ sessionId, agent }) => {
             existing.add(message.id)                                  // 同一次任务后面的保存不再重复写
             await History.add({ sessionId, message })
         }
-        // 历史落盘后清掉已经写进去的 SSE 事件；后续事件仍然保留给断线重连。
+        // 完整步骤落盘后清掉已经包含在其中的事件；后续事件留待断线重连。
         await History.save({ sessionId })
     })
     saveQueue.set(sessionId, task)
@@ -555,10 +562,14 @@ const syncHistory = async ({ sessionId, agent }) => {
 const run = async ({ sessionId, input, resume = false }) => {
     // 用户输入在这里检查一次：去掉首尾空格后不能为空。
     if (typeof input !== 'string' || !input.trim()) throw fail(400, 'input must be a non-empty string')
+    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
     const meta = await readMeta(sessionId)
     const agent = await getAgent({ sessionId, meta })
-    if (resume && agent.running) throw fail(409, `Agent is already running: ${sessionId}`)
-    if (resume && [...agent.history].reverse().find(message => !message.internal)?.role !== 'assistant') {
+    // 读资料/建 Agent 期间 stop 可能已经开始；启动前再查一次，堵住 in-flight send 的窗口。
+    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
+    if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`) // 服务端也只允许一轮，不能靠前端拦
+    // 工具执行完、模型下一轮还没回复时，历史末尾是 role:tool；继续应该看它前面的助手回复。
+    if (resume && [...agent.history].reverse().find(message => !message.internal && message.role !== 'tool')?.role !== 'assistant') {
         throw fail(409, '最后一条消息不是助手回复，不能继续')
     }
 
@@ -573,14 +584,33 @@ const run = async ({ sessionId, input, resume = false }) => {
     const settings = await Settings.read({ sessionId })
     // 发消息前重读规则，用户刚改过 AGENTS.md 或模式专属规则也能在这一轮生效。
     await Rules.load({ mode: settings.mode })
+    // clearUndo/Settings/Rules 也都是 await；最后启动前再查一次 stop gate。
+    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
     const previousLast = agent.history.at(-1)                         // 发送前的末尾，用来认出刚追加的继续提示
-    const task = agent.send({
+    const token = { stopped: false }                                  // 这一轮的终态令牌；stop 和 task.then 只有一方能结束它
+    activeRuns.set(sessionId, token)
+    let resumeError = ''                                              // 继续提示校验失败时，收尾路径只报错、不保存
+    let task
+    try {
+        task = agent.send({
         input: input.trim(),
         config: Config.resolve({ provider: meta.provider, model: meta.model, uses: settings.uses }),
         callbacks: {
-            onStart: () => SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } }),
+            onStart: async () => {
+                // 继续提示要在第一次模型请求前认出来并藏好，否则 onStep 会把它当成用户消息落盘。
+                if (resume && !tagContinuePrompt({ agent, previousLast })) {
+                    resumeError = '继续提示没有出现在历史末尾，已停止本次继续'
+                    await SSE.reset({ id: sessionId })                // 先清掉上一轮旧终态，失败只留新的错误事件
+                    void agent.stop()                                 // 不能 await：onStart 正在被这一轮 await
+                    return
+                }
+                // 开跑前保存用户消息/恢复前的进度；这时 agent-start 还没发，可以安全清掉上一轮缓存。
+                await syncHistory({ sessionId, agent })
+                if (token.stopped || activeRuns.get(sessionId) !== token) return // 保存期间已被 stop 接管，不再发开始事件
+                await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
+            },
             onLLMStart: request => SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } }),
             onLLMFinish: result => SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result } }),
             onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
@@ -595,9 +625,11 @@ const run = async ({ sessionId, input, resume = false }) => {
                 }
                 SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
             },
-            // 每完成一步就落盘；关掉软件或进程被杀时，已完成的进度还在。
-            // 落盘同时清掉已包含的事件，断线重连会先读历史，不会重复播放已经显示的内容。
-            onStep: () => { void syncHistory({ sessionId, agent }).catch(() => {}) },
+            // 每完成一步就落盘；agent-core 会 await 这个回调，保存期间不会再有新事件。
+            // 保存成功后清掉已落盘事件；断线重连先读历史，不会重复播放已经显示的内容。
+            onStep: () => syncHistory({ sessionId, agent }).catch(error => {
+                console.error(`[session ${sessionId}] 步骤保存失败：${error.message}`)
+            }),
             onCompact: event => SSE.send({ id: sessionId, data: event }),
             // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
             // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await
@@ -613,28 +645,59 @@ const run = async ({ sessionId, input, resume = false }) => {
                 signal,
             }),
         },
-    })
-    // 先挂上收尾处理：即使下面因为继续提示不对而拒绝这次请求，任务 Promise 也不会无人接收。
-    // 任务结束后把这一轮新增的消息写进历史文件，再通知前端刷新。
+        })
+    } catch (error) {
+        finishRun(sessionId, token)                                    // 启动失败也要释放 token
+        throw error
+    }
+    // 先挂上收尾处理：即使继续提示校验失败，任务 Promise 也不会无人接收。
+    // 只有当前 run token 才能收尾；被 stop 或新 run 接管的旧任务直接退出。
     task.then(async result => {
+        if (resumeError) {
+            if (token.stopped) return                               // stop 接管终态
+            if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token) // 新 run 的事件不能清
+            await SSE.reset({ id: sessionId })                       // 只有当前 run 才能清旧终态
+            await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: resumeError } })
+            finishRun(sessionId, token)
+            return
+        }
+        if (token.stopped) return                                      // stop 拥有终态，等它统一收尾
+        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
         await syncHistory({ sessionId, agent })                       // 最终保存：历史稳定，清掉 SSE 缓存
+        if (token.stopped) return
+        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
         // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
         if (!resume) await titleFor({ sessionId, meta, settings, agent })
+        if (token.stopped) return
+        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
         // 缓存清完再通知，前端刷新时读到的是完整历史，不会和补发事件打架。
         await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
+        finishRun(sessionId, token)
     }).catch(async error => {
+        if (resumeError) {
+            if (token.stopped) return                               // stop 接管终态
+            if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token) // 新 run 的事件不能清
+            await SSE.reset({ id: sessionId })                       // 只有当前 run 才能清旧终态
+            await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: resumeError } })
+            finishRun(sessionId, token)
+            return
+        }
+        // 被 stop 或新 run 接管的旧任务不能再发终态。
+        if (token.stopped) return                                     // stop 统一收尾
+        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+        // 只有 kind=aborted 才是 core 的主动取消；timeout 等即使名字叫 AbortError 也要报错结束。
+        if (error?.kind === 'aborted') {
+            finishRun(sessionId, token)
+            return
+        }
         // 失败和中断也要留下已经产生的进度，用户才能从断点继续。
         await syncHistory({ sessionId, agent }).catch(() => {})
+        if (token.stopped) return
+        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
         await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
+        finishRun(sessionId, token)
     })
-    // 继续提示由 agent.send 追加到历史末尾；身份核对不上时绝不标记，停掉这一轮并给出明确原因。
-    if (resume && !tagContinuePrompt({ agent, previousLast })) {
-        await agent.stop().catch(() => {})
-        throw fail(500, '继续提示没有出现在历史末尾，已停止本次继续')
-    }
-    // 先把用户消息或恢复前的进度落盘；第一轮模型还没返回就关掉软件也不丢这一轮。
-    // 保存后清掉已经包含在历史里的事件，断线重连会从历史接着走。
-    void syncHistory({ sessionId, agent }).catch(() => {})
+    // 收尾处理已经挂在 task 上；继续提示的识别和首次保存都在 onStart 里完成。
     return { ok: true }
 }
 
@@ -671,23 +734,56 @@ const titleFor = async ({ sessionId, meta, settings, agent }) => {
 }
 
 // --- 停止 Agent 任务 ---
-const stop = async ({ sessionId }) => {
+/**
+ * 停止时把界面上已经流出的半段回复补进历史；agent-core 只在 llm-finish 后才会保存 assistant 消息。
+ * @param {{ agent: object, partial?: { content?: string, reasoning?: string } }} input
+ */
+const appendPartial = ({ agent, partial }) => {
+    if (!partial || typeof partial !== 'object') return                    // 没传就只保存 agent 已有进度
+    const content = typeof partial.content === 'string' ? partial.content.trim() : ''
+    const reasoning = typeof partial.reasoning === 'string' ? partial.reasoning.trim() : ''
+    if (!content && !reasoning) return                                     // 没有可见内容，不造空消息
+
+    const last = agent.history.at(-1)                                      // 已经落盘的完整消息不要重复
+    if (last?.role === 'assistant' && content && textOf(last).includes(content)) return
+    agent.history.push({
+        id: nanoid(),
+        role: 'assistant',
+        content: [
+            ...(reasoning ? [{ type: 'reasoning', text: reasoning }] : []), // 思考内容按历史格式保存
+            ...(content ? [{ type: 'text', text: content }] : []),          // 可见正文按文本块保存
+        ],
+    })
+}
+
+const stop = async ({ sessionId, partial }) => {
     const agent = Store.agents.get(sessionId)
     if (!agent) return { ok: false }
-    const result = await agent.stop()
-    // 中断也把已经产生的消息落盘，刷新后还能看到进度并从断点继续。
-    // 停止是这一轮的最终状态，保存后清掉 SSE 缓存。
-    let saved = true
+    if (stopping.has(sessionId)) return { ok: false }                       // 已经有一次停止在处理
+    stopping.add(sessionId)                                                // 服务端挡住 stop 期间的新 send
     try {
-        await syncHistory({ sessionId, agent })
-    } catch {
-        saved = false
-        // stop 的接口约定只有 { ok }，保存失败不能塞进返回值改变契约。
-        // syncHistory 已经把"哪个会话、什么原因"写进日志，界面停止后会重新读历史。
+        const token = activeRuns.get(sessionId)                            // 这一轮自己的终态令牌
+        const wasRunning = Boolean(agent.running)                          // 先记下有没有真的在跑，stop 返回后 running 会被清掉
+        if (token && wasRunning) token.stopped = true                      // 接管终态：task.then/catch 不再发 finish
+        const result = await agent.stop()                                  // 先等核心循环完全停下，避免和收尾保存抢历史
+        if (activeRuns.get(sessionId) !== token) return result              // 这一轮已经被别人接管，不能再写
+        if (result.ok) appendPartial({ agent, partial })                    // 只有真的停掉一轮才补半段，避免空停止写入垃圾
+        // 停止是这一轮的最终状态，保存后清掉 SSE 缓存。
+        try {
+            await syncHistory({ sessionId, agent })
+        } catch {
+            // stop 的接口约定只有 { ok }，保存失败不能塞进返回值改变契约。
+            // syncHistory 已经把"哪个会话、什么原因"写进日志，界面停止后会重新读历史。
+        }
+        // 这一轮由 stop 接管时只发一次结束事件；task.then/catch 看到 token.stopped 会退出。
+        if (token && wasRunning && activeRuns.get(sessionId) === token) {
+            await SSE.send({ id: sessionId, data: { type: 'agent-finish', reason: 'stopped' } })
+            finishRun(sessionId, token)
+        }
+        return result
+    } finally {
+        stopping.delete(sessionId)                                         // 停止处理完才允许下一轮
     }
-    // 只有最终保存成功、缓存也清完，才通知前端这一轮真的结束。
-    if (result.ok && saved) await SSE.send({ id: sessionId, data: { type: 'agent-finish' } })
-    return result
 }
 
 // --- 处理工具审批 ---
