@@ -1,6 +1,6 @@
 <!--
 通用按钮：保留原来的 variant/size API，但实际渲染 KIMA 的 KimaButton。
-primary → filled，default → outlined，ghost → text，danger → text + 危险色，plain → 自定义行按钮（KIMA 没有适合导航行的 plain 尺寸）。
+primary → filled，default → outlined，text/ghost → text，danger → text + 危险色，plain → 自定义行按钮（KIMA 没有适合导航行的 plain 尺寸）。
 调用示例：<Button variant="primary" @click="save">保存</Button>
 -->
 <script setup>
@@ -19,6 +19,7 @@ const kimaVariant = computed(() => ({
   primary: 'filled',
   tonal: 'tonal',
   default: 'outlined',
+  text: 'text',   // 调用方写 text 时直接落到 KIMA 的 text，不再退回 outlined
   ghost: 'text',
   danger: 'text',
   plain: 'text',

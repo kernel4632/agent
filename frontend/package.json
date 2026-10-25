@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.37.3",
+  "version": "0.37.4",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -31,5 +31,8 @@
     "@vitejs/plugin-vue": "latest",
     "sass": "latest",
     "vite": "latest"
+  },
+  "patchedDependencies": {
+    "@kernel4632/kima@0.7.1": "patches/@kernel4632%2Fkima@0.7.1.patch"
   }
 }

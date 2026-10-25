@@ -16,10 +16,12 @@ const emit = defineEmits(['select'])
 </script>
 
 <template>
+  <!-- placement 靠右对齐：抽屉贴着视口右边，默认的 bottom-start 会把弹层挤出屏幕。 -->
   <KimaMenu
     class="ui-menu-button"
     :items="items"
     :label="label"
+    placement="bottom-end"
     @select="emit('select', $event)"
   >
     <template #trigger>
@@ -31,7 +33,8 @@ const emit = defineEmits(['select'])
 
 <style scoped lang="scss">
 .ui-menu-button { width: 40px; min-width: 0; }
-:global(.ui-menu-button .kima-menu__trigger) {
+/* :deep 生成 .ui-menu-button[data-v-…] .kima-menu__trigger，特异性才够压过 KIMA 的 56px 默认触发行。 */
+.ui-menu-button :deep(.kima-menu__trigger) {
   width: 40px;
   min-height: 40px;
   justify-content: center;
@@ -40,12 +43,16 @@ const emit = defineEmits(['select'])
   background: transparent;
   color: var(--kima-color-on-surface-variant);
 }
-:global(.ui-menu-button .kima-menu__trigger:hover) {
+.ui-menu-button :deep(.kima-menu__trigger:hover) {
   background: var(--kima-color-layer-3);
   color: var(--kima-color-on-surface);
 }
-/* KIMA Menu 的触发器固定带一个下拉箭头；图标触发模式下隐藏它。 */
-:global(.ui-menu-button .kima-menu__trigger > svg[aria-hidden="true"]) {
-  display: none !important;
+/*
+ * KIMA 0.7.1 的 KimaMenu 会在插槽内容后固定补一个下拉箭头，图标触发模式下这个箭头多余。
+ * 只隐藏最后一个直接子 svg（KIMA 生成的箭头），不能按 aria-hidden 批量隐藏，否则插槽里的图标也会消失。
+ * 等 KIMA 提供“隐藏箭头”属性后可删除：https://github.com/kernel4632/kima/issues
+ */
+.ui-menu-button :deep(.kima-menu__trigger > svg:last-child) {
+  display: none;
 }
 </style>

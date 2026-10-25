@@ -1,11 +1,12 @@
 <!--
   会话高级设置：自动批准、模型能力、按用途指定模型、自动批准上限和自动压缩。
   只接收当前 session，所有写操作仍交给 commands/session；不再和 SessionView 的页面装配混在一起。
+  调用示例：<SessionMorePanel :session="session" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaChip } from '@kernel4632/kima'
-import { AppIcon, Field, Select } from '../ui/index.js'
+import { KimaChip, KimaSelect } from '@kernel4632/kima'
+import { AppIcon, Field } from '../ui/index.js'
 import { AUTO_APPROVE_KINDS, Session, USE_LABELS } from '../commands/session.js'
 import { store } from '../store.js'
 
@@ -14,21 +15,21 @@ defineProps({
 })
 
 const allModels = () => Object.entries(store.config.providers || {})
-  .flatMap(([provider, entry]) => (entry.models || []).map(model => ({ provider, model })))
+  .flatMap(([provider, entry]) => (entry.models || []).map(model => ({ provider, model })))  // 把所有供应商的模型摊平成一份列表
 
 const useModelOptions = computed(() => [
-  { value: '', label: '和主模型共用' },
+  { value: '', label: '和主模型共用' },                                                    // 空值表示不改，继续用主模型
   ...allModels().map(item => ({ value: `${item.provider}/${item.model}`, label: `${item.provider} / ${item.model}` })),
 ])
 
 const useKey = (session, use) => {
   const target = session.settings.uses?.[use]
-  return target ? `${target.provider}/${target.model}` : ''
+  return target ? `${target.provider}/${target.model}` : ''                                 // 已指定的用途显示 provider/model
 }
 
 const targetFrom = (session, value) => {
-  if (!value) return null
-  const [provider, ...rest] = value.split('/')
+  if (!value) return null                                                                   // 选“共用”时清掉这条用途
+  const [provider, ...rest] = value.split('/')                                              // 模型名里可能还有斜杠，只切第一段
   return { provider, model: rest.join('/') }
 }
 </script>
@@ -61,7 +62,13 @@ const targetFrom = (session, value) => {
       <p>不选就和主模型（{{ session.model }}）共用</p>
       <div v-for="(label, use) in USE_LABELS" :key="use" class="chat-more__row">
         <span>{{ label }}</span>
-        <Select size="small" class="chat-more__select" :label="label" :model-value="useKey(session, use)" :options="useModelOptions" @update:model-value="Session.setUse(session.id, use, targetFrom(session, $event))" />
+        <KimaSelect
+          class="chat-more__select"
+          :label="label"
+          :model-value="useKey(session, use)"
+          :items="useModelOptions"
+          @update:model-value="Session.setUse(session.id, use, targetFrom(session, $event))"
+        />
       </div>
     </section>
 
@@ -102,6 +109,10 @@ const targetFrom = (session, value) => {
 .chat-more__chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chat-more__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: var(--la-secondary); font-size: 14px; }
 .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 180px; max-width: 180px; min-width: 0; flex: none; }
+/* KIMA 没有 small 尺寸；这里只压低控件高度和字号，和同一行里的 Field 对齐。 */
+.chat-more__select { --kima-field-height: 48px; --kima-field-padding: 16px; }
+.chat-more__select :deep(.kima-select__trigger) { font-size: var(--kima-font-size-body-small, 14px); }
+/* KimaSelect 的弹层是控件内绝对定位，不走 portal；面板最底部一行的弹层可能被滚动容器裁掉，等 KIMA 修复。 */
 @media (max-width: 767px) {
   .chat-more { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 16px; max-height: 60vh; }
   .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 150px; max-width: 150px; }

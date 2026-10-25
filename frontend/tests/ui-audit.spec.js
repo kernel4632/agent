@@ -510,7 +510,8 @@ test('batch delete removes several sessions in one pass', async ({ page }, testI
   await screenshot(page, testInfo, 'batch-select')
   await drawer.getByRole('button', { name: '删除 2 个会话', exact: true }).click()
   await page.getByRole('button', { name: '删除', exact: true }).click()
-  expect([...mock.sessions.keys()]).toHaveLength(0)
+  // 删除是逐个请求的，等两个请求都落到 mock 再断言，避免和网络时序赛跑。
+  await expect.poll(() => mock.sessions.size).toBe(0)
 })
 
 test('composer expand keeps the draft', async ({ page }, testInfo) => {
@@ -704,6 +705,9 @@ test('rename uses existing data', async ({ page }, testInfo) => {
   await expect(rename).toBeVisible()
   await screenshot(page, testInfo, 'rename-dialog')
   await rename.getByRole('button', { name: '取消', exact: true }).click()
+  // 弹窗始终挂载，关闭后原生 dialog 把焦点还给打开它的标题按钮；焦点不能掉到 body。
+  await expect(rename).toBeHidden()
+  await expect(page.locator('.topbar__title')).toBeFocused()
 })
 
 test('MCP service can be added and saved', async ({ page }) => {
@@ -729,8 +733,112 @@ test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: '更多选项', exact: true }).click()
   await screenshot(page, testInfo, 'composer-options')
   await page.getByRole('button', { name: '对话设置', exact: true }).click()
+  // 更多选项抽屉要等关闭动画结束并归还焦点，否则焦点会被它抢回触发按钮。
+  await expect(page.getByRole('dialog', { name: '更多选项' })).toBeHidden()
+  // 抽屉关闭后仍留在 DOM 里，下一次打开才能复用同一个原生 dialog。
+  await expect(page.locator('.app-sheet .kima-drawer__title').filter({ hasText: '更多选项' })).toHaveCount(1)
   const threshold = page.getByLabel('阈值', { exact: true })
   await threshold.fill('0.6')
   await threshold.press('Tab')
   await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1')?.body?.compactThreshold).toBe(0.6)
+})
+
+test('KIMA select keeps one combobox, hides the native select and chooses from its listbox', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /通用/ }).click()
+  const card = page.locator('.appearance-card')
+  await expect(card).toBeVisible()
+
+  // 只暴露一个可访问的组合框；原生 select 退到 1x1 的屏幕阅读器兜底位置。
+  const combobox = card.getByRole('combobox')
+  await expect(combobox).toHaveCount(1)
+  await expect(combobox).toHaveAttribute('aria-label', '强调色')
+  const native = card.locator('select.kima-select__native')
+  await expect(native).toHaveCount(1)
+  const nativeBox = await native.boundingBox()
+  expect(nativeBox.width).toBeLessThanOrEqual(1)
+  expect(nativeBox.height).toBeLessThanOrEqual(1)
+  const nativeStyle = await native.evaluate(element => {
+    const style = getComputedStyle(element)
+    return { position: style.position, clipPath: style.clipPath }
+  })
+  expect(nativeStyle.position).toBe('absolute')
+  expect(nativeStyle.clipPath).toContain('inset')
+
+  // 点击组合框弹出 KIMA 自己的 listbox，而不是浏览器原生下拉。
+  await expect(card.getByRole('listbox')).toHaveCount(0)
+  await combobox.click()
+  const listbox = card.getByRole('listbox')
+  await expect(listbox).toBeVisible()
+  await expect(listbox).toHaveClass(/kima-select__options/)
+  await expect(listbox.getByRole('option')).toHaveCount(5)
+  await listbox.getByRole('option', { name: '雾蓝', exact: true }).click()
+
+  // 选中后值写回草稿，自动保存再落到 localStorage。
+  await expect(listbox).toHaveCount(0)
+  await expect(combobox).toContainText('雾蓝')
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('agent.appearance') || '{}').color)).toBe('#8badf4')
+  expect(mock.errors).toEqual([])
+})
+
+test('session row menu stays inside the drawer and centers on its row', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('菜单对齐')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  await openDrawer(page)
+
+  const row = page.locator('.home-session').first()
+  await expect(row).toBeVisible()
+  const trigger = row.locator('.home-session__menu .kima-menu__trigger')
+  const rowBox = await row.boundingBox()
+  const triggerBox = await trigger.boundingBox()
+  // 触发器是 40px 图标按钮，要和 48px 会话行同一个垂直中心。
+  expect(triggerBox.height).toBeLessThanOrEqual(40)
+  expect(Math.abs((rowBox.y + rowBox.height / 2) - (triggerBox.y + triggerBox.height / 2))).toBeLessThanOrEqual(2)
+
+  await trigger.click()
+  const popup = page.locator('.kima-menu__popup')
+  await expect(popup).toBeVisible()
+  const panelBox = await page.locator('.app-drawer .kima-drawer__panel').boundingBox()
+  const popupBox = await popup.boundingBox()
+  // 弹层贴着行右边缘展开，不能越过抽屉面板，也不能跑出视口。
+  expect(popupBox.x).toBeGreaterThanOrEqual(panelBox.x - 1)
+  expect(popupBox.x + popupBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width + 1)
+  expect(popupBox.y).toBeGreaterThanOrEqual(0)
+
+  // 只隐藏 KIMA 生成的箭头，插槽里的“更多”图标必须还在。
+  await expect(trigger.locator('svg').first()).toBeVisible()
+  await expect(trigger.locator('svg').last()).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(popup).toBeHidden()
+  expect(mock.errors).toEqual([])
+})
+
+test.describe('KIMA motion', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  test('switch keeps a real thumb transition and moves when toggled', async ({ page }) => {
+    await backend(page)
+    await page.goto('/')
+    await navigate(page, '设置')
+    await page.getByRole('button', { name: /通用/ }).click()
+    const toggle = page.getByRole('switch', { name: '增强键盘焦点' })
+    const thumb = page.locator('.appearance-card .kima-switch', { hasText: '增强键盘焦点' }).locator('.kima-switch__thumb')
+    await expect(toggle).not.toBeChecked()
+
+    const duration = await thumb.evaluate(element => getComputedStyle(element).transitionDuration)
+    expect(duration).not.toBe('0s')
+    expect(duration).toMatch(/\d/)
+
+    const before = await thumb.boundingBox()
+    // KIMA 的透明 input 盖在拇指上，按拇指中心点真实点击一次。
+    await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2)
+    await expect(toggle).toBeChecked()
+    await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)
+  })
 })

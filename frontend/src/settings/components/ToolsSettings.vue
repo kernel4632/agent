@@ -2,11 +2,12 @@
 工具权限管理：展示 Agent 可调用的所有工具，支持启用/禁用和权限级别设置。
 设计思想：工具列表由 Server 配置加载，每次修改立即写入草稿；保存由设置页统一触发。
 核心数据：tools（工具配置数组，每项含 name、enabled、permission）。
-控件统一用 ui/ 的 Select 和 Switch；权限和启用的联动仍在本组件完成。
+权限下拉直接用 KimaSelect，开关仍走 ui/Switch；权限和启用的联动仍在本组件完成。
 调用示例：<ToolsSettings v-model:tools="settingsDraft.tools" />。
 -->
 <script setup>
-import { Select, Switch } from '../../ui/index.js'
+import { KimaSelect } from '@kernel4632/kima'
+import { Switch } from '../../ui/index.js'
 
 const props = defineProps({
   tools: { type: Array, required: true },
@@ -51,10 +52,10 @@ function updatePermission(index, permission) {
           <small>{{ kindLabel(tool) }}</small>
         </div>
         <div class="settings-row__control">
-          <Select
+          <KimaSelect
             class="settings-row__select"
             :model-value="tool.permission"
-            :options="PERMISSION_OPTIONS"
+            :items="PERMISSION_OPTIONS"
             :label="`${tool.name} 权限`"
             @update:model-value="updatePermission(index, $event)"
           />

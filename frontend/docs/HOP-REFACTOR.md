@@ -44,6 +44,8 @@ src/
 
 先按这些接口写，页面迁移时再逐步用上。不要提前创建没人用的控件。
 
+> 后续变更：下拉框已改为直接使用 KIMA 的 `KimaSelect`，`src/ui/Select.vue` 已删除；下表保留当时的接口记录。
+
 | 控件 | 必要 props | 事件 / 插槽 |
 |---|---|---|
 | `Button.vue` | `variant`（default/primary/danger/ghost/plain）、`size`（normal/small）、`disabled`、`type` | `click`，默认插槽 |

@@ -1,6 +1,7 @@
 <!--
 底部弹层：保留 open/label API，实际渲染 KIMA 的 KimaDrawer（bottom）。
 桌面端把面板限制在和聊天区同一档的宽度并居中，手机端仍然铺满。
+始终挂载：关闭时要等 KIMA 的滑出动画结束，v-if 会把动画一起拆掉。
 调用示例：<Sheet :open="open" label="选择模型" @update:open="open = $event">...</Sheet>
 -->
 <script setup>
@@ -15,7 +16,6 @@ const emit = defineEmits(['update:open'])
 
 <template>
   <KimaDrawer
-    v-if="open"
     class="app-sheet"
     :open="open"
     :title="label || undefined"

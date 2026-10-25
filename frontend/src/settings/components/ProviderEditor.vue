@@ -6,14 +6,14 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import { KimaButton, KimaDialog, KimaDivider, KimaFlex, KimaSwitch, KimaTextField } from '@kernel4632/kima'
-import { Select } from '../../ui/index.js'
+import { KimaButton, KimaDialog, KimaDivider, KimaFlex, KimaSelect, KimaSwitch, KimaTextField } from '@kernel4632/kima'
 import ProviderModels from './ProviderModels.vue'
 
 const props = defineProps({ provider: { type: Object, required: true } })
 const emit = defineEmits(['delete', 'update:provider'])
 
 const deleteOpen = ref(false)
+// 目前后端只支持 OpenAI 兼容协议，选项结构直接使用 KimaSelect 的 { value, label }。
 const API_TYPE_OPTIONS = [{ value: 'openai-compatible', label: 'OpenAI 兼容' }]
 const update = patch => emit('update:provider', { ...props.provider, ...patch })
 </script>
@@ -36,10 +36,10 @@ const update = patch => emit('update:provider', { ...props.provider, ...patch })
 
     <div class="provider-field">
       <span class="provider-field__label">接口类型</span>
-      <Select
+      <KimaSelect
         label="接口类型"
         :model-value="provider.apiType"
-        :options="API_TYPE_OPTIONS"
+        :items="API_TYPE_OPTIONS"
         @update:model-value="update({ apiType: $event })"
       />
     </div>

@@ -2,12 +2,13 @@
 MCP 服务管理：展示已配置的 MCP 服务连接，支持编辑、删除和启用/禁用。
 设计思想：左侧列表选择，右侧编辑面板修改详情，与供应商配置保持一致的交互模式。
 核心数据：mcp（MCP 配置数组，每项含 id、name、command、enabled、definition）。
-控件统一用 ui/；args 按行拆分、env 按 JSON 解析和删除确认仍在本组件完成。
+传输方式直接用 KimaSelect，其余控件走 ui/；args 按行拆分、env 按 JSON 解析和删除确认仍在本组件完成。
 调用示例：<MCPSettings v-model:mcp="settingsDraft.mcp" />。
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { AppIcon, Button, Dialog, Field, Select, Switch } from '../../ui/index.js'
+import { KimaSelect } from '@kernel4632/kima'
+import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   mcp: { type: Array, required: true },
@@ -120,12 +121,15 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 
         <Field caption="服务名称" :model-value="selectedItem.name" @update:model-value="updateField('name', $event)" />
 
-        <Select
-          caption="传输方式"
-          :model-value="selectedItem.definition?.transport || 'stdio'"
-          :options="TRANSPORT_OPTIONS"
-          @update:model-value="updateDefinition('transport', $event)"
-        />
+        <div class="mcp-field">
+          <span class="mcp-field__caption">传输方式</span>
+          <KimaSelect
+            label="传输方式"
+            :model-value="selectedItem.definition?.transport || 'stdio'"
+            :items="TRANSPORT_OPTIONS"
+            @update:model-value="updateDefinition('transport', $event)"
+          />
+        </div>
 
         <Field
           :caption="remote ? '服务地址（URL）' : '启动命令'"
@@ -210,6 +214,9 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 }
 .mcp-form__head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .mcp-form__head h3 { margin: 0; color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
+/* KIMA Select 只画控件，不画可见标题；标题留给页面排版，避免和 aria-label 重复。 */
+.mcp-field { display: grid; gap: 8px; }
+.mcp-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
 .mcp-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
 .mcp-empty { align-self: center; justify-self: center; color: var(--la-muted); font-size: 14px; }
 @media (max-width: 767px) {

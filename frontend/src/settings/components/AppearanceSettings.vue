@@ -1,11 +1,11 @@
 <!--
 外观设置：主题、强调色、动画和键盘焦点偏好；所有改动只通过 change 事件交给上层写回草稿。
 控件全部使用 KIMA：KimaRadioGroup、KimaSelect、KimaSwitch、KimaButton、KimaDivider、KimaFlex、KimaGrid、KimaTypography。
+调用示例：<AppearanceSettings :appearance="draft.appearance" @change="update" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaButton, KimaDivider, KimaFlex, KimaRadioGroup, KimaSwitch, KimaTypography } from '@kernel4632/kima'
-import { Select } from '../../ui/index.js'
+import { KimaButton, KimaDivider, KimaFlex, KimaRadioGroup, KimaSelect, KimaSwitch, KimaTypography } from '@kernel4632/kima'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 
 const props = defineProps({ appearance: { type: Object, required: true } })
@@ -53,10 +53,10 @@ function reset() {
       <KimaFlex direction="column" :gap="2">
         <KimaTypography>强调色</KimaTypography>
         <KimaTypography type="caption">按钮与选中状态的颜色</KimaTypography>
-        <Select
+        <KimaSelect
           class="appearance-color"
           label="强调色"
-          :options="colors"
+          :items="colors"
           :model-value="appearance.color"
           @update:model-value="update('color', $event)"
         />
