@@ -80,13 +80,11 @@ async function exportSession() {
 </template>
 
 <style scoped lang="scss">
-.stats-dialog { width: 392px; max-width: calc(100vw - 96px); min-width: 0; }
-.stats-dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; }
-.stats-dialog > p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
-.stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.stats-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding: 12px 10px; border-radius: 12px; background: var(--la-layer-01); }
-.stats-grid strong { color: var(--la-text); font-size: 20px; font-weight: 600; line-height: 26px; }
-.stats-grid span { color: var(--la-muted); font-size: 11px; }
-.stats-model { margin-top: 12px !important; }
-@media (max-width: 480px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stats-dialog { width: 100%; min-width: 0; }
+.stats-dialog > p { margin: 0 0 20px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 22px; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.stats-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 16px; border-radius: 16px; background: var(--la-layer-02); }
+.stats-grid strong { color: var(--la-text); font-size: 26px; font-weight: 600; line-height: 32px; }
+.stats-grid span { color: var(--la-muted); font-size: 13px; line-height: 18px; }
+.stats-model { margin-top: 16px !important; }
 </style>

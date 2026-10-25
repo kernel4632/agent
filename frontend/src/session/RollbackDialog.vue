@@ -56,11 +56,11 @@ defineExpose({ show, close })
 </template>
 
 <style scoped lang="scss">
-.rollback-files { display: grid; gap: 8px; margin: 0 0 16px; }
-.rollback-files > span { color: var(--la-muted); font-size: 13px; }
-.rollback-files ul { max-height: 160px; margin: 0; padding: 10px 12px; overflow: auto; list-style: none; border-radius: 6px; background: var(--la-layer-02); }
-.rollback-files li { color: var(--la-secondary); font: 12px/1.9 var(--la-font-mono); overflow-wrap: anywhere; }
-.rollback-choice { display: flex; align-items: center; gap: 9px; color: var(--la-text); font-size: 13px; }
-.rollback-choice input { width: 15px; height: 15px; accent-color: var(--la-accent); }
-.rollback-hint { margin: 10px 0 0 !important; color: var(--la-muted) !important; font-size: 12px !important; }
+.rollback-files { display: grid; gap: 10px; margin: 0 0 20px; }
+.rollback-files > span { color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.rollback-files ul { max-height: 180px; margin: 0; padding: 12px 16px; overflow: auto; list-style: none; border-radius: 12px; background: var(--la-layer-02); }
+.rollback-files li { color: var(--la-secondary); font: 13px/1.9 var(--la-font-mono); overflow-wrap: anywhere; }
+.rollback-choice { display: flex; align-items: center; gap: 10px; color: var(--la-text); font-size: 14px; }
+.rollback-choice input { width: 18px; height: 18px; accent-color: var(--la-accent); }
+.rollback-hint { margin: 12px 0 0 !important; color: var(--la-muted) !important; font-size: 13px !important; line-height: 20px !important; }
 </style>
