@@ -14,7 +14,7 @@ m3e-theme {
   --la-input: var(--kima-color-surface-container-high);
   --la-text: var(--kima-color-on-surface);
   --la-secondary: var(--kima-color-on-surface-variant);
-  --la-muted: var(--kima-color-outline);
+  --la-muted: color-mix(in srgb, var(--kima-color-on-surface-variant) 82%, transparent);
   --la-line: color-mix(in srgb, var(--kima-color-outline-variant) 72%, transparent);
   --la-line-strong: var(--kima-color-outline-variant);
   --la-hover: color-mix(in srgb, var(--kima-color-on-surface) 7%, transparent);
