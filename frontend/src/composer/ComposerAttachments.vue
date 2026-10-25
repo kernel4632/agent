@@ -1,8 +1,9 @@
 <!--
-  输入区附件条：只显示已附加文件并上抛移除动作。
+输入区附件条：用 KIMA Chip 显示已附加文件，并上抛移除动作。
 -->
 <script setup>
-import { AppIcon, IconButton } from '../ui/index.js'
+import { KimaChip } from '@kernel4632/kima'
+import { AppIcon } from '../ui/index.js'
 
 defineProps({ files: { type: Array, default: () => [] } })
 const emit = defineEmits(['remove'])
@@ -10,11 +11,21 @@ const emit = defineEmits(['remove'])
 
 <template>
   <div v-if="files.length" class="chat-composer__files">
-    <span v-for="file in files" :key="file.id"><AppIcon name="document" :size="16" />{{ file.name }}<IconButton size="small" :label="`移除附件 ${file.name}`" @click="emit('remove', file.id)"><AppIcon name="close" :size="15" /></IconButton></span>
+    <KimaChip
+      v-for="file in files"
+      :key="file.id"
+      class="chat-composer__file"
+      removable
+      :label="file.name"
+      remove-label="移除附件"
+      @remove="emit('remove', file.id)"
+    >
+      <AppIcon name="document" :size="16" />{{ file.name }}
+    </KimaChip>
   </div>
 </template>
 
 <style scoped lang="scss">
 .chat-composer__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.chat-composer__files > span { display: flex; align-items: center; gap: 8px; max-width: 100%; min-height: 40px; padding-left: 12px; border-radius: 12px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 13px; overflow-wrap: anywhere; }
+.chat-composer__file { max-width: 100%; }
 </style>

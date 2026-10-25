@@ -4,7 +4,8 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { AppIcon, Button, Field, Select } from '../ui/index.js'
+import { KimaChip } from '@kernel4632/kima'
+import { AppIcon, Field, Select } from '../ui/index.js'
 import { AUTO_APPROVE_KINDS, Session, USE_LABELS } from '../commands/session.js'
 import { store } from '../store.js'
 
@@ -38,7 +39,9 @@ const targetFrom = (session, value) => {
       <h2>自动批准</h2>
       <p>按类别跳过审批；.agentignore 仍然生效。</p>
       <div class="chat-more__chips">
-        <Button v-for="item in AUTO_APPROVE_KINDS" :key="item.kind" variant="plain" class="chip chip--compact" :class="{ 'chip--active': session.settings.autoApprove?.[item.kind] }" :title="`自动批准「${item.label}」：${item.hint}`" @click="Session.toggleAutoApprove(session.id, item.kind)"><AppIcon :name="item.icon" :size="12" />{{ item.label }}</Button>
+        <KimaChip v-for="item in AUTO_APPROVE_KINDS" :key="item.kind" selectable :label="item.label" :model-value="!!session.settings.autoApprove?.[item.kind]" :title="`自动批准「${item.label}」：${item.hint}`" @change="Session.toggleAutoApprove(session.id, item.kind)">
+          <AppIcon :name="item.icon" :size="16" />{{ item.label }}
+        </KimaChip>
       </div>
     </section>
 
@@ -46,10 +49,10 @@ const targetFrom = (session, value) => {
       <h2>模型能力</h2>
       <p>按模型支持情况开关。</p>
       <div class="chat-more__chips">
-        <Button variant="plain" class="chip chip--compact" :class="{ 'chip--active': session.settings.capabilities.image }" title="允许把图片发给模型" @click="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="12" />图像</Button>
-        <Button variant="plain" class="chip chip--compact" :class="{ 'chip--active': session.settings.capabilities.cache }" title="提示词缓存，命中就是省时间和省钱" @click="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="12" />缓存</Button>
-        <Button variant="plain" class="chip chip--compact" :class="{ 'chip--active': session.settings.capabilities.stream }" title="流式输出：回复边生成边显示" @click="Session.toggleCapability(session.id, 'stream')"><AppIcon name="spark" :size="12" />流式</Button>
-        <Button variant="plain" class="chip chip--compact" :class="{ 'chip--active': session.settings.autoTitle }" title="第一次聊完让模型起个标题" @click="Session.toggleAutoTitle(session.id)"><AppIcon name="edit" :size="12" />自动标题</Button>
+        <KimaChip selectable label="图像" :model-value="session.settings.capabilities.image" title="允许把图片发给模型" @change="Session.toggleCapability(session.id, 'image')"><AppIcon name="globe" :size="16" />图像</KimaChip>
+        <KimaChip selectable label="缓存" :model-value="session.settings.capabilities.cache" title="提示词缓存，命中就是省时间和省钱" @change="Session.toggleCapability(session.id, 'cache')"><AppIcon name="copy" :size="16" />缓存</KimaChip>
+        <KimaChip selectable label="流式" :model-value="session.settings.capabilities.stream" title="流式输出：回复边生成边显示" @change="Session.toggleCapability(session.id, 'stream')"><AppIcon name="spark" :size="16" />流式</KimaChip>
+        <KimaChip selectable label="自动标题" :model-value="session.settings.autoTitle" title="第一次聊完让模型起个标题" @change="Session.toggleAutoTitle(session.id)"><AppIcon name="edit" :size="16" />自动标题</KimaChip>
       </div>
     </section>
 
@@ -99,11 +102,6 @@ const targetFrom = (session, value) => {
 .chat-more__chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chat-more__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: var(--la-secondary); font-size: 14px; }
 .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 180px; max-width: 180px; min-width: 0; flex: none; }
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--la-layer-02); color: var(--la-muted); font-size: 13px; cursor: pointer; }
-.chip:hover:not(:disabled) { color: var(--la-text); background: var(--la-layer-03); }
-.chip--active { background: var(--la-accent-soft); color: var(--la-accent); }
-.chip:disabled { opacity: .5; }
-.chip--compact { min-height: 36px; padding: 0 12px; }
 @media (max-width: 767px) {
   .chat-more { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 16px; max-height: 60vh; }
   .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 150px; max-width: 150px; }

@@ -16,7 +16,7 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import { Button } from '../ui/index.js'
+import { KimaChip } from '@kernel4632/kima'
 import Composer from '../composer/Composer.vue'
 
 defineProps({
@@ -46,7 +46,15 @@ defineExpose({ focus: () => composer.value?.focus() })
 
     <div class="draft-form">
       <div class="draft-suggestions" role="group" aria-label="建议">
-        <Button v-for="item in suggestions" :key="item" variant="plain" class="draft-suggestion" @click="useSuggestion(item)">{{ item }}</Button>
+        <KimaChip
+          v-for="item in suggestions"
+          :key="item"
+          class="draft-suggestion"
+          selectable
+          :model-value="false"
+          :label="item"
+          @change="useSuggestion(item)"
+        >{{ item }}</KimaChip>
       </div>
       <Composer ref="composer" v-model:draft="draft" :selected-model="model" :is-running="false" :busy="busy" :files="files" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
     </div>
@@ -59,20 +67,7 @@ defineExpose({ focus: () => composer.value?.focus() })
 .draft-form { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 0 8px 8px; }
 .draft-suggestions { display: flex; gap: 8px; overflow-x: auto; padding: 12px 12px 8px; scrollbar-width: none; }
 .draft-suggestions::-webkit-scrollbar { display: none; }
-.draft-suggestion {
-  height: 40px;
-  flex: none;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--la-layer-02);
-  color: var(--la-secondary);
-  font-size: 14px;
-  font-weight: 400;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.draft-suggestion:hover { background: var(--la-layer-03); color: var(--la-text); text-decoration: none; }
+.draft-suggestion { flex: none; }
 @media (max-width: 767px) {
   .draft-form { padding: 0 8px max(8px, env(safe-area-inset-bottom)); }
 }

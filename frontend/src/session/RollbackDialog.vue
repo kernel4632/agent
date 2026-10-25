@@ -4,6 +4,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
+import { KimaCheckbox } from '@kernel4632/kima'
 import { Button, Dialog } from '../ui/index.js'
 
 const props = defineProps({
@@ -43,10 +44,7 @@ defineExpose({ show, close })
       <span>这一段的改动（{{ preview.files.length }} 个文件）</span>
       <ul><li v-for="file in preview.files" :key="file.path">{{ file.path }}</li></ul>
     </label>
-    <label class="rollback-choice">
-      <input v-model="restoreFiles" type="checkbox" />
-      <span>同时把文件改回原样</span>
-    </label>
+    <KimaCheckbox v-model="restoreFiles" label="同时把文件改回原样" />
     <p class="rollback-hint">{{ restoreFiles ? '文件和对话一起退回这一步之前。' : '只退对话，工作区里的文件保持现在的样子。' }}</p>
     <div class="dialog-actions">
       <Button @click="close">取消</Button>
@@ -60,7 +58,5 @@ defineExpose({ show, close })
 .rollback-files > span { color: var(--la-muted); font-size: 13px; line-height: 20px; }
 .rollback-files ul { max-height: 180px; margin: 0; padding: 12px 16px; overflow: auto; list-style: none; border-radius: 12px; background: var(--la-layer-02); }
 .rollback-files li { color: var(--la-secondary); font: 13px/1.9 var(--la-font-mono); overflow-wrap: anywhere; }
-.rollback-choice { display: flex; align-items: center; gap: 10px; color: var(--la-text); font-size: 14px; }
-.rollback-choice input { width: 18px; height: 18px; accent-color: var(--la-accent); }
 .rollback-hint { margin: 12px 0 0 !important; color: var(--la-muted) !important; font-size: 13px !important; line-height: 20px !important; }
 </style>
