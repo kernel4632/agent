@@ -3,16 +3,29 @@
 控件全部使用 KIMA：KimaRadioGroup、KimaSelect、KimaSwitch、KimaButton、KimaDivider、KimaFlex、KimaGrid、KimaTypography。
 -->
 <script setup>
+import { computed } from 'vue'
 import { KimaButton, KimaDivider, KimaFlex, KimaGrid, KimaRadioGroup, KimaSwitch, KimaTypography } from '@kernel4632/kima'
 import { Select } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 
-defineProps({ appearance: { type: Object, required: true } })
+const props = defineProps({ appearance: { type: Object, required: true } })
 const emit = defineEmits(['change'])
 const update = (field, value) => emit('change', { field, value })
 
 const themes = [{ value: 'dark', label: '深色' }, { value: 'light', label: '浅色' }, { value: 'system', label: '跟随系统' }]
-const colors = [{ value: '#8badf4', label: '雾蓝' }, { value: '#85bfb1', label: '青绿' }, { value: '#c9b69a', label: '暖沙' }, { value: '#bba5d6', label: '丁香' }]
+const PRESET_COLORS = [
+  { value: '#3b5cf6', label: '靛蓝' },
+  { value: '#8badf4', label: '雾蓝' },
+  { value: '#85bfb1', label: '青绿' },
+  { value: '#c9b69a', label: '暖沙' },
+  { value: '#bba5d6', label: '丁香' },
+]
+// 旧版本存过自定义颜色，列表里找不到匹配项时下拉框会显示空白，这里补一个当前值。
+const colors = computed(() => {
+  const current = props.appearance.color
+  if (!current || PRESET_COLORS.some(item => item.value === current)) return PRESET_COLORS
+  return [{ value: current, label: '当前颜色' }, ...PRESET_COLORS]
+})
 
 function reset() {
   for (const [field, value] of Object.entries(DEFAULT_APPEARANCE)) update(field, value)

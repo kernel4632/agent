@@ -1,12 +1,13 @@
 <!--
-通用下拉框：把原生 select 包成统一接口，保留键盘操作和浏览器自带的弹出列表。
-label 写入 aria-label，caption 是可选可见标题；small 用于列表行内的紧凑选择。
+通用下拉框：保留 native select 的键盘操作和浏览器弹出列表，但外观按 KIMA 输入控件绘制。
+label 写入 aria-label，caption 是可见标题；size="small" 只用于列表行内的紧凑选择。
 class/style 落在根节点，selectClass 追加到内部 select，供必须直接定位原生控件的既有选择器使用。
 调用示例：<Select v-model="permission" :options="permissionOptions" label="文件读取权限" />
           <Select v-model="transport" :options="transportOptions" caption="传输方式" />
 -->
 <script setup>
 import { computed, useAttrs } from 'vue'
+import AppIcon from './AppIcon.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -16,8 +17,8 @@ const props = defineProps({
   label: { type: String, default: '' },                 // 屏幕阅读器读到的名称（aria-label）
   caption: { type: String, default: '' },               // 可选的可见标题
   disabled: Boolean,
-  size: { type: String, default: 'normal' },            // normal 36px，small 28px 无边框
-  selectClass: { type: String, default: '' },            // 追加到内部 select 的 class，供既有选择器直接定位原生控件
+  size: { type: String, default: 'normal' },            // normal 64px，small 40px
+  selectClass: { type: String, default: '' },           // 追加到内部 select 的 class
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -45,38 +46,70 @@ function onChange(event) {
     :class="{ 'ui-select--labeled': caption, 'ui-select--small': size === 'small' }"
   >
     <span v-if="caption" class="ui-select__caption">{{ caption }}</span>
-    <select
-      v-bind="selectAttrs"
-      :class="['field', 'ui-select__input', selectClass]"
-      :value="modelValue"
-      :aria-label="label || undefined"
-      :disabled="disabled"
-      @change="onChange"
-    >
-      <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">
-        {{ option.label }}
-      </option>
-    </select>
+    <span class="ui-select__control">
+      <select
+        v-bind="selectAttrs"
+        :class="['ui-select__input', selectClass]"
+        :value="modelValue"
+        :aria-label="label || undefined"
+        :disabled="disabled"
+        @change="onChange"
+      >
+        <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">
+          {{ option.label }}
+        </option>
+      </select>
+      <AppIcon name="down" :size="size === 'small' ? 16 : 20" class="ui-select__chevron" aria-hidden="true" />
+    </span>
   </label>
 </template>
 
 <style scoped lang="scss">
 .ui-select { display: block; min-width: 0; }
 .ui-select--labeled { display: grid; gap: 8px; }
-.ui-select__caption { color: var(--la-secondary); font-size: 13px; font-weight: 440; line-height: 20px; }
-.ui-select__input { width: 100%; cursor: pointer; }
+.ui-select__caption {
+  color: var(--kima-color-on-surface-variant);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.ui-select__control { position: relative; display: flex; min-width: 0; align-items: center; }
+.ui-select__input {
+  width: 100%;
+  height: var(--kima-field-height, 64px);
+  padding: 0 calc(var(--kima-field-padding, 20px) + 28px) 0 var(--kima-field-padding, 20px);
+  border: 0;
+  border-radius: var(--kima-radius-m, 12px);
+  appearance: none;
+  background: var(--kima-color-layer-2);
+  color: var(--kima-color-on-surface);
+  font-family: var(--kima-font-family);
+  font-size: var(--kima-font-size-body-large, 18px);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color .16s ease, box-shadow .16s ease;
+}
+.ui-select__input:hover:not(:disabled) { background: var(--kima-color-layer-3); }
+.ui-select__input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--kima-outline-width-focused, 2px) var(--kima-color-primary);
+}
+.ui-select__input:disabled { opacity: var(--kima-opacity-disabled, .38); cursor: not-allowed; }
+.ui-select__chevron {
+  position: absolute;
+  right: var(--kima-field-padding, 20px);
+  color: var(--kima-color-on-surface-variant);
+  pointer-events: none;
+}
 
-/* 列表行内的紧凑尺寸：28px、无边框，和原来的工具权限下拉一致。 */
+/* 列表行内的紧凑尺寸：和同一个操作区里的图标按钮保持同一档。 */
 .ui-select--small .ui-select__input {
   width: auto;
-  height: 28px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 4px;
-  background: var(--la-layer-02);
-  color: var(--la-text);
-  font-size: 13px;
-  cursor: pointer;
+  height: 40px;
+  padding: 0 32px 0 12px;
+  border-radius: var(--kima-radius-s, 8px);
+  font-size: var(--kima-font-size-body-small, 14px);
 }
-.ui-select--small .ui-select__input:focus-visible { outline: 2px solid var(--la-accent-border); outline-offset: 2px; }
+.ui-select--small .ui-select__chevron { right: 10px; }
 </style>
