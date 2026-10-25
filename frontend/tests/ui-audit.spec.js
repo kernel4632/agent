@@ -43,6 +43,14 @@ async function backend(page, { configured = true } = {}) {
         name: 'update_todo_list', kind: 'never', permission: 'ask', configurable: false,
         ui: { view: 'todo', icon: 'check', title: '任务清单', summary: '当前进度' },
       },
+      {
+        name: 'attempt_completion', kind: 'never', permission: 'never', configurable: false,
+        ui: { view: 'completion', icon: 'check', title: '完成任务', summary: '最终结果' },
+      },
+      {
+        name: 'ask_followup_question', kind: 'never', permission: 'never', configurable: false,
+        ui: { view: 'question', icon: 'info', title: '询问用户', summary: '{question}' },
+      },
     ])
     if (path === '/command/list') return json([
       { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
@@ -126,7 +134,21 @@ async function backend(page, { configured = true } = {}) {
         return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
       }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
-      session.history.push({ messageId: 'assistant-1', role: 'assistant', content: [{ type: 'text', text }] })
+      session.history.push({
+        messageId: 'assistant-1',
+        role: 'assistant',
+        content: [
+          { type: 'text', text },
+          {
+            type: 'tool-invocation',
+            toolCallId: 'finish-1',
+            toolName: 'attempt_completion',
+            state: 'result',
+            args: { result: text },
+            result: { output: { type: 'text', value: text } },
+          },
+        ],
+      })
       session.title = '一个新的项目'
       return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }

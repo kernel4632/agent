@@ -71,7 +71,7 @@ async function confirmDelete() {
         <span class="app-drawer__title">{{ selecting ? `已选 ${selected.length} 个` : '会话' }}</span>
         <div class="app-drawer__head-actions">
           <IconButton v-if="!selecting" size="small" label="批量选择会话" title="批量选择" @click="startSelecting"><AppIcon name="list" :size="20" /></IconButton>
-          <IconButton v-else size="small" label="取消选择" title="取消选择" @click="cancelSelecting"><AppIcon name="close" :size="20" /></IconButton>
+          <Button v-else variant="ghost" size="small" class="app-drawer__cancel" @click="cancelSelecting">取消</Button>
         </div>
       </div>
     </template>
