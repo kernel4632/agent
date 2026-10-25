@@ -19,7 +19,6 @@ function openItem(item) {
 <template>
   <Dialog :open="open" label="收藏的消息" @update:open="emit('update:open', $event)">
     <div class="favorites-dialog">
-      <h2>收藏的消息</h2>
       <p>这些快照保存在当前浏览器，不会上传到服务器。</p>
       <ul v-if="Favorites.items.length" class="favorites-list">
         <li v-for="item in Favorites.items" :key="item.key">

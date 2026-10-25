@@ -60,7 +60,6 @@ async function saveTitle() {
 
   <Dialog :open="renameOpen" label="重命名会话" @update:open="renameOpen = $event">
     <form @submit.prevent="saveTitle">
-      <h2>编辑标题</h2>
       <Field v-model="titleDraft" label="标题" placeholder="输入标题" required maxlength="120" />
       <div class="dialog-actions">
         <Button type="button" @click="renameOpen = false">取消</Button>
@@ -76,8 +75,8 @@ async function saveTitle() {
   height: var(--la-topbar-height);
   flex: 0 0 var(--la-topbar-height);
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 12px;
+  padding: 0 16px;
   background: transparent;
 }
 .topbar__menu { display: inline-flex; }
@@ -87,9 +86,9 @@ async function saveTitle() {
   margin: 0;
   overflow: hidden;
   color: var(--la-text);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -109,12 +108,12 @@ async function saveTitle() {
   cursor: text;
 }
 .topbar__title:hover { color: var(--la-accent); }
-.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
-.topbar__subtitle { min-width: 0; overflow: hidden; color: color-mix(in srgb, var(--la-text) 65%, transparent); font-size: 8px; font-weight: 400; line-height: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.topbar__actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.topbar__subtitle { min-width: 0; overflow: hidden; color: var(--la-muted); font-size: 12px; font-weight: 400; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.topbar__actions { display: flex; flex: none; align-items: center; gap: 4px; }
 
 /* 文件面板在面板本身隐藏的尺寸下也一起隐藏，避免点了没有反应。 */
 @media (max-width: 767px) {
-  .topbar { padding: 0 8px; gap: 2px; }
+  .topbar { padding: 0 8px; gap: 4px; }
+  .topbar__heading h1 { font-size: 16px; line-height: 24px; }
 }
 </style>

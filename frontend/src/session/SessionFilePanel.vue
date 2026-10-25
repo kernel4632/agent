@@ -62,22 +62,23 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
   inset: 0 0 0 auto;
   z-index: 43;
   display: flex;
-  width: min(320px, 86vw);
+  width: min(360px, 92vw);
   max-width: 100vw;
   flex-direction: column;
   border-left: .5px solid var(--la-line);
+  border-radius: 20px 0 0 20px;
   background: var(--la-panel);
   box-shadow: -12px 0 36px rgba(0, 0, 0, .18);
   animation: review-in .2s cubic-bezier(.2, 0, 0, 1);
 }
 @keyframes review-in { from { transform: translateX(24px); opacity: .5; } to { transform: none; opacity: 1; } }
 .session-review__scrim { position: fixed; inset: 0; z-index: 42; background: color-mix(in srgb, #000 32%, transparent); }
-.session-review__head { display: flex; height: 48px; flex: none; align-items: center; justify-content: space-between; padding: 0 8px 0 14px; border-bottom: .5px solid var(--la-line); color: var(--la-text); }
-.session-review__head h2 { margin: 0; font-size: 13px; font-weight: 530; }
-.session-review__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow-y: auto; padding: 8px 10px 20px; }
+.session-review__head { display: flex; height: 64px; flex: none; align-items: center; justify-content: space-between; padding: 0 12px 0 20px; border-bottom: .5px solid var(--la-line); color: var(--la-text); }
+.session-review__head h2 { margin: 0; font-size: 16px; font-weight: 600; line-height: 24px; }
+.session-review__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 24px; overflow-y: auto; padding: 16px 12px 24px; }
 .session-review__section { display: flex; flex-direction: column; gap: 2px; }
-.session-review__section h3 { margin: 8px 4px 4px; color: var(--la-muted); font-size: 12px; font-weight: 530; }
-.session-review__section p { margin: 4px; color: var(--la-muted); font-size: 12px; line-height: 18px; }
-.session-review__file { display: block; width: 100%; min-height: 26px; padding: 4px 8px; overflow: hidden; border: 0; border-radius: 8px; background: transparent; color: var(--la-secondary); text-align: left; font: 12px/18px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.session-review__section h3 { margin: 8px 8px 4px; color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
+.session-review__section p { margin: 4px 8px; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.session-review__file { display: block; width: 100%; min-height: 40px; padding: 8px 12px; overflow: hidden; border: 0; border-radius: 10px; background: transparent; color: var(--la-secondary); text-align: left; font: 13px/20px var(--la-font-mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .session-review__file:hover { background: var(--la-hover); color: var(--la-text); }
 </style>

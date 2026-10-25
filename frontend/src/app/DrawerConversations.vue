@@ -135,7 +135,6 @@ async function submitDialog() {
 
     <Dialog :open="dialogOpen" :label="dialogMode === 'rename' ? '重命名会话' : '删除会话'" @update:open="setDialogOpen">
       <form @submit.prevent="submitDialog">
-        <h2>{{ dialogMode === 'rename' ? '重命名会话' : '删除对话' }}</h2>
         <p v-if="dialogMode === 'delete'">会话和历史记录将从服务器永久删除，无法恢复。</p>
         <Field v-if="dialogMode === 'rename'" v-model="value" label="会话标题" placeholder="输入会话标题" required maxlength="120" />
         <div class="dialog-actions">

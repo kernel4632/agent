@@ -88,44 +88,44 @@ function keydown(event) {
 }
 .command-palette__panel {
   display: flex;
-  width: min(560px, 100%);
-  max-height: min(480px, 70vh);
+  width: min(680px, 100%);
+  max-height: min(560px, 72vh);
   flex-direction: column;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 20px;
   background: var(--la-layer-01);
   box-shadow: var(--la-shadow-overlay);
 }
 .command-palette__input {
-  height: 44px;
+  height: 64px;
   flex: none;
-  padding: 0 14px;
+  padding: 0 20px;
   border: 0;
   border-bottom: .5px solid var(--la-line);
   outline: 0;
   background: transparent;
   color: var(--la-text);
-  font: 13px/20px var(--la-font-sans);
+  font: 16px/24px var(--la-font-sans);
 }
 .command-palette__input::placeholder { color: var(--la-muted); }
-.command-palette__list { min-height: 0; overflow-y: auto; padding: 4px; }
+.command-palette__list { min-height: 0; overflow-y: auto; padding: 8px; }
 .command-palette__item {
   display: flex;
   width: 100%;
-  height: 32px;
+  min-height: 48px;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 10px;
+  gap: 16px;
+  padding: 8px 14px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 10px;
   background: transparent;
   color: var(--la-text);
   text-align: left;
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
 }
 .command-palette__item:hover, .command-palette__item.is-active { background: var(--la-layer-03); }
-.command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.command-palette__empty { margin: 0; padding: 16px 10px; color: var(--la-muted); font-size: 13px; }
+.command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.command-palette__empty { margin: 0; padding: 24px 14px; color: var(--la-muted); font-size: 14px; }
 </style>

@@ -41,7 +41,6 @@ function updatePermission(index, permission) {
 <template>
   <section class="tools-settings" aria-label="工具管理">
     <header class="tools-head">
-      <h2>工具权限</h2>
       <p>控制每个工具是否可用，以及调用前是否需要先问你。</p>
     </header>
 
@@ -74,15 +73,8 @@ function updatePermission(index, permission) {
 
 <style scoped lang="scss">
 .tools-settings { display: flex; min-height: 0; flex-direction: column; gap: 20px; }
-.tools-head h2 {
-  margin: 0;
-  color: var(--la-text);
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 28px;
-}
 .tools-head p {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--la-muted);
   font-size: 14px;
   font-weight: 400;

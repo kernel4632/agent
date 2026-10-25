@@ -61,7 +61,6 @@ async function exportSession() {
 <template>
   <Dialog :open="open" label="会话统计" @update:open="emit('update:open', $event)">
     <div class="stats-dialog">
-      <h2>会话统计</h2>
       <p>{{ session?.title || '新会话' }}</p>
       <div class="stats-grid">
         <div><strong>{{ stats.user }}</strong><span>你的消息</span></div>

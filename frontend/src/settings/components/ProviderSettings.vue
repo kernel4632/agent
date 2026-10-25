@@ -1,12 +1,11 @@
 <!--
 供应商配置组合页：协调供应商列表选择和单项字段更新。
-设计思想：桌面上左右分栏，窄屏纵向堆叠；数组通过 v-model:providers 双向绑定，由设置页统一保存。
-布局和控件全部使用 KIMA：KimaGrid、KimaTypography。
+设计思想：桌面上左侧窄列表、右侧宽表单，窄屏纵向堆叠；数组通过 v-model:providers 双向绑定，由设置页统一保存。
 调用示例：<ProviderSettings v-model:providers="settingsDraft.providers" />
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaGrid, KimaTypography } from '@kernel4632/kima'
+import { KimaTypography } from '@kernel4632/kima'
 import ProviderEditor from './ProviderEditor.vue'
 import ProviderList from './ProviderList.vue'
 
@@ -35,7 +34,7 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
 </script>
 
 <template>
-  <KimaGrid :columns="{ base: 1, md: 2 }" :gap="6" align="start">
+  <div class="provider-settings">
     <ProviderList :providers="props.providers" :selected-id="selectedProviderID" @select="selectedProviderID = $event" />
     <ProviderEditor
       v-if="selectedProvider"
@@ -45,5 +44,18 @@ watch(() => props.providers.map(provider => provider.id), (ids, previousIDs) => 
       @delete="removeProvider"
     />
     <KimaTypography v-else type="caption">添加一个供应商以开始配置</KimaTypography>
-  </KimaGrid>
+  </div>
 </template>
+
+<style scoped lang="scss">
+.provider-settings {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .provider-settings { grid-template-columns: minmax(0, 1fr); }
+}
+</style>

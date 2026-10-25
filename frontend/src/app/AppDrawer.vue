@@ -184,11 +184,11 @@ function newConversation() {
 .drawer-sort { position: relative; flex: none; }
 .drawer-sort summary {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border-radius: 50%;
-  background: var(--la-panel);
+  background: var(--la-layer-02);
   color: var(--la-secondary);
   list-style: none;
   cursor: pointer;

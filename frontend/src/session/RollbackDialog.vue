@@ -14,6 +14,7 @@ const emit = defineEmits(['confirm'])
 
 const open = ref(false)
 const restoreFiles = ref(true)
+const question = computed(() => props.target?.role === 'assistant' ? '回到这条回复之前？' : '回到这条消息之前？')
 const summary = computed(() => {
   if (!props.preview) return '此消息及之后的内容将从对话中回退。'
   return `从这条消息开始的 ${props.preview.messages} 条对话会被去掉，你可以在发送新消息前撤销这次回退。`
@@ -36,8 +37,7 @@ defineExpose({ show, close })
 </script>
 
 <template>
-  <Dialog :open="open" label="确认回退" @update:open="open = $event">
-    <h2>{{ target?.role === 'assistant' ? '回到这条回复之前？' : '回到这条消息之前？' }}</h2>
+  <Dialog :open="open" :label="question" @update:open="open = $event">
     <p>{{ summary }}</p>
     <label v-if="preview?.files?.length" class="rollback-files">
       <span>这一段的改动（{{ preview.files.length }} 个文件）</span>

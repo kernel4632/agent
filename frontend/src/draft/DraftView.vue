@@ -57,22 +57,22 @@ defineExpose({ focus: () => composer.value?.focus() })
 .draft-panel { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .draft-empty { min-height: 0; flex: 1; }
 .draft-form { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 0 8px 8px; }
-.draft-suggestions { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; scrollbar-width: none; }
+.draft-suggestions { display: flex; gap: 8px; overflow-x: auto; padding: 12px 12px 8px; scrollbar-width: none; }
 .draft-suggestions::-webkit-scrollbar { display: none; }
 .draft-suggestion {
-  height: 28px;
+  height: 40px;
   flex: none;
-  padding: 0 10px;
+  padding: 0 16px;
   border: 0;
   border-radius: 999px;
-  background: var(--la-layer-01);
+  background: var(--la-layer-02);
   color: var(--la-secondary);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
   white-space: nowrap;
   cursor: pointer;
 }
-.draft-suggestion:hover { background: var(--la-layer-02); color: var(--la-text); text-decoration: none; }
+.draft-suggestion:hover { background: var(--la-layer-03); color: var(--la-text); text-decoration: none; }
 @media (max-width: 767px) {
   .draft-form { padding: 0 8px max(8px, env(safe-area-inset-bottom)); }
 }

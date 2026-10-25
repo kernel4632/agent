@@ -1,9 +1,9 @@
 :root {
   font-family: "Maple Mono NF CN", "MapleMono NF CN", Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 20px;
+  line-height: 22px;
   letter-spacing: 0;
   font-variant-ligatures: none;
   --motion-spring-bouncy: cubic-bezier(.22,1,.36,1);
@@ -36,116 +36,11 @@ m3e-theme {
 m3e-theme[scheme="light"] { color-scheme: light; }
 .preview-page { display: flex; flex-direction: column; width: 100%; height: 100dvh; overflow: hidden; background: var(--la-bg); }
 
-/* Buttons */
-.icon-button {
-  display: inline-flex; justify-content: center; align-items: center;
-  width: 28px; height: 28px; flex-shrink: 0; padding: 0;
-  border: 0; border-radius: var(--la-radius);
-  color: var(--la-secondary); background: transparent; cursor: pointer;
-}
-.icon-button:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
-.button {
-  display: inline-flex; justify-content: center; align-items: center; gap: 6px;
-  height: 28px; padding: 0 11px; border: 0; border-radius: var(--la-radius);
-  background: var(--la-panel); color: var(--la-text);
-  box-shadow: var(--la-shadow-raised); cursor: pointer;
-  font-size: 13px; font-weight: 530; line-height: 20px; text-decoration: none;
-}
-.button:hover:not(:disabled) { background-image: linear-gradient(var(--la-hover), var(--la-hover)); }
-.button--primary { background: var(--la-action); color: var(--la-on-action); box-shadow: var(--la-shadow-floating); }
-.button--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--la-action) 90%, var(--la-panel)); }
-.button--danger { color: var(--la-danger); }
-.button--small { height: 24px; padding: 0 9px; border-radius: 4px; }
-.text-button { padding: 0; border: 0; background: transparent; color: var(--la-accent); cursor: pointer; font-size: 13px; font-weight: 440; }
-.text-button:hover { color: var(--la-accent); text-decoration: underline; text-underline-offset: 3px; }
-
-/* Inputs */
-.field {
-  width: 100%; height: 36px; padding: 0 10px;
-  border: .5px solid var(--la-line); border-radius: var(--la-radius);
-  background: var(--la-layer-02); color: var(--la-text);
-  outline: none; font-size: 13px;
-}
-.field::placeholder { color: var(--la-muted); }
-.field:focus { border-color: var(--la-accent-border); box-shadow: 0 0 0 2px var(--la-accent-soft); }
-
-/* Dialogs */
-/* RikkaHub / Material 3 AlertDialog：28px 圆角、24px 内边距、surfaceContainerHigh。 */
-.dialog {
-  width: fit-content;
-  min-width: 280px;
-  max-width: min(560px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  padding: 24px;
-  overflow-y: auto;
-  border: 0;
-  border-radius: 28px;
-  background: var(--md-sys-color-surface-container-high, var(--la-layer-02));
-  color: var(--la-text);
-  box-shadow: 0 24px 38px 3px rgba(0, 0, 0, .14), 0 9px 46px 8px rgba(0, 0, 0, .12), 0 11px 15px -7px rgba(0, 0, 0, .20);
-}
-.dialog[open] { animation: dialog-in .16s cubic-bezier(.2, 0, 0, 1); }
-@keyframes dialog-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
-.dialog::backdrop { background: color-mix(in srgb, #000 32%, transparent); }
-.dialog > *, .dialog form > * { min-width: 0; }
-.dialog h2 { margin: 0; color: var(--la-text); font-size: 24px; font-weight: 400; line-height: 32px; letter-spacing: 0; }
-.dialog p { margin: 16px 0 24px; color: var(--la-secondary); font-size: 14px; font-weight: 400; line-height: 20px; }
-.dialog label { display: grid; gap: 8px; color: var(--la-secondary); font-size: 14px; }
-.dialog .ui-field__caption { display: none; }
-.dialog h2 + .ui-field { margin-top: 16px; }
-.dialog .field {
-  height: 56px;
-  padding: 0 16px;
-  border: 1px solid var(--md-sys-color-outline, var(--la-line-strong));
-  border-radius: 4px;
-  background: transparent;
-  color: var(--la-text);
-  font-size: 16px;
-}
-.dialog .field:focus { border-color: var(--md-sys-color-primary, var(--la-accent)); box-shadow: inset 0 0 0 1px var(--md-sys-color-primary, var(--la-accent)); }
+/* KIMA Dialog 的内容区动作行；按钮本身由 KIMA 负责。 */
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
-/* AlertDialog 的动作是 TextButton，不是实心主按钮。 */
-.dialog-actions .button {
-  height: 40px;
-  min-width: 64px;
-  padding: 0 12px;
-  border-radius: 20px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--md-sys-color-primary, var(--la-accent));
-  font-size: 14px;
-  font-weight: 500;
-}
-.dialog-actions .button:hover:not(:disabled) { background: color-mix(in srgb, var(--md-sys-color-primary, var(--la-accent)) 8%, transparent); }
-.dialog-actions .button--danger { color: var(--md-sys-color-error, var(--la-danger)); }
-.dialog-actions .button--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--md-sys-color-error, var(--la-danger)) 8%, transparent); }
-.dialog-actions .button:disabled { opacity: .38; }
 
-/* Misc */
-.status-dot { display: inline-block; width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--la-accent); }
-.status-dot.is-running { box-shadow: 0 0 0 3px var(--la-accent-soft); animation: status-pulse 1.4s ease-in-out infinite; }
-@keyframes status-pulse { 50% { opacity: .45; } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-.avatar { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 6px; background: var(--la-layer-02); color: var(--la-secondary); }
-.avatar--assistant { font: 600 10px/1 var(--la-font-mono); }
-.switch {
-  appearance: none; position: relative; flex: 0 0 24px; width: 24px; height: 16px; margin: 0; padding: 0;
-  border: 0; border-radius: 4px; background: var(--la-layer-04); cursor: pointer;
-  box-shadow: inset 0 1px 2px #00000014, inset 0 0 0 1px var(--la-line-strong);
-}
-.switch::after {
-  content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
-  border-radius: 2px; border: .5px solid #0000001f;
-  background: #fff; box-shadow: 0 1px 1px #00000024;
-  transition: transform .09s ease-out;
-}
-.switch:checked { background: var(--la-accent-solid); box-shadow: inset 0 2px 2px #0000001a; }
-.switch:checked::after { transform: translateX(8px); }
-.view-enter-active, .view-leave-active { transition: opacity .16s, transform .16s; }
-.view-enter-from { opacity: 0; transform: translateY(5px); }
-.view-leave-to { opacity: 0; }
-.view-loading { padding: 48px 24px; text-align: center; color: var(--la-muted); font-size: 13px; }
+
 m3e-theme[strong-focus] :focus-visible { outline-width: 3px; outline-offset: 5px; }
 m3e-theme[reduced-motion] *, m3e-theme[reduced-motion] *::before, m3e-theme[reduced-motion] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
-@media (max-width: 767px) { .icon-button { min-width: 40px; min-height: 40px; } }

@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaButton, KimaDivider, KimaFlex, KimaGrid, KimaRadioGroup, KimaSwitch, KimaTypography } from '@kernel4632/kima'
+import { KimaButton, KimaDivider, KimaFlex, KimaRadioGroup, KimaSwitch, KimaTypography } from '@kernel4632/kima'
 import { Select } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 
@@ -33,10 +33,10 @@ function reset() {
 </script>
 
 <template>
-  <KimaFlex direction="column" :gap="4">
+  <KimaFlex class="appearance-card" direction="column" :gap="4">
     <KimaTypography type="heading" :level="3" size="title-small">外观</KimaTypography>
 
-    <KimaGrid :columns="{ base: 1, md: 2 }" :gap="4">
+    <KimaFlex direction="column" :gap="6">
       <KimaFlex direction="column" :gap="2">
         <KimaTypography>界面主题</KimaTypography>
         <KimaTypography type="caption">选择工作区的显示方式</KimaTypography>
@@ -54,13 +54,14 @@ function reset() {
         <KimaTypography>强调色</KimaTypography>
         <KimaTypography type="caption">按钮与选中状态的颜色</KimaTypography>
         <Select
+          class="appearance-color"
           label="强调色"
           :options="colors"
           :model-value="appearance.color"
           @update:model-value="update('color', $event)"
         />
       </KimaFlex>
-    </KimaGrid>
+    </KimaFlex>
 
     <KimaDivider />
 
@@ -76,3 +77,15 @@ function reset() {
     </KimaFlex>
   </KimaFlex>
 </template>
+
+<style scoped lang="scss">
+.appearance-card {
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--la-layer-01);
+}
+.appearance-color { max-width: 360px; }
+@media (max-width: 767px) {
+  .appearance-card { padding: 20px; }
+}
+</style>

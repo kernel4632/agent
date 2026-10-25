@@ -35,19 +35,19 @@ const emit = defineEmits(['select'])
 .folder-bar::-webkit-scrollbar { display: none; }
 .folder-chip {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 40px;
   flex: none;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 8px 16px;
   border: 0;
   border-radius: 999px;
-  background: var(--la-panel);
+  background: var(--la-layer-02);
   color: var(--la-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
 }
 .folder-chip.is-selected { background: var(--la-accent-soft); color: var(--la-accent); }
-.folder-chip:hover { background: var(--la-layer-02); color: var(--la-text); }
+.folder-chip:hover { background: var(--la-layer-03); color: var(--la-text); }
 </style>

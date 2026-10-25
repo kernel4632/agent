@@ -206,7 +206,6 @@ defineExpose({ focus: () => editor.value?.focus() })
 
   <Sheet :open="addOpen" label="更多选项" @update:open="addOpen = $event">
     <div class="composer-sheet">
-      <h2>更多选项</h2>
       <div class="composer-sheet__list">
         <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
         <button v-if="showSessionControls" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>对话设置</span></button>
@@ -309,7 +308,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 .composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
 .composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
-.composer-sheet { display: grid; gap: 16px; min-width: 0; padding-bottom: 8px; }
+.composer-sheet { display: grid; width: 100%; max-width: 800px; gap: 16px; min-width: 0; margin: 0 auto; padding-bottom: 8px; }
 .composer-sheet--models { min-height: 78vh; grid-template-rows: auto minmax(0, 1fr); }
 .composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 400; line-height: 28px; }
 .composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
