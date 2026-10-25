@@ -8,7 +8,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { KimaDrawer } from '@kernel4632/kima'
-import { AppIcon, Field, IconButton } from '../ui/index.js'
+import { AppIcon, Button, Field, IconButton } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
 import SessionStatsDialog from './SessionStatsDialog.vue'
 import { store } from '../store.js'
@@ -45,7 +45,6 @@ function openConversation(id) {
         <span class="app-drawer__title">会话</span>
         <div class="app-drawer__head-actions">
           <IconButton v-if="activeSession" size="small" label="会话统计" title="会话统计" @click="statsOpen = true"><AppIcon name="stats" :size="20" /></IconButton>
-          <IconButton size="small" label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="20" /></IconButton>
         </div>
       </div>
     </template>
@@ -69,6 +68,12 @@ function openConversation(id) {
       @open="openConversation"
     />
 
+    <template #footer>
+      <Button variant="tonal" class="drawer-settings" @click="emit('settings')">
+        <AppIcon name="settings" :size="20" /><span>设置</span>
+      </Button>
+    </template>
+
     <SessionStatsDialog :open="statsOpen" :session="activeSession" @update:open="statsOpen = $event" />
   </KimaDrawer>
 </template>
@@ -84,6 +89,13 @@ function openConversation(id) {
 .app-drawer__title { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
 .app-drawer__head-actions { display: flex; align-items: center; gap: 2px; }
 .app-drawer__search { margin-bottom: 16px; }
+.drawer-settings {
+  width: 100%;
+  min-height: 56px;
+  justify-content: center;
+  gap: 10px;
+  font-size: 16px;
+}
 
 /* --- 会话列表 --- */
 .app-drawer__sessions { display: flex; flex: 1; min-height: 0; flex-direction: column; padding: 0; }

@@ -17,6 +17,7 @@ const emit = defineEmits(['click'])
 
 const kimaVariant = computed(() => ({
   primary: 'filled',
+  tonal: 'tonal',
   default: 'outlined',
   ghost: 'text',
   danger: 'text',
