@@ -175,7 +175,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 <style scoped lang="scss">
 .mcp-settings { display: flex; min-height: 0; flex-direction: column; gap: 24px; }
 .mcp-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.mcp-head__copy { max-width: 520px; margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
+.mcp-head__copy { max-width: 560px; margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
 .mcp-body { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; min-height: 0; }
 .mcp-list { display: flex; min-height: 0; flex-direction: column; padding: 12px; border-radius: 20px; background: var(--la-layer-01); }
 .mcp-list__items { display: flex; min-height: 0; flex-direction: column; gap: 4px; overflow-y: auto; }
