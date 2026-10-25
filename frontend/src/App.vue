@@ -138,29 +138,35 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         />
 
         <main class="app-main">
-          <ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
+          <Transition name="alert">
+            <ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
+          </Transition>
 
-          <SettingsPage v-if="mode === 'settings'" class="settings-panel" />
+          <Transition name="view" mode="out-in">
+            <SettingsPage v-if="mode === 'settings'" key="settings" class="settings-panel" />
 
-          <DraftView
-            v-else-if="mode === 'draft'"
-            ref="draftView"
-            v-model:draft="homeDraft"
-            :model="store.config.activeModel"
-            :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-            :files="homeFiles"
-            @submit="submitMessage"
-            @attach="attachFiles"
-            @remove-file="removeFile"
-          />
+            <DraftView
+              v-else-if="mode === 'draft'"
+              key="draft"
+              ref="draftView"
+              v-model:draft="homeDraft"
+              :model="store.config.activeModel"
+              :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
+              :files="homeFiles"
+              @submit="submitMessage"
+              @attach="attachFiles"
+              @remove-file="removeFile"
+            />
 
-          <SessionView
-            v-else
-            :session="session"
-            :workspace="selectedWorkspace"
-            :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-            v-model:review-open="reviewOpen"
-          />
+            <SessionView
+              v-else
+              key="session"
+              :session="session"
+              :workspace="selectedWorkspace"
+              :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
+              v-model:review-open="reviewOpen"
+            />
+          </Transition>
         </main>
       </div>
 
@@ -174,4 +180,14 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 .rikka-app { display: flex; width: 100%; height: 100%; height: 100dvh; min-height: 0; overflow: hidden; background: var(--la-bg); }
 .rikka-main { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; }
 .app-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
+/* 页面切换像 KIMA 的注意力引导：进入时轻微上移并淡入，离开更快。 */
+.view-enter-active { transition: opacity .2s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.view-leave-active { transition: opacity .14s ease, transform .14s ease; }
+.view-enter-from { opacity: 0; transform: translateY(10px); }
+.view-leave-to { opacity: 0; transform: translateY(-6px); }
+.alert-enter-active, .alert-leave-active { transition: opacity .18s ease, transform .22s cubic-bezier(.2, 0, 0, 1); }
+.alert-enter-from, .alert-leave-to { opacity: 0; transform: translateY(-8px); }
+@media (prefers-reduced-motion: reduce) {
+  .view-enter-active, .view-leave-active, .alert-enter-active, .alert-leave-active { transition-duration: .01ms; }
+}
 </style>

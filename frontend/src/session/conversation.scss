@@ -217,6 +217,7 @@
   padding: 0;
   border-radius: 0;
   background: transparent;
+  animation: surface-in .2s ease-out both;
 }
 .rikka-bubble--user .markdown-body,
 .rikka-bubble--assistant .markdown-body { font-size: 16px; line-height: 1.7; }
@@ -237,7 +238,9 @@
   padding: 4px 12px;
   border-radius: 20px;
   background: var(--la-layer-02);
+  animation: surface-in .2s ease-out both;
 }
+@keyframes surface-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .cot-more {
   display: flex;
   width: 100%;

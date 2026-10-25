@@ -74,36 +74,36 @@ function goBack() {
     </header>
 
     <div class="settings-scroll">
-      <template v-if="selectedPage">
-        <component v-if="draft" :is="selectedPage.component" :draft="draft" />
-      </template>
+      <Transition name="settings-view" mode="out-in">
+        <component v-if="selectedPage && draft" :is="selectedPage.component" :key="selected" :draft="draft" />
 
-      <template v-else>
-        <section v-for="group in groups" :key="group.label" class="settings-group">
-          <h2 class="settings-group__label">{{ group.label }}</h2>
-          <div class="settings-card">
-            <Button
-              v-for="page in group.items"
-              :key="page.id"
-              variant="plain"
-              class="settings-row"
-              :disabled="page.disabled"
-              :title="page.disabled ? '暂不支持此管理功能' : undefined"
-              @click="openPage(page)"
-            >
-              <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true">
-                <AppIcon :name="page.icon" :size="20" />
-              </span>
-              <span class="settings-row__text">
-                <span class="settings-row__title">{{ page.label }}</span>
-                <span class="settings-row__description">{{ page.description }}</span>
-              </span>
-              <span v-if="page.disabled" class="settings-row__badge">待支持</span>
-              <AppIcon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
-            </Button>
-          </div>
-        </section>
-      </template>
+        <div v-else key="home" class="settings-home">
+          <section v-for="group in groups" :key="group.label" class="settings-group">
+            <h2 class="settings-group__label">{{ group.label }}</h2>
+            <div class="settings-card">
+              <Button
+                v-for="page in group.items"
+                :key="page.id"
+                variant="plain"
+                class="settings-row"
+                :disabled="page.disabled"
+                :title="page.disabled ? '暂不支持此管理功能' : undefined"
+                @click="openPage(page)"
+              >
+                <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true">
+                  <AppIcon :name="page.icon" :size="20" />
+                </span>
+                <span class="settings-row__text">
+                  <span class="settings-row__title">{{ page.label }}</span>
+                  <span class="settings-row__description">{{ page.description }}</span>
+                </span>
+                <span v-if="page.disabled" class="settings-row__badge">待支持</span>
+                <AppIcon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
+              </Button>
+            </div>
+          </section>
+        </div>
+      </Transition>
     </div>
 
   </section>
@@ -136,6 +136,14 @@ function goBack() {
 }
 .settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 24px 48px; overscroll-behavior: contain; }
 .settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
+.settings-home { display: block; }
+.settings-view-enter-active { transition: opacity .2s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.settings-view-leave-active { transition: opacity .14s ease, transform .14s ease; }
+.settings-view-enter-from { opacity: 0; transform: translateX(12px); }
+.settings-view-leave-to { opacity: 0; transform: translateX(-8px); }
+@media (prefers-reduced-motion: reduce) {
+  .settings-view-enter-active, .settings-view-leave-active { transition-duration: .01ms; }
+}
 
 /* --- 首页：按 group 排列的圆角卡片和 80px 行 --- */
 .settings-group { display: flex; flex-direction: column; gap: 12px; }

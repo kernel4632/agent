@@ -153,7 +153,9 @@ defineExpose({ focus: () => editor.value?.focus() })
 <template>
   <form class="chat-composer" :class="{ 'is-expanded': expanded }" aria-label="对话编辑器" @submit.prevent="submit">
     <ComposerAttachments :files="files" @remove="emit('remove-file', $event)" />
-    <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
+    <Transition name="slash">
+      <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
+    </Transition>
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
     <div class="chat-composer__editor-wrap">
       <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="placeholder" rows="2" @keydown="keydown"></textarea>
@@ -178,8 +180,10 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
-        <Button v-if="isRunning" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
-        <Button v-else variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
+        <Transition name="send" mode="out-in">
+          <Button v-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
+          <Button v-else key="send" variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
+        </Transition>
       </div>
     </div>
     <!-- 隐藏的 file input 是编辑器专用控件：由更多选项里的附件按钮触发，保留原生实现。 -->
@@ -371,6 +375,14 @@ defineExpose({ focus: () => editor.value?.focus() })
 .model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
 .model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 斜杠菜单和发送/停止按钮的切换都从操作点附近出现。 */
+.slash-enter-active, .slash-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.slash-enter-from, .slash-leave-to { opacity: 0; transform: translateY(6px); }
+.send-enter-active, .send-leave-active { transition: opacity .14s ease, transform .18s ease; }
+.send-enter-from, .send-leave-to { opacity: 0; transform: scale(.86); }
+@media (prefers-reduced-motion: reduce) {
+  .slash-enter-active, .slash-leave-active, .send-enter-active, .send-leave-active { transition-duration: .01ms; }
+}
 @media (max-width: 767px) {
   .chat-composer {
     padding: 8px 10px 4px;

@@ -77,11 +77,21 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Timeline :key="session.id" :scroll-root="conversationScroll" />
       </div>
       <div class="session-composer">
-        <div v-if="!session.model" class="chat-notice"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
-        <SessionMorePanel v-if="moreOpen" :session="session" />
-        <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
-        <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
-        <SessionTodos :todos="todos" />
+        <Transition name="notice">
+          <div v-if="!session.model" class="chat-notice"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
+        </Transition>
+        <Transition name="panel">
+          <SessionMorePanel v-if="moreOpen" :session="session" />
+        </Transition>
+        <Transition name="notice">
+          <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
+        </Transition>
+        <Transition name="notice">
+          <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
+        </Transition>
+        <Transition name="panel">
+          <SessionTodos v-if="todos.length" :todos="todos" />
+        </Transition>
         <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" show-session-controls :is-running="session.status === 'running'" :busy="busy" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="moreOpen = !moreOpen" @toggle-mode="Session.toggleMode(session.id)" />
       </div>
     </div>
@@ -116,6 +126,14 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
   flex: none;
   border-radius: 50%;
   background: var(--la-warning);
+}
+/* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
+.notice-enter-active, .panel-enter-active { transition: opacity .18s ease, transform .24s cubic-bezier(.2, 0, 0, 1); }
+.notice-leave-active, .panel-leave-active { transition: opacity .14s ease, transform .14s ease; }
+.notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(6px); }
+.panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(10px) scale(.99); }
+@media (prefers-reduced-motion: reduce) {
+  .notice-enter-active, .notice-leave-active, .panel-enter-active, .panel-leave-active { transition-duration: .01ms; }
 }
 @media (max-width: 767px) {
   .session-composer { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }

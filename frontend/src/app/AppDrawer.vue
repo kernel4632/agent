@@ -99,12 +99,14 @@ async function confirmDelete() {
     />
 
     <template #footer>
-      <Button v-if="selecting" variant="danger" class="drawer-settings" :disabled="!selected.length" @click="deleteOpen = true">
-        <AppIcon name="trash" :size="20" /><span>删除 {{ selected.length }} 个会话</span>
-      </Button>
-      <Button v-else variant="tonal" class="drawer-settings" @click="emit('settings')">
-        <AppIcon name="settings" :size="20" /><span>设置</span>
-      </Button>
+      <Transition name="drawer-action" mode="out-in">
+        <Button v-if="selecting" key="delete" variant="danger" class="drawer-settings" :disabled="!selected.length" @click="deleteOpen = true">
+          <AppIcon name="trash" :size="20" /><span>删除 {{ selected.length }} 个会话</span>
+        </Button>
+        <Button v-else key="settings" variant="tonal" class="drawer-settings" @click="emit('settings')">
+          <AppIcon name="settings" :size="20" /><span>设置</span>
+        </Button>
+      </Transition>
     </template>
 
     <Dialog :open="deleteOpen" label="删除会话" @update:open="deleteOpen = $event">
@@ -135,6 +137,8 @@ async function confirmDelete() {
   gap: 10px;
   font-size: 16px;
 }
+.drawer-action-enter-active, .drawer-action-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.drawer-action-enter-from, .drawer-action-leave-to { opacity: 0; transform: translateY(6px); }
 .app-drawer__confirm { margin: 0 0 20px; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
 
 /* --- 会话列表 --- */

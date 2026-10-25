@@ -10,22 +10,26 @@ const emit = defineEmits(['remove'])
 </script>
 
 <template>
-  <div v-if="files.length" class="chat-composer__files">
-    <KimaChip
-      v-for="file in files"
-      :key="file.id"
-      class="chat-composer__file"
-      removable
-      :label="file.name"
-      remove-label="移除附件"
-      @remove="emit('remove', file.id)"
-    >
-      <AppIcon name="document" :size="16" />{{ file.name }}
-    </KimaChip>
-  </div>
+  <Transition name="attachments">
+    <div v-if="files.length" class="chat-composer__files">
+      <KimaChip
+        v-for="file in files"
+        :key="file.id"
+        class="chat-composer__file"
+        removable
+        :label="file.name"
+        remove-label="移除附件"
+        @remove="emit('remove', file.id)"
+      >
+        <AppIcon name="document" :size="16" />{{ file.name }}
+      </KimaChip>
+    </div>
+  </Transition>
 </template>
 
 <style scoped lang="scss">
 .chat-composer__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .chat-composer__file { max-width: 100%; }
+.attachments-enter-active, .attachments-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.attachments-enter-from, .attachments-leave-to { opacity: 0; transform: translateY(6px); }
 </style>

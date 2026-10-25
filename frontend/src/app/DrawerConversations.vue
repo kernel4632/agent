@@ -116,13 +116,15 @@ async function submitDialog() {
           <KimaList class="session-list" :items="group.items" :label="group.label">
             <template #item="{ item }">
               <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
-                <KimaCheckbox
-                  v-if="selecting"
-                  class="home-session__check"
-                  :model-value="isSelected(item.id)"
-                  :aria-label="`选择 ${item.title || '新会话'}`"
-                  @update:model-value="toggleSelected(item)"
-                />
+                <Transition name="session-check">
+                  <KimaCheckbox
+                    v-if="selecting"
+                    class="home-session__check"
+                    :model-value="isSelected(item.id)"
+                    :aria-label="`选择 ${item.title || '新会话'}`"
+                    @update:model-value="toggleSelected(item)"
+                  />
+                </Transition>
                 <Button variant="plain" class="home-session__main" @click="selecting ? toggleSelected(item) : emit('open', item.id)">
                   <span class="home-session__title">{{ item.title || '新会话' }}</span>
                 </Button>
@@ -176,6 +178,8 @@ async function submitDialog() {
 .home-session.is-active { background: var(--la-layer-02); }
 .home-session.is-selected { background: var(--la-accent-soft); }
 .home-session__check { flex: none; margin-left: 8px; }
+.session-check-enter-active, .session-check-leave-active { transition: opacity .16s ease, transform .2s cubic-bezier(.2, 0, 0, 1); }
+.session-check-enter-from, .session-check-leave-to { opacity: 0; transform: scale(.8); }
 .home-session__main {
   display: flex;
   height: 100%;

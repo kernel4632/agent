@@ -17,7 +17,7 @@ const label = status => status === 'completed' ? '已完成' : status === 'in_pr
 </script>
 
 <template>
-  <KimaCard v-if="todos.length" variant="surface" class="session-todos" aria-label="任务清单">
+  <KimaCard variant="surface" class="session-todos" aria-label="任务清单">
     <div class="session-todos__head">
       <AppIcon name="check" :size="16" />
       <span class="session-todos__title">任务清单</span>

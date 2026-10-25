@@ -60,7 +60,8 @@ function keydown(event) {
 </script>
 
 <template>
-  <div v-if="open" class="command-palette" role="dialog" aria-label="命令面板" @click.self="emit('update:open', false)">
+  <Transition name="palette">
+    <div v-if="open" class="command-palette" role="dialog" aria-label="命令面板" @click.self="emit('update:open', false)">
     <div class="command-palette__panel">
       <!-- 搜索框是命令面板专用输入，保留原生以直接聚焦和即时过滤；后续换成搜索控件。 -->
       <input ref="input" v-model="query" class="command-palette__input" type="search" aria-label="搜索命令" placeholder="搜索命令或会话" @keydown="keydown" />
@@ -72,7 +73,8 @@ function keydown(event) {
         <p v-if="!visibleItems.length" class="command-palette__empty">没有匹配的命令</p>
       </div>
     </div>
-  </div>
+    </div>
+  </Transition>
 </template>
 
 <style scoped lang="scss">
@@ -128,4 +130,12 @@ function keydown(event) {
 .command-palette__item:hover, .command-palette__item.is-active { background: var(--la-layer-03); }
 .command-palette__item small { overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .command-palette__empty { margin: 0; padding: 24px 14px; color: var(--la-muted); font-size: 14px; }
+.palette-enter-active, .palette-leave-active { transition: opacity .18s ease; }
+.palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition: transform .24s cubic-bezier(.2, 0, 0, 1), opacity .18s ease; }
+.palette-enter-from, .palette-leave-to { opacity: 0; }
+.palette-enter-from .command-palette__panel, .palette-leave-to .command-palette__panel { opacity: 0; transform: translateY(-10px) scale(.98); }
+@media (prefers-reduced-motion: reduce) {
+  .palette-enter-active, .palette-leave-active,
+  .palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition-duration: .01ms; }
+}
 </style>

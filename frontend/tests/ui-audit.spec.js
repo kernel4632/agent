@@ -162,6 +162,8 @@ async function openDrawer(page) {
 async function navigate(page, name) {
   if (name === '新建对话') {
     await page.getByRole('button', { name: '新建对话', exact: true }).click()
+    // 页面切换有过渡；等新草稿页真正挂载后再让测试输入。
+    await expect(page.locator('.draft-panel')).toBeVisible()
     return
   }
   await openDrawer(page)
