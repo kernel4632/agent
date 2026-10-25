@@ -198,6 +198,8 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   await page.getByRole('button', { name: '新建对话', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'draft')
+  await page.getByRole('button', { name: '全屏输入', exact: true }).hover()
+  await screenshot(page, testInfo, 'composer-fullscreen-handle')
   await navigate(page, '设置')
   await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
   const general = page.getByRole('button', { name: /通用/ })
