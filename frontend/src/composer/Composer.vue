@@ -55,25 +55,12 @@ const modelGroups = computed(() => Object.entries(store.config.providers)
 const modelOpen = ref(false)
 const modelQuery = ref('')
 const addOpen = ref(false)
-const fullscreenOpen = ref(false)
-const fullscreenDialog = ref(null)
-const fullscreenEditor = ref(null)
+const expanded = ref(false)
 const placeholder = computed(() => store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天')
 
-watch(fullscreenOpen, async open => {
-  const dialog = fullscreenDialog.value
-  if (!dialog) return
-  if (open) {
-    if (!dialog.open) dialog.showModal()
-    await nextTick()
-    fullscreenEditor.value?.focus()
-  } else if (dialog.open) {
-    dialog.close()
-  }
-})
-
-function closeFullscreen() {
-  fullscreenOpen.value = false
+function toggleExpanded() {
+  expanded.value = !expanded.value
+  nextTick(() => editor.value?.focus())
 }
 
 function openModelSheet() {
@@ -152,6 +139,11 @@ function keydown(event) {
       return
     }
   }
+  if (event.key === 'Escape' && expanded.value) {
+    event.preventDefault()
+    expanded.value = false
+    return
+  }
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit() }
 }
 function addFiles(event) { emit('attach', [...event.target.files]); event.target.value = '' }
@@ -159,7 +151,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 </script>
 
 <template>
-  <form class="chat-composer" aria-label="对话编辑器" @submit.prevent="submit">
+  <form class="chat-composer" :class="{ 'is-expanded': expanded }" aria-label="对话编辑器" @submit.prevent="submit">
     <ComposerAttachments :files="files" @remove="emit('remove-file', $event)" />
     <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
@@ -168,8 +160,16 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
     <div class="chat-composer__expand-corner">
       <span class="chat-composer__expand-line" aria-hidden="true"></span>
-      <button type="button" class="chat-composer__expand-button" aria-label="全屏输入" title="全屏输入" @mousedown.prevent @click="fullscreenOpen = true">
-        <AppIcon name="fullscreen" :size="12" />
+      <button
+        type="button"
+        class="chat-composer__expand-button"
+        :aria-label="expanded ? '退出全屏输入' : '全屏输入'"
+        :aria-pressed="expanded"
+        :title="expanded ? '退出全屏输入' : '全屏输入'"
+        @mousedown.prevent
+        @click="toggleExpanded"
+      >
+        <AppIcon :name="expanded ? 'collapse' : 'fullscreen'" :size="12" />
       </button>
     </div>
     <div class="chat-composer__bottom">
@@ -217,17 +217,6 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
     </div>
   </Sheet>
-
-  <dialog ref="fullscreenDialog" class="composer-fullscreen" aria-label="全屏输入" @cancel.prevent="closeFullscreen">
-    <div class="composer-fullscreen__frame">
-      <section class="composer-fullscreen__panel">
-        <div class="composer-fullscreen__actions">
-          <button type="button" @click="closeFullscreen">保存</button>
-        </div>
-        <textarea ref="fullscreenEditor" v-model="draft" class="composer-fullscreen__editor" aria-label="消息" :placeholder="placeholder"></textarea>
-      </section>
-    </div>
-  </dialog>
 </template>
 
 <style scoped lang="scss">
@@ -255,8 +244,14 @@ defineExpose({ focus: () => editor.value?.focus() })
     color: var(--la-text);
     font: 16px/24px var(--la-font-sans);
     letter-spacing: 0;
+    transition: min-height .26s ease, max-height .26s ease;
 
     &::placeholder { color: var(--la-muted); }
+  }
+  &.is-expanded &__editor {
+    min-height: min(62vh, 620px);
+    max-height: min(62vh, 620px);
+    overflow-y: auto;
   }
   /* 右上角贴边圆角线；靠近时缩成半透明，并让展开按钮滑入。 */
   &__expand-corner {
@@ -375,63 +370,6 @@ defineExpose({ focus: () => editor.value?.focus() })
 .model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
 .model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.composer-fullscreen {
-  width: 100vw;
-  max-width: 100vw;
-  height: 100vh;
-  max-height: 100vh;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-.composer-fullscreen::backdrop { background: color-mix(in srgb, #000 32%, transparent); }
-.composer-fullscreen__frame {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-.composer-fullscreen__panel {
-  display: flex;
-  width: min(880px, 100%);
-  height: 90%;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 24px 24px 0 0;
-  background: var(--la-bg);
-}
-.composer-fullscreen__actions { display: flex; flex: none; justify-content: flex-end; }
-.composer-fullscreen__actions button {
-  min-width: 72px;
-  height: 48px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 24px;
-  background: transparent;
-  color: var(--la-accent);
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.composer-fullscreen__actions button:hover { background: var(--la-hover); }
-.composer-fullscreen__editor {
-  width: 100%;
-  min-height: 0;
-  flex: 1;
-  padding: 20px;
-  resize: none;
-  border: 0;
-  border-radius: 20px;
-  outline: 0;
-  background: var(--la-layer-01);
-  color: var(--la-text);
-  font: 16px/26px var(--la-font-sans);
-}
-.composer-fullscreen__editor::placeholder { color: var(--la-muted); }
 @media (max-width: 767px) {
   .chat-composer {
     padding: 8px 10px 4px;
