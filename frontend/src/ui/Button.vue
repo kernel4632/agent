@@ -46,7 +46,7 @@ const kimaVariant = computed(() => ({
 
 <style scoped lang="scss">
 .ui-button--danger { color: var(--kima-color-error); }
-.ui-button--small { --kima-button-height-s: 40px; --kima-button-min-width: 0; }
+.ui-button--small { --kima-button-min-width: 0; }
 .ui-button--plain {
   display: inline-flex;
   align-items: center;

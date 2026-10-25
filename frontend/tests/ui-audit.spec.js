@@ -503,7 +503,7 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
 
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /MCP 服务/ }).click()
-  await expect(page.getByText('sample', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^sample/ })).toBeVisible()
   await screenshot(page, testInfo, 'settings-mcp')
 
   await expect.poll(() => mock.config().rules.enabled).toBe(false)
@@ -563,8 +563,8 @@ test('MCP service can be added and saved', async ({ page }) => {
   await page.goto('/')
   await navigate(page, '设置')
   await page.getByRole('button', { name: /MCP 服务/ }).click()
-  await page.getByRole('button', { name: '添加 MCP 服务', exact: true }).click()
-  await expect(page.getByText('MCP 2', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '添加服务', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'MCP 2' })).toBeVisible()
   await page.getByLabel('启动命令').fill('npx test-server')
   await expect.poll(() => mock.config().mcp['MCP 2']?.command).toBe('npx test-server')
   const saved = mock.config()

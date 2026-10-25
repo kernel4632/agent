@@ -59,13 +59,15 @@ function applyModes() {
           <h3>项目规则</h3>
           <p>自动读取 AGENTS.md、<code>.agent/rules</code> 和 <code>.roo/rules</code>，拼进系统提示词。</p>
         </div>
-        <Switch :model-value="rulesOn" label="读取项目规则" @update:model-value="setRules" />
+        <Switch hide-label :model-value="rulesOn" label="读取项目规则" @update:model-value="setRules" />
       </div>
     </div>
 
     <div class="advanced-settings__block">
-      <h3>写后诊断</h3>
-      <p>每次写完文件后跑一条命令，把错误附在工具结果后面交给模型。留空表示不跑。</p>
+      <div class="advanced-settings__intro">
+        <h3>写后诊断</h3>
+        <p>每次写完文件后跑一条命令，把错误附在工具结果后面交给模型。留空表示不跑。</p>
+      </div>
       <Field
         caption="命令"
         :model-value="diagnostics.command"
@@ -98,7 +100,7 @@ function applyModes() {
           <h3>shell 改动快照</h3>
           <p>执行命令前扫一遍工作区，命令改过的文件也能回退。文件多时命令会变慢。</p>
         </div>
-        <Switch :model-value="snapshot.shell === true" label="记录 shell 改动" @update:model-value="setSnapshot({ shell: $event })" />
+        <Switch hide-label :model-value="snapshot.shell === true" label="记录 shell 改动" @update:model-value="setSnapshot({ shell: $event })" />
       </div>
       <div class="advanced-settings__row">
         <Field
@@ -119,18 +121,21 @@ function applyModes() {
     </div>
 
     <div class="advanced-settings__block">
-      <h3>自定义模式</h3>
-      <p>一个 JSON 对象，键是模式名，值是 <code>label</code>、<code>tools</code>、<code>readOnly</code>。改完点「应用模式」。</p>
+      <div class="advanced-settings__intro">
+        <h3>自定义模式</h3>
+        <p>一个 JSON 对象，键是模式名，值是 <code>label</code>、<code>tools</code>、<code>readOnly</code>。改完点「应用模式」。</p>
+      </div>
       <Field
         v-model="modesText"
         class="advanced-settings__modes"
         multiline
+        :rows="8"
         label="自定义模式 JSON"
         spellcheck="false"
       />
       <div class="advanced-settings__actions">
         <span v-if="modesError" class="advanced-settings__error">{{ modesError }}</span>
-        <Button @click="applyModes">应用模式</Button>
+        <Button variant="primary" @click="applyModes">应用模式</Button>
       </div>
     </div>
   </section>
@@ -139,61 +144,59 @@ function applyModes() {
 <style scoped lang="scss">
 .advanced-settings {
   display: grid;
-  gap: 32px;
+  gap: 24px;
   color: var(--la-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .advanced-settings__block {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  gap: 20px;
+  padding: 24px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 20px;
   background: var(--la-layer-01);
-  box-shadow: inset 0 0 0 .5px var(--la-line);
 }
 
 .advanced-settings__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 24px;
 }
+
+.advanced-settings__intro { display: grid; gap: 4px; }
+.advanced-settings__intro p { margin: 0; }
 
 h3 {
   margin: 0;
   color: var(--la-text);
-  font-size: 13px;
-  font-weight: 530;
-  line-height: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
 }
 
 p {
   margin: 4px 0 0;
   color: var(--la-muted);
-  line-height: 20px;
-  font-size: 13px;
-  font-weight: 440;
+  line-height: 22px;
+  font-size: 14px;
+  font-weight: 400;
 }
 
 code {
   font-family: var(--la-font-mono);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .advanced-settings__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 16px;
 }
 
-/* 自定义模式沿用原来的等宽小字和 120px 高度。 */
-.advanced-settings__modes :deep(.ui-field__input--multiline) {
-  min-height: 120px;
-  font-family: var(--la-font-mono);
-  font-size: 11px;
-  line-height: 1.6;
+.advanced-settings__modes :deep(textarea) {
+  min-height: 200px;
   resize: vertical;
 }
 
@@ -201,7 +204,7 @@ code {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 16px;
 }
 
 .advanced-settings__error {
@@ -210,6 +213,7 @@ code {
 }
 
 @media (max-width: 760px) {
+  .advanced-settings__block { padding: 20px; }
   .advanced-settings__row { grid-template-columns: 1fr; }
 }
 </style>

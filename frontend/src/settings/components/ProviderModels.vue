@@ -37,21 +37,22 @@ function removeModel(id) {
 </script>
 
 <template>
-  <KimaFlex direction="column" :gap="3">
-    <KimaFlex justify="space-between" align="center">
+  <div class="provider-models">
+    <header class="provider-models__head">
       <KimaTypography type="heading" :level="3" size="title-small">模型列表</KimaTypography>
       <KimaButton variant="text" :disabled="loading" @click="discover">{{ loading ? '获取中…' : '获取模型列表' }}</KimaButton>
-    </KimaFlex>
+    </header>
 
-    <KimaFlex :gap="2" align="end">
+    <div class="provider-models__add">
       <KimaTextField
         v-model="manual"
+        class="provider-models__input"
         label="手动添加模型 ID"
         placeholder="输入模型 ID"
         @keydown.enter.prevent="add"
       />
       <KimaButton :disabled="!manual.trim()" @click="add">添加模型</KimaButton>
-    </KimaFlex>
+    </div>
 
     <KimaList :items="models.map(model => ({ id: model.id, title: model.name }))" empty-text="尚未添加模型">
       <template #action="{ item }">
@@ -63,7 +64,7 @@ function removeModel(id) {
         />
       </template>
     </KimaList>
-  </KimaFlex>
+  </div>
 
   <KimaDialog :open="chooserOpen" title="选择模型" @update:open="chooserOpen = $event">
     <KimaFlex direction="column" :gap="2">
@@ -80,3 +81,14 @@ function removeModel(id) {
     </template>
   </KimaDialog>
 </template>
+
+<style scoped lang="scss">
+.provider-models { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
+.provider-models__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.provider-models__add { display: flex; align-items: flex-end; gap: 12px; }
+.provider-models__input { min-width: 0; flex: 1; }
+@media (max-width: 560px) {
+  .provider-models__add { flex-wrap: wrap; }
+  .provider-models__input { flex-basis: 100%; }
+}
+</style>

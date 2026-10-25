@@ -40,6 +40,11 @@ function updatePermission(index, permission) {
 
 <template>
   <section class="tools-settings" aria-label="工具管理">
+    <header class="tools-head">
+      <h2>工具权限</h2>
+      <p>控制每个工具是否可用，以及调用前是否需要先问你。</p>
+    </header>
+
     <div class="settings-list">
       <div v-for="(tool, index) in props.tools" :key="tool.name" class="settings-row">
         <div class="settings-row__copy">
@@ -48,13 +53,18 @@ function updatePermission(index, permission) {
         </div>
         <div class="settings-row__control">
           <Select
+            class="settings-row__select"
             :model-value="tool.permission"
             :options="PERMISSION_OPTIONS"
             :label="`${tool.name} 权限`"
-            size="small"
             @update:model-value="updatePermission(index, $event)"
           />
-          <Switch :model-value="tool.enabled" :label="`切换 ${tool.name}`" @update:model-value="toggleTool(index)" />
+          <Switch
+            hide-label
+            :model-value="tool.enabled"
+            :label="`切换 ${tool.name}`"
+            @update:model-value="toggleTool(index)"
+          />
         </div>
       </div>
       <p v-if="!props.tools.length" class="tools-settings__empty">暂无可配置的工具</p>
@@ -63,29 +73,45 @@ function updatePermission(index, permission) {
 </template>
 
 <style scoped lang="scss">
-.tools-settings { display: flex; min-height: 0; flex-direction: column; }
+.tools-settings { display: flex; min-height: 0; flex-direction: column; gap: 20px; }
+.tools-head h2 {
+  margin: 0;
+  color: var(--la-text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+.tools-head p {
+  margin: 4px 0 0;
+  color: var(--la-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
 .settings-list {
-  padding-inline: 20px;
-  border-radius: 8px;
+  padding-inline: 24px;
+  border-radius: 20px;
   background: var(--la-layer-01);
-  box-shadow: inset 0 0 0 .5px var(--la-line);
 }
 .settings-row {
   display: flex;
+  min-height: 96px;
   align-items: center;
-  gap: 16px;
-  padding-block: 20px;
+  gap: 24px;
+  padding-block: 16px;
   border-bottom: .5px solid var(--la-line);
 
   &:last-child { border-bottom: 0; }
 }
 .settings-row__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
-.settings-row__copy strong { color: var(--la-text); font-size: 13px; font-weight: 530; line-height: 16px; }
-.settings-row__copy small { color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
-.settings-row__control { display: flex; flex: none; align-items: center; gap: 12px; }
-.tools-settings__empty { margin: 0; padding: 24px 0; color: var(--la-muted); text-align: center; font-size: 13px; }
+.settings-row__copy strong { color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
+.settings-row__copy small { color: var(--la-muted); font-size: 14px; font-weight: 400; line-height: 20px; }
+.settings-row__control { display: flex; flex: none; align-items: center; gap: 20px; }
+.settings-row__select { width: 176px; }
+.tools-settings__empty { margin: 0; padding: 32px 0; color: var(--la-muted); text-align: center; font-size: 14px; }
 @media (max-width: 767px) {
-  .settings-row { flex-wrap: wrap; padding-block: 16px; }
+  .settings-row { flex-wrap: wrap; gap: 12px; padding-block: 20px; }
   .settings-row__control { width: 100%; justify-content: space-between; }
+  .settings-row__select { width: auto; flex: 1; }
 }
 </style>

@@ -7,7 +7,7 @@ MCP 服务管理：展示已配置的 MCP 服务连接，支持编辑、删除�
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { AppIcon, Button, Dialog, Field, IconButton, Select, Switch } from '../../ui/index.js'
+import { AppIcon, Button, Dialog, Field, Select, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   mcp: { type: Array, required: true },
@@ -88,121 +88,136 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 
 <template>
   <section class="mcp-settings" aria-label="MCP 服务">
-    <aside class="mcp-list">
-      <header class="mcp-list__head">
-        <span>服务列表</span>
-        <IconButton label="添加 MCP 服务" title="添加 MCP 服务" @click="addMCP"><AppIcon name="plus" :size="15" /></IconButton>
-      </header>
-      <div class="mcp-list__items">
-        <Button
-          v-for="item in props.mcp"
-          :key="item.id"
-          variant="plain"
-          class="mcp-item"
-          :class="{ 'is-selected': item.id === selectedID }"
-          @click="selectedID = item.id"
-        >
-          <span class="mcp-item__name">{{ item.name }}</span>
-          <span class="mcp-item__command">{{ item.command || '未配置命令' }}</span>
-          <span class="mcp-item__state" :class="{ 'is-enabled': item.enabled }">{{ item.enabled ? '启用' : '停用' }}</span>
-        </Button>
-        <p v-if="!props.mcp.length" class="mcp-list__empty">还没有 MCP 服务</p>
-      </div>
-    </aside>
+    <header class="mcp-head">
+      <p class="mcp-head__copy">连接外部工具服务，让模型可以调用浏览器、数据库或其他本地能力。</p>
+      <Button @click="addMCP"><AppIcon name="plus" :size="18" />添加服务</Button>
+    </header>
 
-    <form v-if="selectedItem" class="mcp-form" @submit.prevent>
-      <div class="mcp-form__top">
-        <Field class="mcp-field" caption="服务名称" :model-value="selectedItem.name" @update:model-value="updateField('name', $event)" />
-        <label class="mcp-enabled">
-          <span>{{ selectedItem.enabled ? '已启用' : '已停用' }}</span>
-          <Switch :model-value="selectedItem.enabled" :label="`启用 ${selectedItem.name}`" @update:model-value="toggleEnabled" />
-        </label>
-      </div>
+    <div class="mcp-body">
+      <aside class="mcp-list">
+        <div class="mcp-list__items">
+          <Button
+            v-for="item in props.mcp"
+            :key="item.id"
+            variant="plain"
+            class="mcp-item"
+            :class="{ 'is-selected': item.id === selectedID }"
+            @click="selectedID = item.id"
+          >
+            <span class="mcp-item__name">{{ item.name }}</span>
+            <span class="mcp-item__command">{{ item.command || '未配置命令' }}</span>
+            <span class="mcp-item__state" :class="{ 'is-enabled': item.enabled }">{{ item.enabled ? '已启用' : '已停用' }}</span>
+          </Button>
+          <p v-if="!props.mcp.length" class="mcp-list__empty">还没有 MCP 服务</p>
+        </div>
+      </aside>
 
-      <Select
-        caption="传输方式"
-        :model-value="selectedItem.definition?.transport || 'stdio'"
-        :options="TRANSPORT_OPTIONS"
-        @update:model-value="updateDefinition('transport', $event)"
-      />
+      <form v-if="selectedItem" class="mcp-form" @submit.prevent>
+        <header class="mcp-form__head">
+          <h3>{{ selectedItem.name }}</h3>
+          <Switch :model-value="selectedItem.enabled" label="启用此服务" @update:model-value="toggleEnabled" />
+        </header>
 
-      <Field
-        :caption="remote ? '服务地址（URL）' : '启动命令'"
-        :model-value="selectedItem.command"
-        :placeholder="remote ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
-        @update:model-value="updateField('command', $event)"
-      />
+        <Field caption="服务名称" :model-value="selectedItem.name" @update:model-value="updateField('name', $event)" />
 
-      <Field
-        v-if="!remote"
-        class="mcp-textarea"
-        caption="启动参数（每行一个）"
-        multiline
-        :rows="3"
-        :model-value="(selectedItem.definition?.args || []).join('\n')"
-        placeholder="--port&#10;3000"
-        @update:model-value="updateDefinition('args', $event.split('\n').filter(Boolean))"
-      />
+        <Select
+          caption="传输方式"
+          :model-value="selectedItem.definition?.transport || 'stdio'"
+          :options="TRANSPORT_OPTIONS"
+          @update:model-value="updateDefinition('transport', $event)"
+        />
 
-      <Field
-        v-if="!remote"
-        class="mcp-textarea"
-        caption="环境变量（JSON 格式）"
-        multiline
-        :rows="4"
-        :model-value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)"
-        placeholder='{"API_KEY": "xxx"}'
-        @update:model-value="tryUpdateEnv"
-      />
+        <Field
+          :caption="remote ? '服务地址（URL）' : '启动命令'"
+          :model-value="selectedItem.command"
+          :placeholder="remote ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
+          @update:model-value="updateField('command', $event)"
+        />
 
-      <footer class="mcp-actions">
-        <Button variant="danger" @click="requestRemove"><AppIcon name="trash" :size="14" />删除此服务</Button>
-      </footer>
-    </form>
+        <Field
+          v-if="!remote"
+          caption="启动参数（每行一个）"
+          multiline
+          :rows="3"
+          :model-value="(selectedItem.definition?.args || []).join('\n')"
+          placeholder="--port&#10;3000"
+          @update:model-value="updateDefinition('args', $event.split('\n').filter(Boolean))"
+        />
 
-    <p v-else class="mcp-empty">添加一个 MCP 服务以开始配置</p>
+        <Field
+          v-if="!remote"
+          caption="环境变量（JSON 格式）"
+          multiline
+          :rows="4"
+          :model-value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)"
+          placeholder='{"API_KEY": "xxx"}'
+          @update:model-value="tryUpdateEnv"
+        />
+
+        <footer class="mcp-actions">
+          <Button variant="danger" @click="requestRemove"><AppIcon name="trash" :size="18" />删除此服务</Button>
+        </footer>
+      </form>
+
+      <p v-else class="mcp-empty">添加一个 MCP 服务以开始配置</p>
+    </div>
 
     <Dialog :open="deleteOpen" label="删除 MCP 服务确认" @update:open="deleteOpen = $event">
       <h2>删除 MCP 服务</h2>
       <p>删除后会自动保存，这个 MCP 服务会从列表中移除。</p>
       <div class="dialog-actions">
         <Button @click="deleteOpen = false">取消</Button>
-        <Button @click="removeMCP">删除</Button>
+        <Button variant="danger" @click="removeMCP">删除</Button>
       </div>
     </Dialog>
   </section>
 </template>
 
 <style scoped lang="scss">
-.mcp-settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; min-height: 0; }
-.mcp-list { display: flex; min-height: 0; flex-direction: column; padding: 12px; border-radius: 8px; background: var(--la-layer-01); box-shadow: inset 0 0 0 .5px var(--la-line); }
-.mcp-list__head { display: flex; height: 28px; flex: none; align-items: center; justify-content: space-between; padding: 0 2px; color: var(--la-muted); font-size: 13px; font-weight: 530; }
-.mcp-list__items { display: flex; min-height: 0; flex-direction: column; gap: 2px; overflow-y: auto; }
-.mcp-item { display: flex; min-height: 40px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--la-secondary); text-align: left; cursor: pointer; }
+.mcp-settings { display: flex; min-height: 0; flex-direction: column; gap: 24px; }
+.mcp-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.mcp-head__copy { max-width: 520px; margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
+.mcp-body { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; min-height: 0; }
+.mcp-list { display: flex; min-height: 0; flex-direction: column; padding: 12px; border-radius: 20px; background: var(--la-layer-01); }
+.mcp-list__items { display: flex; min-height: 0; flex-direction: column; gap: 4px; overflow-y: auto; }
+.mcp-item {
+  display: grid;
+  min-height: 68px;
+  align-content: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--la-secondary);
+  text-align: left;
+  cursor: pointer;
+}
 .mcp-item:hover { background: var(--la-hover); }
 .mcp-item.is-selected { background: var(--la-layer-03); color: var(--la-text); }
-.mcp-item__name { max-width: 100%; overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 530; text-overflow: ellipsis; white-space: nowrap; }
-.mcp-item__command { max-width: 100%; overflow: hidden; color: var(--la-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.mcp-item__state { display: none; }
-.mcp-list__empty { margin: 8px 4px; color: var(--la-muted); font-size: 12px; }
-.mcp-form { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
-.mcp-form__top { display: flex; align-items: end; gap: 16px; }
-.mcp-form__top .mcp-field { flex: 1; }
-/* 启动参数和环境变量沿用原来的 88px 高度、内边距和行高。 */
-.mcp-textarea :deep(.ui-field__input--multiline) {
-  min-height: 88px;
-  height: auto;
-  padding: 8px 10px;
-  resize: vertical;
-  line-height: 20px;
+.mcp-item__name { max-width: 100%; overflow: hidden; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; text-overflow: ellipsis; white-space: nowrap; }
+.mcp-item__command { max-width: 100%; overflow: hidden; color: var(--la-muted); font-size: 13px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.mcp-item__state { color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.mcp-item__state.is-enabled { color: var(--la-success); }
+.mcp-list__empty { margin: 16px 8px; color: var(--la-muted); font-size: 14px; }
+.mcp-form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--la-layer-01);
 }
-.mcp-enabled { display: flex; height: 36px; flex: none; align-items: center; gap: 8px; color: var(--la-muted); font-size: 13px; }
-.mcp-actions { padding-top: 12px; border-top: .5px solid var(--la-line); }
-.mcp-empty { align-self: center; justify-self: center; color: var(--la-muted); font-size: 13px; }
+.mcp-form__head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.mcp-form__head h3 { margin: 0; color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
+.mcp-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
+.mcp-empty { align-self: center; justify-self: center; color: var(--la-muted); font-size: 14px; }
 @media (max-width: 767px) {
-  .mcp-settings { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .mcp-list { max-height: 180px; }
-  .mcp-form__top { flex-wrap: wrap; }
-  .mcp-form__top .mcp-field { flex-basis: 100%; }
+  .mcp-head { flex-direction: column; align-items: flex-start; }
+  .mcp-body { grid-template-columns: minmax(0, 1fr); }
+  .mcp-list { max-height: 260px; }
+  .mcp-form { padding: 20px; }
+  .mcp-form__head { flex-wrap: wrap; }
 }
 </style>

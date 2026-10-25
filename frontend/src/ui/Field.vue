@@ -71,11 +71,13 @@ const controlAttrs = computed(() => {
 
 <style scoped lang="scss">
 .ui-field { width: 100%; min-width: 0; }
-.ui-field--labeled { display: grid; gap: 6px; }
-.ui-field__caption { color: var(--kima-color-on-surface-variant); font-size: 13px; line-height: 20px; }
+.ui-field--labeled { display: grid; gap: 8px; }
+.ui-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; line-height: 20px; font-weight: 500; }
 .ui-field__control { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; }
 .ui-field__leading, .ui-field__trailing { display: inline-flex; flex: none; align-items: center; color: var(--kima-color-on-surface-variant); }
-.ui-field--small { --kima-field-height: 40px; --kima-field-padding: 12px; }
+.ui-field--small { --kima-field-height: 48px; --kima-field-padding: 16px; }
+.ui-field--small :deep(input),
+.ui-field--small :deep(textarea) { font-size: var(--kima-font-size-body-medium, 16px); }
 .ui-field__control > :deep(.kima-text-field),
 .ui-field__control > :deep(.kima-textarea) { flex: 1; min-width: 0; }
 </style>
