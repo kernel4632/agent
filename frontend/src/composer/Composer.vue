@@ -249,8 +249,8 @@ defineExpose({ focus: () => editor.value?.focus() })
     &::placeholder { color: var(--la-muted); }
   }
   &.is-expanded &__editor {
-    min-height: min(62vh, 620px);
-    max-height: min(62vh, 620px);
+    min-height: max(320px, calc(100dvh - var(--la-topbar-height, 64px) - 180px));
+    max-height: max(320px, calc(100dvh - var(--la-topbar-height, 64px) - 180px));
     overflow-y: auto;
   }
   /* 右上角贴边圆角线；靠近时缩成半透明，并让展开按钮滑入。 */
