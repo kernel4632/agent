@@ -9,7 +9,7 @@ import { AppIcon } from '../ui/index.js'
 import { UI } from '../commands/ui.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import { outputText } from './tool-ui.js'
-import { isStopTool } from './stop-tools.js'
+import { isFinishedStopTool } from './stop-tools.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import ReasoningStep from './ReasoningStep.vue'
 import ToolCallRow from './ToolCallRow.vue'
@@ -29,7 +29,7 @@ const steps = computed(() => {
   for (const message of props.messages) {
     if (message.reasoning) list.push({ key: `${message.id}-reasoning`, type: 'reasoning', message })
     for (const tool of message.tools || []) {
-      if (!isStopTool(tool)) list.push({ key: tool.id || `${message.id}-${list.length}`, type: 'tool', tool })
+      if (!isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-${list.length}`, type: 'tool', tool })
     }
   }
   return list
@@ -54,7 +54,7 @@ const content = computed(() => {
   }
   for (const message of props.messages) push(message.content)
   for (const message of props.messages) {
-    for (const tool of message.tools || []) if (isStopTool(tool)) push(outputText(tool))
+    for (const tool of message.tools || []) if (isFinishedStopTool(tool)) push(outputText(tool))
   }
   return parts.join('\n\n')
 })
