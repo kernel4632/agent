@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaList } from '@kernel4632/kima'
+import { KimaCheckbox, KimaList } from '@kernel4632/kima'
 import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
 import { Session } from '../commands/session.js'
 
@@ -18,8 +18,18 @@ const props = defineProps({
   workspace: { type: Object, default: null },
   activeSessionId: String,
   query: { type: String, default: '' },                 // 搜索框在 AppDrawer，列表只负责过滤
+  selecting: Boolean,                                  // 批量选择模式
+  selected: { type: Array, default: () => [] },        // 已选会话 id
 })
-const emit = defineEmits(['open', 'update:query'])
+const emit = defineEmits(['open', 'update:query', 'update:selected'])
+
+const isSelected = id => props.selected.includes(id)
+function toggleSelected(session) {
+  const next = isSelected(session.id)
+    ? props.selected.filter(id => id !== session.id)
+    : [...props.selected, session.id]
+  emit('update:selected', next)
+}
 
 // --- 搜索 ---
 const sessions = computed(() => props.workspace?.sessions || [])
@@ -105,11 +115,19 @@ async function submitDialog() {
           <h2 class="group-label">{{ group.label }}</h2>
           <KimaList class="session-list" :items="group.items" :label="group.label">
             <template #item="{ item }">
-              <div class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
-                <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
+              <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
+                <KimaCheckbox
+                  v-if="selecting"
+                  class="home-session__check"
+                  :model-value="isSelected(item.id)"
+                  :aria-label="`选择 ${item.title || '新会话'}`"
+                  @update:model-value="toggleSelected(item)"
+                />
+                <Button variant="plain" class="home-session__main" @click="selecting ? toggleSelected(item) : emit('open', item.id)">
                   <span class="home-session__title">{{ item.title || '新会话' }}</span>
                 </Button>
                 <MenuButton
+                  v-if="!selecting"
                   class="home-session__menu"
                   :label="`${item.title || '新会话'} 的更多操作`"
                   :items="MENU_ITEMS"
@@ -156,6 +174,8 @@ async function submitDialog() {
 .home-session { display: flex; width: 100%; min-height: 48px; flex: none; align-items: center; border-radius: 12px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
+.home-session.is-selected { background: var(--la-accent-soft); }
+.home-session__check { flex: none; margin-left: 8px; }
 .home-session__main {
   display: flex;
   height: 100%;

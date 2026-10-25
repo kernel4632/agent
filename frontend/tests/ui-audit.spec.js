@@ -386,6 +386,33 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   expect(mock.errors).toEqual([])
 })
 
+test('batch delete removes several sessions in one pass', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('第一个')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('第二个')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  await openDrawer(page)
+  await expect(page.locator('.home-session')).toHaveCount(2)
+  const drawer = page.getByRole('dialog', { name: '项目与会话' })
+  await drawer.getByRole('button', { name: '批量选择会话', exact: true }).click()
+  const checks = drawer.getByRole('checkbox')
+  await expect(checks).toHaveCount(2)
+  await checks.nth(0).check()
+  await checks.nth(1).check()
+  await screenshot(page, testInfo, 'batch-select')
+  await drawer.getByRole('button', { name: '删除 2 个会话', exact: true }).click()
+  await page.getByRole('button', { name: '删除', exact: true }).click()
+  expect([...mock.sessions.keys()]).toHaveLength(0)
+})
+
 test('composer expand keeps the draft', async ({ page }, testInfo) => {
   await backend(page)
   await page.goto('/')
@@ -559,7 +586,7 @@ test('message action forks the conversation at that message', async ({ page }) =
     .toEqual({ messageId: 'user-1' })
 })
 
-test('rename and session stats use existing data', async ({ page }, testInfo) => {
+test('rename uses existing data', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -572,15 +599,6 @@ test('rename and session stats use existing data', async ({ page }, testInfo) =>
   await expect(rename).toBeVisible()
   await screenshot(page, testInfo, 'rename-dialog')
   await rename.getByRole('button', { name: '取消', exact: true }).click()
-
-  await page.locator('.message--user').first().hover()
-  await openDrawer(page)
-  const drawer = page.getByRole('dialog', { name: '项目与会话' })
-  await drawer.getByRole('button', { name: '会话统计', exact: true }).click()
-  const stats = page.getByRole('dialog', { name: '会话统计' })
-  await expect(stats).toContainText('助手回复')
-  await expect(stats).toContainText('输入 tokens')
-  await stats.getByRole('button', { name: '关闭', exact: true }).click()
 })
 
 test('MCP service can be added and saved', async ({ page }) => {

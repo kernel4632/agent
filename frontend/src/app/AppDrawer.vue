@@ -8,9 +8,9 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { KimaDrawer } from '@kernel4632/kima'
-import { AppIcon, Button, Field, IconButton } from '../ui/index.js'
+import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
-import SessionStatsDialog from './SessionStatsDialog.vue'
+import { Session } from '../commands/session.js'
 import { store } from '../store.js'
 
 defineProps({
@@ -19,16 +19,42 @@ defineProps({
 const emit = defineEmits(['close', 'open', 'settings'])
 
 const search = ref('')
-const statsOpen = ref(false)
 
 // 当前工作区仍是会话的来源，但侧栏不再提供切换入口。
 const workspace = computed(() => store.workspaces[0] || null)
-const activeSession = computed(() => store.sessions[store.ui.activeSessionID] || null)
 
 // 选中会话后先交给 App 导航，再收起抽屉。
 function openConversation(id) {
   emit('open', id)
   emit('close')
+}
+
+const selecting = ref(false)
+const selected = ref([])
+const deleteOpen = ref(false)
+const deleting = ref(false)
+
+function startSelecting() {
+  selected.value = []
+  selecting.value = true
+}
+
+function cancelSelecting() {
+  selected.value = []
+  selecting.value = false
+}
+
+async function confirmDelete() {
+  if (!selected.value.length || deleting.value) return
+  deleting.value = true
+  try {
+    const removed = await Session.removeMany(selected.value)
+    if (removed) {
+      cancelSelecting()
+      deleteOpen.value = false
+      emit('close')
+    }
+  } finally { deleting.value = false }
 }
 </script>
 
@@ -42,9 +68,10 @@ function openConversation(id) {
   >
     <template #header>
       <div class="app-drawer__head">
-        <span class="app-drawer__title">会话</span>
+        <span class="app-drawer__title">{{ selecting ? `已选 ${selected.length} 个` : '会话' }}</span>
         <div class="app-drawer__head-actions">
-          <IconButton v-if="activeSession" size="small" label="会话统计" title="会话统计" @click="statsOpen = true"><AppIcon name="stats" :size="20" /></IconButton>
+          <IconButton v-if="!selecting" size="small" label="批量选择会话" title="批量选择" @click="startSelecting"><AppIcon name="list" :size="20" /></IconButton>
+          <IconButton v-else size="small" label="取消选择" title="取消选择" @click="cancelSelecting"><AppIcon name="close" :size="20" /></IconButton>
         </div>
       </div>
     </template>
@@ -64,17 +91,29 @@ function openConversation(id) {
       :workspace="workspace"
       :active-session-id="store.ui.activeSessionID"
       :query="search"
+      :selecting="selecting"
+      :selected="selected"
       @update:query="search = $event"
+      @update:selected="selected = $event"
       @open="openConversation"
     />
 
     <template #footer>
-      <Button variant="tonal" class="drawer-settings" @click="emit('settings')">
+      <Button v-if="selecting" variant="danger" class="drawer-settings" :disabled="!selected.length" @click="deleteOpen = true">
+        <AppIcon name="trash" :size="20" /><span>删除 {{ selected.length }} 个会话</span>
+      </Button>
+      <Button v-else variant="tonal" class="drawer-settings" @click="emit('settings')">
         <AppIcon name="settings" :size="20" /><span>设置</span>
       </Button>
     </template>
 
-    <SessionStatsDialog :open="statsOpen" :session="activeSession" @update:open="statsOpen = $event" />
+    <Dialog :open="deleteOpen" label="删除会话" @update:open="deleteOpen = $event">
+      <p class="app-drawer__confirm">删除后无法恢复，确定删除选中的 {{ selected.length }} 个会话吗？</p>
+      <div class="dialog-actions">
+        <Button type="button" :disabled="deleting" @click="deleteOpen = false">取消</Button>
+        <Button type="button" variant="danger" :disabled="deleting" @click="confirmDelete">删除</Button>
+      </div>
+    </Dialog>
   </KimaDrawer>
 </template>
 
@@ -96,6 +135,7 @@ function openConversation(id) {
   gap: 10px;
   font-size: 16px;
 }
+.app-drawer__confirm { margin: 0 0 20px; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
 
 /* --- 会话列表 --- */
 .app-drawer__sessions { display: flex; flex: 1; min-height: 0; flex-direction: column; padding: 0; }

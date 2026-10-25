@@ -131,23 +131,49 @@ async function rename(sessionID, title) {
 
 
 // --- 删除会话 ---
+function forget(sessionID) {
+  const found = locate(sessionID)
+  if (!found) return false
+  found.workspace.sessions.splice(found.workspace.sessions.indexOf(found.summary), 1)
+  delete store.sessions[sessionID]
+  const openedIndex = store.ui.openedSessionIDs.indexOf(sessionID)
+  if (openedIndex >= 0) store.ui.openedSessionIDs.splice(openedIndex, 1)
+  Tabs.removeSession(sessionID)
+  return true
+}
+
 async function remove(sessionID) {
-  const found = locate(sessionID)                       // 查找工作区摘要
-  if (!found) return false                              // 已删除会话无需重复动作
+  if (!locate(sessionID)) return false
   try {
-    await AgentAPI.removeSession(sessionID)             // Server 删除内存和磁盘会话
-    found.workspace.sessions.splice(found.workspace.sessions.indexOf(found.summary), 1) // 删除目录摘要
-    delete store.sessions[sessionID]                    // 删除当前已加载详情
-    const openedIndex = store.ui.openedSessionIDs.indexOf(sessionID) // 查找侧边栏中的已打开会话
-    if (openedIndex >= 0) store.ui.openedSessionIDs.splice(openedIndex, 1) // 删除后同步关闭对应侧边栏项
-    Tabs.removeSession(sessionID)
-    if (store.ui.activeSessionID === sessionID) await UI.openHome() // 删除当前页后等待返回主页
-    UI.notify(t('sessionDeleted'))                      // 反馈用户动作完成
-    return true                                         // 通知确认弹窗关闭
+    await AgentAPI.removeSession(sessionID)
+    forget(sessionID)
+    if (store.ui.activeSessionID === sessionID) await UI.openHome()
+    UI.notify(t('sessionDeleted'))
+    return true
   } catch (error) {
-    UI.notify(error.message)                            // 运行中冲突等错误直接展示
-    return false                                        // 保持本地数据与 Server 一致
+    UI.notify(error.message)
+    return false
   }
+}
+
+// 连续删除：逐个调用已有删除接口，失败的保留并提示，成功的立刻从本地列表移除。
+async function removeMany(sessionIDs = []) {
+  const ids = [...new Set(sessionIDs)].filter(id => locate(id))
+  if (!ids.length) return 0
+  const activeRemoved = ids.includes(store.ui.activeSessionID)
+  let removed = 0
+  for (const sessionID of ids) {
+    try {
+      await AgentAPI.removeSession(sessionID)
+      forget(sessionID)
+      removed += 1
+    } catch (error) {
+      UI.notify(error.message)
+    }
+  }
+  if (removed && activeRemoved) await UI.openHome()
+  if (removed) UI.notify(`已删除 ${removed} 个会话`)
+  return removed
 }
 
 
@@ -439,7 +465,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 }
 
 export const Session = {
-  locate, create, open, openByID, closeOpened, refresh, rename, remove, selectModel, fork, normalize, syncSummary, saveTitleEditing,
+  locate, create, open, openByID, closeOpened, refresh, rename, remove, removeMany, selectModel, fork, normalize, syncSummary, saveTitleEditing,
   saveSettings, toggleMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
