@@ -9,7 +9,7 @@ const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
 
 function createAssistant(session) {
-  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], isStreaming: true, request: { status: 'running', input: 0, output: 0, cache: 0 } }
+  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
   session.messages.push(message)
   return message
 }
@@ -71,7 +71,7 @@ async function send(sessionID, content) {
     return true
   } catch (error) {
     const assistant = streaming(session)
-    if (assistant) { assistant.error = error.message; assistant.isStreaming = false }
+    if (assistant) { assistant.error = error.message; assistant.isStreaming = false; assistant.finishedAt = Date.now() }
     session.status = 'idle'
     UI.notify(error.message)
     Session.syncSummary(session)
@@ -85,10 +85,13 @@ function toolFor(session, event, status) {
   let tool = session.messages.flatMap(message => message.tools || []).find(item => item.id === id)
   if (!tool) {
     const assistant = streaming(session) || createAssistant(session)
-    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status }
+    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: Date.now() }
     assistant.tools.push(tool)
   }
-  if (status) tool.status = status
+  if (status) {
+    tool.status = status
+    if (status !== 'running' && status !== 'waiting') tool.finishedAt = Date.now()
+  }
   if (event.input) tool.input = event.input
   if (event.toolName) tool.name = event.toolName
   return tool
@@ -125,6 +128,7 @@ async function receive(sessionID, event) {
     session.inputTokens += assistant.request.input
     session.outputTokens += assistant.request.output
     assistant.isStreaming = false
+    assistant.finishedAt = Date.now()
   } else if (event.type === 'tool-call') {
     toolFor(session, event, 'running')
   } else if (event.type === 'permission') {
@@ -167,6 +171,7 @@ async function receive(sessionID, event) {
     const assistant = streaming(session) || createAssistant(session)
     assistant.error = event.errorText || event.error?.message || '模型请求失败'
     assistant.isStreaming = false
+    assistant.finishedAt = Date.now()
     session.status = 'idle'
     UI.notify(assistant.error)
   } else if (event.type === 'title') {
@@ -199,6 +204,7 @@ async function stop(sessionID) {
     if (assistant) {
       assistant.retry = ''
       assistant.isStreaming = false
+      assistant.finishedAt = Date.now()
     }
   }
   unsubscribe(sessionID)

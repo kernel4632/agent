@@ -196,21 +196,14 @@
   .list-row__actions { opacity: 1; transform: none; }
 }
 
-/* RikkaHub 消息列：用户靠右，助手靠左；气泡用 24px 圆角和靠头像一侧的 6px 尾角。 */
-.rikka-message { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 6px; }
+/* RikkaHub 消息列：用户靠右，助手靠左；不显示头像和名字。 */
+.rikka-message { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 4px; }
 .rikka-message--user { align-items: flex-end; }
 .rikka-message--assistant { align-items: flex-start; }
-.rikka-message__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.rikka-message--user .rikka-message__head { justify-content: flex-end; }
-.rikka-message__name { color: var(--la-text); font-size: 14px; font-weight: 650; white-space: nowrap; }
-.rikka-message__model { min-width: 0; overflow: hidden; color: var(--la-text); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.rikka-avatar { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 650; }
-.rikka-avatar--user { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
-.rikka-avatar--assistant { background: var(--la-layer-02); color: var(--la-accent); box-shadow: inset 0 0 0 .5px var(--la-line); }
-.rikka-avatar--assistant.is-thinking { animation: avatar-breathe 2.2s ease-in-out infinite; }
-.rikka-bubble { max-width: 100%; min-width: 0; padding: 12px 16px; border-radius: 24px; }
+.rikka-bubble { max-width: 100%; min-width: 0; padding: 10px; border-radius: 24px; }
 .rikka-bubble--user {
-  max-width: min(86%, 640px);
+  max-width: 100%;
+  margin-left: 24px;
   border-top-right-radius: 6px;
   background: var(--la-accent-soft);
   color: var(--md-sys-color-on-primary-container);
@@ -224,24 +217,128 @@
   border-top-left-radius: 6px;
   background: var(--la-layer-02);
 }
+.rikka-bubble--user .markdown-body,
 .rikka-bubble--assistant .markdown-body { font-size: 16px; line-height: 1.7; }
-/* 思考过程和工具调用是正文上方的独立卡片，不塞进正文气泡。 */
-.rikka-card.list-row {
+.stream-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--la-text);
+  animation: stream-caret-blink 1s steps(1, end) infinite;
+}
+@keyframes stream-caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* 思考与工具共用一张时间线卡片，步骤可以整体折叠。 */
+.cot-card {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 16px;
+  margin-bottom: 4px;
+  padding: 4px 12px;
+  border-radius: 20px;
   background: var(--la-layer-02);
 }
-.rikka-bubble--assistant .list-row { padding: 2px 0; }
-.rikka-bubble--assistant .list-row--text { grid-template-columns: minmax(0, 1fr) auto; }
-.rikka-bubble--assistant .list-row--text > .list-row__icon { display: none; }
-.rikka-bubble--assistant .list-row__actions { opacity: 0; }
-.rikka-message:hover .rikka-bubble--assistant .list-row__actions,
-.rikka-message:focus-within .rikka-bubble--assistant .list-row__actions { opacity: 1; }
+.cot-more {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--la-accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+.cot-more__icon { display: grid; width: 24px; place-items: center; }
+.cot-steps { display: flex; flex-direction: column; }
+.cot-step { position: relative; min-width: 0; padding-left: 32px; }
+.cot-step::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 11px;
+  width: 1px;
+  background: var(--la-line);
+}
+.cot-step:first-child::before { top: 22px; }
+.cot-step:last-child::before { bottom: calc(100% - 22px); }
+.cot-step:only-child::before { display: none; }
+.cot-step__icon {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--la-layer-02);
+  color: var(--la-secondary);
+}
+.cot-step__main { min-width: 0; }
+.cot-step__head {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--la-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+.cot-step__label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--la-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cot-step__label.is-live {
+  background-image: linear-gradient(90deg, var(--la-muted) 10%, var(--la-text) 46%, var(--la-muted) 82%);
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: label-shimmer 1.6s linear infinite;
+}
+.cot-step__extra {
+  flex: none;
+  margin-left: auto;
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.cot-step__extra.is-completed { color: var(--la-success); }
+.cot-step__extra.is-running, .cot-step__extra.is-waiting { color: var(--la-accent); }
+.cot-step__extra.is-error, .cot-step__extra.is-rejected { color: var(--la-danger); }
+.cot-step__caret { flex: none; color: var(--la-muted); transition: transform .18s ease; }
+.cot-step__caret.is-open { transform: rotate(180deg); }
+.cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .2s ease; }
+.cot-collapse.is-open { grid-template-rows: 1fr; }
+.cot-collapse__inner { min-height: 0; overflow: hidden; }
+.cot-step__body { padding: 2px 0 10px; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
+.reasoning-preview { max-height: 120px; overflow-y: auto; scrollbar-width: none; }
+.reasoning-preview::-webkit-scrollbar { display: none; }
+.reasoning-preview.is-preview {
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+.reasoning-text { margin: 0; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rikka-message__actions { display: flex; align-items: center; gap: 2px; min-height: 24px; opacity: 0; transform: translateX(4px); transition: opacity .16s ease, transform .16s ease; }
 .rikka-message:hover .rikka-message__actions, .rikka-message:focus-within .rikka-message__actions { opacity: 1; transform: none; }
 @media (max-width: 767px) {
   .rikka-message__actions { opacity: 1; transform: none; }
-  .rikka-bubble--user { max-width: 90%; }
+  .rikka-bubble--user { max-width: 100%; }
 }
 

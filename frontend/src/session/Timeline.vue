@@ -14,6 +14,7 @@ import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { groupMessageTurns } from './turns.js'
+import { renderMarkdown } from '../utils/markdown.js'
 import './conversation.scss'
 import AssistantMessage from './AssistantMessage.vue'
 import RollbackDialog from './RollbackDialog.vue'
@@ -65,11 +66,9 @@ async function forkFrom(message) {
     <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <template v-if="turn.role === 'user'">
         <div class="rikka-message rikka-message--user">
-          <div class="rikka-message__head">
-            <span class="rikka-message__name">你</span>
-            <span class="rikka-avatar rikka-avatar--user" aria-hidden="true">你</span>
+          <div class="rikka-bubble rikka-bubble--user">
+            <div class="markdown-body" v-html="renderMarkdown(turn.messages[0].content)"></div>
           </div>
-          <div class="rikka-bubble rikka-bubble--user">{{ turn.messages[0].content }}</div>
           <div v-if="!turn.messages[0].isStreaming" class="rikka-message__actions">
             <IconButton size="small" label="复制消息" title="复制消息" @click="UI.copy(turn.messages[0].content)"><AppIcon name="copy" :size="14" /></IconButton>
             <IconButton v-if="canRollback(turn.messages[0])" size="small" label="回退到这条消息" title="删除这条消息及之后的内容" :disabled="session.status === 'running'" @click="requestRollback(turn.messages[0])"><AppIcon name="undo" :size="14" /></IconButton>
@@ -84,7 +83,6 @@ async function forkFrom(message) {
             :key="message.id"
             :message="message"
             :session-id="session.id"
-            :model="session.model"
             :running="session.status === 'running'"
             :can-rollback="canRollback(message)"
             @rollback="requestRollback(message)"

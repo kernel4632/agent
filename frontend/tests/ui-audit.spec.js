@@ -222,7 +222,7 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await expect(page.getByRole('button', { name: '选择模型（当前 test-model）' })).toBeVisible()
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('一个新的项目')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await expect(page.getByRole('button', { name: '停止生成' })).toHaveCount(0)
   await screenshot(page, testInfo, 'chat')
   if (testInfo.project.name === 'desktop') {
@@ -238,7 +238,7 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('一个新的项目')
   await page.getByRole('button', { name: '撤销回退', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await openDrawer(page)
   const created = page.locator('.home-session').filter({ hasText: '一个新的项目' })
   await created.hover()
@@ -271,7 +271,7 @@ test('assistant reply block can be rolled back to that reply', async ({ page }) 
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
   await page.locator('.message--assistant').first().hover()
   await page.getByRole('button', { name: '回退到这条回复', exact: true }).click()
@@ -335,6 +335,27 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
   expect(mock.calls.find(call => call.path === '/agent/decide/session-1').body).toEqual({ toolCallId: 'call-1', decision: 'allow-always' })
   expect(mock.errors).toEqual([])
+})
+
+test('reasoning preview stays half-open while streaming and collapses after finish', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'reasoning-delta', text: '先确认消息结构和工具调用顺序。'.repeat(40) },
+    { type: 'tool-call', toolCallId: 'reason-1', toolName: 'read_file', input: { path: 'example.txt' } },
+    { type: 'tool-result', toolCallId: 'reason-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+  ])
+
+  await expect(page.locator('.cot-card')).toBeVisible()
+  await expect(page.locator('.cot-step--reasoning .reasoning-preview')).toHaveClass(/is-preview/)
+  await expect(page.locator('.cot-step--tool')).toHaveCount(1)
+  await screenshot(page, testInfo, 'reasoning-preview')
 })
 
 test('tool row renders the ui declared by the tool', async ({ page }, testInfo) => {
@@ -483,7 +504,7 @@ test('existing conversation switches model from the input bar', async ({ page },
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await page.getByRole('button', { name: '选择模型（当前 test-model）' }).click()
   await screenshot(page, testInfo, 'model-sheet')
   await page.getByRole('button', { name: 'another-model', exact: true }).click()
@@ -531,7 +552,7 @@ test('message action forks the conversation at that message', async ({ page }) =
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await page.locator('.message--user').first().hover()
   await page.locator('.message--user').first().getByRole('button', { name: '从这里分支', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/fork/session-1')?.body)
@@ -544,7 +565,7 @@ test('rename and session stats use existing data', async ({ page }, testInfo) =>
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
   await page.locator('.topbar__title').click()
   const rename = page.getByRole('dialog', { name: '重命名会话' })
@@ -581,7 +602,7 @@ test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await page.getByRole('button', { name: '更多选项', exact: true }).click()
   await screenshot(page, testInfo, 'composer-options')
   await page.getByRole('button', { name: '对话设置', exact: true }).click()
