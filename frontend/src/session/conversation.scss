@@ -187,7 +187,7 @@
 .message__usage > span { padding: 0 6px; }
 
 @media (max-width: 767px) {
-  .conversation-flow { padding: 8px 12px 18px; gap: 12px; }
+  .conversation-flow { padding: 8px 16px 18px; gap: 12px; }
   .list-row { gap: 7px; padding: 3px 2px; }
   .list-row__actions { opacity: 1; transform: none; }
   .approval .button { height: 28px; }

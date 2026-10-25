@@ -103,7 +103,7 @@ async function forkFrom(message) {
 </template>
 
 <style scoped lang="scss">
-.conversation-flow { width: 100%; max-width: var(--la-chat-width); margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
 .message { display: block; min-width: 0; animation: row-in .18s ease-out both; }
 @keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 

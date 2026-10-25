@@ -224,7 +224,7 @@ defineExpose({ focus: () => editor.value?.focus() })
   position: relative;
   padding: 10px 12px 6px;
   border: 1px solid var(--la-line);
-  border-radius: 24px;
+  border-radius: 20px;
   background: var(--la-panel);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
 
@@ -308,8 +308,9 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__expand-corner:focus-within &__expand-button {
     opacity: 1;
     pointer-events: auto;
-    background: color-mix(in srgb, var(--la-layer-03) 80%, transparent);
+    background: var(--la-layer-02);
     color: var(--la-text);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .14);
     transform: none;
   }
   &__expand-corner:hover &__expand-button :deep(svg),

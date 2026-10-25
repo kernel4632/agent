@@ -45,8 +45,8 @@ defineExpose({ focus: () => composer.value?.focus() })
 <style scoped lang="scss">
 .draft-panel { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .draft-empty { min-height: 0; flex: 1; }
-.draft-form { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 0 8px 8px; }
+.draft-form { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; }
 @media (max-width: 767px) {
-  .draft-form { padding: 0 8px max(8px, env(safe-area-inset-bottom)); }
+  .draft-form { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }
 }
 </style>
