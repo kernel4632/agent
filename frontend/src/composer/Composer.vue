@@ -165,9 +165,11 @@ defineExpose({ focus: () => editor.value?.focus() })
     <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
     <div class="chat-composer__editor-wrap">
       <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="placeholder" rows="2" @keydown="keydown"></textarea>
-      <button type="button" class="chat-composer__fullscreen" aria-label="全屏输入" title="全屏输入" @mousedown.prevent @click="fullscreenOpen = true">
-        <span class="chat-composer__fullscreen-handle" aria-hidden="true"></span>
-        <AppIcon name="fullscreen" :size="20" class="chat-composer__fullscreen-icon" />
+    </div>
+    <div class="chat-composer__expand-corner">
+      <span class="chat-composer__expand-line" aria-hidden="true"></span>
+      <button type="button" class="chat-composer__expand-button" aria-label="全屏输入" title="全屏输入" @mousedown.prevent @click="fullscreenOpen = true">
+        <AppIcon name="fullscreen" :size="12" />
       </button>
     </div>
     <div class="chat-composer__bottom">
@@ -244,7 +246,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     width: 100%;
     min-height: 56px;
     max-height: 240px;
-    padding: 8px 44px 10px 4px;
+    padding: 8px 28px 10px 4px;
     resize: none;
     field-sizing: content;
     border: 0;
@@ -256,58 +258,67 @@ defineExpose({ focus: () => editor.value?.focus() })
 
     &::placeholder { color: var(--la-muted); }
   }
-  &__fullscreen {
+  /* 右上角贴边圆角线；靠近时缩成半透明，并让展开按钮滑入。 */
+  &__expand-corner {
     position: absolute;
-    top: -10px;
-    right: 20px;
-    z-index: 3;
+    top: 1px;
+    right: 1px;
+    z-index: 4;
+    width: 32px;
+    height: 32px;
+  }
+  &__expand-line {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 12px;
+    height: 12px;
+    border-top: 1.5px solid color-mix(in srgb, var(--la-text) 60%, transparent);
+    border-right: 1.5px solid color-mix(in srgb, var(--la-text) 60%, transparent);
+    border-top-right-radius: 16px;
+    opacity: .7;
+    pointer-events: none;
+    transform-origin: top right;
+    transition: opacity .2s ease-out, transform .2s ease-out;
+  }
+  &__expand-button {
+    position: absolute;
+    top: 4px;
+    right: 4px;
     display: grid;
-    width: 44px;
-    height: 30px;
+    width: 22px;
+    height: 22px;
     place-items: center;
     padding: 0;
     border: 0;
-    border-radius: 0 0 14px 14px;
+    border-radius: 50%;
     background: transparent;
-    color: var(--la-secondary);
-    cursor: pointer;
-    transition: height .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease;
-  }
-  &__fullscreen-handle {
-    position: absolute;
-    top: 3px;
-    left: 50%;
-    width: 36px;
-    height: 6px;
-    border: 1px solid color-mix(in srgb, var(--la-text) 10%, transparent);
-    border-radius: 999px;
-    background: color-mix(in srgb, #fff 72%, var(--la-panel));
-    box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
-    transform: translateX(-50%);
-    transition: opacity .14s ease, transform .18s ease;
-  }
-  &__fullscreen-icon {
+    color: var(--la-muted);
     opacity: 0;
-    transform: scale(.75);
-    transition: opacity .14s ease, transform .18s ease;
+    pointer-events: none;
+    transform: translate(10px, -10px) scale(.8) rotate(-8deg);
+    transition: opacity .3s ease-out, transform .3s ease-out, color .3s ease-out, background-color .3s ease-out;
   }
-  &__fullscreen:hover,
-  &__fullscreen:focus-visible {
-    height: 44px;
-    background: var(--la-layer-02);
+  &__expand-button:hover {
+    background: var(--la-layer-03);
     color: var(--la-text);
-    box-shadow: var(--la-shadow-raised);
   }
-  &__fullscreen:hover .chat-composer__fullscreen-handle,
-  &__fullscreen:focus-visible .chat-composer__fullscreen-handle {
+  &__expand-button :deep(svg) { transition: transform .3s ease-out; }
+  &__expand-corner:hover &__expand-line,
+  &__expand-corner:focus-within &__expand-line {
     opacity: 0;
-    transform: translateX(-50%) scaleX(.5);
+    transform: scale(.5);
   }
-  &__fullscreen:hover .chat-composer__fullscreen-icon,
-  &__fullscreen:focus-visible .chat-composer__fullscreen-icon {
+  &__expand-corner:hover &__expand-button,
+  &__expand-corner:focus-within &__expand-button {
     opacity: 1;
+    pointer-events: auto;
+    background: color-mix(in srgb, var(--la-layer-03) 80%, transparent);
+    color: var(--la-text);
     transform: none;
   }
+  &__expand-corner:hover &__expand-button :deep(svg),
+  &__expand-corner:focus-within &__expand-button :deep(svg) { transform: scale(1.1); }
   &__bottom { display: flex; min-height: 48px; align-items: center; gap: 8px; padding: 0 2px 2px; }
   &__options { display: flex; min-width: 0; flex: 1; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
   &__options::-webkit-scrollbar { display: none; }
@@ -430,8 +441,17 @@ defineExpose({ focus: () => editor.value?.focus() })
   .composer-option { width: 44px; height: 44px; }
 }
 @media (hover: none) {
-  .chat-composer__fullscreen { height: 40px; background: var(--la-layer-02); color: var(--la-text); }
-  .chat-composer__fullscreen-handle { opacity: 0; }
-  .chat-composer__fullscreen-icon { opacity: 1; transform: none; }
+  .chat-composer__expand-line { opacity: 0; }
+  .chat-composer__expand-button {
+    top: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    opacity: 1;
+    pointer-events: auto;
+    background: var(--la-layer-02);
+    color: var(--la-text);
+    transform: none;
+  }
 }
 </style>
