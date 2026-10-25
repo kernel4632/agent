@@ -86,7 +86,29 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
 .session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
 .session-composer { width: 100%; max-width: var(--la-chat-width); flex: none; margin: 0 auto; padding: 0 8px 8px; }
-.chat-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; border-radius: 12px; background: var(--la-layer-01); color: var(--la-secondary); font-size: 13px; }
+.chat-notice {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  align-self: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--la-layer-02);
+  color: var(--la-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+.chat-notice[role="status"]::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--la-warning);
+}
 @media (max-width: 767px) {
   .session-composer { padding: 0 8px max(8px, env(safe-area-inset-bottom)); }
 }

@@ -54,7 +54,6 @@ const modelGroups = computed(() => Object.entries(store.config.providers)
 
 const modelOpen = ref(false)
 const modelQuery = ref('')
-const searchOpen = ref(false)
 const addOpen = ref(false)
 const focused = ref(false)
 const fullscreenOpen = ref(false)
@@ -172,7 +171,6 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
         <button type="button" class="composer-option" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" title="选择模型" @click="openModelSheet"><AppIcon name="spark" :size="24" /></button>
-        <button type="button" class="composer-option" aria-label="联网搜索" title="联网搜索" @click="searchOpen = true"><AppIcon name="search" :size="24" /></button>
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
@@ -206,14 +204,6 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
   </Sheet>
 
-  <Sheet :open="searchOpen" label="联网搜索" @update:open="searchOpen = $event">
-    <div class="composer-sheet">
-      <h2>联网搜索</h2>
-      <p class="composer-sheet__hint">当前后端没有配置搜索服务。需要联网时可以让模型调用网页抓取工具。</p>
-      <div class="composer-sheet__actions"><Button @click="searchOpen = false">关闭</Button></div>
-    </div>
-  </Sheet>
-
   <Sheet :open="addOpen" label="更多选项" @update:open="addOpen = $event">
     <div class="composer-sheet">
       <h2>更多选项</h2>
@@ -240,39 +230,39 @@ defineExpose({ focus: () => editor.value?.focus() })
 <style scoped lang="scss">
 .chat-composer {
   position: relative;
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, var(--la-line-strong) 50%, transparent);
-  border-radius: 20px;
+  padding: 10px 12px 6px;
+  border: 1px solid var(--la-line);
+  border-radius: 24px;
   background: var(--la-panel);
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
 
   &:focus-within { border-color: var(--la-line-strong); }
   &__editor-wrap { position: relative; min-width: 0; }
   &__editor {
     display: block;
     width: 100%;
-    min-height: 42px;
-    max-height: 220px;
-    padding: 6px 4px 8px;
+    min-height: 56px;
+    max-height: 240px;
+    padding: 8px 4px 10px;
     resize: none;
     field-sizing: content;
     border: 0;
     outline: 0;
     background: transparent;
     color: var(--la-text);
-    font: 15px/22px var(--la-font-sans);
+    font: 16px/24px var(--la-font-sans);
     letter-spacing: 0;
 
-    &.has-fullscreen { padding-right: 38px; }
+    &.has-fullscreen { padding-right: 44px; }
     &::placeholder { color: var(--la-muted); }
   }
   &__fullscreen {
     position: absolute;
-    top: 4px;
-    right: 2px;
+    top: 8px;
+    right: 0;
     display: grid;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     place-items: center;
     padding: 0;
     border: 0;
@@ -282,16 +272,16 @@ defineExpose({ focus: () => editor.value?.focus() })
     cursor: pointer;
   }
   &__fullscreen:hover { background: var(--la-hover); color: var(--la-text); }
-  &__bottom { display: flex; min-height: 40px; align-items: center; gap: 4px; padding: 0 4px 1px; }
-  &__options { display: flex; min-width: 0; flex: 1; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  &__bottom { display: flex; min-height: 48px; align-items: center; gap: 8px; padding: 0 2px 2px; }
+  &__options { display: flex; min-width: 0; flex: 1; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
   &__options::-webkit-scrollbar { display: none; }
-  &__right { display: flex; flex: none; align-items: center; gap: 4px; }
+  &__right { display: flex; flex: none; align-items: center; gap: 8px; }
   &__send {
     display: grid;
     place-items: center;
-    flex: 0 0 30px;
-    width: 30px;
-    height: 30px;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     border: 0;
     border-radius: 50%;
@@ -314,32 +304,29 @@ defineExpose({ focus: () => editor.value?.focus() })
   color: var(--la-text);
   cursor: pointer;
 }
-.composer-option { width: 40px; height: 40px; }
-.composer-action { width: 30px; height: 30px; }
+.composer-option { width: 48px; height: 48px; }
+.composer-action { width: 40px; height: 40px; }
 .composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
 .composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
-.composer-sheet { display: grid; gap: 12px; min-width: 0; padding-bottom: 4px; }
+.composer-sheet { display: grid; gap: 16px; min-width: 0; padding-bottom: 8px; }
 .composer-sheet--models { min-height: 78vh; grid-template-rows: auto minmax(0, 1fr); }
-.composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 22px; font-weight: 400; line-height: 28px; }
-.composer-sheet .ui-field__caption { display: none; }
-.composer-sheet .field { height: 56px; border: 1px solid var(--la-line-strong); border-radius: 4px; background: transparent; font-size: 16px; }
-.composer-sheet .field:focus { border-color: var(--la-accent); box-shadow: inset 0 0 0 1px var(--la-accent); }
-.composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 20px; }
+.composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 400; line-height: 28px; }
+.composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
 .composer-sheet__actions { display: flex; justify-content: flex-end; margin-top: 4px; }
-.composer-sheet__empty { display: grid; gap: 12px; justify-items: start; padding: 12px 0; color: var(--la-secondary); }
+.composer-sheet__empty { display: grid; gap: 16px; justify-items: start; padding: 16px 0; color: var(--la-secondary); }
 .composer-sheet__empty p { margin: 0; font-size: 14px; }
-.composer-sheet__list { display: grid; gap: 2px; }
-.composer-sheet__list button { display: flex; min-height: 48px; align-items: center; gap: 14px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--la-text); text-align: left; font-size: 14px; cursor: pointer; }
+.composer-sheet__list { display: grid; gap: 4px; }
+.composer-sheet__list button { display: flex; min-height: 56px; align-items: center; gap: 16px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
 .composer-sheet__list button:hover:not(:disabled) { background: var(--la-hover); }
 .composer-sheet__list button:disabled { opacity: .38; cursor: default; }
 .model-list { display: flex; min-height: 0; flex-direction: column; gap: 8px; overflow-y: auto; padding-bottom: 8px; }
-.model-group { display: grid; flex: none; gap: 8px; }
-.model-group h3 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 12px; background: var(--la-panel); color: var(--la-accent); font-size: 12px; font-weight: 700; }
-.model-row { display: flex; min-height: 64px; align-items: center; gap: 12px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--la-bg); color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
-.model-row:hover { background: var(--la-layer-01); }
+.model-group { display: grid; flex: none; gap: 6px; }
+.model-group h3 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 12px; background: var(--la-panel); color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
+.model-row { display: flex; min-height: 68px; align-items: center; gap: 14px; padding: 10px 16px; border: 0; border-radius: 14px; background: transparent; color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
+.model-row:hover { background: var(--la-hover); }
 .model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
-.model-row__icon { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
+.model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-fullscreen {
   width: 100vw;
@@ -362,24 +349,24 @@ defineExpose({ focus: () => editor.value?.focus() })
 }
 .composer-fullscreen__panel {
   display: flex;
-  width: min(800px, 100%);
+  width: min(880px, 100%);
   height: 90%;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 16px 16px 0 0;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px 24px 0 0;
   background: var(--la-bg);
 }
 .composer-fullscreen__actions { display: flex; flex: none; justify-content: flex-end; }
 .composer-fullscreen__actions button {
-  min-width: 64px;
-  height: 40px;
-  padding: 0 12px;
+  min-width: 72px;
+  height: 48px;
+  padding: 0 16px;
   border: 0;
-  border-radius: 20px;
+  border-radius: 24px;
   background: transparent;
   color: var(--la-accent);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
 }
@@ -388,21 +375,22 @@ defineExpose({ focus: () => editor.value?.focus() })
   width: 100%;
   min-height: 0;
   flex: 1;
-  padding: 16px;
+  padding: 20px;
   resize: none;
   border: 0;
-  border-radius: 32px;
+  border-radius: 20px;
   outline: 0;
-  background: transparent;
+  background: var(--la-layer-01);
   color: var(--la-text);
-  font: 16px/24px var(--la-font-sans);
+  font: 16px/26px var(--la-font-sans);
 }
 .composer-fullscreen__editor::placeholder { color: var(--la-muted); }
 @media (max-width: 767px) {
   .chat-composer {
-    padding: 4px 8px;
+    padding: 8px 10px 4px;
     &__editor { font-size: 16px; }
-    &__send { width: 30px; height: 30px; flex-basis: 30px; }
+    &__send { width: 44px; height: 44px; flex-basis: 44px; }
   }
+  .composer-option { width: 44px; height: 44px; }
 }
 </style>

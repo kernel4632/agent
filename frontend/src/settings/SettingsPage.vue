@@ -121,47 +121,47 @@ function goBack() {
   color: var(--la-text);
   background: var(--la-bg);
 }
-.settings-topbar { flex: none; padding: 8px 16px 0; background: var(--la-bg); }
+.settings-topbar { flex: none; padding: 12px 24px 0; background: var(--la-bg); }
 .settings-topbar__inner { width: 100%; max-width: var(--la-settings-width); margin: 0 auto; }
-.settings-topbar__actions { display: flex; min-height: 40px; align-items: center; }
+.settings-topbar__actions { display: flex; min-height: 48px; align-items: center; }
 .settings-back-icon { transform: rotate(180deg); }
-.settings-topbar__heading { padding: 2px 2px 14px; }
+.settings-topbar__heading { padding: 4px 4px 20px; }
 .settings-topbar__heading h1 {
   margin: 0;
   color: var(--la-text);
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 400;
-  line-height: 36px;
+  line-height: 40px;
   letter-spacing: 0;
 }
-.settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 16px 32px; overscroll-behavior: contain; }
+.settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 24px 48px; overscroll-behavior: contain; }
 .settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
 
-/* --- 首页：按 group 排列的圆角卡片和 64px 行 --- */
-.settings-group { display: flex; flex-direction: column; gap: 8px; }
-.settings-group + .settings-group { margin-top: 16px; }
+/* --- 首页：按 group 排列的圆角卡片和 80px 行 --- */
+.settings-group { display: flex; flex-direction: column; gap: 12px; }
+.settings-group + .settings-group { margin-top: 24px; }
 .settings-group__label {
   margin: 0;
-  padding: 0 4px;
+  padding: 0 8px;
   color: var(--la-muted);
-  font-size: 12px;
-  font-weight: 640;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 18px;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
 }
 .settings-card {
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--la-layer-01);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
 }
 .settings-row {
   display: flex;
   width: 100%;
-  min-height: 64px;
+  min-height: 80px;
   align-items: center;
-  gap: 14px;
-  padding: 8px 14px;
+  gap: 16px;
+  padding: 12px 20px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -174,54 +174,55 @@ function goBack() {
 .settings-row:focus-visible { position: relative; z-index: 1; outline-offset: -2px; }
 .settings-row__icon {
   display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--la-layer-02);
   color: var(--la-secondary);
 }
 .settings-row__icon--primary { background: color-mix(in srgb, var(--la-accent) 16%, transparent); color: var(--la-accent); }
 .settings-row__icon--tertiary { background: color-mix(in srgb, var(--la-success) 16%, transparent); color: var(--la-success); }
 .settings-row__icon--secondary { background: color-mix(in srgb, var(--la-warning) 16%, transparent); color: var(--la-warning); }
-.settings-row__text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
+.settings-row__text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
 .settings-row__title {
   overflow: hidden;
   color: var(--la-text);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 20px;
+  line-height: 24px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .settings-row__description {
   overflow: hidden;
   color: var(--la-muted);
-  font-size: 12px;
-  font-weight: 440;
-  line-height: 18px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .settings-row__badge {
   flex: none;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: var(--la-layer-02);
   color: var(--la-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  line-height: 16px;
+  line-height: 18px;
 }
 .settings-row__arrow { flex: none; color: var(--la-muted); }
 
-/* --- 窄屏：全宽、16px 内边距，行内容只截断不换行 --- */
+/* --- 窄屏：全宽和 20px 内边距，行内容只截断不换行 --- */
 @media (max-width: 767px) {
-  .settings-topbar { padding-top: 4px; }
-  .settings-topbar__actions { min-height: 36px; }
-  .settings-topbar__heading { padding-bottom: 12px; }
-  .settings-topbar__heading h1 { font-size: 24px; line-height: 32px; }
-  .settings-scroll { padding-bottom: 24px; }
+  .settings-topbar { padding: 8px 20px 0; }
+  .settings-topbar__actions { min-height: 44px; }
+  .settings-topbar__heading { padding-bottom: 16px; }
+  .settings-topbar__heading h1 { font-size: 28px; line-height: 36px; }
+  .settings-scroll { padding: 8px 20px 32px; }
+  .settings-row { min-height: 76px; padding: 12px 16px; }
 }
 </style>
