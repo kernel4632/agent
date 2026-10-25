@@ -7,13 +7,14 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AppIcon, Button } from '../ui/index.js'
 import { Chat } from '../commands/chat.js'
 import ToolView from './tools/ToolView.vue'
-import { toolIcon, toolLabel } from './tool-ui.js'
+import { canonicalToolName, toolIcon, toolLabel } from './tool-ui.js'
 
 const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
 })
-const open = ref(props.tool.status === 'waiting')
+// 任务清单带可读的渲染结果，默认展开；其他工具等用户点开。
+const open = ref(props.tool.status === 'waiting' || canonicalToolName(props.tool.name) === 'update_todo_list')
 const now = ref(Date.now())
 let timer = null
 

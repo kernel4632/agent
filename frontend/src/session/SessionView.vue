@@ -18,6 +18,8 @@ import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import SessionFilePanel from './SessionFilePanel.vue'
 import SessionMorePanel from './SessionMorePanel.vue'
+import SessionTodos from './SessionTodos.vue'
+import { latestTodos } from './todos.js'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
 import { UI } from '../commands/ui.js'
@@ -45,6 +47,11 @@ const draft = computed({
 })
 const files = computed(() => props.session.files || [])
 const conversationScroll = ref(null)
+// 消息里的清单比 Session.todos 更新得更早，流式过程中也能立刻看到进度。
+const todos = computed(() => {
+  const fromMessages = latestTodos(props.session.messages)
+  return fromMessages.length ? fromMessages : (props.session.todos || [])
+})
 
 // --- 发送与停止 ---
 async function submitMessage(content) {
@@ -74,6 +81,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <SessionMorePanel v-if="moreOpen" :session="session" />
         <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
         <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
+        <SessionTodos :todos="todos" />
         <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" show-session-controls :is-running="session.status === 'running'" :busy="busy" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="moreOpen = !moreOpen" @toggle-mode="Session.toggleMode(session.id)" />
       </div>
     </div>
