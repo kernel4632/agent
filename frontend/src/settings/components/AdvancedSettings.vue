@@ -127,7 +127,6 @@ function applyModes() {
       </div>
       <Field
         v-model="modesText"
-        class="advanced-settings__modes"
         multiline
         :rows="8"
         label="自定义模式 JSON"
@@ -193,11 +192,6 @@ code {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-}
-
-.advanced-settings__modes :deep(textarea) {
-  min-height: 200px;
-  resize: vertical;
 }
 
 .advanced-settings__actions {

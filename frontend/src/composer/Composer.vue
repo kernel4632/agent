@@ -309,7 +309,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
 .composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
 .composer-sheet { display: grid; width: 100%; gap: 16px; min-width: 0; padding-bottom: 8px; }
-.composer-sheet--models { min-height: 78vh; grid-template-rows: auto minmax(0, 1fr); }
+.composer-sheet--models { max-height: 70vh; grid-template-rows: auto minmax(0, 1fr); }
 .composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 400; line-height: 28px; }
 .composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
 .composer-sheet__actions { display: flex; justify-content: flex-end; margin-top: 4px; }
@@ -321,7 +321,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 .composer-sheet__list button:disabled { opacity: .38; cursor: default; }
 .model-list { display: flex; min-height: 0; flex-direction: column; gap: 8px; overflow-y: auto; padding-bottom: 8px; }
 .model-group { display: grid; flex: none; gap: 6px; }
-.model-group h3 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 12px; background: var(--la-panel); color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
+.model-group h3 { position: static; margin: 0; padding: 4px 16px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
 .model-row { display: flex; min-height: 68px; align-items: center; gap: 14px; padding: 10px 16px; border: 0; border-radius: 14px; background: transparent; color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
 .model-row:hover { background: var(--la-hover); }
 .model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }

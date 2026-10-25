@@ -224,5 +224,6 @@ function goBack() {
   .settings-topbar__heading h1 { font-size: 28px; line-height: 36px; }
   .settings-scroll { padding: 8px 20px 32px; }
   .settings-row { min-height: 76px; padding: 12px 16px; }
+  .settings-row__description { overflow: visible; white-space: normal; }
 }
 </style>
