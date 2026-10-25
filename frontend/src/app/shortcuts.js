@@ -21,7 +21,7 @@ export function createShortcutHandler({
   newConversation,
 }) {
   return function shortcuts(event) {
-    // 任何原生 dialog 打开时都让给它自己处理键盘，避免 Esc 同时关两处。
+    // 原生 dialog 打开时让给它自己处理键盘，避免 Esc 同时关两处。
     if (document.querySelector('dialog[open]')) return
 
     // 命令面板打开时只接管 Esc，其余按键留给面板内部。

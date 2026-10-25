@@ -141,23 +141,23 @@ async function backend(page, { configured = true } = {}) {
 async function openDrawer(page) {
   const menu = page.getByRole('button', { name: '打开会话抽屉', exact: true })
   if (await menu.isVisible()) {
-    // 手机抽屉关闭时带 0.22s 滑出动画；等它完全隐藏再点菜单，避免点到正在移动的按钮。
     const drawer = page.locator('.app-drawer')
-    const open = await drawer.evaluate(element => element.classList.contains('is-open')).catch(() => false)
-    if (!open) {
-      await expect(drawer).toBeHidden()
-      await menu.click()
-    }
+    const open = await drawer.evaluate(element => element.hasAttribute('open')).catch(() => false)
+    if (!open) await menu.click()
   }
-  await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
 }
 
 async function navigate(page, name) {
   await openDrawer(page)
-  const drawer = page.getByRole('region', { name: '项目与会话' })
-  if (name === '新建对话') return drawer.getByRole('button', { name: '新建对话', exact: true }).click()
-  if (name === '设置') return drawer.getByRole('button', { name: '设置', exact: true }).click()
-  return drawer.getByRole('button', { name, exact: true }).first().click()
+  const drawer = page.getByRole('dialog', { name: '项目与会话' })
+  const target = name === '新建对话'
+    ? drawer.getByRole('button', { name: '新建对话', exact: true })
+    : name === '设置'
+      ? drawer.getByRole('button', { name: '设置', exact: true })
+      : drawer.getByRole('button', { name, exact: true }).first()
+  await target.click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
 }
 
 async function screenshot(page, testInfo, name) {
@@ -177,15 +177,19 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   const mock = await backend(page, { configured: false })
   await page.goto('/')
   await openDrawer(page)
-  await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
-  await page.getByRole('region', { name: '项目与会话' }).getByRole('button', { name: '搜索对话', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
+  await page.getByRole('dialog', { name: '项目与会话' }).getByRole('button', { name: '搜索对话', exact: true }).click()
   await expect(page.getByRole('searchbox', { name: '搜索会话' })).toBeVisible()
   await screenshot(page, testInfo, 'drawer')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('dialog', { name: '命令面板' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: '搜索命令' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '命令面板' })).toHaveCount(0)
+  await openDrawer(page)
+  await page.getByRole('dialog', { name: '项目与会话' }).getByRole('button', { name: '搜索对话', exact: true }).click()
   await page.getByRole('searchbox', { name: '搜索会话' }).fill('不存在的关键词')
   await expect(page.getByText('没有找到匹配的会话')).toBeVisible()
   await page.getByRole('button', { name: '清除搜索' }).click()
@@ -414,7 +418,7 @@ test('connection failure is visible and does not replace the page with a blank s
   await page.goto('/')
   await expect(page.getByRole('alert')).toContainText('无法连接后端')
   await openDrawer(page)
-  await expect(page.getByRole('region', { name: '项目与会话' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible()
 })
 
@@ -543,7 +547,7 @@ test('message favorites and session stats use existing data', async ({ page }, t
   await page.locator('.message--user').first().hover()
   await page.locator('.message--user').first().getByRole('button', { name: '收藏消息', exact: true }).click()
   await openDrawer(page)
-  const drawer = page.getByRole('region', { name: '项目与会话' })
+  const drawer = page.getByRole('dialog', { name: '项目与会话' })
   await drawer.getByRole('button', { name: '收藏的消息', exact: true }).click()
   const favorites = page.getByRole('dialog', { name: '收藏的消息' })
   await expect(favorites).toContainText('一个新的项目')
