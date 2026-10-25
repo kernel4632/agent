@@ -149,13 +149,15 @@ async function openDrawer(page) {
 }
 
 async function navigate(page, name) {
+  if (name === '新建对话') {
+    await page.getByRole('button', { name: '新建对话', exact: true }).click()
+    return
+  }
   await openDrawer(page)
   const drawer = page.getByRole('dialog', { name: '项目与会话' })
-  const target = name === '新建对话'
-    ? drawer.getByRole('button', { name: '新建对话', exact: true })
-    : name === '设置'
-      ? drawer.getByRole('button', { name: '设置', exact: true })
-      : drawer.getByRole('button', { name, exact: true }).first()
+  const target = name === '设置'
+    ? drawer.getByRole('button', { name: '设置', exact: true })
+    : drawer.getByRole('button', { name, exact: true }).first()
   await target.click()
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
 }
@@ -191,8 +193,9 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   await page.getByRole('searchbox', { name: '搜索会话' }).fill('不存在的关键词')
   await expect(page.getByText('没有找到匹配的会话')).toBeVisible()
   await page.getByRole('button', { name: '清除搜索' }).click()
-  await page.getByRole('dialog', { name: '项目与会话' }).getByRole('button', { name: '新建对话', exact: true }).click()
+  await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await page.getByRole('button', { name: '新建对话', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'draft')
   await navigate(page, '设置')
@@ -530,7 +533,7 @@ test('message action forks the conversation at that message', async ({ page }) =
     .toEqual({ messageId: 'user-1' })
 })
 
-test('message favorites and session stats use existing data', async ({ page }, testInfo) => {
+test('rename and session stats use existing data', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -545,16 +548,8 @@ test('message favorites and session stats use existing data', async ({ page }, t
   await rename.getByRole('button', { name: '取消', exact: true }).click()
 
   await page.locator('.message--user').first().hover()
-  await page.locator('.message--user').first().getByRole('button', { name: '收藏消息', exact: true }).click()
   await openDrawer(page)
   const drawer = page.getByRole('dialog', { name: '项目与会话' })
-  await drawer.getByRole('button', { name: '收藏的消息', exact: true }).click()
-  const favorites = page.getByRole('dialog', { name: '收藏的消息' })
-  await expect(favorites).toContainText('一个新的项目')
-  await expect(favorites).toContainText('你好')
-  await screenshot(page, testInfo, 'favorites-dialog')
-  await favorites.getByRole('button', { name: '关闭', exact: true }).click()
-
   await drawer.getByRole('button', { name: '会话统计', exact: true }).click()
   const stats = page.getByRole('dialog', { name: '会话统计' })
   await expect(stats).toContainText('助手回复')

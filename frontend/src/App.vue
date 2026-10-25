@@ -122,7 +122,6 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         v-if="mode !== 'settings'"
         :open="drawerOpen"
         @close="drawerOpen = false"
-        @new="openDraft"
         @open="openSession"
         @settings="openSettings()"
       />

@@ -1,7 +1,7 @@
 <!--
 抽屉会话列：搜索、按日期分组的会话、更多菜单和重命名/删除弹窗都在这里。
 放在 app/AppDrawer.vue 的会话区内，桌面和手机的抽屉共用这一份逻辑。
-调用示例：<DrawerConversations :workspace="workspace" :active-session-id="id" :show-search="searchOpen" @open="openSession" @new="openDraft" />
+调用示例：<DrawerConversations :workspace="workspace" :active-session-id="id" :query="search" @open="openSession" />
 -->
 <script setup>
 import { computed, ref } from 'vue'
@@ -12,13 +12,12 @@ const props = defineProps({
   workspace: { type: Object, default: null },
   activeSessionId: String,
   query: { type: String, default: '' },                 // 搜索框在 AppDrawer，列表只负责过滤
-  sortOrder: { type: String, default: 'updated' },      // updated 按修改时间，created 按创建时间
 })
-const emit = defineEmits(['open', 'new', 'update:query'])
+const emit = defineEmits(['open', 'update:query'])
 
 // --- 搜索 ---
 const sessions = computed(() => props.workspace?.sessions || [])
-const stampOf = item => Number(props.sortOrder === 'created' ? item.createdAt : item.updatedAt || item.createdAt) || 0
+const stampOf = item => Number(item.updatedAt || item.createdAt) || 0
 const visible = computed(() => {
   const query = props.query.trim().toLowerCase()
   return sessions.value
@@ -118,7 +117,7 @@ async function submitDialog() {
       </template>
       <div v-else class="home-empty">
         <strong>{{ query ? '没有找到匹配的会话' : '还没有会话' }}</strong>
-        <p>{{ query ? '换个关键词试试。' : '点上面的「新建对话」开始。' }}</p>
+        <p>{{ query ? '换个关键词试试。' : '点右上角的新建按钮开始。' }}</p>
         <Button v-if="query" variant="ghost" @click="emit('update:query', '')">清除搜索</Button>
       </div>
     </nav>
