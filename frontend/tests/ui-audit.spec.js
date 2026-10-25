@@ -1,201 +1,10 @@
+/*
+界面回归：逐条走真实契约和可访问路径（创建、流式、回退、设置、快捷键、动效）。
+和 ui-motion.spec.js 共用 chat-fixture.js 的接口 mock；动效断言在另一个文件。
+运行：bun run test:ui
+*/
 import { expect, test } from '@playwright/test'
-
-async function backend(page, { configured = true } = {}) {
-  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, modes: {}, diagnostics: {}, snapshot: {} }
-  const sessions = new Map()
-  const calls = []
-  const waiting = new Map()
-  const queued = new Map()
-  const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  async function emit(id, events) {
-    const body = events.map((event, index) => `id: ${event.type === 'agent-finish' ? 1 : index + 1}\ndata: ${JSON.stringify(event)}\n\n`).join('')
-    const route = waiting.get(id)
-    if (route) { waiting.delete(id); await route.fulfill({ status: 200, contentType: 'text/event-stream', body }) }
-    else queued.set(id, body)
-  }
-  await page.route('**/api/**', async route => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname.replace('/api', '')
-    const method = request.method()
-    const body = request.postData() ? request.postDataJSON() : undefined
-    calls.push({ path, method, body })
-    const json = data => route.fulfill({ status: 200, json: data })
-    if (path === '/config/read') return json(config)
-    if (path === '/config/set') { config = body; return json(config) }
-    if (path === '/session/list') return json([...sessions.values()])
-    if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
-    if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
-    if (path === '/tool/list') return json([
-      {
-        name: 'read_file', kind: 'read', permission: 'ask', configurable: true,
-        ui: { view: 'file-read', icon: 'document', title: '读取文件', summary: '{path}' },
-      },
-      {
-        name: 'execute_command', kind: 'command', permission: 'ask', configurable: true,
-        ui: { view: 'command', icon: 'code', title: '执行命令', summary: '{command}' },
-      },
-      {
-        name: 'new_task', kind: 'subtask', permission: 'ask', configurable: true,
-        ui: { view: 'subtask', icon: 'branch', title: '创建子任务', summary: '{description}' },
-      },
-      {
-        name: 'update_todo_list', kind: 'never', permission: 'ask', configurable: false,
-        ui: { view: 'todo', icon: 'check', title: '任务清单', summary: '当前进度' },
-      },
-      {
-        name: 'attempt_completion', kind: 'never', permission: 'never', configurable: false,
-        ui: { view: 'completion', icon: 'check', title: '完成任务', summary: '最终结果' },
-      },
-      {
-        name: 'ask_followup_question', kind: 'never', permission: 'never', configurable: false,
-        ui: { view: 'question', icon: 'info', title: '询问用户', summary: '{question}' },
-      },
-    ])
-    if (path === '/command/list') return json([
-      { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
-    ])
-    if (path === '/session/create') {
-      const id = `session-${sessions.size + 1}`
-      sessions.set(id, {
-        id,
-        title: body.title,
-        provider: body.provider,
-        model: body.model,
-        history: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        settings: {
-          mode: 'build',
-          autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
-          autoApproveLimit: 50,
-          compactThreshold: 0.8,
-          capabilities: { image: true, cache: true, stream: true },
-          uses: {},
-          autoTitle: true,
-        },
-        todos: [],
-        running: false,
-        pending: [],
-        undoable: 0,
-      })
-      return json({ sessionId: id })
-    }
-    const id = path.split('/').at(-1)
-    const session = sessions.get(id)
-    if (path.startsWith('/session/model/')) {
-      session.provider = body.provider
-      session.model = body.model
-      return json(session)
-    }
-    if (path.startsWith('/session/fork/')) {
-      const newId = `session-${sessions.size + 1}`
-      sessions.set(newId, {
-        ...session,
-        id: newId,
-        title: (body && body.title) || `${session.title}（分支）`,
-        history: structuredClone(session.history),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      })
-      return json({ sessionId: newId })
-    }
-    if (path.startsWith('/sse/connect/')) {
-      if (queued.has(id)) { const eventBody = queued.get(id); queued.delete(id); return route.fulfill({ contentType: 'text/event-stream', body: eventBody }) }
-      waiting.set(id, route)
-      return
-    }
-    if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
-    if (path.startsWith('/session/settings/')) {
-      if (method === 'PATCH') session.settings = { ...session.settings, ...body }
-      return json(session.settings)
-    }
-    if (path.startsWith('/session/read/')) return json(session)
-    if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
-    if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
-    if (path.startsWith('/session/rollback/preview/')) return json({ messages: 1, files: [] })
-    if (path.startsWith('/session/rollback/')) {
-      session.redo = session.history
-      session.history = []
-      session.undoable = 1
-      return json({ ...session, restored: [] })
-    }
-    if (path.startsWith('/session/redo/')) {
-      session.history = session.redo || []
-      session.redo = []
-      session.undoable = 0
-      return json({ ...session, restored: [] })
-    }
-    if (path.startsWith('/agent/send/')) {
-      session.history.push({ messageId: 'user-1', id: 'core-user-1', role: 'user', content: body.input })
-      await json({ ok: true })
-      if (body.input === 'keep running') {
-        session.running = true
-        return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
-      }
-      const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
-      session.history.push({
-        messageId: 'assistant-1',
-        role: 'assistant',
-        content: [
-          { type: 'text', text },
-          {
-            type: 'tool-invocation',
-            toolCallId: 'finish-1',
-            toolName: 'attempt_completion',
-            state: 'result',
-            args: { result: text },
-            result: { output: { type: 'text', value: text } },
-          },
-        ],
-      })
-      session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
-    }
-    if (path.startsWith('/agent/stop/')) { session.running = false; await json({ ok: true }); return emit(id, [{ type: 'agent-finish' }]) }
-    if (path.startsWith('/agent/resume/')) {
-      await json({ ok: true })
-      session.running = false
-      session.history.push({ messageId: 'assistant-2', role: 'assistant', content: [{ type: 'text', text: '继续完成' }] })
-      return emit(id, [
-        { type: 'agent-resume' },
-        { type: 'text-delta', text: '继续完成' },
-        { type: 'llm-finish', text: '继续完成', usage: { inputTokens: 12, outputTokens: 6 } },
-        { type: 'agent-finish' },
-      ])
-    }
-    if (path.startsWith('/agent/decide/')) return json({ ok: true })
-    return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
-  })
-  return { calls, sessions, errors, emit, config: () => config }
-}
-
-// 手机没有常驻主页，会话列表在左侧抽屉；桌面横向布局下抽屉常驻、菜单按钮隐藏。
-async function openDrawer(page) {
-  const menu = page.getByRole('button', { name: '打开会话抽屉', exact: true })
-  if (await menu.isVisible()) {
-    const drawer = page.locator('.app-drawer')
-    const open = await drawer.evaluate(element => element.hasAttribute('open')).catch(() => false)
-    if (!open) await menu.click()
-  }
-  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
-}
-
-async function navigate(page, name) {
-  if (name === '新建对话') {
-    await page.getByRole('button', { name: '新建对话', exact: true }).click()
-    // 页面切换有过渡；等新草稿页真正挂载后再让测试输入。
-    await expect(page.locator('.draft-panel')).toBeVisible()
-    return
-  }
-  await openDrawer(page)
-  const drawer = page.getByRole('dialog', { name: '项目与会话' })
-  const target = name === '设置'
-    ? drawer.getByRole('button', { name: '设置', exact: true })
-    : drawer.getByRole('button', { name, exact: true }).first()
-  await target.click()
-  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
-}
+import { backend, navigate, openDrawer } from './chat-fixture.js'
 
 async function screenshot(page, testInfo, name) {
   const layout = await page.evaluate(() => ['html', 'body', 'm3e-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
@@ -365,14 +174,16 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
   await mock.emit('session-1', [{ type: 'agent-start' }, { type: 'permission', callID: 'call-1', tool: 'read', input: { path: 'example.txt' } }])
   await expect(page.getByText('等待你的许可')).toBeVisible()
-  await screenshot(page, testInfo, 'approval')
+  // 先点决定再做整页截图：mock 的 SSE 响应读完会触发一次重连，
+  // 截图太慢时旧的审批按钮已经被重连刷新替换掉，点不到是测试时序问题。
   await page.getByRole('button', { name: '始终允许此参数', exact: true }).click()
   await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
+  await screenshot(page, testInfo, 'approval-decided')
   expect(mock.calls.find(call => call.path === '/agent/decide/session-1').body).toEqual({ toolCallId: 'call-1', decision: 'allow-always' })
   expect(mock.errors).toEqual([])
 })
 
-test('reasoning preview stays half-open while streaming and collapses after finish', async ({ page }, testInfo) => {
+test('reasoning preview stays half-open while streaming', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -391,6 +202,27 @@ test('reasoning preview stays half-open while streaming and collapses after fini
   await expect(page.locator('.cot-step--reasoning .reasoning-preview')).toHaveClass(/is-preview/)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   await screenshot(page, testInfo, 'reasoning-preview')
+})
+
+test('reasoning preview collapses after the llm finishes', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'reasoning-delta', text: '先确认消息结构和工具调用顺序。'.repeat(40) },
+    { type: 'tool-call', toolCallId: 'reason-1', toolName: 'read_file', input: { path: 'example.txt' } },
+    { type: 'tool-result', toolCallId: 'reason-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+    { type: 'llm-finish', text: '查完了。', usage: { inputTokens: 10, outputTokens: 4 } },
+  ])
+
+  await expect(page.locator('.cot-step--reasoning .reasoning-preview')).not.toHaveClass(/is-preview/)
+  await expect(page.locator('.cot-step--reasoning .cot-collapse')).not.toHaveClass(/is-open/)
+  await expect(page.locator('.cot-step--tool')).toHaveCount(1)
 })
 
 test('tool row renders the ui declared by the tool', async ({ page }, testInfo) => {
@@ -481,12 +313,13 @@ test('continue resumes an interrupted assistant without a user message', async (
   await expect.poll(() => mock.calls.filter(call => call.path === '/agent/resume/session-1')).toHaveLength(1)
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('继续完成')
   await expect(page.locator('.rikka-bubble--user')).toHaveCount(1)
-  await expect(page.getByText('继续', { exact: true })).toHaveCount(0)
+  // 内部继续提示必须被 read 过滤掉，不能变成用户气泡。
+  await expect(page.getByText('继续上次未完成的任务', { exact: false })).toHaveCount(0)
   await expect(page.locator('.rikka-bubble--assistant')).toHaveCount(1)
   expect(mock.errors).toEqual([])
 })
 
-test('batch delete removes several sessions in one pass', async ({ page }, testInfo) => {
+test('batch selection deletes several sessions one by one', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -719,6 +552,15 @@ test('MCP service can be added and saved', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'MCP 2' })).toBeVisible()
   await page.getByLabel('启动命令').fill('npx test-server')
   await expect.poll(() => mock.config().mcp['MCP 2']?.command).toBe('npx test-server')
+
+  // 环境变量写错时要显示原因，不能静默丢掉；改对后才写回配置。
+  const env = page.getByLabel('环境变量（JSON 格式）')
+  await env.fill('{bad')
+  await expect(page.getByRole('alert')).toContainText('环境变量必须是 JSON 对象')
+  await env.fill('{"API_KEY":"x"}')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect.poll(() => mock.config().mcp['MCP 2']?.env).toEqual({ API_KEY: 'x' })
+
   const saved = mock.config()
   expect(saved.mcp['MCP 2'].enabled).toBe(true)
 })

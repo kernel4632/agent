@@ -74,7 +74,10 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
   <section class="session-panel" aria-label="聊天">
     <div class="session-main">
       <div ref="conversationScroll" class="session-scroll">
-        <Timeline :key="session.id" :scroll-root="conversationScroll" />
+        <!-- 会话切换只替换时间线；输入区留在原处，草稿、焦点和滚动容器都不重建。 -->
+        <Transition name="session-swap" mode="out-in">
+          <Timeline :key="session.id" :scroll-root="conversationScroll" />
+        </Transition>
       </div>
       <div class="session-composer">
         <Transition name="notice">
@@ -128,12 +131,17 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
   background: var(--la-warning);
 }
 /* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
-.notice-enter-active, .panel-enter-active { transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.notice-leave-active, .panel-leave-active { transition: opacity .14s ease, transform .14s ease; }
-.notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(6px); }
-.panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(10px) scale(.99); }
+.notice-enter-active, .panel-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.notice-leave-active, .panel-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
+.panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise)) scale(.985); }
+/* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
+.session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.session-swap-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
+.session-swap-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
 @media (prefers-reduced-motion: reduce) {
-  .notice-enter-active, .notice-leave-active, .panel-enter-active, .panel-leave-active { transition-duration: .01ms; }
+  .notice-enter-active, .notice-leave-active, .panel-enter-active, .panel-leave-active, .session-swap-enter-active, .session-swap-leave-active { transition-duration: .01ms; }
 }
 @media (max-width: 767px) {
   .session-composer { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }

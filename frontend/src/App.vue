@@ -20,6 +20,7 @@ import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { UI, activeSession } from './commands/ui.js'
 import { normalizeAppearance } from './theme/index.js'
+import { readAttachments } from './utils/attachments.js'
 
 const SettingsPage = defineAsyncComponent(() => import('./settings/SettingsPage.vue'))
 const draftView = ref(null)
@@ -86,11 +87,9 @@ async function submitMessage(content) {
 
 // 草稿页附件先在本地收好，创建会话时一起写进新会话。
 async function attachFiles(selected) {
-  for (const file of selected) {
-    if (file.size > 1024 * 1024) { UI.notify(`${file.name} 超过 1 MiB`); continue }
-    if (!/\.(txt|md|js|jsx|ts|tsx|json|css|scss|html|vue|py|go|rs|yaml|yml|csv|xml|sh|log)$/i.test(file.name)) { UI.notify('请选择文本或代码文件'); continue }
-    homeFiles.value.push({ id: crypto.randomUUID(), name: file.name, content: await file.text() })
-  }
+  const { files, errors } = await readAttachments(selected) // 大小和类型检查只在附件工具里做一次
+  homeFiles.value.push(...files)                            // 通过检查的文件进入草稿附件列表
+  errors.forEach(UI.notify)                                 // 被拒绝的文件逐个说明原因
 }
 
 // 只从草稿页的待发送附件里移除。
@@ -181,12 +180,13 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 .rikka-main { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; }
 .app-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
 /* 页面切换像 KIMA 的注意力引导：进入时轻微上移并淡入，离开更快。 */
-.view-enter-active { transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.view-leave-active { transition: opacity .14s ease, transform .14s ease; }
-.view-enter-from { opacity: 0; transform: translateY(10px); }
-.view-leave-to { opacity: 0; transform: translateY(-6px); }
-.alert-enter-active, .alert-leave-active { transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.alert-enter-from, .alert-leave-to { opacity: 0; transform: translateY(-8px); }
+.view-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.view-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.view-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
+.view-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
+.alert-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.alert-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.alert-enter-from, .alert-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise-small) * -1)); }
 @media (prefers-reduced-motion: reduce) {
   .view-enter-active, .view-leave-active, .alert-enter-active, .alert-leave-active { transition-duration: .01ms; }
 }

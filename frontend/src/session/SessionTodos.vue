@@ -1,19 +1,21 @@
 <!--
 输入框上方的任务清单：和 opencode 一样常驻，模型更新清单时立刻跟着变。
 默认展开，项目多时只让清单内部滚动，不把输入框挤下去。
+调用示例：<SessionTodos :todos="todos" />
 -->
 <script setup>
 import { computed } from 'vue'
 import { KimaCard } from '@kernel4632/kima'
 import { AppIcon } from '../ui/index.js'
+import { todoStatus } from './todos.js'
 
 const props = defineProps({
   todos: { type: Array, default: () => [] },
 })
 
 const done = computed(() => props.todos.filter(item => item.status === 'completed').length)
-const icon = status => status === 'completed' ? 'check' : status === 'in_progress' ? 'clock' : 'info'
-const label = status => status === 'completed' ? '已完成' : status === 'in_progress' ? '进行中' : '待处理'
+const icon = status => todoStatus(status).icon              // 图标和文案从 todos.js 的状态表来
+const label = status => todoStatus(status).label
 </script>
 
 <template>

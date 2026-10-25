@@ -1,6 +1,7 @@
 <!--
 工具步骤：嵌在思考卡片里的时间线节点。
 流式时标题扫光并显示状态；点击展开参数、结果和审批按钮。
+调用示例：<ToolCallRow :tool="tool" :session-id="session.id" />
 -->
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'

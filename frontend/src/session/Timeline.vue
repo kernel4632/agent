@@ -1,10 +1,10 @@
 <!--
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
-  只被会话页使用；自己从 store 读当前会话，不需要传 props。
+  只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
   整个对话流是一列三行布局的列表：图标、文本、右侧操作；不使用卡片容器。
   按钮和图标按钮走 ui/；回退弹窗独立为 RollbackDialog，时间线只负责发起和确认。
   调用示例：
-  <Timeline :key="session.id" />
+  <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -27,7 +27,6 @@ const props = defineProps({
     // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
     scrollRoot: { type: Object, default: null },
 })
-const root = ref(null)
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
@@ -37,10 +36,11 @@ const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
 const rollbackPreview = ref(null)
 let scrollParent
+// 离底部 100px 内都算“在看最新内容”；这样轻微滚动不会立刻打断自动跟随。
 function onScroll() { pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100 }
 function scrollToBottom() { nextTick(() => { if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight }) }
 watch(messages, scrollToBottom, { deep: true })
-onMounted(() => { scrollParent = props.scrollRoot || root.value?.closest('.session-scroll'); scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
+onMounted(() => { scrollParent = props.scrollRoot; scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
 onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
 const canRollback = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
@@ -92,7 +92,7 @@ async function continueAssistant() {
 </script>
 
 <template>
-  <div ref="root" class="conversation-flow" role="log" aria-label="对话内容">
+  <div class="conversation-flow" role="log" aria-label="对话内容">
     <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <template v-if="turn.role === 'user'">
         <MessageActionTarget
@@ -137,12 +137,12 @@ async function continueAssistant() {
 
 <style scoped lang="scss">
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-.message { display: block; min-width: 0; animation: row-in .18s ease-out both; }
-@keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.message { display: block; min-width: 0; animation: row-in var(--la-motion-enter) var(--kima-curve-standard) both; }
+@keyframes row-in { from { opacity: 0; transform: translateY(var(--la-motion-rise-small)); } to { opacity: 1; transform: none; } }
 .continue-row { display: flex; justify-content: flex-start; padding: 2px 0 18px; }
 .continue-button { min-height: 44px; padding: 0 20px; border-radius: 999px; gap: 8px; }
-.continue-enter-active { transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.continue-leave-active { transition: opacity .14s ease, transform .14s ease; }
-.continue-enter-from, .continue-leave-to { opacity: 0; transform: translateY(8px); }
+.continue-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.continue-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.continue-enter-from, .continue-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
 
 </style>

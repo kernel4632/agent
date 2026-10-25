@@ -26,6 +26,7 @@ import { UI } from '../commands/ui.js'
 import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
+import { ATTACHMENT_ACCEPT } from '../utils/attachments.js'
 
 const props = defineProps({
   selectedModel: { type: String, default: '' },
@@ -187,7 +188,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
     </div>
     <!-- 隐藏的 file input 是编辑器专用控件：由更多选项里的附件按钮触发，保留原生实现。 -->
-    <input ref="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.css,.scss,.html,.vue,.py,.go,.rs,.yaml,.yml,.csv,.xml,.sh,.log" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
+    <input ref="fileInput" class="sr-only" type="file" multiple :accept="ATTACHMENT_ACCEPT" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
   </form>
 
   <Sheet :open="modelOpen" label="选择模型" @update:open="modelOpen = $event">
@@ -234,6 +235,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 
   &:focus-within { border-color: var(--la-line-strong); }
   &__editor-wrap { position: relative; min-width: 0; }
+  /* 全屏输入在原来的位置向上长高：只过渡高度，按钮和聊天内容跟着平滑移动。 */
   &__editor {
     display: block;
     width: 100%;
@@ -248,7 +250,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     color: var(--la-text);
     font: 16px/24px var(--la-font-sans);
     letter-spacing: 0;
-    transition: min-height .26s ease, max-height .26s ease;
+    transition: min-height var(--la-motion-enter) var(--kima-curve-standard), max-height var(--la-motion-enter) var(--kima-curve-standard);
 
     &::placeholder { color: var(--la-muted); }
   }
@@ -278,7 +280,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     opacity: .7;
     pointer-events: none;
     transform-origin: top right;
-    transition: opacity .2s ease-out, transform .2s ease-out;
+    transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard);
   }
   &__expand-button {
     position: absolute;
@@ -296,13 +298,13 @@ defineExpose({ focus: () => editor.value?.focus() })
     opacity: 0;
     pointer-events: none;
     transform: translate(10px, -10px) scale(.8) rotate(-8deg);
-    transition: opacity .3s ease-out, transform .3s ease-out, color .3s ease-out, background-color .3s ease-out;
+    transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-slow) var(--kima-curve-emphasized), color var(--kima-duration-effects) var(--kima-curve-standard), background-color var(--kima-duration-effects) var(--kima-curve-standard);
   }
   &__expand-button:hover {
     background: var(--la-layer-03);
     color: var(--la-text);
   }
-  &__expand-button :deep(svg) { transition: transform .3s ease-out; }
+  &__expand-button :deep(svg) { transition: transform var(--kima-duration-medium) var(--kima-curve-emphasized); }
   &__expand-corner:hover &__expand-line,
   &__expand-corner:focus-within &__expand-line {
     opacity: 0;
@@ -376,9 +378,11 @@ defineExpose({ focus: () => editor.value?.focus() })
 .model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 斜杠菜单和发送/停止按钮的切换都从操作点附近出现。 */
-.slash-enter-active, .slash-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.slash-enter-from, .slash-leave-to { opacity: 0; transform: translateY(6px); }
-.send-enter-active, .send-leave-active { transition: opacity .14s ease, transform .18s ease; }
+.slash-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.slash-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.slash-enter-from, .slash-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
+.send-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-emphasized); }
+.send-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
 .send-enter-from, .send-leave-to { opacity: 0; transform: scale(.86); }
 @media (prefers-reduced-motion: reduce) {
   .slash-enter-active, .slash-leave-active, .send-enter-active, .send-leave-active { transition-duration: .01ms; }

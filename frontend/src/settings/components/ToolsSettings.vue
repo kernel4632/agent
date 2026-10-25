@@ -1,8 +1,8 @@
 <!--
 工具权限管理：展示 Agent 可调用的所有工具，支持启用/禁用和权限级别设置。
 设计思想：工具列表由 Server 配置加载，每次修改立即写入草稿；保存由设置页统一触发。
-核心数据：tools（工具配置数组，每项含 name、enabled、permission）。
-权限下拉直接用 KimaSelect，开关仍走 ui/Switch；权限和启用的联动仍在本组件完成。
+核心数据：tools（工具配置数组，每项含 name、permission；enabled 由 permission 派生）。
+权限下拉直接用 KimaSelect，开关仍走 ui/Switch；开关只写 permission，不再维护第二份 enabled。
 调用示例：<ToolsSettings v-model:tools="settingsDraft.tools" />。
 -->
 <script setup>
@@ -16,6 +16,7 @@ const emit = defineEmits(['update:tools'])
 
 const KIND_LABELS = { read: '读取', write: '写入', command: '执行命令', mcp: 'MCP', subtask: '子任务', other: '自定义' }
 const kindLabel = tool => KIND_LABELS[tool.kind] || '工具'
+const isEnabled = tool => tool.permission !== 'deny'
 
 // 权限下拉的选项固定为三档，文案和保存到配置里的值一一对应。
 const PERMISSION_OPTIONS = [
@@ -24,16 +25,15 @@ const PERMISSION_OPTIONS = [
   { value: 'deny', label: '禁止调用' },
 ]
 
+// 开关只有开/关两态：打开回到“每次询问”，关闭写成 deny；enabled 不再另存一份。
 function toggleTool(index) {
-  const updated = props.tools.map((tool, i) => i === index
-    ? { ...tool, enabled: !tool.enabled, permission: !tool.enabled ? 'ask' : 'deny' }
-    : tool)
-  emit('update:tools', updated)
+  const tool = props.tools[index]
+  updatePermission(index, isEnabled(tool) ? 'deny' : 'ask')
 }
 
 function updatePermission(index, permission) {
   const updated = props.tools.map((tool, i) => i === index
-    ? { ...tool, permission, enabled: permission !== 'deny' }
+    ? { ...tool, permission }
     : tool)
   emit('update:tools', updated)
 }
@@ -61,7 +61,7 @@ function updatePermission(index, permission) {
           />
           <Switch
             hide-label
-            :model-value="tool.enabled"
+            :model-value="isEnabled(tool)"
             :label="`切换 ${tool.name}`"
             @update:model-value="toggleTool(index)"
           />

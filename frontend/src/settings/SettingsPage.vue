@@ -5,17 +5,22 @@
 调用示例：<SettingsPage />；打开首页用 UI.openSettings()，直接进详情用 UI.openSettings('providers')。
 -->
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
 import { Settings } from '../commands/settings.js'
 import { UI } from '../commands/ui.js'
 import { store } from '../store.js'
 
-// 打开设置时只有明确传入了页面 id 才进入详情；否则停在设置首页，不默认选“通用”。
-const initialPage = settingsPages.find(page => page.id === store.ui.settingsSection && page.component && !page.disabled)
-const selected = ref(initialPage ? initialPage.id : '')
-const selectedPage = computed(() => settingsPages.find(page => page.id === selected.value) || null)
+// 当前页只存一份：UI.openSettings(section) 写 store，页面和标题都从它派生。
+const selected = computed({
+  get: () => store.ui.settingsSection || '',
+  set: value => { store.ui.settingsSection = value },
+})
+const selectedPage = computed(() => {
+  const page = settingsPages.find(item => item.id === selected.value)
+  return page?.component && !page.disabled ? page : null
+})
 const groups = computed(() => groupSettingsPages(settingsPages))
 const draft = computed(() => store.settings.draft)
 const title = computed(() => selectedPage.value?.label || '设置')
@@ -24,7 +29,6 @@ const title = computed(() => selectedPage.value?.label || '设置')
 function openPage(page) {
   if (page.disabled || !page.component) return
   selected.value = page.id
-  store.ui.settingsSection = page.id
 }
 
 // 返回设置首页时先落盘当前页面的修改，避免切换页面时丢掉刚输入的内容。
@@ -32,7 +36,6 @@ function goHome() {
   window.clearTimeout(autoSaveTimer)
   void Settings.autoSave()
   selected.value = ''
-  store.ui.settingsSection = ''
 }
 
 // RikkaHub 的设置是边改边存：停止输入约 600ms 后自动提交，不再需要保存按钮。
@@ -75,7 +78,10 @@ function goBack() {
 
     <div class="settings-scroll">
       <Transition name="settings-view" mode="out-in">
-        <component v-if="selectedPage && draft" :is="selectedPage.component" :key="selected" :draft="draft" />
+        <!-- 详情页自己可能是多根组件（如模型供应商页），统一包一层单根容器，过渡才有落点。 -->
+        <div v-if="selectedPage && draft" :key="selected" class="settings-detail">
+          <component :is="selectedPage.component" :draft="draft" />
+        </div>
 
         <div v-else key="home" class="settings-home">
           <section v-for="group in groups" :key="group.label" class="settings-group">
@@ -137,10 +143,12 @@ function goBack() {
 .settings-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 24px 48px; overscroll-behavior: contain; }
 .settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
 .settings-home { display: block; }
-.settings-view-enter-active { transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.settings-view-leave-active { transition: opacity .14s ease, transform .14s ease; }
-.settings-view-enter-from { opacity: 0; transform: translateX(12px); }
-.settings-view-leave-to { opacity: 0; transform: translateX(-8px); }
+.settings-detail { display: block; min-width: 0; }
+/* 首页和详情页只做纵向轻移：设置内容可能比视口高，横向移动会摸到滚动边界。 */
+.settings-view-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.settings-view-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.settings-view-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
+.settings-view-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
 @media (prefers-reduced-motion: reduce) {
   .settings-view-enter-active, .settings-view-leave-active { transition-duration: .01ms; }
 }

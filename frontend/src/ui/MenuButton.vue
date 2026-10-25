@@ -50,7 +50,7 @@ const emit = defineEmits(['select'])
 /*
  * KIMA 0.7.1 的 KimaMenu 会在插槽内容后固定补一个下拉箭头，图标触发模式下这个箭头多余。
  * 只隐藏最后一个直接子 svg（KIMA 生成的箭头），不能按 aria-hidden 批量隐藏，否则插槽里的图标也会消失。
- * 等 KIMA 提供“隐藏箭头”属性后可删除：https://github.com/kernel4632/kima/issues
+ * 等 KIMA 提供“隐藏箭头”属性后可删除：https://github.com/kernel4632/kima/issues/4
  */
 .ui-menu-button :deep(.kima-menu__trigger > svg:last-child) {
   display: none;

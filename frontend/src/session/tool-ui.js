@@ -4,11 +4,15 @@
  * 工具只声明“用哪个视图、显示什么摘要、提供哪些操作”，真正的 Vue 组件放在
  * session/tools/ToolView.vue。这样旧后端或没有 ui 的自定义工具仍能退回通用行。
  * 调用示例：
- *   toolLabel(tool)       // '读取文件 · src/a.js'
- *   outputValue(tool)     // 工具结果里的真实对象
+ *   toolLabel(tool)                                              // '读取文件 · src/a.js'
+ *   outputValue(tool)                                            // 工具结果里的真实对象
+ *   outputText(tool)                                             // 工具结果转成可读文本
+ *   toolStatus({ type: 'execution-denied', reason: '用户拒绝' })  // 'rejected'
+ *   formatToolOutput({ type: 'text', value: 'ok' })              // 'ok'
  */
 
 import { store } from '../store.js'
+import { t } from '../i18n.js'
 
 // 旧会话里的工具名也要能找到新工具声明的界面。
 const ALIASES = {
@@ -85,11 +89,29 @@ export function outputValue(tool) {
     return output.value ?? output
 }
 
+// --- 工具结果对应哪种状态：运行事件和历史归一化共用这一份判断 ---
+// execution-denied 是用户拒绝，error-text / isError 是执行失败，其余正常结果都算完成。
+export function toolStatus(output, isError = false) {
+    if (isError) return 'error'
+    if (output?.type === 'execution-denied') return 'rejected'
+    if (output?.type === 'error-text') return 'error'
+    return 'completed'
+}
+
+// --- 把工具结果转成可读文本：字符串原样，AI SDK 包装取出 value ---
+export function formatToolOutput(output) {
+    if (output == null) return ''
+    if (typeof output === 'string') return output
+    if (output.type === 'text' || output.type === 'error-text') return String(output.value ?? '')
+    if (output.type === 'execution-denied') return output.reason || t('toolDenied')
+    const value = output.value ?? output
+    return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+}
+
+// --- 工具对象的结果文本：还没结果时用流式预览兜底 ---
 export function outputText(tool) {
-    const value = outputValue(tool)
-    if (typeof value === 'string') return value
-    if (value == null) return tool?.preview || ''
-    return JSON.stringify(value, null, 2)
+    if (tool?.output == null) return tool?.preview || ''
+    return formatToolOutput(tool.output)
 }
 
 // --- 工具声明的操作目前支持复制；交互动作统一从这里取 ---

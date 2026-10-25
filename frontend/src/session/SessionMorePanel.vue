@@ -112,7 +112,7 @@ const targetFrom = (session, value) => {
 /* KIMA 没有 small 尺寸；这里只压低控件高度和字号，和同一行里的 Field 对齐。 */
 .chat-more__select { --kima-field-height: 48px; --kima-field-padding: 16px; }
 .chat-more__select :deep(.kima-select__trigger) { font-size: var(--kima-font-size-body-small, 14px); }
-/* KimaSelect 的弹层是控件内绝对定位，不走 portal；面板最底部一行的弹层可能被滚动容器裁掉，等 KIMA 修复。 */
+/* KimaSelect 的弹层是控件内绝对定位，不走 portal；面板最底部一行的弹层可能被滚动容器裁掉。等 KIMA 修复：https://github.com/kernel4632/kima/issues/5 */
 @media (max-width: 767px) {
   .chat-more { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 16px; max-height: 60vh; }
   .chat-more__row .chat-more__field, .chat-more__row .chat-more__select { width: 150px; max-width: 150px; }

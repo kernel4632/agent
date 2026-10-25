@@ -5,6 +5,7 @@
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫' })
  *   await Session.send({ sessionId, input: '帮我写个爬虫' })   // 启动后台任务，过程走 SSE
+ *   await Session.resume({ sessionId })                        // 继续被中断的助手回复，内部提示不保存
  *   await Session.stop({ sessionId })
  *   const session = await Session.read({ sessionId })          // { id, title, provider, model, history }
  *   await Session.rollback({ sessionId, messageId })           // 对话和文件一起回退到这条消息之前
@@ -68,9 +69,6 @@ const list = async ({ search = '' } = {}) => {
     sessions.sort((first, second) => (second.updatedAt || 0) - (first.updatedAt || 0))
     return sessions
 }
-
-// --- 判断会话是否正在跑任务 ---
-const isRunning = sessionId => Boolean(Store.agents.get(sessionId)?.running)
 
 // --- 读取会话资料 ---
 const readMeta = async sessionId => {
@@ -235,39 +233,34 @@ const fork = async ({ sessionId, title, messageId }) => {
 }
 
 // --- 读取会话 ---
-const read = async ({ sessionId }) => {    const meta = await readMeta(sessionId)
-    const agent = Store.agents.get(sessionId)
+const read = async ({ sessionId }) => {
+    const meta = await readMeta(sessionId)               // 先确认会话存在，不存在时按 404 反馈。
+    const agent = Store.agents.get(sessionId)            // 内存里有 Agent 时，运行中的历史以它为准。
     // 继续指令只给模型看，不能作为用户消息出现在界面上。
     const visible = history => history.filter(message => !message.internal)
+    const running = Boolean(agent?.running)
 
-    // 运行中的会话以 Agent 手里的历史为准，磁盘上还没有这一轮的新消息。
-    if (agent?.running) {
-        const history = visible(agent.history)
-        return {
-            ...meta,
-            history,
-            todos: latestTodos(history),
-            running: true,
-            pending: Approval.pending(sessionId),
-            settings: await Settings.read({ sessionId }),
-            undoable: History.redoCount({ sessionId }),
-        }
+    let history
+    if (running) {
+        // 运行中的会话以 Agent 手里的历史为准，磁盘上还没有这一轮的新消息。
+        history = visible(agent.history)
+    } else {
+        await History.load({ sessionId })
+        history = History.get({ sessionId })
+        if (agent) agent.history = history                  // 历史被回退或外部修改过，交回 Agent 手里的必须是最新的。
+        else await createAgent({ sessionId, history, meta })
     }
 
-    await History.load({ sessionId })
-    const history = History.get({ sessionId })
-    if (agent) agent.history = history // 历史被回退或外部修改过，交回 Agent 手里的必须是最新的。
-    else await createAgent({ sessionId, history, meta })
-    // 清单本来就在历史里（update_todo_list 工具的结果），这里只是提出来，让界面不用自己翻。
-    // 审批请求只在 SSE 里出现过一次，刷新页面后要靠这里才知道有工具在等待。
-    // undoable 是还能撤销几次回退，界面据此决定要不要显示"撤销回退"。
+    // 运行和空闲两种状态只差历史从哪里取，返回的字段始终是同一份。
+    // todos 本来就在历史里（update_todo_list 工具的结果），这里提出来让界面不用自己翻。
+    // pending 是还在等用户批准的工具；undoable 是还能撤销几次回退。
     return {
         ...meta,
         history,
         todos: latestTodos(history),
-        running: isRunning(sessionId),
+        running,
         pending: Approval.pending(sessionId),
-        settings: await Settings.read({ sessionId }), // 模式和开关，界面据此显示当前状态。
+        settings: await Settings.read({ sessionId }),     // 模式和开关，界面据此显示当前状态。
         undoable: History.redoCount({ sessionId }),
     }
 }
@@ -506,26 +499,56 @@ const compact = async ({ sessionId }) => {
 // --- 启动 Agent 任务 ---
 const send = ({ sessionId, input }) => run({ sessionId, input })
 
+const CONTINUE_PROMPT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。'
+
 // 继续被中断的助手回复：内部发一条提示，但不作为用户消息保存。
 const resume = ({ sessionId }) => run({ sessionId, input: CONTINUE_PROMPT, resume: true })
 
-const CONTINUE_PROMPT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。'
+// --- 取一条消息里的纯文本 ---
+// 继续提示可能是字符串，也可能是内容块数组，两种都要能核对。
+const textOf = message => {
+    if (typeof message?.content === 'string') return message.content
+    return (Array.isArray(message?.content) ? message.content : [])
+        .filter(part => part?.type === 'text')
+        .map(part => part.text || '')
+        .join('')
+}
 
-// 把 Agent 内存里的新消息同步到历史文件；内部提示和已保存的消息都跳过。
-const saving = new Map()
-const syncHistory = ({ sessionId, agent }) => {
-    const previous = saving.get(sessionId) || Promise.resolve()
-    const task = previous.catch(() => {}).then(async () => {
+// --- 给继续提示打内部标记 ---
+// agent.send 会把 input 原样追加成一条 user 消息。这里先记下发送前的最后一条，
+// 发送后确认"末尾换了新消息，且内容正好是继续提示"，才给它打 internal。
+// 不按位置盲目标最后一条：一旦追加没发生，被标成内部的就是用户真正发过的消息。
+const tagContinuePrompt = ({ agent, previousLast }) => {
+    const marker = agent.history.at(-1)                               // 发送后历史末尾应该是新追加的提示
+    if (marker === previousLast) return false                         // 没有新消息，不能拿旧消息顶替
+    if (marker?.role !== 'user' || textOf(marker) !== CONTINUE_PROMPT) return false // 身份和内容都要对上
+    marker.internal = true                                            // 只给模型看，保存和界面都会跳过它
+    return true
+}
+
+// --- 把 Agent 内存里的新消息同步到历史文件 ---
+// 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
+const saveQueue = new Map()
+const syncHistory = async ({ sessionId, agent }) => {
+    const previous = saveQueue.get(sessionId) || Promise.resolve()
+    const task = previous.catch(() => {}).then(async () => {            // 前一次失败也要让后一次继续
+        // 先给历史拍个快照。等待写盘期间 Agent 还会继续追加消息，
+        // 直接遍历 agent.history 会边读边变，容易漏掉或重复。
+        const messages = [...agent.history]
+        // 已保存过的按消息 id 去重；internal 的内部提示不写进历史，也不出现在界面上。
         const existing = new Set(History.get({ sessionId }).map(message => message.id))
-        for (const message of agent.history) {
-            if (message.internal || existing.has(message.id)) continue
-            existing.add(message.id)
+        for (const message of messages) {
+            if (message.internal || existing.has(message.id)) continue // 内部提示和旧消息都跳过
+            existing.add(message.id)                                  // 同一次任务后面的保存不再重复写
             await History.add({ sessionId, message })
         }
+        // 历史落盘后清掉已经写进去的 SSE 事件；后续事件仍然保留给断线重连。
         await History.save({ sessionId })
     })
-    saving.set(sessionId, task)
-    task.finally(() => { if (saving.get(sessionId) === task) saving.delete(sessionId) }).catch(() => {})
+    saveQueue.set(sessionId, task)
+    // 队列只负责串行；失败要留下是哪个会话、什么原因，不能静默吞掉。
+    task.finally(() => { if (saveQueue.get(sessionId) === task) saveQueue.delete(sessionId) })
+        .catch(error => console.error(`[session ${sessionId}] 保存历史失败：${error.message}`))
     return task
 }
 
@@ -552,6 +575,7 @@ const run = async ({ sessionId, input, resume = false }) => {
     await Rules.load({ mode: settings.mode })
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
+    const previousLast = agent.history.at(-1)                         // 发送前的末尾，用来认出刚追加的继续提示
     const task = agent.send({
         input: input.trim(),
         config: Config.resolve({ provider: meta.provider, model: meta.model, uses: settings.uses }),
@@ -572,41 +596,45 @@ const run = async ({ sessionId, input, resume = false }) => {
                 SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
             },
             // 每完成一步就落盘；关掉软件或进程被杀时，已完成的进度还在。
+            // 落盘同时清掉已包含的事件，断线重连会先读历史，不会重复播放已经显示的内容。
             onStep: () => { void syncHistory({ sessionId, agent }).catch(() => {}) },
-                        onCompact: event => SSE.send({ id: sessionId, data: event }),
-                        // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
-                        // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await
-                        // 停止上一个任务，才会把用户消息写进历史，send 一返回就取会取到上一轮的那条。
-                        // 这里已经是跑工具的阶段，消息早就进去了。也不要自己造一个 id —— 那样和历史里
-                        // 那条对不上，回退会找不到快照。
-                        onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({
-                            sessionId,
-                            messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
-                            toolCallId,
-                            toolName,
-                            input: toolInput,
-                            signal,
-                        }),
-                    },
-                })
-    // 继续指令只是给模型看的上下文，不属于用户发过的消息。
-    if (resume) {
-        const marker = agent.history[agent.history.length - 1]
-        if (marker?.role === 'user') marker.internal = true
-    }
-    // 先把用户消息或恢复前的进度落盘；第一轮模型还没返回就关掉软件也不丢这一轮。
-    void syncHistory({ sessionId, agent }).catch(() => {})
+            onCompact: event => SSE.send({ id: sessionId, data: event }),
+            // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
+            // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await
+            // 停止上一个任务，才会把用户消息写进历史，send 一返回就取会取到上一轮的那条。
+            // 这里已经是跑工具的阶段，消息早就进去了。也不要自己造一个 id —— 那样和历史里
+            // 那条对不上，回退会找不到快照。
+            onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({
+                sessionId,
+                messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
+                toolCallId,
+                toolName,
+                input: toolInput,
+                signal,
+            }),
+        },
+    })
+    // 先挂上收尾处理：即使下面因为继续提示不对而拒绝这次请求，任务 Promise 也不会无人接收。
     // 任务结束后把这一轮新增的消息写进历史文件，再通知前端刷新。
     task.then(async result => {
-        await syncHistory({ sessionId, agent })
+        await syncHistory({ sessionId, agent })                       // 最终保存：历史稳定，清掉 SSE 缓存
         // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
         if (!resume) await titleFor({ sessionId, meta, settings, agent })
+        // 缓存清完再通知，前端刷新时读到的是完整历史，不会和补发事件打架。
         await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
     }).catch(async error => {
         // 失败和中断也要留下已经产生的进度，用户才能从断点继续。
         await syncHistory({ sessionId, agent }).catch(() => {})
         await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
     })
+    // 继续提示由 agent.send 追加到历史末尾；身份核对不上时绝不标记，停掉这一轮并给出明确原因。
+    if (resume && !tagContinuePrompt({ agent, previousLast })) {
+        await agent.stop().catch(() => {})
+        throw fail(500, '继续提示没有出现在历史末尾，已停止本次继续')
+    }
+    // 先把用户消息或恢复前的进度落盘；第一轮模型还没返回就关掉软件也不丢这一轮。
+    // 保存后清掉已经包含在历史里的事件，断线重连会从历史接着走。
+    void syncHistory({ sessionId, agent }).catch(() => {})
     return { ok: true }
 }
 
@@ -648,7 +676,17 @@ const stop = async ({ sessionId }) => {
     if (!agent) return { ok: false }
     const result = await agent.stop()
     // 中断也把已经产生的消息落盘，刷新后还能看到进度并从断点继续。
-    await syncHistory({ sessionId, agent }).catch(() => {})
+    // 停止是这一轮的最终状态，保存后清掉 SSE 缓存。
+    let saved = true
+    try {
+        await syncHistory({ sessionId, agent })
+    } catch {
+        saved = false
+        // stop 的接口约定只有 { ok }，保存失败不能塞进返回值改变契约。
+        // syncHistory 已经把"哪个会话、什么原因"写进日志，界面停止后会重新读历史。
+    }
+    // 只有最终保存成功、缓存也清完，才通知前端这一轮真的结束。
+    if (result.ok && saved) await SSE.send({ id: sessionId, data: { type: 'agent-finish' } })
     return result
 }
 

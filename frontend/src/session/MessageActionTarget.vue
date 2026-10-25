@@ -1,6 +1,7 @@
 <!--
 消息操作层：右键或触摸长按消息时，模糊其他内容，只显示这条消息的摘要和操作按钮。
 使用 KIMA Card 承载操作窗口，按钮仍走 KIMA Button。
+调用示例：<MessageActionTarget :items="items" :preview="content" role-label="助手回复" @select="onMenu"><slot /></MessageActionTarget>
 -->
 <script setup>
 import { nextTick, onBeforeUnmount, ref, useTemplateRef } from 'vue'
@@ -46,17 +47,18 @@ function cancelPress() {
 }
 
 function onPointerDown(event) {
-  if (event.pointerType === 'mouse') return
-  pressed = true
-  pressStart = { x: event.clientX, y: event.clientY }
-  pressTimer = window.setTimeout(() => {
-    if (pressed) show()
+  if (event.pointerType === 'mouse') return                    // 鼠标用右键 contextmenu，不走长按
+  pressed = true                                                // 标记手指还按在消息上
+  pressStart = { x: event.clientX, y: event.clientY }           // 记住起点，用来判断是不是在滚动
+  pressTimer = window.setTimeout(() => {                        // 480ms 比系统长按略长，避免滑动时误开操作层
+    if (pressed) show()                                         // 手指没松开才打开
     cancelPress()
   }, 480)
 }
 
 function onPointerMove(event) {
   if (!pressed || !pressStart) return
+  // 移动超过 8px 当作用户在滚动或选字，取消长按，不打断原操作。
   if (Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 8) cancelPress()
 }
 
@@ -135,10 +137,12 @@ onBeforeUnmount(cancelPress)
 .message-actions__items { display: flex; flex-direction: column; gap: 2px; }
 .message-actions__item { width: 100%; justify-content: flex-start; gap: 10px; }
 .message-actions__cancel { color: var(--la-muted); }
-.message-actions-enter-active, .message-actions-leave-active { transition: opacity .18s ease; }
-.message-actions-enter-active .message-actions__card, .message-actions-leave-active .message-actions__card { transition: transform .22s cubic-bezier(.22, 1, .36, 1), opacity .18s ease; }
+.message-actions-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard); }
+.message-actions-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard); }
+.message-actions-enter-active .message-actions__card { transition: transform var(--la-motion-enter) var(--kima-curve-emphasized), opacity var(--la-motion-enter) var(--kima-curve-standard); }
+.message-actions-leave-active .message-actions__card { transition: transform var(--la-motion-exit) var(--kima-curve-standard), opacity var(--la-motion-exit) var(--kima-curve-standard); }
 .message-actions-enter-from, .message-actions-leave-to { opacity: 0; }
-.message-actions-enter-from .message-actions__card, .message-actions-leave-to .message-actions__card { opacity: 0; transform: scale(.96) translateY(6px); }
+.message-actions-enter-from .message-actions__card, .message-actions-leave-to .message-actions__card { opacity: 0; transform: translateY(var(--la-motion-rise)) scale(.97); }
 @media (max-width: 767px) {
   .message-actions { align-items: end; padding: 16px; }
   .message-actions__card { width: 100%; border-radius: 24px 24px 20px 20px; }

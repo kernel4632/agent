@@ -7,7 +7,7 @@
  *   const record = await History.add({ sessionId: 'session-1', message })           // 追加一条消息
  *   const messages = History.get({ sessionId: 'session-1' })                        // 取当前完整历史
  *   await History.rollback({ sessionId: 'session-1', messageId: record.messageId }) // 回退到这条消息之前
- *   await History.save({ sessionId: 'session-1' })                                  // 写回磁盘
+ *   await History.save({ sessionId: 'session-1' })                                  // 写回磁盘，并清掉已落盘的 SSE 缓存
  */
 
 import { mkdir } from 'node:fs/promises'
@@ -99,7 +99,7 @@ const save = async ({ sessionId }) => {
     await mkdir(dirname(path), { recursive: true })
     // 原子写入会先写临时文件，再替换正式文件，避免留下半份 JSON。
     await writeFile(path, JSON.stringify(Store.sessions.get(sessionId), null, 2))
-    // 历史成为稳定状态后，清掉已经被历史包含的旧 SSE 流。
+    // 历史落盘后清掉已经包含在其中的事件；断线重连时前端会先读历史，再接收新事件。
     await SSE.reset({ id: sessionId })
 }
 

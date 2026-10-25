@@ -8,6 +8,7 @@ import { store } from '../store.js'                     // 引入工作区摘要
 import { UI } from './ui.js'                            // 引入导航和反馈指令
 import { Tabs } from './tabs.js'                        // 同步顶部会话标签
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
+import { formatToolOutput, toolStatus } from '../session/tool-ui.js' // 工具状态和文本只有一处判断
 
 
 // --- 自动批准的四个类别 ---
@@ -344,9 +345,9 @@ function normalize(source, previous = {}) {
       for (const result of parts.filter(part => part.type === 'tool-result')) {
         const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
         if (tool) {
-          tool.status = result.output?.type === 'error-text' ? 'error' : 'completed'
+          tool.status = toolStatus(result.output, result.isError) // 拒绝、失败、完成由 tool-ui 统一判断
           tool.output = result.output
-          tool.preview = formatToolOutput(result.output)
+          tool.preview = formatToolOutput(result.output)          // 结果文本和实时事件用同一套格式
         }
       }
       continue
@@ -357,12 +358,20 @@ function normalize(source, previous = {}) {
       .filter((p) => p.type === 'tool-invocation' || p.type === 'tool-call')
       .map((p) => {
         const call = p.toolInvocation || p                // 兼容 UIMessage parts 和旧格式
-        const status = call.state === 'result' ? (call.result?.isError ? 'error' : 'completed') : 'running'
-        const output = call.state === 'result' ? (call.result?.output ?? call.result) : null
+        const result = call.state === 'result' ? call.result : null // 有结果才判断成功或失败
+        const output = result?.output ?? result ?? null
+        const status = result ? toolStatus(output, result.isError) : 'running'
         const preview = output ? formatToolOutput(output) : ''
         return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
       })
     messages.push(message)                               // 用户和助手消息进入可见时间线
+  }
+  // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。
+  // 历史里的工具调用本身只有“调用中”，必须用这份清单把它标回“等待你的许可”，否则按钮会消失。
+  for (const pending of source.pending || []) {
+    const callID = pending.callID || pending.toolCallId              // 两种字段名都认
+    const tool = messages.flatMap(item => item.tools || []).find(item => item.id === callID)
+    if (tool) tool.status = 'waiting'
   }
   // 阶段二：组合最终前端会话结构，补齐仅前端使用的草稿和用量字段
   return {
@@ -406,15 +415,6 @@ function findModelProvider(model) {
   const activeProvider = store.config.activeProvider
   if (store.config.providers[activeProvider]?.models?.includes(model)) return activeProvider // 同名模型优先使用当前供应商
   return Object.entries(store.config.providers).find(([, config]) => config.models?.includes(model))?.[0] || activeProvider // 再查找首个配置来源
-}
-
-
-// --- 格式化工具结果预览 ---
-function formatToolOutput(output) {
-  if (output == null) return ''                          // 尚无结果时保持空预览
-  if (output.type === 'text' || output.type === 'error-text') return output.value // AI SDK 文本结果直接展示
-  if (output.type === 'execution-denied') return output.reason || t('toolDenied') // 拒绝结果展示原因
-  return JSON.stringify(output.value ?? '')              // JSON 结果保持真实结构
 }
 
 

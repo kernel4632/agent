@@ -1,9 +1,21 @@
+/*
+ * 聊天指令：订阅一条会话的 SSE，把运行过程翻译成界面消息、思考内容和工具步骤。
+ * 发送、继续、停止、审批都在这里发起；历史以 Server 为准，收到 agent-finish 后整条刷新。
+ * 调用示例：
+ *   await Chat.send(sessionID, '帮我修这个 bug')   // 启动一轮任务，过程走 SSE
+ *   await Chat.resume(sessionID)                   // 继续被中断的助手回复
+ *   await Chat.stop(sessionID)                     // 停止并刷新到最终状态
+ *   Chat.subscribe(sessionID)                      // 打开会话时建立实时连接
+ */
 import { AgentAPI } from '../api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { Session } from './session.js'
 import { Tabs } from './tabs.js'                          // 后端起好标题后同步顶部标签文字
 import { UI } from './ui.js'
+import { t } from '../i18n.js'                            // 工具被拦下等提示需要当前语言文案
+import { formatToolOutput, toolStatus } from '../session/tool-ui.js' // 工具状态和结果文本只有一处判断
+import { readAttachments } from '../utils/attachments.js'          // 附件大小和类型检查只有一处
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
@@ -98,12 +110,13 @@ async function resume(sessionID) {
   }
 }
 
+// --- 找到工具步骤；还没有时补一条 ---
 function toolFor(session, event, status) {
   const id = event.toolCallId || event.callID || event.callId
   if (!id) return null
   let tool = session.messages.flatMap(message => message.tools || []).find(item => item.id === id)
   if (!tool) {
-    const assistant = streaming(session) || createAssistant(session)
+    const assistant = streaming(session) || createAssistant(session) // 工具事件也可能先到，保证有承载消息
     tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: Date.now() }
     assistant.tools.push(tool)
   }
@@ -116,23 +129,15 @@ function toolFor(session, event, status) {
   return tool
 }
 
-function outputText(output) {
-  if (output == null) return ''
-  if (typeof output === 'string') return output
-  return typeof output.value === 'string' ? output.value : JSON.stringify(output.value ?? output, null, 2)
-}
-
-async function receive(sessionID, event) {
-  const session = store.sessions[sessionID]
-  if (!session) return
-  session.lastEventAt = Date.now()
+// --- 运行状态：开始、继续、结束、重试和标题 ---
+const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-finish', 'retry', 'error', 'mcp-error', 'title', 'agent-finish'])
+async function receiveRun(sessionID, session, event) {
   if (event.type === 'agent-start') {
-    // The existing backend replays the whole in-flight run and resets event IDs
-    // after saving. Rebuild only this turn instead of assuming a global cursor.
+    // 后端重连后会把这一轮从头补发一遍，所以只按最后一条用户消息重建这一轮，不信任全局游标。
     const source = await AgentAPI.getSession(sessionID)
     const snapshot = Session.normalize(source, session)
     const lastUser = snapshot.messages.findLastIndex(message => message.role === 'user')
-    session.messages = snapshot.messages.slice(0, lastUser + 1)
+    session.messages = snapshot.messages.slice(0, lastUser + 1) // 这一轮之前的历史不动，只重建当前回答
     createAssistant(session)
     session.status = 'running'
   } else if (event.type === 'agent-resume') {
@@ -140,51 +145,16 @@ async function receive(sessionID, event) {
     session.status = 'running'
     session.connection = 'connected'
     if (!streaming(session)) createAssistant(session)
-  } else if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
-    const assistant = streaming(session) || createAssistant(session)
-    assistant[event.type === 'text-delta' ? 'content' : 'reasoning'] += event.text || event.textDelta || event.delta || ''
   } else if (event.type === 'llm-finish') {
     const assistant = streaming(session) || createAssistant(session)
-    if (event.text) assistant.content = event.text
+    if (event.text) assistant.content = event.text       // 最后一轮正文以完整文本为准
     const usage = event.usage || {}
     assistant.request = { status: 'completed', input: Number(usage.inputTokens || 0), output: Number(usage.outputTokens || 0), cache: Number(usage.cachedInputTokens || 0) }
     session.contextTokens = assistant.request.input + assistant.request.output
     session.inputTokens += assistant.request.input
     session.outputTokens += assistant.request.output
-    assistant.isStreaming = false
+    assistant.isStreaming = false                        // 这一轮回复结束，光标停住
     assistant.finishedAt = Date.now()
-  } else if (event.type === 'tool-call') {
-    toolFor(session, event, 'running')
-  } else if (event.type === 'permission') {
-    toolFor(session, event, 'waiting')
-  } else if (event.type === 'tool-output') {
-    const tool = toolFor(session, event)
-    if (tool) {
-      const chunk = event.data ?? event.output
-      if (chunk != null) tool.output = chunk
-      tool.preview += outputText(chunk)
-    }
-  } else if (event.type === 'tool-result') {
-    const tool = toolFor(session, event, event.output?.type === 'execution-denied' ? 'rejected' : event.output?.type === 'error-text' || event.isError ? 'error' : 'completed')
-    if (tool) {
-      tool.output = event.output ?? event.result
-      tool.preview = outputText(tool.output)
-    }
-  } else if (event.type === 'permission-blocked') {
-    // 这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不用等用户决定。
-    // 卡片要说清原因：用户看不到"谁来问过"，只看到工具没执行会以为是坏了。
-    const tool = toolFor(session, event, 'rejected')
-    if (tool) {
-      tool.output = { type: 'error-text', value: t('toolBlockedReason', { reason: event.reason }) }
-      tool.preview = outputText(tool.output)
-    }
-  } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
-    // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
-    const assistant = streaming(session) || createAssistant(session)
-    assistant.subagent = event.description
-  } else if (event.type === 'mcp-error') {
-    // 某个 MCP 服务没连上；只是跳过它，会话照常，所以提醒一句就好。
-    UI.notify(t('mcpFailed', { server: event.server, error: event.error }))
   } else if (event.type === 'retry') {
     // 重试也是“正在运行”，即使 agent-start 在断线时丢了，停止按钮也必须出现。
     session.status = 'running'
@@ -198,22 +168,78 @@ async function receive(sessionID, event) {
     assistant.finishedAt = Date.now()
     session.status = 'idle'
     UI.notify(assistant.error)
+  } else if (event.type === 'mcp-error') {
+    // 某个 MCP 服务没连上；只是跳过它，会话照常，所以提醒一句就好。
+    UI.notify(t('mcpFailed', { server: event.server, error: event.error }))
   } else if (event.type === 'title') {
     // 后端起好标题后单独推一条，不用等下一次刷新整条会话。
-    const session = store.sessions[sessionID]
-    if (session) {
-      session.title = event.title
-      Session.syncSummary(session)
-      Tabs.syncTitles(Object.values(store.sessions))
-    }
+    session.title = event.title
+    Session.syncSummary(session)
+    Tabs.syncTitles(Object.values(store.sessions))
   } else if (event.type === 'agent-finish') {
     session.status = 'idle'
     const error = event.error || session.messages.findLast(message => message.error)?.error
-    await Session.refresh(sessionID)
+    await Session.refresh(sessionID)                     // 最终历史以 Server 写盘的版本为准
     const refreshed = store.sessions[sessionID]
     refreshed.status = 'idle'
-    if (error) refreshed.messages.push({ id: `error_${event.eventID}`, role: 'assistant', content: '', tools: [], error })
+    if (error) refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error }) // 每次失败一个独立 id，不用会重复的 SSE 序号
   }
+}
+
+// --- 消息内容：正文、思考过程、子任务提示 ---
+function receiveMessage(session, event) {
+  if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
+    const assistant = streaming(session) || createAssistant(session)
+    assistant[event.type === 'text-delta' ? 'content' : 'reasoning'] += event.text || event.textDelta || event.delta || ''
+  } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
+    // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
+    const assistant = streaming(session) || createAssistant(session)
+    assistant.subagent = event.description
+  }
+}
+
+// --- 工具事件：调用、审批、流式输出、结果 ---
+const TOOL_EVENTS = new Set(['tool-call', 'permission', 'tool-output', 'tool-result', 'permission-blocked'])
+function receiveTool(session, event) {
+  if (event.type === 'tool-call') {
+    toolFor(session, event, 'running')
+  } else if (event.type === 'permission') {
+    toolFor(session, event, 'waiting')
+  } else if (event.type === 'tool-output') {
+    const tool = toolFor(session, event)
+    if (tool) {
+      const chunk = event.data ?? event.output
+      if (chunk != null) tool.output = chunk
+      tool.preview += formatToolOutput(chunk)            // 流式片段只追加，不覆盖已经看到的内容
+    }
+  } else if (event.type === 'tool-result') {
+    // 状态和归一化历史共用 toolStatus：拒绝、失败、完成在两条路径上必须一致。
+    const output = event.output ?? event.result
+    const tool = toolFor(session, event, toolStatus(output, event.isError))
+    if (tool) {
+      tool.output = output
+      tool.preview = formatToolOutput(tool.output)
+    }
+  } else if (event.type === 'permission-blocked') {
+    // 这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不用等用户决定。
+    // 卡片要说清原因：用户看不到“谁来问过”，只看到工具没执行会以为是坏了。
+    // 结果类型用 execution-denied，和“用户拒绝”走同一条 rejected 判断。
+    const tool = toolFor(session, event, 'rejected')
+    if (tool) {
+      tool.output = { type: 'execution-denied', reason: t('toolBlockedReason', { reason: event.reason }) }
+      tool.preview = formatToolOutput(tool.output)
+    }
+  }
+}
+
+// --- 接收一条 SSE 事件：先按业务分成三类，再交给对应函数 ---
+async function receive(sessionID, event) {
+  const session = store.sessions[sessionID]
+  if (!session) return
+  session.lastEventAt = Date.now()
+  if (TOOL_EVENTS.has(event.type)) receiveTool(session, event)
+  else if (RUN_EVENTS.has(event.type)) await receiveRun(sessionID, session, event)
+  else receiveMessage(session, event)                    // 正文增量；不认识的事件自然忽略
   Session.syncSummary(store.sessions[sessionID])
 }
 
@@ -263,11 +289,9 @@ async function decide(sessionID, callID, decision) {
 async function attach(sessionID, files) {
   const session = store.sessions[sessionID]
   if (!session) return
-  for (const file of files) {
-    if (file.size > 1024 * 1024) { UI.notify(`${file.name} 超过 1 MiB`); continue }
-    if (!/\.(txt|md|js|jsx|ts|tsx|json|css|scss|html|vue|py|go|rs|yaml|yml|csv|xml|sh|log)$/i.test(file.name)) { UI.notify('当前支持文本与代码附件，不支持图片或二进制文件'); continue }
-    session.files.push({ id: crypto.randomUUID(), name: file.name, content: await file.text() })
-  }
+  const { files: accepted, errors } = await readAttachments(files) // 和草稿页共用同一套检查
+  session.files.push(...accepted)                                  // 通过检查的附件跟着会话草稿走
+  errors.forEach(message => UI.notify(message))                     // 超限或类型不对的文件逐个提示
 }
 
 function removeFile(sessionID, fileID) {

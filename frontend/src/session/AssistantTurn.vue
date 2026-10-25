@@ -2,6 +2,7 @@
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
 思考、工具合成一张时间线卡片；完成任务/询问用户这类结束工具的结果直接成为正式回复，不再套背景。
 右键或长按这一整轮，可以复制、回退或分支。
+调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" @rollback="..." @fork="..." />
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
@@ -42,13 +43,15 @@ const hiddenCount = computed(() => canCollapse.value && !expandedSteps.value ? s
 const visibleSteps = computed(() => steps.value.slice(hiddenCount.value))
 
 // 正文和结束工具的结果都是给用户看的回复；重复内容只保留一份。
+// 自动接续时，模型常把同一段总结同时写进正文和 attempt_completion.result，
+// 所以这里用“包含”而不是只比较完全相等：短的先保留，出现更完整的版本时替换它。
 const content = computed(() => {
   const parts = []
   const push = raw => {
     const text = String(raw || '').trim()
     if (!text) return
-    if (parts.some(part => part === text || part.includes(text))) return
-    const previous = parts.findIndex(part => text.includes(part))
+    if (parts.some(part => part === text || part.includes(text))) return // 已有更完整或相同的版本
+    const previous = parts.findIndex(part => text.includes(part))       // 新版本包含旧内容，替换旧版本
     if (previous >= 0) parts[previous] = text
     else parts.push(text)
   }

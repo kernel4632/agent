@@ -59,6 +59,27 @@ describe('接口契约', () => {
         expect(openapi.info.version).toBe(pkg.version)
     })
 
+    test('前端的工具别名表和结束工具名单和服务端一致', async () => {
+        const [serverAliases, frontendToolUi, control, stopTools] = await Promise.all([
+            source('utils/tool-names.js'),
+            source('../frontend/src/session/tool-ui.js'),
+            source('tools/control.js'),
+            source('../frontend/src/session/stop-tools.js'),
+        ])
+        const block = text => text.slice(text.indexOf('ALIASES = {'), text.indexOf('}', text.indexOf('ALIASES = {')))
+        const pairs = text => [...block(text).matchAll(/(\w+): '([\w-]+)'/g)].map(match => `${match[1]}:${match[2]}`).sort()
+        // 前端只做显示和判断；别名表漂移会让旧会话的工具名对不上 UI。
+        expect(pairs(frontendToolUi)).toEqual(pairs(serverAliases))
+
+        const serverStops = [...control.matchAll(/name: '([^']+)'/g)].map(match => match[1]).sort()
+        const frontendStops = [...stopTools.matchAll(/'([a-z_]+)'/g)]
+            .map(match => match[1])
+            .filter(name => serverStops.includes(name))
+            .sort()
+        // 结束工具一改，前端就会把“任务完成”误判成“需要继续”。
+        expect(frontendStops).toEqual(serverStops)
+    })
+
     test('自动批准的类别和代码里的类别是同一组', async () => {
         const openapi = await readJson('openapi.json')
         // 文档和代码的类别对不上时，前端会多画一个永远不生效的开关（或者少画一个真有用的）。

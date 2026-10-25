@@ -26,6 +26,8 @@ const selectedID = ref(props.mcp[0]?.id ?? '')
 const selectedItem = computed(() => props.mcp.find(item => item.id === selectedID.value) ?? null)
 const remote = computed(() => ['sse', 'http'].includes(selectedItem.value?.definition?.transport))
 const deleteOpen = ref(false)
+const envError = ref('')                              // 环境变量 JSON 写错时的可见原因
+const envText = ref('')                               // 编辑中的原始文本；写错时也要留在输入框里
 
 function requestRemove() {
   deleteOpen.value = true
@@ -74,10 +76,16 @@ function toggleEnabled() {
 }
 
 function tryUpdateEnv(text) {
+  envText.value = text                                  // 先留住用户正在输入的内容，解析失败也不回退
   try {
     const env = JSON.parse(text)
-    if (typeof env === 'object' && env !== null) updateDefinition('env', env)
-  } catch { /* JSON 不完整时不更新 */ }
+    if (typeof env !== 'object' || env === null || Array.isArray(env)) throw new Error('必须是 JSON 对象')
+    envError.value = ''
+    updateDefinition('env', env)
+  } catch (error) {
+    // 保留上一次有效值，只把原因显示在输入框下方；不要静默吞掉。
+    envError.value = `环境变量必须是 JSON 对象：${error.message}`
+  }
 }
 
 watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
@@ -85,6 +93,11 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
   if (addedID) selectedID.value = addedID
   else if (!ids.includes(selectedID.value)) selectedID.value = ids[0] ?? ''
 })
+
+watch(selectedItem, item => {
+  envText.value = JSON.stringify(item?.definition?.env || {}, null, 2) // 换服务时重新显示它自己的环境变量
+  envError.value = ''                                                   // 上一个服务的错误不要留在下面
+}, { immediate: true })
 </script>
 
 <template>
@@ -153,10 +166,11 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
           caption="环境变量（JSON 格式）"
           multiline
           :rows="4"
-          :model-value="JSON.stringify(selectedItem.definition?.env || {}, null, 2)"
+          :model-value="envText"
           placeholder='{"API_KEY": "xxx"}'
           @update:model-value="tryUpdateEnv"
         />
+        <p v-if="!remote && envError" class="mcp-env-error" role="alert">{{ envError }}</p>
 
         <footer class="mcp-actions">
           <Button variant="danger" @click="requestRemove"><AppIcon name="trash" :size="18" />删除此服务</Button>
@@ -217,6 +231,7 @@ watch(() => props.mcp.map(item => item.id), (ids, previousIDs) => {
 /* KIMA Select 只画控件，不画可见标题；标题留给页面排版，避免和 aria-label 重复。 */
 .mcp-field { display: grid; gap: 8px; }
 .mcp-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
+.mcp-env-error { margin: -4px 0 0; color: var(--kima-color-error); font-size: 13px; line-height: 20px; }
 .mcp-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
 .mcp-empty { align-self: center; justify-self: center; color: var(--la-muted); font-size: 14px; }
 @media (max-width: 767px) {

@@ -1,6 +1,7 @@
 <!--
 思考步骤：流式时半展开预览，结束后自动收起；点击标题展开完整思考内容。
 对应 RikkaHub 的 ReasoningCardState：Preview 态最高 100px、上下渐隐、自动滚到底部。
+调用示例：<ReasoningStep :reasoning="message.reasoning" :streaming="message.isStreaming" :started-at="message.startedAt" :finished-at="message.finishedAt" />
 -->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'

@@ -20,6 +20,7 @@ const props = defineProps({
 const emit = defineEmits(['update:open'])
 
 // 工具调用的路径字段在不同工具里叫法不同，三种都认。
+// 这里只列“会话涉及的文件”，不等于真正改过的文件；权威改动清单在 /session/changes。
 const changedFiles = computed(() => {
   const files = new Set()
   for (const message of props.session?.messages || []) {
@@ -44,9 +45,9 @@ const workspaceFiles = computed(() => props.workspace?.files || [])
   >
     <div class="session-review__body">
       <section class="session-review__section">
-        <h3>本次改动</h3>
+        <h3>本次会话涉及的文件</h3>
         <Button v-for="file in changedFiles" :key="file" variant="plain" class="session-review__file" :title="file" @click="UI.copy(file)">{{ file }}</Button>
-        <p v-if="!changedFiles.length">本次会话没有文件改动</p>
+        <p v-if="!changedFiles.length">本次会话没有涉及文件</p>
       </section>
       <section class="session-review__section">
         <h3>工作区文件</h3>

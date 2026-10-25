@@ -1,3 +1,13 @@
+// 动效节奏统一从这里取：进入 200ms、离开 150ms，曲线和 KIMA 组件一致。
+// 放在 :root 是因为消息操作层会 Teleport 到 body，读不到 m3e-theme 里的局部变量。
+// base.scss 在系统要求减少动效时会把时长压到 .01ms，KIMA 组件也会归零，这里不覆盖。
+:root {
+  --la-motion-enter: var(--kima-duration-medium);
+  --la-motion-exit: var(--kima-duration-effects);
+  --la-motion-rise: 12px;
+  --la-motion-rise-small: 8px;
+}
+
 // Material You + RikkaHub layout tokens. Components keep using --la-* so the
 // visual layer can be swapped without touching every page. KIMA is the source
 // of color roles and fonts; layout widths stay app-owned.
