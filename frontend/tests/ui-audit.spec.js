@@ -223,10 +223,11 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await screenshot(page, testInfo, 'chat')
   if (testInfo.project.name === 'desktop') {
     await page.getByRole('button', { name: '文件面板', exact: true }).click()
-    await expect(page.getByRole('complementary', { name: '文件面板' })).toBeVisible()
+    const review = page.getByRole('dialog', { name: '文件' })
+    await expect(review).toBeVisible()
     await expect(page.getByText('src/main.js', { exact: true })).toBeVisible()
     await screenshot(page, testInfo, 'review')
-    await page.getByRole('button', { name: '关闭文件面板', exact: true }).click()
+    await review.getByRole('button', { name: '关闭' }).click()
   }
   await page.locator('.message--user').first().hover()
   await page.getByRole('button', { name: '回退到这条消息' }).click()
