@@ -104,8 +104,9 @@ function onChange(event) {
 }
 
 /* 列表行内的紧凑尺寸：和同一个操作区里的图标按钮保持同一档。 */
+.ui-select--small .ui-select__control { width: 100%; }
 .ui-select--small .ui-select__input {
-  width: auto;
+  width: 100%;
   height: 40px;
   padding: 0 32px 0 12px;
   border-radius: var(--kima-radius-s, 8px);

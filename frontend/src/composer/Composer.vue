@@ -308,7 +308,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 .composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
 .composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
-.composer-sheet { display: grid; width: 100%; max-width: 800px; gap: 16px; min-width: 0; margin: 0 auto; padding-bottom: 8px; }
+.composer-sheet { display: grid; width: 100%; gap: 16px; min-width: 0; padding-bottom: 8px; }
 .composer-sheet--models { min-height: 78vh; grid-template-rows: auto minmax(0, 1fr); }
 .composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 400; line-height: 28px; }
 .composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 22px; }

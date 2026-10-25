@@ -1,45 +1,45 @@
 /* 工具结果视图共用样式：由 ToolView 统一加载，视图组件只使用 class。 */
-.tool-view { display: grid; gap: 8px; min-width: 0; }
-.tool-kicker { min-width: 0; color: var(--la-secondary); font: 12px/1.7 var(--la-font-mono); overflow-wrap: anywhere; }
-.tool-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; min-width: 0; color: var(--la-muted); font-size: 11.5px; line-height: 1.5; }
-.tool-meta code { color: var(--la-secondary); font: 11.5px/1.5 var(--la-font-mono); overflow-wrap: anywhere; }
+.tool-view { display: grid; gap: 10px; min-width: 0; }
+.tool-kicker { min-width: 0; color: var(--la-secondary); font: 13px/1.7 var(--la-font-mono); overflow-wrap: anywhere; }
+.tool-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; min-width: 0; color: var(--la-muted); font-size: 12.5px; line-height: 1.5; }
+.tool-meta code { color: var(--la-secondary); font: 12.5px/1.5 var(--la-font-mono); overflow-wrap: anywhere; }
 .tool-output {
   max-width: 100%;
-  max-height: 240px;
+  max-height: 260px;
   overflow: auto;
   margin: 0;
-  padding: 4px 0 4px 8px;
+  padding: 8px 0 8px 12px;
   border: 0;
   border-left: 2px solid var(--la-line);
   background: transparent;
   color: var(--la-secondary);
-  font: 12px/1.7 var(--la-font-mono);
+  font: 13px/1.7 var(--la-font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .tool-output.is-error { color: var(--la-danger); border-left-color: var(--la-danger); }
-.tool-result { color: var(--la-secondary); font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tool-result { color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .tool-result.is-question { color: var(--la-text); }
-.tool-empty { margin: 0; color: var(--la-muted); font-size: 12px; line-height: 1.6; }
-.tool-link { color: var(--la-accent); font-size: 12px; overflow-wrap: anywhere; text-underline-offset: 3px; }
-.tool-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.tool-actions .ui-button { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; color: var(--la-muted); font-size: 11.5px; }
+.tool-empty { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 1.6; }
+.tool-link { color: var(--la-accent); font-size: 13px; overflow-wrap: anywhere; text-underline-offset: 3px; }
+.tool-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tool-actions .ui-button { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--la-muted); font-size: 12.5px; }
 .tool-actions .ui-button:hover { color: var(--la-text); }
 
-.todo-list { display: grid; gap: 3px; }
-.todo-item { display: flex; align-items: baseline; gap: 6px; min-width: 0; color: var(--la-secondary); font-size: 12.5px; line-height: 1.6; }
+.todo-list { display: grid; gap: 6px; }
+.todo-item { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: var(--la-secondary); font-size: 13.5px; line-height: 1.6; }
 .todo-item__icon { flex: 0 0 auto; color: var(--la-muted); }
 .todo-item__icon.is-completed { color: var(--la-success); }
 .todo-item__icon.is-in_progress { color: var(--la-accent); }
 .todo-item__text { min-width: 0; overflow-wrap: anywhere; }
 .todo-item__text.is-done { color: var(--la-muted); text-decoration: line-through; }
-.todo-item__status { margin-left: auto; flex: 0 0 auto; color: var(--la-muted); font-size: 11px; }
+.todo-item__status { margin-left: auto; flex: 0 0 auto; color: var(--la-muted); font-size: 12px; }
 
-.file-list { display: flex; flex-wrap: wrap; gap: 3px 8px; }
-.file-entry { color: var(--la-secondary); font: 12px/1.7 var(--la-font-mono); overflow-wrap: anywhere; }
-.file-entry + .file-entry::before { color: var(--la-muted); content: '·'; margin-right: 8px; }
-.edit-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
-.edit-pair small { display: block; margin-bottom: 2px; color: var(--la-muted); font-size: 11px; }
+.file-list { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.file-entry { color: var(--la-secondary); font: 13px/1.7 var(--la-font-mono); overflow-wrap: anywhere; }
+.file-entry + .file-entry::before { color: var(--la-muted); content: '·'; margin-right: 10px; }
+.edit-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.edit-pair small { display: block; margin-bottom: 4px; color: var(--la-muted); font-size: 12px; }
 .edit-pair .tool-output { max-height: 160px; }
 @media (max-width: 767px) {
   .edit-pair { grid-template-columns: minmax(0, 1fr); }
