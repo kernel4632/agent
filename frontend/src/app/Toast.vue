@@ -14,11 +14,11 @@ const emit = defineEmits(['close'])
 
 <template>
   <div v-if="message" class="app-toast" role="status">
-    <AppIcon name="info" :size="16" />{{ message }}
-    <IconButton label="关闭提示" @click="emit('close')"><AppIcon name="close" :size="13" /></IconButton>
+    <AppIcon name="info" :size="18" />{{ message }}
+    <IconButton size="small" label="关闭提示" @click="emit('close')"><AppIcon name="close" :size="16" /></IconButton>
   </div>
 </template>
 
 <style scoped lang="scss">
-.app-toast { position: fixed; z-index: 60; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); padding: 8px 10px; border-radius: 6px; background: var(--la-layer-01); color: var(--la-text); box-shadow: var(--la-shadow-overlay); font-size: 13px; transform: translateX(-50%); }
+.app-toast { position: fixed; z-index: 60; bottom: 24px; left: 50%; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 10px 10px 10px 20px; border-radius: 999px; background: var(--la-layer-02); color: var(--la-text); box-shadow: var(--la-shadow-overlay); font-size: 14px; transform: translateX(-50%); }
 </style>

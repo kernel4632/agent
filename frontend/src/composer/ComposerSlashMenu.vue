@@ -28,27 +28,28 @@ const emit = defineEmits(['choose'])
   left: 0;
   z-index: 20;
   display: grid;
-  max-height: 240px;
-  padding: 4px;
+  max-height: 320px;
+  padding: 8px;
   overflow-y: auto;
-  gap: 1px;
-  border-radius: 8px;
+  gap: 2px;
+  border-radius: 14px;
   background: var(--la-layer-01);
   box-shadow: var(--la-shadow-floating);
 }
 .chat-composer__slash-item {
   display: flex;
+  min-height: 44px;
   align-items: baseline;
-  gap: 10px;
-  padding: 7px 9px;
+  gap: 12px;
+  padding: 10px 14px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 10px;
   background: transparent;
   color: var(--la-secondary);
   text-align: left;
   cursor: pointer;
 }
 .chat-composer__slash-item.is-active, .chat-composer__slash-item:hover { background: var(--la-hover); color: var(--la-text); }
-.chat-composer__slash-name { flex: none; color: var(--la-accent); font: 12px/1.6 var(--la-font-mono); white-space: nowrap; }
-.chat-composer__slash-description { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.chat-composer__slash-name { flex: none; color: var(--la-accent); font: 13px/1.6 var(--la-font-mono); white-space: nowrap; }
+.chat-composer__slash-description { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 </style>

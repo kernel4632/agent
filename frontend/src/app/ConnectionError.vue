@@ -14,13 +14,13 @@ defineProps({
 
 <template>
   <div class="connection-error" role="alert">
-    <AppIcon name="info" :size="16" /><span>无法连接后端：{{ message }}</span>
+    <AppIcon name="info" :size="18" /><span>无法连接后端：{{ message }}</span>
     <Button variant="ghost" @click="UI.retry()">重试</Button>
   </div>
 </template>
 
 <style scoped lang="scss">
-.connection-error { display: flex; align-items: center; gap: 8px; margin: 0 var(--la-content-inset) 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--la-danger) 8%, transparent); color: var(--la-danger); font-size: 13px; }
+.connection-error { display: flex; align-items: center; gap: 12px; margin: 8px var(--la-content-inset) 12px; padding: 10px 12px 10px 16px; border-radius: 16px; background: color-mix(in srgb, var(--la-danger) 10%, transparent); color: var(--la-danger); font-size: 14px; line-height: 22px; }
 .connection-error span { flex: 1; overflow-wrap: anywhere; }
 @media (max-width: 767px) {
   .connection-error { margin-inline: 8px; }
