@@ -5,8 +5,14 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { AppIcon, Button, Dialog, Field } from '../ui/index.js'
+import { KimaList } from '@kernel4632/kima'
+import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
 import { Session } from '../commands/session.js'
+
+const MENU_ITEMS = [
+  { value: 'rename', label: '重命名' },
+  { value: 'delete', label: '删除' },
+]
 
 const props = defineProps({
   workspace: { type: Object, default: null },
@@ -53,13 +59,13 @@ const target = ref(null)
 const value = ref('')
 const busy = ref(false)
 
-// 菜单和弹窗都是原生 details / dialog，打开新菜单前先收起旧菜单。
-function closeMenus() {
-  document.querySelectorAll('.home-session__menu[open]').forEach(item => item.removeAttribute('open'))
+// 会话行的 KIMA 菜单只返回动作名，具体弹窗仍由这里管理。
+function onMenuSelect(session, action) {
+  if (action === 'rename') openRename(session)
+  else if (action === 'delete') openDelete(session)
 }
 
 function openRename(session) {
-  closeMenus()
   dialogMode.value = 'rename'
   target.value = session
   value.value = session.title || ''
@@ -67,7 +73,6 @@ function openRename(session) {
 }
 
 function openDelete(session) {
-  closeMenus()
   dialogMode.value = 'delete'
   target.value = session
   value.value = ''
@@ -98,21 +103,21 @@ async function submitDialog() {
       <template v-if="groups.length">
         <section v-for="group in groups" :key="group.key" class="home-sessions__group">
           <h2 class="group-label">{{ group.label }}</h2>
-          <ul class="home-sessions__items">
-            <li v-for="item in group.items" :key="item.id" class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
-              <!-- 会话主按钮只换外壳；更多菜单仍是 details/summary。 -->
-              <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
-                <span class="home-session__title">{{ item.title || '新会话' }}</span>
-              </Button>
-              <details class="home-session__menu">
-                <summary :aria-label="`${item.title || '新会话'} 的更多操作`"><AppIcon name="more" :size="15" /></summary>
-                <div class="home-session__menu-pop">
-                  <Button variant="ghost" @click.prevent="openRename(item)">重命名</Button>
-                  <Button variant="ghost" @click.prevent="openDelete(item)">删除</Button>
-                </div>
-              </details>
-            </li>
-          </ul>
+          <KimaList class="session-list" :items="group.items" :label="group.label">
+            <template #item="{ item }">
+              <div class="home-session" :class="{ 'is-active': item.id === activeSessionId }">
+                <Button variant="plain" class="home-session__main" @click="emit('open', item.id)">
+                  <span class="home-session__title">{{ item.title || '新会话' }}</span>
+                </Button>
+                <MenuButton
+                  class="home-session__menu"
+                  :label="`${item.title || '新会话'} 的更多操作`"
+                  :items="MENU_ITEMS"
+                  @select="onMenuSelect(item, $event)"
+                />
+              </div>
+            </template>
+          </KimaList>
         </section>
       </template>
       <div v-else class="home-empty">
@@ -139,9 +144,16 @@ async function submitDialog() {
 .home-sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
 .home-sessions__group { display: flex; flex-direction: column; gap: 6px; }
-.home-sessions__items { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.session-list { display: grid; gap: 2px; }
+:global(.session-list .kima-list__item) {
+  display: flex;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+}
 .group-label { display: flex; height: 30px; flex: none; align-items: center; margin: 0; padding: 0 10px; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; letter-spacing: 0; }
-.home-session { display: flex; min-height: 48px; flex: none; align-items: center; border-radius: 12px; }
+.home-session { display: flex; width: 100%; min-height: 48px; flex: none; align-items: center; border-radius: 12px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
 .home-session__main {
@@ -160,49 +172,10 @@ async function submitDialog() {
   cursor: pointer;
 }
 .home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.home-session__menu { position: relative; flex: none; margin-right: 6px; }
-.home-session__menu summary {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  color: var(--la-muted);
-  cursor: pointer;
-  opacity: 0;
-  list-style: none;
-}
-.home-session:hover .home-session__menu summary,
-.home-session.is-active .home-session__menu summary,
-.home-session__menu[open] summary { opacity: 1; }
-.home-session__menu summary::-webkit-details-marker { display: none; }
-.home-session__menu summary:hover { background: var(--la-hover); color: var(--la-text); }
-.home-session__menu-pop {
-  position: absolute;
-  top: 36px;
-  right: 0;
-  z-index: 20;
-  width: 168px;
-  padding: 6px;
-  border-radius: 12px;
-  background: var(--la-layer-01);
-  box-shadow: var(--la-shadow-floating);
-}
-.home-session__menu-pop button {
-  display: block;
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--la-text);
-  text-align: left;
-  font-size: 14px;
-  font-weight: 400;
-  cursor: pointer;
-}
-.home-session__menu-pop button:hover { background: var(--la-hover); text-decoration: none; }
+.home-session__menu { flex: none; margin-right: 4px; opacity: .6; transition: opacity .12s ease; }
+.home-session:hover .home-session__menu,
+.home-session.is-active .home-session__menu,
+.home-session__menu:focus-within { opacity: 1; }
 .home-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; text-align: center; }
 .home-empty strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
 .home-empty p { max-width: 320px; margin: 0 0 8px; color: var(--la-muted); font-size: 14px; font-weight: 400; line-height: 22px; }

@@ -13,6 +13,7 @@
 - `Sheet` → `KimaDrawer`
 - 左侧会话抽屉 `app/AppDrawer.vue` → `KimaDrawer`（left）
 - 右侧文件面板 `session/SessionFilePanel.vue` → `KimaDrawer`（right）
+- 会话历史列表 → `KimaList`；行右侧菜单 → `MenuButton` → `KimaMenu`
 - `Select` 仍是自定义控件：KIMA 0.7.1 的 `KimaSelect` 有可见原生 select 的 bug（kima#3），修好后可以替换。
 
 颜色、字体、阴影统一来自 KIMA token，映射写在 `styles/tokens.scss`。页面里可以继续写聊天、时间线、工具行这类 KIMA 没有的领域组件，但视觉要使用 `--kima-*`，不要另起一套配色。
