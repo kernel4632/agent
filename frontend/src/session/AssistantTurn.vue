@@ -1,6 +1,7 @@
 <!--
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
-思考、工具合成一张时间线卡片；完成任务/询问用户这类结束工具的结果直接成为正式回复，不再套背景。
+思考、工具和中间正文按发生顺序合成一张时间线卡片；完成任务/询问用户这类结束工具的结果才是正式回复，直接显示在卡片下方，不再套背景。
+没有结束工具时（停止、报错、断网）才把已经流出的正文当临时回复。
 右键或长按这一整轮，可以复制、回退或分支。
 调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" @rollback="..." @fork="..." />
 -->
@@ -25,42 +26,64 @@ const emit = defineEmits(['rollback', 'fork'])
 const actionable = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
 
 const expandedSteps = ref(false)
+// 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
+const stopTexts = computed(() => props.messages.flatMap(message =>
+  (message.tools || [])
+    .filter(isFinishedStopTool)
+    .map(tool => outputText(tool).trim())
+    .filter(Boolean)
+))
+const finalText = computed(() => stopTexts.value.at(-1) || '')
+const fallbackText = computed(() => props.messages
+  .map(message => String(message.content || '').trim())
+  .filter(Boolean)
+  .join('\n\n'))
+const content = computed(() => finalText.value || fallbackText.value)
+
+// 时间线按消息顺序排列：思考、非结束正文、工具步骤。
+// 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
 const steps = computed(() => {
   const list = []
   for (const message of props.messages) {
-    if (message.reasoning) list.push({ key: `${message.id}-reasoning`, type: 'reasoning', message })
-    for (const tool of message.tools || []) {
-      if (!isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-${list.length}`, type: 'tool', tool })
-    }
+    // 新消息带 steps（按原始 part 顺序）；旧历史退回“思考 → 正文 → 工具”。
+    const sequence = message.steps?.length
+      ? message.steps
+      : [
+          ...(message.reasoning ? [{ type: 'reasoning', text: message.reasoning }] : []),
+          ...(message.content ? [{ type: 'text', text: message.content }] : []),
+          ...(message.tools || []).map(tool => ({ type: 'tool', toolId: tool.id })),
+        ]
+    sequence.forEach((entry, index) => {
+      if (entry.type === 'reasoning' && entry.text) {
+        list.push({
+          key: `${message.id}-reasoning-${index}`,
+          type: 'reasoning',
+          text: entry.text,
+          message,
+          streaming: message.isStreaming && entry.type === 'reasoning' && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
+        })
+      } else if (entry.type === 'text') {
+        const text = String(entry.text || '').trim()
+        // 有结束工具时，非结束正文只进时间线；没有结束工具时它还是临时回复，留在气泡里。
+        if (text && finalText.value && text !== finalText.value) {
+          list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text })
+        }
+      } else if (entry.type === 'tool') {
+        const tool = (message.tools || []).find(item => item.id === entry.toolId)
+        if (tool && !isFinishedStopTool(tool)) {
+          list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool })
+        }
+      }
+    })
   }
   return list
 })
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
-const liveReasoning = computed(() => props.messages.some(message => message.isStreaming && message.reasoning))
 // 流式思考时保持全部步骤可见；结束后超过两步才折叠，只留最后两步。
-const canCollapse = computed(() => steps.value.length > 2 && !liveReasoning.value)
+const canCollapse = computed(() => steps.value.length > 2 && !props.messages.some(message => message.isStreaming && message.reasoning))
 const hiddenCount = computed(() => canCollapse.value && !expandedSteps.value ? steps.value.length - 2 : 0)
 const visibleSteps = computed(() => steps.value.slice(hiddenCount.value))
 
-// 正文和结束工具的结果都是给用户看的回复；重复内容只保留一份。
-// 自动接续时，模型常把同一段总结同时写进正文和 attempt_completion.result，
-// 所以这里用“包含”而不是只比较完全相等：短的先保留，出现更完整的版本时替换它。
-const content = computed(() => {
-  const parts = []
-  const push = raw => {
-    const text = String(raw || '').trim()
-    if (!text) return
-    if (parts.some(part => part === text || part.includes(text))) return // 已有更完整或相同的版本
-    const previous = parts.findIndex(part => text.includes(part))       // 新版本包含旧内容，替换旧版本
-    if (previous >= 0) parts[previous] = text
-    else parts.push(text)
-  }
-  for (const message of props.messages) push(message.content)
-  for (const message of props.messages) {
-    for (const tool of message.tools || []) if (isFinishedStopTool(tool)) push(outputText(tool))
-  }
-  return parts.join('\n\n')
-})
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
 const usage = computed(() => {
   let input = 0
@@ -106,11 +129,19 @@ watch(streaming, value => {
           <template v-for="step in visibleSteps" :key="step.key">
             <ReasoningStep
               v-if="step.type === 'reasoning'"
-              :reasoning="step.message.reasoning"
-              :streaming="step.message.isStreaming"
+              :reasoning="step.text"
+              :streaming="step.streaming"
               :started-at="step.message.startedAt"
               :finished-at="step.message.finishedAt"
             />
+            <div v-else-if="step.type === 'text'" class="cot-step cot-step--text">
+              <span class="cot-step__icon"><AppIcon name="chat" :size="16" /></span>
+              <div class="cot-step__main">
+                <div class="cot-step__body cot-step__body--text">
+                  <div class="markdown-body" v-html="renderMarkdown(step.text)"></div>
+                </div>
+              </div>
+            </div>
             <ToolCallRow
               v-else
               :tool="step.tool"

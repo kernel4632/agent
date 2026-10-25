@@ -331,6 +331,8 @@
 .cot-collapse.is-open { grid-template-rows: 1fr; }
 .cot-collapse__inner { min-height: 0; overflow: hidden; }
 .cot-step__body { padding: 2px 0 10px; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
+.cot-step--text .cot-step__body--text { padding: 8px 0 12px; }
+.cot-step__body--text .markdown-body { font-size: 14px; line-height: 1.7; color: var(--la-text); }
 .reasoning-preview { max-height: 120px; overflow-y: auto; scrollbar-width: none; }
 .reasoning-preview::-webkit-scrollbar { display: none; }
 .reasoning-preview.is-preview {

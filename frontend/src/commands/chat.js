@@ -22,7 +22,7 @@ const streaming = session => session.messages.findLast(message => message.role =
 const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
 
 function createAssistant(session) {
-  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
+  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], steps: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
   session.messages.push(message)
   return message
 }
@@ -111,6 +111,14 @@ async function resume(sessionID) {
   }
 }
 
+// --- 把正文/思考增量接在最后一个同类 step 后面；顺序和时间线一致 ---
+function appendTextStep(assistant, type, text) {
+  if (!text) return
+  const last = assistant.steps.at(-1)
+  if (last?.type === type) last.text += text
+  else assistant.steps.push({ type, text })
+}
+
 // --- 找到工具步骤；还没有时补一条 ---
 function toolFor(session, event, status) {
   const id = event.toolCallId || event.callID || event.callId
@@ -120,6 +128,7 @@ function toolFor(session, event, status) {
     const assistant = streaming(session) || createAssistant(session) // 工具事件也可能先到，保证有承载消息
     tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: Date.now() }
     assistant.tools.push(tool)
+    assistant.steps.push({ type: 'tool', toolId: id })               // 工具在时间线里的位置由第一次出现决定
   }
   if (status) {
     tool.status = status
@@ -149,6 +158,9 @@ async function receiveRun(sessionID, session, event) {
   } else if (event.type === 'llm-finish') {
     const assistant = streaming(session) || createAssistant(session)
     if (event.text) assistant.content = event.text       // 最后一轮正文以完整文本为准
+    if (event.text && !assistant.steps.some(step => step.type === 'text')) {
+      assistant.steps.push({ type: 'text', text: event.text }) // 没收到增量时补一条，时间线不能空
+    }
     const usage = event.usage || {}
     assistant.request = { status: 'completed', input: Number(usage.inputTokens || 0), output: Number(usage.outputTokens || 0), cache: Number(usage.cachedInputTokens || 0) }
     session.contextTokens = assistant.request.input + assistant.request.output
@@ -192,7 +204,9 @@ function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
     const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
     const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
-    assistant[field] += event.text || event.textDelta || event.delta || '' // 不同兼容字段都认
+    const text = event.text || event.textDelta || event.delta || '' // 不同兼容字段都认
+    assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
+    appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
     // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
     const assistant = streaming(session) || createAssistant(session) // 子任务事件也要有承载消息

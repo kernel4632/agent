@@ -364,6 +364,27 @@ function normalize(source, previous = {}) {
         const preview = output ? formatToolOutput(output) : ''
         return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
       })
+    // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
+    message.steps = []
+    if (item.role === 'assistant') {
+      for (const part of parts) {
+        if (part.type === 'reasoning') {
+          const text = part.reasoning || part.text || ''
+          if (text) message.steps.push({ type: 'reasoning', text })
+        } else if (part.type === 'text') {
+          if (part.text) message.steps.push({ type: 'text', text: part.text })
+        } else if (part.type === 'tool-invocation' || part.type === 'tool-call') {
+          const call = part.toolInvocation || part
+          if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId })
+        }
+      }
+      // 旧会话没有 parts 顺序时，退回“思考 → 正文 → 工具”的旧顺序。
+      if (!message.steps.length) {
+        if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
+        if (message.content) message.steps.push({ type: 'text', text: message.content })
+        for (const tool of message.tools) message.steps.push({ type: 'tool', toolId: tool.id })
+      }
+    }
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }
   // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。

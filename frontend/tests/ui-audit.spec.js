@@ -257,7 +257,7 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   expect(mock.errors).toEqual([])
 })
 
-test('auto-continued assistant messages render as one continuous reply', async ({ page }, testInfo) => {
+test('auto-continued assistant keeps non-stop text in the timeline and finish result as the reply', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -279,9 +279,20 @@ test('auto-continued assistant messages render as one continuous reply', async (
 
   await expect(page.locator('.rikka-bubble--assistant')).toHaveCount(1)
   await expect(page.locator('.cot-card')).toHaveCount(1)
-  await expect(page.locator('.rikka-bubble--assistant')).toContainText('第一段。')
-  await expect(page.locator('.rikka-bubble--assistant')).toContainText('第二段。')
   await expect(page.locator('.rikka-bubble--assistant')).toContainText('最终结果。')
+  // 非结束正文只进时间线，不能和结束工具的结果拼成一个气泡。
+  await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第一段。')
+  await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第二段。')
+  const card = page.locator('.cot-card')
+  if (await card.locator('.cot-more').count()) await card.locator('.cot-more').click()
+  await expect(card).toContainText('第一段。')
+  await expect(card).toContainText('第二段。')
+  const order = await card.locator('.cot-step').evaluateAll(nodes => nodes.map(node => node.textContent))
+  const firstText = order.findIndex(text => text.includes('第一段。'))
+  const toolStep = order.findIndex(text => text.includes('任务清单'))
+  const secondText = order.findIndex(text => text.includes('第二段。'))
+  expect(firstText).toBeLessThan(toolStep)
+  expect(toolStep).toBeLessThan(secondText)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   expect(await page.locator('.rikka-bubble--assistant').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
   await screenshot(page, testInfo, 'assistant-turn')

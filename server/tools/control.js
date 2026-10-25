@@ -22,11 +22,12 @@ const attemptCompletion = {
         'Use it even for a simple answer with no tool actions: answering the user is completing the task. Do not end with a normal assistant message instead.',
         'Do not use it to report intermediate progress. If there is still a next step (reading, editing, running a command), do that first.',
         'The result must be final, complete prose. Do not end it with a question or an offer for further assistance.',
+        'Put the complete user-facing answer in the result parameter. Do not also write it as a normal assistant message before calling this tool.',
         'Parameters: result (required): the final result presented to the user.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
-        properties: { result: { type: 'string', description: 'Final result presented to the user, complete and self-contained.' } },
+        properties: { result: { type: 'string', description: 'Complete final answer for the user, written here instead of a normal assistant message.' } },
         required: ['result'],
     },
     // attempt_completion 的结果会让主循环停止，不再请求下一轮模型。

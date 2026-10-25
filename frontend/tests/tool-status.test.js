@@ -92,6 +92,24 @@ test('历史归一化和实时事件得到相同的工具状态和文本', async
     }
 })
 
+test('历史归一化保留正文和工具的原始顺序', () => {
+    const normalized = Session.normalize({
+        id: 'session-1',
+        history: [{
+            messageId: 'message-1',
+            id: 'assistant-1',
+            role: 'assistant',
+            content: [
+                { type: 'reasoning', text: '先想' },
+                { type: 'text', text: '第一段' },
+                { type: 'tool-invocation', toolCallId: 'call-1', toolName: 'read_file', state: 'call', args: { path: 'a' } },
+                { type: 'text', text: '第二段' },
+            ],
+        }],
+    })
+    assert.deepEqual(normalized.messages[0].steps.map(step => step.type), ['reasoning', 'text', 'tool', 'text'])
+})
+
 test('被拒绝的 attempt_completion 不算收尾，继续按钮才会出现', async () => {
     const normalized = Session.normalize({ id: 'session-1', history: historyFor(cases[0]) }).messages
     const tool = normalized[0].tools[0]
