@@ -59,12 +59,12 @@ function newConversation() {
       <header class="app-drawer__user">
         <span class="app-drawer__avatar" :style="{ background: avatarColor('la') }" aria-hidden="true">{{ initial('la') }}</span>
         <span class="app-drawer__identity"><strong>la</strong><small>欢迎回来</small></span>
-        <IconButton class="app-drawer__close" label="关闭会话抽屉" @click="emit('close')"><AppIcon name="close" :size="16" /></IconButton>
+        <IconButton label="搜索对话" title="搜索对话" @click="openSearch"><AppIcon name="search" :size="20" /></IconButton>
+        <IconButton class="app-drawer__close" label="关闭会话抽屉" @click="emit('close')"><AppIcon name="close" :size="20" /></IconButton>
       </header>
 
       <div class="app-drawer__actions">
-        <Button variant="plain" class="drawer-action" @click="newConversation"><AppIcon name="new-chat" :size="18" /><span>新建对话</span></Button>
-        <Button variant="plain" class="drawer-action" @click="openSearch"><AppIcon name="search" :size="18" /><span>搜索对话</span></Button>
+        <Button variant="primary" class="drawer-action" @click="newConversation"><AppIcon name="new-chat" :size="20" /><span>新建对话</span></Button>
       </div>
 
       <div class="app-drawer__filters">
@@ -97,14 +97,12 @@ function newConversation() {
             <small>{{ store.config.activeModel || '选择模型' }}</small>
           </span>
         </Button>
-        <IconButton label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="18" /></IconButton>
+        <div class="app-drawer__footer-actions">
+          <IconButton size="small" label="收藏的消息" title="收藏的消息" @click="favoritesOpen = true"><AppIcon name="favorite" :size="20" /></IconButton>
+          <IconButton size="small" label="会话统计" title="会话统计" :disabled="!activeSession" @click="statsOpen = true"><AppIcon name="stats" :size="20" /></IconButton>
+          <IconButton size="small" label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="20" /></IconButton>
+        </div>
       </footer>
-      <div class="app-drawer__footer-actions">
-        <button type="button" aria-label="助手管理" title="助手管理" @click="emit('settings')"><AppIcon name="assistant" :size="19" /></button>
-        <button type="button" aria-label="收藏的消息" title="收藏的消息" @click="favoritesOpen = true"><AppIcon name="favorite" :size="19" /></button>
-        <button type="button" aria-label="会话统计" title="会话统计" :disabled="!activeSession" @click="statsOpen = true"><AppIcon name="stats" :size="19" /></button>
-        <button type="button" aria-label="打开设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="19" /></button>
-      </div>
     </div>
   </aside>
 
@@ -132,10 +130,10 @@ function newConversation() {
   width: 100%;
   min-height: 0;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 12px;
+  padding: 12px;
   overflow: hidden;
-  border-radius: 0 16px 16px 0;
+  border-radius: 0 20px 20px 0;
   background: var(--la-layer-01);
   box-shadow: var(--la-shadow-overlay);
 }
@@ -152,41 +150,33 @@ function newConversation() {
 .app-drawer__scrim.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
 
 /* --- 用户区和常用动作 --- */
-.app-drawer__user { display: flex; flex: none; align-items: center; gap: 14px; padding: 8px; }
+.app-drawer__user { display: flex; flex: none; align-items: center; gap: 10px; padding: 4px; }
 .app-drawer__avatar {
   display: grid;
   place-items: center;
-  width: 50px;
-  height: 50px;
-  flex: 0 0 50px;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
   border-radius: 50%;
   color: var(--la-on-accent);
-  font: 600 18px/1 var(--la-font-mono);
+  font: 600 17px/1 var(--la-font-mono);
 }
-.app-drawer__identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.app-drawer__identity strong { color: var(--la-text); font-size: 16px; font-weight: 500; line-height: 24px; }
-.app-drawer__identity small { color: var(--la-muted); font-size: 12px; line-height: 16px; }
-.app-drawer__close { margin-left: auto; }
-.app-drawer__actions { display: flex; flex: none; flex-direction: column; gap: 2px; }
+.app-drawer__identity { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.app-drawer__identity strong { color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 22px; }
+.app-drawer__identity small { color: var(--la-muted); font-size: 13px; line-height: 18px; }
+.app-drawer__close { margin-left: -6px; }
+.app-drawer__actions { display: flex; flex: none; flex-direction: column; gap: 8px; }
 .drawer-action {
   display: flex;
   width: 100%;
-  min-height: 44px;
+  min-height: 56px;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
-  padding: 10px 8px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--la-layer-01);
-  color: var(--la-text);
-  text-align: left;
-  font-size: 14px;
-  font-weight: 400;
-  cursor: pointer;
+  padding: 0 20px;
+  font-size: 16px;
+  font-weight: 500;
 }
-.drawer-action:hover { background: var(--la-hover); color: var(--la-text); text-decoration: none; }
-.drawer-action svg { flex: none; color: var(--la-muted); }
-.drawer-action:hover svg { color: var(--la-secondary); }
 
 /* --- 工作区与会话 --- */
 .app-drawer__filters { display: flex; min-width: 0; flex: none; align-items: center; gap: 8px; padding: 0 4px; }
@@ -228,8 +218,8 @@ function newConversation() {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 4px;
-  padding: 8px 4px 2px;
+  gap: 8px;
+  padding: 12px 4px 4px;
   border-top: .5px solid var(--la-line);
 }
 .assistant-picker {
@@ -238,7 +228,7 @@ function newConversation() {
   flex: 1;
   align-items: center;
   gap: 10px;
-  padding: 4px;
+  padding: 6px;
   border-radius: 12px;
   text-align: left;
 }
@@ -246,30 +236,17 @@ function newConversation() {
 .assistant-picker__avatar {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   border-radius: 50%;
   color: var(--la-on-accent);
-  font: 600 15px/1 var(--la-font-mono);
+  font: 600 16px/1 var(--la-font-mono);
 }
 .assistant-picker__identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.assistant-picker__identity strong { color: var(--la-text); font-size: 14px; font-weight: 500; line-height: 18px; }
-.assistant-picker__identity small { overflow: hidden; color: var(--la-muted); font-size: 11px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
-.app-drawer__footer-actions { display: flex; flex: none; justify-content: space-around; padding: 6px 8px 2px; }
-.app-drawer__footer-actions button {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: var(--la-accent-soft);
-  color: var(--la-accent);
-  cursor: pointer;
-}
-.app-drawer__footer-actions button:hover:not(:disabled) { background: var(--la-layer-02); color: var(--la-text); }
-.app-drawer__footer-actions button:disabled { opacity: .4; cursor: default; }
+.assistant-picker__identity strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 20px; }
+.assistant-picker__identity small { overflow: hidden; color: var(--la-muted); font-size: 13px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.app-drawer__footer-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 
 /* --- 桌面横向：抽屉常驻，去掉遮罩和关闭按钮 --- */
 /* RikkaHub uses 1100dp; desktop 1024 laptops get the permanent drawer too. */

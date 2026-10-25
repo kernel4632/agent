@@ -150,27 +150,15 @@ async function submitDialog() {
 <style scoped lang="scss">
 .home-sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .home-search {
-  display: flex;
-  height: 36px;
-  min-width: 0;
+  display: block;
   flex: none;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--la-layer-02) 60%, transparent);
-  color: var(--la-muted);
+  margin-bottom: 12px;
 }
-.home-search:focus-within { background: var(--la-layer-02); }
-.home-search :deep(input) { width: 100%; min-width: 0; height: auto; padding: 0; border: 0; outline: 0; background: transparent; color: var(--la-text); font-size: 13px; }
-.home-search :deep(input::placeholder) { color: var(--la-muted); }
-.home-search :deep(input:focus) { box-shadow: none; }
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; padding-right: 4px; }
-.home-sessions__group { display: flex; flex-direction: column; gap: 8px; }
-.home-sessions__items { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.group-label { display: flex; height: 32px; flex: none; align-items: center; margin: 0; padding: 0 12px; border-radius: 8px; background: var(--la-panel); color: var(--la-accent); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
-.home-session { display: flex; min-height: 36px; flex: none; align-items: center; border-radius: 999px; }
+.home-sessions__group { display: flex; flex-direction: column; gap: 6px; }
+.home-sessions__items { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.group-label { display: flex; height: 30px; flex: none; align-items: center; margin: 0; padding: 0 10px; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.home-session { display: flex; min-height: 48px; flex: none; align-items: center; border-radius: 12px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
 .home-session__main {
@@ -180,22 +168,22 @@ async function submitDialog() {
   flex: 1;
   align-items: center;
   gap: 9px;
-  padding: 0 10px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 12px;
   background: transparent;
   color: var(--la-secondary);
   text-align: left;
   cursor: pointer;
 }
-.home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 14px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.home-session__menu { position: relative; flex: none; margin-right: 4px; }
+.home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.home-session__menu { position: relative; flex: none; margin-right: 6px; }
 .home-session__menu summary {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   color: var(--la-muted);
   cursor: pointer;
   opacity: 0;
@@ -208,11 +196,11 @@ async function submitDialog() {
 .home-session__menu summary:hover { background: var(--la-hover); color: var(--la-text); }
 .home-session__menu-pop {
   position: absolute;
-  top: 26px;
+  top: 36px;
   right: 0;
   z-index: 20;
-  width: 140px;
-  padding: 4px;
+  width: 168px;
+  padding: 6px;
   border-radius: 12px;
   background: var(--la-layer-01);
   box-shadow: var(--la-shadow-floating);
@@ -220,21 +208,21 @@ async function submitDialog() {
 .home-session__menu-pop button {
   display: block;
   width: 100%;
-  height: 28px;
-  padding: 0 8px;
+  height: 40px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
   color: var(--la-text);
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   cursor: pointer;
 }
 .home-session__menu-pop button:hover { background: var(--la-hover); text-decoration: none; }
-.home-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; text-align: center; }
-.home-empty strong { color: var(--la-text); font-size: 13px; font-weight: 530; }
-.home-empty p { max-width: 360px; margin: 0 0 8px; color: var(--la-muted); font-size: 13px; font-weight: 440; line-height: 20px; }
+.home-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; text-align: center; }
+.home-empty strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
+.home-empty p { max-width: 320px; margin: 0 0 8px; color: var(--la-muted); font-size: 14px; font-weight: 400; line-height: 22px; }
 @media (max-width: 1023px) {
   .home-sessions { padding-top: 0; }
 }
