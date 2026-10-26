@@ -16,6 +16,8 @@ import { computed, defineAsyncComponent, ref } from 'vue'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import ConversationSettingsDrawer from './ConversationSettingsDrawer.vue'
+import ModeDrawer from './ModeDrawer.vue'
+import PermissionDrawer from './PermissionDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { Session } from '../commands/session.js'
@@ -35,6 +37,8 @@ const emit = defineEmits(['update:todoOpen'])
 // --- 页面内的开关 ---
 // 对话设置和任务清单都走右侧抽屉，不占输入框上方。
 const settingsOpen = ref(false)
+const permissionOpen = ref(false)
+const modeOpen = ref(false)
 
 // --- 输入草稿和附件 ---
 // 草稿放在 session 上，切标签或打开设置再回来不会丢。
@@ -86,11 +90,13 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-id="session.settings.mode" :settings-open="settingsOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-mode="Session.toggleMode(session.id)" @select-mode="Session.setMode(session.id, $event)" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-open="modeOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-permissions="permissionOpen = !permissionOpen" @open-mode="modeOpen = true" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
     <ConversationSettingsDrawer :open="settingsOpen" :session="session" @update:open="settingsOpen = $event" />
+    <PermissionDrawer :open="permissionOpen" :auto-approve="session.settings.autoApprove" @update:open="permissionOpen = $event" @toggle="Session.toggleAutoApprove(session.id, $event)" />
+    <ModeDrawer :open="modeOpen" :model-value="session.settings.mode" @update:open="modeOpen = $event" @select="Session.setMode(session.id, $event)" />
   </section>
 </template>
 

@@ -16,7 +16,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
-import ConversationSettingsDrawer from '../session/ConversationSettingsDrawer.vue'
+import ModeDrawer from '../session/ModeDrawer.vue'
+import PermissionDrawer from '../session/PermissionDrawer.vue'
 import { Session } from '../commands/session.js'
 
 const props = defineProps({
@@ -30,8 +31,13 @@ const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:mode', 'upd
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
-const settingsOpen = ref(false)
+const permissionOpen = ref(false)
+const modeOpen = ref(false)
 const modeLabel = computed(() => Session.modeLabel(props.mode))
+
+function toggleAutoApprove(kind) {
+  emit('update:autoApprove', { ...props.autoApprove, [kind]: !props.autoApprove?.[kind] })
+}
 
 // 打开草稿页后由 App 调用，把焦点交给输入框。
 defineExpose({ focus: () => composer.value?.focus() })
@@ -47,8 +53,8 @@ defineExpose({ focus: () => composer.value?.focus() })
         v-model:draft="draft"
         :selected-model="model"
         :mode="modeLabel"
-        :mode-id="mode"
-        :settings-open="settingsOpen"
+        :mode-open="modeOpen"
+        :permissions-open="permissionOpen"
         :is-running="false"
         :busy="busy"
         :files="files"
@@ -56,17 +62,21 @@ defineExpose({ focus: () => composer.value?.focus() })
         @submit="emit('submit', $event)"
         @attach="emit('attach', $event)"
         @remove-file="emit('remove-file', $event)"
-        @select-mode="emit('update:mode', $event)"
-        @toggle-settings="settingsOpen = !settingsOpen"
+        @open-mode="modeOpen = true"
+        @toggle-permissions="permissionOpen = !permissionOpen"
       />
     </div>
-    <ConversationSettingsDrawer
-      :open="settingsOpen"
-      :draft-mode="mode"
-      :draft-auto-approve="autoApprove"
-      @update:open="settingsOpen = $event"
-      @update:draft-mode="emit('update:mode', $event)"
-      @update:draft-auto-approve="emit('update:autoApprove', $event)"
+    <ModeDrawer
+      :open="modeOpen"
+      :model-value="mode"
+      @update:open="modeOpen = $event"
+      @select="emit('update:mode', $event)"
+    />
+    <PermissionDrawer
+      :open="permissionOpen"
+      :auto-approve="autoApprove"
+      @update:open="permissionOpen = $event"
+      @toggle="toggleAutoApprove"
     />
   </section>
 </template>

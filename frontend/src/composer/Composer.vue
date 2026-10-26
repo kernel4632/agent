@@ -26,7 +26,7 @@ import { UI } from '../commands/ui.js'
 import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
-import ModeMenu from './ModeMenu.vue'
+import ModeButton from './ModeButton.vue'
 import { ATTACHMENT_ACCEPT } from '../utils/attachments.js'
 
 const props = defineProps({
@@ -34,15 +34,15 @@ const props = defineProps({
   selectedProvider: { type: String, default: '' },
   sessionId: { type: String, default: '' },
   mode: { type: String, default: '' },
-  modeId: { type: String, default: '' },
-  settingsOpen: Boolean,
+  modeOpen: Boolean,
+  permissionsOpen: Boolean,
   showSessionControls: Boolean,
   isRunning: Boolean,
   busy: Boolean,
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-mode', 'select-mode'])
+const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'open-mode'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -55,12 +55,6 @@ const modelGroups = computed(() => Object.entries(store.config.providers)
       .filter(model => !modelQuery.value.trim() || model.toLowerCase().includes(modelQuery.value.trim().toLowerCase())),
   }))
   .filter(group => group.models.length))
-
-// 输入框上的模式菜单和执行/计划模式使用同一份配置。
-const modeItems = computed(() => (store.config.modes?.length ? store.config.modes : [
-  { name: 'build', label: '执行模式', readOnly: false },
-  { name: 'plan', label: '计划模式', readOnly: true },
-]).map(item => ({ value: item.name, label: item.label, description: item.readOnly ? '只读' : '' })))
 
 const modelOpen = ref(false)
 const modelQuery = ref('')
@@ -191,12 +185,12 @@ defineExpose({ focus: () => editor.value?.focus() })
           <button
             type="button"
             class="composer-option composer-option--permission"
-            :class="{ 'is-active': settingsOpen }"
+            :class="{ 'is-active': permissionsOpen }"
             aria-label="权限控制"
-            title="权限与对话设置"
-            @click="emit('toggle-settings')"
+            title="自动批准"
+            @click="emit('toggle-permissions')"
           ><AppIcon name="permission" :size="20" /></button>
-          <ModeMenu :modes="modeItems" :model-value="modeId" @select="emit('select-mode', $event)" />
+          <ModeButton :mode="mode" :open="modeOpen" @open="emit('open-mode')" />
         </template>
       </div>
       <div class="chat-composer__right">
@@ -237,8 +231,8 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="composer-sheet">
       <div class="composer-sheet__list">
         <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
-        <button v-if="showSessionControls && sessionId" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>对话设置</span></button>
-        <button v-if="showSessionControls && sessionId" type="button" :title="mode ? `当前模式：${mode}` : undefined" @click="addOpen = false; emit('toggle-mode')"><AppIcon name="eye" :size="20" /><span>切换执行模式</span></button>
+        <button v-if="showSessionControls && sessionId" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>模型与上下文</span></button>
+        <button v-if="showSessionControls && sessionId" type="button" :title="mode ? `当前模式：${mode}` : undefined" @click="addOpen = false; emit('open-mode')"><AppIcon name="eye" :size="20" /><span>切换执行模式</span></button>
       </div>
     </div>
   </Sheet>
