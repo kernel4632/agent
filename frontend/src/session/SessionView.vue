@@ -15,7 +15,7 @@
 import { computed, defineAsyncComponent, ref } from 'vue'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
-import SessionMorePanel from './SessionMorePanel.vue'
+import ConversationSettingsDrawer from './ConversationSettingsDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { Session } from '../commands/session.js'
@@ -33,8 +33,8 @@ const props = defineProps({
 const emit = defineEmits(['update:todoOpen'])
 
 // --- 页面内的开关 ---
-// "更多"面板默认收起：常用的是上面那几个开关，这里都是配一次就不动的。
-const moreOpen = ref(false)
+// 对话设置和任务清单都走右侧抽屉，不占输入框上方。
+const settingsOpen = ref(false)
 
 // --- 输入草稿和附件 ---
 // 草稿放在 session 上，切标签或打开设置再回来不会丢。
@@ -80,19 +80,17 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="!session.model" class="chat-notice"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
         </Transition>
-        <Transition name="panel">
-          <SessionMorePanel v-if="moreOpen" :session="session" />
-        </Transition>
         <Transition name="notice">
           <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
         </Transition>
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-id="session.settings.mode" :auto-approve="session.settings.autoApprove" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-permission="Session.toggleAutoApprove(session.id, $event)" @toggle-settings="moreOpen = !moreOpen" @toggle-mode="Session.toggleMode(session.id)" @select-mode="Session.setMode(session.id, $event)" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-id="session.settings.mode" :settings-open="settingsOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-mode="Session.toggleMode(session.id)" @select-mode="Session.setMode(session.id, $event)" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
+    <ConversationSettingsDrawer :open="settingsOpen" :session="session" @update:open="settingsOpen = $event" />
   </section>
 </template>
 
@@ -125,17 +123,16 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
   background: var(--la-warning);
 }
 /* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
-.notice-enter-active, .panel-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.notice-leave-active, .panel-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.notice-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
+.notice-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
 .notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
-.panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise)) scale(.985); }
 /* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
 .session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
 .session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
 .session-swap-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
 .session-swap-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
 @media (prefers-reduced-motion: reduce) {
-  .notice-enter-active, .notice-leave-active, .panel-enter-active, .panel-leave-active, .session-swap-enter-active, .session-swap-leave-active { transition-duration: .01ms; }
+  .notice-enter-active, .notice-leave-active, .session-swap-enter-active, .session-swap-leave-active { transition-duration: .01ms; }
 }
 @media (max-width: 767px) {
   .session-composer { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }

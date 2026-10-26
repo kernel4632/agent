@@ -167,25 +167,20 @@ test.describe('chat motion', () => {
     expect(mock.errors).toEqual([])
   })
 
-  test('more panel and todo drawer slide in', async ({ page }) => {
+  test('settings and todo drawers slide in', async ({ page }) => {
     const mock = await backend(page)
     await page.goto('/')
     await newSession(page, '面板动效')
 
-    await page.getByRole('button', { name: '更多选项', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: '更多选项' })).toBeVisible()
     await watchMotion(page)
-    await page.getByRole('button', { name: '对话设置', exact: true }).click()
-    await expect(page.locator('.chat-more')).toBeVisible()
-    await waitForMotion(page, 'chat-more')
+    await page.getByRole('button', { name: '权限控制', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: '对话设置' })
+    await expect(settings).toBeVisible()
+    await waitForMotion(page, 'kima-drawer__panel')
     let motion = await readMotion(page)
-    expect(moving(motion, 'chat-more').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    expect(moving(motion, 'chat-more').some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
-
-    await page.getByRole('button', { name: '更多选项', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: '更多选项' })).toBeVisible()
-    await page.getByRole('button', { name: '对话设置', exact: true }).click()
-    await expect(page.locator('.chat-more')).toHaveCount(0)
+    expect(moving(motion, 'kima-drawer__panel').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
+    await page.keyboard.press('Escape')
+    await expect(settings).toBeHidden()
 
     await navigate(page, '新建对话')
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
