@@ -10,6 +10,9 @@ import { KimaDrawer } from '@kernel4632/kima'
 defineProps({
   open: Boolean,
   label: { type: String, default: '' },
+  description: { type: String, default: '' },
+  // 面板最大宽度。内容按 560 排版时传 608（560 + 左右各 24 内边距），标题和列表才会左对齐。
+  width: { type: [Number, String], default: 880 },
 })
 const emit = defineEmits(['update:open'])
 </script>
@@ -17,8 +20,10 @@ const emit = defineEmits(['update:open'])
 <template>
   <KimaDrawer
     class="app-sheet"
+    :style="{ '--app-sheet-width': `${width}px` }"
     :open="open"
     :title="label || undefined"
+    :description="description || undefined"
     placement="bottom"
     @update:open="emit('update:open', $event)"
   ><slot /></KimaDrawer>
@@ -28,7 +33,7 @@ const emit = defineEmits(['update:open'])
 /* KIMA 的底部面板默认铺满视口；桌面端收窄到聊天宽度，标题和内容才能对齐。 */
 :global(.app-sheet .kima-drawer__panel) {
   width: 100%;
-  max-width: 880px;
+  max-width: var(--app-sheet-width, 880px);
   margin-inline: auto;
 }
 </style>

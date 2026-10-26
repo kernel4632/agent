@@ -644,7 +644,7 @@ test('composer exposes permission and mode controls next to the model', async ({
   await expect(permission).toHaveClass(/is-active/)
   // 抽屉覆盖打开，不能把输入框撑高。
   expect(await page.locator('.chat-composer').evaluate(element => element.getBoundingClientRect().height)).toBe(composerHeight)
-  await permissionDrawer.getByRole('option', { name: '读取', exact: true }).click()
+  await permissionDrawer.getByRole('checkbox', { name: /读取/ }).click()
   await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.autoApprove?.read === true)).toBe(true)
   await permissionDrawer.getByRole('button', { name: '关闭' }).click()
   await expect(permissionDrawer).toBeHidden()
@@ -683,7 +683,7 @@ test('new chat mode and permissions apply to the created session', async ({ page
   await page.getByRole('button', { name: '权限控制', exact: true }).click()
   const permissionDrawer = page.getByRole('dialog', { name: '自动批准' })
   await expect(permissionDrawer).toBeVisible()
-  await permissionDrawer.getByRole('option', { name: '读取', exact: true }).click()
+  await permissionDrawer.getByRole('checkbox', { name: /读取/ }).click()
   await permissionDrawer.getByRole('button', { name: '关闭' }).click()
   await expect(permissionDrawer).toBeHidden()
 

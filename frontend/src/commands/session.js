@@ -21,11 +21,11 @@ import { splitUserAttachments } from '../utils/user-message.js'      // 历史�
  * 少写一类会有契约测试报出来，不会静默地少一个开关。
  */
 const AUTO_APPROVE_KINDS = [
-  { kind: 'read', label: '读取', icon: 'eye', hint: '读文件、列目录、搜索不用再问' },
-  { kind: 'write', label: '写入', icon: 'edit', hint: '改文件、打补丁不用再问' },
+  { kind: 'read', label: '读取', icon: 'eye', hint: '读文件、搜索不用再问' },
+  { kind: 'write', label: '写入', icon: 'edit', hint: '改文件、打补丁不用问' },
   { kind: 'command', label: '执行命令', icon: 'code', hint: '跑命令不用再问' },
-  { kind: 'mcp', label: '使用 MCP', icon: 'globe', hint: 'MCP 服务提供的工具不用再问' },
-  { kind: 'subtask', label: '子任务', icon: 'folder', hint: '开子任务不用再问；子任务自己动文件仍按各类判断' },
+  { kind: 'mcp', label: '使用 MCP', icon: 'globe', hint: 'MCP 工具不用再问' },
+  { kind: 'subtask', label: '子任务', icon: 'folder', hint: '开子任务不用再问' },
 ]
 
 
