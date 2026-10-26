@@ -27,6 +27,7 @@ import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
 import ModeMenu from './ModeMenu.vue'
+import PermissionMenu from './PermissionMenu.vue'
 import { ATTACHMENT_ACCEPT } from '../utils/attachments.js'
 
 const props = defineProps({
@@ -35,14 +36,14 @@ const props = defineProps({
   sessionId: { type: String, default: '' },
   mode: { type: String, default: '' },
   modeId: { type: String, default: '' },
+  autoApprove: { type: Object, default: () => ({}) },
   showSessionControls: Boolean,
-  permissionsOpen: Boolean,
   isRunning: Boolean,
   busy: Boolean,
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'toggle-mode', 'select-mode'])
+const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permission', 'toggle-mode', 'select-mode'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -188,14 +189,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       <div class="chat-composer__options">
         <button type="button" class="composer-option" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" title="选择模型" @click="openModelSheet"><AppIcon name="spark" :size="24" /></button>
         <template v-if="showSessionControls">
-          <button
-            type="button"
-            class="composer-option composer-option--permission"
-            :class="{ 'is-active': permissionsOpen }"
-            aria-label="权限控制"
-            title="权限控制"
-            @click="emit('toggle-permissions')"
-          ><AppIcon name="permission" :size="20" /></button>
+          <PermissionMenu :auto-approve="autoApprove" @toggle="emit('toggle-permission', $event)" />
           <ModeMenu :modes="modeItems" :model-value="modeId" @select="emit('select-mode', $event)" />
         </template>
       </div>
@@ -374,7 +368,6 @@ defineExpose({ focus: () => editor.value?.focus() })
   cursor: pointer;
 }
 .composer-option { width: 48px; height: 48px; }
-.composer-option--permission { width: 40px; height: 40px; }
 .composer-action { width: 40px; height: 40px; }
 .composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }

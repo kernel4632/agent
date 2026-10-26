@@ -16,7 +16,6 @@
 <script setup>
 import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
-import PermissionSheet from '../session/PermissionSheet.vue'
 import { Session } from '../commands/session.js'
 
 const props = defineProps({
@@ -30,7 +29,6 @@ const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:mode', 'upd
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
-const permissionOpen = ref(false)
 const modeLabel = computed(() => Session.modeLabel(props.mode))
 
 function toggleAutoApprove(kind) {
@@ -52,7 +50,7 @@ defineExpose({ focus: () => composer.value?.focus() })
         :selected-model="model"
         :mode="modeLabel"
         :mode-id="mode"
-        :permissions-open="permissionOpen"
+        :auto-approve="autoApprove"
         :is-running="false"
         :busy="busy"
         :files="files"
@@ -61,15 +59,9 @@ defineExpose({ focus: () => composer.value?.focus() })
         @attach="emit('attach', $event)"
         @remove-file="emit('remove-file', $event)"
         @select-mode="emit('update:mode', $event)"
-        @toggle-permissions="permissionOpen = !permissionOpen"
+        @toggle-permission="toggleAutoApprove"
       />
     </div>
-    <PermissionSheet
-      :open="permissionOpen"
-      :auto-approve="autoApprove"
-      @update:open="permissionOpen = $event"
-      @toggle="toggleAutoApprove"
-    />
   </section>
 </template>
 
