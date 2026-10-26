@@ -246,6 +246,23 @@ async function toggleMode(sessionID) {
 }
 
 
+// --- 直接切到指定模式（输入框上的模式菜单用） ---
+async function setMode(sessionID, mode) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  const modes = store.config.modes?.length ? store.config.modes : [
+    { name: 'build', label: '执行模式', readOnly: false },
+    { name: 'plan', label: '计划模式', readOnly: true },
+  ]
+  const next = modes.find(item => item.name === mode)
+  if (!next) return null
+  if (session.settings.mode === next.name) return session.settings
+  const settings = await saveSettings(sessionID, { mode: next.name })
+  if (settings) UI.notify(next.readOnly ? `已切到${next.label}：只保留只读工具` : `已切到${next.label}`)
+  return settings
+}
+
+
 // --- 模式在界面上叫什么 ---
 function modeLabel(name) {
   return (store.config.modes || []).find(item => item.name === name)?.label || name
@@ -493,7 +510,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 
 export const Session = {
   locate, create, open, openByID, closeOpened, refresh, rename, remove, removeMany, selectModel, fork, normalize, syncSummary, saveTitleEditing,
-  saveSettings, toggleMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
+  saveSettings, toggleMode, setMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
 export { AUTO_APPROVE_KINDS, USE_LABELS }

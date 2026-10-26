@@ -7,6 +7,7 @@
 import { KimaIcon } from '@kernel4632/kima'
 import {
   Add01Icon,
+  AiBrain01Icon,
   ArrowDown01Icon,
   ArrowExpand01Icon,
   ArrowRight01Icon,
@@ -42,6 +43,7 @@ import {
   PlayIcon,
   Search01Icon,
   Settings03Icon,
+  Shield01Icon,
   Sorting01Icon,
   SparklesIcon,
   Tick02Icon,
@@ -81,6 +83,8 @@ const icons = {
   paperclip: Attachment01Icon,
   check: Tick02Icon,
   todo: CheckListIcon,
+  permission: Shield01Icon,
+  mode: AiBrain01Icon,
   info: InformationCircleIcon,
   link: Link01Icon,
   eye: EyeIcon,

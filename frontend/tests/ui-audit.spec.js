@@ -626,6 +626,40 @@ test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
   await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1')?.body?.compactThreshold).toBe(0.6)
 })
 
+test('composer exposes permission and mode controls next to the model', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const permission = page.getByRole('button', { name: '权限控制', exact: true })
+  await expect(permission).toBeVisible()
+  await permission.click()
+  await expect(page.locator('.chat-more')).toBeVisible()
+  await expect(permission).toHaveClass(/is-active/)
+  await permission.click()
+  await expect(page.locator('.chat-more')).toHaveCount(0)
+
+  const mode = page.locator('.composer-mode .kima-menu__trigger')
+  await expect(mode).toContainText('执行模式')
+  await mode.click()
+  const plan = page.locator('.kima-menu__popup').getByText('计划模式', { exact: true })
+  await expect(plan).toBeVisible()
+  await plan.click()
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1')?.body?.mode).toBe('plan')
+  await expect(mode).toContainText('计划模式')
+
+  // 320px 下三个入口仍要同时看得见，不能被挤到横向滚动里。
+  await page.setViewportSize({ width: 320, height: 568 })
+  const options = page.locator('.chat-composer__options')
+  expect(await options.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+  await expect(permission).toBeVisible()
+  await expect(page.locator('.composer-mode')).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('KIMA select keeps one combobox, hides the native select and chooses from its listbox', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
