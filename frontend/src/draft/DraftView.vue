@@ -5,7 +5,6 @@
 <DraftView
   ref="draftView"
   v-model:draft="draft"
-  :workspace="selectedWorkspace"
   :model="store.config.activeModel"
   :busy="creating || store.ui.isLoading"
   :files="homeFiles"

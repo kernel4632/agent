@@ -167,7 +167,7 @@ test.describe('chat motion', () => {
     expect(mock.errors).toEqual([])
   })
 
-  test('more panel and todo panel slide in', async ({ page }) => {
+  test('more panel and todo drawer slide in', async ({ page }) => {
     const mock = await backend(page)
     await page.goto('/')
     await newSession(page, '面板动效')
@@ -191,17 +191,20 @@ test.describe('chat motion', () => {
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
     await page.getByRole('button', { name: '发送消息', exact: true }).click()
     await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
-    await watchMotion(page)
     await mock.emit('session-2', [
       { type: 'agent-start' },
       { type: 'tool-call', toolCallId: 'todo-motion', toolName: 'update_todo_list', input: { todos: '- [ ] 动效任务' } },
       { type: 'tool-result', toolCallId: 'todo-motion', toolName: 'update_todo_list', output: { type: 'json', value: { items: [{ text: '动效任务', status: 'pending' }] } } },
     ])
-    await expect(page.locator('.session-todos')).toBeVisible()
-    await waitForMotion(page, 'session-todos')
+    // 清单不再占输入框上方；打开右侧面板时走 KIMA 抽屉动画。
+    await expect(page.locator('.session-todos')).toHaveCount(0)
+    await watchMotion(page)
+    await page.getByRole('button', { name: '任务清单', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '任务清单' })).toBeVisible()
+    await waitForMotion(page, 'kima-drawer__panel')
     motion = await readMotion(page)
-    expect(moving(motion, 'session-todos').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    expect(moving(motion, 'session-todos').some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
+    expect(moving(motion, 'kima-drawer__panel').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
+    expect(moving(motion, 'kima-drawer__panel').some(item => item.duration > 0)).toBe(true)
     expect(mock.errors).toEqual([])
   })
 

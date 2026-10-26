@@ -1,14 +1,13 @@
 <!--
-会话顶部栏：左边菜单（只在手机）、中间标题和模型副标题，右边文件面板和新建对话。
-只读取传入的会话和工作区；切换模型调用现有命令。
+会话顶部栏：左边菜单（只在手机）、中间标题和模型副标题，右边任务清单和新建对话。
+只读取传入的会话；切换模型调用现有命令。
 调用示例：
 <TopBar
   :session="session"
-  :workspace="selectedWorkspace"
-  :review-open="reviewOpen"
+  :todo-open="todoOpen"
   @menu="drawerOpen = true"
   @new="openDraft"
-  @update:review-open="reviewOpen = $event"
+  @update:todo-open="todoOpen = $event"
 />
 -->
 <script setup>
@@ -19,10 +18,9 @@ import { Session } from '../commands/session.js'
 
 const props = defineProps({
   session: { type: Object, default: null },              // 当前打开的完整会话
-  workspace: { type: Object, default: null },            // 当前工作区，用在空对话副标题
-  reviewOpen: Boolean,                                   // 右侧文件面板是否打开
+  todoOpen: Boolean,                                     // 右侧任务清单是否打开
 })
-const emit = defineEmits(['menu', 'new', 'update:reviewOpen'])
+const emit = defineEmits(['menu', 'new', 'update:todoOpen'])
 
 const title = computed(() => props.session ? props.session.title || '新会话' : '新对话')
 const draftSubtitle = computed(() => `la / ${store.config.activeModel || '未选择模型'}`)
@@ -53,7 +51,7 @@ async function saveTitle() {
     </div>
 
     <div class="topbar__actions">
-      <IconButton v-if="session" class="topbar__review session-review-toggle" label="文件面板" title="文件面板" :active="reviewOpen" @click="emit('update:reviewOpen', !reviewOpen)"><AppIcon :name="reviewOpen ? 'close' : 'list'" :size="18" /></IconButton>
+      <IconButton v-if="session" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><AppIcon :name="todoOpen ? 'close' : 'todo'" :size="18" /></IconButton>
       <IconButton label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="new-chat" :size="18" /></IconButton>
     </div>
   </header>
@@ -111,7 +109,7 @@ async function saveTitle() {
 .topbar__subtitle { min-width: 0; overflow: hidden; color: var(--la-muted); font-size: 12px; font-weight: 400; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .topbar__actions { display: flex; flex: none; align-items: center; gap: 4px; }
 
-/* 文件面板在面板本身隐藏的尺寸下也一起隐藏，避免点了没有反应。 */
+/* 手机上保留任务清单入口；标题让出空间，长标题自己截断。 */
 @media (max-width: 767px) {
   .topbar { padding: 0 8px; gap: 4px; }
   .topbar__heading h1 { font-size: 16px; line-height: 24px; }

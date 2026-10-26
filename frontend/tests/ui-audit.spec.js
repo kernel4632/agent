@@ -69,14 +69,9 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await expect(page.getByRole('button', { name: '停止生成' })).toHaveCount(0)
   await screenshot(page, testInfo, 'chat')
-  if (testInfo.project.name === 'desktop') {
-    await page.getByRole('button', { name: '文件面板', exact: true }).click()
-    const review = page.getByRole('dialog', { name: '文件' })
-    await expect(review).toBeVisible()
-    await expect(page.getByText('src/main.js', { exact: true })).toBeVisible()
-    await screenshot(page, testInfo, 'review')
-    await review.getByRole('button', { name: '关闭' }).click()
-  }
+  // 文件工作区面板已移除，原来的入口换成任务清单。
+  await expect(page.getByRole('button', { name: '文件面板', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '任务清单', exact: true })).toBeVisible()
   await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
   await page.getByRole('button', { name: '回退到这条消息' }).click()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
@@ -189,7 +184,7 @@ test('reasoning preview stays half-open while streaming', async ({ page }, testI
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
@@ -210,7 +205,7 @@ test('reasoning preview collapses after the llm finishes', async ({ page }) => {
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
@@ -249,12 +244,16 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
   await expect(page.locator('.cot-step--tool').getByText('读现有实现', { exact: true })).toBeVisible()
   await expect(page.locator('.cot-step--tool').getByText('补测试', { exact: true })).toBeVisible()
-  const panel = page.locator('.session-todos')
+  // 任务清单不再常驻输入框上方，改从顶栏打开右侧面板。
+  await expect(page.locator('.session-todos')).toHaveCount(0)
+  await page.getByRole('button', { name: '任务清单', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: '任务清单' })
   await expect(panel).toBeVisible()
   await expect(panel.getByText('读现有实现', { exact: true })).toBeVisible()
   await expect(panel.getByText('1 / 3')).toBeVisible()
-  await expect(panel.locator('.session-todos__status')).toHaveText(['已完成', '进行中', '待处理'])
+  await expect(panel.locator('.session-todo-panel__status')).toHaveText(['已完成', '进行中', '待处理'])
   await screenshot(page, testInfo, 'tool-todo')
+  await panel.getByRole('button', { name: '关闭' }).click()
   expect(mock.errors).toEqual([])
 })
 

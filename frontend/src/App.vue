@@ -28,9 +28,8 @@ const homeDraft = ref('')
 const homeFiles = ref([])
 const creating = ref(false)
 const drawerOpen = ref(false)
-const reviewOpen = ref(false)
+const todoOpen = ref(false)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
-const selectedWorkspace = computed(() => store.workspaces.find(item => item.id === store.ui.activeWorkspaceID) || store.workspaces[0])
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
 
@@ -40,7 +39,7 @@ async function goHome() {
   drawerOpen.value = false
   homeDraft.value = ''
   homeFiles.value = []
-  reviewOpen.value = false
+  todoOpen.value = false
   return true
 }
 
@@ -61,8 +60,12 @@ async function openSettings(section) {
   return UI.openSettings(section)
 }
 
-// 打开设置后可能从命令面板或快捷键进入，统一在这里收起抽屉。
-watch(() => store.ui.settingsOpen, open => { if (open) drawerOpen.value = false })
+// 打开设置后可能从命令面板或快捷键进入，统一在这里收起抽屉和任务面板。
+watch(() => store.ui.settingsOpen, open => {
+  if (!open) return
+  drawerOpen.value = false
+  todoOpen.value = false
+})
 
 // --- 命令面板：列表和开关交给 app/usePalette，这里只把导航动作接进去 ---
 const { open: paletteOpen, items: paletteItems, openPalette, closePalette, run: runPalette } = usePalette({ openDraft, openSession })
@@ -129,11 +132,10 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         <TopBar
           v-if="mode !== 'settings'"
           :session="session"
-          :workspace="selectedWorkspace"
-          :review-open="reviewOpen"
+          :todo-open="todoOpen"
           @menu="drawerOpen = true"
           @new="openDraft"
-          @update:review-open="reviewOpen = $event"
+          @update:todo-open="todoOpen = $event"
         />
 
         <main class="app-main">
@@ -161,9 +163,8 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               v-else
               key="session"
               :session="session"
-              :workspace="selectedWorkspace"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-              v-model:review-open="reviewOpen"
+              v-model:todo-open="todoOpen"
             />
           </Transition>
         </main>

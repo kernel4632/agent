@@ -1,5 +1,5 @@
 <!--
-会话页：把时间线、输入区、文件面板和运行设置组装成完整的一页。
+会话页：把时间线、输入区、任务清单面板和运行设置组装成完整的一页。
 顶部标题和模型切换由 App 外的 TopBar 提供，这里不再带内部标题栏。
 只负责会话自己的交互；打开会话、新建对话和全局快捷键仍由 App.vue 管。
 普通按钮、下拉框和数字输入统一走 ui/；芯片和模式按钮用 Button plain 保留原样式。
@@ -7,18 +7,16 @@
 <SessionView
   v-else
   :session="session"
-  :workspace="selectedWorkspace"
   :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-  v-model:review-open="reviewOpen"
+  v-model:todo-open="todoOpen"
 />
 -->
 <script setup>
 import { computed, defineAsyncComponent, ref } from 'vue'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
-import SessionFilePanel from './SessionFilePanel.vue'
 import SessionMorePanel from './SessionMorePanel.vue'
-import SessionTodos from './SessionTodos.vue'
+import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
@@ -29,11 +27,10 @@ const Timeline = defineAsyncComponent(() => import('./Timeline.vue'))
 
 const props = defineProps({
   session: { type: Object, required: true }, // 当前打开的完整会话
-  workspace: Object,                         // 会话所属工作区，给文件面板使用
   busy: Boolean,                             // 创建中、加载中或有连接错误时禁止发送
-  reviewOpen: Boolean,                       // 右侧文件面板是否打开，由 App 统一控制
+  todoOpen: Boolean,                         // 右侧任务清单是否打开，由 App 统一控制
 })
-const emit = defineEmits(['update:reviewOpen'])
+const emit = defineEmits(['update:todoOpen'])
 
 // --- 页面内的开关 ---
 // "更多"面板默认收起：常用的是上面那几个开关，这里都是配一次就不动的。
@@ -92,13 +89,10 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Transition name="panel">
-          <SessionTodos v-if="todos.length" :todos="todos" />
-        </Transition>
         <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="moreOpen = !moreOpen" @toggle-mode="Session.toggleMode(session.id)" />
       </div>
     </div>
-    <SessionFilePanel :open="reviewOpen" :session="session" :workspace="workspace" @update:open="emit('update:reviewOpen', $event)" />
+    <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
   </section>
 </template>
 
