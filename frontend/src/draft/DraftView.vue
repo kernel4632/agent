@@ -14,18 +14,28 @@
 />
 -->
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
+import PermissionSheet from '../session/PermissionSheet.vue'
+import { Session } from '../commands/session.js'
 
-defineProps({
+const props = defineProps({
   model: { type: String, default: '' },       // 新会话使用的模型
+  mode: { type: String, default: 'build' },  // 新会话默认模式，发送时随会话一起保存
+  autoApprove: { type: Object, default: () => ({}) }, // 新会话默认自动批准分类
   busy: Boolean,                              // 创建中、加载中或有连接错误时禁用发送
   files: { type: Array, default: () => [] },  // 已经附上的文件
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:mode', 'update:autoApprove'])
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
+const permissionOpen = ref(false)
+const modeLabel = computed(() => Session.modeLabel(props.mode))
+
+function toggleAutoApprove(kind) {
+  emit('update:autoApprove', { ...props.autoApprove, [kind]: !props.autoApprove?.[kind] })
+}
 
 // 打开草稿页后由 App 调用，把焦点交给输入框。
 defineExpose({ focus: () => composer.value?.focus() })
@@ -36,8 +46,30 @@ defineExpose({ focus: () => composer.value?.focus() })
     <div class="draft-empty" aria-hidden="true"></div>
 
     <div class="draft-form">
-      <Composer ref="composer" v-model:draft="draft" :selected-model="model" :is-running="false" :busy="busy" :files="files" @submit="emit('submit', $event)" @attach="emit('attach', $event)" @remove-file="emit('remove-file', $event)" />
+      <Composer
+        ref="composer"
+        v-model:draft="draft"
+        :selected-model="model"
+        :mode="modeLabel"
+        :mode-id="mode"
+        :permissions-open="permissionOpen"
+        :is-running="false"
+        :busy="busy"
+        :files="files"
+        show-session-controls
+        @submit="emit('submit', $event)"
+        @attach="emit('attach', $event)"
+        @remove-file="emit('remove-file', $event)"
+        @select-mode="emit('update:mode', $event)"
+        @toggle-permissions="permissionOpen = !permissionOpen"
+      />
     </div>
+    <PermissionSheet
+      :open="permissionOpen"
+      :auto-approve="autoApprove"
+      @update:open="permissionOpen = $event"
+      @toggle="toggleAutoApprove"
+    />
   </section>
 </template>
 

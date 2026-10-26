@@ -15,6 +15,7 @@
 import { computed, defineAsyncComponent, ref } from 'vue'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
+import PermissionSheet from './PermissionSheet.vue'
 import SessionMorePanel from './SessionMorePanel.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
@@ -35,6 +36,7 @@ const emit = defineEmits(['update:todoOpen'])
 // --- 页面内的开关 ---
 // "更多"面板默认收起：常用的是上面那几个开关，这里都是配一次就不动的。
 const moreOpen = ref(false)
+const permissionOpen = ref(false)
 
 // --- 输入草稿和附件 ---
 // 草稿放在 session 上，切标签或打开设置再回来不会丢。
@@ -89,10 +91,11 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-id="session.settings.mode" :settings-open="moreOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="moreOpen = !moreOpen" @toggle-mode="Session.toggleMode(session.id)" @select-mode="Session.setMode(session.id, $event)" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-id="session.settings.mode" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-permissions="permissionOpen = !permissionOpen" @toggle-settings="moreOpen = !moreOpen" @toggle-mode="Session.toggleMode(session.id)" @select-mode="Session.setMode(session.id, $event)" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
+    <PermissionSheet :open="permissionOpen" :auto-approve="session.settings.autoApprove" @update:open="permissionOpen = $event" @toggle="Session.toggleAutoApprove(session.id, $event)" />
   </section>
 </template>
 

@@ -16,7 +16,7 @@ import { usePalette } from './app/usePalette.js'
 import { createShortcutHandler } from './app/shortcuts.js'
 import ThemeProvider from './theme/ThemeProvider.vue'
 import { store } from './store.js'
-import { Session } from './commands/session.js'
+import { Session, AUTO_APPROVE_KINDS } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { UI, activeSession } from './commands/ui.js'
 import { normalizeAppearance } from './theme/index.js'
@@ -29,6 +29,9 @@ const homeFiles = ref([])
 const creating = ref(false)
 const drawerOpen = ref(false)
 const todoOpen = ref(false)
+// 新对话页还没有会话，但模式/权限选择要在发送前可见，发送时再写进创建出的会话。
+const draftMode = ref('build')
+const draftAutoApprove = ref(Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])))
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
@@ -82,6 +85,14 @@ async function submitMessage(content) {
     current.files = homeFiles.value
     homeDraft.value = ''
     homeFiles.value = []
+    // 新对话页改过模式和权限时，写进刚创建的会话后再发送；默认值不必多发一次请求。
+    const autoApprove = Object.values(draftAutoApprove.value).some(Boolean)
+    if (draftMode.value !== 'build' || autoApprove) {
+      await Session.saveSettings(current.id, {
+        mode: draftMode.value,
+        autoApprove: { ...draftAutoApprove.value },
+      })
+    }
   } finally { creating.value = false }
   if (await Chat.send(current.id, content)) {
     if (store.sessions[current.id]?.draft === content) store.sessions[current.id].draft = ''
@@ -152,8 +163,12 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               ref="draftView"
               v-model:draft="homeDraft"
               :model="store.config.activeModel"
+              :mode="draftMode"
+              :auto-approve="draftAutoApprove"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               :files="homeFiles"
+              @update:mode="draftMode = $event"
+              @update:auto-approve="draftAutoApprove = $event"
               @submit="submitMessage"
               @attach="attachFiles"
               @remove-file="removeFile"

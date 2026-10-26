@@ -36,13 +36,13 @@ const props = defineProps({
   mode: { type: String, default: '' },
   modeId: { type: String, default: '' },
   showSessionControls: Boolean,
-  settingsOpen: Boolean,
+  permissionsOpen: Boolean,
   isRunning: Boolean,
   busy: Boolean,
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-mode', 'select-mode'])
+const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'toggle-mode', 'select-mode'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -191,10 +191,10 @@ defineExpose({ focus: () => editor.value?.focus() })
           <button
             type="button"
             class="composer-option composer-option--permission"
-            :class="{ 'is-active': settingsOpen }"
+            :class="{ 'is-active': permissionsOpen }"
             aria-label="权限控制"
             title="权限控制"
-            @click="emit('toggle-settings')"
+            @click="emit('toggle-permissions')"
           ><AppIcon name="permission" :size="20" /></button>
           <ModeMenu :modes="modeItems" :model-value="modeId" @select="emit('select-mode', $event)" />
         </template>
@@ -237,8 +237,8 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="composer-sheet">
       <div class="composer-sheet__list">
         <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
-        <button v-if="showSessionControls" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>对话设置</span></button>
-        <button v-if="showSessionControls" type="button" :title="mode ? `当前模式：${mode}` : undefined" @click="addOpen = false; emit('toggle-mode')"><AppIcon name="eye" :size="20" /><span>切换执行模式</span></button>
+        <button v-if="showSessionControls && sessionId" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>对话设置</span></button>
+        <button v-if="showSessionControls && sessionId" type="button" :title="mode ? `当前模式：${mode}` : undefined" @click="addOpen = false; emit('toggle-mode')"><AppIcon name="eye" :size="20" /><span>切换执行模式</span></button>
       </div>
     </div>
   </Sheet>

@@ -623,7 +623,7 @@ test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
   const threshold = page.getByLabel('阈值', { exact: true })
   await threshold.fill('0.6')
   await threshold.press('Tab')
-  await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1')?.body?.compactThreshold).toBe(0.6)
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.compactThreshold !== undefined)?.body.compactThreshold).toBe(0.6)
 })
 
 test('composer exposes permission and mode controls next to the model', async ({ page }) => {
@@ -637,10 +637,14 @@ test('composer exposes permission and mode controls next to the model', async ({
   const permission = page.getByRole('button', { name: '权限控制', exact: true })
   await expect(permission).toBeVisible()
   await permission.click()
-  await expect(page.locator('.chat-more')).toBeVisible()
+  const permissionSheet = page.getByRole('dialog', { name: '权限控制' })
+  await expect(permissionSheet).toBeVisible()
   await expect(permission).toHaveClass(/is-active/)
-  await permission.click()
-  await expect(page.locator('.chat-more')).toHaveCount(0)
+  await permissionSheet.getByRole('button', { name: '读取', exact: true }).click()
+  await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.autoApprove?.read === true)).toBe(true)
+  await permissionSheet.getByRole('button', { name: '关闭' }).click()
+  await expect(permissionSheet).toBeHidden()
+  await expect(permission).not.toHaveClass(/is-active/)
 
   const mode = page.locator('.composer-mode .kima-menu__trigger')
   await expect(mode).toContainText('执行模式')
@@ -648,7 +652,7 @@ test('composer exposes permission and mode controls next to the model', async ({
   const plan = page.locator('.kima-menu__popup').getByText('计划模式', { exact: true })
   await expect(plan).toBeVisible()
   await plan.click()
-  await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1')?.body?.mode).toBe('plan')
+  await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.mode === 'plan')).toBe(true)
   await expect(mode).toContainText('计划模式')
 
   // 320px 下三个入口仍要同时看得见，不能被挤到横向滚动里。
@@ -657,6 +661,33 @@ test('composer exposes permission and mode controls next to the model', async ({
   expect(await options.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
   await expect(permission).toBeVisible()
   await expect(page.locator('.composer-mode')).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('new chat mode and permissions apply to the created session', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+
+  const mode = page.locator('.composer-mode .kima-menu__trigger')
+  await mode.click()
+  await page.locator('.kima-menu__popup').getByText('计划模式', { exact: true }).click()
+  await page.getByRole('button', { name: '权限控制', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '权限控制' })
+  await sheet.getByRole('button', { name: '读取', exact: true }).click()
+  await sheet.getByRole('button', { name: '关闭' }).click()
+  await expect(sheet).toBeHidden()
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const saved = mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.mode === 'plan')
+  expect(saved).toBeTruthy()
+  expect(saved.body.autoApprove.read).toBe(true)
+  const sendIndex = mock.calls.findIndex(call => call.path === '/agent/send/session-1')
+  expect(mock.calls.indexOf(saved)).toBeLessThan(sendIndex)
+  await expect(page.locator('.composer-mode .kima-menu__trigger')).toContainText('计划模式')
   expect(mock.errors).toEqual([])
 })
 
