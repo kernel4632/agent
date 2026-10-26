@@ -248,17 +248,25 @@ export async function openDrawer(page) {
 }
 
 export async function navigate(page, name) {
+  const drawer = page.getByRole('dialog', { name: '项目与会话' })
   if (name === '新建对话') {
-    await page.getByRole('button', { name: '新建对话', exact: true }).click()
-    // 页面切换有过渡；等新草稿页真正挂载后再让测试输入。
+    // 新建对话入口已从顶栏移到抽屉底部。
+    await openDrawer(page)
+    await drawer.getByRole('button', { name: '新建对话', exact: true }).click()
+    // 关闭动画结束后 goHome 才完成，草稿也才会清空；先等抽屉消失再输入。
+    await expect(drawer).toBeHidden()
     await expect(page.locator('.draft-panel')).toBeVisible()
     return
   }
+  if (name === '设置') {
+    // 设置入口已从抽屉移到顶栏；抽屉开着时先关掉，避免遮住顶栏。
+    if (await drawer.isVisible()) await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
+    return
+  }
   await openDrawer(page)
-  const drawer = page.getByRole('dialog', { name: '项目与会话' })
-  const target = name === '设置'
-    ? drawer.getByRole('button', { name: '设置', exact: true })
-    : drawer.getByRole('button', { name, exact: true }).first()
-  await target.click()
-  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await drawer.getByRole('button', { name, exact: true }).first().click()
+  await expect(drawer).toBeHidden()
 }

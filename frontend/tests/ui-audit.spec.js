@@ -23,8 +23,16 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   const mock = await backend(page, { configured: false })
   await page.goto('/')
   await openDrawer(page)
-  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
+  const drawer = page.getByRole('dialog', { name: '项目与会话' })
+  const topbar = page.locator('.topbar')
+  await expect(drawer).toBeVisible()
   await expect(page.getByRole('searchbox', { name: '搜索会话' })).toBeVisible()
+  // 新建对话在抽屉底部，设置在顶栏。
+  await expect(drawer.getByRole('button', { name: '新建对话', exact: true })).toBeVisible()
+  await expect(drawer.getByRole('button', { name: '设置', exact: true })).toHaveCount(0)
+  await expect(drawer.getByText('点下面的「新建对话」开始。')).toBeVisible()
+  await expect(topbar.getByRole('button', { name: '设置', exact: true })).toBeVisible()
+  await expect(topbar.getByRole('button', { name: '新建对话', exact: true })).toHaveCount(0)
   await screenshot(page, testInfo, 'drawer')
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
@@ -39,7 +47,7 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   await page.getByRole('button', { name: '清除搜索' }).click()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
-  await page.getByRole('button', { name: '新建对话', exact: true }).click()
+  await navigate(page, '新建对话')
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'draft')
   await page.locator('.chat-composer__expand-corner').hover()
@@ -263,7 +271,7 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },

@@ -1,9 +1,9 @@
 <!--
 应用抽屉：始终从左侧覆盖滑出，不占主内容宽度。
-结构：标题栏（统计、设置）→ 常驻搜索 → 会话列表（始终按最近修改排序）。
-模型选择、新建对话、收藏和工作区选择都不放在侧栏。
+结构：标题栏 → 常驻搜索 → 会话列表（始终按最近修改排序）→ 底部新建对话。
+模型选择、收藏和工作区选择都不放在侧栏。
 调用示例：
-<AppDrawer :open="drawerOpen" @close="drawerOpen = false" @open="openSession" @settings="openSettings" />
+<AppDrawer :open="drawerOpen" @close="drawerOpen = false" @open="openSession" @new="openDraft" />
 -->
 <script setup>
 import { computed, ref } from 'vue'
@@ -16,7 +16,7 @@ import { store } from '../store.js'
 defineProps({
   open: Boolean,
 })
-const emit = defineEmits(['close', 'open', 'settings'])
+const emit = defineEmits(['close', 'open', 'new'])
 
 const search = ref('')
 
@@ -100,11 +100,11 @@ async function confirmDelete() {
 
     <template #footer>
       <Transition name="drawer-action" mode="out-in">
-        <Button v-if="selecting" key="delete" variant="danger" class="drawer-settings" :disabled="!selected.length" @click="deleteOpen = true">
+        <Button v-if="selecting" key="delete" variant="danger" class="drawer-footer" :disabled="!selected.length" @click="deleteOpen = true">
           <AppIcon name="trash" :size="20" /><span>删除 {{ selected.length }} 个会话</span>
         </Button>
-        <Button v-else key="settings" variant="tonal" class="drawer-settings" @click="emit('settings')">
-          <AppIcon name="settings" :size="20" /><span>设置</span>
+        <Button v-else key="new" variant="tonal" class="drawer-footer" @click="emit('new')">
+          <AppIcon name="new-chat" :size="20" /><span>新建对话</span>
         </Button>
       </Transition>
     </template>
@@ -130,7 +130,7 @@ async function confirmDelete() {
 .app-drawer__title { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
 .app-drawer__head-actions { display: flex; align-items: center; gap: 2px; }
 .app-drawer__search { margin-bottom: 16px; }
-.drawer-settings {
+.drawer-footer {
   width: 100%;
   min-height: 56px;
   justify-content: center;

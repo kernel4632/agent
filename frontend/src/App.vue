@@ -1,7 +1,7 @@
 <!--
 应用外壳：负责视图切换、抽屉、顶部栏和跨视图事件接线。
 页面在 draft/、session/、settings/；抽屉、顶部栏、命令面板、提示条和快捷键在 app/；导航、设置、反馈等动作由 commands/ 提供。
-入口：main.js 挂载本组件；调用示例：<AppDrawer :open="drawerOpen" />、<TopBar :session="session" @new="openDraft" />。
+入口：main.js 挂载本组件；调用示例：<AppDrawer :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -125,7 +125,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         :open="drawerOpen"
         @close="drawerOpen = false"
         @open="openSession"
-        @settings="openSettings()"
+        @new="openDraft"
       />
 
       <div class="rikka-main">
@@ -134,7 +134,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
           :session="session"
           :todo-open="todoOpen"
           @menu="drawerOpen = true"
-          @new="openDraft"
+          @settings="openSettings()"
           @update:todo-open="todoOpen = $event"
         />
 

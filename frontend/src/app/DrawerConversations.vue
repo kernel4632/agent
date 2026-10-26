@@ -142,7 +142,7 @@ async function submitDialog() {
       </template>
       <div v-else class="home-empty">
         <strong>{{ query ? '没有找到匹配的会话' : '还没有会话' }}</strong>
-        <p>{{ query ? '换个关键词试试。' : '点右上角的新建按钮开始。' }}</p>
+        <p>{{ query ? '换个关键词试试。' : '点下面的「新建对话」开始。' }}</p>
         <Button v-if="query" variant="ghost" @click="emit('update:query', '')">清除搜索</Button>
       </div>
     </nav>

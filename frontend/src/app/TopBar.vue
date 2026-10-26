@@ -1,12 +1,12 @@
 <!--
-会话顶部栏：左边菜单（只在手机）、中间标题和模型副标题，右边任务清单和新建对话。
+会话顶部栏：左边菜单（只在手机）、中间标题和模型副标题，右边任务清单和设置。
 只读取传入的会话；切换模型调用现有命令。
 调用示例：
 <TopBar
   :session="session"
   :todo-open="todoOpen"
   @menu="drawerOpen = true"
-  @new="openDraft"
+  @settings="openSettings()"
   @update:todo-open="todoOpen = $event"
 />
 -->
@@ -20,7 +20,7 @@ const props = defineProps({
   session: { type: Object, default: null },              // 当前打开的完整会话
   todoOpen: Boolean,                                     // 右侧任务清单是否打开
 })
-const emit = defineEmits(['menu', 'new', 'update:todoOpen'])
+const emit = defineEmits(['menu', 'settings', 'update:todoOpen'])
 
 const title = computed(() => props.session ? props.session.title || '新会话' : '新对话')
 const draftSubtitle = computed(() => `la / ${store.config.activeModel || '未选择模型'}`)
@@ -52,7 +52,7 @@ async function saveTitle() {
 
     <div class="topbar__actions">
       <IconButton v-if="session" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><AppIcon :name="todoOpen ? 'close' : 'todo'" :size="18" /></IconButton>
-      <IconButton label="新建对话" title="新建对话" @click="emit('new')"><AppIcon name="new-chat" :size="18" /></IconButton>
+      <IconButton label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="18" /></IconButton>
     </div>
   </header>
 
