@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.40.0",
+    "version": "0.41.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -2277,6 +2277,37 @@
                 }
               }
             ]
+          },
+          "usage": {
+            "type": "object",
+            "description": "这条助手消息对应的一次模型请求用量；刷新后前端据此恢复请求行",
+            "properties": {
+              "input": {
+                "type": "number"
+              },
+              "output": {
+                "type": "number"
+              },
+              "cacheRead": {
+                "type": "number"
+              },
+              "cacheWrite": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              },
+              "startedAt": {
+                "type": "number"
+              },
+              "finishedAt": {
+                "type": "number"
+              },
+              "durationMs": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
           }
         }
       },

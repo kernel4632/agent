@@ -516,7 +516,6 @@ const compact = async ({ sessionId }) => {
 const send = ({ sessionId, input }) => run({ sessionId, input })
 
 const RESUME_INPUT = '继续'
-
 // 继续被中断的助手回复：只在发送时占位，onStart 里会从历史删掉。
 // 这样模型看到的历史末尾仍然是上一段助手回复或工具结果，不会知道“中途被打断过”。
 const resume = ({ sessionId }) => run({ sessionId, input: RESUME_INPUT, resume: true })
@@ -530,6 +529,30 @@ const textOf = message => {
         .filter(part => part?.type === 'text')                                // 只取正文块
         .map(part => part.text || '')                                         // 空块按空字符串
         .join('')                                                             // 拼回一整段
+}
+
+// --- 把一次模型请求的用量收成固定字段 ---
+// agent-core 不同协议返回的字段名略有差别，进历史前统一，前端只认这一套。
+const usageOf = ({ usage, startedAt, finishedAt }) => {
+    const input = Number(usage?.inputTokens ?? usage?.promptTokens ?? 0)
+    const output = Number(usage?.outputTokens ?? usage?.completionTokens ?? 0)
+    return {
+        input,
+        output,
+        cacheRead: Number(usage?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0),
+        cacheWrite: Number(usage?.cacheWriteTokens ?? 0),
+        total: Number(usage?.totalTokens ?? input + output),
+        startedAt,
+        finishedAt,
+        durationMs: Math.max(0, finishedAt - startedAt),
+    }
+}
+
+// 一次模型请求结束时，把用量挂到刚追加的那条助手消息上，刷新后还能看到。
+const attachUsage = ({ agent, usage }) => {
+    if (!usage) return
+    const message = [...agent.history].reverse().find(item => item.role === 'assistant' && !item.usage)
+    if (message) message.usage = usage
 }
 
 // --- 删掉继续占位 ---
@@ -609,6 +632,8 @@ const run = async ({ sessionId, input, resume = false }) => {
     const token = { stopped: false }                                  // 这一轮的终态令牌；stop 和 task.then 只有一方能结束它
     activeRuns.set(sessionId, token)
     let resumeError = ''                                              // 继续占位校验失败时，收尾路径只报错、不保存
+    let llmStartedAt = 0                                              // 这次模型请求的开始时间，用来算耗时
+    let pendingUsage = null                                           // 请求结束但还没挂到助手消息上的用量
     let task
     try {
         task = agent.send({
@@ -628,8 +653,15 @@ const run = async ({ sessionId, input, resume = false }) => {
                 if (token.stopped || activeRuns.get(sessionId) !== token) return // 保存期间已被 stop 接管，不再发开始事件
                 await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
             },
-            onLLMStart: request => SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } }),
-            onLLMFinish: result => SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result } }),
+            onLLMStart: request => {
+                llmStartedAt = Date.now()
+                return SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } })
+            },
+            onLLMFinish: result => {
+                const finishedAt = Date.now()
+                pendingUsage = usageOf({ usage: result.usage, startedAt: llmStartedAt || finishedAt, finishedAt })
+                return SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result, durationMs: pendingUsage.durationMs } })
+            },
             onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
             onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
             onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
@@ -644,9 +676,13 @@ const run = async ({ sessionId, input, resume = false }) => {
             },
             // 每完成一步就落盘；agent-core 会 await 这个回调，保存期间不会再有新事件。
             // 保存成功后清掉已落盘事件；断线重连先读历史，不会重复播放已经显示的内容。
-            onStep: () => syncHistory({ sessionId, agent }).catch(error => {
-                console.error(`[session ${sessionId}] 步骤保存失败：${error.message}`)
-            }),
+            onStep: () => {
+                attachUsage({ agent, usage: pendingUsage })
+                pendingUsage = null
+                return syncHistory({ sessionId, agent }).catch(error => {
+                    console.error(`[session ${sessionId}] 步骤保存失败：${error.message}`)
+                })
+            },
             onCompact: event => SSE.send({ id: sessionId, data: event }),
             // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
             // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await

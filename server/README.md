@@ -813,7 +813,7 @@ Accept: text/event-stream
 | `reasoning-delta` | `text` | 追加到当前 assistant 思考文本 |
 | `retry` | `attempt`, `error`, `delay` | 显示正在重试 |
 | `llm-start` | `messages`, `tools` | 显示正在请求模型 |
-| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage` | 统计本轮模型请求并读取完整结果 |
+| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `durationMs` | 统计本轮模型请求并读取完整结果；用量会同时挂到助手消息的 `usage` 上，刷新后仍能显示 |
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具调用卡片 |
 | `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |

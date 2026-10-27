@@ -160,6 +160,11 @@ describe('继续被中断的助手', () => {
                 expect(messages.at(-1).content).toContain('做到一半')
                 expect(JSON.stringify(messages)).not.toContain('继续')
 
+                // 用量挂到助手消息上，刷新页面后请求行仍然能显示输入/输出。
+                const saved = History.get({ sessionId }).find(message => message.usage)
+                expect(saved?.usage).toMatchObject({ input: 1, output: 1, total: 2 })
+                expect(saved.usage.durationMs).toBeGreaterThanOrEqual(0)
+
                 // 模型没有调用结束工具时会继续追加提示；等这一轮彻底停下再清理临时目录。
                 for (let attempt = 0; attempt < 100 && Store.agents.get(sessionId)?.running; attempt += 1) await Bun.sleep(10)
                 await Bun.sleep(100)
