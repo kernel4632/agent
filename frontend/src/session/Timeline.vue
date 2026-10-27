@@ -16,6 +16,7 @@ import { groupMessageTurns } from './turns.js'
 import { isSavedMessage } from './continue.js'
 import { AppIcon, KimaMarkdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
+import CompactionNotice from './CompactionNotice.vue'
 import './conversation.scss'
 import AssistantTurn from './AssistantTurn.vue'
 import RollbackDialog from './RollbackDialog.vue'
@@ -62,12 +63,19 @@ const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
+const topSentinel = ref(null)
 let scrollParent
 let observer
+let sentinelObserver
 let frame = 0
-// 离底部 100px 内都算“在看最新内容”；这样轻微滚动不会立刻打断自动跟随。
+let lastTop = 0
+// 离底部 100px 内都算“在看最新内容”；往上滚时立刻解除跟随，避免被自动滚动拽回去。
 function onScroll() {
-  pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100
+  const top = scrollParent.scrollTop
+  const distance = scrollParent.scrollHeight - top - scrollParent.clientHeight
+  if (top < lastTop - 1) pinned.value = false
+  else pinned.value = distance < 100
+  lastTop = top
   if (pinned.value) scheduleScroll()
 }
 // 滚动和流式输出都可能在一帧内触发很多次；合并到下一帧，只量一次高度、只改一次 scrollTop。
@@ -78,6 +86,10 @@ function scheduleScroll() {
     if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight
   })
 }
+function jumpToBottom() {
+  pinned.value = true
+  if (scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight
+}
 watch(() => turns.value.length, scheduleScroll)
 onMounted(() => {
   scrollParent = props.scrollRoot
@@ -85,11 +97,17 @@ onMounted(() => {
   // 监听内容高度，而不是深度监听整段消息：流式追加文字、图片加载、工具展开都会改变高度。
   observer = new ResizeObserver(scheduleScroll)
   if (flow.value) observer.observe(flow.value)
+  // 滚到最上面时自动接上一页历史；按钮仍然保留，键盘和读屏也能主动加载。
+  sentinelObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting)) loadEarlier()
+  }, { root: scrollParent, rootMargin: '120px 0px 0px 0px' })
+  if (topSentinel.value) sentinelObserver.observe(topSentinel.value)
   scheduleScroll()
 })
 onBeforeUnmount(() => {
   scrollParent?.removeEventListener('scroll', onScroll)
   observer?.disconnect()
+  sentinelObserver?.disconnect()
   if (frame) cancelAnimationFrame(frame)
 })
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
@@ -132,12 +150,14 @@ function onUserMenu(message, action) {
 
 <template>
   <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
+    <span ref="topSentinel" class="conversation-top-sentinel" aria-hidden="true"></span>
     <button v-if="earlierCount" type="button" class="conversation-earlier" @click="loadEarlier">
       <AppIcon name="up" :size="14" />
       更早的 {{ earlierCount }} 轮
     </button>
-    <article v-for="turn in visibleTurns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
-      <template v-if="turn.role === 'user'">
+    <article v-for="turn in visibleTurns" :key="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'la 的回复'">
+      <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
+      <template v-else-if="turn.role === 'user'">
         <MessageActionTarget
           :items="userMenuItems(turn.messages[0])"
           :preview="turn.messages[0].displayContent ?? turn.messages[0].content"
@@ -168,6 +188,10 @@ function onUserMenu(message, action) {
         />
       </template>
     </article>
+    <button v-if="!pinned" type="button" class="conversation-latest" @click="jumpToBottom">
+      <AppIcon name="down" :size="14" />
+      回到最新
+    </button>
     <RollbackDialog
       ref="rollbackDialog"
       :target="rollbackTarget"
@@ -179,6 +203,7 @@ function onUserMenu(message, action) {
 
 <style scoped lang="scss">
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
+.conversation-top-sentinel { display: block; width: 100%; height: 1px; flex: none; }
 .conversation-earlier {
   align-self: center;
   display: inline-flex;
@@ -194,6 +219,27 @@ function onUserMenu(message, action) {
   cursor: pointer;
 }
 .conversation-earlier:hover { color: var(--la-text); background: var(--la-layer-02); }
+.conversation-latest {
+  position: sticky;
+  bottom: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-self: flex-end;
+  align-items: center;
+  gap: 5px;
+  margin-right: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--la-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--la-panel) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--la-shadow-floating);
+  color: var(--la-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.conversation-latest:hover { background: var(--la-layer-01); }
 .message { display: block; min-width: 0; }
 
 </style>

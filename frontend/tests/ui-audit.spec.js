@@ -264,8 +264,9 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
     ] } } },
   ])
 
-  const label = page.getByText('任务清单 · 当前进度', { exact: true })
-  await expect(label).toBeVisible()
+  const label = page.locator('.cot-step--tool .cot-step__label')
+  await expect(label).toHaveText('任务清单')
+  await expect(page.locator('.cot-step--tool .cot-step__summary')).toHaveText('当前进度')
   await expect(page.locator('.cot-step--tool .cot-step__body')).toBeVisible()
   await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
   await expect(page.locator('.cot-step--tool').getByText('读现有实现', { exact: true })).toBeVisible()
@@ -689,8 +690,7 @@ test('topbar stats opens the session data panel', async ({ page }, testInfo) => 
   expect(mock.errors).toEqual([])
 })
 
-test('legacy history without usage shows estimated stats, not zeros', async ({ page }, testInfo) => {
-  const mock = await backend(page)
+test('legacy history without usage shows estimated stats, not zeros', async ({ page }, testInfo) => {  const mock = await backend(page)
   // 旧会话没有保存每次请求的 usage；统计必须从消息内容估算并标出来。
   mock.sessions.set('legacy-1', {
     id: 'legacy-1',
@@ -732,6 +732,49 @@ test('legacy history without usage shows estimated stats, not zeros', async ({ p
   await expect(panel.locator('.stats-panel__usage-head strong')).not.toHaveText('0')
   await expect(panel.locator('.stats-panel__contextbar-used')).toBeVisible()
   await screenshot(page, testInfo, 'topbar-stats-estimated')
+  expect(mock.errors).toEqual([])
+})
+
+test('compaction summary renders as a divider, not a user bubble', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  mock.sessions.set('compact-1', {
+    id: 'compact-1',
+    title: '压缩过的会话',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history: [
+      { messageId: 'compact-u1', role: 'user', content: '旧问题' },
+      { messageId: 'compact-a1', role: 'assistant', content: [{ type: 'text', text: '旧回答' }] },
+      { messageId: 'compact-summary', role: 'user', compact: true, content: '压缩摘要正文' },
+      { messageId: 'compact-u2', role: 'user', content: '新问题' },
+      { messageId: 'compact-a2', role: 'assistant', content: [{ type: 'text', text: '新回答' }] },
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: {
+      agent: 'build',
+      autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
+      autoApproveLimit: 50,
+      compactThreshold: 0.8,
+      capabilities: { image: true, cache: true, stream: true },
+      uses: {},
+      autoTitle: true,
+      reasoning: 'auto',
+    },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '压缩过的会话', exact: true }).click()
+  await expect(page.locator('.compaction-notice')).toBeVisible()
+  await expect(page.locator('.compaction-notice')).toContainText('上下文已压缩')
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '压缩摘要正文' })).toHaveCount(0)
+  await page.locator('.compaction-notice__button').click()
+  await expect(page.locator('.compaction-summary')).toContainText('压缩摘要正文')
+  await screenshot(page, testInfo, 'compaction-divider')
   expect(mock.errors).toEqual([])
 })
 

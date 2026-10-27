@@ -20,6 +20,8 @@ button:disabled { cursor: not-allowed !important; opacity: .5; }
 button, a { transition: background-color .12s ease, color .12s ease, border-color .12s ease, box-shadow .12s ease; }
 :focus-visible { outline: 2px solid var(--la-accent-border); outline-offset: 2.5px; }
 button svg { flex-shrink: 0; }
+/* KIMA 内部图标默认写死 2px；这里统一压到 1.5px，和 AppIcon 对齐。 */
+.kima-icon path, .kima-icon line, .kima-icon circle, .kima-icon rect, .kima-icon polyline, .kima-icon polygon { stroke-width: 1.5 !important; }
 ::selection { background: var(--la-accent-soft); }
 * { scrollbar-width: thin; scrollbar-color: var(--la-layer-04) transparent; }
 m3e-theme {
