@@ -7,7 +7,7 @@
       "dependencies": {
         "@hugeicons/core-free-icons": "^4.2.3",
         "@hugeicons/vue": "1.0.7",
-        "@kernel4632/kima": "0.8.5",
+        "@kernel4632/kima": "0.9.7",
         "@m3e/icons": "^1.0.11",
         "@m3e/web": "^2.7.1",
         "dompurify": "latest",
@@ -94,7 +94,7 @@
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "https://registry.npmmirror.com/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
-    "@kernel4632/kima": ["@kernel4632/kima@0.8.5", "https://registry.npmmirror.com/@kernel4632/kima/-/kima-0.8.5.tgz", { "dependencies": { "@codemirror/autocomplete": "^6.20.4", "@codemirror/commands": "^6.11.1", "@codemirror/lang-css": "^6.3.1", "@codemirror/lang-html": "^6.4.12", "@codemirror/lang-javascript": "^6.2.5", "@codemirror/lang-json": "^6.0.2", "@codemirror/language": "^6.13.1", "@codemirror/search": "^6.7.2", "@codemirror/state": "^6.7.6", "@codemirror/view": "^6.43.15", "@hugeicons/core-free-icons": "^4.3.5", "@hugeicons/vue": "^1.0.8", "@lezer/highlight": "^1.2.5", "@material/material-color-utilities": "^0.3.0", "@tiptap/core": "^3.32.0", "@tiptap/extension-placeholder": "^3.32.0", "@tiptap/starter-kit": "^3.32.0", "highlight.js": "^11.12.0", "katex": "^0.19.0", "qrcode-generator": "^2.0.4", "reka-ui": "^2.11.0", "xss": "^1.0.16" }, "peerDependencies": { "vue": "^3.5.42" } }, "sha512-ZhPsipHn3iqCVnb2cUJuFAjfjZOh4iCk4rI2Sh0BXYCurx8UbuDYzXXjnUVmff3GIqgfOobbK1Qnbe8XOvK6sA=="],
+    "@kernel4632/kima": ["@kernel4632/kima@0.9.7", "https://registry.npmmirror.com/@kernel4632/kima/-/kima-0.9.7.tgz", { "dependencies": { "@codemirror/autocomplete": "^6.20.4", "@codemirror/commands": "^6.11.1", "@codemirror/lang-css": "^6.3.1", "@codemirror/lang-html": "^6.4.12", "@codemirror/lang-javascript": "^6.2.5", "@codemirror/lang-json": "^6.0.2", "@codemirror/language": "^6.13.1", "@codemirror/search": "^6.7.2", "@codemirror/state": "^6.7.6", "@codemirror/view": "^6.43.15", "@hugeicons/core-free-icons": "^4.3.5", "@hugeicons/vue": "^1.0.8", "@lezer/highlight": "^1.2.5", "@material/material-color-utilities": "^0.3.0", "@tiptap/core": "^3.32.0", "@tiptap/extension-placeholder": "^3.32.0", "@tiptap/starter-kit": "^3.32.0", "highlight.js": "^11.12.0", "katex": "^0.19.0", "qrcode-generator": "^2.0.4", "reka-ui": "^2.11.0", "xss": "^1.0.16" }, "peerDependencies": { "vue": "^3.5.42" } }, "sha512-gNVgNfAuu/9yHbiFMgwLztqJEchdNxigsnB+kuEoJ3JM/FemH/ZOxDZ+XB7Xgp3mVhT6osG2KRZixKyXWSokZw=="],
 
     "@lezer/common": ["@lezer/common@1.5.4", "https://registry.npmmirror.com/@lezer/common/-/common-1.5.4.tgz", {}, "sha512-xt3Q4z64xM+xhg4M7NXqw1N//1O74bUFo5kz6fwMeC4qwxSuRdwkYSmjcqCEEKYkNw5e67f2hcNqBoNERAEU0w=="],
 
