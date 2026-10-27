@@ -18,6 +18,8 @@ const props = defineProps({
   placeholder: { type: String, default: '' },
   label: { type: String, default: '' },
   caption: { type: String, default: '' },
+  hint: { type: String, default: '' },
+  error: { type: String, default: '' },
   disabled: Boolean,
   multiline: Boolean,
   rows: { type: [Number, String], default: undefined },
@@ -50,6 +52,8 @@ const controlAttrs = computed(() => {
         :model-value="String(modelValue ?? '')"
         :label="label || caption || undefined"
         :placeholder="placeholder || undefined"
+        :hint="hint || undefined"
+        :error="error || undefined"
         :rows="Number(rows) || 4"
         :disabled="disabled"
         @update:model-value="emit('update:modelValue', $event)"
@@ -63,6 +67,8 @@ const controlAttrs = computed(() => {
         :type="type"
         :label="label || caption || undefined"
         :placeholder="placeholder || undefined"
+        :hint="hint || undefined"
+        :error="error || undefined"
         :disabled="disabled"
         @update:model-value="emit('update:modelValue', $event)"
         @change="emit('change', $event)"

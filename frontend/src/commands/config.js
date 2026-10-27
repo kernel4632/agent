@@ -5,6 +5,15 @@
 */
 import { AgentAPI } from '../api.js'                    // 引入配置 HTTP 契约
 import { store } from '../store.js'                     // 引入全局配置
+import { COMPACT_RANGE, DEFAULT_SETTINGS } from './defaults.js' // 前端默认值只留一处
+
+// 后端 /agent/list 拿不到时的完整兜底；智能体只在这一个地方列全。
+export const FALLBACK_AGENTS = [
+  { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false },
+  { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true },
+  { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true },
+  { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false },
+]
 
 
 // --- 加载完整设置数据 ---
@@ -124,13 +133,7 @@ function apply(raw, catalog = [], catalogAgents = []) {
     }))
   const agents = Array.isArray(catalogAgents) && catalogAgents.length
     ? catalogAgents
-    : [
-      { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false },
-      { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true },
-      { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true },
-      { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false },
-      ...customAgents,
-    ]
+    : [...FALLBACK_AGENTS, ...customAgents]
 
   Object.assign(store.config, {
     providers,
@@ -152,7 +155,7 @@ function apply(raw, catalog = [], catalogAgents = []) {
       stream: globalCapabilities.stream !== false,
     },
     uses: globalUses,
-    compactThreshold: Number.isFinite(compactThreshold) && compactThreshold >= 0.1 && compactThreshold <= 0.99 ? compactThreshold : 0.8,
+    compactThreshold: Number.isFinite(compactThreshold) && compactThreshold >= COMPACT_RANGE.min && compactThreshold <= COMPACT_RANGE.max ? compactThreshold : DEFAULT_SETTINGS.compactThreshold,
     autoTitle: raw.autoTitle !== false,
     raw: structuredClone(raw),
   })

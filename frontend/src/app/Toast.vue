@@ -3,13 +3,18 @@
 调用示例：<Toast v-if="store.ui.toast" :message="store.ui.toast" @close="store.ui.toast = ''" />
 -->
 <script setup>
+import { ref, watch } from 'vue'
 import { KimaNotification } from '@kernel4632/kima'
 
-defineProps({
+const props = defineProps({
   message: { type: String, default: '' },               // 要显示的提示文字
 })
 
 const emit = defineEmits(['close'])
+
+// 关闭时父层会清空 message；保留最后一条文字，退出动画才不会变成空框。
+const shown = ref(props.message)
+watch(() => props.message, value => { if (value) shown.value = value })
 </script>
 
 <template>
@@ -18,7 +23,7 @@ const emit = defineEmits(['close'])
     :open="!!message"
     position="bottom-center"
     variant="info"
-    :message="message"
+    :message="shown"
     :duration="4000"
     @close="emit('close')"
   />

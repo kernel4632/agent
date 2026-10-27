@@ -187,6 +187,7 @@ defineExpose({ focus: () => editor.value?.focus() })
             type="button"
             class="composer-option composer-option--permission"
             :class="{ 'is-active': permissionsOpen }"
+            :aria-pressed="permissionsOpen"
             aria-label="权限控制"
             title="自动批准"
             @click="emit('toggle-permissions')"
@@ -215,7 +216,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       <div v-if="modelGroups.length" class="model-list">
         <section v-for="group in modelGroups" :key="group.provider" class="model-group">
           <h3>{{ group.provider }}</h3>
-          <button v-for="model in group.models" :key="model" type="button" class="model-row" :class="{ 'is-selected': model === selectedModel && group.provider === currentProvider }" @click="chooseModel(group.provider, model)">
+          <button v-for="model in group.models" :key="model" type="button" class="model-row" :class="{ 'is-selected': model === selectedModel && group.provider === currentProvider }" :aria-pressed="model === selectedModel && group.provider === currentProvider" @click="chooseModel(group.provider, model)">
             <span class="model-row__icon"><AppIcon name="spark" :size="20" /></span>
             <span class="model-row__name">{{ model }}</span>
             <AppIcon v-if="model === selectedModel && group.provider === currentProvider" name="check" :size="20" />
@@ -302,8 +303,8 @@ defineExpose({ focus: () => editor.value?.focus() })
     top: 4px;
     right: 4px;
     display: grid;
-    width: 22px;
-    height: 22px;
+    width: 32px;
+    height: 32px;
     place-items: center;
     padding: 0;
     border: 0;

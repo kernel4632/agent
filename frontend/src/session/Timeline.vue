@@ -13,6 +13,7 @@ import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { groupMessageTurns } from './turns.js'
+import { isSavedMessage } from './continue.js'
 import { AppIcon, KimaMarkdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import './conversation.scss'
@@ -41,7 +42,7 @@ watch(messages, scrollToBottom, { deep: true })
 onMounted(() => { scrollParent = props.scrollRoot; scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
 onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
-const canRollback = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
+const canRollback = message => isSavedMessage(message)
 
 async function requestRollback(message) {
   if (!canRollback(message) || session.value?.status === 'running') return

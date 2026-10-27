@@ -8,6 +8,7 @@
 import { computed } from 'vue'
 import { KimaRadioGroup } from '@kernel4632/kima'
 import { AppIcon, Button, ChoiceContent } from '../../ui/index.js'
+import { AUTO_APPROVE_KINDS } from '../../commands/session.js'
 
 const props = defineProps({
   tools: { type: Array, required: true },
@@ -15,7 +16,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:tools', 'open-detail', 'close-detail', 'update-detail-title'])
 
-const KIND_LABELS = { read: '读取', write: '写入', command: '执行命令', mcp: 'MCP', subtask: '子任务', other: '自定义' }
+// 类别名只保留在 AUTO_APPROVE_KINDS 一份；这里补“自定义”这个目录里才会出现的类别。
+const KIND_LABELS = { ...Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, item.label])), other: '自定义' }
 const kindLabel = tool => KIND_LABELS[tool.kind] || '工具'
 
 const PERMISSION_OPTIONS = [

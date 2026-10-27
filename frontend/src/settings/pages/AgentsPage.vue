@@ -204,10 +204,10 @@ function patchPermission(text) {
         multiline
         :rows="5"
         :model-value="permissionText"
+        :error="permissionError"
         @update:model-value="patchPermission"
       />
       <p class="agent-hint">写法和全局 permission 相同；留空表示沿用全局规则。</p>
-      <p v-if="permissionError" class="agent-error" role="alert">{{ permissionError }}</p>
 
       <footer class="agent-actions">
         <Button variant="danger" @click="resetAgent">{{ selected.builtin === false ? '删除智能体' : '恢复内置默认' }}</Button>
@@ -274,7 +274,6 @@ function patchPermission(text) {
 .agent-switch-row small { display: block; margin-top: 2px; color: var(--la-muted); font-size: 13px; line-height: 20px; }
 .agent-tools { max-height: 360px; overflow-y: auto; padding: 8px 12px; border-radius: 16px; background: var(--la-layer-02); }
 .agent-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
-.agent-error { margin: -12px 0 0; color: var(--kima-color-error); font-size: 13px; line-height: 20px; }
 .agent-missing { display: grid; justify-items: start; gap: 16px; padding: 24px; border-radius: 20px; background: var(--la-layer-01); }
 .agent-missing p { margin: 0; color: var(--la-muted); font-size: 14px; }
 

@@ -1,12 +1,11 @@
 <!--
-消息操作层：右键或触摸长按消息时，模糊其他内容，只显示这条消息的摘要和操作按钮。
-使用 KIMA Card 承载操作窗口，按钮仍走 KIMA Button。
+消息操作层：右键、长按或键盘菜单键打开，只显示这条消息的摘要和操作按钮。
+外壳用 ui/Dialog，焦点陷阱、Esc 和关闭后的焦点归还都由 KIMA 原生 dialog 处理。
 调用示例：<MessageActionTarget :items="items" :preview="content" role-label="助手回复" @select="onMenu"><slot /></MessageActionTarget>
 -->
 <script setup>
-import { nextTick, onBeforeUnmount, ref, useTemplateRef } from 'vue'
-import { KimaCard } from '@kernel4632/kima'
-import { AppIcon, Button } from '../ui/index.js'
+import { onBeforeUnmount, ref } from 'vue'
+import { AppIcon, Button, Dialog } from '../ui/index.js'
 
 const props = defineProps({
   items: { type: Array, default: () => [] },
@@ -17,25 +16,17 @@ const props = defineProps({
 const emit = defineEmits(['select'])
 
 const open = ref(false)
-const card = useTemplateRef('card')
 let pressTimer = null
 let pressStart = null
 let pressed = false
 
 function show() {
+  if (!props.items.length) return
   open.value = true
-  nextTick(() => {
-    const el = card.value?.$el || card.value
-    el?.focus?.()
-  })
-}
-
-function close() {
-  open.value = false
 }
 
 function choose(value) {
-  close()
+  open.value = false
   emit('select', value)
 }
 
@@ -62,64 +53,60 @@ function onPointerMove(event) {
   if (Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 8) cancelPress()
 }
 
+function onKeydown(event) {
+  // Shift+F10 和菜单键是键盘用户打开右键菜单的通用方式。
+  if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+    event.preventDefault()
+    show()
+  }
+}
+
 onBeforeUnmount(cancelPress)
 </script>
 
 <template>
   <div
     class="message-action-target"
+    tabindex="0"
     @contextmenu.prevent="show"
+    @keydown="onKeydown"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="cancelPress"
     @pointercancel="cancelPress"
   >
     <slot />
-    <Teleport to="body">
-      <Transition name="message-actions">
-        <div v-if="open" class="message-actions" role="dialog" aria-modal="true" :aria-label="label" @click.self="close" @keydown.escape="close">
-          <KimaCard ref="card" class="message-actions__card" variant="elevated" tabindex="-1">
-            <div class="message-actions__role">{{ roleLabel }}</div>
-            <p class="message-actions__preview">{{ preview || '这条消息没有可复制的文字' }}</p>
-            <div class="message-actions__items">
-              <Button
-                v-for="item in items"
-                :key="item.value"
-                variant="ghost"
-                class="message-actions__item"
-                :disabled="item.disabled"
-                @click="choose(item.value)"
-              >
-                <AppIcon :name="item.icon || 'spark'" :size="18" /><span>{{ item.label }}</span>
-              </Button>
-              <Button variant="ghost" class="message-actions__item message-actions__cancel" @click="close">取消</Button>
-            </div>
-          </KimaCard>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
+
+  <Dialog :open="open" :label="label" @update:open="open = $event">
+    <Transition name="message-actions" appear>
+      <div v-if="open" class="message-actions message-actions__card">
+        <div class="message-actions__role">{{ roleLabel }}</div>
+        <p class="message-actions__preview">{{ preview || '这条消息没有可复制的文字' }}</p>
+        <div class="message-actions__items">
+          <Button
+            v-for="item in items"
+            :key="item.value"
+            variant="ghost"
+            class="message-actions__item"
+            :disabled="item.disabled"
+            @click="choose(item.value)"
+          >
+            <AppIcon :name="item.icon || 'spark'" :size="18" /><span>{{ item.label }}</span>
+          </Button>
+        </div>
+      </div>
+    </Transition>
+  </Dialog>
 </template>
 
 <style scoped lang="scss">
 .message-action-target { display: block; width: 100%; min-width: 0; }
-.message-actions {
-  position: fixed;
-  inset: 0;
-  z-index: 500;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--la-bg) 38%, transparent);
-  backdrop-filter: blur(10px);
-}
-.message-actions__card {
-  width: min(420px, 100%);
-  gap: 14px;
-  padding: 20px;
-  border-radius: 24px;
-  outline: none;
-}
+.message-action-target:focus-visible { outline: 2px solid var(--kima-color-primary); outline-offset: 3px; border-radius: 8px; }
+.message-actions { display: grid; gap: 14px; }
+.message-actions-enter-active, .message-actions-leave-active { transition: opacity 220ms var(--kima-curve-standard), transform 220ms var(--kima-curve-emphasized); }
+.message-actions-enter-from, .message-actions-leave-to { opacity: 0; transform: translateY(8px) scale(.98); }
+@media (prefers-reduced-motion: reduce) { .message-actions-enter-active, .message-actions-leave-active { transition-duration: 1ms; } }
 .message-actions__role { color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
 .message-actions__preview {
   display: -webkit-box;
@@ -136,15 +123,4 @@ onBeforeUnmount(cancelPress)
 }
 .message-actions__items { display: flex; flex-direction: column; gap: 2px; }
 .message-actions__item { width: 100%; justify-content: flex-start; gap: 10px; }
-.message-actions__cancel { color: var(--la-muted); }
-.message-actions-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard); }
-.message-actions-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard); }
-.message-actions-enter-active .message-actions__card { transition: transform var(--la-motion-enter) var(--kima-curve-emphasized), opacity var(--la-motion-enter) var(--kima-curve-standard); }
-.message-actions-leave-active .message-actions__card { transition: transform var(--la-motion-exit) var(--kima-curve-standard), opacity var(--la-motion-exit) var(--kima-curve-standard); }
-.message-actions-enter-from, .message-actions-leave-to { opacity: 0; }
-.message-actions-enter-from .message-actions__card, .message-actions-leave-to .message-actions__card { opacity: 0; transform: translateY(var(--la-motion-rise)) scale(.97); }
-@media (max-width: 767px) {
-  .message-actions { align-items: end; padding: 16px; }
-  .message-actions__card { width: 100%; border-radius: 24px 24px 20px 20px; }
-}
 </style>

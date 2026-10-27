@@ -7,10 +7,9 @@
 <script setup>
 import { computed, ref } from 'vue'
 import {
-  KimaButton, KimaCard, KimaChip, KimaDialog, KimaFlex, KimaIconButton,
-  KimaNumberField, KimaSwitch, KimaTextField, KimaTypography,
+  KimaCard, KimaChip, KimaFlex, KimaNumberField, KimaTypography,
 } from '@kernel4632/kima'
-import { AppIcon } from '../../ui/index.js'
+import { AppIcon, Button, Dialog, Field, IconButton, Switch } from '../../ui/index.js'
 import { Settings } from '../../commands/settings.js'
 import { UI } from '../../commands/ui.js'
 
@@ -128,14 +127,14 @@ function saveModel() {
         <KimaTypography type="heading" :level="3" size="title-small">模型</KimaTypography>
         <p>{{ models.length }} 个模型。列表里的第一个会作为这个供应商的默认模型。</p>
       </div>
-      <KimaButton variant="tonal" :disabled="loading" @click="discover">
+      <Button variant="tonal" :disabled="loading" @click="discover">
         <AppIcon name="download" :size="18" />
         <span>{{ loading ? '获取中…' : '获取模型列表' }}</span>
-      </KimaButton>
+      </Button>
     </header>
 
     <div class="provider-models__add">
-      <KimaTextField
+      <Field
         v-model="manual"
         class="provider-models__input"
         label="手动添加模型 ID"
@@ -143,10 +142,10 @@ function saveModel() {
         clearable
         @keydown.enter.prevent="addManual"
       />
-      <KimaButton :disabled="!manual.trim()" @click="addManual">
+      <Button :disabled="!manual.trim()" @click="addManual">
         <AppIcon name="plus" :size="18" />
         <span>添加模型</span>
-      </KimaButton>
+      </Button>
     </div>
 
     <p v-if="!models.length" class="provider-models__empty">还没有模型。可以获取供应商支持的模型，也可以手动填一个 ID。</p>
@@ -164,20 +163,20 @@ function saveModel() {
           </div>
         </div>
         <div class="model-card__actions">
-          <KimaIconButton label="上移模型" variant="text" :disabled="index === 0" @click="moveModel(index, -1)"><AppIcon name="up" :size="18" /></KimaIconButton>
-          <KimaIconButton label="下移模型" variant="text" :disabled="index === models.length - 1" @click="moveModel(index, 1)"><AppIcon name="down" :size="18" /></KimaIconButton>
-          <KimaIconButton label="编辑模型" variant="text" @click="editModel(model)"><AppIcon name="edit" :size="18" /></KimaIconButton>
-          <KimaIconButton :label="`移除模型 ${model.name}`" variant="text" @click="removeModel(model.id)"><AppIcon name="trash" :size="18" /></KimaIconButton>
+          <IconButton label="上移模型" variant="text" :disabled="index === 0" @click="moveModel(index, -1)"><AppIcon name="up" :size="18" /></IconButton>
+          <IconButton label="下移模型" variant="text" :disabled="index === models.length - 1" @click="moveModel(index, 1)"><AppIcon name="down" :size="18" /></IconButton>
+          <IconButton label="编辑模型" variant="text" @click="editModel(model)"><AppIcon name="edit" :size="18" /></IconButton>
+          <IconButton :label="`移除模型 ${model.name}`" variant="text" @click="removeModel(model.id)"><AppIcon name="trash" :size="18" /></IconButton>
         </div>
       </KimaCard>
     </div>
   </div>
 
-  <KimaDialog :open="chooserOpen" title="选择模型" @update:open="chooserOpen = $event">
+  <Dialog :open="chooserOpen" label="选择模型" @update:open="chooserOpen = $event">
     <div class="model-chooser">
-      <KimaTextField v-model="filter" label="过滤模型" placeholder="按名称或 ID 过滤" clearable />
+      <Field v-model="filter" label="过滤模型" placeholder="按名称或 ID 过滤" clearable />
       <div class="model-chooser__list">
-        <KimaButton
+        <Button
           v-for="model in filtered"
           :key="model.id"
           variant="plain"
@@ -188,34 +187,29 @@ function saveModel() {
           <span class="model-chooser__name">{{ model.name }}</span>
           <span class="model-chooser__id">{{ model.id }}</span>
           <AppIcon v-if="models.some(item => item.id === model.id)" name="check" :size="18" class="model-chooser__check" />
-        </KimaButton>
+        </Button>
         <p v-if="!filtered.length" class="model-chooser__empty">没有匹配的模型。</p>
       </div>
     </div>
     <template #footer>
-      <KimaButton variant="text" @click="chooserOpen = false">关闭</KimaButton>
+      <Button variant="text" @click="chooserOpen = false">关闭</Button>
     </template>
-  </KimaDialog>
+  </Dialog>
 
-  <KimaDialog :open="Boolean(editing)" title="编辑模型" @update:open="value => { if (!value) editing = null }">
+  <Dialog :open="Boolean(editing)" label="编辑模型" @update:open="value => { if (!value) editing = null }">
     <KimaFlex v-if="editDraft" direction="column" :gap="4">
-      <div class="model-edit__field">
-        <span class="model-edit__label">模型 ID</span>
-        <KimaTextField label="模型 ID" :model-value="editDraft.id" readonly />
-      </div>
-      <div class="model-edit__field">
-        <span class="model-edit__label">显示名称</span>
-        <KimaTextField label="显示名称" :model-value="editDraft.name" clearable @update:model-value="editDraft.name = $event" />
-      </div>
+      <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" readonly />
+      <Field caption="显示名称" label="显示名称" :model-value="editDraft.name" clearable @update:model-value="editDraft.name = $event" />
 
       <div class="model-edit__field">
         <span class="model-edit__label">能力</span>
-        <KimaSwitch
+        <Switch
           v-for="item in CAPABILITIES"
           :key="item.value"
           :model-value="hasCapability(item.value)"
+          :label="item.label"
           @update:model-value="toggleCapability(item.value, $event)"
-        >{{ item.label }}</KimaSwitch>
+        />
         <p class="model-edit__hint">{{ CAPABILITIES.map(item => `${item.label}：${item.hint}`).join('；') }}。</p>
       </div>
 
@@ -227,7 +221,7 @@ function saveModel() {
             :key="preset"
             selectable
             :model-value="Number(editDraft.context) === preset"
-            @update:model-value="value => value && setContext(preset)"
+            @update:model-value="value => setContext(value ? preset : 0)"
           >{{ formatContext(preset) }}</KimaChip>
         </div>
         <KimaNumberField label="上下文窗口" :min="0" :step="1000" :model-value="Number(editDraft.context) || 0" @update:model-value="setContext" />
@@ -236,10 +230,10 @@ function saveModel() {
       <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
     </KimaFlex>
     <template #footer>
-      <KimaButton variant="text" @click="editing = null">取消</KimaButton>
-      <KimaButton @click="saveModel">保存模型</KimaButton>
+      <Button variant="text" @click="editing = null">取消</Button>
+      <Button @click="saveModel">保存模型</Button>
     </template>
-  </KimaDialog>
+  </Dialog>
 </template>
 
 <style scoped lang="scss">

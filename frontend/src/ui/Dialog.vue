@@ -20,5 +20,8 @@ const emit = defineEmits(['update:open'])
     :title="label || undefined"
     size="small"
     @update:open="emit('update:open', $event)"
-  ><slot /></KimaDialog>
+  >
+    <slot />
+    <template v-if="$slots.footer" #footer><slot name="footer" /></template>
+  </KimaDialog>
 </template>

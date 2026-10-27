@@ -32,7 +32,10 @@ const emit = defineEmits(['remove'])
 .chat-composer__file { max-width: 100%; }
 /* 长文件名只截一行，不能把输入框越撑越高；完整名字仍在移除按钮的无障碍名称里。 */
 .chat-composer__file :deep(.kima-chip__text) {
+  display: inline-flex;
   min-width: 0;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

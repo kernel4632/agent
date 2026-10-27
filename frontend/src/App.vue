@@ -19,6 +19,7 @@ import { store } from './store.js'
 import { Session, AUTO_APPROVE_KINDS } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { UI, activeSession } from './commands/ui.js'
+import { DEFAULT_SETTINGS } from './commands/defaults.js'
 import { normalizeAppearance } from './theme/index.js'
 import { readAttachments } from './utils/attachments.js'
 
@@ -32,7 +33,7 @@ const todoOpen = ref(false)
 // 新对话页还没有会话，但智能体/权限选择要在发送前可见，发送时再写进创建出的会话。
 const draftAgent = ref('build')
 const draftAutoApprove = ref(Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])))
-const draftAutoApproveLimit = ref(50)
+const draftAutoApproveLimit = ref(DEFAULT_SETTINGS.autoApproveLimit)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
@@ -86,15 +87,12 @@ async function submitMessage(content) {
     current.files = homeFiles.value
     homeDraft.value = ''
     homeFiles.value = []
-    // 新对话页改过智能体和权限时，写进刚创建的会话后再发送；默认值不必多发一次请求。
-    const autoApprove = Object.values(draftAutoApprove.value).some(Boolean)
-    if (draftAgent.value !== 'build' || autoApprove || draftAutoApproveLimit.value !== 50) {
-      await Session.saveSettings(current.id, {
-        agent: draftAgent.value,
-        autoApprove: { ...draftAutoApprove.value },
-        autoApproveLimit: draftAutoApproveLimit.value,
-      })
-    }
+    // 把新对话页选过的智能体和权限写进刚创建的会话；默认值也写，入口不比较默认值。
+    await Session.saveSettings(current.id, {
+      agent: draftAgent.value,
+      autoApprove: { ...draftAutoApprove.value },
+      autoApproveLimit: draftAutoApproveLimit.value,
+    })
   } finally { creating.value = false }
   if (await Chat.send(current.id, content)) {
     if (store.sessions[current.id]?.draft === content) store.sessions[current.id].draft = ''
@@ -189,7 +187,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         </main>
       </div>
 
-      <Toast v-if="store.ui.toast" :message="store.ui.toast" @close="store.ui.toast = ''" />
+      <Toast :message="store.ui.toast || ''" @close="store.ui.toast = ''" />
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
     </div>
   </ThemeProvider>

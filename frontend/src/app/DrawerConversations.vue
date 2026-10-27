@@ -89,9 +89,8 @@ function openDelete(session) {
   dialogOpen.value = true
 }
 
-// 弹窗关闭由父组件确认：请求进行中忽略 Esc 和取消按钮。
+// 弹窗开关始终跟着用户的关闭动作走；请求进行中只阻止再次提交，不把关闭事件吞掉。
 function setDialogOpen(open) {
-  if (!open && busy.value) return
   dialogOpen.value = open
 }
 
@@ -201,6 +200,6 @@ async function submitDialog() {
 @media (max-width: 767px) {
   .home-sessions { padding-top: 4px; }
   .home-session { height: 48px; }
-  .home-session__menu summary { opacity: 1; }
+  .home-session__menu :deep(.kima-menu__trigger) { opacity: 1; }
 }
 </style>

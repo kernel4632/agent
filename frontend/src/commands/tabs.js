@@ -4,6 +4,7 @@
 调用示例：Tabs.createDraft()、Tabs.openSession('ses_123', '标题')。
 */
 import { store } from '../store.js'                      // 引入全局顶部标签数据结构
+import { NEW_SESSION_TITLE } from './defaults.js'         // 新会话标题只留一处
 
 const sessionTabsKey = 'agent.session-tabs'              // 浏览器 localStorage 中保存标签顺序的稳定键名
 
@@ -33,7 +34,7 @@ function createDraft() {
 
 
 // --- 打开一个已有会话标签 ---
-function openSession(sessionID, title = '未命名会话', activate = true) {
+function openSession(sessionID, title = NEW_SESSION_TITLE, activate = true) {
   const tabStore = store.tabs                            // 读取当前标签顺序
   const key = `session:${sessionID}`                     // 将会话 ID 转换为稳定标签身份
   if (!tabStore.items.some((tab) => tab.key === key)) tabStore.items.push({ key, sessionID, title }) // 已打开时不重复添加

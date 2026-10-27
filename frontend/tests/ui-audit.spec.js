@@ -38,7 +38,7 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('dialog', { name: '命令面板' })).toBeVisible()
-  await expect(page.getByRole('searchbox', { name: '搜索命令' })).toBeFocused()
+  await expect(page.getByRole('combobox', { name: '搜索命令' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: '命令面板' })).toHaveCount(0)
   await openDrawer(page)

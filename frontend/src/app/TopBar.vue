@@ -15,6 +15,7 @@ import { computed, ref } from 'vue'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import { store } from '../store.js'
 import { Session } from '../commands/session.js'
+import { NEW_SESSION_TITLE } from '../commands/defaults.js'
 
 const props = defineProps({
   session: { type: Object, default: null },              // 当前打开的完整会话
@@ -22,7 +23,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['menu', 'settings', 'update:todoOpen'])
 
-const title = computed(() => props.session ? props.session.title || '新会话' : '新对话')
+const title = computed(() => props.session ? props.session.title || '新会话' : NEW_SESSION_TITLE)
 const draftSubtitle = computed(() => `la / ${store.config.activeModel || '未选择模型'}`)
 
 const renameOpen = ref(false)

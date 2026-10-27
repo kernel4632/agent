@@ -32,7 +32,7 @@ watchEffect(() => {
   element.toggleAttribute('reduced-motion', appearance.reduceMotion)
   // KIMA 与 M3E 共用同一套深浅色和强调色，避免组件库自成一套主题。
   document.documentElement.setAttribute('data-kima-theme', scheme.value)
-  applyPalette(appearance.color, { isDark: scheme.value === 'dark' })
+  applyPalette(appearance.color, { isDark: scheme.value === 'dark', variant: appearance.variant })
 }, { flush: 'post' })
 
 // 挂载：跟随系统主题，并在 M3E 首次渲染后导出 token。

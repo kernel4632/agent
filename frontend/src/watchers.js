@@ -3,7 +3,7 @@
 包括 SSE 订阅生命周期、视图切换、消息滚动和 Markdown 增强。业务修改继续来自 commands。
 主题属性与 M3E token 同步已移到 theme/ThemeProvider.vue，本文件不再接触主题。
 每个监听说明：监听什么数据、为什么监听、触发后做什么。
-调用示例：startWatchers()、watchMessages(readMessages, scrollToLatest)。
+调用示例：startWatchers()
 */
 import { watch } from 'vue'                                            // 引入 Vue 响应式监听
 import { store } from './store.js'                                    // 引入全局工作台数据，读取活跃会话和视图状态
@@ -29,13 +29,4 @@ export function startWatchers() {
 }
 
 
-// --- 监听消息时间线变化 ---
-export function watchMessages(readMessages, scrollToLatest) {
-  return watch(readMessages, scrollToLatest, { deep: true })          // 文本、工具和审批变化后保持最新反馈
-}
 
-
-// --- 监听 Markdown 内容变化 ---
-export function watchMarkdownContent(readContent, enhanceContent) {
-  return watch(readContent, enhanceContent, { flush: 'post' })        // DOM 写入后增强链接、代码和 Mermaid
-}

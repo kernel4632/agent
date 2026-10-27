@@ -3,6 +3,8 @@ Agent HTTP 指令集：集中声明前端使用的正式 Server API 契约。
 普通请求统一解析 JSON；会话事件保留原始 Response 交给 SSE 工具按顺序读取。
 调用示例：await AgentAPI.getConfig()、await AgentAPI.sendMessage(sessionID, content)。
 */
+import { NEW_SESSION_TITLE } from './commands/defaults.js'
+
 const apiRoot = '/api'                                  // Vite 开发和预览服务转发的同源前缀
 
 
@@ -46,7 +48,8 @@ export const AgentAPI = {
   getWorkspace:     ()                          => request('/workspace/read'),
   getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   createSession:    async (workspaceID, provider, model) => {
-    const { sessionId } = await request('/session/create', 'POST', { title: '新对话', provider, model })
+    const body = { title: NEW_SESSION_TITLE, provider, model, ...(workspaceID ? { workspaceId: workspaceID } : {}) }
+    const { sessionId } = await request('/session/create', 'POST', body)
     return request(`/session/read/${encodeURIComponent(sessionId)}`)
   },
   // 从现有会话分出一个新分支；可以只复制到某条消息。

@@ -19,12 +19,13 @@ import Composer from '../composer/Composer.vue'
 import AgentDrawer from '../session/AgentDrawer.vue'
 import PermissionDrawer from '../session/PermissionDrawer.vue'
 import { Session } from '../commands/session.js'
+import { DEFAULT_SETTINGS } from '../commands/defaults.js'
 
 const props = defineProps({
   model: { type: String, default: '' },       // 新会话使用的模型
   agent: { type: String, default: 'build' },  // 新会话默认智能体，发送时随会话一起保存
   autoApprove: { type: Object, default: () => ({}) }, // 新会话默认自动批准分类
-  autoApproveLimit: { type: Number, default: 50 },   // 新会话默认连续自动批准上限
+  autoApproveLimit: { type: Number, default: DEFAULT_SETTINGS.autoApproveLimit },   // 新会话默认连续自动批准上限
   busy: Boolean,                              // 创建中、加载中或有连接错误时禁用发送
   files: { type: Array, default: () => [] },  // 已经附上的文件
 })

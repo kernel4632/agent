@@ -10,11 +10,12 @@
 import { groupMessageTurns } from './turns.js'
 import { hasStopTool } from './stop-tools.js'
 
-const actionable = message => Boolean(message?.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
+// 本地占位（pending）和错误气泡没有后端消息 id，不能回退、分支或继续。
+export const isSavedMessage = message => Boolean(message?.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
 
 export function canContinueSession(session) {
   if (!session || session.status === 'running' || session.stopping) return false
   const turn = groupMessageTurns(session.messages || []).at(-1)
   if (!turn || turn.role !== 'assistant') return false
-  return !hasStopTool(turn.messages) && actionable(turn.messages.at(-1))
+  return !hasStopTool(turn.messages) && isSavedMessage(turn.messages.at(-1))
 }

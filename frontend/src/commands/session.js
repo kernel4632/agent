@@ -4,12 +4,14 @@ Server 会话会被归一化为现有 M3E 组件可直接渲染的消息与工�
 调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
 */
 import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约
+import { FALLBACK_AGENTS } from './config.js'           // 智能体兜底只保留一份
 import { store } from '../store.js'                     // 引入工作区摘要与完整会话
 import { UI } from './ui.js'                            // 引入导航和反馈指令
 import { Tabs } from './tabs.js'                        // 同步顶部会话标签
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
 import { formatToolOutput, toolStatus } from '../session/tool-ui.js' // 工具状态和文本只有一处判断
 import { splitUserAttachments } from '../utils/user-message.js'      // 历史里的附件正文不能跑进用户气泡
+import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from './defaults.js' // 默认值只留一处
 
 
 // --- 自动批准的四个类别 ---
@@ -187,7 +189,7 @@ async function selectModel(sessionID, provider, model) {
     const meta = await AgentAPI.setSessionModel(sessionID, provider, model)
     session.provider = meta.provider
     session.model = meta.model
-    session.contextLimit = store.config.providers[provider]?.modelSettings?.[model]?.context || session.contextLimit || 128000
+    session.contextLimit = store.config.providers[provider]?.modelSettings?.[model]?.context || session.contextLimit || DEFAULT_CONTEXT
     UI.notify(`已切到 ${meta.model}`)
     return true
   } catch (error) {
@@ -217,11 +219,19 @@ async function fork(sessionID, messageId) {
 async function saveSettings(sessionID, change) {
   const session = store.sessions[sessionID]
   if (!session) return null
+  // 控件会先亮起来；失败时用这份快照还原，避免界面停在一个后端没接受的值上。
+  const previous = session.settings
+  const next = { ...previous, ...change }
+  if (change.autoApprove) next.autoApprove = { ...previous.autoApprove, ...change.autoApprove }
+  if (change.capabilities) next.capabilities = { ...previous.capabilities, ...change.capabilities }
+  if (change.uses) next.uses = { ...previous.uses, ...change.uses }
+  session.settings = next
   try {
     const settings = await AgentAPI.saveSettings(sessionID, change)
     session.settings = settings                             // 后端说的是准的，本地不自己拼
     return settings
   } catch (error) {
+    session.settings = previous
     UI.notify(error.message)
     return null
   }
@@ -232,10 +242,7 @@ async function saveSettings(sessionID, change) {
 async function setAgent(sessionID, agent) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  const agents = store.config.agents?.length ? store.config.agents : [
-    { name: 'build', label: '执行', readOnly: false },
-    { name: 'plan', label: '计划', readOnly: true },
-  ]
+  const agents = store.config.agents?.length ? store.config.agents : FALLBACK_AGENTS
   const next = agents.find(item => item.name === agent)
   if (!next) return null
   if (session.settings.agent === next.name) return session.settings
@@ -322,7 +329,7 @@ async function setLimit(sessionID, value) {
 async function setCompactThreshold(sessionID, value) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  const threshold = Math.min(0.99, Math.max(0.1, Number(value) || 0.8))
+  const threshold = Math.min(COMPACT_RANGE.max, Math.max(COMPACT_RANGE.min, Number(value) || DEFAULT_SETTINGS.compactThreshold))
   return saveSettings(sessionID, { compactThreshold: threshold })
 }
 
@@ -410,16 +417,13 @@ function normalize(source, previous = {}) {
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
     // 智能体、自动批准、能力开关、按用途的模型，后端读取时一并给出。
-    // 缺字段时用下面这份兜底，它和后端 DEFAULTS 是同一套值（有契约测试盯着）。
+    // 缺字段时用下面这份兜底；默认值和后端 defaultSettings() 是同一套值（有契约测试盯着）。
     settings: source.settings || previous.settings || {
-      agent: 'build',
+      ...DEFAULT_SETTINGS,
       // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
       autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
-      autoApproveLimit: 50,
-      compactThreshold: 0.8,
-      capabilities: { image: true, cache: true, stream: true },
-      uses: {},        // 空＝每件事都用主模型
-      autoTitle: true, // 第一次聊完自动起标题
+      capabilities: { ...DEFAULT_SETTINGS.capabilities },
+      uses: { ...DEFAULT_SETTINGS.uses },
     },
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
     titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
@@ -429,7 +433,7 @@ function normalize(source, previous = {}) {
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
     contextTokens: previous.contextTokens || 0,          // SSE usage 更新累计上下文
-    contextLimit: store.config.providers[provider]?.modelSettings?.[source.model]?.context || previous.contextLimit || 128000, // 读取模型上下文限制
+    contextLimit: store.config.providers[provider]?.modelSettings?.[source.model]?.context || previous.contextLimit || DEFAULT_CONTEXT, // 读取模型上下文限制
     inputTokens: previous.inputTokens || 0,              // 保留当前页面累计输入
     outputTokens: previous.outputTokens || 0,            // 保留当前页面累计输出
     cacheTokens: previous.cacheTokens || 0,              // 保留当前页面缓存用量

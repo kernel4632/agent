@@ -23,7 +23,7 @@ function addProvider() {
   const providers = props.draft.providers
   let number = providers.length + 1
   while (providers.some(item => item.name === `Provider ${number}`)) number += 1
-  const provider = { id: crypto.randomUUID(), name: `Provider ${number}`, enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', models: [] }
+  const provider = { id: crypto.randomUUID(), name: `Provider ${number}`, enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', stream: undefined, headers: '{}', body: '{}', models: [] }
   providers.push(provider)
   emit('open-detail', { id: provider.id, title: provider.name })
 }

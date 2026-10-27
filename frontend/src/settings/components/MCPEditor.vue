@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 MCP 服务编辑页：编辑一个服务的传输方式、命令或地址、参数和环境变量。
 所有字段通过 update 事件交回页面写进草稿；删除确认是本地临时状态。
 调用示例：<MCPEditor :item="selected" @update="updateMCP" @delete="removeMCP" />
@@ -95,9 +95,9 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
       :rows="4"
       :model-value="envText"
       placeholder='{"API_KEY": "xxx"}'
+      :error="envError"
       @update:model-value="tryUpdateEnv"
     />
-    <p v-if="!remote && envError" class="mcp-env-error" role="alert">{{ envError }}</p>
 
     <footer class="mcp-actions">
       <Button variant="danger" @click="deleteOpen = true"><AppIcon name="trash" :size="18" />删除此服务</Button>
@@ -128,7 +128,6 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
 /* KIMA Select 只画控件，不画可见标题；标题留给页面排版，避免和 aria-label 重复。 */
 .mcp-field { display: grid; gap: 8px; }
 .mcp-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.mcp-env-error { margin: -4px 0 0; color: var(--kima-color-error); font-size: 13px; line-height: 20px; }
 .mcp-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
 @media (max-width: 767px) {
   .mcp-form { padding: 20px; }

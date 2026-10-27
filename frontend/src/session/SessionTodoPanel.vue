@@ -7,6 +7,7 @@
 import { computed } from 'vue'
 import { KimaDrawer } from '@kernel4632/kima'
 import { AppIcon } from '../ui/index.js'
+import { KimaProgress } from '@kernel4632/kima'
 import { todoStatus } from './todos.js'
 
 const props = defineProps({
@@ -16,7 +17,6 @@ const props = defineProps({
 const emit = defineEmits(['update:open'])
 
 const done = computed(() => props.todos.filter(item => item.status === 'completed').length)
-const percent = computed(() => props.todos.length ? Math.round(done.value / props.todos.length * 100) : 0)
 const icon = status => todoStatus(status).icon
 const label = status => todoStatus(status).label
 </script>
@@ -35,16 +35,7 @@ const label = status => todoStatus(status).label
           <span>当前进度</span>
           <strong>{{ done }} / {{ todos.length }}</strong>
         </div>
-        <div
-          class="session-todo-panel__bar"
-          role="progressbar"
-          aria-label="任务完成进度"
-          :aria-valuemin="0"
-          :aria-valuemax="todos.length"
-          :aria-valuenow="done"
-        >
-          <span :style="{ width: `${percent}%` }"></span>
-        </div>
+        <KimaProgress class="session-todo-panel__bar" :value="done" :max="todos.length" label="任务完成进度" />
       </header>
 
       <div v-if="todos.length" class="session-todo-panel__list">
@@ -65,8 +56,7 @@ const label = status => todoStatus(status).label
 .session-todo-panel__head { display: grid; gap: 10px; }
 .session-todo-panel__summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; color: var(--la-muted); font-size: 13px; line-height: 18px; }
 .session-todo-panel__summary strong { color: var(--la-text); font-size: 14px; font-weight: 600; }
-.session-todo-panel__bar { height: 4px; overflow: hidden; border-radius: 999px; background: var(--la-layer-03); }
-.session-todo-panel__bar span { display: block; height: 100%; border-radius: inherit; background: var(--la-accent); transition: width var(--kima-duration-medium) var(--kima-curve-emphasized); }
+.session-todo-panel__bar { --kima-progress-height: 4px; }
 .session-todo-panel__list { display: flex; min-width: 0; flex-direction: column; }
 .session-todo-panel__item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 9px 0; border-bottom: .5px solid var(--la-line); }
 .session-todo-panel__item:last-child { border-bottom: 0; }

@@ -107,10 +107,10 @@ function setUse(use, value) {
         <p>不选就和默认模型共用；只有确实需要更便宜或更快的模型时才分开。</p>
       </div>
       <div class="model-settings__fields">
-        <label v-for="(label, use) in USE_LABELS" :key="use" class="model-settings__field">
+        <div class="model-settings__field" v-for="(label, use) in USE_LABELS" :key="use">
           <span class="model-settings__label">{{ label }}</span>
           <KimaSelect :label="label" :model-value="useKey(use)" :items="useOptions" @update:model-value="setUse(use, $event)" />
-        </label>
+        </div>
       </div>
     </div>
   </section>

@@ -6,6 +6,7 @@ Server 是会话的唯一来源；浏览器只保留"哪些会话被打开过"�
 */
 import { AgentAPI } from '../api.js'
 import { store } from '../store.js'
+import { NEW_SESSION_TITLE } from './defaults.js'
 
 // 浏览器只记住用户打开过哪个工作区，会话本身一律问 Server 要。
 const ACTIVE_WORKSPACE_KEY = 'la.active-workspace.v1'
@@ -59,7 +60,7 @@ async function reload() {
 function summaryOf(session) {
   return {
     id: session.id,
-    title: session.title || '未命名会话',
+    title: session.title || NEW_SESSION_TITLE,
     provider: session.provider,
     model: session.model,
     messageCount: session.messageCount ?? 0,

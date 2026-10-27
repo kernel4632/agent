@@ -1,11 +1,12 @@
 <!--
 外观设置：主题、强调色、动画和键盘焦点偏好；所有改动只通过 change 事件交给上层写回草稿。
-控件全部使用 KIMA：KimaRadioGroup、KimaSelect、KimaSwitch、KimaButton、KimaDivider、KimaFlex、KimaGrid、KimaTypography。
+控件全部使用 KIMA：KimaRadioGroup、KimaSelect、KimaDivider、KimaFlex、KimaTypography；普通开关和按钮走 ui/Switch、ui/Button。
 调用示例：<AppearanceSettings :appearance="draft.appearance" @change="update" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaButton, KimaDivider, KimaFlex, KimaRadioGroup, KimaSelect, KimaSwitch, KimaTypography } from '@kernel4632/kima'
+import { KimaDivider, KimaFlex, KimaRadioGroup, KimaSelect, KimaTypography } from '@kernel4632/kima'
+import { Button, Switch } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 
 const props = defineProps({ appearance: { type: Object, required: true } })
@@ -66,14 +67,14 @@ function reset() {
     <KimaDivider />
 
     <KimaTypography type="heading" :level="3" size="title-small">通用</KimaTypography>
-    <KimaSwitch :model-value="appearance.reduceMotion" @update:model-value="update('reduceMotion', $event)">减少界面动画</KimaSwitch>
-    <KimaSwitch :model-value="appearance.strongFocus" @update:model-value="update('strongFocus', $event)">增强键盘焦点</KimaSwitch>
+    <Switch :model-value="appearance.reduceMotion" label="减少界面动画" @update:model-value="update('reduceMotion', $event)" />
+    <Switch :model-value="appearance.strongFocus" label="增强键盘焦点" @update:model-value="update('strongFocus', $event)" />
 
     <KimaDivider />
 
     <KimaFlex justify="space-between" align="center" :gap="3">
       <KimaTypography type="caption">外观偏好保存在当前浏览器</KimaTypography>
-      <KimaButton variant="text" @click="reset">恢复默认</KimaButton>
+      <Button variant="text" @click="reset">恢复默认</Button>
     </KimaFlex>
   </KimaFlex>
 </template>

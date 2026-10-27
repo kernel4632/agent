@@ -106,7 +106,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="reconnect">
           <div v-if="showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
             <div class="reconnect-card">
-              <KimaSpinner label="正在重新连接" size="large" />
+              <KimaSpinner label="正在重新连接" size="large" decorative />
               <strong>正在重新连接</strong>
               <p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p>
             </div>
@@ -115,10 +115,10 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
       </div>
       <div class="session-composer" :class="{ 'is-reconnecting': showReconnect }">
         <Transition name="notice">
-          <div v-if="!session.model" class="chat-notice"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
+          <div v-if="!session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
         </Transition>
         <Transition name="notice">
-          <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
+          <div v-if="session.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
         <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" />
       </div>

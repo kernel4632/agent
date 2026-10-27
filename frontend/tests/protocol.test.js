@@ -57,7 +57,7 @@ test('API uses only routes and payloads implemented in server/server.js', async 
     ['GET', '/api/sse/connect/session-test'], ['GET', '/api/config/read'],
     ['PATCH', '/api/config/set'], ['POST', '/api/config/test'],
   ])
-  assert.deepEqual(calls[0].body, { title: '新对话', provider: 'provider', model: 'model' })
+  assert.deepEqual(calls[0].body, { title: '新对话', provider: 'provider', model: 'model', workspaceId: 'local' })
   assert.deepEqual(calls[3].body, { input: 'Hello' })
   // 后端 /agent/decide 读的是 toolCallId。这里固定住字段名，免得哪天又改回 callId 而没人发现。
   assert.deepEqual(calls[5].body, { toolCallId: 'call-1', decision: 'allow-once' })

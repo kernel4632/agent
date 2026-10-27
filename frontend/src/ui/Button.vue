@@ -49,6 +49,8 @@ const kimaVariant = computed(() => ({
 <style scoped lang="scss">
 .ui-button--danger { color: var(--kima-color-error); }
 .ui-button--small { --kima-button-min-width: 0; }
+/* KIMA 把默认插槽整体包进 label；图标和文字都在里面时，在这里补间距。 */
+.ui-button :deep(.kima-button__label) { display: inline-flex; align-items: center; gap: 8px; }
 .ui-button--plain {
   display: inline-flex;
   align-items: center;

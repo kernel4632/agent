@@ -4,8 +4,11 @@
 调用示例：<ReasoningStep :reasoning="message.reasoning" :streaming="message.isStreaming" :started-at="message.startedAt" :finished-at="message.finishedAt" />
 -->
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { AppIcon } from '../ui/index.js'
+
+// 折叠按钮和内容用同一个 id 关联，读屏才知道按钮控制的是哪一块。
+const contentId = `reasoning-${useId()}`
 
 const props = defineProps({
   reasoning: { type: String, default: '' },
@@ -56,11 +59,11 @@ onBeforeUnmount(() => {
 <template>
   <div class="cot-step cot-step--reasoning">
     <span class="cot-step__icon"><AppIcon name="spark" :size="16" /></span>
-    <button type="button" class="cot-step__head" :aria-expanded="expanded" @click="expanded = !expanded">
+    <button type="button" class="cot-step__head" :aria-expanded="expanded" :aria-controls="contentId" @click="expanded = !expanded">
       <span class="cot-step__label" :class="{ 'is-live': streaming }">{{ label }}</span>
       <AppIcon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': expanded }" aria-hidden="true" />
     </button>
-    <div class="cot-collapse" :class="{ 'is-open': showContent }" :inert="!showContent" :aria-hidden="!showContent">
+    <div :id="contentId" class="cot-collapse" :class="{ 'is-open': showContent }" :inert="!showContent" :aria-hidden="!showContent">
       <div class="cot-collapse__inner">
         <div class="cot-step__body">
           <div ref="previewEl" class="reasoning-preview" :class="{ 'is-preview': previewing }">

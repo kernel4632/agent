@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import { KimaRadioGroup } from '@kernel4632/kima'
 import { ChoiceContent, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
+import { FALLBACK_AGENTS } from '../commands/config.js'
 
 const props = defineProps({
   open: Boolean,
@@ -15,11 +16,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:open', 'select'])
 
-const FALLBACK = [
-  { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false },
-  { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true },
-]
-const agents = computed(() => store.config.agents?.length ? store.config.agents : FALLBACK)
+const agents = computed(() => store.config.agents?.length ? store.config.agents : FALLBACK_AGENTS)
 
 function iconOf(agent) {
   if (agent.name === 'ask') return 'chat'

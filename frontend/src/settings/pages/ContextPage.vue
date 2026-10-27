@@ -5,12 +5,13 @@
 -->
 <script setup>
 import { Field } from '../../ui/index.js'
+import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../../commands/defaults.js'
 
 const props = defineProps({ draft: { type: Object, required: true } })
 
 function setThreshold(value) {
   const number = Number(value)
-  if (Number.isFinite(number) && number >= 0.1 && number <= 0.99) props.draft.compactThreshold = number
+  if (Number.isFinite(number) && number >= COMPACT_RANGE.min && number <= COMPACT_RANGE.max) props.draft.compactThreshold = number
 }
 </script>
 
@@ -33,10 +34,10 @@ function setThreshold(value) {
         min="0.1"
         max="0.99"
         step="0.05"
-        :model-value="draft.compactThreshold ?? 0.8"
+        :model-value="draft.compactThreshold ?? DEFAULT_SETTINGS.compactThreshold"
         @change="setThreshold"
       />
-      <p class="context-settings__hint">当前：{{ Math.round((draft.compactThreshold ?? 0.8) * 100) }}%。越接近 1，留给摘要和回答的空间越少。</p>
+      <p class="context-settings__hint">当前：{{ Math.round((draft.compactThreshold ?? DEFAULT_SETTINGS.compactThreshold) * 100) }}%。越接近 1，留给摘要和回答的空间越少。</p>
     </div>
   </section>
 </template>

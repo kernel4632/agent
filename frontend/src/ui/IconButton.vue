@@ -11,12 +11,13 @@ const props = defineProps({
   label: { type: String, required: true },
   title: { type: String, default: '' },
   size: { type: String, default: 'normal' },
+  variant: { type: String, default: '' },   // 传 text 时去掉底色，用于列表行里的小动作
   active: Boolean,
   disabled: Boolean,
   type: { type: String, default: 'button' },
 })
 const emit = defineEmits(['click'])
-const variant = computed(() => props.active ? 'tonal' : 'standard')
+const kimaVariant = computed(() => props.variant || (props.active ? 'tonal' : 'standard'))
 const kimaSize = computed(() => props.size === 'small' ? 'small' : 'default')
 </script>
 
@@ -25,7 +26,7 @@ const kimaSize = computed(() => props.size === 'small' ? 'small' : 'default')
     v-bind="$attrs"
     :label="label"
     :title="title || label"
-    :variant="variant"
+    :variant="kimaVariant"
     :size="kimaSize"
     :disabled="disabled"
     :type="type"

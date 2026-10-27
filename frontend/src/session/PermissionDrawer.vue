@@ -8,11 +8,12 @@ import { computed } from 'vue'
 import { KimaListbox } from '@kernel4632/kima'
 import { AppIcon, ChoiceContent, Field, Sheet } from '../ui/index.js'
 import { AUTO_APPROVE_KINDS } from '../commands/session.js'
+import { DEFAULT_SETTINGS } from '../commands/defaults.js'
 
 const props = defineProps({
   open: Boolean,
   autoApprove: { type: Object, default: () => ({}) },
-  limit: { type: Number, default: 50 },
+  limit: { type: Number, default: DEFAULT_SETTINGS.autoApproveLimit },
 })
 const emit = defineEmits(['update:open', 'toggle', 'update:limit'])
 

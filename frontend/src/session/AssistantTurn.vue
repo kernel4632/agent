@@ -12,6 +12,7 @@ import { UI } from '../commands/ui.js'
 import { useSmoothText } from '../utils/smooth-text.js'
 import { outputText } from './tool-ui.js'
 import { isFinishedStopTool } from './stop-tools.js'
+import { isSavedMessage } from './continue.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import ReasoningStep from './ReasoningStep.vue'
 import ToolCallRow from './ToolCallRow.vue'
@@ -23,7 +24,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['rollback', 'fork'])
 
-const actionable = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
+const actionable = message => isSavedMessage(message)
 
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
 const stopTexts = computed(() => props.messages.flatMap(message =>
