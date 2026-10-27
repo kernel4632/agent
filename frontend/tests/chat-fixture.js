@@ -64,6 +64,7 @@ export async function backend(page, { configured = true } = {}) {
     const json = data => route.fulfill({ status: 200, json: data })
     if (path === '/config/read') return json(config)
     if (path === '/config/set') { config = body; return json(config) }
+    if (path === '/config/test') return json({ ok: true, provider: body?.provider, model: body?.model, text: 'ok' })
     if (path === '/session/list') return json([...sessions.values()])
     if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })

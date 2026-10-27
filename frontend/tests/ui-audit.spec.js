@@ -141,6 +141,8 @@ test('settings auto-save preserves uneditable backend configuration and secrets 
   await expect(page.getByRole('textbox', { name: '供应商名' })).toBeVisible()
   await screenshot(page, testInfo, 'settings-providers')
   await page.getByRole('textbox', { name: '供应商名' }).fill('Renamed provider')
+  await page.getByRole('tab', { name: '模型', exact: true }).click()
+  await screenshot(page, testInfo, 'settings-provider-models')
   await page.getByRole('textbox', { name: '手动添加模型 ID' }).fill('another-model')
   await page.getByRole('button', { name: '添加模型', exact: true }).click()
   await expect.poll(() => mock.config().providers[0].models).toEqual(['test-model', 'another-model'])
@@ -562,6 +564,33 @@ test('slash command expands into the prompt before sending', async ({ page }) =>
   await editor.press('Enter')
   await expect.poll(() => mock.calls.filter(call => call.path.startsWith('/agent/send/')).at(-1)?.body?.input)
     .toBe('请审查当前改动。\nfocus')
+})
+
+test('provider tabs test the connection and edit model metadata', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.getByRole('button', { name: /Test Provider/ }).click()
+
+  await page.getByRole('button', { name: '测试连接', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('连接成功')
+
+  await page.getByRole('tab', { name: '高级设置', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '自定义请求头' })).toHaveValue(/"x-preserve"/)
+  await screenshot(page, testInfo, 'settings-provider-advanced')
+
+  await page.getByRole('tab', { name: '模型', exact: true }).click()
+  await page.getByRole('button', { name: '编辑模型', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '编辑模型' })).toBeVisible()
+  await page.getByRole('spinbutton', { name: '上下文窗口' }).fill('32000')
+  await page.getByRole('button', { name: '保存模型', exact: true }).click()
+  await expect.poll(() => mock.config().providers[0].modelSettings['test-model'].context).toBe(32000)
+
+  const saved = mock.config()
+  expect(saved.providers[0].headers).toEqual({ 'x-preserve': 'yes' })
+  expect(saved.providers[0].models).toEqual(['test-model'])
+  expect(mock.errors).toEqual([])
 })
 
 test('existing conversation switches model from the input bar', async ({ page }, testInfo) => {

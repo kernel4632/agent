@@ -38,6 +38,29 @@ function isolateDraft(value) {
 }
 
 
+// --- 把配置里的请求头/请求体转成编辑框里的 JSON 文本 ---
+// 空对象显示成空字符串，编辑框给占位示例；已有内容保持易读的缩进。
+function jsonText(value) {
+  if (!value) return ''
+  let object = value
+  if (typeof value === 'string') {
+    try { object = JSON.parse(value) } catch { return value }
+  }
+  if (!object || typeof object !== 'object' || Array.isArray(object) || !Object.keys(object).length) return ''
+  return JSON.stringify(object, null, 2)
+}
+
+// --- 把编辑框里的 JSON 文本变回对象 ---
+// 空文本表示没有自定义内容；写错时直接说明是哪一栏，别把坏 JSON 发到后端。
+function objectFromJson(text, label) {
+  const trimmed = String(text || '').trim()
+  if (!trimmed) return {}
+  let value
+  try { value = JSON.parse(trimmed) } catch { throw new Error(`${label}不是合法的 JSON`) }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}必须是 JSON 对象`)
+  return value
+}
+
 // --- 进入设置页 ---
 function open() {
   // 将 Server 存储结构转换为设置页可编辑的数组结构
@@ -49,9 +72,19 @@ function open() {
     apiType: provider.protocol || 'openai-compatible',  // protocol 映射为前端选择器使用的 apiType 字段
     apiUrl: provider.baseURL || '',                      // Server 的 baseURL 对应编辑器中的请求地址
     apiKey: provider.apiKey || '',                       // 脱敏密钥原样保留，保存时 Server 会恢复真实值
-    models: (provider.models || []).map(model => typeof model === 'string'
-      ? { id: model, name: model, capabilities: ['文本', '工具'] }
-      : { ...model, name: model.name || model.id, capabilities: model.capabilities || ['文本', '工具'] }),
+    stream: provider.stream,                             // 不写时跟随全局的流式开关
+    headers: jsonText(provider.headers) || '{}',         // 自定义请求头以 JSON 文本编辑
+    body: jsonText(provider.body) || '{}',               // 额外请求体以 JSON 文本编辑
+    models: (provider.models || []).map(model => {
+      const id = typeof model === 'string' ? model : model.id || model.name
+      const settings = provider.modelSettings?.[id] || {}
+      return {
+        id,
+        name: typeof model === 'string' ? model : model.name || id,
+        capabilities: Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具'],
+        context: Number(settings.context || settings.contextWindow || 0), // 0 表示没有单独设置
+      }
+    }),
   }))
 
   store.settings.draft = isolateDraft({
@@ -102,19 +135,42 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     if (names.some(name => !name) || new Set(names).size !== names.length) throw new Error('供应商名称不能为空或重复')
     const mcpNames = (draft.mcp || []).map(item => (item.name || '').trim())
     if (mcpNames.some(name => !name) || new Set(mcpNames).size !== mcpNames.length) throw new Error('MCP 服务名称不能为空或重复')
-    const providers = (draft.providers || []).map(provider => ({
-      ...(store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name)),
-      name: provider.name.trim(),
-      baseURL: provider.apiUrl || '',
-      apiKey: provider.apiKey || '',
-      enabled: provider.enabled !== false,
-      protocol: provider.apiType || 'openai-compatible',
-      models: (provider.models || []).map(model => {
+    const providers = (draft.providers || []).map(provider => {
+      // 改名后还要能找到原来的那一份，才能保留密钥、请求头和模型设置。
+      const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))
+      const modelSettings = { ...(original?.modelSettings || {}) }        // 每个模型的上下文窗口单独存
+      const models = (provider.models || []).map(model => {
         const id = typeof model === 'string' ? model : model.id || model.name
-        const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))?.models?.find(item => (typeof item === 'string' ? item : item.id) === id)
-        return original === undefined ? id : isolateDraft(original)
-      }),
-    }))
+        const context = Number(model?.context)
+        if (context > 0) modelSettings[id] = { ...modelSettings[id], context }
+        else if (modelSettings[id]) {
+          // 清空上下文窗口时只删这两个键，其他模型设置不动。
+          const next = { ...modelSettings[id] }
+          delete next.context
+          delete next.contextWindow
+          if (Object.keys(next).length) modelSettings[id] = next
+          else delete modelSettings[id]
+        }
+        const name = String(model?.name || id).trim() || id
+        const capabilities = Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具']
+        // 只改了默认值时仍存成字符串，保持旧配置格式，也避免无意义的对象膨胀。
+        if (name === id && capabilities.length === 2 && capabilities[0] === '文本' && capabilities[1] === '工具') return id
+        return { id, name, capabilities }
+      })
+      return {
+        ...original,                                                     // 保留 id、密钥等上游不认识的字段
+        name: provider.name.trim(),
+        baseURL: provider.apiUrl || '',
+        apiKey: provider.apiKey || '',
+        enabled: provider.enabled !== false,
+        protocol: provider.apiType || 'openai-compatible',
+        ...(provider.stream === undefined ? {} : { stream: provider.stream }),
+        headers: objectFromJson(provider.headers, '自定义请求头'),
+        body: objectFromJson(provider.body, '额外请求体'),
+        models,
+        ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
+      }
+    })
     // 工具开关写回 permission；只写用户真的改过的那几个，没动过的规则保持原样。
     // 对象规则里的参数模式也要保留，只改默认动作。
     const permission = { ...(store.config.raw?.permission || {}) }
@@ -161,6 +217,8 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     store.config.appearance = isolateDraft(draft.appearance)
     persistAppearance(draft.appearance)
     if (!await Config.load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
+    // 改名已经落盘；草稿里的来源名也跟上，下一次自动保存才不会按旧名字找丢请求头和模型设置。
+    for (const provider of draft.providers || []) provider.sourceName = provider.name.trim()
     store.settings.savedAt = Date.now()
     initialBackendDraft = backendSnapshot(draft)
     lastAutoSaveError = ''
