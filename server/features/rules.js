@@ -36,7 +36,7 @@ const dirsFor = agent => {
 }
 
 // --- 读一个文本文件，读不到就当没有 ---
-const text = async path => {
+const readText = async path => {
     try {
         return await Bun.file(path).text()
     } catch {
@@ -91,7 +91,7 @@ const compose = async ({ files, root }) => {
     const sections = []
     let used = 0
     for (const file of files.slice(0, MAX_FILES)) {
-        const content = (await text(file)).trim()
+        const content = (await readText(file)).trim()
         if (!content) continue
 
         const name = relative(root, file).replace(/\\/g, '/')

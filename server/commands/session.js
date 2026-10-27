@@ -812,6 +812,10 @@ const appendPartial = ({ agent, partial }) => {
 }
 
 const stop = async ({ sessionId, partial }) => {
+    // partial 是前端传来的半段回复；格式不对属于用户输入错误，在入口一次挡住。
+    if (partial != null && (typeof partial !== 'object' || Array.isArray(partial))) {
+        throw fail(400, 'partial must be an object')
+    }
     const agent = Store.agents.get(sessionId)
     if (!agent) return { ok: false }
     if (stopping.has(sessionId)) return { ok: false }                       // 已经有一次停止在处理

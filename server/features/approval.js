@@ -31,10 +31,10 @@ const LOOP_LIMIT = 3
  * @param {unknown} value 模型的原始参数。
  * @returns {string} 用来判断"是不是同一个调用"的键。
  */
-const stable = value => {
-    if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
+const stableKey = value => {
+    if (Array.isArray(value)) return `[${value.map(stableKey).join(',')}]`
     if (value && typeof value === 'object') {
-        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`
+        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableKey(value[key])}`).join(',')}}`
     }
     return JSON.stringify(value)
 }
@@ -45,7 +45,7 @@ const stable = value => {
  * @param {unknown} value 模型的原始参数。
  * @returns {string} 摊平后的一行。
  */
-const flatten = value => {
+const flattenInput = value => {
     const values = []
     const pending = [value]
     while (pending.length) {
@@ -198,7 +198,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
         await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
         return false
     }
-    const matchValue = flatten(input)
+    const matchValue = flattenInput(input)
     const mcpServers = Object.keys(Config.get().mcp || {})
     /*
      * 内部工具（记清单、结束循环）不碰磁盘也不碰外部服务，没有"要不要批准"这回事。
@@ -238,7 +238,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      */
     let looping = false
     if (sessionId) {
-        const key = `${name}:${stable(input)}`
+        const key = `${name}:${stableKey(input)}`
         const previous = Store.recentCalls.get(sessionId)
         const count = previous?.key === key ? previous.count + 1 : 1
         Store.recentCalls.set(sessionId, { key, count })

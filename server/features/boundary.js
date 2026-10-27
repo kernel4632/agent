@@ -33,18 +33,18 @@ const expand = pattern => {
 }
 
 // --- 把一个路径解析成真实路径；文件还不存在时，解析它最近的已存在父目录 ---
-const real = async path => {
+const realPath = async path => {
     try {
         return await realpath(path)
     } catch {
         const parent = dirname(path)
         if (parent === path) return path
-        return join(await real(parent), basename(path))
+        return join(await realPath(parent), basename(path))
     }
 }
 
 // --- 这个路径是不是在根目录里面 ---
-const inside = ({ root, path }) => {
+const isInside = ({ root, path }) => {
     const rel = relative(fold(root), fold(path))
     return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
@@ -99,11 +99,11 @@ const check = async ({ toolName, input = {}, workspace = process.cwd() } = {}) =
     const rule = Store.config.permission?.external_directory
     if (rule == null) return { effect: 'allow', paths: [] }
 
-    const root = await real(workspace)
+    const root = await realPath(workspace)
     const outside = []
     for (const path of pathsFor({ toolName, input })) {
-        const absolute = await real(isAbsolute(path) ? path : resolve(process.cwd(), path))
-        if (!inside({ root, path: absolute })) outside.push(absolute)
+        const absolute = await realPath(isAbsolute(path) ? path : resolve(process.cwd(), path))
+        if (!isInside({ root, path: absolute })) outside.push(absolute)
     }
     if (!outside.length) return { effect: 'allow', paths: [] }
     return { effect: effectFor({ paths: outside, rule }), paths: outside }

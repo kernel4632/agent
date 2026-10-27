@@ -80,6 +80,7 @@ describe('继续被中断的助手', () => {
             }
             Store.agents.set(sessionId, agent)
 
+            await expect(Session.stop({ sessionId, partial: 'bad' })).rejects.toThrow('partial must be an object')
             expect(await Session.stop({ sessionId })).toEqual({ ok: true })
 
             const history = History.get({ sessionId })

@@ -68,7 +68,7 @@ const BUILTIN = [
 
 const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key)
 
-const text = (value, fallback = '') => typeof value === 'string' ? value.trim() : fallback
+const cleanText = (value, fallback = '') => typeof value === 'string' ? value.trim() : fallback
 
 /**
  * 只保留合法的工具名；null 表示不点名，沿用全部工具。
@@ -87,8 +87,8 @@ const normalizeTools = value => {
  */
 const normalizeModel = value => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-    const provider = text(value.provider)
-    const model = text(value.model)
+    const provider = cleanText(value.provider)
+    const model = cleanText(value.model)
     return provider && model ? { provider, model } : null
 }
 
@@ -127,8 +127,8 @@ const merge = (value, base) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return base
     return {
         ...base,
-        label: text(value.label, base.label) || base.label,
-        description: text(value.description, base.description),
+        label: cleanText(value.label, base.label) || base.label,
+        description: cleanText(value.description, base.description),
         instructions: typeof value.instructions === 'string' ? value.instructions : base.instructions,
         readOnly: typeof value.readOnly === 'boolean' ? value.readOnly : base.readOnly,
         tools: has(value, 'tools') ? normalizeTools(value.tools) : base.tools,
