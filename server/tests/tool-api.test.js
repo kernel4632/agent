@@ -34,7 +34,7 @@ describe('Roo Code 工具接口', () => {
         expect(Object.keys(files.read_file.inputSchema.properties)).toEqual(['path'])
         expect(Object.keys(files.write_to_file.inputSchema.properties)).toEqual(['path', 'content'])
         expect(Object.keys(files.list_files.inputSchema.properties)).toEqual(['path', 'recursive'])
-        expect(Object.keys(searchFiles.inputSchema.properties)).toEqual(['path', 'regex', 'file_pattern'])
+        expect(Object.keys(searchFiles.inputSchema.properties)).toEqual(['path', 'regex', 'file_pattern', 'context'])
         expect(Object.keys(executeCommand.inputSchema.properties)).toEqual(['command', 'cwd'])
         expect(Object.keys(edit.inputSchema.properties)).toEqual(['file_path', 'old_string', 'new_string', 'replace_all'])
         expect(Object.keys(updateTodoList.inputSchema.properties)).toEqual(['todos'])
@@ -69,6 +69,14 @@ describe('Roo Code 工具接口', () => {
         const result = await searchFiles.execute({ path: root, regex: 'needle', file_pattern: '*.js' }, {})
         expect(result).toContain('search.js')
         expect(result).not.toContain('search.txt')
+    })
+
+    test('search_files 的 context 返回命中前后几行', async () => {
+        await writeFile(join(root, 'context.js'), 'before\nneedle\nafter\n')
+        const result = await searchFiles.execute({ path: root, regex: 'needle', file_pattern: 'context.js', context: 1 }, {})
+        expect(result).toContain('before')
+        expect(result).toContain('needle')
+        expect(result).toContain('after')
     })
 
     test('execute_command 使用 cwd', async () => {

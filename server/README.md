@@ -98,7 +98,7 @@ description: 审查一个 PR 时用这个
 | --- | --- |
 | `read_file` / `write_to_file` / `list_files` | 读文件（含图片）、写完整文本、列目录 |
 | `edit` / `apply_patch` | 精确替换片段（默认只改一处，可设 `replace_all`）；`apply_patch` 一次改多个文件，全部校验通过才写盘 |
-| `search_files` / `glob` | 按正则搜内容、按通配找文件，跳过哪些目录由 `utils/skip.js` 一处说了算 |
+| `search_files` / `glob` | 按正则搜内容、按通配找文件；`search_files` 可用 `context` 带出命中前后几行，跳过哪些目录由 `utils/skip.js` 一处说了算 |
 | `execute_command` | 执行命令，带十分钟超时和输出截断 |
 | `update_todo_list` | 写下当前任务清单和进度，前端据此显示进度条 |
 | `webfetch` | 取网页正文 |

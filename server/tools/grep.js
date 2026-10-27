@@ -29,6 +29,7 @@ export default {
         '- path (required): file or directory to search in.',
         '- regex (required): regular expression to look for.',
         '- file_pattern (optional): glob filter for which files to search, e.g. *.js.',
+        '- context (optional): number of lines to show before and after each match, 0-20. Use 2-3 when the surrounding code matters.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
@@ -36,13 +37,14 @@ export default {
             path: { type: 'string' },
             regex: { type: 'string' },
             file_pattern: { type: 'string' },
+            context: { type: 'integer', minimum: 0, maximum: 20 },
         },
         required: ['path', 'regex'],
     },
     // --- 搜索文件内容 ---
     // 第二参必须可省：agent-core 的契约是 execute(input, options?)，
     // 文件工具跑在子进程里时只收到 input；写成必解构会在真实执行时崩。
-    async execute({ path, regex, file_pattern, pattern, include }, { abortSignal } = {}) {
+    async execute({ path, regex, file_pattern, pattern, include, context }, { abortSignal } = {}) {
         const needle = regex ?? pattern // 旧调用仍可传 pattern。
         const filter = file_pattern ?? include // 旧调用仍可传 include。
         if (!needle) throw new Error('regex is required')
@@ -50,6 +52,9 @@ export default {
         // 第三方依赖不是用户要搜的目标，在 ripgrep 层就排除掉，也省掉无谓的扫描。
         const command = [rgPath, '--line-number', '--color', 'never', ...excludeArgs()]
         if (filter) command.push('--glob', filter)
+        // 只看命中行常常没法判断上下文；context 让调用方一次拿到前后几行。
+        const around = Math.min(20, Math.max(0, Math.floor(Number(context) || 0)))
+        if (around) command.push('--context', String(around))
         command.push(needle, '.')
 
         // stdout 和 stderr 由工具执行器实时转发，最终输出在这里一次性读回来交给模型。
