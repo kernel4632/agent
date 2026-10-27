@@ -40,32 +40,6 @@ const emit = defineEmits(['update:todoOpen'])
 const permissionOpen = ref(false)
 const agentOpen = ref(false)
 const resumable = computed(() => canContinueSession(props.session))
-// 输入框下方的统计：上下文占用和这一轮累计的 token/耗时。
-const stats = computed(() => {
-  const messages = props.session.messages || []
-  const requests = messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : [])
-  const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
-  const last = requests.at(-1)
-  const input = sum('input')
-  const output = sum('output')
-  const total = requests.reduce((value, item) => value + Number(item.total || 0), 0) || input + output
-  const limit = Number(props.session.contextLimit || 0)
-  const used = Number(last?.input || props.session.contextTokens || 0)
-  if (!requests.length && !used && !limit) return null
-  return {
-    context: { used, limit, threshold: props.session.settings?.compactThreshold || 0.8 },
-    usage: {
-      input,
-      output,
-      cacheRead: sum('cache'),
-      cacheWrite: sum('cacheWrite'),
-      reasoning: sum('reasoning'),
-      total,
-      requests: requests.length,
-      durationMs: requests.reduce((value, item) => value + Number(item.durationMs || 0), 0),
-    },
-  }
-})
 const showReconnect = ref(false)
 let reconnectTimer = null
 // 短暂重连不闪覆盖层；连续断开 2 秒、且没有等待审批时才盖住时间线。
@@ -146,7 +120,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :reasoning="session.settings.reasoning" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" :stats="stats" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" @update:reasoning="Session.setReasoning(session.id, $event)" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :reasoning="session.settings.reasoning" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" @update:reasoning="Session.setReasoning(session.id, $event)" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
@@ -157,7 +131,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
 
 <style scoped lang="scss">
 .session-panel { display: flex; min-height: 0; flex: 1; }
-.session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; }
+.session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; margin-inline: auto; }
 .session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--kima-curve-standard), opacity var(--la-motion-enter) var(--kima-curve-standard); }

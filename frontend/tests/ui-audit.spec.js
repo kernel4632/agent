@@ -666,6 +666,16 @@ test('composer stats show context and total usage', async ({ page }, testInfo) =
   await expect(stats).toContainText('总消耗 50 tok')
   await expect(stats).toContainText('缓存 33%')
   await expect(stats).toContainText('1 次请求')
+  await expect(page.locator('.topbar .composer-stats')).toBeVisible()
+  await expect(page.locator('.topbar__subtitle')).toHaveCount(0)
+  // 宽屏下输入卡片和对话流居中，不再贴着左侧。
+  if (testInfo.project.name === 'desktop') {
+    const panel = await page.locator('.session-panel').boundingBox()
+    const card = await page.locator('.chat-composer').boundingBox()
+    const left = card.x - panel.x
+    const right = panel.x + panel.width - card.x - card.width
+    expect(Math.abs(left - right)).toBeLessThanOrEqual(1.5)
+  }
   await screenshot(page, testInfo, 'composer-stats')
 
   await page.getByRole('button', { name: /总消耗 50 tok/ }).click()

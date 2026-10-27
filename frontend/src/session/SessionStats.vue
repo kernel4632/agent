@@ -1,7 +1,8 @@
 <!--
-输入框下方的会话统计：上下文占用、总 token 消耗、缓存命中、请求次数和耗时。
-参考 DeepSeek Harness 的 composer dock / ContextMeter：数字平时压成一行小字，点开才看明细。
-调用示例：<ComposerStats :stats="sessionStats" />
+会话统计：上下文占用、总 token 消耗、缓存命中、请求次数和耗时。
+参考 DeepSeek Harness 的 ContextMeter / StatsPills：默认压成一行小字，点开才看明细。
+放在顶部栏模型信息原来的位置；compact 只保留上下文和总消耗，供窄屏使用。
+调用示例：<SessionStats :stats="stats" compact />
 -->
 <script setup>
 import { computed } from 'vue'
@@ -10,10 +11,12 @@ import { AppIcon } from '../ui/index.js'
 
 const props = defineProps({
   stats: { type: Object, required: true },
+  compact: Boolean,
 })
 
 const context = computed(() => props.stats.context || {})
 const usage = computed(() => props.stats.usage || {})
+const placement = computed(() => props.compact ? 'bottom-start' : 'top-start')
 const rawPercent = computed(() => {
   const limit = Number(context.value.limit || 0)
   if (!limit) return 0
@@ -57,12 +60,12 @@ const activity = computed(() => {
 </script>
 
 <template>
-  <div class="composer-stats" aria-label="会话统计">
+  <div class="composer-stats" :class="{ 'is-compact': compact }" aria-label="会话统计">
     <KimaPopover
       v-if="context.limit"
       class="composer-stats__item"
       variant="text"
-      placement="top-start"
+      :placement="placement"
       label="上下文使用详情"
       content-label="上下文使用"
     >
@@ -97,14 +100,14 @@ const activity = computed(() => {
       v-if="total"
       class="composer-stats__item"
       variant="text"
-      placement="top-start"
+      :placement="placement"
       label="Token 消耗详情"
       content-label="Token 消耗"
     >
       <template #trigger>
         <AppIcon name="stats" :size="14" />
         <span>总消耗 {{ formatTokens(total) }} tok</span>
-        <span v-if="cacheHit">· 缓存 {{ cacheHit }}%</span>
+        <span v-if="cacheHit" class="composer-stats__cache">· 缓存 {{ cacheHit }}%</span>
       </template>
       <div class="stat-panel">
         <header class="stat-panel__head">
@@ -162,6 +165,18 @@ const activity = computed(() => {
 .composer-stats__ring.is-danger .composer-stats__fill { stroke: var(--kima-color-error); }
 .composer-stats__sep { color: var(--la-line); }
 .composer-stats__activity { padding: 0 6px; }
+.composer-stats.is-compact {
+  width: auto;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  gap: 0 2px;
+  padding: 0;
+  font-size: 11.5px;
+  line-height: 18px;
+}
+.composer-stats.is-compact .composer-stats__item :deep(.kima-button) { min-height: 18px; padding: 0 3px; gap: 4px; font-size: 11.5px; }
+.composer-stats.is-compact .composer-stats__activity { display: none; }
+.composer-stats.is-compact .composer-stats__sep { margin: 0 1px; }
 .stat-panel { display: grid; min-width: 230px; gap: 10px; padding: 2px; }
 .stat-panel__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--la-text); font-size: 13px; font-weight: 600; }
 .stat-panel__head strong { font-size: 15px; font-variant-numeric: tabular-nums; }
@@ -174,5 +189,7 @@ const activity = computed(() => {
 @media (max-width: 767px) {
   .composer-stats { padding: 6px 10px 0; }
   .composer-stats__activity { padding: 0 4px; }
+  .composer-stats.is-compact { padding: 0; }
+  .composer-stats.is-compact .composer-stats__cache { display: none; }
 }
 </style>
