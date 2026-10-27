@@ -65,6 +65,8 @@ const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,
   'is-danger': percent.value >= 90,
 }))
+// 顶栏只放得下三四个字符，估算的 ~ 留给面板；圆环本身还是按真实比例画。
+const triggerPercent = computed(() => percentText.value.replace('~', ''))
 const hasUsage = computed(() => total.value > 0)
 const trendLabel = computed(() => usageApproximate.value ? '最近回复' : '最近请求')
 const cells = computed(() => {
@@ -103,12 +105,12 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
         :class="ringClass"
         :value="percent"
         :max="100"
-        :size="36"
-        :stroke-width="3.5"
+        :size="42"
+        :stroke-width="4.5"
         label="上下文占用"
         aria-hidden="true"
       />
-      <span class="session-stats__percent">{{ percentText }}</span>
+      <span class="session-stats__percent">{{ triggerPercent }}</span>
       <span class="sr-only">上下文占用 {{ percentText }}，点击查看会话统计</span>
     </template>
 
@@ -205,10 +207,10 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 .session-stats { display: inline-flex; }
 .session-stats :deep(.kima-button) {
   position: relative;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border-radius: 50%;
   color: var(--la-muted);
@@ -224,13 +226,12 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
   display: grid;
   place-items: center;
   color: var(--la-text);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: -.03em;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: -.04em;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
-
 .stats-panel { display: grid; width: 100%; gap: 12px; }
 .stats-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .stats-panel__heading { display: inline-flex; align-items: center; gap: 6px; color: var(--la-secondary); font-size: 12.5px; font-weight: 650; }
