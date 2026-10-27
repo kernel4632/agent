@@ -1,9 +1,8 @@
 /*
-界面翻译：从设置草稿或已保存配置读取当前语言，并返回响应式文案。
-业务数据保持原文；只有应用命令、标签、说明和无障碍文本经过这里翻译。
+界面翻译：当前只提供简体中文，统一从这里取文案，避免页面各写一份。
+业务数据保持原文；只有应用命令、标签、说明和无障碍文本经过这里。
 调用示例：t('copied')、t('sessionCount', { count: 5 })、formatDateTime(Date.now())。
 */
-import { store } from './store.js'                                    // 引入全局配置中的语言偏好
 
 const messages = {                                                    // 全部界面文案按语言分组
   'zh-CN': {
@@ -27,37 +26,10 @@ const messages = {                                                    // 全部�
     autoSaved: '已自动保存', autoSaveOnLeave: '离开设置页自动保存', draftFeedback: '修改会即时反映在当前草稿中', tools: '工具', toolsDescription: '统一管理内置、自定义和外部工具', toolAlias: '工具易读别名', toolPermission: '工具默认权限', ask: '询问', builtIn: '内置', readFile: '读取文件', writeFile: '写入文件', runCommand: '执行命令', webFetch: '读取网页',
     mcpServices: 'MCP 服务', mcpDescription: '保存后自动重建连接与工具目录', addMcp: '添加 MCP', mcpName: 'MCP 名称', toolCount: '{count} 个工具', deleteMcp: '删除 MCP', launchCommand: '启动命令', noMcp: '还没有 MCP 服务',
     globalPrompt: '全局系统提示词', promptDescription: '系统提示词应用到所有会话；首次使用有默认内容，可以修改或清空', characterCount: '{count} 字符',
-     appearanceDescription: '调整动态颜色、对比度、密度与界面动效', interfaceLanguage: '界面语言', simplifiedChinese: '简体中文',
+     appearanceDescription: '调整动态颜色、对比度、密度与界面动效', 
     dataDescription: '配置、Workspace 和 Session 数据保存在用户目录', dataActionsUnavailable: '数据操作当前不可用', dataActionsUnavailableDescription: '此 Server 未提供数据导入、导出或清理接口。',
     providers: '供应商', addProvider: '添加供应商', providerName: '供应商名', enableProvider: '启用供应商', enableProviderDescription: '允许 Session 选择此服务', apiAddress: '请求地址（API）', modelList: '模型列表', modelListDescription: '供 Session 独立选择的模型', fetchModels: '获取模型列表', reasoningCapability: '推理', toolCapability: '工具', modelSettings: '模型设置', removeModel: '移除模型', noModels: '还没有添加模型', customConfig: '自定义配置', requestTimeout: '请求超时（ms）', customHeaders: '自定义请求头（JSON）', deleteProvider: '删除供应商', selectModel: '选择模型', availableModels: '{provider} 返回的可用模型', allModelsAdded: '所有模型都已添加', done: '完成', modelLimits: '模型能力与生成限制', contextLength: '上下文长度', maxOutput: '最大输出', reasoningFeature: '推理能力', reasoningDescription: '展示模型思考过程', toolFeature: '工具能力', toolDescription: '允许模型调用工具',
     newConversation: '新对话', sessionDeleted: '会话已删除', workspaceAdded: '工作区已添加', workspaceRemoved: '已移除工作区', generationPaused: '已暂停生成', toolDenied: '已拒绝工具调用', toolAllowed: '工具调用已允许', operationDenied: '用户拒绝了这次操作。', operationAllowedAlways: '已执行，并记住这类操作。', operationAllowed: '已执行本次操作。', toolStep: '工具步骤 {step}', newMcp: '新 MCP', exportReady: '导出包已准备', chooseBackup: '请选择备份文件', demoNotCleared: '演示数据未实际清除',
-  },
-  'en-US': {
-    home: 'Home', newChat: 'New chat', sessions: 'Sessions', settings: 'Settings', mainNav: 'Main navigation', agentHome: 'Agent home',
-    search: 'Search workspaces or sessions', workspace: 'Workspaces', addWorkspace: 'Add workspace', noWorkspace: 'No matching workspaces',
-    sessionCount: '{count} sessions', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier', messageCount: '{count} messages',
-    noMatchingSessions: 'No matching sessions', noSessions: 'This workspace has no sessions yet', name: 'Name', path: 'Path',
-    workspaceNameExample: 'For example, Agent Engine', workspacePathExample: 'D:/projects/app', add: 'Add', cancel: 'Cancel', close: 'Close',
-    workspaceDescription: 'Register a local directory the Agent can access', sessionTitle: 'Session title', renameSession: 'Rename session', rename: 'Rename',
-    deleteSession: 'Delete session', delete: 'Delete', deleteSessionDescription: 'The history for “{title}” will be removed.', unnamedSession: 'Untitled session',
-    doubleClickRename: 'Double-click to rename', doubleClickRenameSession: 'Double-click to rename session',
-    contextStats: 'Context usage', context: 'Context', used: 'Used', limit: 'Limit', ratio: 'Usage', startTask: 'Start with a task',
-    quickJump: 'Conversation quick navigation', previousMessage: 'Previous message', nextMessage: 'Next message', jumpUser: 'Jump to user message', jumpAssistant: 'Jump to assistant message',
-    rolledBack: 'Rolled back', undoRollback: 'Undo rollback', rollbackTool: 'Roll back to tool step', rollbackDescription: 'Messages after step {step} will be hidden temporarily. You can undo this rollback.', confirmRollback: 'Confirm rollback',
-    message: 'Message', messagePlaceholder: 'Give the Agent a task', uploadFile: 'Upload files', removeFile: 'Remove {name}', switchModel: 'Switch model', pauseGeneration: 'Pause generation', send: 'Send',
-    recallEdit: 'Recall and edit message', recallEditTitle: 'Recall and edit', copyMessage: 'Copy message', copy: 'Copy', apiRequest: 'API request', receiving: 'Receiving response', paused: 'Paused', inputTokens: 'Input {count}', outputTokens: 'Output {count}', cacheTokens: 'Cache {count}',
-    waiting: 'Waiting for approval', running: 'Running', completed: 'Completed', rejected: 'Rejected', rollbackHere: 'Roll back to here', collapseTool: 'Collapse tool details', expandTool: 'Expand tool details', input: 'Input', deny: 'Deny', allow: 'Allow once', alwaysAllow: 'Always allow',
-    thinking: 'Thinking', reasoning: 'Reasoning', thinkingPlaceholder: 'The model is planning its next action…', copied: 'Copied', copyFailed: 'Copy failed', copyCode: 'Copy code',
-    toolBlockedReason: 'Blocked by an ignore rule ({reason})', mcpFailed: 'MCP server {server} did not connect: {error}',
-    providerConfig: 'Providers', toolManagement: 'Tools', mcpManagement: 'MCP', promptDefinition: 'System prompt', appearance: 'Appearance', dataManagement: 'Data',
-    autoSaved: 'Auto-saved', autoSaveOnLeave: 'Changes save on exit', draftFeedback: 'Changes are reflected in the current draft immediately', tools: 'Tools', toolsDescription: 'Manage built-in, custom, and external tools', toolAlias: 'Tool display name', toolPermission: 'Default tool permission', ask: 'Ask', builtIn: 'Built-in', readFile: 'Read file', writeFile: 'Write file', runCommand: 'Run command', webFetch: 'Fetch web page',
-    mcpServices: 'MCP servers', mcpDescription: 'Saving rebuilds connections and the tool catalog', addMcp: 'Add MCP', mcpName: 'MCP name', toolCount: '{count} tools', deleteMcp: 'Delete MCP', launchCommand: 'Launch command', noMcp: 'No MCP servers yet',
-    globalPrompt: 'Global system prompt', promptDescription: 'Applied to every Session; a default is provided once and can be edited or cleared', characterCount: '{count} characters',
-     appearanceDescription: 'Control dynamic color, contrast, density, and motion', interfaceLanguage: 'Interface language', simplifiedChinese: '简体中文',
-    dataDescription: 'Configuration, Workspaces, and Sessions are stored in the user directory', dataActionsUnavailable: 'Data actions are unavailable', dataActionsUnavailableDescription: 'This Server does not provide data import, export, or clear endpoints.',
-    providers: 'Providers', addProvider: 'Add provider', providerName: 'Provider name', enableProvider: 'Enable provider', enableProviderDescription: 'Allow Sessions to use this provider', apiAddress: 'API endpoint', modelList: 'Models', modelListDescription: 'Models available to individual Sessions', fetchModels: 'Fetch models', reasoningCapability: 'Reasoning', toolCapability: 'Tools', modelSettings: 'Model settings', removeModel: 'Remove model', noModels: 'No models added', customConfig: 'Custom configuration', requestTimeout: 'Request timeout (ms)', customHeaders: 'Custom headers (JSON)', deleteProvider: 'Delete provider', selectModel: 'Select models', availableModels: 'Models available from {provider}', allModelsAdded: 'All models are already added', done: 'Done', modelLimits: 'Model capabilities and generation limits', contextLength: 'Context length', maxOutput: 'Maximum output', reasoningFeature: 'Reasoning capability', reasoningDescription: 'Show the model reasoning process', toolFeature: 'Tool capability', toolDescription: 'Allow the model to call tools',
-    newConversation: 'New conversation', sessionDeleted: 'Session deleted', workspaceAdded: 'Workspace added', workspaceRemoved: 'Workspace removed', generationPaused: 'Generation paused', toolDenied: 'Tool call denied', toolAllowed: 'Tool call allowed', operationDenied: 'The user denied this operation.', operationAllowedAlways: 'Executed and allowed for future calls.', operationAllowed: 'Executed for this call.', toolStep: 'Tool step {step}', newMcp: 'New MCP', exportReady: 'Export package ready', chooseBackup: 'Choose a backup file', demoNotCleared: 'Demo data was not cleared',
-    simulationStart: 'The frontend command received this message.', simulationState: '\n\nAt this stage, interactions are driven by the local Store. Navigation, model selection, tool approval, and rollback respond immediately.', simulationApi: '\n\nWhen the API is connected, only the marked request sites in Commands need to change; components remain unchanged.',
   },
 }
 

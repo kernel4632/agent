@@ -1,3 +1,7 @@
+<!--
+编辑结果：左右对照显示替换前和替换后的文本。
+调用示例：<EditView :tool="tool" />
+-->
 <script setup>
 import { clip, useToolContent } from '../use-tool-content.js'
 

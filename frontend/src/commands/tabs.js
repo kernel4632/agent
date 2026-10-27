@@ -1,26 +1,10 @@
 /*
-标签指令：负责恢复、创建、选择、升级、关闭和同步顶部会话标签。
-标签数据只存放在 store.js；浏览器持久化由 watchers.js 响应数据变化。
+标签指令：负责创建、选择、升级、关闭和同步顶部会话标签。
+标签数据只存放在 store.js；会话本身由 Server 保存，浏览器不另存一份。
 调用示例：Tabs.createDraft()、Tabs.openSession('ses_123', '标题')。
 */
 import { store } from '../store.js'                      // 引入全局顶部标签数据结构
 import { NEW_SESSION_TITLE } from './defaults.js'         // 新会话标题只留一处
-
-const sessionTabsKey = 'agent.session-tabs'              // 浏览器 localStorage 中保存标签顺序的稳定键名
-
-
-// --- 恢复上次保存的标签 ---
-function restore() {
-  const tabStore = store.tabs                            // 读取全局标签数据
-  try {
-    const saved = JSON.parse(localStorage.getItem(sessionTabsKey) ?? '{}') // 解析上次窗口的标签顺序
-    tabStore.items = Array.isArray(saved.tabs) ? saved.tabs.filter((tab) => tab.sessionID) : [] // 草稿不跨刷新恢复
-    tabStore.activeKey = tabStore.items.some((tab) => tab.key === saved.activeKey) ? saved.activeKey : '' // 只恢复仍存在的选择
-  } catch {
-    tabStore.items = []                                  // 损坏数据回退到空标签列表
-    tabStore.activeKey = ''                              // 损坏数据不保留无效选择
-  }
-}
 
 
 // --- 创建一个草稿标签 ---
@@ -104,4 +88,4 @@ function removeSession(sessionID) {
 }
 
 
-export const Tabs = { sessionTabsKey, restore, createDraft, openSession, promote, select, close, setTitle, syncTitles, removeSession } // 暴露全部标签指令
+export const Tabs = { createDraft, openSession, promote, select, close, setTitle, syncTitles, removeSession } // 暴露全部标签指令

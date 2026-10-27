@@ -1,3 +1,9 @@
+/*
+工具视图共用读取：把 tool.input / output 的 AI SDK 包装整理成视图直接用的 input、value、text。
+调用示例：
+  const { input, value, text } = useToolContent(props)
+  clip(text.value) // 超长文本只留前 2400 字
+*/
 import { computed } from 'vue'
 import { outputText, outputValue } from '../tool-ui.js'
 

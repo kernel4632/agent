@@ -1,3 +1,7 @@
+<!--
+通用工具结果：没有专用视图时显示输入 JSON 和输出文本。
+调用示例：<GenericView :tool="tool" />
+-->
 <script setup>
 import { computed } from 'vue'
 import { useToolContent } from '../use-tool-content.js'

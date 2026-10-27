@@ -1,3 +1,7 @@
+<!--
+搜索结果：显示正则、文件过滤条件和命中文本。
+调用示例：<SearchView :tool="tool" />
+-->
 <script setup>
 import { useToolContent } from '../use-tool-content.js'
 

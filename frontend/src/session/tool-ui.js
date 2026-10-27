@@ -27,14 +27,6 @@ const ALIASES = {
     task: 'new_task',
 }
 
-// new_task 是在会话装配时临时加进去的，不在 tools/ 目录扫描结果里，给它一份兜底描述。
-const NEW_TASK_UI = {
-    view: 'subtask',
-    icon: 'branch',
-    title: '创建子任务',
-    summary: '{description}',
-}
-
 export const canonicalToolName = name => typeof name === 'string' ? (ALIASES[name] || name) : name
 
 export function uiFor(name) {
@@ -42,7 +34,6 @@ export function uiFor(name) {
     const catalog = store.config.toolCatalog?.length ? store.config.toolCatalog : (store.config.tools || [])
     const tool = catalog.find(item => item.name === canonical)
     if (tool?.ui && typeof tool.ui === 'object' && !Array.isArray(tool.ui)) return tool.ui
-    if (canonical === 'new_task') return NEW_TASK_UI
     return {}
 }
 

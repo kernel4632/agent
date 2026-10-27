@@ -1,3 +1,7 @@
+<!--
+结束/追问结果：显示 attempt_completion 或 ask_followup_question 的文本。
+调用示例：<ResultView :tool="tool" />
+-->
 <script setup>
 import { computed } from 'vue'
 import { uiFor } from '../../tool-ui.js'

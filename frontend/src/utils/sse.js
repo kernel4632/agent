@@ -1,3 +1,8 @@
+/*
+SSE 读取：把 fetch 响应体按空行拆成事件，逐条交给回调。
+调用示例：
+  await readSSE(response, event => receive(sessionID, event))
+*/
 export async function readSSE(response, receiveEvent) {
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))

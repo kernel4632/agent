@@ -38,7 +38,11 @@ function firstUserAtOrAfter(start) {
   const index = turns.value.slice(start).findIndex(turn => turn.role === 'user')
   return index < 0 ? start : start + index
 }
-const visibleStart = ref(firstUserAtOrAfter(Math.max(0, turns.value.length - INITIAL_TURNS)))
+// 短会话从头显示，不能因为首条是助手消息就把带审批的那一轮藏起来。
+function visibleStartFor(start) {
+  return start <= 0 ? 0 : firstUserAtOrAfter(start)
+}
+const visibleStart = ref(visibleStartFor(Math.max(0, turns.value.length - INITIAL_TURNS)))
 const visibleTurns = computed(() => turns.value.slice(visibleStart.value))
 const earlierCount = computed(() => visibleStart.value)
 let loadingEarlier = false
@@ -48,7 +52,7 @@ function loadEarlier() {
   const beforeHeight = scrollParent.scrollHeight
   const beforeTop = scrollParent.scrollTop
   const target = Math.max(0, visibleStart.value - LOAD_STEP)
-  visibleStart.value = firstUserAtOrAfter(target)
+  visibleStart.value = visibleStartFor(target)
   // 旧内容插到上面后，把滚动位置往下补同样的高度，用户不会突然跳走。
   nextTick(() => {
     scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
@@ -56,7 +60,7 @@ function loadEarlier() {
   })
 }
 watch(() => turns.value.length, length => {
-  if (visibleStart.value > length) visibleStart.value = firstUserAtOrAfter(Math.max(0, length - INITIAL_TURNS))
+  if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
 })
 const pinned = ref(true)
 const rollbackTarget = ref(null)

@@ -1,3 +1,7 @@
+<!--
+目录结果：显示目录路径和文件/子目录列表。
+调用示例：<FileListView :tool="tool" />
+-->
 <script setup>
 import { computed } from 'vue'
 import { useToolContent } from '../use-tool-content.js'

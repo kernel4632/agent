@@ -1,3 +1,7 @@
+<!--
+多文件补丁结果：列出补丁涉及的文件并显示执行结果。
+调用示例：<PatchView :tool="tool" />
+-->
 <script setup>
 import { computed } from 'vue'
 import { useToolContent } from '../use-tool-content.js'

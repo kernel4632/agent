@@ -1,3 +1,7 @@
+<!--
+子任务结果：显示委托描述和交给子 agent 的完整提示词。
+调用示例：<SubtaskView :tool="tool" />
+-->
 <script setup>
 import { useToolContent } from '../use-tool-content.js'
 

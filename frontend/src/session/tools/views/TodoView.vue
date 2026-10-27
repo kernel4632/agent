@@ -1,3 +1,7 @@
+<!--
+任务清单结果：按 todoStatus 的统一状态表显示进度。
+调用示例：<TodoView :tool="tool" />
+-->
 <script setup>
 import { computed } from 'vue'
 import { AppIcon } from '../../../ui/index.js'

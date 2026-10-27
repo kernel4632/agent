@@ -1,3 +1,7 @@
+<!--
+网页读取结果：显示来源链接和正文。
+调用示例：<WebView :tool="tool" />
+-->
 <script setup>
 import { useToolContent } from '../use-tool-content.js'
 

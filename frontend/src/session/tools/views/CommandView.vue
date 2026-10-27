@@ -1,3 +1,7 @@
+<!--
+命令结果：显示执行的命令、stdout/stderr 和退出码。
+调用示例：<CommandView :tool="tool" />
+-->
 <script setup>
 import { computed } from 'vue'
 import { useToolContent } from '../use-tool-content.js'

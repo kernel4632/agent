@@ -1,25 +1,12 @@
 /*
 Workspace 指令：从 Server 读取会话列表，组装成主页和侧边栏要的工作区结构。
 
-Server 是会话的唯一来源；浏览器只保留"哪些会话被打开过"这类纯界面偏好。
+Server 是会话的唯一来源；浏览器不保存会话副本。
 调用示例：await Workspace.load()、await Workspace.reload()。
 */
 import { AgentAPI } from '../api.js'
 import { store } from '../store.js'
 import { NEW_SESSION_TITLE } from './defaults.js'
-
-// 浏览器只记住用户打开过哪个工作区，会话本身一律问 Server 要。
-const ACTIVE_WORKSPACE_KEY = 'la.active-workspace.v1'
-
-// --- 读取当前工作区标识 ---
-function activeWorkspaceID() {
-  try { return localStorage.getItem(ACTIVE_WORKSPACE_KEY) || '' } catch { return '' }
-}
-
-// --- 记住当前工作区 ---
-function rememberWorkspace(id) {
-  try { localStorage.setItem(ACTIVE_WORKSPACE_KEY, id) } catch { /* 存不下不影响使用。 */ }
-}
 
 // --- 加载会话列表 ---
 async function load() {
@@ -38,7 +25,6 @@ async function load() {
       sessions: sessions.map(summaryOf),
     })
     store.ui.activeWorkspaceID = id
-    rememberWorkspace(id)
     return true
   } catch (error) {
     // 启动时后端没起来不该在控制台留下未处理的 rejection；用可见的错误提示代替。
@@ -69,4 +55,4 @@ function summaryOf(session) {
   }
 }
 
-export const Workspace = { load, reload, activeWorkspaceID, rememberWorkspace }
+export const Workspace = { load, reload }
