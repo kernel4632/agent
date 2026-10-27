@@ -77,6 +77,17 @@ describe('Roo Code 工具接口', () => {
         expect(result.stdout).toContain('hello')
     })
 
+    test('只传 input 时搜索和命令也能执行', async () => {
+        // agent-core 的契约是 execute(input, options?)；文件工具在子进程里只收到 input。
+        // 之前把第二参写成必解构，每次真实执行都会崩。
+        await writeFile(join(root, 'bare.js'), 'const needle = 1\n')
+        expect(await searchFiles.execute({ path: root, regex: 'needle', file_pattern: 'bare.js' }))
+            .toContain('bare.js')
+        const result = await executeCommand.execute({ command: 'echo bare', cwd: root })
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toContain('bare')
+    })
+
     test('update_todo_list 解析 Roo 的 Markdown 清单', async () => {
         const result = await updateTodoList.execute({ todos: '- [x] done\n- [-] doing\n- [ ] later' })
         expect(result.items).toEqual([

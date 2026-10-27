@@ -137,6 +137,11 @@ describe('server delegation', () => {
             const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
             expect(result.description).toBe('查点东西')
             expect(typeof result.error).toBe('string')
+
+            // 执行器只传第一参时也不能崩：这是文件工具踩过的同一个坑。
+            const bare = await task.execute({ description: '不带第二参', prompt: '随便看看' })
+            expect(bare.description).toBe('不带第二参')
+            expect(typeof bare.error).toBe('string')
         })
     })
 

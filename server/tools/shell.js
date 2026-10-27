@@ -38,7 +38,9 @@ export default {
     },
 
     // --- 执行命令 ---
-    async execute({ command, cwd, directory }, { abortSignal }) {
+    // 第二参必须可省：agent-core 的契约是 execute(input, options?)，
+    // 文件工具跑在子进程里时只收到 input；写成必解构会在真实执行时崩。
+    async execute({ command, cwd, directory }, { abortSignal } = {}) {
         const process = Bun.spawn({
             cmd: ['cmd.exe', '/d', '/s', '/c', command],
             cwd: cwd ?? directory, // 旧调用仍可传 directory。

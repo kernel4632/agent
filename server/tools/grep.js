@@ -40,7 +40,9 @@ export default {
         required: ['path', 'regex'],
     },
     // --- 搜索文件内容 ---
-    async execute({ path, regex, file_pattern, pattern, include }, { abortSignal }) {
+    // 第二参必须可省：agent-core 的契约是 execute(input, options?)，
+    // 文件工具跑在子进程里时只收到 input；写成必解构会在真实执行时崩。
+    async execute({ path, regex, file_pattern, pattern, include }, { abortSignal } = {}) {
         const needle = regex ?? pattern // 旧调用仍可传 pattern。
         const filter = file_pattern ?? include // 旧调用仍可传 include。
         if (!needle) throw new Error('regex is required')

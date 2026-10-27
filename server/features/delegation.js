@@ -86,7 +86,8 @@ const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) =>
             required: ['description', 'prompt'],
         },
 
-        async execute({ description, prompt }, { abortSignal }) {
+        // 第二参必须可省：执行器只保证传 input，不传时就没有取消信号。
+        async execute({ description, prompt }, { abortSignal } = {}) {
             // 每次委托一个独立编号，前端据此把子任务的进度和别的任务分开。
             // 带上层级，避免不同层的 new_task-1 在事件流里撞名字。
             const id = `new_task-${depth}-${++counter}`
