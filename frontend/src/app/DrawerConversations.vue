@@ -113,7 +113,7 @@ async function submitDialog() {
       <template v-if="groups.length">
         <section v-for="group in groups" :key="group.key" class="home-sessions__group">
           <h2 class="group-label">{{ group.label }}</h2>
-          <KimaList class="session-list" variant="plain" :gap="2" :items="group.items" :label="group.label">
+          <KimaList variant="plain" :gap="2" :items="group.items" :label="group.label">
             <template #item="{ item }">
               <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
                 <Transition name="session-check">
