@@ -7,7 +7,7 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
@@ -30,6 +30,33 @@ const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
 const turns = computed(() => groupMessageTurns(messages.value))
+// 切换会话时只挂最近几轮，避免一下子渲染几百条历史；滚到顶部再按需加载更早的。
+const INITIAL_TURNS = 5
+const LOAD_STEP = 5
+function firstUserAtOrAfter(start) {
+  const index = turns.value.slice(start).findIndex(turn => turn.role === 'user')
+  return index < 0 ? start : start + index
+}
+const visibleStart = ref(firstUserAtOrAfter(Math.max(0, turns.value.length - INITIAL_TURNS)))
+const visibleTurns = computed(() => turns.value.slice(visibleStart.value))
+const earlierCount = computed(() => visibleStart.value)
+let loadingEarlier = false
+function loadEarlier() {
+  if (loadingEarlier || !earlierCount.value || !scrollParent) return
+  loadingEarlier = true
+  const beforeHeight = scrollParent.scrollHeight
+  const beforeTop = scrollParent.scrollTop
+  const target = Math.max(0, visibleStart.value - LOAD_STEP)
+  visibleStart.value = firstUserAtOrAfter(target)
+  // 旧内容插到上面后，把滚动位置往下补同样的高度，用户不会突然跳走。
+  nextTick(() => {
+    scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
+    loadingEarlier = false
+  })
+}
+watch(() => turns.value.length, length => {
+  if (visibleStart.value > length) visibleStart.value = firstUserAtOrAfter(Math.max(0, length - INITIAL_TURNS))
+})
 const pinned = ref(true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
@@ -105,7 +132,11 @@ function onUserMenu(message, action) {
 
 <template>
   <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
-    <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
+    <button v-if="earlierCount" type="button" class="conversation-earlier" @click="loadEarlier">
+      <AppIcon name="up" :size="14" />
+      更早的 {{ earlierCount }} 轮
+    </button>
+    <article v-for="turn in visibleTurns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <template v-if="turn.role === 'user'">
         <MessageActionTarget
           :items="userMenuItems(turn.messages[0])"
@@ -148,7 +179,21 @@ function onUserMenu(message, action) {
 
 <style scoped lang="scss">
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-.message { display: block; min-width: 0; animation: row-in var(--la-motion-enter) var(--kima-curve-standard) both; }
-@keyframes row-in { from { opacity: 0; transform: translateY(var(--la-motion-rise-small)); } to { opacity: 1; transform: none; } }
+.conversation-earlier {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--la-line);
+  border-radius: 999px;
+  background: var(--la-layer-01);
+  color: var(--la-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.conversation-earlier:hover { color: var(--la-text); background: var(--la-layer-02); }
+.message { display: block; min-width: 0; }
 
 </style>

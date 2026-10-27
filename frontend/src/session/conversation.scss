@@ -197,9 +197,26 @@
 }
 
 /* RikkaHub 消息列：用户靠右，助手靠左；不显示头像和名字。 */
-.rikka-message { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 4px; }
+.rikka-message { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 4px; contain: layout paint; }
 .rikka-message--user { align-items: flex-end; }
 .rikka-message--assistant { align-items: flex-start; }
+/* 正文用比例字体，代码和工具输出继续用等宽字体；长中文按等宽字形排版会明显拖慢滚动。 */
+.rikka-bubble--user,
+.rikka-bubble--assistant,
+.cot-card,
+.reasoning-text,
+.rikka-bubble--user .markdown-body,
+.rikka-bubble--assistant .markdown-body,
+.rikka-bubble--user .kima-typography,
+.rikka-bubble--assistant .kima-typography,
+.cot-card .markdown-body,
+.cot-card .kima-typography { font-family: var(--la-font-reading); }
+.rikka-bubble--user code,
+.rikka-bubble--assistant code,
+.cot-card code,
+.markdown-body pre,
+.kima-code-block,
+.tool-output { font-family: var(--la-font-mono) !important; }
 .rikka-bubble { max-width: 100%; min-width: 0; padding: 10px; border-radius: 24px; }
 .rikka-bubble--user {
   max-width: 100%;
@@ -216,7 +233,7 @@
   padding: 0;
   border-radius: 0;
   background: transparent;
-  animation: surface-in var(--la-motion-enter) var(--kima-curve-standard) both;
+  contain: layout paint;
 }
 /* 附件在气泡里只留文件名；正文和附件内容都已交给模型，不再重复显示。 */
 .user-attachments { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -252,9 +269,25 @@
   padding: 4px 12px;
   border-radius: 20px;
   background: var(--la-layer-02);
-  animation: surface-in var(--la-motion-enter) var(--kima-curve-standard) both;
+  contain: layout paint;
 }
-@keyframes surface-in { from { opacity: 0; transform: translateY(var(--la-motion-rise-small)); } to { opacity: 1; transform: none; } }
+.cot-fold {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--la-muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.cot-fold:hover { color: var(--la-text); }
+.cot-fold svg { transition: transform var(--la-motion-enter) var(--kima-curve-standard); }
+.cot-fold.is-open svg { transform: rotate(180deg); }
 .cot-steps { display: flex; flex-direction: column; }
 .cot-step { position: relative; min-width: 0; padding-left: 32px; }
 .cot-step::before {

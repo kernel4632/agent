@@ -6,7 +6,7 @@
 调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" @rollback="..." @fork="..." />
 -->
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { AppIcon, KimaMarkdown, SmoothMarkdown } from '../ui/index.js'
 import { UI } from '../commands/ui.js'
 import { useSmoothText } from '../utils/smooth-text.js'
@@ -77,6 +77,11 @@ const steps = computed(() => {
   return list
 })
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
+// 历史步骤很多时默认只留最后两步，和 RikkaHub 一样先给结论；展开按钮看全部过程。
+const expandedSteps = ref(false)
+const canCollapse = computed(() => steps.value.length > 3)
+const visibleSteps = computed(() => canCollapse.value && !expandedSteps.value ? steps.value.slice(-2) : steps.value)
+const hiddenSteps = computed(() => steps.value.length - visibleSteps.value.length)
 // 全部都是正文时仍显示成普通气泡；有思考、工具或结束工具时，正文按原位置留在步骤里。
 const textOnly = computed(() => !finalText.value && steps.value.length > 0 && steps.value.every(step => step.type === 'text'))
 const showSteps = computed(() => steps.value.length > 0 && !textOnly.value)
@@ -110,8 +115,12 @@ function onMenu(action) {
     <MessageActionTarget :items="menuItems" :preview="content" role-label="助手回复" label="助手消息操作" @select="onMenu">
       <RequestStatus v-if="requests.length" :requests="requests" />
       <div v-if="showSteps" class="cot-card">
+        <button v-if="canCollapse" type="button" class="cot-fold" :class="{ 'is-open': expandedSteps }" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
+          <AppIcon name="down" :size="14" />
+          <span>{{ expandedSteps ? '收起过程' : `展开其余 ${hiddenSteps} 步` }}</span>
+        </button>
         <div class="cot-steps">
-          <template v-for="step in steps" :key="step.key">
+          <template v-for="step in visibleSteps" :key="step.key">
             <ReasoningStep
               v-if="step.type === 'reasoning'"
               :reasoning="step.text"

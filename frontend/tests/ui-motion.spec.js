@@ -148,8 +148,13 @@ test.describe('chat motion', () => {
     await page.reload()
 
     await openSession(page, '会话甲')
-    await expect(page.locator('.rikka-bubble--user').first()).toContainText('第一个会话的问题')
+    // 长会话只先挂最近几轮，避免切换时一次渲染整段历史。
+    await expect(page.locator('.rikka-bubble--user').last()).toContainText('第 22 条问题。')
+    await expect(page.locator('.conversation-earlier')).toContainText('更早的')
     await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
+    const rendered = await page.locator('.message').count()
+    await page.locator('.conversation-earlier').click()
+    await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(rendered)
     await page.evaluate(() => { document.querySelector('.chat-composer').dataset.motionKeep = 'yes' })
 
     await watchMotion(page)
@@ -168,7 +173,7 @@ test.describe('chat motion', () => {
     expect(await page.locator('.chat-composer').getAttribute('data-motion-keep')).toBe('yes')
 
     await openSession(page, '会话甲')
-    await expect(page.locator('.rikka-bubble--user').first()).toContainText('第一个会话的问题')
+    await expect(page.locator('.rikka-bubble--user').last()).toContainText('第 22 条问题。')
     await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
     expect(await page.locator('.chat-composer').getAttribute('data-motion-keep')).toBe('yes')
     expect(mock.errors).toEqual([])

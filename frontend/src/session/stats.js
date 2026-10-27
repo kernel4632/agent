@@ -131,6 +131,14 @@ export function sessionStats(session) {
   const usageApproximate = !requests.length && Boolean(estimate)
   // 空会话没有内容可统计，顶栏不显示一个 0% 的空圆环；发出第一条消息后再出现。
   if (!messages.length && !requests.length && !session.contextTokens) return null
+  // 真实请求最多保留最近 18 次；旧会话没有请求记录时，用最近 18 条回复的估算值画同一张图。
+  const estimatedSeries = usageApproximate
+    ? messages
+      .filter(message => message.role === 'assistant')
+      .map(messageUsage)
+      .filter(usage => usage.input + usage.output > 0)
+      .slice(-18)
+    : []
   return {
     approximate: usedApproximate || usageApproximate,
     context: {
@@ -152,7 +160,8 @@ export function sessionStats(session) {
       durationMs: usageApproximate ? 0 : requests.reduce((value, item) => value + Number(item.durationMs || 0), 0),
       approximate: usageApproximate,
     },
-    // 真实请求最多保留最近 18 次，用来画每轮消耗的小柱图；估算会话没有这项。
-    series: requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0) })),
+    series: usageApproximate
+      ? estimatedSeries
+      : requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0) })),
   }
 }

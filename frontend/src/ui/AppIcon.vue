@@ -8,6 +8,7 @@ import { KimaIcon } from '@kernel4632/kima'
 import { ICON_STROKE_WIDTH } from '../theme/index.js'
 import {
   Add01Icon,
+  Activity01Icon,
   AiBrain01Icon,
   ArrowDown01Icon,
   ArrowExpand01Icon,
@@ -89,6 +90,7 @@ const icons = {
   layers: Layers01Icon,
   database: Database01Icon,
   refresh: Refresh01Icon,
+  activity: Activity01Icon,
   flash: FlashIcon,
   gauge: GaugeIcon,
   edit: PencilEdit01Icon,

@@ -351,13 +351,20 @@ function normalize(source, previous = {}) {
   const provider = source.provider || findModelProvider(source.model)
 
   // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
-  const sessionData = structuredClone(source)            // Server 返回的 Session 即为前端公开结构
+  // 不保留后端原始 history：它在界面里只通过 messages 使用，留着会多占一倍内存。
+  const { history: _history, ...sessionData } = source
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
   for (const item of source.history ?? []) {
     const parts = Array.isArray(item.parts) ? item.parts
       : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
-    const message = structuredClone(item)                // 复制消息避免归一化修改 Server 响应
-    message.id = item.messageId || item.id
+    // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
+    const message = {
+      id: item.messageId || item.id,
+      role: item.role,
+      startedAt: Number(item.startedAt || 0),
+      finishedAt: Number(item.finishedAt || 0),
+    }
+    if (item.compact) message.compact = true
     if (item.role === 'tool') {
       for (const result of parts.filter(part => part.type === 'tool-result')) {
         const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
@@ -405,6 +412,9 @@ function normalize(source, previous = {}) {
         if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
         if (message.content) message.steps.push({ type: 'text', text: message.content })
         for (const tool of message.tools) message.steps.push({ type: 'tool', toolId: tool.id })
+      } else {
+        // 步骤里已经有思考正文，顶层再留一份只会让长会话多占一倍内存。
+        message.reasoning = ''
       }
       // 服务端把每次模型请求的用量挂在消息上；刷新后请求行靠它恢复。
       if (item.usage) {

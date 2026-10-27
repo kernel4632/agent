@@ -65,7 +65,9 @@ test('legacy history without usage is estimated and marked, not shown as zero', 
   assert.ok(stats.usage.reasoning > 0)
   assert.equal(stats.usage.cacheRead, 0)
   assert.equal(stats.usage.requests, 1)
-  assert.deepEqual(stats.series, [])
+  assert.equal(stats.series.length, 1)
+  assert.ok(stats.series[0].input > 0)
+  assert.ok(stats.series[0].output > 0)
 })
 
 test('an over-limit estimate keeps the real number and marks it', () => {
