@@ -89,7 +89,7 @@ describe('继续被中断的助手', () => {
         })
     })
 
-    test('继续时不把内部提示保存成用户消息', async () => {
+    test('继续时不在历史里留下用户消息，模型只看到原来的进度', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
@@ -102,9 +102,10 @@ describe('继续被中断的助手', () => {
                 stop: async () => ({ ok: true }),
                 send(options) {
                     calls.push(options)
-                    agent.history.push({ id: `hidden-${calls.length}`, role: 'user', content: text(options.input) })
-                    options.callbacks.onStart()
-                    return Promise.resolve().then(() => {
+                    agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
+                    return Promise.resolve().then(() => options.callbacks.onStart()).then(() => {
+                        // 第一次模型请求前，历史必须已经恢复成发送前的样子。
+                        calls[0].historyAtRequest = agent.history.map(message => message.id)
                         agent.history.push({ id: 'a2', role: 'assistant', content: text('继续完成') })
                         return { reason: 'finished' }
                     })
@@ -118,10 +119,9 @@ describe('继续被中断的助手', () => {
             await Bun.sleep(50) // 让任务末尾的 agent-finish 也走完，测试目录再清理
 
             expect(calls).toHaveLength(1)
-            expect(calls[0].input).toContain('继续上次')
+            expect(calls[0].historyAtRequest).toEqual(['a1'])
             const history = History.get({ sessionId })
             expect(history.map(message => message.id)).toEqual(['a1', 'a2'])
-            expect(history.some(message => message.id.startsWith('hidden'))).toBe(false)
             expect(history.at(-1).content).toEqual(text('继续完成'))
         })
     })
@@ -186,7 +186,7 @@ describe('继续被中断的助手', () => {
                 running: null,
                 stop: async () => ({ ok: true }),
                 send(options) {
-                    agent.history.push({ id: 'hidden', role: 'user', content: text(options.input) })
+                    agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
                     return options.callbacks.onStart().then(() => ({ reason: 'finished' }))
                 },
             }
@@ -194,11 +194,11 @@ describe('继续被中断的助手', () => {
 
             expect(await Session.resume({ sessionId })).toEqual({ ok: true })
             await waitForHistory(sessionId, 2) // a1 和工具结果都要落盘
-            expect(History.get({ sessionId }).some(message => message.role === 'tool')).toBe(true)
+            expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 't1'])
         })
     })
 
-    test('继续提示被改写时不删除也不保存', async () => {
+    test('继续占位被改写时不删除也不保存', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
@@ -384,7 +384,7 @@ describe('继续助手的 HTTP 接口', () => {
                 running: null,
                 stop: async () => ({ ok: true }),
                 send(options) {
-                    agent.history.push({ id: 'hidden', role: 'user', content: text(options.input) })
+                    agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
                     options.callbacks.onStart()
                     return Promise.resolve().then(() => {
                         agent.history.push({ id: 'a2', role: 'assistant', content: text('继续完成') })

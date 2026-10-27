@@ -515,10 +515,11 @@ const compact = async ({ sessionId }) => {
 // --- 启动 Agent 任务 ---
 const send = ({ sessionId, input }) => run({ sessionId, input })
 
-const CONTINUE_PROMPT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。'
+const RESUME_INPUT = '继续'
 
-// 继续被中断的助手回复：内部发一条提示，但不作为用户消息保存。
-const resume = ({ sessionId }) => run({ sessionId, input: CONTINUE_PROMPT, resume: true })
+// 继续被中断的助手回复：只在发送时占位，onStart 里会从历史删掉。
+// 这样模型看到的历史末尾仍然是上一段助手回复或工具结果，不会知道“中途被打断过”。
+const resume = ({ sessionId }) => run({ sessionId, input: RESUME_INPUT, resume: true })
 
 // --- 取一条消息里的纯文本 ---
 // 继续提示可能是字符串，也可能是内容块数组，两种都要能核对。
@@ -531,15 +532,15 @@ const textOf = message => {
         .join('')                                                             // 拼回一整段
 }
 
-// --- 给继续提示打内部标记 ---
-// agent.send 会把 input 原样追加成一条 user 消息。这里先记下发送前的最后一条，
-// 发送后确认"末尾换了新消息，且内容正好是继续提示"，才给它打 internal。
-// 不按位置盲目标最后一条：一旦追加没发生，被标成内部的就是用户真正发过的消息。
-const tagContinuePrompt = ({ agent, previousLast }) => {
-    const marker = agent.history.at(-1)                               // 发送后历史末尾应该是新追加的提示
-    if (marker === previousLast) return false                         // 没有新消息，不能拿旧消息顶替
-    if (marker?.role !== 'user' || textOf(marker) !== CONTINUE_PROMPT) return false // 不是继续提示就不动它
-    marker.internal = true                                            // 只给模型看，保存和界面都会跳过它
+// --- 删掉继续占位 ---
+// agent.send 的接口要求必须传 input，并且会把它原样追加成一条 user 消息。
+// 继续时先传占位，再在第一次模型请求前删掉：历史长度和内容都对上才删，
+// 对不上说明历史被别的写入动过，宁可停下也不能误删真正的用户消息。
+const dropResumeInput = ({ agent, previousLength }) => {
+    const marker = agent.history.at(-1)                               // 发送后末尾应该就是占位
+    if (agent.history.length !== previousLength + 1) return false     // 条数不对，不碰历史
+    if (marker?.role !== 'user' || textOf(marker) !== RESUME_INPUT) return false // 不是占位，不碰历史
+    agent.history.pop()                                               // 删掉占位，恢复成发送前的历史
     return true
 }
 
@@ -604,10 +605,10 @@ const run = async ({ sessionId, input, resume = false }) => {
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
-    const previousLast = agent.history.at(-1)                         // 发送前的末尾，用来认出刚追加的继续提示
+    const previousLength = agent.history.length                      // 发送前的条数，用来认出刚追加的继续占位
     const token = { stopped: false }                                  // 这一轮的终态令牌；stop 和 task.then 只有一方能结束它
     activeRuns.set(sessionId, token)
-    let resumeError = ''                                              // 继续提示校验失败时，收尾路径只报错、不保存
+    let resumeError = ''                                              // 继续占位校验失败时，收尾路径只报错、不保存
     let task
     try {
         task = agent.send({
@@ -615,9 +616,9 @@ const run = async ({ sessionId, input, resume = false }) => {
         config: Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) }),
         callbacks: {
             onStart: async () => {
-                // 继续提示要在第一次模型请求前认出来并藏好，否则 onStep 会把它当成用户消息落盘。
-                if (resume && !tagContinuePrompt({ agent, previousLast })) {
-                    resumeError = '继续提示没有出现在历史末尾，已停止本次继续'
+                // 继续占位要在第一次模型请求前删掉，否则模型会把“继续”当成一条新的用户消息。
+                if (resume && !dropResumeInput({ agent, previousLength })) {
+                    resumeError = '继续占位没有出现在历史末尾，已停止本次继续'
                     await SSE.reset({ id: sessionId })                // 先清掉上一轮旧终态，失败只留新的错误事件
                     void agent.stop()                                 // 不能 await：onStart 正在被这一轮 await
                     return
