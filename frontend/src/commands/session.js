@@ -406,6 +406,24 @@ function normalize(source, previous = {}) {
         if (message.content) message.steps.push({ type: 'text', text: message.content })
         for (const tool of message.tools) message.steps.push({ type: 'tool', toolId: tool.id })
       }
+      // 服务端把每次模型请求的用量挂在消息上；刷新后请求行靠它恢复。
+      if (item.usage) {
+        const usage = item.usage
+        const input = Number(usage.input ?? usage.inputTokens ?? 0)
+        const output = Number(usage.output ?? usage.outputTokens ?? 0)
+        message.request = {
+          status: 'completed',
+          startedAt: Number(usage.startedAt || 0),
+          finishedAt: Number(usage.finishedAt || 0),
+          durationMs: Number(usage.durationMs || 0),
+          input,
+          output,
+          cache: Number(usage.cacheRead ?? usage.cachedInputTokens ?? 0),
+          cacheWrite: Number(usage.cacheWrite ?? 0),
+          total: Number(usage.total ?? input + output),
+        }
+        message.requests = [message.request]
+      }
     }
     messages.push(message)                               // 用户和助手消息进入可见时间线
   }

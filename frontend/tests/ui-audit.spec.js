@@ -614,6 +614,32 @@ test('reasoning picker saves the selected level', async ({ page }, testInfo) => 
   expect(mock.errors).toEqual([])
 })
 
+test('model request row shows progress and token usage', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  const running = page.locator('.request-status').last()
+  await expect(running).toContainText('正在请求模型…')
+  await expect(running).toContainText('等待模型返回第一个字')
+  await screenshot(page, testInfo, 'request-status-running')
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
+
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  const done = page.locator('.request-status').last()
+  await expect(done).toContainText('模型请求完成')
+  await expect(done).toContainText('输入 30')
+  await expect(done).toContainText('输出 20')
+  await expect(done).toContainText('50 tokens')
+  await screenshot(page, testInfo, 'request-status-done')
+  expect(mock.errors).toEqual([])
+})
+
 test('existing conversation switches model from the input bar', async ({ page }, testInfo) => {
   const mock = await backend(page)
   mock.config().providers[0].models.push('another-model')

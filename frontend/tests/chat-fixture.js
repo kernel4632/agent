@@ -191,12 +191,13 @@ export async function backend(page, { configured = true } = {}) {
       await json({ ok: true })
       if (body.input === 'keep running') {
         session.running = true
-        return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '正在处理' }])
+        return emit(id, [{ type: 'agent-start' }, { type: 'llm-start' }, { type: 'text-delta', text: '正在处理' }])
       }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({
         messageId: 'assistant-1',
         role: 'assistant',
+        usage: { input: 30, output: 20, total: 50, durationMs: 800, startedAt: Date.now() - 800, finishedAt: Date.now() },
         content: [
           { type: 'text', text },
           {
@@ -210,7 +211,7 @@ export async function backend(page, { configured = true } = {}) {
         ],
       })
       session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
+      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) {
       session.running = false
@@ -235,9 +236,10 @@ export async function backend(page, { configured = true } = {}) {
       session.running = false
       // 真实后端会先追加一条内部提示，再让模型接着写；read 时必须过滤掉它。
       session.history.push({ messageId: 'internal-continue', role: 'user', internal: true, content: CONTINUE_TEXT })
-      session.history.push({ messageId: 'assistant-2', role: 'assistant', content: [{ type: 'text', text: '继续完成' }] })
+      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, durationMs: 600 }, content: [{ type: 'text', text: '继续完成' }] })
       return emit(id, [
         { type: 'agent-resume' },
+        { type: 'llm-start' },
         { type: 'text-delta', text: '继续完成' },
         { type: 'llm-finish', text: '继续完成', usage: { inputTokens: 12, outputTokens: 6 } },
         { type: 'agent-finish' },

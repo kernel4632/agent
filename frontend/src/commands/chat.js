@@ -22,9 +22,32 @@ const streaming = session => session.messages.findLast(message => message.role =
 const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
 
 function createAssistant(session) {
-  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], steps: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
+  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], steps: [], requests: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
   session.messages.push(message)
   return message
+}
+
+// --- 把一次模型请求的用量收成界面统一字段 ---
+// 服务端实时事件和历史文件可能用不同字段名，这里只认一套。
+function usageFields(usage = {}, durationMs = 0) {
+  const input = Number(usage.inputTokens ?? usage.promptTokens ?? 0)
+  const output = Number(usage.outputTokens ?? usage.completionTokens ?? 0)
+  return {
+    input,
+    output,
+    cache: Number(usage.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
+    cacheWrite: Number(usage.cacheWriteTokens ?? 0),
+    total: Number(usage.totalTokens ?? input + output),
+    durationMs: Number(durationMs || usage.durationMs || 0),
+  }
+}
+
+function finishRequest(request, usage, durationMs) {
+  if (!request) return null
+  request.status = 'completed'
+  request.finishedAt = Date.now()
+  Object.assign(request, usageFields(usage, durationMs ?? request.finishedAt - request.startedAt))
+  return request
 }
 
 async function subscribe(sessionID) {
@@ -148,7 +171,7 @@ function toolFor(session, event, status) {
 }
 
 // --- 运行状态：开始、继续、结束、重试和标题 ---
-const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-finish', 'retry', 'error', 'mcp-error', 'title', 'agent-finish'])
+const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-finish', 'retry', 'error', 'mcp-error', 'title', 'agent-finish'])
 async function receiveRun(sessionID, session, event) {
   if (event.type === 'agent-start') {
     // 后端重连后会把这一轮从头补发一遍，所以只按最后一条用户消息重建这一轮，不信任全局游标。
@@ -163,17 +186,30 @@ async function receiveRun(sessionID, session, event) {
     session.status = 'running'
     session.connection = 'connected'
     if (!streaming(session)) createAssistant(session)
+  } else if (event.type === 'llm-start') {
+    // 模型请求开始：在时间线里先挂一行进度，完成后同一行变成消耗摘要。
+    const assistant = streaming(session) || createAssistant(session)
+    const request = { status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
+    assistant.requests.push(request)
+    assistant.request = request
+    assistant.isStreaming = true
   } else if (event.type === 'llm-finish') {
     const assistant = streaming(session) || createAssistant(session)
     if (event.text) assistant.content = event.text       // 最后一轮正文以完整文本为准
     if (event.text && !assistant.steps.some(step => step.type === 'text')) {
       assistant.steps.push({ type: 'text', text: event.text }) // 没收到增量时补一条，时间线不能空
     }
-    const usage = event.usage || {}
-    assistant.request = { status: 'completed', input: Number(usage.inputTokens || 0), output: Number(usage.outputTokens || 0), cache: Number(usage.cachedInputTokens || 0) }
-    session.contextTokens = assistant.request.input + assistant.request.output
-    session.inputTokens += assistant.request.input
-    session.outputTokens += assistant.request.output
+    let request = assistant.requests.at(-1)
+    // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
+    if (!request) {
+      request = { status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
+      assistant.requests.push(request)
+    }
+    finishRequest(request, event.usage, event.durationMs)
+    assistant.request = request
+    session.contextTokens = request ? request.input + request.output : 0
+    session.inputTokens += request?.input || 0
+    session.outputTokens += request?.output || 0
     assistant.isStreaming = false                        // 这一轮回复结束，光标停住
     assistant.finishedAt = Date.now()
   } else if (event.type === 'retry') {
@@ -184,6 +220,12 @@ async function receiveRun(sessionID, session, event) {
     assistant.retry = `连接重试 ${event.attempt || 1}，请稍候…`
   } else if (event.type === 'error') {
     const assistant = streaming(session) || createAssistant(session)
+    const request = assistant.requests.at(-1)
+    if (request?.status === 'running') {
+      request.status = 'failed'
+      request.finishedAt = Date.now()
+      request.durationMs = request.finishedAt - request.startedAt
+    }
     assistant.error = event.errorText || event.error?.message || '模型请求失败'
     assistant.isStreaming = false
     assistant.finishedAt = Date.now()

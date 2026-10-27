@@ -15,6 +15,7 @@ import { isFinishedStopTool } from './stop-tools.js'
 import { isSavedMessage } from './continue.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import ReasoningStep from './ReasoningStep.vue'
+import RequestStatus from './RequestStatus.vue'
 import ToolCallRow from './ToolCallRow.vue'
 
 const props = defineProps({
@@ -64,7 +65,7 @@ const steps = computed(() => {
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
-        if (text) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text })
+        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text })
       } else if (entry.type === 'tool') {
         const tool = (message.tools || []).find(item => item.id === entry.toolId)
         if (tool && !isFinishedStopTool(tool)) {
@@ -83,15 +84,8 @@ const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackT
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
-const usage = computed(() => {
-  let input = 0
-  let output = 0
-  for (const message of props.messages) {
-    input += Number(message.request?.input || 0)
-    output += Number(message.request?.output || 0)
-  }
-  return { input, output }
-})
+// 一轮里可能请求模型多次；每次的请求行按顺序显示，刷新后从历史里的 usage 恢复。
+const requests = computed(() => props.messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : []))
 
 const rollbackTarget = computed(() => props.messages.find(actionable) || null)
 const forkTarget = computed(() => [...props.messages].reverse().find(actionable) || null)
@@ -114,6 +108,7 @@ function onMenu(action) {
 <template>
   <div class="assistant-message rikka-message rikka-message--assistant">
     <MessageActionTarget :items="menuItems" :preview="content" role-label="助手回复" label="助手消息操作" @select="onMenu">
+      <RequestStatus v-if="requests.length" :requests="requests" />
       <div v-if="showSteps" class="cot-card">
         <div class="cot-steps">
           <template v-for="step in steps" :key="step.key">
@@ -152,10 +147,6 @@ function onMenu(action) {
       </div>
 
       <p v-if="error" class="message__error" role="alert">{{ error }}</p>
-
-      <p v-if="usage.input || usage.output" class="message__usage">
-        输入 {{ usage.input.toLocaleString() }} <span>·</span>输出 {{ usage.output.toLocaleString() }} tokens
-      </p>
     </MessageActionTarget>
   </div>
 </template>
