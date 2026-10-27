@@ -136,7 +136,7 @@ describe('继续被中断的助手', () => {
                     return Response.json({
                         id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fake',
                         choices: [{ index: 0, message: { role: 'assistant', content: '补充完成' }, finish_reason: 'stop' }],
-                        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+                        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, prompt_tokens_details: { cached_tokens: 1 } },
                     })
                 },
             })
@@ -162,7 +162,7 @@ describe('继续被中断的助手', () => {
 
                 // 用量挂到助手消息上，刷新页面后请求行仍然能显示输入/输出。
                 const saved = History.get({ sessionId }).find(message => message.usage)
-                expect(saved?.usage).toMatchObject({ input: 1, output: 1, total: 2 })
+                expect(saved?.usage).toMatchObject({ input: 1, output: 1, total: 2, cacheRead: 1 })
                 expect(saved.usage.durationMs).toBeGreaterThanOrEqual(0)
 
                 // 模型没有调用结束工具时会继续追加提示；等这一轮彻底停下再清理临时目录。

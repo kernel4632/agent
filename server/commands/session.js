@@ -539,8 +539,10 @@ const usageOf = ({ usage, startedAt, finishedAt }) => {
     return {
         input,
         output,
-        cacheRead: Number(usage?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0),
-        cacheWrite: Number(usage?.cacheWriteTokens ?? 0),
+        // AI SDK 把缓存放在 inputTokenDetails 里；旧字段保留给兼容数据。
+        cacheRead: Number(usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0),
+        cacheWrite: Number(usage?.inputTokenDetails?.cacheWriteTokens ?? usage?.cacheWriteTokens ?? 0),
+        reasoning: Number(usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens ?? 0),
         total: Number(usage?.totalTokens ?? input + output),
         startedAt,
         finishedAt,
