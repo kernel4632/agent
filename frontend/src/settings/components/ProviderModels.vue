@@ -9,7 +9,7 @@ import { computed, ref } from 'vue'
 import {
   KimaCard, KimaChip, KimaFlex, KimaNumberField, KimaTypography,
 } from '@kernel4632/kima'
-import { AppIcon, Button, Dialog, Field, IconButton, Switch } from '../../ui/index.js'
+import { AppIcon, Button, Dialog, Field, IconButton, ModelIcon, Switch } from '../../ui/index.js'
 import { Settings } from '../../commands/settings.js'
 import { UI } from '../../commands/ui.js'
 
@@ -154,6 +154,7 @@ function saveModel() {
       <KimaCard v-for="(model, index) in models" :key="model.id" variant="outlined" class="model-card">
         <div class="model-card__main">
           <div class="model-card__title">
+            <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
             <strong>{{ model.name }}</strong>
             <span v-if="model.name !== model.id">{{ model.id }}</span>
           </div>
@@ -184,6 +185,7 @@ function saveModel() {
           :aria-pressed="models.some(item => item.id === model.id)"
           @click="toggleAvailable(model)"
         >
+          <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
           <span class="model-chooser__name">{{ model.name }}</span>
           <span class="model-chooser__id">{{ model.id }}</span>
           <AppIcon v-if="models.some(item => item.id === model.id)" name="check" :size="18" class="model-chooser__check" />
@@ -247,7 +249,7 @@ function saveModel() {
 .model-card { padding: 14px 16px; }
 .model-card :deep(.kima-card__body) { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 12px; }
 .model-card__main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 8px; }
-.model-card__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.model-card__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
 .model-card__title strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
 .model-card__title span { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .model-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -255,7 +257,7 @@ function saveModel() {
 .model-card__actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .model-chooser { display: flex; flex-direction: column; gap: 12px; }
 .model-chooser__list { display: flex; max-height: 360px; flex-direction: column; gap: 2px; overflow: auto; }
-.model-chooser__row { display: grid; grid-template-columns: minmax(0, 1fr) auto 22px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; }
+.model-chooser__row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 22px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; }
 .model-chooser__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-chooser__id { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .model-chooser__check { color: var(--la-accent); }
@@ -269,7 +271,7 @@ function saveModel() {
   .provider-models__head { flex-direction: column; }
   .provider-models__add { flex-wrap: wrap; }
   .provider-models__input { flex-basis: 100%; }
-  .model-chooser__row { grid-template-columns: minmax(0, 1fr) 22px; }
+  .model-chooser__row { grid-template-columns: 20px minmax(0, 1fr) 22px; }
   .model-chooser__id { display: none; }
 }
 </style>

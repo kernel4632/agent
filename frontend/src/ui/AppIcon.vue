@@ -5,6 +5,7 @@
 -->
 <script setup>
 import { KimaIcon } from '@kernel4632/kima'
+import { ICON_STROKE_WIDTH } from '../theme/index.js'
 import {
   Add01Icon,
   AiBrain01Icon,
@@ -15,8 +16,8 @@ import {
   ArrowTurnBackwardIcon,
   ArrowUp02Icon,
   Attachment01Icon,
-  BrainCircuitIcon,
-  BrainIcon,
+  Brain02Icon,
+  BulbChargingIcon,
   BulbIcon,
   Cancel01Icon,
   ChartColumnIcon,
@@ -35,6 +36,7 @@ import {
   GitForkIcon,
   Grid2X2PlusIcon,
   Home01Icon,
+  Idea01Icon,
   IdeaIcon,
   InLoveIcon,
   InformationCircleIcon,
@@ -100,6 +102,8 @@ const icons = {
   todo: CheckListIcon,
   permission: Shield01Icon,
   mode: AiBrain01Icon,
+  model: Brain02Icon,
+  idea: Idea01Icon,
   info: InformationCircleIcon,
   link: Link01Icon,
   eye: EyeIcon,
@@ -112,12 +116,12 @@ const icons = {
   fullscreen: ArrowExpand01Icon,
   collapse: ArrowShrink01Icon,
   'thinking-off': LightbulbOffIcon,
-  'thinking-auto': SparklesIcon,
-  'thinking-low': BulbIcon,
-  'thinking-medium': IdeaIcon,
-  'thinking-high': BrainCircuitIcon,
-  'thinking-xhigh': BrainIcon,
-  'thinking-max': BrainIcon,
+  'thinking-auto': Idea01Icon,
+  'thinking-low': IdeaIcon,
+  'thinking-medium': BulbIcon,
+  'thinking-high': BulbChargingIcon,
+  'thinking-xhigh': BulbChargingIcon,
+  'thinking-max': BulbChargingIcon,
   volume: VolumeHighIcon,
   'volume-off': VolumeOffIcon,
   download: Download01Icon,
@@ -126,5 +130,5 @@ const icons = {
 </script>
 
 <template>
-  <KimaIcon :icon="icons[name] || SparklesIcon" :size="Number(size)" />
+  <KimaIcon :icon="icons[name] || SparklesIcon" :size="Number(size)" :stroke-width="ICON_STROKE_WIDTH" />
 </template>

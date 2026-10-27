@@ -71,7 +71,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="cot-step cot-step--reasoning">
-    <span class="cot-step__icon"><AppIcon name="spark" :size="16" /></span>
+    <span class="cot-step__icon"><AppIcon name="idea" :size="16" /></span>
     <button type="button" class="cot-step__head" :aria-expanded="showContent" :aria-controls="contentId" @click="toggle">
       <span class="cot-step__label" :class="{ 'is-live': streaming }">{{ label }}</span>
       <AppIcon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': showContent }" aria-hidden="true" />

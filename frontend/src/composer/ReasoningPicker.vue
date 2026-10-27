@@ -45,7 +45,7 @@ function setLevel(value) {
     :title="currentLabel"
     @click="open = true"
   >
-    <AppIcon :name="current.icon" :size="22" />
+    <AppIcon :name="current.icon" :size="24" />
   </Button>
 
   <Sheet :open="open" label="思考强度" :width="608" @update:open="open = $event">

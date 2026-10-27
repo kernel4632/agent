@@ -20,7 +20,7 @@
 -->
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { AppIcon, Button, Field, Sheet } from '../ui/index.js'
+import { AppIcon, Button, Field, ModelIcon, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
 import { UI } from '../commands/ui.js'
 import { Session } from '../commands/session.js'
@@ -183,7 +183,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
-        <button type="button" class="composer-option" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" title="选择模型" @click="openModelSheet"><AppIcon name="spark" :size="24" /></button>
+        <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="openModelSheet"><ModelIcon :model="selectedModel" :provider="currentProvider" :size="28" /></button>
         <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
         <template v-if="showSessionControls">
           <button
@@ -220,7 +220,7 @@ defineExpose({ focus: () => editor.value?.focus() })
         <section v-for="group in modelGroups" :key="group.provider" class="model-group">
           <h3>{{ group.provider }}</h3>
           <button v-for="model in group.models" :key="model" type="button" class="model-row" :class="{ 'is-selected': model === selectedModel && group.provider === currentProvider }" :aria-pressed="model === selectedModel && group.provider === currentProvider" @click="chooseModel(group.provider, model)">
-            <span class="model-row__icon"><AppIcon name="spark" :size="20" /></span>
+            <span class="model-row__icon"><ModelIcon :model="model" :provider="group.provider" :size="28" /></span>
             <span class="model-row__name">{{ model }}</span>
             <AppIcon v-if="model === selectedModel && group.provider === currentProvider" name="check" :size="20" />
           </button>
