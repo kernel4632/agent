@@ -290,6 +290,8 @@ notepad "C:\temp\agent-data\config.json"
 
 将 `baseURL`、`apiKey`、`models` 和模型名替换为你自己的模型服务信息。
 
+`protocol` 可选 `openai-compatible`（默认）、`responses`、`anthropic`、`gemini`；`stream: false` 可以只让这个供应商关闭流式回复。`headers` 和 `body` 都是对象，会分别合并进每次请求的请求头和请求体。`models` 里可以写模型 ID 字符串，也可以写 `{ "id", "name", "capabilities": ["文本", "工具"] }`；`modelSettings.<模型 ID>.context` 是这个模型的上下文窗口，不填按 128K 处理。
+
 ### 5. 启动后端
 
 ```powershell

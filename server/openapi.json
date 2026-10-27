@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.39.2",
+    "version": "0.39.3",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -2449,6 +2449,16 @@
                     "id": {
                       "type": "string",
                       "example": "[REDACTED]"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "这个模型支持的能力，只用于界面展示和筛选"
                     }
                   }
                 }
@@ -2462,7 +2472,13 @@
           },
           "protocol": {
             "type": "string",
-            "description": "服务商使用的通信协议。openai-compatible 表示兼容 OpenAI 格式的接口",
+            "enum": [
+              "openai-compatible",
+              "responses",
+              "anthropic",
+              "gemini"
+            ],
+            "description": "服务商使用的通信协议；openai-compatible 表示兼容 OpenAI Chat Completions 的接口",
             "example": "openai-compatible"
           },
           "headers": {
@@ -2475,6 +2491,32 @@
                 "type": "string"
               }
             ]
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "这个服务商是否使用流式回复；不填时跟随全局 stream 设置",
+            "example": true
+          },
+          "body": {
+            "type": "object",
+            "description": "合并进每次模型请求体的额外字段（可选）",
+            "additionalProperties": true
+          },
+          "modelSettings": {
+            "type": "object",
+            "description": "按模型 ID 保存的设置；context 是这个模型的上下文窗口",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "context": {
+                  "type": "number"
+                },
+                "contextWindow": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": true
+            }
           }
         }
       },

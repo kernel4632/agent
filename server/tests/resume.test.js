@@ -126,6 +126,49 @@ describe('继续被中断的助手', () => {
         })
     })
 
+    test('真实执行时发给模型的末尾仍是原来的助手回复', async () => {
+        await withHome(async () => {
+            const seen = []
+            const server = Bun.serve({
+                port: 0,
+                async fetch(request) {
+                    seen.push(await request.json().catch(() => null))
+                    return Response.json({
+                        id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fake',
+                        choices: [{ index: 0, message: { role: 'assistant', content: '补充完成' }, finish_reason: 'stop' }],
+                        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+                    })
+                },
+            })
+            try {
+                await Config.set({ providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${server.port}/v1` }] })
+                const { sessionId } = await Session.create({ title: '无缝继续' })
+                await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
+                await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
+                await History.save({ sessionId })
+                // 用非流式响应，测试只需要看发出去的历史，不关心增量事件。
+                await Session.saveSettings({ sessionId, capabilities: { image: true, cache: true, stream: false } })
+
+                expect(await Session.resume({ sessionId })).toEqual({ ok: true })
+                await waitForHistory(sessionId, 3)
+                await Bun.sleep(50)
+
+                expect(seen.length).toBeGreaterThan(0)
+                const messages = seen[0].messages
+                // 末尾还是助手回复，没有“继续”这条用户消息，模型会直接接着写。
+                expect(messages.at(-1).role).toBe('assistant')
+                expect(messages.at(-1).content).toContain('做到一半')
+                expect(JSON.stringify(messages)).not.toContain('继续')
+
+                // 模型没有调用结束工具时会继续追加提示；等这一轮彻底停下再清理临时目录。
+                for (let attempt = 0; attempt < 100 && Store.agents.get(sessionId)?.running; attempt += 1) await Bun.sleep(10)
+                await Bun.sleep(100)
+            } finally {
+                await server.stop(true)
+            }
+        })
+    })
+
     test('每一步结束后就把进度写进历史', async () => {
         await withHome(async () => {
             const sessionId = await setup()
