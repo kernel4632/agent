@@ -131,6 +131,7 @@ export async function backend(page, { configured = true } = {}) {
           capabilities: { image: true, cache: true, stream: true },
           uses: {},
           autoTitle: true,
+          reasoning: 'auto',
         },
         todos: [],
         running: false,

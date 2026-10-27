@@ -34,6 +34,7 @@ const todoOpen = ref(false)
 const draftAgent = ref('build')
 const draftAutoApprove = ref(Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])))
 const draftAutoApproveLimit = ref(DEFAULT_SETTINGS.autoApproveLimit)
+const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
@@ -92,6 +93,7 @@ async function submitMessage(content) {
       agent: draftAgent.value,
       autoApprove: { ...draftAutoApprove.value },
       autoApproveLimit: draftAutoApproveLimit.value,
+      reasoning: draftReasoning.value,
     })
   } finally { creating.value = false }
   if (await Chat.send(current.id, content)) {
@@ -166,11 +168,13 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               :agent="draftAgent"
               :auto-approve="draftAutoApprove"
               :auto-approve-limit="draftAutoApproveLimit"
+              :reasoning="draftReasoning"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               :files="homeFiles"
               @update:agent="draftAgent = $event"
               @update:auto-approve="draftAutoApprove = $event"
               @update:auto-approve-limit="draftAutoApproveLimit = $event"
+              @update:reasoning="draftReasoning = $event"
               @submit="submitMessage"
               @attach="attachFiles"
               @remove-file="removeFile"

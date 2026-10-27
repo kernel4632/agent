@@ -26,12 +26,14 @@ import { UI } from '../commands/ui.js'
 import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
+import ReasoningPicker from './ReasoningPicker.vue'
 import AgentButton from './AgentButton.vue'
 import { ATTACHMENT_ACCEPT } from '../utils/attachments.js'
 
 const props = defineProps({
   selectedModel: { type: String, default: '' },
   selectedProvider: { type: String, default: '' },
+  reasoning: { type: String, default: 'auto' },
   sessionId: { type: String, default: '' },
   agent: { type: String, default: '' },
   agentOpen: Boolean,
@@ -43,7 +45,7 @@ const props = defineProps({
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'toggle-permissions', 'open-agent'])
+const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'toggle-permissions', 'open-agent', 'update:reasoning'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -182,6 +184,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
         <button type="button" class="composer-option" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" title="选择模型" @click="openModelSheet"><AppIcon name="spark" :size="24" /></button>
+        <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
         <template v-if="showSessionControls">
           <button
             type="button"
@@ -413,6 +416,11 @@ defineExpose({ focus: () => editor.value?.focus() })
     &__send { width: 44px; height: 44px; flex-basis: 44px; }
   }
   .composer-option { width: 44px; height: 44px; }
+}
+@media (max-width: 360px) {
+  .chat-composer__options { gap: 0; }
+  .composer-option { width: 40px; height: 40px; }
+  .composer-option--permission { width: 40px; height: 40px; }
 }
 @media (hover: none) {
   .chat-composer__expand-line { opacity: 0; }

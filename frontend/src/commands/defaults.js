@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   capabilities: { image: true, cache: true, stream: true },
   uses: {},
   autoTitle: true,
+  reasoning: 'auto',
 }
 
 // 模型没有单独设置上下文窗口时，后端按 128K 计算；界面显示也要用同一个数。

@@ -593,6 +593,27 @@ test('provider tabs test the connection and edit model metadata', async ({ page 
   expect(mock.errors).toEqual([])
 })
 
+test('reasoning picker saves the selected level', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const button = page.getByRole('button', { name: '思考强度：自动', exact: true })
+  await expect(button).toBeVisible()
+  await button.click()
+  const sheet = page.getByRole('dialog', { name: '思考强度', exact: true })
+  await expect(sheet).toBeVisible()
+  await screenshot(page, testInfo, 'reasoning-picker')
+  await sheet.getByRole('button', { name: '重', exact: true }).click()
+
+  await expect.poll(() => mock.calls.findLast(call => call.path === '/session/settings/session-1' && call.body?.reasoning)?.body.reasoning).toBe('high')
+  await expect(page.getByRole('button', { name: '思考强度：重', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('existing conversation switches model from the input bar', async ({ page }, testInfo) => {
   const mock = await backend(page)
   mock.config().providers[0].models.push('another-model')

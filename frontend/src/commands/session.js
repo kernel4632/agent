@@ -325,6 +325,15 @@ async function setLimit(sessionID, value) {
 }
 
 
+// --- 改思考强度 ---
+// 七档和界面滑块共用；写错的值后端会退回原值。
+async function setReasoning(sessionID, reasoning) {
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  return saveSettings(sessionID, { reasoning })
+}
+
+
 // --- 改自动压缩阈值 ---
 async function setCompactThreshold(sessionID, value) {
   const session = store.sessions[sessionID]
@@ -497,7 +506,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 
 export const Session = {
   locate, create, open, openByID, closeOpened, refresh, rename, remove, removeMany, selectModel, fork, normalize, syncSummary, saveTitleEditing,
-  saveSettings, setAgent, agentLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
+  saveSettings, setAgent, agentLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold, setReasoning,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
 export { AUTO_APPROVE_KINDS, USE_LABELS }

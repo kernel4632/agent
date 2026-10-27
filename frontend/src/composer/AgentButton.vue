@@ -54,7 +54,7 @@ const label = computed(() => props.agent || '智能体')
   .composer-agent { min-height: 44px; }
 }
 @media (max-width: 360px) {
-  .composer-agent { gap: 4px; padding: 0 6px; }
-  .composer-agent__label { max-width: 56px; }
+  .composer-agent { width: 40px; min-height: 40px; gap: 0; padding: 0; }
+  .composer-agent__label { display: none; }
 }
 </style>

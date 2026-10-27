@@ -26,10 +26,11 @@ const props = defineProps({
   agent: { type: String, default: 'build' },  // 新会话默认智能体，发送时随会话一起保存
   autoApprove: { type: Object, default: () => ({}) }, // 新会话默认自动批准分类
   autoApproveLimit: { type: Number, default: DEFAULT_SETTINGS.autoApproveLimit },   // 新会话默认连续自动批准上限
+  reasoning: { type: String, default: DEFAULT_SETTINGS.reasoning }, // 新会话默认思考强度
   busy: Boolean,                              // 创建中、加载中或有连接错误时禁用发送
   files: { type: Array, default: () => [] },  // 已经附上的文件
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:autoApprove', 'update:autoApproveLimit'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:autoApprove', 'update:autoApproveLimit', 'update:reasoning'])
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
@@ -54,6 +55,7 @@ defineExpose({ focus: () => composer.value?.focus() })
         ref="composer"
         v-model:draft="draft"
         :selected-model="model"
+        :reasoning="reasoning"
         :agent="agentLabel"
         :agent-open="agentOpen"
         :permissions-open="permissionOpen"
@@ -66,6 +68,7 @@ defineExpose({ focus: () => composer.value?.focus() })
         @remove-file="emit('remove-file', $event)"
         @open-agent="agentOpen = true"
         @toggle-permissions="permissionOpen = !permissionOpen"
+        @update:reasoning="emit('update:reasoning', $event)"
       />
     </div>
     <AgentDrawer
