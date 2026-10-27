@@ -115,10 +115,17 @@ test.describe('chat motion', () => {
     expect(settingsEnter.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
     expect(settingsEnter.some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
 
-    // 供应商页是多根组件；这里专门盯它，防止再次退化成没有过渡。
+    // 供应商页现在是一层列表、一层编辑页；两层都要有过渡。
     await page.waitForTimeout(400)
     await watchMotion(page)
     await page.getByRole('button', { name: /模型供应商/ }).click()
+    await expect(page.getByRole('heading', { name: '模型供应商', exact: true, level: 1 })).toBeVisible()
+    await waitForMotion(page, 'settings-detail')
+    motion = await readMotion(page)
+    expect(moving(motion, 'settings-detail').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
+
+    await watchMotion(page)
+    await page.getByRole('button', { name: /Test Provider/ }).click()
     await expect(page.getByRole('textbox', { name: '供应商名' })).toBeVisible()
     await waitForMotion(page, 'settings-detail')
     motion = await readMotion(page)
@@ -203,21 +210,23 @@ test.describe('chat motion', () => {
     expect(mock.errors).toEqual([])
   })
 
-  test('tool switches use the same KIMA thumb motion', async ({ page }) => {
+  test('settings switches use the same KIMA thumb motion', async ({ page }) => {
     await backend(page)
     await page.goto('/')
     await navigate(page, '设置')
-    await page.getByRole('button', { name: /工具管理/ }).click()
-    const toggle = page.getByRole('switch', { name: '切换 read_file' })
-    const thumb = page.locator('.settings-row', { hasText: 'read_file' }).locator('.kima-switch__thumb')
-    await expect(toggle).toBeChecked()
+    await page.getByRole('button', { name: /智能体/ }).click()
+    await page.locator('.agent-row').first().click()
+    const toggle = page.getByRole('switch', { name: '只读' })
+    const thumb = page.locator('.agent-switch-row', { hasText: '只读' }).locator('.kima-switch__thumb')
+    await expect(toggle).not.toBeChecked()
 
     const duration = await thumb.evaluate(element => getComputedStyle(element).transitionDuration)
     expect(duration).not.toBe('0s')
 
+    await toggle.scrollIntoViewIfNeeded()
     const before = await thumb.boundingBox()
     await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2)
-    await expect(toggle).not.toBeChecked()
+    await expect(toggle).toBeChecked()
     await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)
   })
 

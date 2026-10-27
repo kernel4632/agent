@@ -137,6 +137,7 @@ test('settings auto-save preserves uneditable backend configuration and secrets 
   await page.goto('/')
   await navigate(page, '设置')
   await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.getByRole('button', { name: /Test Provider/ }).click()
   await expect(page.getByRole('textbox', { name: '供应商名' })).toBeVisible()
   await screenshot(page, testInfo, 'settings-providers')
   await page.getByRole('textbox', { name: '供应商名' }).fill('Renamed provider')
@@ -150,6 +151,7 @@ test('settings auto-save preserves uneditable backend configuration and secrets 
   expect(saved.providers[0].headers).toEqual({ 'x-preserve': 'yes' })
   expect(saved.providers[0].modelSettings['test-model'].context).toBe(64000)
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('test-only-key')
+  await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /通用/ }).click()
   await page.getByRole('radio', { name: '浅色', exact: true }).check()
@@ -412,6 +414,7 @@ test('stop keeps the partial assistant text and offers continue', async ({ page 
   await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
+  await expect.poll(() => mock.calls.some(call => call.path === '/agent/stop/session-1')).toBe(true)
   const stopCall = mock.calls.find(call => call.path === '/agent/stop/session-1')
   expect(stopCall.body.partial).toMatchObject({ content: '正在处理' })
   await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
@@ -466,14 +469,17 @@ test('settings auto-save on change and back keeps the chat draft', async ({ page
 
   await navigate(page, '设置')
   await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.locator('.provider-row').first().click()
   await page.getByRole('textbox', { name: '供应商名' }).fill('')
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await expect(page.locator('.settings-screen')).toBeVisible()
   await expect(page.getByRole('status')).toContainText('供应商名称不能为空或重复')
   await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.locator('.provider-row').first().click()
   await page.getByRole('textbox', { name: '供应商名' }).fill('Test Provider')
   await expect.poll(() => mock.config().providers[0].name).toBe('Test Provider')
+  await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await expect(editor).toHaveValue('尚未发送的草稿')
@@ -511,6 +517,35 @@ test('existing conversation switches model from the input bar', async ({ page },
   await expect(page.getByRole('button', { name: '选择模型（当前 another-model）' })).toBeVisible()
 })
 
+test('agent settings edit a custom agent and save', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /智能体/ }).click()
+  await expect(page.getByRole('heading', { name: '智能体', exact: true, level: 1 })).toBeVisible()
+
+  await page.getByRole('button', { name: '新建智能体', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '新智能体', exact: true, level: 1 })).toBeVisible()
+  await page.getByLabel('名称', { exact: true }).fill('审查者')
+  await page.getByLabel('说明', { exact: true }).fill('只读审查代码')
+  await page.getByLabel('角色说明', { exact: true }).fill('你负责审查代码，不要直接改文件。')
+  await page.getByRole('switch', { name: '只读' }).click()
+  await expect(page.getByRole('heading', { name: '审查者', exact: true, level: 1 })).toBeVisible()
+
+  await expect.poll(() => mock.config().agents?.['custom-1']?.label).toBe('审查者')
+  const saved = mock.config().agents['custom-1']
+  expect(saved.description).toBe('只读审查代码')
+  expect(saved.instructions).toContain('不要直接改文件')
+  expect(saved.readOnly).toBe(true)
+
+  // 返回列表再返回设置首页，不能一次跳过头。
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '智能体', exact: true, level: 1 })).toBeVisible()
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('advanced, tools and MCP settings write back', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -523,13 +558,11 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await page.getByLabel('命令', { exact: true }).fill('bun run typecheck')
   await page.getByRole('switch', { name: '记录 shell 改动' }).click()
   await expect(page.getByRole('switch', { name: '记录 shell 改动' })).toBeChecked()
-  await page.getByLabel('智能体 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['read_file'] } }, null, 2))
-  await page.getByRole('button', { name: '应用智能体', exact: true }).click()
 
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /工具管理/ }).click()
-  await expect(page.getByText('read_file', { exact: true })).toBeVisible()
-  await expect(page.getByText('execute_command', { exact: true })).toBeVisible()
+  await expect(page.getByText('读取文件', { exact: true })).toBeVisible()
+  await expect(page.getByText('执行命令', { exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'settings-tools')
 
   await page.getByRole('button', { name: '返回', exact: true }).click()
@@ -541,7 +574,6 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await expect.poll(() => mock.config().diagnostics.command).toBe('bun run typecheck')
   const saved = mock.config()
   expect(saved.snapshot.shell).toBe(true)
-  expect(saved.agents.review).toEqual({ label: '审查', tools: ['read_file'] })
 })
 
 test('message action forks the conversation at that message', async ({ page }, testInfo) => {
@@ -586,7 +618,7 @@ test('MCP service can be added and saved', async ({ page }) => {
   await navigate(page, '设置')
   await page.getByRole('button', { name: /MCP 服务/ }).click()
   await page.getByRole('button', { name: '添加服务', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'MCP 2' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'MCP 2', level: 3 })).toBeVisible()
   await page.getByLabel('启动命令').fill('npx test-server')
   await expect.poll(() => mock.config().mcp['MCP 2']?.command).toBe('npx test-server')
 
@@ -845,14 +877,8 @@ test('narrow settings keep controls readable and inside the screen', async ({ pa
   await page.waitForTimeout(500)
   await page.getByRole('button', { name: /工具管理/ }).click()
   await expect(page.getByRole('heading', { name: '工具管理', exact: true, level: 1 })).toBeVisible()
-  const labels = page.locator('.settings-row__select .kima-select__trigger-label')
-  await expect(labels.first()).toHaveText('每次询问')
-  const clipped = await labels.evaluateAll(nodes => nodes.filter(node => {
-    const range = document.createRange()
-    range.selectNodeContents(node)
-    return range.getBoundingClientRect().width > node.getBoundingClientRect().width + 0.1
-  }).length)
-  expect(clipped).toBe(0)
+  const toolsOverflow = await page.locator('.settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
+  expect(toolsOverflow).toBeLessThanOrEqual(1)
 
   // 高级页的多行输入也不能把设置卡片撑出 320px 屏幕。
   await page.getByRole('button', { name: '返回', exact: true }).click()

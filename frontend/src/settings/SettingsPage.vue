@@ -1,6 +1,6 @@
 <!--
-设置页外壳：全屏占用 App 主区，只负责“设置首页 / 设置详情”的切换、草稿保存和关闭。
-首页按 pages.js 的 group 显示圆角卡片；点一行进入详情，详情内容仍由各页面包装组件接收 draft。
+设置页外壳：全屏占用 App 主区，只负责“设置首页 / 一级页面 / 二级页面”的切换、草稿保存和关闭。
+首页按 pages.js 的 group 显示圆角卡片；点一行进入一级页面，实体页面再点一行进入二级编辑页。
 字段接线和保存逻辑都不在这里：保存统一调用 Settings.save()，关闭仍由 UI.closeSettings() 自动保存。
 调用示例：<SettingsPage />；打开首页用 UI.openSettings()，直接进详情用 UI.openSettings('providers')。
 -->
@@ -29,11 +29,14 @@ const selectedPage = computed(() => {
 })
 const groups = computed(() => groupSettingsPages(settingsPages))
 const draft = computed(() => store.settings.draft)
-const title = computed(() => selectedPage.value?.label || '设置')
+// 二级页面只多一层：供应商列表 → 某个供应商，MCP 列表 → 某个服务。
+const detail = computed(() => store.ui.settingsDetail)
+const title = computed(() => detail.value?.title || selectedPage.value?.label || '设置')
 
 // 首页分组来自登记表；新增页面只要写对 group，就会自动出现在对应卡片里。
 function openPage(page) {
   if (page.disabled || !page.component) return
+  Settings.closeDetail()
   selected.value = page.id
 }
 
@@ -41,6 +44,7 @@ function openPage(page) {
 function goHome() {
   window.clearTimeout(autoSaveTimer)
   void Settings.autoSave()
+  Settings.closeDetail()
   selected.value = ''
 }
 
@@ -62,8 +66,9 @@ watch(() => store.settings.draft, scheduleAutoSave, { deep: true })
 
 onBeforeUnmount(() => window.clearTimeout(autoSaveTimer))
 
-// 只有返回动作：详情页回到设置首页，首页返回聊天页。关闭时仍会补一次保存。
+// 只有返回动作：详情页回到列表，列表回到设置首页，首页返回聊天页。关闭时仍会补一次保存。
 function goBack() {
+  if (detail.value) return Settings.closeDetail()
   if (selectedPage.value) return goHome()
   void UI.closeSettings()
 }
@@ -85,8 +90,15 @@ function goBack() {
     <div ref="scroll" class="settings-scroll">
       <Transition name="settings-view" mode="out-in" @before-enter="resetScroll">
         <!-- 详情页自己可能是多根组件（如模型供应商页），统一包一层单根容器，过渡才有落点。 -->
-        <div v-if="selectedPage && draft" :key="selected" class="settings-detail">
-          <component :is="selectedPage.component" :draft="draft" />
+        <div v-if="selectedPage && draft" :key="`${selected}:${detail?.id || ''}`" class="settings-detail">
+          <component
+            :is="selectedPage.component"
+            :draft="draft"
+            :detail="selectedPage.nested ? detail : undefined"
+            @open-detail="Settings.openDetail"
+            @close-detail="Settings.closeDetail"
+            @update-detail-title="Settings.updateDetailTitle"
+          />
         </div>
 
         <div v-else key="home" class="settings-home">

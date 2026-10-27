@@ -47,6 +47,7 @@ async function openChat(sessionID) {
 async function openSettings(section = '') {
   if (!store.ui.settingsOpen) Settings.open()
   store.ui.settingsSection = typeof section === 'string' ? section : ''
+  store.ui.settingsDetail = null
   store.ui.settingsOpen = true
   return true
 }
@@ -54,6 +55,7 @@ async function openSettings(section = '') {
 async function closeSettings() {
   if (!await Settings.save()) return false
   store.ui.settingsOpen = false
+  store.ui.settingsDetail = null
   return true
 }
 

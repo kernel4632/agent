@@ -70,7 +70,7 @@ function apply(raw, catalog = [], catalogAgents = []) {
       .filter(tool => tool.configurable !== false)
       .map(tool => ({
         name: tool.name,
-        title: tool.name,
+        title: tool.ui?.title || tool.name,
         kind: tool.kind,
         enabled: tool.permission !== 'deny',
         permission: tool.permission,

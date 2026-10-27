@@ -236,4 +236,24 @@ function toggleModelInList(models, model) {
 }
 
 
-export const Settings = { open, save, autoSave, replaceDraftAndSave, discoverModels, toggleModelInList }
+// --- 设置里的二级页面：供应商、MCP 服务、工具等 ---
+// 只存一个 id 和标题；具体内容由当前页面从草稿里查，避免复制一份实体数据。
+function openDetail({ id, title = '' } = {}) {
+  if (!id) return
+  store.ui.settingsDetail = { id, title }
+}
+
+function closeDetail() {
+  store.ui.settingsDetail = null
+}
+
+function updateDetailTitle(title) {
+  if (!store.ui.settingsDetail) return
+  store.ui.settingsDetail = { ...store.ui.settingsDetail, title: title || '' }
+}
+
+
+export const Settings = {
+  open, save, autoSave, replaceDraftAndSave, discoverModels, toggleModelInList,
+  openDetail, closeDetail, updateDetailTitle,
+}

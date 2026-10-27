@@ -94,8 +94,8 @@ export async function backend(page, { configured = true } = {}) {
       },
     ])
     if (path === '/agent/list') return json([
-      { name: 'build', label: '执行', description: '可以改文件、执行命令，完整推进任务', readOnly: false, tools: null, model: null, permission: null, builtin: true },
-      { name: 'plan', label: '计划', description: '只保留只读工具，先看清再动手', readOnly: true, tools: null, model: null, permission: null, builtin: true },
+      { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false, tools: null, model: null, permission: null, builtin: true },
+      { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true, tools: null, model: null, permission: null, builtin: true },
       { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true, tools: [], model: null, permission: null, builtin: true },
       { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false, tools: null, model: null, permission: null, builtin: true },
       ...Object.entries(config.agents || {}).map(([name, value]) => ({
