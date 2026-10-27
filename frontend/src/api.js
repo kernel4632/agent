@@ -3,7 +3,7 @@ Agent HTTP 指令集：集中声明前端使用的正式 Server API 契约。
 普通请求统一解析 JSON；会话事件保留原始 Response 交给 SSE 工具按顺序读取。
 调用示例：await AgentAPI.getConfig()、await AgentAPI.sendMessage(sessionID, content)。
 */
-import { NEW_SESSION_TITLE } from './commands/defaults.js'
+import { NEW_SESSION_TITLE } from './defaults.js'
 
 const apiRoot = '/api'                                  // Vite 开发和预览服务转发的同源前缀
 

@@ -12,12 +12,12 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import Agent from '@kernel4632/agent-core'
 
-import Approval from '../features/approval.js'
-import Config from '../commands/config.js'
-import History from '../features/history.js'
-import Ignore from '../features/ignore.js'
-import Session from '../commands/session.js'
-import Snapshot from '../features/snapshot.js'
+import Approval from '../safety/approval.js'
+import Config from '../config/config.js'
+import History from '../session/history.js'
+import Ignore from '../safety/ignore.js'
+import Session from '../session/session.js'
+import Snapshot from '../session/snapshot.js'
 
 // 每个测试使用独立目录和干净的内存数据，避免测试之间互相影响。
 const withHome = async callback => {
@@ -27,7 +27,7 @@ const withHome = async callback => {
     const Store = (await import('../store.js')).default
     Store.config && Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
-    Store.sessions.clear()
+    History.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
     Store.settings.clear()

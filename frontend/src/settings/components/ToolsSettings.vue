@@ -8,7 +8,7 @@
 import { computed } from 'vue'
 import { KimaRadioGroup } from '@kernel4632/kima'
 import { AppIcon, Button, ChoiceContent } from '../../ui/index.js'
-import { AUTO_APPROVE_KINDS } from '../../commands/session.js'
+import { AUTO_APPROVE_KINDS } from '../../session/session.js'
 
 const props = defineProps({
   tools: { type: Array, required: true },

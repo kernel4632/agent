@@ -10,8 +10,8 @@ import {
   KimaCard, KimaChip, KimaFlex, KimaNumberField, KimaTypography,
 } from '@kernel4632/kima'
 import { AppIcon, Button, Dialog, Field, IconButton, ModelIcon, Switch } from '../../ui/index.js'
-import { Settings } from '../../commands/settings.js'
-import { UI } from '../../commands/ui.js'
+import { Settings } from '../settings.js'
+import { UI } from '../../app/ui.js'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])

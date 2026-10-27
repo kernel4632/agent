@@ -1,3 +1,6 @@
+/*
+ * 会话统计测试：中英文估算、压缩点和请求用量要合成同一份统计。
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { estimateTokens, sessionStats } from '../src/session/stats.js'

@@ -10,13 +10,13 @@
  *   // decision 只能是 allow-once / allow-always / deny
  */
 import picomatch from 'picomatch'
-import Config from '../commands/config.js' // 权限规则就写在配置里，不再单独存一份。
-import Settings from '../commands/settings.js' // 自动批准是按类别分的，判断逻辑只写在那里。
+import Config from '../config/config.js' // 权限规则就写在配置里，不再单独存一份。
+import Settings from '../config/settings.js' // 自动批准是按类别分的，判断逻辑只写在那里。
 import Boundary from './boundary.js' // 工作区外的路径要单独过 external_directory 规则。
 import Kind from '../utils/tool-kind.js' // 内部工具不参与审批，也不该被 deny 规则拦住。
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
-import Snapshot from './snapshot.js' // 工具改文件之前先存一份原样。
+import Snapshot from '../session/snapshot.js' // 工具改文件之前先存一份原样。
 import Store from '../store.js' // 直接访问等待用户决定的审批表和会话设置。
 import SSE from '../utils/sse.js' // 把审批请求推给前端。
 import fail from '../utils/fail.js' // 用户选了不认识的决定时按填错处理。
@@ -125,6 +125,24 @@ const normalizeCommand = command => {
     return longest || String(command).trim().split(/\s+/).slice(0, 1).join(' ')
 }
 
+// --- 配置里的对象；写坏或缺失时换成一个新的空对象 ---
+const plainObject = value => value && typeof value === 'object' && !Array.isArray(value) ? value : null
+
+// --- 找到"始终允许"该写进哪张规则表：智能体自己的规则优先，否则写全局 ---
+const writableRules = ({ agent }) => {
+    const config = Config.get()
+    // 智能体已经单独配了规则时，只改它自己那份，不污染全局。
+    const agentRules = agent ? Settings.agentInfo(agent)?.permission : null
+    if (agentRules && Object.keys(agentRules).length) {
+        config.agents = plainObject(config.agents) || {}
+        config.agents[agent] = plainObject(config.agents[agent]) || {}
+        config.agents[agent].permission = plainObject(config.agents[agent].permission) || {}
+        return config.agents[agent].permission
+    }
+    config.permission = plainObject(config.permission) || { '*': 'ask' }
+    return config.permission
+}
+
 /**
  * 把"始终允许"写成一条规则。
  * 命令工具按归一化后的前缀记；其他工具按完整参数记，允许读这个文件就只允许读这个文件。
@@ -137,25 +155,9 @@ const remember = ({ toolName, input, matchValue, agent }) => {
     const pattern = name === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
     // 参数里可能出现通配符，先转义，保证这条规则只命中同一类参数。
     const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
-    const agentRules = agent ? Settings.agentInfo(agent)?.permission : null
-    let rules
-    if (agentRules && Object.keys(agentRules).length) {
-        const config = Config.get()
-        if (!config.agents || typeof config.agents !== 'object' || Array.isArray(config.agents)) config.agents = {}
-        if (!config.agents[agent] || typeof config.agents[agent] !== 'object' || Array.isArray(config.agents[agent])) config.agents[agent] = {}
-        if (!config.agents[agent].permission || typeof config.agents[agent].permission !== 'object' || Array.isArray(config.agents[agent].permission)) {
-            config.agents[agent].permission = {}
-        }
-        rules = config.agents[agent].permission
-    } else {
-        const config = Config.get()
-        if (!config.permission || typeof config.permission !== 'object' || Array.isArray(config.permission)) {
-            config.permission = { '*': 'ask' }
-        }
-        rules = config.permission
-    }
-    const toolRule = rules[name]
-    if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[escaped] = 'allow'
+    const rules = writableRules({ agent })
+    const toolRule = plainObject(rules[name])
+    if (toolRule) toolRule[escaped] = 'allow'
     else rules[name] = { '*': 'ask', [escaped]: 'allow' }
 }
 
@@ -181,6 +183,79 @@ const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
     return true
 }
 
+// --- 被忽略规则挡住时，把原因告诉界面 ---
+const blockedByIgnore = async ({ sessionId, name, input }) => {
+    const blocked = Ignore.blockedBy({ toolName: name, input })
+    if (!blocked) return false
+    await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
+    return true
+}
+
+// --- 这次会话生效的规则：全局 permission 打底，当前智能体的 permission 覆盖同名项 ---
+const ruleDecision = async ({ sessionId, name, matchValue, input }) => {
+    const settings = Store.settings.get(sessionId)
+    const decision = decideByRules(name, matchValue, effectiveRules(settings))
+    if (decision !== 'deny') return { settings, decision, denied: false }
+    if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: '被权限规则拒绝' } })
+    return { settings, decision, denied: true }
+}
+
+// --- 工作区外的路径单独过一道 external_directory 规则；默认是 ask ---
+const outsideWorkspace = async ({ sessionId, name, input }) => {
+    const external = await Boundary.check({ toolName: name, input })
+    if (external.effect === 'deny') {
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
+        return { denied: true, ask: false }
+    }
+    return { denied: false, ask: external.effect === 'ask' }
+}
+
+// --- 同一个调用连续出现时先停下来问一次 ---
+const repeatsTooOften = ({ sessionId, name, input }) => {
+    if (!sessionId) return false
+    const key = `${name}:${stableKey(input)}`
+    const previous = Store.recentCalls.get(sessionId)
+    const count = previous?.key === key ? previous.count + 1 : 1
+    Store.recentCalls.set(sessionId, { key, count })
+    const looping = count >= LOOP_LIMIT
+    if (looping) {
+        SSE.send({ id: sessionId, data: { type: 'permission-limit', limit: LOOP_LIMIT, reason: `同一个工具调用连续出现 ${LOOP_LIMIT} 次，确认要继续吗` } })
+    }
+    return looping
+}
+
+// --- 这一类开了自动批准就跳过询问，但连着放行太多次要停下来问一次 ---
+const autoApproveState = ({ sessionId, settings, name, mcpServers }) => {
+    const auto = Settings.approves({ settings, toolName: name, mcpServers })
+    const limit = settings?.autoApproveLimit || 0
+    const used = Store.autoApproved.get(sessionId) || 0
+    const capped = auto && limit > 0 && used >= limit
+    if (auto && !capped) Store.autoApproved.set(sessionId, used + 1)
+    if (!capped) return { auto, capped }
+    /*
+     * 告诉用户为什么突然又要他点了，不然会以为自动批准坏了。
+     *
+     * 这里不能 await：这一句后面紧跟着登记审批、等用户决定，
+     * 而调用方（agent-core）拿到的是一个"还没登记"的 promise。
+     * 一旦在这里让出微任务，审批就晚一步才进队列，界面上什么都看不到——
+     * 用户看到的是"卡住了"，而 agent 就在那里一直等一个永远不会来的回答。
+     * SSE 的 send 本来只是往缓冲区里放一条，不 await 也照样按顺序发出去。
+     */
+    SSE.send({ id: sessionId, data: { type: 'permission-limit', limit, reason: `已连续自动批准 ${limit} 次，确认要继续吗` } })
+    return { auto, capped }
+}
+
+// --- 把审批请求推给界面，等用户回答；任务被取消时按拒绝处理 ---
+const waitForUser = ({ sessionId, toolCallId, name, input, matchValue, signal }) => new Promise(resolve => {
+    Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName: name, input, matchValue, resolve })
+    SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: name, input } })
+    signal?.addEventListener('abort', () => {
+        // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
+        Store.approvals.delete(`${sessionId}:${toolCallId}`)
+        resolve(false)
+    }, { once: true })
+})
+
 /**
  * 检查一个工具调用能不能执行；要改文件时，先把原样存一份进快照。
  *
@@ -193,11 +268,8 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     // Agent 只看这个返回值是不是布尔值，所以这里必须返回布尔值，不能返回对象。
     // 被拦住的原因通过 SSE 告诉界面，让用户知道是哪条规则挡下的。
     const name = canonical(toolName)
-    const blocked = Ignore.blockedBy({ toolName: name, input })
-    if (blocked) {
-        await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
-        return false
-    }
+    if (await blockedByIgnore({ sessionId, name, input })) return false
+
     const matchValue = flattenInput(input)
     const mcpServers = Object.keys(Config.get().mcp || {})
     /*
@@ -207,98 +279,32 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     if (Kind.of({ toolName: name, mcpServers }) === 'never') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     /*
-     * 这次会话生效的规则：全局 permission 打底，当前智能体的 permission 覆盖同名项。
-     * 智能体没有覆盖时与旧版本完全一致。
-     */
-    const settings = Store.settings.get(sessionId)
-    const decision = decideByRules(name, matchValue, effectiveRules(settings))
-    /*
      * deny 是硬规则。自动批准只省掉"询问"，不能把一条明确的拒绝变成放行——
      * 用户写下 "execute_command": "deny" 之后，即使命令类全开着，也不该执行。
      */
-    if (decision === 'deny') {
-        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: '被权限规则拒绝' } })
-        return false
-    }
+    const rules = await ruleDecision({ sessionId, name, matchValue, input })
+    if (rules.denied) return false
+    const settings = rules.settings
+    const external = await outsideWorkspace({ sessionId, name, input })
+    if (external.denied) return false
 
-    /*
-     * 工作区外的路径单独过一道 external_directory 规则。
-     * 默认是 ask，所以即使工具本身的规则写着 allow，也不会顺手翻到工作区外面。
-     */
-    const external = await Boundary.check({ toolName: name, input })
-    if (external.effect === 'deny') {
-        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
-        return false
-    }
-    const externalAsk = external.effect === 'ask'
-
-    /*
-     * 同一个调用连续出现时先停下来问一次。
-     * 自动批准可以放行普通调用，但不能替用户决定"要不要让模型继续重试同一个动作"。
-     */
-    let looping = false
-    if (sessionId) {
-        const key = `${name}:${stableKey(input)}`
-        const previous = Store.recentCalls.get(sessionId)
-        const count = previous?.key === key ? previous.count + 1 : 1
-        Store.recentCalls.set(sessionId, { key, count })
-        looping = count >= LOOP_LIMIT
-        if (looping) {
-            SSE.send({ id: sessionId, data: { type: 'permission-limit', limit: LOOP_LIMIT, reason: `同一个工具调用连续出现 ${LOOP_LIMIT} 次，确认要继续吗` } })
-        }
-    }
-
-    // 这一类开了自动批准就跳过询问。按类别分（读取 / 写入 / 命令 / MCP），
-    // 所以可以"读随便读、写还是问我"这种组合。未分类的工具一律要问。
-    const auto = Settings.approves({ settings, toolName: name, mcpServers })
-    /*
-     * 自动批准的刹车：连着放行了太多次就停下来问一次。
-     * 模型跑偏的典型表现不是"一件坏事"，而是"同一件小事做了五十遍"——
-     * 比如反复重试同一个失败的命令，所以数次数就够了。
-     * 停下来问一次之后计数清零，用户说继续就再放行这么多。
-     */
-    const limit = settings?.autoApproveLimit || 0
-    const used = Store.autoApproved.get(sessionId) || 0
-    const capped = auto && limit > 0 && used >= limit
-    if (auto && !capped) Store.autoApproved.set(sessionId, used + 1)
-    if (capped) {
-        /*
-         * 告诉用户为什么突然又要他点了，不然会以为自动批准坏了。
-         *
-         * 这里不能 await：这一句后面紧跟着登记审批、等用户决定，
-         * 而调用方（agent-core）拿到的是一个"还没登记"的 promise。
-         * 一旦在这里让出微任务，审批就晚一步才进队列，界面上什么都看不到——
-         * 用户看到的是"卡住了"，而 agent 就在那里一直等一个永远不会来的回答。
-         * SSE 的 send 本来只是往缓冲区里放一条，不 await 也照样按顺序发出去。
-         */
-        SSE.send({
-            id: sessionId,
-            data: { type: 'permission-limit', limit, reason: `已连续自动批准 ${limit} 次，确认要继续吗` },
-        })
-    }
     /*
      * 两种刹车都要压过"规则说 allow"：
      *   - 同一个调用连续重复；
      *   - 自动批准已经连着放行了太多次。
      * 否则用户写了 "*": "allow" 之后，刹车就成了摆设。
      */
-    const rule = looping || (auto && capped) || externalAsk ? 'ask' : auto ? 'allow' : decision
+    const looping = repeatsTooOften({ sessionId, name, input })
+    const auto = autoApproveState({ sessionId, settings, name, mcpServers })
+    const rule = looping || auto.capped || external.ask ? 'ask' : auto.auto ? 'allow' : rules.decision
     // 改文件的工具在真正执行之前存一份原样，回退时才有东西可恢复。
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     // 规则要求询问时，这里发出审批请求并等 Approval.decide 回答。
     // 没有会话上下文时按无人值守放行；但工作区外的路径不能这样静默放行。
-    if (!sessionId || !toolCallId) return externalAsk ? false : allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (!sessionId || !toolCallId) return external.ask ? false : allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
-    const answer = await new Promise(resolve => {
-        Store.approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName: name, input, matchValue, resolve })
-        SSE.send({ id: sessionId, data: { type: 'permission', callID: toolCallId, tool: name, input } })
-        signal?.addEventListener('abort', () => {
-            // 任务被取消时，这条审批永远不会有人回答，直接按拒绝处理并把 Agent 唤醒。
-            Store.approvals.delete(`${sessionId}:${toolCallId}`)
-            resolve(false)
-        }, { once: true })
-    })
+    const answer = await waitForUser({ sessionId, toolCallId, name, input, matchValue, signal })
     if (!answer) return false
     return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 }

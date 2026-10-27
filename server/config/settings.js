@@ -19,7 +19,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
 import Path from '../utils/path.js'
-import Agents from '../features/agents.js' // 智能体定义只有这一处。
+import Agents from './agents.js' // 智能体定义只有这一处。
 import Config from './config.js' // 全局配置和权限规则。
 import Store from '../store.js' // 设置跟着会话一起放在内存里，避免每次都读盘。
 import fail from '../utils/fail.js' // 填错智能体名时按填错处理。
@@ -115,7 +115,7 @@ const defaultSettings = () => {
 }
 
 /**
- * 当前可用的智能体：内置的加自定义的，定义统一来自 features/agents.js。
+ * 当前可用的智能体：内置的加自定义的，定义统一来自 ./agents.js。
  * @returns {Array<object>} 完整智能体清单。
  */
 const agents = () => Agents.list(Config.get())
@@ -158,48 +158,60 @@ const modelFor = ({ settings } = {}) => agentInfo(settings?.agent)?.model || nul
  * @param {object} base 已有的设置，缺省项从它继承。
  * @returns {object} 补齐后的完整设置。
  */
-const normalize = (input = {}, base = defaultSettings()) => {
-    const merged = { ...base, ...input }
-    // 旧版本把 agent 叫 mode；旧设置文件和老客户端都还认，新写入只写 agent。
+// --- 智能体：旧版本叫 mode，新写入只写 agent ---
+const chooseAgent = (input, base) => {
     const requested = input.agent !== undefined ? input.agent : input.mode
     const agent = requested !== undefined ? requested : base.agent
     if (!agentInfo(agent)) throw fail(400, `agent must be one of ${agents().map(item => item.name).join(', ')}, got: ${requested ?? input.agent}`)
+    return agent
+}
 
-    // 自动批准按类别合并：只改了 read 的话，别的几类保持原样。
-    // 布尔值是老版本的写法（一个总开关），读到时摊到每一类上，旧设置不至于失效。
+// --- 自动批准：按类别合并；老版本的布尔总开关摊到每一类上 ---
+const mergeAutoApprove = (input, base) => {
     const source = typeof input.autoApprove === 'boolean'
         ? Object.fromEntries(Kind.KINDS.map(item => [item.kind, input.autoApprove]))
         : (input.autoApprove || {})
     const autoApprove = {}
     for (const item of Kind.KINDS) autoApprove[item.kind] = (source[item.kind] ?? base.autoApprove[item.kind]) === true
+    return autoApprove
+}
 
-    const capabilities = { ...base.capabilities, ...(input.capabilities || {}) }
-
-    /*
-     * 哪件事用哪个模型。只留三件事里认识的，并且只留"名字和模型都填全了"的：
-     *   { compact: { provider: 'local', model: '小模型' } }
-     * 用户把某件事清空（传 null 或空对象）表示改回"和主模型共用"，
-     * 所以这里遇到空值要把它删掉，不能留着半条记录让后面去猜。
-     */
+// --- 哪件事用哪个模型：只留认识的，并且只留名字和模型都填全的 ---
+const mergeUses = (input, base) => {
     const uses = { ...base.uses }
     const changed = input.uses || {}
     for (const name of USE_NAMES) {
         if (!(name in changed)) continue
         const target = changed[name]
+        // 传 null 或空对象表示改回"和主模型共用"，所以空值要删掉，不能留半条记录。
         if (target?.provider && target?.model) uses[name] = { provider: target.provider, model: target.model }
         else delete uses[name]
     }
+    return uses
+}
+
+// --- 只收范围内的数字；写错时保留原值 ---
+const numberWithin = (value, min, max, fallback) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : fallback
+}
+
+const normalize = (input = {}, base = defaultSettings()) => {
+    const merged = { ...base, ...input }
+    const agent = chooseAgent(input, base)
+    const autoApprove = mergeAutoApprove(input, base)
+    const capabilities = { ...base.capabilities, ...(input.capabilities || {}) }
+    const uses = mergeUses(input, base)
 
     // 自动压缩阈值：只收 0.1 到 0.99，写错保持原值。
-    const rawThreshold = input.compactThreshold === undefined ? base.compactThreshold : input.compactThreshold
-    const parsedThreshold = Number(rawThreshold)
-    const compactThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0.1 && parsedThreshold <= 0.99
-        ? parsedThreshold
-        : base.compactThreshold
+    const compactThreshold = numberWithin(
+        input.compactThreshold === undefined ? base.compactThreshold : input.compactThreshold,
+        0.1, 0.99, base.compactThreshold,
+    )
 
     // 刹车：连着放行这么多次就停下来问。只收非负整数，0 表示不设上限，别的值保持原样。
-    const rawLimit = input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit
-    const parsedLimit = Number(rawLimit)
+    const parsedLimit = Number(input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit)
+
     // 思考强度只认固定七档；写错时保留原来的值，不把会话设成无法识别的状态。
     const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {

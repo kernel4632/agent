@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import { KimaRadioGroup } from '@kernel4632/kima'
 import { ChoiceContent, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
-import { FALLBACK_AGENTS } from '../commands/config.js'
+import { FALLBACK_AGENTS } from '../config.js'
 
 const props = defineProps({
   open: Boolean,

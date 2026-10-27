@@ -11,10 +11,10 @@ import { AgentAPI } from '../api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { Session } from './session.js'
-import { Tabs } from './tabs.js'                          // 后端起好标题后同步顶部标签文字
-import { UI } from './ui.js'
+import { Tabs } from '../app/tabs.js'                          // 后端起好标题后同步顶部标签文字
+import { UI } from '../app/ui.js'
 import { t } from '../i18n.js'                            // 工具被拦下等提示需要当前语言文案
-import { formatToolOutput, toolStatus } from '../session/tool-ui.js' // 工具状态和结果文本只有一处判断
+import { formatToolOutput, toolStatus } from './tool-ui.js' // 工具状态和结果文本只有一处判断
 import { readAttachments } from '../utils/attachments.js'          // 附件大小和类型检查只有一处
 
 const current = () => store.sessions[store.ui.activeSessionID] || null

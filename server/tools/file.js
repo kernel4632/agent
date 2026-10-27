@@ -14,6 +14,8 @@ import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断�
 // --- 读取文本或图片 ---
 const readFileTool = {
     name: 'read_file',
+    kind: 'read',
+    files: input => [input.path],
     ui: {
         view: 'file-read',
         icon: 'document',
@@ -59,6 +61,8 @@ const readFileTool = {
 // --- 写入完整文本文件 ---
 const writeToFile = {
     name: 'write_to_file',
+    kind: 'write',
+    files: input => [input.path],
     ui: {
         view: 'file-write',
         icon: 'edit',
@@ -92,6 +96,8 @@ const writeToFile = {
 // --- 列出目录 ---
 const listFiles = {
     name: 'list_files',
+    kind: 'read',
+    files: input => [input.path],
     ui: {
         view: 'file-list',
         icon: 'folder',

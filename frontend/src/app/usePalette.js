@@ -7,7 +7,7 @@
 */
 import { computed, ref } from 'vue'
 import { store } from '../store.js'
-import { UI } from '../commands/ui.js'
+import { UI } from './ui.js'
 
 export function usePalette({ openDraft, openSession }) {
   const open = ref(false)                                           // 面板是否显示

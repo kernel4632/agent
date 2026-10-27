@@ -9,9 +9,10 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../commands/config.js'
-import Tools from '../commands/tools.js'
+import Config from '../config/config.js'
+import Tools from '../tool-catalog.js'
 import Store from '../store.js'
+import { toolFiles } from '../utils/tool-files.js'
 import { app } from '../server.js'
 
 const withHome = async callback => {
@@ -58,6 +59,26 @@ describe('工具目录', () => {
             expect(byName.update_todo_list.configurable).toBe(false)
             expect(byName.update_todo_list.ui?.view).toBe('todo')
             expect(byName.attempt_completion.ui?.view).toBe('completion')
+        })
+    })
+
+    test('用户工具自己声明的类别和文件参数会被登记', async () => {
+        await withHome(async root => {
+            await mkdir(join(root, 'tools'), { recursive: true })
+            await writeFile(join(root, 'tools', 'declared.js'), [
+                "export default {",
+                "    name: 'declared_tool',",
+                "    kind: 'read',",
+                "    files: input => [input.path],",
+                "    description: 'test tool',",
+                "    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },",
+                "    async execute() { return 'ok' },",
+                "}",
+            ].join('\n'))
+
+            const tools = await Tools.list()
+            expect(tools.find(tool => tool.name === 'declared_tool')?.kind).toBe('read')
+            expect(toolFiles({ toolName: 'declared_tool', input: { path: 'a.txt' } })).toEqual(['a.txt'])
         })
     })
 

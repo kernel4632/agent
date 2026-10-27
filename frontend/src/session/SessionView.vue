@@ -21,9 +21,9 @@ import PermissionDrawer from './PermissionDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { canContinueSession } from './continue.js'
-import { Session } from '../commands/session.js'
-import { Chat } from '../commands/chat.js'
-import { UI } from '../commands/ui.js'
+import { Session } from './session.js'
+import { Chat } from './chat.js'
+import { UI } from '../app/ui.js'
 
 // 时间线单独拆包，只有进入会话页时才加载。
 const Timeline = defineAsyncComponent(() => import('./Timeline.vue'))

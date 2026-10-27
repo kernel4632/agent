@@ -10,8 +10,8 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../commands/config.js'
-import Rules from '../features/rules.js'
+import Config from '../config/config.js'
+import Rules from '../config/rules.js'
 import Store from '../store.js'
 
 // 每个测试使用独立数据目录，并把内存里的配置和规则清空。

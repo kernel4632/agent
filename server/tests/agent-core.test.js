@@ -11,11 +11,12 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Agent from '@kernel4632/agent-core'
-import Config from '../commands/config.js'
-import Session from '../commands/session.js'
-import Settings from '../commands/settings.js'
+import Config from '../config/config.js'
+import Session from '../session/session.js'
+import Settings from '../config/settings.js'
 import Kind from '../utils/tool-kind.js'
 import Store from '../store.js'
+import History from '../session/history.js' // 会话历史的内存缓存由 history.js 自己管。
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-core-upgrade-${crypto.randomUUID()}`)
@@ -23,7 +24,7 @@ const withHome = async callback => {
     process.env.AGENT_HOME = root
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
-    Store.sessions.clear()
+    History.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
     Store.settings.clear()

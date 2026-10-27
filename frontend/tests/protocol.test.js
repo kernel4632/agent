@@ -1,3 +1,6 @@
+/*
+ * SSE 和接口测试：分块 UTF-8、CRLF、心跳、事件名和请求头都要按契约解析。
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readSSE } from '../src/utils/sse.js'

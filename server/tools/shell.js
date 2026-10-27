@@ -12,6 +12,7 @@ const TIMEOUT_MS = 10 * 60 * 1000
 
 export default {
     name: 'execute_command',
+    kind: 'command',
     ui: {
         view: 'command',
         icon: 'code',

@@ -17,8 +17,8 @@ import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import SessionStats from '../session/SessionStats.vue'
 import { sessionStats } from '../session/stats.js'
 import { latestTodos } from '../session/todos.js'
-import { Session } from '../commands/session.js'
-import { NEW_SESSION_TITLE } from '../commands/defaults.js'
+import { Session } from '../session/session.js'
+import { NEW_SESSION_TITLE } from '../defaults.js'
 
 const props = defineProps({
   session: { type: Object, default: null },              // 当前打开的完整会话

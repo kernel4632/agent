@@ -6,8 +6,8 @@
 */
 import { computed } from 'vue'                                          // 引入响应式派生计算
 import { store } from '../store.js'                                     // 引入唯一工作台数据根
-import { Settings } from './settings.js'                                // 引入离开设置时的自动保存动作
-import { Config } from './config.js'                                    // 引入重新读取后端配置的动作用于重试
+import { Settings } from '../settings/settings.js'                                // 引入离开设置时的自动保存动作
+import { Config } from '../config.js'                                    // 引入重新读取后端配置的动作用于重试
 import { t } from '../i18n.js'                                          // 引入当前语言反馈文案
 
 let toastTimer = null                                                    // 同一时间只保留一条全局反馈计时器

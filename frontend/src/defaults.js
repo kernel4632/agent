@@ -1,6 +1,6 @@
 /*
 前端会用到的默认设置：新建会话、设置页显示和接口返回缺字段时共用这一份。
-执行时的真正来源仍是后端 commands/settings.js 的 defaultSettings()；这里只负责界面一致。
+执行时的真正来源仍是后端 ./settings/settings.js 的 defaultSettings()；这里只负责界面一致。
 调用示例：import { DEFAULT_SETTINGS, DEFAULT_CONTEXT } from './defaults.js'
 */
 export const DEFAULT_SETTINGS = {

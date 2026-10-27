@@ -9,6 +9,8 @@ import Skip from '../utils/skip.js' // 依赖目录不算用户要找的文件�
 
 export default {
     name: 'glob',
+    kind: 'read',
+    files: input => [input.path],
     ui: {
         view: 'file-list',
         icon: 'folder',

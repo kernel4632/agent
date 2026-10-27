@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { KimaSelect } from '@kernel4632/kima'
 import { Switch } from '../../ui/index.js'
-import { USE_LABELS } from '../../commands/session.js'
+import { USE_LABELS } from '../../session/session.js'
 
 const props = defineProps({ draft: { type: Object, required: true } })
 

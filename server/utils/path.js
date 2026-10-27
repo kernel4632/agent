@@ -20,7 +20,7 @@ const root = () => process.env.AGENT_HOME || join(process.env.HOME || process.en
 // 全局模型、权限和提示词都写在同一个配置文件里。
 const config = () => join(root(), 'config.json')
 
-// 用户额外加的忽略规则；内置的敏感文件规则写在 features/ignore.js 里。
+// 用户额外加的忽略规则；内置的敏感文件规则写在 ../safety/ignore.js 里。
 const ignore = () => join(root(), '.agentignore')
 
 // 会话目录保存元数据、历史记录、运行设置和文件快照。

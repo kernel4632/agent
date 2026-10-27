@@ -17,6 +17,8 @@ import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断�
 
 export default {
     name: 'apply_patch',
+    kind: 'write',
+    files: input => (input.patches || []).map(patch => patch.path ?? patch.file_path).filter(Boolean),
     ui: {
         view: 'patch',
         icon: 'edit',

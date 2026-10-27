@@ -4,14 +4,14 @@ Server 会话会被归一化为现有 M3E 组件可直接渲染的消息与工�
 调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
 */
 import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约
-import { FALLBACK_AGENTS } from './config.js'           // 智能体兜底只保留一份
+import { FALLBACK_AGENTS } from '../config.js'           // 智能体兜底只保留一份
 import { store } from '../store.js'                     // 引入工作区摘要与完整会话
-import { UI } from './ui.js'                            // 引入导航和反馈指令
-import { Tabs } from './tabs.js'                        // 同步顶部会话标签
+import { UI } from '../app/ui.js'                            // 引入导航和反馈指令
+import { Tabs } from '../app/tabs.js'                        // 同步顶部会话标签
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
-import { formatToolOutput, toolStatus } from '../session/tool-ui.js' // 工具状态和文本只有一处判断
+import { formatToolOutput, toolStatus } from './tool-ui.js' // 工具状态和文本只有一处判断
 import { splitUserAttachments } from '../utils/user-message.js'      // 历史里的附件正文不能跑进用户气泡
-import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from './defaults.js' // 默认值只留一处
+import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认值只留一处
 
 
 // --- 自动批准的四个类别 ---
@@ -265,7 +265,7 @@ const labelOf = kind => AUTO_APPROVE_KINDS.find(item => item.kind === kind)?.lab
 
 /*
  * 哪件事可以单独指定模型，以及它在界面上叫什么。
- * 键名以后端 commands/settings.js 的 USES 为准，这里有契约测试盯着不会漏。
+ * 键名以后端 ../settings/settings.js 的 USES 为准，这里有契约测试盯着不会漏。
  */
 const USE_LABELS = {
   compact: '压缩上下文',
@@ -346,6 +346,107 @@ async function setCompactThreshold(sessionID, value) {
 // --- 用途的中文名 ---
 const useLabel = use => USE_LABELS[use] || use
 
+// --- 把一条协议消息整理成界面消息；工具结果只更新前面对应的工具，不单独成为气泡 ---
+function partList(item) {
+  return Array.isArray(item.parts) ? item.parts
+    : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
+}
+
+function normalizeTool(part) {
+  const call = part.toolInvocation || part                // 兼容 UIMessage parts 和旧格式
+  const result = call.state === 'result' ? call.result : null // 有结果才判断成功或失败
+  const output = result?.output ?? result ?? null
+  const status = result ? toolStatus(output, result.isError) : 'running'
+  const preview = output ? formatToolOutput(output) : ''
+  return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
+}
+
+function applyToolResult(messages, parts) {
+  for (const result of parts.filter(part => part.type === 'tool-result')) {
+    const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
+    if (!tool) continue
+    tool.status = toolStatus(result.output, result.isError) // 拒绝、失败、完成由 tool-ui 统一判断
+    tool.output = result.output
+    tool.preview = formatToolOutput(result.output)          // 结果文本和实时事件用同一套格式
+  }
+}
+
+function normalizeRequest(item) {
+  if (!item.usage) return null
+  const usage = item.usage
+  const input = Number(usage.input ?? usage.inputTokens ?? 0)
+  const output = Number(usage.output ?? usage.outputTokens ?? 0)
+  return {
+    status: 'completed',
+    startedAt: Number(usage.startedAt || 0),
+    finishedAt: Number(usage.finishedAt || 0),
+    durationMs: Number(usage.durationMs || 0),
+    input,
+    output,
+    cache: Number(usage.cacheRead ?? usage.inputTokenDetails?.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
+    cacheWrite: Number(usage.cacheWrite ?? usage.inputTokenDetails?.cacheWriteTokens ?? 0),
+    reasoning: Number(usage.reasoning ?? usage.outputTokenDetails?.reasoningTokens ?? 0),
+    total: Number(usage.total ?? input + output),
+  }
+}
+
+function normalizeMessage(item, messages) {
+  const parts = partList(item)
+  // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
+  const message = {
+    id: item.messageId || item.id,
+    role: item.role,
+    startedAt: Number(item.startedAt || 0),
+    finishedAt: Number(item.finishedAt || 0),
+  }
+  if (item.compact) message.compact = true
+  if (item.role === 'tool') {
+    applyToolResult(messages, parts)
+    return null
+  }
+
+  message.reasoning = parts.filter(part => part.type === 'reasoning').map(part => part.reasoning || part.text || '').join('') // 合并推理块
+  message.content = parts.filter(part => part.type === 'text').map(part => part.text || '').join('') // 合并文本块
+  if (item.role === 'user') {
+    const parsed = splitUserAttachments(message.content) // 历史只保存拼好的输入，附件正文不能进气泡
+    message.displayContent = parsed.content              // content 保留完整输入，回退和重新发送仍然可用
+    message.attachments = parsed.attachments
+  }
+  message.tools = parts
+    .filter(part => part.type === 'tool-invocation' || part.type === 'tool-call')
+    .map(normalizeTool)
+  // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
+  message.steps = []
+  if (item.role === 'assistant') {
+    for (const part of parts) {
+      if (part.type === 'reasoning') {
+        const text = part.reasoning || part.text || ''
+        if (text) message.steps.push({ type: 'reasoning', text })
+      } else if (part.type === 'text') {
+        if (part.text) message.steps.push({ type: 'text', text: part.text })
+      } else if (part.type === 'tool-invocation' || part.type === 'tool-call') {
+        const call = part.toolInvocation || part
+        if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId })
+      }
+    }
+    // 旧会话没有 parts 顺序时，退回“思考 → 正文 → 工具”的旧顺序。
+    if (!message.steps.length) {
+      if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
+      if (message.content) message.steps.push({ type: 'text', text: message.content })
+      for (const tool of message.tools) message.steps.push({ type: 'tool', toolId: tool.id })
+    } else {
+      // 步骤里已经有思考正文，顶层再留一份只会让长会话多占一倍内存。
+      message.reasoning = ''
+    }
+    const request = normalizeRequest(item)
+    if (request) {
+      message.request = request
+      message.requests = [request]
+    }
+  }
+  return message
+}
+
 // --- 归一化 Server 会话 ---
 function normalize(source, previous = {}) {
   const provider = source.provider || findModelProvider(source.model)
@@ -355,88 +456,8 @@ function normalize(source, previous = {}) {
   const { history: _history, ...sessionData } = source
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
   for (const item of source.history ?? []) {
-    const parts = Array.isArray(item.parts) ? item.parts
-      : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
-    // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
-    const message = {
-      id: item.messageId || item.id,
-      role: item.role,
-      startedAt: Number(item.startedAt || 0),
-      finishedAt: Number(item.finishedAt || 0),
-    }
-    if (item.compact) message.compact = true
-    if (item.role === 'tool') {
-      for (const result of parts.filter(part => part.type === 'tool-result')) {
-        const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
-        if (tool) {
-          tool.status = toolStatus(result.output, result.isError) // 拒绝、失败、完成由 tool-ui 统一判断
-          tool.output = result.output
-          tool.preview = formatToolOutput(result.output)          // 结果文本和实时事件用同一套格式
-        }
-      }
-      continue
-    }
-    message.reasoning = parts.filter((p) => p.type === 'reasoning').map((p) => p.reasoning || p.text || '').join('') // 合并推理块
-    message.content = parts.filter((p) => p.type === 'text').map((p) => p.text || '').join('') // 合并文本块
-    if (item.role === 'user') {
-      const parsed = splitUserAttachments(message.content) // 历史只保存拼好的输入，附件正文不能进气泡
-      message.displayContent = parsed.content              // content 保留完整输入，回退和重新发送仍然可用
-      message.attachments = parsed.attachments
-    }
-    message.tools = parts
-      .filter((p) => p.type === 'tool-invocation' || p.type === 'tool-call')
-      .map((p) => {
-        const call = p.toolInvocation || p                // 兼容 UIMessage parts 和旧格式
-        const result = call.state === 'result' ? call.result : null // 有结果才判断成功或失败
-        const output = result?.output ?? result ?? null
-        const status = result ? toolStatus(output, result.isError) : 'running'
-        const preview = output ? formatToolOutput(output) : ''
-        return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
-      })
-    // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
-    message.steps = []
-    if (item.role === 'assistant') {
-      for (const part of parts) {
-        if (part.type === 'reasoning') {
-          const text = part.reasoning || part.text || ''
-          if (text) message.steps.push({ type: 'reasoning', text })
-        } else if (part.type === 'text') {
-          if (part.text) message.steps.push({ type: 'text', text: part.text })
-        } else if (part.type === 'tool-invocation' || part.type === 'tool-call') {
-          const call = part.toolInvocation || part
-          if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId })
-        }
-      }
-      // 旧会话没有 parts 顺序时，退回“思考 → 正文 → 工具”的旧顺序。
-      if (!message.steps.length) {
-        if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
-        if (message.content) message.steps.push({ type: 'text', text: message.content })
-        for (const tool of message.tools) message.steps.push({ type: 'tool', toolId: tool.id })
-      } else {
-        // 步骤里已经有思考正文，顶层再留一份只会让长会话多占一倍内存。
-        message.reasoning = ''
-      }
-      // 服务端把每次模型请求的用量挂在消息上；刷新后请求行靠它恢复。
-      if (item.usage) {
-        const usage = item.usage
-        const input = Number(usage.input ?? usage.inputTokens ?? 0)
-        const output = Number(usage.output ?? usage.outputTokens ?? 0)
-        message.request = {
-          status: 'completed',
-          startedAt: Number(usage.startedAt || 0),
-          finishedAt: Number(usage.finishedAt || 0),
-          durationMs: Number(usage.durationMs || 0),
-          input,
-          output,
-          cache: Number(usage.cacheRead ?? usage.inputTokenDetails?.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
-          cacheWrite: Number(usage.cacheWrite ?? usage.inputTokenDetails?.cacheWriteTokens ?? 0),
-          reasoning: Number(usage.reasoning ?? usage.outputTokenDetails?.reasoningTokens ?? 0),
-          total: Number(usage.total ?? input + output),
-        }
-        message.requests = [message.request]
-      }
-    }
-    messages.push(message)                               // 用户和助手消息进入可见时间线
+    const message = normalizeMessage(item, messages)
+    if (message) messages.push(message)                  // 用户和助手消息进入可见时间线
   }
   // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。
   // 历史里的工具调用本身只有“调用中”，必须用这份清单把它标回“等待你的许可”，否则按钮会消失。

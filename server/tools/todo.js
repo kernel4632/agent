@@ -25,6 +25,7 @@ const parseTodos = text => String(text)
 
 export default {
     name: 'update_todo_list',
+    kind: 'never',
     ui: {
         view: 'todo',
         icon: 'check',

@@ -5,7 +5,7 @@
 <script setup>
 import { KimaAlert } from '@kernel4632/kima'
 import { Button } from '../ui/index.js'
-import { UI } from '../commands/ui.js'
+import { UI } from './ui.js'
 
 defineProps({
   message: { type: String, default: '' },               // 后端返回的连接或协议错误文案

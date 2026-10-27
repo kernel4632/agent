@@ -7,7 +7,7 @@
 */
 import { watch } from 'vue'                                            // 引入 Vue 响应式监听
 import { store } from './store.js'                                    // 引入全局工作台数据，读取活跃会话和视图状态
-import { Chat } from './commands/chat.js'                             // 引入 SSE 订阅和取消订阅指令
+import { Chat } from './session/chat.js'                             // 引入 SSE 订阅和取消订阅指令
 
 
 // --- 启动全局监听 ---

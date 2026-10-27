@@ -3,8 +3,8 @@
 脱敏密钥原样保留到保存请求，Server 会恢复真实值。
 调用示例：await Config.load()、await Config.testConnection('aker', 'glm-5.2')。
 */
-import { AgentAPI } from '../api.js'                    // 引入配置 HTTP 契约
-import { store } from '../store.js'                     // 引入全局配置
+import { AgentAPI } from './api.js'                    // 引入配置 HTTP 契约
+import { store } from './store.js'                     // 引入全局配置
 import { COMPACT_RANGE, DEFAULT_SETTINGS } from './defaults.js' // 前端默认值只留一处
 
 // 后端 /agent/list 拿不到时的完整兜底；智能体只在这一个地方列全。
@@ -48,33 +48,34 @@ async function load() {
 }
 
 
-// --- 应用 Server 配置到设置结构 ---
-function apply(raw, catalog = [], catalogAgents = []) {
-  // 后端 providers 是数组，每项包含 name、baseURL、apiKey、models 等字段
-  const providerList = Array.isArray(raw.providers) ? raw.providers : []
+// --- 供应商：后端数组转成设置页按名字索引的对象 ---
+function providerMap(raw) {
+  const list = Array.isArray(raw.providers) ? raw.providers : []
   const providers = {}
-  for (const p of providerList) {
-    const key = p.name || '默认供应商'
+  for (const provider of list) {
+    const key = provider.name || '默认供应商'
     providers[key] = {
-      enabled: p.enabled !== false,
-      protocol: p.protocol || 'openai-compatible',
-      baseURL: p.baseURL || p.api || '',
-      apiKey: p.apiKey || p.key || '',
-      models: Array.isArray(p.models) ? p.models.map(model => typeof model === 'string' ? model : model.id) : [],
-      modelSettings: p.modelSettings || {},
-      timeout: p.timeout || 120000,
-      headers: p.headers || '{}',
+      enabled: provider.enabled !== false,
+      protocol: provider.protocol || 'openai-compatible',
+      baseURL: provider.baseURL || provider.api || '',
+      apiKey: provider.apiKey || provider.key || '',
+      models: Array.isArray(provider.models) ? provider.models.map(model => typeof model === 'string' ? model : model.id) : [],
+      modelSettings: provider.modelSettings || {},
+      timeout: provider.timeout || 120000,
+      headers: provider.headers || '{}',
     }
   }
-  // 兜底：如果没有供应商，提供空的默认条目
-  if (Object.keys(providers).length === 0) {
+  // 没有供应商时给一个空条目，设置页才有地方输入第一份配置。
+  if (!Object.keys(providers).length) {
     providers['默认供应商'] = { enabled: true, protocol: 'openai-compatible', baseURL: '', apiKey: '', models: [], modelSettings: {}, timeout: 120000, headers: '{}' }
   }
+  return providers
+}
 
-  // 工具目录由 /tool/list 给出；旧后端没有目录时退回只看 permission 里的字符串规则。
-  // toolCatalog 给对话页找渲染器，tools 只放设置页需要画权限开关的工具。
+// --- 工具目录：新后端给完整目录，旧后端退回 permission 里的字符串规则 ---
+function toolSettingsFor(raw, catalog) {
   const toolCatalog = Array.isArray(catalog) ? catalog : []
-  const toolSettings = toolCatalog.length
+  const tools = toolCatalog.length
     ? toolCatalog
       .filter(tool => tool.configurable !== false)
       .map(tool => ({
@@ -90,10 +91,14 @@ function apply(raw, catalog = [], catalogAgents = []) {
     : Object.entries(raw.permission || {})
       .filter(([, action]) => typeof action === 'string')
       .map(([name, action]) => ({ name, title: name, kind: 'other', enabled: action !== 'deny', permission: action, original: action }))
+  return { toolCatalog, tools }
+}
 
-  const mcp = Object.entries(raw.mcp ?? {}).map(([name, definition]) => {
-    // 老配置可能只写了 url 没写 transport；补成 sse，保存时才不会被当成 stdio 命令。
+// --- MCP 服务：对象转成设置页的数组，并补上旧配置缺的 transport ---
+function mcpList(raw) {
+  return Object.entries(raw.mcp ?? {}).map(([name, definition]) => {
     const normalized = structuredClone(definition || {})
+    // 老配置可能只写了 url 没写 transport；补成 sse，保存时才不会被当成 stdio 命令。
     if (!normalized.transport) normalized.transport = normalized.url ? 'sse' : 'stdio'
     return {
       id: name,
@@ -103,22 +108,23 @@ function apply(raw, catalog = [], catalogAgents = []) {
       definition: normalized,
     }
   })
+}
 
+// --- 默认模型：优先用户选过的那组，供应商或模型被删掉时退回第一个可用模型 ---
+function modelChoice(providers, raw) {
   const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || Object.keys(providers)[0] || ''
-  const firstModels = providers[firstProvider]?.models || []
-  const firstModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
-  // 设置页保存过默认模型时以它为准；供应商或模型被删掉再回退到第一个可用模型。
+  const firstModel = providers[firstProvider]?.models?.[0] || ''
   const preferred = raw.model && typeof raw.model === 'object' ? raw.model : null
   const preferredModels = preferred ? providers[preferred.provider]?.models || [] : []
-  const validPreferred = preferred?.provider && preferred?.model && preferredModels.includes(preferred.model)
-  const activeProvider = validPreferred ? preferred.provider : firstProvider
-  const activeModel = validPreferred ? preferred.model : firstModel
+  const valid = preferred?.provider && preferred?.model && preferredModels.includes(preferred.model)
+  return {
+    activeProvider: valid ? preferred.provider : firstProvider,
+    activeModel: valid ? preferred.model : firstModel,
+  }
+}
 
-  const globalCapabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {}
-  const globalUses = raw.uses && typeof raw.uses === 'object' && !Array.isArray(raw.uses) ? raw.uses : {}
-  const compactThreshold = Number(raw.compactThreshold)
-
-  // 智能体清单：优先后端 /agent/list；旧后端没有这个接口时，从 agents / modes 原始配置拼。
+// --- 智能体：优先后端清单；旧后端从 agents / modes 原始配置拼 ---
+function agentList(raw, catalogAgents) {
   const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
     ? raw.agents
     : raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? raw.modes : {}
@@ -134,12 +140,25 @@ function apply(raw, catalog = [], catalogAgents = []) {
   const agents = Array.isArray(catalogAgents) && catalogAgents.length
     ? catalogAgents
     : [...FALLBACK_AGENTS, ...customAgents]
+  return { agents, agentDefinitions }
+}
+
+// --- 应用 Server 配置到设置结构 ---
+function apply(raw, catalog = [], catalogAgents = []) {
+  const providers = providerMap(raw)
+  const { toolCatalog, tools } = toolSettingsFor(raw, catalog)
+  const { activeProvider, activeModel } = modelChoice(providers, raw)
+  const { agents, agentDefinitions } = agentList(raw, catalogAgents)
+
+  const globalCapabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {}
+  const globalUses = raw.uses && typeof raw.uses === 'object' && !Array.isArray(raw.uses) ? raw.uses : {}
+  const compactThreshold = Number(raw.compactThreshold)
 
   Object.assign(store.config, {
     providers,
-    tools: toolSettings,
+    tools,
     toolCatalog,
-    mcp,
+    mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     agents,
     agentDefinitions,

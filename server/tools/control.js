@@ -10,6 +10,7 @@
 // --- 结束 Agent 循环 ---
 const attemptCompletion = {
     name: 'attempt_completion',
+    kind: 'never',
     ui: {
         view: 'completion',
         icon: 'check',
@@ -37,6 +38,7 @@ const attemptCompletion = {
 // --- 暂停 Agent 循环并询问用户 ---
 const askFollowupQuestion = {
     name: 'ask_followup_question',
+    kind: 'never',
     ui: {
         view: 'question',
         icon: 'info',

@@ -5,7 +5,7 @@
 <script setup>
 import { computed } from 'vue'
 import { AppIcon, Button } from '../../ui/index.js'
-import { UI } from '../../commands/ui.js'
+import { UI } from '../../app/ui.js'
 import { actionTarget, toolActions } from '../tool-ui.js'
 
 const props = defineProps({ tool: { type: Object, required: true } })

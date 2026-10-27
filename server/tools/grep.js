@@ -14,6 +14,8 @@ const excludeArgs = () => Skip.dependencies.flatMap(name => ['--glob', `!**/${na
 
 export default {
     name: 'search_files',
+    kind: 'read',
+    files: input => [input.path],
     ui: {
         view: 'search',
         icon: 'search',

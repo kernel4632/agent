@@ -1,15 +1,13 @@
 /*
  * 工具分类：一次工具调用属于哪一类。
  *
- * 分类只写在这里一处，两个地方都从这里读：
- *   - 自动批准按类别分别开关
- *   - plan 模式按类别去掉能改磁盘的工具
- * 加一个内置工具只改这张表，不用去别处同步。
+ * 分类由每个工具文件自己声明（kind 字段），扫描时登记到这里；
+ * 自动批准和 plan 模式只读这张运行时表，不再维护第二份工具名单。
  * 调用示例：
- *   Kind.of({ toolName: 'write_to_file' })                                // 'write'
- *   Kind.of({ toolName: 'everything_echo', mcpServers: ['everything'] })  // 'mcp'
- *   Kind.of({ toolName: '我的脚本' })                                      // 'other'，没分类
- *   Kind.writing(Object.keys(agent.tools.schema))                         // 能改磁盘的那些工具名
+ *   Kind.register({ name: 'read_file', kind: 'read' })
+ *   Kind.of({ toolName: 'read_file' })                                // 'read'
+ *   Kind.of({ toolName: 'everything_echo', mcpServers: ['everything'] }) // 'mcp'
+ *   Kind.writing(['read_file', 'write_to_file'])                      // ['write_to_file']
  */
 
 import { canonical } from './tool-names.js' // 旧工具名也要能分到同一类。
@@ -34,35 +32,17 @@ export const KINDS = [
 // plan 模式去掉这两类，剩下的就是"只能看"的。
 const WRITING = ['write', 'command']
 
-/*
- * 内置工具的分类。加一个内置工具就在这里加一行。
- * 契约测试会盯着：tools/ 里有的工具，这里必须有一行。
- */
-const BUILT_IN = {
-    // 看和查
-    read_file: 'read',
-    list_files: 'read',
-    glob: 'read',
-    search_files: 'read',
-    webfetch: 'read',
-    skill: 'read',
-    // 改
-    write_to_file: 'write',
-    edit: 'write',
-    apply_patch: 'write',
-    // 跑
-    execute_command: 'command',
-    // 开子任务
-    new_task: 'subtask',
-    /*
-     * never：这几件是控制循环用的，既不碰磁盘也不碰外部服务，
-     * 本来就没有"要不要批准"这回事。记清单和结束循环每次都要问一遍的话，
-     * 用户只会一直点同意，审批弹窗也就没意义了。
-     */
-    update_todo_list: 'never',
-    attempt_completion: 'never',
-    ask_followup_question: 'never',
+// 工具文件在扫描时把自己的类别登记进来；没有登记的工具按 'other' 处理。
+const registry = new Map()
+
+// --- 登记一个工具 ---
+const register = ({ name, kind }) => {
+    if (!name || !kind) return
+    registry.set(canonical(name), kind)
 }
+
+// --- 测试和工具目录用：看当前登记了哪些工具 ---
+const registered = () => new Map(registry)
 
 /**
  * 这个工具属于哪一类。
@@ -74,7 +54,7 @@ const BUILT_IN = {
  */
 const of = ({ toolName, mcpServers = [] }) => {
     if (mcpServers.some(name => toolName.startsWith(`${name}_`))) return 'mcp'
-    return BUILT_IN[canonical(toolName)] || 'other'
+    return registry.get(canonical(toolName)) || 'other'
 }
 
 /**
@@ -84,10 +64,4 @@ const of = ({ toolName, mcpServers = [] }) => {
  */
 const writing = names => names.filter(name => WRITING.includes(of({ toolName: name })))
 
-/*
- * 分类表原样导出去，只是为了让契约测试能查"是不是每个内置工具都写进来了、有没有留下已删的名"。
- * 业务代码不该读它，要用就用 of()。
- */
-export const TABLE = BUILT_IN
-
-export default { of, writing, KINDS }
+export default { of, writing, KINDS, register, registered }

@@ -4,7 +4,7 @@
 调用示例：Tabs.createDraft()、Tabs.openSession('ses_123', '标题')。
 */
 import { store } from '../store.js'                      // 引入全局顶部标签数据结构
-import { NEW_SESSION_TITLE } from './defaults.js'         // 新会话标题只留一处
+import { NEW_SESSION_TITLE } from '../defaults.js'         // 新会话标题只留一处
 
 
 // --- 创建一个草稿标签 ---

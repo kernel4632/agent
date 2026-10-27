@@ -10,9 +10,10 @@ import { describe, expect, test } from 'bun:test'
 import { fileURLToPath } from 'node:url'
 import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
-import { FILE_TOOLS } from '../utils/tool-files.js'
-import { KINDS, TABLE } from '../utils/tool-kind.js' // 工具分类表，查"新加的工具登记了没有"。
-import { USES } from '../commands/settings.js' // 哪件事可以单独配模型，文档跟着它走。
+import { fileToolNames } from '../utils/tool-files.js'
+import Kind, { KINDS } from '../utils/tool-kind.js' // 工具类别由工具自己声明，扫描时登记。
+import ToolCatalog from '../tool-catalog.js' // 扫描后才有类别和文件参数。
+import { USES } from '../config/settings.js' // 哪件事可以单独配模型，文档跟着它走。
 
 // 从仓库里读一个文件，契约检查都建立在"以代码为准"上。
 const source = name => Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
@@ -98,20 +99,20 @@ describe('接口契约', () => {
     test('界面上的自动批准开关和代码里的类别是同一组', async () => {
         // 前端那份清单是为了配图标，但类别的名字得跟着代码走。
         // 少写一类，用户就少一个能开关的权限，而且在界面上完全看不出来。
-        const frontend = await source('../frontend/src/commands/session.js')
+        const frontend = await source('../frontend/src/session/session.js')
         const listed = [...frontend.matchAll(/\{ kind: '([a-z]+)', label:/g)].map(([, kind]) => kind)
         expect(listed).toEqual(KINDS.map(item => item.kind))
     })
 
     test('界面上"按用途配模型"的下拉框和代码里的用途是同一组', async () => {
-        const frontend = await source('../frontend/src/commands/session.js')
+        const frontend = await source('../frontend/src/session/session.js')
         // 少一项，用户就永远配不了那个用途的模型，而他只会以为"这个功能没有"。
         const listed = [...frontend.matchAll(/^  (\w+): '[^']+',$/gm)].map(([, use]) => use)
         expect(listed).toEqual(USES.map(item => item.use))
     })
 
     test('每个类别在界面上都配了图标', async () => {
-        const frontend = await source('../frontend/src/commands/session.js')
+        const frontend = await source('../frontend/src/session/session.js')
         // 缺图标时 AppIcon 会退回默认的 spark，看着像是"这个开关还没做完"。
         const icons = [...frontend.matchAll(/icon: '([a-z]+)'/g)].map(([, icon]) => icon)
         expect(icons).toHaveLength(KINDS.length)
@@ -130,6 +131,7 @@ describe('接口契约', () => {
 // --- 工具与忽略规则 ---
 // tools/ 里每个工具的说明，用来判断它碰不碰文件。
 const toolDefinitions = async () => {
+    await ToolCatalog.register()
     const tools = await Agent.tool.scan(fileURLToPath(new URL('../tools/', import.meta.url)))
     return tools.schema
 }
@@ -138,7 +140,7 @@ const toolDefinitions = async () => {
 describe('SSE 事件', () => {
     test('后端自己发的每个事件类型都在对接文档里写着', async () => {
         // 从源码里提取，不另维护一份清单——清单会漂移，这正是要防的问题。
-        const sources = ['commands/session.js', 'features/approval.js', 'features/mcp.js', 'features/delegation.js']
+        const sources = ['session/session.js', 'safety/approval.js', 'mcp.js', 'subtask.js']
         const sent = new Set()
         for (const name of sources) {
             const code = await source(name)
@@ -161,7 +163,7 @@ describe('请求字段', () => {
         const root = new URL('../../', import.meta.url)
         const [frontend, backend] = await Promise.all([
             Bun.file(fileURLToPath(new URL('frontend/src/api.js', root))).text(),
-            Bun.file(fileURLToPath(new URL('server/commands/session.js', root))).text(),
+            Bun.file(fileURLToPath(new URL('server/session/session.js', root))).text(),
         ])
         const sentBody = frontend.match(/decideTool:[^\n]*\{\s*([A-Za-z]+),\s*decision\s*\}/)?.[1]
         const readField = backend.match(/decide\(\{\s*sessionId,\s*([A-Za-z]+),\s*decision\s*\}\)/)?.[1]
@@ -174,7 +176,8 @@ describe('工具名单', () => {
     test('忽略规则登记的文件工具都真的存在', async () => {
         const schema = await toolDefinitions()
         // 名单里写着一个已经删掉的工具名，说明名单没跟着清理。
-        expect(FILE_TOOLS.filter(name => !(name in schema))).toEqual([])
+        const registered = fileToolNames()
+        expect(registered.filter(name => !(name in schema))).toEqual([])
     })
 
     test('碰文件的工具都登记进了忽略规则', async () => {
@@ -189,16 +192,16 @@ describe('工具名单', () => {
             .map(([name]) => name)
 
         // 漏登记的工具能读到 .env，而忽略规则完全不知道它存在。
-        expect(touchesFiles.filter(name => !FILE_TOOLS.includes(name))).toEqual([])
+        const registered = fileToolNames()
+        expect(touchesFiles.filter(name => !registered.includes(name))).toEqual([])
     })
 
-    test('每个内置工具都在分类表里有一行', async () => {
+    test('每个内置工具都在自己的文件里声明了类别', async () => {
         const schema = await toolDefinitions()
-        // 分类表是自动批准和 plan 模式共用的唯一来源。漏了一行不会报错，
-        // 表现是"这个工具永远要问用户"，很难联想到是忘了登记。
-        // 表里写了 'other' 也算登记过——update_todo_list / attempt_completion / ask_followup_question 就是这种：
-        // 它们不碰磁盘也不连外部服务，本来就不该有自动批准开关。
-        const missing = Object.keys(schema).filter(name => !(name in TABLE))
+        // 类别表由扫描器从工具文件收集。漏了 kind 不会报错，
+        // 表现是"这个工具永远要问用户"，很难联想到是忘了声明。
+        const registered = Kind.registered()
+        const missing = Object.keys(schema).filter(name => !registered.has(name))
         expect(missing).toEqual([])
     })
 

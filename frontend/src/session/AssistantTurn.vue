@@ -8,7 +8,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { AppIcon, KimaMarkdown, SmoothMarkdown } from '../ui/index.js'
-import { UI } from '../commands/ui.js'
+import { UI } from '../app/ui.js'
 import { useSmoothText } from '../utils/smooth-text.js'
 import { outputText } from './tool-ui.js'
 import { isFinishedStopTool } from './stop-tools.js'

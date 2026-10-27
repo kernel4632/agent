@@ -9,8 +9,8 @@ import './styles/base.scss'          // 应用自己的排版和布局覆盖，�
 import './styles/tokens.scss'        // 把 KIMA 色板映射成 --la-* 业务 token
 import App from './App.vue'
 import { startWatchers } from './watchers.js'
-import { Config } from './commands/config.js'
-import { Workspace } from './commands/workspace.js'
+import { Config } from './config.js'
+import { Workspace } from './workspace.js'
 import { store } from './store.js'
 
 startWatchers()

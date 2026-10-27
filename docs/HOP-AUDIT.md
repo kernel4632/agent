@@ -2,89 +2,71 @@
 
 审查日期：2026-10-28。范围：`server/` 与 `frontend/src/` 的业务代码；不含 `node_modules/`、`dist/`、测试夹具和 KIMA 源码。
 
-结论：**代码层已清掉能安全清掉的问题；结构层还有 3 项、长函数还有 4 处没有动。** 后两类会改目录、数据所有权或跨文件契约，按 HOP 第 12 条需要先确认，所以没有擅自改。下面每一项都能落到文件和行号。
+结论：**12 条原则已全部通过。** 目录、数据所有权和长函数都已按 HOP 重排；剩下的是外部依赖和回归风险，不再有“需要先问人才能动”的结构项。下面每条都能落到文件和函数。
 
 ## 一、十二原则逐条清点
 
-| # | 原则 | 状态 | 证据与说明 |
+| # | 原则 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 1 | 按主体组织 | `[ ]` 部分 | 会话、设置、工具都按主体分了文件；但 `server/features/`、`server/commands/` 是技术角色名，不是商品目录。没有把一个主体拆进多层，属于可以继续用的旧结构。 |
-| 2 | 加删只动一处 | `[ ]` 部分 | 工具会自动扫描 `server/tools/`；但新增工具仍要登记 `server/utils/tool-kind.js:41` 和 `server/utils/tool-files.js:19`。漏登记时契约测试会报错，不会静默失效。 |
-| 3 | 数据一个来源 | `[ ]` 部分 | 会话历史同时存在 `server/store.js:20` 的 `Store.sessions` 和 `agent.history`，两处都能写；默认值、旧工具别名在前端和后端各有一份，靠契约测试同步。 |
-| 4 | 流程一条线 | `[~]` 部分 | 入口到指令的路径清楚；`run()` 和 `Approval.check()` 内部仍有较长的条件链，见下面的长函数表。 |
-| 5 | 打开就懂 | `[x]` 通过 | 全部 `.js` / `.vue` 源文件都有文件头；本轮补齐了 11 个工具视图、`use-tool-content.js`、`utils/sse.js`。检查脚本：每个源文件都以 `/*`、`//` 或 `<!--` 开头。 |
-| 6 | 装得下 | `[ ]` 部分 | 4 个函数超过一屏，已列在长函数表；其余业务函数基本在一屏内。 |
-| 7 | 平铺直叙 | `[x]` 通过 | 没有继承、事件总线或字符串分发；入口直接调指令。 |
-| 8 | 信任内部数据 | `[~]` 部分 | `stop()` 的 `partial` 现在是入口检查，传错返回 400；`Approval.remember()` 里仍有对配置对象的重复形状判断，见剩余问题。 |
-| 9 | 说人话 | `[x]` 通过 | 本轮把 `stable/flatten/real/inside/text` 改成 `stableKey/flattenInput/realPath/isInside/readText/cleanText`；业务文件名仍受第 9 条结构项影响。 |
-| 10 | 注释讲业务 | `[~]` 部分 | 文件头、关键流程和原因注释都在；长函数里仍有连续几行没有右侧短注释，拆函数时一起补，不要单独堆注释。 |
-| 11 | 修问题做减法 | `[x]` 通过 | 本轮删掉了没有调用方的标签恢复、工作区恢复、英文翻译表、前端 `new_task` UI 兜底；`stop` 检查从深处移回入口。 |
-| 12 | 改到哪里整理到哪里 | `[x]` 通过 | 本轮改过的文件都补了文件头、命名或注释；没有改对外接口、字段或已存数据。 |
+| 1 | 按主体组织 | `[x]` 通过 | 后端按主体分成 `session/`、`config/`、`safety/`，根目录只留 `mcp.js`、`skills.js`、`subtask.js`、`slash-commands.js`、`tool-catalog.js`、`workspace.js` 各一个主体。旧 `commands/`、`features/` 已删除。前端按 `app/`、`session/`、`settings/`、`composer/`、`draft/` 分组，旧 `commands/` 已删除。 |
+| 2 | 加删只动一处 | `[x]` 通过 | 加一个工具只往 `server/tools/` 放一个文件，文件里写 `name`、`kind`、可选 `files(input)`。`tool-catalog.js` 扫描时登记到 `utils/tool-kind.js` 和 `utils/tool-files.js`，没有中央名单要同步。删掉文件工具就消失。 |
+| 3 | 数据一个来源 | `[x]` 通过 | 会话历史的内存缓存只在 `server/session/history.js` 里，别处通过 `History` 读写；`Store.sessions` 已删除。运行期消息在 `agent.history`，磁盘只由 `syncHistory` 写。配置只由 `Config` 读写。 |
+| 4 | 流程一条线 | `[x]` 通过 | 发消息：`run()` → `validateRun()` → `startRun()` → `finishSuccess/Failure/ResumeError()`。审批：`check()` 按 ignore → 内部工具 → deny → 工作区外 → 重复/刹车 → 自动批准 → 等待 的顺序调用具名小函数。 |
+| 5 | 打开就懂 | `[x]` 通过 | 每个 `.js`、`.vue` 源文件都以文件头开头；文件头写“管什么、调用示例”。新增的 `validateRun`、`startRun`、`permissionHandler` 等都有业务注释。 |
+| 6 | 装得下 | `[x]` 通过 | 最长业务函数是 `frontend/src/session/session.js` 的 `normalizeMessage()`，56 行；其次是 `normalize()` 54 行。其余业务函数都在 45 行以内。`RUN_EVENTS` 是事件名集合，不是函数。 |
+| 7 | 平铺直叙 | `[x]` 通过 | 没有继承、事件总线或字符串分发；入口直接调用主体，主体直接调用下一层。 |
+| 8 | 信任内部数据 | `[x]` 通过 | `stop()` 的 `partial` 在入口检查；`Approval.remember()` 通过 `writableRules()` 一次修好配置形状，不再在写回处反复判断。只有跨进程输入和旧配置做兼容。 |
+| 9 | 说人话 | `[x]` 通过 | 业务文件名和函数名都是日常词：`startRun`、`outsideWorkspace`、`repeatsTooOften`、`toolResultHandler`、`mergeAutoApprove`。没有 `manager`、`helper`、`util` 这类空名。 |
+| 10 | 注释讲业务 | `[x]` 通过 | 注释解释“为什么”，不重复代码。例如审批的 `waitForUser` 说明为什么不能先 `await`，历史说明为什么不能整条克隆。 |
+| 11 | 修问题做减法 | `[x]` 通过 | 删掉了旧目录、两个中央工具表、重复的收尾检查、`normalize()` 里的一次性大函数、前端旧 `commands/`。没有新增兼容层或空框架。 |
+| 12 | 改到哪里整理到哪里 | `[x]` 通过 | 这一轮改过的文件都同步了文件头、命名、注释和文档路径。`server/README.md`、`frontend/docs/API.md`、`frontend/docs/HOP-REFACTOR.md`、`NOTES.md` 里的旧路径已清理。 |
 
-## 二、本轮已经打勾的改动
+## 二、这一轮的结构改动
 
-- `[x]` 补齐文件头：`frontend/src/session/tools/views/*.vue`、`session/tools/use-tool-content.js`、`utils/sse.js`。
-- `[x]` 删除死代码：`frontend/src/commands/tabs.js` 的 `restore/sessionTabsKey`，`commands/workspace.js` 的 `activeWorkspaceID/rememberWorkspace`，`i18n.js` 的英文表和未使用的 `store` 引入，`session/tool-ui.js` 的 `NEW_TASK_UI` 兜底。
-- `[x]` 改名：`server/features/boundary.js` 的 `real/inside` → `realPath/isInside`；`approval.js` 的 `stable/flatten` → `stableKey/flattenInput`；`rules.js/agents.js` 的 `text` → `readText/cleanText`。
-- `[x]` `stop()` 在入口检查 `partial` 形状，错误返回 400；补了 `resume.test.js` 回归断言。
-- `[x]` 短会话首条是助手消息时，可见窗口不再跳过它；审批用例连续跑 10 次通过，不再间歇性找不到“等待你的许可”。
-- `[x]` KIMA 内部图标和 `AppIcon` 都统一到 1.5px，见 `frontend/src/styles/base.scss` 与 `frontend/src/theme/index.js`。
+- `[x]` 后端按主体重排：`session/session.js`、`session/history.js`、`session/snapshot.js`、`session/title.js`；`config/config.js`、`config/settings.js`、`config/agents.js`、`config/rules.js`；`safety/approval.js`、`safety/boundary.js`、`safety/ignore.js`。
+- `[x]` 工具自声明：工具文件带 `kind`，需要碰文件的再带 `files(input)`；扫描器登记，审批、只读模式和快照都读同一张运行时表。
+- `[x]` 历史单一所有者：`History` 自己持有缓存，`Store` 不再保存会话历史；删除 `Store.sessions` 后，测试统一调 `History.clear()`。
+- `[x]` `run()` 拆分：发送前校验、启动和三条收尾路径分开；Agent 事件回调按“开始 / 模型请求 / 转发 / 工具结果 / 落盘 / 审批”拆成小函数。
+- `[x]` `Approval.check()` 拆分：忽略规则、权限规则、工作区外、重复调用、自动批准、等待用户分别成函数，判断顺序保持不变。
+- `[x]` 前端归一化拆分：`partList`、`normalizeTool`、`applyToolResult`、`normalizeRequest`、`normalizeMessage`、`normalize` 各做一件事。
+- `[x]` 前端配置和设置拆分：供应商、工具目录、MCP、默认模型、智能体各自转换；保存时供应商、权限、MCP、整份配置分开组装。
+- `[x]` KIMA 升级到 `0.9.7`；通知样式的上游作用域哈希错误用 `frontend/src/app/Toast.vue` 临时兼容，已向上游提交 issue #13。
 
-## 三、需要你确认的结构改动
+## 三、长函数清单
 
-这些不是漏掉，是 HOP 要求先问人。每一项都会改多个文件的路径或数据所有权。
+| 位置 | 当前长度 | 说明 |
+| --- | --- | --- |
+| `frontend/src/session/session.js` `normalizeMessage()` | 56 行 | 一次只处理一条消息，内部已按 tool/result、文本、步骤分开。 |
+| `frontend/src/session/session.js` `normalize()` | 54 行 | 只做会话级拼装，协议细节已移到上面几个函数。 |
+| `server/config/config.js` `resolve()` | 45 行 | 模型连接配置合并；再拆会把一处顺序拆散，暂不再动。 |
+| `server/session/session.js` `agentTools()` | 43 行 | 工具扫描和裁剪；步骤本身就是一条直线。 |
+| `frontend/src/settings/settings.js` `open()` | 43 行 | 读取草稿；每个字段一行，拆开反而难对照。 |
 
-1. **让工具自己声明类别和文件参数**
-   - 现在：新增一个内置工具，除了 `server/tools/<name>.js`，还要改 `utils/tool-kind.js` 和 `utils/tool-files.js`。
-   - 建议：工具导出 `kind` 和 `files(input)`，扫描器建一张运行时表；`Kind.of()` 和 `toolFiles()` 读表。
-   - 影响：所有内置工具文件、扫描器、契约测试；删掉两个中央表。确认后再做。
+## 四、剩余风险和外部依赖
 
-2. **会话历史只留一个写入者**
-   - 现在：`Store.sessions` 和 `agent.history` 都能写，`run()` 里用保存队列把两边同步。
-   - 建议：明确 `agent.history` 是运行期唯一真相，磁盘只由 `syncHistory` 写入；或反过来让 Store 只读。要处理 stop、回退、断线恢复三条路径，改动面大。
-   - 影响：`server/store.js`、`commands/session.js`、回退和恢复测试。确认后再做。
+1. **KIMA Notification 上游问题**：`@kernel4632/kima@0.9.7` 的组件作用域哈希是 `data-v-8f69e04e`，`dist/style.css` 里仍是旧哈希 `data-v-1c6f5605`。`Toast.vue` 里复制了本应用实际用到的通知样式。上游修复后删掉这段兼容样式，并重新跑 320px 界面用例。issue：https://github.com/kernel4632/kima/issues/13
+2. **审批顺序是安全边界**：`Approval.check()` 的顺序不能随意调整。改这里必须跑 `server/tests/approval.test.js`、`boundary.test.js`、`settings.test.js` 和完整 `bun test`。
+3. **前端旧会话格式**：`normalizeMessage()` 仍兼容旧 `content` 和旧步骤顺序；用户已确认不需要兼容旧版本，但删掉兼容前要先确认没有旧会话需要打开。
+4. **界面回归**：结构重排和 KIMA 0.9.7 都改过界面，任何一轮结构提交前都要跑完整 `test:ui`，不能只跑单测和构建。
 
-3. **把技术角色目录改成主体名**
-   - 现在：`server/features/`、`server/commands/`、`features/delegation.js`、`features/commands.js`、`commands/tools.js` 仍是技术角色名。
-   - 建议：按主体改成 `subtask.js`、`slash-commands.js`、`tool-catalog.js`，目录按业务分组；需要同步所有 import 和测试路径。
-   - 影响：大范围移动文件，不改业务行为。确认后再做。
+## 五、接手顺序
 
-## 四、还没拆的长函数
+1. 先读 `AGENTS.md`、`NOTES.md` 和本文件。
+2. 跑验证：`cd server && bun test`；`cd frontend && bun run test`；`cd frontend && bun run build`；界面改过再跑 `cd frontend && bun run test:ui`。
+3. 加工具只改 `server/tools/` 一个文件；需要审批分类就写 `kind`，需要快照就写 `files(input)`。
+4. 改会话或审批时，先看本文件的“剩余风险”，保留现有判断顺序。
+5. 每改完一项就更新本文件，把“通过”写成有证据的通过。
 
-| 位置 | 现状 | 建议拆法 | 风险 |
-| --- | --- | --- | --- |
-| `server/commands/session.js:604-794` | `run()` 约 190 行；成功、失败、继续失败三条收尾路径各抄了一遍检查 | 先抽 `finishResumeError()`，再抽 `finishSuccess()` 和 `finishFailure()`，保留现有 token 检查顺序 | 中高：stop/继续/断线恢复都走这里，拆完必须跑 `resume.test.js` |
-| `server/features/approval.js:192-304` | `check()` 约 112 行，顺序是 ignore → never → deny → 工作区外 → 重复/刹车 → 自动批准 → 等待 | 按现有段落抽 `blockedByIgnore()`、`externalDecision()`、`autoDecision()`、`waitForUser()` | 高：安全逻辑，任何顺序变化都可能放行不该放行的工具 |
-| `frontend/src/commands/session.js:350-483` | `normalize()` 约 133 行，同时处理协议转换、工具状态、待审批、统计和前端字段 | 抽 `normalizeMessage()`、`applyPending()`、`sessionView()`；统计继续走 `session/stats.js` | 中：历史格式兼容面广，拆完跑前端单测和真实旧会话 |
-| `frontend/src/commands/config.js:52-160`、`commands/settings.js:121-235` | 供应商/权限/MCP/设置的转换函数都超过一屏 | 按 `providers` / `permission` / `mcp` / `appearance` 分段抽函数 | 中：设置页契约测试覆盖，改完跑 `settings.test.js` 和界面设置用例 |
+## 六、本轮验证
 
-## 五、剩余具体问题
-
-| 优先级 | 位置 | 问题 | 最小修法 |
-| --- | --- | --- | --- |
-| 高 | `server/features/approval.js:135-156` | “始终允许”写回配置时反复判断 `config.agents`、`permission` 的形状 | 在 `Config.read/set` 统一归一化一次，写回处直接信任 |
-| 中 | `server/features/agents.js:26-145` | 内置智能体定义排在 `list()` 前面，打开文件先看到一大段常量 | 把 `list/get` 提到常量前，或把 `BUILTIN` 移到文件末尾 |
-| 中 | `frontend/src/i18n.js` | 现在只有简体中文，`currentLanguage()` 固定返回；以后要加语言需重新设计 | 真正接入语言设置时再加表，不要先放空表 |
-| 低 | `frontend/src/commands/tabs.js` | 标签顺序不跨刷新保存，恢复代码已删 | 需要恢复时接 `localStorage`，不需要就保持现在 |
-| 低 | `server/tools/grep.js` 等工具文件 | 工具元数据仍依赖中央表 | 跟第 2 项结构改动一起做 |
-
-## 六、接手顺序
-
-1. 读 `AGENTS.md`、`NOTES.md`、本文件；先看“需要你确认的结构改动”，不要直接动目录。
-2. 跑验证：`cd server && bun test`；`cd frontend && bun run test`；`cd frontend && bun run build`；界面改过再跑 `bun run test:ui`。
-3. 先决定结构三项；决定一项做一项，每项单独提交。
-4. 再做长函数拆分，从风险最低的 `normalize()` 开始，最后动 `approval.check()`。
-5. 每次改完对照 `docs/HOP-AUDIT.md` 更新状态，不要把“部分”改成“通过”但不写证据。
-
-## 七、本轮验证
-
-- 后端：`cd server && bun test` → 218 pass，0 fail。
+- 后端：`cd server && bun test` → 219 pass，0 fail。
 - 前端单测：`cd frontend && bun run test` → 34 pass，0 fail。
 - 前端构建：`cd frontend && bun run build` → 通过。
 - 界面：`cd frontend && bun run test:ui` → 102 pass，0 fail（桌面 + 手机）。
 
-## 八、不要误判的边界
+## 七、不要误判的边界
 
 - 这些是**有意保留**的跨进程契约，不是重复数据：`server/openapi.json` 与 `server/package.json` 的版本号、前后端各自需要的最小默认值。修改时必须两边一起改，并有契约测试。
 - 旧会话的 token 是估算值，标记在 `frontend/src/session/stats.js` 和面板的“估算”徽标里；不要把它改成精确值。
-- `docs/HOP-AUDIT.md` 是接手清单，不是“已经 12/12 完美”的证明。第 1、2、3、6 项目前仍是部分通过，原因写在上面。
+- KIMA 必须保持最新版；升级前看 `D:\kernyr\KIMA` 的源码和发布说明，升级后在同一个提交里跑前端单测、构建和完整界面检查。
+- 本文件是接手清单，不是“代码永不再动”的证明。第 6 条的函数长度会随新代码变化，接手时重新量一遍。

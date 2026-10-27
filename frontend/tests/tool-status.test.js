@@ -5,8 +5,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { Chat } from '../src/commands/chat.js'
-import { Session } from '../src/commands/session.js'
+import { Chat } from '../src/session/chat.js'
+import { Session } from '../src/session/session.js'
 import { store } from '../src/store.js'
 import { toolStatus, formatToolOutput } from '../src/session/tool-ui.js'
 import { hasStopTool, isFinishedStopTool } from '../src/session/stop-tools.js'

@@ -1,6 +1,6 @@
 <!--
 应用外壳：负责视图切换、抽屉、顶部栏和跨视图事件接线。
-页面在 draft/、session/、settings/；抽屉、顶部栏、命令面板、提示条和快捷键在 app/；导航、设置、反馈等动作由 commands/ 提供。
+页面在 draft/、session/、settings/；抽屉、顶部栏、命令面板、提示条和快捷键在 app/；导航、设置、反馈等动作由 session/、settings/、app/ 里的指令提供。
 入口：main.js 挂载本组件；调用示例：<AppDrawer :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
 <script setup>
@@ -16,10 +16,10 @@ import { usePalette } from './app/usePalette.js'
 import { createShortcutHandler } from './app/shortcuts.js'
 import ThemeProvider from './theme/ThemeProvider.vue'
 import { store } from './store.js'
-import { Session, AUTO_APPROVE_KINDS } from './commands/session.js'
-import { Chat } from './commands/chat.js'
-import { UI, activeSession } from './commands/ui.js'
-import { DEFAULT_SETTINGS } from './commands/defaults.js'
+import { Session, AUTO_APPROVE_KINDS } from './session/session.js'
+import { Chat } from './session/chat.js'
+import { UI, activeSession } from './app/ui.js'
+import { DEFAULT_SETTINGS } from './defaults.js'
 import { normalizeAppearance } from './theme/index.js'
 import { readAttachments } from './utils/attachments.js'
 

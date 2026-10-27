@@ -14,15 +14,15 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Agent from '@kernel4632/agent-core'
-import Approval from '../features/approval.js'
-import Config from '../commands/config.js'
-import Delegation from '../features/delegation.js'
-import History from '../features/history.js'
+import Approval from '../safety/approval.js'
+import Config from '../config/config.js'
+import Delegation from '../subtask.js'
+import History from '../session/history.js'
 import Path from '../utils/path.js'
-import Settings from '../commands/settings.js'
-import Session from '../commands/session.js'
+import Settings from '../config/settings.js'
+import Session from '../session/session.js'
 import Store from '../store.js'
-import Title from '../features/title.js'
+import Title from '../session/title.js'
 import { app } from '../server.js'
 
 // 每类都关掉的那份默认值，断言里要用。
@@ -38,7 +38,7 @@ const withHome = async callback => {
     process.env.AGENT_HOME = root
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
-    Store.sessions.clear()
+    History.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
     Store.settings.clear()

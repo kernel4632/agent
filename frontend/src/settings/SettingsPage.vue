@@ -8,8 +8,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
-import { Settings } from '../commands/settings.js'
-import { UI } from '../commands/ui.js'
+import { Settings } from './settings.js'
+import { UI } from '../app/ui.js'
 import { store } from '../store.js'
 
 // 当前页只存一份：UI.openSettings(section) 写 store，页面和标题都从它派生。

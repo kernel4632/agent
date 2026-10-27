@@ -1,3 +1,6 @@
+/*
+ * 用户消息测试：历史里拼好的附件正文不能出现在聊天气泡中。
+ */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { splitUserAttachments } from '../src/utils/user-message.js'

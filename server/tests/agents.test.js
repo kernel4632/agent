@@ -8,13 +8,14 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import Agents from '../features/agents.js'
-import Approval from '../features/approval.js'
-import Config from '../commands/config.js'
+import Agents from '../config/agents.js'
+import Approval from '../safety/approval.js'
+import Config from '../config/config.js'
 import Path from '../utils/path.js'
-import Session from '../commands/session.js'
-import Settings from '../commands/settings.js'
+import Session from '../session/session.js'
+import Settings from '../config/settings.js'
 import Store from '../store.js'
+import History from '../session/history.js' // 会话历史的内存缓存由 history.js 自己管。
 import { app } from '../server.js'
 
 const withHome = async callback => {
@@ -23,7 +24,7 @@ const withHome = async callback => {
     process.env.AGENT_HOME = root
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
-    Store.sessions.clear()
+    History.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
     Store.settings.clear()

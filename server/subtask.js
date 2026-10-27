@@ -15,8 +15,12 @@
  */
 
 import Agent from '@kernel4632/agent-core'
-import Approval from './approval.js' // 子 agent 也要过同一道审批关口。
-import SSE from '../utils/sse.js' // 子任务的进度也推给前端，用户看得见它在忙什么。
+import Approval from './safety/approval.js' // 子 agent 也要过同一道审批关口。
+import SSE from './utils/sse.js' // 子任务的进度也推给前端，用户看得见它在忙什么。
+import Kind from './utils/tool-kind.js' // 运行时工具的类别也由工具自己声明。
+
+// new_task 不在 tools/ 目录里，但类别和界面一样属于它自己。
+Kind.register({ name: 'new_task', kind: 'subtask' })
 
 // 最多往下开两层：主 agent → 子 agent → 孙 agent。再深就很难看清谁在干什么了。
 const MAX_DEPTH = 2
@@ -66,6 +70,7 @@ const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) =>
 
     return {
         name: 'new_task',
+        kind: 'subtask',
         ui: TASK_UI,
         description: [
             'Delegate one self-contained piece of research to a separate agent and get back only its conclusion.',

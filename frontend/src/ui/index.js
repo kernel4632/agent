@@ -3,7 +3,7 @@
  *
  * 这些文件大多是 KIMA 组件的轻包装；选择框直接用 KIMA 的 KimaSelect，不再包装。
  * 调用示例：
- *   import { AppIcon, Button, Field } from '../ui/index.js'
+ *   import { AppIcon, Button, Field } from './index.js'
  */
 
 export { default as AppIcon } from './AppIcon.vue'

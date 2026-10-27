@@ -2,22 +2,22 @@
  * Web 服务入口：接收 HTTP 触发，交给对应的指令，再按状态码把错误发回去。
  *
  * 本文件只做四件事：注册路由、把错误转成 HTTP 反馈、提供服务状态和工作区信息、启动服务。
- * 业务读取、修改和保存都在 commands/ 与 features/ 内完成。
+ * 业务读取、修改和保存都在 config/、session/、safety/ 等主体文件里完成。
  * 调用示例：
  *   await start({ port: 3000 })          // 启动服务
  *   await app.handle(new Request('http://localhost/config/read'))  // 测试里直接调用
  */
 
 import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
-import Commands from './features/commands.js' // 扫描用户自定义的斜杠命令。
-import Agents from './features/agents.js' // 给界面列出内置和自定义智能体。
-import Config from './commands/config.js' // 执行配置读写指令。
-import Session from './commands/session.js' // 执行会话和 Agent 指令。
-import Tools from './commands/tools.js' // 给设置页列出全部工具和当前权限。
-import Ignore from './features/ignore.js' // 启动时读一次忽略规则。
-import Workspace from './features/workspace.js' // 读工作区信息和 git 状态。
+import Commands from './slash-commands.js' // 扫描用户自定义的斜杠命令。
+import Agents from './config/agents.js' // 给界面列出内置和自定义智能体。
+import Config from './config/config.js' // 执行配置读写指令。
+import Session from './session/session.js' // 执行会话和 Agent 指令。
+import Tools from './tool-catalog.js' // 给设置页列出全部工具和当前权限。
+import Ignore from './safety/ignore.js' // 启动时读一次忽略规则。
+import Workspace from './workspace.js' // 读工作区信息和 git 状态。
 import Path from './utils/path.js' // 提供配置文件路径。
-import Rules from './features/rules.js' // 启动时读一次工作区规则。
+import Rules from './config/rules.js' // 启动时读一次工作区规则。
 import SSE from './utils/sse.js' // 提供实时反馈连接。
 
 const app = new Elysia()

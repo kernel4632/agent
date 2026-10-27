@@ -18,18 +18,19 @@ import { mkdir, readdir, rm } from 'node:fs/promises'
 import { nanoid } from 'nanoid'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
-import Approval from '../features/approval.js' // 审批工具调用，顺带记录文件快照。
-import Delegation from '../features/delegation.js' // 把独立探索工作委托给子 agent。
-import Mcp from '../features/mcp.js' // 把设置里配置的外部工具服务连上。
-import Rules from '../features/rules.js' // 工作区的项目规则，跟着 system 一起交给模型。
-import Skills from '../features/skills.js' // 数据目录里的技能，按需读正文。
-import Title from '../features/title.js' // 第一次聊完让模型起个标题。
-import Config from './config.js' // 读取全局模型配置和权限规则。
-import Settings from './settings.js' // 会话运行设置：模式、自动批准、能力开关。
-import Kind from '../utils/tool-kind.js' // 工具分类只有一处，plan 模式用不着自己写名单。
+import Approval from '../safety/approval.js' // 审批工具调用，顺带记录文件快照。
+import Delegation from '../subtask.js' // 把独立探索工作委托给子 agent。
+import Mcp from '../mcp.js' // 把设置里配置的外部工具服务连上。
+import Rules from '../config/rules.js' // 工作区的项目规则，跟着 system 一起交给模型。
+import Skills from '../skills.js' // 数据目录里的技能，按需读正文。
+import Title from './title.js' // 第一次聊完让模型起个标题。
+import Config from '../config/config.js' // 读取全局模型配置和权限规则。
+import Settings from '../config/settings.js' // 会话运行设置：模式、自动批准、能力开关。
+import Kind from '../utils/tool-kind.js' // 工具分类由工具自己声明，plan 模式只读运行时表。
+import ToolCatalog from '../tool-catalog.js' // 扫描工具时登记类别和文件参数。
 import { canonical } from '../utils/tool-names.js' // 历史里旧工具名也能认出对应结果。
-import History from '../features/history.js' // 读写当前会话消息。
-import Snapshot from '../features/snapshot.js' // 回退时把文件一起恢复。
+import History from './history.js' // 读写当前会话消息。
+import Snapshot from './snapshot.js' // 回退时把文件一起恢复。
 import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
 import Path from '../utils/path.js' // 生成数据目录路径。
 import fail from '../utils/fail.js' // 找不到会话、输入为空等业务错误带上状态码。
@@ -93,10 +94,8 @@ const writeMeta = async meta => {
  * @param {{ sessionId: string, history: object[], meta: object }} input
  * @returns {Promise<object>} 建好的 Agent 实例，已放进 Store.agents。
  */
-const createAgent = async ({ sessionId, history, meta }) => {
-    // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
-    // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
-    await mkdir(Path.tools(), { recursive: true })
+// --- 这一轮的运行配置：会话设置、工作区规则和模型连接 ---
+const agentConfig = async ({ sessionId, meta }) => {
     // 会话的运行设置：智能体、自动批准、能力开关。
     const settings = await Settings.read({ sessionId })
     // 规则跟着工作区和智能体走；每次重建 Agent 都重读一次，用户改完规则不用重启服务。
@@ -104,9 +103,18 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // 配置格式转换只写在 Config 里，子 agent 用的也是同一份；
     // 能力开关作为会话级覆盖并进去，system 保持用户原样，不做任何注入。
     const config = Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) })
+    return { settings, config }
+}
 
+// --- 这一轮的工具表：内置、用户工具、MCP、技能，再按智能体裁剪 ---
+const agentTools = async ({ sessionId, settings, config }) => {
+    // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
+    // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
+    await mkdir(Path.tools(), { recursive: true })
     // 三类工具一起交给模型：内置的文件工具、用户自己写的、设置里配的 MCP 服务。
     // 技能不作为工具全集出现，只给一个"读技能正文"的工具，正文等模型要用时才去读。
+    // 工具文件自己声明类别和文件参数，扫描时登记；审批和快照都依赖这份表。
+    await ToolCatalog.register()
     const scanned = await Agent.tool.from(
         new URL('../tools/', import.meta.url),
         Path.tools(),
@@ -138,9 +146,14 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
     // 自定义智能体没点名 new_task 时就不装，让"只留几个工具"真的只留那几个。
     const withTask = !toolNames || toolNames.includes('new_task')
-    const tools = withTask
+    return withTask
         ? Agent.tool.merge(allowed, Agent.tool.adopt({ new_task: Delegation.build({ config, tools: allowed, sessionId }) }))
         : allowed
+}
+
+const createAgent = async ({ sessionId, history, meta }) => {
+    const { settings, config } = await agentConfig({ sessionId, meta })
+    const tools = await agentTools({ sessionId, settings, config })
     const agent = Agent.create({
         id: sessionId,
         history,
@@ -601,7 +614,52 @@ const syncHistory = async ({ sessionId, agent }) => {
     return task
 }
 
-const run = async ({ sessionId, input, resume = false }) => {
+// --- 继续占位识别失败时的收尾：只发错误，不保存半段 ---
+const finishResumeError = async ({ sessionId, token, resumeError }) => {
+    if (token.stopped) return                               // stop 接管终态
+    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token) // 新 run 的事件不能清
+    await SSE.reset({ id: sessionId })                       // 只有当前 run 才能清旧终态
+    await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: resumeError } })
+    finishRun(sessionId, token)
+}
+
+// --- 任务成功后的收尾：保存、起标题、通知前端 ---
+const finishSuccess = async ({ sessionId, token, agent, meta, settings, resume, result }) => {
+    if (token.stopped) return                                      // stop 拥有终态，等它统一收尾
+    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    await syncHistory({ sessionId, agent })                       // 最终保存：历史稳定，清掉 SSE 缓存
+    if (token.stopped) return
+    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
+    if (!resume) await titleFor({ sessionId, meta, settings, agent })
+    if (token.stopped) return
+    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    // 缓存清完再通知，前端刷新时读到的是完整历史，不会和补发事件打架。
+    await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
+    finishRun(sessionId, token)
+}
+
+// --- 任务失败后的收尾：保留已产生的进度，再把错误交给前端 ---
+const finishFailure = async ({ sessionId, token, agent, resumeError, error }) => {
+    if (resumeError) return finishResumeError({ sessionId, token, resumeError })
+    // 被 stop 或新 run 接管的旧任务不能再发终态。
+    if (token.stopped) return                                     // stop 统一收尾
+    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    // 只有 kind=aborted 才是 core 的主动取消；timeout 等即使名字叫 AbortError 也要报错结束。
+    if (error?.kind === 'aborted') {
+        finishRun(sessionId, token)
+        return
+    }
+    // 失败和中断也要留下已经产生的进度，用户才能从断点继续。
+    await syncHistory({ sessionId, agent }).catch(() => {})
+    if (token.stopped) return
+    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
+    finishRun(sessionId, token)
+}
+
+// --- 发送前检查：输入、停止状态、运行状态和继续位置；不通过就按填错返回 ---
+const validateRun = async ({ sessionId, input, resume }) => {
     // 用户输入在这里检查一次：去掉首尾空格后不能为空。
     if (typeof input !== 'string' || !input.trim()) throw fail(400, 'input must be a non-empty string')
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
@@ -614,6 +672,115 @@ const run = async ({ sessionId, input, resume = false }) => {
     if (resume && [...agent.history].reverse().find(message => !message.internal && message.role !== 'tool')?.role !== 'assistant') {
         throw fail(409, '最后一条消息不是助手回复，不能继续')
     }
+    return { meta, agent }
+}
+
+// --- 开跑前：处理继续占位、保存用户消息，然后通知前端开始 ---
+const startHandler = ({ sessionId, agent, resume, previousLength, token, state }) => async () => {
+    // 继续占位要在第一次模型请求前删掉，否则模型会把“继续”当成一条新的用户消息。
+    if (resume && !dropResumeInput({ agent, previousLength })) {
+        state.resumeError = '继续占位没有出现在历史末尾，已停止本次继续'
+        await SSE.reset({ id: sessionId })                // 先清掉上一轮旧终态，失败只留新的错误事件
+        void agent.stop()                                 // 不能 await：onStart 正在被这一轮 await
+        return
+    }
+    // 开跑前保存用户消息/恢复前的进度；这时 agent-start 还没发，可以安全清掉上一轮缓存。
+    await syncHistory({ sessionId, agent })
+    if (token.stopped || activeRuns.get(sessionId) !== token) return // 保存期间已被 stop 接管，不再发开始事件
+    await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
+}
+
+// --- 模型请求的开始和结束：记录耗时和用量，界面据此画请求行 ---
+const llmHandlers = ({ sessionId, state }) => ({
+    onLLMStart: request => {
+        state.llmStartedAt = Date.now()
+        return SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } })
+    },
+    onLLMFinish: result => {
+        const finishedAt = Date.now()
+        state.pendingUsage = usageOf({ usage: result.usage, startedAt: state.llmStartedAt || finishedAt, finishedAt })
+        return SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result, durationMs: state.pendingUsage.durationMs } })
+    },
+})
+
+// --- 原样转发给前端的事件：前端只认事件类型 ---
+const forwardedEvents = ({ sessionId }) => ({
+    onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
+    onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
+    onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
+    onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
+    onCompact: event => SSE.send({ id: sessionId, data: event }),
+})
+
+// --- 工具结果：命令结束后记一次文件检查点，再把结果推给前端 ---
+const toolResultHandler = ({ sessionId }) => result => {
+    // execute_command 改了哪些文件只有跑完才知道；和命令前的清单对比后记一次检查点。
+    const toolCallId = result.toolCallId || result.callID
+    if (canonical(result.toolName) === 'execute_command' && toolCallId) {
+        Snapshot.endShell({ sessionId, toolCallId }).catch(() => {})
+    }
+    SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
+}
+
+// --- 每完成一步就落盘；agent-core 会 await 这个回调，保存期间不会再有新事件 ---
+const stepHandler = ({ sessionId, agent, state }) => () => {
+    attachUsage({ agent, usage: state.pendingUsage })
+    state.pendingUsage = null
+    return syncHistory({ sessionId, agent }).catch(error => {
+        console.error(`[session ${sessionId}] 步骤保存失败：${error.message}`)
+    })
+}
+
+// --- 工具审批：快照同时记下"哪条用户消息"和"哪次工具调用" ---
+const permissionHandler = ({ sessionId, agent }) => ({ toolCallId, toolName, input, signal }) => Approval.check({
+    sessionId,
+    // messageId 必须在这时候才取：Agent 内部要先 await 停止上一个任务，才会把用户消息写进历史，
+    // send 一返回就取会取到上一轮的那条。这里已经是跑工具的阶段，消息早就进去了。
+    // 也不要自己造一个 id —— 那样和历史里那条对不上，回退会找不到快照。
+    messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
+    toolCallId,
+    toolName,
+    input,
+    signal,
+})
+
+// --- 真正启动这一轮：把 Agent 的每个过程转成 SSE，并返回任务和收尾状态 ---
+const startRun = async ({ sessionId, input, resume, meta, agent }) => {
+    // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
+    const settings = await Settings.read({ sessionId })
+    // 发消息前重读规则，用户刚改过 AGENTS.md 或智能体专属规则也能在这一轮生效。
+    await Rules.load({ agent: settings.agent })
+    // clearUndo/Settings/Rules 也都是 await；最后启动前再查一次 stop gate。
+    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
+
+    const previousLength = agent.history.length                      // 发送前的条数，用来认出刚追加的继续占位
+    const token = { stopped: false }                                  // 这一轮的终态令牌；stop 和 task.then 只有一方能结束它
+    activeRuns.set(sessionId, token)
+    const state = { resumeError: '', llmStartedAt: 0, pendingUsage: null } // 回调之间共享的临时状态
+    let task
+    try {
+        task = agent.send({
+            input: input.trim(),
+            config: Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) }),
+            callbacks: {
+                onStart: startHandler({ sessionId, agent, resume, previousLength, token, state }),
+                ...llmHandlers({ sessionId, state }),
+                ...forwardedEvents({ sessionId }),
+                onToolResult: toolResultHandler({ sessionId }),
+                onStep: stepHandler({ sessionId, agent, state }),
+                onPermission: permissionHandler({ sessionId, agent }),
+            },
+        })
+    } catch (error) {
+        finishRun(sessionId, token)                                    // 启动失败也要释放 token
+        throw error
+    }
+    return { task, token, settings, state }
+}
+
+// --- 发送消息；真正的 Agent 循环在 agent-core 里 ---
+const run = async ({ sessionId, input, resume = false }) => {
+    const { meta, agent } = await validateRun({ sessionId, input, resume })
 
     // 新消息代表新的时间线，之前的回退不能再撤销了。
     await Snapshot.clearUndo({ sessionId })
@@ -622,136 +789,14 @@ const run = async ({ sessionId, input, resume = false }) => {
     // 重复调用的判断也重新开始，上一轮的连续重试不该影响这一轮。
     Store.recentCalls.delete(sessionId)
 
-    // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
-    const settings = await Settings.read({ sessionId })
-    // 发消息前重读规则，用户刚改过 AGENTS.md 或智能体专属规则也能在这一轮生效。
-    await Rules.load({ agent: settings.agent })
-    // clearUndo/Settings/Rules 也都是 await；最后启动前再查一次 stop gate。
-    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
-
-    // Agent 运行过程产生的每一段都通过 SSE 推给前端，前端只认事件类型。
-    const previousLength = agent.history.length                      // 发送前的条数，用来认出刚追加的继续占位
-    const token = { stopped: false }                                  // 这一轮的终态令牌；stop 和 task.then 只有一方能结束它
-    activeRuns.set(sessionId, token)
-    let resumeError = ''                                              // 继续占位校验失败时，收尾路径只报错、不保存
-    let llmStartedAt = 0                                              // 这次模型请求的开始时间，用来算耗时
-    let pendingUsage = null                                           // 请求结束但还没挂到助手消息上的用量
-    let task
-    try {
-        task = agent.send({
-        input: input.trim(),
-        config: Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) }),
-        callbacks: {
-            onStart: async () => {
-                // 继续占位要在第一次模型请求前删掉，否则模型会把“继续”当成一条新的用户消息。
-                if (resume && !dropResumeInput({ agent, previousLength })) {
-                    resumeError = '继续占位没有出现在历史末尾，已停止本次继续'
-                    await SSE.reset({ id: sessionId })                // 先清掉上一轮旧终态，失败只留新的错误事件
-                    void agent.stop()                                 // 不能 await：onStart 正在被这一轮 await
-                    return
-                }
-                // 开跑前保存用户消息/恢复前的进度；这时 agent-start 还没发，可以安全清掉上一轮缓存。
-                await syncHistory({ sessionId, agent })
-                if (token.stopped || activeRuns.get(sessionId) !== token) return // 保存期间已被 stop 接管，不再发开始事件
-                await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
-            },
-            onLLMStart: request => {
-                llmStartedAt = Date.now()
-                return SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } })
-            },
-            onLLMFinish: result => {
-                const finishedAt = Date.now()
-                pendingUsage = usageOf({ usage: result.usage, startedAt: llmStartedAt || finishedAt, finishedAt })
-                return SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result, durationMs: pendingUsage.durationMs } })
-            },
-            onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
-            onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
-            onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
-            onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
-            onToolResult: result => {
-                // execute_command 改了哪些文件只有跑完才知道；和命令前的清单对比后记一次检查点。
-                const toolCallId = result.toolCallId || result.callID
-                if (canonical(result.toolName) === 'execute_command' && toolCallId) {
-                    Snapshot.endShell({ sessionId, toolCallId }).catch(() => {})
-                }
-                SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
-            },
-            // 每完成一步就落盘；agent-core 会 await 这个回调，保存期间不会再有新事件。
-            // 保存成功后清掉已落盘事件；断线重连先读历史，不会重复播放已经显示的内容。
-            onStep: () => {
-                attachUsage({ agent, usage: pendingUsage })
-                pendingUsage = null
-                return syncHistory({ sessionId, agent }).catch(error => {
-                    console.error(`[session ${sessionId}] 步骤保存失败：${error.message}`)
-                })
-            },
-            onCompact: event => SSE.send({ id: sessionId, data: event }),
-            // 快照同时记下"哪条用户消息"和"哪次工具调用"，所以既能退回整轮对话，
-            // 也能只退回某一个工具调用。messageId 必须在这时候才取：Agent 内部要先 await
-            // 停止上一个任务，才会把用户消息写进历史，send 一返回就取会取到上一轮的那条。
-            // 这里已经是跑工具的阶段，消息早就进去了。也不要自己造一个 id —— 那样和历史里
-            // 那条对不上，回退会找不到快照。
-            onPermission: ({ toolCallId, toolName, input: toolInput, signal }) => Approval.check({
-                sessionId,
-                messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
-                toolCallId,
-                toolName,
-                input: toolInput,
-                signal,
-            }),
-        },
-        })
-    } catch (error) {
-        finishRun(sessionId, token)                                    // 启动失败也要释放 token
-        throw error
-    }
+    const { task, token, settings, state } = await startRun({ sessionId, input, resume, meta, agent })
     // 先挂上收尾处理：即使继续提示校验失败，任务 Promise 也不会无人接收。
     // 只有当前 run token 才能收尾；被 stop 或新 run 接管的旧任务直接退出。
-    task.then(async result => {
-        if (resumeError) {
-            if (token.stopped) return                               // stop 接管终态
-            if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token) // 新 run 的事件不能清
-            await SSE.reset({ id: sessionId })                       // 只有当前 run 才能清旧终态
-            await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: resumeError } })
-            finishRun(sessionId, token)
-            return
-        }
-        if (token.stopped) return                                      // stop 拥有终态，等它统一收尾
-        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-        await syncHistory({ sessionId, agent })                       // 最终保存：历史稳定，清掉 SSE 缓存
-        if (token.stopped) return
-        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-        // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
-        if (!resume) await titleFor({ sessionId, meta, settings, agent })
-        if (token.stopped) return
-        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-        // 缓存清完再通知，前端刷新时读到的是完整历史，不会和补发事件打架。
-        await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
-        finishRun(sessionId, token)
-    }).catch(async error => {
-        if (resumeError) {
-            if (token.stopped) return                               // stop 接管终态
-            if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token) // 新 run 的事件不能清
-            await SSE.reset({ id: sessionId })                       // 只有当前 run 才能清旧终态
-            await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: resumeError } })
-            finishRun(sessionId, token)
-            return
-        }
-        // 被 stop 或新 run 接管的旧任务不能再发终态。
-        if (token.stopped) return                                     // stop 统一收尾
-        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-        // 只有 kind=aborted 才是 core 的主动取消；timeout 等即使名字叫 AbortError 也要报错结束。
-        if (error?.kind === 'aborted') {
-            finishRun(sessionId, token)
-            return
-        }
-        // 失败和中断也要留下已经产生的进度，用户才能从断点继续。
-        await syncHistory({ sessionId, agent }).catch(() => {})
-        if (token.stopped) return
-        if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-        await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
-        finishRun(sessionId, token)
-    })
+    task
+        .then(result => state.resumeError
+            ? finishResumeError({ sessionId, token, resumeError: state.resumeError })
+            : finishSuccess({ sessionId, token, agent, meta, settings, resume, result }))
+        .catch(error => finishFailure({ sessionId, token, agent, resumeError: state.resumeError, error }))
     // 收尾处理已经挂在 task 上；继续提示的识别和首次保存都在 onStart 里完成。
     return { ok: true }
 }
@@ -849,7 +894,7 @@ const stop = async ({ sessionId, partial }) => {
 const decide = ({ sessionId, toolCallId, decision }) => Approval.decide({ sessionId, toolCallId, decision })
 
 // --- 统计会话数量 ---
-const count = () => Store.sessions.size
+const count = () => History.count()
 
 // --- 统计正在运行的任务 ---
 const runningCount = () => [...Store.agents.values()].filter(agent => agent.running).length

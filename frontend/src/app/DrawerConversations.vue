@@ -7,7 +7,7 @@
 import { computed, ref } from 'vue'
 import { KimaCheckbox, KimaList } from '@kernel4632/kima'
 import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
-import { Session } from '../commands/session.js'
+import { Session } from '../session/session.js'
 
 const MENU_ITEMS = [
   { value: 'rename', label: '重命名' },

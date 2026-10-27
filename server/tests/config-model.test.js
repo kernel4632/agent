@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Agent from '@kernel4632/agent-core'
-import Config from '../commands/config.js'
+import Config from '../config/config.js'
 
 // 每个测试用独立的临时数据目录，互不影响。
 const withHome = async callback => {

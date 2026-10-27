@@ -12,6 +12,7 @@ const TIMEOUT_MS = 30 * 1000
 
 export default {
     name: 'webfetch',
+    kind: 'read',
     ui: {
         view: 'web',
         icon: 'globe',

@@ -4,8 +4,8 @@ Workspace 指令：从 Server 读取会话列表，组装成主页和侧边栏�
 Server 是会话的唯一来源；浏览器不保存会话副本。
 调用示例：await Workspace.load()、await Workspace.reload()。
 */
-import { AgentAPI } from '../api.js'
-import { store } from '../store.js'
+import { AgentAPI } from './api.js'
+import { store } from './store.js'
 import { NEW_SESSION_TITLE } from './defaults.js'
 
 // --- 加载会话列表 ---

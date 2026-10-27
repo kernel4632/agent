@@ -7,9 +7,9 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../commands/config.js'
-import History from '../features/history.js'
-import Session from '../commands/session.js'
+import Config from '../config/config.js'
+import History from '../session/history.js'
+import Session from '../session/session.js'
 import Store from '../store.js'
 import SSE from '../utils/sse.js'
 import { app } from '../server.js'
@@ -22,7 +22,7 @@ const withHome = async callback => {
     process.env.AGENT_HOME = root
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
-    Store.sessions.clear()
+    History.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
     try {

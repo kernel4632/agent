@@ -9,9 +9,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
-import { Chat } from '../commands/chat.js'
-import { Session } from '../commands/session.js'
-import { UI } from '../commands/ui.js'
+import { Chat } from './chat.js'
+import { Session } from './session.js'
+import { UI } from '../app/ui.js'
 import { groupMessageTurns } from './turns.js'
 import { isSavedMessage } from './continue.js'
 import { AppIcon, KimaMarkdown } from '../ui/index.js'

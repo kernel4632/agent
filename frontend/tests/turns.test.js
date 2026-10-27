@@ -1,3 +1,6 @@
+/*
+ * 轮次测试：用户消息和之后的多条助手回复要归成同一次交流。
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { groupMessageTurns } from '../src/session/turns.js'

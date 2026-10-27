@@ -8,7 +8,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../commands/config.js'
+import Config from '../config/config.js'
 import Store from '../store.js'
 import { DEFAULT_SYSTEM_PROMPT } from '../defaults/system-prompt.js'
 

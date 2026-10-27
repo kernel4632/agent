@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { Field } from '../../ui/index.js'
-import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../../commands/defaults.js'
+import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../../defaults.js'
 
 const props = defineProps({ draft: { type: Object, required: true } })
 

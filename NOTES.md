@@ -208,7 +208,7 @@
 ## 6. 架构规则
 
 - 保持 Bun + Elysia、Vue 3 + Vite、`@kernel4632/agent-core`；不整体重写。
-- 前端继续 `store.js` + `commands/` + `api.js`；不引入大型 UI 框架。
+- 前端继续 `store.js` + `session/`、`settings/`、`app/` 等主体文件 + `api.js`；不引入大型 UI 框架。
 - 稳定 seam：provider、tool、skill、MCP、permission、storage、search；不做完整插件树。
 - 插件是能力包：manifest、设置 schema、权限、工具/UI 槽位；能启停、能卸载；设置页只多一张卡。
 - `meta.json` 增加 `workspaces[]` 和 `activeWorkspaceId`；工具/审批/快照记录 `workspaceId`；SSE 推 `workspace-changed`。

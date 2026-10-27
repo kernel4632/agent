@@ -11,8 +11,8 @@ import {
 } from '@kernel4632/kima'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
-import { Config } from '../../commands/config.js'
-import { Settings } from '../../commands/settings.js'
+import { Config } from '../../config.js'
+import { Settings } from '../settings.js'
 
 const props = defineProps({ provider: { type: Object, required: true } })
 const emit = defineEmits(['delete', 'update:provider'])

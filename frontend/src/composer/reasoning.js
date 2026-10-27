@@ -1,6 +1,6 @@
 /*
 思考强度的七档定义：滑块顺序、中文名、图标和一句说明都在这里。
-只负责界面展示；真正发给模型的参数由后端 commands/config.js 按协议翻译。
+只负责界面展示；真正发给模型的参数由后端 ../config.js 按协议翻译。
 调用示例：import { REASONING_LEVELS, reasoningOf } from './reasoning.js'
 */
 export const REASONING_LEVELS = [

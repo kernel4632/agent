@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js' // 提供默认配置文件路径。
-import Rules from '../features/rules.js' // 把工作区的项目规则拼进系统提示词。
+import Rules from './rules.js' // 把工作区的项目规则拼进系统提示词。
 import Store from '../store.js' // 直接访问程序当前使用的配置。
 import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
 import { DEFAULT_SYSTEM_PROMPT, seedPrompt } from '../defaults/system-prompt.js' // 首次使用时填默认提示词。
@@ -174,7 +174,7 @@ const reasoningBody = ({ protocol, level, source }) => {
  *
  * 每一项可选能力都只在用户明确改过时才写进 config，其余交给 agent-core 的默认值。
  * @param {{ provider?: string, model?: string, settings?: object }} target
- *   会话选的供应商和模型，加上会话级覆盖（见 commands/settings.js 的 toAgentConfig）。
+ *   会话选的供应商和模型，加上会话级覆盖（见 ./settings.js 的 toAgentConfig）。
  * @returns {object} 可以直接交给 Agent.create 的 config。
  * @throws {Error} 供应商名不存在时按填错处理（400）。
  */
@@ -183,7 +183,7 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     if (!provider) throw fail(400, `Provider not found: ${name}`)
     // 这个模型的上下文预算和流式偏好写在设置页里，缺省时按全局那档。
     const budget = provider.modelSettings?.[model] || {}
-    // uses 跟着 settings 一起进来（见 commands/settings.js 的 toAgentConfig），
+    // uses 跟着 settings 一起进来（见 ./settings.js 的 toAgentConfig），
     // 在这里取出来单独处理，不能跟着 overrides 摊进 config——那样会多出一个 agent-core
     // 不认识的 uses 字段，而真正要的 config.compact 反而没建出来。
     // instructions 是当前智能体自己的角色说明，也只在这里拼一次。
@@ -211,7 +211,7 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
         // agent-core 默认在没有工具调用时会继续请求模型，简单的“你好”会被显示两次。
         // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
         noToolRounds: 1,
-        ...rest, // 会话级的能力开关，见 commands/settings.js
+        ...rest, // 会话级的能力开关，见 ./settings.js
     }
 
     /*

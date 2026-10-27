@@ -7,8 +7,8 @@
  *   await Workspace.status({ path: 'D:/app' })   // 只看某个目录的 git 状态
  */
 
-import Path from '../utils/path.js' // 生成数据目录路径。
-import Skip from '../utils/skip.js' // 哪些目录不用列，名单只写一处。
+import Path from './utils/path.js' // 生成数据目录路径。
+import Skip from './utils/skip.js' // 哪些目录不用列，名单只写一处。
 
 // 文件树最多列这么多项；工作区里动辄几万个文件，界面和模型都只需要知道结构。
 const FILE_LIMIT = 200

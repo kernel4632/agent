@@ -1,3 +1,6 @@
+/*
+ * 模型图标测试：模型名和供应商名要认出同一套品牌图标。
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { modelIconKey } from '../src/ui/model-icon.js'

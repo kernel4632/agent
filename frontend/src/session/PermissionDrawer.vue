@@ -7,8 +7,8 @@
 import { computed } from 'vue'
 import { KimaListbox } from '@kernel4632/kima'
 import { AppIcon, ChoiceContent, Field, Sheet } from '../ui/index.js'
-import { AUTO_APPROVE_KINDS } from '../commands/session.js'
-import { DEFAULT_SETTINGS } from '../commands/defaults.js'
+import { AUTO_APPROVE_KINDS } from './session.js'
+import { DEFAULT_SETTINGS } from '../defaults.js'
 
 const props = defineProps({
   open: Boolean,

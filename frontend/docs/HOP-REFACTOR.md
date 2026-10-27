@@ -29,12 +29,14 @@ src/
   draft/         新会话页
   session/       会话页：顶部、时间线、输入区、文件面板
   settings/      设置页：导航、页面登记表、各页面
-  ui/            组件库适配层：Button、IconButton、Field、Select、Switch、Dialog、Menu
+  ui/            组件库适配层：Button、IconButton、Field、Switch、Dialog、Menu
   theme/         主题适配层：现在接 M3E，未来接自研主题
-  commands/      业务指令，保持现状
   styles/        tokens、base、mixins
   utils/         通用小工具
-  api.js
+  api.js         后端 HTTP 契约
+  config.js      配置读取和转换
+  defaults.js    前端默认值
+  workspace.js   工作区状态
   store.js
 ```
 
@@ -88,7 +90,7 @@ src/
 ### [x] 阶段 4：新会话页
 
 - 新建 `src/draft/DraftView.vue`，把字标、输入区、项目路径从 `App.vue` 移出。
-- 组件只接收工作区、模型和发送事件；创建会话仍在 `App.vue` 或 `commands/session.js`。
+- 组件只接收工作区、模型和发送事件；创建会话仍在 `App.vue` 或 `src/session/session.js`。
 - 验收：草稿页截图、发送、附件、模型选择不变。
 
 ### [x] 阶段 5：会话页

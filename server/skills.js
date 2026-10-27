@@ -22,12 +22,15 @@
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import matter from 'gray-matter' // 解析技能文件开头的 name 和 description。
-import Path from '../utils/path.js'
-import fail from '../utils/fail.js' // 读一个不存在的技能时按填错处理。
+import Path from './utils/path.js'
+import fail from './utils/fail.js' // 读一个不存在的技能时按填错处理。
+import Kind from './utils/tool-kind.js' // 技能工具也是只读工具。
+
+Kind.register({ name: 'skill', kind: 'read' })
 
 // 内置技能跟着代码走，换台机器、新克隆一份也都在这。
 // Glob 只收字符串路径，所以这里把 URL 转成平台路径。
-const builtIn = () => fileURLToPath(new URL('../skills/', import.meta.url))
+const builtIn = () => fileURLToPath(new URL('./skills/', import.meta.url))
 // --- 拆出开头的 name 和 description ---
 const parse = text => {
     // 技能文件开头是 front matter，交给 gray-matter 解析：值里有冒号、有引号、
@@ -81,6 +84,7 @@ const tools = async () => {
     return {
         skill: {
             name: 'skill',
+            kind: 'read',
             description: [
                 `Read the full instructions of a skill. Call this BEFORE attempting work that matches one of the skills below — the instructions tell you exactly how to do it right.`,
                 `Available skills:\n${catalogue}`,

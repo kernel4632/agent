@@ -18,8 +18,8 @@ import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from '../session/AgentDrawer.vue'
 import PermissionDrawer from '../session/PermissionDrawer.vue'
-import { Session } from '../commands/session.js'
-import { DEFAULT_SETTINGS } from '../commands/defaults.js'
+import { Session } from '../session/session.js'
+import { DEFAULT_SETTINGS } from '../defaults.js'
 
 const props = defineProps({
   model: { type: String, default: '' },       // 新会话使用的模型

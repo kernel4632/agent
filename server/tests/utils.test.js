@@ -10,15 +10,15 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import Agent from '@kernel4632/agent-core'
 
-import Approval from '../features/approval.js'
-import Config from '../commands/config.js'
-import History from '../features/history.js'
-import Ignore from '../features/ignore.js'
-import Delegation from '../features/delegation.js'
-import Mcp from '../features/mcp.js'
-import Session from '../commands/session.js'
-import Skills from '../features/skills.js'
-import Snapshot from '../features/snapshot.js'
+import Approval from '../safety/approval.js'
+import Config from '../config/config.js'
+import History from '../session/history.js'
+import Ignore from '../safety/ignore.js'
+import Delegation from '../subtask.js'
+import Mcp from '../mcp.js'
+import Session from '../session/session.js'
+import Skills from '../skills.js'
+import Snapshot from '../session/snapshot.js'
 import Store from '../store.js'
 import { app } from '../server.js'
 import SSE from '../utils/sse.js'
@@ -31,7 +31,7 @@ const withHome = async callback => {
     // Store 是模块级的，不清空的话上一个测试的配置会留在下一个测试里。
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
-    Store.sessions.clear()
+    History.clear()
     Store.snapshots.clear()
     Store.approvals.clear()
 

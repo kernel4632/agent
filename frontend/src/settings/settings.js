@@ -5,8 +5,8 @@
 */
 import { AgentAPI } from '../api.js'                    // 引入正式配置和能力 HTTP 契约
 import { store } from '../store.js'                     // 引入已保存配置和设置反馈
-import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
-import { UI } from './ui.js'                            // 引入保存错误轻反馈
+import { Config } from '../config.js'                    // 引入保存后的配置重新加载动作
+import { UI } from '../app/ui.js'                            // 引入保存错误轻反馈
 
 let initialBackendDraft = ''
 
@@ -118,6 +118,99 @@ function persist(options = {}) {
   return result
 }
 
+// --- 供应商：把设置页的数组转回后端认的对象，并保留没改过的上游字段 ---
+function providerPayload(draft) {
+  return (draft.providers || []).map(provider => {
+    // 改名后还要能找到原来的那一份，才能保留密钥、请求头和模型设置。
+    const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))
+    const modelSettings = { ...(original?.modelSettings || {}) }        // 每个模型的上下文窗口单独存
+    const models = (provider.models || []).map(model => {
+      const id = typeof model === 'string' ? model : model.id || model.name
+      const context = Number(model?.context)
+      if (context > 0) modelSettings[id] = { ...modelSettings[id], context }
+      else if (modelSettings[id]) {
+        // 清空上下文窗口时只删这两个键，其他模型设置不动。
+        const next = { ...modelSettings[id] }
+        delete next.context
+        delete next.contextWindow
+        if (Object.keys(next).length) modelSettings[id] = next
+        else delete modelSettings[id]
+      }
+      const name = String(model?.name || id).trim() || id
+      const capabilities = Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具']
+      // 只改了默认值时仍存成字符串，保持旧配置格式，也避免无意义的对象膨胀。
+      if (name === id && capabilities.length === 2 && capabilities[0] === '文本' && capabilities[1] === '工具') return id
+      return { id, name, capabilities }
+    })
+    return {
+      ...original,                                                     // 保留 id、密钥等上游不认识的字段
+      name: provider.name.trim(),
+      baseURL: provider.apiUrl || '',
+      apiKey: provider.apiKey || '',
+      enabled: provider.enabled !== false,
+      protocol: provider.apiType || 'openai-compatible',
+      ...(provider.stream === undefined ? {} : { stream: provider.stream }),
+      headers: objectFromJson(provider.headers, '自定义请求头'),
+      body: objectFromJson(provider.body, '额外请求体'),
+      models,
+      ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
+    }
+  })
+}
+
+// --- 工具开关写回 permission；只写用户真的改过的那几个，对象规则里的参数模式保留 ---
+function permissionPayload(draft) {
+  const permission = { ...(store.config.raw?.permission || {}) }
+  for (const tool of draft.tools || []) {
+    if (tool.original !== undefined && tool.permission === tool.original) continue
+    const current = permission[tool.name]
+    if (current && typeof current === 'object' && !Array.isArray(current)) {
+      permission[tool.name] = { ...current, '*': tool.permission }
+    } else {
+      permission[tool.name] = tool.permission
+    }
+  }
+  return permission
+}
+
+// --- MCP 数组转回后端认的对象：键是服务名；远程服务存 url，本地服务存 command ---
+function mcpPayload(draft) {
+  const mcp = {}
+  for (const item of draft.mcp || []) {
+    const definition = { ...(item.definition || {}) }
+    if (definition.transport === 'sse' || definition.transport === 'http') {
+      definition.url = item.command || ''
+      delete definition.command
+    } else {
+      definition.command = item.command || ''
+      delete definition.url
+    }
+    definition.enabled = item.enabled !== false
+    mcp[(item.name || '').trim()] = definition
+  }
+  return mcp
+}
+
+// --- 整份设置发给后端；上游不认识的字段原样带上 ---
+function configPayload(draft) {
+  return {
+    ...JSON.parse(JSON.stringify(store.config.raw || {})),
+    providers: providerPayload(draft),
+    mcp: mcpPayload(draft),
+    permission: permissionPayload(draft),
+    prompt: { ...store.config.raw?.prompt, system: draft.prompt },
+    rules: draft.rules,
+    agents: draft.agentDefinitions,
+    model: draft.defaultModel,
+    capabilities: draft.capabilities,
+    uses: draft.uses,
+    compactThreshold: draft.compactThreshold,
+    autoTitle: draft.autoTitle,
+    diagnostics: draft.diagnostics,
+    snapshot: draft.snapshot,
+  }
+}
+
 async function doPersist({ keepDraft = false, silent = false } = {}) {
   const draft = store.settings.draft
   if (!draft) return false
@@ -135,85 +228,7 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     if (names.some(name => !name) || new Set(names).size !== names.length) throw new Error('供应商名称不能为空或重复')
     const mcpNames = (draft.mcp || []).map(item => (item.name || '').trim())
     if (mcpNames.some(name => !name) || new Set(mcpNames).size !== mcpNames.length) throw new Error('MCP 服务名称不能为空或重复')
-    const providers = (draft.providers || []).map(provider => {
-      // 改名后还要能找到原来的那一份，才能保留密钥、请求头和模型设置。
-      const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))
-      const modelSettings = { ...(original?.modelSettings || {}) }        // 每个模型的上下文窗口单独存
-      const models = (provider.models || []).map(model => {
-        const id = typeof model === 'string' ? model : model.id || model.name
-        const context = Number(model?.context)
-        if (context > 0) modelSettings[id] = { ...modelSettings[id], context }
-        else if (modelSettings[id]) {
-          // 清空上下文窗口时只删这两个键，其他模型设置不动。
-          const next = { ...modelSettings[id] }
-          delete next.context
-          delete next.contextWindow
-          if (Object.keys(next).length) modelSettings[id] = next
-          else delete modelSettings[id]
-        }
-        const name = String(model?.name || id).trim() || id
-        const capabilities = Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具']
-        // 只改了默认值时仍存成字符串，保持旧配置格式，也避免无意义的对象膨胀。
-        if (name === id && capabilities.length === 2 && capabilities[0] === '文本' && capabilities[1] === '工具') return id
-        return { id, name, capabilities }
-      })
-      return {
-        ...original,                                                     // 保留 id、密钥等上游不认识的字段
-        name: provider.name.trim(),
-        baseURL: provider.apiUrl || '',
-        apiKey: provider.apiKey || '',
-        enabled: provider.enabled !== false,
-        protocol: provider.apiType || 'openai-compatible',
-        ...(provider.stream === undefined ? {} : { stream: provider.stream }),
-        headers: objectFromJson(provider.headers, '自定义请求头'),
-        body: objectFromJson(provider.body, '额外请求体'),
-        models,
-        ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
-      }
-    })
-    // 工具开关写回 permission；只写用户真的改过的那几个，没动过的规则保持原样。
-    // 对象规则里的参数模式也要保留，只改默认动作。
-    const permission = { ...(store.config.raw?.permission || {}) }
-    for (const tool of draft.tools || []) {
-      if (tool.original !== undefined && tool.permission === tool.original) continue
-      const current = permission[tool.name]
-      if (current && typeof current === 'object' && !Array.isArray(current)) {
-        permission[tool.name] = { ...current, '*': tool.permission }
-      } else {
-        permission[tool.name] = tool.permission
-      }
-    }
-
-    // MCP 数组转回后端认的对象：键是服务名；远程服务存 url，本地服务存 command。
-    const mcp = {}
-    for (const item of draft.mcp || []) {
-      const definition = { ...(item.definition || {}) }
-      if (definition.transport === 'sse' || definition.transport === 'http') {
-        definition.url = item.command || ''
-        delete definition.command
-      } else {
-        definition.command = item.command || ''
-        delete definition.url
-      }
-      definition.enabled = item.enabled !== false
-      mcp[(item.name || '').trim()] = definition
-    }
-    await AgentAPI.updateConfig({
-      ...JSON.parse(JSON.stringify(store.config.raw || {})),
-      providers,
-      mcp,
-      permission,
-      prompt: { ...store.config.raw?.prompt, system: draft.prompt },
-      rules: draft.rules,
-      agents: draft.agentDefinitions,
-      model: draft.defaultModel,
-      capabilities: draft.capabilities,
-      uses: draft.uses,
-      compactThreshold: draft.compactThreshold,
-      autoTitle: draft.autoTitle,
-      diagnostics: draft.diagnostics,
-      snapshot: draft.snapshot,
-    })
+    await AgentAPI.updateConfig(configPayload(draft))
     store.config.appearance = isolateDraft(draft.appearance)
     persistAppearance(draft.appearance)
     if (!await Config.load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')

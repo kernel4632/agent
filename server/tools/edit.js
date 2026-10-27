@@ -10,6 +10,8 @@ import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断�
 
 export default {
     name: 'edit',
+    kind: 'write',
+    files: input => [input.file_path],
     ui: {
         view: 'edit',
         icon: 'edit',
