@@ -4,7 +4,7 @@
 */
 import { createApp } from 'vue'
 import '@m3e/web/theme'
-import '@kernel4632/kima/style.css'   // KIMA 完整样式包；0.7.1 的 select 作用域修正在 patches/ 里
+import '@kernel4632/kima/style.css'   // KIMA 完整样式包
 import './styles/base.scss'          // 应用自己的排版和布局覆盖，必须排在 KIMA 之后
 import './styles/tokens.scss'        // 把 KIMA 色板映射成 --la-* 业务 token
 import App from './App.vue'
