@@ -13,9 +13,7 @@ import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
 import { UI } from '../commands/ui.js'
 import { groupMessageTurns } from './turns.js'
-import { renderMarkdown } from '../utils/markdown.js'
-import { hasStopTool } from './stop-tools.js'
-import { AppIcon, Button } from '../ui/index.js'
+import { AppIcon, KimaMarkdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import './conversation.scss'
 import AssistantTurn from './AssistantTurn.vue'
@@ -77,18 +75,7 @@ function onUserMenu(message, action) {
   else if (action === 'fork') forkFrom(message)
 }
 
-// 只有最后一轮助手没有调用结束工具时才提供继续；正常收尾的回复不再追着模型跑。
-const canContinue = computed(() => {
-  if (!session.value || session.value.status === 'running' || session.value.stopping) return false
-  const turn = turns.value.at(-1)
-  if (!turn || turn.role !== 'assistant') return false
-  return !hasStopTool(turn.messages) && canRollback(turn.messages.at(-1))
-})
-
-async function continueAssistant() {
-  if (!session.value || !canContinue.value) return
-  await Chat.resume(session.value.id)
-}
+// 继续入口已经合并到输入框的发送按钮。
 </script>
 
 <template>
@@ -104,7 +91,7 @@ async function continueAssistant() {
         >
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user">
-              <div class="markdown-body" v-html="renderMarkdown(turn.messages[0].displayContent ?? turn.messages[0].content)"></div>
+              <KimaMarkdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
               <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
                 <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
                   <AppIcon name="document" :size="14" />
@@ -125,13 +112,6 @@ async function continueAssistant() {
         />
       </template>
     </article>
-    <Transition name="continue">
-      <div v-if="canContinue" class="continue-row">
-        <Button variant="tonal" class="continue-button" @click="continueAssistant">
-          <AppIcon name="play" :size="18" /><span>继续助手</span>
-        </Button>
-      </div>
-    </Transition>
     <RollbackDialog
       ref="rollbackDialog"
       :target="rollbackTarget"
@@ -145,10 +125,5 @@ async function continueAssistant() {
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
 .message { display: block; min-width: 0; animation: row-in var(--la-motion-enter) var(--kima-curve-standard) both; }
 @keyframes row-in { from { opacity: 0; transform: translateY(var(--la-motion-rise-small)); } to { opacity: 1; transform: none; } }
-.continue-row { display: flex; justify-content: flex-start; padding: 2px 0 18px; }
-.continue-button { min-height: 44px; padding: 0 20px; border-radius: 999px; gap: 8px; }
-.continue-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.continue-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
-.continue-enter-from, .continue-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
 
 </style>

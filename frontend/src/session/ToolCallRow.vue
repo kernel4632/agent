@@ -1,6 +1,6 @@
 <!--
-工具步骤：嵌在思考卡片里的时间线节点。
-流式时标题扫光并显示状态；点击展开参数、结果和审批按钮。
+工具步骤：嵌在思考卡片里的时间线节点，默认全部展开。
+流式时标题扫光并显示状态；参数、结果和审批始终可见，不再折叠。
 调用示例：<ToolCallRow :tool="tool" :session-id="session.id" />
 -->
 <script setup>
@@ -14,8 +14,6 @@ const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
 })
-// 任务清单带可读的渲染结果，默认展开；其他工具等用户点开。
-const open = ref(props.tool.status === 'waiting' || canonicalToolName(props.tool.name) === 'update_todo_list')
 const now = ref(Date.now())
 let timer = null
 
@@ -40,10 +38,6 @@ watch(running, value => {
   if (value) timer = window.setInterval(() => { now.value = Date.now() }, 200)
 }, { immediate: true })
 
-watch(() => props.tool.status, status => {
-  if (status === 'waiting') open.value = true
-})
-
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
 })
@@ -57,23 +51,18 @@ function decide(decision) {
   <div class="cot-step cot-step--tool" :class="{ 'is-live': running }">
     <span class="cot-step__icon"><AppIcon :name="toolIcon(tool)" :size="16" /></span>
     <div class="cot-step__main">
-      <button type="button" class="cot-step__head" :aria-expanded="open" @click="open = !open">
+      <div class="cot-step__head">
         <span class="cot-step__label" :class="{ 'is-live': running }" :title="toolLabel(tool)">{{ toolLabel(tool) }}</span>
         <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
-        <AppIcon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': open }" aria-hidden="true" />
-      </button>
-      <div class="cot-collapse" :class="{ 'is-open': open }" :inert="!open" :aria-hidden="!open">
-        <div class="cot-collapse__inner">
-          <div class="cot-step__body">
-            <ToolView :tool="tool" />
-            <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
-              <p>需要你的许可。检查工具和参数后再决定。</p>
-              <div>
-                <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
-                <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
-                <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
-              </div>
-            </div>
+      </div>
+      <div class="cot-step__body">
+        <ToolView :tool="tool" />
+        <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
+          <p>需要你的许可。检查工具和参数后再决定。</p>
+          <div>
+            <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
+            <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
+            <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
           </div>
         </div>
       </div>

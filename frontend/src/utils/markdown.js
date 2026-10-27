@@ -52,3 +52,18 @@ export function renderMarkdown(content = '') {
   const html = markdown.parse(content)                 // 将模型正文转换为 GFM、代码和公式结构
   return DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] }) // 清理脚本和危险属性后交给组件增强
 }
+
+// --- 按块解析：KIMA Markdown 用它把代码块交给 KimaCodeBlock ---
+export function lexMarkdown(content = '') {
+  return markdown.lexer(content)
+}
+
+// --- 只渲染一段行内内容：标题和段落仍然保留 Markdown 的行内样式 ---
+export function renderInline(tokens = []) {
+  return DOMPurify.sanitize(markdown.Parser.parseInline(tokens, markdown.defaults), { ADD_ATTR: ['target', 'rel'] })
+}
+
+// --- 渲染一个块级 token：列表、表格、引用等仍交给 Marked ---
+export function renderToken(token) {
+  return DOMPurify.sanitize(markdown.parser([token]), { ADD_ATTR: ['target', 'rel'] })
+}

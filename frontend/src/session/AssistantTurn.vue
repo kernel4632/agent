@@ -6,10 +6,10 @@
 调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" @rollback="..." @fork="..." />
 -->
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { AppIcon } from '../ui/index.js'
+import { computed } from 'vue'
+import { AppIcon, KimaMarkdown, SmoothMarkdown } from '../ui/index.js'
 import { UI } from '../commands/ui.js'
-import { renderMarkdown } from '../utils/markdown.js'
+import { useSmoothText } from '../utils/smooth-text.js'
 import { outputText } from './tool-ui.js'
 import { isFinishedStopTool } from './stop-tools.js'
 import MessageActionTarget from './MessageActionTarget.vue'
@@ -25,7 +25,6 @@ const emit = defineEmits(['rollback', 'fork'])
 
 const actionable = message => Boolean(message.id) && !message.id.startsWith('pending_') && !message.id.startsWith('error_')
 
-const expandedSteps = ref(false)
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
 const stopTexts = computed(() => props.messages.flatMap(message =>
   (message.tools || [])
@@ -64,10 +63,7 @@ const steps = computed(() => {
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
-        // 有结束工具时，非结束正文只进时间线；没有结束工具时它还是临时回复，留在气泡里。
-        if (text && finalText.value && text !== finalText.value) {
-          list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text })
-        }
+        if (text) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text })
       } else if (entry.type === 'tool') {
         const tool = (message.tools || []).find(item => item.id === entry.toolId)
         if (tool && !isFinishedStopTool(tool)) {
@@ -79,10 +75,11 @@ const steps = computed(() => {
   return list
 })
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
-// 流式思考时保持全部步骤可见；结束后超过两步才折叠，只留最后两步。
-const canCollapse = computed(() => steps.value.length > 2 && !props.messages.some(message => message.isStreaming && message.reasoning))
-const hiddenCount = computed(() => canCollapse.value && !expandedSteps.value ? steps.value.length - 2 : 0)
-const visibleSteps = computed(() => steps.value.slice(hiddenCount.value))
+// 全部都是正文时仍显示成普通气泡；有思考、工具或结束工具时，正文按原位置留在步骤里。
+const textOnly = computed(() => !finalText.value && steps.value.length > 0 && steps.value.every(step => step.type === 'text'))
+const showSteps = computed(() => steps.value.length > 0 && !textOnly.value)
+const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!steps.value.length ? fallbackText.value : '')))
+const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
 const usage = computed(() => {
@@ -111,22 +108,14 @@ function onMenu(action) {
   else if (action === 'rollback') emit('rollback', rollbackTarget.value)
   else if (action === 'fork') emit('fork', forkTarget.value)
 }
-
-watch(streaming, value => {
-  if (value) expandedSteps.value = false
-})
 </script>
 
 <template>
   <div class="assistant-message rikka-message rikka-message--assistant">
     <MessageActionTarget :items="menuItems" :preview="content" role-label="助手回复" label="助手消息操作" @select="onMenu">
-      <div v-if="steps.length" class="cot-card">
-        <button v-if="canCollapse" type="button" class="cot-more" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
-          <span class="cot-more__icon"><AppIcon :name="expandedSteps ? 'up' : 'down'" :size="16" /></span>
-          <span>{{ expandedSteps ? '收起步骤' : `展开其余 ${hiddenCount} 步` }}</span>
-        </button>
+      <div v-if="showSteps" class="cot-card">
         <div class="cot-steps">
-          <template v-for="step in visibleSteps" :key="step.key">
+          <template v-for="step in steps" :key="step.key">
             <ReasoningStep
               v-if="step.type === 'reasoning'"
               :reasoning="step.text"
@@ -138,7 +127,7 @@ watch(streaming, value => {
               <span class="cot-step__icon"><AppIcon name="chat" :size="16" /></span>
               <div class="cot-step__main">
                 <div class="cot-step__body cot-step__body--text">
-                  <div class="markdown-body" v-html="renderMarkdown(step.text)"></div>
+                  <SmoothMarkdown :content="step.text" compact />
                 </div>
               </div>
             </div>
@@ -151,10 +140,10 @@ watch(streaming, value => {
         </div>
       </div>
 
-      <div v-if="content" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }">
-        <div class="markdown-body" v-html="renderMarkdown(content)"></div>
+      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }">
+        <KimaMarkdown :content="bubbleContent" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
-        <span v-if="streaming && !finalText" class="stream-caret" aria-hidden="true"></span>
+        <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>
 
       <div v-if="streaming && !content && !steps.length" class="typing" role="status">

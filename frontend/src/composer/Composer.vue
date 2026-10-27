@@ -38,11 +38,12 @@ const props = defineProps({
   permissionsOpen: Boolean,
   showSessionControls: Boolean,
   isRunning: Boolean,
+  canContinue: Boolean,
   busy: Boolean,
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'open-agent'])
+const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'open-agent'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -197,6 +198,7 @@ defineExpose({ focus: () => editor.value?.focus() })
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
         <Transition name="send" mode="out-in">
           <Button v-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
+          <Button v-else-if="canContinue && !draft.trim()" key="continue" variant="plain" class="chat-composer__send is-continue" type="button" aria-label="继续助手" title="继续助手" :disabled="busy || !selectedModel" @click="emit('continue')"><AppIcon name="play" :size="18" /></Button>
           <Button v-else key="send" variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
         </Transition>
       </div>
@@ -355,6 +357,8 @@ defineExpose({ focus: () => editor.value?.focus() })
   &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, var(--la-on-action)); }
   &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
   &__send.is-stop { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+  &__send.is-continue { background: var(--la-accent-soft); color: var(--la-accent); }
+  &__send.is-continue:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-soft) 84%, var(--la-accent)); }
 }
 .composer-option, .composer-action {
   display: grid;

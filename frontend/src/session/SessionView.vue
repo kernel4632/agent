@@ -20,6 +20,7 @@ import AgentDrawer from './AgentDrawer.vue'
 import PermissionDrawer from './PermissionDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
+import { canContinueSession } from './continue.js'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
 import { UI } from '../commands/ui.js'
@@ -39,6 +40,12 @@ const emit = defineEmits(['update:todoOpen'])
 const settingsOpen = ref(false)
 const permissionOpen = ref(false)
 const agentOpen = ref(false)
+const resumable = computed(() => canContinueSession(props.session))
+
+async function continueAssistant() {
+  if (!resumable.value) return
+  await Chat.resume(props.session.id)
+}
 
 // --- 输入草稿和附件 ---
 // 草稿放在 session 上，切标签或打开设置再回来不会丢。
@@ -90,7 +97,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />

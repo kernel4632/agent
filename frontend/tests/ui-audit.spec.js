@@ -250,7 +250,7 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
 
   const label = page.getByText('任务清单 · 当前进度', { exact: true })
   await expect(label).toBeVisible()
-  await expect(page.locator('.cot-step--tool .cot-step__head')).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('.cot-step--tool .cot-step__body')).toBeVisible()
   await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
   await expect(page.locator('.cot-step--tool').getByText('读现有实现', { exact: true })).toBeVisible()
   await expect(page.locator('.cot-step--tool').getByText('补测试', { exact: true })).toBeVisible()
@@ -299,6 +299,8 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   if (await card.locator('.cot-more').count()) await card.locator('.cot-more').click()
   await expect(card).toContainText('第一段。')
   await expect(card).toContainText('第二段。')
+  // 步骤全部展开，不再只留最后两步。
+  await expect(card.locator('.cot-step')).toHaveCount(3)
   const order = await card.locator('.cot-step').evaluateAll(nodes => nodes.map(node => node.textContent))
   const firstText = order.findIndex(text => text.includes('第一段。'))
   const toolStep = order.findIndex(text => text.includes('任务清单'))
@@ -308,6 +310,26 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   expect(await page.locator('.rikka-bubble--assistant').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
   await screenshot(page, testInfo, 'assistant-turn')
+  expect(mock.errors).toEqual([])
+})
+
+test('assistant markdown uses KIMA code blocks and typography', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('来一段 Markdown')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'text-delta', text: '# 示例标题\n\n这是一个 **加粗** 段落。\n\n```js\nconst answer = 42\nconsole.log(answer)\n```' },
+  ])
+
+  const bubble = page.locator('.rikka-bubble--assistant')
+  await expect(bubble.locator('.kima-typography--heading')).toContainText('示例标题')
+  await expect(bubble.locator('.kima-typography--body')).toContainText('加粗')
+  await expect(bubble.locator('.kima-code-block')).toContainText('const answer = 42')
+  await expect(bubble.locator('.kima-code-block').getByRole('button', { name: '复制代码' })).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
@@ -400,7 +422,7 @@ test('Chinese IME does not submit and stop uses the existing endpoint', async ({
   await editor.fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
-  await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '继续助手', exact: true })).toBeVisible()
   expect(mock.calls.some(call => call.path === '/agent/stop/session-1')).toBe(true)
   expect(mock.errors).toEqual([])
 })
@@ -418,7 +440,31 @@ test('stop keeps the partial assistant text and offers continue', async ({ page 
   const stopCall = mock.calls.find(call => call.path === '/agent/stop/session-1')
   expect(stopCall.body.partial).toMatchObject({ content: '正在处理' })
   await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+  const continueButton = page.getByRole('button', { name: '继续助手', exact: true })
+  await expect(continueButton).toBeVisible()
+  await continueButton.click()
+  await expect.poll(() => mock.calls.some(call => call.path === '/agent/resume/session-1')).toBe(true)
+  expect(mock.errors).toEqual([])
+})
+
+test('typing after an interruption sends a new message instead of resuming', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '继续助手', exact: true })).toBeVisible()
+
+  // 输入框有字时，发送按钮优先：先把用户消息接在被打断的记录后面。
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('补充一句')
+  const send = page.getByRole('button', { name: '发送消息', exact: true })
+  await expect(send).toBeVisible()
+  await send.click()
+  await expect.poll(() => mock.calls.some(call => call.path === '/agent/send/session-1' && call.body?.input?.includes('补充一句'))).toBe(true)
+  expect(mock.calls.some(call => call.path === '/agent/resume/session-1')).toBe(false)
   expect(mock.errors).toEqual([])
 })
 

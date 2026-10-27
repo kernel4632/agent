@@ -255,19 +255,6 @@
   animation: surface-in var(--la-motion-enter) var(--kima-curve-standard) both;
 }
 @keyframes surface-in { from { opacity: 0; transform: translateY(var(--la-motion-rise-small)); } to { opacity: 1; transform: none; } }
-.cot-more {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  border: 0;
-  background: transparent;
-  color: var(--la-accent);
-  font-size: 13px;
-  cursor: pointer;
-}
-.cot-more__icon { display: grid; width: 24px; place-items: center; }
 .cot-steps { display: flex; flex-direction: column; }
 .cot-step { position: relative; min-width: 0; padding-left: 32px; }
 .cot-step::before {
@@ -331,20 +318,36 @@
 .cot-step__extra {
   flex: none;
   margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--la-layer-02);
   color: var(--la-muted);
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
 }
-.cot-step__extra.is-completed { color: var(--la-success); }
-.cot-step__extra.is-running, .cot-step__extra.is-waiting { color: var(--la-accent); }
-.cot-step__extra.is-error, .cot-step__extra.is-rejected { color: var(--la-danger); }
+.cot-step__extra.is-completed { color: var(--la-success); background: color-mix(in srgb, var(--la-success) 12%, transparent); }
+.cot-step__extra.is-running, .cot-step__extra.is-waiting { color: var(--la-accent); background: color-mix(in srgb, var(--la-accent) 12%, transparent); }
+.cot-step__extra.is-error, .cot-step__extra.is-rejected { color: var(--la-danger); background: color-mix(in srgb, var(--la-danger) 12%, transparent); }
 .cot-step__caret { flex: none; color: var(--la-muted); transition: transform var(--kima-duration-medium) var(--kima-curve-emphasized); }
 .cot-step__caret.is-open { transform: rotate(180deg); }
 .cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--kima-curve-standard); }
 .cot-collapse.is-open { grid-template-rows: 1fr; }
 .cot-collapse__inner { min-height: 0; overflow: hidden; }
 .cot-step__body { padding: 2px 0 10px; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
+/* 工具步骤始终展开：标题只做信息行，参数和结果放进一张浅色卡片里。 */
+.cot-step--tool .cot-step__head { cursor: default; }
+.cot-step--tool .cot-step__body {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: .5px solid var(--la-line);
+  border-radius: 14px;
+  background: var(--la-layer-01);
+}
+.cot-step--tool.is-live .cot-step__icon {
+  background: color-mix(in srgb, var(--la-accent) 15%, transparent);
+  color: var(--la-accent);
+}
 .cot-step--text .cot-step__body--text { padding: 8px 0 12px; }
 .cot-step__body--text .markdown-body { font-size: 14px; line-height: 1.7; color: var(--la-text); }
 .reasoning-preview { max-height: 120px; overflow-y: auto; scrollbar-width: none; }

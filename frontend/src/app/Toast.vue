@@ -14,6 +14,7 @@ const emit = defineEmits(['close'])
 
 <template>
   <KimaNotification
+    class="app-toast"
     :open="!!message"
     position="bottom-center"
     variant="info"
@@ -22,3 +23,10 @@ const emit = defineEmits(['close'])
     @close="emit('close')"
   />
 </template>
+
+<style scoped lang="scss">
+/* 提示条默认贴底，会盖住输入框的发送/继续按钮；抬到输入框上方。 */
+:global(.app-toast.kima-notification--bottom-center) {
+  bottom: calc(104px + env(safe-area-inset-bottom));
+}
+</style>
