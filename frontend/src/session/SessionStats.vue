@@ -1,35 +1,37 @@
 <!--
-会话统计：上下文占用、总 token 消耗、缓存命中、请求次数和耗时。
-参考 DeepSeek Harness 的 ContextMeter / StatsPills：默认压成一行小字，点开才看明细。
-放在顶部栏模型信息原来的位置；compact 只保留上下文和总消耗，供窄屏使用。
-调用示例：<SessionStats :stats="stats" compact />
+顶部栏会话统计：默认只显示一个上下文圆环，点开是图形化的会话数据面板。
+参考 DeepSeek Harness 的 ContextMeter：圆环表示上下文占用，面板里用环、条、图标和数字看消耗，不堆说明文字。
+调用示例：<SessionStats :stats="stats" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaPopover, KimaProgress } from '@kernel4632/kima'
+import { KimaPopover, KimaProgress, KimaRingProgress } from '@kernel4632/kima'
 import { AppIcon } from '../ui/index.js'
 
 const props = defineProps({
   stats: { type: Object, required: true },
-  compact: Boolean,
 })
 
 const context = computed(() => props.stats.context || {})
 const usage = computed(() => props.stats.usage || {})
-const placement = computed(() => props.compact ? 'bottom-start' : 'top-start')
 const rawPercent = computed(() => {
   const limit = Number(context.value.limit || 0)
   if (!limit) return 0
   return Math.max(0, Number(context.value.used || 0) / limit * 100)
 })
-const percent = computed(() => Math.min(100, Math.round(rawPercent.value)))
-const percentText = computed(() => rawPercent.value > 0 && rawPercent.value < 1 ? '<1%' : `${percent.value}%`)
+const percent = computed(() => Math.min(100, rawPercent.value))
+const percentText = computed(() => rawPercent.value > 0 && rawPercent.value < 1 ? '<1%' : `${Math.round(rawPercent.value)}%`)
 const cacheHit = computed(() => {
   const input = Number(usage.value.input || 0)
   if (!input) return 0
   return Math.min(100, Math.round(Number(usage.value.cacheRead || 0) / input * 100))
 })
 const total = computed(() => Number(usage.value.total || Number(usage.value.input || 0) + Number(usage.value.output || 0)))
+const inputShare = computed(() => {
+  const input = Number(usage.value.input || 0)
+  const output = Number(usage.value.output || 0)
+  return input + output > 0 ? input / (input + output) * 100 : 0
+})
 const formatTokens = value => {
   const number = Number(value || 0)
   if (number >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`
@@ -48,148 +50,134 @@ const speed = computed(() => {
   if (!ms || !usage.value.output) return ''
   return `${(Number(usage.value.output) / (ms / 1000)).toFixed(0)} tok/s`
 })
-const ringDash = computed(() => `${Math.max(0, Math.min(100, percent.value))} ${100 - Math.max(0, Math.min(100, percent.value))}`)
 const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,
   'is-danger': percent.value >= 90,
 }))
-const activity = computed(() => {
-  if (!usage.value.requests) return ''
-  return `${usage.value.requests} 次请求${usage.value.durationMs ? ` · ${formatDuration(usage.value.durationMs)}` : ''}`
-})
+const hasUsage = computed(() => total.value > 0)
 </script>
 
 <template>
-  <div class="composer-stats" :class="{ 'is-compact': compact }" aria-label="会话统计">
-    <KimaPopover
-      v-if="context.limit"
-      class="composer-stats__item"
-      variant="text"
-      :placement="placement"
-      label="上下文使用详情"
-      content-label="上下文使用"
-    >
-      <template #trigger>
-        <span class="composer-stats__ring" :class="ringClass" aria-hidden="true">
-          <!-- 14px 的小圆环；KimaRingProgress 最小 32px，输入框下方放不下，已提 KIMA issue。 -->
-          <svg viewBox="0 0 16 16" width="14" height="14">
-            <circle class="composer-stats__track" cx="8" cy="8" r="6" />
-            <circle class="composer-stats__fill" cx="8" cy="8" r="6" :stroke-dasharray="ringDash" transform="rotate(-90 8 8)" />
-          </svg>
-        </span>
-        <span>上下文 {{ percentText }}</span>
-      </template>
-      <div class="stat-panel">
-        <header class="stat-panel__head">
-          <span>上下文占用</span>
-          <strong>{{ percentText }}</strong>
-        </header>
-        <p class="stat-panel__figures">{{ formatTokens(context.used) }} / {{ formatTokens(context.limit) }} tokens</p>
-        <KimaProgress class="stat-panel__bar" :value="context.used" :max="context.limit" label="上下文占用" />
-        <dl class="stat-panel__rows">
-          <div><dt>已用</dt><dd>{{ formatTokens(context.used) }}</dd></div>
-          <div><dt>剩余</dt><dd>{{ formatTokens(Math.max(0, Number(context.limit) - Number(context.used || 0))) }}</dd></div>
-          <div v-if="context.threshold"><dt>自动压缩</dt><dd>{{ Math.round(context.threshold * 100) }}%</dd></div>
-        </dl>
+  <KimaPopover class="session-stats" variant="text" placement="bottom-end" label="会话统计" content-label="会话统计">
+    <template #trigger>
+      <KimaRingProgress
+        class="session-stats__ring"
+        :class="ringClass"
+        :value="percent"
+        :max="100"
+        :size="30"
+        :stroke-width="3"
+        label="上下文占用"
+        aria-hidden="true"
+      />
+      <span class="sr-only">上下文占用 {{ percentText }}，点击查看会话统计</span>
+    </template>
+
+    <div class="stats-panel">
+      <div class="stats-panel__hero">
+        <div class="stats-panel__ring">
+          <KimaRingProgress :value="percent" :max="100" :size="68" :stroke-width="7" label="上下文占用" />
+          <span>{{ percentText }}</span>
+        </div>
+        <div class="stats-panel__context">
+          <div class="stats-panel__metric">
+            <AppIcon name="document" :size="16" />
+            <strong>{{ formatTokens(context.used) }}</strong>
+            <span>/ {{ formatTokens(context.limit) }}</span>
+          </div>
+          <div class="stats-panel__metric stats-panel__metric--muted">
+            <AppIcon name="info" :size="15" />
+            <span>剩余 {{ formatTokens(Math.max(0, Number(context.limit) - Number(context.used || 0))) }}</span>
+          </div>
+          <KimaProgress class="stats-panel__context-bar" :value="context.used" :max="context.limit" label="上下文占用" />
+        </div>
       </div>
-    </KimaPopover>
 
-    <span v-if="context.limit && total" class="composer-stats__sep" aria-hidden="true">·</span>
+      <template v-if="hasUsage">
+        <div class="stats-panel__bar" aria-hidden="true">
+          <span class="stats-panel__bar-input" :style="{ width: `${inputShare}%` }"></span>
+          <span class="stats-panel__bar-output"></span>
+        </div>
+        <div class="stats-panel__legend">
+          <span><i class="is-input"></i><AppIcon name="up" :size="14" />{{ formatTokens(usage.input) }}</span>
+          <span><i class="is-output"></i><AppIcon name="down" :size="14" />{{ formatTokens(usage.output) }}</span>
+          <span v-if="usage.cacheRead"><i class="is-cache"></i><AppIcon name="download" :size="14" />{{ formatTokens(usage.cacheRead) }}</span>
+          <span v-if="cacheHit" class="stats-panel__cache"><AppIcon name="download" :size="14" />{{ cacheHit }}%</span>
+        </div>
 
-    <KimaPopover
-      v-if="total"
-      class="composer-stats__item"
-      variant="text"
-      :placement="placement"
-      label="Token 消耗详情"
-      content-label="Token 消耗"
-    >
-      <template #trigger>
-        <AppIcon name="stats" :size="14" />
-        <span>总消耗 {{ formatTokens(total) }} tok</span>
-        <span v-if="cacheHit" class="composer-stats__cache">· 缓存 {{ cacheHit }}%</span>
+        <div class="stats-panel__grid">
+          <div class="stats-panel__cell">
+            <AppIcon name="stats" :size="16" />
+            <strong>{{ formatTokens(total) }}</strong>
+            <small>tokens</small>
+          </div>
+          <div class="stats-panel__cell">
+            <AppIcon name="chat" :size="16" />
+            <strong>{{ usage.requests }}</strong>
+            <small>请求</small>
+          </div>
+          <div class="stats-panel__cell">
+            <AppIcon name="clock" :size="16" />
+            <strong>{{ formatDuration(usage.durationMs) }}</strong>
+          </div>
+          <div v-if="speed" class="stats-panel__cell">
+            <AppIcon name="play" :size="16" />
+            <strong>{{ speed }}</strong>
+          </div>
+          <div v-if="usage.reasoning" class="stats-panel__cell">
+            <AppIcon name="spark" :size="16" />
+            <strong>{{ formatTokens(usage.reasoning) }}</strong>
+            <small>推理</small>
+          </div>
+        </div>
       </template>
-      <div class="stat-panel">
-        <header class="stat-panel__head">
-          <span>Token 消耗</span>
-          <strong>{{ total.toLocaleString() }}</strong>
-        </header>
-        <dl class="stat-panel__rows">
-          <div><dt>输入</dt><dd>{{ Number(usage.input || 0).toLocaleString() }}</dd></div>
-          <div><dt>输出</dt><dd>{{ Number(usage.output || 0).toLocaleString() }}</dd></div>
-          <div v-if="usage.cacheRead"><dt>缓存读取</dt><dd>{{ Number(usage.cacheRead).toLocaleString() }}</dd></div>
-          <div v-if="usage.cacheWrite"><dt>缓存写入</dt><dd>{{ Number(usage.cacheWrite).toLocaleString() }}</dd></div>
-          <div v-if="usage.reasoning"><dt>推理</dt><dd>{{ Number(usage.reasoning).toLocaleString() }}</dd></div>
-          <div v-if="cacheHit"><dt>缓存命中</dt><dd>{{ cacheHit }}%</dd></div>
-          <div v-if="usage.requests"><dt>请求次数</dt><dd>{{ usage.requests }}</dd></div>
-          <div v-if="usage.durationMs"><dt>模型耗时</dt><dd>{{ formatDuration(usage.durationMs) }}</dd></div>
-          <div v-if="speed"><dt>输出速度</dt><dd>{{ speed }}</dd></div>
-        </dl>
-      </div>
-    </KimaPopover>
-
-    <span v-if="activity" class="composer-stats__activity"><span class="composer-stats__sep" aria-hidden="true">·</span> {{ activity }}</span>
-  </div>
+    </div>
+  </KimaPopover>
 </template>
 
 <style scoped lang="scss">
-.composer-stats {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 4px;
-  padding: 6px 12px 0;
-  color: var(--la-muted);
-  font-size: 12px;
-  line-height: 18px;
-  font-variant-numeric: tabular-nums;
-}
-.composer-stats__item { min-width: 0; }
-.composer-stats__item :deep(.kima-button) {
-  min-height: 24px;
-  padding: 0 6px;
-  border-radius: 8px;
-  color: var(--la-muted);
-  font-size: 12px;
-  font-weight: 400;
-  gap: 5px;
-}
-.composer-stats__item :deep(.kima-button:hover) { background: var(--la-hover); color: var(--la-text); }
-.composer-stats__ring { display: inline-flex; }
-.composer-stats__track, .composer-stats__fill { fill: none; stroke-width: 2; }
-.composer-stats__track { stroke: var(--la-layer-03); }
-.composer-stats__fill { stroke: var(--la-muted); stroke-linecap: round; }
-.composer-stats__ring.is-warn .composer-stats__fill { stroke: var(--la-warning); }
-.composer-stats__ring.is-danger .composer-stats__fill { stroke: var(--kima-color-error); }
-.composer-stats__sep { color: var(--la-line); }
-.composer-stats__activity { padding: 0 6px; }
-.composer-stats.is-compact {
-  width: auto;
-  max-width: 100%;
-  flex-wrap: nowrap;
-  gap: 0 2px;
+.session-stats { display: inline-flex; }
+.session-stats :deep(.kima-button) {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
-  font-size: 11.5px;
-  line-height: 18px;
+  border-radius: 50%;
+  color: var(--la-muted);
 }
-.composer-stats.is-compact .composer-stats__item :deep(.kima-button) { min-height: 18px; padding: 0 3px; gap: 4px; font-size: 11.5px; }
-.composer-stats.is-compact .composer-stats__activity { display: none; }
-.composer-stats.is-compact .composer-stats__sep { margin: 0 1px; }
-.stat-panel { display: grid; min-width: 230px; gap: 10px; padding: 2px; }
-.stat-panel__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--la-text); font-size: 13px; font-weight: 600; }
-.stat-panel__head strong { font-size: 15px; font-variant-numeric: tabular-nums; }
-.stat-panel__figures { margin: 0; color: var(--la-muted); font-size: 12.5px; }
-.stat-panel__bar { --kima-progress-height: 4px; }
-.stat-panel__rows { display: grid; gap: 6px; margin: 0; }
-.stat-panel__rows > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.stat-panel__rows dt { color: var(--la-muted); font-size: 12.5px; }
-.stat-panel__rows dd { margin: 0; color: var(--la-text); font-family: var(--la-font-mono); font-size: 12.5px; }
+.session-stats :deep(.kima-button:hover) { background: var(--la-hover); color: var(--la-text); }
+.session-stats__ring { color: var(--la-accent); }
+.session-stats__ring.is-warn { color: var(--la-warning); }
+.session-stats__ring.is-danger { color: var(--kima-color-error); }
+
+.stats-panel { display: grid; width: 300px; max-width: calc(100vw - 32px); gap: 14px; padding: 2px; }
+.stats-panel__hero { display: flex; align-items: center; gap: 16px; }
+.stats-panel__ring { position: relative; display: grid; flex: none; place-items: center; }
+.stats-panel__ring > span { position: absolute; color: var(--la-text); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.stats-panel__context { display: grid; min-width: 0; flex: 1; gap: 7px; }
+.stats-panel__metric { display: flex; min-width: 0; align-items: baseline; gap: 6px; color: var(--la-text); font-size: 14px; }
+.stats-panel__metric svg { align-self: center; color: var(--la-muted); }
+.stats-panel__metric strong { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.stats-panel__metric span { color: var(--la-muted); font-size: 12.5px; }
+.stats-panel__metric--muted { font-size: 12.5px; }
+.stats-panel__context-bar { --kima-progress-height: 5px; }
+.stats-panel__bar { display: flex; height: 8px; overflow: hidden; border-radius: 999px; background: var(--la-layer-03); }
+.stats-panel__bar-input { background: var(--la-accent); }
+.stats-panel__bar-output { flex: 1; background: var(--la-success); }
+.stats-panel__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--la-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stats-panel__legend span { display: inline-flex; align-items: center; gap: 4px; }
+.stats-panel__legend i { width: 8px; height: 8px; border-radius: 50%; }
+.stats-panel__legend i.is-input { background: var(--la-accent); }
+.stats-panel__legend i.is-output { background: var(--la-success); }
+.stats-panel__legend i.is-cache { background: var(--la-warning); }
+.stats-panel__cache { margin-left: auto; color: var(--la-text); }
+.stats-panel__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.stats-panel__cell { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 12px; background: var(--la-layer-01); color: var(--la-muted); font-size: 12px; }
+.stats-panel__cell svg { flex: none; }
+.stats-panel__cell strong { color: var(--la-text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats-panel__cell small { color: var(--la-muted); font-size: 11px; }
 @media (max-width: 767px) {
-  .composer-stats { padding: 6px 10px 0; }
-  .composer-stats__activity { padding: 0 4px; }
-  .composer-stats.is-compact { padding: 0; }
-  .composer-stats.is-compact .composer-stats__cache { display: none; }
+  .stats-panel { width: min(300px, calc(100vw - 24px)); }
 }
 </style>

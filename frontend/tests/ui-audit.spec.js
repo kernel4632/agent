@@ -79,7 +79,8 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await screenshot(page, testInfo, 'chat')
   // 文件工作区面板已移除，原来的入口换成任务清单。
   await expect(page.getByRole('button', { name: '文件面板', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '任务清单', exact: true })).toBeVisible()
+  // 模型还没提出任务清单时，顶栏不显示清单按钮。
+  await expect(page.getByRole('button', { name: '任务清单', exact: true })).toHaveCount(0)
   await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
   await page.getByRole('button', { name: '回退到这条消息' }).click()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
@@ -269,9 +270,14 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
   await expect(page.locator('.cot-step--tool').getByText('读现有实现', { exact: true })).toBeVisible()
   await expect(page.locator('.cot-step--tool').getByText('补测试', { exact: true })).toBeVisible()
-  // 任务清单不再常驻输入框上方，改从顶栏打开右侧面板。
+  // 任务清单不再常驻输入框上方，改从顶栏打开右侧面板；有清单时按钮在统计圆环左边。
   await expect(page.locator('.session-todos')).toHaveCount(0)
-  await page.getByRole('button', { name: '任务清单', exact: true }).click()
+  const todoButton = page.getByRole('button', { name: '任务清单', exact: true })
+  await expect(todoButton).toBeVisible()
+  const todoBox = await todoButton.boundingBox()
+  const statsBox = await page.locator('.topbar .session-stats').boundingBox()
+  expect(todoBox.x + todoBox.width).toBeLessThanOrEqual(statsBox.x)
+  await todoButton.click()
   const panel = page.getByRole('dialog', { name: '任务清单' })
   await expect(panel).toBeVisible()
   await expect(panel.getByText('读现有实现', { exact: true })).toBeVisible()
@@ -653,7 +659,7 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   expect(mock.errors).toEqual([])
 })
 
-test('composer stats show context and total usage', async ({ page }, testInfo) => {
+test('topbar stats opens the session data panel', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -661,12 +667,7 @@ test('composer stats show context and total usage', async ({ page }, testInfo) =
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
-  const stats = page.locator('.composer-stats')
-  await expect(stats).toContainText('上下文 <1%')
-  await expect(stats).toContainText('总消耗 50 tok')
-  await expect(stats).toContainText('缓存 33%')
-  await expect(stats).toContainText('1 次请求')
-  await expect(page.locator('.topbar .composer-stats')).toBeVisible()
+  await expect(page.locator('.topbar .session-stats')).toBeVisible()
   await expect(page.locator('.topbar__subtitle')).toHaveCount(0)
   // 宽屏下输入卡片和对话流居中，不再贴着左侧。
   if (testInfo.project.name === 'desktop') {
@@ -676,14 +677,15 @@ test('composer stats show context and total usage', async ({ page }, testInfo) =
     const right = panel.x + panel.width - card.x - card.width
     expect(Math.abs(left - right)).toBeLessThanOrEqual(1.5)
   }
-  await screenshot(page, testInfo, 'composer-stats')
+  await screenshot(page, testInfo, 'topbar-stats')
 
-  await page.getByRole('button', { name: /总消耗 50 tok/ }).click()
-  const usage = page.getByRole('dialog', { name: 'Token 消耗' })
-  await expect(usage).toContainText('输入')
-  await expect(usage).toContainText('输出')
-  await expect(usage).toContainText('请求次数')
-  await screenshot(page, testInfo, 'composer-stats-usage')
+  await page.getByRole('button', { name: /上下文占用/ }).click()
+  const usage = page.getByRole('dialog', { name: '会话统计' })
+  await expect(usage).toContainText('50')
+  await expect(usage).toContainText('30')
+  await expect(usage).toContainText('20')
+  await expect(usage).toContainText('33%')
+  await screenshot(page, testInfo, 'topbar-stats-panel')
   expect(mock.errors).toEqual([])
 })
 

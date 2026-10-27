@@ -1,6 +1,6 @@
 <!--
-会话顶部栏：左边菜单（只在手机）、中间标题和统计行，右边任务清单和设置。
-统计行替换原来的模型副标题，避免和输入框里的模型按钮重复。
+会话顶部栏：左边菜单（只在手机）和标题，右边任务清单、上下文统计和设置。
+任务清单只在模型真的产生过清单后出现；上下文统计默认是一个圆环，点开看数据。
 只读取传入的会话；切换模型调用现有命令。
 调用示例：
 <TopBar
@@ -12,10 +12,11 @@
 />
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import SessionStats from '../session/SessionStats.vue'
 import { sessionStats } from '../session/stats.js'
+import { latestTodos } from '../session/todos.js'
 import { Session } from '../commands/session.js'
 import { NEW_SESSION_TITLE } from '../commands/defaults.js'
 
@@ -27,6 +28,12 @@ const emit = defineEmits(['menu', 'settings', 'update:todoOpen'])
 
 const title = computed(() => props.session ? props.session.title || '新会话' : NEW_SESSION_TITLE)
 const stats = computed(() => sessionStats(props.session))
+const hasTodos = computed(() => {
+  if (!props.session) return false
+  const fromMessages = latestTodos(props.session.messages || [])
+  return (fromMessages.length ? fromMessages : props.session.todos || []).length > 0
+})
+watch(hasTodos, value => { if (!value && props.todoOpen) emit('update:todoOpen', false) })
 
 const renameOpen = ref(false)
 const titleDraft = ref('')
@@ -49,11 +56,11 @@ async function saveTitle() {
 
     <div class="topbar__heading">
       <h1 :title="title"><button v-if="session" type="button" class="topbar__title" @click="openRename">{{ title }}</button><template v-else>{{ title }}</template></h1>
-      <SessionStats v-if="stats" class="topbar__stats" :stats="stats" compact />
     </div>
 
     <div class="topbar__actions">
-      <IconButton v-if="session" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><AppIcon :name="todoOpen ? 'close' : 'todo'" :size="18" /></IconButton>
+      <IconButton v-if="session && hasTodos" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><AppIcon :name="todoOpen ? 'close' : 'todo'" :size="18" /></IconButton>
+      <SessionStats v-if="stats" :stats="stats" />
       <IconButton label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="18" /></IconButton>
     </div>
   </header>
@@ -108,7 +115,6 @@ async function saveTitle() {
   cursor: text;
 }
 .topbar__title:hover { color: var(--la-accent); }
-.topbar__stats { min-width: 0; max-width: 100%; }
 .topbar__actions { display: flex; flex: none; align-items: center; gap: 4px; }
 
 /* 手机上保留任务清单入口；标题让出空间，长标题自己截断。 */
