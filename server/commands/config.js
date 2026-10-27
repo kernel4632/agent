@@ -129,6 +129,41 @@ const connection = ({ provider: name, model }) => {
     }
 }
 
+// 思考强度的七档：和界面上的滑块顺序一致。
+const REASONING_EFFORT = { off: 'none', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }
+const REASONING_BUDGET = { low: 1000, medium: 2000, high: 8000, xhigh: 16000, max: 32000 }
+
+// --- 把思考强度翻成各家请求体能认的字段 ---
+// 只改 provider.body，agent-core 会把它原样合并进请求体；auto 不写任何字段，交给模型默认。
+// 协议不同字段也不同：OpenAI 用 reasoning_effort，Responses 用 reasoning.effort，
+// Anthropic 用 thinking + output_config，Gemini 用 generationConfig.thinkingConfig。
+const reasoningBody = ({ protocol, level, source }) => {
+    const body = source && typeof source === 'object' && !Array.isArray(source) ? structuredClone(source) : {}
+    if (!level || level === 'auto') return body
+    if (protocol === 'anthropic') {
+        body.thinking = level === 'off'
+            ? { type: 'disabled' }
+            : { type: 'adaptive', display: 'summarized' }
+        if (level !== 'off') body.output_config = { ...(body.output_config || {}), effort: REASONING_EFFORT[level] }
+        return body
+    }
+    if (protocol === 'gemini') {
+        body.generationConfig = {
+            ...(body.generationConfig || {}),
+            thinkingConfig: level === 'off'
+                ? { thinkingBudget: 0, includeThoughts: false }
+                : { thinkingBudget: REASONING_BUDGET[level], includeThoughts: true },
+        }
+        return body
+    }
+    if (protocol === 'responses') {
+        body.reasoning = { ...(body.reasoning || {}), effort: REASONING_EFFORT[level] }
+        return body
+    }
+    body.reasoning_effort = REASONING_EFFORT[level]
+    return body
+}
+
 /**
  * 把设置页里的配置转换成 agent-core 认的那份 config。
  * 字段名转换只写在这一处，界面改字段名也只改这里。
@@ -152,12 +187,19 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     // 在这里取出来单独处理，不能跟着 overrides 摊进 config——那样会多出一个 agent-core
     // 不认识的 uses 字段，而真正要的 config.compact 反而没建出来。
     // instructions 是当前智能体自己的角色说明，也只在这里拼一次。
-    const { uses = {}, instructions = '', ...rest } = overrides
+    // reasoning 是这次运行的思考强度，单独翻成请求体字段，不能跟着 rest 摊进 config。
+    const { uses = {}, instructions = '', reasoning = 'auto', ...rest } = overrides
+    const linked = connection({ provider: name, model })
     const base = (Store.config.prompt?.system ?? DEFAULT_SYSTEM_PROMPT).trim()
     const role = typeof instructions === 'string' ? instructions.trim() : ''
     const system = role ? [base, role].filter(Boolean).join('\n\n') : base
     const config = {
-        ...connection({ provider: name, model }),
+        ...linked,
+        // 思考强度按协议合并进请求体；auto 不写字段，交给模型默认。
+        provider: {
+            ...linked.provider,
+            body: reasoningBody({ protocol: linked.protocol, level: reasoning, source: linked.provider.body }),
+        },
         // 上下文预算，到达 80% 时自动压缩。字段名是 maxContextTokens，不是 maxTokens——
         // agent-core 0.26 起 maxTokens 指"单次生成的最大输出"，会映射到请求体的 maxOutputTokens。
         // 名字写错不会报任何错，只会把 128000 当成输出上限发出去，模型会被莫名截断。

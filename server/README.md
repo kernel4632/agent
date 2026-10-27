@@ -480,7 +480,8 @@ Content-Type: application/json
   "compactThreshold": 0.8,
   "capabilities": { "image": true, "cache": true, "stream": true },
   "uses": {},
-  "autoTitle": true
+  "autoTitle": true,
+  "reasoning": "auto"
 }
 ```
 
@@ -499,6 +500,7 @@ Content-Type: application/json
 | `capabilities.stream` | `true` | 流式输出 |
 | `uses` | `{}` | 哪件事用哪个模型，见下节。空＝都用主模型 |
 | `autoTitle` | `true` | 第一次聊完让模型起个标题 |
+| `reasoning` | `auto` | 思考强度：`off` / `auto` / `low` / `medium` / `high` / `xhigh` / `max`。后端按协议翻成 `reasoning_effort`、`thinking` 或 Gemini 的 `thinkingConfig`；`auto` 不改请求 |
 
 **全局默认值。** 设置页的「模型」和「上下文」不写入某条会话，而是写进全局配置；新会话创建时继承这些值，已有会话保留自己的设置：
 

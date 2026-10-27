@@ -79,6 +79,34 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
+    test('思考强度按协议翻成请求体', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [
+                    { name: 'chat', models: ['m'], protocol: 'openai-compatible' },
+                    { name: 'responses', models: ['m'], protocol: 'responses' },
+                    { name: 'anthropic', models: ['m'], protocol: 'anthropic' },
+                    { name: 'gemini', models: ['m'], protocol: 'gemini' },
+                ],
+            })
+            const body = (provider, reasoning = 'low') => Config.resolve({ provider, model: 'm', settings: { reasoning } }).provider.body
+
+            // OpenAI 兼容接口用顶层 reasoning_effort；auto 不写字段，off 明确要求关闭。
+            expect(body('chat')).toEqual({ reasoning_effort: 'low' })
+            expect(body('chat', 'auto')).toEqual({})
+            expect(body('chat', 'off')).toEqual({ reasoning_effort: 'none' })
+            // 其余协议字段名不同，跟各家接口文档一致。
+            expect(body('responses')).toEqual({ reasoning: { effort: 'low' } })
+            expect(body('anthropic')).toEqual({
+                thinking: { type: 'adaptive', display: 'summarized' },
+                output_config: { effort: 'low' },
+            })
+            expect(body('gemini')).toEqual({
+                generationConfig: { thinkingConfig: { thinkingBudget: 1000, includeThoughts: true } },
+            })
+        })
+    })
+
     test('模型没有调用工具时只请求一次，不会把回答显示两遍', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {

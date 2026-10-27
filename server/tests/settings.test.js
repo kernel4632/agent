@@ -92,7 +92,19 @@ describe('会话运行设置', () => {
                 capabilities: { image: true, cache: true, stream: true },
                 uses: {},        // 空对象＝每件事都用主模型，这是绝大多数人的用法
                 autoTitle: true, // 第一次聊完自动起标题
+                reasoning: 'auto', // 默认不覆盖模型的思考强度
             })
+        })
+    })
+
+    test('思考强度保存七档，写错时保持原值', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            expect((await Session.saveSettings({ sessionId, reasoning: 'high' })).reasoning).toBe('high')
+            // 保存后下一轮发给模型的就是 high；这条链路不能只停在设置文件里。
+            expect(Store.agents.get(sessionId).config.provider.body.reasoning_effort).toBe('high')
+            // 前端传了不认识的档位时不能把设置改成无法识别的状态。
+            expect((await Session.saveSettings({ sessionId, reasoning: 'ultra' })).reasoning).toBe('high')
         })
     })
 

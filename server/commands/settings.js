@@ -64,6 +64,10 @@ const APPROVE_LIMIT = 50
  */
 const autoApproveDefaults = () => Object.fromEntries(Kind.KINDS.map(item => [item.kind, false]))
 
+// 思考强度：off 不请求思考，auto 交给模型，其余是逐级加大的预算/effort。
+const REASONING_LEVELS = ['off', 'auto', 'low', 'medium', 'high', 'xhigh', 'max']
+const validReasoning = value => REASONING_LEVELS.includes(value) ? value : 'auto'
+
 // 全局默认值只认配置里合法的部分；写错或没写时回到内置默认。
 const validThreshold = value => {
     const parsed = Number(value)
@@ -105,6 +109,8 @@ const defaultSettings = () => {
         uses: globalUses(),
         // 标题默认自动生成；用户关掉就一直是"新对话"。
         autoTitle: config.autoTitle !== false,
+        // 新会话默认让模型自己决定思考强度；用户可以在输入框旁逐条改。
+        reasoning: validReasoning(config.reasoning),
     }
 }
 
@@ -194,6 +200,8 @@ const normalize = (input = {}, base = defaultSettings()) => {
     // 刹车：连着放行这么多次就停下来问。只收非负整数，0 表示不设上限，别的值保持原样。
     const rawLimit = input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit
     const parsedLimit = Number(rawLimit)
+    // 思考强度只认固定七档；写错时保留原来的值，不把会话设成无法识别的状态。
+    const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {
         agent,
         autoApprove,
@@ -207,6 +215,7 @@ const normalize = (input = {}, base = defaultSettings()) => {
         uses,
         // 只有明确传 false 才关，别的值都当开着。
         autoTitle: merged.autoTitle !== false,
+        reasoning: REASONING_LEVELS.includes(rawReasoning) ? rawReasoning : base.reasoning,
     }
 }
 
@@ -275,6 +284,8 @@ const toAgentConfig = ({ settings }) => {
         instructions: agent?.instructions || '',
         // 上下文用到这个比例时自动压缩；agent-core 自己认这个字段。
         compactThreshold: settings.compactThreshold,
+        // 这次运行用哪一档思考强度；Config.resolve 会按协议翻成请求参数。
+        reasoning: settings.reasoning,
         // 哪件事用哪个模型，交给 Config.resolve 翻成 agent-core 认的 config.compact 那些。
         uses: settings.uses,
     }
@@ -312,7 +323,7 @@ const remove = ({ sessionId }) => {
 export default {
     read, save, toAgentConfig, approves, remove, agents, toolsFor,
     agentInfo, agentPermission, modelFor,
-    defaultSettings, USES,
+    defaultSettings, USES, REASONING_LEVELS,
     // 类别清单也从这里给出去，界面画开关时不用再引第二个模块。
     KINDS: Kind.KINDS,
 }

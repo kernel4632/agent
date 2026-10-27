@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.39.4",
+    "version": "0.40.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1506,6 +1506,20 @@
                       "default": "build",
                       "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
                       "example": "build"
+                    },
+                    "reasoning": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "auto",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                      ],
+                      "default": "auto",
+                      "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
                     }
                   }
                 }
@@ -1630,6 +1644,20 @@
                     "default": "build",
                     "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
                     "example": "build"
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "auto",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "default": "auto",
+                    "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
                   }
                 }
               }
@@ -1724,6 +1752,20 @@
                       "default": "build",
                       "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
                       "example": "build"
+                    },
+                    "reasoning": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "auto",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                      ],
+                      "default": "auto",
+                      "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
                     }
                   }
                 }
@@ -2407,6 +2449,20 @@
                     "default": "build",
                     "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
                     "example": "build"
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "auto",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "default": "auto",
+                    "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
                   }
                 },
                 "description": "这条会话当前的运行设置，等同于 GET /session/settings/{sessionId}"
@@ -2618,6 +2674,20 @@
             "type": "boolean",
             "default": true,
             "description": "新会话默认在第一次聊完后自动生成标题"
+          },
+          "reasoning": {
+            "type": "string",
+            "enum": [
+              "off",
+              "auto",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "default": "auto",
+            "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
           }
         }
       },
