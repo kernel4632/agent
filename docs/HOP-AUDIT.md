@@ -80,12 +80,13 @@
 - `kernel4632/kima#9`：`KimaSelect` 在 Vue 模板里读 `document`，Teleport 恒为 disabled 并持续警告。
 - `kernel4632/kima#10`：缺少 `KimaMarkdown`，本项目只能在 `ui/KimaMarkdown.vue` 里按块组合 `KimaTypography` 和 `KimaCodeBlock`。
 
-另外本轮发现但还没提 issue 的上游限制：
+另外本轮把下面这些限制整理成了 `kernel4632/kima#11`：
 
 - `KimaCommand` 总会渲染触发按钮，没有隐藏触发器的 prop，命令面板暂时没法直接换过去。
 - `KimaCard` 没有 padding/radius/size prop，紧凑行只能覆盖内部类。
 - `KimaListbox` 没有无底色变体，权限抽屉只能覆盖内部样式。
 - `KimaRadioGroup` 的单选圆点固定渲染，智能体抽屉只能用 `order` 调整位置。
+- `KimaTabs` 的 tablist 没有可访问名称，组件也没有 `label` prop。
 
 ## 验证
 
