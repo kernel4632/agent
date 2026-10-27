@@ -1,12 +1,12 @@
 <!--
-自动批准底部抽屉：用 KIMA 列表承载五个分类，每行是一张可点的卡片。
-卡片自带图标、说明和勾选标记；不再把文字和开关拆成两列。
+自动批准底部抽屉：选项交给 KIMA Listbox，多选、键盘和 ARIA 都由组件负责。
+每行内容用 #option 插槽画成卡片：图标、名称、说明和勾选标记。
 调用示例：<PermissionDrawer :open="open" :auto-approve="session.settings.autoApprove" @toggle="Session.toggleAutoApprove(session.id, $event)" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaList } from '@kernel4632/kima'
-import { AppIcon, ChoiceCard, Sheet } from '../ui/index.js'
+import { KimaListbox } from '@kernel4632/kima'
+import { AppIcon, ChoiceContent, Sheet } from '../ui/index.js'
 import { AUTO_APPROVE_KINDS } from '../commands/session.js'
 
 const props = defineProps({
@@ -15,14 +15,23 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:open', 'toggle'])
 
-const rows = computed(() => AUTO_APPROVE_KINDS.map(item => ({
-  id: item.kind,
+const options = AUTO_APPROVE_KINDS.map(item => ({
+  value: item.kind,
+  label: item.label,
+  description: item.hint,
   icon: item.icon,
-  title: item.label,
-  hint: item.hint,
-  on: Boolean(props.autoApprove?.[item.kind]),
-})))
-const count = computed(() => rows.value.filter(row => row.on).length)
+}))
+const selected = computed(() => AUTO_APPROVE_KINDS
+  .filter(item => props.autoApprove?.[item.kind])
+  .map(item => item.kind))
+const count = computed(() => selected.value.length)
+
+function update(values) {
+  const next = new Set(values)
+  for (const item of AUTO_APPROVE_KINDS) {
+    if (next.has(item.kind) !== Boolean(props.autoApprove?.[item.kind])) emit('toggle', item.kind)
+  }
+}
 </script>
 
 <template>
@@ -36,21 +45,25 @@ const count = computed(() => rows.value.filter(row => row.on).length)
     <div class="permission-drawer">
       <div class="permission-drawer__meta">
         <span>按类别放行</span>
-        <span class="permission-drawer__count" :class="{ 'is-on': count > 0 }">已开启 {{ count }} / {{ rows.length }}</span>
+        <span class="permission-drawer__count" :class="{ 'is-on': count > 0 }">已开启 {{ count }} / {{ options.length }}</span>
       </div>
 
-      <KimaList class="permission-drawer__list" :items="rows" label="自动批准分类">
-        <template #item="{ item }">
-          <ChoiceCard
-            role="checkbox"
-            :selected="item.on"
+      <KimaListbox
+        multiple
+        label="自动批准分类"
+        :options="options"
+        :model-value="selected"
+        @update:model-value="update"
+      >
+        <template #option="{ item, selected: on }">
+          <ChoiceContent
+            :selected="on"
             :icon="item.icon"
-            :title="item.title"
-            :hint="item.hint"
-            @select="emit('toggle', item.id)"
+            :title="item.label"
+            :hint="item.description"
           />
         </template>
-      </KimaList>
+      </KimaListbox>
 
       <p class="permission-drawer__note">
         <AppIcon name="info" :size="15" />
@@ -61,7 +74,7 @@ const count = computed(() => rows.value.filter(row => row.on).length)
 </template>
 
 <style scoped lang="scss">
-.permission-drawer { display: grid; width: 100%; max-width: 560px; gap: 14px; margin: 0 auto; padding-bottom: 8px; }
+.permission-drawer { display: grid; width: 100%; max-width: 560px; gap: 14px; margin: 16px auto 0; padding-bottom: 8px; }
 
 .permission-drawer__meta {
   display: flex;
@@ -89,14 +102,41 @@ const count = computed(() => rows.value.filter(row => row.on).length)
   }
 }
 
-/* KIMA 列表默认带 20px 行内边距和底色；这里把行还原成透明，
-   圆角、底色和点击面都交给里面的 ChoiceCard。 */
-.permission-drawer__list :deep(.kima-list) { gap: 8px; }
-.permission-drawer__list :deep(.kima-list__item) {
-  min-height: 0;
+/* KIMA Listbox 默认是一整块带底色和 8px 内边距的列表；
+   这里把外壳让出来，卡片底色、描边和间距交给每个选项。 */
+.permission-drawer :deep(.kima-listbox) {
   padding: 0;
-  border-radius: 16px;
+  border-radius: 0;
   background: transparent;
+}
+
+.permission-drawer :deep(.kima-listbox__option + .kima-listbox__option) { margin-top: 8px; }
+
+.permission-drawer :deep(.kima-listbox .kima-listbox__option) {
+  min-height: 68px;
+  padding: 12px 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--la-layer-01);
+  color: var(--la-text);
+  transition:
+    background-color var(--kima-duration-medium) var(--kima-curve-standard),
+    border-color var(--kima-duration-medium) var(--kima-curve-standard);
+}
+
+.permission-drawer :deep(.kima-listbox .kima-listbox__option:hover) {
+  border-color: var(--la-line);
+  background: var(--la-layer-02);
+}
+
+.permission-drawer :deep(.kima-listbox .kima-listbox__option[aria-selected="true"]) {
+  border-color: var(--la-accent-border);
+  background: color-mix(in srgb, var(--la-accent) 9%, var(--la-layer-01));
+  color: var(--la-text);
+}
+
+.permission-drawer :deep(.kima-listbox .kima-listbox__option[aria-selected="true"]:hover) {
+  background: color-mix(in srgb, var(--la-accent) 13%, var(--la-layer-01));
 }
 
 .permission-drawer__note {

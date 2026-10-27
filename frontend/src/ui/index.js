@@ -8,7 +8,7 @@
 
 export { default as AppIcon } from './AppIcon.vue'
 export { default as Button } from './Button.vue'
-export { default as ChoiceCard } from './ChoiceCard.vue'
+export { default as ChoiceContent } from './ChoiceContent.vue'
 export { default as Dialog } from './Dialog.vue'
 export { default as Field } from './Field.vue'
 export { default as IconButton } from './IconButton.vue'

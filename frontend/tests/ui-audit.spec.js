@@ -644,7 +644,7 @@ test('composer exposes permission and mode controls next to the model', async ({
   await expect(permission).toHaveClass(/is-active/)
   // 抽屉覆盖打开，不能把输入框撑高。
   expect(await page.locator('.chat-composer').evaluate(element => element.getBoundingClientRect().height)).toBe(composerHeight)
-  await permissionDrawer.getByRole('checkbox', { name: /读取/ }).click()
+  await permissionDrawer.getByRole('option', { name: /读取/ }).click()
   await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.autoApprove?.read === true)).toBe(true)
   await permissionDrawer.getByRole('button', { name: '关闭' }).click()
   await expect(permissionDrawer).toBeHidden()
@@ -683,7 +683,7 @@ test('new chat mode and permissions apply to the created session', async ({ page
   await page.getByRole('button', { name: '权限控制', exact: true }).click()
   const permissionDrawer = page.getByRole('dialog', { name: '自动批准' })
   await expect(permissionDrawer).toBeVisible()
-  await permissionDrawer.getByRole('checkbox', { name: /读取/ }).click()
+  await permissionDrawer.getByRole('option', { name: /读取/ }).click()
   await permissionDrawer.getByRole('button', { name: '关闭' }).click()
   await expect(permissionDrawer).toBeHidden()
 
@@ -754,8 +754,8 @@ test('session row menu stays inside the drawer and centers on its row', async ({
   const trigger = row.locator('.home-session__menu .kima-menu__trigger')
   const rowBox = await row.boundingBox()
   const triggerBox = await trigger.boundingBox()
-  // 触发器是 40px 图标按钮，要和 48px 会话行同一个垂直中心。
-  expect(triggerBox.height).toBeLessThanOrEqual(40)
+  // 触发器是 48px 图标按钮（KIMA 的触控目标），要和 48px 会话行同一个垂直中心。
+  expect(triggerBox.height).toBeLessThanOrEqual(48)
   expect(Math.abs((rowBox.y + rowBox.height / 2) - (triggerBox.y + triggerBox.height / 2))).toBeLessThanOrEqual(2)
 
   await trigger.click()
@@ -769,9 +769,9 @@ test('session row menu stays inside the drawer and centers on its row', async ({
   expect(popupBox.y).toBeGreaterThanOrEqual(0)
   expect(popupBox.y + popupBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1)
 
-  // 只隐藏 KIMA 生成的箭头，插槽里的“更多”图标必须还在。
+  // icon-only 模式只渲染一个“更多”图标，不再补下拉箭头。
+  await expect(trigger.locator('svg')).toHaveCount(1)
   await expect(trigger.locator('svg').first()).toBeVisible()
-  await expect(trigger.locator('svg').last()).toBeHidden()
   await page.keyboard.press('Escape')
   await expect(popup).toBeHidden()
   expect(mock.errors).toEqual([])
