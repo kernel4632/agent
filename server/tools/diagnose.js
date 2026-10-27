@@ -12,16 +12,15 @@
  *   return `Wrote ${path}${extra}`
  */
 
-import { join } from 'node:path'
+import Path from '../utils/path.js' // 数据目录只有这一处规则，诊断也照它找配置。
 
 // 诊断输出也进模型上下文，不能让它无限长。
 const MAX_OUTPUT = 8000
 
 // --- 读数据目录的配置，读不到就当没配 ---
 const readConfig = async () => {
-    const home = process.env.AGENT_HOME || join(process.env.HOME || process.env.USERPROFILE, '.agent')
     try {
-        return await Bun.file(join(home, 'config.json')).json()
+        return await Bun.file(Path.config()).json()
     } catch {
         return {}
     }

@@ -61,6 +61,17 @@ describe('工具目录', () => {
         })
     })
 
+    test('全局 deny 在工具目录里也显示成拒绝', async () => {
+        await withHome(async () => {
+            // 设置页显示的动作必须和真正执行时一致；全局 deny 以前会被显示成 ask。
+            await Config.set({ permission: { '*': 'deny' } })
+            const tools = await Tools.list()
+            const byName = Object.fromEntries(tools.map(item => [item.name, item]))
+            expect(byName.execute_command.permission).toBe('deny')
+            expect(byName.read_file.permission).toBe('deny')
+        })
+    })
+
     test('HTTP 接口返回工具数组', async () => {
         await withHome(async () => {
             const response = await app.handle(new Request('http://localhost/tool/list'))

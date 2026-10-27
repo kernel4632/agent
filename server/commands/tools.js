@@ -12,7 +12,7 @@ import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js'
 import Store from '../store.js'
 import Delegation from '../features/delegation.js' // new_task 的界面描述在运行时工具里。
-import { TABLE } from '../utils/tool-kind.js'
+import Kind, { TABLE } from '../utils/tool-kind.js'
 import { canonical, previousNames } from '../utils/tool-names.js' // 旧 permission 配置继续生效。
 
 /**
@@ -23,13 +23,14 @@ import { canonical, previousNames } from '../utils/tool-names.js' // 旧 permiss
  */
 const permissionOf = name => {
     const rules = Store.config.permission || {}
+    const actionOf = value => value === 'allow' ? 'allow' : value === 'deny' ? 'deny' : 'ask' // 认不出的写法按“询问”显示
     // 新名字优先，旧名字兜底，改名不会让用户原来的 deny 规则失效。
     const rule = [canonical(name), ...previousNames(name)].map(item => rules[item]).find(item => item !== undefined)
-    if (typeof rule === 'string') return rule === 'allow' ? 'allow' : rule === 'deny' ? 'deny' : 'ask'
+    if (typeof rule === 'string') return actionOf(rule)
     if (rule && typeof rule === 'object' && !Array.isArray(rule)) {
-        return typeof rule['*'] === 'string' ? rule['*'] : 'ask'
+        return actionOf(rule['*'])
     }
-    return rules['*'] === 'allow' ? 'allow' : 'ask'
+    return actionOf(rules['*'])
 }
 
 /**
@@ -48,12 +49,13 @@ const list = async () => {
         .sort()
         .map(name => {
             const ui = scanned.schema[name]?.ui || (name === 'new_task' ? Delegation.ui : null)
+            const kind = Kind.of({ toolName: name })                     // 分类只从 Kind 算，别在这里再读表
             return {
                 name,
-                kind: TABLE[name] || 'other',
+                kind,
                 permission: permissionOf(name),
                 // 控制工具也要把 ui 交给对话页，但设置页不画它们的权限开关。
-                configurable: TABLE[name] !== 'never',
+                configurable: kind !== 'never',
                 ...(ui && typeof ui === 'object' && !Array.isArray(ui) ? { ui } : {}),
             }
         })

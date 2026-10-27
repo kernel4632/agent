@@ -108,17 +108,6 @@ const defaultSettings = () => {
     }
 }
 
-// 兼容旧调用方：模块加载时的一份默认快照，不随配置变化。新会话请用 defaultSettings()。
-const DEFAULTS = {
-    agent: 'build',
-    autoApprove: autoApproveDefaults(),
-    autoApproveLimit: APPROVE_LIMIT,
-    compactThreshold: 0.8,
-    capabilities: { image: true, cache: true, stream: true },
-    uses: {},
-    autoTitle: true,
-}
-
 /**
  * 当前可用的智能体：内置的加自定义的，定义统一来自 features/agents.js。
  * @returns {Array<object>} 完整智能体清单。
@@ -323,7 +312,7 @@ const remove = ({ sessionId }) => {
 export default {
     read, save, toAgentConfig, approves, remove, agents, toolsFor,
     agentInfo, agentPermission, modelFor,
-    defaultSettings, DEFAULTS, USES,
+    defaultSettings, USES,
     // 类别清单也从这里给出去，界面画开关时不用再引第二个模块。
     KINDS: Kind.KINDS,
 }
