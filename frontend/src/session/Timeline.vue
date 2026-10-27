@@ -7,7 +7,7 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
@@ -34,13 +34,37 @@ const pinned = ref(true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
 const rollbackPreview = ref(null)
+const flow = ref(null)
 let scrollParent
+let observer
+let frame = 0
 // 离底部 100px 内都算“在看最新内容”；这样轻微滚动不会立刻打断自动跟随。
-function onScroll() { pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100 }
-function scrollToBottom() { nextTick(() => { if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight }) }
-watch(messages, scrollToBottom, { deep: true })
-onMounted(() => { scrollParent = props.scrollRoot; scrollParent?.addEventListener('scroll', onScroll, { passive: true }); scrollToBottom() })
-onBeforeUnmount(() => scrollParent?.removeEventListener('scroll', onScroll))
+function onScroll() {
+  pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100
+  if (pinned.value) scheduleScroll()
+}
+// 滚动和流式输出都可能在一帧内触发很多次；合并到下一帧，只量一次高度、只改一次 scrollTop。
+function scheduleScroll() {
+  if (frame) return
+  frame = requestAnimationFrame(() => {
+    frame = 0
+    if (pinned.value && scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight
+  })
+}
+watch(() => turns.value.length, scheduleScroll)
+onMounted(() => {
+  scrollParent = props.scrollRoot
+  scrollParent?.addEventListener('scroll', onScroll, { passive: true })
+  // 监听内容高度，而不是深度监听整段消息：流式追加文字、图片加载、工具展开都会改变高度。
+  observer = new ResizeObserver(scheduleScroll)
+  if (flow.value) observer.observe(flow.value)
+  scheduleScroll()
+})
+onBeforeUnmount(() => {
+  scrollParent?.removeEventListener('scroll', onScroll)
+  observer?.disconnect()
+  if (frame) cancelAnimationFrame(frame)
+})
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
 const canRollback = message => isSavedMessage(message)
 
@@ -80,7 +104,7 @@ function onUserMenu(message, action) {
 </script>
 
 <template>
-  <div class="conversation-flow" role="log" aria-label="对话内容">
+  <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
     <article v-for="turn in turns" :key="turn.id" class="message" :class="`message--${turn.role}`" :aria-label="turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <template v-if="turn.role === 'user'">
         <MessageActionTarget

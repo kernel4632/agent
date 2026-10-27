@@ -333,6 +333,8 @@
 .cot-step__caret.is-open { transform: rotate(180deg); }
 .cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--kima-curve-standard); }
 .cot-collapse.is-open { grid-template-rows: 1fr; }
+/* 收起的思考内容仍然留在 DOM 里，但不参与布局和绘制；长会话里几十段思考很占渲染时间。 */
+.cot-collapse:not(.is-open) .cot-collapse__inner { content-visibility: auto; contain-intrinsic-size: 0 0; }
 .cot-collapse__inner { min-height: 0; overflow: hidden; }
 .cot-step__body { padding: 2px 0 10px; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
 /* 工具步骤始终展开：标题只做信息行，参数和结果放进一张浅色卡片里。 */

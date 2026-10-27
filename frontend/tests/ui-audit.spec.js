@@ -689,6 +689,52 @@ test('topbar stats opens the session data panel', async ({ page }, testInfo) => 
   expect(mock.errors).toEqual([])
 })
 
+test('legacy history without usage shows estimated stats, not zeros', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  // 旧会话没有保存每次请求的 usage；统计必须从消息内容估算并标出来。
+  mock.sessions.set('legacy-1', {
+    id: 'legacy-1',
+    title: '旧会话',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history: [
+      { messageId: 'legacy-u1', role: 'user', content: '帮我看一下这个项目，然后告诉我从哪里开始改。' },
+      { messageId: 'legacy-a1', role: 'assistant', content: [{ type: 'text', text: '我先读几个文件，再给你一个具体的起点。' }] },
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: {
+      agent: 'build',
+      autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
+      autoApproveLimit: 50,
+      compactThreshold: 0.8,
+      capabilities: { image: true, cache: true, stream: true },
+      uses: {},
+      autoTitle: true,
+      reasoning: 'auto',
+    },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '旧会话', exact: true }).click()
+  await expect(page.locator('.topbar h1')).toHaveText('旧会话')
+
+  const ring = page.getByRole('button', { name: /上下文占用/ })
+  await expect(ring).toBeVisible()
+  await expect(ring).toContainText('~')
+  await ring.click()
+  const panel = page.getByRole('dialog', { name: '会话统计' })
+  await expect(panel.getByText('估算', { exact: true })).toBeVisible()
+  await expect(panel.locator('.stats-panel__usage-head strong')).not.toHaveText('0')
+  await expect(panel.locator('.stats-panel__contextbar-used')).toBeVisible()
+  await screenshot(page, testInfo, 'topbar-stats-estimated')
+  expect(mock.errors).toEqual([])
+})
+
 test('existing conversation switches model from the input bar', async ({ page }, testInfo) => {
   const mock = await backend(page)
   mock.config().providers[0].models.push('another-model')
