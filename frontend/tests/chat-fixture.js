@@ -197,7 +197,7 @@ export async function backend(page, { configured = true } = {}) {
       session.history.push({
         messageId: 'assistant-1',
         role: 'assistant',
-        usage: { input: 30, output: 20, total: 50, durationMs: 800, startedAt: Date.now() - 800, finishedAt: Date.now() },
+        usage: { input: 30, output: 20, cacheRead: 10, total: 50, durationMs: 800, startedAt: Date.now() - 800, finishedAt: Date.now() },
         content: [
           { type: 'text', text },
           {
@@ -211,7 +211,7 @@ export async function backend(page, { configured = true } = {}) {
         ],
       })
       session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
+      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20, inputTokenDetails: { cacheReadTokens: 10 } } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) {
       session.running = false

@@ -418,8 +418,9 @@ function normalize(source, previous = {}) {
           durationMs: Number(usage.durationMs || 0),
           input,
           output,
-          cache: Number(usage.cacheRead ?? usage.cachedInputTokens ?? 0),
-          cacheWrite: Number(usage.cacheWrite ?? 0),
+          cache: Number(usage.cacheRead ?? usage.inputTokenDetails?.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
+          cacheWrite: Number(usage.cacheWrite ?? usage.inputTokenDetails?.cacheWriteTokens ?? 0),
+          reasoning: Number(usage.reasoning ?? usage.outputTokenDetails?.reasoningTokens ?? 0),
           total: Number(usage.total ?? input + output),
         }
         message.requests = [message.request]

@@ -59,6 +59,7 @@ const stats = computed(() => {
       output,
       cacheRead: sum('cache'),
       cacheWrite: sum('cacheWrite'),
+      reasoning: sum('reasoning'),
       total,
       requests: requests.length,
       durationMs: requests.reduce((value, item) => value + Number(item.durationMs || 0), 0),
@@ -156,7 +157,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
 
 <style scoped lang="scss">
 .session-panel { display: flex; min-height: 0; flex: 1; }
-.session-main { position: relative; display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; }
 .session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--kima-curve-standard), opacity var(--la-motion-enter) var(--kima-curve-standard); }

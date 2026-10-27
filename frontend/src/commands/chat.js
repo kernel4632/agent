@@ -32,11 +32,14 @@ function createAssistant(session) {
 function usageFields(usage = {}, durationMs = 0) {
   const input = Number(usage.inputTokens ?? usage.promptTokens ?? 0)
   const output = Number(usage.outputTokens ?? usage.completionTokens ?? 0)
+  const details = usage.inputTokenDetails || {}
+  const outputDetails = usage.outputTokenDetails || {}
   return {
     input,
     output,
-    cache: Number(usage.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
-    cacheWrite: Number(usage.cacheWriteTokens ?? 0),
+    cache: Number(details.cacheReadTokens ?? usage.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
+    cacheWrite: Number(details.cacheWriteTokens ?? usage.cacheWriteTokens ?? 0),
+    reasoning: Number(outputDetails.reasoningTokens ?? usage.reasoningTokens ?? 0),
     total: Number(usage.totalTokens ?? input + output),
     durationMs: Number(durationMs || usage.durationMs || 0),
   }

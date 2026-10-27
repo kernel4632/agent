@@ -211,8 +211,9 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
     <!-- 隐藏的 file input 是编辑器专用控件：由更多选项里的附件按钮触发，保留原生实现。 -->
     <input ref="fileInput" class="sr-only" type="file" multiple :accept="ATTACHMENT_ACCEPT" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
-    <ComposerStats v-if="stats" :stats="stats" />
   </form>
+  <!-- 统计行放在输入卡片外面，和卡片同宽；用户要的是“输入框下方一排数据”。 -->
+  <ComposerStats v-if="stats" :stats="stats" />
 
   <Sheet :open="modelOpen" label="选择模型" @update:open="modelOpen = $event">
     <div class="composer-sheet composer-sheet--models">

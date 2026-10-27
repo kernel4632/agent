@@ -116,6 +116,7 @@ const activity = computed(() => {
           <div><dt>输出</dt><dd>{{ Number(usage.output || 0).toLocaleString() }}</dd></div>
           <div v-if="usage.cacheRead"><dt>缓存读取</dt><dd>{{ Number(usage.cacheRead).toLocaleString() }}</dd></div>
           <div v-if="usage.cacheWrite"><dt>缓存写入</dt><dd>{{ Number(usage.cacheWrite).toLocaleString() }}</dd></div>
+          <div v-if="usage.reasoning"><dt>推理</dt><dd>{{ Number(usage.reasoning).toLocaleString() }}</dd></div>
           <div v-if="cacheHit"><dt>缓存命中</dt><dd>{{ cacheHit }}%</dd></div>
           <div v-if="usage.requests"><dt>请求次数</dt><dd>{{ usage.requests }}</dd></div>
           <div v-if="usage.durationMs"><dt>模型耗时</dt><dd>{{ formatDuration(usage.durationMs) }}</dd></div>
@@ -131,11 +132,12 @@ const activity = computed(() => {
 <style scoped lang="scss">
 .composer-stats {
   display: flex;
+  width: 100%;
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 4px;
-  padding: 4px 2px 0;
+  padding: 6px 12px 0;
   color: var(--la-muted);
   font-size: 12px;
   line-height: 18px;
@@ -170,6 +172,7 @@ const activity = computed(() => {
 .stat-panel__rows dt { color: var(--la-muted); font-size: 12.5px; }
 .stat-panel__rows dd { margin: 0; color: var(--la-text); font-family: var(--la-font-mono); font-size: 12.5px; }
 @media (max-width: 767px) {
+  .composer-stats { padding: 6px 10px 0; }
   .composer-stats__activity { padding: 0 4px; }
 }
 </style>

@@ -209,6 +209,19 @@ test('reasoning preview stays half-open while streaming', async ({ page }, testI
   await expect(page.locator('.cot-step--reasoning .reasoning-preview')).toHaveClass(/is-preview/)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   await screenshot(page, testInfo, 'reasoning-preview')
+
+  // 流式期间也能真正收起：先展开全文，再点一次收起；后续增量不能把它重新打开。
+  const head = page.locator('.cot-step--reasoning .cot-step__head')
+  const content = page.locator('.cot-step--reasoning .cot-collapse')
+  await head.click()
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+  await head.click()
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
+  await expect(content).not.toHaveClass(/is-open/)
+  await mock.emit('session-1', [{ type: 'reasoning-delta', text: '继续输出也不展开' }])
+  await expect(content).not.toHaveClass(/is-open/)
+  await head.click()
+  await expect(content).toHaveClass(/is-open/)
 })
 
 test('reasoning preview collapses after the llm finishes', async ({ page }) => {
@@ -651,6 +664,7 @@ test('composer stats show context and total usage', async ({ page }, testInfo) =
   const stats = page.locator('.composer-stats')
   await expect(stats).toContainText('上下文 <1%')
   await expect(stats).toContainText('总消耗 50 tok')
+  await expect(stats).toContainText('缓存 33%')
   await expect(stats).toContainText('1 次请求')
   await screenshot(page, testInfo, 'composer-stats')
 

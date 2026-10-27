@@ -101,7 +101,7 @@ onBeforeUnmount(cancelPress)
 </template>
 
 <style scoped lang="scss">
-.message-action-target { display: block; width: 100%; min-width: 0; }
+.message-action-target { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 10px; }
 .message-action-target:focus-visible { outline: 2px solid var(--kima-color-primary); outline-offset: 3px; border-radius: 8px; }
 .message-actions { display: grid; gap: 14px; }
 .message-actions-enter-active, .message-actions-leave-active { transition: opacity 220ms var(--kima-curve-standard), transform 220ms var(--kima-curve-emphasized); }

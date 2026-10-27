@@ -18,12 +18,14 @@ const props = defineProps({
 })
 
 const expanded = ref(false)
+const collapsed = ref(false)
 const now = ref(Date.now())
 const previewEl = ref(null)
 let timer = null
 
-const previewing = computed(() => props.streaming && !expanded.value)
-const showContent = computed(() => expanded.value || props.streaming)
+const previewing = computed(() => props.streaming && !expanded.value && !collapsed.value)
+// 收起是用户明确动作：流式期间也不再强制展开，直到用户重新点开。
+const showContent = computed(() => expanded.value || (props.streaming && !collapsed.value))
 const seconds = computed(() => {
   if (!props.startedAt) return 0
   return Math.max(0, ((props.finishedAt || now.value) - props.startedAt) / 1000)
@@ -32,6 +34,17 @@ const label = computed(() => {
   if (props.streaming && !props.reasoning) return '正在思考…'
   return props.startedAt ? `深度思考 ${seconds.value.toFixed(1)} 秒` : '深度思考'
 })
+
+function toggle() {
+  if (expanded.value) {
+    expanded.value = false
+    collapsed.value = true
+    return
+  }
+  // 流式预览点一下先展开全文；已经收起时再点恢复到最新进度。
+  expanded.value = true
+  collapsed.value = false
+}
 
 watch(() => props.streaming, streaming => {
   if (timer) { window.clearInterval(timer); timer = null }
@@ -59,9 +72,9 @@ onBeforeUnmount(() => {
 <template>
   <div class="cot-step cot-step--reasoning">
     <span class="cot-step__icon"><AppIcon name="spark" :size="16" /></span>
-    <button type="button" class="cot-step__head" :aria-expanded="expanded" :aria-controls="contentId" @click="expanded = !expanded">
+    <button type="button" class="cot-step__head" :aria-expanded="showContent" :aria-controls="contentId" @click="toggle">
       <span class="cot-step__label" :class="{ 'is-live': streaming }">{{ label }}</span>
-      <AppIcon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': expanded }" aria-hidden="true" />
+      <AppIcon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': showContent }" aria-hidden="true" />
     </button>
     <div :id="contentId" class="cot-collapse" :class="{ 'is-open': showContent }" :inert="!showContent" :aria-hidden="!showContent">
       <div class="cot-collapse__inner">
