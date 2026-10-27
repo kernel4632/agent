@@ -43,7 +43,7 @@ const props = defineProps({
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'open-agent'])
+const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'toggle-permissions', 'open-agent'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -233,7 +233,6 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="composer-sheet">
       <div class="composer-sheet__list">
         <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
-        <button v-if="showSessionControls && sessionId" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>模型与上下文</span></button>
         <button v-if="showSessionControls && sessionId" type="button" :title="agent ? `当前智能体：${agent}` : undefined" @click="addOpen = false; emit('open-agent')"><AppIcon name="eye" :size="20" /><span>切换智能体</span></button>
       </div>
     </div>

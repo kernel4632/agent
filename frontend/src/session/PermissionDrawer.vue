@@ -6,14 +6,15 @@
 <script setup>
 import { computed } from 'vue'
 import { KimaListbox } from '@kernel4632/kima'
-import { AppIcon, ChoiceContent, Sheet } from '../ui/index.js'
+import { AppIcon, ChoiceContent, Field, Sheet } from '../ui/index.js'
 import { AUTO_APPROVE_KINDS } from '../commands/session.js'
 
 const props = defineProps({
   open: Boolean,
   autoApprove: { type: Object, default: () => ({}) },
+  limit: { type: Number, default: 50 },
 })
-const emit = defineEmits(['update:open', 'toggle'])
+const emit = defineEmits(['update:open', 'toggle', 'update:limit'])
 
 const options = AUTO_APPROVE_KINDS.map(item => ({
   value: item.kind,
@@ -69,6 +70,19 @@ function update(values) {
         <AppIcon name="info" :size="15" />
         <span><code>.agentignore</code> 仍然生效；子任务内部也按类别判断。</span>
       </p>
+
+      <div class="permission-drawer__limit">
+        <Field
+          size="small"
+          caption="连续自动批准上限（0 表示不设上限）"
+          type="number"
+          label="连续次数"
+          min="0"
+          :model-value="limit"
+          @change="emit('update:limit', Number($event))"
+        />
+        <p>连着放行这么多次后停下来问一句，避免同一个动作反复重试。</p>
+      </div>
     </div>
   </Sheet>
 </template>
@@ -151,4 +165,7 @@ function update(values) {
 
   code { font-family: var(--la-font-mono); }
 }
+
+.permission-drawer__limit { display: grid; gap: 8px; padding: 16px; border-radius: 16px; background: var(--la-layer-01); }
+.permission-drawer__limit p { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
 </style>

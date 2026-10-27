@@ -86,6 +86,13 @@ const get = () => Store.config
 
 // --- 找出配置里第一个能用的模型 ---
 const firstModel = () => {
+    // 设置页保存过默认模型时先用它；供应商被删或模型被移除时再回退到第一个可用模型。
+    const preferred = Store.config.model
+    if (preferred?.provider && preferred?.model) {
+        const provider = (Store.config.providers || []).find(item => item.name === preferred.provider && item.enabled !== false)
+        const exists = (provider?.models || []).some(item => (typeof item === 'string' ? item : item?.id) === preferred.model)
+        if (provider && exists) return { provider: provider.name, model: preferred.model }
+    }
     // 用户没有指定模型时，用第一个启用的服务商和它的第一个模型。
     const provider = (Store.config.providers || []).find(item => item.enabled !== false)
     const model = provider?.models?.[0]

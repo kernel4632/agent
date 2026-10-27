@@ -193,6 +193,28 @@ describe('智能体定义', () => {
         })
     })
 
+    test('新会话使用设置页保存的默认模型和上下文默认值', async () => {
+        await withHome(async () => {
+            await Config.set({
+                providers: [{ name: 'local', models: ['main', 'agent-model'] }],
+                permission: { '*': 'ask' },
+                rules: { enabled: false },
+                model: { provider: 'local', model: 'agent-model' },
+                capabilities: { image: false, cache: true, stream: false },
+                uses: { compact: { provider: 'local', model: 'main' } },
+                compactThreshold: 0.6,
+                autoTitle: false,
+            })
+            const { sessionId } = await Session.create({ title: '全局默认值' })
+            const settings = await Session.readSettings({ sessionId })
+            expect((await Session.read({ sessionId })).model).toBe('agent-model')
+            expect(settings.capabilities).toEqual({ image: false, cache: true, stream: false })
+            expect(settings.uses).toEqual({ compact: { provider: 'local', model: 'main' } })
+            expect(settings.compactThreshold).toBe(0.6)
+            expect(settings.autoTitle).toBe(false)
+        })
+    })
+
     test('旧设置文件里的 mode 会迁移成 agent', async () => {
         await withHome(async () => {
             const sessionId = await configure()

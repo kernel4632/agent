@@ -411,6 +411,23 @@ test('composer expand keeps the draft', async ({ page }, testInfo) => {
   await expect(editor).toHaveValue('全屏里修改')
 })
 
+test('reconnecting covers the chat with a status overlay', async ({ page }) => {
+  const mock = await backend(page)
+  await page.route('**/sse/connect/**', route => route.abort())
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+
+  const overlay = page.locator('.reconnect-overlay')
+  await expect(overlay).toBeVisible()
+  await expect(overlay).toContainText('正在重新连接')
+  await expect(overlay).toContainText('和后台的连接暂时断开')
+  // 覆盖层要挡住输入区，避免断线时还能继续点。
+  await expect(page.locator('.reconnect-overlay .kima-spinner')).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('Chinese IME does not submit and stop uses the existing endpoint', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -684,25 +701,31 @@ test('MCP service can be added and saved', async ({ page }) => {
   expect(saved.mcp['MCP 2'].enabled).toBe(false) // 上面为了保住错误草稿把开关关掉了
 })
 
-test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
+test('model settings persist capabilities and task models', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
-  await navigate(page, '新建对话')
-  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
-  await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
-  await page.getByRole('button', { name: '更多选项', exact: true }).click()
-  await screenshot(page, testInfo, 'composer-options')
-  await page.getByRole('button', { name: '模型与上下文', exact: true }).click()
-  // 更多选项抽屉要等关闭动画结束并归还焦点，否则焦点会被它抢回触发按钮。
-  await expect(page.getByRole('dialog', { name: '更多选项' })).toBeHidden()
-  // 抽屉关闭后仍留在 DOM 里，下一次打开才能复用同一个原生 dialog。
-  await expect(page.locator('.app-sheet .kima-drawer__title').filter({ hasText: '更多选项' })).toHaveCount(1)
-  await expect(page.getByRole('dialog', { name: '模型与上下文' })).toBeVisible()
+  await navigate(page, '设置')
+  await page.locator('.settings-row').filter({ hasText: '默认模型、模型能力和任务分工' }).click()
+  await expect(page.getByRole('heading', { name: '模型', exact: true, level: 1 })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: '默认模型' })).toContainText('Test Provider / test-model')
+
+  await page.getByRole('switch', { name: '流式' }).click()
+  await expect.poll(() => mock.config().capabilities?.stream).toBe(false)
+  await page.getByRole('switch', { name: '自动标题' }).click()
+  await expect.poll(() => mock.config().autoTitle).toBe(false)
+})
+
+test('compaction threshold is saved in context settings', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /上下文/ }).click()
+  await expect(page.getByRole('heading', { name: '上下文', exact: true, level: 1 })).toBeVisible()
+  await screenshot(page, testInfo, 'settings-context')
   const threshold = page.getByLabel('阈值', { exact: true })
   await threshold.fill('0.6')
   await threshold.press('Tab')
-  await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.compactThreshold !== undefined)?.body.compactThreshold).toBe(0.6)
+  await expect.poll(() => mock.config().compactThreshold).toBe(0.6)
 })
 
 test('composer exposes permission and agent controls next to the model', async ({ page }) => {

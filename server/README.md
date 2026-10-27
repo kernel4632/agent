@@ -498,6 +498,20 @@ Content-Type: application/json
 | `uses` | `{}` | 哪件事用哪个模型，见下节。空＝都用主模型 |
 | `autoTitle` | `true` | 第一次聊完让模型起个标题 |
 
+**全局默认值。** 设置页的「模型」和「上下文」不写入某条会话，而是写进全局配置；新会话创建时继承这些值，已有会话保留自己的设置：
+
+```json
+{
+  "model": { "provider": "deepseek", "model": "deepseek-chat" },
+  "capabilities": { "image": true, "cache": true, "stream": true },
+  "uses": { "compact": { "provider": "deepseek", "model": "deepseek-chat" } },
+  "compactThreshold": 0.8,
+  "autoTitle": true
+}
+```
+
+`model` 是默认模型；供应商或模型不存在时，后端自动回退到第一个启用的模型。`uses` 的写法和下面的「哪件事用哪个模型」相同。模型能力、自动标题和压缩阈值也只在创建新会话时作为默认值，不改已有会话。
+
 **自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`read_file` 直接过，`write_to_file` 和 `execute_command` 照样进等待队列。每一类可以随时单独改，改一类不动别类。
 
 这套开关只保留我们真有的东西。我们没有"由模型自己切换智能体"和"到点自动选一个追问答案"的机制，所以不设这两个开关——真加了就是永远不生效的空开关。

@@ -9,6 +9,8 @@ description 是首页卡片里的一句话说明；tone 选图标底色，只取
 */
 import AppearancePage from './pages/AppearancePage.vue'
 import AgentsPage from './pages/AgentsPage.vue'
+import ContextPage from './pages/ContextPage.vue'
+import ModelPage from './pages/ModelPage.vue'
 import ProvidersPage from './pages/ProvidersPage.vue'
 import PromptsPage from './pages/PromptsPage.vue'
 import AdvancedPage from './pages/AdvancedPage.vue'
@@ -18,6 +20,8 @@ import MCPSPage from './pages/MCPSPage.vue'
 export const settingsPages = [
   { id: 'appearance', label: '通用', description: '主题、强调色和界面偏好', icon: 'settings', group: '通用设置', tone: 'primary', component: AppearancePage },
   { id: 'providers', label: '模型供应商', description: '连接模型服务并管理可用模型', icon: 'globe', group: '模型与服务', tone: 'primary', component: ProvidersPage, nested: true },
+  { id: 'model', label: '模型', description: '默认模型、模型能力和任务分工', icon: 'spark', group: '模型与服务', tone: 'primary', component: ModelPage },
+  { id: 'context', label: '上下文', description: '自动压缩阈值和历史整理', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextPage },
   { id: 'agents', label: '智能体', description: '配置角色、提示词、模型、工具和权限', icon: 'mode', group: '模型与服务', tone: 'primary', component: AgentsPage, nested: true },
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptsPage },
   { id: 'advanced', label: '高级', description: '诊断命令、规则读取和改动快照', icon: 'code', group: '模型与服务', tone: 'secondary', component: AdvancedPage },

@@ -32,6 +32,7 @@ const todoOpen = ref(false)
 // 新对话页还没有会话，但智能体/权限选择要在发送前可见，发送时再写进创建出的会话。
 const draftAgent = ref('build')
 const draftAutoApprove = ref(Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])))
+const draftAutoApproveLimit = ref(50)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
@@ -87,10 +88,11 @@ async function submitMessage(content) {
     homeFiles.value = []
     // 新对话页改过智能体和权限时，写进刚创建的会话后再发送；默认值不必多发一次请求。
     const autoApprove = Object.values(draftAutoApprove.value).some(Boolean)
-    if (draftAgent.value !== 'build' || autoApprove) {
+    if (draftAgent.value !== 'build' || autoApprove || draftAutoApproveLimit.value !== 50) {
       await Session.saveSettings(current.id, {
         agent: draftAgent.value,
         autoApprove: { ...draftAutoApprove.value },
+        autoApproveLimit: draftAutoApproveLimit.value,
       })
     }
   } finally { creating.value = false }
@@ -165,10 +167,12 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               :model="store.config.activeModel"
               :agent="draftAgent"
               :auto-approve="draftAutoApprove"
+              :auto-approve-limit="draftAutoApproveLimit"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               :files="homeFiles"
               @update:agent="draftAgent = $event"
               @update:auto-approve="draftAutoApprove = $event"
+              @update:auto-approve-limit="draftAutoApproveLimit = $event"
               @submit="submitMessage"
               @attach="attachFiles"
               @remove-file="removeFile"

@@ -64,21 +64,58 @@ const APPROVE_LIMIT = 50
  */
 const autoApproveDefaults = () => Object.fromEntries(Kind.KINDS.map(item => [item.kind, false]))
 
+// 全局默认值只认配置里合法的部分；写错或没写时回到内置默认。
+const validThreshold = value => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed >= 0.1 && parsed <= 0.99 ? parsed : 0.8
+}
+
+const globalUses = () => {
+    const source = Config.get().uses
+    const uses = {}
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return uses
+    for (const name of USE_NAMES) {
+        const target = source[name]
+        if (target?.provider && target?.model) uses[name] = { provider: target.provider, model: target.model }
+    }
+    return uses
+}
+
+/**
+ * 新会话的默认设置：模型能力、任务模型、压缩阈值和自动标题可以从设置页持久化。
+ * 自动批准仍然默认全关，不替用户预先放行。
+ * @returns {object} 新会话的完整默认设置。
+ */
+const defaultSettings = () => {
+    const config = Config.get()
+    const capabilities = config.capabilities || {}
+    return {
+        // 默认用执行智能体；旧字段 mode 在 normalize 里做兼容。
+        agent: 'build',
+        autoApprove: autoApproveDefaults(),
+        autoApproveLimit: APPROVE_LIMIT,
+        // 上下文用到 80% 时自动总结，和 agent-core 的默认一致。
+        compactThreshold: validThreshold(config.compactThreshold),
+        capabilities: {
+            image: capabilities.image !== false,
+            cache: capabilities.cache !== false,
+            stream: capabilities.stream !== false,
+        },
+        // 空对象表示"都用主模型"，这是绝大多数人的用法。
+        uses: globalUses(),
+        // 标题默认自动生成；用户关掉就一直是"新对话"。
+        autoTitle: config.autoTitle !== false,
+    }
+}
+
+// 兼容旧调用方：模块加载时的一份默认快照，不随配置变化。新会话请用 defaultSettings()。
 const DEFAULTS = {
-    // 默认用执行智能体；旧字段 mode 在 normalize 里做兼容。
     agent: 'build',
     autoApprove: autoApproveDefaults(),
     autoApproveLimit: APPROVE_LIMIT,
-    // 上下文用到 80% 时自动总结，和 agent-core 的默认一致。
     compactThreshold: 0.8,
-    capabilities: {
-        image: true,
-        cache: true,
-        stream: true,
-    },
-    // 空对象表示"都用主模型"，这是绝大多数人的用法。
+    capabilities: { image: true, cache: true, stream: true },
     uses: {},
-    // 标题默认自动生成；用户关掉就一直是"新对话"。
     autoTitle: true,
 }
 
@@ -126,7 +163,7 @@ const modelFor = ({ settings } = {}) => agentInfo(settings?.agent)?.model || nul
  * @param {object} base 已有的设置，缺省项从它继承。
  * @returns {object} 补齐后的完整设置。
  */
-const normalize = (input = {}, base = DEFAULTS) => {
+const normalize = (input = {}, base = defaultSettings()) => {
     const merged = { ...base, ...input }
     // 旧版本把 agent 叫 mode；旧设置文件和老客户端都还认，新写入只写 agent。
     const requested = input.agent !== undefined ? input.agent : input.mode
@@ -192,8 +229,8 @@ const normalize = (input = {}, base = DEFAULTS) => {
 const read = async ({ sessionId }) => {
     if (Store.settings.has(sessionId)) return Store.settings.get(sessionId)
     const file = Bun.file(Path.settings(sessionId))
-    // 第一次跑的会话还没有设置文件，用默认值就行。
-    const settings = await file.exists() ? await loadOrDefault(file) : DEFAULTS
+    // 第一次跑的会话还没有设置文件，用全局默认值就行。
+    const settings = await file.exists() ? await loadOrDefault(file) : defaultSettings()
     Store.settings.set(sessionId, settings)
     return settings
 }
@@ -201,9 +238,9 @@ const read = async ({ sessionId }) => {
 // 设置文件可能存在但内容坏了，那时退回默认值而不是让整个会话打不开。
 const loadOrDefault = async file => {
     try {
-        return normalize(await file.json(), DEFAULTS)
+        return normalize(await file.json(), defaultSettings())
     } catch {
-        return DEFAULTS
+        return defaultSettings()
     }
 }
 
@@ -286,7 +323,7 @@ const remove = ({ sessionId }) => {
 export default {
     read, save, toAgentConfig, approves, remove, agents, toolsFor,
     agentInfo, agentPermission, modelFor,
-    DEFAULTS, USES,
+    defaultSettings, DEFAULTS, USES,
     // 类别清单也从这里给出去，界面画开关时不用再引第二个模块。
     KINDS: Kind.KINDS,
 }

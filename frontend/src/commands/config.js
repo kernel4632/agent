@@ -97,7 +97,17 @@ function apply(raw, catalog = [], catalogAgents = []) {
 
   const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || Object.keys(providers)[0] || ''
   const firstModels = providers[firstProvider]?.models || []
-  const activeModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
+  const firstModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
+  // 设置页保存过默认模型时以它为准；供应商或模型被删掉再回退到第一个可用模型。
+  const preferred = raw.model && typeof raw.model === 'object' ? raw.model : null
+  const preferredModels = preferred ? providers[preferred.provider]?.models || [] : []
+  const validPreferred = preferred?.provider && preferred?.model && preferredModels.includes(preferred.model)
+  const activeProvider = validPreferred ? preferred.provider : firstProvider
+  const activeModel = validPreferred ? preferred.model : firstModel
+
+  const globalCapabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {}
+  const globalUses = raw.uses && typeof raw.uses === 'object' && !Array.isArray(raw.uses) ? raw.uses : {}
+  const compactThreshold = Number(raw.compactThreshold)
 
   // 智能体清单：优先后端 /agent/list；旧后端没有这个接口时，从 agents / modes 原始配置拼。
   const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
@@ -134,8 +144,16 @@ function apply(raw, catalog = [], catalogAgents = []) {
     diagnostics: raw.diagnostics && typeof raw.diagnostics === 'object' ? raw.diagnostics : {},
     snapshot: raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : {},
     appearance: store.config.appearance,
-    activeProvider: firstProvider,
+    activeProvider,
     activeModel,
+    capabilities: {
+      image: globalCapabilities.image !== false,
+      cache: globalCapabilities.cache !== false,
+      stream: globalCapabilities.stream !== false,
+    },
+    uses: globalUses,
+    compactThreshold: Number.isFinite(compactThreshold) && compactThreshold >= 0.1 && compactThreshold <= 0.99 ? compactThreshold : 0.8,
+    autoTitle: raw.autoTitle !== false,
     raw: structuredClone(raw),
   })
 }

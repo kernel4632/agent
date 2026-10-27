@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.38.0",
+    "version": "0.39.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -2528,6 +2528,54 @@
                 "enabled": true
               }
             }
+          },
+          "model": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "默认模型，用于新会话；供应商或模型不存在时回退到第一个启用的模型",
+            "properties": {
+              "provider": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              }
+            }
+          },
+          "capabilities": {
+            "type": "object",
+            "description": "新会话默认的模型能力开关",
+            "properties": {
+              "image": {
+                "type": "boolean",
+                "default": true
+              },
+              "cache": {
+                "type": "boolean",
+                "default": true
+              },
+              "stream": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          },
+          "uses": {
+            "type": "object",
+            "description": "新会话默认的任务模型分工；compact / title / subtask",
+            "additionalProperties": true
+          },
+          "compactThreshold": {
+            "type": "number",
+            "default": 0.8,
+            "description": "新会话默认的自动压缩阈值，范围 0.1 到 0.99"
+          },
+          "autoTitle": {
+            "type": "boolean",
+            "default": true,
+            "description": "新会话默认在第一次聊完后自动生成标题"
           }
         }
       },

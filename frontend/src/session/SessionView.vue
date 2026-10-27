@@ -12,10 +12,10 @@
 />
 -->
 <script setup>
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { KimaSpinner } from '@kernel4632/kima'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
-import ConversationSettingsDrawer from './ConversationSettingsDrawer.vue'
 import AgentDrawer from './AgentDrawer.vue'
 import PermissionDrawer from './PermissionDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
@@ -37,10 +37,25 @@ const emit = defineEmits(['update:todoOpen'])
 
 // --- 页面内的开关 ---
 // 对话设置和任务清单都走右侧抽屉，不占输入框上方。
-const settingsOpen = ref(false)
 const permissionOpen = ref(false)
 const agentOpen = ref(false)
 const resumable = computed(() => canContinueSession(props.session))
+const showReconnect = ref(false)
+let reconnectTimer = null
+// 短暂重连不闪覆盖层；连续断开 2 秒、且没有等待审批时才盖住时间线。
+watch(
+  [() => props.session.connection, () => props.session.status, () => props.session.pending?.length],
+  ([connection, status, pending]) => {
+    window.clearTimeout(reconnectTimer)
+    if (connection === 'reconnecting' && status === 'running' && !pending) {
+      reconnectTimer = window.setTimeout(() => { showReconnect.value = true }, 2000)
+    } else {
+      showReconnect.value = false
+    }
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => window.clearTimeout(reconnectTimer))
 
 async function continueAssistant() {
   if (!resumable.value) return
@@ -81,37 +96,46 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
 <template>
   <section class="session-panel" aria-label="聊天">
     <div class="session-main">
-      <div ref="conversationScroll" class="session-scroll">
-        <!-- 会话切换只替换时间线；输入区留在原处，草稿、焦点和滚动容器都不重建。 -->
-        <Transition name="session-swap" mode="out-in">
-          <Timeline :key="session.id" :scroll-root="conversationScroll" />
+      <div class="session-conversation">
+        <div ref="conversationScroll" class="session-scroll">
+          <!-- 会话切换只替换时间线；输入区留在原处，草稿、焦点和滚动容器都不重建。 -->
+          <Transition name="session-swap" mode="out-in">
+            <Timeline :key="session.id" :scroll-root="conversationScroll" />
+          </Transition>
+        </div>
+        <Transition name="reconnect">
+          <div v-if="showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
+            <div class="reconnect-card">
+              <KimaSpinner label="正在重新连接" size="large" />
+              <strong>正在重新连接</strong>
+              <p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p>
+            </div>
+          </div>
         </Transition>
       </div>
-      <div class="session-composer">
+      <div class="session-composer" :class="{ 'is-reconnecting': showReconnect }">
         <Transition name="notice">
           <div v-if="!session.model" class="chat-notice"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
         </Transition>
         <Transition name="notice">
-          <div v-if="session.connection === 'reconnecting'" class="chat-notice" role="status">连接中断，正在重连…</div>
-        </Transition>
-        <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
-    <ConversationSettingsDrawer :open="settingsOpen" :session="session" @update:open="settingsOpen = $event" />
-    <PermissionDrawer :open="permissionOpen" :auto-approve="session.settings.autoApprove" @update:open="permissionOpen = $event" @toggle="Session.toggleAutoApprove(session.id, $event)" />
+    <PermissionDrawer :open="permissionOpen" :auto-approve="session.settings.autoApprove" :limit="session.settings.autoApproveLimit" @update:open="permissionOpen = $event" @toggle="Session.toggleAutoApprove(session.id, $event)" @update:limit="Session.setLimit(session.id, $event)" />
     <AgentDrawer :open="agentOpen" :model-value="session.settings.agent" @update:open="agentOpen = $event" @select="Session.setAgent(session.id, $event)" />
   </section>
 </template>
 
 <style scoped lang="scss">
 .session-panel { display: flex; min-height: 0; flex: 1; }
-.session-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.session-main { position: relative; display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; }
+.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--kima-curve-standard), opacity var(--la-motion-enter) var(--kima-curve-standard); }
+.session-composer.is-reconnecting { filter: blur(2px); opacity: .6; }
 .chat-notice {
   display: flex;
   width: fit-content;
@@ -139,6 +163,33 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
 .notice-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
 .notice-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
 .notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
+/* 断线重连：直接盖住对话区和输入区，背景虚化，只留一句状态和加载动画。 */
+.reconnect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--la-bg) 55%, transparent);
+  backdrop-filter: blur(16px) saturate(120%);
+}
+.reconnect-card {
+  display: grid;
+  max-width: 320px;
+  justify-items: center;
+  gap: 12px;
+  padding: 28px 30px;
+  border: .5px solid var(--la-line);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--la-panel) 88%, transparent);
+  box-shadow: var(--la-shadow-floating);
+  text-align: center;
+}
+.reconnect-card strong { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
+.reconnect-card p { margin: 0; color: var(--la-muted); font-size: 13.5px; line-height: 20px; }
+.reconnect-enter-active, .reconnect-leave-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard); }
+.reconnect-enter-from, .reconnect-leave-to { opacity: 0; }
 /* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
 .session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
 .session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }

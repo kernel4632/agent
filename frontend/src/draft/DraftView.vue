@@ -24,10 +24,11 @@ const props = defineProps({
   model: { type: String, default: '' },       // 新会话使用的模型
   agent: { type: String, default: 'build' },  // 新会话默认智能体，发送时随会话一起保存
   autoApprove: { type: Object, default: () => ({}) }, // 新会话默认自动批准分类
+  autoApproveLimit: { type: Number, default: 50 },   // 新会话默认连续自动批准上限
   busy: Boolean,                              // 创建中、加载中或有连接错误时禁用发送
   files: { type: Array, default: () => [] },  // 已经附上的文件
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:autoApprove'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:autoApprove', 'update:autoApproveLimit'])
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
@@ -75,8 +76,10 @@ defineExpose({ focus: () => composer.value?.focus() })
     <PermissionDrawer
       :open="permissionOpen"
       :auto-approve="autoApprove"
+      :limit="autoApproveLimit"
       @update:open="permissionOpen = $event"
       @toggle="toggleAutoApprove"
+      @update:limit="emit('update:autoApproveLimit', $event)"
     />
   </section>
 </template>

@@ -36,7 +36,8 @@ const modelOptions = computed(() => {
   const options = [{ value: '', label: '沿用会话模型' }]
   for (const provider of props.draft.providers || []) {
     for (const model of provider.models || []) {
-      options.push({ value: `${provider.name}/${model}`, label: `${provider.name} / ${model}` })
+      const id = typeof model === 'string' ? model : model?.id || model?.name
+      if (id) options.push({ value: `${provider.name}/${id}`, label: `${provider.name} / ${id}` })
     }
   }
   return options
