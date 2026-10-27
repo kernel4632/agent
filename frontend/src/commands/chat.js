@@ -207,7 +207,7 @@ async function receiveRun(sessionID, session, event) {
     }
     finishRequest(request, event.usage, event.durationMs)
     assistant.request = request
-    session.contextTokens = request ? request.input + request.output : 0
+    session.contextTokens = request?.input || 0
     session.inputTokens += request?.input || 0
     session.outputTokens += request?.output || 0
     assistant.isStreaming = false                        // 这一轮回复结束，光标停住

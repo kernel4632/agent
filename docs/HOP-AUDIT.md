@@ -88,6 +88,8 @@
 - `KimaRadioGroup` 的单选圆点固定渲染，智能体抽屉只能用 `order` 调整位置。
 - `KimaTabs` 的 tablist 没有可访问名称，组件也没有 `label` prop。
 
+输入框统计行还需要 14px 的小圆环和自定义 Popover 触发器，已单独提 `kernel4632/kima#12`。
+
 ## 验证
 
 - 后端：`cd server && bun test`，215 个测试通过。

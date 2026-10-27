@@ -434,7 +434,11 @@ function normalize(source, previous = {}) {
     const tool = messages.flatMap(item => item.tools || []).find(item => item.id === callID)
     if (tool) tool.status = 'waiting'
   }
-  // 阶段二：组合最终前端会话结构，补齐仅前端使用的草稿和用量字段
+  // 统计从每条助手消息的请求用量里重新算，刷新后总消耗和上下文不会归零。
+  const requests = messages.flatMap(message => message.requests || [])
+  const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
+  const lastRequest = requests.at(-1)
+  // 返回前端最终结构，补齐仅前端使用的草稿和用量字段
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
     workspaceID: source.workspaceId,
@@ -459,11 +463,11 @@ function normalize(source, previous = {}) {
     messages,                                            // 使用合并后的可见消息
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
-    contextTokens: previous.contextTokens || 0,          // SSE usage 更新累计上下文
+    contextTokens: lastRequest?.input || previous.contextTokens || 0, // 最后一次请求的提示词 token 就是上下文占用
     contextLimit: store.config.providers[provider]?.modelSettings?.[source.model]?.context || previous.contextLimit || DEFAULT_CONTEXT, // 读取模型上下文限制
-    inputTokens: previous.inputTokens || 0,              // 保留当前页面累计输入
-    outputTokens: previous.outputTokens || 0,            // 保留当前页面累计输出
-    cacheTokens: previous.cacheTokens || 0,              // 保留当前页面缓存用量
+    inputTokens: requests.length ? sum('input') : previous.inputTokens || 0,       // 历史里的累计输入
+    outputTokens: requests.length ? sum('output') : previous.outputTokens || 0,    // 历史里的累计输出
+    cacheTokens: requests.length ? sum('cache') : previous.cacheTokens || 0,       // 历史里的缓存读取
   }
 }
 

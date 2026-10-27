@@ -640,6 +640,29 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   expect(mock.errors).toEqual([])
 })
 
+test('composer stats show context and total usage', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const stats = page.locator('.composer-stats')
+  await expect(stats).toContainText('上下文 <1%')
+  await expect(stats).toContainText('总消耗 50 tok')
+  await expect(stats).toContainText('1 次请求')
+  await screenshot(page, testInfo, 'composer-stats')
+
+  await page.getByRole('button', { name: /总消耗 50 tok/ }).click()
+  const usage = page.getByRole('dialog', { name: 'Token 消耗' })
+  await expect(usage).toContainText('输入')
+  await expect(usage).toContainText('输出')
+  await expect(usage).toContainText('请求次数')
+  await screenshot(page, testInfo, 'composer-stats-usage')
+  expect(mock.errors).toEqual([])
+})
+
 test('existing conversation switches model from the input bar', async ({ page }, testInfo) => {
   const mock = await backend(page)
   mock.config().providers[0].models.push('another-model')
