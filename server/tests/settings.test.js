@@ -1,5 +1,5 @@
 /*
- * 会话运行设置测试：模式（plan / build）、按类别的自动批准、能力开关。
+ * 会话运行设置测试：智能体（plan / build）、按类别的自动批准、能力开关。
  *
  * 这三项都会改变 agent 实际拿到的东西（工具表、config），所以每条都要真的读回
  * 建好的 Agent 来验证，而不是只看接口返回了什么。
@@ -78,14 +78,14 @@ const runCheck = async ({ sessionId, toolCallId, toolName, input = {} }) => {
 }
 
 describe('会话运行设置', () => {
-    test('默认是 build 模式、每类自动批准全关、能力全开', async () => {
+    test('默认是 build 智能体、每类自动批准全关、能力全开', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             const settings = await Session.readSettings({ sessionId })
             // 除了自动批准那两档刹车，其余默认值和 agent-core 一致，做到"默认全原生"。
             // 刹车默认给一个宽松但有数的档：已经开了自动批准，完全不设上限跑飞了就是真花钱。
             expect(settings).toEqual({
-                mode: 'build',
+                agent: 'build',
                 autoApprove: allOff(),
                 autoApproveLimit: 50,
                 compactThreshold: 0.8,
@@ -96,40 +96,40 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('plan 模式只给只读工具，build 模式给全套', async () => {
+    test('plan 智能体只给只读工具，build 智能体给全套', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
 
-            // build 模式下能改文件的工具都在。
+            // build 智能体下能改文件的工具都在。
             const buildTools = toolNames(sessionId)
             expect(buildTools).toContain('write_to_file')
             expect(buildTools).toContain('execute_command')
             expect(buildTools).toContain('apply_patch')
 
             // 切到 plan 之后，能改文件的工具一个都不该剩下。
-            await Session.saveSettings({ sessionId, mode: 'plan' })
+            await Session.saveSettings({ sessionId, agent: 'plan' })
             const planTools = toolNames(sessionId)
             expect(planTools).not.toContain('write_to_file')
             expect(planTools).not.toContain('edit')
             expect(planTools).not.toContain('apply_patch')
             expect(planTools).not.toContain('execute_command')
-            // 看和查的工具要留着，不然 plan 模式什么都干不了。
+            // 看和查的工具要留着，不然 plan 智能体什么都干不了。
             expect(planTools).toContain('read_file')
             expect(planTools).toContain('search_files')
             expect(planTools).toContain('glob')
-            // 子任务本身不算"能改磁盘"，plan 模式里留着。
+            // 子任务本身不算"能改磁盘"，plan 智能体里留着。
             expect(planTools).toContain('new_task')
 
             // 切回 build 又能改文件了。
-            await Session.saveSettings({ sessionId, mode: 'build' })
+            await Session.saveSettings({ sessionId, agent: 'build' })
             expect(toolNames(sessionId)).toContain('write_to_file')
         })
     })
 
-    test('plan 模式不通过系统提示词约束，system 只保留默认提示词', async () => {
+    test('plan 智能体不通过系统提示词约束，system 只保留默认提示词', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, mode: 'plan' })
+            await Session.saveSettings({ sessionId, agent: 'plan' })
             // 靠的是不给写工具，而不是往提示词里写"请不要改文件"。
             const system = Store.agents.get(sessionId).config.system
             expect(system).toContain('attempt_completion')
@@ -137,33 +137,33 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('模式名写错时按填错处理，不改动已有设置', async () => {
+    test('智能体名写错时按填错处理，不改动已有设置', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await expect(Session.saveSettings({ sessionId, mode: 'hacker' })).rejects.toThrow(/mode must be/i)
+            await expect(Session.saveSettings({ sessionId, agent: 'hacker' })).rejects.toThrow(/agent must be/i)
             // 坏输入不能把设置改坏，也不能留下半个状态。
-            expect((await Session.readSettings({ sessionId })).mode).toBe('build')
+            expect((await Session.readSettings({ sessionId })).agent).toBe('build')
         })
     })
 
-    test('自定义模式可以点名只给哪些工具', async () => {
+    test('自定义智能体可以点名只给哪些工具', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { review: { label: '审查', tools: ['read_file', 'list_files'] } } },
+                extra: { agents: { review: { label: '审查', tools: ['read_file', 'list_files'] } } },
             })
-            await Session.saveSettings({ sessionId, mode: 'review' })
+            await Session.saveSettings({ sessionId, agent: 'review' })
 
             // 点名之外的工具一个都不给，task 没点名也不装。
             expect(toolNames(sessionId)).toEqual(['list_files', 'read_file'])
         })
     })
 
-    test('自定义 readOnly 模式去掉写工具，但保留读取和子任务', async () => {
+    test('自定义 readOnly 智能体去掉写工具，但保留读取和子任务', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { audit: { label: '审计', readOnly: true } } },
+                extra: { agents: { audit: { label: '审计', readOnly: true } } },
             })
-            await Session.saveSettings({ sessionId, mode: 'audit' })
+            await Session.saveSettings({ sessionId, agent: 'audit' })
 
             const names = toolNames(sessionId)
             expect(names).toContain('read_file')
@@ -173,23 +173,23 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('自定义模式点名 task 时才装任务工具', async () => {
+    test('自定义智能体点名 task 时才装任务工具', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { solo: { label: '单干', tools: ['read_file', 'new_task'] } } },
+                extra: { agents: { solo: { label: '单干', tools: ['read_file', 'new_task'] } } },
             })
-            await Session.saveSettings({ sessionId, mode: 'solo' })
+            await Session.saveSettings({ sessionId, agent: 'solo' })
 
             expect(toolNames(sessionId)).toEqual(['new_task', 'read_file'])
         })
     })
 
-    test('旧自定义模式里的工具名自动换成新名字', async () => {
+    test('旧自定义智能体里的工具名自动换成新名字', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { legacy: { label: '旧模式', tools: ['file_read', 'file_list', 'task', 'finish'] } } },
+                extra: { agents: { legacy: { label: '旧智能体', tools: ['file_read', 'file_list', 'task', 'finish'] } } },
             })
-            await Session.saveSettings({ sessionId, mode: 'legacy' })
+            await Session.saveSettings({ sessionId, agent: 'legacy' })
 
             expect(toolNames(sessionId)).toEqual(expect.arrayContaining([
                 'read_file', 'list_files', 'new_task', 'attempt_completion',
@@ -197,12 +197,12 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('自定义模式里写错的工具名直接忽略，不会让会话打不开', async () => {
+    test('自定义智能体里写错的工具名直接忽略，不会让会话打不开', async () => {
         await withHome(async () => {
             const sessionId = await newSession({
-                extra: { modes: { odd: { label: '怪模式', tools: ['read_file', 'not_a_tool'] } } },
+                extra: { agents: { odd: { label: '怪智能体', tools: ['read_file', 'not_a_tool'] } } },
             })
-            await Session.saveSettings({ sessionId, mode: 'odd' })
+            await Session.saveSettings({ sessionId, agent: 'odd' })
 
             expect(toolNames(sessionId)).toEqual(['read_file'])
         })
@@ -211,12 +211,12 @@ describe('会话运行设置', () => {
     test('设置存到会话目录里，换一个进程读回来还是同一份', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, mode: 'plan', capabilities: { image: false } })
+            await Session.saveSettings({ sessionId, agent: 'plan', capabilities: { image: false } })
 
             // 清掉内存缓存，强制从磁盘读，模拟后端重启。
             Store.settings.clear()
             const reloaded = await Session.readSettings({ sessionId })
-            expect(reloaded.mode).toBe('plan')
+            expect(reloaded.agent).toBe('plan')
             expect(reloaded.capabilities.image).toBe(false)
             // 没点名的那几项保持默认。
             expect(reloaded.capabilities.cache).toBe(true)
@@ -229,7 +229,7 @@ describe('会话运行设置', () => {
             const sessionId = await newSession()
             // 上一版只有 read / write / command / mcp 四类，subtask 是这次新加的。
             await writeFile(Path.settings(sessionId), JSON.stringify({
-                mode: 'build',
+                agent: 'build',
                 autoApprove: { read: true, write: false, command: false, mcp: false },
                 capabilities: { image: true, cache: true, stream: true },
             }))
@@ -241,17 +241,17 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('plan 模式的子任务手里也没有写工具，不能借它绕过"只看不做"', async () => {
+    test('plan 智能体的子任务手里也没有写工具，不能借它绕过"只看不做"', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: '只读委托' })
-            await Session.saveSettings({ sessionId, mode: 'plan' })
+            await Session.saveSettings({ sessionId, agent: 'plan' })
 
             /*
              * 必须看子 agent 真正拿到的那张表，不能看主 agent 的。
              * 先装 task、后筛工具表时，主 agent 的表看起来是对的（写工具确实没了），
              * 但 task 早就把未筛的表记在自己闭包里了，子任务照样能改文件——
-             * plan 模式形同虚设，而且完全不报错。
+             * plan 智能体形同虚设，而且完全不报错。
              */
             const captured = []
             const original = Agent.create
@@ -475,7 +475,7 @@ describe('自动批准按类别开关', () => {
             const sessionId = await newSession()
             // 更早的一版只有一个 autoApprove 布尔。用户升级后不该发现自己的设置丢了。
             await writeFile(Path.settings(sessionId), JSON.stringify({
-                mode: 'build',
+                agent: 'build',
                 autoApprove: true,
                 capabilities: { image: true, cache: true, stream: true },
             }))
@@ -507,13 +507,13 @@ describe('自动批准按类别开关', () => {
         })
     })
 
-    test('任务跑着的时候不许换模式，否则工具表会在半路被换掉', async () => {
+    test('任务跑着的时候不许换智能体，否则工具表会在半路被换掉', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             Store.agents.get(sessionId).running = true
-            await expect(Session.saveSettings({ sessionId, mode: 'plan' })).rejects.toThrow(/already running/i)
+            await expect(Session.saveSettings({ sessionId, agent: 'plan' })).rejects.toThrow(/already running/i)
             // 被拒的改动不该留在磁盘上。
-            expect((await Settings.read({ sessionId })).mode).toBe('build')
+            expect((await Settings.read({ sessionId })).agent).toBe('build')
         })
     })
 
@@ -816,7 +816,7 @@ describe('会话分支', () => {
             await History.add({ sessionId, message: Agent.history.user({ content: '第一句' }) })
             await History.add({ sessionId, message: Agent.history.assistant({ content: '第二句' }) })
             await History.save({ sessionId })
-            await Session.saveSettings({ sessionId, mode: 'plan' })
+            await Session.saveSettings({ sessionId, agent: 'plan' })
 
             const { sessionId: branchId } = await Session.fork({ sessionId })
             expect(branchId).not.toBe(sessionId)
@@ -824,7 +824,7 @@ describe('会话分支', () => {
             const branch = await Session.read({ sessionId: branchId })
             expect(branch.title).toBe('设置测试（分支）')
             expect(branch.history).toHaveLength(2)
-            expect(branch.settings.mode).toBe('plan')
+            expect(branch.settings.agent).toBe('plan')
         })
     })
 
@@ -868,21 +868,21 @@ describe('设置接口', () => {
 
             const initial = await request(`/session/settings/${sessionId}`)
             expect(initial.status).toBe(200)
-            expect((await initial.json()).mode).toBe('build')
+            expect((await initial.json()).agent).toBe('build')
 
             const saved = await request(`/session/settings/${sessionId}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ mode: 'plan' }),
+                body: JSON.stringify({ agent: 'plan' }),
             })
             expect(saved.status).toBe(200)
-            expect((await saved.json()).mode).toBe('plan')
+            expect((await saved.json()).agent).toBe('plan')
 
-            // 模式名写错时返回 400 而不是 500——这是用户填错。
+            // 智能体名写错时返回 400 而不是 500——这是用户填错。
             const bad = await request(`/session/settings/${sessionId}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ mode: 'nope' }),
+                body: JSON.stringify({ agent: 'nope' }),
             })
             expect(bad.status).toBe(400)
         })
@@ -904,10 +904,10 @@ describe('设置接口', () => {
     test('读取会话时会带上当前设置，界面不用再单独问一次', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, mode: 'plan', autoApprove: { read: true } })
+            await Session.saveSettings({ sessionId, agent: 'plan', autoApprove: { read: true } })
             const session = await Session.read({ sessionId })
             expect(session.settings).toMatchObject({
-                mode: 'plan',
+                agent: 'plan',
                 autoApprove: { ...allOff(), read: true },
             })
         })

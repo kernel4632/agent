@@ -16,24 +16,24 @@
 <script setup>
 import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
-import ModeDrawer from '../session/ModeDrawer.vue'
+import AgentDrawer from '../session/AgentDrawer.vue'
 import PermissionDrawer from '../session/PermissionDrawer.vue'
 import { Session } from '../commands/session.js'
 
 const props = defineProps({
   model: { type: String, default: '' },       // 新会话使用的模型
-  mode: { type: String, default: 'build' },  // 新会话默认模式，发送时随会话一起保存
+  agent: { type: String, default: 'build' },  // 新会话默认智能体，发送时随会话一起保存
   autoApprove: { type: Object, default: () => ({}) }, // 新会话默认自动批准分类
   busy: Boolean,                              // 创建中、加载中或有连接错误时禁用发送
   files: { type: Array, default: () => [] },  // 已经附上的文件
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:mode', 'update:autoApprove'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:autoApprove'])
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
 const permissionOpen = ref(false)
-const modeOpen = ref(false)
-const modeLabel = computed(() => Session.modeLabel(props.mode))
+const agentOpen = ref(false)
+const agentLabel = computed(() => Session.agentLabel(props.agent))
 
 function toggleAutoApprove(kind) {
   emit('update:autoApprove', { ...props.autoApprove, [kind]: !props.autoApprove?.[kind] })
@@ -52,8 +52,8 @@ defineExpose({ focus: () => composer.value?.focus() })
         ref="composer"
         v-model:draft="draft"
         :selected-model="model"
-        :mode="modeLabel"
-        :mode-open="modeOpen"
+        :agent="agentLabel"
+        :agent-open="agentOpen"
         :permissions-open="permissionOpen"
         :is-running="false"
         :busy="busy"
@@ -62,15 +62,15 @@ defineExpose({ focus: () => composer.value?.focus() })
         @submit="emit('submit', $event)"
         @attach="emit('attach', $event)"
         @remove-file="emit('remove-file', $event)"
-        @open-mode="modeOpen = true"
+        @open-agent="agentOpen = true"
         @toggle-permissions="permissionOpen = !permissionOpen"
       />
     </div>
-    <ModeDrawer
-      :open="modeOpen"
-      :model-value="mode"
-      @update:open="modeOpen = $event"
-      @select="emit('update:mode', $event)"
+    <AgentDrawer
+      :open="agentOpen"
+      :model-value="agent"
+      @update:open="agentOpen = $event"
+      @select="emit('update:agent', $event)"
     />
     <PermissionDrawer
       :open="permissionOpen"

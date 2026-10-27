@@ -2,7 +2,7 @@
 会话页：把时间线、输入区、任务清单面板和运行设置组装成完整的一页。
 顶部标题和模型切换由 App 外的 TopBar 提供，这里不再带内部标题栏。
 只负责会话自己的交互；打开会话、新建对话和全局快捷键仍由 App.vue 管。
-普通按钮、下拉框和数字输入统一走 ui/；芯片和模式按钮用 Button plain 保留原样式。
+普通按钮、下拉框和数字输入统一走 ui/；芯片和智能体按钮用 Button plain 保留原样式。
 调用示例：
 <SessionView
   v-else
@@ -16,7 +16,7 @@ import { computed, defineAsyncComponent, ref } from 'vue'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import ConversationSettingsDrawer from './ConversationSettingsDrawer.vue'
-import ModeDrawer from './ModeDrawer.vue'
+import AgentDrawer from './AgentDrawer.vue'
 import PermissionDrawer from './PermissionDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
@@ -38,7 +38,7 @@ const emit = defineEmits(['update:todoOpen'])
 // 对话设置和任务清单都走右侧抽屉，不占输入框上方。
 const settingsOpen = ref(false)
 const permissionOpen = ref(false)
-const modeOpen = ref(false)
+const agentOpen = ref(false)
 
 // --- 输入草稿和附件 ---
 // 草稿放在 session 上，切标签或打开设置再回来不会丢。
@@ -90,13 +90,13 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :mode="Session.modeLabel(session.settings.mode)" :mode-open="modeOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-permissions="permissionOpen = !permissionOpen" @open-mode="modeOpen = true" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @attach="attachFiles" @remove-file="removeFile" @toggle-settings="settingsOpen = !settingsOpen" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
     <ConversationSettingsDrawer :open="settingsOpen" :session="session" @update:open="settingsOpen = $event" />
     <PermissionDrawer :open="permissionOpen" :auto-approve="session.settings.autoApprove" @update:open="permissionOpen = $event" @toggle="Session.toggleAutoApprove(session.id, $event)" />
-    <ModeDrawer :open="modeOpen" :model-value="session.settings.mode" @update:open="modeOpen = $event" @select="Session.setMode(session.id, $event)" />
+    <AgentDrawer :open="agentOpen" :model-value="session.settings.agent" @update:open="agentOpen = $event" @select="Session.setAgent(session.id, $event)" />
   </section>
 </template>
 

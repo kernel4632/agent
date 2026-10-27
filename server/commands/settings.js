@@ -1,17 +1,17 @@
 /*
- * 会话运行设置：模式、按类别的自动批准、用哪个模型干哪件事、以及几项能力开关。
+ * 会话运行设置：智能体、按类别的自动批准、用哪个模型干哪件事、以及几项能力开关。
  *
  * 这里的每一项都直接对应 agent-core 的 config 字段，不自己发明一套概念：
- *   mode        → 决定这次会话能用哪些工具（plan 只给只读工具）
+ *   agent       → 决定这次会话用哪个身份、哪些工具、额外提示词和权限覆盖
  *   autoApprove → 免掉逐个工具的审批弹窗，按类别分别开关，规则本身仍写在 permission 里
  *   capabilities→ 图像、提示缓存、流式输出这些按模型能力开关，默认全开
  *   uses        → 哪件事用哪个模型（压缩 / 标题 / 子任务），不点名就和主模型共用
  *   autoApproveLimit → 自动批准的刹车：连着放行多少次就停下来问
  * 设置存在会话目录的 settings.json 里，所以换台机器打开同一个会话还是这套设置。
+ * 旧版本把 agent 叫 mode；读取旧设置时自动迁移，新写入只认 agent。
  * 调用示例：
  *   const settings = await Settings.read({ sessionId })          // 读这条会话的运行设置
- *   await Settings.save({ sessionId, mode: 'plan' })             // 只改点名的那几项
- *   await Settings.save({ sessionId, autoApprove: { read: true } })   // 只让"读取"免询问
+ *   await Settings.save({ sessionId, agent: 'plan' })             // 只改点名的那几项
  *   Settings.toAgentConfig({ settings })                         // 变成 agent-core 认的字段
  */
 
@@ -19,11 +19,12 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
 import Path from '../utils/path.js'
-import Config from './config.js' // 自定义模式写在全局配置里。
+import Agents from '../features/agents.js' // 智能体定义只有这一处。
+import Config from './config.js' // 全局配置和权限规则。
 import Store from '../store.js' // 设置跟着会话一起放在内存里，避免每次都读盘。
-import fail from '../utils/fail.js' // 填错模式名时按填错处理。
+import fail from '../utils/fail.js' // 填错智能体名时按填错处理。
 import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不重复写。
-import { canonical } from '../utils/tool-names.js' // 旧自定义模式里的工具名继续有效。
+import { canonical } from '../utils/tool-names.js' // 旧自定义智能体里的工具名继续有效。
 
 /*
  * 哪件事可以单独指定模型。不点名就和主模型共用——这一条很重要：
@@ -64,7 +65,8 @@ const APPROVE_LIMIT = 50
 const autoApproveDefaults = () => Object.fromEntries(Kind.KINDS.map(item => [item.kind, false]))
 
 const DEFAULTS = {
-    mode: 'build',
+    // 默认用执行智能体；旧字段 mode 在 normalize 里做兼容。
+    agent: 'build',
     autoApprove: autoApproveDefaults(),
     autoApproveLimit: APPROVE_LIMIT,
     // 上下文用到 80% 时自动总结，和 agent-core 的默认一致。
@@ -80,53 +82,42 @@ const DEFAULTS = {
     autoTitle: true,
 }
 
-// 两种内置模式，对应 opencode 的 plan / build：
-// plan 只给只读工具，模型只能看不能改，用来先把方案说清楚；
-// build 给全套工具，正常干活。自定义模式不能占用这两个名字。
-const MODES = ['plan', 'build']
-
 /**
- * 当前可用的模式：两个内置的，加上配置里自定义的。
- *
- * 自定义模式的写法：
- *   "modes": { "review": { "label": "审查", "readOnly": true, "tools": ["read_file", "search_files"] } }
- * tools 不写表示按 readOnly 规则决定；写了就只给名单里的工具。
- * 名字只收字母、数字、- 和 _，避免写进 settings.json 后变成一个打不开的会话。
- * @returns {Array<{ name: string, label: string, readOnly: boolean, tools: string[]|null }>}
+ * 当前可用的智能体：内置的加自定义的，定义统一来自 features/agents.js。
+ * @returns {Array<object>} 完整智能体清单。
  */
-const modes = () => {
-    const custom = Object.entries(Config.get().modes || {})
-        .filter(([name, value]) => /^[a-zA-Z0-9_-]+$/.test(name) && value && typeof value === 'object' && !Array.isArray(value))
-        .filter(([name]) => !MODES.includes(name))
-        .map(([name, value]) => ({
-            name,
-            label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : name,
-            readOnly: value.readOnly === true,
-            tools: Array.isArray(value.tools) ? value.tools.filter(item => typeof item === 'string') : null,
-        }))
-    return [
-        { name: 'build', label: '执行模式', readOnly: false, tools: null },
-        { name: 'plan', label: '计划模式', readOnly: true, tools: null },
-        ...custom,
-    ]
-}
+const agents = () => Agents.list(Config.get())
 
 /**
- * 查一个模式是不是存在。
- * @param {string} name 模式名。
- * @returns {object|null} 模式定义；不认识时是 null。
+ * 查一个智能体是不是存在。
+ * @param {string} name 智能体名。
+ * @returns {object|null} 智能体定义；不认识时是 null。
  */
-const modeInfo = name => modes().find(item => item.name === name) || null
+const agentInfo = name => Agents.get(Config.get(), name)
 
 /**
- * 这个模式点名的工具；内置模式不点名，返回 null。
- * @param {{ mode: string }} settings 会话设置。
+ * 这个智能体点名的工具；不点名时返回 null。
+ * @param {{ agent: string }} settings 会话设置。
  * @returns {string[]|null} 工具名单或 null。
  */
-const toolsFor = ({ mode }) => {
-    const tools = modeInfo(mode)?.tools
+const toolsFor = ({ agent }) => {
+    const tools = agentInfo(agent)?.tools
     return tools ? [...new Set(tools.map(name => canonical(name)))] : null
 }
+
+/**
+ * 这个智能体自己的权限覆盖；没有时是 null。
+ * @param {{ settings?: object }} input 会话设置。
+ * @returns {object|null} permission 规则或 null。
+ */
+const agentPermission = ({ settings } = {}) => agentInfo(settings?.agent)?.permission || null
+
+/**
+ * 这个智能体指定的模型；没有时是 null，表示沿用会话模型。
+ * @param {{ settings?: object }} input 会话设置。
+ * @returns {{ provider: string, model: string }|null} 模型或 null。
+ */
+const modelFor = ({ settings } = {}) => agentInfo(settings?.agent)?.model || null
 
 /**
  * 把用户给的值夹到合法范围内，不认识的值直接忽略。
@@ -137,7 +128,10 @@ const toolsFor = ({ mode }) => {
  */
 const normalize = (input = {}, base = DEFAULTS) => {
     const merged = { ...base, ...input }
-    if (!modeInfo(merged.mode)) throw fail(400, `mode must be one of ${modes().map(item => item.name).join(', ')}, got: ${input.mode}`)
+    // 旧版本把 agent 叫 mode；旧设置文件和老客户端都还认，新写入只写 agent。
+    const requested = input.agent !== undefined ? input.agent : input.mode
+    const agent = requested !== undefined ? requested : base.agent
+    if (!agentInfo(agent)) throw fail(400, `agent must be one of ${agents().map(item => item.name).join(', ')}, got: ${requested ?? input.agent}`)
 
     // 自动批准按类别合并：只改了 read 的话，别的几类保持原样。
     // 布尔值是老版本的写法（一个总开关），读到时摊到每一类上，旧设置不至于失效。
@@ -175,7 +169,7 @@ const normalize = (input = {}, base = DEFAULTS) => {
     const rawLimit = input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit
     const parsedLimit = Number(rawLimit)
     return {
-        mode: merged.mode,
+        agent,
         autoApprove,
         autoApproveLimit: Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : base.autoApproveLimit,
         compactThreshold,
@@ -234,25 +228,31 @@ const save = async ({ sessionId, ...change }) => {
 /**
  * 把设置翻译成 agent-core 认的 config 字段。
  *
- * plan 模式怎么实现的：不去改系统提示词，而是不给写工具。
+ * plan 智能体怎么实现的：不去改系统提示词，而是不给写工具。
  * 提示词注入会让模型"被告知"不要写，去掉工具则是"没法写"——
  * 后者不依赖模型听话，而且 system 保持为空，默认全原生。
+ * 自定义智能体的 instructions 是用户明确写的角色说明，会拼在系统提示词后面。
  * @param {{ settings: object }} input
- * @returns {{ capabilities: object, cache: boolean, stream: boolean, readOnly: boolean }}
+ * @returns {{ capabilities: object, cache: boolean, stream: boolean, readOnly: boolean, instructions: string }}
  *   readOnly 由装配工具表的那一处转成 Agent.tool.omit。
  */
-const toAgentConfig = ({ settings }) => ({
-    capabilities: { image: settings.capabilities.image },
-    // 提示词缓存和流式输出是 agent-core 自己的字段，不是 capabilities 的一部分。
-    cache: settings.capabilities.cache,
-    stream: settings.capabilities.stream,
-    // 自定义模式也可以声明 readOnly；不认识或已被删掉时按可写处理，不让会话打不开。
-    readOnly: modeInfo(settings.mode)?.readOnly === true,
-    // 上下文用到这个比例时自动压缩；agent-core 自己认这个字段。
-    compactThreshold: settings.compactThreshold,
-    // 哪件事用哪个模型，交给 Config.resolve 翻成 agent-core 认的 config.compact 那些。
-    uses: settings.uses,
-})
+const toAgentConfig = ({ settings }) => {
+    const agent = agentInfo(settings.agent)
+    return {
+        capabilities: { image: settings.capabilities.image },
+        // 提示词缓存和流式输出是 agent-core 自己的字段，不是 capabilities 的一部分。
+        cache: settings.capabilities.cache,
+        stream: settings.capabilities.stream,
+        // 自定义智能体也可以声明 readOnly；不认识或已被删掉时按可写处理，不让会话打不开。
+        readOnly: agent?.readOnly === true,
+        // 智能体自己的角色说明；Config.resolve 会把它拼到全局提示词后面。
+        instructions: agent?.instructions || '',
+        // 上下文用到这个比例时自动压缩；agent-core 自己认这个字段。
+        compactThreshold: settings.compactThreshold,
+        // 哪件事用哪个模型，交给 Config.resolve 翻成 agent-core 认的 config.compact 那些。
+        uses: settings.uses,
+    }
+}
 
 /**
  * 这次工具调用还该不该问用户。
@@ -284,8 +284,9 @@ const remove = ({ sessionId }) => {
     Store.autoApproved.delete(sessionId)
 }
 export default {
-    read, save, toAgentConfig, approves, remove, modes, toolsFor,
-    DEFAULTS, MODES, USES,
+    read, save, toAgentConfig, approves, remove, agents, toolsFor,
+    agentInfo, agentPermission, modelFor,
+    DEFAULTS, USES,
     // 类别清单也从这里给出去，界面画开关时不用再引第二个模块。
     KINDS: Kind.KINDS,
 }

@@ -29,11 +29,28 @@ import { DEFAULT_SYSTEM_PROMPT, seedPrompt } from '../defaults/system-prompt.js'
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
 let cachedVersion = null
 
+/**
+ * 把旧配置里的 modes 迁移成 agents。
+ * 两个都写时以 agents 为准；迁移只改内存里的这一份，下一次保存自然写成新键。
+ * @param {object} config 从磁盘读到或前端提交的配置。
+ * @returns {object} 同一个对象，方便链式调用。
+ */
+const migrateAgents = config => {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return config
+    const valid = value => value && typeof value === 'object' && !Array.isArray(value)
+    if (!valid(config.agents) && valid(config.modes)) config.agents = config.modes
+    if (!valid(config.agents)) delete config.agents
+    delete config.modes
+    return config
+}
+
 // --- 读取配置 ---
 const read = async path => {
     // 第一次启动时配置文件还不存在，从空对象开始。
     const file = Bun.file(path)
     const config = await file.exists() ? await file.json() : {}
+    // 旧版本把智能体写在 modes 里；读到后迁移成 agents，写回时只保留新键。
+    migrateAgents(config)
     // 旧配置没有 prompt.defaultSeeded，也没有写过提示词时，填入默认值；
     // 已经明确保存过空提示词的配置带 true，不会被重新填回默认值。
     seedPrompt(config)
@@ -57,7 +74,7 @@ const set = async newConfig => {
     // 整体替换，不偷偷合并旧字段，保证用户提交的配置就是实际配置。
     // 提交里没有 prompt 时给默认提示词；提交里明确写了空字符串则保留，
     // 这样“保存一个空提示词”不会被下一次读取重新填满。
-    const next = structuredClone(newConfig)
+    const next = migrateAgents(structuredClone(newConfig))
     seedPrompt(next, { seedDefault: next.prompt === undefined })
     Object.keys(Store.config).forEach(key => delete Store.config[key])
     Object.assign(Store.config, next)
@@ -109,13 +126,13 @@ const connection = ({ provider: name, model }) => {
  * 把设置页里的配置转换成 agent-core 认的那份 config。
  * 字段名转换只写在这一处，界面改字段名也只改这里。
  *
- * system 只由两部分组成：用户自己写的那段，加上工作区里真实存在的规则文件。
- * 工具用法、角色设定都不塞进去——agent-core 默认就是原生工具模式（toolMode: 'native'），
+ * system 只由三部分组成：用户自己写的那段、当前智能体的角色说明、工作区里真实存在的规则文件。
+ * 工具用法不塞进去——agent-core 默认就是原生工具模式（toolMode: 'native'），
  * 在别处拼提示词会和模型自身的能力打架，也让"模型为什么不听话"变得无法排查。
  *
  * 每一项可选能力都只在用户明确改过时才写进 config，其余交给 agent-core 的默认值。
- * @param {{ provider?: string, model?: string, settings?: object, uses?: object }} target
- *   会话选的供应商和模型，加上按用途单独指定的模型（见 commands/settings.js 的 USES）。
+ * @param {{ provider?: string, model?: string, settings?: object }} target
+ *   会话选的供应商和模型，加上会话级覆盖（见 commands/settings.js 的 toAgentConfig）。
  * @returns {object} 可以直接交给 Agent.create 的 config。
  * @throws {Error} 供应商名不存在时按填错处理（400）。
  */
@@ -127,7 +144,11 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
     // uses 跟着 settings 一起进来（见 commands/settings.js 的 toAgentConfig），
     // 在这里取出来单独处理，不能跟着 overrides 摊进 config——那样会多出一个 agent-core
     // 不认识的 uses 字段，而真正要的 config.compact 反而没建出来。
-    const { uses = {}, ...rest } = overrides
+    // instructions 是当前智能体自己的角色说明，也只在这里拼一次。
+    const { uses = {}, instructions = '', ...rest } = overrides
+    const base = (Store.config.prompt?.system ?? DEFAULT_SYSTEM_PROMPT).trim()
+    const role = typeof instructions === 'string' ? instructions.trim() : ''
+    const system = role ? [base, role].filter(Boolean).join('\n\n') : base
     const config = {
         ...connection({ provider: name, model }),
         // 上下文预算，到达 80% 时自动压缩。字段名是 maxContextTokens，不是 maxTokens——
@@ -136,7 +157,8 @@ const resolve = ({ provider: name, model, settings: overrides = {} }) => {
         maxContextTokens: budget.context || budget.contextWindow || 128000,
         stream: provider.stream ?? Store.config.stream ?? true,
         // prompt 经过 Config.read / set 后会带上默认值；用户主动清空时保持空字符串。
-        system: Rules.apply({ system: Store.config.prompt?.system ?? DEFAULT_SYSTEM_PROMPT, rules: Store.rules }),
+        // 智能体的角色说明排在用户提示词之后、项目规则之前，来源清楚，也方便排查。
+        system: Rules.apply({ system, rules: Store.rules }),
         // agent-core 默认在没有工具调用时会继续请求模型，简单的“你好”会被显示两次。
         // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
         noToolRounds: 1,

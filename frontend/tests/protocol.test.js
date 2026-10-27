@@ -31,7 +31,7 @@ test('API uses only routes and payloads implemented in server/server.js', async 
   await AgentAPI.stopSession('session-test')
   await AgentAPI.decideTool('session-test', 'call-1', 'allow-once')
   await AgentAPI.getSettings('session-test')
-  await AgentAPI.saveSettings('session-test', { mode: 'plan' })
+  await AgentAPI.saveSettings('session-test', { agent: 'plan' })
   await AgentAPI.getToolCalls('session-test')
   await AgentAPI.previewRollback('session-test', 'message-1')
   await AgentAPI.rollback('session-test', 'message-1')
@@ -62,7 +62,7 @@ test('API uses only routes and payloads implemented in server/server.js', async 
   // 后端 /agent/decide 读的是 toolCallId。这里固定住字段名，免得哪天又改回 callId 而没人发现。
   assert.deepEqual(calls[5].body, { toolCallId: 'call-1', decision: 'allow-once' })
   // 设置只发点名的那几项，后端只改这几项。
-  assert.deepEqual(calls[7].body, { mode: 'plan' })
+  assert.deepEqual(calls[7].body, { agent: 'plan' })
   // files 决定回退要不要连文件一起退：不传是 true，传 false 表示只退对话。
   assert.deepEqual(calls[10].body, { messageId: 'message-1', files: true })
   assert.deepEqual(calls[11].body, { messageId: 'message-1', files: false })

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.37.1",
+    "version": "0.38.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -1404,7 +1404,7 @@
           "Session"
         ],
         "summary": "读这条会话的运行设置",
-        "description": "返回模式、自动批准和几项模型能力开关。这些设置存在会话目录的 settings.json 里，换台机器打开同一个会话还是同一份。",
+        "description": "返回智能体、自动批准和几项模型能力开关。这些设置存在会话目录的 settings.json 里，换台机器打开同一个会话还是同一份。",
         "operationId": "sessionReadSettings",
         "parameters": [
           {
@@ -1426,15 +1426,6 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "mode": {
-                      "type": "string",
-                      "enum": [
-                        "plan",
-                        "build"
-                      ],
-                      "default": "build",
-                      "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
-                    },
                     "autoApprove": {
                       "$ref": "#/components/schemas/AutoApprove"
                     },
@@ -1509,6 +1500,12 @@
                       "type": "number",
                       "default": 50,
                       "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
+                    },
+                    "agent": {
+                      "type": "string",
+                      "default": "build",
+                      "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
+                      "example": "build"
                     }
                   }
                 }
@@ -1532,7 +1529,7 @@
           "Session"
         ],
         "summary": "改这条会话的运行设置",
-        "description": "只改请求里点到的那几项，其余保持原样。改模式会立刻按新设置重新装配 Agent 的工具表（历史不动），所以要求会话没有任务在跑，否则返回 409。",
+        "description": "只改请求里点到的那几项，其余保持原样。改智能体会立刻按新设置重新装配 Agent 的工具表（历史不动），所以要求会话没有任务在跑，否则返回 409。",
         "operationId": "sessionSaveSettings",
         "parameters": [
           {
@@ -1553,15 +1550,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "plan",
-                      "build"
-                    ],
-                    "default": "build",
-                    "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
-                  },
                   "autoApprove": {
                     "$ref": "#/components/schemas/AutoApprove"
                   },
@@ -1636,6 +1624,12 @@
                     "type": "number",
                     "default": 50,
                     "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
+                  },
+                  "agent": {
+                    "type": "string",
+                    "default": "build",
+                    "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
+                    "example": "build"
                   }
                 }
               }
@@ -1650,15 +1644,6 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "mode": {
-                      "type": "string",
-                      "enum": [
-                        "plan",
-                        "build"
-                      ],
-                      "default": "build",
-                      "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
-                    },
                     "autoApprove": {
                       "$ref": "#/components/schemas/AutoApprove"
                     },
@@ -1733,6 +1718,12 @@
                       "type": "number",
                       "default": 50,
                       "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
+                    },
+                    "agent": {
+                      "type": "string",
+                      "default": "build",
+                      "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
+                      "example": "build"
                     }
                   }
                 }
@@ -2125,6 +2116,31 @@
           }
         }
       }
+    },
+    "/agent/list": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "summary": "列出全部智能体",
+        "description": "返回内置和自定义智能体的完整定义。配置里的同名条目可以覆盖内置定义。",
+        "operationId": "agentList",
+        "responses": {
+          "200": {
+            "description": "智能体清单",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Agent"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2311,15 +2327,6 @@
               "settings": {
                 "type": "object",
                 "properties": {
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "plan",
-                      "build"
-                    ],
-                    "default": "build",
-                    "description": "plan 只给只读工具，模型只能看不能改；build 给全套工具"
-                  },
                   "autoApprove": {
                     "$ref": "#/components/schemas/AutoApprove"
                   },
@@ -2394,6 +2401,12 @@
                     "type": "number",
                     "default": 50,
                     "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
+                  },
+                  "agent": {
+                    "type": "string",
+                    "default": "build",
+                    "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
+                    "example": "build"
                   }
                 },
                 "description": "这条会话当前的运行设置，等同于 GET /session/settings/{sessionId}"
@@ -2546,6 +2559,70 @@
             "type": "boolean",
             "default": false,
             "description": "开一个子任务去干活"
+          }
+        }
+      },
+      "Agent": {
+        "type": "object",
+        "description": "一个智能体的完整定义。内置智能体也可以被配置里的同名条目覆盖。",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "写进 settings.json 的稳定名字",
+            "example": "build"
+          },
+          "label": {
+            "type": "string",
+            "description": "界面显示的名称",
+            "example": "执行"
+          },
+          "description": {
+            "type": "string",
+            "description": "一句话说明这个智能体适合做什么"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "额外拼到系统提示词后面的角色说明"
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "true 时去掉所有能改磁盘的工具"
+          },
+          "tools": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "工具白名单；null 表示不限制",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "这个智能体指定的模型；null 表示沿用会话模型",
+            "properties": {
+              "provider": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              }
+            }
+          },
+          "permission": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "这个智能体的权限覆盖；写法和全局 permission 相同"
+          },
+          "builtin": {
+            "type": "boolean",
+            "description": "是否是内置智能体"
           }
         }
       }

@@ -26,15 +26,15 @@ import { UI } from '../commands/ui.js'
 import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
-import ModeButton from './ModeButton.vue'
+import AgentButton from './AgentButton.vue'
 import { ATTACHMENT_ACCEPT } from '../utils/attachments.js'
 
 const props = defineProps({
   selectedModel: { type: String, default: '' },
   selectedProvider: { type: String, default: '' },
   sessionId: { type: String, default: '' },
-  mode: { type: String, default: '' },
-  modeOpen: Boolean,
+  agent: { type: String, default: '' },
+  agentOpen: Boolean,
   permissionsOpen: Boolean,
   showSessionControls: Boolean,
   isRunning: Boolean,
@@ -42,7 +42,7 @@ const props = defineProps({
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'open-mode'])
+const emit = defineEmits(['submit', 'stop', 'attach', 'remove-file', 'toggle-settings', 'toggle-permissions', 'open-agent'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -190,7 +190,7 @@ defineExpose({ focus: () => editor.value?.focus() })
             title="自动批准"
             @click="emit('toggle-permissions')"
           ><AppIcon name="permission" :size="20" /></button>
-          <ModeButton :mode="mode" :open="modeOpen" @open="emit('open-mode')" />
+          <AgentButton :agent="agent" :open="agentOpen" @open="emit('open-agent')" />
         </template>
       </div>
       <div class="chat-composer__right">
@@ -232,7 +232,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       <div class="composer-sheet__list">
         <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
         <button v-if="showSessionControls && sessionId" type="button" @click="addOpen = false; emit('toggle-settings')"><AppIcon name="settings" :size="20" /><span>模型与上下文</span></button>
-        <button v-if="showSessionControls && sessionId" type="button" :title="mode ? `当前模式：${mode}` : undefined" @click="addOpen = false; emit('open-mode')"><AppIcon name="eye" :size="20" /><span>切换执行模式</span></button>
+        <button v-if="showSessionControls && sessionId" type="button" :title="agent ? `当前智能体：${agent}` : undefined" @click="addOpen = false; emit('open-agent')"><AppIcon name="eye" :size="20" /><span>切换智能体</span></button>
       </div>
     </div>
   </Sheet>

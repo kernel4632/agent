@@ -40,8 +40,8 @@ export const store = reactive({
     toolCatalog: [],                                  // 全部工具（含渲染信息，控制工具也在）
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
-    modes: [],                                         // 可用模式：build、plan 和配置里自定义的
-    modeDefinitions: {},                               // 自定义模式的原始定义，设置页编辑用
+    agents: [],                                        // 当前可用的智能体（内置 + 自定义）
+    agentDefinitions: {},                              // 自定义智能体的原始定义，设置页编辑用
     rules: { enabled: true },                          // 是否自动读取项目规则
     diagnostics: {},                                   // 写后诊断命令
     snapshot: {},                                      // shell 改动快照设置

@@ -29,8 +29,8 @@ const homeFiles = ref([])
 const creating = ref(false)
 const drawerOpen = ref(false)
 const todoOpen = ref(false)
-// 新对话页还没有会话，但模式/权限选择要在发送前可见，发送时再写进创建出的会话。
-const draftMode = ref('build')
+// 新对话页还没有会话，但智能体/权限选择要在发送前可见，发送时再写进创建出的会话。
+const draftAgent = ref('build')
 const draftAutoApprove = ref(Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])))
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
@@ -85,11 +85,11 @@ async function submitMessage(content) {
     current.files = homeFiles.value
     homeDraft.value = ''
     homeFiles.value = []
-    // 新对话页改过模式和权限时，写进刚创建的会话后再发送；默认值不必多发一次请求。
+    // 新对话页改过智能体和权限时，写进刚创建的会话后再发送；默认值不必多发一次请求。
     const autoApprove = Object.values(draftAutoApprove.value).some(Boolean)
-    if (draftMode.value !== 'build' || autoApprove) {
+    if (draftAgent.value !== 'build' || autoApprove) {
       await Session.saveSettings(current.id, {
-        mode: draftMode.value,
+        agent: draftAgent.value,
         autoApprove: { ...draftAutoApprove.value },
       })
     }
@@ -163,11 +163,11 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               ref="draftView"
               v-model:draft="homeDraft"
               :model="store.config.activeModel"
-              :mode="draftMode"
+              :agent="draftAgent"
               :auto-approve="draftAutoApprove"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               :files="homeFiles"
-              @update:mode="draftMode = $event"
+              @update:agent="draftAgent = $event"
               @update:auto-approve="draftAutoApprove = $event"
               @submit="submitMessage"
               @attach="attachFiles"

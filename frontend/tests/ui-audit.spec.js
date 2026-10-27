@@ -523,8 +523,8 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await page.getByLabel('命令', { exact: true }).fill('bun run typecheck')
   await page.getByRole('switch', { name: '记录 shell 改动' }).click()
   await expect(page.getByRole('switch', { name: '记录 shell 改动' })).toBeChecked()
-  await page.getByLabel('自定义模式 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['read_file'] } }, null, 2))
-  await page.getByRole('button', { name: '应用模式', exact: true }).click()
+  await page.getByLabel('智能体 JSON').fill(JSON.stringify({ review: { label: '审查', tools: ['read_file'] } }, null, 2))
+  await page.getByRole('button', { name: '应用智能体', exact: true }).click()
 
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /工具管理/ }).click()
@@ -541,7 +541,7 @@ test('advanced, tools and MCP settings write back', async ({ page }, testInfo) =
   await expect.poll(() => mock.config().diagnostics.command).toBe('bun run typecheck')
   const saved = mock.config()
   expect(saved.snapshot.shell).toBe(true)
-  expect(saved.modes.review).toEqual({ label: '审查', tools: ['read_file'] })
+  expect(saved.agents.review).toEqual({ label: '审查', tools: ['read_file'] })
 })
 
 test('message action forks the conversation at that message', async ({ page }, testInfo) => {
@@ -627,7 +627,7 @@ test('compaction threshold is sent as a number', async ({ page }, testInfo) => {
   await expect.poll(() => mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.compactThreshold !== undefined)?.body.compactThreshold).toBe(0.6)
 })
 
-test('composer exposes permission and mode controls next to the model', async ({ page }) => {
+test('composer exposes permission and agent controls next to the model', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -650,36 +650,36 @@ test('composer exposes permission and mode controls next to the model', async ({
   await expect(permissionDrawer).toBeHidden()
   await expect(permission).not.toHaveClass(/is-active/)
 
-  const mode = page.locator('.composer-mode')
-  await expect(mode).toContainText('执行模式')
-  await mode.click()
-  const modeDrawer = page.getByRole('dialog', { name: '切换模式' })
-  const plan = modeDrawer.getByRole('radio', { name: /计划模式/ })
+  const agent = page.locator('.composer-agent')
+  await expect(agent).toContainText('执行')
+  await agent.click()
+  const agentDrawer = page.getByRole('dialog', { name: '切换智能体' })
+  const plan = agentDrawer.getByRole('radio', { name: /计划/ })
   await expect(plan).toBeVisible()
   await plan.click()
-  await expect(modeDrawer).toBeHidden()
-  await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.mode === 'plan')).toBe(true)
-  await expect(mode).toContainText('计划模式')
+  await expect(agentDrawer).toBeHidden()
+  await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.agent === 'plan')).toBe(true)
+  await expect(agent).toContainText('计划')
 
   // 320px 下三个入口仍要同时看得见，不能被挤到横向滚动里。
   await page.setViewportSize({ width: 320, height: 568 })
   const options = page.locator('.chat-composer__options')
   expect(await options.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
   await expect(permission).toBeVisible()
-  await expect(page.locator('.composer-mode')).toBeVisible()
+  await expect(page.locator('.composer-agent')).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
-test('new chat mode and permissions apply to the created session', async ({ page }) => {
+test('new chat agent and permissions apply to the created session', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
 
-  const mode = page.locator('.composer-mode')
-  await mode.click()
-  const modeDrawer = page.getByRole('dialog', { name: '切换模式' })
-  await modeDrawer.getByRole('radio', { name: /计划模式/ }).click()
-  await expect(modeDrawer).toBeHidden()
+  const agent = page.locator('.composer-agent')
+  await agent.click()
+  const agentDrawer = page.getByRole('dialog', { name: '切换智能体' })
+  await agentDrawer.getByRole('radio', { name: /计划/ }).click()
+  await expect(agentDrawer).toBeHidden()
   await page.getByRole('button', { name: '权限控制', exact: true }).click()
   const permissionDrawer = page.getByRole('dialog', { name: '自动批准' })
   await expect(permissionDrawer).toBeVisible()
@@ -691,12 +691,12 @@ test('new chat mode and permissions apply to the created session', async ({ page
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
-  const saved = mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.mode === 'plan')
+  const saved = mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.agent === 'plan')
   expect(saved).toBeTruthy()
   expect(saved.body.autoApprove.read).toBe(true)
   const sendIndex = mock.calls.findIndex(call => call.path === '/agent/send/session-1')
   expect(mock.calls.indexOf(saved)).toBeLessThan(sendIndex)
-  await expect(page.locator('.composer-mode')).toContainText('计划模式')
+  await expect(page.locator('.composer-agent')).toContainText('计划')
   expect(mock.errors).toEqual([])
 })
 

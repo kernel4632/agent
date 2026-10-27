@@ -97,10 +97,10 @@ const createAgent = async ({ sessionId, history, meta }) => {
     // 内置工具跟着代码走，用户工具放在数据目录，同名时用户版覆盖内置版。
     // 用户工具目录可能在启动流程之外被用到（测试、脚本），这里直接建出来不让它缺。
     await mkdir(Path.tools(), { recursive: true })
-    // 会话的运行设置：模式、自动批准、能力开关。
+    // 会话的运行设置：智能体、自动批准、能力开关。
     const settings = await Settings.read({ sessionId })
-    // 规则跟着工作区和模式走；每次重建 Agent 都重读一次，用户改完规则不用重启服务。
-    await Rules.load({ mode: settings.mode })
+    // 规则跟着工作区和智能体走；每次重建 Agent 都重读一次，用户改完规则不用重启服务。
+    await Rules.load({ agent: settings.agent })
     // 配置格式转换只写在 Config 里，子 agent 用的也是同一份；
     // 能力开关作为会话级覆盖并进去，system 保持用户原样，不做任何注入。
     const config = Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) })
@@ -115,28 +115,28 @@ const createAgent = async ({ sessionId, history, meta }) => {
     )
 
     /*
-     * 自定义模式可以点名只给哪些工具；内置的 build / plan 不点名。
+     * 自定义智能体可以点名只给哪些工具；内置的执行和计划不点名。
      * 点名的名单里不存在的工具直接忽略，用户写错一个名字不该让整个会话打不开。
      */
-    const toolNames = Settings.toolsFor({ mode: settings.mode })
+    const toolNames = Settings.toolsFor({ agent: settings.agent })
     let allowed = toolNames
         ? Agent.tool.pick(scanned, toolNames.filter(name => name in scanned.schema))
         : scanned
 
     /*
-     * readOnly 模式去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
+     * readOnly 智能体去掉能改磁盘的工具。哪些算"能改"由 utils/tool-kind.js 一处说了算，
      * 这里只是把它对当前工具表算一遍，不另外维护一份名单。
      * omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
      *
      * 这一步必须在装 new_task 之前做：子 agent 拿的是这里选出来的这张表。
-     * 反过来（先装 new_task 再筛）会留一个口子——只读模式的模型自己虽然改不了文件，
+     * 反过来（先装 new_task 再筛）会留一个口子——只读智能体的模型自己虽然改不了文件，
      * 但它可以开一个子任务，让子任务去改，等于绕过了"只看不做"。
      */
     if (config.readOnly) allowed = Agent.tool.omit(allowed, Kind.writing(Object.keys(allowed.schema)))
 
     // new_task 必须在同一进程里才有模型配置和工具表可用，所以它是内存工具而不是文件工具。
     // merge 把已经装好的文件工具表和这一件内存工具合起来，两边形状不用自己转。
-    // 自定义模式没点名 new_task 时就不装，让"只留几个工具"真的只留那几个。
+    // 自定义智能体没点名 new_task 时就不装，让"只留几个工具"真的只留那几个。
     const withTask = !toolNames || toolNames.includes('new_task')
     const tools = withTask
         ? Agent.tool.merge(allowed, Agent.tool.adopt({ new_task: Delegation.build({ config, tools: allowed, sessionId }) }))
@@ -402,7 +402,7 @@ const readSettings = async ({ sessionId }) => {
 /**
  * 改这条会话的运行设置，只改点名的那几项。
  *
- * 只有模式和能力开关需要重新装配 Agent（工具表和能力都建在 Agent 上），
+ * 只有智能体和能力开关需要重新装配 Agent（工具表和能力都建在 Agent 上），
  * 自动批准不用：审批时是现读设置的，改完下一次工具调用就按新设置走。
  * 所以自动批准可以在任务跑着的时候随时改——用户看到模型在乱改文件时，
  * 要能当场把"写入"关掉，而不是先停下来再改。
@@ -416,14 +416,30 @@ const saveSettings = async ({ sessionId, ...change }) => {
 
     // 改的是自动批准，别的都没动——不重建，也就没有"任务在跑"这一说。
     const onlyAutoApprove = Object.keys(change).every(key => key === 'autoApprove')
-    // 模式和能力换掉之后必须重建 Agent 才生效，所以这时候不能让任务在跑。
+    // 智能体和能力换掉之后必须重建 Agent 才生效，所以这时候不能让任务在跑。
     // 这一关要在写盘之前过：被拒的改动不该留在磁盘上。
     if (!onlyAutoApprove && Store.agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+
+    // 智能体自己指定了模型时，先确认供应商还存在，再写设置。
+    // 写反了顺序会留下"设置已经改了、模型却建不出来"的半坏状态。
+    const requested = change.agent !== undefined ? change.agent : change.mode
+    const requestedInfo = requested !== undefined ? Settings.agentInfo(requested) : null
+    if (requestedInfo?.model) Config.connection(requestedInfo.model)
 
     const saved = await Settings.save({ sessionId, ...change })
     if (onlyAutoApprove) return saved
     // 什么都没变就不白重建一次，免得把正在等待的审批也一并打散。
     if (settingsEqual(current, saved)) return saved
+
+    // 智能体自带模型时，把会话当前模型切过去；切到不带模型的智能体时保留原模型。
+    // 这样顶栏、标题生成和压缩看到的都是实际在用的那个模型。
+    const agent = Settings.agentInfo(saved.agent)
+    if (saved.agent !== current.agent && agent?.model) {
+        meta.provider = agent.model.provider
+        meta.model = agent.model.model
+        meta.updatedAt = Date.now()
+        await writeMeta(meta)
+    }
 
     // 历史原样交回去，不丢消息。
     Store.agents.delete(sessionId)
@@ -582,8 +598,8 @@ const run = async ({ sessionId, input, resume = false }) => {
 
     // 这一轮用哪份配置：主模型加上用户为压缩单独指定的那个（如果配了）。
     const settings = await Settings.read({ sessionId })
-    // 发消息前重读规则，用户刚改过 AGENTS.md 或模式专属规则也能在这一轮生效。
-    await Rules.load({ mode: settings.mode })
+    // 发消息前重读规则，用户刚改过 AGENTS.md 或智能体专属规则也能在这一轮生效。
+    await Rules.load({ agent: settings.agent })
     // clearUndo/Settings/Rules 也都是 await；最后启动前再查一次 stop gate。
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
@@ -596,7 +612,7 @@ const run = async ({ sessionId, input, resume = false }) => {
     try {
         task = agent.send({
         input: input.trim(),
-        config: Config.resolve({ provider: meta.provider, model: meta.model, uses: settings.uses }),
+        config: Config.resolve({ provider: meta.provider, model: meta.model, settings: Settings.toAgentConfig({ settings }) }),
         callbacks: {
             onStart: async () => {
                 // 继续提示要在第一次模型请求前认出来并藏好，否则 onStep 会把它当成用户消息落盘。

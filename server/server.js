@@ -10,6 +10,7 @@
 
 import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
 import Commands from './features/commands.js' // 扫描用户自定义的斜杠命令。
+import Agents from './features/agents.js' // 给界面列出内置和自定义智能体。
 import Config from './commands/config.js' // 执行配置读写指令。
 import Session from './commands/session.js' // 执行会话和 Agent 指令。
 import Tools from './commands/tools.js' // 给设置页列出全部工具和当前权限。
@@ -61,7 +62,7 @@ app.group('/session', session => session
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...body }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
-    // 会话运行设置：模式（plan / build）、自动批准、能力开关。
+    // 会话运行设置：智能体、自动批准、能力开关。
     .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
     .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...body }))
     // 记过哪些工具调用，界面据此列出"可以退回到哪一步"。
@@ -82,6 +83,11 @@ app.group('/config', config => config
     .get('/read', () => Config.read(Path.config()))
     .patch('/set', ({ body }) => Config.set(body))
     .post('/test', ({ body }) => Config.test(body || {}))) // 设置页的"测试连接"按钮走这里。
+
+// --- 注册 Agent 触发事件 ---
+// 界面从这里拿内置和自定义智能体的完整定义；配置里只存用户真正写过的覆盖项。
+app.group('/agent', agent => agent
+    .get('/list', () => Agents.list(Config.get())))
 
 // --- 注册 SSE 触发事件 ---
 app.group('/sse', sse => sse

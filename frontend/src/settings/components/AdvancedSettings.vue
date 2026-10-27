@@ -1,7 +1,7 @@
 <!--
-高级设置：项目规则、写后诊断、shell 改动快照和自定义模式。
+高级设置：项目规则、写后诊断、shell 改动快照和智能体定义。
 表单控件统一用 ui/ 里的 Field、Switch、Button；数字转换和 JSON 校验仍在本组件完成，事件只把结果交给上层写回草稿。
-调用示例：<AdvancedSettings :rules="draft.rules" :modes="draft.modeDefinitions" :diagnostics="draft.diagnostics" :snapshot="draft.snapshot" />
+调用示例：<AdvancedSettings :rules="draft.rules" :agents="draft.agentDefinitions" :diagnostics="draft.diagnostics" :snapshot="draft.snapshot" />
 -->
 <script setup>
 import { computed, ref } from 'vue'
@@ -9,11 +9,11 @@ import { Button, Field, Switch } from '../../ui/index.js'
 
 const props = defineProps({
   rules: { type: Object, default: () => ({}) },
-  modes: { type: Object, default: () => ({}) },
+  agents: { type: Object, default: () => ({}) },
   diagnostics: { type: Object, default: () => ({}) },
   snapshot: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['update:rules', 'update:modes', 'update:diagnostics', 'update:snapshot'])
+const emit = defineEmits(['update:rules', 'update:agents', 'update:diagnostics', 'update:snapshot'])
 
 // 规则默认开；配置里只有明确写 false 才关。
 const rulesOn = computed(() => props.rules.enabled !== false)
@@ -23,9 +23,9 @@ const diagnostics = computed(() => ({ command: '', delay: 0, timeout: 30000, ...
 const snapshot = computed(() => ({ shell: false, maxFiles: 2000, maxBytes: 2097152, ...props.snapshot }))
 const maxMb = computed(() => Math.max(1, Math.round((Number(snapshot.value.maxBytes) || 2097152) / 1048576)))
 
-// 模式用 JSON 编辑：应用按钮解析成功后才写进草稿，写错不会破坏已有设置。
-const modesText = ref(JSON.stringify(props.modes || {}, null, 2))
-const modesError = ref('')
+// 智能体用 JSON 编辑：应用按钮解析成功后才写进草稿，写错不会破坏已有设置。
+const agentsText = ref(JSON.stringify(props.agents || {}, null, 2))
+const agentsError = ref('')
 
 function setRules(value) {
   emit('update:rules', { ...props.rules, enabled: value })
@@ -39,14 +39,14 @@ function setSnapshot(change) {
   emit('update:snapshot', { ...props.snapshot, ...change })
 }
 
-function applyModes() {
+function applyAgents() {
   try {
-    const parsed = JSON.parse(modesText.value || '{}')
+    const parsed = JSON.parse(agentsText.value || '{}')
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('必须是一个 JSON 对象')
-    modesError.value = ''
-    emit('update:modes', parsed)
+    agentsError.value = ''
+    emit('update:agents', parsed)
   } catch (error) {
-    modesError.value = `模式 JSON 有问题：${error.message}`
+    agentsError.value = `智能体 JSON 有问题：${error.message}`
   }
 }
 </script>
@@ -122,19 +122,19 @@ function applyModes() {
 
     <div class="advanced-settings__block">
       <div class="advanced-settings__intro">
-        <h3>自定义模式</h3>
-        <p>一个 JSON 对象，键是模式名，值是 <code>label</code>、<code>tools</code>、<code>readOnly</code>。改完点「应用模式」。</p>
+        <h3>智能体定义</h3>
+        <p>一个 JSON 对象，键是智能体名，值是 <code>label</code>、<code>description</code>、<code>instructions</code>、<code>tools</code>、<code>readOnly</code>、<code>model</code>、<code>permission</code>。改完点「应用智能体」。</p>
       </div>
       <Field
-        v-model="modesText"
+        v-model="agentsText"
         multiline
         :rows="8"
-        label="自定义模式 JSON"
+        label="智能体 JSON"
         spellcheck="false"
       />
       <div class="advanced-settings__actions">
-        <span v-if="modesError" class="advanced-settings__error">{{ modesError }}</span>
-        <Button variant="primary" @click="applyModes">应用模式</Button>
+        <span v-if="agentsError" class="advanced-settings__error">{{ agentsError }}</span>
+        <Button variant="primary" @click="applyAgents">应用智能体</Button>
       </div>
     </div>
   </section>

@@ -101,13 +101,13 @@ description: 审查一个 PR 时用这个
 | `search_files` / `glob` | 按正则搜内容、按通配找文件，跳过哪些目录由 `utils/skip.js` 一处说了算 |
 | `execute_command` | 执行命令，带十分钟超时和输出截断 |
 | `update_todo_list` | 写下当前任务清单和进度，前端据此显示进度条 |
-| `webfetch` | 取网页正文（Roo Code 没有同名内置工具，这是本项目自己的补充） |
+| `webfetch` | 取网页正文 |
 | `new_task` | 把一件独立的探索工作委托给子 agent，只拿回结论 |
 | `attempt_completion` / `ask_followup_question` | 结束任务；向用户提问并暂停 |
 
-`glob` 和 `webfetch` 是本项目自己的工具，Roo Code 当前没有同名内置工具；其余工具名和主要参数按 Roo Code 对齐。`apply_patch` 保留了本项目"一次提交多个文件、全部校验通过才写盘"的行为。
+`glob` 和 `webfetch` 是本项目自己的工具；其余工具名和主要参数沿用通用编码智能体的命名。`apply_patch` 保留了本项目"一次提交多个文件、全部校验通过才写盘"的行为。
 
-旧工具名（`file_read`、`file_write`、`file_list`、`grep`、`shell`、`todo`、`ask`、`task`、`finish`）仍能用于已有自定义模式和权限规则，运行时会自动换成新名字；新会话和工具列表只显示新名字。
+旧工具名（`file_read`、`file_write`、`file_list`、`grep`、`shell`、`todo`、`ask`、`task`、`finish`）仍能用于已有自定义智能体和权限规则，运行时会自动换成新名字；新会话和工具列表只显示新名字。
 
 ### 工具自带的界面
 
@@ -163,7 +163,7 @@ ui: {
 | 位置 | 作用 |
 | --- | --- |
 | `<数据目录>/commands/*.md` | 全局命令 |
-| `<工作区>/.roo/commands/*.md` | 兼容 roo code |
+| `<工作区>/.roo/commands/*.md` | 兼容旧生态的目录 |
 | `<工作区>/.agent/commands/*.md` | 项目命令，优先于前两者 |
 
 ```md
@@ -453,8 +453,9 @@ Content-Type: application/json
 | `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和运行设置；不复制文件快照 |
 | `GET` | `/session/read/:sessionId` | 无 | 会话元信息、完整 History、任务清单 `todos`、是否在跑 `running`、待批准 `pending`、运行设置 `settings` |
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：每个文件改动前后的内容 |
-| `GET` | `/session/settings/:sessionId` | 无 | 这条会话的运行设置：模式、自动批准、能力开关 |
-| `PATCH` | `/session/settings/:sessionId` | `{ "mode?", "autoApprove?", "capabilities?" }` | 保存后的完整设置 |
+| `GET` | `/agent/list` | 无 | 内置和自定义智能体的完整定义 |
+| `GET` | `/session/settings/:sessionId` | 无 | 这条会话的运行设置：智能体、自动批准、能力开关 |
+| `PATCH` | `/session/settings/:sessionId` | `{ "agent?", "autoApprove?", "capabilities?" }` | 保存后的完整设置 |
 | `GET` | `/session/tools/:sessionId` | 无 | 每次改过文件的工具调用，按发生顺序；用来列出可回退的点 |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话元信息 |
 | `PATCH` | `/session/model/:sessionId` | `{ "provider?", "model?" }` | 更新后的会话元信息；任务运行中返回 `409` |
@@ -465,12 +466,13 @@ Content-Type: application/json
 | `POST` | `/session/redo/:sessionId` | `{ "files?" }` | 撤销回退后的完整会话，另带 `restored` |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` 是这次的总结文本 |
 
-### 运行设置：模式、自动批准、能力开关
+### 运行设置：智能体、自动批准、能力开关
 
 这三项都直接对应 `@kernel4632/agent-core` 的字段，不做二次翻译，设置存在会话目录的 `settings.json` 里。
 
+```json
 {
-  "mode": "build",
+  "agent": "build",
   "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
   "autoApproveLimit": 50,
   "compactThreshold": 0.8,
@@ -478,12 +480,11 @@ Content-Type: application/json
   "uses": {},
   "autoTitle": true
 }
-}
 ```
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `mode` | `build` | `plan` 只给只读工具（读文件、搜代码、抓网页），`build` 给全套工具；也可以填 `modes` 里自定义的名字 |
+| `agent` | `build` | 当前智能体。内置 `build` / `plan` / `ask` / `debug`，也可以填 `agents` 里自定义的名字；切换时会重新装配工具表 |
 | `autoApprove.read` | `false` | 读文件和搜索不再弹审批（`read_file`、`list_files`、`glob`、`search_files`、`webfetch`、`skill`） |
 | `autoApprove.write` | `false` | 改文件不再弹审批（`write_to_file`、`edit`、`apply_patch`） |
 | `autoApprove.command` | `false` | 执行命令不再弹审批（`execute_command`） |
@@ -499,7 +500,7 @@ Content-Type: application/json
 
 **自动批准按类别分别开关，不是一个总开关。** 可以配成"读随便读、写还是问我"：只把 `read` 设成 `true`，`read_file` 直接过，`write_to_file` 和 `execute_command` 照样进等待队列。每一类可以随时单独改，改一类不动别类。
 
-这套开关的类别和界面上的选项对齐 roo code，但只保留我们真有的东西。它那边还有「切换模式」和「追问」两项自动批准：我们没有"由模型自己切换模式"这回事（模式是用户在界面上切的），也没有"到点自动选一个追问答案"的机制，所以不设这两个开关——真加了就是永远不生效的空开关。
+这套开关只保留我们真有的东西。我们没有"由模型自己切换智能体"和"到点自动选一个追问答案"的机制，所以不设这两个开关——真加了就是永远不生效的空开关。
 
 PATCH 时只写要改的那一类就行，其余保持原样：
 
@@ -507,20 +508,32 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 { "autoApprove": { "read": true } }
 ```
 
-### 自定义模式
+### 智能体定义
 
-除了 `build` 和 `plan`，可以在全局配置里定义自己的模式：
+内置四个智能体：
+
+| 名字 | 名称 | 默认能力 |
+| --- | --- | --- |
+| `build` | 执行 | 全套工具，正常干活 |
+| `plan` | 计划 | 只读工具，先看清再动手 |
+| `ask` | 问答 | 只读工具，只回答和解释，不开子任务 |
+| `debug` | 调试 | 全套工具，提示词要求先复现、再定位、最小修复 |
+
+在全局配置的 `agents` 里可以覆盖内置定义，也可以新增自己的智能体：
 
 ```json
 {
-  "modes": {
+  "agents": {
     "review": {
       "label": "审查",
-      "tools": ["read_file", "list_files", "glob", "search_files", "skill"]
+      "description": "只读审查代码，给出问题和修改建议",
+      "instructions": "你负责审查代码。先列问题，再给最小修改建议，不要直接改文件。",
+      "tools": ["read_file", "list_files", "glob", "search_files", "skill", "attempt_completion"],
+      "model": { "provider": "local", "model": "cheap-model" },
+      "permission": { "read_file": "allow", "execute_command": "deny" }
     },
-    "audit": {
-      "label": "审计",
-      "readOnly": true
+    "build": {
+      "instructions": "这个项目用 Bun，不要用 npm。"
     }
   }
 }
@@ -528,13 +541,23 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 
 | 字段 | 必填 | 作用 |
 | --- | --- | --- |
-| `label` | 否 | 界面上显示的名字，不写就用模式名 |
-| `tools` | 否 | 只给名单里的工具；不写表示按 `readOnly` 规则决定。`new_task` 也要点名才会装 |
+| `label` | 否 | 界面上显示的名字，不写就用智能体名 |
+| `description` | 否 | 一句话说明，显示在切换智能体的卡片里 |
+| `instructions` | 否 | 额外拼到系统提示词后面的角色说明；空字符串表示不加 |
+| `tools` | 否 | 只给名单里的工具；不写表示不限制，`null` 也表示不限制。`new_task` 也要点名才会装 |
 | `readOnly` | 否 | `true` 时去掉写文件和执行命令的工具 |
+| `model` | 否 | 这个智能体指定模型；切换过去时会话模型跟着换。不写就沿用当前会话模型 |
+| `permission` | 否 | 这个智能体的权限覆盖，写法和全局 `permission` 相同；同名工具以智能体规则为准 |
 
-模式名只能包含字母、数字、`-` 和 `_`。`build` / `plan` 是内置的，不能覆盖；写错模式名返回 `400`。自定义模式里写了不存在的工具名会被直接忽略，不会让会话打不开。
+智能体名只能包含字母、数字、`-` 和 `_`。写错智能体名返回 `400`。自定义智能体里写了不存在的工具名会被直接忽略，不会让会话打不开。旧配置里的 `modes` 会在读取时自动迁移成 `agents`，会话设置里的 `mode` 也会迁移成 `agent`。
 
-**认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准、plan 模式和契约检查都从那里读；新加内置工具时在表里补一行即可（漏了会有测试报出来）。
+**`plan` 和 `readOnly` 不是靠提示词实现的。** 后端把写工具从工具表里摘掉，模型看不到也调不到，而不是在系统提示词里写"请不要改文件"。这样不依赖模型听话，`system` 里也不会多出这类提醒。`ask` 的只读工具名单也是同一套机制。
+
+**智能体的模型会改变会话当前模型。** 切到一个带 `model` 的智能体时，后端更新会话元信息并重建 Agent；切到不带模型的智能体时保留原来的模型。这样顶栏、标题生成和压缩看到的都是实际在用的那个模型。
+
+**智能体的权限覆盖只影响自己。** 全局 `permission` 打底，智能体的 `permission` 覆盖同名工具；自动批准仍然只是省掉"询问"，不能绕过 `deny` 和 `.agentignore`。
+
+**认不出类别的工具一律要问。** 用户自己放进数据目录 `tools/` 的工具没有登记类别，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。工具分类只写在 [`utils/tool-kind.js`](utils/tool-kind.js:1) 一处，自动批准、只读智能体和契约检查都从那里读；新加内置工具时在表里补一行即可（漏了会有测试报出来）。
 
 **记清单和结束循环不问。** `update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的，既不碰磁盘也不碰外部服务，本来就没有"要不要批准"这回事，所以不设开关。每次都要问一遍的话，用户只会一直点同意，审批弹窗也就没意义了。
 
@@ -542,9 +565,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 
 **开了自动批准也绕不过 `.agentignore` 和 `deny`。** 自动批准省掉的是"问一遍"，密钥文件（`.env`、`*.pem`、`**/.ssh/**` 等）照样读不到，被忽略规则拦住时会收到 `permission-blocked` 事件，带上是哪条规则挡的；被 `deny` 拦住时同样收到这个事件，原因写的是权限规则拒绝。
 
-**`plan` 模式不是靠提示词实现的。** 后端把写工具从工具表里摘掉，模型看不到也调不到，而不是在系统提示词里写"请不要改文件"。这样不依赖模型听话，`system` 里也不会多出这类提醒。
-
-**系统提示词第一次使用时有一份默认内容**，结构参考 Roo Code：角色、工具使用、迭代目标和完成规则。它只是初始值，用户可以在设置页随意修改或完全清空；清空并保存后不会被自动填回。工作区里真实存在的规则文件仍会按开关追加到用户提示词后面。
+**系统提示词第一次使用时有一份默认内容**，结构参考通用的编码智能体：角色、工具使用、迭代目标和完成规则。它只是初始值，用户可以在设置页随意修改或完全清空；清空并保存后不会被自动填回。工作区里真实存在的规则文件仍会按开关追加到用户提示词后面，智能体自己的 `instructions` 排在用户提示词之后、项目规则之前。
 
 ### 项目规则
 
@@ -554,8 +575,8 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 | --- | --- | --- |
 | `AGENTS.md` | 从工作区往上找最近的一份 | 和 git 找仓库根一样；项目放在子目录里也能找到 |
 | 自己的规则 | `<项目根>/.agent/rules/**/*.md` | 按路径排序读取 |
-| roo code 的规则 | `<项目根>/.roo/rules/**/*.md` | 兼容 roo code 的写法，两种可以同时用 |
-| 模式专属规则 | `<项目根>/.agent/rules-<mode>/**/*.md`、`.roo/rules-<mode>/**/*.md` | 只在使用对应模式时读取，例如 `rules-plan` |
+| 旧生态的规则 | `<项目根>/.roo/rules/**/*.md` | 兼容旧目录，两种可以同时用 |
+| 智能体专属规则 | `<项目根>/.agent/rules-<agent>/**/*.md`、`.roo/rules-<agent>/**/*.md` | 只在使用对应智能体时读取，例如 `rules-plan` |
 
 总长度上限 32KB、最多 20 个文件，超出部分会截断并标注。不想用规则时把 `rules.enabled` 设为 `false`，`system` 就只剩用户自己写的那段。
 
@@ -603,7 +624,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 
 **同一个工具调用连续出现 3 次，也会停下来问一次。** 判断依据是工具名加上排好序的参数；参数换了就不累计。这道检查在自动批准之前，所以即使这一类开着自动批准也绕不过；用户答过一次同样重新计数。它盯的是另一种跑偏——模型不是做了五十件不同的事，而是把同一个失败的动作原样重试了三遍。
 
-改 `mode` 会立刻按新设置重新装配工具表（历史不动），所以要求会话没有任务在跑，否则返回 `409`。
+改 `agent` 会立刻按新设置重新装配工具表（历史不动），所以要求会话没有任务在跑，否则返回 `409`。
 
 **`autoApprove` 可以在任务跑着的时候随时改。** 审批时是现读设置的，改完下一次工具调用就按新设置走，不用重建 Agent，也不受 `409` 限制——用户看到模型在乱改文件时要能当场把"写入"关掉。`capabilities` 换了要重建 Agent，所以同样要求没有任务在跑。
 `GET /session/changes/:sessionId` 给出 agent 到目前为止改动的文件，用来在界面上显示 diff：

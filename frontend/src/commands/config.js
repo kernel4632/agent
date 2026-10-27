@@ -17,7 +17,13 @@ async function load() {
     } catch {
       catalog = []                                       // 旧后端没有目录接口时退回权限表
     }
-    apply(raw, catalog)                                   // 将 Server 数据转换为设置页面结构
+    let agents = []
+    try {
+      agents = await AgentAPI.getAgents()                  // 内置和自定义智能体
+    } catch {
+      agents = []                                        // 旧后端没有这个接口时从原始配置拼
+    }
+    apply(raw, catalog, agents)                           // 将 Server 数据转换为设置页面结构
     try {
       const commands = await AgentAPI.getCommands()       // 读取用户自定义的斜杠命令
       store.commands = Array.isArray(commands) ? commands : []
@@ -34,7 +40,7 @@ async function load() {
 
 
 // --- 应用 Server 配置到设置结构 ---
-function apply(raw, catalog = []) {
+function apply(raw, catalog = [], catalogAgents = []) {
   // 后端 providers 是数组，每项包含 name、baseURL、apiKey、models 等字段
   const providerList = Array.isArray(raw.providers) ? raw.providers : []
   const providers = {}
@@ -93,19 +99,28 @@ function apply(raw, catalog = []) {
   const firstModels = providers[firstProvider]?.models || []
   const activeModel = typeof firstModels[0] === 'string' ? firstModels[0] : firstModels[0]?.id || ''
 
-  // 模式清单：两个内置的，加上配置里自定义的。自定义模式只收合法名字，内置两个不能覆盖。
-  const customModes = Object.entries(raw.modes || {})
-    .filter(([name, value]) => /^[a-zA-Z0-9_-]+$/.test(name) && value && typeof value === 'object' && !['plan', 'build'].includes(name))
+  // 智能体清单：优先后端 /agent/list；旧后端没有这个接口时，从 agents / modes 原始配置拼。
+  const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
+    ? raw.agents
+    : raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? raw.modes : {}
+  const customAgents = Object.entries(agentDefinitions)
+    .filter(([name, value]) => /^[a-zA-Z0-9_-]+$/.test(name) && value && typeof value === 'object' && !Array.isArray(value))
+    .filter(([name]) => !['build', 'plan', 'ask', 'debug'].includes(name))
     .map(([name, value]) => ({
       name,
       label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : name,
+      description: typeof value.description === 'string' ? value.description : '',
       readOnly: value.readOnly === true,
     }))
-  const modes = [
-    { name: 'build', label: '执行模式', readOnly: false },
-    { name: 'plan', label: '计划模式', readOnly: true },
-    ...customModes,
-  ]
+  const agents = Array.isArray(catalogAgents) && catalogAgents.length
+    ? catalogAgents
+    : [
+      { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false },
+      { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true },
+      { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true },
+      { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false },
+      ...customAgents,
+    ]
 
   Object.assign(store.config, {
     providers,
@@ -113,8 +128,8 @@ function apply(raw, catalog = []) {
     toolCatalog,
     mcp,
     prompt: raw.prompt?.system || '',
-    modes,
-    modeDefinitions: raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? raw.modes : {},
+    agents,
+    agentDefinitions,
     rules: { enabled: raw.rules?.enabled !== false },
     diagnostics: raw.diagnostics && typeof raw.diagnostics === 'object' ? raw.diagnostics : {},
     snapshot: raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : {},

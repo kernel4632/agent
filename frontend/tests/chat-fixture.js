@@ -9,7 +9,7 @@ ui-audit.spec.js 和 ui-motion.spec.js 共用这一份，避免两套 mock 对�
 import { expect } from '@playwright/test'
 
 export async function backend(page, { configured = true } = {}) {
-  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, modes: {}, diagnostics: {}, snapshot: {} }
+  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, agents: {}, diagnostics: {}, snapshot: {} }
   const sessions = new Map()
   const calls = []
   const waiting = new Map()
@@ -93,6 +93,22 @@ export async function backend(page, { configured = true } = {}) {
         ui: { view: 'question', icon: 'info', title: '询问用户', summary: '{question}' },
       },
     ])
+    if (path === '/agent/list') return json([
+      { name: 'build', label: '执行', description: '可以改文件、执行命令，完整推进任务', readOnly: false, tools: null, model: null, permission: null, builtin: true },
+      { name: 'plan', label: '计划', description: '只保留只读工具，先看清再动手', readOnly: true, tools: null, model: null, permission: null, builtin: true },
+      { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true, tools: [], model: null, permission: null, builtin: true },
+      { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false, tools: null, model: null, permission: null, builtin: true },
+      ...Object.entries(config.agents || {}).map(([name, value]) => ({
+        name,
+        label: value?.label || name,
+        description: value?.description || '',
+        readOnly: value?.readOnly === true,
+        tools: value?.tools || null,
+        model: value?.model || null,
+        permission: value?.permission || null,
+        builtin: false,
+      })),
+    ])
     if (path === '/command/list') return json([
       { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
     ])
@@ -107,7 +123,7 @@ export async function backend(page, { configured = true } = {}) {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         settings: {
-          mode: 'build',
+          agent: 'build',
           autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
           autoApproveLimit: 50,
           compactThreshold: 0.8,

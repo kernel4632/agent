@@ -69,11 +69,11 @@ const normalize = value => value === 'allow' ? 'allow' : value === 'deny' ? 'den
  * 按规则决定放行、询问还是拒绝。
  * @param {string} toolName 工具名。
  * @param {string} matchValue 摊平后的参数。
+ * @param {object} [rules] 生效的权限规则；不传时用全局规则。
  * @returns {'allow'|'ask'|'deny'} 全局规则只是起点，具体工具的规则可以覆盖它。
  */
-const decideByRules = (toolName, matchValue) => {
+const decideByRules = (toolName, matchValue, rules = Config.get().permission || { '*': 'ask' }) => {
     // 没有规则时先问用户，不自动执行任何工具。
-    const rules = Config.get().permission || { '*': 'ask' }
     const name = canonical(toolName)
     // 先看新名字，再看旧名字；用户的旧 permission 配置不会因为改名失效。
     const toolRule = [name, ...previousNames(name)].map(item => rules[item]).find(rule => rule !== undefined)
@@ -86,6 +86,18 @@ const decideByRules = (toolName, matchValue) => {
         }
     }
     return decision
+}
+
+/**
+ * 这次会话实际生效的权限规则：全局规则打底，智能体自己的 permission 覆盖同名项。
+ * 智能体没有权限覆盖时直接用全局规则，行为与旧版本完全一致。
+ * @param {object} [settings] 会话设置。
+ * @returns {object} 合并后的规则。
+ */
+const effectiveRules = settings => {
+    const global = Config.get().permission || { '*': 'ask' }
+    const agent = Settings.agentInfo(settings?.agent)?.permission
+    return agent ? { ...global, ...agent } : global
 }
 
 // 用户心里认为的"一个操作"：git commit -m "随便什么" 在他看来就是"提交"，
@@ -116,15 +128,32 @@ const normalizeCommand = command => {
 /**
  * 把"始终允许"写成一条规则。
  * 命令工具按归一化后的前缀记；其他工具按完整参数记，允许读这个文件就只允许读这个文件。
- * @param {{ toolName: string, input: object, matchValue: string }} call
+ * 当前智能体有自己的 permission 时写进智能体，否则写回全局规则。
+ * @param {{ toolName: string, input: object, matchValue: string, agent?: string }} call
  * @returns {void}
  */
-const remember = ({ toolName, input, matchValue }) => {
+const remember = ({ toolName, input, matchValue, agent }) => {
     const name = canonical(toolName)
     const pattern = name === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
     // 参数里可能出现通配符，先转义，保证这条规则只命中同一类参数。
     const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
-    const rules = Config.get().permission
+    const agentRules = agent ? Settings.agentInfo(agent)?.permission : null
+    let rules
+    if (agentRules && Object.keys(agentRules).length) {
+        const config = Config.get()
+        if (!config.agents || typeof config.agents !== 'object' || Array.isArray(config.agents)) config.agents = {}
+        if (!config.agents[agent] || typeof config.agents[agent] !== 'object' || Array.isArray(config.agents[agent])) config.agents[agent] = {}
+        if (!config.agents[agent].permission || typeof config.agents[agent].permission !== 'object' || Array.isArray(config.agents[agent].permission)) {
+            config.agents[agent].permission = {}
+        }
+        rules = config.agents[agent].permission
+    } else {
+        const config = Config.get()
+        if (!config.permission || typeof config.permission !== 'object' || Array.isArray(config.permission)) {
+            config.permission = { '*': 'ask' }
+        }
+        rules = config.permission
+    }
     const toolRule = rules[name]
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) toolRule[escaped] = 'allow'
     else rules[name] = { '*': 'ask', [escaped]: 'allow' }
@@ -178,10 +207,15 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     if (Kind.of({ toolName: name, mcpServers }) === 'never') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     /*
+     * 这次会话生效的规则：全局 permission 打底，当前智能体的 permission 覆盖同名项。
+     * 智能体没有覆盖时与旧版本完全一致。
+     */
+    const settings = Store.settings.get(sessionId)
+    const decision = decideByRules(name, matchValue, effectiveRules(settings))
+    /*
      * deny 是硬规则。自动批准只省掉"询问"，不能把一条明确的拒绝变成放行——
      * 用户写下 "execute_command": "deny" 之后，即使命令类全开着，也不该执行。
      */
-    const decision = decideByRules(name, matchValue)
     if (decision === 'deny') {
         if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: '被权限规则拒绝' } })
         return false
@@ -216,7 +250,6 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
 
     // 这一类开了自动批准就跳过询问。按类别分（读取 / 写入 / 命令 / MCP），
     // 所以可以"读随便读、写还是问我"这种组合。未分类的工具一律要问。
-    const settings = Store.settings.get(sessionId)
     const auto = Settings.approves({ settings, toolName: name, mcpServers })
     /*
      * 自动批准的刹车：连着放行了太多次就停下来问一次。
@@ -305,7 +338,9 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     if (decision !== 'deny') Store.autoApproved.set(sessionId, 0)
     if (decision === 'allow-always') {
         // 记住这类参数，并把规则写回配置文件，重启后依然生效。
-        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue })
+        // 当前智能体有自己的权限覆盖时写进智能体，避免改了全局却仍被智能体规则拦住。
+        const agent = Store.settings.get(sessionId)?.agent
+        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue, agent })
         await Config.save(Path.config())
     }
     approval.resolve(decision !== 'deny') // 允许一次和始终允许都放行本次调用。

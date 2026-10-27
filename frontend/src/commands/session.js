@@ -228,44 +228,27 @@ async function saveSettings(sessionID, change) {
 }
 
 
-// --- 按配置里的顺序切换模式 ---
-async function toggleMode(sessionID) {
+// --- 直接切到指定智能体（输入框上的智能体抽屉用） ---
+async function setAgent(sessionID, agent) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  const modes = store.config.modes?.length ? store.config.modes : [
-    { name: 'build', label: '执行模式', readOnly: false },
-    { name: 'plan', label: '计划模式', readOnly: true },
+  const agents = store.config.agents?.length ? store.config.agents : [
+    { name: 'build', label: '执行', readOnly: false },
+    { name: 'plan', label: '计划', readOnly: true },
   ]
-  // 找不到当前模式（比如配置刚删掉它）就从第一个开始。
-  const index = modes.findIndex(item => item.name === session.settings.mode)
-  const next = modes[(index + 1) % modes.length]
-  const settings = await saveSettings(sessionID, { mode: next.name })
-  // 切到只读模式时要说清会发生什么，不然用户会疑惑"工具怎么少了一半"。
-  if (settings) UI.notify(next.readOnly ? `已切到${next.label}：只保留只读工具` : `已切到${next.label}`)
-  return settings
-}
-
-
-// --- 直接切到指定模式（输入框上的模式菜单用） ---
-async function setMode(sessionID, mode) {
-  const session = store.sessions[sessionID]
-  if (!session) return null
-  const modes = store.config.modes?.length ? store.config.modes : [
-    { name: 'build', label: '执行模式', readOnly: false },
-    { name: 'plan', label: '计划模式', readOnly: true },
-  ]
-  const next = modes.find(item => item.name === mode)
+  const next = agents.find(item => item.name === agent)
   if (!next) return null
-  if (session.settings.mode === next.name) return session.settings
-  const settings = await saveSettings(sessionID, { mode: next.name })
+  if (session.settings.agent === next.name) return session.settings
+  const settings = await saveSettings(sessionID, { agent: next.name })
+  // 切到只读智能体时要说清会发生什么，不然用户会疑惑"工具怎么少了一半"。
   if (settings) UI.notify(next.readOnly ? `已切到${next.label}：只保留只读工具` : `已切到${next.label}`)
   return settings
 }
 
 
-// --- 模式在界面上叫什么 ---
-function modeLabel(name) {
-  return (store.config.modes || []).find(item => item.name === name)?.label || name
+// --- 智能体在界面上叫什么 ---
+function agentLabel(name) {
+  return (store.config.agents || []).find(item => item.name === name)?.label || name
 }
 
 
@@ -426,10 +409,10 @@ function normalize(source, previous = {}) {
     status: source.running ? 'running' : 'idle',
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
-    // 模式、自动批准、能力开关、按用途的模型，后端读取时一并给出。
+    // 智能体、自动批准、能力开关、按用途的模型，后端读取时一并给出。
     // 缺字段时用下面这份兜底，它和后端 DEFAULTS 是同一套值（有契约测试盯着）。
     settings: source.settings || previous.settings || {
-      mode: 'build',
+      agent: 'build',
       // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
       autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
       autoApproveLimit: 50,
@@ -510,7 +493,7 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 
 export const Session = {
   locate, create, open, openByID, closeOpened, refresh, rename, remove, removeMany, selectModel, fork, normalize, syncSummary, saveTitleEditing,
-  saveSettings, toggleMode, setMode, modeLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
+  saveSettings, setAgent, agentLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
 export { AUTO_APPROVE_KINDS, USE_LABELS }

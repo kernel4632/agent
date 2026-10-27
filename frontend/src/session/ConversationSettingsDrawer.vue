@@ -1,6 +1,6 @@
 <!--
 对话设置抽屉：模型能力、模型分工和上下文限制。
-权限和模式已经拆成独立的底部抽屉；这里只放不常改的模型与上下文选项。
+权限和智能体已经拆成独立的底部抽屉；这里只放不常改的模型与上下文选项。
 调用示例：<ConversationSettingsDrawer :open="open" :session="session" @update:open="open = $event" />
 -->
 <script setup>
@@ -52,7 +52,7 @@ function toggleCapability(key) {
     @update:open="emit('update:open', $event)"
   >
     <div class="conversation-settings__body">
-      <p class="conversation-settings__lead">这段对话的模型能力、模型分工和上下文限制。权限和模式已经拆到输入框旁的独立入口。</p>
+      <p class="conversation-settings__lead">这段对话的模型能力、模型分工和上下文限制。权限和智能体已经拆到输入框旁的独立入口。</p>
 
       <section class="conversation-settings__section">
         <h3>模型能力</h3>
