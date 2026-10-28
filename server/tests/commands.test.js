@@ -10,7 +10,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Commands from '../workspace/slash-commands.js'
+import Commands from '../project/slash-commands.js'
 import { app } from '../server.js'
 
 const withHome = async callback => {

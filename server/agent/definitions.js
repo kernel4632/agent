@@ -67,7 +67,7 @@ const BUILTIN = [
         tools: null,
         model: null,
         permission: null,
-    },
+    }
 ]
 
 const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key)

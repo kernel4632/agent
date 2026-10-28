@@ -12,11 +12,11 @@ import { tmpdir } from 'node:os'
 
 import Agent from '@kernel4632/agent-core'
 import Config from '../config/config.js'
-import Session from '../session/session.js'
+import Session from '../conversation/session.js'
 import Settings from '../config/settings.js'
-import Kind from '../tool/kind.js'
+import Kind from '../tool-registry/kind.js'
 import Store from '../agent/state.js'
-import History from '../session/history.js' // 会话历史的内存缓存由 history.js 自己管。
+import History from '../conversation/history.js' // 会话历史的内存缓存由 history.js 自己管。
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-core-upgrade-${crypto.randomUUID()}`)

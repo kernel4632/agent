@@ -1,7 +1,7 @@
 /*
  * 后端共享数据仓库：好几个主体都会读写的运行数据集中在这里。
  * 导入本文件就能看到这些共享数据：config、agents、snapshots、approvals、settings、autoApproved、recentCalls、rules。
- * 会话历史由 session/history.js 自己保管，不在这里。
+ * 会话历史由 conversation/history.js 自己保管，不在这里。
  * 本文件只保存数据，不执行读写文件、业务判断或 HTTP 反馈。
  * 调用示例：
  *   Store.config.permission            // 工具权限规则

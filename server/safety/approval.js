@@ -13,14 +13,14 @@ import picomatch from 'picomatch'
 import Config from '../config/config.js' // 权限规则就写在配置里，不再单独存一份。
 import Settings from '../config/settings.js' // 自动批准是按类别分的，判断逻辑只写在那里。
 import Boundary from './boundary.js' // 工作区外的路径要单独过 external_directory 规则。
-import Kind from '../tool/kind.js' // 内部工具不参与审批，也不该被 deny 规则拦住。
+import Kind from '../tool-registry/kind.js' // 内部工具不参与审批，也不该被 deny 规则拦住。
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
-import Snapshot from '../session/snapshot.js' // 工具改文件之前先存一份原样。
+import Snapshot from '../conversation/snapshot.js' // 工具改文件之前先存一份原样。
 import Store from '../agent/state.js' // 直接访问等待用户决定的审批表和会话设置。
 import SSE from '../utils/sse.js' // 把审批请求推给前端。
 import fail from '../utils/fail.js' // 用户选了不认识的决定时按填错处理。
-import { canonical, previousNames } from '../tool/names.js' // 新名字生效，旧权限规则继续认。
+import { canonical, previousNames } from '../tool-registry/names.js' // 新名字生效，旧权限规则继续认。
 
 // 同一个工具调用连续出现这么多次，就停下来问一次。
 // 模型跑偏的典型表现不是"做了一件坏事"，而是"同一件小事反复重试"。

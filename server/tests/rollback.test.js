@@ -14,10 +14,10 @@ import Agent from '@kernel4632/agent-core'
 
 import Approval from '../safety/approval.js'
 import Config from '../config/config.js'
-import History from '../session/history.js'
+import History from '../conversation/history.js'
 import Ignore from '../safety/ignore.js'
-import Session from '../session/session.js'
-import Snapshot from '../session/snapshot.js'
+import Session from '../conversation/session.js'
+import Snapshot from '../conversation/snapshot.js'
 
 // 每个测试使用独立目录和干净的内存数据，避免测试之间互相影响。
 const withHome = async callback => {

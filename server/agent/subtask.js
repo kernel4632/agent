@@ -17,7 +17,7 @@
 import Agent from '@kernel4632/agent-core'
 import Approval from '../safety/approval.js' // 子 agent 也要过同一道审批关口。
 import SSE from '../utils/sse.js' // 子任务的进度也推给前端，用户看得见它在忙什么。
-import Kind from '../tool/kind.js' // 运行时工具的类别也由工具自己声明。
+import Kind from '../tool-registry/kind.js' // 运行时工具的类别也由工具自己声明。
 
 // new_task 不在 tools/ 目录里，但类别和界面一样属于它自己。
 Kind.register({ name: 'new_task', kind: 'subtask' })

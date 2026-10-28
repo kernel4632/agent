@@ -8,14 +8,14 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import Agents from '../config/agents.js'
+import Agents from '../agent/definitions.js'
 import Approval from '../safety/approval.js'
 import Config from '../config/config.js'
 import Path from '../utils/path.js'
-import Session from '../session/session.js'
+import Session from '../conversation/session.js'
 import Settings from '../config/settings.js'
 import Store from '../agent/state.js'
-import History from '../session/history.js' // 会话历史的内存缓存由 history.js 自己管。
+import History from '../conversation/history.js' // 会话历史的内存缓存由 history.js 自己管。
 import { app } from '../server.js'
 
 const withHome = async callback => {

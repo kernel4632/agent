@@ -8,7 +8,7 @@
 
 | # | 原则 | 状态 | 证据与说明 |
 | --- | --- | --- | --- |
-| 1 | 按主体组织 | `[~]` 部分 | 根目录只留 `server.js`、项目配置和文件夹；业务代码按 `agent/`、`session/`、`config/`、`safety/`、`tool/`、`workspace/` 分组。`agent/` 放 Agent 创建、子任务和共享运行状态，`session/` 放会话运行、读取、回退、资料。但 `session.js` 仍把 `read/run/rollback` 原样转出，入口仍调 `Session.send`。设置页 `pages/*.vue` 也还有一层只做字段映射的包装。 |
+| 1 | 按主体组织 | `[~]` 部分 | 根目录只留 `server.js`、项目配置和文件夹；业务代码按 `agent/`、`conversation/`、`config/`、`safety/`、`tool-registry/`、`project/` 分组，每个文件夹至少有 2 个文件。`agent/` 放 Agent 定义、创建、子任务和共享运行状态，`conversation/` 放会话运行、读取、回退、资料。但 `conversation/session.js` 仍把 `read/run/rollback` 原样转出，入口仍调 `Session.send`。设置页 `pages/*.vue` 也还有一层只做字段映射的包装。 |
 | 2 | 加删只动一处 | `[x]` 通过 | `tools/` 现在一个文件一个工具：`read-file`、`write-file`、`list-files`、`attempt-completion`、`ask-followup` 已拆开。扫描器每轮清空登记再扫，删掉文件后立即消失，并有测试。`new_task`、`skill` 是运行时工具，不属于文件工具。 |
 | 3 | 数据一个来源 | `[~]` 部分 | 历史、类别、用途、旧工具名、token 用量都已收口；剩下的重复是 `frontend/src/defaults.js` 的前端最小默认值，用于首屏和组件 props 初始化。 |
 | 4 | 流程一条线 | `[x]` 通过 | MCP 错误、子任务进度、审批刹车和工具拦截都发回会话自己的 SSE；`permission-blocked` 带 `callID`；`/agent` 只注册一段。空请求体在入口变成 400，坏请求头在配置边界变成 400。 |
@@ -23,7 +23,7 @@
 
 ## 二、这一轮修掉的真实故障
 
-- `[x]` **`UNTITLED` 未定义**：`server/session/run.js` 补回常量。之前第一次成功跑完一轮、自动起标题时会抛 `ReferenceError`，`agent-finish` 不会发出。
+- `[x]` **`UNTITLED` 未定义**：`server/conversation/run.js` 补回常量。之前第一次成功跑完一轮、自动起标题时会抛 `ReferenceError`，`agent-finish` 不会发出。
 - `[x]` **SSE 投递**：`Mcp.tools({ sessionId })`、`subtask` 的事件都改用会话 id；`permission-blocked` 带 `callID`；`permission-limit` 前端会提示；删除会话时调用 `SSE.close`。
 - `[x]` **路由和边界**：`/agent` 不再注册两段；`POST /session/create` 空 body 返回 400；供应商请求头坏 JSON 返回 400。
 - `[x]` **工具一文件一工具**：`file.js`、`control.js` 拆成 5 个文件；工具目录每轮重建，删文件后下一次列目录立即消失。
@@ -40,7 +40,7 @@
 
 ## 四、其他没有做到完美的地方
 
-- `session/session.js` 仍是门面：CRUD 之外把 `read/run/rollback` 转出。HOP 第 1 条更希望入口直接调各自主体，但那样会改掉现有 `Session` 调用面和大量测试。
+- `conversation/session.js` 仍是门面：CRUD 之外把 `read/run/rollback` 转出。HOP 第 1 条更希望入口直接调各自主体，但那样会改掉现有 `Session` 调用面和大量测试。
 - 设置页 `pages/*.vue` 里有几个包装页只做字段映射，真正界面在 `components/*.vue`。
 - `frontend/src/settings/settings.js` 的 `payload`、`persist` 命名还可以更白话。
 - 大组件注释稀疏，第 10 条没有全项目达标。
@@ -52,7 +52,7 @@
 1. 先读 `AGENTS.md`、`NOTES.md` 和本文件。
 2. 跑验证：`cd server && bun test`；`cd frontend && bun run test`；`cd frontend && bun run build`；界面改过再跑 `cd frontend && bun run test:ui`。
 3. 加工具只改 `server/tools/` 一个文件；写 `name`、`kind`，需要快照就写 `files(input)`。
-4. 改发送、停止、回退时先看 `session/run.js` 和 `session/rollback.js` 的收尾顺序。
+4. 改发送、停止、回退时先看 `conversation/run.js` 和 `conversation/rollback.js` 的收尾顺序。
 5. 继续 HOP 化时，优先处理会话门面、设置页包装、长函数和注释密度；不要先动 HTTP 契约。
 
 ## 六、本轮验证

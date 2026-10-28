@@ -20,7 +20,7 @@ import Snapshot from './snapshot.js' // 命令改文件的检查点。
 import Store from '../agent/state.js' // 运行令牌和自动批准计数。
 import SSE from '../utils/sse.js' // 把运行过程反馈给前端。
 import Title from './title.js' // 第一次聊完让模型起个标题。
-import { canonical } from '../tool/names.js' // 旧工具名也能认出对应结果。
+import { canonical } from '../tool-registry/names.js' // 旧工具名也能认出对应结果。
 import fail from '../utils/fail.js' // 输入为空、会话在跑等业务错误。
 
 // --- 启动 Agent 任务 ---
