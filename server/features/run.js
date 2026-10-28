@@ -214,7 +214,6 @@ const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, 
 const startRun = async ({ sessionId, input, resume, agent }) => {
     const session = await History.load(sessionId)
     const settings = await Agent.readSettings(sessionId)
-    const definition = Agent.find(settings.agent)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     const previousLength = agent.history.length
@@ -225,7 +224,7 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     try {
         task = agent.send({
             input: input.trim(),
-            config: Agent.resolve({ session, settings, agent: definition }),
+            config: Agent.resolve({ session, settings }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, previousLength, token, state }),
                 ...modelEvents({ sessionId, state }),

@@ -14,7 +14,6 @@ import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
 import Config from '../commands/config.js'
 import Session from '../commands/session.js'
-import Tool from '../features/tool.js'
 import History from '../features/history.js'
 import store from '../store.js'
 
@@ -36,26 +35,6 @@ const withHome = async callback => {
 }
 
 describe('工具子集', () => {
-    test('plan 智能体用 Agent.tool.omit 去掉写工具，两份表一起被筛掉', async () => {
-        await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
-            const { sessionId } = await Session.create({ title: '只读模式' })
-            await Session.saveSettings({ sessionId, agent: 'plan' })
-            const { tools } = Agent.runtime().get(sessionId)
-
-            // 要检查的是"该被去掉的那些是不是真没了"，名单从完整工具目录上算。
-            const all = (await Tool.list()).filter(tool => ['write', 'command'].includes(tool.kind)).map(tool => tool.name)
-            expect(all.length, '至少要有一个能改磁盘的工具').toBeGreaterThan(0)
-
-            for (const name of all) {
-                expect(tools.schema[name], `${name} 不该在 plan 智能体的 schema 里`).toBeUndefined()
-                expect(name in (tools.handlers || {}), `${name} 还能被执行`).toBe(false)
-            }
-            expect(tools.schema.read_file).toBeDefined()
-            expect(tools.schema.search_files).toBeDefined()
-        })
-    })
-
     test('omit 返回的是新集合，原来的工具表不受影响', async () => {
         const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
         const before = Object.keys(scanned.schema).length

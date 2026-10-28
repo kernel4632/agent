@@ -32,6 +32,8 @@ const normalize = (session, id) => {
     history.redo ||= []
     // 设置里只保留当前认识的字段；旧版的能力开关、按会话配模型和标题开关不再进入内存。
     const settings = session.settings && typeof session.settings === 'object' ? session.settings : {}
+    delete settings.agent
+    delete settings.mode
     delete settings.capabilities
     delete settings.uses
     delete settings.autoTitle

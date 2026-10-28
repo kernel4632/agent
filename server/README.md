@@ -41,7 +41,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   sessions/<id>/
     meta.json          标题、当前目录、模型、时间
     history.json       消息和回退栈
-    settings.json      智能体、自动批准、思考强度
+    settings.json      自动批准、思考强度
     checkpoints.json   每次改文件的工具调用对应哪些快照
     snapshots/         改文件之前的原样副本
   tools/               用户自己写的工具，和内置工具一起扫描
@@ -120,10 +120,6 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 ### 压缩
 
 上下文用到 `config.compact.threshold`（默认 0.8）时自动压缩。手动压缩走 `POST /session/compact/{sessionId}`。压缩模型可以用 `models.compact` 单独配置；它只换连接，上下文预算仍按主模型算。
-
-### 智能体
-
-内置 `build` / `plan` / `ask` / `debug` 四个运行角色。`plan` 和 `ask` 不是靠提示词约束，而是把写文件和执行命令的工具从工具表里摘掉。
 
 ## 工具
 
@@ -292,7 +288,7 @@ bun start
 | `PATCH` | `/session/model/:sessionId` | `{ "provider?", "model?" }` | 更新后的会话资料；运行中返回 `409` |
 | `PATCH` | `/session/cwd/:sessionId` | `{ "cwd" }` | `{ "id", "cwd" }`；目录不存在返回 `400` |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
-| `GET` | `/session/settings/:sessionId` | 无 | 智能体、自动批准、思考强度 |
+| `GET` | `/session/settings/:sessionId` | 无 | 自动批准、思考强度 |
 | `PATCH` | `/session/settings/:sessionId` | 部分设置 | 保存后的完整设置 |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` |
 
@@ -317,7 +313,6 @@ bun start
     }
   ],
   "settings": {
-    "agent": "build",
     "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
     "autoApproveLimit": 50,
     "reasoning": "auto"
@@ -332,7 +327,6 @@ bun start
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `agent` | `build` | 当前智能体；换智能体需要没有任务在跑 |
 | `autoApprove.read` | `false` | 读文件、搜索、抓网页不再弹审批 |
 | `autoApprove.write` | `false` | 改文件不再弹审批 |
 | `autoApprove.command` | `false` | 执行命令不再弹审批 |

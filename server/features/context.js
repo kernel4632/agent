@@ -47,14 +47,8 @@ const modelInfo = ({ provider: name, model }) => {
     }
 }
 
-// --- 最终交给模型的 system：用户提示词在前，智能体角色说明在后 ---
-const system = ({ config = store.config, agent } = {}) => {
-    const base = (config.prompt?.system || '').trim()
-    const role = typeof agent?.instructions === 'string' ? agent.instructions.trim() : ''
-    if (!base) return role
-    if (!role) return base
-    return `${base}\n\n${role}`
-}
+// --- 最终交给模型的 system：用户写的那段提示词 ---
+const system = ({ config = store.config } = {}) => (config.prompt?.system || '').trim()
 
 // --- 把历史变成这次模型请求的 messages ---
 const build = ({ history, system: prompt = '', tools = {}, budget = DEFAULT_CONTEXT, capabilities } = {}) => {

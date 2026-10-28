@@ -1,5 +1,5 @@
 /*
- * 会话运行设置测试：智能体、按类别的自动批准、按任务的模型。
+ * 会话运行设置测试：按类别的自动批准、思考强度和按任务的模型。
  *
  * 每一项都要真的读回装配好的 Agent 来验证，而不是只看接口返回了什么。
  * 每个测试在自己的临时数据目录里跑，互不影响。
@@ -59,11 +59,10 @@ const runCheck = async ({ sessionId, toolCallId, toolName, input = {} }) => {
 }
 
 describe('会话运行设置', () => {
-    test('默认是 build 智能体、每类自动批准全关', async () => {
+    test('默认每类自动批准全关', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             expect(await Session.readSettings({ sessionId })).toEqual({
-                agent: 'build',
                 autoApprove: allOff(),
                 autoApproveLimit: 50,
                 reasoning: 'auto',
@@ -80,60 +79,29 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('plan 智能体只给只读工具，build 智能体给全套', async () => {
+    test('主 Agent 使用全部工具，不按角色裁剪', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-
-            const buildTools = toolNames(sessionId)
-            expect(buildTools).toContain('write_to_file')
-            expect(buildTools).toContain('execute_command')
-            expect(buildTools).toContain('apply_patch')
-
-            await Session.saveSettings({ sessionId, agent: 'plan' })
-            const planTools = toolNames(sessionId)
-            expect(planTools).not.toContain('write_to_file')
-            expect(planTools).not.toContain('edit')
-            expect(planTools).not.toContain('apply_patch')
-            expect(planTools).not.toContain('execute_command')
-            expect(planTools).toContain('read_file')
-            expect(planTools).toContain('search_files')
-            expect(planTools).toContain('glob')
-            expect(planTools).toContain('new_task')
-
-            await Session.saveSettings({ sessionId, agent: 'build' })
-            expect(toolNames(sessionId)).toContain('write_to_file')
-        })
-    })
-
-    test('plan 智能体不通过系统提示词约束', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, agent: 'plan' })
-            const system = Agent.runtime().get(sessionId).config.system
-            expect(system).toContain('attempt_completion')
-            expect(system).not.toContain('请不要改文件')
-        })
-    })
-
-    test('智能体名写错时按填错处理，不改动已有设置', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await expect(Session.saveSettings({ sessionId, agent: 'hacker' })).rejects.toThrow(/agent must be/i)
-            expect((await Session.readSettings({ sessionId })).agent).toBe('build')
+            const names = toolNames(sessionId)
+            expect(names).toContain('write_to_file')
+            expect(names).toContain('execute_command')
+            expect(names).toContain('apply_patch')
+            expect(names).toContain('read_file')
+            expect(names).toContain('new_task')
         })
     })
 
     test('设置存到会话目录里，换一个进程读回来还是同一份', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, agent: 'plan', autoApprove: { read: true } })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, reasoning: 'high' })
 
             // 清掉内存缓存，强制从磁盘读，模拟后端重启。
             History.clear()
             Agent.runtime().clear()
             const reloaded = await Session.readSettings({ sessionId })
-            expect(reloaded.agent).toBe('plan')
             expect(reloaded.autoApprove.read).toBe(true)
+            expect(reloaded.reasoning).toBe('high')
         })
     })
 
@@ -141,39 +109,11 @@ describe('会话运行设置', () => {
         await withHome(async () => {
             const sessionId = await newSession()
             await writeFile(Path.settings(sessionId), JSON.stringify({
-                agent: 'build',
                 autoApprove: { read: true, write: false, command: false, mcp: false },
             }))
             History.clear()
             const settings = await Session.readSettings({ sessionId })
             expect(settings.autoApprove).toEqual({ read: true, write: false, command: false, mcp: false, subtask: false })
-        })
-    })
-
-    test('plan 智能体的子任务手里也没有写工具，不能借它绕过"只看不做"', async () => {
-        await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
-            const { sessionId } = await Session.create({ title: '只读委托' })
-            await Session.saveSettings({ sessionId, agent: 'plan' })
-
-            const captured = []
-            const original = AgentCore.create
-            AgentCore.create = options => { captured.push(options); return original(options) }
-            try {
-                const task = Agent.runtime().get(sessionId).tools.handlers.new_task
-                await task.execute({ description: '查一下', prompt: '查一下' }, {}).catch(() => {})
-            } finally {
-                AgentCore.create = original
-            }
-
-            const subSchema = Object.keys(captured[0]?.tools?.schema || {})
-            expect(subSchema.length, '子 agent 得真有工具表').toBeGreaterThan(0)
-            expect(subSchema).not.toContain('write_to_file')
-            expect(subSchema).not.toContain('edit')
-            expect(subSchema).not.toContain('apply_patch')
-            expect(subSchema).not.toContain('execute_command')
-            expect(subSchema).toContain('read_file')
-            expect(subSchema).toContain('search_files')
         })
     })
 
@@ -342,7 +282,6 @@ describe('自动批准按类别开关', () => {
         await withHome(async () => {
             const sessionId = await newSession()
             await writeFile(Path.settings(sessionId), JSON.stringify({
-                agent: 'build',
                 autoApprove: true,
             }))
             History.clear()
@@ -367,12 +306,12 @@ describe('自动批准按类别开关', () => {
         })
     })
 
-    test('任务跑着的时候不许换智能体', async () => {
+    test('任务跑着的时候不许改需要重建 Agent 的思考强度', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             Agent.runtime().get(sessionId).running = true
-            await expect(Session.saveSettings({ sessionId, agent: 'plan' })).rejects.toThrow(/already running/i)
-            expect((await Session.readSettings({ sessionId })).agent).toBe('build')
+            await expect(Session.saveSettings({ sessionId, reasoning: 'high' })).rejects.toThrow(/already running/i)
+            expect((await Session.readSettings({ sessionId })).reasoning).toBe('auto')
         })
     })
 
@@ -514,7 +453,7 @@ describe('自动批准的刹车', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], compact: { threshold: 1.5 } })
             History.clear()
             Agent.runtime().clear()
-            expect((await Session.readSettings({ sessionId })).agent).toBe('build')
+            expect((await Session.read({ sessionId })).id).toBe(sessionId)
             expect(Agent.threshold()).toBe(0.8)
         })
     })
@@ -612,7 +551,7 @@ describe('会话分支', () => {
             await History.add({ sessionId, message: AgentCore.history.user({ content: '第一句' }) })
             await History.add({ sessionId, message: AgentCore.history.assistant({ content: '第二句' }) })
             await History.save(sessionId)
-            await Session.saveSettings({ sessionId, agent: 'plan' })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true }, reasoning: 'high' })
 
             const { sessionId: branchId } = await Session.fork({ sessionId })
             expect(branchId).not.toBe(sessionId)
@@ -620,7 +559,8 @@ describe('会话分支', () => {
             const branch = await Session.read({ sessionId: branchId })
             expect(branch.title).toBe('设置测试（分支）')
             expect(branch.history).toHaveLength(2)
-            expect(branch.settings.agent).toBe('plan')
+            expect(branch.settings.autoApprove.read).toBe(true)
+            expect(branch.settings.reasoning).toBe('high')
             expect(branch.cwd).toBe(process.cwd())
         })
     })
@@ -665,22 +605,15 @@ describe('设置接口', () => {
 
             const initial = await request(`/session/settings/${sessionId}`)
             expect(initial.status).toBe(200)
-            expect((await initial.json()).agent).toBe('build')
+            expect((await initial.json()).reasoning).toBe('auto')
 
             const saved = await request(`/session/settings/${sessionId}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ agent: 'plan' }),
+                body: JSON.stringify({ reasoning: 'high' }),
             })
             expect(saved.status).toBe(200)
-            expect((await saved.json()).agent).toBe('plan')
-
-            const bad = await request(`/session/settings/${sessionId}`, {
-                method: 'PATCH',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ agent: 'nope' }),
-            })
-            expect(bad.status).toBe(400)
+            expect((await saved.json()).reasoning).toBe('high')
         })
     })
 
@@ -700,10 +633,9 @@ describe('设置接口', () => {
     test('读取会话时会带上当前设置', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, agent: 'plan', autoApprove: { read: true } })
+            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
             const session = await Session.read({ sessionId })
             expect(session.settings).toMatchObject({
-                agent: 'plan',
                 autoApprove: { ...allOff(), read: true },
             })
         })

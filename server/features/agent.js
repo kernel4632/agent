@@ -1,6 +1,7 @@
 /*
  * 会话的 Agent：准备模型连接、系统提示词、工具表，并缓存运行中的实例。
  *
+ * 主 Agent 只有一个通用运行角色：使用全部工具，不按会话切换身份。
  * 模型请求和循环由 @kernel4632/agent-core 负责；这里只回答四件事：
  * 用哪个模型、带哪段提示词、给哪些工具、这次会话的权限和设置。
  * 默认模型按任务分开：对话、压缩、标题、子任务各用 config.models 里那一个。
@@ -8,7 +9,7 @@
  * 调用示例：
  *   const agent = await Agent.get({ sessionId })
  *   const settings = await Agent.readSettings(sessionId)
- *   await Agent.saveSettings({ sessionId, agent: 'plan' })
+ *   await Agent.saveSettings({ sessionId, reasoning: 'high' })
  *   const config = Agent.resolve({ session })
  */
 
@@ -23,37 +24,8 @@ import Tool from './tool.js'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
 
-// 内置智能体：只用于会话的运行角色，不接受用户自定义定义。
-const BUILTIN = [
-    {
-        name: 'build', label: '执行', description: '可以改文件、执行命令', instructions: '',
-        readOnly: false, tools: null,
-    },
-    {
-        name: 'plan', label: '计划', description: '只读工具，先看清再动手', instructions: '',
-        readOnly: true, tools: null,
-    },
-    {
-        name: 'ask', label: '问答', description: '只回答和解释，不碰文件',
-        instructions: '你只回答问题和解释代码，不修改文件。回答要直接，必要时指出相关文件路径。',
-        readOnly: true,
-        tools: ['read_file', 'list_files', 'search_files', 'glob', 'webfetch', 'skill', 'ask_followup_question', 'attempt_completion'],
-    },
-    {
-        name: 'debug', label: '调试', description: '复现、定位、最小修复',
-        instructions: '先复现问题，再定位原因，最后做最小修复。改完运行相关测试，并把结果说清楚。',
-        readOnly: false, tools: null,
-    },
-]
-
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
-
-// --- 当前可用的内置智能体 ---
-const list = () => BUILTIN.map(base => ({ ...base, name: base.name, builtin: true }))
-
-// --- 按名字取一个内置智能体 ---
-const get = name => list().find(item => item.name === name) || null
 
 // =======================================================================
 //  模型连接
@@ -156,7 +128,7 @@ const hasCapability = (profile, name) => profile.some(item => {
     return false
 })
 
-const resolveFor = ({ session, settings, agent, target }) => {
+const resolveFor = ({ session, settings, target }) => {
     const chosen = target || session.model
     const linked = connection(chosen)
     const info = Context.modelInfo(chosen)
@@ -178,7 +150,7 @@ const resolveFor = ({ session, settings, agent, target }) => {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
         },
-        system: Context.system({ config: store.config, agent }),
+        system: Context.system({ config: store.config }),
         // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
         noToolRounds: 1,
     }
@@ -234,21 +206,10 @@ const attempt = async chosen => {
 const autoApproveDefaults = () => Object.fromEntries(Tool.KINDS.map(item => [item.kind, false]))
 
 const defaultSettings = () => ({
-    agent: 'build',
     autoApprove: autoApproveDefaults(),
     autoApproveLimit: 50,
     reasoning: 'auto',
 })
-
-// --- 智能体：旧版本叫 mode ---
-const chooseAgent = (input, base) => {
-    const requested = input.agent !== undefined ? input.agent : input.mode
-    const chosen = requested !== undefined ? requested : base.agent
-    if (!get(chosen)) {
-        throw fail(400, `agent must be one of ${list().map(item => item.name).join(', ')}, got: ${requested ?? input.agent}`)
-    }
-    return chosen
-}
 
 // --- 自动批准：按类别合并；旧的布尔总开关摊到每一类 ---
 const mergeAutoApprove = (input, base) => {
@@ -265,7 +226,6 @@ const normalizeSettings = (input = {}, base = defaultSettings()) => {
     const parsedLimit = Number(input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit)
     const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {
-        agent: chooseAgent(input, base),
         autoApprove: mergeAutoApprove(input, base),
         autoApproveLimit: Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : base.autoApproveLimit,
         reasoning: REASONING_LEVELS.includes(rawReasoning) ? rawReasoning : base.reasoning,
@@ -280,16 +240,17 @@ const readSettings = async sessionId => {
 
 /**
  * 改设置，只改点名的那几项。
- * 换智能体要重建 Agent，所以任务跑着时拒绝；自动批准不用重建，随时能改。
+ * 思考强度要重建 Agent；自动批准和上限不用，随时能改。
  */
 const saveSettings = async ({ sessionId, ...change }) => {
     const current = normalizeSettings((await History.load(sessionId)).settings, defaultSettings())
-    const onlyAutoApprove = Object.keys(change).every(key => key === 'autoApprove')
-    if (!onlyAutoApprove && agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
-
     const saved = normalizeSettings(change, current)
+
+    if (change.reasoning !== undefined && change.reasoning !== current.reasoning && agents.get(sessionId)?.running) {
+        throw fail(409, `Agent is already running: ${sessionId}`)
+    }
     await History.saveSettings({ sessionId, settings: saved })
-    if (onlyAutoApprove) return saved
+    if (change.reasoning === undefined || change.reasoning === current.reasoning) return saved
 
     // 历史原样交回去，不丢消息。
     agents.delete(sessionId)
@@ -305,13 +266,11 @@ const saveSettings = async ({ sessionId, ...change }) => {
 const create = async ({ sessionId }) => {
     const session = await History.load(sessionId)
     const settings = await readSettings(sessionId)
-    const agent = get(settings.agent)
-    const config = resolveFor({ session, settings, agent })
+    const config = resolveFor({ session, settings })
     const tools = await Tool.build({
         sessionId,
-        agent,
         // 子任务可以用 models.task 单独指定；没配就沿用会话当前模型。
-        taskConfig: resolveFor({ session, settings, agent, target: configured(store.config.models?.task) || session.model }),
+        taskConfig: resolveFor({ session, settings, target: configured(store.config.models?.task) || session.model }),
     })
     // 动态导入避开工具装配时的加载环；审批只在工具真正执行时才会用到。
     const { default: Approval } = await import('./approval.js')
@@ -357,8 +316,6 @@ const runningCount = () => [...agents.values()].filter(agent => agent.running).l
 const invalidate = sessionId => agents.delete(sessionId)
 
 export default {
-    BUILTIN,
-    list, find: get,
     defaultSettings, normalizeSettings, readSettings, saveSettings,
     connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel, saveConfig,
     create, get: getAgent, runtime, runningCount, invalidate,

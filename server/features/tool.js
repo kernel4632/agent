@@ -7,7 +7,7 @@
  *
  * 调用示例：
  *   const catalog = await Tool.list()                       // 设置页用
- *   const tools = await Tool.build({ sessionId, agent })    // 会话启动时装配
+ *   const tools = await Tool.build({ sessionId, taskConfig })   // 会话启动时装配
  *   await Tool.snapshot({ sessionId, toolCallId, toolName, input })
  */
 
@@ -33,9 +33,6 @@ const KINDS = [
     { kind: 'mcp', label: '使用 MCP', hint: 'MCP 服务提供的工具' },
     { kind: 'subtask', label: '创建子任务', hint: '开一个子任务去干活' },
 ]
-
-// 能改磁盘的类别：只读智能体把它们整个摘掉。
-const WRITING = ['write', 'command']
 
 const builtinDir = () => fileURLToPath(new URL('../tools/', import.meta.url))
 
@@ -128,8 +125,8 @@ const bind = (tool, sessionId) => ({
     }),
 })
 
-// --- 组装一条会话的工具表 ---
-const build = async ({ sessionId, agent, taskConfig }) => {
+// --- 组装一条会话的工具表：主 Agent 使用全部工具 ---
+const build = async ({ sessionId, taskConfig }) => {
     const session = store.sessions[sessionId]
     const { tools: registered } = await scan()
     const catalog = new Map(registered)
@@ -143,28 +140,16 @@ const build = async ({ sessionId, agent, taskConfig }) => {
     const skill = await Skill.build({ cwd: session.cwd })
     if (skill) catalog.set(skill.name, skill)
 
-    // 智能体点名的工具才装；写错名字直接忽略，不让会话打不开。
-    const wanted = Array.isArray(agent?.tools) ? new Set(agent.tools) : null
-    let chosen = [...catalog.values()].filter(tool => !wanted || wanted.has(tool.name))
-
-    /*
-     * 只读智能体去掉能改磁盘的工具。先筛工具表、后装 new_task：
-     * 子 agent 拿到的就是筛过的这张表，不能借子任务绕过"只看不做"。
-     */
-    if (agent?.readOnly) chosen = chosen.filter(tool => !WRITING.includes(tool.kind || 'other'))
-
-    const bound = chosen.map(tool => bind(tool, sessionId))
+    const bound = [...catalog.values()].map(tool => bind(tool, sessionId))
     let set = Agent.tool.adopt(bound)
 
-    const withTask = !wanted || wanted.has('new_task')
-    if (withTask) {
-        const task = Delegation.build({
-            config: taskConfig,
-            tools: set,
-            sessionId,
-        })
-        set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
-    }
+    // 子智能体仍然只是一个工具；它拿到的是主 Agent 的同一张工具表。
+    const task = Delegation.build({
+        config: taskConfig,
+        tools: set,
+        sessionId,
+    })
+    set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
     return set
 }
 

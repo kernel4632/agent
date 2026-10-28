@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.50.1",
+    "version": "0.50.2",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [
@@ -607,7 +607,7 @@
           "Session"
         ],
         "summary": "改会话运行设置",
-        "description": "只改点名的那几项。换智能体需要没有任务在跑；自动批准随时能改。",
+        "description": "只改点名的那几项。自动批准随时能改；思考强度变化需要没有任务在跑。",
         "operationId": "sessionSaveSettings",
         "parameters": [
           {
@@ -621,9 +621,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "agent": {
-                    "type": "string"
-                  },
                   "autoApprove": {
                     "$ref": "#/components/schemas/AutoApprove"
                   },
@@ -645,16 +642,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Settings"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "智能体名不认识",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1891,9 +1878,6 @@
       "Settings": {
         "type": "object",
         "properties": {
-          "agent": {
-            "type": "string"
-          },
           "autoApprove": {
             "$ref": "#/components/schemas/AutoApprove"
           },

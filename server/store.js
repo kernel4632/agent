@@ -63,7 +63,6 @@ const store = {
         //     updatedAt: 0,
         //     history: { messages: [], redo: [] },
         //     settings: {
-        //         agent: 'build',
         //         autoApprove: {},
         //         autoApproveLimit: 50,
         //         reasoning: 'auto',
