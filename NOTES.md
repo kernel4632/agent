@@ -36,7 +36,7 @@
 - 当前目录 `cwd`：用户和 agent 都可以改。
 - 模型：这个会话当前使用的模型。
 - 历史：消息、工具调用、回退栈。
-- 设置：自动批准、思考强度、压缩阈值等。
+- 设置：自动批准、思考强度、模型切换等。
 
 会话不绑定项目，不绑定 git，不绑定固定目录。
 
@@ -60,13 +60,12 @@
 工具是 agent 唯一能改变外部世界的方式。工具按类别放文件，不按单个动作拆文件：
 
 - `tools/file.js`：读、写、列目录、编辑、补丁，以及文件自己的快照和恢复。
-- `tools/search.js`：按文件名和文件内容搜索。
-- `tools/shell.js`：执行命令。
-- `tools/web.js`：抓取网页。
+- `tools/web.js`：内置的网络搜索工具，通过特殊方法实现搜索功能和网页信息获取功能。
+- `tools/shell.js`：执行命令相关的工具，异步执行、读取执行输出等。
 - `tools/todo.js`：维护任务清单。
 - `tools/control.js`：完成、询问用户。
-- `tools/task.js`：子任务，启动一个特殊会话和提示词。
-- `tools/cwd.js`：移动当前目录。
+- `tools/subagent.js`：子智能体，启动一个直接复用项目agent功能的子agent，具有自己的系统提示词。
+- `tools/cwd.js`：移动agent自己的位置到新目录。
 - `tools/skill.js`：列出和读取全局技能。
 
 工具自己负责：
@@ -76,6 +75,7 @@
 - 输出截断。
 - 命令风险判断。
 - 工具自己的权限提示。
+- 工具自己的调用渲染与输出内容的渲染模版结构与样式
 
 agent 核心不替工具做这些判断。
 
@@ -84,9 +84,9 @@ agent 核心不替工具做这些判断。
 MCP、技能、子任务都是基座能力，不是后续插件市场的概念。
 
 - MCP：在配置里添加服务，工具清单自动多出外部工具。
-- 技能：从用户全局目录 `~/.agents/skills` 读取 Markdown，工具按需读取正文。
+- 技能：从用户全局目录 `~/.agents/skills` 和项目里的`.agent/skills`读取 Markdown，工具按需读取正文。
 - 子任务：`tools/task.js` 启动一个特殊会话，使用自己的提示词和上下文，把结论交回主会话。
-- 自动标题：每次会话第一次产生助手回复后自动生成，失败就保留默认标题。
+- 自动标题：每次会话第一次产生助手回复后自动生成，失败就保留默认标题（用户发送第一条消息的前几个字），自动标题可以用户操作按照后续的对话内容重新生成。
 
 ## 三、不做什么
 
@@ -99,7 +99,7 @@ MCP、技能、子任务都是基座能力，不是后续插件市场的概念�
 - 不把文件快照做成核心功能；它是文件工具的内部实现。
 - 不把消息回退和文件恢复混在一起；消息回退是独立功能。
 - 不把上下文构建和上下文压缩混成一个文件。
-- 不在项目里放 `skills/`；技能是用户全局数据。
+- 不在项目里放 `skills/`；技能是用户全局数据和项目数据。
 - 不内置诊断命令、长文本截断、工作区规则这类开发者专属能力。
 
 ## 四、目录结构
@@ -131,7 +131,6 @@ server/
     title.js             自动标题
     tool.js              工具登记、扫描、类别、文件参数
     mcp.js               MCP 服务连接
-    settings.js          默认模型、会话设置、配置归一化
 
   utils/                 通用小工具
     fail.js              带状态码的错误
@@ -140,12 +139,11 @@ server/
 
   tools/                 按类别分组，一个文件放一组工具
     file.js              文件与目录：读、写、列表、编辑、补丁、快照
-    search.js            文件名和内容搜索
     shell.js             执行命令
     web.js               网页抓取
     todo.js              任务清单
     control.js           完成任务、询问用户
-    task.js              子任务：特殊会话和提示词
+    subagent.js          子智能体
     cwd.js               移动当前目录
     skill.js             列出和读取全局技能
 
@@ -232,15 +230,6 @@ HTTP/SSE
   → tools/*
   → SSE / 返回值
 ```
-
-例子：
-
-- 发消息：`commands/chat.js` → `features/run.js` → `features/agent.js` → agent-core → `tools/*`。
-- 改目录：`PATCH /session/:id/cwd` → `commands/session.js` → 更新 `store.sessions[id].cwd`。
-- 消息回退：`POST /session/:id/rollback` → `features/rollback.js` → 只改历史。
-- 文件撤销：由 `tools/file.js` 自己保存和恢复，不经过 `features/rollback.js`。
-- 自动标题：一次成功回复后，`features/title.js` 用 `config.models.title` 或主模型生成标题。
-- 子任务：`tools/task.js` 创建特殊会话，使用自己的提示词和上下文，结果回到主会话。
 
 ## 七、验证底线
 
