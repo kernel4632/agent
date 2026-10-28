@@ -238,7 +238,7 @@ test('reasoning preview collapses after the llm finishes', async ({ page }) => {
     { type: 'reasoning-delta', text: '先确认消息结构和工具调用顺序。'.repeat(40) },
     { type: 'tool-call', toolCallId: 'reason-1', toolName: 'read_file', input: { path: 'example.txt' } },
     { type: 'tool-result', toolCallId: 'reason-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
-    { type: 'llm-finish', text: '查完了。', usage: { inputTokens: 10, outputTokens: 4 } },
+    { type: 'llm-finish', text: '查完了。', usage: { input: 10, output: 4, total: 14 } },
   ])
 
   await expect(page.locator('.cot-step--reasoning .reasoning-preview')).not.toHaveClass(/is-preview/)
@@ -300,11 +300,11 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await mock.emit('session-1', [
     { type: 'agent-start' },
     { type: 'text-delta', text: '第一段。' },
-    { type: 'llm-finish', text: '第一段。', usage: { inputTokens: 10, outputTokens: 4 } },
+    { type: 'llm-finish', text: '第一段。', usage: { input: 10, output: 4, total: 14 } },
     { type: 'tool-call', toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '- [ ] 继续' } },
     { type: 'tool-result', toolCallId: 'todo-1', toolName: 'update_todo_list', output: { type: 'json', value: { items: [{ text: '继续', status: 'pending' }] } } },
     { type: 'text-delta', text: '第二段。' },
-    { type: 'llm-finish', text: '第二段。', usage: { inputTokens: 12, outputTokens: 5 } },
+    { type: 'llm-finish', text: '第二段。', usage: { input: 12, output: 5, total: 17 } },
     { type: 'tool-call', toolCallId: 'done-1', toolName: 'attempt_completion', input: { result: '最终结果。' } },
     { type: 'tool-result', toolCallId: 'done-1', toolName: 'attempt_completion', output: { type: 'text', value: '最终结果。' } },
   ])

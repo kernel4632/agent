@@ -27,6 +27,7 @@
 | GET | `/workspace/read` | 无 | 工作区路径与文件列表 | 是 |
 | GET | `/workspace/status` | `?path=` | 该路径的 git 状态 | 否 |
 | GET | `/config/read` | 无 | 完整配置对象 | 是 |
+| GET | `/config/meta` | 无 | 界面只读元数据：`uses` 标签和说明 | 是 |
 | PATCH | `/config/set` | 完整配置对象 | 保存后的配置 | 是 |
 | POST | `/config/test` | `{ provider, model }` | `{ ok, reply }` 或错误 | 是，设置页的"测试连接" |
 | GET | `/session/list` | `?search=` | 会话摘要数组 | 是 |

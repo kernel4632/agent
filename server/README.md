@@ -376,7 +376,7 @@ Content-Type: application/json
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
-| `GET` | `/health` | `{ "ok": true, "version": "0.10.1", "sessions": 2, "running": 1 }` |
+| `GET` | `/health` | `{ "ok": true, "version": "x.y.z", "sessions": 2, "running": 1 }` |
 | `GET` | `/command/list` | 可用的斜杠命令：名字、说明、提示词正文 |
 | `GET` | `/tool/list` | 内置工具和用户工具的名称、分类、类别名、旧名字、当前权限动作，以及工具自带的 `ui` 展示信息和 `configurable` 标记 |
 | `GET` | `/tool/kinds` | 自动批准类别：`kind`、`label`、`hint`，按界面显示顺序排列 |
@@ -402,6 +402,7 @@ Content-Type: application/json
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
 | `GET` | `/config/read` | 无 | 当前完整配置 |
+| `GET` | `/config/meta` | 无 | 界面只读元数据：按用途配模型的 `uses` 标签和说明 |
 | `PATCH` | `/config/set` | 完整新配置 | 保存后的完整配置 |
 
 `PATCH /config/set` 是整体替换，不是局部合并。

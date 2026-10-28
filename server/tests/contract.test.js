@@ -97,12 +97,10 @@ describe('接口契约', () => {
     })
 
     test('界面上"按用途配模型"的下拉框和代码里的用途是同一组', async () => {
-        const frontend = await source('../frontend/src/session/session.js')
-        // 少一项，用户就永远配不了那个用途的模型，而他只会以为"这个功能没有"。
-        const start = frontend.indexOf('const USE_LABELS')
-        const block = frontend.slice(start, frontend.indexOf('}', start))
-        const listed = [...block.matchAll(/^  (\w+): '[^']+',$/gm)].map(([, use]) => use)
-        expect(listed).toEqual(USES.map(item => item.use))
+        // 前端不再存用途表，直接消费 /config/meta；这里确认接口和代码同源。
+        const response = await app.handle(new Request('http://localhost/config/meta'))
+        expect(response.status).toBe(200)
+        expect((await response.json()).uses).toEqual(USES)
     })
 
     test('每个类别在界面上都配了图标', async () => {

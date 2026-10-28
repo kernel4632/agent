@@ -12,6 +12,7 @@ import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
 import Commands from './slash-commands.js' // 扫描用户自定义的斜杠命令。
 import Agents from './config/agents.js' // 给界面列出内置和自定义智能体。
 import Config from './config/config.js' // 执行配置读写指令。
+import { USES } from './config/settings.js' // 按用途配模型的标签也由后端给。
 import Session from './session/session.js' // 执行会话和 Agent 指令。
 import Meta from './session/meta.js' // 启动时准备用户数据目录。
 import Tools from './tool-catalog.js' // 给设置页列出全部工具和当前权限。
@@ -84,6 +85,7 @@ app.group('/session', session => session
 // --- 注册 Config 触发事件 ---
 app.group('/config', config => config
     .get('/read', () => Config.read(Path.config()))
+    .get('/meta', () => ({ uses: USES })) // 界面标签和默认值这类只读元数据，不写回配置。
     .patch('/set', ({ body }) => Config.set(body))
     .post('/test', ({ body }) => Config.test(body || {}))) // 设置页的"测试连接"按钮走这里。
 

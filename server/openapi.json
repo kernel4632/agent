@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.44.0",
+    "version": "0.45.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -2151,6 +2151,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/meta": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "读取界面元数据",
+        "description": "返回设置界面需要的只读元数据。目前包括“按用途配模型”的用途名、显示标签和说明；这些数据只由后端定义，前端不再自己存一份。",
+        "operationId": "configMeta",
+        "responses": {
+          "200": {
+            "description": "界面元数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "use": { "type": "string" },
+                          "label": { "type": "string" },
+                          "hint": { "type": "string" }
+                        },
+                        "required": ["use", "label", "hint"]
+                      }
+                    }
+                  },
+                  "required": ["uses"]
                 }
               }
             }

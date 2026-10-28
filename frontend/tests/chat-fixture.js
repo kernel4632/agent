@@ -63,6 +63,13 @@ export async function backend(page, { configured = true } = {}) {
     calls.push({ path, method, body })
     const json = data => route.fulfill({ status: 200, json: data })
     if (path === '/config/read') return json(config)
+    if (path === '/config/meta') return json({
+      uses: [
+        { use: 'compact', label: '压缩上下文', hint: '把长对话总结成一段' },
+        { use: 'title', label: '生成标题', hint: '给会话起一个短标题' },
+        { use: 'subtask', label: '子任务', hint: '子 agent 干活时用的模型' },
+      ],
+    })
     if (path === '/config/set') { config = body; return json(config) }
     if (path === '/config/test') return json({ ok: true, provider: body?.provider, model: body?.model, text: 'ok' })
     if (path === '/session/list') return json([...sessions.values()])
@@ -226,7 +233,7 @@ export async function backend(page, { configured = true } = {}) {
         ],
       })
       session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { inputTokens: 30, outputTokens: 20, inputTokenDetails: { cacheReadTokens: 10 } } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
+      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start' }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) {
       session.running = false
@@ -256,7 +263,7 @@ export async function backend(page, { configured = true } = {}) {
         { type: 'agent-resume' },
         { type: 'llm-start' },
         { type: 'text-delta', text: '继续完成' },
-        { type: 'llm-finish', text: '继续完成', usage: { inputTokens: 12, outputTokens: 6 } },
+        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18 } },
         { type: 'agent-finish' },
       ])
     }

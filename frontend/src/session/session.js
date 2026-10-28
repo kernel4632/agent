@@ -9,6 +9,7 @@ import { UI } from '../app/ui.js'                            // 引入导航和�
 import { Tabs } from '../app/tabs.js'                        // 同步顶部会话标签
 import { t } from '../i18n.js'                          // 引入当前语言默认文案
 import { formatToolOutput, toolStatus } from './tool-ui.js' // 工具状态和文本只有一处判断
+import { requestFromUsage } from './usage.js'             // 请求用量字段只有一处转换
 import { splitUserAttachments } from '../utils/user-message.js'      // 历史里的附件正文不能跑进用户气泡
 import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认值只留一处
 
@@ -266,17 +267,6 @@ function agentLabel(name) {
 const labelOf = kind => autoApproveKinds().find(item => item.kind === kind)?.label || kind
 
 
-/*
- * 哪件事可以单独指定模型，以及它在界面上叫什么。
- * 键名以后端 ../settings/settings.js 的 USES 为准，这里有契约测试盯着不会漏。
- */
-const USE_LABELS = {
-  compact: '压缩上下文',
-  title: '生成标题',
-  subtask: '子任务',
-}
-
-
 // --- 切换某一类的自动批准 ---
 async function toggleAutoApprove(sessionID, kind) {
   const session = store.sessions[sessionID]
@@ -347,7 +337,7 @@ async function setCompactThreshold(sessionID, value) {
 
 
 // --- 用途的中文名 ---
-const useLabel = use => USE_LABELS[use] || use
+const useLabel = use => (store.config.useOptions || []).find(item => item.use === use)?.label || use
 
 // --- 把一条协议消息整理成界面消息；工具结果只更新前面对应的工具，不单独成为气泡 ---
 function partList(item) {
@@ -375,22 +365,7 @@ function applyToolResult(messages, parts) {
 }
 
 function normalizeRequest(item) {
-  if (!item.usage) return null
-  const usage = item.usage
-  const input = Number(usage.input ?? usage.inputTokens ?? 0)
-  const output = Number(usage.output ?? usage.outputTokens ?? 0)
-  return {
-    status: 'completed',
-    startedAt: Number(usage.startedAt || 0),
-    finishedAt: Number(usage.finishedAt || 0),
-    durationMs: Number(usage.durationMs || 0),
-    input,
-    output,
-    cache: Number(usage.cacheRead ?? usage.inputTokenDetails?.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
-    cacheWrite: Number(usage.cacheWrite ?? usage.inputTokenDetails?.cacheWriteTokens ?? 0),
-    reasoning: Number(usage.reasoning ?? usage.outputTokenDetails?.reasoningTokens ?? 0),
-    total: Number(usage.total ?? input + output),
-  }
+  return requestFromUsage(item.usage)
 }
 
 function normalizeMessage(item, messages) {
@@ -566,4 +541,4 @@ export const Session = {
   saveSettings, setAgent, agentLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold, setReasoning,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
-export { autoApproveKinds, USE_LABELS }
+export { autoApproveKinds }

@@ -197,7 +197,8 @@ const modelEvents = ({ sessionId, state }) => ({
     onLLMFinish: result => {
         const finishedAt = Date.now()
         state.pendingUsage = usageOf({ usage: result.usage, startedAt: state.llmStartedAt || finishedAt, finishedAt })
-        return SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result, durationMs: state.pendingUsage.durationMs } })
+        // 用量在服务端统一成固定字段再发给前端，前端不再认识各家模型的原始字段名。
+        return SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result, usage: state.pendingUsage, durationMs: state.pendingUsage.durationMs } })
     },
 })
 

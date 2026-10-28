@@ -30,7 +30,13 @@ async function load() {
     } catch {
       kinds = []                                         // 旧后端没有这个接口时开关为空
     }
-    apply(raw, catalog, agents, kinds)                    // 将 Server 数据转换为设置页面结构
+    let meta = { uses: [] }
+    try {
+      meta = await AgentAPI.getConfigMeta()                // “按用途配模型”的标签和说明
+    } catch {
+      meta = { uses: [] }                                // 旧后端没有这个接口时不画用途选择
+    }
+    apply(raw, catalog, agents, kinds, meta)              // 将 Server 数据转换为设置页面结构
     try {
       const commands = await AgentAPI.getCommands()       // 读取用户自定义的斜杠命令
       store.commands = Array.isArray(commands) ? commands : []
@@ -131,7 +137,7 @@ function agentList(raw, catalogAgents) {
 }
 
 // --- 应用 Server 配置到设置结构 ---
-function apply(raw, catalog = [], catalogAgents = [], catalogKinds = []) {
+function apply(raw, catalog = [], catalogAgents = [], catalogKinds = [], meta = {}) {
   const providers = providerMap(raw)
   const { toolCatalog, tools } = toolSettingsFor(raw, catalog)
   const { activeProvider, activeModel } = modelChoice(providers, raw)
@@ -146,6 +152,7 @@ function apply(raw, catalog = [], catalogAgents = [], catalogKinds = []) {
     tools,
     toolCatalog,
     kindOptions: Array.isArray(catalogKinds) ? catalogKinds : [],
+    useOptions: Array.isArray(meta.uses) ? meta.uses : [],
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     agents,

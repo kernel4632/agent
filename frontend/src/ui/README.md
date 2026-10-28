@@ -14,7 +14,7 @@
 - 左侧会话抽屉 `app/AppDrawer.vue` → `KimaDrawer`（left）
 - 会话历史列表 → `KimaList`（`variant="plain"`）；行右侧菜单 → `MenuButton` → `KimaMenu`（`icon-only`）
 - 下拉选择使用 `KimaSelect`，由 `ui/index.js` 统一转出。
-- 提示条 → `KimaNotification`；连接错误 → `KimaAlert`；KIMA 0.9.7 的通知样式作用域哈希与组件不一致，临时兼容写在 `app/Toast.vue`，上游修复后删除。
+- 提示条 → `KimaNotification`；连接错误 → `KimaAlert`。KIMA 0.9.9 已修好通知样式作用域问题，`app/Toast.vue` 只保留应用自己的位置上移。
 - 附件、建议和会话选项 → `KimaChip`；回退确认里的勾选 → `KimaCheckbox`。
 
 颜色、字体、阴影统一来自 KIMA token，映射写在 `styles/tokens.scss`。页面里可以继续写聊天、时间线、工具行这类 KIMA 没有的领域组件，但视觉要使用 `--kima-*`，不要另起一套配色。
@@ -26,4 +26,4 @@
 - 需要新的尺寸档位时，在适配层增加变体，再让页面使用；不要每个页面各写一套。
 - 设置页统一用 20–24px 圆角卡片、24px 内边距和 16–24px 的分组间距；不做紧凑表格式布局。
 
-发现 KIMA 的问题时提到 `kernel4632/kima`，不要在项目里写覆盖式兼容层；唯一例外是 `app/Toast.vue` 对 0.9.7 通知作用域哈希的临时修复，已在代码里写明删除条件。
+发现 KIMA 的问题时提到 `kernel4632/kima`，不要在项目里写覆盖式兼容层；通知样式已由 KIMA 0.9.9 修好，项目里只保留位置覆盖，不再复制组件样式。

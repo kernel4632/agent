@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { KimaSelect } from '../../ui/index.js'
 import { Switch } from '../../ui/index.js'
-import { USE_LABELS } from '../../session/session.js'
+import { store } from '../../store.js'
 
 const props = defineProps({ draft: { type: Object, required: true } })
 
@@ -25,7 +25,8 @@ const modelValue = computed(() => {
   const target = props.draft.defaultModel
   return target?.provider && target?.model ? `${target.provider}/${target.model}` : ''
 })
-const useOptions = computed(() => [{ value: '', label: '和默认模型共用' }, ...modelOptions.value])
+const modelChoices = computed(() => [{ value: '', label: '和默认模型共用' }, ...modelOptions.value])
+const useEntries = computed(() => store.config.useOptions || [])
 
 const capabilityRows = [
   { key: 'image', label: '图像', hint: '允许把图片发给模型' },
@@ -107,9 +108,9 @@ function setUse(use, value) {
         <p>不选就和默认模型共用；只有确实需要更便宜或更快的模型时才分开。</p>
       </div>
       <div class="model-settings__fields">
-        <div class="model-settings__field" v-for="(label, use) in USE_LABELS" :key="use">
-          <span class="model-settings__label">{{ label }}</span>
-          <KimaSelect :label="label" :model-value="useKey(use)" :items="useOptions" @update:model-value="setUse(use, $event)" />
+        <div class="model-settings__field" v-for="item in useEntries" :key="item.use">
+          <span class="model-settings__label">{{ item.label }}</span>
+          <KimaSelect :label="item.label" :model-value="useKey(item.use)" :items="modelChoices" @update:model-value="setUse(item.use, $event)" />
         </div>
       </div>
     </div>

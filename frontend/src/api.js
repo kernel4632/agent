@@ -82,6 +82,7 @@ export const AgentAPI = {
       rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/tool/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
       redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
       getConfig:        ()                          => request('/config/read'),
+  getConfigMeta:    ()                          => request('/config/meta'),
       updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
       // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
       testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),

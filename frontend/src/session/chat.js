@@ -15,6 +15,7 @@ import { Tabs } from '../app/tabs.js'                          // 后端起好�
 import { UI } from '../app/ui.js'
 import { t } from '../i18n.js'                            // 工具被拦下等提示需要当前语言文案
 import { formatToolOutput, toolStatus } from './tool-ui.js' // 工具状态和结果文本只有一处判断
+import { usageFields } from './usage.js' // 请求用量字段只有一处转换
 import { readAttachments } from '../utils/attachments.js'          // 附件大小和类型检查只有一处
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
@@ -28,22 +29,7 @@ function createAssistant(session) {
 }
 
 // --- 把一次模型请求的用量收成界面统一字段 ---
-// 服务端实时事件和历史文件可能用不同字段名，这里只认一套。
-function usageFields(usage = {}, durationMs = 0) {
-  const input = Number(usage.inputTokens ?? usage.promptTokens ?? 0)
-  const output = Number(usage.outputTokens ?? usage.completionTokens ?? 0)
-  const details = usage.inputTokenDetails || {}
-  const outputDetails = usage.outputTokenDetails || {}
-  return {
-    input,
-    output,
-    cache: Number(details.cacheReadTokens ?? usage.cacheReadTokens ?? usage.cachedInputTokens ?? 0),
-    cacheWrite: Number(details.cacheWriteTokens ?? usage.cacheWriteTokens ?? 0),
-    reasoning: Number(outputDetails.reasoningTokens ?? usage.reasoningTokens ?? 0),
-    total: Number(usage.totalTokens ?? input + output),
-    durationMs: Number(durationMs || usage.durationMs || 0),
-  }
-}
+// 服务端已经统一过字段名，这里不重复判断各家模型的原始字段。
 
 function finishRequest(request, usage, durationMs) {
   if (!request) return null

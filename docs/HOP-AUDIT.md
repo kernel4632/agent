@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | 1 | 按主体组织 | `[x]` 通过 | 后端 `session/` 按动作分成 `session.js`（会话资料）、`agent.js`（装配 Agent）、`run.js`（发送和停止）、`read.js`（读取）、`rollback.js`（回退）、`history.js`、`snapshot.js`、`title.js`、`meta.js`。`config/`、`safety/` 各自一组；根目录只留工具、技能、MCP、斜杠命令、工作区等主体文件。 |
 | 2 | 加删只动一处 | `[x]` 通过 | 加工具只往 `server/tools/` 放一个文件，写 `name`、`kind`、可选 `files(input)`；扫描器自动登记。`truncate.js`、`diagnose.js` 已移出 `tools/`，`tools/` 里现在每个文件都是真工具。`new_task` 和 `skill` 是运行时工具，不放在 `tools/`，不属于可增删的文件工具。 |
-| 3 | 数据一个来源 | `[~]` 部分 | 会话历史只由 `session/history.js` 管；`Store.sessions` 已删除，读、回退、同步都走 `History`。删除会话会同时清掉历史缓存。**仍然重复**：前端 `USE_LABELS`、`defaults.js`、`usageFields` 与后端用途标签、默认值、用量字段各有一份，详见第三节。 |
+| 3 | 数据一个来源 | `[~]` 部分 | 会话历史只由 `session/history.js` 管；`Store.sessions` 已删除，读、回退、同步都走 `History`。删除会话会同时清掉历史缓存。**仍然重复**：前端 `defaults.js` 与后端默认值各有一份，详见第三节。 |
 | 4 | 流程一条线 | `[x]` 通过 | 发消息：`Session.send()` → `run.js` 的 `validateRun()` → `startRun()` → 收尾函数。回退：`Session.rollback()` → `rollback.js`，文件恢复前先校验消息。审批：`Approval.check()` 按固定顺序调用具名小函数。 |
 | 5 | 打开就懂 | `[x]` 通过 | `server/`、`frontend/src/` 的源文件都以文件头开头；工具、会话、配置、核心组件都补了“调用示例”。测试文件只保留文件头，不写调用示例，因为它们不是被别人 import 的模块。 |
 | 6 | 装得下 | `[x]` 通过 | 最长业务函数是 `frontend/src/session/session.js` 的 `normalizeMessage()`（56 行）和 `normalize()`（54 行）；其余业务函数在 45 行以内。`server/session/run.js` 拆成启动、模型事件、工具事件、落盘、审批几个小函数。 |
@@ -29,7 +29,9 @@
 - `[x]` **单文件目录**：`server/defaults/system-prompt.js` 移到根目录 `server/system-prompt.js`，删除 `defaults/`。
 - `[x]` **组件库边界**：`ui/index.js` 转出业务用到的全部 KIMA 组件；19 个业务文件改成从 `ui/index.js` 导入。`ui-boundary.test.js` 现在会报出任何直接 import KIMA 的业务文件。
 - `[x]` **智能体清单**：前端删除 `FALLBACK_AGENTS` 和 `raw.modes` 兜底，智能体目录只来自后端 `/agent/list`；设置页仍从 `raw.agents` 读自定义定义用于编辑。
-- `[x]` **类别和旧工具名**：`/tool/list` 每项带 `kindLabel`、`kindHint`、`previousNames`；`/tool/kinds` 给自动批准开关提供类别、名字和顺序。前端不再存类别表或旧工具名表，全部从后端取。
+- `[x]` **类别、用途和旧工具名**：`/tool/list` 每项带 `kindLabel`、`kindHint`、`previousNames`；`/tool/kinds` 给自动批准开关提供类别、名字和顺序；`/config/meta` 给“按用途配模型”提供标签。前端不再存类别表、用途表或旧工具名表。
+- `[x]` **用量字段**：服务端在 `llm-finish` 和历史里只发 `input/output/cacheRead/cacheWrite/reasoning/total`；前端只在 `session/usage.js` 转一次，不再认识各家模型的原始字段名。
+- `[x]` **KIMA 0.9.9**：通知组件的作用域哈希已由上游修好，`Toast.vue` 里复制的通知样式已删除，只保留应用自己的位置上移。
 - `[x]` **会话文件拆分**：`session/session.js` 从 900 行降到 275 行；运行、回退、读取、Agent 装配分别进独立文件。
 - `[x]` **长函数拆分**：`frontend/src/session/chat.js` 的 `receiveRun()` 拆成按事件命名的小函数；`server/utils/sse.js` 的响应过滤拆成 `sseBody()`。
 - `[x]` **命名**：所有 `handler` 类架构词已从业务源码清掉。
@@ -41,17 +43,14 @@
 
 | 位置 | 重复内容 | 现在怎么保证不漂移 |
 | --- | --- | --- |
-| `frontend/src/session/session.js` `USE_LABELS` | 压缩、标题等用途标签 | 与 `server/config/settings.js` 的 `USES` 对应 |
 | `frontend/src/defaults.js` | 会话默认值、上下文窗口、未命名标题 | 跨进程最小默认值，后端 `defaultSettings()` 是运行期来源 |
-| `frontend/src/session/chat.js` `usageFields`、`frontend/src/session/session.js` `normalizeRequest`、`server/session/run.js` `usageOf` | token 用量字段 | 三处都识别同一组输入/输出/缓存字段，服务端已经统一输出一套 |
 
-如果要彻底消灭这些重复，需要新增一个只读元数据接口（例如 `/config/meta`），并让前端启动时取一次。那会改 HTTP 契约，必须同时改 `openapi.json`、`server/README.md`、`frontend/src/api.js`，所以没有在这一轮擅自做。
+默认值仍故意保留一份前端最小版：首屏和组件 props 初始化时后端还没返回，不能等。要彻底消灭这最后两份，需要在启动时先拿到 `/config/meta` 再挂载界面，并统一服务端 usage 输出；那会改启动顺序和 SSE 契约，这一轮没有做。
 
 ## 四、其他没有做到完美的地方
 
 - `frontend/src/settings/pages/*.vue` 里有几个包装页只做 `draft` 字段到原设置组件的映射。它们不是纯转手，因为原组件接口不同；但确实多了一层文件。下一轮可以合并成真正的页面组件。
 - `server/session/run.js` 的 `finishSuccess()` 里仍有三次“stop 或新 run 接管”的检查。它们是 `await` 之后必须重新确认的时序保护，不是重复输入校验；为了不改变 stop 的终态所有权，暂时保留。
-- `frontend/src/app/Toast.vue` 仍复制 KIMA 0.9.7 的通知样式，这是上游作用域哈希问题的临时兼容；issue #13 修复后删除。
 - 测试文件没有“调用示例”，因为它们不被其他代码 import；文件头只说明测试范围。
 
 ## 五、接手顺序
