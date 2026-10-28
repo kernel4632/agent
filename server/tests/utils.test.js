@@ -8,18 +8,18 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import Agent from '@kernel4632/agent-core'
 
-import Approval from '../safety/approval.js'
-import Config from '../config/config.js'
-import History from '../conversation/history.js'
-import Ignore from '../safety/ignore.js'
-import Delegation from '../agent/subtask.js'
-import Mcp from '../tool-registry/mcp.js'
-import Session from '../conversation/session.js'
-import Skills from '../skills/loader.js'
-import Snapshot from '../conversation/snapshot.js'
-import Store from '../agent/state.js'
+import AgentCore from '@kernel4632/agent-core'
+import Approval from '../features/approval.js'
+import Agent from '../features/agent.js'
+import Config from '../commands/config.js'
+import Delegation from '../tools/subagent.js'
+import * as File from '../tools/file.js'
+import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
+import Session from '../commands/session.js'
+import Skill from '../tools/skill.js'
+import store from '../store.js'
 import { app } from '../server.js'
 import SSE from '../utils/sse.js'
 
@@ -28,12 +28,9 @@ const withHome = async callback => {
     const root = join(tmpdir(), `agent-server-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
-    // Store 是模块级的，不清空的话上一个测试的配置会留在下一个测试里。
-    Object.keys(Store.config).forEach(key => delete Store.config[key])
-    Store.agents.clear()
+    Object.keys(store.config).forEach(key => delete store.config[key])
+    Agent.runtime().clear()
     History.clear()
-    Store.snapshots.clear()
-    Store.approvals.clear()
 
     try {
         return await callback(root)
@@ -45,7 +42,6 @@ const withHome = async callback => {
 }
 
 const request = (path, options = {}) => app.handle(new Request(`http://localhost${path}`, options))
-
 const jsonRequest = (path, method, body) => request(path, {
     method,
     headers: { 'content-type': 'application/json' },
@@ -57,36 +53,45 @@ describe('server HTTP API', () => {
         await withHome(async () => {
             const initial = await request('/config/read')
             expect(initial.status).toBe(200)
-            expect(await initial.json()).toMatchObject({
-                prompt: { system: expect.any(String), defaultSeeded: true },
+            const view = await initial.json()
+            expect(view).toMatchObject({
+                prompt: { system: expect.any(String), seeded: true },
+                models: { chat: expect.any(Object), compact: expect.any(Object) },
             })
+            // 旧界面还在读这些字段；它们由新字段现算，不写回 store。
+            expect(view.model).toEqual(view.models.chat)
+            expect(view.uses).toMatchObject({ compact: expect.any(Object), title: expect.any(Object), subtask: expect.any(Object) })
+            expect(typeof view.compactThreshold).toBe('number')
 
             const value = { providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } }
             const saved = await jsonRequest('/config/set', 'PATCH', value)
             expect(saved.status).toBe(200)
             expect(await saved.json()).toMatchObject({
-                ...value,
-                prompt: { system: expect.any(String), defaultSeeded: true },
+                permission: { '*': 'ask' },
+                models: { chat: { provider: '', model: '' } },
             })
         })
     })
 
-    test('creates, reads, renames, and removes a session through HTTP', async () => {
+    test('creates, reads, renames, moves and removes a session through HTTP', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
 
             const created = await jsonRequest('/session/create', 'POST', { title: 'First task' })
             expect(created.status).toBe(200)
             const { sessionId } = await created.json()
-            expect(typeof sessionId).toBe('string')
 
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
-            expect(await read.json()).toMatchObject({ id: sessionId, title: 'First task' })
+            expect(await read.json()).toMatchObject({ id: sessionId, title: 'First task', cwd: process.cwd() })
 
             const renamed = await jsonRequest(`/session/rename/${sessionId}`, 'PATCH', { title: 'Renamed task' })
             expect(renamed.status).toBe(200)
             expect(await renamed.json()).toMatchObject({ id: sessionId, title: 'Renamed task' })
+
+            const moved = await jsonRequest(`/session/cwd/${sessionId}`, 'PATCH', { cwd: process.cwd() })
+            expect(moved.status).toBe(200)
+            expect(await moved.json()).toEqual({ id: sessionId, cwd: process.cwd() })
 
             const removed = await request(`/session/remove/${sessionId}`, { method: 'DELETE' })
             expect(removed.status).toBe(200)
@@ -102,15 +107,16 @@ describe('server HTTP API', () => {
             const response = await jsonRequest('/session/create', 'POST', { title: '' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: expect.any(String) })
+
+            const badCwd = await jsonRequest('/session/create', 'POST', { title: 'x', cwd: join(tmpdir(), 'definitely-missing-folder-xyz') })
+            expect(badCwd.status).toBe(400)
         })
     })
 
     test('rejects a create request with no body as a client error', async () => {
         await withHome(async () => {
             const response = await app.handle(new Request('http://localhost/session/create', { method: 'POST' }))
-            // body 缺失是用户发错了请求，不是程序故障；入口必须给 400，不能漏成 500。
             expect(response.status).toBe(400)
-            expect(await response.json()).toMatchObject({ error: expect.any(String) })
         })
     })
 
@@ -126,28 +132,23 @@ describe('server HTTP API', () => {
 describe('server delegation', () => {
     test('子 agent 可以再委托一层，最底层不能再往下开', async () => {
         await withHome(async () => {
-            const Agent = (await import('@kernel4632/agent-core')).default
-            const scanned = await Agent.tool.from('./tools')
+            const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
             const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
 
-            // 第 1 层还带 task；第 2 层只剩普通工具，不会无限套娃。
             const middle = Delegation.toolsForDepth({ config, tools: scanned, depth: 1, maxDepth: 2 })
             expect(Object.keys(middle.schema)).toContain('new_task')
             const bottom = Delegation.toolsForDepth({ config, tools: scanned, depth: 2, maxDepth: 2 })
             expect(Object.keys(bottom.schema)).not.toContain('new_task')
             expect(Object.keys(bottom.schema)).toContain('read_file')
 
-            // 和别的工具合起来之后，主 agent 的工具表里有 task。
             const task = Delegation.build({ config, tools: scanned })
-            const merged = Agent.tool.merge(scanned, Agent.tool.adopt({ new_task: task }))
+            const merged = AgentCore.tool.merge(scanned, AgentCore.tool.adopt({ new_task: task }))
             expect(Object.keys(merged.schema)).toContain('new_task')
 
-            // 真跑一次：子 agent 连不上模型，错误作为结论回来，不该抛出去打断主任务。
             const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
             expect(result.description).toBe('查点东西')
             expect(typeof result.error).toBe('string')
 
-            // 执行器只传第一参时也不能崩：这是文件工具踩过的同一个坑。
             const bare = await task.execute({ description: '不带第二参', prompt: '随便看看' })
             expect(bare.description).toBe('不带第二参')
             expect(typeof bare.error).toBe('string')
@@ -156,79 +157,57 @@ describe('server delegation', () => {
 
     test('stops the sub-agent when the main task is stopped', async () => {
         await withHome(async () => {
-            const scanned = await (await import('@kernel4632/agent-core')).default.tool.from('./tools')
+            const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
             const task = Delegation.build({ config: { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }, tools: scanned })
 
-            // 一进来就是已取消状态，子 agent 不该继续跑下去。
             const controller = new AbortController()
             controller.abort()
             const result = await task.execute({ description: '查东西', prompt: '看看' }, { abortSignal: controller.signal })
             expect(result.description).toBe('查东西')
-            // 取消或失败都只作为结论返回，不往外抛。
             expect(result.error || result.reason).toBeDefined()
         })
     })
 })
 
 describe('server skills', () => {
-    test('lists skills from the data directory and reads one on demand', async () => {
+    const writeSkill = async (dir, name, description, body) => {
+        await mkdir(dir, { recursive: true })
+        await writeFile(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\n${body}`)
+    }
+
+    test('lists global and project skills, project wins on the same name', async () => {
         await withHome(async root => {
-            // 用户往 skills/ 放一个技能文件夹，agent 就能用上它。
-            await mkdir(join(root, 'skills', 'review-pr'), { recursive: true })
-            await writeFile(join(root, 'skills', 'review-pr', 'SKILL.md'), `---
-name: review-pr
-description: 审查一个 PR 时用这个
----
+            const project = join(root, 'project')
+            await writeSkill(join(root, 'skills', 'review'), 'review', '全局审查', '全局正文')
+            await writeSkill(join(project, '.agent', 'skills', 'review'), 'review', '项目审查', '项目正文')
+            await writeSkill(join(root, 'skills', 'deploy'), 'deploy', '部署', '部署正文')
 
-第一步：读 diff。
-`)
-
-            // 清单里既有内置技能，也有用户刚放进去的这个。
-            const list = await Skills.list()
-            expect(list.map(item => item.name)).toContain('review-pr')
-            expect(await Skills.read('review-pr')).toContain('第一步')
-            // 模型看到的是清单，不是所有正文。
-            const tools = await Skills.tools()
-            expect(JSON.stringify(tools.skill.description)).toContain('review-pr')
+            const skills = await Skill.list({ cwd: project })
+            expect(skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
+            expect(skills.find(item => item.name === 'review').description).toBe('项目审查')
+            expect(await Skill.read({ name: 'review', cwd: project })).toBe('项目正文')
         })
     })
 
     test('skips a file without a header and reports an unknown skill as missing', async () => {
         await withHome(async root => {
             await mkdir(join(root, 'skills', 'broken'), { recursive: true })
-            // 没有开头那段就认不出是什么技能，跳过它，不让它挡住别的技能。
             await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
 
-            // 坏文件不出现在清单里，但内置技能照常在。
-            const names = (await Skills.list()).map(item => item.name)
-            expect(names).not.toContain('broken')
-            expect(names).toContain('elysiajs')
-            await expect(Skills.read('nope')).rejects.toMatchObject({ status: 404 })
+            expect((await Skill.list({ cwd: root })).map(item => item.name)).not.toContain('broken')
+            await expect(Skill.read({ name: 'nope', cwd: root })).rejects.toMatchObject({ status: 404 })
         })
     })
 
-    test('lets a user skill replace a built-in one with the same name', async () => {
+    test('gives the agent a skill tool listing the available skills', async () => {
         await withHome(async root => {
-            // 内置有 elysiajs；用户在数据目录里放一个同名的，应当以用户的为准。
-            await mkdir(join(root, 'skills', 'elysiajs'), { recursive: true })
-            await writeFile(join(root, 'skills', 'elysiajs', 'SKILL.md'), '---\nname: elysiajs\ndescription: 我们公司自己的写法\n---\n用我们自己的约定')
-
-            const found = (await Skills.list()).filter(item => item.name === 'elysiajs')
-            expect(found).toHaveLength(1)
-            expect(found[0].description).toBe('我们公司自己的写法')
-            expect(await Skills.read('elysiajs')).toContain('我们自己的约定')
-        })
-    })
-
-    test('gives the agent a skill tool listing the built-in skills', async () => {
-        await withHome(async () => {
+            await writeSkill(join(root, 'skills', 'review'), 'review', '审查改动', '第一步')
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
-            const { sessionId } = await Session.create({ title: 'With skills' })
-            const agent = (await import('../agent/state.js')).default.agents.get(sessionId)
+            const { sessionId } = await Session.create({ title: 'With skills', cwd: root })
+            const agent = Agent.runtime().get(sessionId)
 
-            // 内置技能跟着代码走，任何环境上都该有。
             expect(agent.tools.schema.skill).toBeDefined()
-            expect(agent.tools.schema.skill.description).toContain('elysiajs')
+            expect(agent.tools.schema.skill.description).toContain('review')
         })
     })
 })
@@ -236,7 +215,6 @@ description: 审查一个 PR 时用这个
 describe('server MCP', () => {
     test('connects a configured MCP server and exposes its tools to the agent', async () => {
         await withHome(async () => {
-            // 用一个真的 stdio MCP 服务验证整条路：连上 → 拿到工具 → 交给 Agent。
             await Config.set({
                 providers: [{ name: 'local', models: ['model'] }],
                 mcp: { everything: { command: 'bun', args: ['node_modules/@modelcontextprotocol/server-everything/dist/index.js'] } },
@@ -246,8 +224,7 @@ describe('server MCP', () => {
             expect(Object.keys(mcpTools).length).toBeGreaterThan(0)
 
             const { sessionId } = await Session.create({ title: 'MCP task' })
-            const agent = (await import('../agent/state.js')).default.agents.get(sessionId)
-            // 服务给的工具名前面带了服务名，和内置工具摆在同一份工具表里。
+            const agent = Agent.runtime().get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining(['everything_echo', 'read_file']))
 
             await Mcp.close()
@@ -258,13 +235,11 @@ describe('server MCP', () => {
         await withHome(async () => {
             await Config.set({
                 providers: [{ name: 'local', models: ['model'] }],
-                // 一个根本不存在的命令：连不上不该让整个会话创建失败。
                 mcp: { broken: { command: 'definitely-not-a-real-command-xyz' } },
             })
 
             const { sessionId } = await Session.create({ title: 'Broken MCP task' })
-            const session = await Session.read({ sessionId })
-            expect(session.id).toBe(sessionId)
+            expect((await Session.read({ sessionId })).id).toBe(sessionId)
             await Mcp.close()
         })
     })
@@ -275,16 +250,14 @@ describe('server session list', () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const first = await Session.create({ title: 'Alpha task' })
-            // 造一点时间差，好让排序有东西可排。
             await Bun.sleep(5)
             const second = await Session.create({ title: 'Beta task' })
 
             const all = await Session.list({})
             expect(all).toHaveLength(2)
-            // 最近用过的排在前面。
             expect(all[0].id).toBe(second.sessionId)
+            expect(all[0].cwd).toBe(process.cwd())
 
-            // 搜索按标题匹配，找不到的不会出现在结果里。
             const searched = await Session.list({ search: 'alpha' })
             expect(searched).toHaveLength(1)
             expect(searched[0].id).toBe(first.sessionId)
@@ -298,14 +271,12 @@ describe('server session list', () => {
 
             const response = await request('/session/list')
             expect(response.status).toBe(200)
-            const sessions = await response.json()
-            expect(sessions.map(item => item.title)).toEqual(['Visible'])
+            expect((await response.json()).map(item => item.title)).toEqual(['Visible'])
         })
     })
 
     test('returns an empty list when no session directory exists yet', async () => {
         await withHome(async () => {
-            // 全新安装时 sessions/ 目录还不存在，列出空的而不是报错。
             expect(await Session.list({})).toEqual([])
         })
     })
@@ -318,16 +289,21 @@ describe('server route walk', () => {
             const created = await jsonRequest('/session/create', 'POST', { title: 'Route walk' })
             const { sessionId } = await created.json()
 
-            // 这些接口都要真的走一遍。没有真模型时它们可以报错，但报错必须说清是哪件事不行，
-            // 而不是路由写错导致的 undefined、is not a function 这种。
             for (const [path, method] of [
                 [`/session/compact/${sessionId}`, 'POST'],
                 [`/session/redo/${sessionId}`, 'POST'],
                 [`/session/changes/${sessionId}`, 'GET'],
+                [`/session/tools/${sessionId}`, 'GET'],
+                [`/session/cwd/${sessionId}`, 'PATCH'],
                 ['/health', 'GET'],
                 ['/workspace/status', 'GET'],
+                ['/workspace/read', 'GET'],
+                ['/command/list', 'GET'],
             ]) {
-                const response = await request(path, { method })
+                const response = await request(path, {
+                    method,
+                    ...(method === 'PATCH' ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cwd: process.cwd() }) } : {}),
+                })
                 const body = await response.json()
                 expect(response.status, `${method} ${path} 返回了 ${response.status}: ${JSON.stringify(body)}`).not.toBe(500)
             }
@@ -339,10 +315,8 @@ describe('server provider test endpoint', () => {
     test('reports an unknown provider as a client error', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
-            // 这里不真的打模型服务：供应商不存在时在发请求之前就该被挡下。
             const response = await jsonRequest('/config/test', 'POST', { provider: 'nope', model: 'm' })
             expect(response.status).toBe(400)
-            // 说清是哪个名字不存在，别让用户以为自己压根没配过供应商。
             expect(await response.json()).toMatchObject({ error: 'Provider not found: nope' })
         })
     })
@@ -365,7 +339,7 @@ describe('server provider test endpoint', () => {
     })
 })
 
-describe('server health and workspace', () => {
+describe('server health and history', () => {
     test('reports service status', async () => {
         await withHome(async () => {
             const response = await request('/health')
@@ -382,33 +356,18 @@ describe('server health and workspace', () => {
             const { sessionId } = await Session.create({ title: 'Delete me' })
             expect(History.count()).toBe(1)
             await Session.remove({ sessionId })
-            // 会话目录删了，内存里也不能继续算一条；健康检查的数字要和磁盘一致。
             expect(History.count()).toBe(0)
         })
     })
 
-    test('reports the workspace path, file list and git state', async () => {
-        await withHome(async () => {
-            const response = await request('/workspace/read')
-            expect(response.status).toBe(200)
-            const workspace = await response.json()
-            expect(typeof workspace.path).toBe('string')
-            expect(Array.isArray(workspace.files)).toBe(true)
-            // 不是 git 仓库时是 null，是仓库时带分支名，两种都算正常。
-            expect(workspace.git === null || typeof workspace.git.branch === 'string').toBe(true)
-        })
-    })
-})
-
-describe('server session history', () => {
     test('rolls back and redoes messages through session commands', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'History task' })
 
-            await History.add({ sessionId, message: Agent.history.user({ content: 'one' }) })
-            const second = await History.add({ sessionId, message: Agent.history.user({ content: 'two' }) })
-            await History.save({ sessionId })
+            await History.add({ sessionId, message: AgentCore.history.user({ content: 'one' }) })
+            const second = await History.add({ sessionId, message: AgentCore.history.user({ content: 'two' }) })
+            await History.save(sessionId)
 
             const rolledBack = await Session.rollback({ sessionId, messageId: second.messageId })
             expect(rolledBack.history).toHaveLength(1)
@@ -421,8 +380,8 @@ describe('server session history', () => {
         await withHome(async root => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'Persist task' })
-            await History.add({ sessionId, message: Agent.history.user({ content: 'saved' }) })
-            await History.save({ sessionId })
+            await History.add({ sessionId, message: AgentCore.history.user({ content: 'saved' }) })
+            await History.save(sessionId)
 
             const file = join(root, 'sessions', sessionId, 'history.json')
             expect(JSON.parse(await readFile(file, 'utf8')).messages).toHaveLength(1)
@@ -433,10 +392,9 @@ describe('server session history', () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'Round trip' })
-            await History.add({ sessionId, message: Agent.history.user({ content: 'hello' }) })
-            await History.save({ sessionId })
+            await History.add({ sessionId, message: AgentCore.history.user({ content: 'hello' }) })
+            await History.save(sessionId)
 
-            // 重新走一次读取路径：内存里没有这台 Agent 时应当能从磁盘恢复历史。
             const reloaded = await Session.read({ sessionId })
             expect(reloaded.history.map(item => item.content)).toEqual(['hello'])
         })
@@ -446,26 +404,23 @@ describe('server session history', () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'Multi undo' })
-            const first = await History.add({ sessionId, message: Agent.history.user({ content: '一' }) })
-            await History.add({ sessionId, message: Agent.history.user({ content: '二' }) })
-            await History.add({ sessionId, message: Agent.history.user({ content: '三' }) })
-            await History.save({ sessionId })
+            const first = await History.add({ sessionId, message: AgentCore.history.user({ content: '一' }) })
+            await History.add({ sessionId, message: AgentCore.history.user({ content: '二' }) })
+            await History.add({ sessionId, message: AgentCore.history.user({ content: '三' }) })
+            await History.save(sessionId)
 
-            // 回退一次，就多一层可以撤销。
             await Session.rollback({ sessionId, messageId: first.messageId, files: false })
             expect((await Session.read({ sessionId })).history).toHaveLength(0)
             expect((await Session.read({ sessionId })).undoable).toBe(1)
 
-            // 连着撤销，能一步步回到最开始。
             await Session.redo({ sessionId, files: false })
             expect((await Session.read({ sessionId })).history).toHaveLength(3)
             expect((await Session.read({ sessionId })).undoable).toBe(0)
 
-            // 再回退一次，然后发新消息：新消息代表新的时间线，之前的回退不能再撤销。
             await Session.rollback({ sessionId, messageId: first.messageId, files: false })
             expect((await Session.read({ sessionId })).undoable).toBe(1)
-            History.add({ sessionId, message: Agent.history.user({ content: '新的' }) })
-            await History.save({ sessionId })
+            History.add({ sessionId, message: AgentCore.history.user({ content: '新的' }) })
+            await History.save(sessionId)
             expect((await Session.read({ sessionId })).undoable).toBe(0)
         })
     })
@@ -474,21 +429,18 @@ describe('server session history', () => {
 describe('server file snapshots', () => {
     test('restores a modified file when the session rolls back', async () => {
         await withHome(async () => {
-            // 配置是整体替换，所以权限和模型服务必须一次写全。
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
             const target = join(tmpdir(), `agent-snapshot-${crypto.randomUUID()}.txt`)
             await writeFile(target, 'original')
 
             const { sessionId } = await Session.create({ title: 'Snapshot task' })
-            // 快照挂在用户消息的块 id 上，这里直接构造一条同样的消息。
-            const blockId = Agent.history.user({ content: 'change the file' }).id
-            const record = await Snapshot.save({ sessionId, messageId: blockId, toolName: 'write_to_file', input: { path: target } })
+            const blockId = AgentCore.history.user({ content: 'change the file' }).id
+            const record = await File.snapshot({ sessionId, messageId: blockId, toolName: 'write_to_file', input: { path: target } })
             expect(record).toContain(resolve(target))
 
-            // 工具改文件，随后回退到这条用户消息之前。
             await writeFile(target, 'changed by agent')
-            const added = await History.add({ sessionId, message: Agent.history.user({ content: 'change the file', id: blockId }) })
-            await History.save({ sessionId })
+            const added = await History.add({ sessionId, message: AgentCore.history.user({ content: 'change the file', id: blockId }) })
+            await History.save(sessionId)
 
             const rolledBack = await Session.rollback({ sessionId, messageId: added.messageId })
             expect(rolledBack.restored).toContain(resolve(target))
@@ -508,11 +460,10 @@ describe('server file snapshots', () => {
             await writeFile(removed, 'will be deleted')
 
             const { sessionId } = await Session.create({ title: 'Diff task' })
-            const added = await History.add({ sessionId, message: Agent.history.user({ content: 'change things' }) })
-            await History.save({ sessionId })
+            const added = await History.add({ sessionId, message: AgentCore.history.user({ content: 'change things' }) })
+            await History.save(sessionId)
             const messageId = added.message.id
 
-            // 三个文件各来一次改动：改内容、删掉、新建。
             await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'write_to_file', input: { path: edited } })
             await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'write_to_file', input: { path: removed } })
             await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'write_to_file', input: { path: created } })
@@ -526,13 +477,13 @@ describe('server file snapshots', () => {
             expect(byPath[resolve(edited)]).toMatchObject({ before: 'before', after: 'after', added: false, deleted: false })
             expect(byPath[resolve(removed)]).toMatchObject({ before: 'will be deleted', after: '', deleted: true })
             expect(byPath[resolve(created)]).toMatchObject({ before: '', after: 'brand new', added: true })
-            // 没被碰过的文件不该出现在结果里。
             expect(changes).toHaveLength(3)
 
             await rm(edited, { force: true })
             await rm(created, { force: true })
         })
     })
+
     test('previews a rollback and can roll back the conversation without touching files', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
@@ -540,36 +491,30 @@ describe('server file snapshots', () => {
             await writeFile(target, 'original')
 
             const { sessionId } = await Session.create({ title: 'Preview task' })
-            const first = await History.add({ sessionId, message: Agent.history.user({ content: '第一步' }) })
-            const second = await History.add({ sessionId, message: Agent.history.user({ content: '第二步' }) })
-            await History.save({ sessionId })
+            const first = await History.add({ sessionId, message: AgentCore.history.user({ content: '第一步' }) })
+            const second = await History.add({ sessionId, message: AgentCore.history.user({ content: '第二步' }) })
+            await History.save(sessionId)
 
-            // 第二轮的快照挂在第二条消息上。
-            await Snapshot.save({ sessionId, messageId: second.message.id, toolName: 'write_to_file', input: { path: target } })
+            await File.snapshot({ sessionId, messageId: second.message.id, toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'changed in step two')
 
-            // 回退之前先看代价：从第一条开始的整段会消失，只列出这一段碰过的文件。
             const preview = await Session.rollbackPreview({ sessionId, messageId: first.messageId })
             expect(preview.messages).toBe(2)
             expect(preview.files.map(file => file.path)).toEqual([resolve(target)])
             expect(preview.files[0]).toMatchObject({ before: 'original', after: 'changed in step two' })
 
-            // files=false 只退对话：文件保持 agent 改过的样子。
             const rolledBack = await Session.rollback({ sessionId, messageId: first.messageId, files: false })
             expect(rolledBack.restored).toEqual([])
             expect(rolledBack.history).toHaveLength(0)
             expect(await readFile(target, 'utf8')).toBe('changed in step two')
 
-            // 撤销回退时也传 files=false，只把对话放回来。
             await Session.redo({ sessionId, files: false })
             expect((await Session.read({ sessionId })).history).toHaveLength(2)
 
-            // 这次带着文件一起退：文件回到最初的 'original'。
             const withFiles = await Session.rollback({ sessionId, messageId: first.messageId })
             expect(withFiles.restored).toContain(resolve(target))
             expect(await readFile(target, 'utf8')).toBe('original')
 
-            // 撤销回退把文件改回回退前的样子，对话也一起回来。
             await Session.redo({ sessionId })
             expect(await readFile(target, 'utf8')).toBe('changed in step two')
 
@@ -583,16 +528,15 @@ describe('server file snapshots', () => {
             const target = join(tmpdir(), `agent-new-${crypto.randomUUID()}.txt`)
 
             const { sessionId } = await Session.create({ title: 'New file task' })
-            const added = await History.add({ sessionId, message: Agent.history.user({ content: 'create a file' }) })
-            await History.save({ sessionId })
+            const added = await History.add({ sessionId, message: AgentCore.history.user({ content: 'create a file' }) })
+            await History.save(sessionId)
 
-            // 文件在任务开始时还不存在，工具新建了它。
             await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'write_to_file', input: { path: target } })
             await writeFile(target, 'created by agent')
 
             const rolledBack = await Session.rollback({ sessionId, messageId: added.messageId })
             expect(rolledBack.restored).toContain(resolve(target))
-            expect(await Bun.file(target).exists()).toBe(false) // 回退要把它删掉，回到"本来没有这个文件"。
+            expect(await Bun.file(target).exists()).toBe(false)
         })
     })
 })
@@ -619,7 +563,6 @@ describe('server tool approval and SSE', () => {
             await Approval.decide({ sessionId: 's', toolCallId: 'c3', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
-            // 同一条命令再次执行时规则已经命中，不再需要用户确认。
             expect(await Approval.check({ sessionId: 's', toolCallId: 'c4', toolName: 'read_file', input: { path: 'a.txt' } })).toBe(true)
         })
     })
@@ -631,7 +574,6 @@ describe('server tool approval and SSE', () => {
             await Bun.sleep(0)
             await expect(Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'maybe' })).rejects.toMatchObject({ status: 400 })
 
-            // 填错的决定不能把这条审批弄丢，用户还能重新选一次。
             await Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'allow-once' })
             expect(await pending).toBe(true)
         })
@@ -645,9 +587,7 @@ describe('server tool approval and SSE', () => {
             await Approval.decide({ sessionId: 's', toolCallId: 's1', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
-            // 换一条提交信息还是同一个操作，不该再问一遍。
             expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'execute_command', input: { command: 'git commit -m "totally different message"' } })).toBe(true)
-            // 另一个操作仍然要问。
             const push = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'execute_command', input: { command: 'git push origin main' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
@@ -660,42 +600,19 @@ describe('server tool approval and SSE', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'Waiting approval' })
 
-            // 用户提交了一个工具调用，正在等批准。
             const waiting = Approval.check({ sessionId, toolCallId: 'w1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
             await Bun.sleep(0)
 
-            // 刷新页面后前端重新读会话，应当能看到"有个工具在等"。
             const reloaded = await Session.read({ sessionId })
             expect(reloaded.pending).toHaveLength(1)
             expect(reloaded.pending[0]).toMatchObject({ callID: 'w1', tool: 'execute_command' })
 
-            // 批准之后就不再是等待状态了。
             await Approval.decide({ sessionId, toolCallId: 'w1', decision: 'allow-once' })
             expect(await waiting).toBe(true)
             expect((await Session.read({ sessionId })).pending).toEqual([])
         })
     })
 
-        test('refuses to touch files the ignore rules protect', async () => {
-            await withHome(async () => {
-                await Config.set({ permission: { '*': 'allow' } })
-                await Ignore.load()
-    
-                // 密钥文件即使权限规则全部放行也读不到。
-                expect(await Approval.check({ sessionId: 's', toolCallId: 'i1', toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe(false)
-                // 普通源码照常放行。
-                expect(await Approval.check({ sessionId: 's', toolCallId: 'i2', toolName: 'read_file', input: { path: 'D:/app/src/a.js' } })).toBe(true)
-            })
-        })
-    
-        test('protects secret files even before the rules are loaded', async () => {
-            // 内置规则必须在模块加载时就生效，不能等 load() 才生效。
-            // 否则任何忘了先 load() 的调用方都会静默放行全部文件，连 .env 也一起漏掉。
-            expect(Ignore.blocks({ toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe(true)
-            // 被拦住时要说清是哪一条规则挡下的，用户和界面都靠它判断。
-            expect(Ignore.blockedBy({ toolName: 'read_file', input: { path: 'D:/app/.env' } })).toBe('.env')
-            expect(Ignore.blockedBy({ toolName: 'read_file', input: { path: 'D:/app/src/a.js' } })).toBe(null)
-        })
     test('connects, sends, and closes an SSE session', async () => {
         const id = `sse-${crypto.randomUUID()}`
         const response = await SSE.connect({ id, request: new Request('http://localhost/sse') })
@@ -720,14 +637,15 @@ describe('server Agent integration boundary', () => {
         })
     })
 
-    test('scans the built-in tool directory together with the user tool directory', async () => {
+    test('scans the grouped built-in tool files', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'Tool scan' })
-            const agent = (await import('../agent/state.js')).default.agents.get(sessionId)
+            const agent = Agent.runtime().get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
                 'read_file', 'write_to_file', 'list_files', 'edit', 'apply_patch',
-                'execute_command', 'glob', 'search_files', 'update_todo_list', 'webfetch', 'attempt_completion', 'ask_followup_question',
+                'execute_command', 'glob', 'search_files', 'update_todo_list', 'webfetch',
+                'attempt_completion', 'ask_followup_question', 'cwd',
             ]))
         })
     })

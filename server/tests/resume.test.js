@@ -7,11 +7,13 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../config/config.js'
-import History from '../conversation/history.js'
-import Session from '../conversation/session.js'
-import Title from '../conversation/title.js'
-import Store from '../agent/state.js'
+import Chat from '../commands/chat.js'
+import Config from '../commands/config.js'
+import History from '../features/history.js'
+import Session from '../commands/session.js'
+import Title from '../features/title.js'
+import Agent from '../features/agent.js'
+import store from '../store.js'
 import SSE from '../utils/sse.js'
 import { app } from '../server.js'
 
@@ -21,11 +23,9 @@ const withHome = async callback => {
     homes.push(root)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
-    Object.keys(Store.config).forEach(key => delete Store.config[key])
-    Store.agents.clear()
+    Object.keys(store.config).forEach(key => delete store.config[key])
+    Agent.runtime().clear()
     History.clear()
-    Store.snapshots.clear()
-    Store.approvals.clear()
     try {
         return await callback(root)
     } finally {
@@ -56,10 +56,11 @@ const waitForHistory = async (sessionId, count) => {
         await Bun.sleep(10)
     }
 }
+
 const setup = async () => {
     await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
     const { sessionId } = await Session.create({ title: '继续测试' })
-    await History.load({ sessionId })
+    await History.load(sessionId)
     return sessionId
 }
 
@@ -68,7 +69,7 @@ describe('继续被中断的助手', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
-            await History.save({ sessionId })
+            await History.save(sessionId)
 
             const agent = {
                 history: [
@@ -79,10 +80,10 @@ describe('继续被中断的助手', () => {
                 running: { task: Promise.resolve() },
                 stop: async () => ({ ok: true }),
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
 
-            await expect(Session.stop({ sessionId, partial: 'bad' })).rejects.toThrow('partial must be an object')
-            expect(await Session.stop({ sessionId })).toEqual({ ok: true })
+            await expect(Chat.stop({ sessionId, partial: 'bad' })).rejects.toThrow('partial must be an object')
+            expect(await Chat.stop({ sessionId })).toEqual({ ok: true })
 
             const history = History.get({ sessionId })
             expect(history.map(message => message.id)).toEqual(['u1', 'a1'])
@@ -95,7 +96,7 @@ describe('继续被中断的助手', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-            await History.save({ sessionId })
+            await History.save(sessionId)
 
             const calls = []
             const agent = {
@@ -106,19 +107,17 @@ describe('继续被中断的助手', () => {
                     calls.push(options)
                     agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
                     return Promise.resolve().then(() => options.callbacks.onStart()).then(() => {
-                        // 第一次模型请求前，历史必须已经恢复成发送前的样子。
                         calls[0].historyAtRequest = agent.history.map(message => message.id)
                         agent.history.push({ id: 'a2', role: 'assistant', content: text('继续完成') })
                         return { reason: 'finished' }
                     })
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
 
-            expect(await Session.resume({ sessionId })).toEqual({ ok: true })
-            // 等任务末尾的历史同步和写盘都跑完。
+            expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
             await waitForHistory(sessionId, 2)
-            await Bun.sleep(50) // 让任务末尾的 agent-finish 也走完，测试目录再清理
+            await Bun.sleep(50)
 
             expect(calls).toHaveLength(1)
             expect(calls[0].historyAtRequest).toEqual(['a1'])
@@ -147,28 +146,24 @@ describe('继续被中断的助手', () => {
                 const { sessionId } = await Session.create({ title: '无缝继续' })
                 await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
                 await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-                await History.save({ sessionId })
-                // 用非流式响应，测试只需要看发出去的历史，不关心增量事件。
+                await History.save(sessionId)
                 await Session.saveSettings({ sessionId, capabilities: { image: true, cache: true, stream: false } })
 
-                expect(await Session.resume({ sessionId })).toEqual({ ok: true })
+                expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
                 await waitForHistory(sessionId, 3)
                 await Bun.sleep(50)
 
                 expect(seen.length).toBeGreaterThan(0)
                 const messages = seen[0].messages
-                // 末尾还是助手回复，没有“继续”这条用户消息，模型会直接接着写。
                 expect(messages.at(-1).role).toBe('assistant')
                 expect(messages.at(-1).content).toContain('做到一半')
                 expect(JSON.stringify(messages)).not.toContain('继续')
 
-                // 用量挂到助手消息上，刷新页面后请求行仍然能显示输入/输出。
                 const saved = History.get({ sessionId }).find(message => message.usage)
                 expect(saved?.usage).toMatchObject({ input: 1, output: 1, total: 2, cacheRead: 1 })
                 expect(saved.usage.durationMs).toBeGreaterThanOrEqual(0)
 
-                // 模型没有调用结束工具时会继续追加提示；等这一轮彻底停下再清理临时目录。
-                for (let attempt = 0; attempt < 100 && Store.agents.get(sessionId)?.running; attempt += 1) await Bun.sleep(10)
+                for (let attempt = 0; attempt < 100 && Agent.runtime().get(sessionId)?.running; attempt += 1) await Bun.sleep(10)
                 await Bun.sleep(100)
             } finally {
                 await server.stop(true)
@@ -180,7 +175,7 @@ describe('继续被中断的助手', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a0', role: 'assistant', content: text('旧进度') } })
-            await History.save({ sessionId })
+            await History.save(sessionId)
 
             const agent = {
                 history: [{ id: 'a0', role: 'assistant', content: text('旧进度') }],
@@ -193,13 +188,12 @@ describe('继续被中断的助手', () => {
                         agent.history.push({ id: 'a1', role: 'assistant', content: text('已完成一步') })
                         options.callbacks.onStep()
                     }, 0)
-                    // 模拟下一步开始前进程被关掉，任务永远不返回。
                     return new Promise(() => {})
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
 
-            expect(await Session.send({ sessionId, input: '新任务' })).toEqual({ ok: true })
+            expect(await Chat.send({ sessionId, input: '新任务' })).toEqual({ ok: true })
             await waitForHistory(sessionId, 3)
 
             const history = History.get({ sessionId })
@@ -211,17 +205,17 @@ describe('继续被中断的助手', () => {
     test('任务在跑或最后一条不是助手回复时拒绝继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()
-            Store.agents.set(sessionId, {
+            Agent.runtime().set(sessionId, {
                 history: [{ id: 'u1', role: 'user', content: text('开始') }],
                 running: null,
                 stop: async () => ({ ok: true }),
             })
-            await expect(Session.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
 
-            const running = Store.agents.get(sessionId)
+            const running = Agent.runtime().get(sessionId)
             running.history = [{ id: 'a1', role: 'assistant', content: text('做到一半') }]
             running.running = { task: Promise.resolve() }
-            await expect(Session.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
         })
     })
 
@@ -240,10 +234,10 @@ describe('继续被中断的助手', () => {
                     return options.callbacks.onStart().then(() => ({ reason: 'finished' }))
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
 
-            expect(await Session.resume({ sessionId })).toEqual({ ok: true })
-            await waitForHistory(sessionId, 2) // a1 和工具结果都要落盘
+            expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
+            await waitForHistory(sessionId, 2)
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 't1'])
         })
     })
@@ -252,24 +246,23 @@ describe('继续被中断的助手', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-            await History.save({ sessionId })
+            await History.save(sessionId)
             const agent = {
                 history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
                 running: null,
                 stop: async () => ({ ok: true }),
                 send(options) {
-                    // 模拟 append 的继续提示被改写：不能把它当成内部提示藏起来，也不能删掉。
                     agent.history.push({ id: 'real-user', role: 'user', content: text('继续上次未完成的任务，但被加了后缀') })
-                    return options.callbacks.onStart()                       // 让 onStart 的校验失败传到任务 Promise
+                    return options.callbacks.onStart()
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
 
-            expect(await Session.resume({ sessionId })).toEqual({ ok: true })
-            await Bun.sleep(50) // 等 task.then 走完错误收尾
+            expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
+            await Bun.sleep(50)
 
-            expect(agent.history.map(message => message.id)).toEqual(['a1', 'real-user']) // 被改写的消息也不能删除
-            expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1']) // 但失败时不能写进磁盘
+            expect(agent.history.map(message => message.id)).toEqual(['a1', 'real-user'])
+            expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1'])
         })
     })
 
@@ -278,7 +271,7 @@ describe('继续被中断的助手', () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('真实问题') } })
             await History.add({ sessionId, message: { id: 'i1', role: 'user', internal: true, content: text('继续上次任务') } })
-            await History.save({ sessionId })
+            await History.save(sessionId)
 
             const read = await Session.read({ sessionId })
             expect(read.history.map(message => message.id)).toEqual(['u1'])
@@ -298,9 +291,9 @@ describe('继续被中断的助手', () => {
                     return options.callbacks.onStart().then(() => Promise.reject(Object.assign(new Error('请求超时'), { name: 'AbortError', kind: 'timeout' })))
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
             const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
-            expect(await Session.send({ sessionId, input: '会超时' })).toEqual({ ok: true })
+            expect(await Chat.send({ sessionId, input: '会超时' })).toEqual({ ok: true })
 
             const reader = stream.body.getReader()
             const decoder = new TextDecoder()
@@ -311,7 +304,7 @@ describe('继续被中断的助手', () => {
                 events += decoder.decode(chunk.value, { stream: true })
             }
             expect(events).toContain('agent-finish')
-            expect(events).toContain('请求超时') // 不能因为 name 叫 AbortError 就被吞掉
+            expect(events).toContain('请求超时')
             await SSE.close({ id: sessionId })
         })
     })
@@ -324,20 +317,20 @@ describe('继续被中断的助手', () => {
                 history: [],
                 running: null,
                 send(options) {
-                    agent.running = { task: Promise.resolve() }        // 模拟 Agent 开始运行
+                    agent.running = { task: Promise.resolve() }
                     agent.history.push({ id: 'u1', role: 'user', content: text(options.input) })
                     void options.callbacks.onStart()
-                    return new Promise(() => {})                        // 这一轮一直跑着，等 stop
+                    return new Promise(() => {})
                 },
                 stop: () => new Promise(resolve => { finishStop = () => resolve({ ok: true }) }),
             }
-            Store.agents.set(sessionId, agent)
-            expect(await Session.send({ sessionId, input: '第一轮' })).toEqual({ ok: true })
+            Agent.runtime().set(sessionId, agent)
+            expect(await Chat.send({ sessionId, input: '第一轮' })).toEqual({ ok: true })
             await Bun.sleep(20)
 
-            const stopping = Session.stop({ sessionId })
+            const stopping = Chat.stop({ sessionId })
             await Bun.sleep(10)
-            await expect(Session.send({ sessionId, input: '第二轮' })).rejects.toMatchObject({ status: 409 })
+            await expect(Chat.send({ sessionId, input: '第二轮' })).rejects.toMatchObject({ status: 409 })
             finishStop()
             expect(await stopping).toEqual({ ok: true })
         })
@@ -351,21 +344,21 @@ describe('继续被中断的助手', () => {
                 history: [],
                 running: null,
                 stop: async () => {
-                    release?.()                                        // 模拟 stop 之后任务才正常 resolve
+                    release?.()
                     return { ok: true }
                 },
                 send(options) {
-                    agent.running = { task: Promise.resolve() }        // 模拟 Agent 开始运行
+                    agent.running = { task: Promise.resolve() }
                     agent.history.push({ id: 'u1', role: 'user', content: text(options.input) })
                     void options.callbacks.onStart()
                     return new Promise(resolve => { release = () => resolve({ reason: 'finished' }) })
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
             const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
-            expect(await Session.send({ sessionId, input: '跑一半停' })).toEqual({ ok: true })
-            await Bun.sleep(20)                                        // 等 onStart 保存和 agent-start
-            expect(await Session.stop({ sessionId, partial: { content: '界面上的半段' } })).toEqual({ ok: true })
+            expect(await Chat.send({ sessionId, input: '跑一半停' })).toEqual({ ok: true })
+            await Bun.sleep(20)
+            expect(await Chat.stop({ sessionId, partial: { content: '界面上的半段' } })).toEqual({ ok: true })
 
             const reader = stream.body.getReader()
             const decoder = new TextDecoder()
@@ -375,11 +368,11 @@ describe('继续被中断的助手', () => {
                 if (!chunk || chunk.done) break
                 events += decoder.decode(chunk.value, { stream: true })
             }
-            await Bun.sleep(50)                                        // 给 task.then 机会再发第二条（不应该有）
+            await Bun.sleep(50)
             expect(events.match(/agent-finish/g)).toHaveLength(1)
-            expect(events).not.toContain('error')                      // 用户主动停止不是程序错误
+            expect(events).not.toContain('error')
             const history = History.get({ sessionId })
-            expect(history.at(-1).content).toEqual(text('界面上的半段')) // 半段正文已经补进历史
+            expect(history.at(-1).content).toEqual(text('界面上的半段'))
             await SSE.close({ id: sessionId })
         })
     })
@@ -399,7 +392,7 @@ describe('继续助手的 HTTP 接口', () => {
     test('最后一条不是助手回复时返回 409', async () => {
         await withHome(async () => {
             const sessionId = await setup()
-            Store.agents.set(sessionId, {
+            Agent.runtime().set(sessionId, {
                 history: [{ id: 'u1', role: 'user', content: text('还没回答') }],
                 running: null,
                 stop: async () => ({ ok: true }),
@@ -414,7 +407,7 @@ describe('继续助手的 HTTP 接口', () => {
     test('任务已经在跑时返回 409', async () => {
         await withHome(async () => {
             const sessionId = await setup()
-            Store.agents.set(sessionId, {
+            Agent.runtime().set(sessionId, {
                 history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
                 running: { task: Promise.resolve() },
                 stop: async () => ({ ok: true }),
@@ -442,9 +435,8 @@ describe('继续助手的 HTTP 接口', () => {
                     })
                 },
             }
-            Store.agents.set(sessionId, agent)
+            Agent.runtime().set(sessionId, agent)
 
-            // 先连上 SSE，接口触发后从同一条流里读事件。
             const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
             const response = await resumeRequest(sessionId)
             expect(response.status).toBe(200)
@@ -453,7 +445,6 @@ describe('继续助手的 HTTP 接口', () => {
             const reader = stream.body.getReader()
             const decoder = new TextDecoder()
             let events = ''
-            // 一直读到这一轮结束，确保最终保存和 agent-finish 都已经发生。
             while (!events.includes('agent-finish')) {
                 const chunk = await Promise.race([reader.read(), Bun.sleep(1000).then(() => null)])
                 if (!chunk || chunk.done) break
@@ -462,19 +453,44 @@ describe('继续助手的 HTTP 接口', () => {
             expect(events).toContain('agent-resume')
             expect(events).toContain('agent-finish')
 
-            // 等任务末尾落盘，确认内部提示没有被保存成用户消息。
             await waitForHistory(sessionId, 2)
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 'a2'])
             await SSE.close({ id: sessionId })
         })
     })
 
+    test('用户可以按后续对话重新生成标题，模型失败时用第一句话兜底', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const { sessionId } = await Session.create({ title: '旧标题' })
+            await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('帮我修一下登录') } })
+            await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('好的') } })
+            await History.save(sessionId)
+
+            const original = Title.generate
+            Title.generate = async () => '修复登录问题'
+            try {
+                expect(await Session.generateTitle({ sessionId })).toEqual({ title: '修复登录问题' })
+            } finally {
+                Title.generate = original
+            }
+
+            Title.generate = async () => null
+            try {
+                expect(await Session.generateTitle({ sessionId })).toEqual({ title: '帮我修一下登录' })
+            } finally {
+                Title.generate = original
+            }
+
+            await expect(Session.generateTitle({ sessionId: 'missing' })).rejects.toMatchObject({ status: 404 })
+        })
+    })
+
     test('自动起标题成功时不会因为默认标题常量缺失而中断', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }], autoTitle: true })
-            // 用默认标题，才会走到“该不该自动起标题”的分支。
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: '新对话' })
-            await History.load({ sessionId })
+            await History.load(sessionId)
 
             const original = Title.generate
             Title.generate = async () => '修复登录'
@@ -491,16 +507,14 @@ describe('继续助手的 HTTP 接口', () => {
                         return { reason: 'completed', text: '完成' }
                     },
                 }
-                Store.agents.set(sessionId, agent)
-                await Session.send({ sessionId, input: '你好' })
+                Agent.runtime().set(sessionId, agent)
+                await Chat.send({ sessionId, input: '你好' })
 
-                // 标题是异步收尾的一步；等到它写进 meta.json 再断言。
                 for (let attempt = 0; attempt < 50; attempt += 1) {
                     if ((await Session.read({ sessionId })).title === '修复登录') break
                     await Bun.sleep(10)
                 }
                 expect((await Session.read({ sessionId })).title).toBe('修复登录')
-                // 标题只是收尾中的一步；再等一拍，让历史保存和 agent-finish 走完再清理临时目录。
                 await Bun.sleep(50)
             } finally {
                 Title.generate = original

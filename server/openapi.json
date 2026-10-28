@@ -2,49 +2,26 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.49.0",
-    "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
+    "version": "0.50.0",
+    "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [
-    {
-      "url": "http://localhost:3000",
-      "description": "本地开发服务器，默认端口 3000"
-    }
+    { "url": "http://localhost:3000", "description": "本地开发服务器，默认端口 3000" }
   ],
   "tags": [
-    {
-      "name": "Status",
-      "description": "确认后端是否可用。"
-    },
-    {
-      "name": "Workspace",
-      "description": "读取 agent 工作的目录、文件列表和 git 状态。"
-    },
-    {
-      "name": "Agent",
-      "description": "控制 AI 执行任务。启动任务、停止任务、审批工具调用。"
-    },
-    {
-      "name": "Session",
-      "description": "管理对话记录。创建、读取、重命名、删除对话，以及撤销和压缩历史消息。"
-    },
-    {
-      "name": "Config",
-      "description": "读取和保存全局配置，比如 AI 模型和系统提示词。"
-    },
-    {
-      "name": "SSE",
-      "description": "建立实时事件连接。服务器会持续把 AI 的输出推送给你。SSE 是 Server-Sent Events 的缩写，意思是服务器主动推送消息。"
-    }
+    { "name": "Status", "description": "确认后端是否可用。" },
+    { "name": "Tool", "description": "查看工具目录和自动批准类别。" },
+    { "name": "Session", "description": "创建、读取、修改和回退会话。" },
+    { "name": "Agent", "description": "发送消息、继续、停止和审批工具调用。" },
+    { "name": "Config", "description": "读取和保存全局配置。" },
+    { "name": "SSE", "description": "接收运行过程中的实时事件。" },
+    { "name": "Compat", "description": "旧界面仍会调用的兼容接口，不属于核心概念。" }
   ],
   "paths": {
     "/health": {
       "get": {
-        "tags": [
-          "Status"
-        ],
+        "tags": ["Status"],
         "summary": "查询服务是否可用",
-        "description": "前端启动时先打这个接口：能拿到 version 就说明后端在，连不上就是后端没起来。同时给出内存里的会话数量和正在运行的任务数量。",
         "operationId": "health",
         "responses": {
           "200": {
@@ -54,167 +31,10 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "version": {
-                      "type": "string",
-                      "description": "后端版本号，来自 package.json",
-                      "example": "0.3.0"
-                    },
-                    "sessions": {
-                      "type": "integer",
-                      "description": "已经加载进内存的会话数量"
-                    },
-                    "running": {
-                      "type": "integer",
-                      "description": "正在执行任务的会话数量"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/command/list": {
-      "get": {
-        "tags": [
-          "Command"
-        ],
-        "summary": "列出斜杠命令",
-        "description": "扫描数据目录 commands/、工作区 .roo/commands/ 和 .agent/commands/ 下的 Markdown。同名时后读到的覆盖前面的，正文里的 $ARGUMENTS 由前端替换。",
-        "operationId": "commandList",
-        "responses": {
-          "200": {
-            "description": "命令列表，按名字排序",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "description": "命令名，写在 /name 里"
-                      },
-                      "description": {
-                        "type": "string",
-                        "description": "菜单里显示的一句说明"
-                      },
-                      "prompt": {
-                        "type": "string",
-                        "description": "展开后的提示词正文"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tool/list": {
-      "get": {
-        "tags": [
-          "Tool"
-        ],
-        "summary": "列出全部工具和当前权限",
-        "description": "内置工具来自分类表，用户工具通过扫描数据目录得到。MCP 工具需要连接服务才知道名字，这里不包含；它们由自动批准里的 mcp 类别统一管理。",
-        "operationId": "toolList",
-        "responses": {
-          "200": {
-            "description": "工具目录，按名字排序",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "description": "工具名"
-                      },
-                      "kind": {
-                        "type": "string",
-                        "description": "分类：read / write / command / mcp / subtask / never / other"
-                      },
-                      "kindLabel": {
-                        "type": "string",
-                        "description": "分类给用户看的名字，例如“读取”“执行命令”"
-                      },
-                      "kindHint": {
-                        "type": "string",
-                        "description": "分类的一句话说明"
-                      },
-                      "previousNames": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "这个工具以前的旧名字；前端用它识别旧会话里的工具名"
-                      },
-                      "permission": {
-                        "type": "string",
-                        "description": "当前生效的权限动作：allow / ask / deny"
-                      },
-                      "configurable": {
-                        "type": "boolean",
-                        "description": "false 表示控制工具，只参与对话渲染，不出现在权限设置页"
-                      },
-                      "ui": {
-                        "type": "object",
-                        "description": "工具脚本声明的展示信息：view、icon、title、summary、actions。没有声明时前端使用通用工具行",
-                        "additionalProperties": true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tool/kinds": {
-      "get": {
-        "tags": [
-          "Tool"
-        ],
-        "summary": "列出自动批准类别",
-        "description": "返回自动批准面板需要的类别、用户可读名字和一句说明。前端按这个顺序画开关，不再自己维护一份类别表。",
-        "operationId": "toolKinds",
-        "responses": {
-          "200": {
-            "description": "类别清单，按界面显示顺序排列",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "description": "类别名，和工具目录里的 kind 一致"
-                      },
-                      "label": {
-                        "type": "string",
-                        "description": "给用户看的类别名"
-                      },
-                      "hint": {
-                        "type": "string",
-                        "description": "一句话说明这个类别放行什么"
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "label",
-                      "hint"
-                    ]
+                    "ok": { "type": "boolean" },
+                    "version": { "type": "string", "description": "后端版本号，来自 package.json" },
+                    "sessions": { "type": "integer", "description": "已经加载进内存的会话数量" },
+                    "running": { "type": "integer", "description": "正在执行任务的会话数量" }
                   }
                 }
               }
@@ -225,60 +45,32 @@
     },
     "/workspace/read": {
       "get": {
-        "tags": [
-          "Workspace"
-        ],
-        "summary": "读取当前工作区信息",
-        "description": "返回后端进程当前所在目录、这个目录下的文件列表（最多 200 个，已排除依赖和构建目录）以及 git 状态。对话里的 agent 需要这份信息才知道自己在哪个项目里工作。",
+        "tags": ["Compat"],
+        "summary": "读取进程当前目录的信息（兼容旧界面）",
+        "description": "这里没有工作区概念；返回的是后端进程当前所在目录、文件列表和 git 状态，只用来兼容旧界面。",
         "operationId": "workspaceRead",
         "responses": {
           "200": {
-            "description": "工作区信息",
+            "description": "目录信息",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "path": {
-                      "type": "string",
-                      "example": "D:/projects/app"
-                    },
-                    "files": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "description": "工作区里的文件相对路径"
-                    },
+                    "path": { "type": "string" },
+                    "files": { "type": "array", "items": { "type": "string" } },
                     "git": {
-                      "description": "git 状态；不是 git 仓库时是 null",
                       "oneOf": [
-                        {
-                          "type": "null"
-                        },
+                        { "type": "null" },
                         {
                           "type": "object",
                           "properties": {
-                            "branch": {
-                              "type": "string",
-                              "example": "main"
-                            },
-                            "changed": {
-                              "type": "integer",
-                              "description": "有改动的文件总数"
-                            },
-                            "modified": {
-                              "type": "integer"
-                            },
-                            "added": {
-                              "type": "integer"
-                            },
-                            "deleted": {
-                              "type": "integer"
-                            },
-                            "untracked": {
-                              "type": "integer"
-                            }
+                            "branch": { "type": "string" },
+                            "changed": { "type": "integer" },
+                            "modified": { "type": "integer" },
+                            "added": { "type": "integer" },
+                            "deleted": { "type": "integer" },
+                            "untracked": { "type": "integer" }
                           }
                         }
                       ]
@@ -293,1122 +85,68 @@
     },
     "/workspace/status": {
       "get": {
-        "tags": [
-          "Workspace"
-        ],
-        "summary": "读取某个目录的 git 状态",
-        "description": "只想看某个子目录的分支和改动数量时用它。不是 git 仓库时 git 字段是 null。",
+        "tags": ["Compat"],
+        "summary": "读取某个目录的 git 状态（兼容旧界面）",
         "operationId": "workspaceStatus",
         "parameters": [
           {
             "name": "path",
             "in": "query",
             "required": false,
-            "description": "要检查的目录，不传就是后端进程的当前目录",
-            "schema": {
-              "type": "string",
-              "example": "D:/projects/app"
-            }
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
           "200": {
-            "description": "目录的 git 状态",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                }
-              }
-            }
+            "description": "git 状态；不是仓库时是 null",
+            "content": { "application/json": { "schema": { "type": ["object", "null"] } } }
           }
         }
       }
     },
-    "/agent/send/{sessionId}": {
-      "post": {
-        "tags": [
-          "Agent"
-        ],
-        "summary": "发送消息，启动 AI 任务",
-        "description": "向指定会话发送一条用户消息，AI 会在后台开始工作。任务执行过程中的所有输出，都会通过 GET /sse/connect/{sessionId} 推送过来，这个接口本身只返回 { ok: true }。同一个会话同时只能运行一个任务，重复调用会返回 409 错误。",
-        "operationId": "agentSend",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号，由 POST /session/create 创建时返回",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "input"
-                ],
-                "properties": {
-                  "input": {
-                    "type": "string",
-                    "description": "你要发给 AI 的消息内容，不能为空",
-                    "example": "帮我写一个读取文件的 Python 脚本"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "任务已成功启动，AI 开始在后台运行",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "请求数据有问题，比如 input 是空字符串",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId 对应的会话",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "这个会话的 AI 任务已经在运行中，不能同时启动第二个",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agent/resume/{sessionId}": {
-      "post": {
-        "tags": [
-          "Agent"
-        ],
-        "summary": "继续被中断的助手回复",
-        "description": "当上一轮助手没有调用结束工具就停止时，从现有进度继续。后端不会新增用户消息：发给模型的历史和中断前完全一致，末尾是助手回复或工具结果，模型不会知道中途被打断过；界面上也不会出现“继续”消息。同一会话已有任务运行时返回 409；最后一条可见消息不是助手回复时也返回 409。",
-        "operationId": "agentResume",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "已开始继续；后续进度和结束都通过 SSE 推送",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId 对应的会话",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "会话正在运行，或者最后一条消息不是助手回复",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agent/stop/{sessionId}": {
-      "post": {
-        "tags": [
-          "Agent"
-        ],
-        "summary": "停止正在运行的 AI 任务",
-        "description": "立即终止指定会话中正在执行的 AI 任务。可以带 partial 把界面已经流出的半段回复交给服务端保存；不带时只保存 Agent 已有的历史。如果这个会话当前没有任务在运行，返回 { ok: false }；停止成功返回 { ok: true }。",
-        "operationId": "agentStop",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "partial": {
-                    "type": "object",
-                    "description": "停止前界面上已经显示的半段回复；服务端会在停止后补进历史",
-                    "properties": {
-                      "content": {
-                        "type": "string",
-                        "description": "已经流出的正文"
-                      },
-                      "reasoning": {
-                        "type": "string",
-                        "description": "已经流出的思考内容"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "操作完成。ok 为 true 表示成功停止，ok 为 false 表示当前没有任务在运行",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agent/decide/{sessionId}": {
-      "post": {
-        "tags": [
-          "Agent"
-        ],
-        "summary": "审批 AI 使用工具的请求",
-        "description": "当 AI 需要调用某个工具时，如果权限规则要求询问，服务器会通过 SSE 推送一个 permission 事件，里面包含 callID。你需要调用这个接口告诉服务器放行还是拒绝。decision 只能是 allow-once（只允许本次）、allow-always（本次允许并记住这类操作）或 deny（拒绝）。",
-        "operationId": "agentDecide",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "toolCallId",
-                  "decision"
-                ],
-                "properties": {
-                  "toolCallId": {
-                    "type": "string",
-                    "description": "工具调用的编号，从 SSE permission 事件的 callID 字段获取",
-                    "example": "toolu_01XFx8EsZFm5kMvW8s6TuGHq"
-                  },
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "allow-once",
-                      "allow-always",
-                      "deny"
-                    ],
-                    "description": "allow-once 只允许本次调用，allow-always 本次允许并把这类参数写成规则，deny 拒绝",
-                    "example": "allow-once"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "审批结果已处理。ok 为 true 表示找到了对应的等待审批记录，ok 为 false 表示找不到（可能已经超时或被取消）",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "decision 不是 allow-once、allow-always、deny 中的一个"
-          }
-        }
-      }
-    },
-    "/sse/connect/{sessionId}": {
+    "/command/list": {
       "get": {
-        "tags": [
-          "SSE"
-        ],
-        "summary": "建立实时事件连接，接收 AI 的输出",
-        "description": "建立一个持续的连接，服务器会把 AI 运行过程中的所有事件推送过来。连接断开后会自动重连，之前没收到的事件也会补发。这个连接没有固定的结束时间，会一直保持直到你主动断开。\n\n服务器推送的事件类型如下：\n- **agent-start**：AI 任务开始\n- **text-delta**：AI 正在生成文字，每次推送一小段\n- **reasoning-delta**：AI 正在思考，每次推送一小段\n- **llm-start** / **llm-finish**：一次模型请求开始 / 结束，finish 里带完整文字和用量\n- **tool-call**：AI 正在调用某个工具\n- **tool-output**：工具的实时输出，stream 是 stdout 或 stderr\n- **tool-result**：工具执行的最终结果\n- **permission**：AI 请求你审批是否允许使用某个工具\n- **permission-blocked**：这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不需要用户决定\n- **subagent-tool** / **subagent-tool-result**：子任务正在用工具 / 用完了，可以显示「正在查 XXX」\n- **mcp-error**：某个 MCP 服务没连上，只是跳过它，会话照常\n- **retry**：因为错误正在重试\n- **compact-start** / **compact-finish**：AI 正在压缩历史记录，过程中推送事件\n- **agent-finish**：任务结束，带上结束原因和用量；任务失败时带 error 字段",
-        "operationId": "sseConnect",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
+        "tags": ["Compat"],
+        "summary": "旧界面的斜杠命令入口",
+        "description": "这一版不再扫描也不执行斜杠命令，固定返回空数组，只保证旧界面能加载。",
+        "operationId": "commandList",
         "responses": {
           "200": {
-            "description": "成功建立 SSE 连接，服务器开始推送事件",
+            "description": "空数组",
             "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string",
-                  "description": "SSE 格式的事件流。每个事件是一段 JSON 数据，格式为 data: {...}\\n\\n",
-                  "example": "data: {\"type\":\"text-delta\",\"text\":\"好的，\"}\n\ndata: {\"type\":\"finish\",\"steps\":1}\n\n"
-                },
-                "examples": {
-                  "text-delta": {
-                    "summary": "AI 生成文字的片段",
-                    "value": "data: {\"type\":\"text-delta\",\"text\":\"好的，我来帮你\"}\n\n"
-                  },
-                  "tool-call": {
-                    "summary": "AI 调用工具",
-                    "value": "data: {\"type\":\"tool-call\",\"toolCallId\":\"toolu_01\",\"toolName\":\"read_file\",\"args\":{\"path\":\"./index.js\"}}\n\n"
-                  },
-                  "permission": {
-                    "summary": "AI 请求审批工具调用",
-                    "value": "data: {\"type\":\"permission\",\"callID\":\"toolu_01\",\"tool\":\"delete_file\",\"input\":{\"path\":\"./old.js\"}}\n\n"
-                  },
-                  "finish": {
-                    "summary": "任务完成",
-                    "value": "data: {\"type\":\"finish\",\"steps\":3,\"usage\":{\"promptTokens\":1200,\"completionTokens\":400}}\n\n"
-                  },
-                  "error": {
-                    "summary": "任务出错",
-                    "value": "data: {\"type\":\"error\",\"message\":\"Provider not found: openai\",\"name\":\"Error\"}\n\n"
-                  }
-                }
+              "application/json": {
+                "schema": { "type": "array", "items": { "type": "object" } }
               }
             }
           }
         }
       }
     },
-    "/session/list": {
+    "/tool/list": {
       "get": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "列出磁盘上的全部会话",
-        "description": "前端启动时用它填充侧边栏。只返回会话元信息，不返回历史，所以很快。会话存在磁盘上，因此换台机器、换浏览器、清掉缓存都能找回自己的会话。最近用过的排在前面。",
-        "operationId": "sessionList",
-        "parameters": [
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "description": "按标题或模型名筛选，不传就是全部",
-            "schema": {
-              "type": "string",
-              "example": "爬虫"
-            }
-          }
-        ],
+        "tags": ["Tool"],
+        "summary": "列出全部工具和当前权限",
+        "operationId": "toolList",
         "responses": {
           "200": {
-            "description": "会话元信息列表，按最近更新时间从新到旧",
+            "description": "工具目录，按名字排序",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SessionMeta"
-                  }
-                }
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Tool" } }
               }
             }
           }
         }
       }
     },
-    "/session/create": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "新建一个对话",
-        "description": "创建一个新的对话，返回这个对话的唯一编号 sessionId。之后所有操作都用这个编号来指定是哪个对话。",
-        "operationId": "sessionCreate",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "title"
-                ],
-                "properties": {
-                  "title": {
-                    "type": "string",
-                    "description": "这个对话的名称，不能为空",
-                    "example": "写爬虫"
-                  },
-                  "workspaceId": {
-                    "type": "string",
-                    "description": "工作区编号（可选）",
-                    "example": "workspace-01"
-                  },
-                  "provider": {
-                    "type": "string",
-                    "description": "指定使用哪个 AI 服务商（可选）。不填时使用配置里第一个启用的服务商",
-                    "example": "anthropic"
-                  },
-                  "model": {
-                    "type": "string",
-                    "description": "指定使用哪个 AI 模型（可选）。不填时使用该服务商的第一个模型",
-                    "example": "[REDACTED]"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "对话创建成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "sessionId": {
-                      "type": "string",
-                      "description": "新建对话的唯一编号，后续所有操作都需要这个值",
-                      "example": "V1StGXR8_Z5jdHi6B-myT"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "title 不能为空或不是字符串",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/fork/{sessionId}": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "从对话分出新分支",
-        "description": "复制现有对话的历史和运行设置，生成一条新会话。默认复制全部历史；传 messageId 时只复制到这条消息（含）。文件快照不复制。",
-        "operationId": "sessionFork",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "原会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "title": {
-                    "type": "string",
-                    "description": "新分支的名称；不填就是「原标题（分支）」",
-                    "example": "写爬虫脚本（分支）"
-                  },
-                  "messageId": {
-                    "type": "string",
-                    "description": "只复制到这条消息（含）；不填就复制全部历史"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "创建成功，返回新分支的对话编号",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "sessionId": {
-                      "type": "string",
-                      "description": "新分支的会话编号"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "原会话或指定的消息不存在",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "原会话正在运行任务，停止后才能分支",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/read/{sessionId}": {
+    "/tool/kinds": {
       "get": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "读取一个对话的全部内容",
-        "description": "返回这个对话的基本信息和完整的消息历史记录。history 是一个消息列表，每条消息都有 role（角色）和 content（内容）。",
-        "operationId": "sessionRead",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
+        "tags": ["Tool"],
+        "summary": "列出自动批准类别",
+        "operationId": "toolKinds",
         "responses": {
           "200": {
-            "description": "成功返回对话信息",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId 对应的对话",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/rename/{sessionId}": {
-      "patch": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "给对话改名",
-        "description": "修改指定对话的名称，返回更新后的对话信息（不含消息历史）。",
-        "operationId": "sessionRename",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "title"
-                ],
-                "properties": {
-                  "title": {
-                    "type": "string",
-                    "description": "新的对话名称，不能为空",
-                    "example": "写爬虫脚本"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "改名成功，返回更新后的对话基本信息",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionMeta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "title 不能为空",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/model/{sessionId}": {
-      "patch": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "切换对话使用的模型",
-        "description": "修改这条对话使用的供应商和模型。任务运行中不能切换，需要先停止。",
-        "operationId": "sessionSetModel",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "description": "供应商名称，必须是配置里已有的供应商",
-                    "example": "default"
-                  },
-                  "model": {
-                    "type": "string",
-                    "description": "模型名；不填就保留当前模型",
-                    "example": "gpt-4o"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "切换成功，返回更新后的对话基本信息",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionMeta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "provider 或 model 为空，或者供应商不存在",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "任务正在运行，停止后才能切换",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/remove/{sessionId}": {
-      "delete": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "删除一个对话",
-        "description": "永久删除指定的对话及其所有消息记录。这个操作不可撤销。",
-        "operationId": "sessionRemove",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "删除成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/rollback/{sessionId}": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "回退到某条消息之前的状态",
-        "description": "回退到指定 messageId 之前的状态。对话消息和文件是两件可以分开的事：files 传 true（默认）时，agent 通过工具改过的文件也一起恢复成那一刻的样子，任务期间新建的文件会被删掉；传 false 时只退对话，工作区里的文件保持现在的样子。每回退一次就多一层可以撤销，发新消息后清空。这个操作要求会话当前没有任务在运行，否则返回 409；messageId 不在这个会话里时返回 404。",
-        "operationId": "sessionRollback",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "messageId"
-                ],
-                "properties": {
-                  "messageId": {
-                    "type": "string",
-                    "description": "要回退到这条消息之前。这条消息和它之后的所有消息都会被移除",
-                    "example": "msg_01ABC"
-                  },
-                  "files": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "是否连文件一起退回。false 表示只退对话，不动工作区"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "回退成功，返回回退后的完整对话内容；restored 是被恢复的文件路径列表",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Session"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "restored": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "被恢复到这一步之前的文件路径；没改过文件时是空数组",
-                          "example": [
-                            "D:/projects/app/src/main.js"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId，或 messageId 不在这个会话的历史里",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "这个会话的 AI 任务正在运行，需要先停止再回退",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/rollback/tool/{sessionId}": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "退回某一次工具调用之前",
-        "description": "只把这一次工具调用（以及它之后的调用）改过的文件恢复回去，对话不动。files 传 false 时只把这次调用从记录里去掉，磁盘上的文件保持现在的样子。会话正在跑任务时返回 409。",
-        "operationId": "sessionRollbackTool",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "toolCallId"
-                ],
-                "properties": {
-                  "toolCallId": {
-                    "type": "string",
-                    "description": "要退回这次调用之前；来自 GET /session/tools"
-                  },
-                  "files": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "是否真的把文件恢复回去。false 只去掉记录"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "被恢复的文件路径列表",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "restored": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "description": "被恢复的文件绝对路径；files=false 时是空数组",
-                      "example": [
-                        "D:/projects/app/src/main.js"
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId，或这次工具调用没有记录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "这个会话的 AI 任务正在运行，需要先停止再回退",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/rollback/preview/{sessionId}": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "回退之前先看会改动什么",
-        "description": "用户点回退之前先调它，把代价显示出来：多少条消息会消失、哪些文件会被恢复（带改动前后的内容）。这样回退就不是盲操作。",
-        "operationId": "sessionRollbackPreview",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "messageId"
-                ],
-                "properties": {
-                  "messageId": {
-                    "type": "string",
-                    "description": "要回退到这条消息之前"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "回退会造成的改动",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "messages": {
-                      "type": "integer",
-                      "description": "会消失的消息条数"
-                    },
-                    "files": {
-                      "type": "array",
-                      "description": "会被恢复的文件，结构同 /session/changes",
-                      "items": {
-                        "type": "object"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId 或 messageId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/changes/{sessionId}": {
-      "get": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "看 agent 改了哪些文件",
-        "description": "返回 agent 到目前为止改动过的文件，每个都给出改动前和改动后的完整内容，界面可以据此显示 diff。数据来自文件快照，和回退能看到的是同一件事。内容没变过的文件不会出现在结果里。",
-        "operationId": "sessionChanges",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "改动列表；没改过任何文件时是空数组",
+            "description": "类别清单",
             "content": {
               "application/json": {
                 "schema": {
@@ -1416,651 +154,12 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "path": {
-                        "type": "string",
-                        "description": "文件的绝对路径"
-                      },
-                      "before": {
-                        "type": "string",
-                        "description": "任务开始时这个文件的内容；原来是新建的就是空串"
-                      },
-                      "after": {
-                        "type": "string",
-                        "description": "当前内容；被删掉的就是空串"
-                      },
-                      "added": {
-                        "type": "boolean",
-                        "description": "这个文件是任务期间新建的"
-                      },
-                      "deleted": {
-                        "type": "boolean",
-                        "description": "这个文件被删掉了"
-                      }
-                    }
+                      "kind": { "type": "string" },
+                      "label": { "type": "string" },
+                      "hint": { "type": "string" }
+                    },
+                    "required": ["kind", "label", "hint"]
                   }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/settings/{sessionId}": {
-      "get": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "读这条会话的运行设置",
-        "description": "返回智能体、自动批准和几项模型能力开关。这些设置存在会话目录的 settings.json 里，换台机器打开同一个会话还是同一份。",
-        "operationId": "sessionReadSettings",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "当前设置",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "autoApprove": {
-                      "$ref": "#/components/schemas/AutoApprove"
-                    },
-                    "capabilities": {
-                      "type": "object",
-                      "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
-                      "properties": {
-                        "image": {
-                          "type": "boolean",
-                          "default": true,
-                          "description": "能不能把图片发给模型"
-                        },
-                        "cache": {
-                          "type": "boolean",
-                          "default": true,
-                          "description": "提示词缓存"
-                        },
-                        "stream": {
-                          "type": "boolean",
-                          "default": true,
-                          "description": "流式输出"
-                        }
-                      }
-                    },
-                    "uses": {
-                      "type": "object",
-                      "properties": {
-                        "compact": {
-                          "type": "object",
-                          "description": "把长对话总结成一段，不需要主模型那么聪明",
-                          "properties": {
-                            "provider": {
-                              "type": "string"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "title": {
-                          "type": "object",
-                          "description": "给会话起一个短标题，用便宜快的小模型就够",
-                          "properties": {
-                            "provider": {
-                              "type": "string"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "subtask": {
-                          "type": "object",
-                          "description": "子 agent 干活时用的模型",
-                          "properties": {
-                            "provider": {
-                              "type": "string"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "autoTitle": {
-                      "type": "boolean",
-                      "default": true,
-                      "description": "第一次聊完让模型起个标题"
-                    },
-                    "autoApproveLimit": {
-                      "type": "number",
-                      "default": 50,
-                      "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
-                    },
-                    "agent": {
-                      "type": "string",
-                      "default": "build",
-                      "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
-                      "example": "build"
-                    },
-                    "reasoning": {
-                      "type": "string",
-                      "enum": [
-                        "off",
-                        "auto",
-                        "low",
-                        "medium",
-                        "high",
-                        "xhigh",
-                        "max"
-                      ],
-                      "default": "auto",
-                      "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "改这条会话的运行设置",
-        "description": "只改请求里点到的那几项，其余保持原样。改智能体会立刻按新设置重新装配 Agent 的工具表（历史不动），所以要求会话没有任务在跑，否则返回 409。",
-        "operationId": "sessionSaveSettings",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "autoApprove": {
-                    "$ref": "#/components/schemas/AutoApprove"
-                  },
-                  "capabilities": {
-                    "type": "object",
-                    "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
-                    "properties": {
-                      "image": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "能不能把图片发给模型"
-                      },
-                      "cache": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "提示词缓存"
-                      },
-                      "stream": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "流式输出"
-                      }
-                    }
-                  },
-                  "uses": {
-                    "type": "object",
-                    "properties": {
-                      "compact": {
-                        "type": "object",
-                        "description": "把长对话总结成一段，不需要主模型那么聪明",
-                        "properties": {
-                          "provider": {
-                            "type": "string"
-                          },
-                          "model": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "title": {
-                        "type": "object",
-                        "description": "给会话起一个短标题，用便宜快的小模型就够",
-                        "properties": {
-                          "provider": {
-                            "type": "string"
-                          },
-                          "model": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "subtask": {
-                        "type": "object",
-                        "description": "子 agent 干活时用的模型",
-                        "properties": {
-                          "provider": {
-                            "type": "string"
-                          },
-                          "model": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "autoTitle": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "第一次聊完让模型起个标题"
-                  },
-                  "autoApproveLimit": {
-                    "type": "number",
-                    "default": 50,
-                    "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
-                  },
-                  "agent": {
-                    "type": "string",
-                    "default": "build",
-                    "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
-                    "example": "build"
-                  },
-                  "reasoning": {
-                    "type": "string",
-                    "enum": [
-                      "off",
-                      "auto",
-                      "low",
-                      "medium",
-                      "high",
-                      "xhigh",
-                      "max"
-                    ],
-                    "default": "auto",
-                    "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "保存后的完整设置",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "autoApprove": {
-                      "$ref": "#/components/schemas/AutoApprove"
-                    },
-                    "capabilities": {
-                      "type": "object",
-                      "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
-                      "properties": {
-                        "image": {
-                          "type": "boolean",
-                          "default": true,
-                          "description": "能不能把图片发给模型"
-                        },
-                        "cache": {
-                          "type": "boolean",
-                          "default": true,
-                          "description": "提示词缓存"
-                        },
-                        "stream": {
-                          "type": "boolean",
-                          "default": true,
-                          "description": "流式输出"
-                        }
-                      }
-                    },
-                    "uses": {
-                      "type": "object",
-                      "properties": {
-                        "compact": {
-                          "type": "object",
-                          "description": "把长对话总结成一段，不需要主模型那么聪明",
-                          "properties": {
-                            "provider": {
-                              "type": "string"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "title": {
-                          "type": "object",
-                          "description": "给会话起一个短标题，用便宜快的小模型就够",
-                          "properties": {
-                            "provider": {
-                              "type": "string"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        "subtask": {
-                          "type": "object",
-                          "description": "子 agent 干活时用的模型",
-                          "properties": {
-                            "provider": {
-                              "type": "string"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "autoTitle": {
-                      "type": "boolean",
-                      "default": true,
-                      "description": "第一次聊完让模型起个标题"
-                    },
-                    "autoApproveLimit": {
-                      "type": "number",
-                      "default": 50,
-                      "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
-                    },
-                    "agent": {
-                      "type": "string",
-                      "default": "build",
-                      "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
-                      "example": "build"
-                    },
-                    "reasoning": {
-                      "type": "string",
-                      "enum": [
-                        "off",
-                        "auto",
-                        "low",
-                        "medium",
-                        "high",
-                        "xhigh",
-                        "max"
-                      ],
-                      "default": "auto",
-                      "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "mode 不是 plan 或 build",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "这个会话的 AI 任务正在运行，需要先停止再改模式",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/tools/{sessionId}": {
-      "get": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "看这个会话里哪些工具调用改过文件",
-        "description": "按发生顺序列出每一次改过文件的工具调用。界面用它列出\"可以退回到哪一步\"——回退的粒度到工具调用这一级，比退回某条消息更细，一个工具把文件改坏了不用丢掉整轮对话。",
-        "operationId": "sessionTools",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "改过文件的工具调用，按发生顺序",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "description": "这次调用的记录身份，回退时也用 toolCallId"
-                      },
-                      "messageId": {
-                        "type": "string",
-                        "description": "属于哪条用户消息"
-                      },
-                      "toolCallId": {
-                        "type": "string",
-                        "description": "模型这次调用的 id，和历史里的一致"
-                      },
-                      "toolName": {
-                        "type": "string",
-                        "description": "工具名"
-                      },
-                      "paths": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "description": "这次调用碰过的文件绝对路径"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/redo/{sessionId}": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "撤销上一次回退",
-        "description": "把刚才通过 rollback 移除的消息恢复回来，可以连着调用好几层，直到发新消息把可撤销的层清空。files 要和回退时传的一致：回退时没退文件，这里传 false 就只恢复对话。",
-        "operationId": "sessionRedo",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "撤销回退成功，返回恢复后的完整对话内容；restored 是被还原的文件路径列表",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Session"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "restored": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "被还原到回退前的文件路径；没有文件变化时是空数组",
-                          "example": [
-                            "D:/projects/app/src/main.js"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "files": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "是否连文件一起还原。false 表示只恢复对话"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/session/compact/{sessionId}": {
-      "post": {
-        "tags": [
-          "Session"
-        ],
-        "summary": "压缩对话历史，减少 token 用量",
-        "description": "让 AI 把当前上下文总结成一段文字，总结作为一条新消息追加到历史里，原文仍然保留在磁盘上。压缩过程通过 SSE 推送 compact-start、AI SDK 原生事件和 compact-finish。会话正在运行时返回 409。",
-        "operationId": "sessionCompact",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "description": "会话的唯一编号",
-            "schema": {
-              "type": "string",
-              "example": "V1StGXR8_Z5jdHi6B-myT"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "压缩完成，返回压缩后的完整对话内容，另带 content 字段是这次的总结文本",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "找不到这个 sessionId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "这个会话的 AI 任务正在运行，需要先停止再压缩",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -2070,124 +169,47 @@
     },
     "/config/read": {
       "get": {
-        "tags": [
-          "Config"
-        ],
-        "summary": "读取当前全局配置",
-        "description": "返回服务器当前正在使用的全部配置，包括 AI 服务商、模型列表、系统提示词、权限规则等。",
+        "tags": ["Config"],
+        "summary": "读取完整配置",
         "operationId": "configRead",
         "responses": {
           "200": {
-            "description": "成功返回当前配置",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Config"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/config/test": {
-      "post": {
-        "tags": [
-          "Config"
-        ],
-        "summary": "真实试一次模型请求",
-        "description": "用已保存的供应商配置发一条最小请求，确认请求地址、密钥和模型名能不能用。设置页的「测试连接」按钮走这个接口。不传参数就用配置里第一个启用的供应商。",
-        "operationId": "configTest",
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "description": "供应商名称，不传就用第一个启用的"
-                  },
-                  "model": {
-                    "type": "string",
-                    "description": "模型名称，不传就用该供应商的第一个模型"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "请求成功，模型返回了内容",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "provider": {
-                      "type": "string"
-                    },
-                    "model": {
-                      "type": "string"
-                    },
-                    "text": {
-                      "type": "string",
-                      "description": "模型返回的文字"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "供应商不存在，或者配置里没有任何模型可以试",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "当前配置",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Config" } } }
           }
         }
       }
     },
     "/config/meta": {
       "get": {
-        "tags": [
-          "Config"
-        ],
-        "summary": "读取界面元数据",
-        "description": "返回设置界面需要的只读元数据。目前包括“按用途配模型”的用途名、显示标签和说明；这些数据只由后端定义，前端不再自己存一份。",
+        "tags": ["Config"],
+        "summary": "读取按任务配模型的标签",
         "operationId": "configMeta",
         "responses": {
           "200": {
-            "description": "界面元数据",
+            "description": "任务模型标签",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "uses": {
+                    "models": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "use": { "type": "string" },
+                          "task": { "type": "string", "enum": ["chat", "compact", "title", "task"] },
                           "label": { "type": "string" },
                           "hint": { "type": "string" }
-                        },
-                        "required": ["use", "label", "hint"]
+                        }
                       }
+                    },
+                    "uses": {
+                      "type": "array",
+                      "description": "兼容旧界面的字段，内容与 models 相同",
+                      "items": { "type": "object" }
                     }
-                  },
-                  "required": ["uses"]
+                  }
                 }
               }
             }
@@ -2197,33 +219,40 @@
     },
     "/config/set": {
       "patch": {
-        "tags": [
-          "Config"
-        ],
-        "summary": "保存新的全局配置",
-        "description": "用你提交的配置完全替换当前配置，并写入磁盘。注意：这是完全替换，不是合并，提交的内容就是保存后的内容，原来的配置不会保留。",
+        "tags": ["Config"],
+        "summary": "整体替换并保存配置",
+        "description": "这是整体替换，不是局部合并。旧字段 model、uses、compactThreshold 会在读取时迁移。",
         "operationId": "configSet",
         "requestBody": {
           "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Config" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的完整配置",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Config" } } }
+          },
+          "400": {
+            "description": "提交的不是对象",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/config/test": {
+      "post": {
+        "tags": ["Config"],
+        "summary": "真实请求一次模型",
+        "operationId": "configTest",
+        "requestBody": {
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Config"
-              },
-              "example": {
-                "providers": [
-                  {
-                    "name": "anthropic",
-                    "baseURL": "https://api.anthropic.com",
-                    "apiKey": "sk-ant-xxxxx",
-                    "models": [
-                      "[REDACTED]"
-                    ],
-                    "enabled": true
-                  }
-                ],
-                "prompt": {
-                  "system": "你是一个编程助手。"
+                "type": "object",
+                "properties": {
+                  "provider": { "type": "string" },
+                  "model": { "type": "string" }
                 }
               }
             }
@@ -2231,369 +260,735 @@
         },
         "responses": {
           "200": {
-            "description": "配置保存成功，返回保存后的完整配置",
+            "description": "模型可用",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Config"
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "provider": { "type": "string" },
+                    "model": { "type": "string" },
+                    "text": { "type": "string" }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "提交的数据不是一个合法的 JSON 对象",
+            "description": "供应商不存在、没有模型可试",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/session/list": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "列出磁盘上的全部会话",
+        "operationId": "sessionList",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "按标题或模型名筛选",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话元信息列表，最近用过的排前面",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SessionMeta" } }
               }
             }
           }
         }
       }
     },
-    "/agent/list": {
-      "get": {
-        "tags": [
-          "Agent"
-        ],
-        "summary": "列出全部智能体",
-        "description": "返回内置和自定义智能体的完整定义。配置里的同名条目可以覆盖内置定义。",
-        "operationId": "agentList",
+    "/session/create": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "新建一个会话",
+        "operationId": "sessionCreate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title"],
+                "properties": {
+                  "title": { "type": "string", "description": "会话名称，不能为空" },
+                  "cwd": { "type": "string", "description": "会话当前目录，不填就是后端启动目录" },
+                  "provider": { "type": "string", "description": "模型服务商，不填用 models.chat" },
+                  "model": { "type": "string", "description": "模型名，不填用该服务商的第一个模型" },
+                  "workspaceId": { "type": "string", "description": "兼容旧界面，后端忽略" }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "智能体清单",
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "sessionId": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "标题为空、目录不存在或供应商不存在",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/session/fork/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "从会话分出一个新分支",
+        "description": "复制历史和运行设置；文件快照不复制。",
+        "operationId": "sessionFork",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "messageId": { "type": "string", "description": "只复制到这条消息（含）" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "新分支编号",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "sessionId": { "type": "string" } } }
+              }
+            }
+          },
+          "404": { "description": "会话或消息不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "原会话正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/read/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "读取一条会话的完整内容",
+        "operationId": "sessionRead",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "会话内容",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/changes/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "看 agent 改了哪些文件",
+        "operationId": "sessionChanges",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "改动列表",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Change" } }
+              }
+            }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/settings/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "读会话运行设置",
+        "operationId": "sessionReadSettings",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "完整设置",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Settings" } } }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Session"],
+        "summary": "改会话运行设置",
+        "description": "只改点名的那几项。换智能体需要没有任务在跑；自动批准随时能改。",
+        "operationId": "sessionSaveSettings",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent": { "type": "string" },
+                  "autoApprove": { "$ref": "#/components/schemas/AutoApprove" },
+                  "autoApproveLimit": { "type": "number" },
+                  "capabilities": { "type": "object" },
+                  "reasoning": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的完整设置",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Settings" } } }
+          },
+          "400": { "description": "智能体名不认识", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/tools/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "列出记过文件的工具调用",
+        "operationId": "sessionTools",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "每次改过文件的工具调用",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Agent"
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "messageId": { "type": "string" },
+                      "toolCallId": { "type": "string" },
+                      "toolName": { "type": "string" },
+                      "paths": { "type": "array", "items": { "type": "string" } }
+                    }
                   }
                 }
               }
             }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/rename/{sessionId}": {
+      "patch": {
+        "tags": ["Session"],
+        "summary": "给会话改名",
+        "operationId": "sessionRename",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title"],
+                "properties": { "title": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "更新后的会话资料", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionMeta" } } } },
+          "400": { "description": "标题为空", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/title/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "按后续对话重新生成标题",
+        "description": "用户可以在聊了几轮之后手动重新起标题；模型失败时用第一句话兜底。",
+        "operationId": "sessionTitle",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "新的标题",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "title": { "type": "string" } } }
+              }
+            }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/model/{sessionId}": {
+      "patch": {
+        "tags": ["Session"],
+        "summary": "切换会话使用的模型",
+        "operationId": "sessionSetModel",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": { "type": "string" },
+                  "model": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "更新后的会话资料", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionMeta" } } } },
+          "400": { "description": "供应商或模型为空、供应商不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/cwd/{sessionId}": {
+      "patch": {
+        "tags": ["Session"],
+        "summary": "移动会话的当前目录",
+        "description": "目录只是会话的一个属性；历史不丢，也不需要新建会话。",
+        "operationId": "sessionSetCwd",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["cwd"],
+                "properties": { "cwd": { "type": "string", "description": "已经存在的文件夹" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "新的目录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "id": { "type": "string" }, "cwd": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "400": { "description": "目录为空或不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/remove/{sessionId}": {
+      "delete": {
+        "tags": ["Session"],
+        "summary": "删除会话",
+        "operationId": "sessionRemove",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } }
+              }
+            }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/rollback/preview/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "回退之前先看会改动什么",
+        "operationId": "sessionRollbackPreview",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["messageId"],
+                "properties": { "messageId": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "会消失的消息条数和会被恢复的文件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": { "type": "integer" },
+                    "files": { "type": "array", "items": { "$ref": "#/components/schemas/Change" } }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "会话或消息不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/rollback/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "回退到某条消息之前",
+        "description": "files=false 时只退对话，不碰磁盘上的文件。",
+        "operationId": "sessionRollback",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["messageId"],
+                "properties": {
+                  "messageId": { "type": "string" },
+                  "files": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "回退后的完整会话，另带 restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Session" },
+                    {
+                      "type": "object",
+                      "properties": { "restored": { "type": "array", "items": { "type": "string" } } }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "会话或消息不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/rollback/tool/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "只退某一次工具调用改的文件",
+        "operationId": "sessionRollbackTool",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["toolCallId"],
+                "properties": {
+                  "toolCallId": { "type": "string" },
+                  "files": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "被恢复的文件路径",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "restored": { "type": "array", "items": { "type": "string" } } }
+                }
+              }
+            }
+          },
+          "404": { "description": "会话或工具调用不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/redo/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "撤销最近一次回退",
+        "operationId": "sessionRedo",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "files": { "type": "boolean", "default": true } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "撤销后的完整会话，另带 restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Session" },
+                    {
+                      "type": "object",
+                      "properties": { "restored": { "type": "array", "items": { "type": "string" } } }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/session/compact/{sessionId}": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "手动压缩上下文",
+        "operationId": "sessionCompact",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "压缩后的完整会话，另带总结文本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Session" },
+                    { "type": "object", "properties": { "content": { "type": "string" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "会话没有配置模型", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/agent/list": {
+      "get": {
+        "tags": ["Agent"],
+        "summary": "列出内置和自定义智能体",
+        "operationId": "agentList",
+        "responses": {
+          "200": {
+            "description": "智能体定义列表",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/send/{sessionId}": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "发送消息，启动任务",
+        "operationId": "agentSend",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["input"],
+                "properties": { "input": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已启动，过程走 SSE",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+          },
+          "400": { "description": "input 为空", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "会话已有任务在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/agent/resume/{sessionId}": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "继续被中断的助手回复",
+        "operationId": "agentResume",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "已开始继续",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+          },
+          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "正在运行或最后一条不是助手回复", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/agent/stop/{sessionId}": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "停止正在运行的任务",
+        "operationId": "agentStop",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "partial": {
+                    "type": "object",
+                    "properties": {
+                      "content": { "type": "string" },
+                      "reasoning": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "停止结果",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+          },
+          "400": { "description": "partial 不是对象", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/agent/decide/{sessionId}": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "审批工具调用",
+        "operationId": "agentDecide",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["toolCallId", "decision"],
+                "properties": {
+                  "toolCallId": { "type": "string" },
+                  "decision": { "type": "string", "enum": ["allow-once", "allow-always", "deny"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "审批结果",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+          },
+          "400": { "description": "决定不认识", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/sse/connect/{sessionId}": {
+      "get": {
+        "tags": ["SSE"],
+        "summary": "建立实时事件连接",
+        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、permission-limit、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。",
+        "operationId": "sseConnect",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "SSE 事件流",
+            "content": { "text/event-stream": { "schema": { "type": "string" } } }
           }
         }
       }
     }
   },
   "components": {
+    "parameters": {
+      "SessionId": {
+        "name": "sessionId",
+        "in": "path",
+        "required": true,
+        "description": "会话编号",
+        "schema": { "type": "string" }
+      }
+    },
     "schemas": {
       "Error": {
         "type": "object",
-        "description": "接口出错时返回的错误信息",
-        "properties": {
-          "error": {
-            "type": "string",
-            "description": "错误的文字说明",
-            "example": "Session not found: V1StGXR8_Z5jdHi6B-myT"
-          }
-        }
+        "properties": { "error": { "type": "string" } },
+        "required": ["error"]
       },
-      "SessionMeta": {
+      "Model": {
         "type": "object",
-        "description": "对话的基本信息，不含消息历史",
         "properties": {
-          "id": {
-            "type": "string",
-            "description": "对话的唯一编号",
-            "example": "V1StGXR8_Z5jdHi6B-myT"
-          },
-          "title": {
-            "type": "string",
-            "description": "对话名称",
-            "example": "写爬虫"
-          },
-          "workspaceId": {
-            "type": "string",
-            "description": "所属工作区编号（如果有的话）",
-            "example": "workspace-01"
-          },
-          "provider": {
-            "type": "string",
-            "description": "这个对话使用的 AI 服务商名称",
-            "example": "anthropic"
-          },
-          "model": {
-            "type": "string",
-            "description": "这个对话使用的 AI 模型名称",
-            "example": "[REDACTED]"
-          },
-          "createdAt": {
-            "type": "integer",
-            "description": "创建时间，Unix 时间戳（毫秒）。Unix 时间戳是从 1970 年 1 月 1 日开始算的毫秒数",
-            "example": 1724745600000
-          },
-          "updatedAt": {
-            "type": "integer",
-            "description": "最后修改时间，Unix 时间戳（毫秒）",
-            "example": 1724745900000
-          }
+          "provider": { "type": "string" },
+          "model": { "type": "string" }
         }
       },
-      "Message": {
-        "type": "object",
-        "description": "一条消息记录。messageId 是后端记录用的身份（回退时传它），id 是消息块自己的身份",
-        "properties": {
-          "messageId": {
-            "type": "string",
-            "description": "后端记录这条消息用的唯一编号，回退接口接收的就是它",
-            "example": "V1StGXR8_Z5jdHi6B-myT"
-          },
-          "id": {
-            "type": "string",
-            "description": "消息块的唯一编号",
-            "example": "msg_01ABC"
-          },
-          "role": {
-            "type": "string",
-            "description": "消息是谁发的。user 是用户，assistant 是 AI，tool 是工具执行结果",
-            "enum": [
-              "user",
-              "assistant",
-              "tool"
-            ],
-            "example": "user"
-          },
-          "content": {
-            "description": "消息内容，可能是纯文字字符串，也可能是包含多种内容块的数组（文字、图片、工具调用等）",
-            "oneOf": [
-              {
-                "type": "string",
-                "example": "帮我写一个爬虫"
-              },
-              {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              }
-            ]
-          },
-          "usage": {
-            "type": "object",
-            "description": "这条助手消息对应的一次模型请求用量；刷新后前端据此恢复请求行",
-            "properties": {
-              "input": {
-                "type": "number"
-              },
-              "output": {
-                "type": "number"
-              },
-              "cacheRead": {
-                "type": "number"
-              },
-              "cacheWrite": {
-                "type": "number"
-              },
-              "total": {
-                "type": "number"
-              },
-              "startedAt": {
-                "type": "number"
-              },
-              "finishedAt": {
-                "type": "number"
-              },
-              "durationMs": {
-                "type": "number"
-              },
-              "reasoning": {
-                "type": "number"
-              }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
-      "Session": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/SessionMeta"
-          },
+      "ModelEntry": {
+        "oneOf": [
+          { "type": "string" },
           {
             "type": "object",
-            "description": "对话的完整内容，包含消息历史",
             "properties": {
-              "history": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "context": { "type": "integer", "description": "上下文窗口，默认 128000" },
+              "capabilities": {
                 "type": "array",
-                "description": "这个对话里所有消息的列表，按时间顺序排列",
-                "items": {
-                  "$ref": "#/components/schemas/Message"
-                }
-              },
-              "todos": {
-                "type": "array",
-                "description": "agent 最近一次调用 update_todo_list 工具写下的任务清单，直接从历史里取出来，界面可以直接渲染进度",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "text": {
-                      "type": "string",
-                      "description": "这一步要做什么"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "pending",
-                        "in_progress",
-                        "completed"
-                      ]
-                    }
-                  }
-                },
-                "example": [
-                  {
-                    "text": "读现有实现",
-                    "status": "completed"
-                  },
-                  {
-                    "text": "改 session 指令",
-                    "status": "in_progress"
-                  }
-                ]
-              },
-              "running": {
-                "type": "boolean",
-                "description": "这个会话现在有没有任务在跑"
-              },
-              "pending": {
-                "type": "array",
-                "description": "正在等用户批准的工具调用。审批请求只在 SSE 里推过一次，刷新页面后靠这个字段恢复等待状态；批准、拒绝或停止任务后自动变空",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "callID": {
-                      "type": "string",
-                      "description": "传给 POST /agent/decide 的 toolCallId"
-                    },
-                    "tool": {
-                      "type": "string",
-                      "description": "工具名"
-                    },
-                    "input": {
-                      "type": "object",
-                      "description": "这次调用的参数，界面展示给用户看"
-                    }
-                  }
-                },
-                "example": [
-                  {
-                    "callID": "call-1",
-                    "tool": "execute_command",
-                    "input": {
-                      "command": "rm -rf build"
-                    }
-                  }
-                ]
-              },
-              "undoable": {
-                "type": "integer",
-                "description": "还能撤销几次回退（0 表示没有可撤销的回退）。发新消息后清空",
-                "example": 1
-              },
-              "settings": {
-                "type": "object",
-                "properties": {
-                  "autoApprove": {
-                    "$ref": "#/components/schemas/AutoApprove"
-                  },
-                  "capabilities": {
-                    "type": "object",
-                    "description": "按模型能力开关，默认全开。字段名直接对应 agent-core 的 config",
-                    "properties": {
-                      "image": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "能不能把图片发给模型"
-                      },
-                      "cache": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "提示词缓存"
-                      },
-                      "stream": {
-                        "type": "boolean",
-                        "default": true,
-                        "description": "流式输出"
-                      }
-                    }
-                  },
-                  "uses": {
-                    "type": "object",
-                    "properties": {
-                      "compact": {
-                        "type": "object",
-                        "description": "把长对话总结成一段，不需要主模型那么聪明",
-                        "properties": {
-                          "provider": {
-                            "type": "string"
-                          },
-                          "model": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "title": {
-                        "type": "object",
-                        "description": "给会话起一个短标题，用便宜快的小模型就够",
-                        "properties": {
-                          "provider": {
-                            "type": "string"
-                          },
-                          "model": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "subtask": {
-                        "type": "object",
-                        "description": "子 agent 干活时用的模型",
-                        "properties": {
-                          "provider": {
-                            "type": "string"
-                          },
-                          "model": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "autoTitle": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "第一次聊完让模型起个标题"
-                  },
-                  "autoApproveLimit": {
-                    "type": "number",
-                    "default": 50,
-                    "description": "连着自动批准这么多次之后停下来问一句；0 表示不设上限"
-                  },
-                  "agent": {
-                    "type": "string",
-                    "default": "build",
-                    "description": "智能体名。内置 build（执行）、plan（计划）、ask（问答）、debug（调试），也可以使用配置里的自定义智能体。切换时会重新装配工具表",
-                    "example": "build"
-                  },
-                  "reasoning": {
-                    "type": "string",
-                    "enum": [
-                      "off",
-                      "auto",
-                      "low",
-                      "medium",
-                      "high",
-                      "xhigh",
-                      "max"
-                    ],
-                    "default": "auto",
-                    "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
-                  }
-                },
-                "description": "这条会话当前的运行设置，等同于 GET /session/settings/{sessionId}"
+                "items": { "type": "string" },
+                "description": "例如 text、tools、image"
               }
             }
           }
@@ -2601,317 +996,127 @@
       },
       "Provider": {
         "type": "object",
-        "description": "一个 AI 服务商的配置信息",
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "服务商名称，用于识别身份",
-            "example": "anthropic"
-          },
-          "baseURL": {
-            "type": "string",
-            "description": "服务商 API 的网址",
-            "example": "https://api.anthropic.com"
-          },
-          "apiKey": {
-            "type": "string",
-            "description": "调用这个服务商需要的密钥",
-            "example": "sk-ant-xxxxx"
-          },
-          "models": {
-            "type": "array",
-            "description": "这个服务商下可以使用的模型列表",
-            "items": {
-              "oneOf": [
-                {
-                  "type": "string",
-                  "example": "[REDACTED]"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "example": "[REDACTED]"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "capabilities": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "description": "这个模型支持的能力，只用于界面展示和筛选"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "这个服务商是否启用。不填时默认启用",
-            "example": true
-          },
-          "protocol": {
-            "type": "string",
-            "enum": [
-              "openai-compatible",
-              "responses",
-              "anthropic",
-              "gemini"
-            ],
-            "description": "服务商使用的通信协议；openai-compatible 表示兼容 OpenAI Chat Completions 的接口",
-            "example": "openai-compatible"
-          },
-          "headers": {
-            "description": "调用这个服务商时需要额外附带的 HTTP 请求头（可选）",
-            "oneOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
-          "stream": {
-            "type": "boolean",
-            "description": "这个服务商是否使用流式回复；不填时跟随全局 stream 设置",
-            "example": true
-          },
-          "body": {
-            "type": "object",
-            "description": "合并进每次模型请求体的额外字段（可选）",
-            "additionalProperties": true
-          },
-          "modelSettings": {
-            "type": "object",
-            "description": "按模型 ID 保存的设置；context 是这个模型的上下文窗口",
-            "additionalProperties": {
-              "type": "object",
-              "properties": {
-                "context": {
-                  "type": "number"
-                },
-                "contextWindow": {
-                  "type": "number"
-                }
-              },
-              "additionalProperties": true
-            }
-          }
+          "name": { "type": "string" },
+          "baseURL": { "type": "string" },
+          "apiKey": { "type": "string" },
+          "protocol": { "type": "string", "enum": ["openai-compatible", "responses", "anthropic", "gemini"] },
+          "stream": { "type": "boolean" },
+          "headers": { "type": "object" },
+          "body": { "type": "object" },
+          "enabled": { "type": "boolean" },
+          "models": { "type": "array", "items": { "$ref": "#/components/schemas/ModelEntry" } }
         }
       },
       "Config": {
         "type": "object",
-        "description": "服务器的全局配置",
         "properties": {
-          "providers": {
-            "type": "array",
-            "description": "所有 AI 服务商的配置列表",
-            "items": {
-              "$ref": "#/components/schemas/Provider"
+          "providers": { "type": "array", "items": { "$ref": "#/components/schemas/Provider" } },
+          "models": {
+            "type": "object",
+            "properties": {
+              "chat": { "$ref": "#/components/schemas/Model" },
+              "compact": { "$ref": "#/components/schemas/Model" },
+              "title": { "$ref": "#/components/schemas/Model" },
+              "task": { "$ref": "#/components/schemas/Model" }
             }
           },
+          "mcp": { "type": "object", "additionalProperties": true },
+          "permission": { "type": "object", "additionalProperties": true },
           "prompt": {
             "type": "object",
-            "description": "系统提示词配置。第一次读取时填入默认值；用户保存空字符串后不会再次填回",
             "properties": {
-              "system": {
-                "type": "string",
-                "description": "发给 AI 的系统提示词，用于设定 AI 的行为方式；允许为空字符串",
-                "example": "你是一个编程助手，帮用户解决代码问题。"
-              },
-              "defaultSeeded": {
-                "type": "boolean",
-                "description": "内部标记：是否已经给过默认提示词。用户主动清空后仍为 true，避免默认值被重新填入"
-              }
+              "system": { "type": "string" },
+              "seeded": { "type": "boolean" }
             }
           },
-          "permission": {
+          "compact": {
             "type": "object",
-            "description": "工具权限规则。键是工具名，值是 allow、ask，或按参数匹配的对象；为空对象时所有工具都先问用户。这一层管不住的文件由数据目录的 .agentignore 兜底",
-            "example": {
-              "*": "ask",
-              "read_file": "allow",
-              "execute_command": {
-                "*": "ask",
-                "git *": "allow"
-              }
-            }
+            "properties": { "threshold": { "type": "number", "minimum": 0.1, "maximum": 0.99 } }
           },
-          "mcp": {
-            "type": "object",
-            "description": "外部工具服务（MCP）。键是服务名，工具名会带上服务名前缀；配置改动后下次建会话时连接跟着变。某个服务连不上只会跳过它，不影响会话创建。技能不在这里配，放在数据目录的 skills/ 里",
-            "example": {
-              "everything": {
-                "command": "bun",
-                "args": [
-                  "node_modules/@modelcontextprotocol/server-everything/dist/index.js"
-                ],
-                "enabled": true
-              }
-            }
-          },
-          "model": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "默认模型，用于新会话；供应商或模型不存在时回退到第一个启用的模型",
-            "properties": {
-              "provider": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              }
-            }
-          },
-          "capabilities": {
-            "type": "object",
-            "description": "新会话默认的模型能力开关",
-            "properties": {
-              "image": {
-                "type": "boolean",
-                "default": true
-              },
-              "cache": {
-                "type": "boolean",
-                "default": true
-              },
-              "stream": {
-                "type": "boolean",
-                "default": true
-              }
-            }
-          },
-          "uses": {
-            "type": "object",
-            "description": "新会话默认的任务模型分工；compact / title / subtask",
-            "additionalProperties": true
-          },
-          "compactThreshold": {
-            "type": "number",
-            "default": 0.8,
-            "description": "新会话默认的自动压缩阈值，范围 0.1 到 0.99"
-          },
-          "autoTitle": {
-            "type": "boolean",
-            "default": true,
-            "description": "新会话默认在第一次聊完后自动生成标题"
-          },
-          "reasoning": {
-            "type": "string",
-            "enum": [
-              "off",
-              "auto",
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ],
-            "default": "auto",
-            "description": "思考强度：关闭 / 自动 / 轻 / 中 / 重 / 极高 / 最大；auto 不改请求，交给模型默认。"
-          }
+          "agents": { "type": "object", "additionalProperties": true },
+          "snapshot": { "type": "object", "additionalProperties": true }
         }
       },
       "AutoApprove": {
         "type": "object",
-        "description": "自动批准：按类别分别开关，可以随时改。没开的那类逐个询问；未分类的工具一律要问",
         "properties": {
-          "read": {
-            "type": "boolean",
-            "default": false,
-            "description": "读文件、列目录、搜代码、抓网页"
-          },
-          "write": {
-            "type": "boolean",
-            "default": false,
-            "description": "改文件、打补丁"
-          },
-          "command": {
-            "type": "boolean",
-            "default": false,
-            "description": "跑命令"
-          },
-          "mcp": {
-            "type": "boolean",
-            "default": false,
-            "description": "MCP 服务提供的工具"
-          },
-          "subtask": {
-            "type": "boolean",
-            "default": false,
-            "description": "开一个子任务去干活"
-          }
+          "read": { "type": "boolean" },
+          "write": { "type": "boolean" },
+          "command": { "type": "boolean" },
+          "mcp": { "type": "boolean" },
+          "subtask": { "type": "boolean" }
         }
       },
-      "Agent": {
+      "Settings": {
         "type": "object",
-        "description": "一个智能体的完整定义。内置智能体也可以被配置里的同名条目覆盖。",
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "写进 settings.json 的稳定名字",
-            "example": "build"
-          },
-          "label": {
-            "type": "string",
-            "description": "界面显示的名称",
-            "example": "执行"
-          },
-          "description": {
-            "type": "string",
-            "description": "一句话说明这个智能体适合做什么"
-          },
-          "instructions": {
-            "type": "string",
-            "description": "额外拼到系统提示词后面的角色说明"
-          },
-          "readOnly": {
-            "type": "boolean",
-            "description": "true 时去掉所有能改磁盘的工具"
-          },
-          "tools": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "description": "工具白名单；null 表示不限制",
-            "items": {
-              "type": "string"
-            }
-          },
-          "model": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "这个智能体指定的模型；null 表示沿用会话模型",
+          "agent": { "type": "string" },
+          "autoApprove": { "$ref": "#/components/schemas/AutoApprove" },
+          "autoApproveLimit": { "type": "number" },
+          "capabilities": {
+            "type": "object",
             "properties": {
-              "provider": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              }
+              "image": { "type": "boolean" },
+              "cache": { "type": "boolean" },
+              "stream": { "type": "boolean" }
             }
           },
-          "permission": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "这个智能体的权限覆盖；写法和全局 permission 相同"
-          },
-          "builtin": {
-            "type": "boolean",
-            "description": "是否是内置智能体"
+          "reasoning": { "type": "string", "enum": ["off", "auto", "low", "medium", "high", "xhigh", "max"] }
+        }
+      },
+      "SessionMeta": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "cwd": { "type": "string", "description": "会话当前所在的目录" },
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "createdAt": { "type": "integer" },
+          "updatedAt": { "type": "integer" }
+        }
+      },
+      "Session": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SessionMeta" },
+          {
+            "type": "object",
+            "properties": {
+              "history": {
+                "type": "array",
+                "items": { "type": "object", "additionalProperties": true },
+                "description": "带 messageId 的消息记录"
+              },
+              "todos": { "type": "array", "items": { "type": "object" } },
+              "running": { "type": "boolean" },
+              "pending": { "type": "array", "items": { "type": "object" } },
+              "settings": { "$ref": "#/components/schemas/Settings" },
+              "undoable": { "type": "integer" }
+            }
           }
+        ]
+      },
+      "Change": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "before": { "type": "string" },
+          "after": { "type": "string" },
+          "added": { "type": "boolean" },
+          "deleted": { "type": "boolean" }
+        }
+      },
+      "Tool": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "kindLabel": { "type": "string" },
+          "kindHint": { "type": "string" },
+          "permission": { "type": "string", "enum": ["allow", "ask", "deny"] },
+          "configurable": { "type": "boolean" },
+          "ui": { "type": "object", "additionalProperties": true }
         }
       }
     }

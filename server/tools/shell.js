@@ -1,19 +1,25 @@
 /*
- * 命令工具：在指定目录执行一条命令，把输出和退出码一起交给模型。
+ * 执行命令工具：在会话当前目录里跑一条命令，把输出和退出码交给模型。
  *
- * 名字和参数对齐 Roo Code：execute_command({ command, cwd })。
  * 输出会两路给出：一路实时转发给前端边跑边看，一路读回来放进工具结果。
- * 必须自己读回来——只返回退出码的话，模型看不到命令说了什么（已实测确认）。
- * 调用示例：模型调用 execute_command({ command: 'bun test', cwd: '.' })。
+ * 命令执行前可以先把目录里的文件状态记一份，结束后对比出真正改了哪些文件，
+ * 这样命令造成的改动也能回退。快照实现放在 tools/file.js，和文件工具共用一套。
+ *
+ * 调用示例：模型调用 execute_command({ command: 'bun test', cwd: 'src' })
  */
-import { truncate } from '../utils/truncate.js' // 长输出只留头尾，避免一次性塞满上下文。
+
+import { isAbsolute, resolve } from 'node:path'
+import { shellStart, shellEnd } from './file.js'
+import { truncate } from '../utils/text.js'
 
 // 命令最多跑十分钟，防止装依赖或死循环把整个任务挂死。
 const TIMEOUT_MS = 10 * 60 * 1000
 
-export default {
+const shell = {
     name: 'execute_command',
     kind: 'command',
+    snapshot: shellStart,
+    end: shellEnd,
     ui: {
         view: 'command',
         icon: 'code',
@@ -23,12 +29,9 @@ export default {
     },
     description: [
         'Execute a CLI command on the system and return its output (stdout and stderr) and exit code. Long output is truncated, keeping the head and tail.',
-        'Use this for anything not covered by a dedicated tool: installing dependencies, running builds and tests, git operations, starting dev servers.',
-        'Prefer dedicated tools when they fit (read_file to inspect a file, search_files to search) — they are cheaper and more precise.',
-        'The command runs once and waits for completion; interactive prompts that need typing will hang — pass flags like -y or set env vars instead.',
-        'Parameters:',
-        '- command (required): the command line to run.',
-        '- cwd (optional): working directory; defaults to the current one.',
+        'Use this for anything not covered by a dedicated tool: installing dependencies, running builds and tests, starting dev servers.',
+        'The command runs once and waits for completion; interactive prompts that need typing will hang.',
+        'Parameters: - command (required): the command line to run. - cwd (optional): directory relative to the session current directory.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
@@ -39,23 +42,24 @@ export default {
         required: ['command'],
     },
 
-    // --- 执行命令 ---
-    // 第二参必须可省：agent-core 的契约是 execute(input, options?)，
-    // 文件工具跑在子进程里时只收到 input；写成必解构会在真实执行时崩。
-    async execute({ command, cwd, directory }, { abortSignal } = {}) {
-        const process = Bun.spawn({
-            cmd: ['cmd.exe', '/d', '/s', '/c', command],
-            cwd: cwd ?? directory, // 旧调用仍可传 directory。
+    // 第二参必须可省：agent-core 的契约是 execute(input, options?)。
+    async execute({ command, cwd }, options = {}) {
+        const base = options.cwd || process.cwd()
+        const workdir = cwd ? (isAbsolute(cwd) ? cwd : resolve(base, cwd)) : base
+        const platform = process.platform
+        const child = Bun.spawn({
+            cmd: platform === 'win32'
+                ? ['cmd.exe', '/d', '/s', '/c', command]
+                : ['sh', '-c', command],
+            cwd: workdir,
             stdout: 'pipe',
             stderr: 'pipe',
         })
 
         // 用户点停止或等待超时都要结束这条命令，不让它留在后台继续跑。
         let timedOut = false
-        const stop = () => {
-            process.kill()
-        }
-        abortSignal?.addEventListener('abort', stop, { once: true })
+        const stop = () => child.kill()
+        options.abortSignal?.addEventListener('abort', stop, { once: true })
         const timer = setTimeout(() => {
             timedOut = true
             stop()
@@ -63,19 +67,21 @@ export default {
 
         try {
             const [stdout, stderr, exitCode] = await Promise.all([
-                process.stdout.text(), // 读回来的输出既进结果，也已经被工具执行器实时转发过。
-                process.stderr.text(),
-                process.exited,
+                child.stdout.text(),
+                child.stderr.text(),
+                child.exited,
             ])
             return {
                 exitCode,
                 stdout: truncate(stdout.trimEnd()),
                 stderr: truncate(stderr.trimEnd()),
-                timedOut, // 超时被杀时告诉模型原因，它才知道该换一条命令而不是重试。
+                timedOut,
             }
         } finally {
             clearTimeout(timer)
-            abortSignal?.removeEventListener('abort', stop)
+            options.abortSignal?.removeEventListener('abort', stop)
         }
     },
 }
+
+export default shell

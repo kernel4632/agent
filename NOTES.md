@@ -1,6 +1,6 @@
 # Agent 设计笔记
 
-> 这是目标设计；当前代码结构还没有按这份笔记迁移。
+> 这是目标设计；后端 `server/` 已经按这份笔记迁移。
 
 这是一个**通用 Agent 基座**，不是开发者专用的编码工具，也不是把 OpenCode、Roo Code、RikkaHub、Cherry Studio 的功能拼在一起。
 

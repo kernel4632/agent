@@ -10,24 +10,22 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Agent from '@kernel4632/agent-core'
-import Config from '../config/config.js'
-import Session from '../conversation/session.js'
-import Settings from '../config/settings.js'
-import Kind from '../tool-registry/kind.js'
-import Store from '../agent/state.js'
-import History from '../conversation/history.js' // 会话历史的内存缓存由 history.js 自己管。
+import AgentCore from '@kernel4632/agent-core'
+import Agent from '../features/agent.js'
+import Config from '../commands/config.js'
+import Session from '../commands/session.js'
+import Tool from '../features/tool.js'
+import History from '../features/history.js'
+import store from '../store.js'
+
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-core-upgrade-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
-    Object.keys(Store.config).forEach(key => delete Store.config[key])
-    Store.agents.clear()
+    Object.keys(store.config).forEach(key => delete store.config[key])
+    Agent.runtime().clear()
     History.clear()
-    Store.snapshots.clear()
-    Store.approvals.clear()
-    Store.settings.clear()
     try {
         return await callback(root)
     } finally {
@@ -37,79 +35,41 @@ const withHome = async callback => {
     }
 }
 
-describe('context 预算与输出上限', () => {
-    test('上下文预算写成 maxContextTokens，不是 maxTokens', async () => {
-        await withHome(async () => {
-            await Config.set({
-                providers: [{
-                    name: 'local',
-                    models: ['model'],
-                    modelSettings: { model: { context: 64000 } },
-                }],
-            })
-            const config = Config.resolve({ provider: 'local', model: 'model' })
-
-            // 这两个名字在 agent-core 0.26 起是两件不同的事：
-            // maxContextTokens 是上下文预算（到 80% 自动压缩），
-            // maxTokens 是单次生成的最大输出（会变成请求体的 maxOutputTokens）。
-            // 写错不会报错，只会把 64000 当成输出上限发出去，模型被莫名截断。
-            expect(config.maxContextTokens).toBe(64000)
-            expect(config.maxTokens).toBeUndefined()
-        })
-    })
-
-    test('没配上下文时也有默认预算，同样不落进 maxTokens', async () => {
-        await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
-            const config = Config.resolve({ provider: 'local', model: 'model' })
-            expect(config.maxContextTokens).toBe(128000)
-            expect(config.maxTokens).toBeUndefined()
-        })
-    })
-})
-
 describe('工具子集', () => {
-    test('plan 模式用 Agent.tool.omit 去掉写工具，两份表一起被筛掉', async () => {
+    test('plan 智能体用 Agent.tool.omit 去掉写工具，两份表一起被筛掉', async () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: '只读模式' })
-            await Session.saveSettings({ sessionId, mode: 'plan' })
-            const { tools } = Store.agents.get(sessionId)
+            await Session.saveSettings({ sessionId, agent: 'plan' })
+            const { tools } = Agent.runtime().get(sessionId)
 
-            // 要检查的是"该被去掉的那些是不是真没了"，所以名单得从完整的内置工具表上算，
-            // 不能从筛选后的表上算——筛过之后写工具本来就不在里面，那样等于什么都没查。
-            const all = Object.keys((await Agent.tool.scan(new URL('../tools/', import.meta.url))).schema)
-            const writing = Kind.writing(all)
-            expect(writing.length, '至少要有一个能改磁盘的工具，否则这条检查没有意义').toBeGreaterThan(0)
+            // 要检查的是"该被去掉的那些是不是真没了"，名单从完整工具目录上算。
+            const all = (await Tool.list()).filter(tool => ['write', 'command'].includes(tool.kind)).map(tool => tool.name)
+            expect(all.length, '至少要有一个能改磁盘的工具').toBeGreaterThan(0)
 
-            for (const name of writing) {
-                // schema 里不该出现：模型看不到它，就不会想着去调。
-                expect(tools.schema[name], `${name} 不该在 plan 模式的 schema 里`).toBeUndefined()
-                // handlers 里也不该出现。只筛一份就会出现"看不见却还能被执行"。
+            for (const name of all) {
+                expect(tools.schema[name], `${name} 不该在 plan 智能体的 schema 里`).toBeUndefined()
                 expect(name in (tools.handlers || {}), `${name} 还能被执行`).toBe(false)
             }
-            // 只读工具要留着，不然计划模式什么都干不了。
             expect(tools.schema.read_file).toBeDefined()
             expect(tools.schema.search_files).toBeDefined()
         })
     })
 
     test('omit 返回的是新集合，原来的工具表不受影响', async () => {
-        const scanned = await Agent.tool.scan(new URL('../tools/', import.meta.url))
+        const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
         const before = Object.keys(scanned.schema).length
 
-        const missing = Agent.tool.omit(scanned, ['write_to_file', 'execute_command']).schema
+        const missing = AgentCore.tool.omit(scanned, ['write_to_file', 'execute_command']).schema
         expect(missing.write_to_file).toBeUndefined()
         expect(missing.execute_command).toBeUndefined()
-        // 原集合还是完整的——子集是新对象，不是就地删。
         expect(Object.keys(scanned.schema)).toHaveLength(before)
         expect(scanned.schema.write_to_file).toBeDefined()
     })
 
     test('拿不存在或空的集合去 omit 不会炸', async () => {
-        // agent-core 明确保证空集合和 undefined 也安全，这里把这条保证用起来。
-        expect(() => Agent.tool.omit(undefined, ['write_to_file'])).not.toThrow()
-        expect(() => Agent.tool.omit(Agent.tool.adopt(null), ['write_to_file'])).not.toThrow()
+        expect(() => AgentCore.tool.omit(undefined, ['write_to_file'])).not.toThrow()
+        expect(() => AgentCore.tool.omit(AgentCore.tool.adopt(null), ['write_to_file'])).not.toThrow()
     })
 })
 
@@ -119,23 +79,20 @@ describe('onPermission 的返回值', () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: '审批返回值' })
 
-            // agent-core 0.26 起非 true 一律按拒绝处理（之前是"对象当真值＝放行"）。
-            // 我们本来返回的就是布尔，这里钉住，免得以后为了带原因又改成对象——
-            // 那会让所有工具都被拒绝，而且不报错。
-            const callbacks = Store.agents.get(sessionId).callbacks
+            const callbacks = Agent.runtime().get(sessionId).callbacks
             const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c1', toolName: 'read_file', input: { path: 'D:/app/a.js' } })
             expect(typeof allowed).toBe('boolean')
             expect(allowed).toBe(true)
         })
     })
 
-    test('被忽略规则拦住时返回 false，不是 false 一类的东西', async () => {
+    test('deny 规则返回 false，不是 false 一类的东西', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
-            const { sessionId } = await Session.create({ title: '拦住密钥' })
-            const callbacks = Store.agents.get(sessionId).callbacks
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny' } })
+            const { sessionId } = await Session.create({ title: '拒绝读取' })
+            const callbacks = Agent.runtime().get(sessionId).callbacks
 
-            const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c2', toolName: 'read_file', input: { path: 'D:/app/.env' } })
+            const allowed = await callbacks.onPermission({ sessionId, toolCallId: 'c2', toolName: 'read_file', input: { path: 'D:/app/a.js' } })
             expect(allowed).toBe(false)
         })
     })

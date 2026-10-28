@@ -9,10 +9,9 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../config/config.js'
-import Tools from '../tool-registry/catalog.js'
-import Store from '../agent/state.js'
-import { toolFiles } from '../tool-registry/files.js'
+import Config from '../commands/config.js'
+import Tool from '../features/tool.js'
+import store from '../store.js'
 import { app } from '../server.js'
 
 const withHome = async callback => {
@@ -20,7 +19,7 @@ const withHome = async callback => {
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
     await mkdir(root, { recursive: true })
-    Object.keys(Store.config).forEach(key => delete Store.config[key])
+    Object.keys(store.config).forEach(key => delete store.config[key])
     try {
         return await callback(root)
     } finally {
@@ -45,7 +44,7 @@ describe('工具目录', () => {
                 "}",
             ].join('\n'))
 
-            const tools = await Tools.list()
+            const tools = await Tool.list()
             const byName = Object.fromEntries(tools.map(item => [item.name, item]))
             expect(byName.read_file.permission).toBe('deny')
             expect(byName.read_file.ui?.view).toBe('file-read')
@@ -56,31 +55,28 @@ describe('工具目录', () => {
             expect(byName.my_tool.ui?.view).toBe('custom')
             expect(byName.new_task).toBeDefined()
             expect(byName.new_task.ui?.view).toBe('subtask')
+            expect(byName.cwd).toBeDefined()
             expect(byName.update_todo_list.configurable).toBe(false)
             expect(byName.update_todo_list.ui?.view).toBe('todo')
             expect(byName.attempt_completion.ui?.view).toBe('completion')
-            // 旧会话里的 finish 还能找回 attempt_completion，前端不再单独存别名表。
-            expect(byName.attempt_completion.previousNames).toContain('finish')
         })
     })
 
-    test('用户工具自己声明的类别和文件参数会被登记', async () => {
+    test('用户工具自己声明的类别会被登记', async () => {
         await withHome(async root => {
             await mkdir(join(root, 'tools'), { recursive: true })
             await writeFile(join(root, 'tools', 'declared.js'), [
                 "export default {",
                 "    name: 'declared_tool',",
                 "    kind: 'read',",
-                "    files: input => [input.path],",
                 "    description: 'test tool',",
-                "    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },",
+                "    inputSchema: { type: 'object', properties: {} },",
                 "    async execute() { return 'ok' },",
                 "}",
             ].join('\n'))
 
-            const tools = await Tools.list()
+            const tools = await Tool.list()
             expect(tools.find(tool => tool.name === 'declared_tool')?.kind).toBe('read')
-            expect(toolFiles({ toolName: 'declared_tool', input: { path: 'a.txt' } })).toEqual(['a.txt'])
         })
     })
 
@@ -92,26 +88,22 @@ describe('工具目录', () => {
                 "export default {",
                 "    name: 'temporary_tool',",
                 "    kind: 'read',",
-                "    files: input => [input.path],",
                 "    description: 'temporary',",
                 "    inputSchema: { type: 'object', properties: {} },",
                 "    async execute() { return 'ok' },",
                 "}",
             ].join('\n'))
 
-            expect((await Tools.list()).some(tool => tool.name === 'temporary_tool')).toBe(true)
+            expect((await Tool.list()).some(tool => tool.name === 'temporary_tool')).toBe(true)
             await rm(file, { force: true })
-            // 不重启进程也要消失；工具目录是当前位置的唯一真相。
-            expect((await Tools.list()).some(tool => tool.name === 'temporary_tool')).toBe(false)
-            expect(toolFiles({ toolName: 'temporary_tool', input: { path: 'a.txt' } })).toEqual([])
+            expect((await Tool.list()).some(tool => tool.name === 'temporary_tool')).toBe(false)
         })
     })
 
     test('全局 deny 在工具目录里也显示成拒绝', async () => {
         await withHome(async () => {
-            // 设置页显示的动作必须和真正执行时一致；全局 deny 以前会被显示成 ask。
             await Config.set({ permission: { '*': 'deny' } })
-            const tools = await Tools.list()
+            const tools = await Tool.list()
             const byName = Object.fromEntries(tools.map(item => [item.name, item]))
             expect(byName.execute_command.permission).toBe('deny')
             expect(byName.read_file.permission).toBe('deny')

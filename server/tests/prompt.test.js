@@ -1,24 +1,22 @@
 /*
  * 系统提示词初始化测试：默认值只填一次，用户清空后不能被重新填回。
- *
- * 规则拼接是另一件事，这里把 rules 关掉，只看用户提示词本身。
  */
 import { describe, expect, test } from 'bun:test'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../config/config.js'
-import Store from '../agent/state.js'
-import { DEFAULT_SYSTEM_PROMPT } from '../config/system-prompt.js'
+import Config from '../commands/config.js'
+import Agent from '../features/agent.js'
+import Context from '../features/context.js'
+import store from '../store.js'
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
     await mkdir(root, { recursive: true })
-    Object.keys(Store.config).forEach(key => delete Store.config[key])
-    Store.rules = ''
+    Object.keys(store.config).forEach(key => delete store.config[key])
     try {
         return await callback(root)
     } finally {
@@ -30,6 +28,11 @@ const withHome = async callback => {
 
 const provider = [{ name: 'local', models: ['model'] }]
 
+const resolve = () => Agent.resolve({
+    session: { model: { provider: 'local', model: 'model' } },
+    settings: Agent.defaultSettings(),
+})
+
 describe('默认系统提示词', () => {
     test('第一次读取时填入默认值并留下初始化标记', async () => {
         await withHome(async root => {
@@ -37,8 +40,8 @@ describe('默认系统提示词', () => {
             await writeFile(path, JSON.stringify({ providers: provider }))
 
             const config = await Config.read(path)
-            expect(config.prompt.system).toBe(DEFAULT_SYSTEM_PROMPT)
-            expect(config.prompt.defaultSeeded).toBe(true)
+            expect(config.prompt.system).toBe(Context.DEFAULT_PROMPT)
+            expect(config.prompt.seeded).toBe(true)
         })
     })
 
@@ -49,7 +52,7 @@ describe('默认系统提示词', () => {
 
             const config = await Config.read(path)
             expect(config.prompt.system).toBe('我的提示词')
-            expect(config.prompt.defaultSeeded).toBe(true)
+            expect(config.prompt.seeded).toBe(true)
         })
     })
 
@@ -58,13 +61,12 @@ describe('默认系统提示词', () => {
             const path = join(root, 'config.json')
             await writeFile(path, JSON.stringify({
                 providers: provider,
-                rules: { enabled: false },
-                prompt: { system: '', defaultSeeded: true },
+                prompt: { system: '', seeded: true },
             }))
 
             await Config.read(path)
-            expect(Store.config.prompt.system).toBe('')
-            expect(Config.resolve({ provider: 'local', model: 'model' }).system).toBe('')
+            expect(store.config.prompt.system).toBe('')
+            expect(resolve().system).toBe('')
         })
     })
 
@@ -72,19 +74,17 @@ describe('默认系统提示词', () => {
         await withHome(async () => {
             await Config.set({
                 providers: provider,
-                rules: { enabled: false },
                 prompt: { system: '' },
             })
-            expect(Store.config.prompt.system).toBe('')
-            expect(Config.resolve({ provider: 'local', model: 'model' }).system).toBe('')
+            expect(store.config.prompt.system).toBe('')
+            expect(resolve().system).toBe('')
         })
     })
 
     test('空提示词不会让 agent-core 再请求一轮', async () => {
         await withHome(async () => {
             await Config.set({ providers: provider, prompt: { system: '' } })
-            const config = Config.resolve({ provider: 'local', model: 'model' })
-            expect(config.noToolRounds).toBe(1)
+            expect(resolve().noToolRounds).toBe(1)
         })
     })
 })

@@ -1,12 +1,12 @@
 /*
  * SSE 实时反馈：把 Agent 运行过程推给前端，断线重连后补发。
  *
- * 本文件集中处理连接、缓存、补发和心跳；业务指令只管 connect/send/close 三件事。
+ * 本文件集中处理连接、缓存、补发和心跳；业务指令只管 connect/send/reset/close。
  * 调用示例：
- *   await SSE.connect({ id: sessionId, request })        // 前端建立连接
- *   await SSE.send({ id: sessionId, data: { type: 'text-delta', text: '你' } })  // 随便发，不用管连接状态
- *   await SSE.reset({ id: sessionId })                   // 历史已保存，清掉已经落盘的流式事件
- *   await SSE.close({ id: sessionId })                   // 会话结束，断开并释放缓存
+ *   await SSE.connect({ id: sessionId, request })
+ *   await SSE.send({ id: sessionId, data: { type: 'text-delta', text: '你' } })
+ *   await SSE.reset({ id: sessionId })   // 历史已保存，清掉已经落盘的流式事件
+ *   await SSE.close({ id: sessionId })   // 会话结束，断开并释放缓存
  */
 import { createResponse } from 'better-sse'
 
@@ -65,8 +65,6 @@ const connect = async ({ id, request }) => {
     const sessionRequest = new Request(request, { signal: controller.signal })
 
     const response = createResponse(sessionRequest, {
-        // 不主动发送 retry 字段，避免把连接配置和第一条业务事件拆成两次读取。
-        // 浏览器仍会使用自己的默认重连时间。
         retry: null,
         keepAlive: HEARTBEAT_MS,
         serializer: serialize,
@@ -83,7 +81,6 @@ const connect = async ({ id, request }) => {
         })
 
         // 网络断开时保留缓存，等客户端重新连接后再补发。
-        // 只有历史保存完成（reset）或会话结束（close）才清空缓存。
         connection.once('disconnected', () => {
             if (state.connection === connection) state.connection = null
             if (state.controller === controller) state.controller = null
@@ -97,7 +94,6 @@ const connect = async ({ id, request }) => {
 
 // --- 清掉已经落盘的事件 ---
 const reset = async ({ id }) => {
-    // 历史保存成功后才调用：此刻缓存里的事件都已经在历史里了，前端改为读历史。
     const state = sessionState(id)
     state.events = []
     state.nextId = 1
@@ -107,7 +103,7 @@ const reset = async ({ id }) => {
 const send = async ({ id, data }) => {
     const state = sessionState(id)
     const event = { id: state.nextId++, data }
-    state.events.push(event) // 先记下来，断线重连时能补发。
+    state.events.push(event)
     if (state.connection?.isConnected) {
         try {
             state.connection.push(event.data, undefined, String(event.id))
