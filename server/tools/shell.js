@@ -2,24 +2,26 @@
  * 执行命令工具：在会话当前目录里跑一条命令，把输出和退出码交给模型。
  *
  * 输出会两路给出：一路实时转发给前端边跑边看，一路读回来放进工具结果。
- * 命令执行前可以先把目录里的文件状态记一份，结束后对比出真正改了哪些文件，
- * 这样命令造成的改动也能回退。快照实现放在 tools/file.js，和文件工具共用一套。
+ * 长输出只保留头尾，截断规则由这个工具自己决定。
  *
  * 调用示例：模型调用 execute_command({ command: 'bun test', cwd: 'src' })
  */
 
 import { isAbsolute, resolve } from 'node:path'
-import { shellStart, shellEnd } from './file.js'
-import { truncate } from '../utils/text.js'
 
 // 命令最多跑十分钟，防止装依赖或死循环把整个任务挂死。
 const TIMEOUT_MS = 10 * 60 * 1000
 
+// --- 长输出只留头尾 ---
+const truncate = (text, limit = 6000) => {
+    if (text.length <= limit) return text
+    const half = Math.floor(limit / 2)
+    return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
+}
+
 const shell = {
     name: 'execute_command',
     kind: 'command',
-    snapshot: shellStart,
-    end: shellEnd,
     ui: {
         view: 'command',
         icon: 'code',

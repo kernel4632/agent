@@ -7,10 +7,16 @@
  */
 
 import { convert } from 'html-to-text'
-import { truncate } from '../utils/text.js'
 
 // 一次请求最多等 30 秒，超时就当作读不到。
 const TIMEOUT_MS = 30 * 1000
+
+// --- 网页太长时只留头尾 ---
+const truncate = (text, limit = 6000) => {
+    if (text.length <= limit) return text
+    const half = Math.floor(limit / 2)
+    return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
+}
 
 const webfetch = {
     name: 'webfetch',

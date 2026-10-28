@@ -36,18 +36,24 @@ const MODELS = [
 const migrate = raw => {
     const config = isObject(raw) ? structuredClone(raw) : {}
 
-    // 旧版本把智能体写在 modes 里。
-    if (!isObject(config.agents) && isObject(config.modes)) config.agents = config.modes
-    delete config.modes
-    if (!isObject(config.agents)) delete config.agents
-
-    // 每个模型的上下文从 provider.modelSettings 搬到模型对象自己身上。
+    // 每个模型的上下文和能力都写在模型对象自己身上。
     for (const provider of Array.isArray(config.providers) ? config.providers : []) {
         if (!isObject(provider)) continue
         const settings = isObject(provider.modelSettings) ? provider.modelSettings : {}
         provider.models = (Array.isArray(provider.models) ? provider.models : []).map(model => {
-            if (isObject(model)) return { ...model, context: Number(model.context) || Number(settings[model.id]?.context) || 128000 }
-            return { id: model, name: model, context: Number(settings[model]?.context) || 128000, capabilities: ['text', 'tools'] }
+            if (!isObject(model)) {
+                return {
+                    id: model,
+                    name: model,
+                    context: Number(settings[model]?.context) || 128000,
+                    capabilities: ['text', 'tools'],
+                }
+            }
+            return {
+                ...model,
+                context: Number(model.context) || Number(settings[model.id]?.context) || 128000,
+                capabilities: Array.isArray(model.capabilities) ? model.capabilities : ['text', 'tools'],
+            }
         })
         delete provider.modelSettings
     }
@@ -75,8 +81,16 @@ const migrate = raw => {
 
     if (!isObject(config.mcp)) config.mcp = {}
     if (!isObject(config.permission)) config.permission = {}
-    if (!isObject(config.snapshot)) config.snapshot = { shell: false, maxFiles: 2000, maxBytes: 2097152 }
     if (!Array.isArray(config.providers)) config.providers = []
+
+    // 这些字段属于已经移除的旧能力，读进来就直接丢掉，不让它们在配置里继续残留。
+    delete config.agents
+    delete config.snapshot
+    delete config.capabilities
+    delete config.autoTitle
+    delete config.rules
+    delete config.diagnostics
+    delete config.stream
 
     // 提示词默认值只填一次；用户明确保存的空字符串保持为空。
     const prompt = isObject(config.prompt) ? config.prompt : {}
@@ -108,40 +122,8 @@ const set = async newConfig => {
 
 const get = () => store.config
 
-/**
- * 给旧界面的只读视图：在真实配置旁边带上它还在读的旧字段。
- * 这些字段由 models / compact / 模型对象现算出来，不写回 store，也不成为第二份数据。
- */
-const view = () => {
-    const config = store.config
-    const providers = (config.providers || []).map(provider => ({
-        ...provider,
-        modelSettings: Object.fromEntries(
-            (provider.models || [])
-                .filter(model => typeof model === 'object' && model?.id)
-                .map(model => [model.id, { context: model.context }]),
-        ),
-    }))
-    return {
-        ...config,
-        providers,
-        model: config.models.chat,
-        uses: {
-            compact: config.models.compact,
-            title: config.models.title,
-            subtask: config.models.task,
-        },
-        compactThreshold: config.compact.threshold,
-        prompt: { ...config.prompt, defaultSeeded: config.prompt.seeded },
-    }
-}
-
 // --- 界面只读元数据：按任务的模型标签 ---
-const meta = () => ({
-    models: MODELS,
-    // 兼容旧界面的字段名；内容还是同一份任务清单。
-    uses: MODELS.filter(item => item.task !== 'chat').map(({ task, ...rest }) => ({ use: task === 'task' ? 'subtask' : task, ...rest })),
-})
+const meta = () => ({ models: MODELS })
 
 // --- 真实试一次模型请求 ---
 const test = async ({ provider, model } = {}) => Agent.testModel({ provider, model })
@@ -152,4 +134,4 @@ const version = async () => {
     return cachedVersion
 }
 
-export default { MODELS, read, set, get, view, meta, test, version }
+export default { MODELS, read, set, get, meta, test, version }

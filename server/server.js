@@ -34,21 +34,12 @@ app.get('/health', async () => ({
     running: Session.runningCount(),
 }))
 
-// --- 兼容旧界面的目录信息；会话自己的目录用 /session/cwd 改 ---
-app.group('/workspace', workspace => workspace
-    .get('/read', () => Session.workspace())
-    .get('/status', ({ query }) => Session.workspaceStatus({ path: query.path })))
-
-// --- 旧界面的斜杠命令入口；这一版不再扫描也不执行斜杠命令 ---
-app.get('/command/list', () => [])
-
 // --- 工具目录 ---
 app.get('/tool/list', () => Tool.list())
 app.get('/tool/kinds', () => Tool.kinds())
 
 // --- 对话：发送、继续、停止、审批 ---
 app.group('/agent', agent => agent
-    .get('/list', () => Chat.agents())
     .post('/send/:sessionId', ({ params, body }) => Chat.send({ ...params, ...body }))
     .post('/resume/:sessionId', ({ params }) => Chat.resume(params))
     .post('/stop/:sessionId', ({ params, body }) => Chat.stop({ ...params, ...(body || {}) }))
@@ -79,13 +70,10 @@ app.group('/session', session => session
 app.group('/config', config => config
     .get('/read', async () => {
         await Config.read()
-        return Config.view()
+        return Config.get()
     })
     .get('/meta', () => Config.meta())
-    .patch('/set', async ({ body }) => {
-        await Config.set(body)
-        return Config.view()
-    })
+    .patch('/set', ({ body }) => Config.set(body))
     .post('/test', ({ body }) => Config.test(body || {})))
 
 // --- SSE ---

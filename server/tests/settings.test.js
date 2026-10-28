@@ -1,5 +1,5 @@
 /*
- * 会话运行设置测试：智能体、按类别的自动批准、能力开关、按任务的模型。
+ * 会话运行设置测试：智能体、按类别的自动批准、按任务的模型。
  *
  * 每一项都要真的读回装配好的 Agent 来验证，而不是只看接口返回了什么。
  * 每个测试在自己的临时数据目录里跑，互不影响。
@@ -59,14 +59,13 @@ const runCheck = async ({ sessionId, toolCallId, toolName, input = {} }) => {
 }
 
 describe('会话运行设置', () => {
-    test('默认是 build 智能体、每类自动批准全关、能力全开', async () => {
+    test('默认是 build 智能体、每类自动批准全关', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             expect(await Session.readSettings({ sessionId })).toEqual({
                 agent: 'build',
                 autoApprove: allOff(),
                 autoApproveLimit: 50,
-                capabilities: { image: true, cache: true, stream: true },
                 reasoning: 'auto',
             })
         })
@@ -124,63 +123,17 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('自定义智能体可以点名只给哪些工具', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession({
-                extra: { agents: { review: { label: '审查', tools: ['read_file', 'list_files'] } } },
-            })
-            await Session.saveSettings({ sessionId, agent: 'review' })
-            expect(toolNames(sessionId)).toEqual(['list_files', 'read_file'])
-        })
-    })
-
-    test('自定义 readOnly 智能体去掉写工具，但保留读取和子任务', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession({
-                extra: { agents: { audit: { label: '审计', readOnly: true } } },
-            })
-            await Session.saveSettings({ sessionId, agent: 'audit' })
-            const names = toolNames(sessionId)
-            expect(names).toContain('read_file')
-            expect(names).toContain('new_task')
-            expect(names).not.toContain('write_to_file')
-            expect(names).not.toContain('execute_command')
-        })
-    })
-
-    test('自定义智能体点名 new_task 时才装任务工具', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession({
-                extra: { agents: { solo: { label: '单干', tools: ['read_file', 'new_task'] } } },
-            })
-            await Session.saveSettings({ sessionId, agent: 'solo' })
-            expect(toolNames(sessionId)).toEqual(['new_task', 'read_file'])
-        })
-    })
-
-    test('自定义智能体里写错的工具名直接忽略，不会让会话打不开', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession({
-                extra: { agents: { odd: { label: '怪智能体', tools: ['read_file', 'not_a_tool'] } } },
-            })
-            await Session.saveSettings({ sessionId, agent: 'odd' })
-            expect(toolNames(sessionId)).toEqual(['read_file'])
-        })
-    })
-
     test('设置存到会话目录里，换一个进程读回来还是同一份', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, agent: 'plan', capabilities: { image: false } })
+            await Session.saveSettings({ sessionId, agent: 'plan', autoApprove: { read: true } })
 
             // 清掉内存缓存，强制从磁盘读，模拟后端重启。
             History.clear()
             Agent.runtime().clear()
             const reloaded = await Session.readSettings({ sessionId })
             expect(reloaded.agent).toBe('plan')
-            expect(reloaded.capabilities.image).toBe(false)
-            expect(reloaded.capabilities.cache).toBe(true)
-            expect(reloaded.capabilities.stream).toBe(true)
+            expect(reloaded.autoApprove.read).toBe(true)
         })
     })
 
@@ -190,7 +143,6 @@ describe('会话运行设置', () => {
             await writeFile(Path.settings(sessionId), JSON.stringify({
                 agent: 'build',
                 autoApprove: { read: true, write: false, command: false, mcp: false },
-                capabilities: { image: true, cache: true, stream: true },
             }))
             History.clear()
             const settings = await Session.readSettings({ sessionId })
@@ -253,17 +205,6 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('能力开关会真的写进交给 agent-core 的 config', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, capabilities: { image: false, cache: false, stream: false } })
-
-            const { config } = Agent.runtime().get(sessionId)
-            expect(config.capabilities.image).toBe(false)
-            expect(config.cache).toBe(false)
-            expect(config.stream).toBe(false)
-        })
-    })
 })
 
 describe('自动批准按类别开关', () => {
@@ -403,7 +344,6 @@ describe('自动批准按类别开关', () => {
             await writeFile(Path.settings(sessionId), JSON.stringify({
                 agent: 'build',
                 autoApprove: true,
-                capabilities: { image: true, cache: true, stream: true },
             }))
             History.clear()
             expect((await Session.readSettings({ sessionId })).autoApprove).toEqual(allOn())

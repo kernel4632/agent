@@ -9,7 +9,6 @@
  *   await Chat.decide({ sessionId, toolCallId, decision: 'allow-once' })
  */
 
-import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Run from '../features/run.js'
 
@@ -17,7 +16,5 @@ const send = input => Run.send(input)
 const resume = input => Run.resume(input)
 const stop = input => Run.stop(input)
 const decide = input => Approval.decide(input)
-// 旧界面用 /agent/list 画角色卡片；定义仍然只有 features/agent.js 一处。
-const agents = () => Agent.list()
 
-export default { send, resume, stop, decide, agents }
+export default { send, resume, stop, decide }

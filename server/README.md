@@ -16,7 +16,7 @@ HTTP/SSE → server.js → commands/* → features/* → tools/*
 | `store.js` | 全局数据中心：`config` 和 `sessions` 两个纯对象 |
 | `commands/` | HTTP 动作的入口，一个文件一组：`session.js`、`chat.js`、`config.js`、`tool.js` |
 | `features/` | 可复用业务规则：历史、回退、Agent、运行、审批、上下文、压缩、标题、工具登记、MCP |
-| `utils/` | `fail.js`、`path.js`、`sse.js`、`text.js` |
+| `utils/` | `fail.js`、`path.js`、`sse.js` |
 | `tools/` | 按类别分组的工具，一个文件一组 |
 
 根目录不放业务代码。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
@@ -26,7 +26,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 ## 五个核心概念
 
 1. **会话**：唯一的长期容器。标题、当前目录 `cwd`、模型、历史、设置都在会话里。
-2. **当前目录**：不是工作区，不绑定 git，也没有边界。用户可以通过 `PATCH /session/cwd/{sessionId}` 改，agent 可以用 `cwd` 工具自己改。
+2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/cwd/{sessionId}` 改，agent 可以用 `cwd` 工具自己改。
 3. **运行**：从发送消息开始，到结束或停止为止；过程通过 SSE 推送。
 4. **工具**：agent 改变外部世界的唯一方式，按类别放在 `tools/`。
 5. **扩展**：MCP、技能、子智能体、自动标题都是基座能力。
@@ -41,7 +41,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   sessions/<id>/
     meta.json          标题、当前目录、模型、时间
     history.json       消息和回退栈
-    settings.json      智能体、自动批准、能力开关、思考强度
+    settings.json      智能体、自动批准、思考强度
     checkpoints.json   每次改文件的工具调用对应哪些快照
     snapshots/         改文件之前的原样副本
   tools/               用户自己写的工具，和内置工具一起扫描
@@ -83,7 +83,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 
 - 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。
 - `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task` 不填就回退到 `chat`。
-- 旧配置的 `model`、`uses`、`compactThreshold`、`provider.modelSettings` 在读取时自动迁移，下一次保存写成新形状。
+- 旧配置里的模型上下文会搬到模型对象自己身上，下一次保存写成新形状。
 - `prompt.seeded` 表示默认提示词已经填过一次；用户保存空字符串后不会被重新填回。
 
 ### 权限规则
@@ -104,8 +104,8 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
     "*": "ask",
     "execute_command": {
       "*": "ask",
-      "git *": "allow",
-      "git push *": "deny"
+      "bun test *": "allow",
+      "rm *": "deny"
     }
   }
 }
@@ -123,7 +123,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 
 ### 智能体
 
-内置 `build` / `plan` / `ask` / `debug` 四个角色，可以在 `config.agents` 里覆盖或新增。`plan` 和 `readOnly` 不是靠提示词约束，而是把写文件和执行命令的工具从工具表里摘掉。
+内置 `build` / `plan` / `ask` / `debug` 四个运行角色。`plan` 和 `ask` 不是靠提示词约束，而是把写文件和执行命令的工具从工具表里摘掉。
 
 ## 工具
 
@@ -138,7 +138,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 | `tools/cwd.js` | `cwd` |
 | `tools/skill.js` | `skill` |
 
-每个工具文件导出工具对象或数组，对象里有 `name`、`kind`、`description`、`inputSchema`、`execute` 就会被扫描到。会改文件的工具还带 `snapshot` 钩子；`execute_command` 带 `snapshot` 和 `end`，命令结束后对比目录，记下真正变过的文件。
+每个工具文件导出工具对象或数组，对象里有 `name`、`kind`、`description`、`inputSchema`、`execute` 就会被扫描到。会改文件的工具带自己的快照钩子；命令工具不做文件快照。
 
 **敏感文件由文件工具自己判断。** `.env`、`*.pem`、`*.key`、`.ssh`、agent 自己的 `.agent` 数据目录等永远不交给模型，配置关不掉。命令工具本身能做的事由权限规则管。
 
@@ -257,21 +257,18 @@ bun start
 | `409` | 会话已有任务在运行，或继续位置不对 |
 | `500` | 后端执行失败 |
 
-### 服务状态与兼容接口
+### 服务状态
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
 | `GET` | `/health` | `{ "ok": true, "version": "x.y.z", "sessions": 2, "running": 1 }` |
-| `GET` | `/workspace/read` | 兼容旧界面：进程当前目录、文件列表、git 状态 |
-| `GET` | `/workspace/status?path=` | 兼容旧界面：某个目录的 git 状态 |
-| `GET` | `/command/list` | 兼容旧界面：固定返回空数组（这一版不做斜杠命令） |
 
 ### 配置
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
 | `GET` | `/config/read` | 当前完整配置 |
-| `GET` | `/config/meta` | 按任务的模型标签：`models`，以及兼容旧界面的 `uses` |
+| `GET` | `/config/meta` | 按任务的模型标签：`models` |
 | `PATCH` | `/config/set` | 保存后的完整配置 |
 | `POST` | `/config/test` | `{ provider?, model? }`，真实请求一次模型 |
 
@@ -295,7 +292,7 @@ bun start
 | `PATCH` | `/session/model/:sessionId` | `{ "provider?", "model?" }` | 更新后的会话资料；运行中返回 `409` |
 | `PATCH` | `/session/cwd/:sessionId` | `{ "cwd" }` | `{ "id", "cwd" }`；目录不存在返回 `400` |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
-| `GET` | `/session/settings/:sessionId` | 无 | 智能体、自动批准、能力开关、思考强度 |
+| `GET` | `/session/settings/:sessionId` | 无 | 智能体、自动批准、思考强度 |
 | `PATCH` | `/session/settings/:sessionId` | 部分设置 | 保存后的完整设置 |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` |
 
@@ -323,7 +320,6 @@ bun start
     "agent": "build",
     "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
     "autoApproveLimit": 50,
-    "capabilities": { "image": true, "cache": true, "stream": true },
     "reasoning": "auto"
   },
   "undoable": 0
@@ -343,10 +339,9 @@ bun start
 | `autoApprove.mcp` | `false` | MCP 工具不再弹审批 |
 | `autoApprove.subtask` | `false` | 开子任务不再弹审批 |
 | `autoApproveLimit` | `50` | 连续自动批准这么多次后停下来问一次；`0` 不设上限 |
-| `capabilities.image` | `true` | 能不能把图片发给模型 |
-| `capabilities.cache` | `true` | 提示词缓存 |
-| `capabilities.stream` | `true` | 流式输出 |
 | `reasoning` | `auto` | `off` / `auto` / `low` / `medium` / `high` / `xhigh` / `max` |
+
+模型能不能看图、能不能调用工具，只从 `providers[].models[].capabilities` 读取，不在会话里另存一份。
 
 `autoApprove` 按类别分别开关。PATCH 时只写要改的那一类，其余保持原样：
 
@@ -369,13 +364,12 @@ bun start
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：`path`、`before`、`after`、`added`、`deleted` |
 | `GET` | `/session/tools/:sessionId` | 无 | 每次改过文件的工具调用，用来列出可回退的点 |
 
-`files` 传 `false` 只退对话，不动磁盘。文件快照按工具调用分组；同一份内容只备份一次。`execute_command` 默认不做快照，配 `snapshot.shell: true` 后会在命令前后对比目录，记下真正变过的文件。
+`files` 传 `false` 只退对话，不动磁盘。文件快照按工具调用分组，同一份内容只备份一次；它只由文件工具自己维护。
 
 ### Agent
 
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
-| `GET` | `/agent/list` | 无 | 内置和自定义智能体的完整定义 |
 | `POST` | `/agent/send/:sessionId` | `{ "input" }` | `{ "ok": true }`，过程走 SSE |
 | `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }`，继续被中断的助手 |
 | `POST` | `/agent/stop/:sessionId` | 可选 `{ "partial" }` | `{ "ok": true/false }` |

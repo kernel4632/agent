@@ -53,15 +53,10 @@ describe('server HTTP API', () => {
         await withHome(async () => {
             const initial = await request('/config/read')
             expect(initial.status).toBe(200)
-            const view = await initial.json()
-            expect(view).toMatchObject({
+            expect(await initial.json()).toMatchObject({
                 prompt: { system: expect.any(String), seeded: true },
                 models: { chat: expect.any(Object), compact: expect.any(Object) },
             })
-            // 旧界面还在读这些字段；它们由新字段现算，不写回 store。
-            expect(view.model).toEqual(view.models.chat)
-            expect(view.uses).toMatchObject({ compact: expect.any(Object), title: expect.any(Object), subtask: expect.any(Object) })
-            expect(typeof view.compactThreshold).toBe('number')
 
             const value = { providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } }
             const saved = await jsonRequest('/config/set', 'PATCH', value)
@@ -296,9 +291,6 @@ describe('server route walk', () => {
                 [`/session/tools/${sessionId}`, 'GET'],
                 [`/session/cwd/${sessionId}`, 'PATCH'],
                 ['/health', 'GET'],
-                ['/workspace/status', 'GET'],
-                ['/workspace/read', 'GET'],
-                ['/command/list', 'GET'],
             ]) {
                 const response = await request(path, {
                     method,
@@ -582,16 +574,16 @@ describe('server tool approval and SSE', () => {
     test('remembers a whole command instead of one exact argument list', async () => {
         await withHome(async () => {
             await Config.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'execute_command', input: { command: 'git commit -m "first message"' } })
+            const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'execute_command', input: { command: 'make build --fast' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's1', decision: 'allow-always' })
             expect(await pending).toBe(true)
 
-            expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'execute_command', input: { command: 'git commit -m "totally different message"' } })).toBe(true)
-            const push = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'execute_command', input: { command: 'git push origin main' } })
+            expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'execute_command', input: { command: 'make build --release' } })).toBe(true)
+            const deploy = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'execute_command', input: { command: 'make deploy' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
-            expect(await push).toBe(false)
+            expect(await deploy).toBe(false)
         })
     })
 

@@ -67,55 +67,27 @@ const decideByRules = (toolName, matchValue, rules = store.config.permission || 
     return decision
 }
 
-// --- 这次会话实际生效的权限规则：全局打底，智能体自己的 permission 覆盖同名项 ---
-const effectiveRules = settings => {
-    const global = store.config.permission || { '*': 'ask' }
-    const agent = store.config.agents?.[settings?.agent]?.permission
-    return agent && typeof agent === 'object' ? { ...global, ...agent } : global
-}
+// --- 这次会话实际生效的权限规则 ---
+const effectiveRules = () => store.config.permission || { '*': 'ask' }
 
-// 用户心里认为的"一个操作"：git commit 换一条提交信息还是同一个操作。
-const COMMAND_PREFIXES = [
-    'git commit', 'git checkout', 'git branch', 'git tag', 'git remote', 'git stash', 'git worktree',
-    'git push', 'git pull', 'git fetch', 'git merge', 'git rebase', 'git reset', 'git add',
-    'git log', 'git diff', 'git status', 'git show', 'git blame',
-    'bun run', 'bun x', 'bun test', 'bun install', 'bun add', 'bun remove',
-    'npm run', 'npm test', 'npm install', 'npm ci', 'npm publish',
-    'yarn run', 'yarn add', 'pnpm run', 'pnpm add',
-    'cargo run', 'cargo build', 'cargo test', 'cargo add', 'go run', 'go build', 'go test',
-    'docker compose', 'docker run', 'docker build', 'kubectl get', 'kubectl apply',
-    'pip install', 'python -m', 'uv run', 'poetry add', 'make',
-]
-
+// 用户心里认为的"一个操作"：换参数还是同一个操作，换子命令才是另一个操作。
+// 取前两个词就够了：`bun test`、`make deploy` 是两个操作，`ls -la` 仍是 `ls`。
 const normalizeCommand = command => {
-    const longest = COMMAND_PREFIXES.filter(prefix => String(command).startsWith(prefix)).sort((first, second) => second.length - first.length)[0]
-    return longest || String(command).trim().split(/\s+/).slice(0, 1).join(' ')
+    const words = String(command).trim().split(/\s+/)
+    const second = words[1] || ''
+    return !second || second.startsWith('-') ? words[0] : `${words[0]} ${second}`
 }
 
 const plainObject = value => value && typeof value === 'object' && !Array.isArray(value) ? value : null
 
-// --- 找到"始终允许"该写进哪张规则表：智能体自己的规则优先，否则写全局 ---
-const writableRules = ({ agent }) => {
-    const config = store.config
-    const agentRules = agent ? config.agents?.[agent]?.permission : null
-    if (agentRules && Object.keys(agentRules).length) {
-        config.agents = plainObject(config.agents) || {}
-        config.agents[agent] = plainObject(config.agents[agent]) || {}
-        config.agents[agent].permission = plainObject(config.agents[agent].permission) || {}
-        return config.agents[agent].permission
-    }
-    config.permission = plainObject(config.permission) || { '*': 'ask' }
-    return config.permission
-}
-
-// --- 把"始终允许"写成一条规则 ---
-const remember = ({ toolName, input, matchValue, agent }) => {
+// --- 把"始终允许"写成一条全局规则 ---
+const remember = ({ toolName, input, matchValue }) => {
     const pattern = toolName === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
     const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
-    const rules = writableRules({ agent })
-    const toolRule = plainObject(rules[toolName])
+    store.config.permission = plainObject(store.config.permission) || { '*': 'ask' }
+    const toolRule = plainObject(store.config.permission[toolName])
     if (toolRule) toolRule[escaped] = 'allow'
-    else rules[toolName] = { '*': 'ask', [escaped]: 'allow' }
+    else store.config.permission[toolName] = { '*': 'ask', [escaped]: 'allow' }
 }
 
 // --- 放行这次调用，并让工具自己决定是否在写入前存快照 ---
@@ -134,7 +106,7 @@ const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
 // --- 这次会话生效的规则：deny 时把原因告诉界面 ---
 const ruleDecision = async ({ sessionId, toolCallId, name, matchValue, input }) => {
     const settings = store.sessions[sessionId]?.settings
-    const decision = decideByRules(name, matchValue, effectiveRules(settings))
+    const decision = decideByRules(name, matchValue, effectiveRules())
     if (decision !== 'deny') return { settings, decision, denied: false }
     if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', callID: toolCallId, tool: name, input, reason: '被权限规则拒绝' } })
     return { settings, decision, denied: true }
@@ -225,8 +197,7 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     recentCalls.delete(sessionId)
     if (decision !== 'deny') autoApproved.set(sessionId, 0)
     if (decision === 'allow-always') {
-        const agent = store.sessions[sessionId]?.settings?.agent
-        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue, agent })
+        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue })
         await Agent.saveConfig()
     }
     approval.resolve(decision !== 'deny')

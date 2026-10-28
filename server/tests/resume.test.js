@@ -142,12 +142,11 @@ describe('继续被中断的助手', () => {
                 },
             })
             try {
-                await Config.set({ providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${server.port}/v1` }] })
+                await Config.set({ providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
                 const { sessionId } = await Session.create({ title: '无缝继续' })
                 await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
                 await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
                 await History.save(sessionId)
-                await Session.saveSettings({ sessionId, capabilities: { image: true, cache: true, stream: false } })
 
                 expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
                 await waitForHistory(sessionId, 3)

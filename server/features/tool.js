@@ -143,7 +143,7 @@ const build = async ({ sessionId, agent, taskConfig }) => {
     const skill = await Skill.build({ cwd: session.cwd })
     if (skill) catalog.set(skill.name, skill)
 
-    // 自定义智能体点名的工具才装；写错名字直接忽略，不让会话打不开。
+    // 智能体点名的工具才装；写错名字直接忽略，不让会话打不开。
     const wanted = Array.isArray(agent?.tools) ? new Set(agent.tools) : null
     let chosen = [...catalog.values()].filter(tool => !wanted || wanted.has(tool.name))
 
@@ -175,13 +175,6 @@ const snapshot = async call => {
     return tool?.snapshot ? tool.snapshot(call) : []
 }
 
-// --- 工具执行结束：命令类工具用它对比出改过的文件 ---
-const end = async call => {
-    await ready()
-    const tool = current.tools.get(call.toolName)
-    return tool?.end ? tool.end(call) : { skipped: true }
-}
-
 // --- 文件回退和 diff 都由文件工具实现 ---
 const entries = args => File.entries(args)
 const restoreTool = args => File.restoreTool(args)
@@ -200,7 +193,6 @@ export default {
     ready,
     kindOf,
     snapshot,
-    end,
     entries,
     restoreTool,
     restoreMessage,

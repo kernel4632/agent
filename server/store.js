@@ -50,12 +50,6 @@ const store = {
 
         // 上下文用到这个比例时自动压缩。
         compact: { threshold: 0.8 },
-
-        // 用户自定义智能体，可以覆盖内置定义。
-        agents: {},
-
-        // 命令工具的快照开关；文件工具自己的快照不受它影响。
-        snapshot: { shell: false, maxFiles: 2000, maxBytes: 2097152 },
     },
 
     // 每条会话一个键。会话是唯一的长期容器，目录只是它的一个属性。
@@ -72,7 +66,6 @@ const store = {
         //         agent: 'build',
         //         autoApprove: {},
         //         autoApproveLimit: 50,
-        //         capabilities: { image: true, cache: true, stream: true },
         //         reasoning: 'auto',
         //     },
         // },

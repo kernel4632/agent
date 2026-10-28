@@ -99,7 +99,7 @@ const fork = async ({ sessionId, title, messageId }) => {
         settings: await Agent.readSettings(sessionId),
     })
     // 历史复制到新目录，消息重新编号，分支之后的操作不会影响原会话。
-    for (const { messageId: ignored, ...message } of kept) await History.add({ sessionId: branch.id, message })
+    for (const { messageId: oldId, ...message } of kept) await History.add({ sessionId: branch.id, message })
     await History.save(branch.id)
     await Agent.create({ sessionId: branch.id })
     return { sessionId: branch.id }
@@ -282,53 +282,6 @@ const redo = async ({ sessionId, files = true }) => {
     return { ...await read({ sessionId }), restored }
 }
 
-// =======================================================================
-//  兼容旧界面的目录信息：它不是工作区，只是进程当前所在目录
-// =======================================================================
-
-const FILE_LIMIT = 200
-const SKIP = ['node_modules', '.git', 'dist', 'build', 'out', 'coverage']
-
-const filesIn = async path => {
-    const found = []
-    for await (const entry of new Bun.Glob('**/*').scan({ cwd: path, onlyFiles: true, dot: false })) {
-        const normalized = entry.replace(/\\/g, '/')
-        if (normalized.split('/').some(part => SKIP.includes(part))) continue
-        if (normalized.split('/').length > 3) continue
-        found.push(normalized)
-        if (found.length >= FILE_LIMIT) break
-    }
-    return found
-}
-
-const git = async (args, cwd) => {
-    const process = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
-    const [stdout, , exitCode] = await Promise.all([process.stdout.text(), process.stderr.text(), process.exited])
-    return exitCode === 0 ? stdout.trim() : ''
-}
-
-const gitStatus = async path => {
-    const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD'], path)
-    if (!branch) return null
-    const lines = (await git(['status', '--porcelain'], path)).split('\n').filter(Boolean)
-    const counts = { modified: 0, added: 0, deleted: 0, untracked: 0 }
-    for (const line of lines) {
-        const code = line.slice(0, 2)
-        if (code === '??') counts.untracked += 1
-        else if (code.includes('D')) counts.deleted += 1
-        else if (code.includes('A')) counts.added += 1
-        else counts.modified += 1
-    }
-    return { branch, changed: lines.length, ...counts }
-}
-
-const workspace = async () => {
-    const path = process.cwd()
-    return { path, files: await filesIn(path), git: await gitStatus(path) }
-}
-
-const workspaceStatus = async ({ path = process.cwd() } = {}) => gitStatus(path)
-
 // --- 统计会话数量 ---
 const count = () => History.count()
 
@@ -339,5 +292,5 @@ export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
-    workspace, workspaceStatus, count, runningCount,
+    count, runningCount,
 }

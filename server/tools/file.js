@@ -19,10 +19,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { writeFile as atomicWrite } from 'atomically'
 import picomatch from 'picomatch'
 import { rgPath } from '@vscode/ripgrep'
-import store from '../store.js'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
-import { truncate } from '../utils/text.js'
 
 // --- 搜索和列目录时永远跳过的目录 ---
 const SKIP = [
@@ -32,6 +30,13 @@ const SKIP = [
     '.svelte-kit', 'coverage',
 ]
 const skipPath = path => String(path).replace(/\\/g, '/').split('/').some(part => SKIP.includes(part))
+
+// --- 搜索输出太长时只留头尾 ---
+const truncate = (text, limit = 6000) => {
+    if (text.length <= limit) return text
+    const half = Math.floor(limit / 2)
+    return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
+}
 
 // --- 敏感文件：里面有密钥或机器凭据，不交给模型 ---
 const SENSITIVE = [
@@ -69,13 +74,8 @@ const filePaths = ({ toolName, input, cwd }) => {
 //  文件快照
 // =======================================================================
 
-const DEFAULT_MAX_FILES = 2000
-const DEFAULT_MAX_BYTES = 2 * 1024 * 1024
-
 // 快照清单跟着会话走；value 是 { checkpoints: [], redone: [] }。
 const manifests = new Map()
-// 正在等结果的 shell 调用：key 是 `${sessionId}:${toolCallId}`。
-const shells = new Map()
 // 文件指纹缓存：文件没变时不用重新读一遍。
 const fingerprints = new Map()
 
@@ -146,100 +146,6 @@ const snapshot = async ({ sessionId, messageId, toolCallId, toolName, input, cwd
     return recorded
 }
 
-// --- 扫一遍目录，记下每个文件的指纹；需要时顺手备份 ---
-const capture = async ({ sessionId, cwd, backupFiles = false, maxFiles = DEFAULT_MAX_FILES, maxBytes = DEFAULT_MAX_BYTES }) => {
-    const root = cwd || process.cwd()
-    const manifest = new Map()
-    for await (const entry of new Bun.Glob('**/*').scan({ cwd: root, onlyFiles: true, dot: true })) {
-        const relativePath = entry.replace(/\\/g, '/')
-        if (skipPath(relativePath)) continue
-
-        const target = resolve(root, entry)
-        const info = await stat(target).catch(() => null)
-        if (!info || !info.isFile() || info.size > maxBytes) continue
-        if (manifest.size >= maxFiles) return { skipped: true, reason: `文件数超过 ${maxFiles}` }
-
-        let hash
-        const cached = fingerprints.get(target)
-        if (cached && cached.size === info.size && cached.mtimeMs === info.mtimeMs && cached.ctimeMs === info.ctimeMs) {
-            hash = cached.hash
-        } else {
-            try {
-                hash = await fingerprint(target)
-            } catch {
-                continue // 读不了的文件（权限、被占用）跳过，不因为一个文件放弃整次快照。
-            }
-            fingerprints.set(target, { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, hash })
-        }
-        if (backupFiles) await backupKnown({ sessionId, path: target, hash })
-        manifest.set(target, hash)
-    }
-    return { skipped: false, manifest }
-}
-
-// --- 命令 execution 前：先把整个目录的状态记下来 ---
-const shellStart = async ({ sessionId, messageId, toolCallId, input, cwd } = {}) => {
-    if (store.config.snapshot?.shell !== true) return { skipped: true, reason: 'disabled' }
-    if (!sessionId || !toolCallId) return { skipped: true, reason: 'no call id' }
-
-    // 命令自己的 cwd 可能指向子目录；快照要扫它真正会改的那一块。
-    const base = cwd || process.cwd()
-    const root = typeof input?.cwd === 'string' && input.cwd.trim()
-        ? (isAbsolute(input.cwd) ? input.cwd : resolve(base, input.cwd))
-        : base
-
-    const result = await capture({
-        sessionId,
-        cwd: root,
-        backupFiles: true,
-        maxFiles: Number(store.config.snapshot?.maxFiles) || DEFAULT_MAX_FILES,
-        maxBytes: Number(store.config.snapshot?.maxBytes) || DEFAULT_MAX_BYTES,
-    })
-    if (result.skipped) return result
-
-    const key = `${sessionId}:${toolCallId}`
-    // 命令没有结果（进程被杀、任务被停）时，十五分钟后把这份清单丢掉。
-    const timer = setTimeout(() => shells.delete(key), 15 * 60 * 1000)
-    timer.unref?.()
-    shells.set(key, { manifest: result.manifest, messageId, toolCallId, root, timer })
-    return { skipped: false, files: result.manifest.size }
-}
-
-// --- 命令结束后：只把真正变过的文件记成一次检查点 ---
-const shellEnd = async ({ sessionId, toolCallId } = {}) => {
-    const key = `${sessionId}:${toolCallId}`
-    const state = shells.get(key)
-    if (!state) return { skipped: true, reason: 'no snapshot' }
-    shells.delete(key)
-    clearTimeout(state.timer)
-
-    const result = await capture({
-        sessionId,
-        cwd: state.root,
-        maxFiles: Number(store.config.snapshot?.maxFiles) || DEFAULT_MAX_FILES,
-        maxBytes: Number(store.config.snapshot?.maxBytes) || DEFAULT_MAX_BYTES,
-    })
-    if (result.skipped) return result
-
-    const files = {}
-    for (const [path, hash] of result.manifest) {
-        const before = state.manifest.get(path)
-        if (before === undefined) files[path] = null
-        else if (before !== hash) files[path] = before
-    }
-    for (const [path, hash] of state.manifest) {
-        if (!result.manifest.has(path)) files[path] = hash
-    }
-    if (!Object.keys(files).length) return { skipped: false, changed: 0 }
-
-    const manifest = await loadManifest(sessionId)
-    if (!manifest.checkpoints.some(entry => entry.id === toolCallId)) {
-        manifest.checkpoints.push({ id: toolCallId, messageId: state.messageId, toolCallId, toolName: 'execute_command', files })
-        await saveManifest({ sessionId, manifest })
-    }
-    return { skipped: false, changed: Object.keys(files).length }
-}
-
 // --- 记过哪些工具调用 ---
 const entries = async ({ sessionId }) => {
     const manifest = await loadManifest(sessionId)
@@ -250,15 +156,6 @@ const entries = async ({ sessionId }) => {
         toolName: entry.toolName,
         paths: Object.keys(entry.files),
     }))
-}
-
-// --- 丢掉这个会话还在等结果的 shell 快照 ---
-const clearShells = sessionId => {
-    for (const [key, state] of shells) {
-        if (!key.startsWith(`${sessionId}:`)) continue
-        clearTimeout(state.timer)
-        shells.delete(key)
-    }
 }
 
 // --- 按"路径 → 指纹"把文件铺回磁盘；null 表示那时文件还不存在 ---
@@ -279,7 +176,6 @@ const writeFiles = async ({ sessionId, wanted }) => {
 
 // --- 恢复到 keepIds 之前的样子，并把被删掉的记录压进撤销栈 ---
 const restore = async ({ sessionId, keepIds }) => {
-    clearShells(sessionId)
     const manifest = await loadManifest(sessionId)
     const dropped = manifest.checkpoints.filter(entry => !keepIds.includes(entry.id))
     if (!dropped.length) return []
@@ -333,7 +229,6 @@ const dropTool = async ({ sessionId, toolCallId }) => {
 
 // --- 撤销最近一次回退 ---
 const undo = async ({ sessionId }) => {
-    clearShells(sessionId)
     const manifest = await loadManifest(sessionId)
     const last = manifest.redone.pop()
     if (!last) return []
@@ -378,7 +273,6 @@ const diff = async ({ sessionId }) => {
 
 // --- 会话删除时清掉快照和清单 ---
 const remove = async ({ sessionId }) => {
-    clearShells(sessionId)
     manifests.delete(sessionId)
     await rm(Path.snapshots(sessionId), { recursive: true, force: true })
     await rm(Path.checkpoints(sessionId), { force: true })
@@ -710,7 +604,7 @@ export {
     searchFiles as search_files,
     edit,
     patch as apply_patch,
-    skipPath, sensitive, snapshot, shellStart, shellEnd, entries,
+    skipPath, sensitive, snapshot, entries,
     restoreTool, restoreMessage, dropTool, undo, clearUndo, diff, remove,
 }
 

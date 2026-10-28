@@ -1,5 +1,5 @@
 /*
- * 回退与文件快照测试：工具级回退、消息级回退、shell 改动和敏感文件。
+ * 回退与文件快照测试：工具级回退、消息级回退和敏感文件。
  *
  * 回退同时改历史、磁盘文件和撤销栈，三者之间不一致就会留下
  * "对话退回去了但文件没退"这种状态，所以单独一个文件盯住它。
@@ -7,7 +7,7 @@
  * 运行：cd server && bun test
  */
 import { describe, expect, test } from 'bun:test'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import AgentCore from '@kernel4632/agent-core'
@@ -41,19 +41,6 @@ const tempFile = async (prefix, content) => {
     const path = join(tmpdir(), `${prefix}-${crypto.randomUUID()}.txt`)
     await writeFile(path, content)
     return path
-}
-
-const withWorkspace = async callback => {
-    const root = join(tmpdir(), `agent-workspace-${crypto.randomUUID()}`)
-    await mkdir(root, { recursive: true })
-    const previous = process.cwd()
-    process.chdir(root)
-    try {
-        return await callback(root)
-    } finally {
-        process.chdir(previous)
-        await rm(root, { recursive: true, force: true })
-    }
 }
 
 describe('工具级回退', () => {
@@ -175,12 +162,12 @@ describe('权限规则的拒绝动作', () => {
         await withHome(async () => {
             await Config.set({
                 providers: [{ name: 'local', models: ['model'] }],
-                permission: { execute_command: { '*': 'ask', 'git *': 'allow', 'git push *': 'deny' } },
+                permission: { execute_command: { '*': 'ask', 'make *': 'allow', 'make deploy*': 'deny' } },
             })
             const { sessionId } = await Session.create({ title: 'Last match' })
 
-            expect(await Approval.check({ sessionId, toolCallId: 'git-status', toolName: 'execute_command', input: { command: 'git status' } })).toBe(true)
-            expect(await Approval.check({ sessionId, toolCallId: 'git-push', toolName: 'execute_command', input: { command: 'git push origin main' } })).toBe(false)
+            expect(await Approval.check({ sessionId, toolCallId: 'make-build', toolName: 'execute_command', input: { command: 'make build' } })).toBe(true)
+            expect(await Approval.check({ sessionId, toolCallId: 'make-deploy', toolName: 'execute_command', input: { command: 'make deploy' } })).toBe(false)
         })
     })
 
@@ -258,101 +245,6 @@ describe('重复调用的刹车', () => {
                 expect(await Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })).toBe(false)
             }
             expect(Approval.pending(sessionId)).toEqual([])
-        })
-    })
-})
-
-describe('shell 改动的快照', () => {
-    test('shell 改了、删了、加了文件都能回退，也能撤销回退', async () => {
-        await withHome(async () => {
-            await withWorkspace(async root => {
-                await writeFile(join(root, 'a.txt'), 'a0')
-                await writeFile(join(root, 'b.txt'), 'b0')
-                await writeFile(join(root, 'c.txt'), 'c0')
-
-                await Config.set({
-                    providers: [{ name: 'local', models: ['model'] }],
-                    permission: { '*': 'allow' },
-                    snapshot: { shell: true },
-                })
-                const { sessionId } = await Session.create({ title: 'Shell snapshot', cwd: root })
-
-                const started = await File.shellStart({ sessionId, messageId: 'message-1', toolCallId: 'shell-1', cwd: root })
-                expect(started.skipped).toBe(false)
-
-                await writeFile(join(root, 'a.txt'), 'a1')
-                await rm(join(root, 'b.txt'))
-                await writeFile(join(root, 'd.txt'), 'd1')
-                const ended = await File.shellEnd({ sessionId, toolCallId: 'shell-1', cwd: root })
-                expect(ended.changed).toBe(3)
-
-                const changes = await Session.toolChanges({ sessionId })
-                expect(changes.map(entry => entry.toolCallId)).toContain('shell-1')
-
-                await Session.rollbackTool({ sessionId, toolCallId: 'shell-1' })
-                expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('a0')
-                expect(await readFile(join(root, 'b.txt'), 'utf8')).toBe('b0')
-                expect(await Bun.file(join(root, 'd.txt')).exists()).toBe(false)
-                expect(await readFile(join(root, 'c.txt'), 'utf8')).toBe('c0')
-
-                await Session.redo({ sessionId })
-                expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('a1')
-                expect(await readFile(join(root, 'd.txt'), 'utf8')).toBe('d1')
-                expect(await Bun.file(join(root, 'b.txt')).exists()).toBe(false)
-            })
-        })
-    })
-
-    test('没打开 snapshot.shell 时不为 shell 建检查点', async () => {
-        await withHome(async () => {
-            await withWorkspace(async root => {
-                await writeFile(join(root, 'a.txt'), 'a0')
-                await Config.set({
-                    providers: [{ name: 'local', models: ['model'] }],
-                    permission: { '*': 'allow' },
-                    snapshot: { shell: false },
-                })
-                const { sessionId } = await Session.create({ title: 'Shell off', cwd: root })
-
-                expect((await File.shellStart({ sessionId, messageId: 'm', toolCallId: 'shell-off', cwd: root })).skipped).toBe(true)
-                await writeFile(join(root, 'a.txt'), 'a1')
-                expect((await File.shellEnd({ sessionId, toolCallId: 'shell-off', cwd: root })).skipped).toBe(true)
-                expect(await Session.toolChanges({ sessionId })).toEqual([])
-            })
-        })
-    })
-
-    test('shell 没改任何文件时不建检查点', async () => {
-        await withHome(async () => {
-            await withWorkspace(async root => {
-                await writeFile(join(root, 'a.txt'), 'a0')
-                await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' }, snapshot: { shell: true } })
-                const { sessionId } = await Session.create({ title: 'Shell no change', cwd: root })
-
-                await File.shellStart({ sessionId, messageId: 'm', toolCallId: 'shell-quiet', cwd: root })
-                const ended = await File.shellEnd({ sessionId, toolCallId: 'shell-quiet', cwd: root })
-                expect(ended.changed).toBe(0)
-                expect(await Session.toolChanges({ sessionId })).toEqual([])
-            })
-        })
-    })
-
-    test('文件数超过上限时整次快照跳过，不影响命令本身', async () => {
-        await withHome(async () => {
-            await withWorkspace(async root => {
-                await writeFile(join(root, 'a.txt'), 'a0')
-                await writeFile(join(root, 'b.txt'), 'b0')
-                await Config.set({
-                    providers: [{ name: 'local', models: ['model'] }],
-                    permission: { '*': 'allow' },
-                    snapshot: { shell: true, maxFiles: 1 },
-                })
-                const { sessionId } = await Session.create({ title: 'Shell too big', cwd: root })
-
-                const started = await File.shellStart({ sessionId, messageId: 'm', toolCallId: 'shell-big', cwd: root })
-                expect(started.skipped).toBe(true)
-                expect(await Session.toolChanges({ sessionId })).toEqual([])
-            })
         })
     })
 })

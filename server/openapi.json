@@ -2,25 +2,47 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.50.0",
+    "version": "0.50.1",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [
-    { "url": "http://localhost:3000", "description": "本地开发服务器，默认端口 3000" }
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发服务器，默认端口 3000"
+    }
   ],
   "tags": [
-    { "name": "Status", "description": "确认后端是否可用。" },
-    { "name": "Tool", "description": "查看工具目录和自动批准类别。" },
-    { "name": "Session", "description": "创建、读取、修改和回退会话。" },
-    { "name": "Agent", "description": "发送消息、继续、停止和审批工具调用。" },
-    { "name": "Config", "description": "读取和保存全局配置。" },
-    { "name": "SSE", "description": "接收运行过程中的实时事件。" },
-    { "name": "Compat", "description": "旧界面仍会调用的兼容接口，不属于核心概念。" }
+    {
+      "name": "Status",
+      "description": "确认后端是否可用。"
+    },
+    {
+      "name": "Tool",
+      "description": "查看工具目录和自动批准类别。"
+    },
+    {
+      "name": "Session",
+      "description": "创建、读取、修改和回退会话。"
+    },
+    {
+      "name": "Agent",
+      "description": "发送消息、继续、停止和审批工具调用。"
+    },
+    {
+      "name": "Config",
+      "description": "读取和保存全局配置。"
+    },
+    {
+      "name": "SSE",
+      "description": "接收运行过程中的实时事件。"
+    }
   ],
   "paths": {
     "/health": {
       "get": {
-        "tags": ["Status"],
+        "tags": [
+          "Status"
+        ],
         "summary": "查询服务是否可用",
         "operationId": "health",
         "responses": {
@@ -31,49 +53,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "version": { "type": "string", "description": "后端版本号，来自 package.json" },
-                    "sessions": { "type": "integer", "description": "已经加载进内存的会话数量" },
-                    "running": { "type": "integer", "description": "正在执行任务的会话数量" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/workspace/read": {
-      "get": {
-        "tags": ["Compat"],
-        "summary": "读取进程当前目录的信息（兼容旧界面）",
-        "description": "这里没有工作区概念；返回的是后端进程当前所在目录、文件列表和 git 状态，只用来兼容旧界面。",
-        "operationId": "workspaceRead",
-        "responses": {
-          "200": {
-            "description": "目录信息",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "path": { "type": "string" },
-                    "files": { "type": "array", "items": { "type": "string" } },
-                    "git": {
-                      "oneOf": [
-                        { "type": "null" },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "branch": { "type": "string" },
-                            "changed": { "type": "integer" },
-                            "modified": { "type": "integer" },
-                            "added": { "type": "integer" },
-                            "deleted": { "type": "integer" },
-                            "untracked": { "type": "integer" }
-                          }
-                        }
-                      ]
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "string",
+                      "description": "后端版本号，来自 package.json"
+                    },
+                    "sessions": {
+                      "type": "integer",
+                      "description": "已经加载进内存的会话数量"
+                    },
+                    "running": {
+                      "type": "integer",
+                      "description": "正在执行任务的会话数量"
                     }
                   }
                 }
@@ -83,48 +76,11 @@
         }
       }
     },
-    "/workspace/status": {
-      "get": {
-        "tags": ["Compat"],
-        "summary": "读取某个目录的 git 状态（兼容旧界面）",
-        "operationId": "workspaceStatus",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "git 状态；不是仓库时是 null",
-            "content": { "application/json": { "schema": { "type": ["object", "null"] } } }
-          }
-        }
-      }
-    },
-    "/command/list": {
-      "get": {
-        "tags": ["Compat"],
-        "summary": "旧界面的斜杠命令入口",
-        "description": "这一版不再扫描也不执行斜杠命令，固定返回空数组，只保证旧界面能加载。",
-        "operationId": "commandList",
-        "responses": {
-          "200": {
-            "description": "空数组",
-            "content": {
-              "application/json": {
-                "schema": { "type": "array", "items": { "type": "object" } }
-              }
-            }
-          }
-        }
-      }
-    },
     "/tool/list": {
       "get": {
-        "tags": ["Tool"],
+        "tags": [
+          "Tool"
+        ],
         "summary": "列出全部工具和当前权限",
         "operationId": "toolList",
         "responses": {
@@ -132,7 +88,12 @@
             "description": "工具目录，按名字排序",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Tool" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Tool"
+                  }
+                }
               }
             }
           }
@@ -141,7 +102,9 @@
     },
     "/tool/kinds": {
       "get": {
-        "tags": ["Tool"],
+        "tags": [
+          "Tool"
+        ],
         "summary": "列出自动批准类别",
         "operationId": "toolKinds",
         "responses": {
@@ -154,11 +117,21 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "kind": { "type": "string" },
-                      "label": { "type": "string" },
-                      "hint": { "type": "string" }
+                      "kind": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "hint": {
+                        "type": "string"
+                      }
                     },
-                    "required": ["kind", "label", "hint"]
+                    "required": [
+                      "kind",
+                      "label",
+                      "hint"
+                    ]
                   }
                 }
               }
@@ -169,20 +142,30 @@
     },
     "/config/read": {
       "get": {
-        "tags": ["Config"],
+        "tags": [
+          "Config"
+        ],
         "summary": "读取完整配置",
         "operationId": "configRead",
         "responses": {
           "200": {
             "description": "当前配置",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Config" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Config"
+                }
+              }
+            }
           }
         }
       }
     },
     "/config/meta": {
       "get": {
-        "tags": ["Config"],
+        "tags": [
+          "Config"
+        ],
         "summary": "读取按任务配模型的标签",
         "operationId": "configMeta",
         "responses": {
@@ -198,16 +181,30 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "task": { "type": "string", "enum": ["chat", "compact", "title", "task"] },
-                          "label": { "type": "string" },
-                          "hint": { "type": "string" }
+                          "task": {
+                            "type": "string",
+                            "enum": [
+                              "chat",
+                              "compact",
+                              "title",
+                              "task"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "hint": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
                     "uses": {
                       "type": "array",
                       "description": "兼容旧界面的字段，内容与 models 相同",
-                      "items": { "type": "object" }
+                      "items": {
+                        "type": "object"
+                      }
                     }
                   }
                 }
@@ -219,29 +216,51 @@
     },
     "/config/set": {
       "patch": {
-        "tags": ["Config"],
+        "tags": [
+          "Config"
+        ],
         "summary": "整体替换并保存配置",
         "description": "这是整体替换，不是局部合并。旧字段 model、uses、compactThreshold 会在读取时迁移。",
         "operationId": "configSet",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Config" } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Config"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
             "description": "保存后的完整配置",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Config" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Config"
+                }
+              }
+            }
           },
           "400": {
             "description": "提交的不是对象",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
     "/config/test": {
       "post": {
-        "tags": ["Config"],
+        "tags": [
+          "Config"
+        ],
         "summary": "真实请求一次模型",
         "operationId": "configTest",
         "requestBody": {
@@ -251,8 +270,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "provider": { "type": "string" },
-                  "model": { "type": "string" }
+                  "provider": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -266,10 +289,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "ok": { "type": "boolean" },
-                    "provider": { "type": "string" },
-                    "model": { "type": "string" },
-                    "text": { "type": "string" }
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -277,14 +308,22 @@
           },
           "400": {
             "description": "供应商不存在、没有模型可试",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
     "/session/list": {
       "get": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "列出磁盘上的全部会话",
         "operationId": "sessionList",
         "parameters": [
@@ -293,7 +332,9 @@
             "in": "query",
             "required": false,
             "description": "按标题或模型名筛选",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -301,7 +342,12 @@
             "description": "会话元信息列表，最近用过的排前面",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SessionMeta" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionMeta"
+                  }
+                }
               }
             }
           }
@@ -310,7 +356,9 @@
     },
     "/session/create": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "新建一个会话",
         "operationId": "sessionCreate",
         "requestBody": {
@@ -319,13 +367,26 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["title"],
+                "required": [
+                  "title"
+                ],
                 "properties": {
-                  "title": { "type": "string", "description": "会话名称，不能为空" },
-                  "cwd": { "type": "string", "description": "会话当前目录，不填就是后端启动目录" },
-                  "provider": { "type": "string", "description": "模型服务商，不填用 models.chat" },
-                  "model": { "type": "string", "description": "模型名，不填用该服务商的第一个模型" },
-                  "workspaceId": { "type": "string", "description": "兼容旧界面，后端忽略" }
+                  "title": {
+                    "type": "string",
+                    "description": "会话名称，不能为空"
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "会话当前目录，不填就是后端启动目录"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "description": "模型服务商，不填用 models.chat"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "模型名，不填用该服务商的第一个模型"
+                  }
                 }
               }
             }
@@ -338,25 +399,41 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "sessionId": { "type": "string" } }
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
             "description": "标题为空、目录不存在或供应商不存在",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
     "/session/fork/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "从会话分出一个新分支",
         "description": "复制历史和运行设置；文件快照不复制。",
         "operationId": "sessionFork",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -364,8 +441,13 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "title": { "type": "string" },
-                  "messageId": { "type": "string", "description": "只复制到这条消息（含）" }
+                  "title": {
+                    "type": "string"
+                  },
+                  "messageId": {
+                    "type": "string",
+                    "description": "只复制到这条消息（含）"
+                  }
                 }
               }
             }
@@ -376,69 +458,162 @@
             "description": "新分支编号",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "properties": { "sessionId": { "type": "string" } } }
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  }
+                }
               }
             }
           },
-          "404": { "description": "会话或消息不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "原会话正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话或消息不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "原会话正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/read/{sessionId}": {
       "get": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "读取一条会话的完整内容",
         "operationId": "sessionRead",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "会话内容",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/changes/{sessionId}": {
       "get": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "看 agent 改了哪些文件",
         "operationId": "sessionChanges",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "改动列表",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Change" } }
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Change"
+                  }
+                }
               }
             }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/settings/{sessionId}": {
       "get": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "读会话运行设置",
         "operationId": "sessionReadSettings",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "完整设置",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Settings" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       },
       "patch": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "改会话运行设置",
         "description": "只改点名的那几项。换智能体需要没有任务在跑；自动批准随时能改。",
         "operationId": "sessionSaveSettings",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -446,11 +621,18 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "agent": { "type": "string" },
-                  "autoApprove": { "$ref": "#/components/schemas/AutoApprove" },
-                  "autoApproveLimit": { "type": "number" },
-                  "capabilities": { "type": "object" },
-                  "reasoning": { "type": "string" }
+                  "agent": {
+                    "type": "string"
+                  },
+                  "autoApprove": {
+                    "$ref": "#/components/schemas/AutoApprove"
+                  },
+                  "autoApproveLimit": {
+                    "type": "number"
+                  },
+                  "reasoning": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -459,20 +641,59 @@
         "responses": {
           "200": {
             "description": "保存后的完整设置",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Settings" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
           },
-          "400": { "description": "智能体名不认识", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "400": {
+            "description": "智能体名不认识",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/tools/{sessionId}": {
       "get": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "列出记过文件的工具调用",
         "operationId": "sessionTools",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "每次改过文件的工具调用",
@@ -483,72 +704,161 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "id": { "type": "string" },
-                      "messageId": { "type": "string" },
-                      "toolCallId": { "type": "string" },
-                      "toolName": { "type": "string" },
-                      "paths": { "type": "array", "items": { "type": "string" } }
+                      "id": {
+                        "type": "string"
+                      },
+                      "messageId": {
+                        "type": "string"
+                      },
+                      "toolCallId": {
+                        "type": "string"
+                      },
+                      "toolName": {
+                        "type": "string"
+                      },
+                      "paths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/rename/{sessionId}": {
       "patch": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "给会话改名",
         "operationId": "sessionRename",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["title"],
-                "properties": { "title": { "type": "string" } }
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "更新后的会话资料", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionMeta" } } } },
-          "400": { "description": "标题为空", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "200": {
+            "description": "更新后的会话资料",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "标题为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/title/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "按后续对话重新生成标题",
         "description": "用户可以在聊了几轮之后手动重新起标题；模型失败时用第一句话兜底。",
         "operationId": "sessionTitle",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "新的标题",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "properties": { "title": { "type": "string" } } }
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    }
+                  }
+                }
               }
             }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/model/{sessionId}": {
       "patch": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "切换会话使用的模型",
         "operationId": "sessionSetModel",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -556,36 +866,89 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "provider": { "type": "string" },
-                  "model": { "type": "string" }
+                  "provider": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "更新后的会话资料", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionMeta" } } } },
-          "400": { "description": "供应商或模型为空、供应商不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "200": {
+            "description": "更新后的会话资料",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "供应商或模型为空、供应商不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/cwd/{sessionId}": {
       "patch": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "移动会话的当前目录",
         "description": "目录只是会话的一个属性；历史不丢，也不需要新建会话。",
         "operationId": "sessionSetCwd",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["cwd"],
-                "properties": { "cwd": { "type": "string", "description": "已经存在的文件夹" } }
+                "required": [
+                  "cwd"
+                ],
+                "properties": {
+                  "cwd": {
+                    "type": "string",
+                    "description": "已经存在的文件夹"
+                  }
+                }
               }
             }
           }
@@ -597,50 +960,118 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "id": { "type": "string" }, "cwd": { "type": "string" } }
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "cwd": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
-          "400": { "description": "目录为空或不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "400": {
+            "description": "目录为空或不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/remove/{sessionId}": {
       "delete": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "删除会话",
         "operationId": "sessionRemove",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "删除成功",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } }
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
               }
             }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/rollback/preview/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "回退之前先看会改动什么",
         "operationId": "sessionRollbackPreview",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["messageId"],
-                "properties": { "messageId": { "type": "string" } }
+                "required": [
+                  "messageId"
+                ],
+                "properties": {
+                  "messageId": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -653,34 +1084,63 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "messages": { "type": "integer" },
-                    "files": { "type": "array", "items": { "$ref": "#/components/schemas/Change" } }
+                    "messages": {
+                      "type": "integer"
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Change"
+                      }
+                    }
                   }
                 }
               }
             }
           },
-          "404": { "description": "会话或消息不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话或消息不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/rollback/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "回退到某条消息之前",
         "description": "files=false 时只退对话，不碰磁盘上的文件。",
         "operationId": "sessionRollback",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["messageId"],
+                "required": [
+                  "messageId"
+                ],
                 "properties": {
-                  "messageId": { "type": "string" },
-                  "files": { "type": "boolean", "default": true }
+                  "messageId": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "boolean",
+                    "default": true
+                  }
                 }
               }
             }
@@ -693,37 +1153,77 @@
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "#/components/schemas/Session" },
+                    {
+                      "$ref": "#/components/schemas/Session"
+                    },
                     {
                       "type": "object",
-                      "properties": { "restored": { "type": "array", "items": { "type": "string" } } }
+                      "properties": {
+                        "restored": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     }
                   ]
                 }
               }
             }
           },
-          "404": { "description": "会话或消息不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话或消息不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/rollback/tool/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "只退某一次工具调用改的文件",
         "operationId": "sessionRollbackTool",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["toolCallId"],
+                "required": [
+                  "toolCallId"
+                ],
                 "properties": {
-                  "toolCallId": { "type": "string" },
-                  "files": { "type": "boolean", "default": true }
+                  "toolCallId": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "boolean",
+                    "default": true
+                  }
                 }
               }
             }
@@ -736,29 +1236,65 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "restored": { "type": "array", "items": { "type": "string" } } }
+                  "properties": {
+                    "restored": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
           },
-          "404": { "description": "会话或工具调用不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话或工具调用不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/redo/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "撤销最近一次回退",
         "operationId": "sessionRedo",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": { "files": { "type": "boolean", "default": true } }
+                "properties": {
+                  "files": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
               }
             }
           }
@@ -770,27 +1306,60 @@
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "#/components/schemas/Session" },
+                    {
+                      "$ref": "#/components/schemas/Session"
+                    },
                     {
                       "type": "object",
-                      "properties": { "restored": { "type": "array", "items": { "type": "string" } } }
+                      "properties": {
+                        "restored": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     }
                   ]
                 }
               }
             }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/session/compact/{sessionId}": {
       "post": {
-        "tags": ["Session"],
+        "tags": [
+          "Session"
+        ],
         "summary": "手动压缩上下文",
         "operationId": "sessionCompact",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "压缩后的完整会话，另带总结文本",
@@ -798,30 +1367,49 @@
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "#/components/schemas/Session" },
-                    { "type": "object", "properties": { "content": { "type": "string" } } }
+                    {
+                      "$ref": "#/components/schemas/Session"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   ]
                 }
               }
             }
           },
-          "400": { "description": "会话没有配置模型", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "任务正在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
-        }
-      }
-    },
-    "/agent/list": {
-      "get": {
-        "tags": ["Agent"],
-        "summary": "列出内置和自定义智能体",
-        "operationId": "agentList",
-        "responses": {
-          "200": {
-            "description": "智能体定义列表",
+          "400": {
+            "description": "会话没有配置模型",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "任务正在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           }
@@ -830,18 +1418,30 @@
     },
     "/agent/send/{sessionId}": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "发送消息，启动任务",
         "operationId": "agentSend",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["input"],
-                "properties": { "input": { "type": "string" } }
+                "required": [
+                  "input"
+                ],
+                "properties": {
+                  "input": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -849,36 +1449,115 @@
         "responses": {
           "200": {
             "description": "任务已启动，过程走 SSE",
-            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           },
-          "400": { "description": "input 为空", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "会话已有任务在运行", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "400": {
+            "description": "input 为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "会话已有任务在运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/agent/resume/{sessionId}": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "继续被中断的助手回复",
         "operationId": "agentResume",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "已开始继续",
-            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           },
-          "404": { "description": "会话不存在", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "409": { "description": "正在运行或最后一条不是助手回复", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "正在运行或最后一条不是助手回复",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/agent/stop/{sessionId}": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "停止正在运行的任务",
         "operationId": "agentStop",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -889,8 +1568,12 @@
                   "partial": {
                     "type": "object",
                     "properties": {
-                      "content": { "type": "string" },
-                      "reasoning": { "type": "string" }
+                      "content": {
+                        "type": "string"
+                      },
+                      "reasoning": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
@@ -901,28 +1584,66 @@
         "responses": {
           "200": {
             "description": "停止结果",
-            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           },
-          "400": { "description": "partial 不是对象", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "400": {
+            "description": "partial 不是对象",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/agent/decide/{sessionId}": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "审批工具调用",
         "operationId": "agentDecide",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["toolCallId", "decision"],
+                "required": [
+                  "toolCallId",
+                  "decision"
+                ],
                 "properties": {
-                  "toolCallId": { "type": "string" },
-                  "decision": { "type": "string", "enum": ["allow-once", "allow-always", "deny"] }
+                  "toolCallId": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "allow-once",
+                      "allow-always",
+                      "deny"
+                    ]
+                  }
                 }
               }
             }
@@ -931,23 +1652,55 @@
         "responses": {
           "200": {
             "description": "审批结果",
-            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" } } } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           },
-          "400": { "description": "决定不认识", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "400": {
+            "description": "决定不认识",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/sse/connect/{sessionId}": {
       "get": {
-        "tags": ["SSE"],
+        "tags": [
+          "SSE"
+        ],
         "summary": "建立实时事件连接",
         "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、permission-limit、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。",
         "operationId": "sseConnect",
-        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
         "responses": {
           "200": {
             "description": "SSE 事件流",
-            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -960,34 +1713,57 @@
         "in": "path",
         "required": true,
         "description": "会话编号",
-        "schema": { "type": "string" }
+        "schema": {
+          "type": "string"
+        }
       }
     },
     "schemas": {
       "Error": {
         "type": "object",
-        "properties": { "error": { "type": "string" } },
-        "required": ["error"]
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
       },
       "Model": {
         "type": "object",
         "properties": {
-          "provider": { "type": "string" },
-          "model": { "type": "string" }
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
         }
       },
       "ModelEntry": {
         "oneOf": [
-          { "type": "string" },
+          {
+            "type": "string"
+          },
           {
             "type": "object",
             "properties": {
-              "id": { "type": "string" },
-              "name": { "type": "string" },
-              "context": { "type": "integer", "description": "上下文窗口，默认 128000" },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "context": {
+                "type": "integer",
+                "description": "上下文窗口，默认 128000"
+              },
               "capabilities": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "例如 text、tools、image"
               }
             }
@@ -997,102 +1773,211 @@
       "Provider": {
         "type": "object",
         "properties": {
-          "name": { "type": "string" },
-          "baseURL": { "type": "string" },
-          "apiKey": { "type": "string" },
-          "protocol": { "type": "string", "enum": ["openai-compatible", "responses", "anthropic", "gemini"] },
-          "stream": { "type": "boolean" },
-          "headers": { "type": "object" },
-          "body": { "type": "object" },
-          "enabled": { "type": "boolean" },
-          "models": { "type": "array", "items": { "$ref": "#/components/schemas/ModelEntry" } }
+          "name": {
+            "type": "string"
+          },
+          "baseURL": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "openai-compatible",
+              "responses",
+              "anthropic",
+              "gemini"
+            ]
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "headers": {
+            "type": "object"
+          },
+          "body": {
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelEntry"
+            }
+          }
         }
       },
       "Config": {
         "type": "object",
         "properties": {
-          "providers": { "type": "array", "items": { "$ref": "#/components/schemas/Provider" } },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Provider"
+            }
+          },
           "models": {
             "type": "object",
             "properties": {
-              "chat": { "$ref": "#/components/schemas/Model" },
-              "compact": { "$ref": "#/components/schemas/Model" },
-              "title": { "$ref": "#/components/schemas/Model" },
-              "task": { "$ref": "#/components/schemas/Model" }
+              "chat": {
+                "$ref": "#/components/schemas/Model"
+              },
+              "compact": {
+                "$ref": "#/components/schemas/Model"
+              },
+              "title": {
+                "$ref": "#/components/schemas/Model"
+              },
+              "task": {
+                "$ref": "#/components/schemas/Model"
+              }
             }
           },
-          "mcp": { "type": "object", "additionalProperties": true },
-          "permission": { "type": "object", "additionalProperties": true },
+          "mcp": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "permission": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "prompt": {
             "type": "object",
             "properties": {
-              "system": { "type": "string" },
-              "seeded": { "type": "boolean" }
+              "system": {
+                "type": "string"
+              },
+              "seeded": {
+                "type": "boolean"
+              }
             }
           },
           "compact": {
             "type": "object",
-            "properties": { "threshold": { "type": "number", "minimum": 0.1, "maximum": 0.99 } }
-          },
-          "agents": { "type": "object", "additionalProperties": true },
-          "snapshot": { "type": "object", "additionalProperties": true }
+            "properties": {
+              "threshold": {
+                "type": "number",
+                "minimum": 0.1,
+                "maximum": 0.99
+              }
+            }
+          }
         }
       },
       "AutoApprove": {
         "type": "object",
         "properties": {
-          "read": { "type": "boolean" },
-          "write": { "type": "boolean" },
-          "command": { "type": "boolean" },
-          "mcp": { "type": "boolean" },
-          "subtask": { "type": "boolean" }
+          "read": {
+            "type": "boolean"
+          },
+          "write": {
+            "type": "boolean"
+          },
+          "command": {
+            "type": "boolean"
+          },
+          "mcp": {
+            "type": "boolean"
+          },
+          "subtask": {
+            "type": "boolean"
+          }
         }
       },
       "Settings": {
         "type": "object",
         "properties": {
-          "agent": { "type": "string" },
-          "autoApprove": { "$ref": "#/components/schemas/AutoApprove" },
-          "autoApproveLimit": { "type": "number" },
-          "capabilities": {
-            "type": "object",
-            "properties": {
-              "image": { "type": "boolean" },
-              "cache": { "type": "boolean" },
-              "stream": { "type": "boolean" }
-            }
+          "agent": {
+            "type": "string"
           },
-          "reasoning": { "type": "string", "enum": ["off", "auto", "low", "medium", "high", "xhigh", "max"] }
+          "autoApprove": {
+            "$ref": "#/components/schemas/AutoApprove"
+          },
+          "autoApproveLimit": {
+            "type": "number"
+          },
+          "reasoning": {
+            "type": "string",
+            "enum": [
+              "off",
+              "auto",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
         }
       },
       "SessionMeta": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "title": { "type": "string" },
-          "cwd": { "type": "string", "description": "会话当前所在的目录" },
-          "provider": { "type": "string" },
-          "model": { "type": "string" },
-          "createdAt": { "type": "integer" },
-          "updatedAt": { "type": "integer" }
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string",
+            "description": "会话当前所在的目录"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
         }
       },
       "Session": {
         "allOf": [
-          { "$ref": "#/components/schemas/SessionMeta" },
+          {
+            "$ref": "#/components/schemas/SessionMeta"
+          },
           {
             "type": "object",
             "properties": {
               "history": {
                 "type": "array",
-                "items": { "type": "object", "additionalProperties": true },
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
                 "description": "带 messageId 的消息记录"
               },
-              "todos": { "type": "array", "items": { "type": "object" } },
-              "running": { "type": "boolean" },
-              "pending": { "type": "array", "items": { "type": "object" } },
-              "settings": { "$ref": "#/components/schemas/Settings" },
-              "undoable": { "type": "integer" }
+              "todos": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "running": {
+                "type": "boolean"
+              },
+              "pending": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "settings": {
+                "$ref": "#/components/schemas/Settings"
+              },
+              "undoable": {
+                "type": "integer"
+              }
             }
           }
         ]
@@ -1100,23 +1985,53 @@
       "Change": {
         "type": "object",
         "properties": {
-          "path": { "type": "string" },
-          "before": { "type": "string" },
-          "after": { "type": "string" },
-          "added": { "type": "boolean" },
-          "deleted": { "type": "boolean" }
+          "path": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "added": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "boolean"
+          }
         }
       },
       "Tool": {
         "type": "object",
         "properties": {
-          "name": { "type": "string" },
-          "kind": { "type": "string" },
-          "kindLabel": { "type": "string" },
-          "kindHint": { "type": "string" },
-          "permission": { "type": "string", "enum": ["allow", "ask", "deny"] },
-          "configurable": { "type": "boolean" },
-          "ui": { "type": "object", "additionalProperties": true }
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "kindLabel": {
+            "type": "string"
+          },
+          "kindHint": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "ask",
+              "deny"
+            ]
+          },
+          "configurable": {
+            "type": "boolean"
+          },
+          "ui": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       }
     }

@@ -23,111 +23,37 @@ import Tool from './tool.js'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
 
-// 名字会写进会话设置和规则目录名，只收安全字符。
-const SAFE_NAME = /^[a-zA-Z0-9_-]+$/
-const ACTIONS = new Set(['allow', 'ask', 'deny'])
-
-// 内置智能体；用户可以同名覆盖，也可以新增。
+// 内置智能体：只用于会话的运行角色，不接受用户自定义定义。
 const BUILTIN = [
     {
         name: 'build', label: '执行', description: '可以改文件、执行命令', instructions: '',
-        readOnly: false, tools: null, model: null, permission: null,
+        readOnly: false, tools: null,
     },
     {
         name: 'plan', label: '计划', description: '只读工具，先看清再动手', instructions: '',
-        readOnly: true, tools: null, model: null, permission: null,
+        readOnly: true, tools: null,
     },
     {
         name: 'ask', label: '问答', description: '只回答和解释，不碰文件',
         instructions: '你只回答问题和解释代码，不修改文件。回答要直接，必要时指出相关文件路径。',
         readOnly: true,
         tools: ['read_file', 'list_files', 'search_files', 'glob', 'webfetch', 'skill', 'ask_followup_question', 'attempt_completion'],
-        model: null, permission: null,
     },
     {
         name: 'debug', label: '调试', description: '复现、定位、最小修复',
         instructions: '先复现问题，再定位原因，最后做最小修复。改完运行相关测试，并把结果说清楚。',
-        readOnly: false, tools: null, model: null, permission: null,
+        readOnly: false, tools: null,
     },
 ]
 
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
 
-const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key)
-const cleanText = (value, fallback = '') => typeof value === 'string' ? value.trim() : fallback
+// --- 当前可用的内置智能体 ---
+const list = () => BUILTIN.map(base => ({ ...base, name: base.name, builtin: true }))
 
-// --- 只保留合法的工具名；null 表示不点名 ---
-const normalizeTools = value => {
-    if (!Array.isArray(value)) return null
-    return [...new Set(value.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim()))]
-}
-
-// --- 模型覆盖只认同时写了供应商和模型名的对象 ---
-const normalizeModel = value => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-    const provider = cleanText(value.provider)
-    const model = cleanText(value.model)
-    return provider && model ? { provider, model } : null
-}
-
-// --- 权限覆盖和全局 permission 同形 ---
-const normalizePermission = value => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-    const rules = {}
-    for (const [name, rule] of Object.entries(value)) {
-        if (typeof rule === 'string') {
-            if (ACTIONS.has(rule)) rules[name] = rule
-            continue
-        }
-        if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue
-        const nested = {}
-        for (const [pattern, action] of Object.entries(rule)) {
-            if (typeof action === 'string' && ACTIONS.has(action)) nested[pattern] = action
-        }
-        if (Object.keys(nested).length) rules[name] = nested
-    }
-    return Object.keys(rules).length ? rules : null
-}
-
-// --- 把一条自定义定义叠到基础定义上 ---
-const merge = (value, base) => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return base
-    return {
-        ...base,
-        label: cleanText(value.label, base.label) || base.label,
-        description: cleanText(value.description, base.description),
-        instructions: typeof value.instructions === 'string' ? value.instructions : base.instructions,
-        readOnly: typeof value.readOnly === 'boolean' ? value.readOnly : base.readOnly,
-        tools: has(value, 'tools') ? normalizeTools(value.tools) : base.tools,
-        model: has(value, 'model') ? normalizeModel(value.model) : base.model,
-        permission: has(value, 'permission') ? normalizePermission(value.permission) : base.permission,
-    }
-}
-
-const definitions = config => {
-    const value = config?.agents
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-}
-
-// --- 当前可用的全部智能体 ---
-const list = (config = store.config) => {
-    const custom = definitions(config)
-    const result = BUILTIN.map(base => ({ ...merge(custom[base.name], base), name: base.name, builtin: true }))
-    for (const [name, value] of Object.entries(custom)) {
-        if (!SAFE_NAME.test(name)) continue
-        if (BUILTIN.some(base => base.name === name)) continue
-        result.push({
-            ...merge(value, { label: name, description: '', instructions: '', readOnly: false, tools: null, model: null, permission: null }),
-            name,
-            builtin: false,
-        })
-    }
-    return result
-}
-
-// --- 按名字取一个智能体 ---
-const get = (config, name) => list(config).find(item => item.name === name) || null
+// --- 按名字取一个内置智能体 ---
+const get = name => list().find(item => item.name === name) || null
 
 // =======================================================================
 //  模型连接
@@ -235,6 +161,7 @@ const resolveFor = ({ session, settings, agent, target }) => {
     const linked = connection(chosen)
     const info = Context.modelInfo(chosen)
     const profile = info.capabilities || []
+    const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
 
     const config = {
         ...linked,
@@ -244,11 +171,12 @@ const resolveFor = ({ session, settings, agent, target }) => {
         },
         maxContextTokens: info.context,
         compactThreshold: threshold(),
-        stream: settings.capabilities.stream,
-        cache: settings.capabilities.cache,
+        // 流式输出是连接配置，不是模型能力；模型能力只从 capabilities 读。
+        stream: provider?.stream !== false,
+        cache: true,
         capabilities: {
-            image: settings.capabilities.image && (profile.length === 0 || hasCapability(profile, 'image')),
-            tools: profile.length === 0 || hasCapability(profile, 'tools'),
+            image: hasCapability(profile, 'image'),
+            tools: hasCapability(profile, 'tools'),
         },
         system: Context.system({ config: store.config, agent }),
         // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
@@ -309,7 +237,6 @@ const defaultSettings = () => ({
     agent: 'build',
     autoApprove: autoApproveDefaults(),
     autoApproveLimit: 50,
-    capabilities: { image: true, cache: true, stream: true },
     reasoning: 'auto',
 })
 
@@ -317,7 +244,7 @@ const defaultSettings = () => ({
 const chooseAgent = (input, base) => {
     const requested = input.agent !== undefined ? input.agent : input.mode
     const chosen = requested !== undefined ? requested : base.agent
-    if (!get(store.config, chosen)) {
+    if (!get(chosen)) {
         throw fail(400, `agent must be one of ${list().map(item => item.name).join(', ')}, got: ${requested ?? input.agent}`)
     }
     return chosen
@@ -333,25 +260,14 @@ const mergeAutoApprove = (input, base) => {
     return autoApprove
 }
 
-const numberWithin = (value, min, max, fallback) => {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : fallback
-}
-
 // --- 收一份用户提交的设置，坏值保持原样或忽略 ---
 const normalizeSettings = (input = {}, base = defaultSettings()) => {
-    const capabilities = { ...base.capabilities, ...(input.capabilities || {}) }
     const parsedLimit = Number(input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit)
     const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {
         agent: chooseAgent(input, base),
         autoApprove: mergeAutoApprove(input, base),
         autoApproveLimit: Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : base.autoApproveLimit,
-        capabilities: {
-            image: capabilities.image !== false,
-            cache: capabilities.cache !== false,
-            stream: capabilities.stream !== false,
-        },
         reasoning: REASONING_LEVELS.includes(rawReasoning) ? rawReasoning : base.reasoning,
     }
 }
@@ -367,27 +283,12 @@ const readSettings = async sessionId => {
  * 换智能体要重建 Agent，所以任务跑着时拒绝；自动批准不用重建，随时能改。
  */
 const saveSettings = async ({ sessionId, ...change }) => {
-    const session = await History.load(sessionId)
-    const current = normalizeSettings(session.settings, defaultSettings())
+    const current = normalizeSettings((await History.load(sessionId)).settings, defaultSettings())
     const onlyAutoApprove = Object.keys(change).every(key => key === 'autoApprove')
     if (!onlyAutoApprove && agents.get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
-    const requested = change.agent !== undefined ? change.agent : change.mode
-    const requestedInfo = requested !== undefined ? get(store.config, requested) : null
-    if (requestedInfo?.model) connection(requestedInfo.model)
-
     const saved = normalizeSettings(change, current)
     await History.saveSettings({ sessionId, settings: saved })
-
-    // 智能体自带模型时，把会话当前模型切过去；切到不带模型的智能体时保留原模型。
-    if (saved.agent !== current.agent) {
-        const agent = get(store.config, saved.agent)
-        if (agent?.model) {
-            session.model = { provider: agent.model.provider, model: agent.model.model }
-            session.updatedAt = Date.now()
-            await History.save(sessionId)
-        }
-    }
     if (onlyAutoApprove) return saved
 
     // 历史原样交回去，不丢消息。
@@ -404,7 +305,7 @@ const saveSettings = async ({ sessionId, ...change }) => {
 const create = async ({ sessionId }) => {
     const session = await History.load(sessionId)
     const settings = await readSettings(sessionId)
-    const agent = get(store.config, settings.agent)
+    const agent = get(settings.agent)
     const config = resolveFor({ session, settings, agent })
     const tools = await Tool.build({
         sessionId,

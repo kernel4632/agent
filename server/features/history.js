@@ -30,6 +30,12 @@ const normalize = (session, id) => {
         : { provider: session.provider || '', model: session.model || '' }
     const history = session.history && Array.isArray(session.history.messages) ? session.history : { messages: [], redo: [] }
     history.redo ||= []
+    // 设置里只保留当前认识的字段；旧版的能力开关、按会话配模型和标题开关不再进入内存。
+    const settings = session.settings && typeof session.settings === 'object' ? session.settings : {}
+    delete settings.capabilities
+    delete settings.uses
+    delete settings.autoTitle
+    delete settings.compactThreshold
     return {
         id: session.id || id,
         title: session.title || '新对话',
@@ -38,7 +44,7 @@ const normalize = (session, id) => {
         createdAt: session.createdAt || Date.now(),
         updatedAt: session.updatedAt || session.createdAt || Date.now(),
         history,
-        settings: session.settings && typeof session.settings === 'object' ? session.settings : {},
+        settings,
     }
 }
 

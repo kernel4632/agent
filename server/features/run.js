@@ -186,17 +186,8 @@ const forwardedEvents = ({ sessionId }) => ({
     onCompact: event => SSE.send({ id: sessionId, data: event }),
 })
 
-// --- 工具结果：命令结束后记一次文件检查点，再把结果推给前端 ---
+// --- 工具结果原样推给前端 ---
 const sendToolResult = ({ sessionId }) => async result => {
-    const toolCallId = result.toolCallId || result.callID
-    if (toolCallId) {
-        await Tool.end({
-            sessionId,
-            toolCallId,
-            toolName: result.toolName,
-            cwd: store.sessions[sessionId]?.cwd || process.cwd(),
-        }).catch(() => {})
-    }
     await SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
 }
 
@@ -223,7 +214,7 @@ const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, 
 const startRun = async ({ sessionId, input, resume, agent }) => {
     const session = await History.load(sessionId)
     const settings = await Agent.readSettings(sessionId)
-    const definition = Agent.find(store.config, settings.agent)
+    const definition = Agent.find(settings.agent)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     const previousLength = agent.history.length
