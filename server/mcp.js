@@ -10,7 +10,7 @@
  *   }
  * 连上的服务给出一批工具（工具名是 服务名_原名），和内置工具一起交给模型。
   * 调用示例：
-  *   const tools = await Mcp.tools()   // 全部已连服务的工具，拼进 Agent.tool.from(...)
+  *   const tools = await Mcp.tools({ sessionId })   // 全部已连服务的工具，拼进 Agent.tool.from(...)
   *   await Mcp.close()                 // 断开全部服务；测试里用它收尾，进程退出时子进程会自己结束
   */
 import { createMCPClient } from '@ai-sdk/mcp'
@@ -26,7 +26,7 @@ import Store from './store.js' // 配置就在 Store 里，这里直接读它，
 const connections = new Map()
 
 // --- 连接一个 MCP 服务 ---
-const connect = async name => {
+const connect = async ({ name, sessionId }) => {
     const definition = (Store.config.mcp || {})[name]
     // 配置里没有这个服务，说明用户在设置里删掉了，不用连。
     if (!definition) return null
@@ -57,7 +57,8 @@ const connect = async name => {
         return tools
     } catch (error) {
         // 一个服务连不上不该拖垮整个会话，记下来让用户知道就行。
-        await SSE.send({ id: 'mcp', data: { type: 'mcp-error', server: name, error: error.message } })
+        // SSE 的 id 必须是会话编号，否则浏览器的会话连接收不到这条提示。
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
         return null
     }
 }
@@ -66,7 +67,7 @@ const connect = async name => {
  * 配置里已经删掉的服务会在这里断开连接并收回它的工具。
  * @returns {Promise<object>} 工具名到工具对象的映射，名字带服务名前缀。
  */
-const tools = async () => {
+const tools = async ({ sessionId } = {}) => {
     const configured = Object.keys(Store.config.mcp || {})
     // 配置里已经删掉的服务，它们的连接和工具都不该再留着。
     for (const name of [...connections.keys()]) {
@@ -76,7 +77,7 @@ const tools = async () => {
         }
     }
     // 配置里新增的服务在这里连上；已经连过的直接用。
-    await Promise.all(configured.filter(name => !connections.has(name)).map(connect))
+    await Promise.all(configured.filter(name => !connections.has(name)).map(name => connect({ name, sessionId })))
 
     // 拼成 agent-core 认识的一份工具表；服务名放在工具名前，避免两个服务撞名。
     const merged = {}

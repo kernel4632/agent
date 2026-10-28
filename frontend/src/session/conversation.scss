@@ -1,4 +1,7 @@
-/* 所有条目共用三列：图标、文本、右侧操作。行间只靠 padding 分隔。 */
+/*
+ * 会话条目共用样式：图标、文本、右侧操作三列，行间只靠 padding 分隔。
+ * 调用示例：在会话视图里 @use './conversation'; 后给行加 class="list-row"。
+ */
 .list-row {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;

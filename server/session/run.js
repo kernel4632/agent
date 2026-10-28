@@ -27,6 +27,8 @@ import fail from '../utils/fail.js' // 输入为空、会话在跑等业务错�
 const send = ({ sessionId, input }) => run({ sessionId, input })
 
 const RESUME_INPUT = '继续'
+// 还没起标题的会话叫这个名字；自动起标题只看它，用户手动改过就不再覆盖。
+const UNTITLED = '新对话'
 // 继续被中断的助手回复：只在发送时占位，onStart 里会从历史删掉。
 // 这样模型看到的历史末尾仍然是上一段助手回复或工具结果，不会知道“中途被打断过”。
 const resume = ({ sessionId }) => run({ sessionId, input: RESUME_INPUT, resume: true })

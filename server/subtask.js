@@ -63,6 +63,47 @@ const toolsForDepth = ({ config, tools, sessionId, depth, maxDepth = MAX_DEPTH }
  *   用户才能在界面上看到并回答"子任务想读这个文件"。
  *   depth 是当前这一层，用来决定子 agent 还能不能再委托。
  */
+// --- 真正跑一次子任务：建临时 Agent，把进度推回主会话 ---
+const runSubtask = async ({ config, tools, sessionId, id, description, prompt, abortSignal }) => {
+    // 子 agent 有自己的历史，跑完就丢。配置和主 agent 一样。
+    const agent = Agent.create({
+        history: [],
+        config,
+        tools,
+        callbacks: {
+            onToolCall: call => SSE.send({ id: sessionId, data: { type: 'subagent-tool', taskId: id, description, ...call } }),
+            onToolResult: result => SSE.send({ id: sessionId, data: { type: 'subagent-tool-result', taskId: id, description, ...result } }),
+            /*
+             * 子 agent 走的是同一道审批关口。这一句不能省：
+             * 少了它，子任务里的读文件和执行命令完全不问用户，.agentignore 也拦不住，
+             * 而且不报任何错——表现只是"某些密钥文件莫名其妙被读到了"。
+             * 审批请求回到主会话，用户看到的是"子任务想读这个文件"。
+             */
+            onPermission: call => Approval.check({ sessionId, ...call }),
+        },
+    })
+
+    // 主任务被停止时子任务一起停，不留下一个还在后台翻文件的过程。
+    const stop = () => agent.stop()
+    abortSignal?.addEventListener('abort', stop, { once: true })
+
+    try {
+        const result = await agent.send({ input: prompt })
+        // 只把结论交回主 agent；子 agent 读过的文件全留在它自己的历史里，已经随它一起丢掉。
+        return { description, reason: result.reason, conclusion: result.text }
+    } catch (error) {
+        // 子任务失败只是一条结论，主 agent 可以自己决定换个办法还是直接告诉用户。
+        return { description, error: error.message }
+    } finally {
+        abortSignal?.removeEventListener('abort', stop)
+    }
+}
+
+/**
+ * 创建 new_task 工具：把一块独立调研交给子 agent。
+ * @param {...} 主 agent 的配置、可用工具、会话编号和当前层级。
+ * @returns {object} 一个标准工具对象。
+ */
 const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) => {
     // 子 agent 在下一层；还留有余量时，它自己也会拿到一个 new_task 工具。
     const usable = toolsForDepth({ config, tools, sessionId, depth: depth + 1, maxDepth })
@@ -92,43 +133,11 @@ const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) =>
         },
 
         // 第二参必须可省：执行器只保证传 input，不传时就没有取消信号。
-        async execute({ description, prompt }, { abortSignal } = {}) {
+        execute({ description, prompt }, { abortSignal } = {}) {
             // 每次委托一个独立编号，前端据此把子任务的进度和别的任务分开。
             // 带上层级，避免不同层的 new_task-1 在事件流里撞名字。
             const id = `new_task-${depth}-${++counter}`
-
-            // 子 agent 有自己的历史，跑完就丢。配置和主 agent 一样。
-            const agent = Agent.create({
-                history: [],
-                config,
-                tools: usable,
-                callbacks: {
-                    onToolCall: call => SSE.send({ id, data: { type: 'subagent-tool', description, ...call } }),
-                    onToolResult: result => SSE.send({ id, data: { type: 'subagent-tool-result', description, ...result } }),
-                    /*
-                     * 子 agent 走的是同一道审批关口。这一句不能省：
-                     * 少了它，子任务里的读文件和执行命令完全不问用户，.agentignore 也拦不住，
-                     * 而且不报任何错——表现只是"某些密钥文件莫名其妙被读到了"。
-                     * 审批请求回到主会话，用户看到的是"子任务想读这个文件"。
-                     */
-                    onPermission: call => Approval.check({ sessionId, ...call }),
-                },
-            })
-
-            // 主任务被停止时子任务一起停，不留下一个还在后台翻文件的过程。
-            const stop = () => agent.stop()
-            abortSignal?.addEventListener('abort', stop, { once: true })
-
-            try {
-                const result = await agent.send({ input: prompt })
-                // 只把结论交回主 agent；子 agent 读过的文件全留在它自己的历史里，已经随它一起丢掉。
-                return { description, reason: result.reason, conclusion: result.text }
-            } catch (error) {
-                // 子任务失败只是一条结论，主 agent 可以自己决定换个办法还是直接告诉用户。
-                return { description, error: error.message }
-            } finally {
-                abortSignal?.removeEventListener('abort', stop)
-            }
+            return runSubtask({ config, tools: usable, sessionId, id, description, prompt, abortSignal })
         },
     }
 }

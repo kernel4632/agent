@@ -172,6 +172,7 @@ const remove = async ({ sessionId }) => {
     Settings.remove({ sessionId })
     History.remove({ sessionId })              // 内存里的历史也一起删，健康检查不能再算它。
     await Snapshot.remove({ sessionId })       // 会话没了，它的文件快照也不再需要。
+    await SSE.close({ id: sessionId })         // 关掉这条会话的实时连接并清空缓存。
     await rm(Path.session(sessionId), { recursive: true, force: true })
     return { ok: true }
 }

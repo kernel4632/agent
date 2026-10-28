@@ -116,7 +116,14 @@ const connection = ({ provider: name, model }) => {
     if (!provider) throw fail(400, `Provider not found: ${name}`)
 
     let headers = provider.headers || {}
-    if (typeof headers === 'string') headers = JSON.parse(headers || '{}') // 设置页把请求头写成 JSON 文本。
+    if (typeof headers === 'string') {
+        // 设置页把请求头写成 JSON 文本；写坏了是用户输入错误，不能当成程序故障返回 500。
+        try {
+            headers = JSON.parse(headers || '{}')
+        } catch {
+            throw fail(400, 'provider headers must be valid JSON')
+        }
+    }
     return {
         // model 必须在这里传下去。少了它 agent-core 直接报
         // "model and messages are required"，而且不是启动时报，是每次发消息时报，

@@ -26,5 +26,8 @@ export const toolFiles = ({ toolName, input }) => {
     return (reader(input) || []).filter(path => typeof path === 'string' && path.trim())
 }
 
+// --- 测试和扫描器用：清空登记，工具目录重新扫描 ---
+export const resetToolFiles = () => readers.clear()
+
 // --- 测试和工具目录用：看当前登记了哪些文件工具 ---
 export const fileToolNames = () => [...readers.keys()]

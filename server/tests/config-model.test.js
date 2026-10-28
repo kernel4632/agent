@@ -151,4 +151,12 @@ describe('交给 agent-core 的 config', () => {
             expect(config.model).toBe('第二个')
         })
     })
+
+    test('请求头不是合法 JSON 时按用户填错处理，不抛程序异常', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['m'], headers: '{' }] })
+            // 设置页允许直接编辑 JSON 文本；写坏了要告诉用户，而不是让服务器崩成 500。
+            expect(() => Config.connection({ provider: 'local', model: 'm' })).toThrow(/headers must be valid JSON/i)
+        })
+    })
 })

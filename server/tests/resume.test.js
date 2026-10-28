@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import Config from '../config/config.js'
 import History from '../session/history.js'
 import Session from '../session/session.js'
+import Title from '../session/title.js'
 import Store from '../store.js'
 import SSE from '../utils/sse.js'
 import { app } from '../server.js'
@@ -465,6 +466,45 @@ describe('继续助手的 HTTP 接口', () => {
             await waitForHistory(sessionId, 2)
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 'a2'])
             await SSE.close({ id: sessionId })
+        })
+    })
+
+    test('自动起标题成功时不会因为默认标题常量缺失而中断', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], autoTitle: true })
+            // 用默认标题，才会走到“该不该自动起标题”的分支。
+            const { sessionId } = await Session.create({ title: '新对话' })
+            await History.load({ sessionId })
+
+            const original = Title.generate
+            Title.generate = async () => '修复登录'
+            try {
+                const agent = {
+                    history: [],
+                    running: null,
+                    stop: async () => ({ ok: true }),
+                    async send(options) {
+                        await options.callbacks.onStart()
+                        agent.history.push({ id: 'u1', role: 'user', content: text('你好') })
+                        agent.history.push({ id: 'a1', role: 'assistant', content: text('完成') })
+                        await options.callbacks.onStep()
+                        return { reason: 'completed', text: '完成' }
+                    },
+                }
+                Store.agents.set(sessionId, agent)
+                await Session.send({ sessionId, input: '你好' })
+
+                // 标题是异步收尾的一步；等到它写进 meta.json 再断言。
+                for (let attempt = 0; attempt < 50; attempt += 1) {
+                    if ((await Session.read({ sessionId })).title === '修复登录') break
+                    await Bun.sleep(10)
+                }
+                expect((await Session.read({ sessionId })).title).toBe('修复登录')
+                // 标题只是收尾中的一步；再等一拍，让历史保存和 agent-finish 走完再清理临时目录。
+                await Bun.sleep(50)
+            } finally {
+                Title.generate = original
+            }
         })
     })
 })

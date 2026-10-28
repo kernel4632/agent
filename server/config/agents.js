@@ -24,6 +24,7 @@ const ACTIONS = new Set(['allow', 'ask', 'deny'])
  * ask 和 debug 是通用化的新角色，名字不绑定任何产品。
  */
 const BUILTIN = [
+    // 默认执行角色：工具全开，可以改文件和跑命令。
     {
         name: 'build',
         label: '执行',
@@ -34,6 +35,7 @@ const BUILTIN = [
         model: null,
         permission: null,
     },
+    // 计划角色：只读工具，先看清再动手。
     {
         name: 'plan',
         label: '计划',
@@ -44,6 +46,7 @@ const BUILTIN = [
         model: null,
         permission: null,
     },
+    // 问答角色：只保留读取类工具，不碰文件。
     {
         name: 'ask',
         label: '问答',
@@ -54,6 +57,7 @@ const BUILTIN = [
         model: null,
         permission: null,
     },
+    // 调试角色：先复现，再定位，最后最小修复。
     {
         name: 'debug',
         label: '调试',

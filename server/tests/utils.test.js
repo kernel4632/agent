@@ -105,6 +105,15 @@ describe('server HTTP API', () => {
         })
     })
 
+    test('rejects a create request with no body as a client error', async () => {
+        await withHome(async () => {
+            const response = await app.handle(new Request('http://localhost/session/create', { method: 'POST' }))
+            // body 缺失是用户发错了请求，不是程序故障；入口必须给 400，不能漏成 500。
+            expect(response.status).toBe(400)
+            expect(await response.json()).toMatchObject({ error: expect.any(String) })
+        })
+    })
+
     test('reports a missing provider as a client error instead of a server crash', async () => {
         await withHome(async () => {
             const response = await jsonRequest('/session/create', 'POST', { title: 'No provider', provider: 'missing' })

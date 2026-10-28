@@ -53,7 +53,9 @@ app.get('/tool/list', () => Tools.list())
 app.get('/tool/kinds', () => Kind.KINDS)
 
 // --- 注册 Agent 触发事件 ---
+// 界面从这里拿内置和自定义智能体的完整定义；配置里只存用户真正写过的覆盖项。
 app.group('/agent', agent => agent
+    .get('/list', () => Agents.list(Config.get()))
     .post('/send/:sessionId', ({ params, body }) => Session.send({ ...params, ...body }))
     .post('/resume/:sessionId', ({ params }) => Session.resume(params))
     .post('/stop/:sessionId', ({ params, body }) => Session.stop({ ...params, ...(body || {}) }))
@@ -61,7 +63,7 @@ app.group('/agent', agent => agent
 // --- 注册 Session 触发事件 ---
 app.group('/session', session => session
     .get('/list', ({ query }) => Session.list({ search: query.search }))
-    .post('/create', ({ body }) => Session.create(body))
+    .post('/create', ({ body }) => Session.create(body || {}))
     // 从现有会话分出一个新分支；可以指定只复制到哪条消息。
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...body }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
@@ -88,11 +90,6 @@ app.group('/config', config => config
     .get('/meta', () => ({ uses: USES })) // 界面标签和默认值这类只读元数据，不写回配置。
     .patch('/set', ({ body }) => Config.set(body))
     .post('/test', ({ body }) => Config.test(body || {}))) // 设置页的"测试连接"按钮走这里。
-
-// --- 注册 Agent 触发事件 ---
-// 界面从这里拿内置和自定义智能体的完整定义；配置里只存用户真正写过的覆盖项。
-app.group('/agent', agent => agent
-    .get('/list', () => Agents.list(Config.get())))
 
 // --- 注册 SSE 触发事件 ---
 app.group('/sse', sse => sse

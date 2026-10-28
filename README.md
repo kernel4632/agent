@@ -6,7 +6,7 @@
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，19 个接口，`bun run test` 全覆盖 |
+| `server/` | 可用 | Bun + Elysia 服务端，32 个接口，`bun run test` 全覆盖 |
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |

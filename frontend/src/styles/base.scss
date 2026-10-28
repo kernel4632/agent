@@ -1,3 +1,7 @@
+/*
+ * 全局基础样式：重置、排版、按钮/输入框等通用外观，必须排在 KIMA 样式之后。
+ * 调用示例：在 main.js 里 import './styles/base.scss'。
+ */
 :root {
   font-family: "Maple Mono NF CN", "MapleMono NF CN", Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
   font-synthesis: none;

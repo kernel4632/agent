@@ -1,3 +1,7 @@
+/*
+ * 业务 token：把 KIMA 色板和动效映射成 --la-*，页面只读这些变量。
+ * 调用示例：main.js 在 base.scss 之后 import './styles/tokens.scss'。
+ */
 // 动效节奏统一从这里取：进入 200ms、离开 150ms，曲线和 KIMA 组件一致。
 // 放在 :root 是因为消息操作层会 Teleport 到 body，读不到 m3e-theme 里的局部变量。
 // base.scss 在系统要求减少动效时会把时长压到 .01ms，KIMA 组件也会归零，这里不覆盖。

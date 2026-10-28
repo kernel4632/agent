@@ -15,7 +15,7 @@ import Path from './utils/path.js'
 import Store from './store.js'
 import Subtask from './subtask.js' // new_task 的界面描述在运行时工具里。
 import Kind from './tool-kind.js'
-import { registerToolFiles } from './tool-files.js'
+import { registerToolFiles, resetToolFiles } from './tool-files.js'
 import { canonical, previousNames } from './tool-names.js' // 旧 permission 配置继续生效。
 
 const builtIn = () => fileURLToPath(new URL('./tools/', import.meta.url))
@@ -26,18 +26,32 @@ const tools = new Map()
 // --- 扫描一个目录里的工具模块，把工具自己声明的元数据登记到运行时表 ---
 const registerDirectory = async directory => {
     for await (const file of new Bun.Glob('*.js').scan({ cwd: directory })) {
-        const module = await import(pathToFileURL(join(directory, file)).href)
-        const exported = Array.isArray(module.default) ? module.default : [module.default]
-        for (const tool of exported) {
-            tools.set(tool.name, { name: tool.name, kind: tool.kind || 'other', ui: tool.ui })
-            Kind.register({ name: tool.name, kind: tool.kind || 'other' }) // 用户工具没写类别时按 other。
-            registerToolFiles({ name: tool.name, files: tool.files })
+        try {
+            const module = await import(pathToFileURL(join(directory, file)).href)
+            const exported = Array.isArray(module.default) ? module.default : [module.default]
+            for (const tool of exported) {
+                // 工具文件是用户可写的边界；一个坏文件只跳过它自己，不拖垮整个会话。
+                if (!tool?.name) throw new Error('tool file must export a tool with a name')
+                tools.set(tool.name, { name: tool.name, kind: tool.kind || 'other', ui: tool.ui })
+                Kind.register({ name: tool.name, kind: tool.kind || 'other' }) // 用户工具没写类别时按 other。
+                registerToolFiles({ name: tool.name, files: tool.files })
+            }
+        } catch (error) {
+            console.error(`[tools] 跳过 ${file}：${error.message}`)
         }
     }
 }
 
 // --- 扫描内置和用户工具；会话启动、设置页列目录前都先调用 ---
 const register = async () => {
+    // 每轮都从空表重新扫：删掉一个工具文件后，下一次列目录/开会话就不会再看到它。
+    tools.clear()
+    Kind.reset()
+    resetToolFiles()
+    // 这两件是运行时工具，没有文件可扫；类别在重建登记表后补回来。
+    Kind.register({ name: 'new_task', kind: 'subtask' })
+    Kind.register({ name: 'skill', kind: 'read' })
+
     await mkdir(Path.tools(), { recursive: true }) // 首次运行还没有用户工具目录。
     await registerDirectory(builtIn())
     await registerDirectory(Path.tools())

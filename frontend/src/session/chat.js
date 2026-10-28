@@ -249,7 +249,7 @@ async function finishRun(sessionID, session, event) {
 }
 
 // --- 运行状态：开始、继续、结束、重试和标题 ---
-const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-finish', 'retry', 'error', 'mcp-error', 'title', 'agent-finish'])
+const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-finish', 'retry', 'error', 'mcp-error', 'permission-limit', 'title', 'agent-finish'])
 async function receiveRun(sessionID, session, event) {
   if (event.type === 'agent-start') return startRun(sessionID, session)
   if (event.type === 'agent-resume') return resumeRun(session)
@@ -258,6 +258,7 @@ async function receiveRun(sessionID, session, event) {
   if (event.type === 'retry') return retryRun(session, event)
   if (event.type === 'error') return failRun(session, event)
   if (event.type === 'mcp-error') return UI.notify(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
+  if (event.type === 'permission-limit') return UI.notify(event.reason) // 刹车触发，告诉用户为什么又要确认
   if (event.type === 'title') return setTitle(session, event)
   if (event.type === 'agent-finish') return finishRun(sessionID, session, event)
 }
@@ -267,7 +268,7 @@ function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
     const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
     const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
-    const text = event.text || event.textDelta || event.delta || '' // 不同兼容字段都认
+    const text = event.text || '' // 服务端只承诺 text 一个字段
     assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
     appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
@@ -293,7 +294,7 @@ function receiveTool(session, event) {
     }
   } else if (event.type === 'tool-result') {
     // 状态和归一化历史共用 toolStatus：拒绝、失败、完成在两条路径上必须一致。
-    const output = event.output ?? event.result
+    const output = event.output // 服务端只承诺 output；不再认旧 result 字段
     const tool = toolFor(session, event, toolStatus(output, event.isError))
     if (tool) {
       tool.output = output

@@ -64,4 +64,7 @@ const of = ({ toolName, mcpServers = [] }) => {
  */
 const writing = names => names.filter(name => WRITING.includes(of({ toolName: name })))
 
-export default { of, writing, KINDS, register, registered }
+// --- 测试和扫描器用：清空运行时登记，工具目录重新扫描 ---
+const reset = () => registry.clear()
+
+export default { of, writing, KINDS, register, registered, reset }

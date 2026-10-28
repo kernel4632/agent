@@ -1,6 +1,6 @@
 /*
  * 后端共享数据仓库：好几个主体都会读写的运行数据集中在这里。
- * 导入本文件就能看到这些共享数据：config、agents、snapshots、approvals、settings。
+ * 导入本文件就能看到这些共享数据：config、agents、snapshots、approvals、settings、autoApproved、recentCalls、rules。
  * 会话历史由 session/history.js 自己保管，不在这里。
  * 本文件只保存数据，不执行读写文件、业务判断或 HTTP 反馈。
  * 调用示例：
@@ -9,6 +9,8 @@
  *   Store.snapshots.get(sessionId)     // 这个会话的文件快照清单
  *   Store.approvals.get(`${sessionId}:${toolCallId}`)  // 等待用户决定的工具审批
  *   Store.settings.get(sessionId)      // 这个会话的运行设置：模式、自动批准、能力开关
+ *   Store.autoApproved.get(sessionId)  // 已经连续自动批准了几次
+ *   Store.recentCalls.get(sessionId)   // 最近一次工具调用和连续次数
  */
 
 // 当前程序使用的全局配置；首次启动时为空对象，工具权限规则在 config.permission。

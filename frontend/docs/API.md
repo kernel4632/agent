@@ -26,21 +26,32 @@
 | GET | `/health` | 无 | `{ ok, version, sessions, running }` | 是 |
 | GET | `/workspace/read` | 无 | 工作区路径与文件列表 | 是 |
 | GET | `/workspace/status` | `?path=` | 该路径的 git 状态 | 否 |
+| GET | `/command/list` | 无 | 用户自定义斜杠命令 | 是 |
+| GET | `/tool/list` | 无 | 工具目录、类别、权限和渲染信息 | 是 |
+| GET | `/tool/kinds` | 无 | 自动批准类别、标签和说明 | 是 |
+| GET | `/agent/list` | 无 | 内置和自定义智能体 | 是 |
 | GET | `/config/read` | 无 | 完整配置对象 | 是 |
 | GET | `/config/meta` | 无 | 界面只读元数据：`uses` 标签和说明 | 是 |
 | PATCH | `/config/set` | 完整配置对象 | 保存后的配置 | 是 |
 | POST | `/config/test` | `{ provider, model }` | `{ ok, reply }` 或错误 | 是，设置页的"测试连接" |
 | GET | `/session/list` | `?search=` | 会话摘要数组 | 是 |
 | POST | `/session/create` | `{ title, provider?, model?, workspaceId? }` | `{ sessionId }` | 是，不发送 `workspaceId` |
+| POST | `/session/fork/:sessionId` | `{ title?, messageId? }` | `{ sessionId }` | 是 |
 | GET | `/session/read/:sessionId` | 无 | 会话元信息与 `history` | 是 |
+| GET | `/session/settings/:sessionId` | 无 | 会话运行设置 | 是 |
+| PATCH | `/session/settings/:sessionId` | 部分设置 | 保存后的完整设置 | 是 |
+| GET | `/session/tools/:sessionId` | 无 | 可回退的工具调用 | 是 |
+| PATCH | `/session/model/:sessionId` | `{ provider, model }` | 更新后的会话元信息 | 是 |
 | PATCH | `/session/rename/:sessionId` | `{ title }` | 会话元信息 | 是 |
 | DELETE | `/session/remove/:sessionId` | 无 | `{ ok: true }` | 是 |
 | GET | `/session/changes/:sessionId` | 无 | 任务改过的文件及前后内容 | 是 |
 | POST | `/session/rollback/preview/:sessionId` | `{ messageId }` | `{ messages, files }` | 是 |
 | POST | `/session/rollback/:sessionId` | `{ messageId, files? }` | 回退后的完整会话及 `restored` | 是 |
+| POST | `/session/rollback/tool/:sessionId` | `{ toolCallId, files? }` | 恢复后的 `restored` | 是 |
 | POST | `/session/redo/:sessionId` | `{ files? }` | 恢复后的完整会话及 `restored` | 是 |
 | POST | `/session/compact/:sessionId` | 可省略 | 完整会话及 `content` | 无前端入口 |
 | POST | `/agent/send/:sessionId` | `{ input }` | `{ ok: true }` | 是 |
+| POST | `/agent/resume/:sessionId` | 无 | `{ ok: true }` | 是 |
 | POST | `/agent/stop/:sessionId` | 无 | `{ ok: boolean }` | 是 |
 | POST | `/agent/decide/:sessionId` | `{ toolCallId, decision }` | `{ ok: boolean }` | 是 |
 | GET | `/sse/connect/:sessionId` | 无 | SSE 字节流 | 是 |
@@ -203,7 +214,7 @@ POST /api/agent/stop/example-session-id
 POST /api/agent/decide/example-session-id
 Content-Type: application/json
 
-{ "callId": "call-1", "decision": "allow-once" }
+{ "toolCallId": "call-1", "decision": "allow-once" }
 ```
 
 | `decision` | 语义 |
@@ -285,11 +296,11 @@ data: {"type":"text-delta","text":"你好"}
 | 能力 | 当前处理 |
 | --- | --- |
 | 工作区 CRUD | 只有 `/workspace/read` 和 `/workspace/status` 两个只读接口，没有新建、重命名、删除工作区的接口 |
-| 已有会话模型切换 | 没有更新接口；仅支持新建时选择模型 |
-| 工具、MCP、数据管理 | 不开放管理操作；配置写入保留已有相关字段 |
+| 已有会话模型切换 | 用 `PATCH /session/model/:sessionId` 更新会话模型 |
+| 工具、MCP、数据管理 | 工具权限和 MCP 服务可以在设置里改；数据导入/导出还没有接口 |
 | 登录或远程认证 | 没有对应接口，不创建伪登录流程 |
 | 图片/二进制上传 | 不支持，附件只支持文本内容 |
-| 做到一半的单个工具步骤回退 | 回退以消息为粒度；没有"只撤销某一个工具调用"的接口 |
+| 做到一半的单个工具步骤回退 | 用 `POST /session/rollback/tool/:sessionId` 只退某一次工具调用 |
 
 浏览器只保存外观偏好（`agent.appearance`），会话和消息都在后端。清除浏览器存储不会丢历史，会话页的复制 ID 按钮可以在别的浏览器里凭 ID 重新打开。
 
@@ -325,7 +336,7 @@ if (!sent.ok) throw new Error('提交失败')
 
 ## 10. 验证范围
 
-- `bun run test`：4 项协议测试，检查 SSE 分帧、UTF-8、HTTP 错误及前端路由契约。
-- `bun run test:ui`：12 项桌面/移动浏览器测试，使用受控接口响应验证交互、审批、配置保留、回退和布局。
+- `bun run test`：35 项单测，检查 SSE 分帧、UTF-8、HTTP 错误及前端路由契约。
+- `bun run test:ui`：102 项桌面/移动浏览器测试，使用受控接口响应验证交互、审批、配置保留、回退和布局。
 - 原始后端已完成配置读取、会话创建/读取/重命名/删除、空闲停止的本机验证。
 - 真实模型对话未验证；需要使用者配置真实供应商后联调。接口模拟测试不代表模型可用性或后端所有边界行为已通过测试。

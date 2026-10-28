@@ -11,38 +11,17 @@ import { COMPACT_RANGE, DEFAULT_SETTINGS } from './defaults.js' // 前端默认�
 // --- 加载完整设置数据 ---
 async function load() {
   try {
-    const raw = await AgentAPI.getConfig()               // 读取脱敏持久化配置
-    let catalog = []
-    try {
-      catalog = await AgentAPI.getTools()                 // 全部工具和当前权限
-    } catch {
-      catalog = []                                       // 旧后端没有目录接口时退回权限表
-    }
-    let agents = []
-    try {
-      agents = await AgentAPI.getAgents()                  // 内置和自定义智能体
-    } catch {
-      agents = []                                        // 旧后端没有这个接口时从原始配置拼
-    }
-    let kinds = []
-    try {
-      kinds = await AgentAPI.getToolKinds()                // 自动批准类别的名字和顺序
-    } catch {
-      kinds = []                                         // 旧后端没有这个接口时开关为空
-    }
-    let meta = { uses: [] }
-    try {
-      meta = await AgentAPI.getConfigMeta()                // “按用途配模型”的标签和说明
-    } catch {
-      meta = { uses: [] }                                // 旧后端没有这个接口时不画用途选择
-    }
+    // 这些接口属于同一版后端，缺任何一个都说明连接不对；不再为旧后端逐项兜底。
+    const [raw, catalog, agents, kinds, meta, commands] = await Promise.all([
+      AgentAPI.getConfig(),                              // 脱敏持久化配置
+      AgentAPI.getTools(),                               // 全部工具和当前权限
+      AgentAPI.getAgents(),                              // 内置和自定义智能体
+      AgentAPI.getToolKinds(),                           // 自动批准类别的名字和顺序
+      AgentAPI.getConfigMeta(),                          // “按用途配模型”的标签和说明
+      AgentAPI.getCommands(),                            // 用户自定义的斜杠命令
+    ])
     apply(raw, catalog, agents, kinds, meta)              // 将 Server 数据转换为设置页面结构
-    try {
-      const commands = await AgentAPI.getCommands()       // 读取用户自定义的斜杠命令
-      store.commands = Array.isArray(commands) ? commands : []
-    } catch {
-      store.commands = []                                 // 旧后端没有这个接口时不影响启动
-    }
+    store.commands = Array.isArray(commands) ? commands : []
     store.ui.errorMessage = ''
     return true                                           // 反馈应用启动可以继续
   } catch (error) {

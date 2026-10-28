@@ -1,11 +1,8 @@
 /*
- * Agent 控制工具：结束循环、向用户提问。
+ * 完成任务工具：把最终结果交给用户并结束当前任务。
  *
- * 工具只描述模型可以触发的动作，不读取会话数据，也不发送 HTTP 反馈。
- * 调用 attempt_completion / ask_followup_question 后工具返回 stop: true，主循环停止，等用户下一条消息。
+ * 名字和描述对齐 Roo Code：attempt_completion({ result })。
  * 调用示例：模型调用 attempt_completion({ result: '已经修好' })，工具返回 { stop: true }。
- *
- * attempt_completion 的名称和描述对齐 Roo Code：它不是普通回复，而是整轮任务的收尾动作。
  */
 
 // --- 结束 Agent 循环 ---
@@ -36,30 +33,4 @@ const attemptCompletion = {
     execute: input => ({ stop: true, output: { type: 'text', value: input.result } }),
 }
 
-// --- 暂停 Agent 循环并询问用户 ---
-const askFollowupQuestion = {
-    name: 'ask_followup_question',
-    kind: 'never',
-    ui: {
-        view: 'question',
-        icon: 'info',
-        title: '询问用户',
-        summary: '{question}',
-    },
-    description: [
-        'Ask the user a question to gather additional information needed to complete the task, then stop and wait for the answer.',
-        'Use it only when you are blocked by missing information: which file to change, which account to use, which approach to take. Do not use it to hand the work back with a vague "what should I do?".',
-        'The question must be specific and answerable. The user’s answer arrives as the next message, and the task continues from there.',
-        'Parameters:',
-        '- question (required): the specific question for the user.',
-    ].join('\n'),
-    inputSchema: {
-        type: 'object',
-        properties: { question: { type: 'string', description: 'Specific question for the user.' } },
-        required: ['question'],
-    },
-    // 提问同样停止循环，等用户补充信息后再发送新消息。
-    execute: input => ({ stop: true, output: { type: 'text', value: input.question } }),
-}
-
-export default [attemptCompletion, askFollowupQuestion] // 一个文件导出两个控制工具。
+export default attemptCompletion

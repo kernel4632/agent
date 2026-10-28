@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Diagnose from '../utils/diagnose.js'
-import fileTools from '../tools/file.js'
+import writeToFile from '../tools/write-file.js'
 import editTool from '../tools/edit.js'
 
 const withHome = async callback => {
@@ -70,7 +70,7 @@ describe('写后诊断', () => {
     test('write_to_file 的返回值里带上诊断输出', async () => {
         await withHome(async root => {
             await writeConfig(root, { command: echo('DIAG-OK') })
-            const write = fileTools.find(tool => tool.name === 'write_to_file')
+            const write = writeToFile
             const target = join(root, 'written.txt')
             const result = await write.execute({ path: target, content: 'hello' })
             expect(result).toContain('Wrote')

@@ -184,27 +184,27 @@ const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
 }
 
 // --- 被忽略规则挡住时，把原因告诉界面 ---
-const blockedByIgnore = async ({ sessionId, name, input }) => {
+const blockedByIgnore = async ({ sessionId, toolCallId, name, input }) => {
     const blocked = Ignore.blockedBy({ toolName: name, input })
     if (!blocked) return false
-    await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
+    await SSE.send({ id: sessionId, data: { type: 'permission-blocked', callID: toolCallId, tool: name, input, reason: `被 .agentignore 规则挡住：${blocked}` } })
     return true
 }
 
 // --- 这次会话生效的规则：全局 permission 打底，当前智能体的 permission 覆盖同名项 ---
-const ruleDecision = async ({ sessionId, name, matchValue, input }) => {
+const ruleDecision = async ({ sessionId, toolCallId, name, matchValue, input }) => {
     const settings = Store.settings.get(sessionId)
     const decision = decideByRules(name, matchValue, effectiveRules(settings))
     if (decision !== 'deny') return { settings, decision, denied: false }
-    if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: '被权限规则拒绝' } })
+    if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', callID: toolCallId, tool: name, input, reason: '被权限规则拒绝' } })
     return { settings, decision, denied: true }
 }
 
 // --- 工作区外的路径单独过一道 external_directory 规则；默认是 ask ---
-const outsideWorkspace = async ({ sessionId, name, input }) => {
+const outsideWorkspace = async ({ sessionId, toolCallId, name, input }) => {
     const external = await Boundary.check({ toolName: name, input })
     if (external.effect === 'deny') {
-        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', tool: name, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
+        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', callID: toolCallId, tool: name, input, reason: `路径在工作区外，且被 external_directory 规则拒绝：${external.paths[0]}` } })
         return { denied: true, ask: false }
     }
     return { denied: false, ask: external.effect === 'ask' }
@@ -268,7 +268,7 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     // Agent 只看这个返回值是不是布尔值，所以这里必须返回布尔值，不能返回对象。
     // 被拦住的原因通过 SSE 告诉界面，让用户知道是哪条规则挡下的。
     const name = canonical(toolName)
-    if (await blockedByIgnore({ sessionId, name, input })) return false
+    if (await blockedByIgnore({ sessionId, toolCallId, name, input })) return false
 
     const matchValue = flattenInput(input)
     const mcpServers = Object.keys(Config.get().mcp || {})
@@ -282,10 +282,10 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
      * deny 是硬规则。自动批准只省掉"询问"，不能把一条明确的拒绝变成放行——
      * 用户写下 "execute_command": "deny" 之后，即使命令类全开着，也不该执行。
      */
-    const rules = await ruleDecision({ sessionId, name, matchValue, input })
+    const rules = await ruleDecision({ sessionId, toolCallId, name, matchValue, input })
     if (rules.denied) return false
     const settings = rules.settings
-    const external = await outsideWorkspace({ sessionId, name, input })
+    const external = await outsideWorkspace({ sessionId, toolCallId, name, input })
     if (external.denied) return false
 
     /*

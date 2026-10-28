@@ -46,7 +46,7 @@ const toolsFor = async ({ sessionId, settings, config }) => {
     const scanned = await Agent.tool.from(
         new URL('../tools/', import.meta.url),
         Path.tools(),
-        await Mcp.tools(),
+        await Mcp.tools({ sessionId }),
         await Skills.tools(),
     )
 

@@ -7,7 +7,9 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import fileTools from '../tools/file.js'
+import listFiles from '../tools/list-files.js'
+import readFileTool from '../tools/read-file.js'
+import writeToFile from '../tools/write-file.js'
 import searchFiles from '../tools/grep.js'
 import executeCommand from '../tools/shell.js'
 import edit from '../tools/edit.js'
@@ -15,7 +17,7 @@ import updateTodoList from '../tools/todo.js'
 
 const root = await mkdtemp(join(tmpdir(), 'agent-tool-api-'))
 const byName = list => Object.fromEntries(list.map(tool => [tool.name, tool]))
-const files = byName(fileTools)
+const files = byName([readFileTool, writeToFile, listFiles])
 
 afterAll(async () => {
     await rm(root, { recursive: true, force: true })

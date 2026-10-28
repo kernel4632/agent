@@ -84,6 +84,29 @@ describe('工具目录', () => {
         })
     })
 
+    test('删掉用户工具文件后，下一次扫描不会再返回它', async () => {
+        await withHome(async root => {
+            await mkdir(join(root, 'tools'), { recursive: true })
+            const file = join(root, 'tools', 'temporary.js')
+            await writeFile(file, [
+                "export default {",
+                "    name: 'temporary_tool',",
+                "    kind: 'read',",
+                "    files: input => [input.path],",
+                "    description: 'temporary',",
+                "    inputSchema: { type: 'object', properties: {} },",
+                "    async execute() { return 'ok' },",
+                "}",
+            ].join('\n'))
+
+            expect((await Tools.list()).some(tool => tool.name === 'temporary_tool')).toBe(true)
+            await rm(file, { force: true })
+            // 不重启进程也要消失；工具目录是当前位置的唯一真相。
+            expect((await Tools.list()).some(tool => tool.name === 'temporary_tool')).toBe(false)
+            expect(toolFiles({ toolName: 'temporary_tool', input: { path: 'a.txt' } })).toEqual([])
+        })
+    })
+
     test('全局 deny 在工具目录里也显示成拒绝', async () => {
         await withHome(async () => {
             // 设置页显示的动作必须和真正执行时一致；全局 deny 以前会被显示成 ask。

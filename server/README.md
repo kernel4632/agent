@@ -26,7 +26,8 @@
 Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：
 
 - 模型请求、工具执行、上下文压缩都由这个包负责
-- `session/session.js` 只做三件事：把会话配置交给 Agent、把 Agent 的过程转成 SSE、把新消息写回历史文件
+- `session/session.js` 管会话的创建、读取、改名、删除、模型和设置，并把发送、回退、读取分别交给 `run.js`、`rollback.js`、`read.js`
+- 发送时由 `run.js` 把 Agent 的过程转成 SSE，并把新消息写回历史文件
 - 历史文件里的消息形状就是这个包的标准形状（`id`、`role`、`content` 块数组）
 
 加一个内置工具：往 `tools/` 放一个导出 `{ name, kind, files, description, inputSchema, execute }` 的文件即可，重启后生效；删掉文件这个工具就消失。`kind` 决定自动批准和只读模式怎么处理，`files(input)` 返回这次调用会碰的文件；扫描器会自动登记，不需要再改任何中央表。
@@ -823,9 +824,9 @@ Accept: text/event-stream
 | `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
 | `permission` | `callID`, `tool`, `input` | 显示"始终允许""允许一次""拒绝" |
-| `permission-blocked` | `tool`, `input`, `reason` | 这个工具碰到了 `.agentignore` 护着的文件，已被拦下，不用等用户决定 |
-| `subagent-tool` | `description`, `toolName`, `input` | 子任务正在用工具，可以显示"正在查 XXX" |
-| `subagent-tool-result` | `description`, `toolName`, `output` | 子任务的工具跑完了 |
+| `permission-blocked` | `callID`, `tool`, `input`, `reason` | 这个工具碰到了 `.agentignore` 护着的文件，已被拦下，不用等用户决定 |
+| `subagent-tool` | `taskId`, `description`, `toolName`, `input` | 子任务正在用工具，可以显示"正在查 XXX" |
+| `subagent-tool-result` | `taskId`, `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上；只是跳过它，会话照常 |
 | `compact-start` / `compact-finish` | 无 / `text` | 显示上下文压缩进度 |
 | `permission-limit` | `limit`, `reason` | 自动批准连着放行到上限了，接下来要你确认一次 |
