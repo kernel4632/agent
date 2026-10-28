@@ -8,7 +8,7 @@
  *   toolFiles({ toolName: 'edit', input: { file_path: 'a.txt' } }) // ['a.txt']
  */
 
-import { canonical } from './tool-names.js' // 旧名字也要能取到同一个路径。
+import { canonical } from './names.js' // 旧名字也要能取到同一个路径。
 
 // 工具扫描时登记；没登记的工具当作不碰文件。
 const readers = new Map()

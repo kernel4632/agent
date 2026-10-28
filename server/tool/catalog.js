@@ -11,16 +11,16 @@
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { join } from 'node:path'
-import Path from './utils/path.js'
-import Store from './store.js'
-import Subtask from './subtask.js' // new_task 的界面描述在运行时工具里。
-import Kind from './tool-kind.js'
-import { registerToolFiles, resetToolFiles } from './tool-files.js'
-import { canonical, previousNames } from './tool-names.js' // 旧 permission 配置继续生效。
+import Path from '../utils/path.js'
+import Store from '../state/store.js'
+import Subtask from '../session/subtask.js' // new_task 的界面描述在运行时工具里。
+import Kind from './kind.js'
+import { registerToolFiles, resetToolFiles } from './files.js'
+import { canonical, previousNames } from './names.js' // 旧 permission 配置继续生效。
 
-const builtIn = () => fileURLToPath(new URL('./tools/', import.meta.url))
+const builtIn = () => fileURLToPath(new URL('../tools/', import.meta.url))
 
-// 扫描到的工具元数据：tool-catalog 列目录时直接读，不再为了拿名字和 ui 二次扫描工具。
+// 扫描到的工具元数据：catalog.js 列目录时直接读，不再为了拿名字和 ui 二次扫描工具。
 const tools = new Map()
 
 // --- 扫描一个目录里的工具模块，把工具自己声明的元数据登记到运行时表 ---

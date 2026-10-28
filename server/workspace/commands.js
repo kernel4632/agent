@@ -21,7 +21,7 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import matter from 'gray-matter'
-import Path from './utils/path.js'
+import Path from '../utils/path.js'
 
 // 一次最多给这么多条，正文也截断；命令列表要发给前端，不能无限大。
 const MAX_COMMANDS = 100

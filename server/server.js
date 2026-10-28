@@ -9,16 +9,16 @@
  */
 
 import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
-import Commands from './slash-commands.js' // 扫描用户自定义的斜杠命令。
+import Commands from './workspace/commands.js' // 扫描用户自定义的斜杠命令。
 import Agents from './config/agents.js' // 给界面列出内置和自定义智能体。
 import Config from './config/config.js' // 执行配置读写指令。
 import { USES } from './config/settings.js' // 按用途配模型的标签也由后端给。
 import Session from './session/session.js' // 执行会话和 Agent 指令。
 import Meta from './session/meta.js' // 启动时准备用户数据目录。
-import Tools from './tool-catalog.js' // 给设置页列出全部工具和当前权限。
-import Kind from './tool-kind.js' // 给界面列出自动批准类别，避免前端再存一份。
+import Tools from './tool/catalog.js' // 给设置页列出全部工具和当前权限。
+import Kind from './tool/kind.js' // 给界面列出自动批准类别，避免前端再存一份。
 import Ignore from './safety/ignore.js' // 启动时读一次忽略规则。
-import Workspace from './workspace.js' // 读工作区信息和 git 状态。
+import Workspace from './workspace/workspace.js' // 读工作区信息和 git 状态。
 import Path from './utils/path.js' // 提供配置文件路径。
 import Rules from './config/rules.js' // 启动时读一次工作区规则。
 import SSE from './utils/sse.js' // 提供实时反馈连接。

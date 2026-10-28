@@ -10,7 +10,7 @@
  *   Kind.writing(['read_file', 'write_to_file'])                      // ['write_to_file']
  */
 
-import { canonical } from './tool-names.js' // 旧工具名也要能分到同一类。
+import { canonical } from './names.js' // 旧工具名也要能分到同一类。
 
 /*
  * 自动批准能分别开关的类别。这份清单和 roo code 的设置面板对齐：

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 
 import Config from '../config/config.js'
 import Rules from '../config/rules.js'
-import Store from '../store.js'
+import Store from '../state/store.js'
 
 // 每个测试使用独立数据目录，并把内存里的配置和规则清空。
 const withHome = async callback => {

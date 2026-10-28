@@ -10,16 +10,16 @@
 import { mkdir } from 'node:fs/promises'
 import Agent from '@kernel4632/agent-core'
 import Approval from '../safety/approval.js' // 工具执行前过同一道审批关口。
-import Delegation from '../subtask.js' // 把独立探索工作委托给子 agent。
-import Mcp from '../mcp.js' // 把设置里配置的外部工具服务连上。
+import Delegation from './subtask.js' // 把独立探索工作委托给子 agent。
+import Mcp from '../tool/mcp.js' // 把设置里配置的外部工具服务连上。
 import Rules from '../config/rules.js' // 工作区的项目规则，跟着 system 一起交给模型。
-import Skills from '../skills.js' // 数据目录里的技能，按需读正文。
+import Skills from '../tool/skills.js' // 数据目录里的技能，按需读正文。
 import Config from '../config/config.js' // 读取全局模型配置和权限规则。
 import Settings from '../config/settings.js' // 会话运行设置：模式、自动批准、能力开关。
-import Kind from '../tool-kind.js' // 工具分类由工具自己声明，plan 模式只读运行时表。
-import ToolCatalog from '../tool-catalog.js' // 扫描工具时登记类别和文件参数。
+import Kind from '../tool/kind.js' // 工具分类由工具自己声明，plan 模式只读运行时表。
+import ToolCatalog from '../tool/catalog.js' // 扫描工具时登记类别和文件参数。
 import History from './history.js' // 新会话第一次建 Agent 时要从历史读起。
-import Store from '../store.js' // 直接访问会话到 Agent 实例的映射。
+import Store from '../state/store.js' // 直接访问会话到 Agent 实例的映射。
 import Path from '../utils/path.js' // 生成数据目录路径。
 
 // --- 这一轮的运行配置：会话设置、工作区规则和模型连接 ---
@@ -60,7 +60,7 @@ const toolsFor = async ({ sessionId, settings, config }) => {
         : scanned
 
     /*
-     * readOnly 智能体去掉能改磁盘的工具。哪些算"能改"由 tool-kind.js 一处说了算，
+     * readOnly 智能体去掉能改磁盘的工具。哪些算"能改"由 tool/kind.js 一处说了算，
      * 这里只是把它对当前工具表算一遍，不另外维护一份名单。
      * omit 会把 schema 和 handlers 一起筛，不会出现"模型看不见、却还能被执行"的隐蔽状态。
      *

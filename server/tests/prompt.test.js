@@ -9,8 +9,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Config from '../config/config.js'
-import Store from '../store.js'
-import { DEFAULT_SYSTEM_PROMPT } from '../system-prompt.js'
+import Store from '../state/store.js'
+import { DEFAULT_SYSTEM_PROMPT } from '../config/system-prompt.js'
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)

@@ -8,7 +8,7 @@
  *   await SessionRollback.redo({ sessionId })
  */
 
-import Store from '../store.js' // 运行中的会话不能回退。
+import Store from '../state/store.js' // 运行中的会话不能回退。
 import fail from '../utils/fail.js' // 消息或工具调用不存在时按填错处理。
 import History from './history.js' // 对话时间线。
 import Meta from './meta.js' // 先确认会话存在。

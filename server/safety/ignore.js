@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import picomatch from 'picomatch'
 import Path from '../utils/path.js'
-import { toolFiles } from '../tool-files.js' // 一次调用会碰哪些文件。
+import { toolFiles } from '../tool/files.js' // 一次调用会碰哪些文件。
 
 /*
  * 内置规则：这些文件里有密钥、凭据和机器私钥，模型读到就会进入对话历史和日志，
@@ -73,7 +73,7 @@ const load = async () => {
  * @returns {string|null} 命中的规则原文；没被拦住时是 null。
  */
 const blockedBy = ({ toolName, input }) => {
-    // 会碰哪些文件由 tool-files.js 一处说了算，这里只负责判断它们该不该拦。
+    // 会碰哪些文件由 tool/files.js 一处说了算，这里只负责判断它们该不该拦。
     // 两种比法都要有：整条路径用来命中带目录的规则（数据目录、.ssh 那几条），
     // 文件名用来命中 .env、*.pem 这类只看名字的规则，模型写绝对还是相对路径都不影响。
     for (const path of toolFiles({ toolName, input })) {

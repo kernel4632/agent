@@ -10,11 +10,11 @@
 
 import Approval from '../safety/approval.js' // 待审批的工具调用。
 import Settings from '../config/settings.js' // 当前会话设置。
-import { canonical } from '../tool-names.js' // 旧工具名也能认出待办工具。
+import { canonical } from '../tool/names.js' // 旧工具名也能认出待办工具。
 import AgentSession from './agent.js' // 空闲时确保 Agent 已建好。
 import History from './history.js' // 空闲时从磁盘读历史。
 import Meta from './meta.js' // 会话资料。
-import Store from '../store.js' // 运行中的 Agent 实例。
+import Store from '../state/store.js' // 运行中的 Agent 实例。
 
 // --- 读取会话 ---
 const read = async ({ sessionId }) => {

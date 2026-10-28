@@ -10,9 +10,9 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Config from '../config/config.js'
-import Tools from '../tool-catalog.js'
-import Store from '../store.js'
-import { toolFiles } from '../tool-files.js'
+import Tools from '../tool/catalog.js'
+import Store from '../state/store.js'
+import { toolFiles } from '../tool/files.js'
 import { app } from '../server.js'
 
 const withHome = async callback => {

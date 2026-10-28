@@ -10,9 +10,9 @@ import { describe, expect, test } from 'bun:test'
 import { fileURLToPath } from 'node:url'
 import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
-import { fileToolNames } from '../tool-files.js'
-import Kind, { KINDS } from '../tool-kind.js' // 工具类别由工具自己声明，扫描时登记。
-import ToolCatalog from '../tool-catalog.js' // 扫描后才有类别和文件参数。
+import { fileToolNames } from '../tool/files.js'
+import Kind, { KINDS } from '../tool/kind.js' // 工具类别由工具自己声明，扫描时登记。
+import ToolCatalog from '../tool/catalog.js' // 扫描后才有类别和文件参数。
 import { USES } from '../config/settings.js' // 哪件事可以单独配模型，文档跟着它走。
 
 // 从仓库里读一个文件，契约检查都建立在"以代码为准"上。
@@ -76,7 +76,7 @@ describe('接口契约', () => {
     test('自动批准的类别和代码里的类别是同一组', async () => {
         const openapi = await readJson('openapi.json')
         // 文档和代码的类别对不上时，前端会多画一个永远不生效的开关（或者少画一个真有用的）。
-        // 类别名单只有 tool-kind.js 一处，文档跟着它走。
+        // 类别名单只有 tool/kind.js 一处，文档跟着它走。
         expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(KINDS.map(item => item.kind))
     })
 
@@ -135,7 +135,7 @@ const toolDefinitions = async () => {
 describe('SSE 事件', () => {
     test('后端自己发的每个事件类型都在对接文档里写着', async () => {
         // 从源码里提取，不另维护一份清单——清单会漂移，这正是要防的问题。
-        const sources = ['session/session.js', 'safety/approval.js', 'mcp.js', 'subtask.js']
+        const sources = ['session/session.js', 'safety/approval.js', 'tool/mcp.js', 'session/subtask.js']
         const sent = new Set()
         for (const name of sources) {
             const code = await source(name)

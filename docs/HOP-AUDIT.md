@@ -8,7 +8,7 @@
 
 | # | 原则 | 状态 | 证据与说明 |
 | --- | --- | --- | --- |
-| 1 | 按主体组织 | `[~]` 部分 | `session/` 已按运行、读取、回退、资料、Agent 装配分开；但 `session.js` 仍把 `read/run/rollback` 原样转出，入口仍调 `Session.send`。设置页 `pages/*.vue` 也还有一层只做字段映射的包装。 |
+| 1 | 按主体组织 | `[~]` 部分 | 根目录只留 `server.js`、项目配置和文件夹；业务代码按 `session/`、`config/`、`safety/`、`tool/`、`workspace/`、`state/` 分组。`session/` 已按运行、读取、回退、资料、Agent 装配分开；但 `session.js` 仍把 `read/run/rollback` 原样转出，入口仍调 `Session.send`。设置页 `pages/*.vue` 也还有一层只做字段映射的包装。 |
 | 2 | 加删只动一处 | `[x]` 通过 | `tools/` 现在一个文件一个工具：`read-file`、`write-file`、`list-files`、`attempt-completion`、`ask-followup` 已拆开。扫描器每轮清空登记再扫，删掉文件后立即消失，并有测试。`new_task`、`skill` 是运行时工具，不属于文件工具。 |
 | 3 | 数据一个来源 | `[~]` 部分 | 历史、类别、用途、旧工具名、token 用量都已收口；剩下的重复是 `frontend/src/defaults.js` 的前端最小默认值，用于首屏和组件 props 初始化。 |
 | 4 | 流程一条线 | `[x]` 通过 | MCP 错误、子任务进度、审批刹车和工具拦截都发回会话自己的 SSE；`permission-blocked` 带 `callID`；`/agent` 只注册一段。空请求体在入口变成 400，坏请求头在配置边界变成 400。 |
