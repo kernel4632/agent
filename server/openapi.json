@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "这个文档列出了所有可以调用的接口。每个接口都说明了：要发什么数据、会收到什么数据、以及这个接口是做什么用的。"
   },
   "servers": [
@@ -144,6 +144,19 @@
                         "type": "string",
                         "description": "分类：read / write / command / mcp / subtask / never / other"
                       },
+                      "kindLabel": {
+                        "type": "string",
+                        "description": "分类给用户看的名字，例如“读取”“执行命令”"
+                      },
+                      "kindHint": {
+                        "type": "string",
+                        "description": "分类的一句话说明"
+                      },
+                      "previousNames": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "这个工具以前的旧名字；前端用它识别旧会话里的工具名"
+                      },
                       "permission": {
                         "type": "string",
                         "description": "当前生效的权限动作：allow / ask / deny"
@@ -158,6 +171,50 @@
                         "additionalProperties": true
                       }
                     }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tool/kinds": {
+      "get": {
+        "tags": [
+          "Tool"
+        ],
+        "summary": "列出自动批准类别",
+        "description": "返回自动批准面板需要的类别、用户可读名字和一句说明。前端按这个顺序画开关，不再自己维护一份类别表。",
+        "operationId": "toolKinds",
+        "responses": {
+          "200": {
+            "description": "类别清单，按界面显示顺序排列",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "description": "类别名，和工具目录里的 kind 一致"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "给用户看的类别名"
+                      },
+                      "hint": {
+                        "type": "string",
+                        "description": "一句话说明这个类别放行什么"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "label",
+                      "hint"
+                    ]
                   }
                 }
               }

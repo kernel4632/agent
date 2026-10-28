@@ -13,10 +13,10 @@ import CommandPalette from './app/CommandPalette.vue'
 import ConnectionError from './app/ConnectionError.vue'
 import Toast from './app/Toast.vue'
 import { usePalette } from './app/usePalette.js'
-import { createShortcutHandler } from './app/shortcuts.js'
+import { shortcutListener } from './app/shortcuts.js'
 import ThemeProvider from './theme/ThemeProvider.vue'
 import { store } from './store.js'
-import { Session, AUTO_APPROVE_KINDS } from './session/session.js'
+import { Session } from './session/session.js'
 import { Chat } from './session/chat.js'
 import { UI, activeSession } from './app/ui.js'
 import { DEFAULT_SETTINGS } from './defaults.js'
@@ -32,7 +32,7 @@ const drawerOpen = ref(false)
 const todoOpen = ref(false)
 // 新对话页还没有会话，但智能体/权限选择要在发送前可见，发送时再写进创建出的会话。
 const draftAgent = ref('build')
-const draftAutoApprove = ref(Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])))
+const draftAutoApprove = ref({})
 const draftAutoApproveLimit = ref(DEFAULT_SETTINGS.autoApproveLimit)
 const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
@@ -114,7 +114,7 @@ function removeFile(id) {
 }
 
 // --- 全局快捷键：keydown 细节在 app/shortcuts，这里只接状态读取和动作 ---
-const shortcuts = createShortcutHandler({
+const shortcuts = shortcutListener({
   paletteOpen: () => paletteOpen.value,
   openPalette,
   closePalette,

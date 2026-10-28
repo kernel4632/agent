@@ -2,14 +2,14 @@
 全局快捷键：把 window keydown 翻译成命令面板、设置、停止生成和新建会话动作。
 除动作外传入的都是状态读取函数，避免这里缓存会随页面变化的值；返回可直接注册和移除的处理器。
 调用示例：
-  const shortcuts = createShortcutHandler({
+  const shortcuts = shortcutListener({
     paletteOpen: () => paletteOpen.value, openPalette, closePalette,
     openSettings: UI.openSettings, isSettingsOpen: () => store.ui.settingsOpen, closeSettings: UI.closeSettings,
     session: () => session.value, stopSession: id => Chat.stop(id), newConversation: openDraft,
   })
   window.addEventListener('keydown', shortcuts)
 */
-export function createShortcutHandler({
+export function shortcutListener({
   paletteOpen,
   openPalette,
   closePalette,

@@ -7,14 +7,6 @@ import { AgentAPI } from './api.js'                    // 引入配置 HTTP 契�
 import { store } from './store.js'                     // 引入全局配置
 import { COMPACT_RANGE, DEFAULT_SETTINGS } from './defaults.js' // 前端默认值只留一处
 
-// 后端 /agent/list 拿不到时的完整兜底；智能体只在这一个地方列全。
-export const FALLBACK_AGENTS = [
-  { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false },
-  { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true },
-  { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true },
-  { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false },
-]
-
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -32,7 +24,13 @@ async function load() {
     } catch {
       agents = []                                        // 旧后端没有这个接口时从原始配置拼
     }
-    apply(raw, catalog, agents)                           // 将 Server 数据转换为设置页面结构
+    let kinds = []
+    try {
+      kinds = await AgentAPI.getToolKinds()                // 自动批准类别的名字和顺序
+    } catch {
+      kinds = []                                         // 旧后端没有这个接口时开关为空
+    }
+    apply(raw, catalog, agents, kinds)                    // 将 Server 数据转换为设置页面结构
     try {
       const commands = await AgentAPI.getCommands()       // 读取用户自定义的斜杠命令
       store.commands = Array.isArray(commands) ? commands : []
@@ -82,6 +80,8 @@ function toolSettingsFor(raw, catalog) {
         name: tool.name,
         title: tool.ui?.title || tool.name,
         kind: tool.kind,
+        kindLabel: tool.kindLabel || tool.kind,
+        kindHint: tool.kindHint || '',
         enabled: tool.permission !== 'deny',
         permission: tool.permission,
         original: tool.permission,
@@ -123,28 +123,15 @@ function modelChoice(providers, raw) {
   }
 }
 
-// --- 智能体：优先后端清单；旧后端从 agents / modes 原始配置拼 ---
+// --- 智能体：清单只来自后端 /agent/list；原始定义用于设置页编辑 ---
 function agentList(raw, catalogAgents) {
-  const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
-    ? raw.agents
-    : raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? raw.modes : {}
-  const customAgents = Object.entries(agentDefinitions)
-    .filter(([name, value]) => /^[a-zA-Z0-9_-]+$/.test(name) && value && typeof value === 'object' && !Array.isArray(value))
-    .filter(([name]) => !['build', 'plan', 'ask', 'debug'].includes(name))
-    .map(([name, value]) => ({
-      name,
-      label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : name,
-      description: typeof value.description === 'string' ? value.description : '',
-      readOnly: value.readOnly === true,
-    }))
-  const agents = Array.isArray(catalogAgents) && catalogAgents.length
-    ? catalogAgents
-    : [...FALLBACK_AGENTS, ...customAgents]
+  const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents) ? raw.agents : {}
+  const agents = Array.isArray(catalogAgents) ? catalogAgents : []
   return { agents, agentDefinitions }
 }
 
 // --- 应用 Server 配置到设置结构 ---
-function apply(raw, catalog = [], catalogAgents = []) {
+function apply(raw, catalog = [], catalogAgents = [], catalogKinds = []) {
   const providers = providerMap(raw)
   const { toolCatalog, tools } = toolSettingsFor(raw, catalog)
   const { activeProvider, activeModel } = modelChoice(providers, raw)
@@ -158,6 +145,7 @@ function apply(raw, catalog = [], catalogAgents = []) {
     providers,
     tools,
     toolCatalog,
+    kindOptions: Array.isArray(catalogKinds) ? catalogKinds : [],
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     agents,

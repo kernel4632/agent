@@ -1,6 +1,7 @@
 <!--
   工具声明式操作：目前支持复制和打开网址。
   具体动作由工具脚本的 ui.actions 决定，渲染器不关心工具名。
+  调用示例：<ToolActions :actions="tool.ui.actions" :input="tool.input" />
 -->
 <script setup>
 import { computed } from 'vue'

@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { ref, watch } from 'vue'
-import { KimaNotification } from '@kernel4632/kima'
+import { KimaNotification } from '../ui/index.js'
 
 const props = defineProps({
   message: { type: String, default: '' },               // 要显示的提示文字

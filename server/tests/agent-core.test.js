@@ -14,7 +14,7 @@ import Agent from '@kernel4632/agent-core'
 import Config from '../config/config.js'
 import Session from '../session/session.js'
 import Settings from '../config/settings.js'
-import Kind from '../utils/tool-kind.js'
+import Kind from '../tool-kind.js'
 import Store from '../store.js'
 import History from '../session/history.js' // 会话历史的内存缓存由 history.js 自己管。
 // 每个测试使用独立目录和干净的内存数据。

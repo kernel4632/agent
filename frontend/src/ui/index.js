@@ -1,10 +1,19 @@
 /*
- * UI 原语出口：页面只从这里拿 Button、Field、Icon 等基础组件。
+ * UI 原语出口：页面只从这里拿按钮、输入框和 KIMA 组件。
  *
- * 这些文件大多是 KIMA 组件的轻包装；选择框直接用 KIMA 的 KimaSelect，不再包装。
+ * 业务页面不直接 import @kernel4632/kima；换组件库时只改这一层。
  * 调用示例：
- *   import { AppIcon, Button, Field } from './index.js'
+ *   import { AppIcon, Button, Field, KimaSelect } from './index.js'
  */
+
+export {
+  KimaAlert, KimaButton, KimaCard, KimaCheckbox, KimaCheckboxGroup, KimaChip,
+  KimaCodeBlock, KimaDialog, KimaDivider, KimaDrawer, KimaFlex, KimaIcon,
+  KimaIconButton, KimaJsonInput, KimaList, KimaListbox, KimaMenu, KimaNotification,
+  KimaNumberField, KimaPopover, KimaProgress, KimaRadioGroup, KimaRingProgress,
+  KimaSelect, KimaSlider, KimaSpinner, KimaSwitch, KimaTabs, KimaTextField,
+  KimaTextarea, KimaTypography,
+} from '@kernel4632/kima'
 
 export { default as AppIcon } from './AppIcon.vue'
 export { default as Button } from './Button.vue'

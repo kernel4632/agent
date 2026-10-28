@@ -11,23 +11,25 @@
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { join } from 'node:path'
-import Agent from '@kernel4632/agent-core'
 import Path from './utils/path.js'
 import Store from './store.js'
 import Subtask from './subtask.js' // new_task 的界面描述在运行时工具里。
-import Kind from './utils/tool-kind.js'
-import { registerToolFiles } from './utils/tool-files.js'
-import { canonical, previousNames } from './utils/tool-names.js' // 旧 permission 配置继续生效。
+import Kind from './tool-kind.js'
+import { registerToolFiles } from './tool-files.js'
+import { canonical, previousNames } from './tool-names.js' // 旧 permission 配置继续生效。
 
 const builtIn = () => fileURLToPath(new URL('./tools/', import.meta.url))
+
+// 扫描到的工具元数据：tool-catalog 列目录时直接读，不再为了拿名字和 ui 二次扫描工具。
+const tools = new Map()
 
 // --- 扫描一个目录里的工具模块，把工具自己声明的元数据登记到运行时表 ---
 const registerDirectory = async directory => {
     for await (const file of new Bun.Glob('*.js').scan({ cwd: directory })) {
         const module = await import(pathToFileURL(join(directory, file)).href)
-        const tools = Array.isArray(module.default) ? module.default : [module.default]
-        for (const tool of tools) {
-            if (!tool?.name) continue // diagnose / truncate 这类辅助文件没有工具名，跳过。
+        const exported = Array.isArray(module.default) ? module.default : [module.default]
+        for (const tool of exported) {
+            tools.set(tool.name, { name: tool.name, kind: tool.kind || 'other', ui: tool.ui })
             Kind.register({ name: tool.name, kind: tool.kind || 'other' }) // 用户工具没写类别时按 other。
             registerToolFiles({ name: tool.name, files: tool.files })
         }
@@ -65,20 +67,25 @@ const permissionOf = name => {
  */
 const list = async () => {
     await register()
-    // 只扫内置目录和用户工具目录；不碰 MCP，避免设置页打开时去起外部进程。
-    const scanned = await Agent.tool.from(new URL('./tools/', import.meta.url), Path.tools())
-    const names = new Set([...Object.keys(scanned.schema), ...Kind.registered().keys()])
+    // 文件工具来自扫描结果；new_task 和 skill 是运行时工具，只在分类表里有名字。
+    const names = new Set([...tools.keys(), ...Kind.registered().keys()])
     return [...names]
         .sort()
         .map(name => {
-            const ui = scanned.schema[name]?.ui || (name === 'new_task' ? Subtask.ui : null)
+            const entry = tools.get(name)
+            const ui = entry?.ui || (name === 'new_task' ? Subtask.ui : null)
             const kind = Kind.of({ toolName: name })                     // 分类只从工具自己的声明里取。
+            const kindInfo = Kind.KINDS.find(item => item.kind === kind)  // 类别的用户可读名字也只从后端来。
+            const oldNames = previousNames(name)                         // 旧会话里的工具名，前端据此找回新名字。
             return {
                 name,
                 kind,
+                kindLabel: kindInfo?.label || kind,
+                kindHint: kindInfo?.hint || '',
                 permission: permissionOf(name),
                 // 控制工具也要把 ui 交给对话页，但设置页不画它们的权限开关。
                 configurable: kind !== 'never',
+                ...(oldNames.length ? { previousNames: oldNames } : {}),
                 ...(ui && typeof ui === 'object' && !Array.isArray(ui) ? { ui } : {}),
             }
         })

@@ -153,6 +153,25 @@ describe('工具级回退', () => {
             await rm(target, { force: true })
         })
     })
+
+    test('回退到不存在的消息时，先报错，不先动文件', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            const target = await tempFile('agent-invalid-rollback', 'before')
+
+            const { sessionId } = await Session.create({ title: 'Invalid rollback' })
+            const added = await History.add({ sessionId, message: Agent.history.user({ content: '改一个文件' }) })
+            await History.save({ sessionId })
+            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-invalid', toolName: 'write_to_file', input: { path: target } })
+            await writeFile(target, 'after')
+
+            // 文件恢复要拿到"保留哪些消息"的名单；名单都取不到时不能先改文件再报 404。
+            await expect(Session.rollback({ sessionId, messageId: 'missing-message', files: true })).rejects.toThrow(/not found/i)
+            expect(await readFile(target, 'utf8')).toBe('after')
+
+            await rm(target, { force: true })
+        })
+    })
 })
 
 describe('权限规则的拒绝动作', () => {

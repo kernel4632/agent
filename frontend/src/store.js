@@ -39,6 +39,7 @@ export const store = reactive({
     providers: {},                                    // 设置页可编辑供应商目录
     tools: [],                                        // 设置页可见的工具与权限
     toolCatalog: [],                                  // 全部工具（含渲染信息，控制工具也在）
+    kindOptions: [],                                  // 自动批准类别；名字和顺序由后端给
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
     agents: [],                                        // 当前可用的智能体（内置 + 自定义）

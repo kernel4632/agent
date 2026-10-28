@@ -1,8 +1,9 @@
 /*
- * Agent 控制工具：结束循环、向用户提问、记任务清单。
+ * Agent 控制工具：结束循环、向用户提问。
  *
  * 工具只描述模型可以触发的动作，不读取会话数据，也不发送 HTTP 反馈。
  * 调用 attempt_completion / ask_followup_question 后工具返回 stop: true，主循环停止，等用户下一条消息。
+ * 调用示例：模型调用 attempt_completion({ result: '已经修好' })，工具返回 { stop: true }。
  *
  * attempt_completion 的名称和描述对齐 Roo Code：它不是普通回复，而是整轮任务的收尾动作。
  */

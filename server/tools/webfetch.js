@@ -5,7 +5,7 @@
  * 调用示例：模型调用 webfetch({ url: 'https://example.com/docs' })。
  */
 import { convert } from 'html-to-text' // 把网页转成正文；自己用正则删标签会把内容也删掉。
-import { truncate } from './truncate.js' // 网页动辄几万字符，只留头尾。
+import { truncate } from '../utils/truncate.js' // 网页动辄几万字符，只留头尾。
 
 // 一次请求最多等 30 秒，超时就当作读不到。
 const TIMEOUT_MS = 30 * 1000

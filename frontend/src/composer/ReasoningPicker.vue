@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaSlider } from '@kernel4632/kima'
+import { KimaSlider } from '../ui/index.js'
 import { AppIcon, Button, Sheet } from '../ui/index.js'
 import { REASONING_LEVELS, reasoningIndex } from './reasoning.js'
 

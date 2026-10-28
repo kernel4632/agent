@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import Config from '../config/config.js'
 import Tools from '../tool-catalog.js'
 import Store from '../store.js'
-import { toolFiles } from '../utils/tool-files.js'
+import { toolFiles } from '../tool-files.js'
 import { app } from '../server.js'
 
 const withHome = async callback => {
@@ -59,6 +59,8 @@ describe('工具目录', () => {
             expect(byName.update_todo_list.configurable).toBe(false)
             expect(byName.update_todo_list.ui?.view).toBe('todo')
             expect(byName.attempt_completion.ui?.view).toBe('completion')
+            // 旧会话里的 finish 还能找回 attempt_completion，前端不再单独存别名表。
+            expect(byName.attempt_completion.previousNames).toContain('finish')
         })
     })
 

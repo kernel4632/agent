@@ -1,10 +1,11 @@
 <!--
   回退确认：展示回退范围、受影响文件和“是否同时恢复文件”。
   用 ui/Dialog 作为唯一弹窗原语；父组件只负责取预览和执行回退。
+  调用示例：<RollbackDialog :open="open" :preview="preview" @confirm="rollback" @close="open = false" />
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaCheckbox } from '@kernel4632/kima'
+import { KimaCheckbox } from '../ui/index.js'
 import { Button, Dialog } from '../ui/index.js'
 
 const props = defineProps({

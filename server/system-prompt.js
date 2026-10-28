@@ -6,6 +6,7 @@
  *
  * 结构参考 Roo Code：角色、工具使用、迭代目标、完成规则；不重复工具 schema，
  * 工具说明仍由每个工具的 description 提供。
+ * 调用示例：seedPrompt(Store.config, { seedDefault: true })；首次只把默认值写进配置。
  */
 export const DEFAULT_SYSTEM_PROMPT = `You are la, an AI coding and automation agent working inside the user's workspace.
 

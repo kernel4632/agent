@@ -5,7 +5,7 @@ MCP 服务编辑页：编辑一个服务的传输方式、命令或地址、参�
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaSelect } from '@kernel4632/kima'
+import { KimaSelect } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 
 const props = defineProps({ item: { type: Object, required: true } })

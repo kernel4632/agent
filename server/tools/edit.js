@@ -4,9 +4,10 @@
  * 名字和参数对齐 Roo Code：edit({ file_path, old_string, new_string, replace_all })。
  * 默认要求旧文本只出现一次；replace_all 为 true 时才替换所有匹配。
  * 工具只处理传入的文件，不操作会话状态。
+ * 调用示例：模型调用 edit({ file_path: 'a.js', old_string: 'const a = 1', new_string: 'const a = 2' })。
  */
 import { writeFile } from 'atomically' // 用原子替换避免编辑时留下半文件。
-import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断命令。
+import Diagnose from '../utils/diagnose.js' // 写完之后跑一次配置里的诊断命令。
 
 export default {
     name: 'edit',

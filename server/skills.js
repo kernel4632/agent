@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url'
 import matter from 'gray-matter' // 解析技能文件开头的 name 和 description。
 import Path from './utils/path.js'
 import fail from './utils/fail.js' // 读一个不存在的技能时按填错处理。
-import Kind from './utils/tool-kind.js' // 技能工具也是只读工具。
+import Kind from './tool-kind.js' // 技能工具也是只读工具。
 
 Kind.register({ name: 'skill', kind: 'read' })
 

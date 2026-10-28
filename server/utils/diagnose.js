@@ -12,7 +12,7 @@
  *   return `Wrote ${path}${extra}`
  */
 
-import Path from '../utils/path.js' // 数据目录只有这一处规则，诊断也照它找配置。
+import Path from './path.js' // 数据目录只有这一处规则，诊断也照它找配置。
 
 // 诊断输出也进模型上下文，不能让它无限长。
 const MAX_OUTPUT = 8000

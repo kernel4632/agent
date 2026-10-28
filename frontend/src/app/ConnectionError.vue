@@ -3,7 +3,7 @@
 调用示例：<ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
 -->
 <script setup>
-import { KimaAlert } from '@kernel4632/kima'
+import { KimaAlert } from '../ui/index.js'
 import { Button } from '../ui/index.js'
 import { UI } from './ui.js'
 

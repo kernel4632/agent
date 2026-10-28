@@ -6,9 +6,8 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaRadioGroup } from '@kernel4632/kima'
+import { KimaRadioGroup } from '../../ui/index.js'
 import { AppIcon, Button, ChoiceContent } from '../../ui/index.js'
-import { AUTO_APPROVE_KINDS } from '../../session/session.js'
 
 const props = defineProps({
   tools: { type: Array, required: true },
@@ -16,9 +15,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:tools', 'open-detail', 'close-detail', 'update-detail-title'])
 
-// 类别名只保留在 AUTO_APPROVE_KINDS 一份；这里补“自定义”这个目录里才会出现的类别。
-const KIND_LABELS = { ...Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, item.label])), other: '自定义' }
-const kindLabel = tool => KIND_LABELS[tool.kind] || '工具'
+// 类别名由后端工具目录带过来；“自定义”只补在目录里没出现过的 other。
+const kindLabel = tool => tool.kindLabel || (tool.kind === 'other' ? '自定义' : '工具')
 
 const PERMISSION_OPTIONS = [
   { value: 'allow', label: '自动执行', description: '不弹审批，直接执行', icon: 'check' },

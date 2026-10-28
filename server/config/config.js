@@ -21,7 +21,7 @@ import Path from '../utils/path.js' // 提供默认配置文件路径。
 import Rules from './rules.js' // 把工作区的项目规则拼进系统提示词。
 import Store from '../store.js' // 直接访问程序当前使用的配置。
 import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
-import { DEFAULT_SYSTEM_PROMPT, seedPrompt } from '../defaults/system-prompt.js' // 首次使用时填默认提示词。
+import { DEFAULT_SYSTEM_PROMPT, seedPrompt } from '../system-prompt.js' // 首次使用时填默认提示词。
 
 // 后端自己的版本号写在 package.json 里，服务状态接口把它报给前端。
 // 用运行时读取而不是 import 断言：Bun 里对 .json 的 import 断言不稳，换环境容易炸。

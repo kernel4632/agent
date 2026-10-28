@@ -68,17 +68,32 @@ export async function backend(page, { configured = true } = {}) {
     if (path === '/session/list') return json([...sessions.values()])
     if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
+    if (path === '/tool/kinds') return json([
+      { kind: 'read', label: '读取', hint: '读文件、搜索不用再问' },
+      { kind: 'write', label: '写入', hint: '改文件、打补丁不用问' },
+      { kind: 'command', label: '执行命令', hint: '跑命令不用再问' },
+      { kind: 'mcp', label: '使用 MCP', hint: 'MCP 工具不用再问' },
+      { kind: 'subtask', label: '子任务', hint: '开子任务不用再问' },
+    ])
     if (path === '/tool/list') return json([
       {
-        name: 'read_file', kind: 'read', permission: 'ask', configurable: true,
+        name: 'read_file', kind: 'read', kindLabel: '读取', kindHint: '读文件、搜索不用再问', permission: 'ask', configurable: true,
         ui: { view: 'file-read', icon: 'document', title: '读取文件', summary: '{path}' },
       },
       {
-        name: 'execute_command', kind: 'command', permission: 'ask', configurable: true,
+        name: 'write_to_file', kind: 'write', kindLabel: '写入', kindHint: '改文件、打补丁不用问', permission: 'ask', configurable: true,
+        ui: { view: 'file-write', icon: 'edit', title: '写入文件', summary: '{path}' },
+      },
+      {
+        name: 'execute_command', kind: 'command', kindLabel: '执行命令', kindHint: '跑命令不用再问', permission: 'ask', configurable: true,
         ui: { view: 'command', icon: 'code', title: '执行命令', summary: '{command}' },
       },
       {
-        name: 'new_task', kind: 'subtask', permission: 'ask', configurable: true,
+        name: 'sample_tool', kind: 'mcp', kindLabel: '使用 MCP', kindHint: 'MCP 工具不用再问', permission: 'ask', configurable: true,
+        ui: { view: 'generic', icon: 'globe', title: 'sample_tool', summary: '{query}' },
+      },
+      {
+        name: 'new_task', kind: 'subtask', kindLabel: '子任务', kindHint: '开子任务不用再问', permission: 'ask', configurable: true,
         ui: { view: 'subtask', icon: 'branch', title: '创建子任务', summary: '{description}' },
       },
       {

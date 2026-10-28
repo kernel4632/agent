@@ -23,7 +23,7 @@ import Path from '../utils/path.js'
 import Skip from '../utils/skip.js' // 扫工作区时跳过依赖和构建产物。
 import Store from '../store.js' // 快照清单跟着会话一起放在内存里。
 import fail from '../utils/fail.js' // 回退到一个不存在的工具调用时按填错处理。
-import { toolFiles } from '../utils/tool-files.js' // 一次调用会碰哪些文件。
+import { toolFiles } from '../tool-files.js' // 一次调用会碰哪些文件。
 
 // shell 快照最多看这么多文件、单文件最大这么大；超过就跳过，不把整台机器扫一遍。
 const DEFAULT_MAX_FILES = 2000
@@ -74,7 +74,7 @@ const backupKnown = async ({ sessionId, path, hash }) => {
  * @returns {Promise<string[]>} 这次新记录的文件绝对路径；不改文件时是空数组。
  */
 const save = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
-    // 会碰哪些文件由 utils/tool-files.js 一处说了算。
+    // 会碰哪些文件由 tool-files.js 一处说了算。
     const paths = toolFiles({ toolName, input })
     if (!paths.length) return [] // list_files、glob、search_files 这些不改文件，不需要快照。
 

@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaCheckboxGroup, KimaSelect } from '@kernel4632/kima'
+import { KimaCheckboxGroup, KimaSelect } from '../../ui/index.js'
 import { AppIcon, Button, Field, Switch } from '../../ui/index.js'
 import { store } from '../../store.js'
 

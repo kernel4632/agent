@@ -5,10 +5,9 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaRadioGroup } from '@kernel4632/kima'
+import { KimaRadioGroup } from '../ui/index.js'
 import { ChoiceContent, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
-import { FALLBACK_AGENTS } from '../config.js'
 
 const props = defineProps({
   open: Boolean,
@@ -16,7 +15,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:open', 'select'])
 
-const agents = computed(() => store.config.agents?.length ? store.config.agents : FALLBACK_AGENTS)
+const agents = computed(() => store.config.agents || [])
 
 function iconOf(agent) {
   if (agent.name === 'ask') return 'chat'

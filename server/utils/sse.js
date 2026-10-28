@@ -26,6 +26,29 @@ const sessionState = id => {
     return state
 }
 
+// --- 过滤 better-sse 首次写入的空数据块，并补齐事件字段后的空格 ---
+const sseBody = response => {
+    const decoder = new TextDecoder()
+    const encoder = new TextEncoder()
+    let pending = ''
+    return response.body.pipeThrough(new TransformStream({
+        transform(chunk, streamController) {
+            pending += decoder.decode(chunk, { stream: true })
+            const lines = pending.split('\n')
+            pending = lines.pop()
+            const output = lines
+                .map(line => line.replace(/^(event|id|data|retry):(?=\S)/, '$1: '))
+                .join('\n') + (lines.length ? '\n' : '')
+            if (output) streamController.enqueue(encoder.encode(output))
+        },
+        flush(streamController) {
+            pending += decoder.decode()
+            const output = pending.replace(/^(event|id|data|retry):(?=\S)/gm, '$1: ')
+            if (output) streamController.enqueue(encoder.encode(output))
+        },
+    }))
+}
+
 // --- 建立实时连接 ---
 const connect = async ({ id, request }) => {
     const state = sessionState(id)
@@ -69,26 +92,7 @@ const connect = async ({ id, request }) => {
 
     // better-sse 初始化时会先写一个空数据块。过滤它可以让调用方首次
     // reader.read() 直接读到真正的 SSE 事件，而不是读到空字符串。
-    const decoder = new TextDecoder()
-    const encoder = new TextEncoder()
-    let pending = ''
-    const body = response.body.pipeThrough(new TransformStream({
-        transform(chunk, streamController) {
-            pending += decoder.decode(chunk, { stream: true })
-            const lines = pending.split('\n')
-            pending = lines.pop()
-            const output = lines
-                .map(line => line.replace(/^(event|id|data|retry):(?=\S)/, '$1: '))
-                .join('\n') + (lines.length ? '\n' : '')
-            if (output) streamController.enqueue(encoder.encode(output))
-        },
-        flush(streamController) {
-            pending += decoder.decode()
-            const output = pending.replace(/^(event|id|data|retry):(?=\S)/gm, '$1: ')
-            if (output) streamController.enqueue(encoder.encode(output))
-        },
-    }))
-    return new Response(body, { status: response.status, headers: response.headers })
+    return new Response(sseBody(response), { status: response.status, headers: response.headers })
 }
 
 // --- 清掉已经落盘的事件 ---

@@ -1,10 +1,10 @@
 /*
-设置页登记表：设置首页的分组卡片和一级详情都从这里读取，新增或删除一个设置页只动这个文件。
+设置页登记表：设置首页的分组卡片和一级详情都从这里读取。
 每个页面登记 id、label、description、icon、group、tone 和 component；禁用页写 disabled: true，并且不提供 component。
 nested: true 的页面自己管理二级编辑页（供应商、智能体、工具、MCP）；SettingsPage 只负责把 detail 和返回事件传下去。
 description 是首页卡片里的一句话说明；tone 选图标底色，只取 primary、tertiary、secondary。
-新增页面的步骤：先在 pages/ 下建一个接收 draft 的包装组件，再在 settingsPages 里加一项。
-删除页面的步骤反过来：删掉登记项和对应包装文件；被其他页面复用的原设置组件不要动。
+新增页面：先在 pages/ 下建一个接 draft 的页面组件，再在 settingsPages 里加一项；如果原设置组件接口不同，页面组件负责字段映射。
+删除页面：删掉登记项和对应页面文件；被其他页面复用的原设置组件不要动。
 调用示例：<component :is="page.component" :draft="draft" />；首页用 groupSettingsPages(pages) 分组。
 */
 import AppearancePage from './pages/AppearancePage.vue'

@@ -14,20 +14,13 @@
 import { store } from '../store.js'
 import { t } from '../i18n.js'
 
-// 旧会话里的工具名也要能找到新工具声明的界面。
-const ALIASES = {
-    finish: 'attempt_completion',
-    file_read: 'read_file',
-    file_write: 'write_to_file',
-    file_list: 'list_files',
-    grep: 'search_files',
-    shell: 'execute_command',
-    todo: 'update_todo_list',
-    ask: 'ask_followup_question',
-    task: 'new_task',
+// 旧会话里的工具名从后端工具目录的 previousNames 找回新名字，前端不再存一份别名表。
+export const canonicalToolName = name => {
+    if (typeof name !== 'string') return name
+    const catalog = store.config.toolCatalog?.length ? store.config.toolCatalog : (store.config.tools || [])
+    const tool = catalog.find(item => item.name === name || item.previousNames?.includes(name))
+    return tool?.name || name
 }
-
-export const canonicalToolName = name => typeof name === 'string' ? (ALIASES[name] || name) : name
 
 export function uiFor(name) {
     const canonical = canonicalToolName(name)

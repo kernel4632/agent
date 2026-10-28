@@ -8,7 +8,7 @@
 import { computed, ref } from 'vue'
 import {
   KimaJsonInput, KimaSelect, KimaTabs,
-} from '@kernel4632/kima'
+} from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
 import { Config } from '../../config.js'

@@ -1,6 +1,7 @@
 <!--
   工具结果分发：工具脚本的 ui.view 决定使用哪个独立视图。
   视图、操作和样式都按职责拆开，这里只做查表，不再堆条件分支。
+  调用示例：<ToolView :tool="tool" />
 -->
 <script setup>
 import { computed } from 'vue'

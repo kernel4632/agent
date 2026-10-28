@@ -9,7 +9,7 @@ import { mkdir, readdir } from 'node:fs/promises' // 创建父目录并读取目
 import { dirname, join, relative } from 'node:path' // 从目标文件计算父目录，拼出递归列表的相对路径。
 import { writeFile } from 'atomically' // 原子写入完整文本文件。
 import Skip from '../utils/skip.js' // 递归列目录时跳过依赖和构建产物。
-import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断命令。
+import Diagnose from '../utils/diagnose.js' // 写完之后跑一次配置里的诊断命令。
 
 // --- 读取文本或图片 ---
 const readFileTool = {

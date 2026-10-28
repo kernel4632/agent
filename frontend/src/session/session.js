@@ -4,7 +4,6 @@ Server 会话会被归一化为现有 M3E 组件可直接渲染的消息与工�
 调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
 */
 import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约
-import { FALLBACK_AGENTS } from '../config.js'           // 智能体兜底只保留一份
 import { store } from '../store.js'                     // 引入工作区摘要与完整会话
 import { UI } from '../app/ui.js'                            // 引入导航和反馈指令
 import { Tabs } from '../app/tabs.js'                        // 同步顶部会话标签
@@ -14,21 +13,25 @@ import { splitUserAttachments } from '../utils/user-message.js'      // 历史�
 import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认值只留一处
 
 
-// --- 自动批准的四个类别 ---
-// 界面上一个类别一个开关，可以按类别随时开关。这里的名字只用来说给用户听，
-// 判断哪类工具免询问是后端的事（见 server/utils/tool-kind.js，那边是唯一来源）。
-/*
- * 每一类给一个自己的图标，和工具栏上其他开关一致：亮点就是开着，暗点就是还问你。
- * 类别的名字（读取 / 写入 / …）以服务端 utils/tool-kind.js 为准，这里只补图标；
- * 少写一类会有契约测试报出来，不会静默地少一个开关。
- */
-const AUTO_APPROVE_KINDS = [
-  { kind: 'read', label: '读取', icon: 'eye', hint: '读文件、搜索不用再问' },
-  { kind: 'write', label: '写入', icon: 'edit', hint: '改文件、打补丁不用问' },
-  { kind: 'command', label: '执行命令', icon: 'code', hint: '跑命令不用再问' },
-  { kind: 'mcp', label: '使用 MCP', icon: 'globe', hint: 'MCP 工具不用再问' },
-  { kind: 'subtask', label: '子任务', icon: 'folder', hint: '开子任务不用再问' },
-]
+// --- 自动批准类别的图标 ---
+// 类别的名字、顺序和说明由后端 /tool/kinds 带过来；前端只决定用哪个图标。
+const KIND_ICONS = {
+  read: 'eye',
+  write: 'edit',
+  command: 'code',
+  mcp: 'globe',
+  subtask: 'folder',
+}
+
+// --- 自动批准开关：类别、名字和顺序都来自后端，前端只补图标 ---
+function autoApproveKinds() {
+  return (store.config.kindOptions || []).map(item => ({
+    kind: item.kind,
+    label: item.label,
+    hint: item.hint,
+    icon: KIND_ICONS[item.kind] || 'spark',
+  }))
+}
 
 
 // --- 查找会话摘要和所属工作区 ---
@@ -242,7 +245,7 @@ async function saveSettings(sessionID, change) {
 async function setAgent(sessionID, agent) {
   const session = store.sessions[sessionID]
   if (!session) return null
-  const agents = store.config.agents?.length ? store.config.agents : FALLBACK_AGENTS
+  const agents = store.config.agents || []
   const next = agents.find(item => item.name === agent)
   if (!next) return null
   if (session.settings.agent === next.name) return session.settings
@@ -260,7 +263,7 @@ function agentLabel(name) {
 
 
 // --- 类别的中文名 ---
-const labelOf = kind => AUTO_APPROVE_KINDS.find(item => item.kind === kind)?.label || kind
+const labelOf = kind => autoApproveKinds().find(item => item.kind === kind)?.label || kind
 
 
 /*
@@ -484,7 +487,7 @@ function normalize(source, previous = {}) {
     settings: source.settings || previous.settings || {
       ...DEFAULT_SETTINGS,
       // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
-      autoApprove: Object.fromEntries(AUTO_APPROVE_KINDS.map(item => [item.kind, false])),
+      autoApprove: {},
       capabilities: { ...DEFAULT_SETTINGS.capabilities },
       uses: { ...DEFAULT_SETTINGS.uses },
     },
@@ -563,4 +566,4 @@ export const Session = {
   saveSettings, setAgent, agentLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold, setReasoning,
 }
 // 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
-export { AUTO_APPROVE_KINDS, USE_LABELS }
+export { autoApproveKinds, USE_LABELS }

@@ -13,7 +13,9 @@ import Commands from './slash-commands.js' // 扫描用户自定义的斜杠命�
 import Agents from './config/agents.js' // 给界面列出内置和自定义智能体。
 import Config from './config/config.js' // 执行配置读写指令。
 import Session from './session/session.js' // 执行会话和 Agent 指令。
+import Meta from './session/meta.js' // 启动时准备用户数据目录。
 import Tools from './tool-catalog.js' // 给设置页列出全部工具和当前权限。
+import Kind from './tool-kind.js' // 给界面列出自动批准类别，避免前端再存一份。
 import Ignore from './safety/ignore.js' // 启动时读一次忽略规则。
 import Workspace from './workspace.js' // 读工作区信息和 git 状态。
 import Path from './utils/path.js' // 提供配置文件路径。
@@ -47,6 +49,7 @@ app.get('/command/list', () => Commands.list())
 
 // --- 工具目录 ---
 app.get('/tool/list', () => Tools.list())
+app.get('/tool/kinds', () => Kind.KINDS)
 
 // --- 注册 Agent 触发事件 ---
 app.group('/agent', agent => agent
@@ -94,7 +97,7 @@ app.group('/sse', sse => sse
     .get('/connect/:sessionId', ({ params, request }) => SSE.connect({ id: params.sessionId, request })))
 
 const start = async ({ port = process.env.PORT || 3000 } = {}) => {
-    await Session.prepare() // 数据目录先建好，后面所有读写都不用再判断目录在不在。
+    await Meta.prepare() // 数据目录先建好，后面所有读写都不用再判断目录在不在。
     // 权限规则就写在配置的 permission 字段里，读一次配置即可拿到完整运行规则。
     await Config.read(Path.config())
     await Ignore.load() // 忽略规则启动时读一次，之后每次工具调用直接用编译好的规则。

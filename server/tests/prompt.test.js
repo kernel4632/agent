@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 
 import Config from '../config/config.js'
 import Store from '../store.js'
-import { DEFAULT_SYSTEM_PROMPT } from '../defaults/system-prompt.js'
+import { DEFAULT_SYSTEM_PROMPT } from '../system-prompt.js'
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)

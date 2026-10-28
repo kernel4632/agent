@@ -173,83 +173,107 @@ function toolFor(session, event, status) {
   return tool
 }
 
+// --- 重连后重建这一轮：只保留最后一条用户消息之前的历史，再接新的回答 ---
+async function startRun(sessionID, session) {
+  const source = await AgentAPI.getSession(sessionID)
+  const snapshot = Session.normalize(source, session)
+  const lastUser = snapshot.messages.findLastIndex(message => message.role === 'user')
+  session.messages = snapshot.messages.slice(0, lastUser + 1)
+  createAssistant(session)
+  session.status = 'running'
+}
+
+// --- 继续不重置时间线，保留已经看到的进度，只在末尾接一段新的流式回复 ---
+function resumeRun(session) {
+  session.status = 'running'
+  session.connection = 'connected'
+  if (!streaming(session)) createAssistant(session)
+}
+
+// --- 模型请求开始：先挂一行进度，完成后同一行变成消耗摘要 ---
+function startRequest(session) {
+  const assistant = streaming(session) || createAssistant(session)
+  const request = { status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
+  assistant.requests.push(request)
+  assistant.request = request
+  assistant.isStreaming = true
+}
+
+// --- 模型请求结束：补正文、结算用量，光标停住 ---
+function finishRunRequest(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  if (event.text) assistant.content = event.text       // 最后一轮正文以完整文本为准
+  if (event.text && !assistant.steps.some(step => step.type === 'text')) {
+    assistant.steps.push({ type: 'text', text: event.text }) // 没收到增量时补一条，时间线不能空
+  }
+  let request = assistant.requests.at(-1)
+  // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
+  if (!request) {
+    request = { status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
+    assistant.requests.push(request)
+  }
+  finishRequest(request, event.usage, event.durationMs)
+  assistant.request = request
+  session.contextTokens = request?.input || 0
+  session.inputTokens += request?.input || 0
+  session.outputTokens += request?.output || 0
+  assistant.isStreaming = false                        // 这一轮回复结束，光标停住
+  assistant.finishedAt = Date.now()
+}
+
+// --- 连接重试也要显示停止按钮，agent-start 丢了也不能像卡住 ---
+function retryRun(session, event) {
+  session.status = 'running'
+  const assistant = streaming(session) || createAssistant(session)
+  assistant.isStreaming = true
+  assistant.retry = `连接重试 ${event.attempt || 1}，请稍候…`
+}
+
+// --- 模型报错：结束当前请求，保留错误让用户看到 ---
+function failRun(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  const request = assistant.requests.at(-1)
+  if (request?.status === 'running') {
+    request.status = 'failed'
+    request.finishedAt = Date.now()
+    request.durationMs = request.finishedAt - request.startedAt
+  }
+  assistant.error = event.errorText || event.error?.message || '模型请求失败'
+  assistant.isStreaming = false
+  assistant.finishedAt = Date.now()
+  session.status = 'idle'
+  UI.notify(assistant.error)
+}
+
+// --- 后端起好标题后单独推一条，不用等下一次刷新整条会话 ---
+function setTitle(session, event) {
+  session.title = event.title
+  Session.syncSummary(session)
+  Tabs.syncTitles(Object.values(store.sessions))
+}
+
+// --- 这一轮结束：以 Server 写盘的最终历史为准 ---
+async function finishRun(sessionID, session, event) {
+  session.status = 'idle'
+  const error = event.error || session.messages.findLast(message => message.error)?.error
+  await Session.refresh(sessionID)
+  const refreshed = store.sessions[sessionID]
+  refreshed.status = 'idle'
+  if (error) refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error }) // 每次失败一个独立 id，不用会重复的 SSE 序号
+}
+
 // --- 运行状态：开始、继续、结束、重试和标题 ---
 const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-finish', 'retry', 'error', 'mcp-error', 'title', 'agent-finish'])
 async function receiveRun(sessionID, session, event) {
-  if (event.type === 'agent-start') {
-    // 后端重连后会把这一轮从头补发一遍，所以只按最后一条用户消息重建这一轮，不信任全局游标。
-    const source = await AgentAPI.getSession(sessionID)
-    const snapshot = Session.normalize(source, session)
-    const lastUser = snapshot.messages.findLastIndex(message => message.role === 'user')
-    session.messages = snapshot.messages.slice(0, lastUser + 1) // 这一轮之前的历史不动，只重建当前回答
-    createAssistant(session)
-    session.status = 'running'
-  } else if (event.type === 'agent-resume') {
-    // 继续不重置时间线，保留已经看到的进度，只在末尾接一段新的流式回复。
-    session.status = 'running'
-    session.connection = 'connected'
-    if (!streaming(session)) createAssistant(session)
-  } else if (event.type === 'llm-start') {
-    // 模型请求开始：在时间线里先挂一行进度，完成后同一行变成消耗摘要。
-    const assistant = streaming(session) || createAssistant(session)
-    const request = { status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
-    assistant.requests.push(request)
-    assistant.request = request
-    assistant.isStreaming = true
-  } else if (event.type === 'llm-finish') {
-    const assistant = streaming(session) || createAssistant(session)
-    if (event.text) assistant.content = event.text       // 最后一轮正文以完整文本为准
-    if (event.text && !assistant.steps.some(step => step.type === 'text')) {
-      assistant.steps.push({ type: 'text', text: event.text }) // 没收到增量时补一条，时间线不能空
-    }
-    let request = assistant.requests.at(-1)
-    // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
-    if (!request) {
-      request = { status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
-      assistant.requests.push(request)
-    }
-    finishRequest(request, event.usage, event.durationMs)
-    assistant.request = request
-    session.contextTokens = request?.input || 0
-    session.inputTokens += request?.input || 0
-    session.outputTokens += request?.output || 0
-    assistant.isStreaming = false                        // 这一轮回复结束，光标停住
-    assistant.finishedAt = Date.now()
-  } else if (event.type === 'retry') {
-    // 重试也是“正在运行”，即使 agent-start 在断线时丢了，停止按钮也必须出现。
-    session.status = 'running'
-    const assistant = streaming(session) || createAssistant(session)
-    assistant.isStreaming = true
-    assistant.retry = `连接重试 ${event.attempt || 1}，请稍候…`
-  } else if (event.type === 'error') {
-    const assistant = streaming(session) || createAssistant(session)
-    const request = assistant.requests.at(-1)
-    if (request?.status === 'running') {
-      request.status = 'failed'
-      request.finishedAt = Date.now()
-      request.durationMs = request.finishedAt - request.startedAt
-    }
-    assistant.error = event.errorText || event.error?.message || '模型请求失败'
-    assistant.isStreaming = false
-    assistant.finishedAt = Date.now()
-    session.status = 'idle'
-    UI.notify(assistant.error)
-  } else if (event.type === 'mcp-error') {
-    // 某个 MCP 服务没连上；只是跳过它，会话照常，所以提醒一句就好。
-    UI.notify(t('mcpFailed', { server: event.server, error: event.error }))
-  } else if (event.type === 'title') {
-    // 后端起好标题后单独推一条，不用等下一次刷新整条会话。
-    session.title = event.title
-    Session.syncSummary(session)
-    Tabs.syncTitles(Object.values(store.sessions))
-  } else if (event.type === 'agent-finish') {
-    session.status = 'idle'
-    const error = event.error || session.messages.findLast(message => message.error)?.error
-    await Session.refresh(sessionID)                     // 最终历史以 Server 写盘的版本为准
-    const refreshed = store.sessions[sessionID]
-    refreshed.status = 'idle'
-    if (error) refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error }) // 每次失败一个独立 id，不用会重复的 SSE 序号
-  }
+  if (event.type === 'agent-start') return startRun(sessionID, session)
+  if (event.type === 'agent-resume') return resumeRun(session)
+  if (event.type === 'llm-start') return startRequest(session)
+  if (event.type === 'llm-finish') return finishRunRequest(session, event)
+  if (event.type === 'retry') return retryRun(session, event)
+  if (event.type === 'error') return failRun(session, event)
+  if (event.type === 'mcp-error') return UI.notify(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
+  if (event.type === 'title') return setTitle(session, event)
+  if (event.type === 'agent-finish') return finishRun(sessionID, session, event)
 }
 
 // --- 消息内容：正文、思考过程、子任务提示 ---

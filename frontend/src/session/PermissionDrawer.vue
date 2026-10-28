@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaListbox } from '@kernel4632/kima'
+import { KimaListbox } from '../ui/index.js'
 import { AppIcon, ChoiceContent, Field, Sheet } from '../ui/index.js'
-import { AUTO_APPROVE_KINDS } from './session.js'
+import { autoApproveKinds } from './session.js'
 import { DEFAULT_SETTINGS } from '../defaults.js'
 
 const props = defineProps({
@@ -17,20 +17,21 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:open', 'toggle', 'update:limit'])
 
-const options = AUTO_APPROVE_KINDS.map(item => ({
+const kinds = computed(() => autoApproveKinds())
+const options = computed(() => kinds.value.map(item => ({
   value: item.kind,
   label: item.label,
   description: item.hint,
   icon: item.icon,
-}))
-const selected = computed(() => AUTO_APPROVE_KINDS
+})))
+const selected = computed(() => kinds.value
   .filter(item => props.autoApprove?.[item.kind])
   .map(item => item.kind))
 const count = computed(() => selected.value.length)
 
 function update(values) {
   const next = new Set(values)
-  for (const item of AUTO_APPROVE_KINDS) {
+  for (const item of kinds.value) {
     if (next.has(item.kind) !== Boolean(props.autoApprove?.[item.kind])) emit('toggle', item.kind)
   }
 }

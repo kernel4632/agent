@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaPopover, KimaRingProgress } from '@kernel4632/kima'
+import { KimaPopover, KimaRingProgress } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 
 const props = defineProps({

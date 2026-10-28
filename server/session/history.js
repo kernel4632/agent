@@ -8,6 +8,7 @@
  *   const messages = History.get({ sessionId: 'session-1' })                        // 取当前完整历史
  *   await History.rollback({ sessionId: 'session-1', messageId: record.messageId }) // 回退到这条消息之前
  *   await History.save({ sessionId: 'session-1' })                                  // 写回磁盘，并清掉已落盘的 SSE 缓存
+ *   History.remove({ sessionId: 'session-1' })                                      // 删除会话时丢掉内存缓存
  */
 
 import { mkdir } from 'node:fs/promises'
@@ -39,8 +40,9 @@ const load = async ({ sessionId }) => {
  * @returns {Promise<{ messageId: string, message: object }>} 带 messageId 的记录，前端用它发起回退。
  */
 const add = async ({ sessionId, message }) => {
-    const session = histories.get(sessionId) || { messages: [], redo: [] } // 没加载过时先建空历史，避免调用方必须先 load。
-    histories.set(sessionId, session)
+    const session = histories.get(sessionId)
+    // 历史必须先加载；调用方忘了 load 时直接报错，不能悄悄拿空历史覆盖磁盘。
+    if (!session) throw new Error(`History not loaded: ${sessionId}`)
     const record = { messageId: nanoid(), message }
 
     session.messages.push(record) // 消息按发生顺序追加，循环本身从不修改历史。
@@ -82,11 +84,17 @@ const count = () => histories.size
 // --- 测试用：清空所有会话历史缓存 ---
 const clear = () => histories.clear()
 
+// --- 会话删除后把它的历史缓存一起丢掉，内存里不能留下已经删掉的消息 ---
+const remove = ({ sessionId }) => {
+    histories.delete(sessionId)
+}
+
 // --- 读取当前历史 ---
 const get = ({ sessionId }) => {
-    // 返回完整 History：保留 messageId 和消息上的全部字段。
-    // 前端直接使用，模型调用前由 Agent Core 自己裁剪上下文。
-    return (histories.get(sessionId)?.messages || []).map(({ messageId, message }) => ({ messageId, ...message }))
+    const session = histories.get(sessionId)
+    // 调用方必须先 load；没有缓存说明流程漏了一步，直接报错而不是返回空历史。
+    if (!session) throw new Error(`History not loaded: ${sessionId}`)
+    return session.messages.map(({ messageId, message }) => ({ messageId, ...message }))
 }
 /**
  * 回退到这条消息之前以后，历史里还留着哪些消息块。
@@ -98,6 +106,8 @@ const idsBefore = ({ sessionId, messageId }) => {
     const session = histories.get(sessionId)
     const index = session.messages.findIndex(record => record.messageId === messageId)
     // 回退会把目标消息和它之后的整段一起移走，所以剩下的就是它前面的那些。
+    // 先在这里报错：文件恢复拿到这份名单之后才会动手，不能等文件改完才发现消息不存在。
+    if (index < 0) throw fail(404, `Message not found: ${messageId}`)
     return session.messages.slice(0, index).map(record => record.message.id)
 }
 
@@ -111,4 +121,4 @@ const save = async ({ sessionId }) => {
     await SSE.reset({ id: sessionId })
 }
 
-export default { load, add, rollback, redo, redoCount, get, idsBefore, save, count, clear }
+export default { load, add, rollback, redo, redoCount, get, idsBefore, save, count, clear, remove }

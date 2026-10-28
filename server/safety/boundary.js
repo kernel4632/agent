@@ -17,8 +17,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { homedir } from 'node:os'
 import picomatch from 'picomatch'
 import Store from '../store.js'
-import { toolFiles } from '../utils/tool-files.js'
-import { canonical } from '../utils/tool-names.js' // 旧工具名也能走到同一条检查。
+import { toolFiles } from '../tool-files.js'
+import { canonical } from '../tool-names.js' // 旧工具名也能走到同一条检查。
 
 // --- 路径统一用正斜杠，Windows 和 POSIX 的规则写法一致 ---
 const slash = value => String(value).replace(/\\/g, '/')

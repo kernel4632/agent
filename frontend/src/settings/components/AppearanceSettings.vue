@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaDivider, KimaFlex, KimaRadioGroup, KimaSelect, KimaTypography } from '@kernel4632/kima'
+import { KimaDivider, KimaFlex, KimaRadioGroup, KimaSelect, KimaTypography } from '../../ui/index.js'
 import { Button, Switch } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 

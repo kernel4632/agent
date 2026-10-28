@@ -1,5 +1,6 @@
 <!--
   斜杠命令菜单：只负责显示匹配项和把选中项交给 Composer。
+  调用示例：<ComposerSlashMenu :matches="matches" :active="active" @pick="applyCommand" />
 -->
 <script setup>
 import { Button } from '../ui/index.js'

@@ -4,10 +4,11 @@
  * 名字和参数对齐 Roo Code：search_files({ path, regex, file_pattern })。
  * 工具把搜索交给 ripgrep，不承担会话业务；退出码 1 代表没有匹配。
  * 跳过哪些目录由 utils/skip.js 一处说了算，这里不自己写一份名单。
+ * 调用示例：模型调用 search_files({ path: '.', regex: 'TODO' })。
  */
 import { rgPath } from '@vscode/ripgrep' // 使用随依赖提供的 ripgrep 可执行文件。
 import Skip from '../utils/skip.js' // 依赖目录不算用户要找的代码。
-import { truncate } from './truncate.js' // 命中太多时只留头尾。
+import { truncate } from '../utils/truncate.js' // 命中太多时只留头尾。
 
 // --- 拼出 ripgrep 的排除参数 ---
 const excludeArgs = () => Skip.dependencies.flatMap(name => ['--glob', `!**/${name}/**`])

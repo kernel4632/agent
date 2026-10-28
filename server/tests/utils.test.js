@@ -367,6 +367,17 @@ describe('server health and workspace', () => {
         })
     })
 
+    test('deleting a session also clears its in-memory history', async () => {
+        await withHome(async () => {
+            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            const { sessionId } = await Session.create({ title: 'Delete me' })
+            expect(History.count()).toBe(1)
+            await Session.remove({ sessionId })
+            // 会话目录删了，内存里也不能继续算一条；健康检查的数字要和磁盘一致。
+            expect(History.count()).toBe(0)
+        })
+    })
+
     test('reports the workspace path, file list and git state', async () => {
         await withHome(async () => {
             const response = await request('/workspace/read')

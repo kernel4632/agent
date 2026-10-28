@@ -10,8 +10,8 @@ import { describe, expect, test } from 'bun:test'
 import { fileURLToPath } from 'node:url'
 import Agent from '@kernel4632/agent-core'
 import { app } from '../server.js'
-import { fileToolNames } from '../utils/tool-files.js'
-import Kind, { KINDS } from '../utils/tool-kind.js' // 工具类别由工具自己声明，扫描时登记。
+import { fileToolNames } from '../tool-files.js'
+import Kind, { KINDS } from '../tool-kind.js' // 工具类别由工具自己声明，扫描时登记。
 import ToolCatalog from '../tool-catalog.js' // 扫描后才有类别和文件参数。
 import { USES } from '../config/settings.js' // 哪件事可以单独配模型，文档跟着它走。
 
@@ -60,18 +60,11 @@ describe('接口契约', () => {
         expect(openapi.info.version).toBe(pkg.version)
     })
 
-    test('前端的工具别名表和结束工具名单和服务端一致', async () => {
-        const [serverAliases, frontendToolUi, control, stopTools] = await Promise.all([
-            source('utils/tool-names.js'),
-            source('../frontend/src/session/tool-ui.js'),
+    test('前端的结束工具名单和服务端一致', async () => {
+        const [control, stopTools] = await Promise.all([
             source('tools/control.js'),
             source('../frontend/src/session/stop-tools.js'),
         ])
-        const block = text => text.slice(text.indexOf('ALIASES = {'), text.indexOf('}', text.indexOf('ALIASES = {')))
-        const pairs = text => [...block(text).matchAll(/(\w+): '([\w-]+)'/g)].map(match => `${match[1]}:${match[2]}`).sort()
-        // 前端只做显示和判断；别名表漂移会让旧会话的工具名对不上 UI。
-        expect(pairs(frontendToolUi)).toEqual(pairs(serverAliases))
-
         const serverStops = [...control.matchAll(/name: '([^']+)'/g)].map(match => match[1]).sort()
         const stopBlock = stopTools.slice(stopTools.indexOf('STOP_TOOLS = new Set(['), stopTools.indexOf('])', stopTools.indexOf('STOP_TOOLS = new Set([')))
         const frontendStops = [...stopBlock.matchAll(/'([^']+)'/g)].map(match => match[1]).sort()
@@ -82,7 +75,7 @@ describe('接口契约', () => {
     test('自动批准的类别和代码里的类别是同一组', async () => {
         const openapi = await readJson('openapi.json')
         // 文档和代码的类别对不上时，前端会多画一个永远不生效的开关（或者少画一个真有用的）。
-        // 类别名单只有 utils/tool-kind.js 一处，文档跟着它走。
+        // 类别名单只有 tool-kind.js 一处，文档跟着它走。
         expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(KINDS.map(item => item.kind))
     })
 
@@ -97,28 +90,31 @@ describe('接口契约', () => {
     })
 
     test('界面上的自动批准开关和代码里的类别是同一组', async () => {
-        // 前端那份清单是为了配图标，但类别的名字得跟着代码走。
-        // 少写一类，用户就少一个能开关的权限，而且在界面上完全看不出来。
-        const frontend = await source('../frontend/src/session/session.js')
-        const listed = [...frontend.matchAll(/\{ kind: '([a-z]+)', label:/g)].map(([, kind]) => kind)
-        expect(listed).toEqual(KINDS.map(item => item.kind))
+        // 前端不再存类别清单，开关直接按 /tool/kinds 生成；这里确认接口和代码同源。
+        const response = await app.handle(new Request('http://localhost/tool/kinds'))
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual(KINDS)
     })
 
     test('界面上"按用途配模型"的下拉框和代码里的用途是同一组', async () => {
         const frontend = await source('../frontend/src/session/session.js')
         // 少一项，用户就永远配不了那个用途的模型，而他只会以为"这个功能没有"。
-        const listed = [...frontend.matchAll(/^  (\w+): '[^']+',$/gm)].map(([, use]) => use)
+        const start = frontend.indexOf('const USE_LABELS')
+        const block = frontend.slice(start, frontend.indexOf('}', start))
+        const listed = [...block.matchAll(/^  (\w+): '[^']+',$/gm)].map(([, use]) => use)
         expect(listed).toEqual(USES.map(item => item.use))
     })
 
     test('每个类别在界面上都配了图标', async () => {
         const frontend = await source('../frontend/src/session/session.js')
         // 缺图标时 AppIcon 会退回默认的 spark，看着像是"这个开关还没做完"。
-        const icons = [...frontend.matchAll(/icon: '([a-z]+)'/g)].map(([, icon]) => icon)
-        expect(icons).toHaveLength(KINDS.length)
+        const start = frontend.indexOf('const KIND_ICONS')
+        const block = frontend.slice(start, frontend.indexOf('}', start))
+        const icons = [...block.matchAll(/(\w+): '([a-z]+)'/g)].map(([, kind, icon]) => ({ kind, icon }))
+        expect(icons.map(item => item.kind)).toEqual(KINDS.map(item => item.kind))
         // 图标名得在 AppIcon 里真的存在，不然渲染出来是一个空形状。
         const iconComponent = await source('../frontend/src/ui/AppIcon.vue')
-        for (const icon of icons) expect(iconComponent, `AppIcon 里没有 ${icon}`).toMatch(new RegExp(`(?:^|\\n)\\s*'?${icon}'?\\s*:`))
+        for (const { icon } of icons) expect(iconComponent, `AppIcon 里没有 ${icon}`).toMatch(new RegExp(`(?:^|\\n)\\s*'?${icon}'?\\s*:`))
     })
 
     test('健康检查报的版本就是 package.json 里的版本', async () => {

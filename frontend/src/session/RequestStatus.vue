@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { KimaSpinner } from '@kernel4632/kima'
+import { KimaSpinner } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 
 const props = defineProps({

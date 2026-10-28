@@ -1,6 +1,7 @@
 /*
  * 模型品牌图标的原始 SVG：集中在这里，组件只拿最终字符串。
  * 图标来自 LobeHub Icons（MIT），来源和许可见 assets/model-icons/README.md。
+ * 调用示例：import { modelIconSvg } from './model-icon-assets.js'；modelIconSvg('gpt-4.1')。
  */
 import openai from '../assets/model-icons/openai.svg?raw'
 import claude from '../assets/model-icons/claude-color.svg?raw'

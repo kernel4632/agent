@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaSelect } from '@kernel4632/kima'
+import { KimaSelect } from '../../ui/index.js'
 import { Switch } from '../../ui/index.js'
 import { USE_LABELS } from '../../session/session.js'
 

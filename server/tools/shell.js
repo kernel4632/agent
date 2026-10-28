@@ -4,8 +4,9 @@
  * 名字和参数对齐 Roo Code：execute_command({ command, cwd })。
  * 输出会两路给出：一路实时转发给前端边跑边看，一路读回来放进工具结果。
  * 必须自己读回来——只返回退出码的话，模型看不到命令说了什么（已实测确认）。
+ * 调用示例：模型调用 execute_command({ command: 'bun test', cwd: '.' })。
  */
-import { truncate } from './truncate.js' // 长输出只留头尾，避免一次性塞满上下文。
+import { truncate } from '../utils/truncate.js' // 长输出只留头尾，避免一次性塞满上下文。
 
 // 命令最多跑十分钟，防止装依赖或死循环把整个任务挂死。
 const TIMEOUT_MS = 10 * 60 * 1000

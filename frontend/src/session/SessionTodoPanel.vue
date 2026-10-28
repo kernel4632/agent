@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaDrawer } from '@kernel4632/kima'
+import { KimaDrawer } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
-import { KimaProgress } from '@kernel4632/kima'
+import { KimaProgress } from '../ui/index.js'
 import { todoStatus } from './todos.js'
 
 const props = defineProps({

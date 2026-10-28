@@ -8,7 +8,7 @@
 import { computed, ref } from 'vue'
 import {
   KimaCard, KimaChip, KimaFlex, KimaNumberField, KimaTypography,
-} from '@kernel4632/kima'
+} from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, IconButton, ModelIcon, Switch } from '../../ui/index.js'
 import { Settings } from '../settings.js'
 import { UI } from '../../app/ui.js'

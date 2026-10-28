@@ -1,8 +1,9 @@
 <!--
 输入区附件条：用 KIMA Chip 显示已附加文件，并上抛移除动作。
+调用示例：<ComposerAttachments :files="files" @remove="removeFile" />
 -->
 <script setup>
-import { KimaChip } from '@kernel4632/kima'
+import { KimaChip } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 
 defineProps({ files: { type: Array, default: () => [] } })

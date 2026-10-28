@@ -43,6 +43,8 @@ export const AgentAPI = {
   getCommands:      ()                          => request('/command/list'),
   // 全部工具和当前权限，设置页画开关用。
   getTools:         ()                          => request('/tool/list'),
+  // 自动批准类别；名字和顺序由后端给，前端只补图标。
+  getToolKinds:     ()                          => request('/tool/kinds'),
   // 内置和自定义智能体的完整定义；旧后端没有这个接口时由调用方兜底。
   getAgents:        ()                          => request('/agent/list'),
   getWorkspace:     ()                          => request('/workspace/read'),

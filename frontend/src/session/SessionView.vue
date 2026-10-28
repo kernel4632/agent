@@ -13,7 +13,7 @@
 -->
 <script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
-import { KimaSpinner } from '@kernel4632/kima'
+import { KimaSpinner } from '../ui/index.js'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from './AgentDrawer.vue'

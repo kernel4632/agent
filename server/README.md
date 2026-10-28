@@ -14,10 +14,11 @@
 
 | 位置 | 只负责什么 | 不负责什么 |
 | --- | --- | --- |
-| `session/` | 会话、历史、快照、标题 | 不处理路由细节 |
+| `session/` | 会话资料、运行、读取、回退、历史、快照、标题 | 不处理路由细节 |
 | `config/` | 配置、会话设置、智能体、项目规则 | 不返回 HTTP 响应 |
 | `safety/` | 工具审批、工作区边界、忽略规则 | 不组合业务流程 |
 | 根目录的 `subtask.js`、`slash-commands.js`、`mcp.js`、`skills.js`、`workspace.js` | 各自一个主体 | 不互相抢职责 |
+| 根目录的 `tool-catalog.js`、`tool-kind.js`、`tool-files.js`、`tool-names.js` | 工具目录、类别、文件参数和旧名字映射 | 不执行工具本身 |
 | `store.js` | 保存共享的内存数据（配置、Agent 实例、快照清单、待审批） | 不判断业务规则、不读 HTTP |
 | `tools/` | 内置工具，一个文件放一类动作；工具自己声明 `kind` 和 `files` | 不修改会话状态 |
 | `utils/` | 路径、SSE、带状态码的错误等通用能力 | 不组合业务流程 |
@@ -29,7 +30,7 @@ Agent 循环本身不在这里，它来自 `@kernel4632/agent-core`（[仓库](h
 - 历史文件里的消息形状就是这个包的标准形状（`id`、`role`、`content` 块数组）
 
 加一个内置工具：往 `tools/` 放一个导出 `{ name, kind, files, description, inputSchema, execute }` 的文件即可，重启后生效；删掉文件这个工具就消失。`kind` 决定自动批准和只读模式怎么处理，`files(input)` 返回这次调用会碰的文件；扫描器会自动登记，不需要再改任何中央表。
-用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具；`tools/truncate.js` 是共享代码，没有 `name` 和 `execute`，扫描时会自动跳过。
+用户自己的工具放在数据目录的 `tools/` 里，同名时覆盖内置工具。`tools/` 里每个文件都必须是工具；共享的截断和诊断代码放在 `utils/`。
 
 ### 放技能（skills）
 
@@ -377,7 +378,8 @@ Content-Type: application/json
 | --- | --- | --- |
 | `GET` | `/health` | `{ "ok": true, "version": "0.10.1", "sessions": 2, "running": 1 }` |
 | `GET` | `/command/list` | 可用的斜杠命令：名字、说明、提示词正文 |
-| `GET` | `/tool/list` | 内置工具和用户工具的名称、分类、当前权限动作，以及工具自带的 `ui` 展示信息和 `configurable` 标记 |
+| `GET` | `/tool/list` | 内置工具和用户工具的名称、分类、类别名、旧名字、当前权限动作，以及工具自带的 `ui` 展示信息和 `configurable` 标记 |
+| `GET` | `/tool/kinds` | 自动批准类别：`kind`、`label`、`hint`，按界面显示顺序排列 |
 | `GET` | `/workspace/read` | 当前工作区：路径、文件列表（最多 200 个、不含依赖目录）、git 状态 |
 | `GET` | `/workspace/status?path=...` | 只看某个目录的 git 状态 |
 
@@ -577,7 +579,7 @@ PATCH 时只写要改的那一类就行，其余保持原样：
 
 **智能体的权限覆盖只影响自己。** 全局 `permission` 打底，智能体的 `permission` 覆盖同名工具；自动批准仍然只是省掉"询问"，不能绕过 `deny` 和 `.agentignore`。
 
-**认不出类别的工具一律要问。** 工具的分类由工具文件自己声明：内置工具和用户工具都写 `kind`。没有写 `kind` 的用户工具按 `other` 处理，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。扫描时登记到 [`utils/tool-kind.js`](utils/tool-kind.js:1)，自动批准、只读智能体和契约检查都读这张运行时表，没有第二份名单。
+**认不出类别的工具一律要问。** 工具的分类由工具文件自己声明：内置工具和用户工具都写 `kind`。没有写 `kind` 的用户工具按 `other` 处理，即使每一类都开着也仍然弹审批——不能因为"不知道它是什么"就替用户放行。扫描时登记到 [`tool-kind.js`](tool-kind.js:1)，自动批准、只读智能体和契约检查都读这张运行时表，没有第二份名单。
 
 **记清单和结束循环不问。** `update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的，既不碰磁盘也不碰外部服务，本来就没有"要不要批准"这回事，所以不设开关。每次都要问一遍的话，用户只会一直点同意，审批弹窗也就没意义了。
 

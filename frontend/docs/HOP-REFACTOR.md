@@ -46,7 +46,7 @@ src/
 
 先按这些接口写，页面迁移时再逐步用上。不要提前创建没人用的控件。
 
-> 后续变更：下拉框已改为直接使用 KIMA 的 `KimaSelect`，`src/ui/Select.vue` 已删除；下表保留当时的接口记录。
+> 后续变更：下拉框使用 KIMA 的 `KimaSelect`，由 `ui/index.js` 统一转出；`src/ui/Select.vue` 已删除，下表保留当时的接口记录。
 
 | 控件 | 必要 props | 事件 / 插槽 |
 |---|---|---|
@@ -186,12 +186,12 @@ src/
 
 #### 审查结果
 
-- `App.vue` 189 行，只保留主题、标题栏、视图切换、草稿创建和跨视图接线。
-- 普通按钮、文本输入、下拉框、开关都走 `ui/`；`Button.vue`、`IconButton.vue`、`Field.vue`、`Select.vue`、`Switch.vue`、`Dialog.vue`、`AppIcon.vue` 是唯一入口。
+- `App.vue` 203 行，只保留主题、标题栏、视图切换、草稿创建和跨视图接线。
+- 普通按钮、文本输入、下拉框、开关和 KIMA 组件都走 `ui/index.js`；业务文件不直接 import KIMA。
 - `theme/` 只有 `ThemeProvider.vue` 一个 `m3e-theme` 包装；`watchers.js` 不再接触主题。
 - 设置页只有一个登记表 `settings/pages.js`；设置壳、导航、页面包装和原设置组件都在 `settings/` 下。
-- 还保留的原生专用控件：命令面板搜索框、Composer 编辑器/隐藏文件框、时间线回退复选框、外观主题/颜色单选框。文件头已注明原因，等对应编辑器/选择组件到位再替换。
-- 验证：前端 `bun run test` 11/11、`bun run build`、`bun run test:ui` 30/30；后端 `bun test` 170/170。
+- 还保留的原生专用控件：命令面板搜索框、Composer 编辑器/隐藏文件框、外观主题/颜色单选框。文件头已注明原因，等对应编辑器/选择组件到位再替换。
+- 验证：前端 `bun run test` 35/35、`bun run build`、`bun run test:ui` 102/102；后端 `bun test` 221/221。
 
 ## 每个阶段的审查门
 

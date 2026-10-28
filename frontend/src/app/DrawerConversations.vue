@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaCheckbox, KimaList } from '@kernel4632/kima'
+import { KimaCheckbox, KimaList } from '../ui/index.js'
 import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
 import { Session } from '../session/session.js'
 

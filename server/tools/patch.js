@@ -13,7 +13,7 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically' // 原子替换，避免写入中断留下半文件。
-import Diagnose from './diagnose.js' // 写完之后跑一次配置里的诊断命令。
+import Diagnose from '../utils/diagnose.js' // 写完之后跑一次配置里的诊断命令。
 
 export default {
     name: 'apply_patch',

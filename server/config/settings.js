@@ -23,8 +23,8 @@ import Agents from './agents.js' // 智能体定义只有这一处。
 import Config from './config.js' // 全局配置和权限规则。
 import Store from '../store.js' // 设置跟着会话一起放在内存里，避免每次都读盘。
 import fail from '../utils/fail.js' // 填错智能体名时按填错处理。
-import Kind from '../utils/tool-kind.js' // 类别名单只有一处，这里不重复写。
-import { canonical } from '../utils/tool-names.js' // 旧自定义智能体里的工具名继续有效。
+import Kind from '../tool-kind.js' // 类别名单只有一处，这里不重复写。
+import { canonical } from '../tool-names.js' // 旧自定义智能体里的工具名继续有效。
 
 /*
  * 哪件事可以单独指定模型。不点名就和主模型共用——这一条很重要：

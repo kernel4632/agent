@@ -7,7 +7,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaDrawer } from '@kernel4632/kima'
+import { KimaDrawer } from '../ui/index.js'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
 import { Session } from '../session/session.js'

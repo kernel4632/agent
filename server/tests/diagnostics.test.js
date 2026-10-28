@@ -10,7 +10,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Diagnose from '../tools/diagnose.js'
+import Diagnose from '../utils/diagnose.js'
 import fileTools from '../tools/file.js'
 import editTool from '../tools/edit.js'
 
