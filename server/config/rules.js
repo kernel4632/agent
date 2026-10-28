@@ -12,7 +12,7 @@
  */
 
 import { dirname, join, relative, resolve } from 'node:path'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 
 // 规则每轮都会发给模型，不能无限长。超出部分截断，不悄悄丢掉整份文件。
 const MAX_BYTES = 32 * 1024

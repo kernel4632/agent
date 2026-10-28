@@ -16,7 +16,7 @@
 import { createMCPClient } from '@ai-sdk/mcp'
 import { Experimental_StdioMCPTransport as Stdio } from '@ai-sdk/mcp/mcp-stdio'
 import SSE from '../utils/sse.js' // 连不上时告诉用户是哪个服务出了问题。
-import Store from '../state/store.js' // 配置就在 Store 里，这里直接读它，不去问配置指令。
+import Store from '../agent/state.js' // 配置就在 Store 里，这里直接读它，不去问配置指令。
 
 /*
  * 一个服务在内存里的样子：

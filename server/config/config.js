@@ -19,7 +19,7 @@ import { writeFile } from 'atomically'
 import Agent from '@kernel4632/agent-core'
 import Path from '../utils/path.js' // 提供默认配置文件路径。
 import Rules from './rules.js' // 把工作区的项目规则拼进系统提示词。
-import Store from '../state/store.js' // 直接访问程序当前使用的配置。
+import Store from '../agent/state.js' // 直接访问程序当前使用的配置。
 import fail from '../utils/fail.js' // 供应商不存在等业务错误带上状态码。
 import { DEFAULT_SYSTEM_PROMPT, seedPrompt } from './system-prompt.js' // 首次使用时填默认提示词。
 

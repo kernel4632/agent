@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Config from '../config/config.js'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 import { DEFAULT_SYSTEM_PROMPT } from '../config/system-prompt.js'
 
 const withHome = async callback => {

@@ -9,7 +9,7 @@
  */
 
 import { Elysia } from 'elysia' // 接收 HTTP 触发事件并返回反馈。
-import Commands from './workspace/commands.js' // 扫描用户自定义的斜杠命令。
+import Commands from './workspace/slash-commands.js' // 扫描用户自定义的斜杠命令。
 import Agents from './config/agents.js' // 给界面列出内置和自定义智能体。
 import Config from './config/config.js' // 执行配置读写指令。
 import { USES } from './config/settings.js' // 按用途配模型的标签也由后端给。

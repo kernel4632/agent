@@ -18,8 +18,8 @@ import Config from '../config/config.js' // 读取全局模型配置和权限规
 import Settings from '../config/settings.js' // 会话运行设置：模式、自动批准、能力开关。
 import Kind from '../tool/kind.js' // 工具分类由工具自己声明，plan 模式只读运行时表。
 import ToolCatalog from '../tool/catalog.js' // 扫描工具时登记类别和文件参数。
-import History from './history.js' // 新会话第一次建 Agent 时要从历史读起。
-import Store from '../state/store.js' // 直接访问会话到 Agent 实例的映射。
+import History from '../session/history.js' // 新会话第一次建 Agent 时要从历史读起。
+import Store from './state.js' // 直接访问会话到 Agent 实例的映射。
 import Path from '../utils/path.js' // 生成数据目录路径。
 
 // --- 这一轮的运行配置：会话设置、工作区规则和模型连接 ---

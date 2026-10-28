@@ -135,7 +135,7 @@ const toolDefinitions = async () => {
 describe('SSE 事件', () => {
     test('后端自己发的每个事件类型都在对接文档里写着', async () => {
         // 从源码里提取，不另维护一份清单——清单会漂移，这正是要防的问题。
-        const sources = ['session/session.js', 'safety/approval.js', 'tool/mcp.js', 'session/subtask.js']
+        const sources = ['session/session.js', 'safety/approval.js', 'tool/mcp.js', 'agent/subtask.js']
         const sent = new Set()
         for (const name of sources) {
             const code = await source(name)

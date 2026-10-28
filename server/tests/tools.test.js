@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 
 import Config from '../config/config.js'
 import Tools from '../tool/catalog.js'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 import { toolFiles } from '../tool/files.js'
 import { app } from '../server.js'
 

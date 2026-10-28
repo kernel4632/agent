@@ -16,7 +16,7 @@ import { realpath } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import picomatch from 'picomatch'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 import { toolFiles } from '../tool/files.js'
 import { canonical } from '../tool/names.js' // 旧工具名也能走到同一条检查。
 

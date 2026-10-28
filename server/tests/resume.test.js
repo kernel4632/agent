@@ -11,7 +11,7 @@ import Config from '../config/config.js'
 import History from '../session/history.js'
 import Session from '../session/session.js'
 import Title from '../session/title.js'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 import SSE from '../utils/sse.js'
 import { app } from '../server.js'
 

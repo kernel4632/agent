@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Boundary from '../safety/boundary.js'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 import History from '../session/history.js' // 会话历史的内存缓存由 history.js 自己管。
 import ToolCatalog from '../tool/catalog.js' // 直接测边界时也要先登记工具的文件参数。
 

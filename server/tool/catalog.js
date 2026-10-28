@@ -12,8 +12,8 @@ import { mkdir } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import Path from '../utils/path.js'
-import Store from '../state/store.js'
-import Subtask from '../session/subtask.js' // new_task 的界面描述在运行时工具里。
+import Store from '../agent/state.js'
+import Subtask from '../agent/subtask.js' // new_task 的界面描述在运行时工具里。
 import Kind from './kind.js'
 import { registerToolFiles, resetToolFiles } from './files.js'
 import { canonical, previousNames } from './names.js' // 旧 permission 配置继续生效。

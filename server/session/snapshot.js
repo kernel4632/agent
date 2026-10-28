@@ -21,7 +21,7 @@ import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import Path from '../utils/path.js'
 import Skip from '../utils/skip.js' // 扫工作区时跳过依赖和构建产物。
-import Store from '../state/store.js' // 快照清单跟着会话一起放在内存里。
+import Store from '../agent/state.js' // 快照清单跟着会话一起放在内存里。
 import fail from '../utils/fail.js' // 回退到一个不存在的工具调用时按填错处理。
 import { toolFiles } from '../tool/files.js' // 一次调用会碰哪些文件。
 

@@ -14,12 +14,12 @@ import Approval from '../safety/approval.js'
 import Config from '../config/config.js'
 import History from '../session/history.js'
 import Ignore from '../safety/ignore.js'
-import Delegation from '../session/subtask.js'
+import Delegation from '../agent/subtask.js'
 import Mcp from '../tool/mcp.js'
 import Session from '../session/session.js'
 import Skills from '../tool/skills.js'
 import Snapshot from '../session/snapshot.js'
-import Store from '../state/store.js'
+import Store from '../agent/state.js'
 import { app } from '../server.js'
 import SSE from '../utils/sse.js'
 
@@ -224,7 +224,7 @@ description: 审查一个 PR 时用这个
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'With skills' })
-            const agent = (await import('../state/store.js')).default.agents.get(sessionId)
+            const agent = (await import('../agent/state.js')).default.agents.get(sessionId)
 
             // 内置技能跟着代码走，任何环境上都该有。
             expect(agent.tools.schema.skill).toBeDefined()
@@ -246,7 +246,7 @@ describe('server MCP', () => {
             expect(Object.keys(mcpTools).length).toBeGreaterThan(0)
 
             const { sessionId } = await Session.create({ title: 'MCP task' })
-            const agent = (await import('../state/store.js')).default.agents.get(sessionId)
+            const agent = (await import('../agent/state.js')).default.agents.get(sessionId)
             // 服务给的工具名前面带了服务名，和内置工具摆在同一份工具表里。
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining(['everything_echo', 'read_file']))
 
@@ -724,7 +724,7 @@ describe('server Agent integration boundary', () => {
         await withHome(async () => {
             await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: 'Tool scan' })
-            const agent = (await import('../state/store.js')).default.agents.get(sessionId)
+            const agent = (await import('../agent/state.js')).default.agents.get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
                 'read_file', 'write_to_file', 'list_files', 'edit', 'apply_patch',
                 'execute_command', 'glob', 'search_files', 'update_todo_list', 'webfetch', 'attempt_completion', 'ask_followup_question',

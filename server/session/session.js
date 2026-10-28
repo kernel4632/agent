@@ -21,12 +21,12 @@ import Config from '../config/config.js' // 读取全局模型配置和权限规
 import Settings from '../config/settings.js' // 会话运行设置：模式、自动批准、能力开关。
 import History from './history.js' // 读写当前会话消息。
 import Meta from './meta.js' // 读写会话资料。
-import AgentSession from './agent.js' // 装配和获取会话的 Agent。
+import AgentSession from '../agent/create.js' // 装配和获取会话的 Agent。
 import SessionRead from './read.js' // 读取完整会话和任务清单。
 import Rollback from './rollback.js' // 消息级、工具级回退和撤销。
 import Run from './run.js' // 发送、继续和停止任务。
 import Snapshot from './snapshot.js' // 删除会话时清理文件快照。
-import Store from '../state/store.js' // 直接访问会话到 Agent 实例的映射。
+import Store from '../agent/state.js' // 直接访问会话到 Agent 实例的映射。
 import Path from '../utils/path.js' // 生成数据目录路径。
 import fail from '../utils/fail.js' // 找不到会话、输入为空等业务错误带上状态码。
 import SSE from '../utils/sse.js' // 把运行过程反馈给前端。

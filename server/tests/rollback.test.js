@@ -24,7 +24,7 @@ const withHome = async callback => {
     const root = join(tmpdir(), `agent-rollback-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
-    const Store = (await import('../state/store.js')).default
+    const Store = (await import('../agent/state.js')).default
     Store.config && Object.keys(Store.config).forEach(key => delete Store.config[key])
     Store.agents.clear()
     History.clear()

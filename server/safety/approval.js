@@ -17,7 +17,7 @@ import Kind from '../tool/kind.js' // 内部工具不参与审批，也不该被
 import Path from '../utils/path.js' // 记住"始终允许"后要写回配置文件。
 import Ignore from './ignore.js' // 敏感文件不许碰，配置改不掉。
 import Snapshot from '../session/snapshot.js' // 工具改文件之前先存一份原样。
-import Store from '../state/store.js' // 直接访问等待用户决定的审批表和会话设置。
+import Store from '../agent/state.js' // 直接访问等待用户决定的审批表和会话设置。
 import SSE from '../utils/sse.js' // 把审批请求推给前端。
 import fail from '../utils/fail.js' // 用户选了不认识的决定时按填错处理。
 import { canonical, previousNames } from '../tool/names.js' // 新名字生效，旧权限规则继续认。
