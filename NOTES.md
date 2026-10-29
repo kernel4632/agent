@@ -117,10 +117,11 @@ server/
   commands/              入口指令：一个文件对应一组 HTTP 动作
     session.js           会话创建、列表、读取、分支、改名、删除、目录、设置、模型
     chat.js              发送、继续、停止、审批决定
-    config.js            配置读取、保存、连接测试
+    config.js            配置 HTTP 动作：读取、保存、连接测试
     tool.js              工具目录和权限
 
   features/              可复用业务规则
+    config.js            配置读取、旧字段迁移、保存
     history.js           消息历史、元数据、读取
     rollback.js          消息回退和撤销；不碰文件
     agent.js             创建 Agent、准备系统提示词和工具表
@@ -239,3 +240,31 @@ HTTP/SSE
 - 每个 feature 文件有明确职责；消息回退、上下文构建、上下文压缩、文件快照不混在一起。
 - `store.js` 只看数据就能知道全局配置和会话长什么样。
 - 所有对用户电脑外部工具的依赖，都在工具自己的实现里，不在 agent 核心。
+
+## 八、依赖方向
+
+四个目录保留，不重排；依赖只允许朝一个方向走：
+
+```text
+commands/ → features/ → tools/
+      ↘          ↓         ↙
+        store.js + utils/
+```
+
+- `tools/` 只 import `store.js` 和 `utils/`。需要审批、保存会话时，由工具宿主通过运行时 context 传进来，工具不反向 import `features/`。
+- 只有 `features/tool.js` 这个工具宿主可以组装 `tools/file.js`、`tools/skill.js`、`tools/subagent.js`；其他 feature 不碰工具实现。
+- `store.js` 和 `utils/` 是叶子，不 import 上层。
+
+为了做到这一点：
+
+| 改动 | 原因 |
+| --- | --- |
+| 新增 `features/config.js`，接手配置读取、旧字段迁移和保存；`Agent.saveConfig` 搬过去 | `approval.js` 不再 import `agent.js`，打断 approval ↔ agent |
+| `tools/subagent.js` 的审批从 `context.onPermission` 拿 | 去掉 tool → feature 的反向边 |
+| `tools/cwd.js` 的保存从 `context.saveSession` 拿 | 去掉 tool → feature 的反向边 |
+| `features/agent.js` 把 `onPermission` 和 `saveSession` 传进 `Tool.build` | 工具宿主把运行时能力注入工具 |
+| `commands/config.js` 只留 HTTP 动作 | 入口层不放迁移逻辑 |
+
+结果：27 → 28 个文件，73 条依赖边不变；循环依赖 1 → 0，工具反向依赖 2 → 0。`features/tool.js` 对三个特殊工具的组装是唯一有意的 features → tools 边。
+
+这是内部重构，HTTP 接口、字段和配置形状都不变。完整图见 `docs/server-target.html`。
