@@ -293,3 +293,15 @@ server.js
 - 纯逻辑文件即使很短，只要它是一个完整功能（比如 `compact`），就保留。
 
 这是内部重构，完整图见 `docs/server-target.html`。
+
+## 九、发布前不写向后兼容
+
+正式版发布之前，代码只认最新版本的数据形状。旧版本没有用户，也没有需要保留的数据。
+
+- 不写旧字段迁移：没有 `modelSettings`、全局 `model`、`uses`、`compactThreshold` 这些别名。
+- 不写旧会话兼容：`meta.json` 只认 `model: { provider, model }`，不再认 `provider` 字符串加 `model` 字符串。
+- 不写旧文件兼容：`history.json` 必须有 `messages` 和 `redo`；`checkpoints.json` 必须有 `redone`。
+- 不写旧设置兼容：`settings.json` 只有 `reasoning`；旧 `autoApprove` 等字段直接不读。
+- 不写旧接口兼容：前端只对接当前后端，`/workspace/*`、`/agent/list`、`/command/list` 不再提供。
+
+旧数据不迁移。开发机上的 `~/.agent` 可以直接删掉重建；测试和文档也不写“旧版本会怎样”的用例。发布正式版之后再按版本号做迁移，那时才需要兼容。
