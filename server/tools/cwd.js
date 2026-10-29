@@ -3,7 +3,9 @@
  *
  * 目录只是会话的一个属性，不是工作区，也不要求目录里有什么项目文件。
  * 移动之后，文件工具和命令工具都从这里算相对路径；历史不会丢。
- * 调用示例：模型调用 cwd({ path: 'D:/notes' })
+ * 保存会话的 saveSession 由工具宿主通过运行时 context 注入，本文件不 import features/。
+ * 调用示例：
+ *   cwd({ path: 'D:/notes' })   // 模型只传 input；宿主会补上 sessionId、cwd 和 saveSession
  */
 
 import { stat } from 'node:fs/promises'
@@ -32,19 +34,17 @@ const move = {
     },
 
     async execute({ path }, options = {}) {
-        const sessionId = options.sessionId
+        const sessionId = options.sessionId                                 // 宿主注入的会话编号
         const session = store.sessions[sessionId]
         if (!session) throw new Error(`Session not found: ${sessionId}`)
 
-        const target = isAbsolute(path) ? path : resolve(session.cwd || process.cwd(), path)
-        const info = await stat(target).catch(() => null)
+        const target = isAbsolute(path) ? path : resolve(session.cwd || process.cwd(), path) // 相对路径按移动前的目录算
+        const info = await stat(target).catch(() => null)                   // 目标必须已经存在
         if (!info?.isDirectory()) throw new Error(`Folder not found: ${target}`)
 
-        session.cwd = target
-        session.updatedAt = Date.now()
-        // 路径变化要立刻落盘；动态导入避免和历史模块形成加载环。
-        const { default: History } = await import('../features/history.js')
-        await History.save(sessionId)
+        session.cwd = target                                                // 只改会话自己的位置
+        session.updatedAt = Date.now()                                      // 记下这次改动的时间
+        await options.saveSession()                                         // 宿主注入的保存能力：路径变化立刻落盘
         return `Moved to ${target}`
     },
 }

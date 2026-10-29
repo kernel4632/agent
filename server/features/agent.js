@@ -5,6 +5,7 @@
  * 模型请求和循环由 @kernel4632/agent-core 负责；这里只回答四件事：
  * 用哪个模型、带哪段提示词、给哪些工具、这次会话的权限和设置。
  * 默认模型按任务分开：对话、压缩、标题、子任务各用 config.models 里那一个。
+ * 工具需要的审批和保存会话能力，在装配时从这里传进 Tool.build；工具不反向 import features。
  *
  * 调用示例：
  *   const agent = await Agent.get({ sessionId })
@@ -13,15 +14,12 @@
  *   const config = Agent.resolve({ session })
  */
 
-import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import { writeFile } from 'atomically'
 import AgentCore from '@kernel4632/agent-core'
 import store from '../store.js'
+import Approval from './approval.js'
 import Context from './context.js'
 import History from './history.js'
 import Tool from './tool.js'
-import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
 
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
@@ -182,14 +180,7 @@ const testModel = async ({ provider: name, model }) => {
     return attempt(chosen)
 }
 
-// --- 把当前配置写回磁盘；审批记住规则时也用它 ---
-const saveConfig = async () => {
-    const path = Path.config()
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, JSON.stringify(store.config, null, 2))
-    return store.config
-}
-
+// --- 试一次真实请求 ---
 const attempt = async chosen => {
     const result = await AgentCore.llm.chat({
         ...resolveFor({ session: { model: chosen }, settings: defaultSettings() }),
@@ -264,16 +255,17 @@ const saveSettings = async ({ sessionId, ...change }) => {
 
 // --- 为一个会话建出 Agent 实例 ---
 const create = async ({ sessionId }) => {
-    const session = await History.load(sessionId)
-    const settings = await readSettings(sessionId)
-    const config = resolveFor({ session, settings })
+    const session = await History.load(sessionId)                     // 先把会话元数据读进内存
+    const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度和自动批准
+    const config = resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
     const tools = await Tool.build({
         sessionId,
         // 子任务可以用 models.task 单独指定；没配就沿用会话当前模型。
         taskConfig: resolveFor({ session, settings, target: configured(store.config.models?.task) || session.model }),
+        onPermission: Approval.check,                                 // 工具执行前回到同一个审批关口
+        saveSession: () => History.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
     })
-    // 动态导入避开工具装配时的加载环；审批只在工具真正执行时才会用到。
-    const { default: Approval } = await import('./approval.js')
+    // 审批只依赖 config 和工具宿主，不再 import agent；这里静态引入不会成环。
     const instance = AgentCore.create({
         id: sessionId,
         history: session.history.messages.map(record => record.message),
@@ -317,7 +309,7 @@ const invalidate = sessionId => agents.delete(sessionId)
 
 export default {
     defaultSettings, normalizeSettings, readSettings, saveSettings,
-    connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel, saveConfig,
+    connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel,
     create, get: getAgent, runtime, runningCount, invalidate,
     REASONING_LEVELS, threshold,
 }

@@ -128,6 +128,7 @@ describe('会话运行设置', () => {
                     config: {},
                     tools: Agent.runtime().get(sessionId).tools,
                     sessionId,
+                    onPermission: Approval.check,   // 审批回到这条测试会话
                 })
                 await taskTool.execute({ description: '查一下', prompt: '查一下' }, {}).catch(() => {})
             } finally {

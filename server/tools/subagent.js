@@ -3,13 +3,13 @@
  *
  * 子 agent 有自己的历史，翻过的文件留在它自己那边，主 agent 的上下文保持干净。
  * 它和主 agent 共用同一套工具、同一个审批关口，所以子任务也绕不过权限规则。
+ * 审批能力由工具宿主从运行时 context 传进来；本文件不 import features/。
  * 最多往下开两层；主任务被停止时子任务一起停。
  * 调用示例：
- *   const tool = Delegation.build({ config, tools, sessionId })   // 标准工具对象
+ *   const tool = Delegation.build({ config, tools, sessionId, onPermission: Approval.check })
  */
 
 import Agent from '@kernel4632/agent-core'
-import Approval from '../features/approval.js'
 import SSE from '../utils/sse.js'
 
 // 最多往下开两层：主 agent → 子 agent → 孙 agent。
@@ -30,16 +30,16 @@ const subTools = tools => {
 }
 
 // --- 某一层的 agent 能拿到哪些工具 ---
-const toolsForDepth = ({ config, tools, sessionId, depth, maxDepth = MAX_DEPTH }) => {
+const toolsForDepth = ({ config, tools, sessionId, onPermission, depth, maxDepth = MAX_DEPTH }) => {
     const base = subTools(tools)
-    if (depth >= maxDepth) return base
+    if (depth >= maxDepth) return base                                   // 到底层就不再装 new_task
     return Agent.tool.merge(base, Agent.tool.adopt({
-        new_task: build({ config, tools, sessionId, depth, maxDepth }),
+        new_task: build({ config, tools, sessionId, onPermission, depth, maxDepth }), // 下一层的子任务继续用同一个审批关口
     }))
 }
 
 // --- 真正跑一次子任务：建临时 Agent，把进度推回主会话 ---
-const runSubtask = async ({ config, tools, sessionId, id, description, prompt, abortSignal }) => {
+const runSubtask = async ({ config, tools, sessionId, id, description, prompt, abortSignal, onPermission }) => {
     const agent = Agent.create({
         history: [],
         config,
@@ -48,7 +48,7 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
             onToolCall: call => SSE.send({ id: sessionId, data: { type: 'subagent-tool', taskId: id, description, ...call } }),
             onToolResult: result => SSE.send({ id: sessionId, data: { type: 'subagent-tool-result', taskId: id, description, ...result } }),
             // 子 agent 的审批回到同一个会话，用户能看到"子任务想读这个文件"。
-            onPermission: call => Approval.check({ sessionId, ...call }),
+            onPermission: call => onPermission({ sessionId, ...call }),
         },
     })
 
@@ -68,9 +68,9 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
 }
 
 // --- 造出 new_task 工具 ---
-const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) => {
-    const usable = toolsForDepth({ config, tools, sessionId, depth: depth + 1, maxDepth })
-    let counter = 0
+const build = ({ config, tools, sessionId, onPermission, depth = 0, maxDepth = MAX_DEPTH }) => {
+    const usable = toolsForDepth({ config, tools, sessionId, onPermission, depth: depth + 1, maxDepth }) // 下一层能用的工具
+    let counter = 0                                                                                      // 这次装配里第几个子任务
 
     return {
         name: 'new_task',
@@ -96,8 +96,8 @@ const build = ({ config, tools, sessionId, depth = 0, maxDepth = MAX_DEPTH }) =>
 
         // 第二参必须可省：执行器只保证传 input，不传时就没有取消信号。
         execute({ description, prompt }, { abortSignal } = {}) {
-            const id = `new_task-${depth}-${++counter}`
-            return runSubtask({ config, tools: usable, sessionId, id, description, prompt, abortSignal })
+            const id = `new_task-${depth}-${++counter}`                                                        // 这次委托的编号，进度事件靠它配对
+            return runSubtask({ config, tools: usable, sessionId, id, description, prompt, abortSignal, onPermission }) // 真正开子 agent
         },
     }
 }

@@ -4,6 +4,7 @@
  * 这是工具执行的唯一一道关口。deny 是硬规则，自动批准只省掉"询问"，绕不过它。
  * 同一个工具调用连续出现三次、或者自动批准连着放行到上限，都会停下来问一次。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
+ * 记住规则时只调用 features/config.js 保存；不经过 agent，approval 和 agent 之间就没有环。
  *
  * 调用示例：
  *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal })
@@ -14,7 +15,7 @@
 import picomatch from 'picomatch'
 import store from '../store.js'
 import Tool from './tool.js'
-import Agent from './agent.js'
+import Config from './config.js'
 import fail from '../utils/fail.js'
 import SSE from '../utils/sse.js'
 
@@ -197,8 +198,8 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     recentCalls.delete(sessionId)
     if (decision !== 'deny') autoApproved.set(sessionId, 0)
     if (decision === 'allow-always') {
-        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue })
-        await Agent.saveConfig()
+        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue }) // 把这条规则写进内存配置
+        await Config.save()                                                                                // 规则立刻落盘，下次启动仍然生效
     }
     approval.resolve(decision !== 'deny')
     return { ok: true }

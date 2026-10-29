@@ -130,13 +130,13 @@ describe('server delegation', () => {
             const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
             const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
 
-            const middle = Delegation.toolsForDepth({ config, tools: scanned, depth: 1, maxDepth: 2 })
+            const middle = Delegation.toolsForDepth({ config, tools: scanned, onPermission: Approval.check, depth: 1, maxDepth: 2 })
             expect(Object.keys(middle.schema)).toContain('new_task')
-            const bottom = Delegation.toolsForDepth({ config, tools: scanned, depth: 2, maxDepth: 2 })
+            const bottom = Delegation.toolsForDepth({ config, tools: scanned, onPermission: Approval.check, depth: 2, maxDepth: 2 })
             expect(Object.keys(bottom.schema)).not.toContain('new_task')
             expect(Object.keys(bottom.schema)).toContain('read_file')
 
-            const task = Delegation.build({ config, tools: scanned })
+            const task = Delegation.build({ config, tools: scanned, onPermission: Approval.check })
             const merged = AgentCore.tool.merge(scanned, AgentCore.tool.adopt({ new_task: task }))
             expect(Object.keys(merged.schema)).toContain('new_task')
 
@@ -153,7 +153,8 @@ describe('server delegation', () => {
     test('stops the sub-agent when the main task is stopped', async () => {
         await withHome(async () => {
             const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
-            const task = Delegation.build({ config: { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }, tools: scanned })
+            const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
+            const task = Delegation.build({ config, tools: scanned, onPermission: Approval.check })
 
             const controller = new AbortController()
             controller.abort()

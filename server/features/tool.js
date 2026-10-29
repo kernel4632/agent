@@ -3,11 +3,17 @@
  *
  * 加一个工具只往 tools/ 放一个文件，删掉就消失；这里没有第二份中央名单。
  * 用户自己的工具放在数据目录的 tools/，同名时覆盖内置工具。
- * 工具执行时由这里补上会话上下文：当前目录、会话编号，文件工具和 cwd 工具靠它工作。
+ * 工具执行时由这里补上会话上下文：当前目录、会话编号和宿主注入的保存会话能力；
+ * 子任务的审批也由这里一路传下去。tools/ 只能 import store.js 和 utils/，需要 features 的能力时一律从参数传入。
  *
  * 调用示例：
  *   const catalog = await Tool.list()                       // 设置页用
- *   const tools = await Tool.build({ sessionId, taskConfig })   // 会话启动时装配
+ *   const tools = await Tool.build({                        // 会话启动时装配
+ *       sessionId,
+ *       taskConfig,
+ *       onPermission: Approval.check,                        // 工具执行前的审批关口
+ *       saveSession: () => History.save(sessionId),          // 工具改会话后落盘
+ *   })
  *   await Tool.snapshot({ sessionId, toolCallId, toolName, input })
  */
 
@@ -115,21 +121,22 @@ const kindOf = ({ toolName, mcpServers = [] }) => {
     return current.tools.get(toolName)?.kind || 'other'
 }
 
-// --- 给一个工具补上会话上下文 ---
-const bind = (tool, sessionId) => ({
+// --- 给一个工具补上会话上下文和宿主注入的运行时能力 ---
+const bind = (tool, sessionId, { saveSession }) => ({
     ...tool,
     execute: (input, options = {}) => tool.execute(input, {
         ...options,
-        sessionId,
-        cwd: store.sessions[sessionId]?.cwd || process.cwd(),
+        sessionId,                                                 // 工具自己不用知道会话从哪来
+        cwd: store.sessions[sessionId]?.cwd || process.cwd(),      // 相对路径按这条会话的当前目录算
+        saveSession,                                               // cwd 这类工具改了会话后调用它落盘
     }),
 })
 
 // --- 组装一条会话的工具表：主 Agent 使用全部工具 ---
-const build = async ({ sessionId, taskConfig }) => {
-    const session = store.sessions[sessionId]
-    const { tools: registered } = await scan()
-    const catalog = new Map(registered)
+const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
+    const session = store.sessions[sessionId]                       // 本次装配对应的会话
+    const { tools: registered } = await scan()                      // 扫描内置工具和用户工具
+    const catalog = new Map(registered)                             // 按名字索引，后面同名会覆盖
 
     // 外部服务给的工具也一起交给模型；名字已经带服务名前缀。
     for (const [name, tool] of Object.entries(await Mcp.tools({ sessionId }))) {
@@ -137,17 +144,19 @@ const build = async ({ sessionId, taskConfig }) => {
     }
 
     // 技能不把正文塞进工具表，只给一个按需读正文的工具。
-    const skill = await Skill.build({ cwd: session.cwd })
+    const skill = await Skill.build({ cwd: session.cwd })           // 技能正文留在磁盘上，用时才读
     if (skill) catalog.set(skill.name, skill)
 
-    const bound = [...catalog.values()].map(tool => bind(tool, sessionId))
-    let set = Agent.tool.adopt(bound)
+    const bound = [...catalog.values()].map(tool => bind(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
+    let set = Agent.tool.adopt(bound)                               // 转成 agent-core 认识的工具表
 
     // 子智能体仍然只是一个工具；它拿到的是主 Agent 的同一张工具表。
+    // onPermission 从这里往下传：子任务自己再开工具时，审批仍回到主会话。
     const task = Delegation.build({
         config: taskConfig,
         tools: set,
         sessionId,
+        onPermission,
     })
     set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
     return set

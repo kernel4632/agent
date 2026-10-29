@@ -108,7 +108,7 @@ describe('项目结构', () => {
     test('根目录只有入口、数据文件和固定几个目录', async () => {
         const entries = await readdir(fileURLToPath(new URL('../', import.meta.url)))
         const allowed = new Set([
-            '.gitignore', '.vscode', 'README.md', 'bun.lock', 'commands', 'features',
+            '.gitignore', '.vscode', 'README.md', 'bun.lock', 'commands', 'dist', 'features',
             'node_modules', 'openapi.json', 'package.json', 'server.js', 'store.js', 'tests', 'tools', 'utils',
         ])
         expect(entries.filter(entry => !allowed.has(entry))).toEqual([])
