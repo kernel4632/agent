@@ -4,9 +4,10 @@
  * 这是工具执行的唯一一道关口。deny 是硬规则，自动批准只省掉"询问"，绕不过它。
  * 同一个工具调用连续出现三次、或者自动批准连着放行到上限，都会停下来问一次。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
- * 记住规则时只调用 features/config.js 保存；不经过 agent，approval 和 agent 之间就没有环。
+ * 工具查询和配置保存由命令层在启动时 bind；本文件不 import 任何 feature。
  *
  * 调用示例：
+ *   Approval.bind({ tool, config })                        // 命令层启动时注入
  *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal })
  *   await Approval.decide({ sessionId, toolCallId, decision: 'allow-once' })
  *   Approval.pending(sessionId)
@@ -14,10 +15,12 @@
 
 import picomatch from 'picomatch'
 import store from '../store.js'
-import Tool from './tool.js'
-import Config from './config.js'
 import fail from '../utils/fail.js'
 import SSE from '../utils/sse.js'
+
+// 工具查询和配置保存在命令层启动时注入；本文件不 import 别的 feature。
+let services = {}
+const bind = value => { services = value }
 
 // 同一个工具调用连续出现这么多次，就停下来问一次。
 const LOOP_LIMIT = 3
@@ -93,7 +96,7 @@ const remember = ({ toolName, input, matchValue }) => {
 
 // --- 放行这次调用，并让工具自己决定是否在写入前存快照 ---
 const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
-    await Tool.snapshot({
+    await services.tool.snapshot({
         sessionId,
         messageId,
         toolCallId,
@@ -129,7 +132,7 @@ const repeatsTooOften = ({ sessionId, name, input }) => {
 
 // --- 这一类开了自动批准就跳过询问，但连着放行太多次要停下来问一次 ---
 const autoApproveState = ({ sessionId, settings, name, mcpServers }) => {
-    const kind = Tool.kindOf({ toolName: name, mcpServers })
+    const kind = services.tool.kindOf({ toolName: name, mcpServers })
     // 老设置文件里 autoApprove 是一个布尔总开关，也当作这一类开着。
     const auto = kind !== 'never' && (settings?.autoApprove === true || settings?.autoApprove?.[kind] === true)
     const limit = settings?.autoApproveLimit || 0
@@ -156,10 +159,10 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     const name = toolName
     const mcpServers = Object.keys(store.config.mcp || {})
     // 直接调用审批（测试、脚本）时工具表可能还没装配，这里补一次扫描。
-    await Tool.ready()
+    await services.tool.ready()
 
     // 记清单、结束循环这些内部工具不碰磁盘，也没有"要不要批准"这回事。
-    if (Tool.kindOf({ toolName: name, mcpServers }) === 'never') {
+    if (services.tool.kindOf({ toolName: name, mcpServers }) === 'never') {
         return allow({ sessionId, messageId, toolCallId, toolName: name, input })
     }
 
@@ -199,7 +202,7 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     if (decision !== 'deny') autoApproved.set(sessionId, 0)
     if (decision === 'allow-always') {
         remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue }) // 把这条规则写进内存配置
-        await Config.save()                                                                                // 规则立刻落盘，下次启动仍然生效
+        await services.config.save()                                                                       // 规则立刻落盘，下次启动仍然生效
     }
     approval.resolve(decision !== 'deny')
     return { ok: true }
@@ -220,4 +223,4 @@ const remove = sessionId => {
     recentCalls.delete(sessionId)
 }
 
-export default { check, decide, pending, reset, remove }
+export default { check, decide, pending, reset, remove, bind }

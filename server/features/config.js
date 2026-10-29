@@ -16,8 +16,7 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { writeFile } from 'atomically'
-import store from '../store.js'
-import Context from './context.js'
+import store, { DEFAULT_PROMPT } from '../store.js'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
 
@@ -93,7 +92,7 @@ const migrate = raw => {
 
     // 提示词默认值只填一次；用户明确保存的空字符串保持为空。
     const prompt = isObject(config.prompt) ? config.prompt : {}
-    if (prompt.seeded !== true && typeof prompt.system !== 'string') prompt.system = Context.DEFAULT_PROMPT
+    if (prompt.seeded !== true && typeof prompt.system !== 'string') prompt.system = DEFAULT_PROMPT
     if (typeof prompt.system !== 'string') prompt.system = ''
     prompt.seeded = true
     config.prompt = prompt

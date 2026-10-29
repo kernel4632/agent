@@ -21,24 +21,21 @@ import { mkdir } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import Agent from '@kernel4632/agent-core'
-import store from '../store.js'
+import store, { TOOL_KINDS } from '../store.js'
 import Path from '../utils/path.js'
-import Mcp from './mcp.js'
 import Delegation from '../tools/subagent.js'
 import Skill from '../tools/skill.js'
 import * as File from '../tools/file.js'
+
+// MCP 由命令层在启动时绑定；本文件不 import 别的 feature。
+let services = {}
+const bind = value => { services = value }
 
 /*
  * 自动批准能分别开关的类别。工具文件自己写 kind，扫描时登记；
  * 没有写 kind 的工具按 other 处理，一律要问用户。
  */
-const KINDS = [
-    { kind: 'read', label: '读取', hint: '读文件、列目录、搜代码、抓网页' },
-    { kind: 'write', label: '写入', hint: '改文件、打补丁' },
-    { kind: 'command', label: '执行命令', hint: '跑命令' },
-    { kind: 'mcp', label: '使用 MCP', hint: 'MCP 服务提供的工具' },
-    { kind: 'subtask', label: '创建子任务', hint: '开一个子任务去干活' },
-]
+const KINDS = TOOL_KINDS
 
 const builtinDir = () => fileURLToPath(new URL('../tools/', import.meta.url))
 
@@ -122,7 +119,7 @@ const kindOf = ({ toolName, mcpServers = [] }) => {
 }
 
 // --- 给一个工具补上会话上下文和宿主注入的运行时能力 ---
-const bind = (tool, sessionId, { saveSession }) => ({
+const attach = (tool, sessionId, { saveSession }) => ({
     ...tool,
     execute: (input, options = {}) => tool.execute(input, {
         ...options,
@@ -139,7 +136,7 @@ const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
     const catalog = new Map(registered)                             // 按名字索引，后面同名会覆盖
 
     // 外部服务给的工具也一起交给模型；名字已经带服务名前缀。
-    for (const [name, tool] of Object.entries(await Mcp.tools({ sessionId }))) {
+    for (const [name, tool] of Object.entries(await services.mcp.tools({ sessionId }))) {
         catalog.set(name, { ...tool, name, kind: 'mcp' })
     }
 
@@ -147,7 +144,7 @@ const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
     const skill = await Skill.build({ cwd: session.cwd })           // 技能正文留在磁盘上，用时才读
     if (skill) catalog.set(skill.name, skill)
 
-    const bound = [...catalog.values()].map(tool => bind(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
+    const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
     let set = Agent.tool.adopt(bound)                               // 转成 agent-core 认识的工具表
 
     // 子智能体仍然只是一个工具；它拿到的是主 Agent 的同一张工具表。

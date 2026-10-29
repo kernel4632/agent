@@ -13,7 +13,17 @@
 
 import { fileURLToPath } from 'node:url'
 import Agent from '../features/agent.js'
+import Approval from '../features/approval.js'
 import Config from '../features/config.js'
+import Context from '../features/context.js'
+import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
+import Tool from '../features/tool.js'
+
+// --- 只依赖配置的入口也要把 Agent 需要的服务接起来；命令文件之间不互相 import ---
+Tool.bind({ mcp: Mcp })
+Approval.bind({ tool: Tool, config: Config })
+Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })
 
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
 let cachedVersion = null

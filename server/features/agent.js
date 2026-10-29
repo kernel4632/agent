@@ -5,9 +5,10 @@
  * 模型请求和循环由 @kernel4632/agent-core 负责；这里只回答四件事：
  * 用哪个模型、带哪段提示词、给哪些工具、这次会话的权限和设置。
  * 默认模型按任务分开：对话、压缩、标题、子任务各用 config.models 里那一个。
- * 工具需要的审批和保存会话能力，在装配时从这里传进 Tool.build；工具不反向 import features。
+ * 审批、工具、历史和上下文由命令层在启动时 bind；本文件不 import 任何 feature。
  *
  * 调用示例：
+ *   Agent.bind({ history, tool, approval, context })   // 命令层启动时注入
  *   const agent = await Agent.get({ sessionId })
  *   const settings = await Agent.readSettings(sessionId)
  *   await Agent.saveSettings({ sessionId, reasoning: 'high' })
@@ -15,15 +16,15 @@
  */
 
 import AgentCore from '@kernel4632/agent-core'
-import store from '../store.js'
-import Approval from './approval.js'
-import Context from './context.js'
-import History from './history.js'
-import Tool from './tool.js'
+import store, { TOOL_KINDS } from '../store.js'
 import fail from '../utils/fail.js'
 
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
+
+// 命令层在启动时注入 history/tool/approval/context；本文件不 import 任何 feature。
+let services = {}
+const bind = value => { services = value }
 
 // =======================================================================
 //  模型连接
@@ -129,7 +130,7 @@ const hasCapability = (profile, name) => profile.some(item => {
 const resolveFor = ({ session, settings, target }) => {
     const chosen = target || session.model
     const linked = connection(chosen)
-    const info = Context.modelInfo(chosen)
+    const info = services.context.modelInfo(chosen)
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
 
@@ -148,7 +149,7 @@ const resolveFor = ({ session, settings, target }) => {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
         },
-        system: Context.system({ config: store.config }),
+        system: services.context.system({ config: store.config }),
         // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
         noToolRounds: 1,
     }
@@ -194,7 +195,7 @@ const attempt = async chosen => {
 //  会话设置
 // =======================================================================
 
-const autoApproveDefaults = () => Object.fromEntries(Tool.KINDS.map(item => [item.kind, false]))
+const autoApproveDefaults = () => Object.fromEntries(TOOL_KINDS.map(item => [item.kind, false]))
 
 const defaultSettings = () => ({
     autoApprove: autoApproveDefaults(),
@@ -205,10 +206,10 @@ const defaultSettings = () => ({
 // --- 自动批准：按类别合并；旧的布尔总开关摊到每一类 ---
 const mergeAutoApprove = (input, base) => {
     const source = typeof input.autoApprove === 'boolean'
-        ? Object.fromEntries(Tool.KINDS.map(item => [item.kind, input.autoApprove]))
+        ? Object.fromEntries(TOOL_KINDS.map(item => [item.kind, input.autoApprove]))
         : (input.autoApprove || {})
     const autoApprove = {}
-    for (const item of Tool.KINDS) autoApprove[item.kind] = (source[item.kind] ?? base.autoApprove[item.kind]) === true
+    for (const item of TOOL_KINDS) autoApprove[item.kind] = (source[item.kind] ?? base.autoApprove[item.kind]) === true
     return autoApprove
 }
 
@@ -225,7 +226,7 @@ const normalizeSettings = (input = {}, base = defaultSettings()) => {
 
 // --- 读设置；没存过时给默认值 ---
 const readSettings = async sessionId => {
-    const session = await History.load(sessionId)
+    const session = await services.history.load(sessionId)
     return normalizeSettings(session.settings, defaultSettings())
 }
 
@@ -234,13 +235,13 @@ const readSettings = async sessionId => {
  * 思考强度要重建 Agent；自动批准和上限不用，随时能改。
  */
 const saveSettings = async ({ sessionId, ...change }) => {
-    const current = normalizeSettings((await History.load(sessionId)).settings, defaultSettings())
+    const current = normalizeSettings((await services.history.load(sessionId)).settings, defaultSettings())
     const saved = normalizeSettings(change, current)
 
     if (change.reasoning !== undefined && change.reasoning !== current.reasoning && agents.get(sessionId)?.running) {
         throw fail(409, `Agent is already running: ${sessionId}`)
     }
-    await History.saveSettings({ sessionId, settings: saved })
+    await services.history.saveSettings({ sessionId, settings: saved })
     if (change.reasoning === undefined || change.reasoning === current.reasoning) return saved
 
     // 历史原样交回去，不丢消息。
@@ -255,15 +256,15 @@ const saveSettings = async ({ sessionId, ...change }) => {
 
 // --- 为一个会话建出 Agent 实例 ---
 const create = async ({ sessionId }) => {
-    const session = await History.load(sessionId)                     // 先把会话元数据读进内存
+    const session = await services.history.load(sessionId)                     // 先把会话元数据读进内存
     const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度和自动批准
     const config = resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
-    const tools = await Tool.build({
+    const tools = await services.tool.build({
         sessionId,
         // 子任务可以用 models.task 单独指定；没配就沿用会话当前模型。
         taskConfig: resolveFor({ session, settings, target: configured(store.config.models?.task) || session.model }),
-        onPermission: Approval.check,                                 // 工具执行前回到同一个审批关口
-        saveSession: () => History.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
+        onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口
+        saveSession: () => services.history.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
     })
     // 审批只依赖 config 和工具宿主，不再 import agent；这里静态引入不会成环。
     const instance = AgentCore.create({
@@ -271,7 +272,7 @@ const create = async ({ sessionId }) => {
         history: session.history.messages.map(record => record.message),
         config,
         tools,
-        callbacks: { onPermission: Approval.check },
+        callbacks: { onPermission: services.approval.check },
     })
     // 记下装配时的目录：cwd 工具移动之后，下一次运行要按新目录重建工具表。
     instance.cwd = session.cwd
@@ -281,7 +282,7 @@ const create = async ({ sessionId }) => {
 
 // --- 获取或创建 Agent ---
 const getAgent = async ({ sessionId }) => {
-    const session = await History.load(sessionId)
+    const session = await services.history.load(sessionId)
     const current = agents.get(sessionId)
     if (current) {
         if (!current.running && current.cwd !== undefined && current.cwd !== session.cwd) {
@@ -290,7 +291,7 @@ const getAgent = async ({ sessionId }) => {
         }
         // 空闲时补上别的入口刚追加的消息；回退后变短的历史由 Session.read 负责交回。
         if (!current.running) {
-            const stored = History.get({ sessionId })
+            const stored = services.history.get({ sessionId })
             if (stored.length > current.history.length) current.history = stored
         }
         return current
@@ -310,6 +311,6 @@ const invalidate = sessionId => agents.delete(sessionId)
 export default {
     defaultSettings, normalizeSettings, readSettings, saveSettings,
     connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel,
-    create, get: getAgent, runtime, runningCount, invalidate,
+    create, get: getAgent, runtime, runningCount, invalidate, bind,
     REASONING_LEVELS, threshold,
 }

@@ -147,7 +147,7 @@ describe('项目结构', () => {
 
 describe('SSE 事件', () => {
     test('后端自己发的每个事件类型都在对接文档里写着', async () => {
-        const sources = ['features/run.js', 'features/approval.js', 'features/mcp.js', 'tools/subagent.js']
+        const sources = ['commands/chat.js', 'features/approval.js', 'features/mcp.js', 'tools/subagent.js']
         const sent = new Set()
         for (const name of sources) {
             const code = await source(name)

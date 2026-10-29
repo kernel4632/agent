@@ -17,12 +17,20 @@ import store from '../store.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
+import FeatureConfig from '../features/config.js'
+import Context from '../features/context.js'
 import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
 import Rollback from '../features/rollback.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
+
+// --- 有状态 feature 的服务在这里接起来；命令文件之间不互相 import ---
+Tool.bind({ mcp: Mcp })
+Approval.bind({ tool: Tool, config: FeatureConfig })
+Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
@@ -221,7 +229,15 @@ const saveSettings = async ({ sessionId, ...change }) => Agent.saveSettings({ se
 
 // --- 手动压缩 ---
 const compact = async ({ sessionId }) => {
-    const content = await Compact.run({ sessionId })
+    const agent = await Agent.get({ sessionId })                         // 已经装配好的 agent
+    const start = agent.history.length                                  // 压缩前的位置
+    const content = await Compact.run({
+        sessionId,
+        agent,
+        onEvent: event => SSE.send({ id: sessionId, data: event }),     // 压缩进度直接推给界面
+    })
+    for (const message of agent.history.slice(start)) await History.add({ sessionId, message }) // 只保存新追加的总结
+    await History.save(sessionId)
     return { ...await read({ sessionId }), content }
 }
 
@@ -239,7 +255,7 @@ const toolChanges = async ({ sessionId }) => {
 // --- 回退前先看会消失多少消息、哪些文件会被恢复 ---
 const rollbackPreview = async ({ sessionId, messageId }) => {
     await History.load(sessionId)
-    const plan = Rollback.preview({ sessionId, messageId })
+    const plan = Rollback.preview({ history: History, sessionId, messageId })
     const entries = await Tool.entries({ sessionId })
     const dropped = new Set()
     for (const entry of entries) {
@@ -256,9 +272,9 @@ const rollback = async ({ sessionId, messageId, files = true }) => {
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
     // 先算出回退后还留哪些消息块，再恢复文件；文件失败时消息保持原样。
-    const plan = Rollback.preview({ sessionId, messageId })
+    const plan = Rollback.preview({ history: History, sessionId, messageId })
     const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep }) : []
-    await Rollback.messages({ sessionId, messageId })
+    await Rollback.messages({ history: History, agent: Agent, sessionId, messageId })
     return { ...await read({ sessionId }), restored }
 }
 
@@ -278,7 +294,7 @@ const redo = async ({ sessionId, files = true }) => {
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
     const restored = files ? await Tool.undo({ sessionId }) : []
-    await Rollback.undo({ sessionId })
+    await Rollback.undo({ history: History, agent: Agent, sessionId })
     return { ...await read({ sessionId }), restored }
 }
 

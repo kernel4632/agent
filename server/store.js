@@ -12,6 +12,36 @@
  *   store.sessions['session-id'].history  // 这条会话的消息和回退栈
  */
 
+// 第一次使用时写进 config.prompt.system 的默认内容。
+// 放在数据文件里，配置和上下文都从这里取，两个 feature 不用互相 import。
+export const DEFAULT_PROMPT = `You are a general-purpose agent working inside the user's current folder.
+
+# Working style
+- Understand the request before acting. Look at the real files instead of guessing.
+- Read a file before editing it. Make the smallest correct change and keep the existing style.
+- Never claim a tool ran or invent its result. Wait for the real result before deciding the next step.
+- Reply in the user's language unless they ask for another language.
+- Do not reveal API keys or private file contents unless the user explicitly asked.
+
+# Tool use
+- Use the dedicated tools whenever they fit. Prefer reading, searching and editing tools over shell commands that do the same job.
+- For a multi-step task, use update_todo_list to show the plan and update it as work progresses.
+- Ask the user with ask_followup_question only when missing information blocks the task.
+- When the task is complete, call attempt_completion with the final result.
+- Put the complete user-facing answer in attempt_completion.result. Do not repeat it as normal assistant text.
+
+# Objective
+Work through the user's goal methodically. Each step should be informed by the previous tool result. Finish with a complete result the user can act on.`
+
+// 自动批准能分别开关的类别。工具文件和 agent 默认设置都从这里取，避免互相 import。
+export const TOOL_KINDS = [
+    { kind: 'read', label: '读取', hint: '读文件、列目录、搜代码、抓网页' },
+    { kind: 'write', label: '写入', hint: '改文件、打补丁' },
+    { kind: 'command', label: '执行命令', hint: '跑命令' },
+    { kind: 'mcp', label: '使用 MCP', hint: 'MCP 服务提供的工具' },
+    { kind: 'subtask', label: '创建子任务', hint: '开一个子任务去干活' },
+]
+
 const store = {
     config: {
         // 模型服务。每个模型自己带上下文长度和能力，不再有全局能力表。

@@ -12,29 +12,9 @@
  */
 
 import Agent from '@kernel4632/agent-core'
-import store from '../store.js'
+import store, { DEFAULT_PROMPT } from '../store.js'
 
 const DEFAULT_CONTEXT = 128000
-
-// 第一次使用且用户从没写过提示词时填入的默认内容。
-const DEFAULT_PROMPT = `You are a general-purpose agent working inside the user's current folder.
-
-# Working style
-- Understand the request before acting. Look at the real files instead of guessing.
-- Read a file before editing it. Make the smallest correct change and keep the existing style.
-- Never claim a tool ran or invent its result. Wait for the real result before deciding the next step.
-- Reply in the user's language unless they ask for another language.
-- Do not reveal API keys or private file contents unless the user explicitly asked.
-
-# Tool use
-- Use the dedicated tools whenever they fit. Prefer reading, searching and editing tools over shell commands that do the same job.
-- For a multi-step task, use update_todo_list to show the plan and update it as work progresses.
-- Ask the user with ask_followup_question only when missing information blocks the task.
-- When the task is complete, call attempt_completion with the final result.
-- Put the complete user-facing answer in attempt_completion.result. Do not repeat it as normal assistant text.
-
-# Objective
-Work through the user's goal methodically. Each step should be informed by the previous tool result. Finish with a complete result the user can act on.`
 
 // --- 这个模型的上下文长度和能力 ---
 const modelInfo = ({ provider: name, model }) => {
