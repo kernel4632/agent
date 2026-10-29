@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 后端目标编排</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+    background:
+      radial-gradient(ellipse at 12% 8%, rgba(244,114,182,.16), transparent 32%),
+      radial-gradient(ellipse at 88% 92%, rgba(96,165,250,.16), transparent 36%),
+      #0b0d13;
+    color: #f8fafc;
+    font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  .page { max-width: 1560px; margin: 0 auto; }
+  .eyebrow { font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,.5); }
+  h1 { margin: 6px 0 8px; font-size: 28px; }
+  h2 { margin: 0 0 6px; font-size: 16px; }
+  .lead { margin: 0 0 20px; color: rgba(255,255,255,.66); line-height: 1.7; max-width: 1000px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .stat { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); border-radius: 12px; padding: 9px 13px; font-size: 13px; color: rgba(255,255,255,.72); }
+  .stat b { color: #f8fafc; }
+  .panel { border: 1px solid rgba(255,255,255,.13); background: rgba(16,18,27,.78); border-radius: 18px; padding: 14px; box-shadow: 0 18px 60px rgba(0,0,0,.28); margin-bottom: 18px; }
+  .panel-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 2px 4px 12px; color: rgba(255,255,255,.62); font-size: 12px; }
+  .panel-title b { color: #f8fafc; font-size: 14px; }
+  img { display: block; width: 100%; height: auto; border-radius: 12px; background: #0d0f16; }
+  img.layer { max-width: 560px; margin: 0 auto; }
+  .caption { margin: 10px 4px 0; color: rgba(255,255,255,.55); font-size: 12px; line-height: 1.7; }
+  .caption b { color: rgba(255,255,255,.82); font-weight: 600; }
+  .card { border: 1px solid rgba(255,255,255,.13); background: rgba(16,18,27,.78); border-radius: 18px; padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.09); vertical-align: top; }
+  th { color: rgba(255,255,255,.55); font-weight: 500; }
+  td:first-child { white-space: nowrap; }
+  code { color: #c4b5fd; }
+  ol { margin: 0; padding-left: 22px; line-height: 1.9; }
+  li + li { margin-top: 6px; }
+  .muted { color: rgba(255,255,255,.55); }
+  .note { border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 13px 15px; color: rgba(255,255,255,.6); font-size: 13px; line-height: 1.7; }
+  .note b { color: rgba(255,255,255,.86); }
+  a { color: #c4b5fd; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="eyebrow">TARGET DESIGN / DEPENDENCIES</div>
+  <h1>后端目标编排</h1>
+  <p class="lead">现在不是文件太多，是方向反了两处：工具反过来 import features，配置保存又让 approval 反过来 import agent。把这两处掰正，再把 store/utils 这些公共依赖从业务图里拿掉，剩下的形状就是三层单向。</p>
+
+  <div class="stats">
+    <span class="stat">源码文件 <b>27 → 28</b></span>
+    <span class="stat">依赖边 <b>73 → 73</b></span>
+    <span class="stat">工具 → features <b>2 → 0</b></span>
+    <span class="stat">循环依赖 <b>1 组 → 0</b></span>
+    <span class="stat">公共依赖 <b>35 条</b></span>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><b>允许的依赖方向</b><span>实线是业务流 · 虚线是公共底座</span></div>
+    <img class="layer" src="./server-target-layers.svg" alt="目标依赖分层图">
+    <div class="caption">只有 <code>features/tool.js</code> 这个工具宿主可以组装 <code>tools/</code> 里的特殊工具。工具运行需要审批或保存会话时，由宿主通过 context 传进去，而不是让工具去 import features。</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><b>现在：跨目录业务依赖</b><span>只画不同目录之间的线 · 同一目录内部和 store/utils 省略</span></div>
+    <img src="./server-current-cross.svg" alt="当前跨目录业务依赖图">
+    <div class="caption">两条红线是工具反向依赖：<code>tools/cwd.js → features/history.js</code> 和 <code>tools/subagent.js → features/approval.js</code>。它们和 <code>features/approval.js → features/agent.js</code> 一起，形成了 4 个文件的环。</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><b>目标：跨目录业务依赖</b><span>工具只向下 · 不再回指 features</span></div>
+    <img src="./server-target-cross.svg" alt="目标跨目录业务依赖图">
+    <div class="caption">三条向下的线都来自 <code>features/tool.js</code>：它组装 <code>tools/file.js</code>、<code>tools/skill.js</code>、<code>tools/subagent.js</code>。其他工具只依赖 <code>store.js</code> 和 <code>utils/</code>，所以不出现在跨目录图里。</div>
+  </div>
+
+  <div class="card">
+    <h2>四条规则</h2>
+    <ol>
+      <li><b>工具只向下。</b><code>tools/</code> 可以 import <code>store.js</code> 和 <code>utils/</code>；要会话、审批、保存能力，从运行时 context 拿。</li>
+      <li><b>工具宿主是唯一例外。</b>只有 <code>features/tool.js</code> 组装 <code>tools/</code> 里的文件、技能和子智能体；其他 feature 不碰工具实现。</li>
+      <li><b>业务单向。</b><code>commands/</code> → <code>features/</code> → <code>tools/</code>；<code>store.js</code> 和 <code>utils/</code> 是叶子，不 import 上层。</li>
+      <li><b>配置归配置。</b><code>features/config.js</code> 管读写和迁移；<code>features/approval.js</code> 不再为了保存配置去 import <code>features/agent.js</code>。</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>具体改动</h2>
+    <table>
+      <thead><tr><th>文件</th><th>怎么改</th><th>解决什么</th></tr></thead>
+      <tbody>
+        <tr><td><code>features/config.js</code><br/><span class="muted">新增</span></td><td>接手 <code>commands/config.js</code> 里的读取、旧字段迁移和保存；<code>Agent.saveConfig</code> 也搬过来。</td><td>配置保存不再从 approval 反向 import agent。</td></tr>
+        <tr><td><code>features/approval.js</code></td><td>改 import <code>features/config.js</code>，去掉 <code>features/agent.js</code>。</td><td>打断 approval ↔ agent 的环。</td></tr>
+        <tr><td><code>features/agent.js</code></td><td>自己 import Config；把 <code>onPermission</code> 和 <code>saveSession</code> 传进 <code>Tool.build</code>。</td><td>工具宿主拿到运行时能力，工具不用回查 features。</td></tr>
+        <tr><td><code>features/tool.js</code></td><td>保留对 file、skill、subagent 的组装；把 <code>onPermission</code> 传给 subagent，把 <code>saveSession</code> 绑给 cwd。</td><td>只保留一条有意的 features → tools 边。</td></tr>
+        <tr><td><code>tools/subagent.js</code></td><td>去掉 <code>features/approval.js</code>，审批改用 <code>context.onPermission</code>。</td><td>去掉 tool → feature 的反向边。</td></tr>
+        <tr><td><code>tools/cwd.js</code></td><td>去掉 <code>features/history.js</code>，保存会话改用 <code>context.saveSession</code>。</td><td>去掉 tool → feature 的反向边。</td></tr>
+        <tr><td><code>commands/config.js</code></td><td>只留 HTTP 动作；读、迁移、保存交给 <code>features/config.js</code>。</td><td>入口层不再放业务迁移逻辑。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note"><b>为什么图看起来突然干净了：</b>这里只画跨目录的业务依赖，35 条指向 <code>store.js</code> 和 <code>utils/</code> 的公共依赖没有画。它们不是混乱来源，反而是应该存在的共享底座。完整的全量图仍然在 <a href="./server-dependencies.html">依赖关系报告</a> 里。<br/><b>范围：</b>这是目标设计，当前代码还没按这张图改。</div>
+</div>
+</body>
+</html>

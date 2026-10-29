@@ -1,0 +1,24 @@
+%%{init: {'theme':'dark','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'18px','primaryColor':'#18202b','primaryTextColor':'#f8fafc','lineColor':'#64748b'}}}%%
+flowchart TB
+  S["server.js"]
+  C["commands/"]
+  F["features/"]
+  T["tools/"]
+  B["store.js + utils/"]
+  S --> C
+  C --> F
+  F -->|"tool.js 组装"| T
+  S -.-> B
+  C -.-> B
+  F -.-> B
+  T -.-> B
+  classDef server fill:#3a1730,stroke:#e879f9,color:#f8fafc
+  classDef cmd fill:#172b45,stroke:#60a5fa,color:#f8fafc
+  classDef feat fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
+  classDef tool fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
+  classDef base fill:#102a24,stroke:#34d399,color:#f8fafc
+  class S server
+  class C cmd
+  class F feat
+  class T tool
+  class B base

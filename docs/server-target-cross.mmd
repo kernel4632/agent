@@ -1,0 +1,60 @@
+%%{init: {'theme':'dark','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'18px','primaryColor':'#18202b','primaryTextColor':'#f8fafc','lineColor':'#64748b','clusterBkg':'#11151d','clusterBorder':'#475569'}}}%%
+flowchart TB
+  subgraph commands["commands/"]
+    direction TB
+    commands_chat_js["chat.js"]
+    commands_config_js["config.js"]
+    commands_session_js["session.js"]
+    commands_tool_js["tool.js"]
+  end
+  subgraph features["features/"]
+    direction TB
+    features_agent_js["agent.js"]
+    features_approval_js["approval.js"]
+    features_compact_js["compact.js"]
+    features_history_js["history.js"]
+    features_rollback_js["rollback.js"]
+    features_run_js["run.js"]
+    features_title_js["title.js"]
+    features_tool_js["tool.js"]
+    features_config_js["config.js"]
+  end
+  subgraph tools["tools/"]
+    direction TB
+    tools_file_js["file.js"]
+    tools_skill_js["skill.js"]
+    tools_subagent_js["subagent.js"]
+  end
+  subgraph _root_["根目录"]
+    direction TB
+    server_js["server.js"]
+  end
+  commands_chat_js --> features_approval_js
+  commands_chat_js --> features_run_js
+  commands_config_js --> features_agent_js
+  commands_config_js --> features_config_js
+  commands_session_js --> features_agent_js
+  commands_session_js --> features_approval_js
+  commands_session_js --> features_compact_js
+  commands_session_js --> features_history_js
+  commands_session_js --> features_rollback_js
+  commands_session_js --> features_title_js
+  commands_session_js --> features_tool_js
+  commands_tool_js --> features_tool_js
+  features_tool_js --> tools_file_js
+  features_tool_js --> tools_skill_js
+  features_tool_js --> tools_subagent_js
+  server_js --> commands_chat_js
+  server_js --> commands_config_js
+  server_js --> commands_session_js
+  server_js --> commands_tool_js
+  server_js --> features_history_js
+  classDef dir_commands fill:#172b45,stroke:#60a5fa,color:#f8fafc
+  class commands_chat_js,commands_config_js,commands_session_js,commands_tool_js dir_commands
+  classDef dir_features fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
+  class features_agent_js,features_approval_js,features_compact_js,features_history_js,features_rollback_js,features_run_js,features_title_js,features_tool_js,features_config_js dir_features
+  classDef dir_tools fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
+  class tools_file_js,tools_skill_js,tools_subagent_js dir_tools
+  classDef dir__root_ fill:#3a1730,stroke:#e879f9,color:#f8fafc
+  class server_js dir__root_
+  style features_tool_js stroke:#f472b6,stroke-width:3px
