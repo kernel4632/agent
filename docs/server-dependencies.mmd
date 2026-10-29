@@ -7,7 +7,7 @@ flowchart TB
     commands_session_js["session.js"]
     commands_tool_js["tool.js"]
   end
-  subgraph features["features/ · 11 个文件"]
+  subgraph features["features/ · 10 个文件"]
     direction TB
     features_agent_js["agent.js"]
     features_approval_js["approval.js"]
@@ -17,7 +17,6 @@ flowchart TB
     features_history_js["history.js"]
     features_mcp_js["mcp.js"]
     features_rollback_js["rollback.js"]
-    features_run_js["run.js"]
     features_title_js["title.js"]
     features_tool_js["tool.js"]
   end
@@ -49,14 +48,31 @@ flowchart TB
   server_js --> commands_tool_js
   server_js --> features_history_js
   server_js --> utils_sse_js
+  commands_chat_js --> features_agent_js
   commands_chat_js --> features_approval_js
-  commands_chat_js --> features_run_js
+  commands_chat_js --> features_config_js
+  commands_chat_js --> features_context_js
+  commands_chat_js --> features_history_js
+  commands_chat_js --> features_mcp_js
+  commands_chat_js --> features_title_js
+  commands_chat_js --> features_tool_js
+  commands_chat_js --> store_js
+  commands_chat_js --> utils_fail_js
+  commands_chat_js --> utils_sse_js
   commands_config_js --> features_agent_js
+  commands_config_js --> features_approval_js
   commands_config_js --> features_config_js
+  commands_config_js --> features_context_js
+  commands_config_js --> features_history_js
+  commands_config_js --> features_mcp_js
+  commands_config_js --> features_tool_js
   commands_session_js --> features_agent_js
   commands_session_js --> features_approval_js
   commands_session_js --> features_compact_js
+  commands_session_js --> features_config_js
+  commands_session_js --> features_context_js
   commands_session_js --> features_history_js
+  commands_session_js --> features_mcp_js
   commands_session_js --> features_rollback_js
   commands_session_js --> features_title_js
   commands_session_js --> features_tool_js
@@ -64,23 +80,12 @@ flowchart TB
   commands_session_js --> utils_fail_js
   commands_session_js --> utils_sse_js
   commands_tool_js --> features_tool_js
-  features_agent_js --> features_approval_js
-  features_agent_js --> features_context_js
-  features_agent_js --> features_history_js
-  features_agent_js --> features_tool_js
   features_agent_js --> store_js
   features_agent_js --> utils_fail_js
-  features_approval_js --> features_config_js
-  features_approval_js --> features_tool_js
   features_approval_js --> store_js
   features_approval_js --> utils_fail_js
   features_approval_js --> utils_sse_js
-  features_compact_js --> features_agent_js
-  features_compact_js --> features_history_js
-  features_compact_js --> store_js
   features_compact_js --> utils_fail_js
-  features_compact_js --> utils_sse_js
-  features_config_js --> features_context_js
   features_config_js --> store_js
   features_config_js --> utils_fail_js
   features_config_js --> utils_path_js
@@ -91,18 +96,7 @@ flowchart TB
   features_history_js --> utils_sse_js
   features_mcp_js --> store_js
   features_mcp_js --> utils_sse_js
-  features_rollback_js --> features_agent_js
-  features_rollback_js --> features_history_js
   features_rollback_js --> utils_fail_js
-  features_run_js --> features_agent_js
-  features_run_js --> features_approval_js
-  features_run_js --> features_history_js
-  features_run_js --> features_title_js
-  features_run_js --> features_tool_js
-  features_run_js --> store_js
-  features_run_js --> utils_fail_js
-  features_run_js --> utils_sse_js
-  features_tool_js --> features_mcp_js
   features_tool_js --> store_js
   features_tool_js --> tools_file_js
   features_tool_js --> tools_skill_js
@@ -117,7 +111,7 @@ flowchart TB
   classDef dir_commands fill:#172b45,stroke:#60a5fa,color:#f8fafc
   class commands_chat_js,commands_config_js,commands_session_js,commands_tool_js dir_commands
   classDef dir_features fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
-  class features_agent_js,features_approval_js,features_compact_js,features_config_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_run_js,features_title_js,features_tool_js dir_features
+  class features_agent_js,features_approval_js,features_compact_js,features_config_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_title_js,features_tool_js dir_features
   classDef dir_tools fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
   class tools_control_js,tools_cwd_js,tools_file_js,tools_shell_js,tools_skill_js,tools_subagent_js,tools_todo_js,tools_web_js dir_tools
   classDef dir_utils fill:#102a24,stroke:#34d399,color:#f8fafc

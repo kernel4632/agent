@@ -57,11 +57,13 @@
   <p class="lead">重构前不是文件太多，是方向反了两处：工具反过来 import features，配置保存又让 approval 反过来 import agent。把这两处掰正，再把 store/utils 这些公共依赖从业务图里拿掉，剩下的形状就是三层单向。</p>
 
   <div class="stats">
-    <span class="stat">源码文件 <b>27 → 28</b></span>
-    <span class="stat">依赖边 <b>73 → 71</b></span>
+    <span class="stat">源码文件 <b>27 → 27</b></span>
+    <span class="stat">依赖边 <b>73 → 66</b></span>
     <span class="stat">工具 → features <b>2 → 0</b></span>
     <span class="stat">循环依赖 <b>1 组 → 0</b></span>
-    <span class="stat">公共依赖 <b>35 → 34</b></span>
+    <span class="stat">公共依赖 <b>35 → 32</b></span>
+    <span class="stat">features 内部 <b>0 条</b></span>
+    <span class="stat">commands 内部 <b>0 条</b></span>
   </div>
 
   <div class="panel">
@@ -108,7 +110,7 @@
     </table>
   </div>
 
-  <div class="note"><b>为什么图看起来突然干净了：</b>这里只画跨目录的业务依赖，34 条指向 <code>store.js</code> 和 <code>utils/</code> 的公共依赖没有画。它们不是混乱来源，反而是应该存在的共享底座。完整的全量图仍然在 <a href="./server-dependencies.html">依赖关系报告</a> 里。<br/><b>状态：</b>这张图已经落地，代码提交 <code>8b45a59</code>。</div>
+  <div class="note"><b>为什么图看起来突然干净了：</b>这里只画跨目录的业务依赖，32 条指向 <code>store.js</code> 和 <code>utils/</code> 的公共依赖没有画。它们不是混乱来源，反而是应该存在的共享底座。完整的全量图仍然在 <a href="./server-dependencies.html">依赖关系报告</a> 里。<br/><b>状态：</b>这张图已经落地，代码提交 <code>f041b42</code>。</div>
 </div>
 </body>
 </html>
