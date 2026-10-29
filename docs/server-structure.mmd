@@ -1,89 +1,50 @@
 %%{init: {'theme':'dark','themeVariables':{'fontFamily':'ui-monospace, monospace','primaryColor':'#18202b','primaryTextColor':'#f8fafc','lineColor':'#64748b','clusterBkg':'#11151d','clusterBorder':'#475569'}}}%%
 graph LR
   S["server/"]
-  subgraph agent["agent/ · 22.7 KB"]
+  subgraph features["features/ · 65.6 KB"]
     direction TB
-    agent_subtask["subtask.js<br/>7.5 KB"]
-    agent_definitions["definitions.js<br/>7.4 KB"]
-    agent_create["create.js<br/>5.8 KB"]
-    agent_state["state.js<br/>2.1 KB"]
+    features_run["run.js<br/>14.4 KB"]
+    features_agent["agent.js<br/>13.2 KB"]
+    features_approval["approval.js<br/>10.1 KB"]
+    features_history["history.js<br/>8.6 KB"]
+    features_tool["tool.js<br/>7.0 KB"]
+    features_context["context.js<br/>3.0 KB"]
+    features_mcp["mcp.js<br/>3.0 KB"]
+    features_title["title.js<br/>2.9 KB"]
+    features_rollback["rollback.js<br/>1.9 KB"]
+    features_compact["compact.js<br/>1.5 KB"]
   end
-  S --> agent
-  subgraph conversation["conversation/ · 78.1 KB"]
+  S --> features
+  subgraph tools["tools/ · 44.9 KB"]
     direction TB
-    conversation_run["run.js<br/>23.4 KB"]
-    conversation_snapshot["snapshot.js<br/>19.5 KB"]
-    conversation_session["session.js<br/>13.3 KB"]
-    conversation_history["history.js<br/>6.1 KB"]
-    conversation_rollback["rollback.js<br/>6.0 KB"]
-    conversation_title["title.js<br/>5.3 KB"]
-    conversation_read["read.js<br/>3.2 KB"]
-    conversation_meta["meta.js<br/>1.4 KB"]
-  end
-  S --> conversation
-  subgraph config["config/ · 40.1 KB"]
-    direction TB
-    config_settings["settings.js<br/>15.9 KB"]
-    config_config["config.js<br/>14.7 KB"]
-    config_rules["rules.js<br/>6.0 KB"]
-    config_system_prompt["system-prompt.js<br/>3.5 KB"]
-  end
-  S --> config
-  subgraph safety["safety/ · 29.0 KB"]
-    direction TB
-    safety_approval["approval.js<br/>19.8 KB"]
-    safety_boundary["boundary.js<br/>5.2 KB"]
-    safety_ignore["ignore.js<br/>4.0 KB"]
-  end
-  S --> safety
-  subgraph tool_registry["tool-registry/ · 15.8 KB"]
-    direction TB
-    tool_registry_catalog["catalog.js<br/>5.6 KB"]
-    tool_registry_mcp["mcp.js<br/>4.4 KB"]
-    tool_registry_kind["kind.js<br/>3.3 KB"]
-    tool_registry_files["files.js<br/>1.3 KB"]
-    tool_registry_names["names.js<br/>1.3 KB"]
-  end
-  S --> tool_registry
-  subgraph tools["tools/ · 32.2 KB"]
-    direction TB
-    tools_grep["grep.js<br/>3.9 KB"]
-    tools_patch["patch.js<br/>3.7 KB"]
-    tools_edit["edit.js<br/>3.5 KB"]
-    tools_shell["shell.js<br/>3.5 KB"]
-    tools_todo["todo.js<br/>2.9 KB"]
-    tools_list_files["list-files.js<br/>2.5 KB"]
-    tools_webfetch["webfetch.js<br/>2.4 KB"]
-    tools_read_file["read-file.js<br/>2.3 KB"]
-    tools_glob["glob.js<br/>2.1 KB"]
-    tools_write_file["write-file.js<br/>2.0 KB"]
-    tools_attempt_completion["attempt-completion.js<br/>1.9 KB"]
-    tools_ask_followup["ask-followup.js<br/>1.5 KB"]
+    tools_file["file.js<br/>24.7 KB"]
+    tools_subagent["subagent.js<br/>4.6 KB"]
+    tools_skill["skill.js<br/>3.5 KB"]
+    tools_shell["shell.js<br/>3.3 KB"]
+    tools_web["web.js<br/>2.4 KB"]
+    tools_control["control.js<br/>2.2 KB"]
+    tools_todo["todo.js<br/>2.2 KB"]
+    tools_cwd["cwd.js<br/>2.0 KB"]
   end
   S --> tools
-  subgraph project["project/ · 6.1 KB"]
+  subgraph commands["commands/ · 18.1 KB"]
     direction TB
-    project_slash_commands["slash-commands.js<br/>3.4 KB"]
-    project_workspace["workspace.js<br/>2.7 KB"]
+    commands_session["session.js<br/>11.3 KB"]
+    commands_config["config.js<br/>5.7 KB"]
+    commands_chat["chat.js<br/>0.7 KB"]
+    commands_tool["tool.js<br/>0.4 KB"]
   end
-  S --> project
-  subgraph skills["skills/ · 5.0 KB"]
+  S --> commands
+  subgraph utils["utils/ · 7.5 KB"]
     direction TB
-    skills_loader["loader.js<br/>5.0 KB"]
-  end
-  S --> skills
-  subgraph utils["utils/ · 14.6 KB"]
-    direction TB
-    utils_sse["sse.js<br/>5.2 KB"]
-    utils_diagnose["diagnose.js<br/>3.2 KB"]
-    utils_path["path.js<br/>2.6 KB"]
-    utils_skip["skip.js<br/>2.1 KB"]
-    utils_truncate["truncate.js<br/>1.0 KB"]
-    utils_fail["fail.js<br/>0.5 KB"]
+    utils_sse["sse.js<br/>4.7 KB"]
+    utils_path["path.js<br/>2.4 KB"]
+    utils_fail["fail.js<br/>0.4 KB"]
   end
   S --> utils
-  subgraph _root_["根目录 · 6.5 KB"]
+  subgraph _root_["根目录 · 6.8 KB"]
     direction TB
-    _root__server["server.js<br/>6.5 KB"]
+    _root__server["server.js<br/>4.2 KB"]
+    _root__store["store.js<br/>2.6 KB"]
   end
   S --> _root_
