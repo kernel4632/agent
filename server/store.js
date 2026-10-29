@@ -33,7 +33,7 @@ export const DEFAULT_PROMPT = `You are a general-purpose agent working inside th
 # Objective
 Work through the user's goal methodically. Each step should be informed by the previous tool result. Finish with a complete result the user can act on.`
 
-// 自动批准能分别开关的类别。工具文件和 agent 默认设置都从这里取，避免互相 import。
+// 工具类别：工具文件和设置页共用，避免互相 import。
 export const TOOL_KINDS = [
     { kind: 'read', label: '读取', hint: '读文件、列目录、搜代码、抓网页' },
     { kind: 'write', label: '写入', hint: '改文件、打补丁' },
@@ -93,8 +93,6 @@ const store = {
         //     updatedAt: 0,
         //     history: { messages: [], redo: [] },
         //     settings: {
-        //         autoApprove: {},
-        //         autoApproveLimit: 50,
         //         reasoning: 'auto',
         //     },
         // },

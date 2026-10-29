@@ -147,8 +147,6 @@ export async function backend(page, { configured = true } = {}) {
         updatedAt: Date.now(),
         settings: {
           agent: 'build',
-          autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
-          autoApproveLimit: 50,
           compactThreshold: 0.8,
           capabilities: { image: true, cache: true, stream: true },
           uses: {},

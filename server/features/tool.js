@@ -32,7 +32,7 @@ let services = {}
 const bind = value => { services = value }
 
 /*
- * 自动批准能分别开关的类别。工具文件自己写 kind，扫描时登记；
+ * 工具类别：工具文件自己写 kind，扫描时登记；
  * 没有写 kind 的工具按 other 处理，一律要问用户。
  */
 const KINDS = TOOL_KINDS

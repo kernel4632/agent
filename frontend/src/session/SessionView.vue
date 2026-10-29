@@ -17,7 +17,6 @@ import { KimaSpinner } from '../ui/index.js'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from './AgentDrawer.vue'
-import PermissionDrawer from './PermissionDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { canContinueSession } from './continue.js'
@@ -37,7 +36,6 @@ const emit = defineEmits(['update:todoOpen'])
 
 // --- 页面内的开关 ---
 // 对话设置和任务清单都走右侧抽屉，不占输入框上方。
-const permissionOpen = ref(false)
 const agentOpen = ref(false)
 const resumable = computed(() => canContinueSession(props.session))
 const showReconnect = ref(false)
@@ -120,11 +118,10 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
         </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :reasoning="session.settings.reasoning" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" :permissions-open="permissionOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @toggle-permissions="permissionOpen = !permissionOpen" @open-agent="agentOpen = true" @update:reasoning="Session.setReasoning(session.id, $event)" />
+        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :reasoning="session.settings.reasoning" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @open-agent="agentOpen = true" @update:reasoning="Session.setReasoning(session.id, $event)" />
       </div>
     </div>
     <SessionTodoPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
-    <PermissionDrawer :open="permissionOpen" :auto-approve="session.settings.autoApprove" :limit="session.settings.autoApproveLimit" @update:open="permissionOpen = $event" @toggle="Session.toggleAutoApprove(session.id, $event)" @update:limit="Session.setLimit(session.id, $event)" />
     <AgentDrawer :open="agentOpen" :model-value="session.settings.agent" @update:open="agentOpen = $event" @select="Session.setAgent(session.id, $event)" />
   </section>
 </template>

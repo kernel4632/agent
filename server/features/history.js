@@ -4,7 +4,7 @@
  * store.sessions 是内存里的唯一来源；磁盘上每条会话一个目录：
  *   meta.json      标题、当前目录、模型、时间
  *   history.json   消息和回退栈
- *   settings.json  自动批准、能力开关、思考强度
+ *   settings.json  思考强度
  * 消息回退只动这里的消息，不碰磁盘上的文件；文件恢复是文件工具自己的事。
  *
  * 调用示例：

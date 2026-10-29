@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.50.5",
+    "version": "0.50.6",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [
@@ -18,7 +18,7 @@
     },
     {
       "name": "Tool",
-      "description": "查看工具目录和自动批准类别。"
+      "description": "查看工具目录和工具类别。"
     },
     {
       "name": "Session",
@@ -105,7 +105,7 @@
         "tags": [
           "Tool"
         ],
-        "summary": "列出自动批准类别",
+        "summary": "列出工具类别",
         "operationId": "toolKinds",
         "responses": {
           "200": {
@@ -607,7 +607,7 @@
           "Session"
         ],
         "summary": "改会话运行设置",
-        "description": "只改点名的那几项。自动批准随时能改；思考强度变化需要没有任务在跑。",
+        "description": "只改点名的那几项。思考强度变化需要没有任务在跑。",
         "operationId": "sessionSaveSettings",
         "parameters": [
           {
@@ -621,12 +621,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "autoApprove": {
-                    "$ref": "#/components/schemas/AutoApprove"
-                  },
-                  "autoApproveLimit": {
-                    "type": "number"
-                  },
                   "reasoning": {
                     "type": "string"
                   }
@@ -1855,35 +1849,9 @@
           }
         }
       },
-      "AutoApprove": {
-        "type": "object",
-        "properties": {
-          "read": {
-            "type": "boolean"
-          },
-          "write": {
-            "type": "boolean"
-          },
-          "command": {
-            "type": "boolean"
-          },
-          "mcp": {
-            "type": "boolean"
-          },
-          "subtask": {
-            "type": "boolean"
-          }
-        }
-      },
       "Settings": {
         "type": "object",
         "properties": {
-          "autoApprove": {
-            "$ref": "#/components/schemas/AutoApprove"
-          },
-          "autoApproveLimit": {
-            "type": "number"
-          },
           "reasoning": {
             "type": "string",
             "enum": [

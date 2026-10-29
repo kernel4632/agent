@@ -17,30 +17,22 @@
 import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from '../session/AgentDrawer.vue'
-import PermissionDrawer from '../session/PermissionDrawer.vue'
 import { Session } from '../session/session.js'
 import { DEFAULT_SETTINGS } from '../defaults.js'
 
 const props = defineProps({
   model: { type: String, default: '' },       // 新会话使用的模型
   agent: { type: String, default: 'build' },  // 新会话默认智能体，发送时随会话一起保存
-  autoApprove: { type: Object, default: () => ({}) }, // 新会话默认自动批准分类
-  autoApproveLimit: { type: Number, default: DEFAULT_SETTINGS.autoApproveLimit },   // 新会话默认连续自动批准上限
   reasoning: { type: String, default: DEFAULT_SETTINGS.reasoning }, // 新会话默认思考强度
   busy: Boolean,                              // 创建中、加载中或有连接错误时禁用发送
   files: { type: Array, default: () => [] },  // 已经附上的文件
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:autoApprove', 'update:autoApproveLimit', 'update:reasoning'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:agent', 'update:reasoning'])
 const draft = defineModel('draft', { type: String, default: '' })
 
 const composer = ref(null)
-const permissionOpen = ref(false)
 const agentOpen = ref(false)
 const agentLabel = computed(() => Session.agentLabel(props.agent))
-
-function toggleAutoApprove(kind) {
-  emit('update:autoApprove', { ...props.autoApprove, [kind]: !props.autoApprove?.[kind] })
-}
 
 // 打开草稿页后由 App 调用，把焦点交给输入框。
 defineExpose({ focus: () => composer.value?.focus() })
@@ -58,7 +50,6 @@ defineExpose({ focus: () => composer.value?.focus() })
         :reasoning="reasoning"
         :agent="agentLabel"
         :agent-open="agentOpen"
-        :permissions-open="permissionOpen"
         :is-running="false"
         :busy="busy"
         :files="files"
@@ -67,7 +58,6 @@ defineExpose({ focus: () => composer.value?.focus() })
         @attach="emit('attach', $event)"
         @remove-file="emit('remove-file', $event)"
         @open-agent="agentOpen = true"
-        @toggle-permissions="permissionOpen = !permissionOpen"
         @update:reasoning="emit('update:reasoning', $event)"
       />
     </div>
@@ -76,14 +66,6 @@ defineExpose({ focus: () => composer.value?.focus() })
       :model-value="agent"
       @update:open="agentOpen = $event"
       @select="emit('update:agent', $event)"
-    />
-    <PermissionDrawer
-      :open="permissionOpen"
-      :auto-approve="autoApprove"
-      :limit="autoApproveLimit"
-      @update:open="permissionOpen = $event"
-      @toggle="toggleAutoApprove"
-      @update:limit="emit('update:autoApproveLimit', $event)"
     />
   </section>
 </template>

@@ -32,8 +32,6 @@ const drawerOpen = ref(false)
 const todoOpen = ref(false)
 // 新对话页还没有会话，但智能体/权限选择要在发送前可见，发送时再写进创建出的会话。
 const draftAgent = ref('build')
-const draftAutoApprove = ref({})
-const draftAutoApproveLimit = ref(DEFAULT_SETTINGS.autoApproveLimit)
 const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
@@ -91,8 +89,6 @@ async function submitMessage(content) {
     // 把新对话页选过的智能体和权限写进刚创建的会话；默认值也写，入口不比较默认值。
     await Session.saveSettings(current.id, {
       agent: draftAgent.value,
-      autoApprove: { ...draftAutoApprove.value },
-      autoApproveLimit: draftAutoApproveLimit.value,
       reasoning: draftReasoning.value,
     })
   } finally { creating.value = false }
@@ -166,14 +162,10 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               v-model:draft="homeDraft"
               :model="store.config.activeModel"
               :agent="draftAgent"
-              :auto-approve="draftAutoApprove"
-              :auto-approve-limit="draftAutoApproveLimit"
               :reasoning="draftReasoning"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               :files="homeFiles"
               @update:agent="draftAgent = $event"
-              @update:auto-approve="draftAutoApprove = $event"
-              @update:auto-approve-limit="draftAutoApproveLimit = $event"
               @update:reasoning="draftReasoning = $event"
               @submit="submitMessage"
               @attach="attachFiles"

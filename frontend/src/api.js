@@ -43,7 +43,7 @@ export const AgentAPI = {
   getCommands:      ()                          => request('/command/list'),
   // 全部工具和当前权限，设置页画开关用。
   getTools:         ()                          => request('/tool/list'),
-  // 自动批准类别；名字和顺序由后端给，前端只补图标。
+  // 工具类别；名字和顺序由后端给。
   getToolKinds:     ()                          => request('/tool/kinds'),
   // 内置和自定义智能体的完整定义；旧后端没有这个接口时由调用方兜底。
   getAgents:        ()                          => request('/agent/list'),
@@ -70,7 +70,7 @@ export const AgentAPI = {
   // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。
   decideTool:       (sessionID, toolCallId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, decision }),
   getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
-  // 会话运行设置：智能体、自动批准、能力开关。
+  // 会话运行设置：思考强度。
   getSettings:      (sessionID)                 => request(`/session/settings/${encodeURIComponent(sessionID)}`),
   saveSettings:     (sessionID, change)         => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', change),
   // 每次改过文件的工具调用；回退可以退到其中任意一次之前。

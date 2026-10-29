@@ -76,24 +76,6 @@ test('API uses only routes and payloads implemented in server/server.js', async 
   assert.equal(calls[14].url.includes('after='), false)
 })
 
-test('auto-approve switches send one category at a time', async t => {
-  // 后端按类别分开关，前端一次只发点名的那一类，其余三类由后端保持原样。
-  // 字段名或形状对不上时后端不会报错，只会静默地把整份 autoApprove 当成没改过，
-  // 表现是"点了开关但下次还是弹审批"，很难查。所以在这里固定住。
-  const calls = []
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
-    return Response.json({ ok: true })
-  })
-
-  await AgentAPI.saveSettings('session-test', { autoApprove: { write: true } })
-
-  assert.equal(calls[0].url, '/api/session/settings/session-test')
-  assert.equal(calls[0].options.method, 'PATCH')
-  // 一次一个类别，不是把四类一起发上去——四类一起发会把用户没碰过的开关覆盖掉。
-  assert.deepEqual(calls[0].body, { autoApprove: { write: true } })
-})
-
 test('per-use models send one use at a time, and clearing means share with the main model', async t => {
   // 三件事各配各的模型，一次只发点名的这一件，另外两件后端保持原样。
   // 清空某一项要发 null（＝改回共用），发 {} 的话后端会当成"没说要改"。
@@ -108,21 +90,6 @@ test('per-use models send one use at a time, and clearing means share with the m
 
   assert.deepEqual(calls[0].body, { uses: { compact: { provider: 'local', model: '小模型' } } })
   assert.deepEqual(calls[1].body, { uses: { title: null } })
-})
-
-test('auto-approve limit is sent as a plain number', async t => {
-  // 上限是一个数字，0 表示不设上限。前端如果把输入框的字符串直接发上去，
-  // 后端会当成认不出来的值而保持原样，表现是"填了但没生效"。
-  const calls = []
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
-    return Response.json({ ok: true })
-  })
-
-  await AgentAPI.saveSettings('session-test', { autoApproveLimit: 0 })
-
-  assert.equal(typeof calls[0].body.autoApproveLimit, 'number')
-  assert.deepEqual(calls[0].body, { autoApproveLimit: 0 })
 })
 
 test('non-JSON HTTP error retains meaningful status', async t => {

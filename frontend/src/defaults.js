@@ -5,7 +5,6 @@
 */
 export const DEFAULT_SETTINGS = {
   agent: 'build',
-  autoApproveLimit: 50,
   compactThreshold: 0.8,
   capabilities: { image: true, cache: true, stream: true },
   uses: {},

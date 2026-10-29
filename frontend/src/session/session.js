@@ -14,27 +14,6 @@ import { splitUserAttachments } from '../utils/user-message.js'      // 历史�
 import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认值只留一处
 
 
-// --- 自动批准类别的图标 ---
-// 类别的名字、顺序和说明由后端 /tool/kinds 带过来；前端只决定用哪个图标。
-const KIND_ICONS = {
-  read: 'eye',
-  write: 'edit',
-  command: 'code',
-  mcp: 'globe',
-  subtask: 'folder',
-}
-
-// --- 自动批准开关：类别、名字和顺序都来自后端，前端只补图标 ---
-function autoApproveKinds() {
-  return (store.config.kindOptions || []).map(item => ({
-    kind: item.kind,
-    label: item.label,
-    hint: item.hint,
-    icon: KIND_ICONS[item.kind] || 'spark',
-  }))
-}
-
-
 // --- 查找会话摘要和所属工作区 ---
 function locate(sessionID) {
   for (const workspace of store.workspaces) {
@@ -226,7 +205,6 @@ async function saveSettings(sessionID, change) {
   // 控件会先亮起来；失败时用这份快照还原，避免界面停在一个后端没接受的值上。
   const previous = session.settings
   const next = { ...previous, ...change }
-  if (change.autoApprove) next.autoApprove = { ...previous.autoApprove, ...change.autoApprove }
   if (change.capabilities) next.capabilities = { ...previous.capabilities, ...change.capabilities }
   if (change.uses) next.uses = { ...previous.uses, ...change.uses }
   session.settings = next
@@ -263,23 +241,6 @@ function agentLabel(name) {
 }
 
 
-// --- 类别的中文名 ---
-const labelOf = kind => autoApproveKinds().find(item => item.kind === kind)?.label || kind
-
-
-// --- 切换某一类的自动批准 ---
-async function toggleAutoApprove(sessionID, kind) {
-  const session = store.sessions[sessionID]
-  if (!session) return null
-  // 只提交点名的这一类，其余三类后端会保持原样。
-  const next = !session.settings.autoApprove?.[kind]
-  const settings = await saveSettings(sessionID, { autoApprove: { [kind]: next } })
-  // 提醒一句这是降低门槛的操作：审批弹窗没了，但忽略规则仍然生效。
-  if (settings) UI.notify(next ? `已开启「${labelOf(kind)}」的自动批准（密钥文件仍然拦得住）` : `已关闭「${labelOf(kind)}」的自动批准：执行前会再问你`)
-  return settings
-}
-
-
 // --- 切换一项模型能力开关 ---
 async function toggleCapability(sessionID, name) {
   const session = store.sessions[sessionID]
@@ -306,15 +267,6 @@ async function setUse(sessionID, use, target) {
   const settings = await saveSettings(sessionID, { uses: { [use]: target } })
   if (settings) UI.notify(target ? `「${useLabel(use)}」改用 ${target.model}` : `「${useLabel(use)}」改回和主模型共用`)
   return settings
-}
-
-
-// --- 改自动批准的上限 ---
-// 上限是防止"开着自动批准结果跑飞了"的刹车，0 表示不设上限。
-async function setLimit(sessionID, value) {
-  const session = store.sessions[sessionID]
-  if (!session) return null
-  return saveSettings(sessionID, { autoApproveLimit: value })
 }
 
 
@@ -457,12 +409,10 @@ function normalize(source, previous = {}) {
     status: source.running ? 'running' : 'idle',
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
-    // 智能体、自动批准、能力开关、按用途的模型，后端读取时一并给出。
+    // 智能体、能力开关、按用途的模型，后端读取时一并给出。
     // 缺字段时用下面这份兜底；默认值和后端 defaultSettings() 是同一套值（有契约测试盯着）。
     settings: source.settings || previous.settings || {
       ...DEFAULT_SETTINGS,
-      // 每类全关：不替用户预先放行任何东西。哪几类由上面的清单说了算。
-      autoApprove: {},
       capabilities: { ...DEFAULT_SETTINGS.capabilities },
       uses: { ...DEFAULT_SETTINGS.uses },
     },
@@ -538,7 +488,5 @@ async function saveTitleEditing(currentTitle, draft, editing, emit) {
 
 export const Session = {
   locate, create, open, openByID, closeOpened, refresh, rename, remove, removeMany, selectModel, fork, normalize, syncSummary, saveTitleEditing,
-  saveSettings, setAgent, agentLabel, toggleAutoApprove, toggleCapability, toggleAutoTitle, setUse, setLimit, setCompactThreshold, setReasoning,
+  saveSettings, setAgent, agentLabel, toggleCapability, toggleAutoTitle, setUse, setCompactThreshold, setReasoning,
 }
-// 界面按这两份名单画开关和选择框，所以它们跟着 Session 一起给出去。
-export { autoApproveKinds }

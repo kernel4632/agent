@@ -16,7 +16,7 @@ async function load() {
       AgentAPI.getConfig(),                              // 脱敏持久化配置
       AgentAPI.getTools(),                               // 全部工具和当前权限
       AgentAPI.getAgents(),                              // 内置和自定义智能体
-      AgentAPI.getToolKinds(),                           // 自动批准类别的名字和顺序
+      AgentAPI.getToolKinds(),                           // 工具类别的名字和顺序
       AgentAPI.getConfigMeta(),                          // “按用途配模型”的标签和说明
       AgentAPI.getCommands(),                            // 用户自定义的斜杠命令
     ])

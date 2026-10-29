@@ -57,18 +57,13 @@ describe('接口契约', () => {
         expect((await response.json()).version).toBe(pkg.version)
     })
 
-    test('自动批准的类别和文档里的是同一组', async () => {
-        const openapi = await readJson('openapi.json')
-        expect(Object.keys(openapi.components.schemas.AutoApprove.properties)).toEqual(Tool.KINDS.map(item => item.kind))
-    })
-
     test('按任务的模型和文档里的是同一组', async () => {
         const openapi = await readJson('openapi.json')
         const models = openapi.components.schemas.Config.properties.models.properties
         expect(Object.keys(models)).toEqual(Settings.MODELS.map(item => item.task))
     })
 
-    test('界面上的自动批准开关和代码里的类别是同一组', async () => {
+    test('界面上的工具类别和代码里的类别是同一组', async () => {
         const response = await app.handle(new Request('http://localhost/tool/kinds'))
         expect(response.status).toBe(200)
         expect(await response.json()).toEqual(Tool.KINDS)

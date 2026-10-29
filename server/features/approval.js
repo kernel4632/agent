@@ -1,8 +1,8 @@
 /*
  * 工具审批：按权限规则放行工具，或在规则要求询问时等用户决定。
  *
- * 这是工具执行的唯一一道关口。deny 是硬规则，自动批准只省掉"询问"，绕不过它。
- * 同一个工具调用连续出现三次、或者自动批准连着放行到上限，都会停下来问一次。
+ * 这是工具执行的唯一一道关口。deny 是硬规则；没有会话级自动批准。
+ * 同一个工具调用连续出现三次时，会停下来问一次。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
  * 工具查询和配置保存由命令层在启动时 bind；本文件不 import 任何 feature。
  *
@@ -27,8 +27,6 @@ const LOOP_LIMIT = 3
 
 // 等用户决定的工具调用：key 是 `${sessionId}:${toolCallId}`，value 里带着唤醒 Agent 的 resolve。
 const approvals = new Map()
-// 每个会话已经连续自动批准了多少次。
-const autoApproved = new Map()
 // 每个会话最近一次工具调用和连续次数。
 const recentCalls = new Map()
 
@@ -109,11 +107,10 @@ const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
 
 // --- 这次会话生效的规则：deny 时把原因告诉界面 ---
 const ruleDecision = async ({ sessionId, toolCallId, name, matchValue, input }) => {
-    const settings = store.sessions[sessionId]?.settings
     const decision = decideByRules(name, matchValue, effectiveRules())
-    if (decision !== 'deny') return { settings, decision, denied: false }
+    if (decision !== 'deny') return { decision, denied: false }
     if (sessionId) await SSE.send({ id: sessionId, data: { type: 'permission-blocked', callID: toolCallId, tool: name, input, reason: '被权限规则拒绝' } })
-    return { settings, decision, denied: true }
+    return { decision, denied: true }
 }
 
 // --- 同一个调用连续出现时先停下来问一次 ---
@@ -128,20 +125,6 @@ const repeatsTooOften = ({ sessionId, name, input }) => {
         SSE.send({ id: sessionId, data: { type: 'permission-limit', limit: LOOP_LIMIT, reason: `同一个工具调用连续出现 ${LOOP_LIMIT} 次，确认要继续吗` } })
     }
     return looping
-}
-
-// --- 这一类开了自动批准就跳过询问，但连着放行太多次要停下来问一次 ---
-const autoApproveState = ({ sessionId, settings, name, mcpServers }) => {
-    const kind = services.tool.kindOf({ toolName: name, mcpServers })
-    // 老设置文件里 autoApprove 是一个布尔总开关，也当作这一类开着。
-    const auto = kind !== 'never' && (settings?.autoApprove === true || settings?.autoApprove?.[kind] === true)
-    const limit = settings?.autoApproveLimit || 0
-    const used = autoApproved.get(sessionId) || 0
-    const capped = auto && limit > 0 && used >= limit
-    if (auto && !capped) autoApproved.set(sessionId, used + 1)
-    if (!capped) return { auto, capped }
-    SSE.send({ id: sessionId, data: { type: 'permission-limit', limit, reason: `已连续自动批准 ${limit} 次，确认要继续吗` } })
-    return { auto, capped }
 }
 
 // --- 把审批请求推给界面，等用户回答；任务被取消时按拒绝处理 ---
@@ -170,10 +153,9 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     const rules = await ruleDecision({ sessionId, toolCallId, name, matchValue, input })
     if (rules.denied) return false
 
-    // 两种刹车都要压过"规则说 allow"。
+    // 同一个调用连续出现三次时，即使规则说 allow 也停下来问一次。
     const looping = repeatsTooOften({ sessionId, name, input })
-    const auto = autoApproveState({ sessionId, settings: rules.settings, name, mcpServers })
-    const rule = looping || auto.capped ? 'ask' : auto.auto ? 'allow' : rules.decision
+    const rule = looping ? 'ask' : rules.decision
     if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     // 没有会话上下文时按无人值守放行。
@@ -199,7 +181,6 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
 
     approvals.delete(`${sessionId}:${toolCallId}`)
     recentCalls.delete(sessionId)
-    if (decision !== 'deny') autoApproved.set(sessionId, 0)
     if (decision === 'allow-always') {
         remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue }) // 把这条规则写进内存配置
         await services.config.save()                                                                       // 规则立刻落盘，下次启动仍然生效
@@ -208,9 +189,8 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     return { ok: true }
 }
 
-// --- 发新消息时重新开始自动批准和重复调用计数 ---
+// --- 发新消息时重新开始重复调用计数 ---
 const reset = sessionId => {
-    autoApproved.set(sessionId, 0)
     recentCalls.delete(sessionId)
 }
 
@@ -219,7 +199,6 @@ const remove = sessionId => {
         if (approval.sessionId !== sessionId) continue
         approvals.delete(key)
     }
-    autoApproved.delete(sessionId)
     recentCalls.delete(sessionId)
 }
 

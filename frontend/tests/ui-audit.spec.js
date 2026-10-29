@@ -705,8 +705,6 @@ test('legacy history without usage shows estimated stats, not zeros', async ({ p
     updatedAt: Date.now(),
     settings: {
       agent: 'build',
-      autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
-      autoApproveLimit: 50,
       compactThreshold: 0.8,
       capabilities: { image: true, cache: true, stream: true },
       uses: {},
@@ -753,8 +751,6 @@ test('compaction summary renders as a divider, not a user bubble', async ({ page
     updatedAt: Date.now(),
     settings: {
       agent: 'build',
-      autoApprove: { read: false, write: false, command: false, mcp: false, subtask: false },
-      autoApproveLimit: 50,
       compactThreshold: 0.8,
       capabilities: { image: true, cache: true, stream: true },
       uses: {},
@@ -945,28 +941,13 @@ test('compaction threshold is saved in context settings', async ({ page }, testI
   await expect.poll(() => mock.config().compactThreshold).toBe(0.6)
 })
 
-test('composer exposes permission and agent controls next to the model', async ({ page }) => {
+test('composer exposes the agent control next to the model', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
-
-  const permission = page.getByRole('button', { name: '权限控制', exact: true })
-  await expect(permission).toBeVisible()
-  const composerHeight = await page.locator('.chat-composer').evaluate(element => element.getBoundingClientRect().height)
-  await permission.click()
-  const permissionDrawer = page.getByRole('dialog', { name: '自动批准' })
-  await expect(permissionDrawer).toBeVisible()
-  await expect(permission).toHaveClass(/is-active/)
-  // 抽屉覆盖打开，不能把输入框撑高。
-  expect(await page.locator('.chat-composer').evaluate(element => element.getBoundingClientRect().height)).toBe(composerHeight)
-  await permissionDrawer.getByRole('option', { name: /读取/ }).click()
-  await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.autoApprove?.read === true)).toBe(true)
-  await permissionDrawer.getByRole('button', { name: '关闭' }).click()
-  await expect(permissionDrawer).toBeHidden()
-  await expect(permission).not.toHaveClass(/is-active/)
 
   const agent = page.locator('.composer-agent')
   await expect(agent).toContainText('执行')
@@ -979,16 +960,15 @@ test('composer exposes permission and agent controls next to the model', async (
   await expect.poll(() => mock.calls.some(call => call.path === '/session/settings/session-1' && call.body?.agent === 'plan')).toBe(true)
   await expect(agent).toContainText('计划')
 
-  // 320px 下三个入口仍要同时看得见，不能被挤到横向滚动里。
+  // 320px 下模型和智能体入口仍要同时看得见，不能被挤到横向滚动里。
   await page.setViewportSize({ width: 320, height: 568 })
   const options = page.locator('.chat-composer__options')
   expect(await options.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
-  await expect(permission).toBeVisible()
   await expect(page.locator('.composer-agent')).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
-test('new chat agent and permissions apply to the created session', async ({ page }) => {
+test('new chat agent applies to the created session', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -998,12 +978,6 @@ test('new chat agent and permissions apply to the created session', async ({ pag
   const agentDrawer = page.getByRole('dialog', { name: '切换智能体' })
   await agentDrawer.getByRole('radio', { name: /计划/ }).click()
   await expect(agentDrawer).toBeHidden()
-  await page.getByRole('button', { name: '权限控制', exact: true }).click()
-  const permissionDrawer = page.getByRole('dialog', { name: '自动批准' })
-  await expect(permissionDrawer).toBeVisible()
-  await permissionDrawer.getByRole('option', { name: /读取/ }).click()
-  await permissionDrawer.getByRole('button', { name: '关闭' }).click()
-  await expect(permissionDrawer).toBeHidden()
 
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
@@ -1011,7 +985,6 @@ test('new chat agent and permissions apply to the created session', async ({ pag
 
   const saved = mock.calls.find(call => call.path === '/session/settings/session-1' && call.body?.agent === 'plan')
   expect(saved).toBeTruthy()
-  expect(saved.body.autoApprove.read).toBe(true)
   const sendIndex = mock.calls.findIndex(call => call.path === '/agent/send/session-1')
   expect(mock.calls.indexOf(saved)).toBeLessThan(sendIndex)
   await expect(page.locator('.composer-agent')).toContainText('计划')

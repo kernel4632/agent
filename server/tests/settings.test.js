@@ -1,12 +1,12 @@
 /*
- * 会话运行设置测试：按类别的自动批准、思考强度和按任务的模型。
+ * 会话运行设置测试：思考强度、压缩阈值、按任务的模型和会话分支。
  *
  * 每一项都要真的读回装配好的 Agent 来验证，而不是只看接口返回了什么。
  * 每个测试在自己的临时数据目录里跑，互不影响。
  * 运行：cd server && bun test
  */
 import { describe, expect, test } from 'bun:test'
-import { rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -16,15 +16,11 @@ import Approval from '../features/approval.js'
 import Settings from '../commands/settings.js'
 import Delegation from '../tools/subagent.js'
 import History from '../features/history.js'
-import Path from '../utils/path.js'
 import Session from '../commands/session.js'
 import store from '../store.js'
 import Title from '../features/title.js'
-import Tool from '../features/tool.js'
 import { app } from '../server.js'
 
-const allOff = () => Object.fromEntries(Tool.KINDS.map(item => [item.kind, false]))
-const allOn = () => Object.fromEntries(Tool.KINDS.map(item => [item.kind, true]))
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-settings-${crypto.randomUUID()}`)
@@ -50,21 +46,12 @@ const newSession = async ({ title = '设置测试', extra = {} } = {}) => {
 
 const toolNames = sessionId => Object.keys(Agent.runtime().get(sessionId).tools.schema).sort()
 
-const runCheck = async ({ sessionId, toolCallId, toolName, input = {} }) => {
-    const result = Approval.check({ sessionId, toolCallId, toolName, input })
-    await Bun.sleep(0)
-    const asked = Approval.pending(sessionId).some(item => item.callID === toolCallId)
-    if (asked) await Approval.decide({ sessionId, toolCallId, decision: 'deny' })
-    return { allowed: await result, asked }
-}
 
 describe('会话运行设置', () => {
-    test('默认每类自动批准全关', async () => {
+    test('默认设置只有思考强度', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             expect(await Session.readSettings({ sessionId })).toEqual({
-                autoApprove: allOff(),
-                autoApproveLimit: 50,
                 reasoning: 'auto',
             })
         })
@@ -94,26 +81,13 @@ describe('会话运行设置', () => {
     test('设置存到会话目录里，换一个进程读回来还是同一份', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, reasoning: 'high' })
+            await Session.saveSettings({ sessionId, reasoning: 'high' })
 
             // 清掉内存缓存，强制从磁盘读，模拟后端重启。
             History.clear()
             Agent.runtime().clear()
             const reloaded = await Session.readSettings({ sessionId })
-            expect(reloaded.autoApprove.read).toBe(true)
             expect(reloaded.reasoning).toBe('high')
-        })
-    })
-
-    test('上一版存下的设置文件里类别少几项，读回来也会补齐', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await writeFile(Path.settings(sessionId), JSON.stringify({
-                autoApprove: { read: true, write: false, command: false, mcp: false },
-            }))
-            History.clear()
-            const settings = await Session.readSettings({ sessionId })
-            expect(settings.autoApprove).toEqual({ read: true, write: false, command: false, mcp: false, subtask: false })
         })
     })
 
@@ -148,183 +122,6 @@ describe('会话运行设置', () => {
 
 })
 
-describe('自动批准按类别开关', () => {
-    test('默认每类全关，读文件也要先问', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            expect(await runCheck({ sessionId, toolCallId: 'call-1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('只开读取：读文件直接过，写文件和命令照样要问', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
-
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
-                .toEqual({ allowed: false, asked: true })
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'rm -rf build' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('只开写入：改文件的工具直接过，读取和命令照样要问', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { write: true } })
-
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'w2', toolName: 'edit', input: { file_path: 'D:/app/b.js', old_string: 'x', new_string: 'y' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
-                .toEqual({ allowed: false, asked: true })
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'ls' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('只开执行命令：命令直接过，写文件照样要问', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { command: true } })
-
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'bun test' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('只开子任务：开子任务直接过，它自己要改文件仍会问', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { subtask: true } })
-
-            expect(await runCheck({ sessionId, toolCallId: 't1', toolName: 'new_task', input: { description: '查一下', prompt: '查一下用法' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('MCP 工具按服务名归类，开 MCP 只放行 MCP 工具', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession({ extra: { mcp: { everything: { command: 'bun', args: [] } } } })
-            await Session.saveSettings({ sessionId, autoApprove: { mcp: true } })
-
-            expect(await runCheck({ sessionId, toolCallId: 'm1', toolName: 'everything_echo', input: { message: 'hi' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('名字撞上服务名前缀、但配置里没有这个服务时，不算 MCP，照样要问', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { mcp: true } })
-            expect(await runCheck({ sessionId, toolCallId: 'u1', toolName: 'everything_echo', input: {} }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('认不出类别的工具一律要问，每类全开也一样', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: allOn() })
-            expect(await runCheck({ sessionId, toolCallId: 'u1', toolName: '我写的脚本', input: { run: true } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('记清单和结束循环本来就不问，不设开关', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            expect(await runCheck({ sessionId, toolCallId: 'd1', toolName: 'update_todo_list', input: { todos: '' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(await runCheck({ sessionId, toolCallId: 'd2', toolName: 'attempt_completion', input: { result: '好了' } }))
-                .toEqual({ allowed: true, asked: false })
-            expect(Tool.KINDS.map(item => item.kind)).not.toContain('never')
-        })
-    })
-
-    test('随时可以一类一类地改，改一类不动别类', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-
-            let settings = await Session.saveSettings({ sessionId, autoApprove: { read: true } })
-            expect(settings.autoApprove).toEqual({ ...allOff(), read: true })
-
-            settings = await Session.saveSettings({ sessionId, autoApprove: { command: true } })
-            expect(settings.autoApprove).toEqual({ ...allOff(), read: true, command: true })
-
-            settings = await Session.saveSettings({ sessionId, autoApprove: { read: false } })
-            expect(settings.autoApprove).toEqual({ ...allOff(), command: true })
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
-                .toEqual({ allowed: false, asked: true })
-            expect(await runCheck({ sessionId, toolCallId: 'c1', toolName: 'execute_command', input: { command: 'ls' } }))
-                .toEqual({ allowed: true, asked: false })
-        })
-    })
-
-    test('界面传了认不出的类别名时不存进去', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            const settings = await Session.saveSettings({ sessionId, autoApprove: { read: true, 乱写: true } })
-            expect(settings.autoApprove).toEqual({ ...allOff(), read: true })
-        })
-    })
-
-    test('老版本设置文件里的那个总开关还能读，摊到每一类上', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await writeFile(Path.settings(sessionId), JSON.stringify({
-                autoApprove: true,
-            }))
-            History.clear()
-            expect((await Session.readSettings({ sessionId })).autoApprove).toEqual(allOn())
-        })
-    })
-
-    test('任务跑着的时候也能改自动批准，当场生效', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            Agent.runtime().get(sessionId).running = true
-
-            const settings = await Session.saveSettings({ sessionId, autoApprove: { write: false } })
-            expect(settings.autoApprove.write).toBe(false)
-            expect(await runCheck({ sessionId, toolCallId: 'w1', toolName: 'write_to_file', input: { path: 'D:/app/b.js', content: 'x' } }))
-                .toEqual({ allowed: false, asked: true })
-
-            const opened = await Session.saveSettings({ sessionId, autoApprove: { read: true } })
-            expect(opened.autoApprove.read).toBe(true)
-            expect(await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/a.js' } }))
-                .toEqual({ allowed: true, asked: false })
-        })
-    })
-
-    test('任务跑着的时候不许改需要重建 Agent 的思考强度', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            Agent.runtime().get(sessionId).running = true
-            await expect(Session.saveSettings({ sessionId, reasoning: 'high' })).rejects.toThrow(/already running/i)
-            expect((await Session.readSettings({ sessionId })).reasoning).toBe('auto')
-        })
-    })
-
-    test('自动批准不能绕过 deny 规则', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession({ extra: { permission: { '*': 'allow', execute_command: 'deny' } } })
-            await Session.saveSettings({ sessionId, autoApprove: { command: true } })
-            const check = await runCheck({ sessionId, toolCallId: 'call-3', toolName: 'execute_command', input: { command: 'ls' } })
-            expect(check).toEqual({ allowed: false, asked: false })
-        })
-    })
-})
 
 describe('哪件事用哪个模型', () => {
     test('不点名时压缩和标题都跟对话模型走', async () => {
@@ -386,65 +183,7 @@ describe('哪件事用哪个模型', () => {
     })
 })
 
-describe('自动批准的刹车', () => {
-    test('默认给一个宽松但有数的档', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            expect((await Session.readSettings({ sessionId })).autoApproveLimit).toBe(50)
-        })
-    })
-
-    test('0 表示不设上限', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            expect((await Session.saveSettings({ sessionId, autoApproveLimit: 0 })).autoApproveLimit).toBe(0)
-        })
-    })
-
-    test('连续放行到上限就停下来问一次', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 3 })
-
-            for (const index of [1, 2, 3]) {
-                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'read_file', input: { path: `D:/app/${index}.js` } }))
-                    .toEqual({ allowed: true, asked: false })
-            }
-            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'read_file', input: { path: 'D:/app/4.js' } }))
-                .toEqual({ allowed: false, asked: true })
-        })
-    })
-
-    test('答过一次就重新计数，自动批准不会永久失灵', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 2 })
-
-            await runCheck({ sessionId, toolCallId: 'r1', toolName: 'read_file', input: { path: 'D:/app/1.js' } })
-            await runCheck({ sessionId, toolCallId: 'r2', toolName: 'read_file', input: { path: 'D:/app/2.js' } })
-            const blocked = Approval.check({ sessionId, toolCallId: 'r3', toolName: 'read_file', input: { path: 'D:/app/3.js' } })
-            await Bun.sleep(0)
-            expect(Approval.pending(sessionId)).toHaveLength(1)
-            await Approval.decide({ sessionId, toolCallId: 'r3', decision: 'allow-once' })
-            expect(await blocked).toBe(true)
-
-            expect(await runCheck({ sessionId, toolCallId: 'r4', toolName: 'read_file', input: { path: 'D:/app/4.js' } }))
-                .toEqual({ allowed: true, asked: false })
-        })
-    })
-
-    test('上限设 0 时不刹，一路自动放行', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, autoApproveLimit: 0 })
-
-            for (const index of [1, 2, 3, 4, 5]) {
-                expect(await runCheck({ sessionId, toolCallId: `r${index}`, toolName: 'read_file', input: { path: `D:/app/${index}.js` } }))
-                    .toEqual({ allowed: true, asked: false })
-            }
-        })
-    })
-
+describe('压缩阈值', () => {
     test('自动压缩阈值可改，写错时保持原值', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: ['model'] }], compact: { threshold: 0.6 } })
@@ -459,14 +198,7 @@ describe('自动批准的刹车', () => {
         })
     })
 
-    test('填了负数、小数或不是数字时保持原样', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApproveLimit: 10 })
-            expect((await Session.saveSettings({ sessionId, autoApproveLimit: -5 })).autoApproveLimit).toBe(10)
-            expect((await Session.saveSettings({ sessionId, autoApproveLimit: 2.5 })).autoApproveLimit).toBe(10)
-        })
-    })
+
 })
 
 describe('自动生成标题', () => {
@@ -552,7 +284,7 @@ describe('会话分支', () => {
             await History.add({ sessionId, message: AgentCore.history.user({ content: '第一句' }) })
             await History.add({ sessionId, message: AgentCore.history.assistant({ content: '第二句' }) })
             await History.save(sessionId)
-            await Session.saveSettings({ sessionId, autoApprove: { read: true }, reasoning: 'high' })
+            await Session.saveSettings({ sessionId, reasoning: 'high' })
 
             const { sessionId: branchId } = await Session.fork({ sessionId })
             expect(branchId).not.toBe(sessionId)
@@ -560,7 +292,6 @@ describe('会话分支', () => {
             const branch = await Session.read({ sessionId: branchId })
             expect(branch.title).toBe('设置测试（分支）')
             expect(branch.history).toHaveLength(2)
-            expect(branch.settings.autoApprove.read).toBe(true)
             expect(branch.settings.reasoning).toBe('high')
             expect(branch.cwd).toBe(process.cwd())
         })
@@ -618,27 +349,12 @@ describe('设置接口', () => {
         })
     })
 
-    test('界面上点一个类别的开关就走一个 PATCH', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            const response = await app.handle(new Request(`http://localhost/session/settings/${sessionId}`, {
-                method: 'PATCH',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ autoApprove: { read: true } }),
-            }))
-            expect(response.status).toBe(200)
-            expect((await response.json()).autoApprove).toEqual({ ...allOff(), read: true })
-        })
-    })
-
     test('读取会话时会带上当前设置', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
+            await Session.saveSettings({ sessionId, reasoning: 'high' })
             const session = await Session.read({ sessionId })
-            expect(session.settings).toMatchObject({
-                autoApprove: { ...allOff(), read: true },
-            })
+            expect(session.settings).toEqual({ reasoning: 'high' })
         })
     })
 })

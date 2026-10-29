@@ -37,7 +37,6 @@ const props = defineProps({
   sessionId: { type: String, default: '' },
   agent: { type: String, default: '' },
   agentOpen: Boolean,
-  permissionsOpen: Boolean,
   showSessionControls: Boolean,
   isRunning: Boolean,
   canContinue: Boolean,
@@ -45,7 +44,7 @@ const props = defineProps({
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'toggle-permissions', 'open-agent', 'update:reasoning'])
+const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'open-agent', 'update:reasoning'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -186,15 +185,6 @@ defineExpose({ focus: () => editor.value?.focus() })
         <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="openModelSheet"><ModelIcon :model="selectedModel" :provider="currentProvider" :size="28" /></button>
         <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
         <template v-if="showSessionControls">
-          <button
-            type="button"
-            class="composer-option composer-option--permission"
-            :class="{ 'is-active': permissionsOpen }"
-            :aria-pressed="permissionsOpen"
-            aria-label="权限控制"
-            title="自动批准"
-            @click="emit('toggle-permissions')"
-          ><AppIcon name="permission" :size="20" /></button>
           <AgentButton :agent="agent" :open="agentOpen" @open="emit('open-agent')" />
         </template>
       </div>
@@ -375,7 +365,6 @@ defineExpose({ focus: () => editor.value?.focus() })
   cursor: pointer;
 }
 .composer-option { width: 48px; height: 48px; }
-.composer-option--permission { width: 40px; height: 40px; }
 .composer-action { width: 40px; height: 40px; }
 .composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
@@ -420,7 +409,6 @@ defineExpose({ focus: () => editor.value?.focus() })
 @media (max-width: 360px) {
   .chat-composer__options { gap: 0; }
   .composer-option { width: 40px; height: 40px; }
-  .composer-option--permission { width: 40px; height: 40px; }
 }
 @media (hover: none) {
   .chat-composer__expand-line { opacity: 0; }

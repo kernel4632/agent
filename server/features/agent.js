@@ -16,7 +16,7 @@
  */
 
 import AgentCore from '@kernel4632/agent-core'
-import store, { TOOL_KINDS } from '../store.js'
+import store from '../store.js'
 import fail from '../utils/fail.js'
 
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
@@ -195,31 +195,14 @@ const attempt = async chosen => {
 //  会话设置
 // =======================================================================
 
-const autoApproveDefaults = () => Object.fromEntries(TOOL_KINDS.map(item => [item.kind, false]))
-
 const defaultSettings = () => ({
-    autoApprove: autoApproveDefaults(),
-    autoApproveLimit: 50,
     reasoning: 'auto',
 })
 
-// --- 自动批准：按类别合并；旧的布尔总开关摊到每一类 ---
-const mergeAutoApprove = (input, base) => {
-    const source = typeof input.autoApprove === 'boolean'
-        ? Object.fromEntries(TOOL_KINDS.map(item => [item.kind, input.autoApprove]))
-        : (input.autoApprove || {})
-    const autoApprove = {}
-    for (const item of TOOL_KINDS) autoApprove[item.kind] = (source[item.kind] ?? base.autoApprove[item.kind]) === true
-    return autoApprove
-}
-
 // --- 收一份用户提交的设置，坏值保持原样或忽略 ---
 const normalizeSettings = (input = {}, base = defaultSettings()) => {
-    const parsedLimit = Number(input.autoApproveLimit === undefined ? base.autoApproveLimit : input.autoApproveLimit)
     const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {
-        autoApprove: mergeAutoApprove(input, base),
-        autoApproveLimit: Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : base.autoApproveLimit,
         reasoning: REASONING_LEVELS.includes(rawReasoning) ? rawReasoning : base.reasoning,
     }
 }
@@ -232,7 +215,7 @@ const readSettings = async sessionId => {
 
 /**
  * 改设置，只改点名的那几项。
- * 思考强度要重建 Agent；自动批准和上限不用，随时能改。
+ * 思考强度要重建 Agent；其他设置随时能改。
  */
 const saveSettings = async ({ sessionId, ...change }) => {
     const current = normalizeSettings((await services.history.load(sessionId)).settings, defaultSettings())
@@ -257,7 +240,7 @@ const saveSettings = async ({ sessionId, ...change }) => {
 // --- 为一个会话建出 Agent 实例 ---
 const create = async ({ sessionId }) => {
     const session = await services.history.load(sessionId)                     // 先把会话元数据读进内存
-    const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度和自动批准
+    const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度
     const config = resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
     const tools = await services.tool.build({
         sessionId,

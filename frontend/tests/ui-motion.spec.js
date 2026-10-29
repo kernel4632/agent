@@ -179,20 +179,10 @@ test.describe('chat motion', () => {
     expect(mock.errors).toEqual([])
   })
 
-  test('permission and todo drawers slide in', async ({ page }) => {
+  test('todo drawer slides in', async ({ page }) => {
     const mock = await backend(page)
     await page.goto('/')
     await newSession(page, '面板动效')
-
-    await watchMotion(page)
-    await page.getByRole('button', { name: '权限控制', exact: true }).click()
-    const permission = page.getByRole('dialog', { name: '自动批准' })
-    await expect(permission).toBeVisible()
-    await waitForMotion(page, 'kima-drawer__panel')
-    let motion = await readMotion(page)
-    expect(moving(motion, 'kima-drawer__panel').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    await page.keyboard.press('Escape')
-    await expect(permission).toBeHidden()
 
     await navigate(page, '新建对话')
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
@@ -209,7 +199,7 @@ test.describe('chat motion', () => {
     await page.getByRole('button', { name: '任务清单', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '任务清单' })).toBeVisible()
     await waitForMotion(page, 'kima-drawer__panel')
-    motion = await readMotion(page)
+    const motion = await readMotion(page)
     expect(moving(motion, 'kima-drawer__panel').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
     expect(moving(motion, 'kima-drawer__panel').some(item => item.duration > 0)).toBe(true)
     expect(mock.errors).toEqual([])

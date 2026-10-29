@@ -146,11 +146,10 @@ describe('工具级回退', () => {
 })
 
 describe('权限规则的拒绝动作', () => {
-    test('deny 优先于自动批准，不会留下等待中的审批', async () => {
+    test('deny 直接拒绝，不会留下等待中的审批', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow', execute_command: 'deny' } })
             const { sessionId } = await Session.create({ title: 'Deny wins' })
-            await Session.saveSettings({ sessionId, autoApprove: { command: true } })
 
             const allowed = await Approval.check({ sessionId, toolCallId: 'deny-1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
             expect(allowed).toBe(false)
@@ -208,7 +207,6 @@ describe('重复调用的刹车', () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Loop guard' })
-            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
 
             const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })
             expect(await call('a1')).toBe(true)
@@ -227,7 +225,6 @@ describe('重复调用的刹车', () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Different inputs' })
-            await Session.saveSettings({ sessionId, autoApprove: { read: true } })
 
             for (const path of ['a.txt', 'b.txt', 'c.txt', 'd.txt']) {
                 expect(await Approval.check({ sessionId, toolCallId: path, toolName: 'read_file', input: { path } })).toBe(true)

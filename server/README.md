@@ -42,7 +42,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   sessions/<id>/
     meta.json          标题、当前目录、模型、时间
     history.json       消息和回退栈
-    settings.json      自动批准、思考强度
+    settings.json      思考强度
     checkpoints.json   每次改文件的工具调用对应哪些快照
     snapshots/         改文件之前的原样副本
   tools/               用户自己写的工具，和内置工具一起扫描
@@ -112,7 +112,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 }
 ```
 
-`deny` 是硬规则，自动批准绕不过去。写错的动作按 `ask` 处理。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
+`deny` 是硬规则，写错的动作按 `ask` 处理。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
 
 ### 自动标题
 
@@ -274,7 +274,7 @@ bun start
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
 | `GET` | `/tool/list` | 工具名、类别、权限动作、`configurable`、工具自带的 `ui` |
-| `GET` | `/tool/kinds` | 自动批准类别：`kind`、`label`、`hint` |
+| `GET` | `/tool/kinds` | 工具类别：`kind`、`label`、`hint` |
 
 ### 会话
 
@@ -289,8 +289,8 @@ bun start
 | `PATCH` | `/session/model/:sessionId` | `{ "provider?", "model?" }` | 更新后的会话资料；运行中返回 `409` |
 | `PATCH` | `/session/cwd/:sessionId` | `{ "cwd" }` | `{ "id", "cwd" }`；目录不存在返回 `400` |
 | `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
-| `GET` | `/session/settings/:sessionId` | 无 | 自动批准、思考强度 |
-| `PATCH` | `/session/settings/:sessionId` | 部分设置 | 保存后的完整设置 |
+| `GET` | `/session/settings/:sessionId` | 无 | 思考强度 |
+| `PATCH` | `/session/settings/:sessionId` | `{ "reasoning"? }` | 保存后的完整设置 |
 | `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` |
 
 会话读取示例：
@@ -314,8 +314,6 @@ bun start
     }
   ],
   "settings": {
-    "autoApprove": { "read": false, "write": false, "command": false, "mcp": false, "subtask": false },
-    "autoApproveLimit": 50,
     "reasoning": "auto"
   },
   "undoable": 0
@@ -328,23 +326,11 @@ bun start
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `autoApprove.read` | `false` | 读文件、搜索、抓网页不再弹审批 |
-| `autoApprove.write` | `false` | 改文件不再弹审批 |
-| `autoApprove.command` | `false` | 执行命令不再弹审批 |
-| `autoApprove.mcp` | `false` | MCP 工具不再弹审批 |
-| `autoApprove.subtask` | `false` | 开子任务不再弹审批 |
-| `autoApproveLimit` | `50` | 连续自动批准这么多次后停下来问一次；`0` 不设上限 |
 | `reasoning` | `auto` | `off` / `auto` / `low` / `medium` / `high` / `xhigh` / `max` |
 
+权限只有一层：`config.permission` 的全局规则，加每次询问的“始终允许 / 允许一次 / 拒绝”。没有会话级自动批准，也没有自动批准上限。同一个工具调用连续出现三次时，会停下来让用户确认一次。
+
 模型能不能看图、能不能调用工具，只从 `providers[].models[].capabilities` 读取，不在会话里另存一份。
-
-`autoApprove` 按类别分别开关。PATCH 时只写要改的那一类，其余保持原样：
-
-```json
-{ "autoApprove": { "read": true } }
-```
-
-自动批准可以在一轮任务运行中随时改；审批时是现读设置的。
 
 ### 回退与文件快照
 
@@ -401,7 +387,7 @@ Accept: text/event-stream
 | `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
 | `permission` | `callID`, `tool`, `input` | 显示“始终允许 / 允许一次 / 拒绝” |
 | `permission-blocked` | `callID`, `tool`, `input`, `reason` | 被权限规则拒绝，不用等用户决定 |
-| `permission-limit` | `limit`, `reason` | 自动批准到上限，接下来要确认一次 |
+| `permission-limit` | `limit`, `reason` | 同一个调用连续三次，接下来要确认一次 |
 | `subagent-tool` | `taskId`, `description`, `toolName`, `input` | 子任务正在用工具 |
 | `subagent-tool-result` | `taskId`, `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |
