@@ -1,0 +1,19 @@
+%%{init: {'theme':'dark','themeVariables':{'fontFamily':'ui-monospace, monospace','primaryColor':'#18202b','primaryTextColor':'#f8fafc','lineColor':'#64748b','clusterBkg':'#11151d','clusterBorder':'#475569','edgeLabelBackground':'#0d0f16'}}}%%
+flowchart LR
+  commands["commands/<br/>4 个文件"]
+  features["features/<br/>10 个文件"]
+  tools["tools/<br/>8 个文件"]
+  utils["utils/<br/>3 个文件"]
+  _root_["根目录<br/>2 个文件"]
+  _root_ -->|"4 条"| commands
+  _root_ -->|"1 条"| features
+  _root_ -->|"1 条"| utils
+  commands -->|"12 条"| features
+  commands -->|"2 条"| _root_
+  commands -->|"4 条"| utils
+  features -->|"8 条"| _root_
+  features -->|"14 条"| utils
+  features -->|"3 条"| tools
+  tools -->|"1 条"| _root_
+  tools -->|"2 条"| features
+  tools -->|"5 条"| utils

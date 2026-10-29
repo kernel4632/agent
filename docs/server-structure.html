@@ -37,6 +37,7 @@
   .note b { color: rgba(255,255,255,.86); }
   .mermaid-panel { margin-top: 18px; }
   .mermaid-panel img { display: block; width: 100%; height: auto; border-radius: 12px; background: #0d0f16; }
+  a { color: #c4b5fd; }
   code { color: #c4b5fd; }
 </style>
 </head>
@@ -220,8 +221,9 @@
   </div>
   <div class="note"><b>一眼看出的分布：</b>features/ 约 65.6 KB，是最大的一块，负责会话、运行、审批、上下文和工具登记；tools/ 约 44.9 KB，按类别分组，文件工具自己带快照和截断；commands/ 只做 HTTP 入口，utils/ 只放路径、错误和 SSE 这类小工具。根目录只有 <code>server.js</code> 和 <code>store.js</code>。</div>
   <div class="panel mermaid-panel">
-    <div class="panel-title"><b>Mermaid 结构图</b><span>目录 → 文件</span></div>
-    <img src="./server-structure-mermaid.svg" alt="后端目录结构 Mermaid 图">
+    <div class="panel-title"><b>Mermaid 依赖图</b><span>使用方 → 被依赖文件 · 红色为循环依赖</span></div>
+    <img src="./server-dependencies.svg" alt="后端文件依赖 Mermaid 图">
+    <div class="note" style="margin-top:12px">完整报告：<a href="./server-dependencies.html">依赖矩阵、外部包和逐文件明细</a>。</div>
   </div>
 </div>
 </body>

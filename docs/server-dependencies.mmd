@@ -1,0 +1,132 @@
+%%{init: {'theme':'dark','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'18px','primaryColor':'#18202b','primaryTextColor':'#f8fafc','lineColor':'#64748b','clusterBkg':'#11151d','clusterBorder':'#475569','edgeLabelBackground':'#0d0f16'}}}%%
+flowchart TB
+  subgraph commands["commands/ · 4 个文件"]
+    direction TB
+    commands_chat_js["chat.js"]
+    commands_config_js["config.js"]
+    commands_session_js["session.js"]
+    commands_tool_js["tool.js"]
+  end
+  subgraph features["features/ · 10 个文件"]
+    direction TB
+    features_agent_js["agent.js"]
+    features_approval_js["approval.js"]
+    features_compact_js["compact.js"]
+    features_context_js["context.js"]
+    features_history_js["history.js"]
+    features_mcp_js["mcp.js"]
+    features_rollback_js["rollback.js"]
+    features_run_js["run.js"]
+    features_title_js["title.js"]
+    features_tool_js["tool.js"]
+  end
+  subgraph tools["tools/ · 8 个文件"]
+    direction TB
+    tools_control_js["control.js"]
+    tools_cwd_js["cwd.js"]
+    tools_file_js["file.js"]
+    tools_shell_js["shell.js"]
+    tools_skill_js["skill.js"]
+    tools_subagent_js["subagent.js"]
+    tools_todo_js["todo.js"]
+    tools_web_js["web.js"]
+  end
+  subgraph utils["utils/ · 3 个文件"]
+    direction TB
+    utils_fail_js["fail.js"]
+    utils_path_js["path.js"]
+    utils_sse_js["sse.js"]
+  end
+  subgraph _root_["根目录 · 2 个文件"]
+    direction TB
+    server_js["server.js"]
+    store_js["store.js"]
+  end
+  server_js --> commands_chat_js
+  server_js --> commands_config_js
+  server_js --> commands_session_js
+  server_js --> commands_tool_js
+  server_js --> features_history_js
+  server_js --> utils_sse_js
+  commands_chat_js --> features_approval_js
+  commands_chat_js --> features_run_js
+  commands_config_js --> features_agent_js
+  commands_config_js --> features_context_js
+  commands_config_js --> store_js
+  commands_config_js --> utils_fail_js
+  commands_config_js --> utils_path_js
+  commands_session_js --> features_agent_js
+  commands_session_js --> features_approval_js
+  commands_session_js --> features_compact_js
+  commands_session_js --> features_history_js
+  commands_session_js --> features_rollback_js
+  commands_session_js --> features_title_js
+  commands_session_js --> features_tool_js
+  commands_session_js --> store_js
+  commands_session_js --> utils_fail_js
+  commands_session_js --> utils_sse_js
+  commands_tool_js --> features_tool_js
+  features_agent_js --> features_approval_js
+  features_agent_js --> features_context_js
+  features_agent_js --> features_history_js
+  features_agent_js --> features_tool_js
+  features_agent_js --> store_js
+  features_agent_js --> utils_fail_js
+  features_agent_js --> utils_path_js
+  features_approval_js --> features_agent_js
+  features_approval_js --> features_tool_js
+  features_approval_js --> store_js
+  features_approval_js --> utils_fail_js
+  features_approval_js --> utils_sse_js
+  features_compact_js --> features_agent_js
+  features_compact_js --> features_history_js
+  features_compact_js --> store_js
+  features_compact_js --> utils_fail_js
+  features_compact_js --> utils_sse_js
+  features_context_js --> store_js
+  features_history_js --> store_js
+  features_history_js --> utils_fail_js
+  features_history_js --> utils_path_js
+  features_history_js --> utils_sse_js
+  features_mcp_js --> store_js
+  features_mcp_js --> utils_sse_js
+  features_rollback_js --> features_agent_js
+  features_rollback_js --> features_history_js
+  features_rollback_js --> utils_fail_js
+  features_run_js --> features_agent_js
+  features_run_js --> features_approval_js
+  features_run_js --> features_history_js
+  features_run_js --> features_title_js
+  features_run_js --> features_tool_js
+  features_run_js --> store_js
+  features_run_js --> utils_fail_js
+  features_run_js --> utils_sse_js
+  features_tool_js --> features_mcp_js
+  features_tool_js --> store_js
+  features_tool_js --> tools_file_js
+  features_tool_js --> tools_skill_js
+  features_tool_js --> tools_subagent_js
+  features_tool_js --> utils_path_js
+  tools_cwd_js --> features_history_js
+  tools_cwd_js --> store_js
+  tools_file_js --> utils_fail_js
+  tools_file_js --> utils_path_js
+  tools_skill_js --> utils_fail_js
+  tools_skill_js --> utils_path_js
+  tools_subagent_js --> features_approval_js
+  tools_subagent_js --> utils_sse_js
+  classDef dir_commands fill:#172b45,stroke:#60a5fa,color:#f8fafc
+  class commands_chat_js,commands_config_js,commands_session_js,commands_tool_js dir_commands
+  classDef dir_features fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
+  class features_agent_js,features_approval_js,features_compact_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_run_js,features_title_js,features_tool_js dir_features
+  classDef dir_tools fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
+  class tools_control_js,tools_cwd_js,tools_file_js,tools_shell_js,tools_skill_js,tools_subagent_js,tools_todo_js,tools_web_js dir_tools
+  classDef dir_utils fill:#102a24,stroke:#34d399,color:#f8fafc
+  class utils_fail_js,utils_path_js,utils_sse_js dir_utils
+  classDef dir__root_ fill:#3a1730,stroke:#e879f9,color:#f8fafc
+  class server_js,store_js dir__root_
+  style features_agent_js stroke:#fb7185,stroke-width:3px
+  style tools_subagent_js stroke:#fb7185,stroke-width:3px
+  style features_tool_js stroke:#fb7185,stroke-width:3px
+  style features_approval_js stroke:#fb7185,stroke-width:3px
+  linkStyle 24,27,31,32,63,71 stroke:#fb7185,stroke-width:2px
