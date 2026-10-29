@@ -3,9 +3,8 @@ flowchart TB
   subgraph commands["commands/"]
     direction TB
     commands_chat_js["chat.js"]
-    commands_config_js["config.js"]
     commands_session_js["session.js"]
-    commands_tool_js["tool.js"]
+    commands_settings_js["settings.js"]
   end
   subgraph features["features/"]
     direction TB
@@ -38,13 +37,6 @@ flowchart TB
   commands_chat_js --> features_mcp_js
   commands_chat_js --> features_title_js
   commands_chat_js --> features_tool_js
-  commands_config_js --> features_agent_js
-  commands_config_js --> features_approval_js
-  commands_config_js --> features_config_js
-  commands_config_js --> features_context_js
-  commands_config_js --> features_history_js
-  commands_config_js --> features_mcp_js
-  commands_config_js --> features_tool_js
   commands_session_js --> features_agent_js
   commands_session_js --> features_approval_js
   commands_session_js --> features_compact_js
@@ -55,17 +47,22 @@ flowchart TB
   commands_session_js --> features_rollback_js
   commands_session_js --> features_title_js
   commands_session_js --> features_tool_js
-  commands_tool_js --> features_tool_js
+  commands_settings_js --> features_agent_js
+  commands_settings_js --> features_approval_js
+  commands_settings_js --> features_config_js
+  commands_settings_js --> features_context_js
+  commands_settings_js --> features_history_js
+  commands_settings_js --> features_mcp_js
+  commands_settings_js --> features_tool_js
   features_tool_js --> tools_file_js
   features_tool_js --> tools_skill_js
   features_tool_js --> tools_subagent_js
   server_js --> commands_chat_js
-  server_js --> commands_config_js
   server_js --> commands_session_js
-  server_js --> commands_tool_js
+  server_js --> commands_settings_js
   server_js --> features_history_js
   classDef dir_commands fill:#172b45,stroke:#60a5fa,color:#f8fafc
-  class commands_chat_js,commands_config_js,commands_session_js,commands_tool_js dir_commands
+  class commands_chat_js,commands_session_js,commands_settings_js dir_commands
   classDef dir_features fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
   class features_agent_js,features_approval_js,features_compact_js,features_config_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_title_js,features_tool_js dir_features
   classDef dir_tools fill:#3a2c12,stroke:#fbbf24,color:#f8fafc

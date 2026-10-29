@@ -1,11 +1,10 @@
 %%{init: {'theme':'dark','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'18px','primaryColor':'#18202b','primaryTextColor':'#f8fafc','lineColor':'#64748b','clusterBkg':'#11151d','clusterBorder':'#475569','edgeLabelBackground':'#0d0f16'}}}%%
 flowchart TB
-  subgraph commands["commands/ · 4 个文件"]
+  subgraph commands["commands/ · 3 个文件"]
     direction TB
     commands_chat_js["chat.js"]
-    commands_config_js["config.js"]
     commands_session_js["session.js"]
-    commands_tool_js["tool.js"]
+    commands_settings_js["settings.js"]
   end
   subgraph features["features/ · 10 个文件"]
     direction TB
@@ -43,9 +42,8 @@ flowchart TB
     store_js["store.js"]
   end
   server_js --> commands_chat_js
-  server_js --> commands_config_js
   server_js --> commands_session_js
-  server_js --> commands_tool_js
+  server_js --> commands_settings_js
   server_js --> features_history_js
   server_js --> utils_sse_js
   commands_chat_js --> features_agent_js
@@ -59,13 +57,6 @@ flowchart TB
   commands_chat_js --> store_js
   commands_chat_js --> utils_fail_js
   commands_chat_js --> utils_sse_js
-  commands_config_js --> features_agent_js
-  commands_config_js --> features_approval_js
-  commands_config_js --> features_config_js
-  commands_config_js --> features_context_js
-  commands_config_js --> features_history_js
-  commands_config_js --> features_mcp_js
-  commands_config_js --> features_tool_js
   commands_session_js --> features_agent_js
   commands_session_js --> features_approval_js
   commands_session_js --> features_compact_js
@@ -79,7 +70,13 @@ flowchart TB
   commands_session_js --> store_js
   commands_session_js --> utils_fail_js
   commands_session_js --> utils_sse_js
-  commands_tool_js --> features_tool_js
+  commands_settings_js --> features_agent_js
+  commands_settings_js --> features_approval_js
+  commands_settings_js --> features_config_js
+  commands_settings_js --> features_context_js
+  commands_settings_js --> features_history_js
+  commands_settings_js --> features_mcp_js
+  commands_settings_js --> features_tool_js
   features_agent_js --> store_js
   features_agent_js --> utils_fail_js
   features_approval_js --> store_js
@@ -109,7 +106,7 @@ flowchart TB
   tools_skill_js --> utils_path_js
   tools_subagent_js --> utils_sse_js
   classDef dir_commands fill:#172b45,stroke:#60a5fa,color:#f8fafc
-  class commands_chat_js,commands_config_js,commands_session_js,commands_tool_js dir_commands
+  class commands_chat_js,commands_session_js,commands_settings_js dir_commands
   classDef dir_features fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
   class features_agent_js,features_approval_js,features_compact_js,features_config_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_title_js,features_tool_js dir_features
   classDef dir_tools fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
