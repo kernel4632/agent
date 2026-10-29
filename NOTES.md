@@ -36,7 +36,7 @@
 - 当前目录 `cwd`：用户和 agent 都可以改。
 - 模型：这个会话当前使用的模型。
 - 历史：消息、工具调用、回退栈。
-- 设置：自动批准、思考强度、模型切换等。
+- 设置：思考强度、模型切换等。
 
 会话不绑定项目，不绑定 git，不绑定固定目录。
 
@@ -198,8 +198,6 @@ const store = {
     //   updatedAt: 0,
     //   history: { messages: [], redo: [] },
     //   settings: {
-    //     autoApprove: {},
-    //     autoApproveLimit: 50,
     //     reasoning: 'auto',
     //   },
     // },
@@ -217,6 +215,7 @@ export default store
 - `mcp` 是配置的一部分，属于基座能力。
 - `sessions[].cwd` 是唯一的位置概念，没有 `workspaceId`。
 - `history` 和 `settings` 属于会话；消息回退只改 `history`，不碰文件。
+- 权限只有一层：`config.permission` 的全局规则（allow / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`，也没有自动批准上限；同一个调用连续三次的循环检测保留。
 
 ## 六、请求流程
 
