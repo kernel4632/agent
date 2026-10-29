@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.50.4",
+    "version": "0.50.5",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [

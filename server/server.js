@@ -11,9 +11,8 @@
 
 import { Elysia } from 'elysia'
 import Chat from './commands/chat.js'
-import Config from './commands/config.js'
 import Session from './commands/session.js'
-import Tool from './commands/tool.js'
+import Settings from './commands/settings.js'
 import History from './features/history.js'
 import SSE from './utils/sse.js'
 
@@ -29,14 +28,14 @@ app.onError(({ error, set }) => {
 // --- 服务状态 ---
 app.get('/health', async () => ({
     ok: true,
-    version: await Config.version(),
+    version: await Settings.version(),
     sessions: Session.count(),
     running: Session.runningCount(),
 }))
 
 // --- 工具目录 ---
-app.get('/tool/list', () => Tool.list())
-app.get('/tool/kinds', () => Tool.kinds())
+app.get('/tool/list', () => Settings.listTools())
+app.get('/tool/kinds', () => Settings.toolKinds())
 
 // --- 对话：发送、继续、停止、审批 ---
 app.group('/agent', agent => agent
@@ -69,12 +68,12 @@ app.group('/session', session => session
 // --- 配置 ---
 app.group('/config', config => config
     .get('/read', async () => {
-        await Config.read()
-        return Config.get()
+        await Settings.read()
+        return Settings.get()
     })
-    .get('/meta', () => Config.meta())
-    .patch('/set', ({ body }) => Config.set(body))
-    .post('/test', ({ body }) => Config.test(body || {})))
+    .get('/meta', () => Settings.meta())
+    .patch('/set', ({ body }) => Settings.set(body))
+    .post('/test', ({ body }) => Settings.test(body || {})))
 
 // --- SSE ---
 app.group('/sse', sse => sse
@@ -82,7 +81,7 @@ app.group('/sse', sse => sse
 
 const start = async ({ port = process.env.PORT || 3000 } = {}) => {
     await History.prepare()   // 数据目录先建好，后面所有读写都不用再判断目录在不在。
-    await Config.read()       // 权限规则和模型配置读一次即可。
+    await Settings.read()     // 权限规则和模型配置读一次即可。
     return app.listen(port)
 }
 

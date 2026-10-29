@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import Delegation from '../tools/subagent.js'
 import History from '../features/history.js'
 import Path from '../utils/path.js'
@@ -43,7 +43,7 @@ const withHome = async callback => {
 }
 
 const newSession = async ({ title = '设置测试', extra = {} } = {}) => {
-    await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' }, ...extra })
+    await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' }, ...extra })
     const { sessionId } = await Session.create({ title })
     return sessionId
 }
@@ -338,7 +338,7 @@ describe('哪件事用哪个模型', () => {
 
     test('给压缩单独配一个模型时，真的写进 agent-core 的 config.compact', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [
                     { name: 'local', models: ['主模型'] },
                     { name: 'cheap', models: ['小模型'] },
@@ -357,7 +357,7 @@ describe('哪件事用哪个模型', () => {
 
     test('标题和子任务可以单独配，互不影响', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [{ name: 'local', models: ['主模型', '标题模型', '任务模型'] }],
                 permission: { '*': 'ask' },
                 models: {
@@ -373,11 +373,11 @@ describe('哪件事用哪个模型', () => {
 
     test('清空某一项表示改回和对话模型共用', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [{ name: 'local', models: ['主模型', '小模型'] }],
                 models: { compact: { provider: 'local', model: '小模型' } },
             })
-            await Config.set({
+            await Settings.set({
                 providers: [{ name: 'local', models: ['主模型', '小模型'] }],
                 models: { compact: { provider: '', model: '' } },
             })
@@ -447,11 +447,11 @@ describe('自动批准的刹车', () => {
 
     test('自动压缩阈值可改，写错时保持原值', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }], compact: { threshold: 0.6 } })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], compact: { threshold: 0.6 } })
             const { sessionId } = await Session.create({ title: '阈值' })
             expect(Agent.runtime().get(sessionId).config.compactThreshold).toBe(0.6)
 
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }], compact: { threshold: 1.5 } })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], compact: { threshold: 1.5 } })
             History.clear()
             Agent.runtime().clear()
             expect((await Session.read({ sessionId })).id).toBe(sessionId)
@@ -498,7 +498,7 @@ describe('自动生成标题', () => {
 describe('会话模型切换', () => {
     test('改供应商和模型后，元信息和 Agent 的 config 都跟着换', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [
                     { name: 'local', models: ['first', 'second'] },
                     { name: 'other', models: ['third'] },

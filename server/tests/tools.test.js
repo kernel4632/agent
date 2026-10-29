@@ -9,7 +9,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import Tool from '../features/tool.js'
 import store from '../store.js'
 import { app } from '../server.js'
@@ -32,7 +32,7 @@ const withHome = async callback => {
 describe('工具目录', () => {
     test('内置工具和用户工具都在，权限跟着配置走', async () => {
         await withHome(async root => {
-            await Config.set({ permission: { '*': 'ask', read_file: 'deny' } })
+            await Settings.set({ permission: { '*': 'ask', read_file: 'deny' } })
             await mkdir(join(root, 'tools'), { recursive: true })
             await writeFile(join(root, 'tools', 'mine.js'), [
                 "export default {",
@@ -102,7 +102,7 @@ describe('工具目录', () => {
 
     test('全局 deny 在工具目录里也显示成拒绝', async () => {
         await withHome(async () => {
-            await Config.set({ permission: { '*': 'deny' } })
+            await Settings.set({ permission: { '*': 'deny' } })
             const tools = await Tool.list()
             const byName = Object.fromEntries(tools.map(item => [item.name, item]))
             expect(byName.execute_command.permission).toBe('deny')

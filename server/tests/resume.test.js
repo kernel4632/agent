@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Chat from '../commands/chat.js'
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
 import Title from '../features/title.js'
@@ -58,7 +58,7 @@ const waitForHistory = async (sessionId, count) => {
 }
 
 const setup = async () => {
-    await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+    await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
     const { sessionId } = await Session.create({ title: '继续测试' })
     await History.load(sessionId)
     return sessionId
@@ -142,7 +142,7 @@ describe('继续被中断的助手', () => {
                 },
             })
             try {
-                await Config.set({ providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                await Settings.set({ providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
                 const { sessionId } = await Session.create({ title: '无缝继续' })
                 await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
                 await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
@@ -460,7 +460,7 @@ describe('继续助手的 HTTP 接口', () => {
 
     test('用户可以按后续对话重新生成标题，模型失败时用第一句话兜底', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: '旧标题' })
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('帮我修一下登录') } })
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('好的') } })
@@ -487,7 +487,7 @@ describe('继续助手的 HTTP 接口', () => {
 
     test('自动起标题成功时不会因为默认标题常量缺失而中断', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
             const { sessionId } = await Session.create({ title: '新对话' })
             await History.load(sessionId)
 

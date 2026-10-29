@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import store from '../store.js'
 
 // 每个测试用独立的临时数据目录，互不影响。
@@ -62,7 +62,7 @@ describe('交给 agent-core 的 config', () => {
     test('模型名真的出现在请求体里', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
-                await Config.set({
+                await Settings.set({
                     providers: [{ name: 'fake', models: ['想用的模型'], baseURL: `http://127.0.0.1:${port}/v1` }],
                 })
 
@@ -80,7 +80,7 @@ describe('交给 agent-core 的 config', () => {
 
     test('思考强度按协议翻成请求体', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [
                     { name: 'chat', models: ['m'], protocol: 'openai-compatible' },
                     { name: 'responses', models: ['m'], protocol: 'responses' },
@@ -107,7 +107,7 @@ describe('交给 agent-core 的 config', () => {
     test('模型没有调用工具时只请求一次，不会把回答显示两遍', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
-                await Config.set({
+                await Settings.set({
                     providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${port}/v1` }],
                 })
                 const tools = AgentCore.tool.adopt({
@@ -133,7 +133,7 @@ describe('交给 agent-core 的 config', () => {
 
     test('上下文预算写成 maxContextTokens，不是 maxTokens', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [{
                     name: 'local',
                     models: [{ id: 'model', context: 64000 }],
@@ -147,28 +147,28 @@ describe('交给 agent-core 的 config', () => {
 
     test('没配上下文时也有默认预算', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
             expect(resolve({ provider: 'local', model: 'model' }).maxContextTokens).toBe(128000)
         })
     })
 
     test('resolve 返回的字段里有 model', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['m1'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: ['m1'] }] })
             expect(resolve({ provider: 'local', model: 'm1' }).model).toBe('m1')
         })
     })
 
     test('会话选的那个模型就是要用的那个，不是配置里的第一个', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['第一个', '第二个'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: ['第一个', '第二个'] }] })
             expect(resolve({ provider: 'local', model: '第二个' }).model).toBe('第二个')
         })
     })
 
     test('模型能力写成中文时也能认出工具能力', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [{
                     name: 'local',
                     models: [{ id: 'm', capabilities: ['文本', '工具'] }],
@@ -182,7 +182,7 @@ describe('交给 agent-core 的 config', () => {
 
     test('旧配置的 model、uses、compactThreshold 会迁移成新字段', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: [{
                     name: 'local',
                     models: ['m'],
@@ -205,7 +205,7 @@ describe('交给 agent-core 的 config', () => {
 
     test('请求头不是合法 JSON 时按用户填错处理，不抛程序异常', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['m'], headers: '{' }] })
+            await Settings.set({ providers: [{ name: 'local', models: ['m'], headers: '{' }] })
             expect(() => Agent.connection({ provider: 'local', model: 'm' })).toThrow(/headers must be valid JSON/i)
         })
     })

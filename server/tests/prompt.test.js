@@ -6,7 +6,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import Agent from '../features/agent.js'
 import Context from '../features/context.js'
 import store from '../store.js'
@@ -39,7 +39,7 @@ describe('默认系统提示词', () => {
             const path = join(root, 'config.json')
             await writeFile(path, JSON.stringify({ providers: provider }))
 
-            const config = await Config.read(path)
+            const config = await Settings.read(path)
             expect(config.prompt.system).toBe(Context.DEFAULT_PROMPT)
             expect(config.prompt.seeded).toBe(true)
         })
@@ -50,7 +50,7 @@ describe('默认系统提示词', () => {
             const path = join(root, 'config.json')
             await writeFile(path, JSON.stringify({ providers: provider, prompt: { system: '我的提示词' } }))
 
-            const config = await Config.read(path)
+            const config = await Settings.read(path)
             expect(config.prompt.system).toBe('我的提示词')
             expect(config.prompt.seeded).toBe(true)
         })
@@ -64,15 +64,15 @@ describe('默认系统提示词', () => {
                 prompt: { system: '', seeded: true },
             }))
 
-            await Config.read(path)
+            await Settings.read(path)
             expect(store.config.prompt.system).toBe('')
             expect(resolve().system).toBe('')
         })
     })
 
-    test('通过 Config.set 提交空提示词也会被保留', async () => {
+    test('通过 Settings.set 提交空提示词也会被保留', async () => {
         await withHome(async () => {
-            await Config.set({
+            await Settings.set({
                 providers: provider,
                 prompt: { system: '' },
             })
@@ -83,7 +83,7 @@ describe('默认系统提示词', () => {
 
     test('空提示词不会让 agent-core 再请求一轮', async () => {
         await withHome(async () => {
-            await Config.set({ providers: provider, prompt: { system: '' } })
+            await Settings.set({ providers: provider, prompt: { system: '' } })
             expect(resolve().noToolRounds).toBe(1)
         })
     })

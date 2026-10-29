@@ -9,7 +9,7 @@ import { describe, expect, test } from 'bun:test'
 import { readdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { app } from '../server.js'
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import store from '../store.js'
 import Tool from '../features/tool.js'
 
@@ -65,7 +65,7 @@ describe('接口契约', () => {
     test('按任务的模型和文档里的是同一组', async () => {
         const openapi = await readJson('openapi.json')
         const models = openapi.components.schemas.Config.properties.models.properties
-        expect(Object.keys(models)).toEqual(Config.MODELS.map(item => item.task))
+        expect(Object.keys(models)).toEqual(Settings.MODELS.map(item => item.task))
     })
 
     test('界面上的自动批准开关和代码里的类别是同一组', async () => {
@@ -77,7 +77,7 @@ describe('接口契约', () => {
     test('界面上按任务配模型的下拉框和代码里的用途是同一组', async () => {
         const response = await app.handle(new Request('http://localhost/config/meta'))
         expect(response.status).toBe(200)
-        expect((await response.json()).models).toEqual(Config.MODELS)
+        expect((await response.json()).models).toEqual(Settings.MODELS)
     })
 
     test('前端的结束工具名单和服务端一致', async () => {

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
-import Config from '../commands/config.js'
+import Settings from '../commands/settings.js'
 import Session from '../commands/session.js'
 import History from '../features/history.js'
 import store from '../store.js'
@@ -55,7 +55,7 @@ describe('工具子集', () => {
 describe('onPermission 的返回值', () => {
     test('审批回调只返回布尔值，不返回对象', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: '审批返回值' })
 
             const callbacks = Agent.runtime().get(sessionId).callbacks
@@ -67,7 +67,7 @@ describe('onPermission 的返回值', () => {
 
     test('deny 规则返回 false，不是 false 一类的东西', async () => {
         await withHome(async () => {
-            await Config.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny' } })
+            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny' } })
             const { sessionId } = await Session.create({ title: '拒绝读取' })
             const callbacks = Agent.runtime().get(sessionId).callbacks
 
