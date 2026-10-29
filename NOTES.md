@@ -117,8 +117,7 @@ server/
   commands/              入口指令：一个文件对应一组 HTTP 动作，命令之间不互相 import
     session.js           会话创建、列表、读取、分支、改名、删除、目录、设置、模型
     chat.js              发送、继续、停止、审批决定；一次运行的编排也在这里
-    config.js            配置 HTTP 动作：读取、保存、连接测试
-    tool.js              工具目录和权限
+    settings.js          配置读写、模型测试、工具目录
 
   features/              独立模块：文件之间不互相 import
     config.js            配置读取、旧字段迁移、保存
@@ -280,8 +279,18 @@ server.js
 | `features/config.js` / `context.js` | 默认提示词挪到 `store.js`，去掉 config → context |
 | `commands/chat.js` | 接手 `features/run.js` 的发送/继续/停止逻辑；启动时 bind 三个有状态服务 |
 | `commands/session.js` | 压缩、回退按新签名调用；启动时 bind |
+| `commands/settings.js` | 合并原 `commands/config.js` 和 `commands/tool.js`：配置读写、模型测试、工具目录 |
+| `commands/config.js` / `commands/tool.js` | 删除；`tool.js` 只是把 `Tool.list()` 原样转出去，没有做决定 |
 | `features/run.js` | 删除 |
 
-结果：`features/` 内部 0 条边，`commands/` 内部 0 条边。HTTP 路径、字段、状态码不变。
+结果：源码文件 27 → 26，命令文件 4 → 3；`features/` 内部 0 条边，`commands/` 内部 0 条边。HTTP 路径、字段、状态码不变。
+
+### 小文件判断
+
+一个文件值不值得存在，不看行数，看它有没有做决定、有没有自己的数据、是不是多个模块共用的契约。
+
+- `commands/tool.js` 只是转手，删掉。
+- `utils/fail.js` 被 commands、features、tools 二十多处共用，保留；文件头压短，不为凑行数硬加函数。
+- 纯逻辑文件即使很短，只要它是一个完整功能（比如 `compact`），就保留。
 
 这是内部重构，完整图见 `docs/server-target.html`。
