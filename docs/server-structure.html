@@ -47,172 +47,172 @@
   <h1>Agent 后端源码体量图</h1>
   <p class="lead">每个矩形面积代表对应 <code>.js</code> 文件的字节数。只统计后端源码；<code>tests/</code> 和 <code>openapi.json</code> 单独列在下面，避免它们把代码块压得看不见。</p>
   <div class="stats">
-    <span class="stat">源码总量 <b>149.2 KB</b></span>
+    <span class="stat">源码总量 <b>146.8 KB</b></span>
     <span class="stat">源码文件 <b>26</b></span>
-    <span class="stat">最大目录 <b>features/ 58.3 KB</b></span>
-    <span class="stat">测试总量 <b>137.8 KB</b></span>
-    <span class="stat">openapi.json <b>51.4 KB</b></span>
+    <span class="stat">最大目录 <b>features/ 56.0 KB</b></span>
+    <span class="stat">测试总量 <b>122.3 KB</b></span>
+    <span class="stat">openapi.json <b>50.6 KB</b></span>
   </div>
   <div class="panel">
     <div class="panel-title"><b>源码目录与文件</b><span>面积 = 文件字节数 · 悬停看完整路径</span></div>
     <svg viewBox="0 0 1400 820" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="后端源码体积矩形树图">
 <rect width="1400" height="820" fill="#0d0f16"/>
-<g><title>features — 58.3 KB</title>
-<rect x="12" y="12" width="537.2611079846615" height="796" rx="8" fill="#a78bfa" fill-opacity="0.10" stroke="#a78bfa" stroke-opacity="0.75"/>
-<rect x="12" y="12" width="537.2611079846615" height="24" rx="8" fill="#a78bfa" fill-opacity="0.18"/>
-<text x="20" y="28" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">features · 58.3 KB</text>
-<g><title>features/agent.js — 13.5 KB</title>
-<rect x="16" y="40" width="297.1663061613988" height="315.8663940470604" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<g><title>features — 56.0 KB</title>
+<rect x="12" y="12" width="524.483812387332" height="796" rx="8" fill="#a78bfa" fill-opacity="0.10" stroke="#a78bfa" stroke-opacity="0.75"/>
+<rect x="12" y="12" width="524.483812387332" height="24" rx="8" fill="#a78bfa" fill-opacity="0.18"/>
+<text x="20" y="28" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">features · 56.0 KB</text>
+<g><title>features/agent.js — 12.6 KB</title>
+<rect x="16" y="40" width="297.4702794909325" height="298.0747979965446" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
 <text x="21" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">agent.js</text>
-<text x="21" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">13.5 KB</text>
+<text x="21" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">12.6 KB</text>
 </g>
-<g><title>features/approval.js — 10.6 KB</title>
-<rect x="313.1663061613988" y="40" width="232.09480182326274" height="315.8663940470604" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="318.1663061613988" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">approval.js</text>
-<text x="318.1663061613988" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">10.6 KB</text>
+<g><title>features/approval.js — 9.3 KB</title>
+<rect x="313.4702794909325" y="40" width="219.0135328963995" height="298.0747979965446" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="318.4702794909325" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">approval.js</text>
+<text x="318.4702794909325" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">9.3 KB</text>
 </g>
 <g><title>features/history.js — 8.6 KB</title>
-<rect x="16" y="355.8663940470604" width="256.39652806880014" height="233.59509344807316" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="21" y="368.8663940470604" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">history.js</text>
-<text x="21" y="382.8663940470604" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.6 KB</text>
+<rect x="16" y="338.0747979965446" width="249.79518996017453" height="242.81812787683776" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="21" y="351.0747979965446" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">history.js</text>
+<text x="21" y="365.0747979965446" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.6 KB</text>
 </g>
 <g><title>features/tool.js — 7.9 KB</title>
-<rect x="16" y="589.4614874951335" width="256.39652806880014" height="214.53851250486645" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="21" y="602.4614874951335" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">tool.js</text>
-<text x="21" y="616.4614874951335" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">7.9 KB</text>
+<rect x="16" y="580.8929258733824" width="249.79518996017453" height="223.10707412661765" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="21" y="593.8929258733824" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">tool.js</text>
+<text x="21" y="607.8929258733824" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">7.9 KB</text>
 </g>
 <g><title>features/config.js — 6.7 KB</title>
-<rect x="272.39652806880014" y="355.8663940470604" width="272.8645799158614" height="170.62058705922718" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="277.39652806880014" y="368.8663940470604" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">config.js</text>
-<text x="277.39652806880014" y="382.8663940470604" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">6.7 KB</text>
+<rect x="265.7951899601745" y="338.0747979965446" width="266.6886224271575" height="177.39448779448784" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="270.7951899601745" y="351.0747979965446" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">config.js</text>
+<text x="270.7951899601745" y="365.0747979965446" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">6.7 KB</text>
 </g>
 <g><title>features/mcp.js — 3.0 KB</title>
-<rect x="272.39652806880014" y="526.4869811062875" width="272.8645799158614" height="75.25187464184256" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="277.39652806880014" y="539.4869811062875" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">mcp.js</text>
-<text x="277.39652806880014" y="553.4869811062875" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.0 KB</text>
+<rect x="265.7951899601745" y="515.4692857910325" width="266.6886224271575" height="78.23949024997061" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="270.7951899601745" y="528.4692857910325" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">mcp.js</text>
+<text x="270.7951899601745" y="542.4692857910325" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.0 KB</text>
 </g>
 <g><title>features/title.js — 2.9 KB</title>
-<rect x="272.39652806880014" y="601.7388557481302" width="99.54330389612281" height="202.2611442518699" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="277.39652806880014" y="614.7388557481302" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">title.js</text>
-<text x="277.39652806880014" y="628.7388557481302" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.9 KB</text>
+<rect x="265.7951899601745" y="593.708776041003" width="97.29026243014304" height="210.2912239589969" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="270.7951899601745" y="606.708776041003" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">title.js</text>
+<text x="270.7951899601745" y="620.708776041003" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.9 KB</text>
 </g>
 <g><title>features/rollback.js — 2.2 KB</title>
-<rect x="371.939831964923" y="601.7388557481302" width="173.32127601973858" height="89.65490117331098" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="376.939831964923" y="614.7388557481302" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">rollback.js</text>
-<text x="376.939831964923" y="628.7388557481302" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.2 KB</text>
+<rect x="363.0854523903176" y="593.708776041003" width="169.39835999701444" height="93.21433917223659" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="368.0854523903176" y="606.708776041003" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">rollback.js</text>
+<text x="368.0854523903176" y="620.708776041003" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.2 KB</text>
 </g>
 <g><title>features/context.js — 1.8 KB</title>
-<rect x="371.939831964923" y="691.3937569214411" width="109.70996048054981" height="112.60624307855892" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="376.939831964923" y="704.3937569214411" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">context.js</text>
-<text x="376.939831964923" y="718.3937569214411" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">1.8 KB</text>
+<rect x="363.0854523903176" y="686.9231152132396" width="107.22680912311019" height="117.07688478676032" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="368.0854523903176" y="699.9231152132396" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">context.js</text>
+<text x="368.0854523903176" y="713.9231152132396" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">1.8 KB</text>
 </g>
 <g><title>features/compact.js — 1.0 KB</title>
-<rect x="481.64979244547277" y="691.3937569214411" width="63.611315539188766" height="112.60624307855892" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="486.64979244547277" y="704.3937569214411" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">compact…</text>
-<text x="486.64979244547277" y="718.3937569214411" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">1.0 KB</text>
+<rect x="470.31226151342776" y="686.9231152132396" width="62.17155087390425" height="117.07688478676032" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="475.31226151342776" y="699.9231152132396" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">compact…</text>
+<text x="475.31226151342776" y="713.9231152132396" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">1.0 KB</text>
 </g>
 </g>
 <g><title>tools — 45.8 KB</title>
-<rect x="549.2611079846615" y="12" width="422.25978615084614" height="796" rx="8" fill="#fbbf24" fill-opacity="0.10" stroke="#fbbf24" stroke-opacity="0.75"/>
-<rect x="549.2611079846615" y="12" width="422.25978615084614" height="24" rx="8" fill="#fbbf24" fill-opacity="0.18"/>
-<text x="557.2611079846615" y="28" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">tools · 45.8 KB</text>
+<rect x="536.483812387332" y="12" width="429.2454383992656" height="796" rx="8" fill="#fbbf24" fill-opacity="0.10" stroke="#fbbf24" stroke-opacity="0.75"/>
+<rect x="536.483812387332" y="12" width="429.2454383992656" height="24" rx="8" fill="#fbbf24" fill-opacity="0.18"/>
+<text x="544.483812387332" y="28" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">tools · 45.8 KB</text>
 <g><title>tools/file.js — 24.7 KB</title>
-<rect x="553.2611079846615" y="40" width="414.25978615084614" height="412.0249914704879" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="558.2611079846615" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">file.js</text>
-<text x="558.2611079846615" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">24.7 KB</text>
+<rect x="540.483812387332" y="40" width="421.2454383992656" height="412.0249914704879" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="545.483812387332" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">file.js</text>
+<text x="545.483812387332" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">24.7 KB</text>
 </g>
 <g><title>tools/subagent.js — 5.1 KB</title>
-<rect x="553.2611079846615" y="452.0249914704879" width="168.38831020489383" height="210.25516906693468" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="558.2611079846615" y="465.0249914704879" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">subagent.js</text>
-<text x="558.2611079846615" y="479.0249914704879" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">5.1 KB</text>
+<rect x="540.483812387332" y="452.0249914704879" width="171.22783800149736" height="210.25516906693468" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="545.483812387332" y="465.0249914704879" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">subagent.js</text>
+<text x="545.483812387332" y="479.0249914704879" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">5.1 KB</text>
 </g>
 <g><title>tools/skill.js — 3.5 KB</title>
-<rect x="553.2611079846615" y="662.2801605374226" width="168.38831020489383" height="141.7198394625774" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="558.2611079846615" y="675.2801605374226" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">skill.js</text>
-<text x="558.2611079846615" y="689.2801605374226" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.5 KB</text>
+<rect x="540.483812387332" y="662.2801605374226" width="171.22783800149736" height="141.7198394625774" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="545.483812387332" y="675.2801605374226" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">skill.js</text>
+<text x="545.483812387332" y="689.2801605374226" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.5 KB</text>
 </g>
 <g><title>tools/shell.js — 3.3 KB</title>
-<rect x="721.6494181895554" y="452.0249914704879" width="142.34443529760543" height="160.8220833638315" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.6494181895554" y="465.0249914704879" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">shell.js</text>
-<text x="726.6494181895554" y="479.0249914704879" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.3 KB</text>
+<rect x="711.7116503888294" y="452.0249914704879" width="144.74478589336573" height="160.8220833638315" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="716.7116503888294" y="465.0249914704879" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">shell.js</text>
+<text x="716.7116503888294" y="479.0249914704879" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.3 KB</text>
 </g>
 <g><title>tools/web.js — 2.4 KB</title>
-<rect x="863.9938534871608" y="452.0249914704879" width="103.52704064834688" height="160.8220833638315" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="868.9938534871608" y="465.0249914704879" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">web.js</text>
-<text x="868.9938534871608" y="479.0249914704879" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.4 KB</text>
+<rect x="856.4564362821951" y="452.0249914704879" width="105.2728145044025" height="160.8220833638315" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="861.4564362821951" y="465.0249914704879" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">web.js</text>
+<text x="861.4564362821951" y="479.0249914704879" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.4 KB</text>
 </g>
 <g><title>tools/cwd.js — 2.3 KB</title>
-<rect x="721.6494181895554" y="612.8470748343194" width="84.94640596294677" height="191.15292516568059" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.6494181895554" y="625.8470748343194" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">cwd.js</text>
-<text x="726.6494181895554" y="639.8470748343194" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.3 KB</text>
+<rect x="711.7116503888294" y="612.8470748343194" width="86.37885504839609" height="191.15292516568059" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="716.7116503888294" y="625.8470748343194" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">cwd.js</text>
+<text x="716.7116503888294" y="639.8470748343194" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.3 KB</text>
 </g>
 <g><title>tools/control.js — 2.2 KB</title>
-<rect x="806.5958241525021" y="612.8470748343194" width="160.92506998300553" height="96.49909627166105" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="811.5958241525021" y="625.8470748343194" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">control.js</text>
-<text x="811.5958241525021" y="639.8470748343194" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.2 KB</text>
+<rect x="798.0905054372255" y="612.8470748343194" width="163.63874534937213" height="96.49909627166105" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="803.0905054372255" y="625.8470748343194" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">control.js</text>
+<text x="803.0905054372255" y="639.8470748343194" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.2 KB</text>
 </g>
 <g><title>tools/todo.js — 2.2 KB</title>
-<rect x="806.5958241525021" y="709.3461711059805" width="160.92506998300553" height="94.65382889401954" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="811.5958241525021" y="722.3461711059805" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">todo.js</text>
-<text x="811.5958241525021" y="736.3461711059805" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.2 KB</text>
+<rect x="798.0905054372255" y="709.3461711059805" width="163.63874534937213" height="94.65382889401954" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="803.0905054372255" y="722.3461711059805" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">todo.js</text>
+<text x="803.0905054372255" y="736.3461711059805" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.2 KB</text>
 </g>
 </g>
 <g><title>commands — 29.1 KB</title>
-<rect x="971.5208941355077" y="12" width="416.47910586449234" height="512.9582738790159" rx="8" fill="#60a5fa" fill-opacity="0.10" stroke="#60a5fa" stroke-opacity="0.75"/>
-<rect x="971.5208941355077" y="12" width="416.47910586449234" height="24" rx="8" fill="#60a5fa" fill-opacity="0.18"/>
-<text x="979.5208941355077" y="28" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">commands · 29.1 KB</text>
+<rect x="965.7292507865976" y="12" width="422.2707492134024" height="514.2925391251572" rx="8" fill="#60a5fa" fill-opacity="0.10" stroke="#60a5fa" stroke-opacity="0.75"/>
+<rect x="965.7292507865976" y="12" width="422.2707492134024" height="24" rx="8" fill="#60a5fa" fill-opacity="0.18"/>
+<text x="973.7292507865976" y="28" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">commands · 29.1 KB</text>
 <g><title>commands/chat.js — 14.9 KB</title>
-<rect x="975.5208941355077" y="40" width="408.47910586449234" height="246.11858125529676" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="980.5208941355077" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">chat.js</text>
-<text x="980.5208941355077" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">14.9 KB</text>
+<rect x="969.7292507865976" y="40" width="414.2707492134024" height="246.80135871694645" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="974.7292507865976" y="53" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">chat.js</text>
+<text x="974.7292507865976" y="67" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">14.9 KB</text>
 </g>
 <g><title>commands/session.js — 12.3 KB</title>
-<rect x="975.5208941355077" y="286.11858125529676" width="352.2339410883179" height="234.83969262371915" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="980.5208941355077" y="299.11858125529676" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">session.js</text>
-<text x="980.5208941355077" y="313.11858125529676" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">12.3 KB</text>
+<rect x="969.7292507865976" y="286.8013587169464" width="357.22810929148" height="235.49118040821074" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="974.7292507865976" y="299.8013587169464" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">session.js</text>
+<text x="974.7292507865976" y="313.8013587169464" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">12.3 KB</text>
 </g>
 <g><title>commands/settings.js — 2.0 KB</title>
-<rect x="1327.7548352238255" y="286.11858125529676" width="56.24516477617442" height="234.83969262371915" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1332.7548352238255" y="299.11858125529676" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">settin…</text>
+<rect x="1326.9573600780777" y="286.8013587169464" width="57.04263992192239" height="235.49118040821074" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1331.9573600780777" y="299.8013587169464" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">settin…</text>
 </g>
 </g>
-<g><title>(根) — 8.7 KB</title>
-<rect x="971.5208941355077" y="524.9582738790159" width="225.82602700185703" height="283.0417261209841" rx="8" fill="#e879f9" fill-opacity="0.10" stroke="#e879f9" stroke-opacity="0.75"/>
-<rect x="971.5208941355077" y="524.9582738790159" width="225.82602700185703" height="24" rx="8" fill="#e879f9" fill-opacity="0.18"/>
-<text x="979.5208941355077" y="540.9582738790159" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">(根) · 8.7 KB</text>
-<g><title>store.js — 4.5 KB</title>
-<rect x="975.5208941355077" y="552.9582738790159" width="217.82602700185703" height="129.88411351448985" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="980.5208941355077" y="565.9582738790159" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">store.js</text>
-<text x="980.5208941355077" y="579.9582738790159" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.5 KB</text>
+<g><title>(根) — 8.6 KB</title>
+<rect x="965.7292507865976" y="526.2925391251572" width="227.54566372141323" height="281.7074608748428" rx="8" fill="#e879f9" fill-opacity="0.10" stroke="#e879f9" stroke-opacity="0.75"/>
+<rect x="965.7292507865976" y="526.2925391251572" width="227.54566372141323" height="24" rx="8" fill="#e879f9" fill-opacity="0.18"/>
+<text x="973.7292507865976" y="542.2925391251572" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">(根) · 8.6 KB</text>
+<g><title>store.js — 4.4 KB</title>
+<rect x="969.7292507865976" y="554.2925391251572" width="219.54566372141323" height="127.5500487805801" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="974.7292507865976" y="567.2925391251572" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">store.js</text>
+<text x="974.7292507865976" y="581.2925391251572" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.4 KB</text>
 </g>
 <g><title>server.js — 4.2 KB</title>
-<rect x="975.5208941355077" y="682.8423873935058" width="217.82602700185703" height="121.15761260649424" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="980.5208941355077" y="695.8423873935058" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">server.js</text>
-<text x="980.5208941355077" y="709.8423873935058" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.2 KB</text>
+<rect x="969.7292507865976" y="681.8425879057373" width="219.54566372141323" height="122.15741209426271" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="974.7292507865976" y="694.8425879057373" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">server.js</text>
+<text x="974.7292507865976" y="708.8425879057373" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.2 KB</text>
 </g>
 </g>
 <g><title>utils — 7.4 KB</title>
-<rect x="1197.3469211373647" y="524.9582738790159" width="190.6530788626353" height="283.0417261209841" rx="8" fill="#34d399" fill-opacity="0.10" stroke="#34d399" stroke-opacity="0.75"/>
-<rect x="1197.3469211373647" y="524.9582738790159" width="190.6530788626353" height="24" rx="8" fill="#34d399" fill-opacity="0.18"/>
-<text x="1205.3469211373647" y="540.9582738790159" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">utils · 7.4 KB</text>
+<rect x="1193.2749145080109" y="526.2925391251572" width="194.72508549198915" height="281.7074608748428" rx="8" fill="#34d399" fill-opacity="0.10" stroke="#34d399" stroke-opacity="0.75"/>
+<rect x="1193.2749145080109" y="526.2925391251572" width="194.72508549198915" height="24" rx="8" fill="#34d399" fill-opacity="0.18"/>
+<text x="1201.2749145080109" y="542.2925391251572" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">utils · 7.4 KB</text>
 <g><title>utils/sse.js — 4.7 KB</title>
-<rect x="1201.3469211373647" y="552.9582738790159" width="182.6530788626353" height="161.61498824656792" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1206.3469211373647" y="565.9582738790159" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">sse.js</text>
-<text x="1206.3469211373647" y="579.9582738790159" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.7 KB</text>
+<rect x="1197.2749145080109" y="554.2925391251572" width="186.72508549198915" height="160.7560184434006" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1202.2749145080109" y="567.2925391251572" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">sse.js</text>
+<text x="1202.2749145080109" y="581.2925391251572" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.7 KB</text>
 </g>
 <g><title>utils/path.js — 2.4 KB</title>
-<rect x="1201.3469211373647" y="714.5732621255838" width="164.19708170686567" height="89.42673787441618" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1206.3469211373647" y="727.5732621255838" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">path.js</text>
-<text x="1206.3469211373647" y="741.5732621255838" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.4 KB</text>
+<rect x="1197.2749145080109" y="715.0485575685577" width="167.85763651050925" height="88.95144243144222" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1202.2749145080109" y="728.0485575685577" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">path.js</text>
+<text x="1202.2749145080109" y="742.0485575685577" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.4 KB</text>
 </g>
 <g><title>utils/fail.js — 0.3 KB</title>
-<rect x="1365.5440028442304" y="714.5732621255838" width="18.455997155769637" height="89.42673787441618" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<rect x="1365.1325510185202" y="715.0485575685577" width="18.867448981479896" height="88.95144243144222" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
 </g>
 </g>
 </svg>
-    <div class="legend"><span class="legend-item"><i style="background:#a78bfa"></i>features <b>58.3 KB</b></span><span class="legend-item"><i style="background:#fbbf24"></i>tools <b>45.8 KB</b></span><span class="legend-item"><i style="background:#60a5fa"></i>commands <b>29.1 KB</b></span><span class="legend-item"><i style="background:#e879f9"></i>(根) <b>8.7 KB</b></span><span class="legend-item"><i style="background:#34d399"></i>utils <b>7.4 KB</b></span></div>
+    <div class="legend"><span class="legend-item"><i style="background:#a78bfa"></i>features <b>56.0 KB</b></span><span class="legend-item"><i style="background:#fbbf24"></i>tools <b>45.8 KB</b></span><span class="legend-item"><i style="background:#60a5fa"></i>commands <b>29.1 KB</b></span><span class="legend-item"><i style="background:#e879f9"></i>(根) <b>8.6 KB</b></span><span class="legend-item"><i style="background:#34d399"></i>utils <b>7.4 KB</b></span></div>
   </div>
-  <div class="note"><b>一眼看出的分布：</b>features/ 约 58.3 KB，是最大的一块，负责会话、运行、审批、上下文和工具登记；tools/ 约 45.8 KB，按类别分组，文件工具自己带快照和截断；commands/ 只做 HTTP 入口，utils/ 只放路径、错误和 SSE 这类小工具。根目录只有 <code>server.js</code> 和 <code>store.js</code>。</div>
+  <div class="note"><b>一眼看出的分布：</b>features/ 约 56.0 KB，是最大的一块，负责会话、运行、审批、上下文和工具登记；tools/ 约 45.8 KB，按类别分组，文件工具自己带快照和截断；commands/ 只做 HTTP 入口，utils/ 只放路径、错误和 SSE 这类小工具。根目录只有 <code>server.js</code> 和 <code>store.js</code>。</div>
   <div class="panel mermaid-panel">
     <div class="panel-title"><b>Mermaid 依赖图</b><span>使用方 → 被依赖文件 · 红色为循环依赖</span></div>
     <img src="./server-dependencies.svg" alt="后端文件依赖 Mermaid 图">
