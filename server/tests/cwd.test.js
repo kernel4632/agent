@@ -38,7 +38,7 @@ describe('会话当前目录', () => {
             const second = join(root, 'second')
             await mkdir(first, { recursive: true })
             await mkdir(second, { recursive: true })
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
 
             const a = await Session.create({ title: 'A', cwd: first })
             const b = await Session.create({ title: 'B', cwd: second })
@@ -54,7 +54,7 @@ describe('会话当前目录', () => {
         await withHome(async root => {
             const target = join(root, 'moved')
             await mkdir(target, { recursive: true })
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Move', cwd: root })
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: '第一句' } })
             await History.save(sessionId)
@@ -72,7 +72,7 @@ describe('会话当前目录', () => {
 
     test('HTTP 接口改目录，目录不存在时返回 400', async () => {
         await withHome(async root => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'HTTP cwd', cwd: root })
             const send = body => app.handle(new Request(`http://localhost/session/cwd/${sessionId}`, {
                 method: 'PATCH',
@@ -93,7 +93,7 @@ describe('会话当前目录', () => {
         await withHome(async root => {
             const work = join(root, 'work')
             await mkdir(work, { recursive: true })
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Shell cwd', cwd: work })
 
             const result = await Agent.runtime().get(sessionId).tools.handlers.execute_command.execute({ command: 'cd' })

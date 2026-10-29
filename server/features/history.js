@@ -23,48 +23,26 @@ import Path from '../utils/path.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 
-// --- 把磁盘上的旧形状收成当前形状 ---
-const normalize = (session, id) => {
-    const model = session.model && typeof session.model === 'object'
-        ? { provider: session.model.provider || '', model: session.model.model || '' }
-        : { provider: session.provider || '', model: session.model || '' }
-    const history = session.history && Array.isArray(session.history.messages) ? session.history : { messages: [], redo: [] }
-    history.redo ||= []
-    // 设置里只保留当前认识的字段；旧版的能力开关、按会话配模型和标题开关不再进入内存。
-    const settings = session.settings && typeof session.settings === 'object' ? session.settings : {}
-    delete settings.agent
-    delete settings.mode
-    delete settings.capabilities
-    delete settings.uses
-    delete settings.autoTitle
-    delete settings.compactThreshold
-    return {
-        id: session.id || id,
-        title: session.title || '新对话',
-        cwd: session.cwd || process.cwd(),
-        model,
-        createdAt: session.createdAt || Date.now(),
-        updatedAt: session.updatedAt || session.createdAt || Date.now(),
-        history,
-        settings,
-    }
-}
-
-// --- 从磁盘读一条会话进内存 ---
+// --- 从磁盘读一条会话进内存；只认当前形状 ---
 const load = async sessionId => {
     if (store.sessions[sessionId]) return store.sessions[sessionId]
 
     const metaFile = Bun.file(Path.meta(sessionId))
     if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
-    const meta = await metaFile.json()
+    const meta = await metaFile.json()                                // 当前形状的会话资料
+    const history = await Bun.file(Path.history(sessionId)).json()    // 当前形状的消息和回退栈
+    const settings = await Bun.file(Path.settings(sessionId)).json()  // 当前形状的运行设置
 
-    const historyFile = Bun.file(Path.history(sessionId))
-    const settingsFile = Bun.file(Path.settings(sessionId))
-    const session = normalize({
-        ...meta,
-        history: await historyFile.exists() ? await historyFile.json() : { messages: [], redo: [] },
-        settings: await settingsFile.exists() ? await settingsFile.json() : {},
-    }, sessionId)
+    const session = {
+        id: meta.id,
+        title: meta.title,
+        cwd: meta.cwd,
+        model: meta.model,
+        createdAt: meta.createdAt,
+        updatedAt: meta.updatedAt,
+        history,
+        settings,
+    }
 
     store.sessions[sessionId] = session
     return session
@@ -82,7 +60,7 @@ const create = async ({ title, cwd, provider, model, settings }) => {
         createdAt: now,
         updatedAt: now,
         history: { messages: [], redo: [] },
-        settings: settings || {},
+        settings,
     }
     store.sessions[id] = session
     await save(id)
@@ -132,13 +110,13 @@ const list = async ({ search = '' } = {}) => {
         const file = Bun.file(Path.meta(entry))
         if (!await file.exists()) continue
         const meta = await file.json()
-        const provider = meta.model?.provider ?? meta.provider ?? ''
-        const model = meta.model?.model ?? meta.model ?? ''
+        const provider = meta.model.provider
+        const model = meta.model.model
         if (search && !`${meta.title} ${model}`.toLowerCase().includes(search.toLowerCase())) continue
         sessions.push({
-            id: meta.id || entry,
+            id: meta.id,
             title: meta.title,
-            cwd: meta.cwd || process.cwd(),
+            cwd: meta.cwd,
             provider,
             model,
             createdAt: meta.createdAt,
@@ -217,7 +195,7 @@ const destroy = async sessionId => {
     await rm(Path.session(sessionId), { recursive: true, force: true })
 }
 
-// --- 兼容旧调用：把会话目录的父目录建出来 ---
+// --- 建出数据目录；启动时调用一次 ---
 const prepare = async () => {
     await mkdir(dirname(Path.config()), { recursive: true })
     await mkdir(Path.tools(), { recursive: true })

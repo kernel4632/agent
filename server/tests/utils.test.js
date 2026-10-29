@@ -58,7 +58,7 @@ describe('server HTTP API', () => {
                 models: { chat: expect.any(Object), compact: expect.any(Object) },
             })
 
-            const value = { providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } }
+            const value = { providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } }
             const saved = await jsonRequest('/config/set', 'PATCH', value)
             expect(saved.status).toBe(200)
             expect(await saved.json()).toMatchObject({
@@ -70,7 +70,7 @@ describe('server HTTP API', () => {
 
     test('creates, reads, renames, moves and removes a session through HTTP', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
 
             const created = await jsonRequest('/session/create', 'POST', { title: 'First task' })
             expect(created.status).toBe(200)
@@ -198,7 +198,7 @@ describe('server skills', () => {
     test('gives the agent a skill tool listing the available skills', async () => {
         await withHome(async root => {
             await writeSkill(join(root, 'skills', 'review'), 'review', '审查改动', '第一步')
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'With skills', cwd: root })
             const agent = Agent.runtime().get(sessionId)
 
@@ -212,7 +212,7 @@ describe('server MCP', () => {
     test('connects a configured MCP server and exposes its tools to the agent', async () => {
         await withHome(async () => {
             await Settings.set({
-                providers: [{ name: 'local', models: ['model'] }],
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
                 mcp: { everything: { command: 'bun', args: ['node_modules/@modelcontextprotocol/server-everything/dist/index.js'] } },
             })
 
@@ -230,7 +230,7 @@ describe('server MCP', () => {
     test('does not fail when a configured server cannot start', async () => {
         await withHome(async () => {
             await Settings.set({
-                providers: [{ name: 'local', models: ['model'] }],
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
                 mcp: { broken: { command: 'definitely-not-a-real-command-xyz' } },
             })
 
@@ -244,7 +244,7 @@ describe('server MCP', () => {
 describe('server session list', () => {
     test('lists sessions from disk, newest first, and searches by title', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const first = await Session.create({ title: 'Alpha task' })
             await Bun.sleep(5)
             const second = await Session.create({ title: 'Beta task' })
@@ -262,7 +262,7 @@ describe('server session list', () => {
 
     test('lists sessions through HTTP', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             await Session.create({ title: 'Visible' })
 
             const response = await request('/session/list')
@@ -281,7 +281,7 @@ describe('server session list', () => {
 describe('server route walk', () => {
     test('reaches every session route and answers with a real message', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const created = await jsonRequest('/session/create', 'POST', { title: 'Route walk' })
             const { sessionId } = await created.json()
 
@@ -307,7 +307,7 @@ describe('server route walk', () => {
 describe('server provider test endpoint', () => {
     test('reports an unknown provider as a client error', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const response = await jsonRequest('/config/test', 'POST', { provider: 'nope', model: 'm' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: 'Provider not found: nope' })
@@ -345,7 +345,7 @@ describe('server health and history', () => {
 
     test('deleting a session also clears its in-memory history', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'Delete me' })
             expect(History.count()).toBe(1)
             await Session.remove({ sessionId })
@@ -355,7 +355,7 @@ describe('server health and history', () => {
 
     test('rolls back and redoes messages through session commands', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'History task' })
 
             await History.add({ sessionId, message: AgentCore.history.user({ content: 'one' }) })
@@ -371,7 +371,7 @@ describe('server health and history', () => {
 
     test('persists history inside the session directory', async () => {
         await withHome(async root => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'Persist task' })
             await History.add({ sessionId, message: AgentCore.history.user({ content: 'saved' }) })
             await History.save(sessionId)
@@ -383,7 +383,7 @@ describe('server health and history', () => {
 
     test('keeps the session history file loadable after a round trip', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'Round trip' })
             await History.add({ sessionId, message: AgentCore.history.user({ content: 'hello' }) })
             await History.save(sessionId)
@@ -395,7 +395,7 @@ describe('server health and history', () => {
 
     test('undoes several rollbacks in a row, and a new message clears the undo history', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'Multi undo' })
             const first = await History.add({ sessionId, message: AgentCore.history.user({ content: '一' }) })
             await History.add({ sessionId, message: AgentCore.history.user({ content: '二' }) })
@@ -422,7 +422,7 @@ describe('server health and history', () => {
 describe('server file snapshots', () => {
     test('restores a modified file when the session rolls back', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const target = join(tmpdir(), `agent-snapshot-${crypto.randomUUID()}.txt`)
             await writeFile(target, 'original')
 
@@ -445,7 +445,7 @@ describe('server file snapshots', () => {
 
     test('shows what the task changed, including added and deleted files', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const edited = join(tmpdir(), `agent-diff-edit-${crypto.randomUUID()}.txt`)
             const removed = join(tmpdir(), `agent-diff-removed-${crypto.randomUUID()}.txt`)
             const created = join(tmpdir(), `agent-diff-new-${crypto.randomUUID()}.txt`)
@@ -479,7 +479,7 @@ describe('server file snapshots', () => {
 
     test('previews a rollback and can roll back the conversation without touching files', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const target = join(tmpdir(), `agent-preview-${crypto.randomUUID()}.txt`)
             await writeFile(target, 'original')
 
@@ -517,7 +517,7 @@ describe('server file snapshots', () => {
 
     test('deletes a file that did not exist before the task', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const target = join(tmpdir(), `agent-new-${crypto.randomUUID()}.txt`)
 
             const { sessionId } = await Session.create({ title: 'New file task' })
@@ -590,7 +590,7 @@ describe('server tool approval and SSE', () => {
 
     test('shows a waiting approval after the page is reloaded', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'ask' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'Waiting approval' })
 
             const waiting = Approval.check({ sessionId, toolCallId: 'w1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
@@ -622,7 +622,7 @@ describe('server tool approval and SSE', () => {
 describe('server Agent integration boundary', () => {
     test('creates a session with Agent through the package boundary', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'Agent boundary' })
             const session = await Session.read({ sessionId })
             expect(session.id).toBe(sessionId)
@@ -632,7 +632,7 @@ describe('server Agent integration boundary', () => {
 
     test('scans the grouped built-in tool files', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'Tool scan' })
             const agent = Agent.runtime().get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([

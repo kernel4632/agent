@@ -8,7 +8,7 @@
 
 const STATUSES = ['pending', 'in_progress', 'completed']
 
-// 把 Markdown 清单转成结构化条目，界面和历史里的旧格式都能用。
+// 把 Markdown 清单转成结构化条目。
 const parseTodos = text => String(text)
     .split('\n')
     .map(line => line.trim())

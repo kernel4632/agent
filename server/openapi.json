@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.50.6",
+    "version": "0.50.7",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [
@@ -198,13 +198,6 @@
                           }
                         }
                       }
-                    },
-                    "uses": {
-                      "type": "array",
-                      "description": "兼容旧界面的字段，内容与 models 相同",
-                      "items": {
-                        "type": "object"
-                      }
                     }
                   }
                 }
@@ -220,7 +213,7 @@
           "Config"
         ],
         "summary": "整体替换并保存配置",
-        "description": "这是整体替换，不是局部合并。旧字段 model、uses、compactThreshold 会在读取时迁移。",
+        "description": "这是整体替换，不是局部合并。",
         "operationId": "configSet",
         "requestBody": {
           "required": true,

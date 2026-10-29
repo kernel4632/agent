@@ -1,7 +1,7 @@
 /*
  * 设置指令：配置读写、模型测试、工具目录。
  *
- * 配置读取、旧字段迁移和保存都在 features/config.js；工具扫描在 features/tool.js。
+ * 配置读取、当前形状检查和保存都在 features/config.js；工具扫描在 features/tool.js。
  * 两边都是设置页要的数据，所以合成一个命令文件，不再为工具目录单独留一个转手文件。
  * 本文件只 import features，不 import 别的命令；有状态 feature 的服务在这里 bind。
  *

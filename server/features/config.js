@@ -1,8 +1,8 @@
 /*
- * 全局配置：读磁盘、把旧字段迁移成当前形状、在内存里整体替换、保存回磁盘。
+ * 全局配置：读取当前形状、补默认值、整体替换、保存回磁盘。
  *
- * 配置里有模型服务、按任务的默认模型、MCP、权限、提示词和压缩阈值。
- * store.config 是内存里的唯一一份；只有本文件写 config.json。
+ * 只认最新版本的形状，不迁移旧字段。每个模型自己带上下文长度和能力；
+ * store.config 是内存里的唯一一份，只有本文件写 config.json。
  * 命令层只负责接 HTTP 动作，审批记住规则时也只调用这里的 save。
  *
  * 调用示例：
@@ -30,92 +30,85 @@ const MODELS = [
     { task: 'task', label: '子任务', hint: '子 agent 干活时用的模型' },
 ]
 
-// --- 把旧字段迁移成新形状 ---
-const migrate = raw => {
-    const config = isObject(raw) ? structuredClone(raw) : {}
-
-    // 每个模型的上下文和能力都写在模型对象自己身上。
-    for (const provider of Array.isArray(config.providers) ? config.providers : []) {
-        if (!isObject(provider)) continue
-        const settings = isObject(provider.modelSettings) ? provider.modelSettings : {}
-        provider.models = (Array.isArray(provider.models) ? provider.models : []).map(model => {
-            if (!isObject(model)) {
-                return {
-                    id: model,
-                    name: model,
-                    context: Number(settings[model]?.context) || 128000,
-                    capabilities: ['text', 'tools'],
-                }
-            }
-            return {
-                ...model,
-                context: Number(model.context) || Number(settings[model.id]?.context) || 128000,
-                capabilities: Array.isArray(model.capabilities) ? model.capabilities : ['text', 'tools'],
-            }
-        })
-        delete provider.modelSettings
+// --- 一个模型必须带 id；上下文和能力缺省时用最保守的值 ---
+const model = value => {
+    if (!isObject(value) || typeof value.id !== 'string' || !value.id) throw fail(400, 'provider model must have an id')
+    return {
+        id: value.id,
+        name: typeof value.name === 'string' && value.name ? value.name : value.id,
+        context: Number(value.context) > 0 ? Number(value.context) : 128000,
+        capabilities: Array.isArray(value.capabilities) ? value.capabilities : ['text', 'tools'],
     }
+}
 
-    // 旧版本只有一个全局 model 和一份 uses。
-    const models = isObject(config.models) ? config.models : {}
-    if (!models.chat && isObject(config.model)) models.chat = { ...config.model }
-    for (const [from, to] of [['compact', 'compact'], ['title', 'title'], ['subtask', 'task']]) {
-        if (!models[to] && isObject(config.uses?.[from])) models[to] = { ...config.uses[from] }
+// --- 一个供应商只保留连接需要的字段 ---
+const provider = value => {
+    if (!isObject(value) || typeof value.name !== 'string' || !value.name) throw fail(400, 'provider must have a name')
+    return {
+        name: value.name,
+        baseURL: typeof value.baseURL === 'string' ? value.baseURL : '',
+        apiKey: typeof value.apiKey === 'string' ? value.apiKey : '',
+        protocol: typeof value.protocol === 'string' ? value.protocol : 'openai-compatible',
+        enabled: value.enabled !== false,
+        stream: value.stream !== false,
+        headers: value.headers ?? {},
+        body: isObject(value.body) ? value.body : {},
+        models: (Array.isArray(value.models) ? value.models : []).map(model),
     }
-    config.models = {
-        chat: isObject(models.chat) ? { provider: models.chat.provider || '', model: models.chat.model || '' } : { provider: '', model: '' },
-        compact: isObject(models.compact) ? { provider: models.compact.provider || '', model: models.compact.model || '' } : { provider: '', model: '' },
-        title: isObject(models.title) ? { provider: models.title.provider || '', model: models.title.model || '' } : { provider: '', model: '' },
-        task: isObject(models.task) ? { provider: models.task.provider || '', model: models.task.model || '' } : { provider: '', model: '' },
+}
+
+// --- 按任务的模型指向；没配就是空字符串 ---
+const target = value => isObject(value)
+    ? {
+        provider: typeof value.provider === 'string' ? value.provider : '',
+        model: typeof value.model === 'string' ? value.model : '',
     }
-    delete config.model
-    delete config.uses
+    : { provider: '', model: '' }
 
-    // 压缩阈值从会话设置搬到全局。
-    const compact = isObject(config.compact) ? config.compact : {}
-    const value = Number(compact.threshold ?? config.compactThreshold)
-    config.compact = { threshold: Number.isFinite(value) && value >= 0.1 && value <= 0.99 ? value : 0.8 }
-    delete config.compactThreshold
-
-    if (!isObject(config.mcp)) config.mcp = {}
-    if (!isObject(config.permission)) config.permission = {}
-    if (!Array.isArray(config.providers)) config.providers = []
-
-    // 这些字段属于已经移除的旧能力，读进来就直接丢掉，不让它们在配置里继续残留。
-    delete config.agents
-    delete config.snapshot
-    delete config.capabilities
-    delete config.autoTitle
-    delete config.rules
-    delete config.diagnostics
-    delete config.stream
-
-    // 提示词默认值只填一次；用户明确保存的空字符串保持为空。
+// --- 当前配置形状；未知字段不进入内存，也不写回磁盘 ---
+const normalize = raw => {
+    const config = isObject(raw) ? raw : {}
     const prompt = isObject(config.prompt) ? config.prompt : {}
-    if (prompt.seeded !== true && typeof prompt.system !== 'string') prompt.system = DEFAULT_PROMPT
-    if (typeof prompt.system !== 'string') prompt.system = ''
-    prompt.seeded = true
-    config.prompt = prompt
-    return config
+    const system = typeof prompt.system === 'string'
+        ? prompt.system
+        : (prompt.seeded === true ? '' : DEFAULT_PROMPT)
+
+    return {
+        providers: (Array.isArray(config.providers) ? config.providers : []).map(provider),
+        models: {
+            chat: target(config.models?.chat),
+            compact: target(config.models?.compact),
+            title: target(config.models?.title),
+            task: target(config.models?.task),
+        },
+        mcp: isObject(config.mcp) ? config.mcp : {},
+        permission: isObject(config.permission) ? config.permission : {},
+        prompt: { system, seeded: true },
+        compact: {
+            threshold: Number(config.compact?.threshold) >= 0.1 && Number(config.compact?.threshold) <= 0.99
+                ? Number(config.compact.threshold)
+                : 0.8,
+        },
+    }
 }
 
 // --- 读取配置；测试可以传一个临时路径，不碰用户真实配置 ---
 const read = async (path = Path.config()) => {
     const file = Bun.file(path)                              // 指向磁盘上的配置文件
     const raw = await file.exists() ? await file.json() : {} // 第一次运行时还没有文件，按空配置处理
-    const config = migrate(raw)                              // 旧版本字段在这里收成当前形状
-    Object.keys(store.config).forEach(key => delete store.config[key]) // 先清掉内存里的旧键
-    Object.assign(store.config, config)                      // 再把迁移后的配置整份放回去
+    const config = normalize(raw)                            // 只收当前形状并补默认值
+    Object.keys(store.config).forEach(key => delete store.config[key]) // 先清掉内存里的现有键
+    Object.assign(store.config, config)                      // 再把当前配置整份放回去
     return store.config
 }
 
 // --- 整体替换并保存 ---
 const set = async newConfig => {
     if (!isObject(newConfig)) throw fail(400, 'config must be an object') // 配置只能是一整个对象
-    const config = migrate(newConfig)                                  // 用户提交的旧字段也先迁移
-    Object.keys(store.config).forEach(key => delete store.config[key]) // 清掉内存里的旧键
-    Object.assign(store.config, config)                                // 放进这份新配置
-    return save()                                                      // 立刻落盘
+    const config = normalize(newConfig)                            // 用户提交的配置也按当前形状收一遍
+    Object.keys(store.config).forEach(key => delete store.config[key]) // 清掉内存里的现有键
+    Object.assign(store.config, config)                            // 放进这份新配置
+    return save()                                                  // 立刻落盘
 }
 
 const get = () => store.config

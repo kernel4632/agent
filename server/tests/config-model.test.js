@@ -63,7 +63,7 @@ describe('交给 agent-core 的 config', () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
                 await Settings.set({
-                    providers: [{ name: 'fake', models: ['想用的模型'], baseURL: `http://127.0.0.1:${port}/v1` }],
+                    providers: [{ name: 'fake', models: [{ id: '想用的模型', name: '想用的模型' }], baseURL: `http://127.0.0.1:${port}/v1` }],
                 })
 
                 await AgentCore.llm.chat({
@@ -82,10 +82,10 @@ describe('交给 agent-core 的 config', () => {
         await withHome(async () => {
             await Settings.set({
                 providers: [
-                    { name: 'chat', models: ['m'], protocol: 'openai-compatible' },
-                    { name: 'responses', models: ['m'], protocol: 'responses' },
-                    { name: 'anthropic', models: ['m'], protocol: 'anthropic' },
-                    { name: 'gemini', models: ['m'], protocol: 'gemini' },
+                    { name: 'chat', models: [{ id: 'm', name: 'm' }], protocol: 'openai-compatible' },
+                    { name: 'responses', models: [{ id: 'm', name: 'm' }], protocol: 'responses' },
+                    { name: 'anthropic', models: [{ id: 'm', name: 'm' }], protocol: 'anthropic' },
+                    { name: 'gemini', models: [{ id: 'm', name: 'm' }], protocol: 'gemini' },
                 ],
             })
             const body = (provider, reasoning = 'low') => resolve({ provider, model: 'm', settings: { reasoning } }).provider.body
@@ -108,7 +108,7 @@ describe('交给 agent-core 的 config', () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
                 await Settings.set({
-                    providers: [{ name: 'fake', models: ['m'], baseURL: `http://127.0.0.1:${port}/v1` }],
+                    providers: [{ name: 'fake', models: [{ id: 'm', name: 'm' }], baseURL: `http://127.0.0.1:${port}/v1` }],
                 })
                 const tools = AgentCore.tool.adopt({
                     attempt_completion: {
@@ -147,21 +147,21 @@ describe('交给 agent-core 的 config', () => {
 
     test('没配上下文时也有默认预算', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             expect(resolve({ provider: 'local', model: 'model' }).maxContextTokens).toBe(128000)
         })
     })
 
     test('resolve 返回的字段里有 model', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['m1'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm1', name: 'm1' }] }] })
             expect(resolve({ provider: 'local', model: 'm1' }).model).toBe('m1')
         })
     })
 
     test('会话选的那个模型就是要用的那个，不是配置里的第一个', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['第一个', '第二个'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: '第一个', name: '第一个' }, { id: '第二个', name: '第二个' }] }] })
             expect(resolve({ provider: 'local', model: '第二个' }).model).toBe('第二个')
         })
     })
@@ -180,32 +180,9 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('旧配置的 model、uses、compactThreshold 会迁移成新字段', async () => {
-        await withHome(async () => {
-            await Settings.set({
-                providers: [{
-                    name: 'local',
-                    models: ['m'],
-                    modelSettings: { m: { context: 32000 } },
-                }],
-                model: { provider: 'local', model: 'm' },
-                uses: { compact: { provider: 'local', model: 'm' } },
-                compactThreshold: 0.5,
-            })
-
-            expect(store.config.models.chat).toEqual({ provider: 'local', model: 'm' })
-            expect(store.config.models.compact).toEqual({ provider: 'local', model: 'm' })
-            expect(store.config.compact.threshold).toBe(0.5)
-            expect(store.config.model).toBeUndefined()
-            expect(store.config.uses).toBeUndefined()
-            expect(store.config.providers[0].models[0].context).toBe(32000)
-            expect(resolve({ provider: 'local', model: 'm' }).maxContextTokens).toBe(32000)
-        })
-    })
-
     test('请求头不是合法 JSON 时按用户填错处理，不抛程序异常', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['m'], headers: '{' }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm', name: 'm' }], headers: '{' }] })
             expect(() => Agent.connection({ provider: 'local', model: 'm' })).toThrow(/headers must be valid JSON/i)
         })
     })

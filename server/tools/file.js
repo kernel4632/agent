@@ -109,7 +109,6 @@ const loadManifest = async sessionId => {
     if (manifests.has(sessionId)) return manifests.get(sessionId)
     const file = Bun.file(Path.checkpoints(sessionId))
     const manifest = await file.exists() ? await file.json() : { checkpoints: [], redone: [] }
-    manifest.redone ||= []
     manifests.set(sessionId, manifest)
     return manifest
 }

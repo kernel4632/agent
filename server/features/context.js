@@ -19,8 +19,8 @@ const DEFAULT_CONTEXT = 128000
 // --- 这个模型的上下文长度和能力 ---
 const modelInfo = ({ provider: name, model }) => {
     const provider = (store.config.providers || []).find(item => item.name === name)
-    const entry = (provider?.models || []).find(item => (typeof item === 'string' ? item : item?.id) === model)
-    if (!entry || typeof entry === 'string') return { context: DEFAULT_CONTEXT, capabilities: null }
+    const entry = (provider?.models || []).find(item => item?.id === model)
+    if (!entry) return { context: DEFAULT_CONTEXT, capabilities: null }
     return {
         context: Number(entry.context) || DEFAULT_CONTEXT,
         capabilities: Array.isArray(entry.capabilities) ? entry.capabilities : null,

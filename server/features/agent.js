@@ -81,7 +81,7 @@ const connection = ({ provider: name, model }) => {
     return {
         model,
         baseURL: provider.baseURL || '',
-        apiKey: provider.apiKey || provider.key || '',
+        apiKey: provider.apiKey || '',
         protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
         provider: { headers, body: provider.body || {} },
     }
@@ -109,7 +109,7 @@ const firstModel = () => {
     const model = provider?.models?.[0]
     return {
         provider: provider?.name || '',
-        model: typeof model === 'string' ? model : model?.id || '',
+        model: model?.id || '',
     }
 }
 
@@ -172,7 +172,7 @@ const testModel = async ({ provider: name, model }) => {
         const provider = (store.config.providers || []).find(item => item.name === name)
         if (!provider) throw fail(400, `Provider not found: ${name}`)
         const first = provider.models?.[0]
-        const chosen = model || (typeof first === 'string' ? first : first?.id)
+        const chosen = model || first?.id
         if (!chosen) throw fail(400, `Provider has no model to test: ${name}`)
         return attempt({ provider: name, model: chosen })
     }

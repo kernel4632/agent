@@ -26,7 +26,7 @@ const withHome = async callback => {
     }
 }
 
-const provider = [{ name: 'local', models: ['model'] }]
+const provider = [{ name: 'local', models: [{ id: 'model', name: 'model' }] }]
 
 const resolve = () => Agent.resolve({
     session: { model: { provider: 'local', model: 'model' } },

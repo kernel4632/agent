@@ -57,7 +57,7 @@ const chooseModel = ({ provider, model }) => {
     if (!info) throw fail(400, `Provider not found: ${name}`)
 
     const own = info.models?.[0]
-    const chosen = namedModel || (typeof own === 'string' ? own : own?.id || '')
+    const chosen = namedModel || own?.id || ''
     Agent.connection({ provider: name, model: chosen })
     return { provider: name, model: chosen }
 }

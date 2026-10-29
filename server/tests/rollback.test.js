@@ -46,7 +46,7 @@ const tempFile = async (prefix, content) => {
 describe('工具级回退', () => {
     test('只退指定的那一次工具调用，别的调用成果保留', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const first = await tempFile('agent-tool-a', 'a0')
             const second = await tempFile('agent-tool-b', 'b0')
 
@@ -82,7 +82,7 @@ describe('工具级回退', () => {
 
     test('退一个不存在的工具调用按填错处理', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }] })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'No such call' })
             await expect(Session.rollbackTool({ sessionId, toolCallId: 'never-happened' })).rejects.toThrow(/not found/i)
         })
@@ -90,7 +90,7 @@ describe('工具级回退', () => {
 
     test('工具级回退不改变对话历史', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const target = await tempFile('agent-keep-history', 'before')
 
             const { sessionId } = await Session.create({ title: 'History stays' })
@@ -110,7 +110,7 @@ describe('工具级回退', () => {
 
     test('连续改同一个文件时，回退后一次会恢复成前一次的结果', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const target = await tempFile('agent-twice', 'v0')
 
             const { sessionId } = await Session.create({ title: 'Two edits' })
@@ -128,7 +128,7 @@ describe('工具级回退', () => {
 
     test('回退到不存在的消息时，先报错，不先动文件', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const target = await tempFile('agent-invalid-rollback', 'before')
 
             const { sessionId } = await Session.create({ title: 'Invalid rollback' })
@@ -148,7 +148,7 @@ describe('工具级回退', () => {
 describe('权限规则的拒绝动作', () => {
     test('deny 直接拒绝，不会留下等待中的审批', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow', execute_command: 'deny' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow', execute_command: 'deny' } })
             const { sessionId } = await Session.create({ title: 'Deny wins' })
 
             const allowed = await Approval.check({ sessionId, toolCallId: 'deny-1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
@@ -160,7 +160,7 @@ describe('权限规则的拒绝动作', () => {
     test('对象规则按最后一条命中的模式决定', async () => {
         await withHome(async () => {
             await Settings.set({
-                providers: [{ name: 'local', models: ['model'] }],
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
                 permission: { execute_command: { '*': 'ask', 'make *': 'allow', 'make deploy*': 'deny' } },
             })
             const { sessionId } = await Session.create({ title: 'Last match' })
@@ -172,7 +172,7 @@ describe('权限规则的拒绝动作', () => {
 
     test('工具自己的 allow 可以覆盖全局 deny', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny', execute_command: 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'deny', execute_command: 'allow' } })
             const { sessionId } = await Session.create({ title: 'Override' })
             expect(await Approval.check({ sessionId, toolCallId: 'shell-ok', toolName: 'execute_command', input: { command: 'ls' } })).toBe(true)
         })
@@ -180,7 +180,7 @@ describe('权限规则的拒绝动作', () => {
 
     test('全局 deny 不拦记清单和结束循环', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'deny' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'deny' } })
             const { sessionId } = await Session.create({ title: 'Internal tools' })
 
             expect(await Approval.check({ sessionId, toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '' } })).toBe(true)
@@ -190,7 +190,7 @@ describe('权限规则的拒绝动作', () => {
 
     test('认不出的规则值按询问处理，不会自动放行', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { execute_command: 'maybe' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { execute_command: 'maybe' } })
             const { sessionId } = await Session.create({ title: 'Unknown action' })
 
             const task = Approval.check({ sessionId, toolCallId: 'unknown-1', toolName: 'execute_command', input: { command: 'ls' } })
@@ -205,7 +205,7 @@ describe('权限规则的拒绝动作', () => {
 describe('重复调用的刹车', () => {
     test('同一个调用连续三次会停下来问，答过之后重新计数', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Loop guard' })
 
             const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })
@@ -223,7 +223,7 @@ describe('重复调用的刹车', () => {
 
     test('不同参数不累计', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Different inputs' })
 
             for (const path of ['a.txt', 'b.txt', 'c.txt', 'd.txt']) {
@@ -235,7 +235,7 @@ describe('重复调用的刹车', () => {
 
     test('deny 仍然优先于重复刹车', async () => {
         await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: ['model'] }], permission: { '*': 'allow', read_file: 'deny' } })
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow', read_file: 'deny' } })
             const { sessionId } = await Session.create({ title: 'Deny first' })
 
             for (const id of ['d1', 'd2', 'd3']) {
