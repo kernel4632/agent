@@ -265,6 +265,6 @@ commands/ → features/ → tools/
 | `features/agent.js` 把 `onPermission` 和 `saveSession` 传进 `Tool.build` | 工具宿主把运行时能力注入工具 |
 | `commands/config.js` 只留 HTTP 动作 | 入口层不放迁移逻辑 |
 
-结果：27 → 28 个文件，73 条依赖边不变；循环依赖 1 → 0，工具反向依赖 2 → 0。`features/tool.js` 对三个特殊工具的组装是唯一有意的 features → tools 边。
+结果：27 → 28 个文件，依赖边 73 → 71；循环依赖 1 → 0，工具反向依赖 2 → 0。少掉的 2 条来自配置读写集中后不再需要的入口边，以及 agent 不再需要的 `utils/path`。`features/tool.js` 对三个特殊工具的组装是唯一有意的 features → tools 边。
 
 这是内部重构，HTTP 接口、字段和配置形状都不变。完整图见 `docs/server-target.html`。

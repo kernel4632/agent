@@ -7,11 +7,12 @@ flowchart TB
     commands_session_js["session.js"]
     commands_tool_js["tool.js"]
   end
-  subgraph features["features/ · 10 个文件"]
+  subgraph features["features/ · 11 个文件"]
     direction TB
     features_agent_js["agent.js"]
     features_approval_js["approval.js"]
     features_compact_js["compact.js"]
+    features_config_js["config.js"]
     features_context_js["context.js"]
     features_history_js["history.js"]
     features_mcp_js["mcp.js"]
@@ -51,10 +52,7 @@ flowchart TB
   commands_chat_js --> features_approval_js
   commands_chat_js --> features_run_js
   commands_config_js --> features_agent_js
-  commands_config_js --> features_context_js
-  commands_config_js --> store_js
-  commands_config_js --> utils_fail_js
-  commands_config_js --> utils_path_js
+  commands_config_js --> features_config_js
   commands_session_js --> features_agent_js
   commands_session_js --> features_approval_js
   commands_session_js --> features_compact_js
@@ -72,8 +70,7 @@ flowchart TB
   features_agent_js --> features_tool_js
   features_agent_js --> store_js
   features_agent_js --> utils_fail_js
-  features_agent_js --> utils_path_js
-  features_approval_js --> features_agent_js
+  features_approval_js --> features_config_js
   features_approval_js --> features_tool_js
   features_approval_js --> store_js
   features_approval_js --> utils_fail_js
@@ -83,6 +80,10 @@ flowchart TB
   features_compact_js --> store_js
   features_compact_js --> utils_fail_js
   features_compact_js --> utils_sse_js
+  features_config_js --> features_context_js
+  features_config_js --> store_js
+  features_config_js --> utils_fail_js
+  features_config_js --> utils_path_js
   features_context_js --> store_js
   features_history_js --> store_js
   features_history_js --> utils_fail_js
@@ -107,26 +108,19 @@ flowchart TB
   features_tool_js --> tools_skill_js
   features_tool_js --> tools_subagent_js
   features_tool_js --> utils_path_js
-  tools_cwd_js --> features_history_js
   tools_cwd_js --> store_js
   tools_file_js --> utils_fail_js
   tools_file_js --> utils_path_js
   tools_skill_js --> utils_fail_js
   tools_skill_js --> utils_path_js
-  tools_subagent_js --> features_approval_js
   tools_subagent_js --> utils_sse_js
   classDef dir_commands fill:#172b45,stroke:#60a5fa,color:#f8fafc
   class commands_chat_js,commands_config_js,commands_session_js,commands_tool_js dir_commands
   classDef dir_features fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
-  class features_agent_js,features_approval_js,features_compact_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_run_js,features_title_js,features_tool_js dir_features
+  class features_agent_js,features_approval_js,features_compact_js,features_config_js,features_context_js,features_history_js,features_mcp_js,features_rollback_js,features_run_js,features_title_js,features_tool_js dir_features
   classDef dir_tools fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
   class tools_control_js,tools_cwd_js,tools_file_js,tools_shell_js,tools_skill_js,tools_subagent_js,tools_todo_js,tools_web_js dir_tools
   classDef dir_utils fill:#102a24,stroke:#34d399,color:#f8fafc
   class utils_fail_js,utils_path_js,utils_sse_js dir_utils
   classDef dir__root_ fill:#3a1730,stroke:#e879f9,color:#f8fafc
   class server_js,store_js dir__root_
-  style features_agent_js stroke:#fb7185,stroke-width:3px
-  style tools_subagent_js stroke:#fb7185,stroke-width:3px
-  style features_tool_js stroke:#fb7185,stroke-width:3px
-  style features_approval_js stroke:#fb7185,stroke-width:3px
-  linkStyle 24,27,31,32,63,71 stroke:#fb7185,stroke-width:2px

@@ -54,14 +54,14 @@
 <div class="page">
   <div class="eyebrow">TARGET DESIGN / DEPENDENCIES</div>
   <h1>后端目标编排</h1>
-  <p class="lead">现在不是文件太多，是方向反了两处：工具反过来 import features，配置保存又让 approval 反过来 import agent。把这两处掰正，再把 store/utils 这些公共依赖从业务图里拿掉，剩下的形状就是三层单向。</p>
+  <p class="lead">重构前不是文件太多，是方向反了两处：工具反过来 import features，配置保存又让 approval 反过来 import agent。把这两处掰正，再把 store/utils 这些公共依赖从业务图里拿掉，剩下的形状就是三层单向。</p>
 
   <div class="stats">
     <span class="stat">源码文件 <b>27 → 28</b></span>
-    <span class="stat">依赖边 <b>73 → 73</b></span>
+    <span class="stat">依赖边 <b>73 → 71</b></span>
     <span class="stat">工具 → features <b>2 → 0</b></span>
     <span class="stat">循环依赖 <b>1 组 → 0</b></span>
-    <span class="stat">公共依赖 <b>35 条</b></span>
+    <span class="stat">公共依赖 <b>35 → 34</b></span>
   </div>
 
   <div class="panel">
@@ -71,13 +71,13 @@
   </div>
 
   <div class="panel">
-    <div class="panel-title"><b>现在：跨目录业务依赖</b><span>只画不同目录之间的线 · 同一目录内部和 store/utils 省略</span></div>
+    <div class="panel-title"><b>重构前：跨目录业务依赖</b><span>只画不同目录之间的线 · 同一目录内部和 store/utils 省略</span></div>
     <img src="./server-current-cross.svg" alt="当前跨目录业务依赖图">
     <div class="caption">两条红线是工具反向依赖：<code>tools/cwd.js → features/history.js</code> 和 <code>tools/subagent.js → features/approval.js</code>。它们和 <code>features/approval.js → features/agent.js</code> 一起，形成了 4 个文件的环。</div>
   </div>
 
   <div class="panel">
-    <div class="panel-title"><b>目标：跨目录业务依赖</b><span>工具只向下 · 不再回指 features</span></div>
+    <div class="panel-title"><b>重构后：跨目录业务依赖</b><span>工具只向下 · 不再回指 features</span></div>
     <img src="./server-target-cross.svg" alt="目标跨目录业务依赖图">
     <div class="caption">三条向下的线都来自 <code>features/tool.js</code>：它组装 <code>tools/file.js</code>、<code>tools/skill.js</code>、<code>tools/subagent.js</code>。其他工具只依赖 <code>store.js</code> 和 <code>utils/</code>，所以不出现在跨目录图里。</div>
   </div>
@@ -99,7 +99,7 @@
       <tbody>
         <tr><td><code>features/config.js</code><br/><span class="muted">新增</span></td><td>接手 <code>commands/config.js</code> 里的读取、旧字段迁移和保存；<code>Agent.saveConfig</code> 也搬过来。</td><td>配置保存不再从 approval 反向 import agent。</td></tr>
         <tr><td><code>features/approval.js</code></td><td>改 import <code>features/config.js</code>，去掉 <code>features/agent.js</code>。</td><td>打断 approval ↔ agent 的环。</td></tr>
-        <tr><td><code>features/agent.js</code></td><td>自己 import Config；把 <code>onPermission</code> 和 <code>saveSession</code> 传进 <code>Tool.build</code>。</td><td>工具宿主拿到运行时能力，工具不用回查 features。</td></tr>
+        <tr><td><code>features/agent.js</code></td><td>去掉 <code>saveConfig</code> 和只为它服务的 Path import；把 <code>onPermission</code> 和 <code>saveSession</code> 传进 <code>Tool.build</code>。</td><td>工具宿主拿到运行时能力；agent 不再直接写配置。</td></tr>
         <tr><td><code>features/tool.js</code></td><td>保留对 file、skill、subagent 的组装；把 <code>onPermission</code> 传给 subagent，把 <code>saveSession</code> 绑给 cwd。</td><td>只保留一条有意的 features → tools 边。</td></tr>
         <tr><td><code>tools/subagent.js</code></td><td>去掉 <code>features/approval.js</code>，审批改用 <code>context.onPermission</code>。</td><td>去掉 tool → feature 的反向边。</td></tr>
         <tr><td><code>tools/cwd.js</code></td><td>去掉 <code>features/history.js</code>，保存会话改用 <code>context.saveSession</code>。</td><td>去掉 tool → feature 的反向边。</td></tr>
@@ -108,7 +108,7 @@
     </table>
   </div>
 
-  <div class="note"><b>为什么图看起来突然干净了：</b>这里只画跨目录的业务依赖，35 条指向 <code>store.js</code> 和 <code>utils/</code> 的公共依赖没有画。它们不是混乱来源，反而是应该存在的共享底座。完整的全量图仍然在 <a href="./server-dependencies.html">依赖关系报告</a> 里。<br/><b>范围：</b>这是目标设计，当前代码还没按这张图改。</div>
+  <div class="note"><b>为什么图看起来突然干净了：</b>这里只画跨目录的业务依赖，34 条指向 <code>store.js</code> 和 <code>utils/</code> 的公共依赖没有画。它们不是混乱来源，反而是应该存在的共享底座。完整的全量图仍然在 <a href="./server-dependencies.html">依赖关系报告</a> 里。<br/><b>状态：</b>这张图已经落地，代码提交 <code>8b45a59</code>。</div>
 </div>
 </body>
 </html>
