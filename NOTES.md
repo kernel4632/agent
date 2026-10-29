@@ -114,23 +114,22 @@ server/
   .gitignore
   bun.lock
 
-  commands/              入口指令：一个文件对应一组 HTTP 动作
+  commands/              入口指令：一个文件对应一组 HTTP 动作，命令之间不互相 import
     session.js           会话创建、列表、读取、分支、改名、删除、目录、设置、模型
-    chat.js              发送、继续、停止、审批决定
+    chat.js              发送、继续、停止、审批决定；一次运行的编排也在这里
     config.js            配置 HTTP 动作：读取、保存、连接测试
     tool.js              工具目录和权限
 
-  features/              可复用业务规则
+  features/              独立模块：文件之间不互相 import
     config.js            配置读取、旧字段迁移、保存
     history.js           消息历史、元数据、读取
     rollback.js          消息回退和撤销；不碰文件
-    agent.js             创建 Agent、准备系统提示词和工具表
-    run.js               发送、继续、停止、运行收尾
-    approval.js          工具审批：允许、询问、拒绝、等待用户
+    agent.js             有状态：创建 Agent；审批、工具、历史由命令层注入
+    approval.js          有状态：工具审批；工具查询和配置保存由命令层注入
     context.js           构建模型上下文
-    compact.js           上下文压缩
+    compact.js           纯逻辑：接收 agent 和消息，返回压缩结果
     title.js             自动标题
-    tool.js              工具登记、扫描、类别、文件参数
+    tool.js              有状态：工具登记、扫描、类别；MCP 由命令层注入
     mcp.js               MCP 服务连接
 
   utils/                 通用小工具
@@ -241,30 +240,48 @@ HTTP/SSE
 - `store.js` 只看数据就能知道全局配置和会话长什么样。
 - 所有对用户电脑外部工具的依赖，都在工具自己的实现里，不在 agent 核心。
 
-## 八、依赖方向
+## 八、模块边界
 
-四个目录保留，不重排；依赖只允许朝一个方向走：
+四个目录保留，不重排。规则只有三条：
+
+- `features/` 的文件之间不允许互相 import。每个文件只做自己的功能，需要别的模块时从参数或启动时的 `bind` 注入。
+- `commands/` 的文件之间不允许互相 import。它们只 import `features/`，把功能编排成指令。
+- `server.js` import `commands/`，一个指令对应一个 API。
+
+依赖方向：
 
 ```text
-commands/ → features/ → tools/
-      ↘          ↓         ↙
-        store.js + utils/
+server.js
+  → commands/
+      → features/
+          → store.js + utils/
+      → store.js + utils/
 ```
 
-- `tools/` 只 import `store.js` 和 `utils/`。需要审批、保存会话时，由工具宿主通过运行时 context 传进来，工具不反向 import `features/`。
-- 只有 `features/tool.js` 这个工具宿主可以组装 `tools/file.js`、`tools/skill.js`、`tools/subagent.js`；其他 feature 不碰工具实现。
-- `store.js` 和 `utils/` 是叶子，不 import 上层。
+`tools/` 只依赖 `store.js`、`utils/` 和运行时 context，不 import `features/`。
 
-为了做到这一点：
+### features 里允许的三种文件
 
-| 改动 | 原因 |
+- **纯逻辑**：`compact`、`rollback`、`context`、`title`。传入数据，返回结果，不自己读写会话。
+- **独立适配器**：`history`、`config`、`mcp`。只碰 `store.js`、`utils/` 或外部服务，不 import 别的 feature。
+- **有状态服务**：`agent`、`approval`、`tool`。自己保存运行中的 agent、待审批和工具缓存；需要别的 feature 时由命令层在启动时 `bind` 进来，文件本身不 import 兄弟。
+
+`features/run.js` 只被 `commands/chat.js` 使用，直接并进 `chat.js`。features 里不再有运行编排。
+
+### 具体改动
+
+| 文件 | 怎么改 |
 | --- | --- |
-| 新增 `features/config.js`，接手配置读取、旧字段迁移和保存；`Agent.saveConfig` 搬过去 | `approval.js` 不再 import `agent.js`，打断 approval ↔ agent |
-| `tools/subagent.js` 的审批从 `context.onPermission` 拿 | 去掉 tool → feature 的反向边 |
-| `tools/cwd.js` 的保存从 `context.saveSession` 拿 | 去掉 tool → feature 的反向边 |
-| `features/agent.js` 把 `onPermission` 和 `saveSession` 传进 `Tool.build` | 工具宿主把运行时能力注入工具 |
-| `commands/config.js` 只留 HTTP 动作 | 入口层不放迁移逻辑 |
+| `features/agent.js` | 去掉对 approval/context/history/tool 的 import；加 `bind`，由命令层注入这四项服务 |
+| `features/approval.js` | 去掉 tool/config import；加 `bind`，由命令层注入工具查询和配置保存 |
+| `features/tool.js` | 去掉 mcp import；加 `bind`，由命令层注入 MCP |
+| `features/compact.js` | 改成 `run({ agent, onEvent }) -> summary`，不碰 history/sse |
+| `features/rollback.js` | 改成接收 `history` 和 `agent` 参数，不 import 它们 |
+| `features/config.js` / `context.js` | 默认提示词挪到 `store.js`，去掉 config → context |
+| `commands/chat.js` | 接手 `features/run.js` 的发送/继续/停止逻辑；启动时 bind 三个有状态服务 |
+| `commands/session.js` | 压缩、回退按新签名调用；启动时 bind |
+| `features/run.js` | 删除 |
 
-结果：27 → 28 个文件，依赖边 73 → 71；循环依赖 1 → 0，工具反向依赖 2 → 0。少掉的 2 条来自配置读写集中后不再需要的入口边，以及 agent 不再需要的 `utils/path`。`features/tool.js` 对三个特殊工具的组装是唯一有意的 features → tools 边。
+结果：`features/` 内部 0 条边，`commands/` 内部 0 条边。HTTP 路径、字段、状态码不变。
 
-这是内部重构，HTTP 接口、字段和配置形状都不变。完整图见 `docs/server-target.html`。
+这是内部重构，完整图见 `docs/server-target.html`。
