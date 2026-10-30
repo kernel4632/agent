@@ -22,6 +22,8 @@ Linux/macOS 把输出路径换成 `../tmp/agent`。也可以在 `cli/` 中执行
 agent health
 agent models
 agent tools
+agent chat
+agent chat --session SESSION_ID
 agent ask "解释这个项目" --cwd "F:/projects/example"
 agent ask "继续补充" --session SESSION_ID
 agent ask --session SESSION_ID --resume
@@ -43,6 +45,23 @@ agent sessions remove SESSION_ID
 新会话默认使用调用 CLI 的当前目录，以及服务端配置的默认模型。`--cwd` 是**服务端机器上的目录**；远程连接请明确指定远端路径。`--provider`、`--model`、`--reasoning` 也可配合已有会话使用。思考强度：`off / auto / low / medium / high / xhigh / max`。
 
 `ask` 将最终回复写入 stdout，会话 ID 和诊断写入 stderr，适合脚本和重定向。`--json` 切换为逐行 JSON 事件，最后一行 `type=result` 包含持久化会话。断线重连会输出 `type=snapshot`，消费者应以快照替换旧内容；事件 ID 会因后端落盘重置，不能用它去重。普通命令的 `--json` 输出单份 JSON。
+
+## 交互界面
+
+`agent chat` 打开 Bubble Tea 全屏界面，显示历史、流式正文、思考、工具调用/结果及 token 用量。连接运行中的会话时会恢复待审批工具。
+
+| 操作 | 按键 |
+| --- | --- |
+| 发送消息 | Enter |
+| 换行 | Alt+Enter / Ctrl+J（支持的终端也可 Shift+Enter） |
+| 滚动历史 | PgUp / PgDn |
+| 展开/收起思考，流式时同样生效 | Ctrl+R |
+| 停止当前任务，保存半段回复 | Esc / Ctrl+C |
+| 停止并退出 | Ctrl+Q |
+| 空闲时退出 | Ctrl+C 或 `/quit` |
+| 审批：允许一次 / 始终允许 / 拒绝 | y / a / n |
+
+输入 `/help` 查看快捷命令。`/sessions` 列出会话，`/open ID` 切换，`/new [标题]` 新建，`/model 供应商 模型`、`/reasoning high`、`/cwd 路径`、`/rename 标题` 修改当前会话。`/resume` 继续助手，`/refresh` 重新读取历史。路径和标题包含空格时直接输入整段，不加引号。
 
 ## 工具审批与停止
 

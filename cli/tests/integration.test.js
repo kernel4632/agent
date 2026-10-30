@@ -21,6 +21,19 @@ async function cli(...args) {
     } finally { clearTimeout(timer) }
 }
 
+async function getSession(id) {
+    return (await fetch(`${address}/session/read/${id}`)).json()
+}
+
+async function waitIdle(id) {
+    for (let i = 0; i < 200; i++) {
+        const session = await getSession(id)
+        if (!session.running) return session
+        await Bun.sleep(20)
+    }
+    throw new Error(`Session ${id} did not finish`)
+}
+
 beforeAll(async () => {
     await mkdir(home, { recursive: true })
     await Bun.write(join(home, 'sample.txt'), 'fixture file contents')
@@ -37,6 +50,25 @@ beforeAll(async () => {
                 message = { role: 'assistant', content: null, tool_calls: [{ id: 'complete-1', type: 'function', function: { name: 'attempt_completion', arguments: JSON.stringify({ result: '工具最终答复' }) } }] }
             } else if (prompt?.includes('[tool]') && !usedTool) {
                 message = { role: 'assistant', content: null, tool_calls: [{ id: 'read-1', type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: join(home, 'sample.txt') }) } }] }
+            }
+            if (body.stream) {
+                const chunks = [
+                    { choices: [{ index: 0, delta: { role: 'assistant', reasoning_content: '先分析需求。' } }] },
+                    { choices: [{ index: 0, delta: { content: '流式' } }] },
+                    { choices: [{ index: 0, delta: { content: '中文答复' } }] },
+                    { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 } },
+                ]
+                return new Response(new ReadableStream({
+                    async start(controller) {
+                        for (const chunk of chunks) {
+                            const event = { id: 'stream', object: 'chat.completion.chunk', created: 1, model: 'test', ...chunk }
+                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
+                            await Bun.sleep(25)
+                        }
+                        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+                        controller.close()
+                    },
+                }), { headers: { 'content-type': 'text/event-stream' } })
             }
             return Response.json({
                 id: 'fixture', object: 'chat.completion', created: 1, model: 'fixture',
@@ -96,13 +128,10 @@ test('control-tool final answers and approval work without a web browser', async
     const id = pending.err.match(/会话: (\S+)/)[1]
     const session = JSON.parse((await cli('sessions', 'show', id, '--json')).out)
     expect(session.pending[0].callID).toBe('read-1')
+    expect((await cli('ask', 'conflict', '--session', id)).code).toBe(1)
     expect((await cli('sessions', 'decide', id, 'read-1', 'deny')).code).toBe(0)
     // Wait for the real background run to finish before removing the data home.
-    for (let i = 0; i < 100; i++) {
-        const state = await (await fetch(`${address}/session/read/${id}`)).json()
-        if (!state.running) break
-        await Bun.sleep(20)
-    }
+    await waitIdle(id)
 }, 30000)
 
 test('NDJSON includes final persisted history; invalid input and conflicts fail', async () => {
@@ -116,3 +145,19 @@ test('NDJSON includes final persisted history; invalid input and conflicts fail'
     expect((await cli('ask', 'x', '--reasoning', 'invalid')).code).toBe(1)
     expect((await cli('sessions', 'decide', 'missing', 'call', 'invalid')).code).toBe(1)
 })
+
+test('real streaming sends deltas and resume does not add a user message', async () => {
+    const config = await (await fetch(`${address}/config/read`)).json()
+    config.providers[0].stream = true
+    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    const answer = await cli('ask', 'stream', '--title', 'stream', '--json')
+    expect(answer.code).toBe(0)
+    const events = answer.out.trim().split('\n').map(line => JSON.parse(line))
+    expect(events.filter(event => event.type === 'text-delta').map(event => event.text).join('')).toBe('流式中文答复')
+    const session = events.at(-1).session
+    const userCount = session.history.filter(item => item.role === 'user').length
+    const resumed = await cli('ask', '--session', session.id, '--resume')
+    expect(resumed.code).toBe(0)
+    expect(resumed.out).toContain('流式中文答复')
+    expect((await getSession(session.id)).history.filter(item => item.role === 'user')).toHaveLength(userCount)
+}, 30000)

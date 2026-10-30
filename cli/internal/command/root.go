@@ -15,6 +15,7 @@ import (
 	"github.com/kernel4632/agent/cli"
 	"github.com/kernel4632/agent/cli/internal/api"
 	"github.com/kernel4632/agent/cli/internal/chat"
+	"github.com/kernel4632/agent/cli/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -38,9 +39,32 @@ func New() *cobra.Command {
 	root.AddCommand(
 		o.simple("health", "检查服务状态", "GET", "/health"),
 		o.simple("tools", "列出工具和权限", "GET", "/tool/list"),
-		o.models(), o.sessions(), o.ask(),
+		o.models(), o.sessions(), o.ask(), o.interactive(),
 	)
 	return root
+}
+
+func (o *options) interactive() *cobra.Command {
+	s := &sessionOptions{}
+	cmd := &cobra.Command{Use: "chat", Short: "交互聊天：流式输出、工具审批和多轮对话", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if o.json {
+			return fmt.Errorf("chat 是交互界面；JSON 流使用 ask --json")
+		}
+		if err := tui.CheckTerminal(); err != nil {
+			return err
+		}
+		client, err := o.client()
+		if err != nil {
+			return err
+		}
+		session, err := s.open(cmd.Context(), client)
+		if err != nil {
+			return err
+		}
+		return tui.Run(cmd.Context(), client, session)
+	}}
+	s.flags(cmd)
+	return cmd
 }
 
 func (o *options) client() (*api.Client, error) { return api.New(o.server) }

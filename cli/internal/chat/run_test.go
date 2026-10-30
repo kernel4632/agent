@@ -113,3 +113,38 @@ func TestControlToolAnswerAndReasoning(t *testing.T) {
 		t.Fatal("terminal control passed through")
 	}
 }
+
+func TestLateSubscriptionStillHandlesApprovalAfterStartWasCleared(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	decided := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/agent/send/s":
+			fmt.Fprint(w, `{"ok":true}`)
+		case "/agent/decide/s":
+			close(decided)
+			fmt.Fprint(w, `{"ok":true}`)
+		case "/sse/connect/s":
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: {\"type\":\"permission\",\"callID\":\"c\",\"tool\":\"read_file\"}\n\n")
+			w.(http.Flusher).Flush()
+			select {
+			case <-decided:
+			case <-r.Context().Done():
+				return
+			}
+			fmt.Fprint(w, "data: {\"type\":\"agent-finish\"}\n\n")
+		}
+	}))
+	defer server.Close()
+	client, _ := api.New(server.URL)
+	err := Run(ctx, client, api.Session{ID: "s"}, "send", "test", Hooks{
+		Permission: func(ctx context.Context, p api.Permission) error {
+			return client.Decide(ctx, "s", p.CallID, "allow-once")
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

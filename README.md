@@ -10,7 +10,7 @@
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
-| `cli/` | 可用 | Go 客户端，支持单次提问、SSE、会话管理和工具审批；见 [CLI 使用说明](cli/README.md) |
+| `cli/` | 可用 | Go + Bubble Tea，支持交互聊天、单次提问、SSE、会话管理和工具审批；见 [CLI 使用说明](cli/README.md) |
 
 ## 功能
 

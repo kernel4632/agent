@@ -22,8 +22,9 @@ type packet struct {
 	err   error
 }
 
-// Run subscribes before sending, ignores cached terminal events until the new
-// start, and reconnects by reading history first. Sending is never retried.
+// Run starts subscribing alongside the send (Bun may defer SSE headers until
+// the first event), filters cached terminal events, and reads history on reconnect.
+// Sending is never retried.
 // Cancelling stops the run and persists the unfinished model response.
 func Run(ctx context.Context, client *api.Client, initial api.Session, action, input string, hooks Hooks) (err error) {
 	var content, reasoning string
@@ -33,7 +34,7 @@ func Run(ctx context.Context, client *api.Client, initial api.Session, action, i
 			stopCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()
 			if stopErr := client.Stop(stopCtx, initial.ID, content, reasoning); stopErr != nil {
-				err = fmt.Errorf("%w；停止任务失败: %v", ctx.Err(), stopErr)
+				err = fmt.Errorf("已取消本地等待，但停止服务端任务失败: %w", stopErr)
 			}
 		}
 	}()
@@ -118,7 +119,9 @@ func Run(ctx context.Context, client *api.Client, initial api.Session, action, i
 				return err
 			}
 		}
-		// New sends must see their own start event; old cached finishes are stale.
+		// At idle, the server's saved-history reset leaves only the old finish
+		// and title. Any progress belongs to the new run; agent-start itself
+		// may already have been cleared by a tool step before we connect.
 		accept := action == "watch" || attempt > 0
 		var earlyFinish *api.Event
 		check := time.NewTicker(time.Second)
