@@ -5,9 +5,11 @@
  * 运行：cd server && bun test
  */
 import { describe, expect, test } from 'bun:test'
+import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 
 import AgentCore from '@kernel4632/agent-core'
 import Approval from '../features/approval.js'
@@ -616,6 +618,58 @@ describe('server tool approval and SSE', () => {
         expect(first?.done).not.toBe(true)
         expect(new TextDecoder().decode(first.value)).toContain('server-test')
         await SSE.close({ id })
+    })
+
+    test('aborting before the stream starts only closes that connection', async () => {
+        const id = `sse-abort-${crypto.randomUUID()}`
+        const controller = new AbortController()
+        const response = await SSE.connect({
+            id,
+            request: new Request('http://localhost/sse', { signal: controller.signal }),
+        })
+        const reader = response.body.getReader()
+        controller.abort()
+
+        const result = await Promise.race([reader.read(), Bun.sleep(500).then(() => null)])
+        expect(result?.done).toBe(true)
+        await SSE.close({ id })
+    })
+
+    test('closing immediately closes the stream without an unhandled rejection', async () => {
+        const id = `sse-close-${crypto.randomUUID()}`
+        const response = await SSE.connect({ id, request: new Request('http://localhost/sse') })
+        const reader = response.body.getReader()
+        await SSE.close({ id })
+
+        const result = await Promise.race([reader.read(), Bun.sleep(500).then(() => null)])
+        expect(result?.done).toBe(true)
+    })
+
+    test('replacing a connection keeps cached events and writes to the new one', async () => {
+        const id = `sse-replace-${crypto.randomUUID()}`
+        const first = await SSE.connect({ id, request: new Request('http://localhost/sse') })
+        const firstReader = first.body.getReader()
+        await SSE.send({ id, data: { type: 'kept' } })
+        const firstEvent = await Promise.race([firstReader.read(), Bun.sleep(500).then(() => null)])
+        expect(new TextDecoder().decode(firstEvent.value)).toContain('kept')
+
+        const second = await SSE.connect({ id, request: new Request('http://localhost/sse') })
+        const secondReader = second.body.getReader()
+        const event = await Promise.race([secondReader.read(), Bun.sleep(500).then(() => null)])
+        expect(event?.done).not.toBe(true)
+        expect(new TextDecoder().decode(event.value)).toContain('kept')
+
+        const closed = await Promise.race([firstReader.read(), Bun.sleep(500).then(() => null)])
+        expect(closed?.done).toBe(true)
+        await SSE.close({ id })
+    })
+
+    test('abort, close and replace do not crash a child process', () => {
+        const script = fileURLToPath(new URL('./sse-exit.js', import.meta.url))
+        for (const mode of ['abort', 'close', 'replace']) {
+            const result = spawnSync(process.execPath, [script, mode], { encoding: 'utf8', timeout: 10000 })
+            expect(result.status, `${mode}: ${result.stderr || result.stdout}`).toBe(0)
+        }
     })
 })
 
