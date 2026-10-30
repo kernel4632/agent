@@ -17,6 +17,7 @@
 | 后端（`server/`） | `server/package.json` 的 `version` |
 | 前端（`frontend/`） | `frontend/package.json` 的 `version` |
 | 两边都改了 | 两个都改 |
+| CLI（`cli/`） | `cli/VERSION` |
 
 改哪一位：
 
@@ -34,7 +35,10 @@
 ```bash
 cd server && bun test        # 后端：真实启动服务端 + 真实 HTTP 请求，用临时数据目录
 cd frontend && bun run build # 前端：能构建通过
+cd cli && go test ./...      # CLI：HTTP/SSE 协议和终端交互
 ```
+
+CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test/agent.exe`（Linux/macOS 无 `.exe`），再在 `cli/` 执行 `bun test tests/integration.test.js --timeout 30000`，用真实后端验证。
 
 后端测试覆盖每一个接口，包括填错参数的情况（空标题、不存在的会话、不认识的决定）。
 新加接口或改动行为时，在同一次提交里把对应的测试补上。
