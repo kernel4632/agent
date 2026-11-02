@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent 前端目标结构</title>
+<title>Agent 前端目标编排</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -18,360 +18,124 @@
     color: #f8fafc;
     font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
   }
-  .page { max-width: 1520px; margin: 0 auto; }
+  .page { max-width: 1560px; margin: 0 auto; }
   .eyebrow { font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,.5); }
   h1 { margin: 6px 0 8px; font-size: 30px; }
-  h2 { margin: 0 0 8px; font-size: 17px; }
-  h3 { margin: 0 0 6px; font-size: 14px; }
-  .lead { margin: 0 0 20px; color: rgba(255,255,255,.68); line-height: 1.75; max-width: 1050px; }
+  h2 { margin: 0 0 6px; font-size: 17px; }
+  .lead { margin: 0 0 20px; color: rgba(255,255,255,.68); line-height: 1.75; max-width: 1080px; }
   .lead b { color: #f8fafc; }
-  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
   .stat { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); border-radius: 12px; padding: 9px 13px; font-size: 13px; color: rgba(255,255,255,.72); }
   .stat b { color: #f8fafc; }
   .stat em { color: #f9a8d4; font-style: normal; }
-  .panel { border: 1px solid rgba(255,255,255,.13); background: rgba(16,18,27,.78); border-radius: 18px; padding: 18px 20px; box-shadow: 0 18px 60px rgba(0,0,0,.28); margin-bottom: 18px; }
-  .panel-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 12px; color: rgba(255,255,255,.62); font-size: 12px; }
+  .panel { border: 1px solid rgba(255,255,255,.13); background: rgba(16,18,27,.78); border-radius: 18px; padding: 16px 18px; box-shadow: 0 18px 60px rgba(0,0,0,.28); margin-bottom: 18px; }
+  .panel-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 2px 2px 12px; color: rgba(255,255,255,.62); font-size: 12px; }
   .panel-title b { color: #f8fafc; font-size: 15px; }
-  .grid-4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .problem { border: 1px solid rgba(255,255,255,.11); border-radius: 14px; padding: 15px 16px; background: rgba(255,255,255,.035); }
-  .problem h3 { display: flex; align-items: center; gap: 8px; color: #f8fafc; font-size: 14px; }
-  .problem h3 span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: rgba(251,113,133,.16); color: #fda4af; font-size: 12px; }
-  .problem p { margin: 7px 0 0; color: rgba(255,255,255,.66); font-size: 13px; line-height: 1.7; }
-  .problem code, .panel code, td code, .note code { color: #c4b5fd; }
-  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-  .tag { border-radius: 999px; padding: 3px 8px; background: rgba(196,181,253,.10); color: #d8ccff; font-size: 11px; }
-  .tag.bad { background: rgba(251,113,133,.10); color: #fda4af; }
-  .tag.good { background: rgba(52,211,153,.10); color: #86efac; }
-
-  /* --- 目标分层图：纯 HTML/CSS，不依赖 Mermaid --- */
-  .stack { border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 4px 14px; background: #0f1119; }
-  .band { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 16px; align-items: center; padding: 15px 0; border-bottom: 1px dashed rgba(255,255,255,.08); }
-  .band:last-child { border-bottom: 0; }
-  .band-label { font-size: 11px; letter-spacing: 1px; color: rgba(255,255,255,.4); }
-  .nodes { display: flex; flex-wrap: wrap; gap: 9px; align-items: stretch; }
-  .node { border: 1px solid rgba(255,255,255,.16); border-radius: 11px; padding: 9px 12px; background: rgba(255,255,255,.045); min-width: 100px; }
-  .node b { display: block; color: #f8fafc; font-size: 13px; font-weight: 600; }
-  .node small { display: block; margin-top: 3px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.5; }
-  .node.entry { border-color: #f3a6ce; background: rgba(243,166,206,.08); }
-  .node.shell { border-color: #f9a8d4; background: rgba(249,168,212,.07); }
-  .node.chat { border-color: #a78bfa; background: rgba(167,139,250,.08); }
-  .node.settings { border-color: #60a5fa; background: rgba(96,165,250,.08); }
-  .node.data { border-color: #b7bed8; background: rgba(183,190,216,.07); }
-  .node.design { border-color: #86efac; background: rgba(134,239,172,.07); }
-  .node.styles { border-color: #fbbf24; background: rgba(251,191,36,.07); }
-  .connector { height: 22px; margin-left: 54px; border-left: 1px solid rgba(196,181,253,.5); position: relative; }
-  .connector::before { content: "↓"; position: absolute; left: -6px; bottom: -5px; color: #c4b5fd; font-size: 13px; background: #0f1119; line-height: 1; }
-  .forbidden { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .forbidden span { border: 1px dashed rgba(251,113,133,.38); border-radius: 999px; padding: 5px 10px; color: #fda4af; font-size: 11px; }
-  .diagram-note { margin: 11px 2px 0; color: rgba(255,255,255,.5); font-size: 12px; line-height: 1.7; }
-
-  /* --- 目录树 --- */
-  .columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 18px; }
-  .columns > * { min-width: 0; }
-  .panel, .rules, .rules li, .rules small, .problem p, .lead, .note, td { min-width: 0; overflow-wrap: anywhere; }
-  code { overflow-wrap: anywhere; }
-  pre.tree { margin: 0; padding: 16px; max-height: 760px; overflow: auto; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: #10111a; color: #e4e2f1; font: 12.5px/1.72 ui-monospace, Consolas, "Microsoft YaHei", monospace; tab-size: 2; }
-  pre.tree .dim { color: rgba(255,255,255,.38); }
-  pre.tree .new { color: #86efac; }
-  .rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 11px; }
-  .rules li { border-left: 2px solid #a78bfa; padding: 2px 0 2px 12px; color: rgba(255,255,255,.72); font-size: 13px; line-height: 1.7; }
-  .rules b { color: #f8fafc; }
-  .rules small { display: block; color: rgba(255,255,255,.48); font-size: 12px; }
-  .budget { margin-top: 15px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px 14px; color: rgba(255,255,255,.6); font-size: 12px; line-height: 1.8; }
-  .budget b { color: #f8fafc; }
-
+  img { display: block; width: 100%; height: auto; border-radius: 12px; background: #0d0f16; }
+  img.layer { max-width: 640px; margin: 0 auto; }
+  .caption { margin: 10px 2px 0; color: rgba(255,255,255,.56); font-size: 12px; line-height: 1.75; }
+  .caption b { color: rgba(255,255,255,.86); }
+  .card { border: 1px solid rgba(255,255,255,.13); background: rgba(16,18,27,.78); border-radius: 18px; padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { margin-bottom: 10px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.09); vertical-align: top; }
   th { color: rgba(255,255,255,.55); font-weight: 500; }
-  td.num { color: #f8fafc; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  tr.total td { border-top: 1px solid rgba(255,255,255,.2); border-bottom: 0; font-weight: 700; }
-  .muted { color: rgba(255,255,255,.52); }
-  .good { color: #86efac; }
-  .bad { color: #fda4af; }
-  .steps { display: grid; gap: 10px; counter-reset: step; }
-  .step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px 14px; background: rgba(255,255,255,.03); }
-  .step::before { counter-increment: step; content: counter(step); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: rgba(167,139,250,.16); color: #d8ccff; font-size: 12px; font-weight: 700; }
-  .step b { color: #f8fafc; font-size: 13px; }
-  .step p { margin: 4px 0 0; color: rgba(255,255,255,.58); font-size: 12px; line-height: 1.65; }
-  .step .gate { color: #86efac; }
+  td:first-child { white-space: nowrap; }
+  code { color: #c4b5fd; }
+  ol { margin: 0; padding-left: 22px; line-height: 1.9; }
+  li + li { margin-top: 6px; }
+  .muted { color: rgba(255,255,255,.55); }
   .note { border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 13px 15px; color: rgba(255,255,255,.6); font-size: 13px; line-height: 1.75; }
   .note b { color: rgba(255,255,255,.88); }
   a { color: #c4b5fd; }
   .links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 18px; font-size: 13px; }
-  @media (max-width: 1000px) { .columns { grid-template-columns: 1fr; } .grid-4 { grid-template-columns: 1fr; } }
-  @media (max-width: 700px) {
-    body { padding: 16px; }
-    h1 { font-size: 23px; }
-    .band { grid-template-columns: 1fr; gap: 8px; }
-    .connector { margin-left: 16px; }
-    .panel { padding: 14px; }
-    .stats .stat { flex: 1 1 140px; }
-    .columns { grid-template-columns: minmax(0, 1fr); }
-    pre.tree { max-height: 50vh; font-size: 11px; }
-    .node { min-width: 0; }
-    table { font-size: 12px; }
-    th, td { padding: 7px 6px; }
-    .linktable { min-width: 560px; }
-    .table-wrap { overflow-x: auto; }
-  }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 7px; background: rgba(251,113,133,.12); color: #fda4af; font-size: 11px; }
+  @media (max-width: 900px) {
+    .card, .panel { overflow-x: auto; }
+    table { min-width: 560px; }
+    td:first-child { white-space: normal; } body { padding: 16px; } h1 { font-size: 23px; } .two { grid-template-columns: 1fr; } td:first-child { white-space: normal; } }
 </style>
 </head>
 <body>
 <div class="page">
-  <div class="eyebrow">TARGET DESIGN / FRONTEND STRUCTURE</div>
-  <h1>Agent 前端目标结构</h1>
-  <p class="lead">现在的问题不是图没画好，而是<strong>文件按技术层切碎了</strong>：同一个设置页被拆成“页面 + 组件”，同一个对话流程被拆进 <code>draft/</code>、<code>composer/</code>、<code>session/</code> 三个目录，同一个组件又被拆成 <code>.vue</code> 和空的 <code>.scss</code>。HOP 要求按<strong>主体</strong>组织，目标是把它们合回去：源文件 <b>220 → 79</b>，Vue <b>89 → 52</b>，SCSS <b>92 → 4</b>，循环依赖 <b>1 → 0</b>。</p>
+  <div class="eyebrow">TARGET DESIGN / FRONTEND LAYERS</div>
+  <h1>Agent 前端目标编排</h1>
+  <p class="lead">上一版把 <code>chat/</code>、<code>settings/</code> 当成“主体文件夹”，又把页面、输入区、时间线拆进三个目录，这正好走反了。HOP 的<strong>主体是文件</strong>，<strong>文件夹只按技术层分</strong>：<code>commands/</code> 编排、<code>features/</code> 数据与行为、<code>views/</code> 页面、<code>components/</code> 界面部件、<code>tool-views/</code> 增长型视图、<code>ui/</code> 控件、<code>styles/</code> 共享样式、<code>utils/</code> 通用工具。目标不是再画一朵花，而是把 220 个源文件收成 82 个，把 92 个样式文件收成 4 个。</p>
 
   <div class="links">
-    <a href="./frontend-structure.html">当前文件结构</a>
+    <a href="./frontend-structure.html">当前结构与体量</a>
     <a href="./frontend-dependencies.html">当前 Mermaid 依赖</a>
-    <a href="./server-target.html">后端目标编排（同样方法）</a>
+    <a href="./frontend-target-structure.html">目标目录与 treemap</a>
+    <a href="./server-target.html">后端目标编排</a>
   </div>
 
   <div class="stats">
-    <span class="stat">源文件 <b>220 → 79</b></span>
-    <span class="stat">Vue <b>89 → 52</b></span>
-    <span class="stat">JS <b>39 → 23</b></span>
+    <span class="stat">源文件 <b>220 → 82</b></span>
+    <span class="stat">Vue <b>89 → 53</b></span>
+    <span class="stat">JS <b>39 → 25</b></span>
     <span class="stat">SCSS <b>92 → 4</b></span>
-    <span class="stat">顶层目录 <b>10 → 6</b></span>
+    <span class="stat">技术层目录 <b>10 → 9</b></span>
     <span class="stat">UI 控件 <b>31 → 10</b></span>
     <span class="stat">设置文件 <b>21 → 13</b></span>
-    <span class="stat">循环依赖 <b class="bad">1 → 0</b></span>
-    <span class="stat">空样式 <b class="bad">20 → 0</b></span>
+    <span class="stat">循环依赖 <b class="badge">1 → 0</b></span>
+    <span class="stat">目标体量 <b>486.5 → 474.3 KiB</b></span>
   </div>
 
   <div class="panel">
-    <div class="panel-title"><b>先看病理：五个具体问题</b><span>数字来自当前源码，不靠印象</span></div>
-    <div class="grid-4">
-      <div class="problem">
-        <h3><span>1</span>同一个主体被拆成两层</h3>
-        <p>设置页有 <b>9 个页面文件 + 9 个组件文件</b>；其中 <code>AppearancePage</code>、<code>AdvancedPage</code>、<code>PromptsPage</code>、<code>ToolsPage</code> 只是 17～27 行的转发壳。新增一个设置项要同时动页面、组件和登记表。</p>
-        <div class="tags"><span class="tag bad">settings/pages/</span><span class="tag bad">settings/components/</span><span class="tag">4 个纯转发页</span></div>
-      </div>
-      <div class="problem">
-        <h3><span>2</span>机械的一 Vue 一 SCSS</h3>
-        <p><b>92 个 SCSS 文件</b>里，<b>20 个只有注释、没有任何规则</b>；样式总量 119 KiB。这条“配对”规则不是 HOP，反而把每个组件都拆成两个文件，目录树翻倍。</p>
-        <div class="tags"><span class="tag bad">20 个空文件</span><span class="tag">119 KiB</span><span class="tag">Timeline 455 行</span></div>
-      </div>
-      <div class="problem">
-        <h3><span>3</span>自建组件库反客为主</h3>
-        <p><b>31 个 UI 控件、31 个 UI 样式</b>。其中 10 个只用 0～1 次；Card、Divider、Flex、List、Progress、Spinner 都只有 4～5 行。这些不是业务组件，是给原生元素加的一层皮。</p>
-        <div class="tags"><span class="tag bad">10 个 ≤1 次</span><span class="tag">Card 4 行</span><span class="tag">Spinner 5 行</span></div>
-      </div>
-      <div class="problem">
-        <h3><span>4</span>依赖回指，图上全是线</h3>
-        <p><code>settings/settings.js → app/ui.js → settings/settings.js</code> 形成唯一循环；<code>chat/</code> 又反过来 import <code>app/ui.js</code> 去打开设置、复制文本。128 个代码文件之间有 286 条导入边，全量图当然像一团线。</p>
-        <div class="tags"><span class="tag bad">1 组循环</span><span class="tag">286 条边</span><span class="tag">chat → app</span></div>
-      </div>
-      <div class="problem" style="grid-column:1/-1">
-        <h3><span>5</span>大文件与碎片同时存在</h3>
-        <p><code>Timeline.vue</code> 209 行 + <code>Timeline.scss</code> 455 行，合计 <b>664 行</b>；而 <code>session/tools/views/</code> 里 11 个视图每个只有 17～30 行，还各配一个空样式。该大的没有拆，该合的没有合，读的人既找不到主线，也要在碎片里跳来跳去。</p>
-        <div class="tags"><span class="tag bad">Timeline 664 行</span><span class="tag">11 个 17–30 行视图</span><span class="tag bad">11 个空 SCSS</span></div>
-      </div>
-    </div>
+    <div class="panel-title"><b>允许的依赖方向</b><span>实线 = 代码 import · 虚线 = 共享样式，不是业务依赖</span></div>
+    <img class="layer" src="./frontend-target-layers.svg" alt="前端目标依赖分层图">
+    <div class="caption"><b>只向下、只向主体。</b><code>App.vue</code> 只做接线；<code>commands/</code> 调多个主体；<code>views/</code> 只调自己的 <code>features/</code> 和 <code>ui/</code>；<code>components/</code> 和 <code>tool-views/</code> 不调 <code>commands/</code>；<code>features/</code> 不 import <code>app/</code>、<code>views/</code> 或 <code>components/</code>；<code>ui/</code> 不知道业务，<code>styles/</code> 不知道组件。</div>
   </div>
 
   <div class="panel">
-    <div class="panel-title"><b>目标形状：五层，只向下</b><span>入口接线，主体干活，底座不反向 import</span></div>
-    <div class="stack">
-      <div class="band">
-        <div class="band-label">入口</div>
-        <div class="nodes">
-          <div class="node entry"><b>main.js</b><small>挂载、启动 watcher</small></div>
-          <div class="node entry"><b>App.vue</b><small>视图切换、全局事件接线</small></div>
-        </div>
-      </div>
-      <div class="connector"></div>
-      <div class="band">
-        <div class="band-label">外壳</div>
-        <div class="nodes">
-          <div class="node shell"><b>app/ · 5</b><small>抽屉 / 顶栏 / 命令面板 / 反馈 / 动作</small></div>
-        </div>
-      </div>
-      <div class="connector"></div>
-      <div class="band">
-        <div class="band-label">主体</div>
-        <div class="nodes">
-          <div class="node chat"><b>chat/ · 35</b><small>新对话、会话、输入区、时间线、工具视图</small></div>
-          <div class="node settings"><b>settings/ · 13</b><small>设置外壳 + 9 个设置页</small></div>
-        </div>
-      </div>
-      <div class="connector"></div>
-      <div class="band">
-        <div class="band-label">共享底座</div>
-        <div class="nodes">
-          <div class="node data"><b>store.js</b><small>唯一数据根</small></div>
-          <div class="node data"><b>api.js</b><small>HTTP + SSE</small></div>
-          <div class="node data"><b>config.js</b><small>配置读写</small></div>
-          <div class="node data"><b>workspace.js</b><small>工作区</small></div>
-          <div class="node data"><b>toast.js</b><small>轻反馈（叶子）</small></div>
-          <div class="node data"><b>theme.js</b><small>色板 / 外观</small></div>
-        </div>
-      </div>
-      <div class="connector"></div>
-      <div class="band">
-        <div class="band-label">设计层</div>
-        <div class="nodes">
-          <div class="node design"><b>ui/ · 13</b><small>10 个有行为的控件 + 3 个纯函数</small></div>
-          <div class="node styles"><b>styles/ · 4</b><small>tokens / base / ui / transcript</small></div>
-        </div>
-      </div>
-    </div>
-    <div class="forbidden">
-      <span>✕ chat/ 或 settings/ → app/</span>
-      <span>✕ ui/ → store / api</span>
-      <span>✕ settings/ → chat/</span>
-      <span>✕ 任何文件回指自己的调用方</span>
-      <span>✕ 一 Vue 一 SCSS</span>
-    </div>
-    <p class="diagram-note"><b>读法：</b>应用由 <code>App.vue</code> 接线；页面只调用自己主体的逻辑；主体只向下依赖数据、API 和设计层；<code>ui/</code> 不知道业务，<code>styles/</code> 不知道组件。工具视图是唯一有意保留的“增长型文件夹”：新增一个工具视图只放一个文件，由 <code>import.meta.glob</code> 自动发现，不再手工登记 12 个 import。</p>
+    <div class="panel-title"><b>现在：按“主题文件夹”切开</b><span>只画跨目录 import · 数字是文件依赖条数</span></div>
+    <img src="./frontend-current-cross.svg" alt="当前前端目录级依赖图">
+    <div class="caption">现在不是一条循环线的问题：<code>app/</code> 和 <code>session/</code> 互相 import，<code>app/</code> 和 <code>settings/</code> 也互相 import；<code>draft/</code>、<code>composer/</code>、<code>session/</code> 为了同一段对话各引一次；<code>settings/</code> 15 条、<code>session/</code> 14 条都指向 <code>ui/</code>。目录有 10 个，跨目录组合更多，图自然像一团线。</div>
   </div>
 
   <div class="panel">
-    <div class="panel-title"><b>目标目录：一个主体一个文件</b><span>79 个源文件 · 6 个顶层目录 · 不保留空壳</span></div>
-    <div class="columns">
-      <pre class="tree">frontend/src/
-├── main.js                      入口：挂载 + 启动 watcher
-├── App.vue                      外壳：视图切换 + 全局接线
-├── store.js                     唯一响应式数据根
-├── api.js                       HTTP + SSE + 附件协议
-├── config.js                    配置读取 / 保存
-├── workspace.js                 工作区读取
-├── i18n.js                      界面文案
-├── theme.js                     色板、图标线宽、外观
-├── toast.js                     轻反馈叶子（拆环用）
-├── app/                         <span class="dim">5 个 · 外壳部件</span>
-│   ├── AppDrawer.vue            抽屉 + 会话列表（合并 DrawerConversations）
-│   ├── TopBar.vue
-│   ├── CommandPalette.vue
-│   ├── Feedback.vue             提示条 + 连接错误
-│   └── actions.js               导航 / 设置 / 快捷键（合并 ui.js + usePalette + shortcuts）
-├── chat/                        <span class="dim">35 个 · 对话主体</span>
-│   ├── Composer.vue             输入区 + 附件 + 斜杠菜单 + 智能体按钮
-│   ├── DraftView.vue
-│   ├── SessionView.vue
-│   ├── Timeline.vue
-│   ├── AssistantTurn.vue
-│   ├── ToolCallRow.vue
-│   ├── ReasoningStep.vue
-│   ├── MessageActions.vue
-│   ├── CompactionNotice.vue
-│   ├── SessionStats.vue
-│   ├── SessionTodoPanel.vue
-│   ├── AgentDrawer.vue
-│   ├── ReasoningPicker.vue
-│   ├── RollbackDialog.vue
-│   ├── tools/
-│   │   ├── ToolView.vue
-│   │   └── views/               <span class="new">11 个工具视图 · 自动扫描</span>
-│   ├── session.js               会话数据：建/读/改名/删/设置/标签
-│   ├── chat.js                  发送 / 停止 / 流式 / 审批
-│   ├── messages.js              消息分组 + 继续判断（合并 3 个）
-│   ├── stats.js                 统计 + token 格式（合并 usage）
-│   ├── todos.js
-│   ├── reasoning.js
-│   ├── tabs.js                  会话标签
-│   ├── attachments.js           附件读取
-│   └── tool-ui.js               工具名/图标/摘要
-├── settings/                    <span class="dim">13 个 · 设置主体</span>
-│   ├── SettingsPage.vue         外壳：首页 / 一级页 / 二级页
-│   ├── pages.js                 唯一登记表
-│   ├── settings.js              读取 / 自动保存
-│   ├── Appearance.vue           页面 + 控件合并
-│   ├── Providers.vue            列表 + 编辑合并
-│   ├── ProviderModels.vue       供应商模型是独立子主体
-│   ├── Models.vue
-│   ├── Context.vue
-│   ├── Agents.vue
-│   ├── Prompts.vue
-│   ├── Advanced.vue
-│   ├── Tools.vue
-│   └── MCP.vue                  MCP 列表 + 编辑合并
-├── ui/                          <span class="dim">13 个 · 只放有行为的控件</span>
-│   ├── AppIcon.vue
-│   ├── Button.vue               含 icon-only
-│   ├── Field.vue                含 textarea / password / number / clear
-│   ├── Switch.vue
-│   ├── Dialog.vue               含 center / left / right / bottom
-│   ├── Select.vue
-│   ├── MenuButton.vue
-│   ├── Choice.vue               单选 / 多选共用
-│   ├── Markdown.vue             含代码块、平滑文字
-│   ├── ModelIcon.vue
-│   ├── usePopup.js
-│   ├── markdown.js
-│   └── model-icon-assets.js
-├── styles/                      <span class="dim">4 个 · 只放跨组件共享层</span>
-│   ├── tokens.scss              颜色、字号、间距、圆角、动效
-│   ├── base.scss                重置、焦点、原生控件、工具类
-│   ├── ui.scss                  按钮/输入/弹层等共享控件
-│   └── transcript.scss          气泡、Markdown、思考、工具行
-└── assets/                      24 个模型图标（不变）</pre>
-      <div>
-        <ul class="rules">
-          <li><b>按主体合并</b><small>设置页不再分 <code>pages/</code> 和 <code>components/</code>；对话不再分 <code>draft/</code>、<code>composer/</code>、<code>session/</code>。找一个功能只进一个目录。</small></li>
-          <li><b>样式跟主体走</b><small>组件自己的布局放 <code>&lt;style scoped&gt;</code>；只有跨两个以上组件的视觉规则才进 <code>styles/</code>。撤销机械的一对一。</small></li>
-          <li><b>控件只保留有行为的</b><small>10 个：Icon、Button、Field、Switch、Dialog、Select、Menu、Choice、Markdown、ModelIcon。Card/Divider/Flex/List/Typography/Chip/Spinner/Progress/Slider 用原生元素 + 类。</small></li>
-          <li><b>增长型文件夹只留一个</b><small><code>chat/tools/views/</code>：一个工具视图一个文件，文件名就是 <code>ui.view</code>，自动扫描；样式共用一份 <code>transcript.scss</code>。</small></li>
-          <li><b>依赖单向</b><small>页面 → 主体逻辑 → 数据/API；外壳只由 <code>App.vue</code> 调用；<code>ui/</code> 不 import store，<code>settings/</code> 不 import chat。</small></li>
-        </ul>
-        <div class="budget">
-          <b>文件体量门槛（评审触发器，不是硬指标）</b><br>
-          Vue：脚本 + 模板 ≤ 250 行；页面文件 ≤ 300 行。<br>
-          JS：一个主体文件 ≤ 300 行；超过先拆更小的主体。<br>
-          共享 SCSS：每个 ≤ 300 行；页面局部样式留在 Vue。<br>
-          新增一个设置页：1 个页面文件 + <code>pages.js</code> 一行；新增一个工具视图：1 个文件。
-        </div>
-      </div>
-    </div>
+    <div class="panel-title"><b>目标：按技术层单向</b><span>跨目录组合从 30 组降到 15 组 · 没有反向回指</span></div>
+    <img src="./frontend-target-cross.svg" alt="前端目标目录级依赖图">
+    <div class="caption">目标里，<code>features/</code> 是被调用方，不是调用方：它不知道页面、控件和命令层。<code>components/</code> 和 <code>tool-views/</code> 只向下拿数据和控件。<code>utils/</code> 只有 <code>i18n.js</code>、<code>clipboard.js</code> 两个真正的通用工具，不再装业务逻辑。</div>
   </div>
 
   <div class="panel">
-    <div class="panel-title"><b>文件账本：减少的是壳，不是功能</b><span>当前 220 → 目标 79</span></div>
+    <div class="panel-title"><b>目标体量</b><span>面积 = 归并后的字节数 · 完整目录见结构页</span></div>
+    <img src="./frontend-target-treemap.svg" alt="前端目标源码体量矩形树图">
+    <div class="caption">最大的两块仍然是 <code>components/</code> 129.0 KiB 和 <code>features/</code> 114.1 KiB，因为它们承载现有界面和会话逻辑；<code>styles/</code> 从 119 KiB / 92 文件收成 42.4 KiB / 4 文件。<a href="./frontend-target-structure.html">打开目标目录、完整树和逐层体量</a>。</div>
+  </div>
+
+  <div class="card">
+    <h2>五条规则</h2>
+    <ol>
+      <li><b>主体是文件，不是文件夹。</b><code>session.js</code>、<code>chat.js</code>、<code>settings.js</code> 各自一个文件，平铺在 <code>features/</code>；页面是 <code>views/SessionView.vue</code>，不建 <code>chat/</code> 再塞 35 个文件。</li>
+      <li><b>文件夹是技术层。</b><code>commands/</code> 只做编排，<code>features/</code> 只放主体，<code>views/</code> 只放页面，<code>components/</code> 只放部件，<code>tool-views/</code> 只放会不断增加的工具视图；同一个主体不按“页面/组件”再拆两层。</li>
+      <li><b>样式跟着主体。</b>组件的局部布局放 <code>&lt;style scoped&gt;</code>；只有跨两个以上组件的规则才进 <code>styles/</code>。撤销机械的一 Vue 一 SCSS；20 个空样式和 88 个镜像文件一起消失。</li>
+      <li><b>控件只保留有行为的。</b>31 → 10：Icon、Button、Field、Switch、Dialog、Select、Menu、Choice、Markdown、ModelIcon。Card、Divider、Flex、List、Typography、Chip、Spinner、Progress、Slider 等改为原生元素 + 共享类。</li>
+      <li><b>加删只动一处。</b>设置页数量少、需要顺序和分组，保留 <code>views/settings-pages.js</code> 一个登记表；新增一页 = 一个页面文件 + 一行登记。工具视图才是会持续增加的族：<code>tool-views/</code> 里放一个文件，文件名就是 <code>ui.view</code>，自动扫描，不再手工登记 12 个 import。</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>具体改哪里</h2>
     <table>
-      <thead><tr><th>区域</th><th>现在</th><th>目标</th><th>怎么变</th></tr></thead>
+      <thead><tr><th>现在</th><th>目标</th><th>解决什么</th></tr></thead>
       <tbody>
-        <tr><td>根目录 + 主题 + 工具</td><td class="num">18</td><td class="num">9</td><td>主题并成 <code>theme.js</code>；<code>utils/</code> 按归属分给 api / chat / ui；<code>watchers.js</code> 并入启动。</td></tr>
-        <tr><td><code>app/</code></td><td class="num">10</td><td class="num">5</td><td>抽屉合并会话列表；提示条合并连接错误；导航/命令面板/快捷键合并成 <code>actions.js</code>。</td></tr>
-        <tr><td><code>chat/</code>（原 draft + composer + session）</td><td class="num">42</td><td class="num">35</td><td>Composer 吸收附件、斜杠菜单、智能体按钮；<code>continue/stop-tools/turns</code> 合成 <code>messages.js</code>；<code>usage</code> 并入 <code>stats.js</code>；工具视图共用一份样式。</td></tr>
-        <tr><td><code>settings/</code></td><td class="num">21</td><td class="num">13</td><td>9 个纯转发页并回页面；Provider 列表/编辑合并；MCP 列表/编辑合并。</td></tr>
-        <tr><td><code>ui/</code></td><td class="num">37</td><td class="num">13</td><td>31 个控件收到 10 个；无行为的工具类降到 <code>styles/base.scss</code>。</td></tr>
-        <tr><td><code>styles/</code></td><td class="num">92</td><td class="num">4</td><td>删除 20 个空文件；组件样式回到 Vue；跨组件规则合并成 4 层。</td></tr>
-        <tr class="total"><td>合计</td><td class="num">220</td><td class="num">79</td><td>顶层目录 10 → 6；循环 1 → 0；代码文件 128 → 75。</td></tr>
-      </tbody>
-    </table>
-    <p class="muted" style="margin:10px 2px 0;font-size:12px;line-height:1.7">减少的约 141 个文件主要是：20 个空 SCSS、88 个样式拆分、21 个 UI 控件、8 个设置转发/列表壳、7 个聊天小文件、5 个外壳文件。业务行为、界面文案和后端接口都不改。样式总量预计从 119 KiB 降到约 80 KiB（-30%），代码量预计下降 10～15%；剩下的是实际功能，不是目录能变掉的。</p>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title"><b>迁移顺序：每批都能独立跑测试</b><span>先拆环和空壳，再合并主体，最后收控件与样式</span></div>
-    <div class="steps">
-      <div class="step"><div><b>拆环与空壳</b><p>新增 <code>toast.js</code>，把 <code>notify</code> 从 <code>app/ui.js</code> 拿出来；<code>settings/settings.js</code> 不再 import UI；<code>chat</code> 打开设置改成向 App 发事件。删除 20 个只有注释的 SCSS。<span class="gate">验收：循环 1→0，构建 + 单测 + 界面测试全绿。</span></p></div></div>
-      <div class="step"><div><b>设置与聊天合并</b><p>设置 21→13：4 个纯转发页并回页面，Provider/MCP 列表与编辑合并。聊天 42→35：Composer 吸收 3 个小部件，3 个消息 helper 合成一个，工具视图改成自动扫描 + 一份共享样式。<span class="gate">验收：设置页、工具审批、思考面板的交互测试不变。</span></p></div></div>
-      <div class="step"><div><b>UI 收缩</b><p>31→10 个控件。Card/Divider/Flex/List/Typography/Chip/Spinner/Progress/Slider/NumberField/IconButton/Sheet/Popover/Tabs 逐个替换为原生元素或现有控件；删除对应 SCSS。<span class="gate">验收：桌面/手机截图逐页对比，键盘焦点和 ARIA 名称不变。</span></p></div></div>
-      <div class="step"><div><b>样式归位</b><p>剩余组件样式搬回各自的 <code>&lt;style scoped&gt;</code>；只把跨组件的规则抽到 <code>tokens/base/ui/transcript</code> 四个文件。删除样式镜像目录。<span class="gate">验收：SCSS 92→4，视觉截图无差异，滚动/弹层/动效测试通过。</span></p></div></div>
-      <div class="step"><div><b>外壳与收尾</b><p>AppDrawer 合并 DrawerConversations；Toast + ConnectionError 合并 Feedback；<code>ui.js/usePalette/shortcuts</code> 合并 actions；tabs 移入 chat；主题与 watcher 收口。更新结构图和 README。<span class="gate">验收：目录 10→6，零循环，全量测试与构建通过。</span></p></div></div>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title"><b>目标是否达成：六个可检查的问题</b><span>不靠“看起来整洁”</span></div>
-    <table>
-      <thead><tr><th>检查</th><th>目标</th></tr></thead>
-      <tbody>
-        <tr><td>循环依赖</td><td><b class="good">0 组</b>；业务目录不 import <code>app/</code> 或 <code>App.vue</code>。</td></tr>
-        <tr><td>空壳文件</td><td><b class="good">0 个</b>；没有只有注释的 SCSS，没有只转发的页面/组件。</td></tr>
-        <tr><td>样式配对</td><td><b class="good">不再一一对应</b>；<code>styles/</code> 只有 4 个共享层，组件样式在组件内。</td></tr>
-        <tr><td>新增一个设置页</td><td><b class="good">1 个页面文件 + 1 行登记</b>；不碰其他设置文件。</td></tr>
-        <tr><td>新增一个工具视图</td><td><b class="good">1 个文件</b>；文件名即 <code>ui.view</code>，自动发现，不用改注册表。</td></tr>
-        <tr><td>找一个对话功能</td><td><b class="good">只进 chat/</b>；输入区、时间线、工具视图、会话逻辑在同一目录。</td></tr>
+        <tr><td><code>app/</code> 10 个</td><td><code>commands/</code> 3 + <code>components/</code> 4 + <code>features/feedback.js</code></td><td>导航、快捷键、命令面板、抽屉、提示条各回各的技术层；不再让 <code>ui.js</code> 同时管导航和通知。</td></tr>
+        <tr><td><code>draft/</code> + <code>composer/</code> + <code>session/</code> 42 个</td><td><code>views/</code> 2 + <code>components/</code> 13 + <code>tool-views/</code> 13 + <code>features/</code> 9</td><td>同一段对话从三个主题目录回到“页面 / 部件 / 工具视图 / 主体”四层；主体逻辑平铺在 <code>features/</code>。</td></tr>
+        <tr><td><code>settings/pages/</code> + <code>settings/components/</code> 21 个</td><td><code>views/</code> 11 个设置页面 + <code>features/settings.js</code> + <code>views/settings-pages.js</code></td><td>9 个设置页不再各有“页面壳 + 编辑器”；Provider / MCP 的列表与编辑合并；只有 ProviderModels 仍是独立子页面。</td></tr>
+        <tr><td><code>ui/</code> 31 个控件 + 31 个 SCSS</td><td><code>ui/</code> 10 个有行为的控件 + <code>styles/ui.scss</code></td><td>删掉 21 个只包一层的控件；原生元素和共享类替代 Card、Divider、Flex、List、Typography、Chip、Spinner 等。</td></tr>
+        <tr><td><code>styles/</code> 92 个</td><td><code>styles/</code> 4 个共享层 + 组件内 scoped</td><td>20 个空文件、88 个一一对应的镜像消失；<code>tokens/base/ui/transcript</code> 只保留真正共享的规则。</td></tr>
+        <tr><td><code>theme/</code> 3 + <code>utils/</code> 6</td><td><code>features/theme.js</code> + <code>utils/</code> 2</td><td>主题并回主体；附件归 <code>features/attachments.js</code>，Markdown 归 <code>ui/Markdown.vue</code>，SSE 归 <code>features/api.js</code>；<code>utils/</code> 只剩 i18n 和剪贴板。</td></tr>
+        <tr><td>工具视图 11 个 + 11 个空 SCSS</td><td><code>tool-views/</code> 11 个视图 + 1 份共享样式</td><td>保留“会不断增加”的文件夹，但去掉每个视图的样式壳；文件名即 <code>ui.view</code>，自动匹配。</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="note">
-    <b>这不是重写。</b>后端接口、页面行为、视觉风格和现有测试都保留；改的是文件归属和依赖方向。真正的代码删减约 40–50 KiB（控件皮肤、转发页、空样式），其余 430 KiB 是功能本身。要继续显著变小，只能删功能或换实现方式，改目录做不到。<br>
-    <b>状态：</b>目标设计，尚未改代码。基线：前端 0.63.1，代码提交 <code>8cabb03</code>，文档提交 <code>bcde833</code>。
+    <b>为什么文件少了，代码字节几乎没少：</b>220 → 82 是文件结构收益；当前 486.5 KiB → 目标约 474.3 KiB，只下降 2.5%。<b>删掉的是文件夹壳、空样式、转发层和重复控件皮，不是已实现的功能。</b>要再把 430 KiB 业务代码显著变小，只能删功能或换实现方式，整理目录做不到。<br>
+    <b>状态：</b>这是目标设计，尚未改代码。目标体量按当前文件字节归并，实际落地后会因合并重复规则小幅变化。基线：前端 0.63.1，代码提交 <code>8cabb03</code>。
   </div>
 </div>
 </body>

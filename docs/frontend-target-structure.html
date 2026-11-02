@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 前端目标结构与体量</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+    background:
+      radial-gradient(ellipse at 12% 8%, rgba(244,114,182,.16), transparent 32%),
+      radial-gradient(ellipse at 88% 92%, rgba(96,165,250,.16), transparent 36%),
+      #0b0d13;
+    color: #f8fafc;
+    font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  .page { max-width: 1500px; margin: 0 auto; }
+  .eyebrow { font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,.5); }
+  h1 { margin: 6px 0 8px; font-size: 28px; }
+  h2 { margin: 0 0 8px; font-size: 17px; }
+  .lead { margin: 0 0 20px; color: rgba(255,255,255,.66); line-height: 1.7; max-width: 1000px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .stat { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); border-radius: 12px; padding: 9px 13px; font-size: 13px; color: rgba(255,255,255,.72); }
+  .stat b { color: #f8fafc; }
+  .panel { border: 1px solid rgba(255,255,255,.13); background: rgba(16,18,27,.78); border-radius: 18px; padding: 16px 18px; box-shadow: 0 18px 60px rgba(0,0,0,.28); margin-bottom: 18px; }
+  .panel-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 12px; color: rgba(255,255,255,.62); font-size: 12px; }
+  .panel-title b { color: #f8fafc; font-size: 15px; }
+  img { display: block; width: 100%; height: auto; border-radius: 12px; background: #0d0f16; }
+  pre.tree { margin: 0; padding: 16px; max-height: 900px; overflow: auto; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: #10111a; color: #e4e2f1; font: 12.5px/1.7 ui-monospace, Consolas, "Microsoft YaHei", monospace; tab-size: 2; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.09); vertical-align: top; }
+  th { color: rgba(255,255,255,.55); font-weight: 500; }
+  .num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 2px 4px; font-size: 12px; color: rgba(255,255,255,.72); }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-item i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .legend-item b { color: rgba(255,255,255,.45); font-weight: 500; }
+  .caption { margin: 10px 2px 0; color: rgba(255,255,255,.56); font-size: 12px; line-height: 1.75; }
+  .caption b { color: rgba(255,255,255,.86); }
+  .muted { color: rgba(255,255,255,.52); }
+  code { color: #c4b5fd; }
+  a { color: #c4b5fd; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 18px; font-size: 13px; }
+  .note { border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 13px 15px; color: rgba(255,255,255,.6); font-size: 13px; line-height: 1.75; }
+  .note b { color: rgba(255,255,255,.88); }
+  @media (max-width: 900px) {
+    .card, .panel { overflow-x: auto; }
+    table { min-width: 560px; }
+    td:first-child { white-space: normal; } body { padding: 16px; } h1 { font-size: 23px; } pre.tree { font-size: 11px; max-height: 60vh; } td:first-child { white-space: normal; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="eyebrow">TARGET DESIGN / SOURCE SIZE</div>
+  <h1>Agent 前端目标结构与体量</h1>
+  <p class="lead">技术层文件夹：<code>commands/</code>、<code>features/</code>、<code>views/</code>、<code>components/</code>、<code>tool-views/</code>、<code>ui/</code>、<code>styles/</code>、<code>utils/</code>。主体是里面的<strong>文件</strong>，不是再给每个主体建一个文件夹。体量按当前文件字节归并估算，不是已落地的构建结果。</p>
+
+  <div class="links">
+    <a href="./frontend-target.html">目标编排</a>
+    <a href="./frontend-structure.html">当前结构</a>
+    <a href="./frontend-tree.txt">当前完整目录文本</a>
+  </div>
+
+  <div class="stats">
+    <span class="stat">源文件 <b>82</b></span>
+    <span class="stat">技术层 <b>9</b></span>
+    <span class="stat">Vue <b>53</b></span>
+    <span class="stat">JS <b>25</b></span>
+    <span class="stat">SCSS <b>4</b></span>
+    <span class="stat">估算总量 <b>474.3 KiB</b></span>
+    <span class="stat">当前总量 <b>486.5 KiB</b></span>
+    <span class="stat">减少的壳 <b>约 12.3 KiB</b></span>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><b>目标目录</b><span>文件后的数字是按当前源码归并的体量</span></div>
+    <pre class="tree">frontend/src/
+├── main.js
+├── App.vue
+├── commands/  3 个文件
+│   ├── navigation.js  [2.7 KiB]
+│   ├── shortcuts.js  [2.1 KiB]
+│   └── palette.js  [1.5 KiB]
+├── features/  16 个文件
+│   ├── store.js  [4.4 KiB]
+│   ├── api.js  [9.6 KiB]
+│   ├── config.js  [8.9 KiB]
+│   ├── workspace.js  [1.9 KiB]
+│   ├── session.js  [14.8 KiB]
+│   ├── chat.js  [20.2 KiB]
+│   ├── messages.js  [14.1 KiB]
+│   ├── stats.js  [8.3 KiB]
+│   ├── todos.js  [1.2 KiB]
+│   ├── reasoning.js  [1.4 KiB]
+│   ├── settings.js  [14.4 KiB]
+│   ├── theme.js  [2.7 KiB]
+│   ├── attachments.js  [1.7 KiB]
+│   ├── feedback.js  [0.7 KiB]
+│   ├── tool-ui.js  [4.8 KiB]
+│   └── tabs.js  [5.0 KiB]
+├── views/  14 个文件
+│   ├── DraftView.vue  [2.9 KiB]
+│   ├── SessionView.vue  [9.9 KiB]
+│   ├── SettingsPage.vue  [10.3 KiB]
+│   ├── AppearancePage.vue  [4.3 KiB]
+│   ├── ProvidersPage.vue  [15.9 KiB]
+│   ├── ProviderModels.vue  [13.0 KiB]
+│   ├── ModelsPage.vue  [6.0 KiB]
+│   ├── ContextPage.vue  [2.5 KiB]
+│   ├── AgentsPage.vue  [12.2 KiB]
+│   ├── PromptsPage.vue  [2.6 KiB]
+│   ├── AdvancedPage.vue  [6.2 KiB]
+│   ├── ToolsPage.vue  [8.4 KiB]
+│   ├── MCPSPage.vue  [11.5 KiB]
+│   └── settings-pages.js  [3.6 KiB]
+├── components/  17 个文件
+│   ├── AppDrawer.vue  [14.3 KiB]
+│   ├── TopBar.vue  [4.6 KiB]
+│   ├── CommandPalette.vue  [6.7 KiB]
+│   ├── Feedback.vue  [2.6 KiB]
+│   ├── Composer.vue  [25.1 KiB]
+│   ├── Timeline.vue  [18.3 KiB]
+│   ├── AssistantTurn.vue  [8.1 KiB]
+│   ├── ToolCallRow.vue  [4.2 KiB]
+│   ├── ReasoningStep.vue  [3.4 KiB]
+│   ├── MessageActions.vue  [3.4 KiB]
+│   ├── CompactionNotice.vue  [1.4 KiB]
+│   ├── RequestStatus.vue  [3.3 KiB]
+│   ├── SessionStats.vue  [17.7 KiB]
+│   ├── SessionTodoPanel.vue  [3.9 KiB]
+│   ├── AgentDrawer.vue  [3.6 KiB]
+│   ├── ReasoningPicker.vue  [5.8 KiB]
+│   └── RollbackDialog.vue  [2.7 KiB]
+├── tool-views/  13 个文件
+│   ├── ToolView.vue  [2.7 KiB]
+│   ├── useToolContent.js  [0.9 KiB]
+│   ├── command.vue  [1.2 KiB]
+│   ├── edit.vue  [0.9 KiB]
+│   ├── file-list.vue  [1.1 KiB]
+│   ├── file.vue  [0.7 KiB]
+│   ├── generic.vue  [0.9 KiB]
+│   ├── patch.vue  [0.9 KiB]
+│   ├── result.vue  [0.9 KiB]
+│   ├── search.vue  [0.8 KiB]
+│   ├── subtask.vue  [0.7 KiB]
+│   ├── todo.vue  [1.4 KiB]
+│   └── web.vue  [0.7 KiB]
+├── ui/  11 个文件
+│   ├── AppIcon.vue  [3.4 KiB]
+│   ├── Button.vue  [2.4 KiB]
+│   ├── Field.vue  [3.6 KiB]
+│   ├── Switch.vue  [0.8 KiB]
+│   ├── Dialog.vue  [4.1 KiB]
+│   ├── Select.vue  [3.3 KiB]
+│   ├── MenuButton.vue  [2.0 KiB]
+│   ├── Choice.vue  [4.0 KiB]
+│   ├── Markdown.vue  [9.9 KiB]
+│   ├── ModelIcon.vue  [4.5 KiB]
+│   └── usePopup.js  [1.6 KiB]
+├── styles/  4 个文件
+│   ├── tokens.scss  [3.0 KiB]
+│   ├── base.scss  [8.0 KiB]
+│   ├── ui.scss  [15.2 KiB]
+│   └── transcript.scss  [16.2 KiB]
+└── utils/  2 个文件
+    ├── i18n.js  [6.8 KiB]
+    └── clipboard.js  [0.6 KiB]</pre>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><b>目标 treemap</b><span>面积 = 目标文件字节数 · 悬停看文件</span></div>
+    <img src="./frontend-target-treemap.svg" alt="前端目标源码体量矩形树图">
+    <div class="legend">
+      <span class="legend-item"><i style="background:#e879f9"></i>src root <b>12.4 KiB</b></span>
+      <span class="legend-item"><i style="background:#60a5fa"></i>commands/ <b>6.4 KiB</b></span>
+      <span class="legend-item"><i style="background:#a78bfa"></i>features/ <b>114.1 KiB</b></span>
+      <span class="legend-item"><i style="background:#f3a6ce"></i>views/ <b>109.3 KiB</b></span>
+      <span class="legend-item"><i style="background:#f9a8d4"></i>components/ <b>129.0 KiB</b></span>
+      <span class="legend-item"><i style="background:#fbbf24"></i>tool-views/ <b>13.6 KiB</b></span>
+      <span class="legend-item"><i style="background:#86efac"></i>ui/ <b>39.7 KiB</b></span>
+      <span class="legend-item"><i style="background:#91a5d5"></i>styles/ <b>42.4 KiB</b></span>
+      <span class="legend-item"><i style="background:#34d399"></i>utils/ <b>7.4 KiB</b></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><b>逐层体量</b><span>文件数来自目标定义；体量是归并估算</span></div>
+    <table>
+      <thead><tr><th>技术层</th><th>文件</th><th>Vue</th><th>JS</th><th>SCSS</th><th>体量</th><th>主要承载</th></tr></thead>
+      <tbody>
+        <tr><td><code>src root</code></td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">12.4 KiB</td><td>入口与 App 外壳</td></tr>
+        <tr><td><code>commands/</code></td><td class="num">3</td><td class="num">0</td><td class="num">3</td><td class="num">0</td><td class="num">6.4 KiB</td><td>导航、快捷键、命令面板</td></tr>
+        <tr><td><code>features/</code></td><td class="num">16</td><td class="num">0</td><td class="num">16</td><td class="num">0</td><td class="num">114.1 KiB</td><td>会话、对话、设置、统计等主体</td></tr>
+        <tr><td><code>views/</code></td><td class="num">14</td><td class="num">13</td><td class="num">1</td><td class="num">0</td><td class="num">109.3 KiB</td><td>对话页、设置页、设置登记</td></tr>
+        <tr><td><code>components/</code></td><td class="num">17</td><td class="num">17</td><td class="num">0</td><td class="num">0</td><td class="num">129.0 KiB</td><td>输入区、时间线、工具行、提示</td></tr>
+        <tr><td><code>tool-views/</code></td><td class="num">13</td><td class="num">12</td><td class="num">1</td><td class="num">0</td><td class="num">13.6 KiB</td><td>工具结果视图族</td></tr>
+        <tr><td><code>ui/</code></td><td class="num">11</td><td class="num">10</td><td class="num">1</td><td class="num">0</td><td class="num">39.7 KiB</td><td>有行为的通用控件</td></tr>
+        <tr><td><code>styles/</code></td><td class="num">4</td><td class="num">0</td><td class="num">0</td><td class="num">4</td><td class="num">42.4 KiB</td><td>tokens / base / ui / transcript</td></tr>
+        <tr><td><code>utils/</code></td><td class="num">2</td><td class="num">0</td><td class="num">2</td><td class="num">0</td><td class="num">7.4 KiB</td><td>i18n、剪贴板</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>读法：</b>目标体量按现有源码字节归并到目标文件，不是承诺的构建体积。文件 220 → 82 是结构收益；字节 486.5 → 474.3 KiB 只降 2.5%，因为现有业务和样式仍在。整理目录不会删掉功能。<br>
+    <b>目标编排：</b><a href="./frontend-target.html">回到 Mermaid 分层与具体改动</a>。
+  </div>
+</div>
+</body>
+</html>

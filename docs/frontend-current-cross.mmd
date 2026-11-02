@@ -1,0 +1,58 @@
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'16px','primaryColor':'#241c35','primaryBorderColor':'#b5a4d5','primaryTextColor':'#f8fafc','lineColor':'#8d9ab7','clusterBkg':'#151521','clusterBorder':'#60526d','edgeLabelBackground':'#171822'},'flowchart':{'htmlLabels':false,'useMaxWidth':true,'nodeSpacing':28,'rankSpacing':55}}}%%
+flowchart LR
+  n_root["src root<br/>9 files"]
+  n_app["app/<br/>10 files"]
+  n_draft["draft/<br/>1 files"]
+  n_composer["composer/<br/>6 files"]
+  n_session["session/<br/>35 files"]
+  n_settings["settings/<br/>21 files"]
+  n_ui["ui/<br/>37 files"]
+  n_theme["theme/<br/>3 files"]
+  n_utils["utils/<br/>6 files"]
+  n_settings -->|"15"| n_ui
+  n_session -->|"14"| n_ui
+  n_session -->|"11"| n_root
+  n_root -->|"8"| n_app
+  n_app -->|"8"| n_root
+  n_session -->|"8"| n_app
+  n_settings -->|"8"| n_root
+  n_app -->|"6"| n_ui
+  n_app -->|"6"| n_session
+  n_composer -->|"5"| n_ui
+  n_root -->|"4"| n_session
+  n_session -->|"4"| n_utils
+  n_root -->|"3"| n_theme
+  n_settings -->|"3"| n_app
+  n_draft -->|"2"| n_session
+  n_ui -->|"2"| n_utils
+  n_root -->|"1"| n_draft
+  n_root -->|"1"| n_utils
+  n_root -->|"1"| n_settings
+  n_app -->|"1"| n_settings
+  n_composer -->|"1"| n_root
+  n_composer -->|"1"| n_app
+  n_composer -->|"1"| n_session
+  n_composer -->|"1"| n_utils
+  n_draft -->|"1"| n_composer
+  n_draft -->|"1"| n_root
+  n_session -->|"1"| n_composer
+  n_ui -->|"1"| n_theme
+  n_settings -->|"1"| n_theme
+  classDef g_n_root fill:#221e32,stroke:#e879f9,color:#f8fafc
+  class n_root g_n_root
+  classDef g_n_app fill:#221e32,stroke:#94a3b8,color:#f8fafc
+  class n_app g_n_app
+  classDef g_n_draft fill:#221e32,stroke:#94a3b8,color:#f8fafc
+  class n_draft g_n_draft
+  classDef g_n_composer fill:#221e32,stroke:#94a3b8,color:#f8fafc
+  class n_composer g_n_composer
+  classDef g_n_session fill:#221e32,stroke:#94a3b8,color:#f8fafc
+  class n_session g_n_session
+  classDef g_n_settings fill:#221e32,stroke:#94a3b8,color:#f8fafc
+  class n_settings g_n_settings
+  classDef g_n_ui fill:#221e32,stroke:#86efac,color:#f8fafc
+  class n_ui g_n_ui
+  classDef g_n_theme fill:#221e32,stroke:#94a3b8,color:#f8fafc
+  class n_theme g_n_theme
+  classDef g_n_utils fill:#221e32,stroke:#34d399,color:#f8fafc
+  class n_utils g_n_utils
