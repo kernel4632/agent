@@ -19,16 +19,17 @@
 />
 -->
 <script setup>
+import { Navigation } from '../commands/navigation.js'
+
 import { computed, nextTick, ref, watch } from 'vue'
 import { AppIcon, Button, Field, ModelIcon, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
-import { UI } from '../app/ui.js'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 import ComposerAttachments from './ComposerAttachments.vue'
 import ComposerSlashMenu from './ComposerSlashMenu.vue'
 import ReasoningPicker from './ReasoningPicker.vue'
 import AgentButton from './AgentButton.vue'
-import { ATTACHMENT_ACCEPT } from '../utils/attachments.js'
+import { ATTACHMENT_ACCEPT } from '../commands/attachment.js'
 
 const props = defineProps({
   selectedModel: { type: String, default: '' },
@@ -218,7 +219,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <div v-else class="composer-sheet__empty">
         <p>还没有可用模型。</p>
-        <Button @click="modelOpen = false; UI.openSettings('providers')">打开模型设置</Button>
+        <Button @click="modelOpen = false; Navigation.openSettings('providers')">打开模型设置</Button>
       </div>
     </div>
   </Sheet>

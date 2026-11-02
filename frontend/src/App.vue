@@ -4,6 +4,10 @@
 入口：main.js 挂载本组件；调用示例：<AppDrawer :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
 <script setup>
+import { Navigation } from './commands/navigation.js'
+import { Notice } from './commands/notice.js'
+import { activeSession } from './store.js'
+
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import DraftView from './draft/DraftView.vue'
 import SessionView from './session/SessionView.vue'
@@ -16,12 +20,11 @@ import { usePalette } from './app/usePalette.js'
 import { shortcutListener } from './app/shortcuts.js'
 import ThemeProvider from './theme/ThemeProvider.vue'
 import { store } from './store.js'
-import { Session } from './session/session.js'
-import { Chat } from './session/chat.js'
-import { UI, activeSession } from './app/ui.js'
+import { Session } from './commands/session.js'
+import { Chat } from './commands/chat.js'
 import { DEFAULT_SETTINGS } from './defaults.js'
 import { normalizeAppearance } from './theme/index.js'
-import { readAttachments } from './utils/attachments.js'
+import { readAttachments } from './commands/attachment.js'
 
 const SettingsPage = defineAsyncComponent(() => import('./settings/SettingsPage.vue'))
 const draftView = ref(null)
@@ -39,7 +42,7 @@ const appearance = computed(() => normalizeAppearance(store.settings.draft?.appe
 
 // 回到空对话：清掉草稿页的输入和附件，并收起手机抽屉。
 async function goHome() {
-  if (!await UI.openHome()) return false
+  if (!await Navigation.openHome()) return false
   drawerOpen.value = false
   homeDraft.value = ''
   homeFiles.value = []
@@ -61,7 +64,7 @@ function openSession(id) {
 
 async function openSettings(section) {
   drawerOpen.value = false
-  return UI.openSettings(section)
+  return Navigation.openSettings(section)
 }
 
 // 打开设置后可能从命令面板或快捷键进入，统一在这里收起抽屉和任务面板。
@@ -101,7 +104,7 @@ async function submitMessage(content) {
 async function attachFiles(selected) {
   const { files, errors } = await readAttachments(selected) // 大小和类型检查只在附件工具里做一次
   homeFiles.value.push(...files)                            // 通过检查的文件进入草稿附件列表
-  errors.forEach(UI.notify)                                 // 被拒绝的文件逐个说明原因
+  errors.forEach(Notice.show)                                 // 被拒绝的文件逐个说明原因
 }
 
 // 只从草稿页的待发送附件里移除。
@@ -116,7 +119,7 @@ const shortcuts = shortcutListener({
   closePalette,
   openSettings,
   isSettingsOpen: () => store.ui.settingsOpen,
-  closeSettings: () => UI.closeSettings(),
+  closeSettings: () => Navigation.closeSettings(),
   session: () => session.value,
   stopSession: id => Chat.stop(id),
   newConversation: openDraft,

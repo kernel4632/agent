@@ -5,13 +5,14 @@
 调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="setModels" />
 -->
 <script setup>
+import { Notice } from '../../commands/notice.js'
+
 import { computed, ref } from 'vue'
 import {
   Card, Chip, Flex, NumberField, Typography,
 } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, IconButton, ModelIcon, Switch } from '../../ui/index.js'
-import { Settings } from '../settings.js'
-import { UI } from '../../app/ui.js'
+import { Settings } from '../../commands/settings.js'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
@@ -51,7 +52,7 @@ const newModel = id => ({ id, name: id, capabilities: defaultCapabilities(), con
 function addManual() {
   const id = manual.value.trim()
   if (!id) return
-  if (props.models.some(model => model.id === id)) { UI.notify('这个模型已经在列表里了'); return }
+  if (props.models.some(model => model.id === id)) { Notice.show('这个模型已经在列表里了'); return }
   emit('update:models', [...props.models, newModel(id)])
   manual.value = ''
 }

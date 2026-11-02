@@ -12,6 +12,8 @@
 />
 -->
 <script setup>
+import { Navigation } from '../commands/navigation.js'
+
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { Spinner } from '../ui/index.js'
 import { Button } from '../ui/index.js'
@@ -20,9 +22,8 @@ import AgentDrawer from './AgentDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { canContinueSession } from './continue.js'
-import { Session } from './session.js'
-import { Chat } from './chat.js'
-import { UI } from '../app/ui.js'
+import { Session } from '../commands/session.js'
+import { Chat } from '../commands/chat.js'
 
 // 时间线单独拆包，只有进入会话页时才加载。
 const Timeline = defineAsyncComponent(() => import('./Timeline.vue'))
@@ -113,7 +114,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
       </div>
       <div class="session-composer" :class="{ 'is-reconnecting': showReconnect }">
         <Transition name="notice">
-          <div v-if="!session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
+          <div v-if="!session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div>
         </Transition>
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>

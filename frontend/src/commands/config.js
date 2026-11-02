@@ -3,9 +3,9 @@
 脱敏密钥原样保留到保存请求，Server 会恢复真实值。
 调用示例：await Config.load()、await Config.testConnection('aker', 'glm-5.2')。
 */
-import { AgentAPI } from './api.js'                    // 引入配置 HTTP 契约
-import { store } from './store.js'                     // 引入全局配置
-import { COMPACT_RANGE, DEFAULT_SETTINGS } from './defaults.js' // 前端默认值只留一处
+import { AgentAPI } from '../utils/api.js'                    // 引入配置 HTTP 契约
+import { store } from '../store.js'                     // 引入全局配置
+import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../defaults.js' // 前端默认值只留一处
 
 
 // --- 加载完整设置数据 ---

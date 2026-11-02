@@ -1,7 +1,7 @@
 <!-- 锚定信息面板：供会话统计等非菜单内容使用。示例：<Popover label="统计"><template #trigger>打开</template>内容</Popover> -->
 <script setup>
 import { useId } from 'vue'
-import { usePopup } from './usePopup.js'
+import { usePopup } from '../utils/popup.js'
 defineProps({ label: String, contentLabel: String })
 const { trigger, popup, open, position, toggle, hide, onToggle } = usePopup({ end: true })
 const id = useId()

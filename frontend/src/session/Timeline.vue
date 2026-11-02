@@ -7,11 +7,13 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
+import { Notice } from '../commands/notice.js'
+import { copyText } from '../utils/clipboard.js'
+
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
-import { Chat } from './chat.js'
-import { Session } from './session.js'
-import { UI } from '../app/ui.js'
+import { Chat } from '../commands/chat.js'
+import { Session } from '../commands/session.js'
 import { groupMessageTurns } from './turns.js'
 import { isSavedMessage } from './continue.js'
 import { AppIcon, Markdown } from '../ui/index.js'
@@ -144,12 +146,15 @@ function userMenuItems(message) {
 }
 
 function onUserMenu(message, action) {
-  if (action === 'copy') UI.copy(message.displayContent ?? message.content)
+  if (action === 'copy') copyMessage(message.displayContent ?? message.content)
   else if (action === 'rollback') requestRollback(message)
   else if (action === 'fork') forkFrom(message)
 }
 
 // 继续入口已经合并到输入框的发送按钮。
+
+// 复制只在本区域反馈，剪贴板工具不依赖页面。
+async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
 </script>
 
 <template>

@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { uiFor } from '../../tool-ui.js'
+import { uiFor } from '../../../commands/tool.js'
 import { useToolContent } from '../use-tool-content.js'
 
 const props = defineProps({ tool: { type: Object, required: true } })

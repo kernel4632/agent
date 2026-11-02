@@ -53,7 +53,7 @@ cd frontend && bun run build # 前端：能构建通过
 | --- | --- |
 | `server/openapi.json` | 每个接口的参数、响应、错误码 |
 | `server/README.md` | 前端怎么对接（含 SSE 事件表） |
-| `frontend/src/api.js` | 前端实际发出的请求 |
+| `frontend/src/utils/api.js` | 前端实际发出的请求 |
 
 改了接口路径、请求字段、响应字段或状态码时，如果需要前端配合改代码，就在提交说明里写清楚改了什么、前端要动哪里。
 

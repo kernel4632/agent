@@ -2,7 +2,7 @@
 <script setup>
 import { computed, nextTick, ref, useId } from 'vue'
 import AppIcon from './AppIcon.vue'
-import { usePopup } from './usePopup.js'
+import { usePopup } from '../utils/popup.js'
 const props = defineProps({ modelValue: [String, Number], items: { type: Array, default: () => [] }, label: String, placeholder: { type: String, default: '请选择' }, disabled: Boolean })
 const emit = defineEmits(['update:modelValue'])
 const { trigger, popup, open, position, show, hide, toggle, onToggle } = usePopup()

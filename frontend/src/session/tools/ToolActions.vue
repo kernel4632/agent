@@ -4,10 +4,12 @@
   调用示例：<ToolActions :actions="tool.ui.actions" :input="tool.input" />
 -->
 <script setup>
+import { Notice } from '../../commands/notice.js'
+import { copyText } from '../../utils/clipboard.js'
+
 import { computed } from 'vue'
 import { AppIcon, Button } from '../../ui/index.js'
-import { UI } from '../../app/ui.js'
-import { actionTarget, toolActions } from '../tool-ui.js'
+import { actionTarget, toolActions } from '../../commands/tool.js'
 
 const props = defineProps({ tool: { type: Object, required: true } })
 const actions = computed(() => toolActions(props.tool))
@@ -15,9 +17,12 @@ const actions = computed(() => toolActions(props.tool))
 async function run(action) {
   const value = actionTarget(props.tool, action)
   if (!value) return
-  if (action.type === 'copy') await UI.copy(value)
+  if (action.type === 'copy') await copyMessage(value)
   if (action.type === 'open') window.open(value, '_blank', 'noopener,noreferrer')
 }
+
+// 复制只在本区域反馈，剪贴板工具不依赖页面。
+async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
 </script>
 
 <template>

@@ -9,7 +9,7 @@
 import { computed, ref } from 'vue'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 import { store } from '../store.js'
 
 defineProps({

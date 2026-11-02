@@ -1,6 +1,6 @@
 <!-- 图标按钮：名称始终提供给辅助技术。示例：<IconButton label="设置"><AppIcon name="settings" /></IconButton> -->
 <script setup>
-import { press } from './press.js'
+import { press } from '../utils/press.js'
 defineProps({ label: { type: String, required: true }, title: String, size: { type: String, default: 'normal' }, variant: { type: String, default: 'standard' }, active: Boolean, disabled: Boolean, type: { type: String, default: 'button' } })
 defineEmits(['click'])
 </script>

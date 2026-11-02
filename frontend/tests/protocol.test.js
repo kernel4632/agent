@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readSSE } from '../src/utils/sse.js'
-import { AgentAPI } from '../src/api.js'
+import { AgentAPI } from '../src/utils/api.js'
 
 test('SSE decodes split UTF-8, CRLF, heartbeats and events without an event name', async () => {
   const bytes = new TextEncoder().encode(': heartbeat\r\n\r\nid:12\r\ndata:{"type":"text-delta","text":"你好"}\r\n\r\ndata: {"type":"agent-finish"}\n\n')

@@ -7,16 +7,16 @@
  *   await Chat.stop(sessionID)                     // 停止并刷新到最终状态
  *   Chat.subscribe(sessionID)                      // 打开会话时建立实时连接
  */
-import { AgentAPI } from '../api.js'
+import { Notice } from './notice.js' // 反馈是叶子，不依赖导航
+import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { Session } from './session.js'
 import { Tabs } from '../app/tabs.js'                          // 后端起好标题后同步顶部标签文字
-import { UI } from '../app/ui.js'
-import { t } from '../i18n.js'                            // 工具被拦下等提示需要当前语言文案
-import { formatToolOutput, toolStatus } from './tool-ui.js' // 工具状态和结果文本只有一处判断
-import { usageFields } from './usage.js' // 请求用量字段只有一处转换
-import { readAttachments } from '../utils/attachments.js'          // 附件大小和类型检查只有一处
+import { t } from '../utils/i18n.js'                            // 工具被拦下等提示需要当前语言文案
+import { formatToolOutput, toolStatus } from './tool.js' // 工具状态和结果文本只有一处判断
+import { usageFields } from '../session/usage.js' // 请求用量字段只有一处转换
+import { readAttachments } from './attachment.js'          // 附件大小和类型检查只有一处
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
@@ -82,7 +82,7 @@ async function send(sessionID, content) {
   const session = store.sessions[sessionID]
   if (!session || !content.trim() || session.status === 'running' || stopping.has(sessionID)) return false
   const provider = store.config.providers[session.provider]
-  if (!session.model || !provider?.baseURL || provider.enabled === false) { UI.notify('请先配置并启用此会话使用的模型供应商'); return false }
+  if (!session.model || !provider?.baseURL || provider.enabled === false) { Notice.show('请先配置并启用此会话使用的模型供应商'); return false }
   const files = session.files || []
   const input = content.trim() + files.map(file => `\n\n附件 ${JSON.stringify(file.name)}:\n${file.content}`).join('')
   void subscribe(sessionID)
@@ -106,7 +106,7 @@ async function send(sessionID, content) {
     const assistant = streaming(session)
     if (assistant) { assistant.error = error.message; assistant.isStreaming = false; assistant.finishedAt = Date.now() }
     session.status = 'idle'
-    UI.notify(error.message)
+    Notice.show(error.message)
     Session.syncSummary(session)
     return false
   }
@@ -126,7 +126,7 @@ async function resume(sessionID) {
   } catch (error) {
     session.status = 'idle'
     session.connection = 'idle'
-    UI.notify(error.message)
+    Notice.show(error.message)
     return false
   }
 }
@@ -228,7 +228,7 @@ function failRun(session, event) {
   assistant.isStreaming = false
   assistant.finishedAt = Date.now()
   session.status = 'idle'
-  UI.notify(assistant.error)
+  Notice.show(assistant.error)
 }
 
 // --- 后端起好标题后单独推一条，不用等下一次刷新整条会话 ---
@@ -257,8 +257,8 @@ async function receiveRun(sessionID, session, event) {
   if (event.type === 'llm-finish') return finishRunRequest(session, event)
   if (event.type === 'retry') return retryRun(session, event)
   if (event.type === 'error') return failRun(session, event)
-  if (event.type === 'mcp-error') return UI.notify(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
-  if (event.type === 'permission-limit') return UI.notify(event.reason) // 刹车触发，告诉用户为什么又要确认
+  if (event.type === 'mcp-error') return Notice.show(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
+  if (event.type === 'permission-limit') return Notice.show(event.reason) // 刹车触发，告诉用户为什么又要确认
   if (event.type === 'title') return setTitle(session, event)
   if (event.type === 'agent-finish') return finishRun(sessionID, session, event)
 }
@@ -346,12 +346,12 @@ async function stop(sessionID) {
     await Session.refresh(sessionID)
     store.sessions[sessionID].status = 'idle'
     store.sessions[sessionID].connection = 'idle'
-    UI.notify('已停止生成')
+    Notice.show('已停止生成')
     return true
   } catch (error) {
     // 停止请求失败时也要刷新，避免界面一直停在“已停止”的假状态。
     try { await Session.refresh(sessionID) } catch { /* 保留原错误提示 */ }
-    UI.notify(error.message)
+    Notice.show(error.message)
     return false
   } finally {
     stopping.delete(sessionID)
@@ -368,7 +368,7 @@ async function decide(sessionID, callID, decision) {
     if (!result.ok) throw new Error('此审批已结束，请刷新会话')
     if (tool) tool.status = decision === 'deny' ? 'rejected' : 'running'
     return true
-  } catch (error) { UI.notify(error.message); return false }
+  } catch (error) { Notice.show(error.message); return false }
   finally { tool.deciding = false }
 }
 
@@ -377,7 +377,7 @@ async function attach(sessionID, files) {
   if (!session) return
   const { files: accepted, errors } = await readAttachments(files) // 和草稿页共用同一套检查
   session.files.push(...accepted)                                  // 通过检查的附件跟着会话草稿走
-  errors.forEach(message => UI.notify(message))                     // 超限或类型不对的文件逐个提示
+  errors.forEach(message => Notice.show(message))                     // 超限或类型不对的文件逐个提示
 }
 
 function removeFile(sessionID, fileID) {
@@ -390,7 +390,7 @@ async function previewRollback(sessionID, messageID) {
   try {
     return await AgentAPI.previewRollback(sessionID, messageID)
   } catch (error) {
-    UI.notify(error.message)
+    Notice.show(error.message)
     return null
   }
 }
@@ -404,17 +404,17 @@ async function rollbackMessage(sessionID, messageID, files = true) {
     // 只有回退到用户消息时才把正文放回输入框；助手回复不是用户的草稿。
     store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
     const where = message?.role === 'user' ? '已回退到用户消息之前' : '已回退到助手回复之前'
-    UI.notify(result.restored?.length ? `${where}，并恢复 ${result.restored.length} 个文件` : where)
+    Notice.show(result.restored?.length ? `${where}，并恢复 ${result.restored.length} 个文件` : where)
     return true
-  } catch (error) { UI.notify(error.message); return false }
+  } catch (error) { Notice.show(error.message); return false }
 }
 
 async function undoRollback(sessionID, files = true) {
   try {
     const result = await AgentAPI.redo(sessionID, files)
     await Session.refresh(sessionID)
-    UI.notify(result.restored?.length ? `已撤销回退，并还原 ${result.restored.length} 个文件` : '已撤销回退')
-  } catch (error) { UI.notify(error.message) }
+    Notice.show(result.restored?.length ? `已撤销回退，并还原 ${result.restored.length} 个文件` : '已撤销回退')
+  } catch (error) { Notice.show(error.message) }
 }
 
 export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile, previewRollback, rollbackMessage, undoRollback }

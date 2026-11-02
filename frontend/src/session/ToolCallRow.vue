@@ -6,9 +6,9 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AppIcon, Button } from '../ui/index.js'
-import { Chat } from './chat.js'
+import { Chat } from '../commands/chat.js'
 import ToolView from './tools/ToolView.vue'
-import { canonicalToolName, fillTemplate, toolIcon, toolTitle, uiFor } from './tool-ui.js'
+import { canonicalToolName, fillTemplate, toolIcon, toolTitle, uiFor } from '../commands/tool.js'
 
 const props = defineProps({
   tool: { type: Object, required: true },

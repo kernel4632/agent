@@ -17,7 +17,7 @@
 import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from '../session/AgentDrawer.vue'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 import { DEFAULT_SETTINGS } from '../defaults.js'
 
 const props = defineProps({

@@ -11,8 +11,8 @@ import {
 } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
-import { Config } from '../../config.js'
-import { Settings } from '../settings.js'
+import { Config } from '../../commands/config.js'
+import { Settings } from '../../commands/settings.js'
 
 const props = defineProps({ provider: { type: Object, required: true } })
 const emit = defineEmits(['delete', 'update:provider'])

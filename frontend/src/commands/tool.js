@@ -12,7 +12,7 @@
  */
 
 import { store } from '../store.js'
-import { t } from '../i18n.js'
+import { t } from '../utils/i18n.js'
 
 // 旧会话里的工具名从后端工具目录的 previousNames 找回新名字，前端不再存一份别名表。
 export const canonicalToolName = name => {

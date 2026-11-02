@@ -3,7 +3,7 @@
 本文件只定义字段结构，不读取网络、不执行业务动作，也不直接操作页面。
 调用示例：store.workspaces、store.sessions[sessionID]、store.ui.activeSessionID。
 */
-import { reactive } from 'vue'                         // 引入唯一响应式数据根
+import { computed, reactive } from 'vue'               // 状态与当前会话派生值只有一份
 import { normalizeAppearance } from './theme/index.js'
 
 
@@ -70,3 +70,6 @@ export const store = reactive({
     isSaving: false,                                  // 离开设置时的 API 保存状态
   },
 })
+
+// 当前会话只由选中 ID 派生；展示组件不必为了读数据依赖导航功能。
+export const activeSession = computed(() => store.sessions[store.ui.activeSessionID] || null)

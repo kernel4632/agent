@@ -3,10 +3,10 @@
 保存时把页面字段转换回 Server 配置结构，成功后重新加载最终生效数据。
 调用示例：Settings.open()、await Settings.save()、Settings.discoverModels()。
 */
-import { AgentAPI } from '../api.js'                    // 引入正式配置和能力 HTTP 契约
+import { Notice } from './notice.js' // 保存失败只反馈，不反向调用导航
+import { AgentAPI } from '../utils/api.js'                    // 引入正式配置和能力 HTTP 契约
 import { store } from '../store.js'                     // 引入已保存配置和设置反馈
-import { Config } from '../config.js'                    // 引入保存后的配置重新加载动作
-import { UI } from '../app/ui.js'                            // 引入保存错误轻反馈
+import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
 
 let initialBackendDraft = ''
 
@@ -240,7 +240,7 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     if (!keepDraft) store.settings.draft = null
     return true
   } catch (error) {
-    if (!silent || lastAutoSaveError !== error.message) UI.notify(error.message)
+    if (!silent || lastAutoSaveError !== error.message) Notice.show(error.message)
     lastAutoSaveError = error.message
     return false
   } finally {
@@ -272,7 +272,7 @@ function persistAppearance(appearance) {
 async function fetchModels(provider, currentModels = []) {
   const baseURL = provider?.apiUrl?.trim().replace(/\/+$/, '')
   if (!baseURL) {
-    UI.notify('请先填写请求地址（API）')
+    Notice.show('请先填写请求地址（API）')
     return currentModels.map(model => ({ ...model }))
   }
 
@@ -294,7 +294,7 @@ async function fetchModels(provider, currentModels = []) {
     if (!discovered.length) throw new Error('接口未返回可用模型')
     return discovered
   } catch (error) {
-    UI.notify(error.message)
+    Notice.show(error.message)
     return currentModels.map(model => ({ ...model }))
   }
 }

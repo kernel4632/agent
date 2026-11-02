@@ -7,7 +7,7 @@
 import { computed, ref } from 'vue'
 import { Checkbox, List } from '../ui/index.js'
 import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 
 const MENU_ITEMS = [
   { value: 'rename', label: '重命名' },

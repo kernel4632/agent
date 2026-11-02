@@ -89,7 +89,7 @@ describe('接口契约', () => {
     test('前端发审批决定时用的字段名和后端读的一致', async () => {
         const root = new URL('../../', import.meta.url)
         const [frontend, backend] = await Promise.all([
-            Bun.file(fileURLToPath(new URL('frontend/src/api.js', root))).text(),
+            Bun.file(fileURLToPath(new URL('frontend/src/utils/api.js', root))).text(),
             Bun.file(fileURLToPath(new URL('server/features/approval.js', root))).text(),
         ])
         const sentBody = frontend.match(/decideTool:[^\n]*\{\s*([A-Za-z]+),\s*decision\s*\}/)?.[1]

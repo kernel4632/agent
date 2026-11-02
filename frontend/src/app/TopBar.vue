@@ -15,9 +15,9 @@
 import { computed, ref, watch } from 'vue'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import SessionStats from '../session/SessionStats.vue'
-import { sessionStats } from '../session/stats.js'
+import { sessionStats } from '../commands/stats.js'
 import { latestTodos } from '../session/todos.js'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 import { NEW_SESSION_TITLE } from '../defaults.js'
 
 const props = defineProps({

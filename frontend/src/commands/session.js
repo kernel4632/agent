@@ -3,13 +3,14 @@ Session 指令：负责创建、读取、打开、重命名、删除和切换会
 Server 会话会被归一化为现有 页面组件可直接渲染的消息与工具结构。
 调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
 */
-import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约
+import { Navigation } from './navigation.js' // 数据就绪后切换界面
+import { Notice } from './notice.js' // 操作结果由独立反馈功能显示
+import { AgentAPI } from '../utils/api.js'                    // 引入正式 Session HTTP 契约
 import { store } from '../store.js'                     // 引入工作区摘要与完整会话
-import { UI } from '../app/ui.js'                            // 引入导航和反馈指令
 import { Tabs } from '../app/tabs.js'                        // 同步顶部会话标签
-import { t } from '../i18n.js'                          // 引入当前语言默认文案
-import { formatToolOutput, toolStatus } from './tool-ui.js' // 工具状态和文本只有一处判断
-import { requestFromUsage } from './usage.js'             // 请求用量字段只有一处转换
+import { t } from '../utils/i18n.js'                          // 引入当前语言默认文案
+import { formatToolOutput, toolStatus } from './tool.js' // 工具状态和文本只有一处判断
+import { requestFromUsage } from '../session/usage.js'             // 请求用量字段只有一处转换
 import { splitUserAttachments } from '../utils/user-message.js'      // 历史里的附件正文不能跑进用户气泡
 import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认值只留一处
 
@@ -42,8 +43,8 @@ async function closeOpened(sessionID) {
   if (!closingActiveChat) return true                                 // 关闭后台标签时保留当前页面
 
   const adjacentSessionID = store.ui.openedSessionIDs[closingIndex] || store.ui.openedSessionIDs[closingIndex - 1] // 优先选择右侧标签，再选择左侧标签
-  if (adjacentSessionID) await UI.openChat(adjacentSessionID)         // 相邻完整会话已加载，可直接切换
-  else await UI.openHome()                                            // 最后一个标签关闭后返回主页
+  if (adjacentSessionID) await Navigation.openChat(adjacentSessionID)         // 相邻完整会话已加载，可直接切换
+  else await Navigation.openHome()                                            // 最后一个标签关闭后返回主页
   return true                                                         // 反馈标签关闭与页面切换完成
 }
 
@@ -58,10 +59,10 @@ async function create(workspaceID = store.ui.activeWorkspaceID) {
     store.sessions[session.id] = session                // 完整会话进入响应式目录
     workspace.sessions.unshift(summaryOf(session))      // 摘要进入当前工作区首位
     rememberOpened(session.id)                          // 新会话已经加载，应立即出现在侧边栏
-    await UI.openChat(session.id)                       // 新建后等待进入对话页
+    await Navigation.openChat(session.id)                       // 新建后等待进入对话页
     return session                                      // 返回新会话供组合动作使用
   } catch (error) {
-    UI.notify(error.message)                            // 反馈真实创建失败原因
+    Notice.show(error.message)                            // 反馈真实创建失败原因
     return null                                         // 保持当前页面和目录不变
   }
 }
@@ -78,10 +79,10 @@ async function open(sessionID) {
     store.ui.activeWorkspaceID = found.workspace.id     // 侧边栏与主页保持正确工作区归属
     rememberOpened(sessionID)                           // 读取成功后才加入侧边栏，失败时不制造空标签
     Tabs.openSession(sessionID, store.sessions[sessionID]?.title || '新会话')
-    await UI.openChat(sessionID)                        // 数据就绪后再打开对话页
+    await Navigation.openChat(sessionID)                        // 数据就绪后再打开对话页
     return true                                         // 反馈页面已经切换
   } catch (error) {
-    UI.notify(error.message)                            // 展示会话读取错误
+    Notice.show(error.message)                            // 展示会话读取错误
     return false                                        // 不进入无数据对话页
   }
 }
@@ -111,7 +112,7 @@ async function rename(sessionID, title) {
     if (tab) Tabs.setTitle(tab.key, result.title)
     return true                                         // 标题编辑器退出编辑
   } catch (error) {
-    UI.notify(error.message)                            // 保留编辑器内容并显示错误
+    Notice.show(error.message)                            // 保留编辑器内容并显示错误
     return false                                        // 不伪造保存成功
   }
 }
@@ -134,11 +135,11 @@ async function remove(sessionID) {
   try {
     await AgentAPI.removeSession(sessionID)
     forget(sessionID)
-    if (store.ui.activeSessionID === sessionID) await UI.openHome()
-    UI.notify(t('sessionDeleted'))
+    if (store.ui.activeSessionID === sessionID) await Navigation.openHome()
+    Notice.show(t('sessionDeleted'))
     return true
   } catch (error) {
-    UI.notify(error.message)
+    Notice.show(error.message)
     return false
   }
 }
@@ -155,11 +156,11 @@ async function removeMany(sessionIDs = []) {
       forget(sessionID)
       removed += 1
     } catch (error) {
-      UI.notify(error.message)
+      Notice.show(error.message)
     }
   }
-  if (removed && activeRemoved) await UI.openHome()
-  if (removed) UI.notify(`已删除 ${removed} 个会话`)
+  if (removed && activeRemoved) await Navigation.openHome()
+  if (removed) Notice.show(`已删除 ${removed} 个会话`)
   return removed
 }
 
@@ -173,10 +174,10 @@ async function selectModel(sessionID, provider, model) {
     session.provider = meta.provider
     session.model = meta.model
     session.contextLimit = store.config.providers[provider]?.modelSettings?.[model]?.context || session.contextLimit || DEFAULT_CONTEXT
-    UI.notify(`已切到 ${meta.model}`)
+    Notice.show(`已切到 ${meta.model}`)
     return true
   } catch (error) {
-    UI.notify(error.message)                            // 运行中冲突等错误直接展示
+    Notice.show(error.message)                            // 运行中冲突等错误直接展示
     return false
   }
 }
@@ -189,10 +190,10 @@ async function fork(sessionID, messageId) {
   try {
     const { sessionId } = await AgentAPI.forkSession(sessionID, messageId ? { messageId } : {})
     await openByID(sessionId)
-    UI.notify('已创建分支')
+    Notice.show('已创建分支')
     return sessionId
   } catch (error) {
-    UI.notify(error.message)
+    Notice.show(error.message)
     return null
   }
 }
@@ -214,7 +215,7 @@ async function saveSettings(sessionID, change) {
     return settings
   } catch (error) {
     session.settings = previous
-    UI.notify(error.message)
+    Notice.show(error.message)
     return null
   }
 }
@@ -230,7 +231,7 @@ async function setAgent(sessionID, agent) {
   if (session.settings.agent === next.name) return session.settings
   const settings = await saveSettings(sessionID, { agent: next.name })
   // 切到只读智能体时要说清会发生什么，不然用户会疑惑"工具怎么少了一半"。
-  if (settings) UI.notify(next.readOnly ? `已切到${next.label}：只保留只读工具` : `已切到${next.label}`)
+  if (settings) Notice.show(next.readOnly ? `已切到${next.label}：只保留只读工具` : `已切到${next.label}`)
   return settings
 }
 
@@ -265,7 +266,7 @@ async function setUse(sessionID, use, target) {
   if (!session) return null
   // 只提交点名的这一件事，另外两件后端会保持原样。
   const settings = await saveSettings(sessionID, { uses: { [use]: target } })
-  if (settings) UI.notify(target ? `「${useLabel(use)}」改用 ${target.model}` : `「${useLabel(use)}」改回和主模型共用`)
+  if (settings) Notice.show(target ? `「${useLabel(use)}」改用 ${target.model}` : `「${useLabel(use)}」改回和主模型共用`)
   return settings
 }
 
@@ -465,16 +466,16 @@ function syncSummary(session) {
 
 async function openByID(id) {
   const sessionID = id.trim()
-  if (!/^[\w-]+$/.test(sessionID)) { UI.notify('请输入有效的会话 ID'); return false }
+  if (!/^[\w-]+$/.test(sessionID)) { Notice.show('请输入有效的会话 ID'); return false }
   try {
     const source = await AgentAPI.getSession(sessionID)
     const session = normalize(source)
     if (!locate(sessionID)) store.workspaces[0].sessions.unshift(summaryOf(session))
     store.sessions[sessionID] = session
     rememberOpened(sessionID)
-    await UI.openChat(sessionID)
+    await Navigation.openChat(sessionID)
     return true
-  } catch (error) { UI.notify(error.message); return false }
+  } catch (error) { Notice.show(error.message); return false }
 }
 
 

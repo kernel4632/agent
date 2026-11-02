@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { uiFor } from '../tool-ui.js'
+import { uiFor } from '../../commands/tool.js'
 import ToolActions from './ToolActions.vue'
 import TodoView from './views/TodoView.vue'
 import CommandView from './views/CommandView.vue'

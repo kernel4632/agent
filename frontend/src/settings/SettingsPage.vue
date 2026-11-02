@@ -1,18 +1,19 @@
 <!--
 设置页外壳：全屏占用 App 主区，只负责“设置首页 / 一级页面 / 二级页面”的切换、草稿保存和关闭。
 首页按 pages.js 的 group 显示圆角卡片；点一行进入一级页面，实体页面再点一行进入二级编辑页。
-字段接线和保存逻辑都不在这里：保存统一调用 Settings.save()，关闭仍由 UI.closeSettings() 自动保存。
-调用示例：<SettingsPage />；打开首页用 UI.openSettings()，直接进详情用 UI.openSettings('providers')。
+字段接线和保存逻辑都不在这里：保存统一调用 Settings.save()，关闭仍由 Navigation.closeSettings() 自动保存。
+调用示例：<SettingsPage />；打开首页用 Navigation.openSettings()，直接进详情用 Navigation.openSettings('providers')。
 -->
 <script setup>
+import { Navigation } from '../commands/navigation.js'
+
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AppIcon, Button, IconButton } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
-import { Settings } from './settings.js'
-import { UI } from '../app/ui.js'
+import { Settings } from '../commands/settings.js'
 import { store } from '../store.js'
 
-// 当前页只存一份：UI.openSettings(section) 写 store，页面和标题都从它派生。
+// 当前页只存一份：Navigation.openSettings(section) 写 store，页面和标题都从它派生。
 const selected = computed({
   get: () => store.ui.settingsSection || '',
   set: value => { store.ui.settingsSection = value },
@@ -70,7 +71,7 @@ onBeforeUnmount(() => window.clearTimeout(autoSaveTimer))
 function goBack() {
   if (detail.value) return Settings.closeDetail()
   if (selectedPage.value) return goHome()
-  void UI.closeSettings()
+  void Navigation.closeSettings()
 }
 </script>
 

@@ -1,6 +1,6 @@
 <!-- 项目按钮：原生按钮保留表单与键盘行为。示例：<Button variant="primary" @click="save">保存</Button> -->
 <script setup>
-import { press } from './press.js'
+import { press } from '../utils/press.js'
 defineProps({
   variant: { type: String, default: 'default' },
   size: { type: String, default: 'normal' },

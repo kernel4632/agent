@@ -7,8 +7,8 @@ import './styles/tokens.scss'        // 项目自己的颜色、尺寸和动效�
 import './styles/base.scss'          // 全局重置与可访问性规则
 import App from './App.vue'
 import { startWatchers } from './watchers.js'
-import { Config } from './config.js'
-import { Workspace } from './workspace.js'
+import { Config } from './commands/config.js'
+import { Workspace } from './commands/workspace.js'
 import { store } from './store.js'
 
 startWatchers()

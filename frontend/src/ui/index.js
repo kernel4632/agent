@@ -1,5 +1,5 @@
 /* 自有 UI 出口：页面从这里导入，行为在 ui/*.vue，外观在 styles/ui/*.scss。
- * 示例：import { Button, Field, Select } from '../ui/index.js'
+ * 示例：import { Button, Field, Select } from './index.js'
  */
 export { default as AppIcon } from './AppIcon.vue'
 export { default as Button } from './Button.vue'
