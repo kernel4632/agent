@@ -1,6 +1,6 @@
 # 项目自有 UI
 
-页面只从 `src/ui/index.js` 导入控件。控件的结构、事件与临时状态写在 `ui/*.vue`，外观写在 `styles/ui/*.scss`。两者同名、一一对应，Vue 用外部 `<style scoped lang="scss" src="…">` 关联样式。
+使用处直接导入所需的 `src/ui/*.vue` 控件。控件的结构、事件与临时状态写在 Vue，外观写在 `styles/ui/*.scss`。两者同名、一一对应，Vue 用外部 `<style scoped lang="scss" src="…">` 关联样式。
 
 ## 找到要改的地方
 
@@ -23,7 +23,9 @@
 ```vue
 <script setup>
 import { ref } from 'vue'
-import { Button, Dialog, Field } from '../ui/index.js'
+import Button from '../ui/Button.vue'
+import Dialog from '../ui/Dialog.vue'
+import Field from '../ui/Field.vue'
 const open = ref(false)
 const name = ref('')
 </script>
@@ -43,7 +45,7 @@ const name = ref('')
 - `Select` 只暴露一个组合框。方向键、Home/End、字符搜索和 Enter 选择均可用。菜单按方向键移动，Escape 关闭并把焦点还给触发按钮。
 - 浮层使用原生 Popover API，避免被滚动区域裁剪。主题写在 `html`，因此顶层弹窗也能继承颜色和减少动画设置。
 - 公共尺寸：Field 64px（small 48px）、动作按钮 56px、图标按钮 48px。页面控制布局，公共控件 SCSS 控制外观。
-- 新组件必须配同名 SCSS，并从 `index.js` 导出；无专属样式的组合组件也保留对应文件作为修改入口。
+- 新组件必须配同名 SCSS，由调用方直接导入；没有统一出口文件。无专属样式的组合组件也保留对应文件作为修改入口。
 - 不为单纯的 flex、分隔线、列表或标题另建包装组件。样式写回使用它的面板；重复的键盘、焦点和输入行为才放进基础控件。
 
 运行 `bun run test` 检查组件边界与样式对应关系，`bun run test:ui` 验证键盘、弹层、设置和聊天流程，`bun run build` 验证生产构建。

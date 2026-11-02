@@ -1,0 +1,165 @@
+<!--
+抽屉会话列：搜索、按日期分组的会话、更多菜单和重命名/删除弹窗都在这里。
+放在 app/Sidebar.vue 的会话区内，桌面和手机的抽屉共用这一份逻辑。
+调用示例：<SessionList :workspace="workspace" :active-session-id="id" :query="search" @open="openSession" />
+-->
+<script setup>
+import { computed, ref } from 'vue'
+import Checkbox from '../../ui/Checkbox.vue'
+import Button from '../../ui/Button.vue'
+import Dialog from '../../ui/Dialog.vue'
+import Field from '../../ui/Field.vue'
+import Menu from '../../ui/Menu.vue'
+import { Session } from '../../commands/session.js'
+
+const MENU_ITEMS = [
+  { value: 'rename', label: '重命名' },
+  { value: 'delete', label: '删除' },
+]
+
+const props = defineProps({
+  workspace: { type: Object, default: null },
+  activeSessionId: String,
+  query: { type: String, default: '' },                 // 搜索框在 Sidebar，列表只负责过滤
+  selecting: Boolean,                                  // 批量选择模式
+  selected: { type: Array, default: () => [] },        // 已选会话 id
+})
+const emit = defineEmits(['open', 'update:query', 'update:selected'])
+
+const isSelected = id => props.selected.includes(id)
+function toggleSelected(session) {
+  const next = isSelected(session.id)
+    ? props.selected.filter(id => id !== session.id)
+    : [...props.selected, session.id]
+  emit('update:selected', next)
+}
+
+// --- 搜索 ---
+const sessions = computed(() => props.workspace?.sessions || [])
+const stampOf = item => Number(item.updatedAt || item.createdAt) || 0
+const visible = computed(() => {
+  const query = props.query.trim().toLowerCase()
+  return sessions.value
+    .filter(item => !query || (item.title || '').toLowerCase().includes(query))
+    .slice()
+    .sort((first, second) => stampOf(second) - stampOf(first))
+})
+
+// 按最后更新时间分成今天、昨天、更早；时间戳缺失时归到更早。
+const groups = computed(() => {
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const startOfYesterday = new Date(startOfToday)
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
+  const buckets = [
+    { key: 'today', label: '今天', items: [] },
+    { key: 'yesterday', label: '昨天', items: [] },
+    { key: 'earlier', label: '更早', items: [] },
+  ]
+  for (const item of visible.value) {
+    const stamp = stampOf(item)
+    if (stamp >= startOfToday.getTime()) buckets[0].items.push(item)
+    else if (stamp >= startOfYesterday.getTime()) buckets[1].items.push(item)
+    else buckets[2].items.push(item)
+  }
+  return buckets.filter(group => group.items.length)
+})
+
+// --- 重命名 / 删除 ---
+const dialogOpen = ref(false)
+const dialogMode = ref('rename')
+const target = ref(null)
+const value = ref('')
+const busy = ref(false)
+
+// 会话行的 自有 菜单只返回动作名，具体弹窗仍由这里管理。
+function onMenuSelect(session, action) {
+  if (action === 'rename') openRename(session)
+  else if (action === 'delete') openDelete(session)
+}
+
+function openRename(session) {
+  dialogMode.value = 'rename'
+  target.value = session
+  value.value = session.title || ''
+  dialogOpen.value = true
+}
+
+function openDelete(session) {
+  dialogMode.value = 'delete'
+  target.value = session
+  value.value = ''
+  dialogOpen.value = true
+}
+
+// 弹窗开关始终跟着用户的关闭动作走；请求进行中只阻止再次提交，不把关闭事件吞掉。
+function setDialogOpen(open) {
+  dialogOpen.value = open
+}
+
+async function submitDialog() {
+  if (busy.value || !target.value) return
+  busy.value = true
+  try {
+    const ok = dialogMode.value === 'rename'
+      ? await Session.rename(target.value.id, value.value)
+      : await Session.remove(target.value.id)
+    if (ok) dialogOpen.value = false
+  } finally { busy.value = false }
+}
+</script>
+
+<template>
+  <div class="home-sessions">
+    <nav class="home-sessions__list" aria-label="会话列表">
+      <template v-if="groups.length">
+        <section v-for="group in groups" :key="group.key" class="home-sessions__group">
+          <h2 class="group-label">{{ group.label }}</h2>
+          <ul class="ui-list session-list-items" :aria-label="group.label">
+            <li v-for="item in group.items" :key="item.id">
+              <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
+                <Transition name="session-check">
+                  <Checkbox
+                    v-if="selecting"
+                    class="home-session__check"
+                    :model-value="isSelected(item.id)"
+                    :aria-label="`选择 ${item.title || '新会话'}`"
+                    @update:model-value="toggleSelected(item)"
+                  />
+                </Transition>
+                <Button variant="plain" class="home-session__main" @click="selecting ? toggleSelected(item) : emit('open', item.id)">
+                  <span class="home-session__title">{{ item.title || '新会话' }}</span>
+                </Button>
+                <Menu
+                  v-if="!selecting"
+                  class="home-session__menu"
+                  :label="`${item.title || '新会话'} 的更多操作`"
+                  :items="MENU_ITEMS"
+                  @select="onMenuSelect(item, $event)"
+                />
+              </div>
+            </li>
+          </ul>
+        </section>
+      </template>
+      <div v-else class="home-empty">
+        <strong>{{ query ? '没有找到匹配的会话' : '还没有会话' }}</strong>
+        <p>{{ query ? '换个关键词试试。' : '点下面的「新建对话」开始。' }}</p>
+        <Button v-if="query" variant="ghost" @click="emit('update:query', '')">清除搜索</Button>
+      </div>
+    </nav>
+
+    <Dialog :open="dialogOpen" :label="dialogMode === 'rename' ? '重命名会话' : '删除会话'" @update:open="setDialogOpen">
+      <form @submit.prevent="submitDialog">
+        <p v-if="dialogMode === 'delete'">会话和历史记录将从服务器永久删除，无法恢复。</p>
+        <Field v-if="dialogMode === 'rename'" v-model="value" label="会话标题" placeholder="输入会话标题" required maxlength="120" />
+        <div class="dialog-actions">
+          <Button type="button" :disabled="busy" @click="setDialogOpen(false)">取消</Button>
+          <Button type="submit" :disabled="busy">{{ dialogMode === 'rename' ? '保存' : '删除' }}</Button>
+        </div>
+      </form>
+    </Dialog>
+  </div>
+</template>
+
+<style scoped lang="scss" src="../../styles/components/navigation/SessionList.scss"></style>

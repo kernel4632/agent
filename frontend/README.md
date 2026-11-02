@@ -7,7 +7,7 @@
 - `src/styles/tokens.scss`：深浅主题颜色、侧栏和聊天区尺寸变量，微调视觉优先从这里开始。
 - `src/styles/base.scss`：页面重置、全局焦点与减少动画规则。
 - `src/styles/` 镜像组件目录：例如 `src/ui/Button.vue` 对应 `src/styles/ui/Button.scss`。每个 Vue 文件通过 `<style src>` 引入唯一的同名样式文件，不内嵌样式正文。
-- `src/ui/` 是项目自有控件，由 Vue 和原生 HTML 实现；页面统一从 `src/ui/index.js` 导入。按钮、输入、弹层和选择控件不依赖第三方 UI 组件库。
+- `src/ui/` 是项目自有控件，由 Vue 和原生 HTML 实现；使用处直接导入所需的 `.vue` 文件。按钮、输入、弹层和选择控件不依赖第三方 UI 组件库。
 - `src/commands/appearance.js` 使用 Material Color Utilities 的纯色彩算法生成颜色。Hugeicons 只提供图标，Markdown 相关依赖只负责内容解析和高亮。
 
 当前外观延续迁移前的圆角表面、深浅主题和交互节奏。具体控件约定见 [UI 组件说明](src/ui/README.md)。
@@ -28,12 +28,27 @@
 | 切换页面、离页保存、提示 | `src/commands/navigation.js`、`notice.js` |
 | 网络契约 | `src/utils/api.js`；SSE 帧解析在 `src/utils/sse.js` |
 | 新会话和已有会话的页面排布 | `src/views/ChatView.vue`，两种状态共享输入接线 |
-| 模型选择面板 | `src/components/ModelPicker.vue`，输入区只控制开关和选择动作 |
-| 设置导航和各编辑面板 | `src/views/SettingsView.vue`、`src/views/pages.js`、`src/components/*Settings.vue` |
+| 模型选择面板 | `src/components/composer/ModelPicker.vue`，输入区只控制开关和选择动作 |
+| 设置导航和各编辑面板 | `src/views/SettingsView.vue` 中的装配表，及对应的设置组件 |
 
 导航可以调用会话和设置；这些功能不反向调用导航。业务状态集中在 `store.js`，公共默认值在 `defaults.js`。`commands/` 不导入 Vue 组件，`ui/` 不调用业务功能；这些约束和零循环由 `tests/architecture.test.js` 检查。
 
 工具结果统一由 `ToolResult.vue` 显示参数与返回文本/JSON，保留状态和工具声明的动作。新增工具不需要新增前端组件，也没有按工具类型分发的注册表。
+
+`components/` 按可见区域归类，样式在 `styles/components/` 中保持同样目录：
+
+| 分组 | 内容 | Vue 文件数 |
+| --- | --- | --- |
+| `navigation/` | 侧栏、会话列表、顶部栏、命令面板 | 4 |
+| `composer/` | 输入区、模型、智能体、思考强度选择 | 4 |
+| `conversation/` | 时间线、助手回复、思考、消息操作、回退确认 | 5 |
+| `activity/` | 工具调用、通用结果、任务清单、用量统计 | 4 |
+| `feedback/` | 短提示、连接错误、请求状态、压缩提示 | 4 |
+| `preferences/` | 外观、提示词、上下文、高级设置 | 4 |
+| `providers/` | 供应商列表与编辑、供应商模型、模型设置 | 4 |
+| `capabilities/` | 智能体、工具权限、MCP 列表与编辑 | 4 |
+
+`views/` 和 `ui/` 只放组件，没有独立 JS。功能操作属于 `commands/`；页面装配留在页面，通用网络和浏览器能力放 `utils/`。`commands/` 不导入 Vue，也不承担控件的转出表。
 
 当前实测结构与依赖图见 [源码体量](../docs/frontend-structure.html) 和 [依赖报告](../docs/frontend-dependencies.html)。设计依据见 [目标可视化](../docs/frontend-target.html)。
 

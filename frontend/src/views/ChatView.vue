@@ -4,17 +4,17 @@
 -->
 <script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
-import { Button } from '../ui/index.js'
-import Composer from '../components/Composer.vue'
-import AgentPicker from '../components/AgentPicker.vue'
-import TaskPanel from '../components/TaskPanel.vue'
+import Button from '../ui/Button.vue'
+import Composer from '../components/composer/Composer.vue'
+import AgentPicker from '../components/composer/AgentPicker.vue'
+import TaskPanel from '../components/activity/TaskPanel.vue'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
 import { History, canContinueSession } from '../commands/history.js'
 import { Navigation } from '../commands/navigation.js'
 import { latestTodos } from '../commands/tool.js'
 
-const Timeline = defineAsyncComponent(() => import('../components/Timeline.vue'))
+const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
 const props = defineProps({
   session: { type: Object, default: null }, model: String, agent: { type: String, default: 'build' },
   reasoning: { type: String, default: 'auto' }, files: { type: Array, default: () => [] }, busy: Boolean, todoOpen: Boolean,
