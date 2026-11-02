@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { onBeforeUnmount, ref } from 'vue'
-import { AppIcon, Button, Dialog } from '../ui/index.js'
+import { Icon, Button, Dialog } from '../ui/index.js'
 
 const props = defineProps({
   items: { type: Array, default: () => [] },
@@ -92,7 +92,7 @@ onBeforeUnmount(cancelPress)
             :disabled="item.disabled"
             @click="choose(item.value)"
           >
-            <AppIcon :name="item.icon || 'spark'" :size="18" /><span>{{ item.label }}</span>
+            <Icon :name="item.icon || 'spark'" :size="18" /><span>{{ item.label }}</span>
           </Button>
         </div>
       </div>

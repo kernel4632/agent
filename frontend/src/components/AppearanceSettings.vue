@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { Divider, Flex, RadioGroup, Select, Typography } from '../ui/index.js'
+import { RadioGroup, Select } from '../ui/index.js'
 import { Button, Switch } from '../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../store.js'
 
@@ -34,13 +34,13 @@ function reset() {
 </script>
 
 <template>
-  <Flex class="appearance-card" direction="column" :gap="4">
-    <Typography type="heading" :level="3" size="title-small">外观</Typography>
+  <div class="appearance-card">
+    <h3 class="appearance-title">外观</h3>
 
-    <Flex direction="column" :gap="6">
-      <Flex direction="column" :gap="2">
-        <Typography>界面主题</Typography>
-        <Typography type="caption">选择工作区的显示方式</Typography>
+    <div class="appearance-sections">
+      <div class="appearance-field">
+        <p class="appearance-label">界面主题</p>
+        <p class="appearance-caption">选择工作区的显示方式</p>
         <RadioGroup
           label="界面主题"
           name="theme"
@@ -49,11 +49,11 @@ function reset() {
           :model-value="appearance.theme"
           @update:model-value="update('theme', $event)"
         />
-      </Flex>
+      </div>
 
-      <Flex direction="column" :gap="2">
-        <Typography>强调色</Typography>
-        <Typography type="caption">按钮与选中状态的颜色</Typography>
+      <div class="appearance-field">
+        <p class="appearance-label">强调色</p>
+        <p class="appearance-caption">按钮与选中状态的颜色</p>
         <Select
           class="appearance-color"
           label="强调色"
@@ -61,22 +61,22 @@ function reset() {
           :model-value="appearance.color"
           @update:model-value="update('color', $event)"
         />
-      </Flex>
-    </Flex>
+      </div>
+    </div>
 
-    <Divider />
+    <hr class="ui-divider" />
 
-    <Typography type="heading" :level="3" size="title-small">通用</Typography>
+    <h3 class="appearance-title">通用</h3>
     <Switch :model-value="appearance.reduceMotion" label="减少界面动画" @update:model-value="update('reduceMotion', $event)" />
     <Switch :model-value="appearance.strongFocus" label="增强键盘焦点" @update:model-value="update('strongFocus', $event)" />
 
-    <Divider />
+    <hr class="ui-divider" />
 
-    <Flex justify="space-between" align="center" :gap="3">
-      <Typography type="caption">外观偏好保存在当前浏览器</Typography>
+    <div class="appearance-footer">
+      <p class="appearance-caption">外观偏好保存在当前浏览器</p>
       <Button variant="text" @click="reset">恢复默认</Button>
-    </Flex>
-  </Flex>
+    </div>
+  </div>
 </template>
 
 <style scoped lang="scss" src="../styles/components/AppearanceSettings.scss"></style>

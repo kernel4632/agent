@@ -19,7 +19,7 @@ import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
 import { groupMessageTurns } from '../commands/history.js'
 import { isSavedMessage } from '../commands/history.js'
-import { AppIcon, Markdown } from '../ui/index.js'
+import { Icon, Markdown } from '../ui/index.js'
 import MessageActions from './MessageActions.vue'
 import CompactionNotice from './CompactionNotice.vue'
 
@@ -165,7 +165,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
   <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
     <span ref="topSentinel" class="conversation-top-sentinel" aria-hidden="true"></span>
     <button v-if="earlierCount" type="button" class="conversation-earlier" @click="loadEarlier">
-      <AppIcon name="up" :size="14" />
+      <Icon name="up" :size="14" />
       更早的 {{ earlierCount }} 轮
     </button>
     <article v-for="turn in visibleTurns" :key="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'la 的回复'">
@@ -183,7 +183,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
               <Markdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
               <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
                 <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
-                  <AppIcon name="document" :size="14" />
+                  <Icon name="document" :size="14" />
                   <span class="user-attachment__name">{{ file.name }}</span>
                 </span>
               </div>
@@ -202,7 +202,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
       </template>
     </article>
     <button v-if="!pinned" type="button" class="conversation-latest" @click="jumpToBottom">
-      <AppIcon name="down" :size="14" />
+      <Icon name="down" :size="14" />
       回到最新
     </button>
     <RollbackDialog

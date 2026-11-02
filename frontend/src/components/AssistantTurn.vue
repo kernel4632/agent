@@ -10,7 +10,7 @@ import { Notice } from '../commands/notice.js'
 import { copyText } from '../utils/clipboard.js'
 
 import { computed, ref } from 'vue'
-import { AppIcon, Markdown, SmoothMarkdown } from '../ui/index.js'
+import { Icon, Markdown } from '../ui/index.js'
 import { useSmoothText } from '../utils/smooth-text.js'
 import { outputText } from '../commands/tool.js'
 import { isFinishedStopTool } from '../commands/history.js'
@@ -121,7 +121,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
       <RequestStatus v-if="requests.length" :requests="requests" />
       <div v-if="showSteps" class="cot-card">
         <button v-if="canCollapse" type="button" class="cot-fold" :class="{ 'is-open': expandedSteps }" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
-          <AppIcon name="down" :size="14" />
+          <Icon name="down" :size="14" />
           <span>{{ expandedSteps ? '收起过程' : `展开其余 ${hiddenSteps} 步` }}</span>
         </button>
         <div class="cot-steps">
@@ -134,10 +134,10 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
               :finished-at="step.message.finishedAt"
             />
             <div v-else-if="step.type === 'text'" class="cot-step cot-step--text">
-              <span class="cot-step__icon"><AppIcon name="chat" :size="16" /></span>
+              <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
               <div class="cot-step__main">
                 <div class="cot-step__body cot-step__body--text">
-                  <SmoothMarkdown :content="step.text" compact />
+                  <Markdown smooth :content="step.text" compact />
                 </div>
               </div>
             </div>

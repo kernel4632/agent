@@ -6,8 +6,8 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { CheckboxGroup, Select } from '../ui/index.js'
-import { AppIcon, Button, Field, Switch } from '../ui/index.js'
+import { Checkbox, Select } from '../ui/index.js'
+import { Icon, Button, Field, Switch } from '../ui/index.js'
 import { store } from '../store.js'
 
 const props = defineProps({
@@ -118,7 +118,7 @@ function patchPermission(text) {
   <section v-if="!detail" class="agents-page" aria-label="智能体">
     <header class="agents-head">
       <p>每个智能体有自己的提示词、模型、工具和权限；切换时只改这次会话的运行方式。</p>
-      <Button @click="addAgent"><AppIcon name="plus" :size="18" />新建智能体</Button>
+      <Button @click="addAgent"><Icon name="plus" :size="18" />新建智能体</Button>
     </header>
 
     <div v-if="rows.length" class="agents-card">
@@ -129,13 +129,13 @@ function patchPermission(text) {
         class="agent-row"
         @click="openAgent(agent)"
       >
-        <span class="agent-row__icon" aria-hidden="true"><AppIcon :name="agent.name === 'ask' ? 'chat' : agent.readOnly ? 'eye' : 'code'" :size="20" /></span>
+        <span class="agent-row__icon" aria-hidden="true"><Icon :name="agent.name === 'ask' ? 'chat' : agent.readOnly ? 'eye' : 'code'" :size="20" /></span>
         <span class="agent-row__copy">
           <strong>{{ agent.label || agent.name }}</strong>
           <small>{{ agent.description || '没有说明' }}</small>
         </span>
         <span class="agent-row__badge">{{ agent.builtin === false ? '自定义' : '内置' }}</span>
-        <AppIcon name="arrow" :size="16" class="agent-row__arrow" aria-hidden="true" />
+        <Icon name="arrow" :size="16" class="agent-row__arrow" aria-hidden="true" />
       </Button>
     </div>
     <p v-else class="agents-empty">还没有可用的智能体。</p>
@@ -143,7 +143,7 @@ function patchPermission(text) {
 
   <section v-else-if="selected" class="agent-detail" aria-label="智能体设置">
     <header class="agent-detail__head">
-      <span class="agent-detail__icon" aria-hidden="true"><AppIcon :name="selected.name === 'ask' ? 'chat' : selected.readOnly ? 'eye' : 'code'" :size="22" /></span>
+      <span class="agent-detail__icon" aria-hidden="true"><Icon :name="selected.name === 'ask' ? 'chat' : selected.readOnly ? 'eye' : 'code'" :size="22" /></span>
       <div>
         <h3>{{ selected.label || selected.name }}</h3>
         <p>{{ selected.builtin === false ? '自定义智能体' : '内置智能体' }} · {{ selected.name }}</p>
@@ -190,13 +190,9 @@ function patchPermission(text) {
 
       <div v-if="!allTools" class="agent-field">
         <span class="agent-field__label">工具</span>
-        <CheckboxGroup
-          class="agent-tools"
-          label="工具"
-          :options="toolOptions"
-          :model-value="selected.tools || []"
-          @update:model-value="patchTools"
-        />
+        <div class="ui-checkbox-group agent-tools" role="group" aria-label="工具">
+          <Checkbox v-for="item in toolOptions" :key="item.value" :label="item.label" :disabled="item.disabled" :model-value="(selected.tools || []).includes(item.value)" @update:model-value="checked => patchTools(checked ? [...(selected.tools || []), item.value] : selected.tools.filter(name => name !== item.value))" />
+        </div>
       </div>
 
       <Field

@@ -5,8 +5,8 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { Popover, RingProgress } from '../ui/index.js'
-import { AppIcon } from '../ui/index.js'
+import { Menu, RingProgress } from '../ui/index.js'
+import { Icon } from '../ui/index.js'
 
 const props = defineProps({
   stats: { type: Object, required: true },
@@ -98,7 +98,7 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 </script>
 
 <template>
-  <Popover class="session-stats" :label="`上下文占用 ${percentText}，点击查看会话统计`" content-label="会话统计">
+  <Menu mode="content" class="session-stats" :label="`上下文占用 ${percentText}，点击查看会话统计`" content-label="会话统计">
     <template #trigger>
       <RingProgress
         class="session-stats__ring"
@@ -116,7 +116,7 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 
     <div class="stats-panel">
       <div class="stats-panel__head">
-        <span class="stats-panel__heading"><AppIcon name="stats" :size="15" />会话统计</span>
+        <span class="stats-panel__heading"><Icon name="stats" :size="15" />会话统计</span>
         <span v-if="approximate" class="stats-panel__badge" title="旧会话没有保存每次请求的用量，数字按消息内容估算">估算</span>
       </div>
 
@@ -133,7 +133,7 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
           <span class="stats-panel__percent">{{ percentText }}</span>
         </div>
         <div class="stats-panel__context">
-          <div class="stats-panel__eyebrow"><AppIcon name="layers" :size="14" />上下文</div>
+          <div class="stats-panel__eyebrow"><Icon name="layers" :size="14" />上下文</div>
           <div class="stats-panel__value">
             <strong>{{ formatTokens(context.used, contextApproximate) }}</strong>
             <span>/ {{ formatTokens(context.limit) }}</span>
@@ -153,7 +153,7 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
         <div class="stats-panel__divider"></div>
         <div class="stats-panel__usage">
           <div class="stats-panel__usage-head">
-            <span class="stats-panel__heading"><AppIcon name="activity" :size="15" />用量走势</span>
+            <span class="stats-panel__heading"><Icon name="activity" :size="15" />用量走势</span>
             <strong>{{ formatTokens(total, usageApproximate) }} <small>tokens</small></strong>
           </div>
           <div
@@ -185,22 +185,22 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
             <span>最高 {{ formatTokens(trendMax, usageApproximate) }}</span>
           </div>
           <div class="stats-panel__legend">
-            <span><i class="is-input"></i><AppIcon name="up" :size="12" />输入 {{ formatTokens(usage.input, usageApproximate) }}</span>
-            <span><i class="is-output"></i><AppIcon name="down" :size="12" />输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
-            <span v-if="cacheHit" class="stats-panel__cache"><i class="is-cache"></i><AppIcon name="download" :size="12" />{{ cacheHit }}%</span>
+            <span><i class="is-input"></i><Icon name="up" :size="12" />输入 {{ formatTokens(usage.input, usageApproximate) }}</span>
+            <span><i class="is-output"></i><Icon name="down" :size="12" />输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
+            <span v-if="cacheHit" class="stats-panel__cache"><i class="is-cache"></i><Icon name="download" :size="12" />{{ cacheHit }}%</span>
           </div>
         </div>
 
         <div class="stats-panel__chips">
           <div v-for="cell in cells" :key="cell.key" class="stats-panel__chip">
-            <span class="stats-panel__chip-icon"><AppIcon :name="cell.icon" :size="14" /></span>
+            <span class="stats-panel__chip-icon"><Icon :name="cell.icon" :size="14" /></span>
             <strong>{{ cell.value }}</strong>
             <small>{{ cell.label }}</small>
           </div>
         </div>
       </template>
     </div>
-  </Popover>
+  </Menu>
 </template>
 
 <style scoped lang="scss" src="../styles/components/StatsPanel.scss"></style>

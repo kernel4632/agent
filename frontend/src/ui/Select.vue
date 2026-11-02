@@ -1,7 +1,7 @@
 <!-- 下拉选择：单一组合框、方向键、首尾键与字符搜索。示例：<Select v-model="color" :items="colors" label="颜色" /> -->
 <script setup>
 import { computed, nextTick, ref, useId } from 'vue'
-import AppIcon from './AppIcon.vue'
+import Icon from './Icon.vue'
 import { usePopup } from '../utils/popup.js'
 const props = defineProps({ modelValue: [String, Number], items: { type: Array, default: () => [] }, label: String, placeholder: { type: String, default: '请选择' }, disabled: Boolean })
 const emit = defineEmits(['update:modelValue'])
@@ -40,9 +40,9 @@ function click() { active.value = Math.max(0, props.items.findIndex(item => item
 </script>
 <template>
   <div class="ui-select">
-    <button ref="trigger" type="button" class="ui-select__trigger" role="combobox" :aria-label="label" aria-haspopup="listbox" :aria-controls="id" :aria-expanded="open" :aria-activedescendant="open ? `${id}-${active}` : undefined" :disabled="disabled || !items.length" @click="click" @keydown="keydown"><span>{{ selected?.label || placeholder }}</span><AppIcon name="down" :size="20" /></button>
+    <button ref="trigger" type="button" class="ui-select__trigger" role="combobox" :aria-label="label" aria-haspopup="listbox" :aria-controls="id" :aria-expanded="open" :aria-activedescendant="open ? `${id}-${active}` : undefined" :disabled="disabled || !items.length" @click="click" @keydown="keydown"><span>{{ selected?.label || placeholder }}</span><Icon name="down" :size="20" /></button>
     <div :id="id" ref="popup" popover="auto" class="ui-select__options" role="listbox" :aria-label="label" :style="position" @toggle="onToggle">
-      <button v-for="(item, index) in items" :id="`${id}-${index}`" :key="item.value" type="button" role="option" tabindex="-1" :aria-selected="modelValue === item.value" :disabled="item.disabled" :class="{ 'is-active': index === active }" @pointerdown.prevent @click="choose(item)">{{ item.label }}<AppIcon v-if="modelValue === item.value" name="check" :size="18" /></button>
+      <button v-for="(item, index) in items" :id="`${id}-${index}`" :key="item.value" type="button" role="option" tabindex="-1" :aria-selected="modelValue === item.value" :disabled="item.disabled" :class="{ 'is-active': index === active }" @pointerdown.prevent @click="choose(item)">{{ item.label }}<Icon v-if="modelValue === item.value" name="check" :size="18" /></button>
     </div>
   </div>
 </template>

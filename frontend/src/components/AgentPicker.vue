@@ -6,7 +6,7 @@
 <script setup>
 import { computed } from 'vue'
 import { RadioGroup } from '../ui/index.js'
-import { ChoiceContent, Sheet } from '../ui/index.js'
+import { ChoiceContent, Dialog } from '../ui/index.js'
 import { store } from '../store.js'
 
 const props = defineProps({
@@ -40,7 +40,7 @@ function choose(value) {
 </script>
 
 <template>
-  <Sheet
+  <Dialog placement="bottom"
     :open="open"
     label="切换智能体"
     description="选一个现在要用的智能体，选完立即保存。"
@@ -65,7 +65,7 @@ function choose(value) {
         </template>
       </RadioGroup>
     </div>
-  </Sheet>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="../styles/components/AgentPicker.scss"></style>

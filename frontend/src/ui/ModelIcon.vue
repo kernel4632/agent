@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import AppIcon from './AppIcon.vue'
+import Icon from './Icon.vue'
 import { modelIconSvg } from './model-icon-assets.js'
 
 const props = defineProps({
@@ -20,7 +20,7 @@ const dimension = computed(() => `${Number(props.size) || 20}px`)
 <template>
   <span class="model-icon" :style="{ width: dimension, height: dimension }" aria-hidden="true">
     <span v-if="svg" class="model-icon__art" v-html="svg"></span>
-    <AppIcon v-else name="model" :size="size" />
+    <Icon v-else name="model" :size="size" />
   </span>
 </template>
 

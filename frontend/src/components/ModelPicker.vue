@@ -3,7 +3,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { AppIcon, Button, Field, ModelIcon, Sheet } from '../ui/index.js'
+import { Icon, Button, Field, ModelIcon, Dialog } from '../ui/index.js'
 
 const props = defineProps({ providers: { type: Object, required: true }, model: String, provider: String })
 const open = defineModel('open', { type: Boolean, default: false })
@@ -24,10 +24,10 @@ function choose(provider, model) {
 }
 </script>
 <template>
-  <Sheet :open="open" label="选择模型" @update:open="open = $event">
+  <Dialog placement="bottom" :open="open" label="选择模型" @update:open="open = $event">
     <div class="composer-sheet composer-sheet--models">
       <Field v-model="query" type="search" label="搜索模型" placeholder="搜索模型">
-        <template #leading><AppIcon name="search" :size="20" /></template>
+        <template #leading><Icon name="search" :size="20" /></template>
       </Field>
       <div v-if="groups.length" class="model-list">
         <section v-for="group in groups" :key="group.provider" class="model-group">
@@ -35,7 +35,7 @@ function choose(provider, model) {
           <button v-for="item in group.models" :key="item" type="button" class="model-row" :class="{ 'is-selected': item === model && group.provider === provider }" :aria-pressed="item === model && group.provider === provider" @click="choose(group.provider, item)">
             <span class="model-row__icon"><ModelIcon :model="item" :provider="group.provider" :size="28" /></span>
             <span class="model-row__name">{{ item }}</span>
-            <AppIcon v-if="item === model && group.provider === provider" name="check" :size="20" />
+            <Icon v-if="item === model && group.provider === provider" name="check" :size="20" />
           </button>
         </section>
       </div>
@@ -44,6 +44,6 @@ function choose(provider, model) {
         <Button @click="open = false; emit('configure')">打开模型设置</Button>
       </div>
     </div>
-  </Sheet>
+  </Dialog>
 </template>
 <style scoped lang="scss" src="../styles/components/ModelPicker.scss"></style>

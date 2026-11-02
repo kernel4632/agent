@@ -1,20 +1,22 @@
 <!--
-自有 Markdown：按块渲染 Markdown，代码块交给 CodeBlock，标题和段落交给 Typography。
+自有 Markdown：代码块交给 CodeBlock；标题和段落用原生语义元素。
 列表、表格、引用等块仍由 Marked 生成 HTML，再交给现有 markdown-body 样式。
 调用示例：<Markdown :content="text" compact />
 -->
 <script setup>
 import { computed } from 'vue'
 import CodeBlock from './CodeBlock.vue'
-import Typography from './Typography.vue'
+import { useSmoothText } from '../utils/smooth-text.js'
 import { lexMarkdown, renderInline, renderToken } from '../utils/markdown.js'
 
 const props = defineProps({
   content: { type: String, default: '' },
   compact: Boolean,
+  smooth: Boolean,
 })
 
-const blocks = computed(() => lexMarkdown(props.content || '').filter(token => token.type !== 'space'))
+const { text } = useSmoothText(computed(() => props.smooth ? props.content : ''))
+const blocks = computed(() => lexMarkdown((props.smooth ? text.value : props.content) || '').filter(token => token.type !== 'space'))
 const headingSize = depth => depth <= 1 ? 'title-medium' : 'title-small'
 
 function closedCode(token) {
@@ -39,17 +41,17 @@ function inlineHTML(token) {
         :line-numbers="token.text.split('\n').length > 8"
       />
       <pre v-else-if="token.type === 'code'" class="ui-md__code-fallback"><code>{{ token.text }}</code></pre>
-      <Typography
+      <component
         v-else-if="token.type === 'heading'"
-        type="heading"
-        :level="token.depth"
-        :size="headingSize(token.depth)"
+        :is="`h${token.depth}`"
+        class="ui-typography ui-typography--heading"
+        :class="`ui-typography--${headingSize(token.depth)}`"
       >
         <span v-html="inlineHTML(token)"></span>
-      </Typography>
-      <Typography v-else-if="token.type === 'paragraph'" type="body" size="body-medium">
+      </component>
+      <p v-else-if="token.type === 'paragraph'" class="ui-typography ui-typography--body ui-typography--body-medium">
         <span v-html="inlineHTML(token)"></span>
-      </Typography>
+      </p>
       <div v-else class="ui-md__block" v-html="renderToken(token)"></div>
     </template>
   </div>

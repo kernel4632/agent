@@ -5,8 +5,8 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { Checkbox, List } from '../ui/index.js'
-import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
+import { Checkbox } from '../ui/index.js'
+import { Button, Dialog, Field, Menu } from '../ui/index.js'
 import { Session } from '../commands/session.js'
 
 const MENU_ITEMS = [
@@ -112,8 +112,8 @@ async function submitDialog() {
       <template v-if="groups.length">
         <section v-for="group in groups" :key="group.key" class="home-sessions__group">
           <h2 class="group-label">{{ group.label }}</h2>
-          <List variant="plain" :gap="2" :items="group.items" :label="group.label">
-            <template #item="{ item }">
+          <ul class="ui-list session-list-items" :aria-label="group.label">
+            <li v-for="item in group.items" :key="item.id">
               <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
                 <Transition name="session-check">
                   <Checkbox
@@ -127,7 +127,7 @@ async function submitDialog() {
                 <Button variant="plain" class="home-session__main" @click="selecting ? toggleSelected(item) : emit('open', item.id)">
                   <span class="home-session__title">{{ item.title || '新会话' }}</span>
                 </Button>
-                <MenuButton
+                <Menu
                   v-if="!selecting"
                   class="home-session__menu"
                   :label="`${item.title || '新会话'} 的更多操作`"
@@ -135,8 +135,8 @@ async function submitDialog() {
                   @select="onMenuSelect(item, $event)"
                 />
               </div>
-            </template>
-          </List>
+            </li>
+          </ul>
         </section>
       </template>
       <div v-else class="home-empty">

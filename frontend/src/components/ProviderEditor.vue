@@ -8,10 +8,8 @@
 import { Provider } from '../commands/provider.js'
 
 import { computed, ref } from 'vue'
-import {
-  JsonInput, Select, Tabs,
-} from '../ui/index.js'
-import { AppIcon, Button, Dialog, Field, Switch } from '../ui/index.js'
+import { JsonInput, Select, Tabs,  } from '../ui/index.js'
+import { Icon, Button, Dialog, Field, Switch } from '../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
 import { Settings } from '../commands/settings.js'
 
@@ -120,7 +118,7 @@ async function testConnection() {
           <div class="provider-test">
             <div class="provider-test__actions">
               <Button variant="tonal" :disabled="testing" @click="testConnection">
-                <AppIcon name="play" :size="18" />
+                <Icon name="play" :size="18" />
                 <span>{{ testing ? '正在测试…' : '测试连接' }}</span>
               </Button>
               <span class="provider-test__note">用列表里的第一个模型发一句很短的话。</span>
@@ -130,7 +128,7 @@ async function testConnection() {
 
           <div class="provider-danger">
             <Button variant="text" class="provider-delete" @click="deleteOpen = true">
-              <AppIcon name="trash" :size="18" />
+              <Icon name="trash" :size="18" />
               <span>删除供应商</span>
             </Button>
             <span>删除后会自动保存，这个供应商的模型和地址都会一起移除。</span>

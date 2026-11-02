@@ -6,8 +6,8 @@
 <script setup>
 import { computed } from 'vue'
 import { Dialog } from '../ui/index.js'
-import { AppIcon } from '../ui/index.js'
-import { Progress } from '../ui/index.js'
+import { Icon } from '../ui/index.js'
+
 import { todoStatus } from '../commands/tool.js'
 
 const props = defineProps({
@@ -35,12 +35,12 @@ const label = status => todoStatus(status).label
           <span>当前进度</span>
           <strong>{{ done }} / {{ todos.length }}</strong>
         </div>
-        <Progress class="session-todo-panel__bar" :value="done" :max="todos.length" label="任务完成进度" />
+        <progress class="ui-progress session-todo-panel__bar" :value="done" :max="todos.length" aria-label="任务完成进度"></progress>
       </header>
 
       <div v-if="todos.length" class="session-todo-panel__list">
         <div v-for="(item, index) in todos" :key="`${index}-${item.text}`" class="session-todo-panel__item">
-          <AppIcon :name="icon(item.status)" :size="16" class="session-todo-panel__icon" :class="`is-${item.status}`" />
+          <Icon :name="icon(item.status)" :size="16" class="session-todo-panel__icon" :class="`is-${item.status}`" />
           <span class="session-todo-panel__text" :class="{ 'is-done': item.status === 'completed' }">{{ item.text }}</span>
           <span class="session-todo-panel__status" :class="`is-${item.status}`">{{ label(item.status) }}</span>
         </div>

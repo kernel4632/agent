@@ -5,7 +5,7 @@ MCP 服务页：默认是服务列表；点一行进入该服务的编辑页。
 -->
 <script setup>
 import { computed } from 'vue'
-import { AppIcon, Button } from '../ui/index.js'
+import { Icon, Button } from '../ui/index.js'
 import MCPEditor from './MCPEditor.vue'
 
 const props = defineProps({
@@ -52,7 +52,7 @@ function removeMCP() {
   <section v-if="!detail" class="mcp-list" aria-label="MCP 服务">
     <header class="mcp-list__head">
       <p>连接外部工具服务，让模型可以调用浏览器、数据库或其他本地能力。</p>
-      <Button @click="addMCP()"><AppIcon name="plus" :size="18" />添加服务</Button>
+      <Button @click="addMCP()"><Icon name="plus" :size="18" />添加服务</Button>
     </header>
 
     <div v-if="draft.mcp.length" class="mcp-list__card">
@@ -63,13 +63,13 @@ function removeMCP() {
         class="mcp-row"
         @click="emit('open-detail', { id: item.id, title: item.name })"
       >
-        <span class="mcp-row__icon" aria-hidden="true"><AppIcon name="link" :size="20" /></span>
+        <span class="mcp-row__icon" aria-hidden="true"><Icon name="link" :size="20" /></span>
         <span class="mcp-row__copy">
           <strong>{{ item.name }}</strong>
           <small>{{ item.command || '未配置命令或地址' }}</small>
         </span>
         <span class="mcp-row__state" :class="{ 'is-on': item.enabled }">{{ item.enabled ? '已启用' : '已停用' }}</span>
-        <AppIcon name="arrow" :size="16" class="mcp-row__arrow" aria-hidden="true" />
+        <Icon name="arrow" :size="16" class="mcp-row__arrow" aria-hidden="true" />
       </Button>
     </div>
 

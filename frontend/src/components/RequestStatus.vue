@@ -5,8 +5,8 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Spinner } from '../ui/index.js'
-import { AppIcon } from '../ui/index.js'
+
+import { Icon } from '../ui/index.js'
 
 const props = defineProps({
   requests: { type: Array, default: () => [] },
@@ -61,8 +61,8 @@ onBeforeUnmount(() => window.clearInterval(timer))
     :aria-label="`${label} ${detail}`"
   >
     <span class="request-status__icon">
-      <Spinner v-if="running" size="small" decorative />
-      <AppIcon v-else :name="failed ? 'close' : 'stats'" :size="16" />
+      <span v-if="running" class="ui-spinner ui-spinner--small" aria-hidden="true"><span class="ui-spinner__ring"></span></span>
+      <Icon v-else :name="failed ? 'close' : 'stats'" :size="16" />
     </span>
     <span class="request-status__main">
       <span class="request-status__label">{{ label }}</span>

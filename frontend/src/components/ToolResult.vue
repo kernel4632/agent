@@ -6,7 +6,7 @@
 <script setup>
 import { Notice } from '../commands/notice.js'
 import { copyText } from '../utils/clipboard.js'
-import { AppIcon, Button } from '../ui/index.js'
+import { Icon, Button } from '../ui/index.js'
 import { computed } from 'vue'
 import { uiFor, actionTarget, toolActions } from '../commands/tool.js'
 
@@ -39,7 +39,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
     <component :is="view" :tool="tool" />
     <div v-if="actions.length" class="tool-actions">
       <Button v-for="action in actions" :key="action.id" variant="ghost" size="small" @click="run(action)">
-        <AppIcon v-if="action.icon" :name="action.icon" :size="13" />{{ action.label }}
+        <Icon v-if="action.icon" :name="action.icon" :size="13" />{{ action.label }}
       </Button>
     </div>
   </div>

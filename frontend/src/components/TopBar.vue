@@ -13,7 +13,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
+import { Icon, Button, Dialog, Field } from '../ui/index.js'
 import StatsPanel from './StatsPanel.vue'
 import { sessionStats } from '../commands/stats.js'
 import { latestTodos } from '../commands/tool.js'
@@ -52,16 +52,16 @@ async function saveTitle() {
 
 <template>
   <header class="topbar">
-    <IconButton class="topbar__menu" label="打开会话抽屉" title="打开会话抽屉" @click="emit('menu')"><AppIcon name="menu" :size="18" /></IconButton>
+    <Button icon class="topbar__menu" label="打开会话抽屉" title="打开会话抽屉" @click="emit('menu')"><Icon name="menu" :size="18" /></Button>
 
     <div class="topbar__heading">
       <h1 :title="title"><button v-if="session" type="button" class="topbar__title" @click="openRename">{{ title }}</button><template v-else>{{ title }}</template></h1>
     </div>
 
     <div class="topbar__actions">
-      <IconButton v-if="session && hasTodos" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><AppIcon :name="todoOpen ? 'close' : 'todo'" :size="18" /></IconButton>
+      <Button icon v-if="session && hasTodos" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><Icon :name="todoOpen ? 'close' : 'todo'" :size="18" /></Button>
       <StatsPanel v-if="stats" :stats="stats" />
-      <IconButton label="设置" title="设置" @click="emit('settings')"><AppIcon name="settings" :size="18" /></IconButton>
+      <Button icon label="设置" title="设置" @click="emit('settings')"><Icon name="settings" :size="18" /></Button>
     </div>
   </header>
 

@@ -6,7 +6,7 @@ MCP 服务编辑页：编辑一个服务的传输方式、命令或地址、参�
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { Select } from '../ui/index.js'
-import { AppIcon, Button, Dialog, Field, Switch } from '../ui/index.js'
+import { Icon, Button, Dialog, Field, Switch } from '../ui/index.js'
 
 const props = defineProps({ item: { type: Object, required: true } })
 const emit = defineEmits(['update', 'delete'])
@@ -100,7 +100,7 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
     />
 
     <footer class="mcp-actions">
-      <Button variant="danger" @click="deleteOpen = true"><AppIcon name="trash" :size="18" />删除此服务</Button>
+      <Button variant="danger" @click="deleteOpen = true"><Icon name="trash" :size="18" />删除此服务</Button>
     </footer>
   </form>
 

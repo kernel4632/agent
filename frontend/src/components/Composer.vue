@@ -20,7 +20,7 @@
 import { Navigation } from '../commands/navigation.js'
 
 import { computed, nextTick, ref, watch } from 'vue'
-import { AppIcon, Button, Chip, ModelIcon, Sheet } from '../ui/index.js'
+import { Icon, Button, Chip, ModelIcon, Dialog } from '../ui/index.js'
 import { store } from '../store.js'
 import { Session } from '../commands/session.js'
 import ModelPicker from './ModelPicker.vue'
@@ -144,7 +144,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     <Transition name="attachments">
       <div v-if="files.length" class="chat-composer__files">
         <Chip v-for="file in files" :key="file.id" class="chat-composer__file" closable :label="file.name" @close="emit('remove-file', file.id)">
-          <AppIcon name="document" :size="16" />{{ file.name }}
+          <Icon name="document" :size="16" />{{ file.name }}
         </Chip>
       </div>
     </Transition>
@@ -171,7 +171,7 @@ defineExpose({ focus: () => editor.value?.focus() })
         @mousedown.prevent
         @click="toggleExpanded"
       >
-        <AppIcon :name="expanded ? 'collapse' : 'fullscreen'" :size="12" />
+        <Icon :name="expanded ? 'collapse' : 'fullscreen'" :size="12" />
       </button>
     </div>
     <div class="chat-composer__bottom">
@@ -180,16 +180,16 @@ defineExpose({ focus: () => editor.value?.focus() })
         <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
         <button v-if="showSessionControls" type="button" class="composer-agent" :class="{ 'is-open': agentOpen }"
           :aria-label="`切换智能体（当前 ${agent || '智能体'}）`" :title="`切换智能体（当前 ${agent || '智能体'}）`" @click="emit('open-agent')">
-          <AppIcon name="mode" :size="18" />
+          <Icon name="mode" :size="18" />
           <span class="composer-agent__label">{{ agent || '智能体' }}</span>
         </button>
       </div>
       <div class="chat-composer__right">
-        <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
+        <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><Icon name="plus" :size="18" /></button>
         <Transition name="send" mode="out-in">
-          <Button v-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><AppIcon name="stop" :size="18" /></Button>
-          <Button v-else-if="canContinue && !draft.trim()" key="continue" variant="plain" class="chat-composer__send is-continue" type="button" aria-label="继续助手" title="继续助手" :disabled="busy || !selectedModel" @click="emit('continue')"><AppIcon name="play" :size="18" /></Button>
-          <Button v-else key="send" variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><AppIcon name="up" :size="18" /></Button>
+          <Button v-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><Icon name="stop" :size="18" /></Button>
+          <Button v-else-if="canContinue && !draft.trim()" key="continue" variant="plain" class="chat-composer__send is-continue" type="button" aria-label="继续助手" title="继续助手" :disabled="busy || !selectedModel" @click="emit('continue')"><Icon name="play" :size="18" /></Button>
+          <Button v-else key="send" variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><Icon name="up" :size="18" /></Button>
         </Transition>
       </div>
     </div>
@@ -199,14 +199,14 @@ defineExpose({ focus: () => editor.value?.focus() })
 
   <ModelPicker v-model:open="modelOpen" :providers="store.config.providers" :model="selectedModel" :provider="currentProvider" @choose="chooseModel" @configure="Navigation.openSettings('providers')" />
 
-  <Sheet :open="addOpen" label="更多选项" @update:open="addOpen = $event">
+  <Dialog placement="bottom" :open="addOpen" label="更多选项" @update:open="addOpen = $event">
     <div class="composer-sheet">
       <div class="composer-sheet__list">
-        <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><AppIcon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
-        <button v-if="showSessionControls && sessionId" type="button" :title="agent ? `当前智能体：${agent}` : undefined" @click="addOpen = false; emit('open-agent')"><AppIcon name="eye" :size="20" /><span>切换智能体</span></button>
+        <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><Icon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
+        <button v-if="showSessionControls && sessionId" type="button" :title="agent ? `当前智能体：${agent}` : undefined" @click="addOpen = false; emit('open-agent')"><Icon name="eye" :size="20" /><span>切换智能体</span></button>
       </div>
     </div>
-  </Sheet>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="../styles/components/Composer.scss"></style>

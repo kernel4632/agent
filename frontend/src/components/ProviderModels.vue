@@ -10,10 +10,8 @@ import { Provider } from '../commands/provider.js'
 import { Notice } from '../commands/notice.js'
 
 import { computed, ref } from 'vue'
-import {
-  Card, Chip, Flex, NumberField, Typography,
-} from '../ui/index.js'
-import { AppIcon, Button, Dialog, Field, IconButton, ModelIcon, Switch } from '../ui/index.js'
+import { Chip, Field,  } from '../ui/index.js'
+import { Icon, Button, Dialog, ModelIcon, Switch } from '../ui/index.js'
 import { Settings } from '../commands/settings.js'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
@@ -127,11 +125,11 @@ function saveModel() {
   <div class="provider-models">
     <header class="provider-models__head">
       <div>
-        <Typography type="heading" :level="3" size="title-small">模型</Typography>
+        <h3 class="provider-models__title">模型</h3>
         <p>{{ models.length }} 个模型。列表里的第一个会作为这个供应商的默认模型。</p>
       </div>
       <Button variant="tonal" :disabled="loading" @click="discover">
-        <AppIcon name="download" :size="18" />
+        <Icon name="download" :size="18" />
         <span>{{ loading ? '获取中…' : '获取模型列表' }}</span>
       </Button>
     </header>
@@ -146,7 +144,7 @@ function saveModel() {
         @keydown.enter.prevent="addManual"
       />
       <Button :disabled="!manual.trim()" @click="addManual">
-        <AppIcon name="plus" :size="18" />
+        <Icon name="plus" :size="18" />
         <span>添加模型</span>
       </Button>
     </div>
@@ -154,7 +152,7 @@ function saveModel() {
     <p v-if="!models.length" class="provider-models__empty">还没有模型。可以获取供应商支持的模型，也可以手动填一个 ID。</p>
 
     <div v-else class="provider-models__list">
-      <Card v-for="(model, index) in models" :key="model.id" variant="outlined" class="model-card">
+      <div v-for="(model, index) in models" :key="model.id" class="ui-card model-card"><div class="ui-card__body">
         <div class="model-card__main">
           <div class="model-card__title">
             <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
@@ -167,12 +165,12 @@ function saveModel() {
           </div>
         </div>
         <div class="model-card__actions">
-          <IconButton label="上移模型" variant="text" :disabled="index === 0" @click="moveModel(index, -1)"><AppIcon name="up" :size="18" /></IconButton>
-          <IconButton label="下移模型" variant="text" :disabled="index === models.length - 1" @click="moveModel(index, 1)"><AppIcon name="down" :size="18" /></IconButton>
-          <IconButton label="编辑模型" variant="text" @click="editModel(model)"><AppIcon name="edit" :size="18" /></IconButton>
-          <IconButton :label="`移除模型 ${model.name}`" variant="text" @click="removeModel(model.id)"><AppIcon name="trash" :size="18" /></IconButton>
+          <Button icon label="上移模型" variant="text" :disabled="index === 0" @click="moveModel(index, -1)"><Icon name="up" :size="18" /></Button>
+          <Button icon label="下移模型" variant="text" :disabled="index === models.length - 1" @click="moveModel(index, 1)"><Icon name="down" :size="18" /></Button>
+          <Button icon label="编辑模型" variant="text" @click="editModel(model)"><Icon name="edit" :size="18" /></Button>
+          <Button icon :label="`移除模型 ${model.name}`" variant="text" @click="removeModel(model.id)"><Icon name="trash" :size="18" /></Button>
         </div>
-      </Card>
+      </div></div>
     </div>
   </div>
 
@@ -191,7 +189,7 @@ function saveModel() {
           <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
           <span class="model-chooser__name">{{ model.name }}</span>
           <span class="model-chooser__id">{{ model.id }}</span>
-          <AppIcon v-if="models.some(item => item.id === model.id)" name="check" :size="18" class="model-chooser__check" />
+          <Icon v-if="models.some(item => item.id === model.id)" name="check" :size="18" class="model-chooser__check" />
         </Button>
         <p v-if="!filtered.length" class="model-chooser__empty">没有匹配的模型。</p>
       </div>
@@ -202,7 +200,7 @@ function saveModel() {
   </Dialog>
 
   <Dialog :open="Boolean(editing)" label="编辑模型" @update:open="value => { if (!value) editing = null }">
-    <Flex v-if="editDraft" direction="column" :gap="4">
+    <div v-if="editDraft" class="model-edit">
       <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" readonly />
       <Field caption="显示名称" label="显示名称" :model-value="editDraft.name" clearable @update:model-value="editDraft.name = $event" />
 
@@ -229,11 +227,11 @@ function saveModel() {
             @update:model-value="value => setContext(value ? preset : 0)"
           >{{ formatContext(preset) }}</Chip>
         </div>
-        <NumberField label="上下文窗口" :min="0" :step="1000" :model-value="Number(editDraft.context) || 0" @update:model-value="setContext" />
+        <Field type="number" label="上下文窗口" :min="0" :step="1000" :model-value="Number(editDraft.context) || 0" @update:model-value="setContext" />
         <p class="model-edit__hint">不填就按 128K 处理；填了以后压缩阈值按这个窗口计算。</p>
       </div>
       <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
-    </Flex>
+    </div>
     <template #footer>
       <Button variant="text" @click="editing = null">取消</Button>
       <Button @click="saveModel">保存模型</Button>
