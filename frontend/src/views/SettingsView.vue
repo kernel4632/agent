@@ -109,7 +109,7 @@ function goBack() {
 </script>
 
 <template>
-  <section class="settings-screen" aria-label="设置">
+  <section class="settings-screen" :class="{ 'settings-screen--provider': selected === 'providers' && detail }" aria-label="设置">
     <header class="settings-topbar">
       <div class="settings-topbar__inner">
         <div class="settings-topbar__actions">

@@ -12,6 +12,8 @@ Vue 3 + Vite 聊天前端。会话从左侧抽屉打开，新对话在首次发�
 
 具体控件约定见 [UI 组件说明](src/ui/README.md)。所有模型使用通用图标，不保存品牌 SVG。
 
+供应商管理参考 [RikkaHub 的供应商页面](https://github.com/rikkahub/rikkahub/blob/master/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingProviderDetailPage.kt)：添加前先选接口类型，详情分为配置、模型和高级设置。连接字段使用分段表单，底部操作栏与滚动内容分开；模型在底部面板中添加或编辑，可用模型支持搜索与批量选择。配置仍自动保存，模型编辑确认后才写入草稿。
+
 ## 从哪里修改
 
 功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分，同类区域每组 3～5 个文件。

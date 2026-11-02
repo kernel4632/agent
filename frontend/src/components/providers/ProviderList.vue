@@ -1,12 +1,15 @@
 <!--
-模型供应商页：默认是供应商列表；点一行进入该供应商的编辑页。
-列表和编辑页共用 draft.providers，保存仍由设置页自动完成。
+模型供应商页：搜索与卡片列表，添加时先选接口类型，再进入配置详情。
+布局参考 RikkaHub SettingProviderPage；列表和编辑页共用 draft.providers。
 调用示例：<ProviderList :draft="draft" :detail="detail" @open-detail="..." @close-detail="..." @update-detail-title="..." />
 -->
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
+import Dialog from '../../ui/Dialog.vue'
+import Field from '../../ui/Field.vue'
+import { Provider, PROVIDER_TYPES } from '../../commands/provider.js'
 import ProviderEditor from './ProviderEditor.vue'
 
 const props = defineProps({
@@ -14,17 +17,24 @@ const props = defineProps({
   detail: { type: Object, default: null },
 })
 const emit = defineEmits(['open-detail', 'close-detail', 'update-detail-title'])
+const search = ref('')
+const addOpen = ref(false)
+const filtered = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  return props.draft.providers.filter(provider => `${provider.name} ${provider.apiUrl}`.toLowerCase().includes(query))
+})
+const typeLabel = type => PROVIDER_TYPES.find(item => item.value === type)?.label || type
 
 const selected = computed(() => props.detail
   ? props.draft.providers.find(item => item.id === props.detail.id) ?? null
   : null)
 
-function addProvider() {
+function addProvider(type) {
   const providers = props.draft.providers
-  let number = providers.length + 1
-  while (providers.some(item => item.name === `Provider ${number}`)) number += 1
-  const provider = { id: crypto.randomUUID(), name: `Provider ${number}`, enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', stream: true, headers: '{}', body: '{}', models: [] }
-  providers.push(provider)
+  const provider = Provider.createDraft(type, providers)
+  providers.unshift(provider)
+  search.value = ''
+  addOpen.value = false
   emit('open-detail', { id: provider.id, title: provider.name })
 }
 
@@ -56,29 +66,41 @@ function removeProvider() {
 <template>
   <section v-if="!detail" class="provider-list" aria-label="模型供应商">
     <header class="provider-list__head">
-      <p>连接模型服务，管理每个供应商下的可用模型。</p>
-      <Button @click="addProvider()"><Icon name="plus" :size="18" />添加供应商</Button>
+      <Field v-model="search" type="search" label="搜索供应商" placeholder="搜索供应商" clearable>
+        <template #leading><Icon name="search" /></template>
+      </Field>
+      <Button icon variant="tonal" label="添加供应商" class="provider-list__add" @click="addOpen = true"><Icon name="plus" :size="24" /></Button>
     </header>
+    <p class="provider-list__count">{{ search.trim() ? `找到 ${filtered.length} 个供应商` : `${draft.providers.length} 个供应商` }}</p>
 
-    <div v-if="draft.providers.length" class="provider-list__card">
+    <div v-if="filtered.length" class="provider-list__cards">
       <Button
-        v-for="provider in draft.providers"
+        v-for="provider in filtered"
         :key="provider.id"
         variant="plain"
         class="provider-row"
+        :class="{ 'is-disabled': !provider.enabled }"
         @click="emit('open-detail', { id: provider.id, title: provider.name })"
       >
-        <span class="provider-row__icon" aria-hidden="true"><Icon name="globe" :size="20" /></span>
+        <span class="provider-row__icon" aria-hidden="true"><Icon name="globe" :size="24" /></span>
         <span class="provider-row__copy">
           <strong>{{ provider.name }}</strong>
-          <small>{{ provider.apiUrl || '未填写请求地址' }} · {{ provider.models.length }} 个模型</small>
+          <small>{{ provider.apiUrl || typeLabel(provider.apiType) }}</small>
+          <span class="provider-row__tags">
+            <span class="provider-row__state" :class="{ 'is-on': provider.enabled }">{{ provider.enabled ? '已启用' : '已停用' }}</span>
+            <span>{{ typeLabel(provider.apiType) }}</span><span>{{ provider.models.length }} 个模型</span>
+          </span>
         </span>
-        <span class="provider-row__state" :class="{ 'is-on': provider.enabled }">{{ provider.enabled ? '已启用' : '已停用' }}</span>
         <Icon name="arrow" :size="16" class="provider-row__arrow" aria-hidden="true" />
       </Button>
     </div>
 
-    <p v-else class="provider-list__empty">还没有供应商。先添加一个模型服务。</p>
+    <div v-else class="provider-list__empty">
+      <Icon :name="search.trim() ? 'search' : 'globe'" :size="36" />
+      <strong>{{ search.trim() ? '没有找到供应商' : '连接你的第一个模型服务' }}</strong>
+      <p>{{ search.trim() ? '换一个名称或地址试试' : '选择接口类型，再填写地址和密钥' }}</p>
+      <Button v-if="search.trim()" variant="text" @click="search = ''">清除搜索</Button>
+    </div>
   </section>
 
   <div v-else-if="selected" :key="selected.id" class="provider-detail">
@@ -93,6 +115,17 @@ function removeProvider() {
     <p>这个供应商已经不存在了。</p>
     <Button @click="emit('close-detail')">返回供应商列表</Button>
   </div>
+
+  <Dialog :open="addOpen" placement="bottom" :width="560" label="添加供应商" class="provider-type-sheet" @update:open="addOpen = $event">
+    <p class="provider-type-hint">选择模型服务使用的接口类型</p>
+    <div class="provider-type-list">
+      <button v-for="type in PROVIDER_TYPES" :key="type.value" type="button" class="provider-type-row" @click="addProvider(type.value)">
+        <span class="provider-type-row__icon"><Icon name="globe" :size="24" /></span>
+        <span><strong>{{ type.label }}</strong><small>{{ type.hint }}</small></span>
+        <Icon name="arrow" :size="18" />
+      </button>
+    </div>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="../../styles/components/providers/ProviderList.scss"></style>

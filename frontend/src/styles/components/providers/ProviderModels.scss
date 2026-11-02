@@ -1,42 +1,67 @@
-.provider-models { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
-.provider-models__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.provider-models__head p { margin: 4px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.provider-models__add { display: flex; align-items: flex-end; gap: 12px; }
-.provider-models__input { min-width: 0; flex: 1; }
-.provider-models__empty { margin: 0; padding: 18px; border-radius: 16px; background: var(--la-layer-02); color: var(--la-muted); font-size: 13.5px; line-height: 21px; }
-.provider-models__list { display: grid; gap: 10px; }
-.model-card { padding: 14px 16px; }
-.model-card :deep(.ui-card__body) { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 12px; }
-.model-card__main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 8px; }
-.model-card__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
-.model-card__title strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
-.model-card__title span { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.model-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.model-card__context { color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-card__actions { display: flex; flex: none; align-items: center; gap: 2px; }
-.model-chooser { display: flex; flex-direction: column; gap: 12px; }
-.model-chooser__list { display: flex; max-height: 360px; flex-direction: column; gap: 2px; overflow: auto; }
-.model-chooser__row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 22px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; }
-.model-chooser__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-chooser__id { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.model-chooser__check { color: var(--la-accent); }
-.model-chooser__empty { margin: 0; padding: 14px; color: var(--la-muted); font-size: 13px; }
-.model-edit__field { display: grid; gap: 8px; }
-.model-edit__label { color: var(--ui-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.model-edit__presets { display: flex; flex-wrap: wrap; gap: 6px; }
-.model-edit__hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-edit__error { margin: 0; color: var(--ui-color-error); font-size: 13px; line-height: 20px; }
-@media (max-width: 560px) {
-  .provider-models__head { flex-direction: column; }
-  .provider-models__add { flex-wrap: wrap; }
-  .provider-models__input { flex-basis: 100%; }
-  .model-chooser__row { grid-template-columns: 20px minmax(0, 1fr) 22px; }
-  .model-chooser__id { display: none; }
+/* 模型卡片只保留名称、能力和更多操作；新增与编辑在独立底部面板完成。 */
+.provider-models { display: flex; min-width: 0; height: 100%; min-height: 0; flex-direction: column; gap: 16px; }
+.provider-models__head { display: flex; align-items: center; justify-content: space-between; padding-inline: 4px; }
+.provider-models__head h2, .provider-models__head > span { margin: 0; color: var(--la-muted); font-size: 13px; font-weight: 500; }
+.provider-models__list { display: grid; min-height: 0; align-content: start; gap: 8px; flex: 1; overflow-y: auto; }
+.model-card { display: flex; min-width: 0; align-items: center; padding-right: 6px; border-radius: 20px; background: var(--la-layer-01); }
+.model-card__main { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; padding: 16px; border: 0; border-radius: 20px; background: transparent; color: var(--la-text); text-align: left; cursor: pointer; }
+.model-card__main:hover { background: var(--la-hover); }
+.model-card__icon { display: grid; flex: 0 0 40px; height: 40px; place-items: center; color: var(--la-accent); }
+.model-card__copy { display: grid; min-width: 0; gap: 4px; }
+.model-card__title { overflow: hidden; font-size: 15px; font-weight: 650; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }
+.model-card__id { overflow: hidden; color: var(--la-muted); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.model-card__meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.model-card__meta > span { padding: 2px 6px; border-radius: 5px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 10px; line-height: 16px; }
+.model-card__meta .model-card__default { background: var(--la-accent-soft); color: var(--la-accent); }
+.model-card :deep(.ui-menu-button) { flex: none; }
+.provider-models__empty { display: grid; flex: 1; justify-items: center; align-content: center; gap: 14px; min-height: 230px; padding: 32px 16px; color: var(--la-muted); text-align: center; }
+.provider-models__empty strong { color: var(--la-text); font-size: 18px; font-weight: 500; }
+.provider-models__empty p { margin: 0; font-size: 13px; line-height: 20px; }
+.provider-models__toolbar { display: flex; flex: none; align-self: center; align-items: center; gap: 8px; max-width: 100%; margin-top: 8px; padding: 8px; border: 1px solid var(--la-line); border-radius: 24px; background: var(--la-layer-02); box-shadow: 0 4px 18px color-mix(in srgb, var(--la-text) 10%, transparent); }
+.provider-models__toolbar :deep(.ui-button) { min-height: 46px; gap: 8px; padding-inline: 16px; font-size: 14px; }
+.model-chooser { display: flex; min-height: 200px; flex-direction: column; gap: 10px; }
+.model-chooser__summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; color: var(--la-muted); font-size: 12px; }
+.model-chooser__summary :deep(.ui-button) { min-height: 40px; font-size: 13px; }
+.model-chooser__list { display: grid; align-content: start; gap: 2px; }
+.model-chooser__row { display: flex; width: 100%; min-width: 0; min-height: 72px; align-items: center; gap: 12px; padding: 12px 14px; border: 0; border-radius: 4px; background: var(--la-layer-02); color: var(--la-text); text-align: left; cursor: pointer; }
+.model-chooser__row:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+.model-chooser__row:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+.model-chooser__row:hover { background: var(--la-hover); }
+.model-chooser__row > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.model-chooser__row strong, .model-chooser__row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-chooser__row strong { font-size: 14px; font-weight: 550; }
+.model-chooser__row small { color: var(--la-muted); font-size: 12px; }
+.model-chooser__mark { display: grid; flex: 0 0 36px; height: 36px; place-items: center; border-radius: 12px; background: var(--la-layer-01); color: var(--la-secondary); }
+.model-chooser__mark.is-selected { background: var(--la-accent-soft); color: var(--la-accent); }
+.model-chooser__empty { padding: 36px 12px; color: var(--la-muted); text-align: center; font-size: 14px; }
+.model-edit { display: grid; min-width: 0; gap: 24px; }
+.model-edit__identity { display: grid; gap: 16px; }
+.model-edit__identity :deep(.ui-field__input) { min-height: 52px; padding-block: 13px; border-color: var(--la-line-strong); background: transparent; }
+.model-edit__identity :deep(.ui-field__input:focus) { border-color: var(--la-accent); }
+.model-edit__identity :deep(input[readonly]) { color: var(--la-muted); background: var(--la-layer-02); }
+.model-edit__section { display: grid; min-width: 0; margin: 0; padding: 0; gap: 12px; border: 0; }
+.model-edit__section legend { margin-bottom: 10px; padding: 0; color: var(--la-secondary); font-size: 13px; font-weight: 600; }
+.model-choices { display: flex; gap: 2px; }
+.model-choice { position: relative; display: flex; min-width: 0; min-height: 46px; flex: 1; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 4px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 14px; line-height: 20px; cursor: pointer; }
+.model-choice:first-child { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+.model-choice:last-child { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+.model-choice.is-selected { background: var(--la-accent-soft); color: var(--la-accent); }
+.model-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.model-choice:focus-within { z-index: 1; outline: 2px solid var(--la-accent); outline-offset: 2px; }
+.model-choices--context .model-choice { padding-inline: 4px; font-size: 13px; }
+.model-edit__hint { margin: 0; color: var(--la-muted); font-size: 12px; line-height: 20px; }
+.model-edit__unit { color: var(--la-muted); font-size: 12px; }
+.model-edit__section :deep(input[type=number]) { padding-right: 76px; }
+.model-edit__error { margin: 0; color: var(--ui-color-error); font-size: 13px; }
+/* Teleport 到 body 的面板仍由对应组件的样式文件管理。 */
+:global(.ui-dialog.ui-dialog--bottom.model-editor-sheet .ui-dialog__panel), :global(.ui-dialog.ui-dialog--bottom.model-picker-sheet .ui-dialog__panel) { max-height: min(95dvh, 900px); }
+:global(.ui-dialog.model-editor-sheet .ui-dialog__header), :global(.ui-dialog.model-picker-sheet .ui-dialog__header) { padding: 16px 16px 8px 24px; }
+:global(.ui-dialog.model-editor-sheet .ui-dialog__footer), :global(.ui-dialog.model-picker-sheet .ui-dialog__footer) { padding-top: 16px; align-items: center; }
+:global(.model-picker-sheet .ui-dialog__footer .ui-field) { flex: 1; }
+@media (max-width: 480px) {
+  .model-card__main { gap: 8px; padding: 14px 10px; }
+  .model-card__icon { flex-basis: 32px; }
+  .provider-models__toolbar { gap: 4px; }
+  .provider-models__toolbar :deep(.ui-button) { gap: 6px; padding-inline: 12px; font-size: 13px; }
+  .model-choice { gap: 6px; padding-inline: 8px; font-size: 13px; }
 }
-
-/* Card.vue：可复用边框表面。 */
-.ui-card { min-width: 0; border: 1px solid var(--la-line); border-radius: 20px; background: var(--la-layer-01); }
-.ui-card__body { padding: 20px; }
-
-.model-edit { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
-.provider-models__title { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }

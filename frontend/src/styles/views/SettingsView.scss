@@ -26,6 +26,12 @@
 .settings-scroll > * { width: 100%; max-width: var(--la-settings-width); margin-inline: auto; }
 .settings-home { display: block; }
 .settings-detail { display: block; min-width: 0; }
+/* 供应商详情参考 RikkaHub 的紧凑顶栏；内容区内部滚动，底部操作不盖住表单。 */
+.settings-screen--provider .settings-topbar__inner { display: flex; align-items: center; gap: 8px; }
+.settings-screen--provider .settings-topbar__heading { min-width: 0; padding: 0; }
+.settings-screen--provider .settings-topbar__heading h1 { overflow: hidden; font-size: 22px; line-height: 30px; text-overflow: ellipsis; white-space: nowrap; }
+.settings-screen--provider .settings-scroll { display: flex; overflow: hidden; padding-bottom: 16px; }
+.settings-screen--provider .settings-detail { display: flex; min-height: 0; flex: 1; }
 /* 首页和详情页只做纵向轻移：设置内容可能比视口高，横向移动会摸到滚动边界。 */
 .settings-view-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
 .settings-view-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }

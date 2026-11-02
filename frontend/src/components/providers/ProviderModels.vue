@@ -1,246 +1,179 @@
 <!--
-供应商模型页：列出模型、发现远程模型、手动添加，并编辑每个模型的名称、能力和上下文窗口。
-数据只通过 update:models 交给上层；发现请求、弹窗和编辑草稿都是本地状态。
-名称、上下文窗口和能力一起保存在模型对象中；能力使用后端规定的英文标识，界面显示中文。
-调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="setModels" />
+供应商模型页：紧凑模型卡片、底部添加栏，以及可用模型和编辑模型两个底部面板。
+内容顺序参考 RikkaHub ModelList / ModelSettingsForm；只展示后端支持的能力和上下文设置。
+调用：<ProviderModels :provider="provider" :models="provider.models" @update:models="saveModels" />。
 -->
 <script setup>
-import { Provider } from '../../commands/provider.js'
-
-import { Notice } from '../../commands/notice.js'
-
 import { computed, ref } from 'vue'
-import Chip from '../../ui/Chip.vue'
+import { Provider } from '../../commands/provider.js'
+import { DEFAULT_CONTEXT } from '../../defaults.js'
 import Field from '../../ui/Field.vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
-import Switch from '../../ui/Switch.vue'
-import { DEFAULT_CONTEXT } from '../../defaults.js'
+import Menu from '../../ui/Menu.vue'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
-
-const manual = ref('')
 const loading = ref(false)
 const chooserOpen = ref(false)
 const available = ref([])
 const filter = ref('')
+const editOpen = ref(false)
 const editing = ref(null)
 const editDraft = ref(null)
 const editError = ref('')
+const customContext = ref(false)
 
-// 常见的上下文窗口，点一下比手填数字快；数字是 token 数，不是字符数。
-const CONTEXT_PRESETS = [32000, 64000, 128000, 200000, 1000000]
-const CAPABILITIES = [
-  { value: 'tools', label: '工具调用', hint: '允许模型调用读文件、执行命令等工具' },
-  { value: 'image', label: '图像输入', hint: '允许把图片发给这个模型' },
-  { value: 'reasoning', label: '推理输出', hint: '模型会返回思考过程' },
+const CONTEXT_PRESETS = [128000, 200000, 1000000]
+const ABILITIES = [
+  { value: 'tools', label: '工具调用' },
+  { value: 'reasoning', label: '推理输出' },
 ]
-
+const capabilityLabel = value => ({ text: '文本', image: '图像', tools: '工具', reasoning: '推理' }[value] || value)
+const formatContext = value => value >= 1000000 ? `${value / 1000000}M` : `${Math.round(value / 1000)}K`
+const selected = id => props.models.some(model => model.id === id)
 const filtered = computed(() => {
   const query = filter.value.trim().toLowerCase()
-  if (!query) return available.value
   return available.value.filter(model => `${model.name} ${model.id}`.toLowerCase().includes(query))
 })
-
-const defaultCapabilities = () => ['text', 'tools']
-const capabilityLabel = value => value === 'text' ? '文本' : CAPABILITIES.find(item => item.value === value)?.label || value
-const formatContext = value => {
-  if (!value) return '未设置'
-  if (value >= 1000000) return `${Math.round(value / 100000) / 10}M`
-  if (value >= 1000) return `${Math.round(value / 1000)}K`
-  return String(value)
-}
-const newModel = id => ({ id, name: id, capabilities: defaultCapabilities(), context: DEFAULT_CONTEXT })
-
-function addManual() {
-  const id = manual.value.trim()
-  if (!id) return
-  if (props.models.some(model => model.id === id)) { Notice.show('这个模型已经在列表里了'); return }
-  emit('update:models', [...props.models, newModel(id)])
-  manual.value = ''
-}
+const unselected = computed(() => filtered.value.filter(model => !selected(model.id)))
 
 async function discover() {
-  if (loading.value) return
+  chooserOpen.value = true
+  if (loading.value) return // 关闭后马上重开时继续使用同一次请求
+  filter.value = ''
   loading.value = true
-  try {
-    available.value = await Provider.discoverModels(props.provider, props.models)
-    filter.value = ''
-    chooserOpen.value = true
-  } finally {
-    loading.value = false
-  }
+  try { available.value = await Provider.discoverModels(props.provider, props.models) }
+  finally { loading.value = false }
 }
 
 function toggleAvailable(model) {
-  const exists = props.models.some(item => item.id === model.id)
-  if (exists) emit('update:models', props.models.filter(item => item.id !== model.id))
-  else emit('update:models', [...props.models, { ...newModel(model.id), name: model.name || model.id }])
+  emit('update:models', Provider.toggleModelInList(props.models, model))
 }
 
-function removeModel(id) {
-  emit('update:models', props.models.filter(item => item.id !== id))
+function toggleAll() {
+  // 批量只操作当前筛选结果；未出现在结果里的模型与已编辑元数据保持原样。
+  const models = unselected.value.length
+    ? [...props.models, ...unselected.value.map(model => ({ ...model }))]
+    : props.models.filter(model => !filtered.value.some(item => item.id === model.id))
+  emit('update:models', models)
 }
 
-// 第一个模型会作为默认模型；上下移动比拖拽更容易用键盘操作。
-function moveModel(index, offset) {
-  const next = [...props.models]
-  const target = index + offset
-  if (target < 0 || target >= next.length) return
-  ;[next[index], next[target]] = [next[target], next[index]]
-  emit('update:models', next)
+function modelActions(index) {
+  return [
+    { value: 'up', label: '上移模型', disabled: index === 0 },
+    { value: 'down', label: '下移模型', disabled: index === props.models.length - 1 },
+    { value: 'remove', label: '移除模型' },
+  ]
 }
 
-function editModel(model) {
-  editing.value = model.id
-  editDraft.value = { ...model, capabilities: [...(model.capabilities || defaultCapabilities())] }
+function runAction(model, action) {
+  if (action === 'remove') { emit('update:models', props.models.filter(item => item.id !== model.id)); return }
+  const models = [...props.models]
+  const index = models.findIndex(item => item.id === model.id)
+  const next = index + (action === 'up' ? -1 : 1)
+  if (next < 0 || next >= models.length) return
+  ;[models[index], models[next]] = [models[next], models[index]]
+  emit('update:models', models)
+}
+
+function openEditor(model) {
+  editing.value = model?.id || null
+  editDraft.value = model
+    ? { ...model, capabilities: [...model.capabilities] }
+    : { id: '', name: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
+  customContext.value = !CONTEXT_PRESETS.includes(editDraft.value.context)
   editError.value = ''
+  editOpen.value = true
 }
 
-function hasCapability(label) {
-  return editDraft.value?.capabilities?.includes(label)
+function setId(value) {
+  const previous = editDraft.value.id
+  editDraft.value.id = value
+  if (!editDraft.value.name || editDraft.value.name === previous) editDraft.value.name = value
 }
 
-function toggleCapability(label, enabled) {
-  const current = editDraft.value.capabilities || []
-  editDraft.value.capabilities = enabled
-    ? [...new Set([...current, label])]
-    : current.filter(item => item !== label)
+function toggleCapability(value, enabled) {
+  const current = editDraft.value.capabilities
+  editDraft.value.capabilities = enabled ? [...new Set([...current, value])] : current.filter(item => item !== value)
 }
 
-function setContext(value) {
-  if (Number.isFinite(value) && value >= 0) editDraft.value.context = value
+function chooseContext(value) {
+  customContext.value = value === null
+  if (value !== null) editDraft.value.context = value
 }
 
 function saveModel() {
-  const id = String(editDraft.value?.id || '').trim()
-  const name = String(editDraft.value?.name || '').trim()
-  if (!id) { editError.value = '模型 ID 不能为空'; return }
-  if (!name) { editError.value = '显示名称不能为空'; return }
-  const next = { id, name, capabilities: editDraft.value.capabilities?.length ? editDraft.value.capabilities : defaultCapabilities(), context: Number(editDraft.value.context) || 0 }
-  emit('update:models', props.models.map(model => model.id === editing.value ? next : model))
-  editing.value = null
-  editDraft.value = null
+  const id = editDraft.value.id.trim()
+  const name = editDraft.value.name.trim()
+  const context = Number(editDraft.value.context)
+  if (!id || !name) { editError.value = '模型 ID 和显示名称不能为空'; return }
+  if (!editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return }
+  if (!Number.isInteger(context) || context <= 0) { editError.value = '上下文窗口需要填写正整数'; return }
+  const model = { id, name, context, capabilities: [...editDraft.value.capabilities] }
+  emit('update:models', editing.value ? props.models.map(item => item.id === editing.value ? model : item) : [...props.models, model])
+  editOpen.value = false
 }
 </script>
 
 <template>
   <div class="provider-models">
-    <header class="provider-models__head">
-      <div>
-        <h3 class="provider-models__title">模型</h3>
-        <p>{{ models.length }} 个模型。列表里的第一个会作为这个供应商的默认模型。</p>
-      </div>
-      <Button variant="tonal" :disabled="loading" @click="discover">
-        <Icon name="download" :size="18" />
-        <span>{{ loading ? '获取中…' : '获取模型列表' }}</span>
-      </Button>
-    </header>
-
-    <div class="provider-models__add">
-      <Field
-        v-model="manual"
-        class="provider-models__input"
-        label="手动添加模型 ID"
-        placeholder="例如 deepseek-chat"
-        clearable
-        @keydown.enter.prevent="addManual"
-      />
-      <Button :disabled="!manual.trim()" @click="addManual">
-        <Icon name="plus" :size="18" />
-        <span>添加模型</span>
-      </Button>
+    <header class="provider-models__head"><h2>已添加的模型</h2><span>{{ models.length }} 个</span></header>
+    <div v-if="models.length" class="provider-models__list">
+      <article v-for="(model, index) in models" :key="model.id" class="model-card">
+        <button type="button" class="model-card__main" aria-label="编辑模型" :title="`编辑 ${model.name}`" @click="openEditor(model)">
+          <span class="model-card__icon"><Icon name="model" :size="24" /></span>
+          <span class="model-card__copy">
+            <span class="model-card__title">{{ model.name }}</span>
+            <span class="model-card__id">{{ model.id }}</span>
+            <span class="model-card__meta"><span v-for="capability in model.capabilities" :key="capability">{{ capabilityLabel(capability) }}</span><span>{{ formatContext(model.context) }}</span><span v-if="index === 0" class="model-card__default">默认</span></span>
+          </span>
+        </button>
+        <Menu :label="`${model.name} 的更多操作`" :items="modelActions(index)" @select="runAction(model, $event)" />
+      </article>
     </div>
-
-    <p v-if="!models.length" class="provider-models__empty">还没有模型。可以获取供应商支持的模型，也可以手动填一个 ID。</p>
-
-    <div v-else class="provider-models__list">
-      <div v-for="(model, index) in models" :key="model.id" class="ui-card model-card"><div class="ui-card__body">
-        <div class="model-card__main">
-          <div class="model-card__title">
-            <Icon name="model" :size="20" />
-            <strong>{{ model.name }}</strong>
-            <span v-if="model.name !== model.id">{{ model.id }}</span>
-          </div>
-          <div class="model-card__meta">
-             <Chip v-for="capability in model.capabilities" :key="capability">{{ capabilityLabel(capability) }}</Chip>
-            <span class="model-card__context">上下文 {{ formatContext(model.context) }}</span>
-          </div>
-        </div>
-        <div class="model-card__actions">
-          <Button icon label="上移模型" variant="text" :disabled="index === 0" @click="moveModel(index, -1)"><Icon name="up" :size="18" /></Button>
-          <Button icon label="下移模型" variant="text" :disabled="index === models.length - 1" @click="moveModel(index, 1)"><Icon name="down" :size="18" /></Button>
-          <Button icon label="编辑模型" variant="text" @click="editModel(model)"><Icon name="edit" :size="18" /></Button>
-          <Button icon :label="`移除模型 ${model.name}`" variant="text" @click="removeModel(model.id)"><Icon name="trash" :size="18" /></Button>
-        </div>
-      </div></div>
+    <div v-else class="provider-models__empty"><Icon name="model" :size="40" /><strong>还没有模型</strong><p>从服务商获取，或手动添加模型 ID</p></div>
+    <div class="provider-models__toolbar" aria-label="模型操作">
+      <Button variant="text" :aria-busy="loading" @click="discover"><Icon name="download" :size="18" />{{ loading ? '获取中…' : '获取模型列表' }}</Button>
+      <Button @click="openEditor()"><Icon name="plus" :size="18" />添加模型</Button>
     </div>
   </div>
 
-  <Dialog :open="chooserOpen" label="选择模型" @update:open="chooserOpen = $event">
+  <Dialog :open="chooserOpen" placement="bottom" :width="680" label="可用模型" class="model-picker-sheet" @update:open="chooserOpen = $event">
     <div class="model-chooser">
-      <Field v-model="filter" label="过滤模型" placeholder="按名称或 ID 过滤" clearable />
-      <div class="model-chooser__list">
-        <Button
-          v-for="model in filtered"
-          :key="model.id"
-          variant="plain"
-          class="model-chooser__row"
-          :aria-pressed="models.some(item => item.id === model.id)"
-          @click="toggleAvailable(model)"
-        >
-          <Icon name="model" :size="20" />
-          <span class="model-chooser__name">{{ model.name }}</span>
-          <span class="model-chooser__id">{{ model.id }}</span>
-          <Icon v-if="models.some(item => item.id === model.id)" name="check" :size="18" class="model-chooser__check" />
-        </Button>
-        <p v-if="!filtered.length" class="model-chooser__empty">没有匹配的模型。</p>
+      <div class="model-chooser__summary"><span>{{ loading ? '正在获取模型…' : `共 ${filtered.length} 个 · 已添加 ${models.length} 个` }}</span><Button variant="text" :disabled="loading || !filtered.length" @click="toggleAll">{{ unselected.length ? '全部添加' : '移除已选' }}</Button></div>
+      <div class="model-chooser__list" :aria-busy="loading">
+        <button v-for="model in filtered" :key="model.id" type="button" class="model-chooser__row" :aria-pressed="selected(model.id)" @click="toggleAvailable(model)">
+          <Icon name="model" :size="24" /><span><strong>{{ model.name }}</strong><small v-if="model.id !== model.name">{{ model.id }}</small></span>
+          <span class="model-chooser__mark" :class="{ 'is-selected': selected(model.id) }"><Icon :name="selected(model.id) ? 'check' : 'plus'" :size="18" /></span>
+        </button>
+        <p v-if="!loading && !filtered.length" class="model-chooser__empty">{{ filter ? '没有匹配的模型' : '暂未获取到模型，可以手动添加' }}</p>
       </div>
     </div>
-    <template #footer>
-      <Button variant="text" @click="chooserOpen = false">关闭</Button>
-    </template>
+    <template #footer><Field v-model="filter" type="search" label="过滤模型" placeholder="按名称或 ID 过滤" clearable size="small"><template #leading><Icon name="search" :size="18" /></template></Field><Button variant="text" @click="chooserOpen = false">完成</Button></template>
   </Dialog>
 
-  <Dialog :open="Boolean(editing)" label="编辑模型" @update:open="value => { if (!value) editing = null }">
+  <Dialog :open="editOpen" placement="bottom" :width="680" :label="editing ? '编辑模型' : '添加模型'" class="model-editor-sheet" @update:open="editOpen = $event">
     <div v-if="editDraft" class="model-edit">
-      <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" readonly />
-      <Field caption="显示名称" label="显示名称" :model-value="editDraft.name" clearable @update:model-value="editDraft.name = $event" />
-
-      <div class="model-edit__field">
-        <span class="model-edit__label">能力</span>
-        <Switch
-          v-for="item in CAPABILITIES"
-          :key="item.value"
-          :model-value="hasCapability(item.value)"
-          :label="item.label"
-          @update:model-value="toggleCapability(item.value, $event)"
-        />
-        <p class="model-edit__hint">{{ CAPABILITIES.map(item => `${item.label}：${item.hint}`).join('；') }}。</p>
+      <div class="model-edit__identity">
+        <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" :readonly="Boolean(editing)" placeholder="例如 deepseek-chat" @update:model-value="setId" />
+        <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="在模型列表中显示的名称" />
       </div>
-
-      <div class="model-edit__field">
-        <span class="model-edit__label">上下文窗口</span>
-        <div class="model-edit__presets">
-          <Chip
-            v-for="preset in CONTEXT_PRESETS"
-            :key="preset"
-            selectable
-            :model-value="Number(editDraft.context) === preset"
-            @update:model-value="value => setContext(value ? preset : 0)"
-          >{{ formatContext(preset) }}</Chip>
-        </div>
-        <Field type="number" label="上下文窗口" :min="0" :step="1000" :model-value="Number(editDraft.context) || 0" @update:model-value="setContext" />
-        <p class="model-edit__hint">不填就按 128K 处理；填了以后压缩阈值按这个窗口计算。</p>
-      </div>
+      <fieldset class="model-edit__section"><legend>输入能力</legend>
+        <div class="model-choices"><span class="model-choice is-selected"><Icon name="check" :size="16" />文本</span><label class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes('image') }"><input type="checkbox" role="switch" aria-label="图像输入" :checked="editDraft.capabilities.includes('image')" @change="toggleCapability('image', $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes('image')" name="check" :size="16" />图像输入</label></div>
+      </fieldset>
+      <fieldset class="model-edit__section"><legend>模型能力</legend>
+        <div class="model-choices"><label v-for="ability in ABILITIES" :key="ability.value" class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes(ability.value) }"><input type="checkbox" role="switch" :aria-label="ability.label" :checked="editDraft.capabilities.includes(ability.value)" @change="toggleCapability(ability.value, $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes(ability.value)" name="check" :size="16" />{{ ability.label }}</label></div>
+      </fieldset>
+      <fieldset class="model-edit__section"><legend>上下文窗口</legend>
+        <div class="model-choices model-choices--context"><label v-for="preset in [...CONTEXT_PRESETS, null]" :key="preset || 'custom'" class="model-choice" :class="{ 'is-selected': preset === null ? customContext : !customContext && editDraft.context === preset }"><input type="radio" name="model-context" :aria-label="preset === null ? '自定义上下文' : formatContext(preset)" :checked="preset === null ? customContext : !customContext && editDraft.context === preset" @change="chooseContext(preset)" />{{ preset === null ? '自定义' : formatContext(preset) }}</label></div>
+        <Field v-if="customContext" v-model="editDraft.context" type="number" label="上下文窗口" :min="1" :step="1000" size="small"><template #trailing><span class="model-edit__unit">tokens</span></template></Field>
+        <p class="model-edit__hint">模型一次能处理的内容长度，按服务商提供的数值填写</p>
+      </fieldset>
       <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
     </div>
-    <template #footer>
-      <Button variant="text" @click="editing = null">取消</Button>
-      <Button @click="saveModel">保存模型</Button>
-    </template>
+    <template #footer><Button variant="text" @click="editOpen = false">取消</Button><Button @click="saveModel">{{ editing ? '保存模型' : '添加' }}</Button></template>
   </Dialog>
 </template>
 

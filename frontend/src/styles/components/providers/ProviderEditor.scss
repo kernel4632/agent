@@ -1,29 +1,49 @@
-.provider-form { display: flex; min-width: 0; flex-direction: column; }
-.provider-tab {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 24px;
-  margin-top: 12px;
-  padding: 22px;
-  border-radius: 20px;
-  background: var(--la-layer-01);
-}
-.provider-field { display: grid; gap: 8px; min-width: 0; }
-.provider-field > * { min-width: 0; max-width: 100%; }
-.provider-field__label { color: var(--ui-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.provider-field__hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
+/* RikkaHub 配置结构：20px 外角、4px 内角和 2px 间距组成分段表单。 */
+.provider-form { display: flex; min-height: 0; min-width: 0; flex: 1; flex-direction: column; gap: 12px; }
+.provider-form__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-inline: 4px; }
+.provider-form__meta > span { padding: 5px 10px; border-radius: 8px; background: var(--la-accent-soft); color: var(--la-accent); font-size: 12px; font-weight: 500; }
+.provider-form__meta small { color: var(--la-muted); font-size: 12px; }
+.provider-form :deep(.ui-tabs) { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.provider-form :deep(.ui-tabs__list) { flex: none; margin-bottom: 16px; }
+.provider-form :deep(.ui-tabs__panel) { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.provider-form :deep(.ui-tabs__list button) { font-size: 14px; font-weight: 550; }
+.provider-tab { display: flex; min-width: 0; flex-direction: column; gap: 24px; }
+.provider-tab--models { height: 100%; }
+.provider-section { display: grid; gap: 10px; min-width: 0; }
+.provider-section h2 { margin: 0; padding-inline: 4px; color: var(--la-secondary); font-size: 13px; font-weight: 600; line-height: 20px; }
+.provider-group { display: grid; gap: 2px; min-width: 0; }
+.provider-group__item { display: grid; min-width: 0; gap: 12px; padding: 16px; border-radius: 4px; background: var(--la-layer-01); }
+.provider-group__item:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+.provider-group__item:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+.provider-group :deep(.ui-field__caption) { color: var(--la-text); font-size: 14px; font-weight: 500; }
+.provider-group :deep(.ui-field__input) { min-height: 52px; padding-block: 13px; border-color: var(--la-line-strong); border-radius: 12px; background: transparent; font-size: 15px; }
+.provider-group :deep(.ui-field__input:focus) { border-color: var(--la-accent); }
+.provider-group__toggle { padding-block: 8px; }
+.provider-group__toggle :deep(.ui-switch) { display: flex; width: 100%; min-height: 56px; flex-direction: row-reverse; justify-content: space-between; gap: 16px; font-size: 15px; line-height: 22px; }
+.provider-group__toggle :deep(.ui-switch > span:last-child) { flex: 1; }
+.provider-group__toggle :deep(.ui-switch__control) { flex-basis: 52px; height: 40px; }
+.provider-group__toggle :deep(.ui-switch__track) { width: 52px; height: 32px; }
+.provider-group__toggle :deep(.ui-switch__thumb) { width: 24px; height: 24px; }
+.provider-group__toggle :deep(input:checked + .ui-switch__track .ui-switch__thumb) { transform: translateX(20px); }
+.provider-protocol { display: flex; align-items: center; gap: 16px; }
+.provider-protocol > div:first-child { display: grid; flex: 1; gap: 4px; font-size: 14px; }
+.provider-protocol small { color: var(--la-muted); font-size: 12px; line-height: 18px; }
+.provider-protocol :deep(.ui-select) { width: min(50%, 250px); }
+.provider-protocol :deep(.ui-select__trigger) { min-height: 48px; padding: 12px 16px; font-size: 14px; }
+.provider-field__hint { margin: 0; color: var(--la-muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
 .provider-field__hint code { font-family: var(--la-font-mono); }
+.provider-actions-wrap { display: grid; flex: none; align-self: center; justify-items: center; width: max-content; max-width: 100%; gap: 10px; padding-top: 4px; }
+.provider-actions { display: flex; align-items: center; gap: 4px; padding: 8px; border: 1px solid var(--la-line); border-radius: 24px; background: var(--la-layer-02); box-shadow: 0 4px 18px color-mix(in srgb, var(--la-text) 10%, transparent); }
+.provider-actions :deep(.ui-button) { min-height: 46px; gap: 8px; padding-inline: 16px; font-size: 14px; }
+.provider-actions :deep(.ui-icon-button) { width: 46px; height: 46px; padding: 0; }
+.provider-test__result { margin: 0; max-width: 100%; padding: 10px 16px; border-radius: 14px; background: var(--la-layer-02); color: var(--la-accent); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.provider-test__result.is-error, .provider-delete { color: var(--ui-color-error); }
 .provider-dialog__text { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
-.provider-test { display: grid; gap: 10px; padding: 16px; border-radius: 16px; background: var(--la-layer-02); }
-.provider-test__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.provider-test__note { color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.provider-test__result { margin: 0; color: var(--la-success); font-size: 13px; line-height: 20px; }
-.provider-test__result.is-error { color: var(--ui-color-error); }
-.provider-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 4px; }
-.provider-danger span { flex: 1 1 220px; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.provider-delete { color: var(--ui-color-error); }
-.provider-advanced__note { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-@media (max-width: 767px) {
-  .provider-tab { padding: 18px; }
+@media (max-width: 480px) {
+  .provider-group__item { padding: 14px; }
+  .provider-group__toggle { padding-block: 6px; }
+  .provider-protocol { align-items: stretch; flex-direction: column; gap: 10px; }
+  .provider-protocol :deep(.ui-select) { width: 100%; }
+  .provider-actions :deep(.ui-button) { gap: 6px; padding-inline: 12px; font-size: 13px; }
+  .provider-actions :deep(.ui-icon-button) { padding: 0; }
 }

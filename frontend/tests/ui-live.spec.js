@@ -21,6 +21,7 @@ test('real backend accepts current config and completes a persisted conversation
   await expect(page.getByRole('status')).toContainText('连接成功')
   await page.getByRole('tab', { name: '模型', exact: true }).click()
   await page.getByRole('button', { name: '编辑模型', exact: true }).click()
+  await page.getByRole('radio', { name: '自定义上下文', exact: true }).check()
   const context = testInfo.project.name === 'desktop' ? 96000 : 128000
   await page.getByRole('spinbutton', { name: '上下文窗口' }).fill(String(context))
   await page.getByRole('switch', { name: '图像输入' }).check()

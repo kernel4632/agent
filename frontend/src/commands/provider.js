@@ -6,6 +6,22 @@ import { AgentAPI } from '../utils/api.js' // 已保存模型配置的连接测�
 import { Notice } from './notice.js' // 发现模型失败时说明原因
 import { DEFAULT_CONTEXT } from '../defaults.js' // 没有填写模型窗口时采用后端默认值
 
+// 添加与编辑共用这份协议目录；仅列出当前后端支持的连接类型。
+export const PROVIDER_TYPES = [
+  { value: 'openai-compatible', label: 'OpenAI 兼容', hint: 'OpenAI、DeepSeek 和兼容服务', url: 'https://api.openai.com/v1' },
+  { value: 'responses', label: 'OpenAI Responses', hint: '使用 Responses 接口的服务', url: 'https://api.openai.com/v1' },
+  { value: 'anthropic', label: 'Anthropic', hint: 'Claude 和兼容服务', url: 'https://api.anthropic.com/v1' },
+  { value: 'gemini', label: 'Google Gemini', hint: 'Google Gemini 原生接口', url: 'https://generativelanguage.googleapis.com/v1beta' },
+]
+
+/** 选定接口类型后创建编辑草稿；名称不与已有供应商重复。 */
+function createDraft(type, providers) {
+  const option = PROVIDER_TYPES.find(item => item.value === type)
+  let name = option.label
+  for (let number = 2; providers.some(provider => provider.name === name); number++) name = `${option.label} ${number}`
+  return { id: crypto.randomUUID(), name, enabled: true, apiType: type, apiUrl: option.url, apiKey: '', stream: true, headers: '{}', body: '{}', models: [] }
+}
+
 /** 后端供应商按名称索引；模型对象完整保留，名称、上下文和能力不再拆成第二张表。 */
 function providerMap(raw) {
   return Object.fromEntries(raw.providers.map(provider => [provider.name, provider]))
@@ -108,4 +124,4 @@ function toggleModelInList(models, model) {
   return [...models, { ...model }]
 }
 
-export const Provider = { map: providerMap, payload: providerPayload, jsonText, discoverModels, toggleModelInList, testConnection }
+export const Provider = { createDraft, map: providerMap, payload: providerPayload, jsonText, discoverModels, toggleModelInList, testConnection }
