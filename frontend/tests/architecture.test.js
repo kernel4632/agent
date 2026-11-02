@@ -40,10 +40,14 @@ test('前端源码没有循环导入', () => {
 test('commands 不导入视觉组件，基础 UI 不调用业务功能', () => {
   for (const [file, targets] of graph) {
     const name = file.slice(src.length).replaceAll('\\', '/')
-    if (name.startsWith('commands/')) assert.ok(targets.every(target => !target.endsWith('.vue')), name)
+    if (name.startsWith('commands/')) {
+      assert.ok(targets.every(target => !target.endsWith('.vue')), name)
+      assert.ok(targets.every(target => /^(commands\/|utils\/|store\.js$|defaults\.js$)/.test(target.slice(src.length).replaceAll('\\', '/'))), `${name} 只依赖功能或公共数据/工具`)
+    }
     if (name.startsWith('commands/') && name !== 'commands/navigation.js') {
       assert.ok(!targets.includes(resolve(src, 'commands/navigation.js')), `${name} 不应反向依赖导航`)
     }
     if (name.startsWith('ui/')) assert.ok(targets.every(target => !target.slice(src.length).replaceAll('\\', '/').startsWith('commands/')), name)
+    if (name.startsWith('utils/')) assert.ok(targets.every(target => !target.endsWith('.vue') && !target.slice(src.length).replaceAll('\\', '/').startsWith('commands/')), name)
   }
 })

@@ -1,13 +1,13 @@
 /* 历史记录：读取消息、分组、回退和分支；不依赖页面或 Session。
  * 调用：await History.refresh(id)；History.normalize(response)；await History.rollbackMessage(id, messageId)。
  */
-import { AgentAPI } from '../utils/api.js'
-import { store } from '../store.js'
-import { Notice } from './notice.js'
-import { t } from '../utils/i18n.js'
-import { formatToolOutput, toolStatus, canonicalToolName, outputText } from './tool.js'
-import { requestFromUsage } from './stats.js'
-import { DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js'
+import { AgentAPI } from '../utils/api.js' // 持久化历史与回退接口
+import { store } from '../store.js' // 更新当前可见记录和会话摘要
+import { Notice } from './notice.js' // 操作完成或失败的反馈
+import { t } from '../utils/i18n.js' // 共享文案
+import { formatToolOutput, toolStatus, canonicalToolName, outputText } from './tool.js' // 历史和实时事件共用工具解释
+import { requestFromUsage } from './stats.js' // 请求统计统一投影
+import { DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认上下文与运行参数
 
 function partList(item) {
   return Array.isArray(item.parts) ? item.parts

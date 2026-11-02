@@ -1,7 +1,7 @@
 <!--
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
-  整个对话流是一列三行布局的列表：图标、文本、右侧操作；不使用卡片容器。
+  用户消息和助手回复按轮排布；本组件拥有滚动、分批加载和消息操作接线。
   按钮和图标按钮走 ui/；回退弹窗独立为 RollbackDialog，时间线只负责发起和确认。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
@@ -15,8 +15,6 @@ import { copyText } from '../utils/clipboard.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
-import { Chat } from '../commands/chat.js'
-import { Session } from '../commands/session.js'
 import { groupMessageTurns } from '../commands/history.js'
 import { isSavedMessage } from '../commands/history.js'
 import { Icon, Markdown } from '../ui/index.js'

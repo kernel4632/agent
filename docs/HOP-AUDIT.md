@@ -36,13 +36,13 @@
 | 位置 | 重复内容 | 现状 |
 | --- | --- | --- |
 | `frontend/src/defaults.js` | 会话默认值、上下文窗口、未命名标题 | 首屏和组件 props 初始化要用，后端此时还没返回；保留为跨进程最小默认值 |
-| `frontend/src/composer/reasoning.js` 与 `server/config/settings.js` | 思考强度七档 | 前端有标签和图标，后端有合法值列表；加一档仍要改两处 |
+| `frontend/src/components/ReasoningPicker.vue` 与服务端设置定义 | 思考强度七档 | 前端有标签和图标，后端有合法值列表；加一档仍要改两处 |
 
 ## 四、其他没有做到完美的地方
 
 - `conversation/session.js` 仍是门面：CRUD 之外把 `read/run/rollback` 转出。HOP 第 1 条更希望入口直接调各自主体，但那样会改掉现有 `Session` 调用面和大量测试。
 - 设置页 `pages/*.vue` 里有几个包装页只做字段映射，真正界面在 `components/*.vue`。
-- `frontend/src/settings/settings.js` 的 `payload`、`persist` 命名还可以更白话。
+- `frontend/src/commands/settings.js` 的 `payload`、`persist` 命名还可以更白话。
 - 大组件注释稀疏，第 10 条没有全项目达标。
 - 旧工具名映射和旧会话 `content` 兼容仍保留；用户已确认不需要旧版本兼容，但删之前要确认没有旧数据要打开。
 - `finishSuccess()` 里三次“stop 或新 run 接管”的检查是 `await` 后的时序保护，不是重复输入校验，暂时保留。
@@ -65,6 +65,6 @@
 ## 七、不要误判的边界
 
 - `server/openapi.json`、`server/README.md`、`frontend/src/utils/api.js` 是同一份 HTTP 契约的三处记录，改一处必须三处一起改。
-- 旧会话的 token 是估算值，标记在 `frontend/src/session/stats.js` 和面板的“估算”徽标里。
+- 没有用量记录的会话 token 是估算值，标记在 `frontend/src/commands/stats.js` 和面板的“估算”徽标里。
 - KIMA 必须保持最新版；升级前看 `D:\kernyr\KIMA` 的源码和发布说明，升级后跑单测、构建和完整界面检查。
 - 本文件是接手清单，不是“12/12 完美”的证明。第 1、3、6、8、9、10、11、12 条仍是部分通过。

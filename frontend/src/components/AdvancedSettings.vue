@@ -1,6 +1,6 @@
 <!--
 高级设置：项目规则、写后诊断和 shell 改动快照。
-表单控件统一用 ui/ 里的 Field、Switch；数字转换仍在本组件完成，事件只把结果交给上层写回草稿。
+表单控件统一用 ui/ 里的 Field、Switch；输入更新隔离草稿，持久化由 SettingsView 触发。
 调用示例：<AdvancedSettings :draft="draft" />；只改隔离草稿，SettingsView 负责保存。
 -->
 <script setup>

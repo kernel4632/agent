@@ -1,59 +1,39 @@
 %%{init: {"theme":"base","themeVariables":{"darkMode":true,"fontFamily":"system-ui, Microsoft YaHei, sans-serif","fontSize":"16px","background":"#0d0f16","primaryColor":"#241c35","primaryBorderColor":"#b5a4d5","primaryTextColor":"#f8fafc","secondaryColor":"#20253b","tertiaryColor":"#20253b","lineColor":"#9ba9c7","clusterBkg":"#151521","clusterBorder":"#60526d","edgeLabelBackground":"#171822","titleColor":"#f8fafc"},"flowchart":{"htmlLabels":false,"useMaxWidth":true,"nodeSpacing":30,"rankSpacing":55},"htmlLabels":false}}%%
 flowchart TB
 
-n_root["src 根目录 · 9 文件
-src 根目录"]
-style n_root fill:#221e32,stroke:#e879f9,color:#f8fafc
-n_app["app/ · 10 文件
-应用外壳与导航"]
-style n_app fill:#221e32,stroke:#f3a6ce,color:#f8fafc
-n_draft["draft/ · 1 文件
-新对话页面"]
-style n_draft fill:#221e32,stroke:#d4b4f5,color:#f8fafc
-n_composer["composer/ · 6 文件
-消息输入区"]
-style n_composer fill:#221e32,stroke:#93c5fd,color:#f8fafc
-n_session["session/ · 35 文件
-会话与消息"]
-style n_session fill:#221e32,stroke:#a78bfa,color:#f8fafc
-n_settings["settings/ · 21 文件
-设置页面"]
-style n_settings fill:#221e32,stroke:#60a5fa,color:#f8fafc
-n_ui["ui/ · 37 文件
+n_entry["入口：main.js / App.vue"]
+style n_entry fill:#221e32,stroke:#d8b4fe,color:#f8fafc
+n_views["views/ · 3 文件
+页面组装"]
+style n_views fill:#221e32,stroke:#f9a8d4,color:#f8fafc
+n_components["components/ · 45 文件
+视觉区域与工具结果"]
+style n_components fill:#221e32,stroke:#d6b5f2,color:#f8fafc
+n_commands["commands/ · 11 文件
+功能主体"]
+style n_commands fill:#221e32,stroke:#93c5fd,color:#f8fafc
+n_ui["ui/ · 21 文件
 基础控件"]
-style n_ui fill:#221e32,stroke:#f9a8d4,color:#f8fafc
-n_theme["theme/ · 3 文件
-主题配色"]
-style n_theme fill:#221e32,stroke:#c4b5fd,color:#f8fafc
-n_utils["utils/ · 6 文件
-共用小工具"]
-style n_utils fill:#221e32,stroke:#b7bed8,color:#f8fafc
-n_root -->|"1"| n_draft
-n_root -->|"4"| n_session
-n_root -->|"8"| n_app
-n_root -->|"3"| n_theme
-n_root -->|"1"| n_utils
-n_root -->|"1"| n_settings
-n_app -->|"6"| n_ui
-n_app -->|"6"| n_session
-n_app -->|"8"| n_root
-n_app -->|"1"| n_settings
-n_composer -->|"5"| n_ui
-n_composer -->|"1"| n_root
-n_composer -->|"1"| n_app
-n_composer -->|"1"| n_session
-n_composer -->|"1"| n_utils
-n_draft -->|"1"| n_composer
-n_draft -->|"2"| n_session
-n_draft -->|"1"| n_root
-n_session -->|"14"| n_ui
-n_session -->|"11"| n_root
-n_session -->|"8"| n_app
-n_session -->|"4"| n_utils
-n_session -->|"1"| n_composer
-n_settings -->|"15"| n_ui
-n_settings -->|"3"| n_app
-n_settings -->|"8"| n_root
-n_settings -->|"1"| n_theme
-n_ui -->|"1"| n_theme
-n_ui -->|"2"| n_utils
+style n_ui fill:#221e32,stroke:#b8bdfa,color:#f8fafc
+n_data["共享：store.js / defaults.js"]
+style n_data fill:#221e32,stroke:#d8b4fe,color:#f8fafc
+n_utils["utils/ · 10 文件
+技术能力"]
+style n_utils fill:#221e32,stroke:#a8bada,color:#f8fafc
+n_entry -->|"9"| n_commands
+n_entry -->|"3"| n_data
+n_entry -->|"2"| n_views
+n_entry -->|"5"| n_components
+n_entry -->|"1"| n_utils
+n_commands -->|"10"| n_utils
+n_commands -->|"11"| n_data
+n_components -->|"34"| n_ui
+n_components -->|"9"| n_data
+n_components -->|"28"| n_commands
+n_components -->|"4"| n_utils
+n_ui -->|"5"| n_utils
+n_utils -->|"1"| n_data
+n_views -->|"2"| n_ui
+n_views -->|"13"| n_components
+n_views -->|"7"| n_commands
+n_views -->|"1"| n_data

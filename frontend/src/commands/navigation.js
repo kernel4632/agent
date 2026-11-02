@@ -1,9 +1,9 @@
 /* 页面导航：离开设置前保存草稿，再改变当前页面；不依赖 Vue 组件。
  * 调用：await Navigation.openHome()；await Navigation.openSettings('providers')。
  */
-import { store } from '../store.js'
-import { Settings } from './settings.js'
-import { Session } from './session.js'
+import { store } from '../store.js' // 视图位置与选中会话
+import { Settings } from './settings.js' // 离页前保存
+import { Session } from './session.js' // 进入聊天前读取会话
 
 async function leaveSettings() {
   if (!store.ui.settingsOpen) return true // 聊天之间切换不用保存设置

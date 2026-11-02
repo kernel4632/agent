@@ -2,15 +2,12 @@
  * 调用：await Settings.load()；Settings.open()；await Settings.autoSave()。
  * 供应商数据映射交给 Provider，外观持久化交给 Appearance；不反向调用导航。
  */
-import { AgentAPI } from '../utils/api.js'
-import { store } from '../store.js'
-import { Notice } from './notice.js'
-import { Provider } from './provider.js'
-import { Appearance } from './appearance.js'
-import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../defaults.js'
-
-// 前端默认值只留一处
-
+import { AgentAPI } from '../utils/api.js' // 只通过统一契约请求后端
+import { store } from '../store.js' // 已保存配置与隔离草稿
+import { Notice } from './notice.js' // 错误反馈不依赖导航
+import { Provider } from './provider.js' // 供应商参数转换只有一处
+import { Appearance } from './appearance.js' // 外观只写浏览器偏好
+import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../defaults.js' // 默认值共享
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -33,9 +30,6 @@ async function load() {
     return false                                          // 不制造假配置
   }
 }
-
-// --- 供应商：后端数组转成设置页按名字索引的对象 ---
-
 
 // --- 工具目录：新后端给完整目录，旧后端退回 permission 里的字符串规则 ---
 function toolSettingsFor(raw, catalog) {
@@ -136,8 +130,6 @@ function apply(raw, catalog = [], catalogAgents = [], catalogKinds = [], meta = 
   })
 }
 
-// 引入保存后的配置重新加载动作
-
 let initialBackendDraft = ''
 
 // --- 后端配置里由设置页负责的字段 ---
@@ -164,14 +156,6 @@ function backendSnapshot(draft) {
 function isolateDraft(value) {
   return JSON.parse(JSON.stringify(value))              // 设置只包含 JSON 数据，隔离后修改不影响已保存配置
 }
-
-// --- 把配置里的请求头/请求体转成编辑框里的 JSON 文本 ---
-// 空对象显示成空字符串，编辑框给占位示例；已有内容保持易读的缩进。
-
-
-// --- 把编辑框里的 JSON 文本变回对象 ---
-// 空文本表示没有自定义内容；写错时直接说明是哪一栏，别把坏 JSON 发到后端。
-
 
 // --- 进入设置页 ---
 function open() {
@@ -228,9 +212,6 @@ function persist(options = {}) {
   persistQueue = result.then(() => undefined, () => undefined)
   return result
 }
-
-// --- 供应商：把设置页的数组转回后端认的对象，并保留没改过的上游字段 ---
-
 
 // --- 工具开关写回 permission；只写用户真的改过的那几个，对象规则里的参数模式保留 ---
 function permissionPayload(draft) {
@@ -330,16 +311,6 @@ async function save() {
 async function autoSave() {
   return persist({ keepDraft: true, silent: true })
 }
-
-// --- 外观偏好持久化到 localStorage ---
-
-
-
-
-
-// --- 获取可添加模型目录 ---
-
-
 
 async function replaceDraftAndSave(snapshot) {
   store.settings.draft = isolateDraft(snapshot)

@@ -1,5 +1,5 @@
 {
-  "status": "proposal",
+  "status": "implemented; source attribution retained as design snapshot",
   "sourceRevision": "741cc3b",
   "currentFiles": 220,
   "currentBytes": 498199,
@@ -3646,5 +3646,18 @@
       "bytes": 485,
       "reason": "独立包装候选取消，现有外观和事件由父组件/原生元素承接"
     }
-  ]
+  ],
+  "implementation": {
+    "version": "0.64.4",
+    "files": 161,
+    "vue": 64,
+    "js": 30,
+    "scss": 67,
+    "bytes": 462975,
+    "cycles": 0,
+    "report": "docs/frontend-structure.html",
+    "unitTests": 40,
+    "uiChecks": 114,
+    "backendTests": 155
+  }
 }

@@ -2,10 +2,11 @@
  * 调用：Provider.discoverModels(provider, models)；Provider.testConnection(name, model)。
  * 编辑器的开关和未完成文本由组件自己保留，保存队列归 Settings。
  */
-import { AgentAPI } from '../utils/api.js'
-import { store } from '../store.js'
-import { Notice } from './notice.js'
+import { AgentAPI } from '../utils/api.js' // 已保存模型配置的连接测试
+import { store } from '../store.js' // 保留没有参与编辑的原始参数
+import { Notice } from './notice.js' // 发现模型失败时说明原因
 
+/** 后端供应商数组变成界面模型目录；空配置提供可编辑起点。 */
 function providerMap(raw) {
   const list = Array.isArray(raw.providers) ? raw.providers : []
   const providers = {}
@@ -29,6 +30,7 @@ function providerMap(raw) {
   return providers
 }
 
+/** 用服务端已保存的供应商和模型发起真实连接测试。 */
 async function testConnection(providerName, modelName) {
   try {
     return await AgentAPI.testProvider(providerName, modelName) // 使用 Server 已保存认证执行真实测试
@@ -37,6 +39,7 @@ async function testConnection(providerName, modelName) {
   }
 }
 
+/** 将请求头、额外请求体显示为可以编辑的 JSON 文本。 */
 function jsonText(value) {
   if (!value) return ''
   let object = value
@@ -56,6 +59,7 @@ function objectFromJson(text, label) {
   return value
 }
 
+/** 只覆盖编辑过的字段；供应商改名后仍保留来源里的参数。 */
 function providerPayload(draft) {
   return (draft.providers || []).map(provider => {
     // 改名后还要能找到原来的那一份，才能保留密钥、请求头和模型设置。
@@ -125,6 +129,7 @@ async function fetchModels(provider, currentModels = []) {
   }
 }
 
+/** 合并远程发现和手动模型，按 ID 去重且不丢失已编辑的条目。 */
 async function discoverModels(provider, currentModels = []) {
   const discovered = await fetchModels(provider, currentModels)
   const merged = new Map()

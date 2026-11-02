@@ -8,9 +8,34 @@
 - `src/styles/base.scss`：页面重置、全局焦点与减少动画规则。
 - `src/styles/` 镜像组件目录：例如 `src/ui/Button.vue` 对应 `src/styles/ui/Button.scss`。每个 Vue 文件通过 `<style src>` 引入唯一的同名样式文件，不内嵌样式正文。
 - `src/ui/` 是项目自有控件，由 Vue 和原生 HTML 实现；页面统一从 `src/ui/index.js` 导入。按钮、输入、弹层和选择控件不依赖第三方 UI 组件库。
-- `src/theme/palette.js` 使用 Material Color Utilities 的纯色彩算法生成颜色。Hugeicons 只提供图标，Markdown 相关依赖只负责内容解析和高亮。
+- `src/commands/appearance.js` 使用 Material Color Utilities 的纯色彩算法生成颜色。Hugeicons 只提供图标，Markdown 相关依赖只负责内容解析和高亮。
 
 当前外观延续迁移前的圆角表面、深浅主题和交互节奏。具体控件约定见 [UI 组件说明](src/ui/README.md)。
+
+## 从哪里修改
+
+功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分；文件数量与行数不作为配额。
+
+| 要改的内容 | 入口 |
+| --- | --- |
+| 会话列表、新建、改名、删除、选择模型 | `src/commands/session.js` |
+| 发消息、停止、继续、工具审批、实时连接 | `src/commands/chat.js` |
+| 历史消息、轮次、回退、撤销、分支 | `src/commands/history.js` |
+| 配置读取、草稿、自动保存 | `src/commands/settings.js` |
+| 供应商参数、发现模型、测试连接 | `src/commands/provider.js` |
+| 工具结果说明、任务状态 | `src/commands/tool.js` |
+| 统计、附件、外观 | `src/commands/stats.js`、`attachment.js`、`appearance.js` |
+| 切换页面、离页保存、提示 | `src/commands/navigation.js`、`notice.js` |
+| 网络契约 | `src/utils/api.js`；SSE 帧解析在 `src/utils/sse.js` |
+| 新会话和已有会话的页面排布 | `src/views/ChatView.vue`，两种状态共享输入接线 |
+| 模型选择面板 | `src/components/ModelPicker.vue`，输入区只控制开关和选择动作 |
+| 设置导航和各编辑面板 | `src/views/SettingsView.vue`、`src/views/pages.js`、`src/components/*Settings.vue` |
+
+导航可以调用会话和设置；这些功能不反向调用导航。业务状态集中在 `store.js`，公共默认值在 `defaults.js`。`commands/` 不导入 Vue 组件，`ui/` 不调用业务功能；这些约束和零循环由 `tests/architecture.test.js` 检查。
+
+工具结果视图由 `ToolResult.vue` 自动发现 `components/results/*View.vue`。默认将 `FileListView.vue` 映射为 `file-list`；需要对应多个后端类型时，在该视图的普通 `<script>` 中导出 `kinds` 数组，例如 `export const kinds = ['file-read', 'file-write']`。视图仍有自己的同名 SCSS，共同结果表面由 `styles/components/ToolResult.scss` 提供。
+
+当前实测结构与依赖图见 [源码体量](../docs/frontend-structure.html) 和 [依赖报告](../docs/frontend-dependencies.html)。设计依据见 [目标可视化](../docs/frontend-target.html)。
 
 ## 开发
 
