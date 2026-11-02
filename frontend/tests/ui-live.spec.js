@@ -1,0 +1,86 @@
+/* 真实联调回归：不拦截前端 API，配置保存与消息历史必须能从真实后端读回。
+ * 模型请求由 live-backend.js 的本机固定回复服务承担，不使用用户密钥。
+ */
+import { expect, test } from '@playwright/test'
+
+test('real backend accepts current config and completes a persisted conversation', async ({ page, request }, testInfo) => {
+  const errors = []
+  const failures = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('response', response => {
+    if (response.url().includes('/api/') && response.status() >= 400) failures.push(`${response.status()} ${response.url()}`)
+  })
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '选择模型（当前 local-test）' })).toBeVisible()
+  await expect(page.getByText('无法连接后端', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  await expect(page.getByRole('button', { name: /^智能体/ })).toHaveCount(0)
+  await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.getByRole('button', { name: /本地联调/ }).click()
+  await page.getByRole('button', { name: '测试连接', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('连接成功')
+  await page.getByRole('tab', { name: '模型', exact: true }).click()
+  await page.getByRole('button', { name: '编辑模型', exact: true }).click()
+  const context = testInfo.project.name === 'desktop' ? 96000 : 128000
+  await page.getByRole('spinbutton', { name: '上下文窗口' }).fill(String(context))
+  await page.getByRole('switch', { name: '图像输入' }).check()
+  await page.getByRole('button', { name: '保存模型', exact: true }).click()
+  const config = async () => (await request.get('/api/config/read')).json()
+  await expect.poll(async () => (await config()).providers[0].models[0].context).toBe(context)
+  expect((await config()).providers[0].models[0].capabilities).toContain('image')
+  expect((await config()).providers[0].headers).toEqual({ 'x-test': 'preserve' })
+  expect((await config()).providers[0].body).toEqual({ temperature: 0.2 })
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.getByRole('button', { name: /上下文/ }).click()
+  const threshold = testInfo.project.name === 'desktop' ? '0.6' : '0.7'
+  await page.getByLabel('阈值', { exact: true }).fill(threshold)
+  await page.getByLabel('阈值', { exact: true }).press('Tab')
+  await expect.poll(async () => (await config()).compact.threshold).toBe(Number(threshold))
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.locator('.settings-row').filter({ hasText: '默认模型和任务分工' }).click()
+  await page.getByRole('combobox', { name: '子任务', exact: true }).click()
+  await page.getByRole('option', { name: '本地联调 / local-test', exact: true }).click()
+  await expect.poll(async () => (await config()).models.task).toEqual({ provider: '本地联调', model: 'local-test' })
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+
+  const input = `真实接口联调 ${testInfo.project.name}`
+  const created = page.waitForResponse(response => response.url().endsWith('/api/session/create') && response.request().method() === 'POST')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill(input)
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  const { sessionId } = await (await created).json()
+  await expect(page.locator('.rikka-bubble--assistant')).toContainText('本地测试模型回复')
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toHaveCount(0)
+  const session = async () => (await request.get(`/api/session/read/${sessionId}`)).json()
+  await expect.poll(async () => JSON.stringify((await session()).history)).toContain('本地测试模型回复')
+  expect((await session()).cwd).toBeTruthy()
+  expect((await session()).settings).toEqual({ reasoning: 'auto' })
+  await page.getByRole('button', { name: '思考强度：自动', exact: true }).click()
+  await page.getByRole('dialog', { name: '思考强度', exact: true }).getByRole('button', { name: '重', exact: true }).click()
+  await expect.poll(async () => (await session()).settings.reasoning).toBe('high')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: '思考强度', exact: true })).toBeHidden()
+
+  // 改名后刷新，再从列表打开，证明显示的不是仅存在于浏览器内存的回复。
+  await page.locator('.topbar__title').click()
+  await page.getByRole('dialog', { name: '重命名会话', exact: true }).getByRole('textbox', { name: '标题', exact: true }).fill(input)
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+  await expect.poll(async () => (await session()).title).toBe(input)
+  await page.reload()
+  await page.getByRole('button', { name: '打开会话抽屉', exact: true }).click()
+  await page.getByRole('button', { name: input, exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant')).toContainText('本地测试模型回复')
+  await expect(page.getByRole('button', { name: '思考强度：重', exact: true })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('real-backend-chat.png'), fullPage: true })
+  expect(errors).toEqual([])
+  expect(failures).toEqual([])
+
+  const bad = await request.post('/api/session/create', { data: { title: '' } })
+  expect(bad.status()).toBe(400)
+  expect((await bad.json()).error).toBeTruthy()
+  const invalidModel = await request.patch('/api/config/set', { data: { ...(await config()), providers: [{ name: 'bad', models: ['invalid-string-model'] }] } })
+  expect(invalidModel.status()).toBe(400)
+  await request.delete(`/api/session/remove/${sessionId}`)
+})

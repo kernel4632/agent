@@ -8,9 +8,21 @@
 */
 import { expect } from '@playwright/test'
 import { createServer } from 'node:http'
+import { readFileSync } from 'node:fs'
+
+// 模拟接口也受现行 OpenAPI 约束，已经删掉的路径不能继续假装返回成功。
+const contract = JSON.parse(readFileSync(new URL('../../server/openapi.json', import.meta.url), 'utf8'))
+const routes = Object.entries(contract.paths).flatMap(([path, methods]) => Object.keys(methods).map(method => ({
+  method: method.toUpperCase(), pattern: new RegExp(`^${path.replace(/\{[^}]+\}/g, '[^/]+')}$`),
+})))
 
 export async function backend(page, { configured = true } = {}) {
-  let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, agents: {}, diagnostics: {}, snapshot: {} }
+  let config = {
+    providers: configured ? [{ name: 'Test Provider', enabled: true, protocol: 'openai-compatible', stream: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: [{ id: 'test-model', name: 'test-model', context: 64000, capabilities: ['text', 'tools'] }], headers: { 'x-preserve': 'yes' }, body: { temperature: 0.25 } }] : [],
+    models: { chat: { provider: configured ? 'Test Provider' : '', model: configured ? 'test-model' : '' }, compact: { provider: '', model: '' }, title: { provider: '', model: '' }, task: { provider: '', model: '' } },
+    prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
+    permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
+  }
   const sessions = new Map()
   const calls = []
   const connections = new Map()
@@ -91,19 +103,28 @@ export async function backend(page, { configured = true } = {}) {
     const method = request.method()
     const body = request.postData() ? request.postDataJSON() : undefined
     calls.push({ path, method, body })
+    if (!routes.some(route => route.method === method && route.pattern.test(path))) {
+      errors.push(`不存在的接口：${method} ${path}`)
+      return route.fulfill({ status: 404, json: { error: 'NOT_FOUND' } })
+    }
     const json = data => route.fulfill({ status: 200, json: data })
     if (path === '/config/read') return json(config)
     if (path === '/config/meta') return json({
-      uses: [
-        { use: 'compact', label: '压缩上下文', hint: '把长对话总结成一段' },
-        { use: 'title', label: '生成标题', hint: '给会话起一个短标题' },
-        { use: 'subtask', label: '子任务', hint: '子 agent 干活时用的模型' },
+      models: [
+        { task: 'chat', label: '对话', hint: '会话默认使用的模型' },
+        { task: 'compact', label: '压缩上下文', hint: '把长对话总结成一段' },
+        { task: 'title', label: '生成标题', hint: '给会话起一个短标题' },
+        { task: 'task', label: '子任务', hint: '子 agent 干活时用的模型' },
       ],
     })
-    if (path === '/config/set') { config = body; return json(config) }
+    if (path === '/config/set') {
+      expect(Object.keys(body).sort()).toEqual(Object.keys(config).sort())
+      expect(body.providers.every(provider => provider.models.every(model => typeof model.id === 'string'))).toBe(true)
+      config = body
+      return json(config)
+    }
     if (path === '/config/test') return json({ ok: true, provider: body?.provider, model: body?.model, text: 'ok' })
     if (path === '/session/list') return json([...sessions.values()])
-    if (path === '/workspace/read') return json({ path: 'D:/mock-workspace', files: ['src/main.js', 'README.md'], git: null })
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
     if (path === '/tool/kinds') return json([
       { kind: 'read', label: '读取', hint: '读文件、搜索不用再问' },
@@ -146,41 +167,18 @@ export async function backend(page, { configured = true } = {}) {
         ui: { view: 'question', icon: 'info', title: '询问用户', summary: '{question}' },
       },
     ])
-    if (path === '/agent/list') return json([
-      { name: 'build', label: '执行', description: '可以改文件、执行命令', readOnly: false, tools: null, model: null, permission: null, builtin: true },
-      { name: 'plan', label: '计划', description: '只读工具，先看清再动手', readOnly: true, tools: null, model: null, permission: null, builtin: true },
-      { name: 'ask', label: '问答', description: '只回答和解释，不碰文件', readOnly: true, tools: [], model: null, permission: null, builtin: true },
-      { name: 'debug', label: '调试', description: '复现、定位、最小修复', readOnly: false, tools: null, model: null, permission: null, builtin: true },
-      ...Object.entries(config.agents || {}).map(([name, value]) => ({
-        name,
-        label: value?.label || name,
-        description: value?.description || '',
-        readOnly: value?.readOnly === true,
-        tools: value?.tools || null,
-        model: value?.model || null,
-        permission: value?.permission || null,
-        builtin: false,
-      })),
-    ])
-    if (path === '/command/list') return json([
-      { name: 'review', description: '审查改动', prompt: '请审查当前改动。\n$ARGUMENTS' },
-    ])
     if (path === '/session/create') {
       const id = `session-${sessions.size + 1}`
       sessions.set(id, {
         id,
         title: body.title,
+        cwd: body.cwd || 'D:/mock-directory',
         provider: body.provider,
         model: body.model,
         history: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
         settings: {
-          agent: 'build',
-          compactThreshold: 0.8,
-          capabilities: { image: true, cache: true, stream: true },
-          uses: {},
-          autoTitle: true,
           reasoning: 'auto',
         },
         todos: [],
@@ -214,7 +212,10 @@ export async function backend(page, { configured = true } = {}) {
     }
     if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
     if (path.startsWith('/session/settings/')) {
-      if (method === 'PATCH') session.settings = { ...session.settings, ...body }
+      if (method === 'PATCH') {
+        expect(Object.keys(body)).toEqual(['reasoning'])
+        session.settings = { ...session.settings, ...body }
+      }
       return json(session.settings)
     }
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。

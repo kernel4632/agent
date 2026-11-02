@@ -1,7 +1,7 @@
 <!--
 抽屉会话列：搜索、按日期分组的会话、更多菜单和重命名/删除弹窗都在这里。
 放在 app/Sidebar.vue 的会话区内，桌面和手机的抽屉共用这一份逻辑。
-调用示例：<SessionList :workspace="workspace" :active-session-id="id" :query="search" @open="openSession" />
+调用示例：<SessionList :sessions="sessions" :active-session-id="id" :query="search" @open="openSession" />
 -->
 <script setup>
 import { computed, ref } from 'vue'
@@ -18,7 +18,7 @@ const MENU_ITEMS = [
 ]
 
 const props = defineProps({
-  workspace: { type: Object, default: null },
+  sessions: { type: Array, default: () => [] },
   activeSessionId: String,
   query: { type: String, default: '' },                 // 搜索框在 Sidebar，列表只负责过滤
   selecting: Boolean,                                  // 批量选择模式
@@ -35,11 +35,10 @@ function toggleSelected(session) {
 }
 
 // --- 搜索 ---
-const sessions = computed(() => props.workspace?.sessions || [])
 const stampOf = item => Number(item.updatedAt || item.createdAt) || 0
 const visible = computed(() => {
   const query = props.query.trim().toLowerCase()
-  return sessions.value
+  return props.sessions
     .filter(item => !query || (item.title || '').toLowerCase().includes(query))
     .slice()
     .sort((first, second) => stampOf(second) - stampOf(first))

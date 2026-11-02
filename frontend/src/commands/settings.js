@@ -7,22 +7,18 @@ import { store } from '../store.js' // 已保存配置与隔离草稿
 import { Notice } from './notice.js' // 错误反馈不依赖导航
 import { Provider } from './provider.js' // 供应商参数转换只有一处
 import { Appearance } from './appearance.js' // 外观只写浏览器偏好
-import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../defaults.js' // 默认值共享
 
 // --- 加载完整设置数据 ---
 async function load() {
   try {
     // 这些接口属于同一版后端，缺任何一个都说明连接不对；不再为旧后端逐项兜底。
-    const [raw, catalog, agents, kinds, meta, commands] = await Promise.all([
-      AgentAPI.getConfig(),                              // 脱敏持久化配置
+    const [raw, catalog, kinds, meta] = await Promise.all([
+      AgentAPI.getConfig(),                              // 当前持久化配置
       AgentAPI.getTools(),                               // 全部工具和当前权限
-      AgentAPI.getAgents(),                              // 内置和自定义智能体
       AgentAPI.getToolKinds(),                           // 工具类别的名字和顺序
       AgentAPI.getConfigMeta(),                          // “按用途配模型”的标签和说明
-      AgentAPI.getCommands(),                            // 用户自定义的斜杠命令
     ])
-    apply(raw, catalog, agents, kinds, meta)              // 将 Server 数据转换为设置页面结构
-    store.commands = Array.isArray(commands) ? commands : []
+    apply(raw, catalog, kinds, meta)                     // 将 Server 数据转换为设置页面结构
     store.ui.errorMessage = ''
     return true                                           // 反馈应用启动可以继续
   } catch (error) {
@@ -31,11 +27,9 @@ async function load() {
   }
 }
 
-// --- 工具目录：新后端给完整目录，旧后端退回 permission 里的字符串规则 ---
-function toolSettingsFor(raw, catalog) {
-  const toolCatalog = Array.isArray(catalog) ? catalog : []
-  const tools = toolCatalog.length
-    ? toolCatalog
+// --- 工具权限只从当前后端的完整工具目录读取 ---
+function toolSettingsFor(catalog) {
+  const tools = catalog
       .filter(tool => tool.configurable !== false)
       .map(tool => ({
         name: tool.name,
@@ -49,17 +43,14 @@ function toolSettingsFor(raw, catalog) {
         // 工具脚本声明的渲染信息；设置页保存时不会把它写回 permission。
         ui: tool.ui && typeof tool.ui === 'object' && !Array.isArray(tool.ui) ? tool.ui : null,
       }))
-    : Object.entries(raw.permission || {})
-      .filter(([, action]) => typeof action === 'string')
-      .map(([name, action]) => ({ name, title: name, kind: 'other', enabled: action !== 'deny', permission: action, original: action }))
-  return { toolCatalog, tools }
+  return { toolCatalog: catalog, tools }
 }
 
-// --- MCP 服务：对象转成设置页的数组，并补上旧配置缺的 transport ---
+// --- MCP 服务：对象转成设置页的数组，传输方式与后端的默认判断一致 ---
 function mcpList(raw) {
   return Object.entries(raw.mcp ?? {}).map(([name, definition]) => {
     const normalized = structuredClone(definition || {})
-    // 老配置可能只写了 url 没写 transport；补成 sse，保存时才不会被当成 stdio 命令。
+    // URL 默认走 SSE，本地命令默认走 stdio。
     if (!normalized.transport) normalized.transport = normalized.url ? 'sse' : 'stdio'
     return {
       id: name,
@@ -73,59 +64,36 @@ function mcpList(raw) {
 
 // --- 默认模型：优先用户选过的那组，供应商或模型被删掉时退回第一个可用模型 ---
 function modelChoice(providers, raw) {
-  const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || Object.keys(providers)[0] || ''
-  const firstModel = providers[firstProvider]?.models?.[0] || ''
-  const preferred = raw.model && typeof raw.model === 'object' ? raw.model : null
+  const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || ''
+  const firstModel = providers[firstProvider]?.models[0]?.id || ''
+  const preferred = raw.models.chat
   const preferredModels = preferred ? providers[preferred.provider]?.models || [] : []
-  const valid = preferred?.provider && preferred?.model && preferredModels.includes(preferred.model)
+  const valid = providers[preferred.provider]?.enabled && preferredModels.some(model => model.id === preferred.model)
   return {
     activeProvider: valid ? preferred.provider : firstProvider,
     activeModel: valid ? preferred.model : firstModel,
   }
 }
 
-// --- 智能体：清单只来自后端 /agent/list；原始定义用于设置页编辑 ---
-function agentList(raw, catalogAgents) {
-  const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents) ? raw.agents : {}
-  const agents = Array.isArray(catalogAgents) ? catalogAgents : []
-  return { agents, agentDefinitions }
-}
-
 // --- 应用 Server 配置到设置结构 ---
-function apply(raw, catalog = [], catalogAgents = [], catalogKinds = [], meta = {}) {
+function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
   const providers = Provider.map(raw)
-  const { toolCatalog, tools } = toolSettingsFor(raw, catalog)
+  const { toolCatalog, tools } = toolSettingsFor(catalog)
   const { activeProvider, activeModel } = modelChoice(providers, raw)
-  const { agents, agentDefinitions } = agentList(raw, catalogAgents)
-
-  const globalCapabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {}
-  const globalUses = raw.uses && typeof raw.uses === 'object' && !Array.isArray(raw.uses) ? raw.uses : {}
-  const compactThreshold = Number(raw.compactThreshold)
 
   Object.assign(store.config, {
     providers,
     tools,
     toolCatalog,
     kindOptions: Array.isArray(catalogKinds) ? catalogKinds : [],
-    useOptions: Array.isArray(meta.uses) ? meta.uses : [],
+    modelTasks: meta.models,
+    models: raw.models,
+    compact: raw.compact,
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
-    agents,
-    agentDefinitions,
-    rules: { enabled: raw.rules?.enabled !== false },
-    diagnostics: raw.diagnostics && typeof raw.diagnostics === 'object' ? raw.diagnostics : {},
-    snapshot: raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : {},
     appearance: store.config.appearance,
     activeProvider,
     activeModel,
-    capabilities: {
-      image: globalCapabilities.image !== false,
-      cache: globalCapabilities.cache !== false,
-      stream: globalCapabilities.stream !== false,
-    },
-    uses: globalUses,
-    compactThreshold: Number.isFinite(compactThreshold) && compactThreshold >= COMPACT_RANGE.min && compactThreshold <= COMPACT_RANGE.max ? compactThreshold : DEFAULT_SETTINGS.compactThreshold,
-    autoTitle: raw.autoTitle !== false,
     raw: structuredClone(raw),
   })
 }
@@ -137,17 +105,10 @@ function backendSnapshot(draft) {
   return JSON.stringify({
     providers: draft.providers,
     prompt: draft.prompt,
-    rules: draft.rules,
-    agents: draft.agentDefinitions,
-    model: draft.defaultModel,
-    capabilities: draft.capabilities,
-    uses: draft.uses,
-    compactThreshold: draft.compactThreshold,
-    autoTitle: draft.autoTitle,
+    models: draft.models,
+    compact: draft.compact,
     mcp: draft.mcp,
     tools: draft.tools,
-    diagnostics: draft.diagnostics,
-    snapshot: draft.snapshot,
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -163,24 +124,14 @@ function open() {
   const providers = Object.entries(store.config.providers).map(([name, provider], index) => ({
     id: provider.id || `provider-${index + 1}`,         // 保留已有 ID，否则按顺序生成稳定身份
     name,                                                // 供应商键名即为编辑器显示名
-    sourceName: name,
     enabled: provider.enabled !== false,                 // 未明确关闭的供应商视为启用
     apiType: provider.protocol || 'openai-compatible',  // protocol 映射为前端选择器使用的 apiType 字段
     apiUrl: provider.baseURL || '',                      // Server 的 baseURL 对应编辑器中的请求地址
-    apiKey: provider.apiKey || '',                       // 脱敏密钥原样保留，保存时 Server 会恢复真实值
-    stream: provider.stream,                             // 不写时跟随全局的流式开关
+    apiKey: provider.apiKey || '',                       // 密钥只保存在草稿内存和后端配置
+    stream: provider.stream,                             // 流式开关属于供应商连接
     headers: Provider.jsonText(provider.headers) || '{}',         // 自定义请求头以 JSON 文本编辑
     body: Provider.jsonText(provider.body) || '{}',               // 额外请求体以 JSON 文本编辑
-    models: (provider.models || []).map(model => {
-      const id = typeof model === 'string' ? model : model.id || model.name
-      const settings = provider.modelSettings?.[id] || {}
-      return {
-        id,
-        name: typeof model === 'string' ? model : model.name || id,
-        capabilities: Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具'],
-        context: Number(settings.context || settings.contextWindow || 0), // 0 表示没有单独设置
-      }
-    }),
+    models: provider.models,
   }))
 
   store.settings.draft = isolateDraft({
@@ -188,15 +139,8 @@ function open() {
     tools: store.config.tools,
     mcp: store.config.mcp,
     prompt: store.config.prompt,
-    rules: store.config.rules,
-    agentDefinitions: store.config.agentDefinitions,
-    defaultModel: { provider: store.config.activeProvider, model: store.config.activeModel },
-    capabilities: { ...store.config.capabilities },
-    uses: { ...store.config.uses },
-    compactThreshold: store.config.compactThreshold,
-    autoTitle: store.config.autoTitle,
-    diagnostics: store.config.diagnostics,
-    snapshot: store.config.snapshot,
+    models: store.config.models,
+    compact: store.config.compact,
     appearance: store.config.appearance,
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
@@ -246,23 +190,15 @@ function mcpPayload(draft) {
   return mcp
 }
 
-// --- 整份设置发给后端；上游不认识的字段原样带上 ---
+// --- 整份设置按当前后端形状提交；不发送已经移除的配置项 ---
 function configPayload(draft) {
   return {
-    ...JSON.parse(JSON.stringify(store.config.raw || {})),
     providers: Provider.payload(draft),
     mcp: mcpPayload(draft),
     permission: permissionPayload(draft),
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
-    rules: draft.rules,
-    agents: draft.agentDefinitions,
-    model: draft.defaultModel,
-    capabilities: draft.capabilities,
-    uses: draft.uses,
-    compactThreshold: draft.compactThreshold,
-    autoTitle: draft.autoTitle,
-    diagnostics: draft.diagnostics,
-    snapshot: draft.snapshot,
+    models: draft.models,
+    compact: draft.compact,
   }
 }
 
@@ -287,8 +223,6 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     store.config.appearance = isolateDraft(draft.appearance)
     Appearance.save(draft.appearance)
     if (!await load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
-    // 改名已经落盘；草稿里的来源名也跟上，下一次自动保存才不会按旧名字找丢请求头和模型设置。
-    for (const provider of draft.providers || []) provider.sourceName = provider.name.trim()
     store.settings.savedAt = Date.now()
     initialBackendDraft = backendSnapshot(draft)
     lastAutoSaveError = ''

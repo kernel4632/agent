@@ -5,6 +5,8 @@
  * 调用示例：import { sessionStats } from './stats.js'
  */
 
+import { store } from '../store.js' // 压缩阈值来自当前全局配置
+
 // 中文、日文、韩文大约 1.5 个字符一个 token；英文和代码大约 3.6 个字符一个 token。
 // 这是粗略换算，只用于旧会话，界面上必须带“估算”标记。
 const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/
@@ -144,7 +146,7 @@ export function sessionStats(session) {
     context: {
       used,
       limit,
-      threshold: session.settings?.compactThreshold || 0.8,
+      threshold: store.config.compact.threshold,
       approximate: usedApproximate,
       over: Boolean(limit && used > limit),
     },

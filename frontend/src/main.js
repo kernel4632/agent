@@ -1,5 +1,5 @@
 /*
-入口：挂载 Vue 应用，只在这里引入全局样式、启动数据监听并加载工作区与配置。
+入口：挂载 Vue 应用，只在这里引入全局样式、启动数据监听并加载会话列表与配置。
 调用示例：由 index.html 的 <script type="module" src="/src/main.js"> 自动执行。
 */
 import { Settings } from './commands/settings.js'

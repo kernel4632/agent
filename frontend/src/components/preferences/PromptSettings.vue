@@ -23,7 +23,7 @@ const props = defineProps({ draft: { type: Object, required: true } })
       />
       <span class="prompts-count">{{ draft.prompt.length }} 字符</span>
     </div>
-    <p class="prompts-hint">默认提示词只在第一次使用时填入。你可以随意修改或完全清空；清空后不会自动恢复。项目规则仍按「读取项目规则」开关单独追加。</p>
+    <p class="prompts-hint">默认提示词只在第一次使用时填入。你可以随意修改或完全清空；清空后不会自动恢复。</p>
   </section>
 </template>
 

@@ -29,8 +29,7 @@ const homeFiles = ref([])
 const creating = ref(false)
 const drawerOpen = ref(false)
 const todoOpen = ref(false)
-// 新对话页还没有会话，但智能体/权限选择要在发送前可见，发送时再写进创建出的会话。
-const draftAgent = ref('build')
+// 新对话先保留思考强度，创建后写进会话设置。
 const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
@@ -85,7 +84,7 @@ const paletteOpen = ref(false)
 const paletteItems = computed(() => [
   { id: 'new', label: '新建会话', hint: 'N', run: openDraft },
   { id: 'settings', label: '设置', hint: 'Ctrl ,', run: () => openSettings() },
-  ...store.workspaces.flatMap(workspace => workspace.sessions.map(item => ({ id: `session:${item.id}`, label: item.title || '新会话', hint: workspace.name, run: () => openSession(item.id) }))),
+  ...store.sessionList.map(item => ({ id: `session:${item.id}`, label: item.title || '新会话', hint: item.cwd || '', run: () => openSession(item.id) })),
 ])
 const openPalette = () => { paletteOpen.value = true }
 const closePalette = () => { paletteOpen.value = false }
@@ -103,9 +102,8 @@ async function submitMessage(content) {
     current.files = homeFiles.value
     homeDraft.value = ''
     homeFiles.value = []
-    // 把新对话页选过的智能体和权限写进刚创建的会话；默认值也写，入口不比较默认值。
+    // 当前后端的会话设置只保存思考强度。
     await Session.saveSettings(current.id, {
-      agent: draftAgent.value,
       reasoning: draftReasoning.value,
     })
   } finally { creating.value = false }
@@ -179,12 +177,10 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               :session="session"
               v-model:draft="homeDraft"
               :model="store.config.activeModel"
-              :agent="draftAgent"
               :reasoning="draftReasoning"
               :files="homeFiles"
               :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               v-model:todo-open="todoOpen"
-              @update:agent="draftAgent = $event"
               @update:reasoning="draftReasoning = $event"
               @submit="submitMessage"
               @attach="attachFiles"

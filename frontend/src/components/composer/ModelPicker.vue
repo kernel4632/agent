@@ -17,7 +17,7 @@ const groups = computed(() => Object.entries(props.providers)
   .filter(([, config]) => config.enabled)
   .map(([provider, config]) => ({
     provider,
-    models: config.models.map(model => typeof model === 'string' ? model : model.id || model.name)
+    models: config.models.map(model => model.id)
       .filter(model => !query.value.trim() || model.toLowerCase().includes(query.value.trim().toLowerCase())),
   }))
   .filter(group => group.models.length))

@@ -6,7 +6,7 @@ import { AgentAPI } from '../src/utils/api.js'
 import { Session } from '../src/commands/session.js'
 import { History } from '../src/commands/history.js'
 
-const snapshot = () => ({ id: 'race', provider: 'test', model: 'm', history: [], settings: { reasoning: 'auto', capabilities: {}, uses: {} } })
+const snapshot = () => ({ id: 'race', provider: 'test', model: 'm', history: [], settings: { reasoning: 'auto' } })
 
 test('保存完成时更新当前会话，即使刷新期间会话对象被替换', async () => {
   const original = AgentAPI.saveSettings
@@ -16,7 +16,7 @@ test('保存完成时更新当前会话，即使刷新期间会话对象被替�
   try {
     const saving = Session.saveSettings('race', { reasoning: 'high' })
     store.sessions.race = History.normalize(snapshot()) // 模拟保存途中收到历史刷新
-    complete({ reasoning: 'high', capabilities: {}, uses: {} })
+    complete({ reasoning: 'high' })
     await saving
     assert.equal(store.sessions.race.settings.reasoning, 'high')
   } finally { AgentAPI.saveSettings = original; delete store.sessions.race }
@@ -29,7 +29,7 @@ test('读取开始后发生的设置修改不会被迟到的历史快照覆盖',
   store.sessions.race = History.normalize(snapshot())
   try {
     const reading = History.refresh('race')
-    store.sessions.race.settings = { reasoning: 'high', capabilities: {}, uses: {} }
+    store.sessions.race.settings = { reasoning: 'high' }
     complete(snapshot()) // 旧快照仍然是 auto
     await reading
     assert.equal(store.sessions.race.settings.reasoning, 'high')

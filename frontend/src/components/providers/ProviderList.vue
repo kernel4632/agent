@@ -23,7 +23,7 @@ function addProvider() {
   const providers = props.draft.providers
   let number = providers.length + 1
   while (providers.some(item => item.name === `Provider ${number}`)) number += 1
-  const provider = { id: crypto.randomUUID(), name: `Provider ${number}`, enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', stream: undefined, headers: '{}', body: '{}', models: [] }
+  const provider = { id: crypto.randomUUID(), name: `Provider ${number}`, enabled: true, apiType: 'openai-compatible', apiUrl: '', apiKey: '', stream: true, headers: '{}', body: '{}', models: [] }
   providers.push(provider)
   emit('open-detail', { id: provider.id, title: provider.name })
 }
@@ -32,6 +32,12 @@ function updateProvider(updated) {
   const providers = props.draft.providers
   const index = providers.findIndex(item => item.id === updated.id)
   if (index < 0) return
+  // 改名或移除模型后，任务模型的指向也跟着更新，保存后不会指向已不存在的供应商。
+  for (const target of Object.values(props.draft.models)) {
+    if (target.provider !== providers[index].name) continue
+    target.provider = updated.name
+    if (!updated.models.some(model => model.id === target.model)) Object.assign(target, { provider: '', model: '' })
+  }
   providers[index] = updated
   if (props.detail?.id === updated.id) emit('update-detail-title', updated.name)
 }
@@ -39,6 +45,9 @@ function updateProvider(updated) {
 function removeProvider() {
   const providers = props.draft.providers
   const index = providers.findIndex(item => item.id === props.detail?.id)
+  for (const target of Object.values(props.draft.models)) {
+    if (target.provider === providers[index]?.name) Object.assign(target, { provider: '', model: '' })
+  }
   if (index >= 0) providers.splice(index, 1)
   emit('close-detail')
 }

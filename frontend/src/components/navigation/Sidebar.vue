@@ -6,7 +6,7 @@
 <Sidebar :open="drawerOpen" @close="drawerOpen = false" @open="openSession" @new="openDraft" />
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
@@ -21,9 +21,6 @@ defineProps({
 const emit = defineEmits(['close', 'open', 'new'])
 
 const search = ref('')
-
-// 当前工作区仍是会话的来源，但侧栏不再提供切换入口。
-const workspace = computed(() => store.workspaces[0] || null)
 
 // 选中会话后先交给 App 导航，再收起抽屉。
 function openConversation(id) {
@@ -90,7 +87,7 @@ async function confirmDelete() {
 
     <SessionList
       class="app-drawer__sessions"
-      :workspace="workspace"
+      :sessions="store.sessionList"
       :active-session-id="store.ui.activeSessionID"
       :query="search"
       :selecting="selecting"

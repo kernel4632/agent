@@ -1,12 +1,11 @@
 <!--
-模型设置页：默认模型、模型能力和任务分工都持久化到全局配置。
-这些值作为新对话的默认值；已有对话仍保留自己的设置。
+模型设置页：对话、压缩、标题和子任务的模型统一写入 config.models。
+模型能力在供应商的模型编辑页设置；这里仅选择每件事使用哪个模型。
 调用示例：<ModelSettings :draft="draft" />
 -->
 <script setup>
 import { computed } from 'vue'
 import Select from '../../ui/Select.vue'
-import Switch from '../../ui/Switch.vue'
 import { store } from '../../store.js'
 
 const props = defineProps({ draft: { type: Object, required: true } })
@@ -15,58 +14,28 @@ const modelOptions = computed(() => {
   const options = []
   for (const provider of props.draft.providers || []) {
     for (const model of provider.models || []) {
-      const id = typeof model === 'string' ? model : model?.id || model?.name
-      if (id) options.push({ value: `${provider.name}/${id}`, label: `${provider.name} / ${id}` })
+      options.push({ value: JSON.stringify({ provider: provider.name, model: model.id }), label: `${provider.name} / ${model.name || model.id}` })
     }
   }
   return options
 })
-const modelValue = computed(() => {
-  const target = props.draft.defaultModel
-  return target?.provider && target?.model ? `${target.provider}/${target.model}` : ''
-})
 const modelChoices = computed(() => [{ value: '', label: '和默认模型共用' }, ...modelOptions.value])
-const useEntries = computed(() => store.config.useOptions || [])
+const tasks = computed(() => store.config.modelTasks.filter(item => item.task !== 'chat'))
 
-const capabilityRows = [
-  { key: 'image', label: '图像', hint: '允许把图片发给模型' },
-  { key: 'cache', label: '缓存', hint: '命中提示词缓存时省时间和费用' },
-  { key: 'stream', label: '流式', hint: '回复边生成边显示' },
-]
-
-function chooseModel(value) {
-  if (!value) {
-    props.draft.defaultModel = { provider: '', model: '' }
-    return
-  }
-  const index = value.indexOf('/')
-  props.draft.defaultModel = { provider: value.slice(0, index), model: value.slice(index + 1) }
+function modelValue(task) {
+  const target = props.draft.models[task]
+  return target?.provider && target?.model ? JSON.stringify(target) : ''
 }
 
-function toggleCapability(key, value) {
-  props.draft.capabilities = { ...props.draft.capabilities, [key]: value }
-}
-
-function useKey(use) {
-  const target = props.draft.uses?.[use]
-  return target?.provider && target?.model ? `${target.provider}/${target.model}` : ''
-}
-
-function setUse(use, value) {
-  const uses = { ...(props.draft.uses || {}) }
-  if (!value) delete uses[use]
-  else {
-    const index = value.indexOf('/')
-    uses[use] = { provider: value.slice(0, index), model: value.slice(index + 1) }
-  }
-  props.draft.uses = uses
+function chooseModel(task, value) {
+  props.draft.models[task] = value ? JSON.parse(value) : { provider: '', model: '' }
 }
 </script>
 
 <template>
   <section class="model-settings" aria-label="模型">
     <header class="model-settings__head">
-      <p>默认模型用于新对话；已有对话可以在输入框旁单独切换。能力开关和任务分工也会作为新对话的默认值。</p>
+      <p>默认模型用于新对话；已有对话可以在输入框旁单独切换。压缩、标题和子任务的模型在这里统一选择。</p>
     </header>
 
     <div class="model-settings__section">
@@ -76,30 +45,9 @@ function setUse(use, value) {
       </div>
       <div class="model-settings__field">
         <span class="model-settings__label">模型</span>
-        <Select label="默认模型" :model-value="modelValue" :items="modelOptions" @update:model-value="chooseModel" />
+        <Select label="默认模型" :model-value="modelValue('chat')" :items="[{ value: '', label: '使用首个可用模型' }, ...modelOptions]" @update:model-value="chooseModel('chat', $event)" />
       </div>
       <p v-if="!modelOptions.length" class="model-settings__empty">还没有可用模型。先在「模型供应商」里添加一个供应商和模型。</p>
-    </div>
-
-    <div class="model-settings__section">
-      <div class="model-settings__intro">
-        <h3>模型能力</h3>
-        <p>按模型实际提供的能力开关；不确定时保持默认。</p>
-      </div>
-      <div class="model-settings__switches">
-        <Switch
-          v-for="item in capabilityRows"
-          :key="item.key"
-          :model-value="draft.capabilities[item.key]"
-          :label="item.label"
-          @update:model-value="toggleCapability(item.key, $event)"
-        />
-        <p class="model-settings__hint">{{ capabilityRows.map(item => `${item.label}：${item.hint}`).join('；') }}。</p>
-      </div>
-      <div class="model-settings__switches">
-        <Switch :model-value="draft.autoTitle" label="自动标题" @update:model-value="draft.autoTitle = $event" />
-        <p class="model-settings__hint">第一次聊完让模型给会话起一个短标题。</p>
-      </div>
     </div>
 
     <div class="model-settings__section">
@@ -108,9 +56,9 @@ function setUse(use, value) {
         <p>不选就和默认模型共用；只有确实需要更便宜或更快的模型时才分开。</p>
       </div>
       <div class="model-settings__fields">
-        <div class="model-settings__field" v-for="item in useEntries" :key="item.use">
+        <div class="model-settings__field" v-for="item in tasks" :key="item.task">
           <span class="model-settings__label">{{ item.label }}</span>
-          <Select :label="item.label" :model-value="useKey(item.use)" :items="modelChoices" @update:model-value="setUse(item.use, $event)" />
+          <Select :label="item.label" :model-value="modelValue(item.task)" :items="modelChoices" @update:model-value="chooseModel(item.task, $event)" />
         </div>
       </div>
     </div>

@@ -40,13 +40,13 @@ Vue 3 + Vite 聊天前端。会话从左侧抽屉打开，新对话在首次发�
 | 分组 | 内容 | Vue 文件数 |
 | --- | --- | --- |
 | `navigation/` | 侧栏、会话列表、顶部栏、命令面板 | 4 |
-| `composer/` | 输入区、模型、智能体、思考强度选择 | 4 |
+| `composer/` | 输入区、模型、思考强度选择 | 3 |
 | `conversation/` | 时间线、助手回复、思考、消息操作、回退确认 | 5 |
 | `activity/` | 工具调用、通用结果、任务清单、用量统计 | 4 |
 | `feedback/` | 短提示、连接错误、请求状态、压缩提示 | 4 |
-| `preferences/` | 外观、提示词、上下文、高级设置 | 4 |
+| `preferences/` | 外观、提示词、上下文 | 3 |
 | `providers/` | 供应商列表与编辑、供应商模型、模型设置 | 4 |
-| `capabilities/` | 智能体、工具权限、MCP 列表与编辑 | 4 |
+| `capabilities/` | 工具权限、MCP 列表与编辑 | 3 |
 
 `views/` 和 `ui/` 只放组件，没有独立 JS。功能操作属于 `commands/`；页面装配留在页面，通用网络和浏览器能力放 `utils/`。`commands/` 不导入 Vue 组件，也不承担控件的转出表。
 
@@ -69,7 +69,8 @@ bun run dev
 - 配置保存保留未编辑字段；仅改外观时只写浏览器 localStorage。
 - API Key 只保存在表单内存和后端配置中，不写入浏览器持久存储。
 - 附件只支持文本和代码，每个不超过 1 MiB；正文随本轮消息发送。
-- 输入 `/` 选择后端返回的自定义命令。数据管理尚无完整接口，入口保持禁用。
+- 模型对象保留名称、上下文窗口和能力；全局按任务选择模型，压缩阈值使用 `compact.threshold`。会话设置只保存思考强度。
+- 会话直接来自 `/session/list`，每条会话有自己的 `cwd`。前端不再调用工作区、智能体列表和斜杠命令接口，也不显示后端已移除的设置。
 
 ## 验证
 
@@ -78,11 +79,12 @@ cd frontend
 bun run test
 $env:PLAYWRIGHT_CHANNEL = 'chrome'
 bun run test:ui
+bun run test:live
 bun run build
 ```
 
 浏览器测试使用现有 Chrome，不需下载新浏览器。其他环境可安装 Playwright Chromium 后不设置 `PLAYWRIGHT_CHANNEL`。
 
-协议测试覆盖 UTF-8/CRLF 分块、SSE 和 HTTP 契约。浏览器测试用模拟接口检查桌面和手机流程；真实模型对话需要填写供应商地址、密钥和模型 ID。测试截图与日志统一写入根目录的 `tmp/`。
+协议测试检查每个前端请求都存在于现行 OpenAPI。`test:ui` 使用受接口表约束的模拟响应检查交互；`test:live` 启动真实后端和前端，检查配置保存、连接测试、发送、思考强度及刷新后的历史。联调模型由本机固定回复服务提供，不使用用户密钥；测试数据、截图与日志都在根目录 `tmp/`。
 
 生产构建在 `dist/`。`vite preview` 已配置同源 API 代理；正式静态部署需自行将 `/api/*` 转发至原始后端并移除 `/api` 前缀，SSE 不应缓冲。模型发现使用已有 Vite `/openai-proxy/models` 开发代理；静态部署无此代理时可手动添加模型 ID。

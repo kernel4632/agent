@@ -3,31 +3,12 @@
  * 编辑器的开关和未完成文本由组件自己保留，保存队列归 Settings。
  */
 import { AgentAPI } from '../utils/api.js' // 已保存模型配置的连接测试
-import { store } from '../store.js' // 保留没有参与编辑的原始参数
 import { Notice } from './notice.js' // 发现模型失败时说明原因
+import { DEFAULT_CONTEXT } from '../defaults.js' // 没有填写模型窗口时采用后端默认值
 
-/** 后端供应商数组变成界面模型目录；空配置提供可编辑起点。 */
+/** 后端供应商按名称索引；模型对象完整保留，名称、上下文和能力不再拆成第二张表。 */
 function providerMap(raw) {
-  const list = Array.isArray(raw.providers) ? raw.providers : []
-  const providers = {}
-  for (const provider of list) {
-    const key = provider.name || '默认供应商'
-    providers[key] = {
-      enabled: provider.enabled !== false,
-      protocol: provider.protocol || 'openai-compatible',
-      baseURL: provider.baseURL || provider.api || '',
-      apiKey: provider.apiKey || provider.key || '',
-      models: Array.isArray(provider.models) ? provider.models.map(model => typeof model === 'string' ? model : model.id) : [],
-      modelSettings: provider.modelSettings || {},
-      timeout: provider.timeout || 120000,
-      headers: provider.headers || '{}',
-    }
-  }
-  // 没有供应商时给一个空条目，设置页才有地方输入第一份配置。
-  if (!Object.keys(providers).length) {
-    providers['默认供应商'] = { enabled: true, protocol: 'openai-compatible', baseURL: '', apiKey: '', models: [], modelSettings: {}, timeout: 120000, headers: '{}' }
-  }
-  return providers
+  return Object.fromEntries(raw.providers.map(provider => [provider.name, provider]))
 }
 
 /** 用服务端已保存的供应商和模型发起真实连接测试。 */
@@ -59,42 +40,25 @@ function objectFromJson(text, label) {
   return value
 }
 
-/** 只覆盖编辑过的字段；供应商改名后仍保留来源里的参数。 */
+/** 编辑草稿转成当前配置形状；每个模型必须是带 id、name、context、capabilities 的对象。 */
 function providerPayload(draft) {
   return (draft.providers || []).map(provider => {
-    // 改名后还要能找到原来的那一份，才能保留密钥、请求头和模型设置。
-    const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))
-    const modelSettings = { ...(original?.modelSettings || {}) }        // 每个模型的上下文窗口单独存
-    const models = (provider.models || []).map(model => {
-      const id = typeof model === 'string' ? model : model.id || model.name
-      const context = Number(model?.context)
-      if (context > 0) modelSettings[id] = { ...modelSettings[id], context }
-      else if (modelSettings[id]) {
-        // 清空上下文窗口时只删这两个键，其他模型设置不动。
-        const next = { ...modelSettings[id] }
-        delete next.context
-        delete next.contextWindow
-        if (Object.keys(next).length) modelSettings[id] = next
-        else delete modelSettings[id]
-      }
-      const name = String(model?.name || id).trim() || id
-      const capabilities = Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具']
-      // 只改了默认值时仍存成字符串，保持旧配置格式，也避免无意义的对象膨胀。
-      if (name === id && capabilities.length === 2 && capabilities[0] === '文本' && capabilities[1] === '工具') return id
-      return { id, name, capabilities }
-    })
+    const models = provider.models.map(model => ({
+      id: model.id.trim(),
+      name: model.name.trim() || model.id.trim(),
+      context: Number(model.context) > 0 ? Number(model.context) : DEFAULT_CONTEXT,
+      capabilities: [...model.capabilities],
+    }))
     return {
-      ...original,                                                     // 保留 id、密钥等上游不认识的字段
       name: provider.name.trim(),
       baseURL: provider.apiUrl || '',
       apiKey: provider.apiKey || '',
       enabled: provider.enabled !== false,
       protocol: provider.apiType || 'openai-compatible',
-      ...(provider.stream === undefined ? {} : { stream: provider.stream }),
+      stream: provider.stream !== false,
       headers: objectFromJson(provider.headers, '自定义请求头'),
       body: objectFromJson(provider.body, '额外请求体'),
       models,
-      ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
     }
   })
 }
@@ -120,7 +84,7 @@ async function fetchModels(provider, currentModels = []) {
     const discovered = source
       .map(model => typeof model === 'string' ? model : model.id || model.name)
       .filter(Boolean)
-      .map(id => ({ id, name: id, capabilities: ['文本', '工具'] }))
+      .map(id => ({ id, name: id, context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }))
     if (!discovered.length) throw new Error('接口未返回可用模型')
     return discovered
   } catch (error) {
@@ -133,8 +97,8 @@ async function fetchModels(provider, currentModels = []) {
 async function discoverModels(provider, currentModels = []) {
   const discovered = await fetchModels(provider, currentModels)
   const merged = new Map()
-  for (const model of currentModels) merged.set(model.id, model)
   for (const model of discovered) merged.set(model.id, model)
+  for (const model of currentModels) merged.set(model.id, model) // 已编辑的名称和能力优先于远程目录
   return [...merged.values()]
 }
 

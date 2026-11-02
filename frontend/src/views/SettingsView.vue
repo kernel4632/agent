@@ -14,23 +14,19 @@ import Icon from '../ui/Icon.vue'
 import Button from '../ui/Button.vue'
 // 面板顺序和视觉组件属于本页面；功能保存仍调用 commands/settings。
 import AppearanceSettings from '../components/preferences/AppearanceSettings.vue'
-import AgentSettings from '../components/capabilities/AgentSettings.vue'
 import ContextSettings from '../components/preferences/ContextSettings.vue'
 import ModelSettings from '../components/providers/ModelSettings.vue'
 import ProviderList from '../components/providers/ProviderList.vue'
 import PromptSettings from '../components/preferences/PromptSettings.vue'
-import AdvancedSettings from '../components/preferences/AdvancedSettings.vue'
 import ToolsSettings from '../components/capabilities/ToolsSettings.vue'
 import MCPList from '../components/capabilities/MCPList.vue'
 
 const settingsPages = [
   { id: 'appearance', label: '通用', description: '主题、强调色和界面偏好', icon: 'settings', group: '通用设置', tone: 'primary', component: AppearanceSettings },
   { id: 'providers', label: '模型供应商', description: '连接模型服务并管理可用模型', icon: 'globe', group: '模型与服务', tone: 'primary', component: ProviderList, nested: true },
-  { id: 'model', label: '模型', description: '默认模型、模型能力和任务分工', icon: 'spark', group: '模型与服务', tone: 'primary', component: ModelSettings },
+  { id: 'model', label: '模型', description: '默认模型和任务分工', icon: 'spark', group: '模型与服务', tone: 'primary', component: ModelSettings },
   { id: 'context', label: '上下文', description: '自动压缩阈值和历史整理', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
-  { id: 'agents', label: '智能体', description: '配置角色、提示词、模型、工具和权限', icon: 'mode', group: '模型与服务', tone: 'primary', component: AgentSettings, nested: true },
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptSettings },
-  { id: 'advanced', label: '高级', description: '诊断命令、规则读取和改动快照', icon: 'code', group: '模型与服务', tone: 'secondary', component: AdvancedSettings },
   { id: 'tools', label: '工具管理', description: '查看工具权限并调整批准方式', icon: 'code', group: '模型与服务', tone: 'primary', component: ToolsSettings, nested: true },
   { id: 'mcp', label: 'MCP 服务', description: '连接外部工具和数据服务', icon: 'link', group: '模型与服务', tone: 'tertiary', component: MCPList, nested: true },
   { id: 'data', label: '数据管理', description: '导出、备份和清理本地数据', icon: 'folder', group: '数据设置', tone: 'secondary', disabled: true },

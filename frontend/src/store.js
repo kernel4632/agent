@@ -1,9 +1,10 @@
 /*
-工作台全局数据：集中保存 Server 返回的工作区、会话、配置和界面状态。
+工作台全局数据：集中保存 Server 返回的会话、配置和界面状态。
 本文件只定义字段结构，不读取网络、不执行业务动作，也不直接操作页面。
-调用示例：store.workspaces、store.sessions[sessionID]、store.ui.activeSessionID。
+调用示例：store.sessionList、store.sessions[sessionID]、store.ui.activeSessionID。
 */
 import { computed, reactive } from 'vue'
+import { DEFAULT_COMPACT_THRESHOLD } from './defaults.js'
 
 
 export const DEFAULT_APPEARANCE = Object.freeze({
@@ -39,7 +40,6 @@ export const store = reactive({
     settingsOpen: false,
     settingsSection: '',                               // 空字符串表示设置首页；传页面 id 才直接进入详情
     settingsDetail: null,                              // 二级页面：{ id, title }，如某个供应商或 MCP 服务
-    activeWorkspaceID: '',                             // 主页当前工作区身份
     activeSessionID: '',                               // 对话页当前会话身份
     openedSessionIDs: [],                              // 用户本次运行中主动打开的会话，顺序即标签顺序
     toast: '',                                         // 短时全局反馈
@@ -47,26 +47,22 @@ export const store = reactive({
     errorMessage: '',                                  // 最近一次跨页面 API 错误
   },
 
-  workspaces: [],                                      // 由 `/workspace/read` 和 `/session/list` 组装出的目录与会话摘要
+  sessionList: [],                                     // /session/list 返回的会话摘要，cwd 是每条会话自己的属性
   sessions: {},                                       // 已读取的完整会话，以 Session ID 为键
-  commands: [],                                       // 可用的斜杠命令，输入 / 时展开
   config: {
     providers: {},                                    // 设置页可编辑供应商目录
     tools: [],                                        // 设置页可见的工具与权限
     toolCatalog: [],                                  // 全部工具（含渲染信息，控制工具也在）
     kindOptions: [],                                  // 工具类别；名字和顺序由后端给
-    useOptions: [],                                   // 按用途配模型的标签；由后端给
+    modelTasks: [],                                   // /config/meta.models 给出的任务标签
+    models: {},                                       // 按任务的模型选择：chat、compact、title、task
+    compact: { threshold: DEFAULT_COMPACT_THRESHOLD }, // 全局压缩阈值
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
-    agents: [],                                        // 当前可用的智能体（内置 + 自定义）
-    agentDefinitions: {},                              // 自定义智能体的原始定义，设置页编辑用
-    rules: { enabled: true },                          // 是否自动读取项目规则
-    diagnostics: {},                                   // 写后诊断命令
-    snapshot: {},                                      // shell 改动快照设置
     appearance: loadAppearance(),                       // 从 localStorage 恢复外观偏好
     activeProvider: '',                               // Server 当前供应商
     activeModel: '',                                  // Server 当前模型
-    raw: null,                                        // 脱敏后的完整 Server 配置
+    raw: null,                                        // 完整 Server 配置；只留内存，不写浏览器存储
   },
 
   events: {

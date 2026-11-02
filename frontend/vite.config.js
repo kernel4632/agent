@@ -1,7 +1,7 @@
 /*
  Vite 开发配置：编译 Vue 单文件组件，并代理真实 Agent Server API。
-代理地址可通过 AGENT_SERVER_URL 覆盖，默认连接 README 规定的 127.0.0.1:4632。
-调用示例：AGENT_SERVER_URL=http://127.0.0.1:4633 bun run dev。
+代理地址可通过 AGENT_SERVER_URL 覆盖，默认连接 127.0.0.1:3000。
+调用示例：AGENT_SERVER_URL=http://127.0.0.1:3001 bun run dev。
 */
 import { defineConfig } from 'vite'                 // 引入 Vite 配置声明能力
 import vue from '@vitejs/plugin-vue'                // 引入 Vue 单文件组件编译能力

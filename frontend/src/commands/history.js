@@ -98,7 +98,7 @@ function normalizeMessage(item, messages) {
 }
 
 function normalize(source, previous = {}) {
-  const provider = source.provider || findModelProvider(source.model)
+  const provider = source.provider
 
   // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
   // 不保留后端原始 history：它在界面里只通过 messages 使用，留着会多占一倍内存。
@@ -122,44 +122,32 @@ function normalize(source, previous = {}) {
   // 返回前端最终结构，补齐仅前端使用的草稿和用量字段
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
-    workspaceID: source.workspaceId,
     // 刷新或重连时以后端真实 running 为准；否则正在重试的会话会显示成空闲，
     // 输入区只剩发送按钮，用户就没法点停止。
     status: source.running ? 'running' : 'idle',
     connection: previous.connection || 'connecting',
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
-    // 智能体、能力开关、按用途的模型，后端读取时一并给出。
-    // 缺字段时用下面这份兜底；默认值和后端 defaultSettings() 是同一套值（有契约测试盯着）。
-    settings: source.settings || previous.settings || {
-      ...DEFAULT_SETTINGS,
-      capabilities: { ...DEFAULT_SETTINGS.capabilities },
-      uses: { ...DEFAULT_SETTINGS.uses },
-    },
+    settings: source.settings || previous.settings || { ...DEFAULT_SETTINGS }, // 会话只保存思考强度
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
     titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
     provider,                                           // 模型选择器显示供应商
-    model: source.model || store.config.activeModel,    // 模型选择器显示模型
+    model: source.model,                                // 不用全局默认模型替换未配置的会话
     messages,                                            // 使用合并后的可见消息
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
     contextTokens: lastRequest?.input || previous.contextTokens || 0, // 最后一次请求的提示词 token 就是上下文占用
-    contextLimit: store.config.providers[provider]?.modelSettings?.[source.model]?.context || previous.contextLimit || DEFAULT_CONTEXT, // 读取模型上下文限制
+    contextLimit: store.config.providers[provider]?.models.find(model => model.id === source.model)?.context || DEFAULT_CONTEXT,
     inputTokens: requests.length ? sum('input') : previous.inputTokens || 0,       // 历史里的累计输入
     outputTokens: requests.length ? sum('output') : previous.outputTokens || 0,    // 历史里的累计输出
     cacheTokens: requests.length ? sum('cache') : previous.cacheTokens || 0,       // 历史里的缓存读取
   }
 }
 
-function findModelProvider(model) {
-  const activeProvider = store.config.activeProvider
-  if (store.config.providers[activeProvider]?.models?.includes(model)) return activeProvider // 同名模型优先使用当前供应商
-  return Object.entries(store.config.providers).find(([, config]) => config.models?.includes(model))?.[0] || activeProvider // 再查找首个配置来源
-}
-
 function summaryOf(session) {
   return {
     id: session.id,                                      // 会话唯一身份
-    workspaceID: session.workspaceID,                    // 所属工作区
+    cwd: session.cwd,                                    // 会话当前目录
+    provider: session.provider,
     title: session.title || t('newConversation'),        // 列表显示标题，空标题使用默认文案
     model: session.model,                                // 当前使用模型
     status: session.status,                              // 运行或空闲状态
@@ -171,18 +159,9 @@ function summaryOf(session) {
 }
 
 function syncSummary(session) {
-  const found = locateSummary(session.id)                       // 查找工作区内摘要
+  const found = store.sessionList.find(item => item.id === session.id)
   if (!found) return                                     // 异常游离会话不制造目录项
-  Object.assign(found.summary, summaryOf(session))       // 将最新标题、状态、计数和时间写回列表
-}
-
-// 摘要和完整历史引用同一会话 ID；只在这里投影，不让历史反向调用会话操作。
-function locateSummary(id) {
-  for (const workspace of store.workspaces) {
-    const summary = workspace.sessions.find(item => item.id === id)
-    if (summary) return { workspace, summary }
-  }
-  return null
+  Object.assign(found, summaryOf(session))               // 将最新标题、状态、计数和时间写回列表
 }
 
 /** 读取后端真实历史，保留当前草稿、附件和连接状态。 */

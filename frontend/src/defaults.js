@@ -1,19 +1,15 @@
 /*
-前端会用到的默认设置：新建会话、设置页显示和接口返回缺字段时共用这一份。
-执行时的真正来源是 server/config/settings.js 的 defaultSettings()；这里只负责界面首屏的初始值。
+前端首屏默认值：会话只保存思考强度，模型与压缩设置属于全局配置。
+执行时的来源是 server/features/agent.js 和 server/features/config.js。
 调用示例：import { DEFAULT_SETTINGS, DEFAULT_CONTEXT } from './defaults.js'
 */
 export const DEFAULT_SETTINGS = {
-  agent: 'build',
-  compactThreshold: 0.8,
-  capabilities: { image: true, cache: true, stream: true },
-  uses: {},
-  autoTitle: true,
   reasoning: 'auto',
 }
 
 // 模型没有单独设置上下文窗口时，后端按 128K 计算；界面显示也要用同一个数。
 export const DEFAULT_CONTEXT = 128000
+export const DEFAULT_COMPACT_THRESHOLD = 0.8
 
 // 新会话还没有标题时显示的名字；和后端 UNTITLED 保持一致。
 export const NEW_SESSION_TITLE = '新对话'

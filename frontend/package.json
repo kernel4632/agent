@@ -1,13 +1,14 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.64.9",
+  "version": "0.64.10",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
+    "test:live": "playwright test --config playwright.live.config.js",
     "test:ui": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js tests/ui-controls.spec.js",
     "test:ui:headed": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js tests/ui-controls.spec.js --headed"
   },

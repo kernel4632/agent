@@ -40,18 +40,14 @@ function subscribeSession(sessionID, signal) {
 
 export const AgentAPI = {
   getHealth:        ()                          => request('/health'),
-  // 用户自定义的斜杠命令；旧后端没有这个接口时由调用方兜底。
-  getCommands:      ()                          => request('/command/list'),
   // 全部工具和当前权限，设置页画开关用。
   getTools:         ()                          => request('/tool/list'),
   // 工具类别；名字和顺序由后端给。
   getToolKinds:     ()                          => request('/tool/kinds'),
-  // 内置和自定义智能体的完整定义；旧后端没有这个接口时由调用方兜底。
-  getAgents:        ()                          => request('/agent/list'),
-  getWorkspace:     ()                          => request('/workspace/read'),
   getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  createSession:    async (workspaceID, provider, model) => {
-    const body = { title: NEW_SESSION_TITLE, provider, model, ...(workspaceID ? { workspaceId: workspaceID } : {}) }
+  // 目录属于会话；未指定 cwd 时由后端使用自己的当前目录。
+  createSession:    async (cwd, provider, model) => {
+    const body = { title: NEW_SESSION_TITLE, provider, model, ...(cwd ? { cwd } : {}) }
     const { sessionId } = await request('/session/create', 'POST', body)
     return request(`/session/read/${encodeURIComponent(sessionId)}`)
   },
@@ -84,6 +80,7 @@ export const AgentAPI = {
   redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
   getConfig:        ()                          => request('/config/read'),
   getConfigMeta:    ()                          => request('/config/meta'),
+  // 整份配置使用 providers[].models[]、models.{chat,compact,title,task} 和 compact.threshold。
   updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
   // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
   testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),

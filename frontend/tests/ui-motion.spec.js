@@ -210,10 +210,9 @@ test.describe('chat motion', () => {
     await backend(page)
     await page.goto('/')
     await navigate(page, '设置')
-    await page.getByRole('button', { name: /智能体/ }).click()
-    await page.locator('.agent-row').first().click()
-    const toggle = page.getByRole('switch', { name: '只读' })
-    const thumb = page.locator('.agent-switch-row', { hasText: '只读' }).locator('.ui-switch__thumb')
+    await page.getByRole('button', { name: /通用/ }).click()
+    const toggle = page.getByRole('switch', { name: '增强键盘焦点' })
+    const thumb = page.locator('.appearance-card .ui-switch', { hasText: '增强键盘焦点' }).locator('.ui-switch__thumb')
     await expect(toggle).not.toBeChecked()
 
     const duration = await thumb.evaluate(element => getComputedStyle(element).transitionDuration)
@@ -245,26 +244,17 @@ test.describe('chat motion', () => {
     expect(running).toBe(true) // 真的在过渡高度，而不是只写了 CSS
   })
 
-  test('slash menu and message action layer animate', async ({ page }) => {
+  test('message action layer animates', async ({ page }) => {
     await backend(page)
     await page.goto('/')
     await newSession(page, '操作层动效')
 
     await watchMotion(page)
-    await page.getByRole('textbox', { name: '消息', exact: true }).fill('/')
-    await expect(page.getByRole('option', { name: /review/ })).toBeVisible()
-    await waitForMotion(page, 'chat-composer__slash')
-    let motion = await readMotion(page)
-    expect(moving(motion, 'chat-composer__slash').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('option', { name: /review/ })).toHaveCount(0)
-    await watchMotion(page)
     await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
     const actions = page.getByRole('dialog', { name: '消息操作', exact: true })
     await expect(actions).toBeVisible()
     await waitForMotion(page, 'message-actions')
-    motion = await readMotion(page)
+    const motion = await readMotion(page)
     const card = moving(motion, 'message-actions__card')
     expect(card.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
     expect(card.some(item => item.opacity !== '1' || item.transform !== 'none')).toBe(true)

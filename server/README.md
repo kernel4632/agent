@@ -232,6 +232,8 @@ bun start
 
 ## 前端打开会话
 
+前端启动只读取 `/session/list`、`/config/read`、`/config/meta`、`/tool/list` 和 `/tool/kinds`。`/workspace/read`、`/agent/list`、`/command/list` 已移除，不用于初始化。配置按上面的当前字段保存；会话设置只有 `reasoning`。真实前后端联调运行 `cd frontend` 后执行 `bun run test:live`，数据使用 `tmp/` 下的独立目录，模型服务使用本机固定回复。
+
 固定顺序：
 
 ```text

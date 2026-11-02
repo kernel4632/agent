@@ -1,7 +1,7 @@
 <!--
 供应商模型页：列出模型、发现远程模型、手动添加，并编辑每个模型的名称、能力和上下文窗口。
 数据只通过 update:models 交给上层；发现请求、弹窗和编辑草稿都是本地状态。
-上下文窗口写回 provider.modelSettings，模型名称和能力写回模型对象；只改默认值时仍然存成字符串，保持旧配置格式。
+名称、上下文窗口和能力一起保存在模型对象中；能力使用后端规定的英文标识，界面显示中文。
 调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="setModels" />
 -->
 <script setup>
@@ -16,7 +16,7 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Switch from '../../ui/Switch.vue'
-import { Settings } from '../../commands/settings.js'
+import { DEFAULT_CONTEXT } from '../../defaults.js'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
@@ -33,9 +33,9 @@ const editError = ref('')
 // 常见的上下文窗口，点一下比手填数字快；数字是 token 数，不是字符数。
 const CONTEXT_PRESETS = [32000, 64000, 128000, 200000, 1000000]
 const CAPABILITIES = [
-  { value: '工具', label: '工具调用', hint: '允许模型调用读文件、执行命令等工具' },
-  { value: '图像', label: '图像输入', hint: '允许把图片发给这个模型' },
-  { value: '推理', label: '推理输出', hint: '模型会返回思考过程' },
+  { value: 'tools', label: '工具调用', hint: '允许模型调用读文件、执行命令等工具' },
+  { value: 'image', label: '图像输入', hint: '允许把图片发给这个模型' },
+  { value: 'reasoning', label: '推理输出', hint: '模型会返回思考过程' },
 ]
 
 const filtered = computed(() => {
@@ -44,14 +44,15 @@ const filtered = computed(() => {
   return available.value.filter(model => `${model.name} ${model.id}`.toLowerCase().includes(query))
 })
 
-const defaultCapabilities = () => ['文本', '工具']
+const defaultCapabilities = () => ['text', 'tools']
+const capabilityLabel = value => value === 'text' ? '文本' : CAPABILITIES.find(item => item.value === value)?.label || value
 const formatContext = value => {
   if (!value) return '未设置'
   if (value >= 1000000) return `${Math.round(value / 100000) / 10}M`
   if (value >= 1000) return `${Math.round(value / 1000)}K`
   return String(value)
 }
-const newModel = id => ({ id, name: id, capabilities: defaultCapabilities(), context: 0 })
+const newModel = id => ({ id, name: id, capabilities: defaultCapabilities(), context: DEFAULT_CONTEXT })
 
 function addManual() {
   const id = manual.value.trim()
@@ -164,7 +165,7 @@ function saveModel() {
             <span v-if="model.name !== model.id">{{ model.id }}</span>
           </div>
           <div class="model-card__meta">
-            <Chip v-for="capability in model.capabilities" :key="capability">{{ capability }}</Chip>
+             <Chip v-for="capability in model.capabilities" :key="capability">{{ capabilityLabel(capability) }}</Chip>
             <span class="model-card__context">上下文 {{ formatContext(model.context) }}</span>
           </div>
         </div>

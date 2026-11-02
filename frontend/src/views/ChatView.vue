@@ -6,7 +6,6 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
-import AgentPicker from '../components/composer/AgentPicker.vue'
 import TaskPanel from '../components/activity/TaskPanel.vue'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
@@ -16,14 +15,13 @@ import { latestTodos } from '../commands/tool.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
 const props = defineProps({
-  session: { type: Object, default: null }, model: String, agent: { type: String, default: 'build' },
+  session: { type: Object, default: null }, model: String,
   reasoning: { type: String, default: 'auto' }, files: { type: Array, default: () => [] }, busy: Boolean, todoOpen: Boolean,
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:todoOpen', 'update:agent', 'update:reasoning'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:todoOpen', 'update:reasoning'])
 const homeDraft = defineModel('draft', { type: String, default: '' })
 const composer = ref(null)
 const conversationScroll = ref(null)
-const agentOpen = ref(false)
 const showReconnect = ref(false)
 let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus() })
@@ -33,7 +31,6 @@ const draft = computed({
   set: value => { if (props.session) props.session.draft = value; else homeDraft.value = value },
 })
 const files = computed(() => props.session?.files || props.files)
-const currentAgent = computed(() => props.session?.settings.agent || props.agent)
 const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
 const resumable = computed(() => canContinueSession(props.session))
 const todos = computed(() => {
@@ -64,10 +61,6 @@ function removeFile(id) {
   if (props.session) Chat.removeFile(props.session.id, id)
   else emit('remove-file', id)
 }
-function chooseAgent(agent) {
-  if (props.session) void Session.setAgent(props.session.id, agent)
-  else emit('update:agent', agent)
-}
 function chooseReasoning(reasoning) {
   if (props.session) void Session.setReasoning(props.session.id, reasoning)
   else emit('update:reasoning', reasoning)
@@ -90,12 +83,11 @@ function chooseReasoning(reasoning) {
       <div :class="[session ? 'session-composer' : 'draft-form', { 'is-reconnecting': showReconnect }]">
         <Transition name="notice"><div v-if="session && !session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div></Transition>
         <Transition name="notice"><div v-if="session?.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div></Transition>
-        <Composer ref="composer" v-model:draft="draft" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :agent="Session.agentLabel(currentAgent)" :agent-open="agentOpen" show-session-controls :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
-          @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @open-agent="agentOpen = true" @update:reasoning="chooseReasoning" />
+        <Composer ref="composer" v-model:draft="draft" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
+          @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
       </div>
     </div>
     <TaskPanel v-if="session" :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
-    <AgentPicker :open="agentOpen" :model-value="currentAgent" @update:open="agentOpen = $event" @select="chooseAgent" />
   </section>
 </template>
 <style scoped lang="scss" src="../styles/views/ChatView.scss"></style>

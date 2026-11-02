@@ -3,6 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { readSSE } from '../src/utils/sse.js'
 import { AgentAPI } from '../src/utils/api.js'
 
@@ -21,20 +22,20 @@ test('SSE accepts multiline JSON and reports HTTP failures', async () => {
   await assert.rejects(readSSE(new Response('Unavailable', { status: 503 }), () => {}), /503/)
 })
 
-test('API uses only routes and payloads implemented in server/server.js', async t => {
+test('所有前端请求的方法与路径都存在于现行 OpenAPI', async t => {
   const calls = []
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
     return Response.json(url.endsWith('/create') ? { sessionId: 'session-test' } : { id: 'session-test', history: [], ok: true })
   })
 
-  await AgentAPI.createSession('local', 'provider', 'model')
+  await AgentAPI.createSession('D:/project', 'provider', 'model')
   await AgentAPI.renameSession('session-test', 'Title')
   await AgentAPI.sendMessage('session-test', 'Hello')
   await AgentAPI.stopSession('session-test')
   await AgentAPI.decideTool('session-test', 'call-1', 'allow-once')
   await AgentAPI.getSettings('session-test')
-  await AgentAPI.saveSettings('session-test', { agent: 'plan' })
+  await AgentAPI.saveSettings('session-test', { reasoning: 'high' })
   await AgentAPI.getToolCalls('session-test')
   await AgentAPI.previewRollback('session-test', 'message-1')
   await AgentAPI.rollback('session-test', 'message-1')
@@ -60,12 +61,12 @@ test('API uses only routes and payloads implemented in server/server.js', async 
     ['GET', '/api/sse/connect/session-test'], ['GET', '/api/config/read'],
     ['PATCH', '/api/config/set'], ['POST', '/api/config/test'],
   ])
-  assert.deepEqual(calls[0].body, { title: '新对话', provider: 'provider', model: 'model', workspaceId: 'local' })
+  assert.deepEqual(calls[0].body, { title: '新对话', provider: 'provider', model: 'model', cwd: 'D:/project' })
   assert.deepEqual(calls[3].body, { input: 'Hello' })
   // 后端 /agent/decide 读的是 toolCallId。这里固定住字段名，免得哪天又改回 callId 而没人发现。
   assert.deepEqual(calls[5].body, { toolCallId: 'call-1', decision: 'allow-once' })
   // 设置只发点名的那几项，后端只改这几项。
-  assert.deepEqual(calls[7].body, { agent: 'plan' })
+  assert.deepEqual(calls[7].body, { reasoning: 'high' })
   // files 决定回退要不要连文件一起退：不传是 true，传 false 表示只退对话。
   assert.deepEqual(calls[10].body, { messageId: 'message-1', files: true })
   assert.deepEqual(calls[11].body, { messageId: 'message-1', files: false })
@@ -74,22 +75,24 @@ test('API uses only routes and payloads implemented in server/server.js', async 
   assert.deepEqual(calls[13].body, { files: true })
   assert.equal(calls[14].options.headers['Last-Event-ID'], undefined)
   assert.equal(calls[14].url.includes('after='), false)
-})
 
-test('per-use models send one use at a time, and clearing means share with the main model', async t => {
-  // 三件事各配各的模型，一次只发点名的这一件，另外两件后端保持原样。
-  // 清空某一项要发 null（＝改回共用），发 {} 的话后端会当成"没说要改"。
-  const calls = []
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
-    return Response.json({ ok: true })
-  })
-
-  await AgentAPI.saveSettings('session-test', { uses: { compact: { provider: 'local', model: '小模型' } } })
-  await AgentAPI.saveSettings('session-test', { uses: { title: null } })
-
-  assert.deepEqual(calls[0].body, { uses: { compact: { provider: 'local', model: '小模型' } } })
-  assert.deepEqual(calls[1].body, { uses: { title: null } })
+  await AgentAPI.getHealth()
+  await AgentAPI.getTools()
+  await AgentAPI.getToolKinds()
+  await AgentAPI.getConfigMeta()
+  await AgentAPI.getSessionList('名称')
+  await AgentAPI.getSession('session-test')
+  await AgentAPI.setSessionModel('session-test', 'provider', 'model')
+  await AgentAPI.getChanges('session-test')
+  await AgentAPI.forkSession('session-test', { messageId: 'message-1' })
+  await AgentAPI.resumeSession('session-test')
+  await AgentAPI.removeSession('session-test')
+  const { paths } = JSON.parse(readFileSync(new URL('../../server/openapi.json', import.meta.url), 'utf8'))
+  for (const call of calls) {
+    const path = new URL(call.url, 'http://test').pathname.replace(/^\/api/, '')
+    const entry = Object.entries(paths).find(([template]) => new RegExp(`^${template.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(path))
+    assert.ok(entry?.[1][(call.options.method || 'GET').toLowerCase()], `接口不存在：${call.options.method || 'GET'} ${path}`)
+  }
 })
 
 test('non-JSON HTTP error retains meaningful status', async t => {
