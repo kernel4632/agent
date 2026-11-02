@@ -6,8 +6,8 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Slider } from '../ui/index.js'
-import { AppIcon, Button, Sheet } from '../ui/index.js'
+
+import { Icon, Button, Dialog } from '../ui/index.js'
 /*
 思考强度的七档定义：滑块顺序、中文名、图标和一句说明都在这里。
 只负责界面展示；真正发给模型的参数由后端 ../config.js 按协议翻译。
@@ -63,15 +63,15 @@ function setLevel(value) {
     :title="currentLabel"
     @click="open = true"
   >
-    <AppIcon :name="current.icon" :size="24" />
+    <Icon :name="current.icon" :size="24" />
   </Button>
 
-  <Sheet :open="open" label="思考强度" :width="608" @update:open="open = $event">
+  <Dialog placement="bottom" :open="open" label="思考强度" :width="608" @update:open="open = $event">
     <div class="reasoning-sheet">
       <p class="reasoning-sheet__intro">越往后，模型愿意花越多时间推理；简单问题不需要调到最大。</p>
 
       <div class="reasoning-hero" :class="{ 'is-off': current.value === 'off' }">
-        <span class="reasoning-hero__icon"><AppIcon :name="current.icon" :size="30" /></span>
+        <span class="reasoning-hero__icon"><Icon :name="current.icon" :size="30" /></span>
         <div>
           <strong>{{ current.label }}</strong>
           <p>{{ current.hint }}</p>
@@ -80,15 +80,7 @@ function setLevel(value) {
 
       <div class="reasoning-scale">
         <div class="reasoning-scale__ends"><span>更快</span><span>更聪明</span></div>
-        <Slider
-          v-model="index"
-          :min="0"
-          :max="REASONING_LEVELS.length - 1"
-          :step="1"
-          label="思考强度"
-          :aria-valuetext="current.label"
-          @change="commit"
-        />
+        <input v-model.number="index" type="range" class="ui-slider" :min="0" :max="REASONING_LEVELS.length - 1" :step="1" aria-label="思考强度" :aria-valuetext="current.label" @change="commit(Number($event.target.value))" />
         <div class="reasoning-scale__ticks">
           <Button
             v-for="(level, levelIndex) in REASONING_LEVELS"
@@ -105,7 +97,7 @@ function setLevel(value) {
 
       <p class="reasoning-sheet__note">「自动」不改变请求，交给模型默认；只有标记了「推理」能力的模型才会真正收到思考参数。</p>
     </div>
-  </Sheet>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="../styles/components/ReasoningPicker.scss"></style>

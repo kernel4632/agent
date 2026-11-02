@@ -18,3 +18,10 @@ button svg { flex-shrink: 0; }
 html[data-strong-focus] :focus-visible { outline-width: 3px; outline-offset: 5px; }
 html[data-reduced-motion] *, html[data-reduced-motion] *::before, html[data-reduced-motion] *::after, html[data-reduced-motion] *::backdrop { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after, *::backdrop { animation: none !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* Spinner.vue：减少动画时保留静态环形。 */
+.ui-spinner { display: inline-flex; color: var(--la-accent); }
+.ui-spinner__ring { width: 24px; height: 24px; border: 3px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; border-radius: 50%; animation: ui-spin 900ms linear infinite; }
+.ui-spinner--small .ui-spinner__ring { width: 16px; height: 16px; border-width: 2px; }
+.ui-spinner--large .ui-spinner__ring { width: 40px; height: 40px; }
+@keyframes ui-spin { to { transform: rotate(360deg); } }

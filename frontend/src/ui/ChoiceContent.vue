@@ -5,7 +5,7 @@
 调用示例：<ChoiceContent :selected="on" icon="eye" title="读取" hint="读文件、搜索不用再问" />
 -->
 <script setup>
-import AppIcon from './AppIcon.vue'
+import Icon from './Icon.vue'
 
 defineProps({
   selected: Boolean,
@@ -18,13 +18,13 @@ defineProps({
 
 <template>
   <span class="choice-content" :class="{ 'is-selected': selected }">
-    <span class="choice-content__icon" aria-hidden="true"><AppIcon :name="icon" :size="20" /></span>
+    <span class="choice-content__icon" aria-hidden="true"><Icon :name="icon" :size="20" /></span>
     <span class="choice-content__copy">
       <strong>{{ title }}</strong>
       <small v-if="hint">{{ hint }}</small>
     </span>
     <span v-if="showMark" class="choice-content__mark" :class="{ 'is-selected': selected }" aria-hidden="true">
-      <AppIcon v-if="selected" name="check" :size="15" />
+      <Icon v-if="selected" name="check" :size="15" />
     </span>
   </span>
 </template>

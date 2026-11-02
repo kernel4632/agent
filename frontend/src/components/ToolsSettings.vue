@@ -7,7 +7,7 @@
 <script setup>
 import { computed } from 'vue'
 import { RadioGroup } from '../ui/index.js'
-import { AppIcon, Button, ChoiceContent } from '../ui/index.js'
+import { Icon, Button, ChoiceContent } from '../ui/index.js'
 
 const props = defineProps({
   draft: { type: Object, required: true },
@@ -51,13 +51,13 @@ function updatePermission(name, permission) {
         class="tool-row"
         @click="emit('open-detail', { id: tool.name, title: tool.title || tool.name })"
       >
-        <span class="tool-row__icon" aria-hidden="true"><AppIcon :name="tool.ui?.icon || 'code'" :size="20" /></span>
+        <span class="tool-row__icon" aria-hidden="true"><Icon :name="tool.ui?.icon || 'code'" :size="20" /></span>
         <span class="tool-row__copy">
           <strong>{{ tool.title || tool.name }}</strong>
           <small>{{ kindLabel(tool) }} · {{ tool.name }}</small>
         </span>
         <span class="tool-row__state" :class="{ 'is-deny': tool.permission === 'deny' }">{{ permissionLabel(tool.permission) }}</span>
-        <AppIcon name="arrow" :size="16" class="tool-row__arrow" aria-hidden="true" />
+        <Icon name="arrow" :size="16" class="tool-row__arrow" aria-hidden="true" />
       </Button>
     </div>
     <p v-else class="tools-settings__empty">暂无可配置的工具</p>
@@ -65,7 +65,7 @@ function updatePermission(name, permission) {
 
   <section v-else-if="selected" class="tool-detail" aria-label="工具权限">
     <header class="tool-detail__head">
-      <span class="tool-detail__icon" aria-hidden="true"><AppIcon :name="selected.ui?.icon || 'code'" :size="22" /></span>
+      <span class="tool-detail__icon" aria-hidden="true"><Icon :name="selected.ui?.icon || 'code'" :size="22" /></span>
       <div>
         <h3>{{ selected.title || selected.name }}</h3>
         <p>{{ kindLabel(selected) }} · {{ selected.name }}</p>

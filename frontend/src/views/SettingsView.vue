@@ -8,7 +8,7 @@
 import { Navigation } from '../commands/navigation.js'
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { AppIcon, Button, IconButton } from '../ui/index.js'
+import { Icon, Button } from '../ui/index.js'
 import { groupSettingsPages, settingsPages } from './pages.js'
 import { Settings } from '../commands/settings.js'
 import { store } from '../store.js'
@@ -80,7 +80,7 @@ function goBack() {
     <header class="settings-topbar">
       <div class="settings-topbar__inner">
         <div class="settings-topbar__actions">
-          <IconButton label="返回" @click="goBack"><AppIcon name="arrow" :size="18" class="settings-back-icon" /></IconButton>
+          <Button icon label="返回" @click="goBack"><Icon name="arrow" :size="18" class="settings-back-icon" /></Button>
         </div>
         <div class="settings-topbar__heading">
           <h1 :title="title">{{ title }}</h1>
@@ -116,14 +116,14 @@ function goBack() {
                 @click="openPage(page)"
               >
                 <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true">
-                  <AppIcon :name="page.icon" :size="20" />
+                  <Icon :name="page.icon" :size="20" />
                 </span>
                 <span class="settings-row__text">
                   <span class="settings-row__title">{{ page.label }}</span>
                   <span class="settings-row__description">{{ page.description }}</span>
                 </span>
                 <span v-if="page.disabled" class="settings-row__badge">待支持</span>
-                <AppIcon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
+                <Icon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
               </Button>
             </div>
           </section>

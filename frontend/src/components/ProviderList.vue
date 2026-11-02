@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { AppIcon, Button } from '../ui/index.js'
+import { Icon, Button } from '../ui/index.js'
 import ProviderEditor from './ProviderEditor.vue'
 
 const props = defineProps({
@@ -47,7 +47,7 @@ function removeProvider() {
   <section v-if="!detail" class="provider-list" aria-label="模型供应商">
     <header class="provider-list__head">
       <p>连接模型服务，管理每个供应商下的可用模型。</p>
-      <Button @click="addProvider()"><AppIcon name="plus" :size="18" />添加供应商</Button>
+      <Button @click="addProvider()"><Icon name="plus" :size="18" />添加供应商</Button>
     </header>
 
     <div v-if="draft.providers.length" class="provider-list__card">
@@ -58,13 +58,13 @@ function removeProvider() {
         class="provider-row"
         @click="emit('open-detail', { id: provider.id, title: provider.name })"
       >
-        <span class="provider-row__icon" aria-hidden="true"><AppIcon name="globe" :size="20" /></span>
+        <span class="provider-row__icon" aria-hidden="true"><Icon name="globe" :size="20" /></span>
         <span class="provider-row__copy">
           <strong>{{ provider.name }}</strong>
           <small>{{ provider.apiUrl || '未填写请求地址' }} · {{ provider.models.length }} 个模型</small>
         </span>
         <span class="provider-row__state" :class="{ 'is-on': provider.enabled }">{{ provider.enabled ? '已启用' : '已停用' }}</span>
-        <AppIcon name="arrow" :size="16" class="provider-row__arrow" aria-hidden="true" />
+        <Icon name="arrow" :size="16" class="provider-row__arrow" aria-hidden="true" />
       </Button>
     </div>
 

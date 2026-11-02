@@ -1,4 +1,4 @@
-/* 锚定弹层：原生 Popover API 提供顶层与外点关闭；Select/MenuButton/Popover 调用 usePopup()。 */
+/* 锚定弹层：原生 Menu API 提供顶层与外点关闭；Select/Menu/Menu 调用 usePopup()。 */
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 export function usePopup({ end = false } = {}) {
   const trigger = ref(null)

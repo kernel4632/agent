@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
-import { Button, Spinner } from '../ui/index.js'
+import { Button } from '../ui/index.js'
 import Composer from '../components/Composer.vue'
 import AgentPicker from '../components/AgentPicker.vue'
 import TaskPanel from '../components/TaskPanel.vue'
@@ -83,7 +83,7 @@ function chooseReasoning(reasoning) {
         </div>
         <Transition name="reconnect">
           <div v-if="session && showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
-            <div class="reconnect-card"><Spinner label="正在重新连接" size="large" decorative /><strong>正在重新连接</strong><p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p></div>
+            <div class="reconnect-card"><span  class="ui-spinner ui-spinner--large" aria-hidden="true"><span class="ui-spinner__ring"></span></span><strong>正在重新连接</strong><p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p></div>
           </div>
         </Transition>
       </div>

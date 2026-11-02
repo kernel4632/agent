@@ -7,7 +7,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
+import { Icon, Button, Dialog, Field } from '../ui/index.js'
 import SessionList from './SessionList.vue'
 import { Session } from '../commands/session.js'
 import { store } from '../store.js'
@@ -69,7 +69,7 @@ async function confirmDelete() {
       <div class="app-drawer__head">
         <span class="app-drawer__title">{{ selecting ? `已选 ${selected.length} 个` : '会话' }}</span>
         <div class="app-drawer__head-actions">
-          <IconButton v-if="!selecting" size="small" label="批量选择会话" title="批量选择" @click="startSelecting"><AppIcon name="list" :size="20" /></IconButton>
+          <Button icon v-if="!selecting" size="small" label="批量选择会话" title="批量选择" @click="startSelecting"><Icon name="list" :size="20" /></Button>
           <Button v-else variant="ghost" size="small" class="app-drawer__cancel" @click="cancelSelecting">取消</Button>
         </div>
       </div>
@@ -82,7 +82,7 @@ async function confirmDelete() {
       label="搜索会话"
       placeholder="搜索会话"
     >
-      <template #leading><AppIcon name="search" :size="20" /></template>
+      <template #leading><Icon name="search" :size="20" /></template>
     </Field>
 
     <SessionList
@@ -100,10 +100,10 @@ async function confirmDelete() {
     <template #footer>
       <Transition name="drawer-action" mode="out-in">
         <Button v-if="selecting" key="delete" variant="danger" class="drawer-footer" :disabled="!selected.length" @click="deleteOpen = true">
-          <AppIcon name="trash" :size="20" /><span>删除 {{ selected.length }} 个会话</span>
+          <Icon name="trash" :size="20" /><span>删除 {{ selected.length }} 个会话</span>
         </Button>
         <Button v-else key="new" variant="tonal" class="drawer-footer" @click="emit('new')">
-          <AppIcon name="new-chat" :size="20" /><span>新建对话</span>
+          <Icon name="new-chat" :size="20" /><span>新建对话</span>
         </Button>
       </Transition>
     </template>

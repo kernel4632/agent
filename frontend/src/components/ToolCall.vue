@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { AppIcon, Button } from '../ui/index.js'
+import { Icon, Button } from '../ui/index.js'
 import { Chat } from '../commands/chat.js'
 import ToolResult from './ToolResult.vue'
 import { canonicalToolName, fillTemplate, toolIcon, toolTitle, uiFor } from '../commands/tool.js'
@@ -59,7 +59,7 @@ function decide(decision) {
 
 <template>
   <div class="cot-step cot-step--tool" :class="{ 'is-live': running, 'is-open': bodyOpen }">
-    <span class="cot-step__icon"><AppIcon :name="toolIcon(tool)" :size="16" /></span>
+    <span class="cot-step__icon"><Icon :name="toolIcon(tool)" :size="16" /></span>
     <div class="cot-step__main">
       <button
         type="button"
@@ -71,7 +71,7 @@ function decide(decision) {
         <span class="cot-step__label" :class="{ 'is-live': running }">{{ title }}</span>
         <span v-if="summary" class="cot-step__summary" :title="summary">{{ summary }}</span>
         <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
-        <AppIcon name="down" :size="14" class="cot-step__caret" :class="{ 'is-open': bodyOpen }" aria-hidden="true" />
+        <Icon name="down" :size="14" class="cot-step__caret" :class="{ 'is-open': bodyOpen }" aria-hidden="true" />
       </button>
       <div v-if="bodyOpen" :id="bodyId" class="cot-step__body">
         <ToolResult :tool="tool" />

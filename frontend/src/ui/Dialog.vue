@@ -1,10 +1,10 @@
 <!-- 弹层：原生 dialog 负责焦点圈定与恢复，placement 决定居中或抽屉。示例：<Dialog v-model:open="open" label="编辑">内容</Dialog> -->
 <script setup>
 import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
-import IconButton from './IconButton.vue'
-import AppIcon from './AppIcon.vue'
+import Button from './Button.vue'
+import Icon from './Icon.vue'
 defineOptions({ inheritAttrs: false })
-const props = defineProps({ open: Boolean, label: String, description: String, placement: { type: String, default: 'center' } })
+const props = defineProps({ open: Boolean, label: String, description: String, placement: { type: String, default: 'center' }, width: [Number, String] })
 const emit = defineEmits(['update:open'])
 const dialog = ref(null)
 const closing = ref(false)
@@ -40,11 +40,11 @@ function keepFocus(event) {
 </script>
 <template>
   <Teleport to="body">
-    <dialog ref="dialog" v-bind="$attrs" class="ui-dialog" :class="[`ui-dialog--${placement}`, { 'is-closing': closing }]" :aria-label="label || $attrs['aria-label']" :aria-describedby="description ? `${id}-description` : undefined" @cancel.prevent="dismiss" @keydown="keepFocus" @pointerdown="pointerOnBackdrop = $event.target === dialog" @click="pointerOnBackdrop && $event.target === dialog && dismiss()">
+    <dialog ref="dialog" v-bind="$attrs" class="ui-dialog" :class="[`ui-dialog--${placement}`, { 'is-closing': closing, 'app-sheet': placement === 'bottom' }]" :style="width ? { '--app-sheet-width': `${width}px` } : undefined" :aria-label="label || $attrs['aria-label']" :aria-describedby="description ? `${id}-description` : undefined" @cancel.prevent="dismiss" @keydown="keepFocus" @pointerdown="pointerOnBackdrop = $event.target === dialog" @click="pointerOnBackdrop && $event.target === dialog && dismiss()">
       <section class="ui-dialog__panel">
         <header class="ui-dialog__header">
           <div class="ui-dialog__heading"><slot name="header"><h2 v-if="label">{{ label }}</h2></slot><p v-if="description" :id="`${id}-description`">{{ description }}</p></div>
-          <IconButton label="关闭" variant="text" @click="dismiss"><AppIcon name="close" :size="20" /></IconButton>
+          <Button icon label="关闭" variant="text" @click="dismiss"><Icon name="close" :size="20" /></Button>
         </header>
         <div class="ui-dialog__body"><slot /></div>
         <footer v-if="$slots.footer" class="ui-dialog__footer"><slot name="footer" /></footer>

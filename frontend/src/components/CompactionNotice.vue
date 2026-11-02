@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { ref } from 'vue'
-import { AppIcon } from '../ui/index.js'
+import { Icon } from '../ui/index.js'
 
 const props = defineProps({
   content: { type: String, default: '' },
@@ -23,12 +23,12 @@ const open = ref(false)
       :aria-expanded="open"
       @click="open = !open"
     >
-      <AppIcon name="layers" :size="14" />
+      <Icon name="layers" :size="14" />
       <span>上下文已压缩</span>
-      <AppIcon name="down" :size="12" class="compaction-notice__caret" :class="{ 'is-open': open }" aria-hidden="true" />
+      <Icon name="down" :size="12" class="compaction-notice__caret" :class="{ 'is-open': open }" aria-hidden="true" />
     </button>
     <span v-else class="compaction-notice__button">
-      <AppIcon name="layers" :size="14" />
+      <Icon name="layers" :size="14" />
       <span>上下文已压缩</span>
     </span>
     <span class="compaction-notice__line" aria-hidden="true"></span>

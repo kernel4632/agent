@@ -60,3 +60,6 @@
   .agent-form { padding: 20px; }
   .agent-switch-row { align-items: flex-start; }
 }
+
+/* Checkbox.vue：每个选项独占一行。 */
+.ui-checkbox-group { display: grid; gap: 8px; min-width: 0; }

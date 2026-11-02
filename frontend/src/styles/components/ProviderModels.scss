@@ -33,3 +33,10 @@
   .model-chooser__row { grid-template-columns: 20px minmax(0, 1fr) 22px; }
   .model-chooser__id { display: none; }
 }
+
+/* Card.vue：可复用边框表面。 */
+.ui-card { min-width: 0; border: 1px solid var(--la-line); border-radius: 20px; background: var(--la-layer-01); }
+.ui-card__body { padding: 20px; }
+
+.model-edit { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.provider-models__title { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }

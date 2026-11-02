@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { AppIcon } from '../../ui/index.js'
+import { Icon } from '../../ui/index.js'
 import { useToolContent } from './content.js'
 import { todoStatus } from '../../commands/tool.js'
 
@@ -18,7 +18,7 @@ const label = status => todoStatus(status).label
 <template>
   <div v-if="items.length" class="todo-list">
     <div v-for="(item, index) in items" :key="index" class="todo-item">
-      <AppIcon :name="icon(item.status)" :size="13" class="todo-item__icon" :class="`is-${item.status}`" />
+      <Icon :name="icon(item.status)" :size="13" class="todo-item__icon" :class="`is-${item.status}`" />
       <span class="todo-item__text" :class="{ 'is-done': item.status === 'completed' }">{{ item.text }}</span>
       <span class="todo-item__status">{{ label(item.status) }}</span>
     </div>

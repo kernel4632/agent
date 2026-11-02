@@ -7,3 +7,16 @@
 @media (max-width: 767px) {
   .appearance-card { padding: 20px; }
 }
+
+/* Divider.vue：只占 1px 的区块分界。 */
+.ui-divider { width: 100%; margin: 0; border: 0; border-top: 1px solid var(--la-secondary); }
+
+/* 原生区块：布局只在这个面板内生效，不为 flex 或标题再建一个组件。 */
+.appearance-card, .appearance-sections, .appearance-field { display: flex; flex-direction: column; min-width: 0; }
+.appearance-card { gap: 16px; }
+.appearance-sections { gap: 24px; }
+.appearance-field { gap: 8px; }
+.appearance-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.appearance-label { margin: 0; color: var(--la-text); font-size: 16px; line-height: 24px; }
+.appearance-caption { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 20px; }
+.appearance-title { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }

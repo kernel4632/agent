@@ -1,4 +1,0 @@
-/* Popover.vue：信息面板自适应窄屏。 */
-.ui-popover { display: inline-flex; }
-.ui-popover__trigger { position: relative; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.ui-popover__content { position: fixed; inset: auto; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); margin: 0; padding: 20px; overflow: auto; border: 1px solid var(--la-line); border-radius: 24px; background: var(--la-layer-02); color: var(--la-text); box-shadow: var(--la-shadow-floating); }
