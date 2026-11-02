@@ -28,20 +28,4 @@ defineEmits(['update:prompt'])
   </section>
 </template>
 
-<style scoped lang="scss">
-.prompts-settings { display: flex; flex-direction: column; gap: 16px; color: var(--la-secondary); font-size: 14px; }
-.prompts-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  border-radius: 20px;
-  background: var(--la-layer-01);
-}
-.prompts-lead { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
-.prompts-count { align-self: flex-end; color: var(--la-muted); font-size: 13px; line-height: 18px; }
-.prompts-hint { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
-@media (max-width: 767px) {
-  .prompts-card { padding: 20px; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/components/PromptsSettings.scss"></style>

@@ -23,3 +23,5 @@ const command = computed(() => value.value && typeof value.value === 'object' &&
   </template>
   <pre v-else-if="text" class="tool-output">{{ text }}</pre>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/CommandView.scss"></style>

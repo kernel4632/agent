@@ -13,3 +13,5 @@ const { input, text } = useToolContent(props)
   <a v-if="input.url" :href="input.url" target="_blank" rel="noreferrer" class="tool-link">{{ input.url }}</a>
   <pre v-if="text" class="tool-output">{{ text }}</pre>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/WebView.scss"></style>

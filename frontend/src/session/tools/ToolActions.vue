@@ -27,3 +27,5 @@ async function run(action) {
     </Button>
   </div>
 </template>
+
+<style scoped lang="scss" src="../../styles/session/tools/ToolActions.scss"></style>

@@ -22,3 +22,5 @@ const emit = defineEmits(['open-detail', 'close-detail', 'update-detail-title'])
     @update-detail-title="emit('update-detail-title', $event)"
   />
 </template>
+
+<style scoped lang="scss" src="../../styles/settings/pages/ToolsPage.scss"></style>

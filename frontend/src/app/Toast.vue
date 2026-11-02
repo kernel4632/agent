@@ -29,12 +29,4 @@ watch(() => props.message, value => { if (value) shown.value = value })
   />
 </template>
 
-<style scoped lang="scss">
-/*
- * 提示条默认贴底，会盖住输入框的发送/继续按钮；抬到输入框上方。
- * 其他样式由 KIMA 0.9.9 自带的 notification 组件提供，不再在项目里复制一份。
- */
-:global(.app-toast.kima-notification--bottom-center) {
-  bottom: calc(104px + env(safe-area-inset-bottom));
-}
-</style>
+<style scoped lang="scss" src="../styles/app/Toast.scss"></style>

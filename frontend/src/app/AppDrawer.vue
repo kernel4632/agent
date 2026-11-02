@@ -119,28 +119,4 @@ async function confirmDelete() {
   </KimaDrawer>
 </template>
 
-<style scoped lang="scss">
-/* KIMA 左侧抽屉：宽度、遮罩、焦点陷阱和关闭按钮都由组件负责。 */
-.app-drawer { --kima-drawer-max-width: 380px; }
-.app-drawer :global(.kima-drawer__heading) { flex: 1; min-width: 0; }
-.app-drawer :global(.kima-drawer__body) { display: flex; flex-direction: column; overflow: hidden; }
-
-/* --- 标题栏和搜索 --- */
-.app-drawer__head { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; }
-.app-drawer__title { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
-.app-drawer__head-actions { display: flex; align-items: center; gap: 2px; }
-.app-drawer__search { margin-bottom: 16px; }
-.drawer-footer {
-  width: 100%;
-  min-height: 56px;
-  justify-content: center;
-  gap: 10px;
-  font-size: 16px;
-}
-.drawer-action-enter-active, .drawer-action-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.drawer-action-enter-from, .drawer-action-leave-to { opacity: 0; transform: translateY(6px); }
-.app-drawer__confirm { margin: 0 0 20px; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
-
-/* --- 会话列表 --- */
-.app-drawer__sessions { display: flex; flex: 1; min-height: 0; flex-direction: column; padding: 0; }
-</style>
+<style scoped lang="scss" src="../styles/app/AppDrawer.scss"></style>

@@ -78,36 +78,4 @@ const controlAttrs = computed(() => {
   </label>
 </template>
 
-<style scoped lang="scss">
-.ui-field { width: 100%; min-width: 0; }
-.ui-field--labeled { display: grid; gap: 8px; }
-.ui-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; line-height: 20px; font-weight: 500; }
-.ui-field__control {
-  --ui-field-inset: 20px;
-  position: relative;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-.ui-field__leading, .ui-field__trailing {
-  position: absolute;
-  top: 50%;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  color: var(--kima-color-on-surface-variant);
-  transform: translateY(-50%);
-}
-.ui-field__leading { left: var(--ui-field-inset); pointer-events: none; }
-.ui-field__trailing { right: var(--ui-field-inset); }
-.ui-field__control--leading { --kima-field-padding: calc(var(--ui-field-inset) + 28px); }
-.ui-field__control--trailing { --kima-field-padding: calc(var(--ui-field-inset) + 28px); }
-.ui-field--small { --kima-field-height: 48px; --kima-field-padding: 16px; }
-.ui-field--small .ui-field__control { --ui-field-inset: 16px; }
-.ui-field--small :deep(input),
-.ui-field--small :deep(textarea) { font-size: var(--kima-font-size-body-medium, 16px); }
-.ui-field__control > :deep(.kima-text-field),
-.ui-field__control > :deep(.kima-textarea) { flex: 1; min-width: 0; }
-</style>
+<style scoped lang="scss" src="../styles/ui/Field.scss"></style>

@@ -29,11 +29,4 @@ const emit = defineEmits(['update:open'])
   ><slot /></KimaDrawer>
 </template>
 
-<style scoped lang="scss">
-/* KIMA 的底部面板默认铺满视口；桌面端收窄到聊天宽度，标题和内容才能对齐。 */
-:global(.app-sheet .kima-drawer__panel) {
-  width: 100%;
-  max-width: var(--app-sheet-width, 880px);
-  margin-inline: auto;
-}
-</style>
+<style scoped lang="scss" src="../styles/ui/Sheet.scss"></style>

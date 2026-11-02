@@ -1,0 +1,17 @@
+.context-settings { display: flex; flex-direction: column; gap: 20px; }
+.context-settings__head p { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
+.context-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--la-layer-01);
+}
+.context-settings__copy { display: flex; flex-direction: column; gap: 6px; }
+.context-settings__copy h3 { margin: 0; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
+.context-settings__copy p { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.context-settings__hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
+@media (max-width: 767px) {
+  .context-settings__section { padding: 18px; }
+}

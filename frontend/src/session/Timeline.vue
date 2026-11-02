@@ -17,7 +17,7 @@ import { isSavedMessage } from './continue.js'
 import { AppIcon, KimaMarkdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import CompactionNotice from './CompactionNotice.vue'
-import './conversation.scss'
+
 import AssistantTurn from './AssistantTurn.vue'
 import RollbackDialog from './RollbackDialog.vue'
 import 'highlight.js/styles/github-dark.css'
@@ -205,45 +205,4 @@ function onUserMenu(message, action) {
   </div>
 </template>
 
-<style scoped lang="scss">
-.conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-.conversation-top-sentinel { display: block; width: 100%; height: 1px; flex: none; }
-.conversation-earlier {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 999px;
-  background: var(--la-layer-01);
-  color: var(--la-muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.conversation-earlier:hover { color: var(--la-text); background: var(--la-layer-02); }
-.conversation-latest {
-  position: sticky;
-  bottom: 12px;
-  z-index: 2;
-  display: inline-flex;
-  align-self: flex-end;
-  align-items: center;
-  gap: 5px;
-  margin-right: 8px;
-  padding: 7px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--la-panel) 92%, transparent);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--la-shadow-floating);
-  color: var(--la-text);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.conversation-latest:hover { background: var(--la-layer-01); }
-.message { display: block; min-width: 0; }
-
-</style>
+<style lang="scss" src="../styles/session/Timeline.scss"></style>

@@ -16,3 +16,5 @@ const content = computed(() => text.value || input.value.question || input.value
 <template>
   <div class="tool-result" :class="{ 'is-question': question }">{{ content }}</div>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/ResultView.scss"></style>

@@ -25,6 +25,4 @@ defineProps({
   </KimaAlert>
 </template>
 
-<style scoped lang="scss">
-.connection-error { margin: 8px var(--la-content-inset) 12px; }
-</style>
+<style scoped lang="scss" src="../styles/app/ConnectionError.scss"></style>

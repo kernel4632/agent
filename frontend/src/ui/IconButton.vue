@@ -33,3 +33,5 @@ const kimaSize = computed(() => props.size === 'small' ? 'small' : 'default')
     @click="emit('click', $event)"
   ><slot /></KimaIconButton>
 </template>
+
+<style scoped lang="scss" src="../styles/ui/IconButton.scss"></style>

@@ -1,0 +1,22 @@
+.message-action-target { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 10px; }
+.message-action-target:focus-visible { outline: 2px solid var(--kima-color-primary); outline-offset: 3px; border-radius: 8px; }
+.message-actions { display: grid; gap: 14px; }
+.message-actions-enter-active, .message-actions-leave-active { transition: opacity 220ms var(--kima-curve-standard), transform 220ms var(--kima-curve-emphasized); }
+.message-actions-enter-from, .message-actions-leave-to { opacity: 0; transform: translateY(8px) scale(.98); }
+@media (prefers-reduced-motion: reduce) { .message-actions-enter-active, .message-actions-leave-active { transition-duration: 1ms; } }
+.message-actions__role { color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
+.message-actions__preview {
+  display: -webkit-box;
+  max-height: 132px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--la-text);
+  font-size: 15px;
+  line-height: 22px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.message-actions__items { display: flex; flex-direction: column; gap: 2px; }
+.message-actions__item { width: 100%; justify-content: flex-start; gap: 10px; }

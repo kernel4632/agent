@@ -26,3 +26,5 @@ const emit = defineEmits(['update:modelValue'])
     <template v-else>{{ label }}</template>
   </KimaSwitch>
 </template>
+
+<style scoped lang="scss" src="../styles/ui/Switch.scss"></style>

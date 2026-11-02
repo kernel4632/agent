@@ -79,14 +79,4 @@ function reset() {
   </KimaFlex>
 </template>
 
-<style scoped lang="scss">
-.appearance-card {
-  padding: 24px;
-  border-radius: 20px;
-  background: var(--la-layer-01);
-}
-.appearance-color { max-width: 360px; }
-@media (max-width: 767px) {
-  .appearance-card { padding: 20px; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/components/AppearanceSettings.scss"></style>

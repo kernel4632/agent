@@ -87,3 +87,5 @@ function decide(decision) {
     </div>
   </div>
 </template>
+
+<style scoped lang="scss" src="../styles/session/ToolCallRow.scss"></style>

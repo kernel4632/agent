@@ -25,3 +25,5 @@ const emit = defineEmits(['update:open'])
     <template v-if="$slots.footer" #footer><slot name="footer" /></template>
   </KimaDialog>
 </template>
+
+<style scoped lang="scss" src="../styles/ui/Dialog.scss"></style>

@@ -59,3 +59,5 @@
 @media (max-width: 767px) {
   .edit-pair { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* session/tools/ToolView.vue：当前由子组件负责外观；专属样式写在这里。 */

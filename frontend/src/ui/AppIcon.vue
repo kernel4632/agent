@@ -134,3 +134,5 @@ const icons = {
 <template>
   <KimaIcon :icon="icons[name] || SparklesIcon" :size="Number(size)" :stroke-width="ICON_STROKE_WIDTH" />
 </template>
+
+<style scoped lang="scss" src="../styles/ui/AppIcon.scss"></style>

@@ -72,37 +72,4 @@ onBeforeUnmount(() => window.clearInterval(timer))
   </div>
 </template>
 
-<style scoped lang="scss">
-.request-status {
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 8px;
-  padding: 6px 10px;
-  border: .5px solid var(--la-line);
-  border-radius: 10px;
-  background: var(--la-layer-01);
-  color: var(--la-muted);
-  font-size: 12.5px;
-  line-height: 18px;
-}
-.request-status.is-done { opacity: .74; transition: opacity var(--kima-duration-fast) var(--kima-curve-standard); }
-.request-status.is-done:hover { opacity: 1; }
-.request-status.is-failed { color: var(--kima-color-error); }
-.request-status__icon { display: grid; width: 18px; height: 18px; flex: none; place-items: center; }
-.request-status__icon :deep(.kima-spinner__ring) { width: 14px; height: 14px; border-width: 2px; }
-.request-status__main { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
-.request-status__label { color: var(--la-text); font-weight: 500; }
-.request-status__detail { color: var(--la-muted); }
-.request-status__badge {
-  flex: none;
-  padding: 1px 7px;
-  border: .5px solid var(--la-line);
-  border-radius: 7px;
-  color: var(--la-muted);
-  font-family: var(--la-font-mono);
-  font-size: 11.5px;
-}
-</style>
+<style scoped lang="scss" src="../styles/session/RequestStatus.scss"></style>

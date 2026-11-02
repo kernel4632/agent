@@ -113,24 +113,4 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
   </Dialog>
 </template>
 
-<style scoped lang="scss">
-.mcp-form {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 24px;
-  padding: 24px;
-  border-radius: 20px;
-  background: var(--la-layer-01);
-}
-.mcp-form__head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.mcp-form__head h3 { margin: 0; color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
-/* KIMA Select 只画控件，不画可见标题；标题留给页面排版，避免和 aria-label 重复。 */
-.mcp-field { display: grid; gap: 8px; }
-.mcp-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.mcp-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
-@media (max-width: 767px) {
-  .mcp-form { padding: 20px; }
-  .mcp-form__head { flex-wrap: wrap; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/components/MCPEditor.scss"></style>

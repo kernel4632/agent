@@ -29,14 +29,4 @@ const emit = defineEmits(['select'])
   />
 </template>
 
-<style scoped lang="scss">
-/* 图标触发器的尺寸和箭头由 KIMA 负责；会话行里只保留图标，悬停才出现底色。 */
-.ui-menu-button :deep(.kima-menu__trigger) {
-  background: transparent;
-  color: var(--la-secondary);
-}
-.ui-menu-button :deep(.kima-menu__trigger:hover) {
-  background: var(--la-hover);
-  color: var(--la-text);
-}
-</style>
+<style scoped lang="scss" src="../styles/ui/MenuButton.scss"></style>

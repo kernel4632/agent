@@ -12,3 +12,5 @@ defineProps({ draft: { type: Object, required: true } })
 <template>
   <PromptsSettings v-model:prompt="draft.prompt" />
 </template>
+
+<style scoped lang="scss" src="../../styles/settings/pages/PromptsPage.scss"></style>

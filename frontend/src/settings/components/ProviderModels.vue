@@ -238,40 +238,4 @@ function saveModel() {
   </Dialog>
 </template>
 
-<style scoped lang="scss">
-.provider-models { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
-.provider-models__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.provider-models__head p { margin: 4px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.provider-models__add { display: flex; align-items: flex-end; gap: 12px; }
-.provider-models__input { min-width: 0; flex: 1; }
-.provider-models__empty { margin: 0; padding: 18px; border-radius: 16px; background: var(--la-layer-02); color: var(--la-muted); font-size: 13.5px; line-height: 21px; }
-.provider-models__list { display: grid; gap: 10px; }
-.model-card { padding: 14px 16px; }
-.model-card :deep(.kima-card__body) { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 12px; }
-.model-card__main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 8px; }
-.model-card__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
-.model-card__title strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
-.model-card__title span { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.model-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.model-card__context { color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-card__actions { display: flex; flex: none; align-items: center; gap: 2px; }
-.model-chooser { display: flex; flex-direction: column; gap: 12px; }
-.model-chooser__list { display: flex; max-height: 360px; flex-direction: column; gap: 2px; overflow: auto; }
-.model-chooser__row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 22px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; }
-.model-chooser__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-chooser__id { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.model-chooser__check { color: var(--la-accent); }
-.model-chooser__empty { margin: 0; padding: 14px; color: var(--la-muted); font-size: 13px; }
-.model-edit__field { display: grid; gap: 8px; }
-.model-edit__label { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.model-edit__presets { display: flex; flex-wrap: wrap; gap: 6px; }
-.model-edit__hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-edit__error { margin: 0; color: var(--kima-color-error); font-size: 13px; line-height: 20px; }
-@media (max-width: 560px) {
-  .provider-models__head { flex-direction: column; }
-  .provider-models__add { flex-wrap: wrap; }
-  .provider-models__input { flex-basis: 100%; }
-  .model-chooser__row { grid-template-columns: 20px minmax(0, 1fr) 22px; }
-  .model-chooser__id { display: none; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/components/ProviderModels.scss"></style>

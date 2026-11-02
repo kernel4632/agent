@@ -18,3 +18,5 @@ const { text } = useSmoothText(computed(() => props.content || ''))
 <template>
   <KimaMarkdown :content="text" :compact="compact" />
 </template>
+
+<style scoped lang="scss" src="../styles/ui/SmoothMarkdown.scss"></style>

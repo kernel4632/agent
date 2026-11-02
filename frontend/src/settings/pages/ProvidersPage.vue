@@ -66,8 +66,4 @@ function removeProvider() {
   </div>
 </template>
 
-<style scoped lang="scss">
-.provider-detail { display: block; }
-.provider-missing { display: grid; justify-items: start; gap: 16px; padding: 24px; border-radius: 20px; background: var(--la-layer-01); }
-.provider-missing p { margin: 0; color: var(--la-muted); font-size: 14px; }
-</style>
+<style scoped lang="scss" src="../../styles/settings/pages/ProvidersPage.scss"></style>

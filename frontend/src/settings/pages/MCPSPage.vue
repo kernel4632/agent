@@ -67,8 +67,4 @@ function removeMCP() {
   </div>
 </template>
 
-<style scoped lang="scss">
-.mcp-detail { display: block; }
-.mcp-missing { display: grid; justify-items: start; gap: 16px; padding: 24px; border-radius: 20px; background: var(--la-layer-01); }
-.mcp-missing p { margin: 0; color: var(--la-muted); font-size: 14px; }
-</style>
+<style scoped lang="scss" src="../../styles/settings/pages/MCPSPage.scss"></style>

@@ -159,3 +159,5 @@ function onMenu(action) {
     </MessageActionTarget>
   </div>
 </template>
+
+<style scoped lang="scss" src="../styles/session/AssistantTurn.scss"></style>

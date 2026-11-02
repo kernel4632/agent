@@ -16,3 +16,5 @@ defineProps({ draft: { type: Object, required: true } })
     v-model:snapshot="draft.snapshot"
   />
 </template>
+
+<style scoped lang="scss" src="../../styles/settings/pages/AdvancedPage.scss"></style>

@@ -62,3 +62,5 @@ onUnmounted(() => {
 <template>
   <m3e-theme ref="theme"><slot /></m3e-theme>
 </template>
+
+<style scoped lang="scss" src="../styles/theme/ThemeProvider.scss"></style>
