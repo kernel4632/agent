@@ -1,13 +1,9 @@
 /*
- * 任务清单状态测试：两个清单界面必须从同一张状态表取图标和文案。
- * 图标或文案只改一处时，这个测试会失败。
+ * 任务清单状态测试：独立任务面板从工具结果推导进度。
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
-import { TODO_STATUS, todoStatus } from '../src/commands/tool.js'
+import { TODO_STATUS, todoStatus, latestTodos } from '../src/commands/tool.js'
 
 test('三种任务状态各有一份图标和文案', () => {
     assert.deepEqual(TODO_STATUS, {
@@ -19,15 +15,13 @@ test('三种任务状态各有一份图标和文案', () => {
     assert.deepEqual(todoStatus('unknown'), TODO_STATUS.pending)
 })
 
-test('两个清单界面都从同一张状态表派生，没有各自复制文案', () => {
-    const files = [
-        '../src/components/TaskPanel.vue',
-        '../src/components/results/TodoView.vue',
-    ]
-    for (const file of files) {
-        const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8')
-        assert.match(source, /todoStatus\(status\)\.icon/, `${file} 没有从共享状态表取图标`)
-        assert.match(source, /todoStatus\(status\)\.label/, `${file} 没有从共享状态表取文案`)
-        assert.doesNotMatch(source, /'已完成'|'进行中'|'待处理'/, `${file} 复制了状态文案`)
-    }
+test('任务面板取最近的清单，忽略其他工具中形似清单的内容', () => {
+    const older = [{ text: '旧任务', status: 'pending' }]
+    const current = [{ text: '新任务', status: 'completed' }]
+    const call = (name, items) => ({ name, output: { type: 'json', value: { items } } })
+    assert.deepEqual(latestTodos([
+        { tools: [call('update_todo_list', older)] },
+        { tools: [call('update_todo_list', current), call('another_tool', older)] },
+    ]), current)
+    assert.deepEqual(latestTodos([{ tools: [call('another_tool', older)] }]), [])
 })

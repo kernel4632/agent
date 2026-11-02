@@ -1,4 +1,0 @@
-/* FileListView.vue：独立输出形式的专属样式。 */
-.file-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.file-entry { padding: 2px 8px; border-radius: 8px; background: var(--la-layer-02); color: var(--la-secondary); font: 12.5px/1.7 var(--la-font-mono); overflow-wrap: anywhere; }
-.file-entry + .file-entry::before { display: none; }

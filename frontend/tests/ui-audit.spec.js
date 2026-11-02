@@ -246,7 +246,7 @@ test('reasoning preview collapses after the llm finishes', async ({ page }) => {
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
 })
 
-test('tool row renders the ui declared by the tool', async ({ page }, testInfo) => {
+test('tool row keeps declared metadata and shows generic input and output', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -269,8 +269,9 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   await expect(page.locator('.cot-step--tool .cot-step__summary')).toHaveText('当前进度')
   await expect(page.locator('.cot-step--tool .cot-step__body')).toBeVisible()
   await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
-  await expect(page.locator('.cot-step--tool').getByText('读现有实现', { exact: true })).toBeVisible()
-  await expect(page.locator('.cot-step--tool').getByText('补测试', { exact: true })).toBeVisible()
+  await expect(page.locator('.cot-step--tool .tool-input')).toContainText('读现有实现')
+  await expect(page.locator('.cot-step--tool .tool-result')).toContainText('补测试')
+  await expect(page.locator('.cot-step--tool .tool-result')).toContainText('"status": "pending"')
   // 任务清单不再常驻输入框上方，改从顶栏打开右侧面板；有清单时按钮在统计圆环左边。
   await expect(page.locator('.session-todos')).toHaveCount(0)
   const todoButton = page.getByRole('button', { name: '任务清单', exact: true })

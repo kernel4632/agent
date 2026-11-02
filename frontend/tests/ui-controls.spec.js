@@ -2,6 +2,34 @@
 import { expect, test } from '@playwright/test'
 import { backend, navigate } from './chat-fixture.js'
 
+test('unregistered tools show input, JSON and error text without a renderer', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'unknown-1', toolName: 'custom_report', input: { limit: 0, filter: { active: false } } },
+    { type: 'tool-result', toolCallId: 'unknown-1', toolName: 'custom_report', output: { type: 'json', value: { records: ['<img src=x onerror="alert(1)">'], total: 0 } } },
+    { type: 'tool-call', toolCallId: 'unknown-2', toolName: 'custom_failure', input: { id: 'example' } },
+    { type: 'tool-result', toolCallId: 'unknown-2', toolName: 'custom_failure', output: { type: 'error-text', value: '读取失败' } },
+  ])
+  const report = page.locator('.cot-step--tool').filter({ hasText: 'custom_report' })
+  await expect(report).toBeVisible()
+  if (!await report.locator('.tool-result').isVisible()) await report.getByRole('button', { name: /custom_report/ }).click()
+  await expect(report.locator('.tool-input')).toContainText('"active": false')
+  await expect(report.locator('.tool-result')).toContainText('"total": 0')
+  await expect(report.locator('.tool-result')).toContainText('<img src=x')
+  await expect(report.locator('.tool-result img')).toHaveCount(0)
+  const failure = page.locator('.cot-step--tool').filter({ hasText: 'custom_failure' })
+  await expect(failure.locator('.tool-result')).toHaveText('读取失败')
+  await expect(failure.locator('.tool-result')).toHaveClass(/is-error/)
+  await page.screenshot({ path: testInfo.outputPath('generic-tool-result.png'), fullPage: true, animations: 'disabled' })
+  expect(mock.errors).toEqual([])
+})
+
 test('model picker owns its search and resets it when reopened', async ({ page }) => {
   await backend(page)
   await page.goto('/')

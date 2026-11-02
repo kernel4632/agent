@@ -33,7 +33,7 @@
 
 导航可以调用会话和设置；这些功能不反向调用导航。业务状态集中在 `store.js`，公共默认值在 `defaults.js`。`commands/` 不导入 Vue 组件，`ui/` 不调用业务功能；这些约束和零循环由 `tests/architecture.test.js` 检查。
 
-工具结果视图由 `ToolResult.vue` 自动发现 `components/results/*View.vue`。默认将 `FileListView.vue` 映射为 `file-list`；需要对应多个后端类型时，在该视图的普通 `<script>` 中导出 `kinds` 数组，例如 `export const kinds = ['file-read', 'file-write']`。视图仍有自己的同名 SCSS，共同结果表面由 `styles/components/ToolResult.scss` 提供。
+工具结果统一由 `ToolResult.vue` 显示参数与返回文本/JSON，保留状态和工具声明的动作。新增工具不需要新增前端组件，也没有按工具类型分发的注册表。
 
 当前实测结构与依赖图见 [源码体量](../docs/frontend-structure.html) 和 [依赖报告](../docs/frontend-dependencies.html)。设计依据见 [目标可视化](../docs/frontend-target.html)。
 
