@@ -1,44 +1,30 @@
-%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'16px','primaryColor':'#241c35','primaryBorderColor':'#b5a4d5','primaryTextColor':'#f8fafc','lineColor':'#8d9ab7','clusterBkg':'#151521','clusterBorder':'#60526d','edgeLabelBackground':'#171822'},'flowchart':{'htmlLabels':false,'useMaxWidth':true,'nodeSpacing':28,'rankSpacing':55}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'16px','primaryColor':'#241c35','primaryBorderColor':'#b5a4d5','primaryTextColor':'#f8fafc','lineColor':'#8d9ab7','clusterBkg':'#151521','clusterBorder':'#60526d','edgeLabelBackground':'#171822'},'flowchart':{'htmlLabels':false,'useMaxWidth':true,'nodeSpacing':30,'rankSpacing':60}}}%%
 flowchart LR
   n_root["src root<br/>2 files"]
-  n_commands["commands/<br/>3 files"]
-  n_features["features/<br/>16 files"]
-  n_views["views/<br/>14 files"]
+  n_features["features/<br/>13 files"]
+  n_views["views/<br/>2 files"]
   n_components["components/<br/>17 files"]
-  n_tool_views["tool-views/<br/>13 files"]
-  n_ui["ui/<br/>11 files"]
+  n_ui["ui/<br/>7 files"]
   n_styles["styles/<br/>4 files"]
-  n_utils["utils/<br/>2 files"]
-  n_root -->|"1"| n_commands
-  n_root -->|"3"| n_views
-  n_root -->|"1"| n_features
-  n_commands -->|"6"| n_features
-  n_views -->|"5"| n_components
-  n_views -->|"8"| n_features
-  n_views -->|"5"| n_ui
-  n_components -->|"1"| n_tool_views
-  n_components -->|"10"| n_features
-  n_components -->|"9"| n_ui
-  n_tool_views -->|"12"| n_features
-  n_tool_views -->|"11"| n_ui
-  n_features -->|"3"| n_utils
+  n_root -->|"2"| n_views
+  n_root -->|"4"| n_components
+  n_root -->|"2"| n_features
+  n_views -->|"9"| n_components
+  n_views -->|"2"| n_features
+  n_views -->|"2"| n_ui
+  n_components -->|"20"| n_features
+  n_components -->|"10"| n_ui
   n_ui -->|"1"| n_styles
   n_components -->|"1"| n_styles
   classDef g_n_root fill:#221e32,stroke:#e879f9,color:#f8fafc
   class n_root g_n_root
-  classDef g_n_commands fill:#221e32,stroke:#60a5fa,color:#f8fafc
-  class n_commands g_n_commands
   classDef g_n_features fill:#221e32,stroke:#a78bfa,color:#f8fafc
   class n_features g_n_features
   classDef g_n_views fill:#221e32,stroke:#f3a6ce,color:#f8fafc
   class n_views g_n_views
   classDef g_n_components fill:#221e32,stroke:#f9a8d4,color:#f8fafc
   class n_components g_n_components
-  classDef g_n_tool_views fill:#221e32,stroke:#fbbf24,color:#f8fafc
-  class n_tool_views g_n_tool_views
   classDef g_n_ui fill:#221e32,stroke:#86efac,color:#f8fafc
   class n_ui g_n_ui
   classDef g_n_styles fill:#221e32,stroke:#91a5d5,color:#f8fafc
   class n_styles g_n_styles
-  classDef g_n_utils fill:#221e32,stroke:#34d399,color:#f8fafc
-  class n_utils g_n_utils

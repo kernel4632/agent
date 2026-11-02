@@ -1,34 +1,25 @@
-%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'16px','primaryColor':'#241c35','primaryBorderColor':'#b5a4d5','primaryTextColor':'#f8fafc','lineColor':'#8d9ab7','clusterBkg':'#151521','clusterBorder':'#60526d','edgeLabelBackground':'#171822'},'flowchart':{'htmlLabels':false,'useMaxWidth':true,'nodeSpacing':28,'rankSpacing':55}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'ui-monospace, monospace','fontSize':'16px','primaryColor':'#241c35','primaryBorderColor':'#b5a4d5','primaryTextColor':'#f8fafc','lineColor':'#8d9ab7','clusterBkg':'#151521','clusterBorder':'#60526d','edgeLabelBackground':'#171822'},'flowchart':{'htmlLabels':false,'useMaxWidth':true,'nodeSpacing':30,'rankSpacing':60}}}%%
 flowchart TB
   main["main.js"] --> app["App.vue"]
-  app --> commands["commands/ · 3"]
-  app --> views["views/ · 14"]
-  app --> features["features/ · 16"]
-  commands --> features
-  views --> components["components/ · 17"]
+  app --> views["views/ · 2"]
+  app --> components["components/ · 17"]
+  app --> features["features/ · 13"]
+  views --> components
   views --> features
-  views --> ui["ui/ · 11"]
-  components --> toolViews["tool-views/ · 13"]
+  views --> ui["ui/ · 7"]
   components --> features
   components --> ui
-  toolViews --> features
-  toolViews --> ui
-  features --> utils["utils/ · 2"]
   ui -.-> styles["styles/ · 4"]
   components -.-> styles
   classDef root fill:#3a1730,stroke:#e879f9,color:#f8fafc
-  classDef cmd fill:#172b45,stroke:#60a5fa,color:#f8fafc
   classDef feat fill:#2a1f44,stroke:#a78bfa,color:#f8fafc
   classDef view fill:#3a2030,stroke:#f3a6ce,color:#f8fafc
   classDef comp fill:#3a2030,stroke:#f9a8d4,color:#f8fafc
-  classDef tool fill:#3a2c12,stroke:#fbbf24,color:#f8fafc
   classDef kit fill:#102a24,stroke:#86efac,color:#f8fafc
   classDef base fill:#102a43,stroke:#91a5d5,color:#f8fafc
   class main,app root
-  class commands cmd
   class features feat
   class views view
   class components comp
-  class toolViews tool
   class ui kit
-  class utils,styles base
+  class styles base

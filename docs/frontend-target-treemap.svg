@@ -1,310 +1,189 @@
-<svg viewBox="0 0 1400 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Target frontend source treemap"><rect width="1400" height="900" fill="#0d0f16"/>
-<g><title>components/ — 129.0 KiB · 17 files</title><rect x="0" y="0" width="717.516784825192" height="477.6763478942198" rx="8" fill="#f9a8d4" fill-opacity="0.10" stroke="#f9a8d4" stroke-opacity="0.75"/><rect x="0" y="0" width="717.516784825192" height="26" rx="8" fill="#f9a8d4" fill-opacity="0.18"/><text x="8" y="18" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">components/ · 17 · 129.0 KiB</text>
-<g><title>Composer.vue — 25.1 KiB</title><rect x="4" y="30" width="239.812142576843" height="255.6313298996453" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="9" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Composer.vue</text>
-<text x="9" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">25.1 KiB</text>
+<svg viewBox="0 0 1400 820" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Target frontend budget treemap"><rect width="1400" height="820" fill="#0d0f16"/>
+<g><title>components/ — budget 118.5 KiB · 17 files</title><rect x="0" y="0" width="638.0769230769229" height="820" rx="8" fill="#f9a8d4" fill-opacity="0.10" stroke="#f9a8d4" stroke-opacity="0.75"/><rect x="0" y="0" width="638.0769230769229" height="26" rx="8" fill="#f9a8d4" fill-opacity="0.18"/><text x="8" y="18" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">components/ · 17 · 118.5 KiB</text>
+<g><title>Conversation.vue — budget 11.0 KiB</title><rect x="4" y="30" width="208.6649566135084" height="220.31341131228967" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="9" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Conversation.vue</text>
+<text x="9" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 11.0 KiB</text>
+</g>
+<g><title>Message.vue — budget 9.5 KiB</title><rect x="212.6649566135084" y="30" width="180.21064434802994" height="220.31341131228967" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="217.6649566135084" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Message.vue</text>
+<text x="217.6649566135084" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.5 KiB</text>
+</g>
+<g><title>Composer.vue — budget 9.5 KiB</title><rect x="4" y="250.31341131228967" width="194.43780048076917" height="204.19291780163437" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="9" y="263.31341131228965" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Composer.vue</text>
+<text x="9" y="277.31341131228965" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.5 KiB</text>
+</g>
+<g><title>SettingsGeneral.vue — budget 9.5 KiB</title><rect x="198.43780048076917" y="250.31341131228967" width="194.43780048076917" height="204.19291780163437" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="203.43780048076917" y="263.31341131228965" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsGeneral.vue</text>
+<text x="203.43780048076917" y="277.31341131228965" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.5 KiB</text>
+</g>
+<g><title>SettingsProviders.vue — budget 8.5 KiB</title><rect x="392.87560096153834" y="30" width="241.20132211538453" height="147.2777060191165" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="397.87560096153834" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsProviders.vue</text>
+<text x="397.87560096153834" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 8.5 KiB</text>
+</g>
+<g><title>Sidebar.vue — budget 8.0 KiB</title><rect x="392.87560096153834" y="177.2777060191165" width="241.20132211538453" height="138.6143115474038" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="397.87560096153834" y="190.2777060191165" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Sidebar.vue</text>
+<text x="397.87560096153834" y="204.2777060191165" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 8.0 KiB</text>
 </g>
-<g><title>Timeline.vue — 18.3 KiB</title><rect x="243.812142576843" y="30" width="174.78339708138876" height="255.6313298996453" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="248.812142576843" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Timeline.vue</text>
-<text x="248.812142576843" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">18.3 KiB</text>
+<g><title>ToolResult.vue — budget 8.0 KiB</title><rect x="392.87560096153834" y="315.8920175665203" width="241.20132211538453" height="138.6143115474038" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="397.87560096153834" y="328.8920175665203" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ToolResult.vue</text>
+<text x="397.87560096153834" y="342.8920175665203" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 8.0 KiB</text>
 </g>
-<g><title>SessionStats.vue — 17.7 KiB</title><rect x="4" y="285.63132989964527" width="229.04955770157838" height="188.04501799457452" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="9" y="298.63132989964527" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SessionStats.vue</text>
-<text x="9" y="312.63132989964527" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">17.7 KiB</text>
+<g><title>ProviderModels.vue — budget 7.5 KiB</title><rect x="4" y="454.50632911392404" width="167.43581631908108" height="187.20207956600365" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="9" y="467.50632911392404" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ProviderModels.vue</text>
+<text x="9" y="481.50632911392404" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.5 KiB</text>
 </g>
-<g><title>AppDrawer.vue — 14.3 KiB</title><rect x="233.04955770157838" y="285.63132989964527" width="185.54598195665338" height="188.04501799457452" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="238.04955770157838" y="298.63132989964527" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">AppDrawer.vue</text>
-<text x="238.04955770157838" y="312.63132989964527" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">14.3 KiB</text>
+<g><title>StatsPanel.vue — budget 7.0 KiB</title><rect x="171.43581631908108" y="454.50632911392404" width="156.27342856447564" height="187.20207956600365" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="176.43581631908108" y="467.50632911392404" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">StatsPanel.vue</text>
+<text x="176.43581631908108" y="481.50632911392404" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.0 KiB</text>
 </g>
-<g><title>AssistantTurn.vue — 8.1 KiB</title><rect x="418.59553965823176" y="30" width="148.11208456001566" height="133.39188329242756" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="423.59553965823176" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">AssistantTurn.vue</text>
-<text x="423.59553965823176" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.1 KiB</text>
+<g><title>SettingsAgents.vue — budget 7.0 KiB</title><rect x="4" y="641.7084086799277" width="167.84923808777015" height="174.2915913200723" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="9" y="654.7084086799277" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsAgents.vue</text>
+<text x="9" y="668.7084086799277" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.0 KiB</text>
 </g>
-<g><title>CommandPalette.vue — 6.7 KiB</title><rect x="418.59553965823176" y="163.39188329242756" width="148.11208456001566" height="109.85403197692624" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="423.59553965823176" y="176.39188329242756" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">CommandPalette.vue</text>
-<text x="423.59553965823176" y="190.39188329242756" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">6.7 KiB</text>
+<g><title>SettingsMCP.vue — budget 6.5 KiB</title><rect x="171.84923808777015" y="641.7084086799277" width="155.86000679578657" height="174.2915913200723" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="176.84923808777015" y="654.7084086799277" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsMCP.vue</text>
+<text x="176.84923808777015" y="668.7084086799277" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 6.5 KiB</text>
 </g>
-<g><title>ReasoningPicker.vue — 5.8 KiB</title><rect x="566.7076242182475" y="30" width="146.80916060694454" height="96.13943388098109" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="571.7076242182475" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ReasoningPicker.vue</text>
-<text x="571.7076242182475" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">5.8 KiB</text>
+<g><title>ComposerTools.vue — budget 5.5 KiB</title><rect x="327.7092448835567" y="454.50632911392404" width="116.20842965955269" height="197.7984236923812" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="332.7092448835567" y="467.50632911392404" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ComposerTools.vue</text>
+<text x="332.7092448835567" y="481.50632911392404" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 5.5 KiB</text>
 </g>
-<g><title>TopBar.vue — 4.6 KiB</title><rect x="566.7076242182475" y="126.13943388098109" width="146.80916060694454" height="76.59665515521691" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="571.7076242182475" y="139.13943388098107" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">TopBar.vue</text>
-<text x="571.7076242182475" y="153.13943388098107" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.6 KiB</text>
+<g><title>ToolCall.vue — budget 4.5 KiB</title><rect x="443.9176745431094" y="454.50632911392404" width="95.07962426690672" height="197.7984236923812" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="448.9176745431094" y="467.50632911392404" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ToolCall.vue</text>
+<text x="448.9176745431094" y="481.50632911392404" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 4.5 KiB</text>
 </g>
-<g><title>ToolCallRow.vue — 4.2 KiB</title><rect x="566.7076242182475" y="202.736089036198" width="146.80916060694454" height="70.5098262331558" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="571.7076242182475" y="215.736089036198" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ToolCallRow.vue</text>
-<text x="571.7076242182475" y="229.736089036198" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.2 KiB</text>
+<g><title>SettingsTools.vue — budget 4.5 KiB</title><rect x="538.9972988100161" y="454.50632911392404" width="95.07962426690672" height="197.7984236923812" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="543.9972988100161" y="467.50632911392404" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsTool…</text>
+<text x="543.9972988100161" y="481.50632911392404" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 4.5 KiB</text>
 </g>
-<g><title>SessionTodoPanel.vue — 3.9 KiB</title><rect x="418.59553965823176" y="273.2459152693538" width="90.44269121780846" height="104.83672505261659" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="423.59553965823176" y="286.2459152693538" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SessionTodo…</text>
-<text x="423.59553965823176" y="300.2459152693538" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.9 KiB</text>
+<g><title>TopBar.vue — budget 4.0 KiB</title><rect x="327.7092448835567" y="652.3047528063053" width="102.1225593977887" height="163.69524719369477" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="332.7092448835567" y="665.3047528063053" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">TopBar.vue</text>
+<text x="332.7092448835567" y="679.3047528063053" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 4.0 KiB</text>
 </g>
-<g><title>AgentDrawer.vue — 3.6 KiB</title><rect x="509.0382308760402" y="273.2459152693538" width="82.80540942610611" height="104.83672505261659" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="514.0382308760402" y="286.2459152693538" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">AgentDrawe…</text>
-<text x="514.0382308760402" y="300.2459152693538" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.6 KiB</text>
+<g><title>CommandPalette.vue — budget 4.0 KiB</title><rect x="429.8318042813454" y="652.3047528063053" width="102.1225593977887" height="163.69524719369477" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="434.8318042813454" y="665.3047528063053" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">CommandPalett…</text>
+<text x="434.8318042813454" y="679.3047528063053" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 4.0 KiB</text>
 </g>
-<g><title>ReasoningStep.vue — 3.4 KiB</title><rect x="418.59553965823176" y="378.0826403219704" width="87.47159498697788" height="95.59370757224941" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="423.59553965823176" y="391.0826403219704" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ReasoningSt…</text>
-<text x="423.59553965823176" y="405.0826403219704" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.4 KiB</text>
+<g><title>SettingsModels.vue — budget 4.0 KiB</title><rect x="531.9543636791341" y="652.3047528063053" width="102.12255939778872" height="163.69524719369477" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="536.9543636791341" y="665.3047528063053" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsModel…</text>
+<text x="536.9543636791341" y="679.3047528063053" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 4.0 KiB</text>
 </g>
-<g><title>MessageActions.vue — 3.4 KiB</title><rect x="506.06713464520965" y="378.0826403219704" width="85.77650565693669" height="95.59370757224941" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="511.06713464520965" y="391.0826403219704" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">MessageActi…</text>
-<text x="511.06713464520965" y="405.0826403219704" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.4 KiB</text>
 </g>
-<g><title>RequestStatus.vue — 3.3 KiB</title><rect x="591.8436403021464" y="273.2459152693538" width="66.95516435279657" height="119.36911147631017" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="596.8436403021464" y="286.2459152693538" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">RequestS…</text>
+<g><title>features/ — budget 74.9 KiB · 13 files</title><rect x="638.0769230769229" y="0" width="403.3076923076923" height="820" rx="8" fill="#a78bfa" fill-opacity="0.10" stroke="#a78bfa" stroke-opacity="0.75"/><rect x="638.0769230769229" y="0" width="403.3076923076923" height="26" rx="8" fill="#a78bfa" fill-opacity="0.18"/><text x="646.0769230769229" y="18" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">features/ · 13 · 74.9 KiB</text>
+<g><title>session.js — budget 9.5 KiB</title><rect x="642.0769230769229" y="30" width="275.96952104499275" height="142.80337747627465" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="647.0769230769229" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">session.js</text>
+<text x="647.0769230769229" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.5 KiB</text>
 </g>
-<g><title>RollbackDialog.vue — 2.7 KiB</title><rect x="658.798804654943" y="273.2459152693538" width="54.71798017024907" height="119.36911147631017" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="663.798804654943" y="286.2459152693538" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Rollba…</text>
+<g><title>messages.js — budget 9.0 KiB</title><rect x="642.0769230769229" y="172.80337747627465" width="275.96952104499275" height="135.28741024068125" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="647.0769230769229" y="185.80337747627465" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">messages.js</text>
+<text x="647.0769230769229" y="199.80337747627465" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.0 KiB</text>
 </g>
-<g><title>Feedback.vue — 2.6 KiB</title><rect x="591.8436403021464" y="392.61502674566395" width="78.63630384130155" height="81.06132114855583" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="596.8436403021464" y="405.61502674566395" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Feedback.v…</text>
-<text x="596.8436403021464" y="419.61502674566395" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.6 KiB</text>
+<g><title>conversation.js — budget 8.0 KiB</title><rect x="918.0464441219156" y="30" width="119.33817126269959" height="278.0907877169559" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="923.0464441219156" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">conversation.js</text>
+<text x="923.0464441219156" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 8.0 KiB</text>
 </g>
-<g><title>CompactionNotice.vue — 1.4 KiB</title><rect x="670.4799441434479" y="392.61502674566395" width="43.0368406817441" height="81.06132114855583" fill="#f9a8d4" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<g><title>settings.js — budget 8.0 KiB</title><rect x="642.0769230769229" y="308.0907877169559" width="204.02977667493798" height="162.65687583444594" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="647.0769230769229" y="321.0907877169559" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">settings.js</text>
+<text x="647.0769230769229" y="335.0907877169559" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 8.0 KiB</text>
 </g>
+<g><title>api.js — budget 7.5 KiB</title><rect x="846.1066997518608" y="308.0907877169559" width="191.27791563275434" height="162.65687583444594" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="851.1066997518608" y="321.0907877169559" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">api.js</text>
+<text x="851.1066997518608" y="335.0907877169559" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.5 KiB</text>
 </g>
-<g><title>features/ — 114.1 KiB · 16 files</title><rect x="0" y="477.6763478942198" width="717.516784825192" height="422.3236521057802" rx="8" fill="#a78bfa" fill-opacity="0.10" stroke="#a78bfa" stroke-opacity="0.75"/><rect x="0" y="477.6763478942198" width="717.516784825192" height="26" rx="8" fill="#a78bfa" fill-opacity="0.18"/><text x="8" y="495.6763478942198" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">features/ · 16 · 114.1 KiB</text>
-<g><title>chat.js — 20.2 KiB</title><rect x="4" y="507.6763478942198" width="217.75923775942812" height="223.86577582328962" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="9" y="520.6763478942198" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">chat.js</text>
-<text x="9" y="534.6763478942198" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">20.2 KiB</text>
+<g><title>stream.js — budget 7.0 KiB</title><rect x="642.0769230769229" y="470.74766355140184" width="240.30862754267008" height="120.83831775700935" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="647.0769230769229" y="483.74766355140184" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">stream.js</text>
+<text x="647.0769230769229" y="497.74766355140184" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.0 KiB</text>
 </g>
-<g><title>session.js — 14.8 KiB</title><rect x="4" y="731.5421237175094" width="217.75923775942812" height="164.45787628249056" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="9" y="744.5421237175094" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">session.js</text>
-<text x="9" y="758.5421237175094" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">14.8 KiB</text>
+<g><title>config.js — budget 7.0 KiB</title><rect x="642.0769230769229" y="591.5859813084112" width="240.30862754267008" height="120.83831775700935" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="647.0769230769229" y="604.5859813084112" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">config.js</text>
+<text x="647.0769230769229" y="618.5859813084112" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.0 KiB</text>
 </g>
-<g><title>settings.js — 14.4 KiB</title><rect x="221.75923775942812" y="507.6763478942198" width="177.50040450587994" height="196.40167969255612" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="226.75923775942812" y="520.6763478942198" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">settings.js</text>
-<text x="226.75923775942812" y="534.6763478942198" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">14.4 KiB</text>
+<g><title>stats.js — budget 6.0 KiB</title><rect x="642.0769230769229" y="712.4242990654205" width="240.30862754267008" height="103.57570093457946" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="647.0769230769229" y="725.4242990654205" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">stats.js</text>
+<text x="647.0769230769229" y="739.4242990654205" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 6.0 KiB</text>
 </g>
-<g><title>messages.js — 14.1 KiB</title><rect x="221.75923775942812" y="704.078027586776" width="177.50040450587994" height="191.92197241322407" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="226.75923775942812" y="717.078027586776" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">messages.js</text>
-<text x="226.75923775942812" y="731.078027586776" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">14.1 KiB</text>
+<g><title>tools.js — budget 5.0 KiB</title><rect x="882.385550619593" y="470.74766355140184" width="154.99906476502224" height="133.8187350575962" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="887.385550619593" y="483.74766355140184" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">tools.js</text>
+<text x="887.385550619593" y="497.74766355140184" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 5.0 KiB</text>
 </g>
-<g><title>api.js — 9.6 KiB</title><rect x="399.25964226530806" y="507.6763478942198" width="112.77521822196879" height="205.4333354502924" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="404.25964226530806" y="520.6763478942198" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">api.js</text>
-<text x="404.25964226530806" y="534.6763478942198" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">9.6 KiB</text>
+<g><title>store.js — budget 3.5 KiB</title><rect x="882.385550619593" y="604.566398608998" width="154.99906476502224" height="93.67311454031733" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="887.385550619593" y="617.566398608998" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">store.js</text>
+<text x="887.385550619593" y="631.566398608998" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 3.5 KiB</text>
 </g>
-<g><title>config.js — 8.9 KiB</title><rect x="512.0348604872769" y="507.6763478942198" width="104.2088489323253" height="205.4333354502924" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="517.0348604872769" y="520.6763478942198" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">config.js</text>
-<text x="517.0348604872769" y="534.6763478942198" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.9 KiB</text>
+<g><title>theme.js — budget 2.0 KiB</title><rect x="882.385550619593" y="698.2395131493154" width="112.72659255637981" height="73.6003042816779" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="887.385550619593" y="711.2395131493154" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">theme.js</text>
+<text x="887.385550619593" y="725.2395131493154" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 2.0 KiB</text>
 </g>
-<g><title>stats.js — 8.3 KiB</title><rect x="616.2437094196022" y="507.6763478942198" width="97.27307540558981" height="205.4333354502924" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="621.2437094196022" y="520.6763478942198" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">stats.js</text>
-<text x="621.2437094196022" y="534.6763478942198" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.3 KiB</text>
+<g><title>feedback.js — budget 1.2 KiB</title><rect x="882.385550619593" y="771.8398174309932" width="112.72659255637981" height="44.160182569006736" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="887.385550619593" y="784.8398174309932" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">feedback.js</text>
+<text x="887.385550619593" y="798.8398174309932" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 1.2 KiB</text>
 </g>
-<g><title>tabs.js — 5.0 KiB</title><rect x="399.25964226530806" y="713.1096833445122" width="128.81701183207295" height="93.78004521805877" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="404.25964226530806" y="726.1096833445122" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">tabs.js</text>
-<text x="404.25964226530806" y="740.1096833445122" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">5.0 KiB</text>
+<g><title>attachments.js — budget 1.2 KiB</title><rect x="995.1121431759728" y="698.2395131493154" width="42.27247220864243" height="117.76048685068463" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
 </g>
-<g><title>tool-ui.js — 4.8 KiB</title><rect x="399.25964226530806" y="806.889728562571" width="128.81701183207295" height="89.11027143742902" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="404.25964226530806" y="819.889728562571" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">tool-ui.js</text>
-<text x="404.25964226530806" y="833.889728562571" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.8 KiB</text>
 </g>
-<g><title>store.js — 4.4 KiB</title><rect x="528.076654097381" y="713.1096833445122" width="57.69485270099753" height="182.8903166554878" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="533.076654097381" y="726.1096833445122" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">store.…</text>
+<g><title>styles/ — budget 20.3 KiB · 4 files</title><rect x="1041.3846153846152" y="0" width="358.61538461538464" height="249.93993993994" rx="8" fill="#91a5d5" fill-opacity="0.10" stroke="#91a5d5" stroke-opacity="0.75"/><rect x="1041.3846153846152" y="0" width="358.61538461538464" height="26" rx="8" fill="#91a5d5" fill-opacity="0.18"/><text x="1049.3846153846152" y="18" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">styles/ · 4 · 20.3 KiB</text>
+<g><title>chat.scss — budget 7.5 KiB</title><rect x="1045.3846153846152" y="30" width="129.5377036756347" height="215.93993993994" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1050.3846153846152" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">chat.scss</text>
+<text x="1050.3846153846152" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 7.5 KiB</text>
 </g>
-<g><title>theme.js — 2.7 KiB</title><rect x="585.7715067983786" y="713.1096833445122" width="93.32502255847758" height="70.2203549499614" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="590.7715067983786" y="726.1096833445122" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">theme.js</text>
-<text x="590.7715067983786" y="740.1096833445122" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.7 KiB</text>
+<g><title>base.scss — budget 6.5 KiB</title><rect x="1174.92231906025" y="30" width="112.26600985221674" height="215.93993993994" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1179.92231906025" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">base.scss</text>
+<text x="1179.92231906025" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 6.5 KiB</text>
 </g>
-<g><title>workspace.js — 1.9 KiB</title><rect x="585.7715067983786" y="783.3300382944735" width="93.32502255847758" height="49.44240974878493" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="590.7715067983786" y="796.3300382944735" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">workspace.js</text>
-<text x="590.7715067983786" y="810.3300382944735" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">1.9 KiB</text>
+<g><title>ui.scss — budget 4.5 KiB</title><rect x="1287.1883289124667" y="30" width="108.81167108753318" height="154.2428142428143" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1292.1883289124667" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ui.scss</text>
+<text x="1292.1883289124667" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 4.5 KiB</text>
 </g>
-<g><title>attachments.js — 1.7 KiB</title><rect x="679.0965293568562" y="713.1096833445122" width="34.420255468335846" height="119.66276469874634" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<g><title>tokens.scss — budget 1.8 KiB</title><rect x="1287.1883289124667" y="184.2428142428143" width="108.81167108753318" height="61.697125697125706" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1292.1883289124667" y="197.2428142428143" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">tokens.scss</text>
+<text x="1292.1883289124667" y="211.2428142428143" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 1.8 KiB</text>
 </g>
-<g><title>reasoning.js — 1.4 KiB</title><rect x="585.7715067983786" y="832.7724480432585" width="54.845354784271706" height="63.22755195674144" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="590.7715067983786" y="845.7724480432585" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">reason…</text>
 </g>
-<g><title>todos.js — 1.2 KiB</title><rect x="640.6168615826502" y="832.7724480432585" width="46.74913574468874" height="63.22755195674144" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="645.6168615826502" y="845.7724480432585" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">todo…</text>
+<g><title>ui/ — budget 18.8 KiB · 7 files</title><rect x="1041.3846153846152" y="249.93993993994" width="358.61538461538464" height="231.47147147147146" rx="8" fill="#86efac" fill-opacity="0.10" stroke="#86efac" stroke-opacity="0.75"/><rect x="1041.3846153846152" y="249.93993993994" width="358.61538461538464" height="26" rx="8" fill="#86efac" fill-opacity="0.18"/><text x="1049.3846153846152" y="267.93993993994" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">ui/ · 7 · 18.8 KiB</text>
+<g><title>Markdown.vue — budget 6.0 KiB</title><rect x="1045.3846153846152" y="279.93993993994" width="111.89852700490998" height="197.47147147147146" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1050.3846153846152" y="292.93993993994" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Markdown.vue</text>
+<text x="1050.3846153846152" y="306.93993993994" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 6.0 KiB</text>
 </g>
-<g><title>feedback.js — 0.7 KiB</title><rect x="687.3659973273391" y="832.7724480432585" width="26.150787497852974" height="63.22755195674144" fill="#a78bfa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<g><title>Icon.vue — budget 3.0 KiB</title><rect x="1157.2831423895252" y="279.93993993994" width="108.16857610474632" height="102.14041627834732" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1162.2831423895252" y="292.93993993994" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Icon.vue</text>
+<text x="1162.2831423895252" y="306.93993993994" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 3.0 KiB</text>
 </g>
+<g><title>Field.vue — budget 2.8 KiB</title><rect x="1157.2831423895252" y="382.0803562182873" width="108.16857610474632" height="95.33105519312414" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1162.2831423895252" y="395.0803562182873" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Field.vue</text>
+<text x="1162.2831423895252" y="409.0803562182873" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 2.8 KiB</text>
 </g>
-<g><title>views/ — 109.3 KiB · 14 files</title><rect x="717.516784825192" y="0" width="491.88882003791673" height="590.4718828856566" rx="8" fill="#f3a6ce" fill-opacity="0.10" stroke="#f3a6ce" stroke-opacity="0.75"/><rect x="717.516784825192" y="0" width="491.88882003791673" height="26" rx="8" fill="#f3a6ce" fill-opacity="0.18"/><text x="725.516784825192" y="18" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">views/ · 14 · 109.3 KiB</text>
-<g><title>ProvidersPage.vue — 15.9 KiB</title><rect x="721.516784825192" y="30" width="173.57612410595758" height="225.54342393566782" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.516784825192" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ProvidersPage.vue</text>
-<text x="726.516784825192" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">15.9 KiB</text>
+<g><title>Dialog.vue — budget 2.2 KiB</title><rect x="1265.4517184942715" y="279.93993993994" width="71.8015548281506" height="112.84084084084083" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1270.4517184942715" y="292.93993993994" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Dialog.v…</text>
+<text x="1270.4517184942715" y="306.93993993994" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 2.2 KiB</text>
 </g>
-<g><title>ProviderModels.vue — 13.0 KiB</title><rect x="895.0929089311495" y="30" width="142.43565455635107" height="225.54342393566782" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="900.0929089311495" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ProviderModels.vue</text>
-<text x="900.0929089311495" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">13.0 KiB</text>
+<g><title>Menu.vue — budget 1.8 KiB</title><rect x="1337.253273322422" y="279.93993993994" width="58.74672667757775" height="112.84084084084083" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1342.253273322422" y="292.93993993994" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Menu.v…</text>
 </g>
-<g><title>AgentsPage.vue — 12.2 KiB</title><rect x="721.516784825192" y="255.54342393566782" width="316.01177866230864" height="95.3718649403995" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.516784825192" y="268.5434239356678" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">AgentsPage.vue</text>
-<text x="726.516784825192" y="282.5434239356678" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">12.2 KiB</text>
+<g><title>ModelIcon.vue — budget 1.8 KiB</title><rect x="1265.4517184942715" y="392.78078078078084" width="78.328968903437" height="84.63063063063063" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1270.4517184942715" y="405.78078078078084" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ModelIcon.…</text>
+<text x="1270.4517184942715" y="419.78078078078084" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 1.8 KiB</text>
 </g>
-<g><title>MCPSPage.vue — 11.5 KiB</title><rect x="1037.5285634875006" y="30" width="167.87704137560812" height="169.26927505946333" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1042.5285634875006" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">MCPSPage.vue</text>
-<text x="1042.5285634875006" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">11.5 KiB</text>
+<g><title>Button.vue — budget 1.2 KiB</title><rect x="1343.7806873977086" y="392.78078078078084" width="52.21931260229134" height="84.63063063063063" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1348.7806873977086" y="405.78078078078084" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Butto…</text>
 </g>
-<g><title>SettingsPage.vue — 10.3 KiB</title><rect x="1037.5285634875006" y="199.26927505946333" width="167.87704137560812" height="151.646013816604" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1042.5285634875006" y="212.26927505946333" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsPage.vue</text>
-<text x="1042.5285634875006" y="226.26927505946333" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">10.3 KiB</text>
 </g>
-<g><title>SessionView.vue — 9.9 KiB</title><rect x="721.516784825192" y="350.91528887606734" width="190.75561422993846" height="127.25427689870855" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.516784825192" y="363.91528887606734" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SessionView.vue</text>
-<text x="726.516784825192" y="377.91528887606734" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">9.9 KiB</text>
+<g><title>views/ — budget 17.5 KiB · 2 files</title><rect x="1041.3846153846152" y="481.41141141141145" width="228.2097902097902" height="338.58858858858855" rx="8" fill="#f3a6ce" fill-opacity="0.10" stroke="#f3a6ce" stroke-opacity="0.75"/><rect x="1041.3846153846152" y="481.41141141141145" width="228.2097902097902" height="26" rx="8" fill="#f3a6ce" fill-opacity="0.18"/><text x="1049.3846153846152" y="499.41141141141145" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">views/ · 2 · 17.5 KiB</text>
+<g><title>ChatView.vue — budget 9.5 KiB</title><rect x="1045.3846153846152" y="511.41141141141145" width="220.2097902097902" height="165.3480909480909" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1050.3846153846152" y="524.4114114114114" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ChatView.vue</text>
+<text x="1050.3846153846152" y="538.4114114114114" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.5 KiB</text>
 </g>
-<g><title>ToolsPage.vue — 8.4 KiB</title><rect x="721.516784825192" y="478.1695657747759" width="190.75561422993846" height="108.3023171108807" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.516784825192" y="491.1695657747759" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ToolsPage.vue</text>
-<text x="726.516784825192" y="505.1695657747759" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.4 KiB</text>
+<g><title>SettingsView.vue — budget 8.0 KiB</title><rect x="1045.3846153846152" y="676.7595023595023" width="220.2097902097902" height="139.24049764049764" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1050.3846153846152" y="689.7595023595023" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">SettingsView.vue</text>
+<text x="1050.3846153846152" y="703.7595023595023" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 8.0 KiB</text>
 </g>
-<g><title>AdvancedPage.vue — 6.2 KiB</title><rect x="912.2723990551304" y="350.91528887606734" width="65.2394207652201" height="235.55659400958925" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="917.2723990551304" y="363.91528887606734" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Advance…</text>
 </g>
-<g><title>ModelsPage.vue — 6.0 KiB</title><rect x="977.5118198203505" y="350.91528887606734" width="99.31239512953319" height="149.89581271279624" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="982.5118198203505" y="363.91528887606734" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ModelsPage.vue</text>
-<text x="982.5118198203505" y="377.91528887606734" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">6.0 KiB</text>
+<g><title>src root — budget 10.0 KiB · 2 files</title><rect x="1269.5944055944055" y="481.41141141141145" width="130.40559440559443" height="338.58858858858855" rx="8" fill="#e879f9" fill-opacity="0.10" stroke="#e879f9" stroke-opacity="0.75"/><rect x="1269.5944055944055" y="481.41141141141145" width="130.40559440559443" height="26" rx="8" fill="#e879f9" fill-opacity="0.18"/><text x="1277.5944055944055" y="499.41141141141145" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">src root · 2 · 10.0 KiB</text>
+<g><title>App.vue — budget 9.0 KiB</title><rect x="1273.5944055944055" y="511.41141141141145" width="122.40559440559443" height="274.1297297297297" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1278.5944055944055" y="524.4114114114114" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">App.vue</text>
+<text x="1278.5944055944055" y="538.4114114114114" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">≤ 9.0 KiB</text>
 </g>
-<g><title>AppearancePage.vue — 4.3 KiB</title><rect x="1076.8242149498838" y="350.91528887606734" width="70.18781972799776" height="149.89581271279624" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1081.8242149498838" y="363.91528887606734" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Appearan…</text>
-<text x="1081.8242149498838" y="377.91528887606734" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.3 KiB</text>
-</g>
-<g><title>settings-pages.js — 3.6 KiB</title><rect x="1147.0120346778815" y="350.91528887606734" width="58.39357018522721" height="149.89581271279624" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1152.0120346778815" y="363.91528887606734" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">settin…</text>
-</g>
-<g><title>DraftView.vue — 2.9 KiB</title><rect x="977.5118198203505" y="500.8111015888636" width="82.6100930995311" height="85.660781296793" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="982.5118198203505" y="513.8111015888636" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">DraftView.…</text>
-<text x="982.5118198203505" y="527.8111015888636" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.9 KiB</text>
-</g>
-<g><title>PromptsPage.vue — 2.6 KiB</title><rect x="1060.1219129198817" y="500.8111015888636" width="74.13006314845757" height="85.660781296793" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1065.1219129198817" y="513.8111015888636" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">PromptsPa…</text>
-<text x="1065.1219129198817" y="527.8111015888636" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.6 KiB</text>
-</g>
-<g><title>ContextPage.vue — 2.5 KiB</title><rect x="1134.2519760683392" y="500.8111015888636" width="71.15362879476949" height="85.660781296793" fill="#f3a6ce" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1139.2519760683392" y="513.8111015888636" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ContextP…</text>
-<text x="1139.2519760683392" y="527.8111015888636" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.5 KiB</text>
-</g>
-</g>
-<g><title>styles/ — 42.4 KiB · 4 files</title><rect x="1209.4056048631087" y="0" width="190.59439513689134" height="590.4718828856566" rx="8" fill="#91a5d5" fill-opacity="0.10" stroke="#91a5d5" stroke-opacity="0.75"/><rect x="1209.4056048631087" y="0" width="190.59439513689134" height="26" rx="8" fill="#91a5d5" fill-opacity="0.18"/><text x="1217.4056048631087" y="18" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">styles/ · 4 · 42.4 KiB</text>
-<g><title>transcript.scss — 16.2 KiB</title><rect x="1213.4056048631087" y="30" width="182.59439513689134" height="212.35399122590945" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1218.4056048631087" y="43" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">transcript.scss</text>
-<text x="1218.4056048631087" y="57" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">16.2 KiB</text>
-</g>
-<g><title>ui.scss — 15.2 KiB</title><rect x="1213.4056048631087" y="242.35399122590945" width="182.59439513689134" height="199.99992286666634" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1218.4056048631087" y="255.35399122590945" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ui.scss</text>
-<text x="1218.4056048631087" y="269.35399122590945" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">15.2 KiB</text>
-</g>
-<g><title>base.scss — 8.0 KiB</title><rect x="1213.4056048631087" y="442.3539140925758" width="133.183058015995" height="144.1179687930808" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1218.4056048631087" y="455.3539140925758" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">base.scss</text>
-<text x="1218.4056048631087" y="469.3539140925758" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">8.0 KiB</text>
-</g>
-<g><title>tokens.scss — 3.0 KiB</title><rect x="1346.5886628791036" y="442.3539140925758" width="49.41133712089636" height="144.1179687930808" fill="#91a5d5" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1351.5886628791036" y="455.3539140925758" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">token…</text>
-</g>
-</g>
-<g><title>ui/ — 39.7 KiB · 11 files</title><rect x="717.516784825192" y="590.4718828856566" width="341.0735895956259" height="309.52811711434344" rx="8" fill="#86efac" fill-opacity="0.10" stroke="#86efac" stroke-opacity="0.75"/><rect x="717.516784825192" y="590.4718828856566" width="341.0735895956259" height="26" rx="8" fill="#86efac" fill-opacity="0.18"/><text x="725.516784825192" y="608.4718828856566" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">ui/ · 11 · 39.7 KiB</text>
-<g><title>Markdown.vue — 9.9 KiB</title><rect x="721.516784825192" y="620.4718828856566" width="130.0034348089412" height="176.43058939208706" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.516784825192" y="633.4718828856566" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Markdown.vue</text>
-<text x="726.516784825192" y="647.4718828856566" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">9.9 KiB</text>
-</g>
-<g><title>ModelIcon.vue — 4.5 KiB</title><rect x="851.5202196341331" y="620.4718828856566" width="59.006475425572525" height="176.43058939208706" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="856.5202196341331" y="633.4718828856566" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ModelI…</text>
-</g>
-<g><title>Dialog.vue — 4.1 KiB</title><rect x="721.516784825192" y="796.9024722777436" width="94.72116151668224" height="99.09752772225639" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="726.516784825192" y="809.9024722777436" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Dialog.vue</text>
-<text x="726.516784825192" y="823.9024722777436" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.1 KiB</text>
-</g>
-<g><title>Choice.vue — 4.0 KiB</title><rect x="816.2379463418742" y="796.9024722777436" width="94.28874871783147" height="99.09752772225639" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="821.2379463418742" y="809.9024722777436" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Choice.vue</text>
-<text x="821.2379463418742" y="823.9024722777436" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">4.0 KiB</text>
-</g>
-<g><title>Field.vue — 3.6 KiB</title><rect x="910.5266950597056" y="620.4718828856566" width="73.51091223720391" height="112.07419263759004" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="915.5266950597056" y="633.4718828856566" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Field.vue</text>
-<text x="915.5266950597056" y="647.4718828856566" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.6 KiB</text>
-</g>
-<g><title>AppIcon.vue — 3.4 KiB</title><rect x="984.0376072969095" y="620.4718828856566" width="70.55276712390827" height="112.07419263759004" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="989.0376072969095" y="633.4718828856566" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">AppIcon.…</text>
-<text x="989.0376072969095" y="647.4718828856566" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.4 KiB</text>
-</g>
-<g><title>Select.vue — 3.3 KiB</title><rect x="910.5266950597056" y="732.5460755232466" width="144.06367936111218" height="53.493157737483614" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="915.5266950597056" y="745.5460755232466" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Select.vue</text>
-<text x="915.5266950597056" y="759.5460755232466" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">3.3 KiB</text>
-</g>
-<g><title>Button.vue — 2.4 KiB</title><rect x="910.5266950597056" y="786.0392332607303" width="93.05479972399857" height="60.54264829506192" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="915.5266950597056" y="799.0392332607303" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Button.vue</text>
-<text x="915.5266950597056" y="813.0392332607303" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.4 KiB</text>
-</g>
-<g><title>MenuButton.vue — 2.0 KiB</title><rect x="910.5266950597056" y="846.5818815557922" width="93.05479972399857" height="49.41811844420786" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="915.5266950597056" y="859.5818815557922" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">MenuButton.v…</text>
-<text x="915.5266950597056" y="873.5818815557922" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.0 KiB</text>
-</g>
-<g><title>usePopup.js — 1.6 KiB</title><rect x="1003.5814947837042" y="786.0392332607303" width="51.008879637113616" height="74.10303379775479" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1008.5814947837042" y="799.0392332607303" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">usePo…</text>
-</g>
-<g><title>Switch.vue — 0.8 KiB</title><rect x="1003.5814947837042" y="860.142267058485" width="51.008879637113616" height="35.857732941515" fill="#86efac" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1008.5814947837042" y="873.142267058485" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">Switc…</text>
-</g>
-</g>
-<g><title>tool-views/ — 13.6 KiB · 13 files</title><rect x="1058.5903744208179" y="590.4718828856566" width="116.46844578484733" height="309.52811711434344" rx="8" fill="#fbbf24" fill-opacity="0.10" stroke="#fbbf24" stroke-opacity="0.75"/><rect x="1058.5903744208179" y="590.4718828856566" width="116.46844578484733" height="26" rx="8" fill="#fbbf24" fill-opacity="0.18"/><text x="1066.5903744208179" y="608.4718828856566" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">tool-views/ · 13 · 13.6 KiB</text>
-<g><title>ToolView.vue — 2.7 KiB</title><rect x="1062.5903744208179" y="620.4718828856566" width="71.73631220141968" height="82.15278799602194" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1067.5903744208179" y="633.4718828856566" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">ToolView…</text>
-<text x="1067.5903744208179" y="647.4718828856566" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.7 KiB</text>
-</g>
-<g><title>todo.vue — 1.4 KiB</title><rect x="1134.3266866222375" y="620.4718828856566" width="36.73213358342766" height="82.15278799602194" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-</g>
-<g><title>command.vue — 1.2 KiB</title><rect x="1062.5903744208179" y="702.6246708816785" width="41.35317673968886" height="64.28658911009006" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-</g>
-<g><title>file-list.vue — 1.1 KiB</title><rect x="1103.9435511605068" y="702.6246708816785" width="36.00001470218869" height="64.28658911009006" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-</g>
-<g><title>patch.vue — 0.9 KiB</title><rect x="1139.9435658626953" y="702.6246708816785" width="31.115254342969774" height="64.28658911009006" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-</g>
-<g><title>edit.vue — 0.9 KiB</title><rect x="1062.5903744208179" y="766.9112599917686" width="54.69228220739347" height="35.39380500885673" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1067.5903744208179" y="779.9112599917686" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">edit.v…</text>
-</g>
-<g><title>useToolContent.js — 0.9 KiB</title><rect x="1062.5903744208179" y="802.3050650006253" width="54.69228220739347" height="35.03986695876817" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1067.5903744208179" y="815.3050650006253" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">useToo…</text>
-</g>
-<g><title>result.vue — 0.9 KiB</title><rect x="1117.2826566282113" y="766.9112599917686" width="53.776163577453865" height="35.436816219940745" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1122.2826566282113" y="779.9112599917686" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">result…</text>
-</g>
-<g><title>generic.vue — 0.9 KiB</title><rect x="1117.2826566282113" y="802.3480762117093" width="53.776163577453865" height="34.99685574768416" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1122.2826566282113" y="815.3480762117093" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">generi…</text>
-</g>
-<g><title>search.vue — 0.8 KiB</title><rect x="1062.5903744208179" y="837.3449319593935" width="57.79116651687607" height="31.932771813985035" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1067.5903744208179" y="850.3449319593935" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">search…</text>
-</g>
-<g><title>file.vue — 0.7 KiB</title><rect x="1062.5903744208179" y="869.2777037733786" width="57.79116651687607" height="26.72229622662151" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1067.5903744208179" y="882.2777037733786" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">file.v…</text>
-</g>
-<g><title>subtask.vue — 0.7 KiB</title><rect x="1120.381540937694" y="837.3449319593935" width="50.677279267971265" height="29.70951347932314" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1125.381540937694" y="850.3449319593935" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">subta…</text>
-</g>
-<g><title>web.vue — 0.7 KiB</title><rect x="1120.381540937694" y="867.0544454387167" width="50.677279267971265" height="28.945554561283405" fill="#fbbf24" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1125.381540937694" y="880.0544454387167" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">web.v…</text>
-</g>
-</g>
-<g><title>src root — 12.4 KiB · 2 files</title><rect x="1175.0588202056651" y="590.4718828856566" width="224.94117979433483" height="146.17069134102897" rx="8" fill="#e879f9" fill-opacity="0.10" stroke="#e879f9" stroke-opacity="0.75"/><rect x="1175.0588202056651" y="590.4718828856566" width="224.94117979433483" height="26" rx="8" fill="#e879f9" fill-opacity="0.18"/><text x="1183.0588202056651" y="608.4718828856566" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">src root · 2 · 12.4 KiB</text>
-<g><title>App.vue — 9.8 KiB</title><rect x="1179.0588202056651" y="620.4718828856566" width="171.61171999038956" height="112.17069134102897" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1184.0588202056651" y="633.4718828856566" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">App.vue</text>
-<text x="1184.0588202056651" y="647.4718828856566" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">9.8 KiB</text>
-</g>
-<g><title>main.js — 2.6 KiB</title><rect x="1350.6705401960546" y="620.4718828856566" width="45.329459803945284" height="112.17069134102897" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-</g>
-</g>
-<g><title>utils/ — 7.4 KiB · 2 files</title><rect x="1175.0588202056651" y="736.6425742266855" width="224.94117979433483" height="87.83678618898755" rx="8" fill="#34d399" fill-opacity="0.10" stroke="#34d399" stroke-opacity="0.75"/><rect x="1175.0588202056651" y="736.6425742266855" width="224.94117979433483" height="26" rx="8" fill="#34d399" fill-opacity="0.18"/><text x="1183.0588202056651" y="754.6425742266855" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">utils/ · 2 · 7.4 KiB</text>
-<g><title>i18n.js — 6.8 KiB</title><rect x="1179.0588202056651" y="766.6425742266855" width="199.32340636744524" height="53.836786188987546" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1184.0588202056651" y="779.6425742266855" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">i18n.js</text>
-<text x="1184.0588202056651" y="793.6425742266855" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">6.8 KiB</text>
-</g>
-<g><title>clipboard.js — 0.6 KiB</title><rect x="1378.3822265731103" y="766.6425742266855" width="17.617773426889595" height="53.836786188987546" fill="#34d399" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-</g>
-</g>
-<g><title>commands/ — 6.4 KiB · 3 files</title><rect x="1175.0588202056651" y="824.4793604156731" width="224.94117979433483" height="75.5206395843269" rx="8" fill="#60a5fa" fill-opacity="0.10" stroke="#60a5fa" stroke-opacity="0.75"/><rect x="1175.0588202056651" y="824.4793604156731" width="224.94117979433483" height="26" rx="8" fill="#60a5fa" fill-opacity="0.18"/><text x="1183.0588202056651" y="842.4793604156731" fill="#f8fafc" font-size="12" font-weight="700" font-family="ui-monospace, monospace">commands/ · 3 · 6.4 KiB</text>
-<g><title>navigation.js — 2.7 KiB</title><rect x="1179.0588202056651" y="854.4793604156731" width="92.89224351347798" height="41.5206395843269" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1184.0588202056651" y="867.4793604156731" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">navigation.js</text>
-<text x="1184.0588202056651" y="881.4793604156731" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.7 KiB</text>
-</g>
-<g><title>shortcuts.js — 2.1 KiB</title><rect x="1271.9510637191431" y="854.4793604156731" width="72.75947224165643" height="41.5206395843269" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1276.9510637191431" y="867.4793604156731" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">shortcuts…</text>
-<text x="1276.9510637191431" y="881.4793604156731" fill="#cbd5e1" font-size="9" font-family="ui-monospace, monospace">2.1 KiB</text>
-</g>
-<g><title>palette.js — 1.5 KiB</title><rect x="1344.7105359607995" y="854.4793604156731" width="51.28946403920042" height="41.5206395843269" fill="#60a5fa" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
-<text x="1349.7105359607995" y="867.4793604156731" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">palet…</text>
+<g><title>main.js — budget 1.0 KiB</title><rect x="1273.5944055944055" y="785.5411411411412" width="122.40559440559443" height="30.458858858858846" fill="#e879f9" fill-opacity="0.22" stroke="#0d0f16" stroke-width="1.5"/>
+<text x="1278.5944055944055" y="798.5411411411412" fill="#f8fafc" font-size="10" font-family="ui-monospace, monospace">main.js</text>
 </g>
 </g>
 </svg>
