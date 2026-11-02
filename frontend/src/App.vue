@@ -1,29 +1,25 @@
 <!--
 应用外壳：负责视图切换、抽屉、顶部栏和跨视图事件接线。
-页面在 draft/、session/、settings/；抽屉、顶部栏、命令面板、提示条和快捷键在 app/；导航、设置、反馈等动作由 session/、settings/、app/ 里的指令提供。
+views/ 组装聊天与设置，components/ 保存独立视觉区域；所有业务操作由 commands/ 提供。
 入口：main.js 挂载本组件；调用示例：<Sidebar :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
 <script setup>
 import { Navigation } from './commands/navigation.js'
 import { Notice } from './commands/notice.js'
-import { activeSession } from './store.js'
+import { activeSession, normalizeAppearance, store } from './store.js'
 
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import DraftView from './views/DraftView.vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import ChatView from './views/ChatView.vue'
 import Sidebar from './components/Sidebar.vue'
 import TopBar from './components/TopBar.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import ConnectionError from './components/ConnectionError.vue'
 import Toast from './components/Toast.vue'
-import { usePalette } from './components/usePalette.js'
 import { shortcutListener } from './utils/shortcuts.js'
-import ThemeProvider from './components/ThemeProvider.vue'
-import { store } from './store.js'
+import { Appearance } from './commands/appearance.js'
 import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { DEFAULT_SETTINGS } from './defaults.js'
-import { normalizeAppearance } from './store.js'
 import { readAttachments } from './commands/attachment.js'
 
 const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
@@ -39,6 +35,16 @@ const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
 const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
+
+
+// 主题只在应用根挂载，所有模态层通过 html 的变量继承配色。
+const system = window.matchMedia('(prefers-color-scheme: dark)')
+const systemDark = ref(system.matches)
+const scheme = computed(() => appearance.value.theme === 'system' ? (systemDark.value ? 'dark' : 'light') : appearance.value.theme)
+const updateSystem = event => { systemDark.value = event.matches }
+watchEffect(() => Appearance.apply(appearance.value, scheme.value))
+onMounted(() => system.addEventListener('change', updateSystem))
+onUnmounted(() => system.removeEventListener('change', updateSystem))
 
 // 回到空对话：清掉草稿页的输入和附件，并收起手机抽屉。
 async function goHome() {
@@ -74,8 +80,16 @@ watch(() => store.ui.settingsOpen, open => {
   todoOpen.value = false
 })
 
-// --- 命令面板：列表和开关交给 app/usePalette，这里只把导航动作接进去 ---
-const { open: paletteOpen, items: paletteItems, openPalette, closePalette, run: runPalette } = usePalette({ openDraft, openSession })
+// --- 命令面板：入口把导航动作传给列表，开关是本地临时状态 ---
+const paletteOpen = ref(false)
+const paletteItems = computed(() => [
+  { id: 'new', label: '新建会话', hint: 'N', run: openDraft },
+  { id: 'settings', label: '设置', hint: 'Ctrl ,', run: () => openSettings() },
+  ...store.workspaces.flatMap(workspace => workspace.sessions.map(item => ({ id: `session:${item.id}`, label: item.title || '新会话', hint: workspace.name, run: () => openSession(item.id) }))),
+])
+const openPalette = () => { paletteOpen.value = true }
+const closePalette = () => { paletteOpen.value = false }
+function runPalette(item) { closePalette(); void item.run() }
 
 // 草稿页发送：先创建会话，把草稿和附件交过去，再走正常发送。
 async function submitMessage(content) {
@@ -112,7 +126,7 @@ function removeFile(id) {
   homeFiles.value = homeFiles.value.filter(file => file.id !== id)
 }
 
-// --- 全局快捷键：keydown 细节在 app/shortcuts，这里只接状态读取和动作 ---
+// --- 全局快捷键：utils/shortcuts 识别按键，这里显式传入动作 ---
 const shortcuts = shortcutListener({
   paletteOpen: () => paletteOpen.value,
   openPalette,
@@ -130,7 +144,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 </script>
 
 <template>
-  <ThemeProvider :appearance="appearance">
+  <div class="app-theme" :data-theme="scheme">
     <div class="rikka-app">
       <Sidebar
         v-if="mode !== 'settings'"
@@ -158,38 +172,32 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
           <Transition name="view" mode="out-in">
             <SettingsView v-if="mode === 'settings'" key="settings" class="settings-panel" />
 
-            <DraftView
-              v-else-if="mode === 'draft'"
-              key="draft"
+            <ChatView
+              v-else
+              :key="mode"
               ref="draftView"
+              :session="session"
               v-model:draft="homeDraft"
               :model="store.config.activeModel"
               :agent="draftAgent"
               :reasoning="draftReasoning"
-              :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
               :files="homeFiles"
+              :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
+              v-model:todo-open="todoOpen"
               @update:agent="draftAgent = $event"
               @update:reasoning="draftReasoning = $event"
               @submit="submitMessage"
               @attach="attachFiles"
               @remove-file="removeFile"
             />
-
-            <ChatView
-              v-else
-              key="session"
-              :session="session"
-              :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-              v-model:todo-open="todoOpen"
-            />
           </Transition>
         </main>
       </div>
 
-      <Toast :message="store.ui.toast || ''" @close="store.ui.toast = ''" />
+      <Toast :message="store.ui.toast || ''" @close="Notice.clear()" />
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
     </div>
-  </ThemeProvider>
+  </div>
 </template>
 
 <style scoped lang="scss" src="./styles/App.scss"></style>

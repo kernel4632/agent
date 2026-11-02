@@ -1,131 +1,101 @@
-<!--
-会话页：把时间线、输入区、任务清单面板和运行设置组装成完整的一页。
-顶部标题和模型切换由 App 外的 TopBar 提供，这里不再带内部标题栏。
-只负责会话自己的交互；打开会话、新建对话和全局快捷键仍由 App.vue 管。
-普通按钮、下拉框和数字输入统一走 ui/；芯片和智能体按钮用 Button plain 保留原样式。
-调用示例：
-<ChatView
-  v-else
-  :session="session"
-  :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-  v-model:todo-open="todoOpen"
-/>
+<!-- 聊天页面：新会话是空状态，已有会话显示时间线；两种状态共用一套输入区接线。
+调用：<ChatView :session="session" v-model:draft="draft" :files="files" @submit="createAndSend" />。
+临时面板状态在这里；发送、附件、会话设置和回退分别调用 commands。
 -->
 <script setup>
-import { Navigation } from '../commands/navigation.js'
-
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
-import { Spinner } from '../ui/index.js'
-import { Button } from '../ui/index.js'
+import { Button, Spinner } from '../ui/index.js'
 import Composer from '../components/Composer.vue'
 import AgentPicker from '../components/AgentPicker.vue'
 import TaskPanel from '../components/TaskPanel.vue'
-import { latestTodos } from '../commands/tool.js'
-import { canContinueSession } from '../commands/history.js'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
-import { History } from '../commands/history.js'
+import { History, canContinueSession } from '../commands/history.js'
+import { Navigation } from '../commands/navigation.js'
+import { latestTodos } from '../commands/tool.js'
 
-// 时间线单独拆包，只有进入会话页时才加载。
 const Timeline = defineAsyncComponent(() => import('../components/Timeline.vue'))
-
 const props = defineProps({
-  session: { type: Object, required: true }, // 当前打开的完整会话
-  busy: Boolean,                             // 创建中、加载中或有连接错误时禁止发送
-  todoOpen: Boolean,                         // 右侧任务清单是否打开，由 App 统一控制
+  session: { type: Object, default: null }, model: String, agent: { type: String, default: 'build' },
+  reasoning: { type: String, default: 'auto' }, files: { type: Array, default: () => [] }, busy: Boolean, todoOpen: Boolean,
 })
-const emit = defineEmits(['update:todoOpen'])
-
-// --- 页面内的开关 ---
-// 对话设置和任务清单都走右侧抽屉，不占输入框上方。
-const agentOpen = ref(false)
-const resumable = computed(() => canContinueSession(props.session))
-const showReconnect = ref(false)
-let reconnectTimer = null
-// 短暂重连不闪覆盖层；连续断开 2 秒、且没有等待审批时才盖住时间线。
-watch(
-  [() => props.session.connection, () => props.session.status, () => props.session.pending?.length],
-  ([connection, status, pending]) => {
-    window.clearTimeout(reconnectTimer)
-    if (connection === 'reconnecting' && status === 'running' && !pending) {
-      reconnectTimer = window.setTimeout(() => { showReconnect.value = true }, 2000)
-    } else {
-      showReconnect.value = false
-    }
-  },
-  { immediate: true },
-)
-onBeforeUnmount(() => window.clearTimeout(reconnectTimer))
-
-async function continueAssistant() {
-  if (!resumable.value) return
-  await Chat.resume(props.session.id)
-}
-
-// --- 输入草稿和附件 ---
-// 草稿放在 session 上，切标签或打开设置再回来不会丢。
-const draft = computed({
-  get: () => props.session.draft,
-  set: value => { props.session.draft = value },
-})
-const files = computed(() => props.session.files || [])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:todoOpen', 'update:agent', 'update:reasoning'])
+const homeDraft = defineModel('draft', { type: String, default: '' })
+const composer = ref(null)
 const conversationScroll = ref(null)
-// 消息里的清单比 Session.todos 更新得更早，流式过程中也能立刻看到进度。
+const agentOpen = ref(false)
+const showReconnect = ref(false)
+let reconnectTimer
+defineExpose({ focus: () => composer.value?.focus() })
+
+const draft = computed({
+  get: () => props.session ? props.session.draft : homeDraft.value,
+  set: value => { if (props.session) props.session.draft = value; else homeDraft.value = value },
+})
+const files = computed(() => props.session?.files || props.files)
+const currentAgent = computed(() => props.session?.settings.agent || props.agent)
+const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
+const resumable = computed(() => canContinueSession(props.session))
 const todos = computed(() => {
-  const fromMessages = latestTodos(props.session.messages)
-  return fromMessages.length ? fromMessages : (props.session.todos || [])
+  if (!props.session) return []
+  const latest = latestTodos(props.session.messages)
+  return latest.length ? latest : props.session.todos || []
 })
 
-// --- 发送与停止 ---
-async function submitMessage(content) {
+// 连续重连两秒才显示遮罩；审批中仍显示原来的许可操作。
+watch([() => props.session?.connection, () => props.session?.status, () => props.session?.pending?.length], ([connection, status, pending]) => {
+  clearTimeout(reconnectTimer)
+  if (connection === 'reconnecting' && status === 'running' && !pending) reconnectTimer = setTimeout(() => { showReconnect.value = true }, 2000)
+  else showReconnect.value = false
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(reconnectTimer))
+
+async function submit(content) {
   if (props.busy) return
-  if (await Chat.send(props.session.id, content)) {
-    // 发送期间用户可能又输入了新内容，只清掉刚发出去的那份。
-    if (props.session.draft === content) props.session.draft = ''
-  }
+  if (!props.session) { emit('submit', content); return }
+  const id = props.session.id
+  if (await Chat.send(id, content) && props.session?.id === id && draft.value === content) draft.value = ''
 }
-
-function stop() { void Chat.stop(props.session.id) }
-
-// --- 附件 ---
-function attachFiles(selected) { void Chat.attach(props.session.id, selected) }
-function removeFile(id) { Chat.removeFile(props.session.id, id) }
-
+function attach(files) {
+  if (props.session) void Chat.attach(props.session.id, files)
+  else emit('attach', files)
+}
+function removeFile(id) {
+  if (props.session) Chat.removeFile(props.session.id, id)
+  else emit('remove-file', id)
+}
+function chooseAgent(agent) {
+  if (props.session) void Session.setAgent(props.session.id, agent)
+  else emit('update:agent', agent)
+}
+function chooseReasoning(reasoning) {
+  if (props.session) void Session.setReasoning(props.session.id, reasoning)
+  else emit('update:reasoning', reasoning)
+}
 </script>
 
 <template>
-  <section class="session-panel" aria-label="聊天">
-    <div class="session-main">
-      <div class="session-conversation">
-        <div ref="conversationScroll" class="session-scroll">
-          <!-- 会话切换只替换时间线；输入区留在原处，草稿、焦点和滚动容器都不重建。 -->
-          <Transition name="session-swap" mode="out-in">
-            <Timeline :key="session.id" :scroll-root="conversationScroll" />
-          </Transition>
+  <section :class="session ? 'session-panel' : 'draft-panel'" :aria-label="session ? '聊天' : '新会话'">
+    <div :class="session ? 'session-main' : 'draft-main'">
+      <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
+        <div v-if="session" ref="conversationScroll" class="session-scroll">
+          <Transition name="session-swap" mode="out-in"><Timeline :key="session.id" :scroll-root="conversationScroll" /></Transition>
         </div>
         <Transition name="reconnect">
-          <div v-if="showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
-            <div class="reconnect-card">
-              <Spinner label="正在重新连接" size="large" decorative />
-              <strong>正在重新连接</strong>
-              <p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p>
-            </div>
+          <div v-if="session && showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
+            <div class="reconnect-card"><Spinner label="正在重新连接" size="large" decorative /><strong>正在重新连接</strong><p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p></div>
           </div>
         </Transition>
       </div>
-      <div class="session-composer" :class="{ 'is-reconnecting': showReconnect }">
-        <Transition name="notice">
-          <div v-if="!session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div>
-        </Transition>
-        <Transition name="notice">
-          <div v-if="session.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div>
-        </Transition>
-        <Composer v-model:draft="draft" :selected-model="session.model" :selected-provider="session.provider" :reasoning="session.settings.reasoning" :session-id="session.id" :agent="Session.agentLabel(session.settings.agent)" :agent-open="agentOpen" show-session-controls :is-running="session.status === 'running'" :can-continue="resumable" :busy="busy || session.stopping" :files="files" @submit="submitMessage" @stop="stop" @continue="continueAssistant" @attach="attachFiles" @remove-file="removeFile" @open-agent="agentOpen = true" @update:reasoning="Session.setReasoning(session.id, $event)" />
+      <div :class="[session ? 'session-composer' : 'draft-form', { 'is-reconnecting': showReconnect }]">
+        <Transition name="notice"><div v-if="session && !session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div></Transition>
+        <Transition name="notice"><div v-if="session?.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div></Transition>
+        <Composer ref="composer" v-model:draft="draft" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :agent="Session.agentLabel(currentAgent)" :agent-open="agentOpen" show-session-controls :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
+          @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @open-agent="agentOpen = true" @update:reasoning="chooseReasoning" />
       </div>
     </div>
-    <TaskPanel :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
-    <AgentPicker :open="agentOpen" :model-value="session.settings.agent" @update:open="agentOpen = $event" @select="Session.setAgent(session.id, $event)" />
+    <TaskPanel v-if="session" :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
+    <AgentPicker :open="agentOpen" :model-value="currentAgent" @update:open="agentOpen = $event" @select="chooseAgent" />
   </section>
 </template>
-
 <style scoped lang="scss" src="../styles/views/ChatView.scss"></style>

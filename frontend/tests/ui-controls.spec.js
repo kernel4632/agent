@@ -2,6 +2,24 @@
 import { expect, test } from '@playwright/test'
 import { backend, navigate } from './chat-fixture.js'
 
+test('model picker owns its search and resets it when reopened', async ({ page }) => {
+  await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  const trigger = page.getByRole('button', { name: '选择模型（当前 test-model）' })
+  await trigger.click()
+  const panel = page.getByRole('dialog', { name: '选择模型', exact: true })
+  await panel.getByRole('searchbox', { name: '搜索模型' }).fill('no-such-model')
+  await expect(panel.getByText('还没有可用模型。')).toBeVisible()
+  await panel.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(panel).toBeHidden()
+  await trigger.click()
+  await expect(panel.getByRole('searchbox', { name: '搜索模型' })).toHaveValue('')
+  await panel.getByRole('button', { name: 'test-model', exact: true }).click()
+  await expect(panel).toBeHidden()
+  await expect(trigger).toBeVisible()
+})
+
 test('select keyboard chooses a color and Escape keeps settings open', async ({ page }) => {
   await backend(page)
   await page.goto('/')

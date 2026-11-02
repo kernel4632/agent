@@ -12,3 +12,6 @@
 @media (prefers-reduced-motion: reduce) {
   .view-enter-active, .view-leave-active, .alert-enter-active, .alert-leave-active { transition-duration: .01ms; }
 }
+
+/* ThemeProvider.vue：主题容器填满整个窗口。 */
+.app-theme { display: block; height: 100%; font-family: var(--la-font-sans); color: var(--la-text); background: var(--la-bg); }

@@ -14,6 +14,13 @@ for (const [file, edges] of graph) {
     const target = resolve(dirname(file), match[1])
     if (graph.has(target)) edges.push(target)
   }
+  for (const match of text.matchAll(/import\.meta\.glob\(['"]([^'"]+)['"]/g)) {
+    const [prefix, suffix] = resolve(dirname(file), match[1]).replaceAll('\\', '/').split('*')
+    for (const target of graph.keys()) {
+      const name = target.replaceAll('\\', '/')
+      if (name.startsWith(prefix) && name.endsWith(suffix)) edges.push(target)
+    }
+  }
 }
 
 test('前端源码没有循环导入', () => {

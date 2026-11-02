@@ -1,17 +1,15 @@
 <!--
 会话输入区：消息输入、斜杠命令、附件、模型选择、发送和停止。
 会话页和新建会话页共用；只通过 v-model:draft 和事件与外面交互。
-消息编辑器和隐藏的 file input 是编辑器专用控件，保留原生实现，等后续编辑器组件到位后再替换。
+模型面板独立在 ModelPicker；附件标签和斜杠菜单跟随同一份编辑状态。
 调用示例：
 <Composer
   ref="composer"
   v-model:draft="draft"
   :selected-model="model"
-  :can-select-model="false"
   :is-running="false"
   :busy="false"
   :files="files"
-  :context-tokens="0"
   @submit="submitMessage"
   @stop="stop"
   @attach="attachFiles"
@@ -22,13 +20,11 @@
 import { Navigation } from '../commands/navigation.js'
 
 import { computed, nextTick, ref, watch } from 'vue'
-import { AppIcon, Button, Field, ModelIcon, Sheet } from '../ui/index.js'
+import { AppIcon, Button, Chip, ModelIcon, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
 import { Session } from '../commands/session.js'
-import ComposerAttachments from './ComposerAttachments.vue'
-import ComposerSlashMenu from './ComposerSlashMenu.vue'
+import ModelPicker from './ModelPicker.vue'
 import ReasoningPicker from './ReasoningPicker.vue'
-import AgentButton from './AgentButton.vue'
 import { ATTACHMENT_ACCEPT } from '../commands/attachment.js'
 
 const props = defineProps({
@@ -49,18 +45,7 @@ const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file',
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
-const modelGroups = computed(() => Object.entries(store.config.providers)
-  .filter(([, config]) => config.enabled)
-  .map(([provider, config]) => ({
-    provider,
-    models: config.models
-      .map(model => typeof model === 'string' ? model : model.id || model.name)
-      .filter(model => !modelQuery.value.trim() || model.toLowerCase().includes(modelQuery.value.trim().toLowerCase())),
-  }))
-  .filter(group => group.models.length))
-
 const modelOpen = ref(false)
-const modelQuery = ref('')
 const addOpen = ref(false)
 const expanded = ref(false)
 const placeholder = computed(() => store.commands?.length ? '输入消息与 AI 聊天，/ 使用命令' : '输入消息与 AI 聊天')
@@ -70,10 +55,7 @@ function toggleExpanded() {
   nextTick(() => editor.value?.focus())
 }
 
-function openModelSheet() {
-  modelQuery.value = ''
-  modelOpen.value = true
-}
+
 
 async function chooseModel(provider, model) {
   modelOpen.value = false
@@ -159,11 +141,22 @@ defineExpose({ focus: () => editor.value?.focus() })
 
 <template>
   <form class="chat-composer" :class="{ 'is-expanded': expanded }" aria-label="对话编辑器" @submit.prevent="submit">
-    <ComposerAttachments :files="files" @remove="emit('remove-file', $event)" />
-    <Transition name="slash">
-      <ComposerSlashMenu v-if="slashMatches.length" :matches="slashMatches" :active="slashIndex" @choose="chooseCommand" />
+    <Transition name="attachments">
+      <div v-if="files.length" class="chat-composer__files">
+        <Chip v-for="file in files" :key="file.id" class="chat-composer__file" closable :label="file.name" @close="emit('remove-file', file.id)">
+          <AppIcon name="document" :size="16" />{{ file.name }}
+        </Chip>
+      </div>
     </Transition>
-    <!-- 编辑器专用原生 textarea：需要 ref、焦点、键盘和斜杠菜单，等编辑器组件到位后再换。 -->
+    <Transition name="slash">
+      <div v-if="slashMatches.length" class="chat-composer__slash" role="listbox" aria-label="斜杠命令">
+        <Button v-for="(command, index) in slashMatches" :key="command.name" variant="plain" class="chat-composer__slash-item" :class="{ 'is-active': index === slashIndex }" role="option" :aria-selected="index === slashIndex" @mousedown.prevent="chooseCommand(command)">
+          <span class="chat-composer__slash-name">/{{ command.name }}</span>
+          <span class="chat-composer__slash-description">{{ command.description }}</span>
+        </Button>
+      </div>
+    </Transition>
+    <!-- 消息编辑器直接使用原生输入，焦点和输入法组合状态由此处处理。 -->
     <div class="chat-composer__editor-wrap">
       <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" :placeholder="placeholder" rows="2" @keydown="keydown"></textarea>
     </div>
@@ -183,11 +176,13 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
-        <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="openModelSheet"><ModelIcon :model="selectedModel" :provider="currentProvider" :size="28" /></button>
+        <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="modelOpen = true"><ModelIcon :model="selectedModel" :provider="currentProvider" :size="28" /></button>
         <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
-        <template v-if="showSessionControls">
-          <AgentButton :agent="agent" :open="agentOpen" @open="emit('open-agent')" />
-        </template>
+        <button v-if="showSessionControls" type="button" class="composer-agent" :class="{ 'is-open': agentOpen }"
+          :aria-label="`切换智能体（当前 ${agent || '智能体'}）`" :title="`切换智能体（当前 ${agent || '智能体'}）`" @click="emit('open-agent')">
+          <AppIcon name="mode" :size="18" />
+          <span class="composer-agent__label">{{ agent || '智能体' }}</span>
+        </button>
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><AppIcon name="plus" :size="18" /></button>
@@ -202,27 +197,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     <input ref="fileInput" class="sr-only" type="file" multiple :accept="ATTACHMENT_ACCEPT" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
   </form>
 
-  <Sheet :open="modelOpen" label="选择模型" @update:open="modelOpen = $event">
-    <div class="composer-sheet composer-sheet--models">
-      <Field v-model="modelQuery" type="search" label="搜索模型" placeholder="搜索模型">
-        <template #leading><AppIcon name="search" :size="20" /></template>
-      </Field>
-      <div v-if="modelGroups.length" class="model-list">
-        <section v-for="group in modelGroups" :key="group.provider" class="model-group">
-          <h3>{{ group.provider }}</h3>
-          <button v-for="model in group.models" :key="model" type="button" class="model-row" :class="{ 'is-selected': model === selectedModel && group.provider === currentProvider }" :aria-pressed="model === selectedModel && group.provider === currentProvider" @click="chooseModel(group.provider, model)">
-            <span class="model-row__icon"><ModelIcon :model="model" :provider="group.provider" :size="28" /></span>
-            <span class="model-row__name">{{ model }}</span>
-            <AppIcon v-if="model === selectedModel && group.provider === currentProvider" name="check" :size="20" />
-          </button>
-        </section>
-      </div>
-      <div v-else class="composer-sheet__empty">
-        <p>还没有可用模型。</p>
-        <Button @click="modelOpen = false; Navigation.openSettings('providers')">打开模型设置</Button>
-      </div>
-    </div>
-  </Sheet>
+  <ModelPicker v-model:open="modelOpen" :providers="store.config.providers" :model="selectedModel" :provider="currentProvider" @choose="chooseModel" @configure="Navigation.openSettings('providers')" />
 
   <Sheet :open="addOpen" label="更多选项" @update:open="addOpen = $event">
     <div class="composer-sheet">
