@@ -1,1 +1,7 @@
-/* session/tools/views/EditView.vue：当前由子组件负责外观；专属样式写在这里。 */
+/* EditView.vue：独立输出形式的专属样式。 */
+.edit-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.edit-pair small { display: block; margin-bottom: 5px; color: var(--la-muted); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+.edit-pair .tool-output { max-height: 180px; }
+@media (max-width: 767px) {
+  .edit-pair { grid-template-columns: minmax(0, 1fr); }
+}

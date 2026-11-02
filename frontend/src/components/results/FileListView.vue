@@ -25,4 +25,4 @@ const entries = computed(() => {
   <p v-else class="tool-empty">目录为空</p>
 </template>
 
-<style scoped lang="scss" src="../../styles/components/results/FileListView.scss"></style>
+<style lang="scss" src="../../styles/components/results/FileListView.scss"></style>

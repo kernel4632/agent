@@ -88,4 +88,4 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped lang="scss" src="../styles/components/ReasoningStep.scss"></style>
+<style lang="scss" src="../styles/components/ReasoningStep.scss"></style>

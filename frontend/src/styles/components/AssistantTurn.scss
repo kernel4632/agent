@@ -1,1 +1,136 @@
-/* session/AssistantTurn.vue：当前由子组件负责外观；专属样式写在这里。 */
+/* AssistantTurn.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
+
+.assistant-message { display: flex; flex-direction: column; min-width: 0; }
+@keyframes label-shimmer { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+.typing { display: flex; align-items: center; gap: 4px; min-height: 20px; color: var(--la-muted); }
+.typing > span { width: 4px; height: 4px; background: var(--la-accent); border-radius: 50%; animation: pulse 1.3s infinite alternate; }
+.typing > span:nth-child(2) { animation-delay: .2s; }
+.typing > span:nth-child(3) { animation-delay: .4s; }
+.typing small { margin-left: 8px; font-size: 13px; }
+@keyframes pulse { to { opacity: .2; transform: translateY(-2px); } }
+.message__error { margin: 0; color: var(--la-danger); font-size: 12.5px; line-height: 18px; overflow-wrap: anywhere; }
+.stream-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--la-text);
+  animation: stream-caret-blink 1s steps(1, end) infinite;
+}
+@keyframes stream-caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.cot-card {
+  width: 100%;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: var(--la-layer-02);
+  contain: layout paint;
+}
+.cot-fold {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--la-muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.cot-fold:hover { color: var(--la-text); }
+.cot-fold svg { transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.cot-fold.is-open svg { transform: rotate(180deg); }
+.cot-steps { display: flex; flex-direction: column; }
+.cot-step { position: relative; min-width: 0; padding-left: 32px; }
+.cot-step::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 11px;
+  width: 1px;
+  background: var(--la-line);
+}
+.cot-step:first-child::before { top: 22px; }
+.cot-step:last-child::before { bottom: calc(100% - 22px); }
+.cot-step:only-child::before { display: none; }
+.cot-step__icon {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--la-layer-02);
+  color: var(--la-secondary);
+}
+.cot-step__main { min-width: 0; }
+.cot-step__head {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--la-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+.cot-step__label {
+  min-width: 0;
+  flex: none;
+  overflow: hidden;
+  color: var(--la-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cot-step__summary {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--la-muted);
+  font: 11.5px/20px var(--la-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cot-step__label.is-live {
+  background-image: linear-gradient(90deg, var(--la-muted) 10%, var(--la-text) 46%, var(--la-muted) 82%);
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: label-shimmer 1.6s linear infinite;
+}
+.cot-step__extra {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--la-layer-02);
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.cot-step__extra.is-completed { color: var(--la-success); background: color-mix(in srgb, var(--la-success) 12%, transparent); }
+.cot-step__extra.is-running,
+.cot-step__extra.is-waiting { color: var(--la-accent); background: color-mix(in srgb, var(--la-accent) 12%, transparent); }
+.cot-step__extra.is-error,
+.cot-step__extra.is-rejected { color: var(--la-danger); background: color-mix(in srgb, var(--la-danger) 12%, transparent); }
+.cot-step__caret { flex: none; color: var(--la-muted); transition: transform var(--ui-duration-medium) var(--ui-curve-emphasized); }
+.cot-step__caret.is-open { transform: rotate(180deg); }
+.cot-step__body { padding: 2px 0 10px; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
+.cot-step--text .cot-step__body--text { padding: 8px 0 12px; }
+.cot-step__body--text .markdown-body { font-size: 14px; line-height: 1.7; color: var(--la-text); }

@@ -88,4 +88,4 @@ function decide(decision) {
   </div>
 </template>
 
-<style scoped lang="scss" src="../styles/components/ToolCall.scss"></style>
+<style lang="scss" src="../styles/components/ToolCall.scss"></style>

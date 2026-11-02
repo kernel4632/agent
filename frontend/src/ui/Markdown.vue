@@ -57,4 +57,4 @@ function inlineHTML(token) {
   </div>
 </template>
 
-<style scoped lang="scss" src="../styles/ui/Markdown.scss"></style>
+<style lang="scss" src="../styles/ui/Markdown.scss"></style>

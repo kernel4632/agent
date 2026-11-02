@@ -1,10 +1,11 @@
+/* Markdown.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
 .ui-md { display: block; }
-.ui-md :deep(.ui-typography) {
+.ui-md :is(.ui-typography) {
   max-width: none;
   margin: 0 0 10px;
 }
-.ui-md :deep(.ui-typography:last-child) { margin-bottom: 0; }
-.ui-md :deep(.ui-code-block) { margin: 10px 0; }
+.ui-md :is(.ui-typography:last-child) { margin-bottom: 0; }
+.ui-md :is(.ui-code-block) { margin: 10px 0; }
 .ui-md__code-fallback {
   max-width: 100%;
   max-height: 300px;
@@ -21,12 +22,31 @@
 }
 .ui-md__block > :first-child { margin-top: 0; }
 .ui-md__block > :last-child { margin-bottom: 0; }
-.ui-md--compact :deep(.ui-typography--body) { font-size: 14px; line-height: 1.7; }
-.ui-md--compact :deep(.ui-typography--heading) { font-size: 15px; }
+.ui-md--compact :is(.ui-typography--body) { font-size: 14px; line-height: 1.7; }
+.ui-md--compact :is(.ui-typography--heading) { font-size: 15px; }
 
-/* Typography.vue：与现有界面一致的正文节奏。 */
+
 .ui-typography { margin: 0; font: inherit; font-size: 16px; line-height: 24px; color: var(--la-text); }
 .ui-typography--heading { font-size: 22px; line-height: 1.4; font-weight: 600; }
 .ui-typography--title-small { font-size: 16px; }
 .ui-typography--caption { color: var(--la-secondary); font-size: 14px; line-height: 20px; }
 .ui-typography--body-medium { font-size: 16px; line-height: 1.7; }
+.markdown-body { min-width: 0; color: var(--la-text); font-size: 13.5px; line-height: 1.8; overflow-wrap: anywhere; }
+.markdown-body p { margin: 0 0 10px; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 { line-height: 1.5; font-weight: 530; margin: 16px 0 8px; }
+.markdown-body h1 { font-size: 20px; }
+.markdown-body h2 { font-size: 17px; }
+.markdown-body h3 { font-size: 15px; }
+.markdown-body pre { max-width: 100%; overflow-x: auto; margin: 0 0 10px; border: .5px solid var(--la-line); padding: 10px 12px; border-radius: 8px; background: var(--la-layer-01); color: var(--la-text); line-height: 1.7; }
+.markdown-body code { font: 12px/1.7 var(--la-font-mono); }
+.markdown-body :not(pre) > code { padding: 1px 4px; background: var(--la-layer-02); border-radius: 4px; color: var(--la-text); }
+.markdown-body a { color: var(--la-accent); text-underline-offset: 4px; }
+.markdown-body img { max-width: 100%; height: auto; border-radius: 8px; }
+.markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown-body td,
+.markdown-body th { padding: 6px 9px; border: .5px solid var(--la-line); }
+.markdown-body blockquote { margin-left: 0; padding-left: 14px; border-left: 2px solid var(--la-accent-border); color: var(--la-secondary); }
+.markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; }

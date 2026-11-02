@@ -165,4 +165,4 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
   </div>
 </template>
 
-<style scoped lang="scss" src="../styles/components/AssistantTurn.scss"></style>
+<style lang="scss" src="../styles/components/AssistantTurn.scss"></style>

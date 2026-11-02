@@ -23,4 +23,4 @@ const { input, text } = useToolContent(props)
   <div v-if="text" class="tool-result">{{ text }}</div>
 </template>
 
-<style scoped lang="scss" src="../../styles/components/results/EditView.scss"></style>
+<style lang="scss" src="../../styles/components/results/EditView.scss"></style>

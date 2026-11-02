@@ -40,24 +40,3 @@
 .tool-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .tool-actions .ui-button { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--la-muted); font-size: 12.5px; }
 .tool-actions .ui-button:hover { color: var(--la-text); }
-
-.todo-list { display: grid; gap: 6px; }
-.todo-item { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 6px 9px; border-radius: 9px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 13px; line-height: 1.6; }
-.todo-item__icon { flex: 0 0 auto; color: var(--la-muted); }
-.todo-item__icon.is-completed { color: var(--la-success); }
-.todo-item__icon.is-in_progress { color: var(--la-accent); }
-.todo-item__text { min-width: 0; overflow-wrap: anywhere; }
-.todo-item__text.is-done { color: var(--la-muted); text-decoration: line-through; }
-.todo-item__status { margin-left: auto; flex: 0 0 auto; color: var(--la-muted); font-size: 11.5px; }
-
-.file-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.file-entry { padding: 2px 8px; border-radius: 8px; background: var(--la-layer-02); color: var(--la-secondary); font: 12.5px/1.7 var(--la-font-mono); overflow-wrap: anywhere; }
-.file-entry + .file-entry::before { display: none; }
-.edit-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-.edit-pair small { display: block; margin-bottom: 5px; color: var(--la-muted); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
-.edit-pair .tool-output { max-height: 180px; }
-@media (max-width: 767px) {
-  .edit-pair { grid-template-columns: minmax(0, 1fr); }
-}
-
-/* session/tools/ToolResult.vue：当前由子组件负责外观；专属样式写在这里。 */

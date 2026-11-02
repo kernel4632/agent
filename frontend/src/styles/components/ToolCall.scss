@@ -1,1 +1,24 @@
-/* session/ToolCall.vue：当前由子组件负责外观；专属样式写在这里。 */
+/* ToolCall.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
+
+.approval { display: grid; gap: 8px; padding: 4px 0 2px; }
+.approval p { margin: 0; color: var(--la-secondary); font-size: 12.5px; line-height: 18px; }
+.approval > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.approval .button { height: 40px; padding: 0 14px; font-size: 13px; }
+@media (max-width: 767px) {
+.approval .button { height: 44px; }
+}
+.cot-step--tool .cot-step__head { cursor: pointer; }
+.cot-step--tool .cot-step__body {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: .5px solid var(--la-line);
+  border-radius: 14px;
+  background: var(--la-layer-01);
+  scrollbar-width: thin;
+}
+.cot-step--tool.is-live .cot-step__icon {
+  background: color-mix(in srgb, var(--la-accent) 15%, transparent);
+  color: var(--la-accent);
+}

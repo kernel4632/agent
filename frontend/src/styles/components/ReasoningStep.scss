@@ -1,1 +1,14 @@
-/* session/ReasoningStep.vue：当前由子组件负责外观；专属样式写在这里。 */
+/* ReasoningStep.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
+
+.reasoning-text { margin: 0; color: var(--la-secondary); font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--ui-curve-standard); }
+.cot-collapse.is-open { grid-template-rows: 1fr; }
+.cot-collapse:not(.is-open) .cot-collapse__inner { content-visibility: auto; contain-intrinsic-size: 0 0; }
+.cot-collapse__inner { min-height: 0; overflow: hidden; }
+.reasoning-preview { max-height: 120px; overflow-y: auto; scrollbar-width: none; }
+.reasoning-preview::-webkit-scrollbar { display: none; }
+.reasoning-preview.is-preview {
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+.reasoning-text { margin: 0; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
