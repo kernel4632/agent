@@ -1,6 +1,6 @@
 {
   "name": "universal-agent",
-  "version": "0.50.7",
+  "version": "0.50.8",
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
@@ -13,7 +13,6 @@
     "@kernel4632/agent-core": "0.26.0",
     "@vscode/ripgrep": "^1.18.0",
     "atomically": "^2.0.3",
-    "better-sse": "^0.16.1",
     "elysia": "^1.4.29",
     "gray-matter": "^4.0.3",
     "html-to-text": "^10.0.1",
