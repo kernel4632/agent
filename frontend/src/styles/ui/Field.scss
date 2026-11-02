@@ -1,31 +1,21 @@
-.ui-field { width: 100%; min-width: 0; }
-.ui-field--labeled { display: grid; gap: 8px; }
-.ui-field__caption { color: var(--kima-color-on-surface-variant); font-size: 14px; line-height: 20px; font-weight: 500; }
-.ui-field__control {
-  --ui-field-inset: 20px;
-  position: relative;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-.ui-field__leading, .ui-field__trailing {
-  position: absolute;
-  top: 50%;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  color: var(--kima-color-on-surface-variant);
-  transform: translateY(-50%);
-}
-.ui-field__leading { left: var(--ui-field-inset); pointer-events: none; }
-.ui-field__trailing { right: var(--ui-field-inset); }
-.ui-field__control--leading { --kima-field-padding: calc(var(--ui-field-inset) + 28px); }
-.ui-field__control--trailing { --kima-field-padding: calc(var(--ui-field-inset) + 28px); }
-.ui-field--small { --kima-field-height: 48px; --kima-field-padding: 16px; }
-.ui-field--small .ui-field__control { --ui-field-inset: 16px; }
-.ui-field--small :deep(input),
-.ui-field--small :deep(textarea) { font-size: var(--kima-font-size-body-medium, 16px); }
-.ui-field__control > :deep(.kima-text-field),
-.ui-field__control > :deep(.kima-textarea) { flex: 1; min-width: 0; }
+/* Field.vue：标签、输入场地和帮助文字。 */
+.ui-field { display: grid; width: 100%; min-width: 0; gap: 8px; }
+.ui-field__caption { color: var(--la-secondary); font-size: 14px; font-weight: 500; }
+.ui-field__control { position: relative; display: flex; min-width: 0; align-items: center; }
+.ui-field__input { width: 100%; min-width: 0; min-height: var(--ui-field-height, 64px); padding: 18px var(--ui-field-padding, 20px); border: 1px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--la-text) 8%, transparent); color: var(--la-text); font: inherit; font-size: 16px; line-height: 24px; outline: none; }
+textarea.ui-field__input { resize: vertical; }
+.ui-field__input::placeholder { color: var(--la-secondary); opacity: 1; }
+.ui-field__input:focus { border-color: var(--la-accent); }
+.ui-field__input:disabled { opacity: .5; cursor: not-allowed; }
+.ui-field__leading, .ui-field__trailing { position: absolute; display: flex; align-items: center; gap: 4px; color: var(--la-secondary); }
+.ui-field__leading { left: 20px; pointer-events: none; }
+.ui-field__trailing { right: 12px; }
+.ui-field__trailing button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.ui-field__trailing button:hover { background: var(--la-hover); }
+.has-leading .ui-field__input { padding-left: 48px; }
+.has-trailing .ui-field__input { padding-right: 52px; }
+.ui-field--small { --ui-field-height: 48px; --ui-field-padding: 16px; }
+.ui-field--small .ui-field__input { padding-block: 10px; }
+.ui-field__hint { font-size: 12px; line-height: 18px; color: var(--la-secondary); }
+.is-error .ui-field__input { border-color: var(--la-danger); }
+.is-error .ui-field__hint { color: var(--la-danger); }

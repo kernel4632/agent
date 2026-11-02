@@ -1,11 +1,11 @@
 <!--
 智能体切换底部抽屉：和通用编码智能体的角色切换一样，单独入口、单独抽屉，打开就能直接选。
-选项交给 KIMA RadioGroup，单选、方向键和 ARIA 都由组件负责；每行内容用 #option 插槽画成卡片。
+选项交给 自有 RadioGroup，单选、方向键和 ARIA 都由组件负责；每行内容用 #option 插槽画成卡片。
 调用示例：<AgentDrawer :open="open" :model-value="session.settings.agent" @select="Session.setAgent(session.id, $event)" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaRadioGroup } from '../ui/index.js'
+import { RadioGroup } from '../ui/index.js'
 import { ChoiceContent, Sheet } from '../ui/index.js'
 import { store } from '../store.js'
 
@@ -48,7 +48,7 @@ function choose(value) {
     @update:open="emit('update:open', $event)"
   >
     <div class="agent-drawer">
-      <KimaRadioGroup
+      <RadioGroup
         label="智能体"
         :model-value="modelValue"
         :options="options"
@@ -63,7 +63,7 @@ function choose(value) {
             :hint="item.description"
           />
         </template>
-      </KimaRadioGroup>
+      </RadioGroup>
     </div>
   </Sheet>
 </template>

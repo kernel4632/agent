@@ -1,0 +1,4 @@
+/* RingProgress.vue：轨道与进度分开绘制。 */
+.ui-ring-progress { display: block; flex-shrink: 0; color: var(--la-accent); fill: none; overflow: visible; }
+.ui-ring-progress__track { stroke: var(--la-layer-03); }
+.ui-ring-progress__value { stroke: currentColor; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; transition: stroke-dasharray 200ms; }

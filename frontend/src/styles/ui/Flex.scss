@@ -1,0 +1,2 @@
+/* Flex.vue：只负责排列。 */
+.ui-flex { display: flex; min-width: 0; flex-wrap: wrap; flex-direction: var(--flex-direction); gap: var(--flex-gap); justify-content: var(--flex-justify, normal); align-items: var(--flex-align, stretch); }

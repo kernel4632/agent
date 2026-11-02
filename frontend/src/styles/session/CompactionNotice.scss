@@ -16,7 +16,7 @@
   cursor: pointer;
 }
 .compaction-notice__button:hover { color: var(--la-text); background: var(--la-hover); }
-.compaction-notice__caret { transition: transform var(--la-motion-enter) var(--kima-curve-standard); }
+.compaction-notice__caret { transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .compaction-notice__caret.is-open { transform: rotate(180deg); }
 .compaction-summary {
   display: grid;

@@ -1,1 +1,2 @@
-/* theme/ThemeProvider.vue：当前由子组件负责外观；专属样式写在这里。 */
+/* ThemeProvider.vue：主题容器填满整个窗口。 */
+.app-theme { display: block; height: 100%; font-family: var(--la-font-sans); color: var(--la-text); background: var(--la-bg); }

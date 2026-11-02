@@ -1,32 +1,18 @@
-<!--
-全局提示条：用 KIMA Notification 显示一条短消息，关闭或超时后交给调用方清空。
-调用示例：<Toast v-if="store.ui.toast" :message="store.ui.toast" @close="store.ui.toast = ''" />
--->
+<!-- 全局提示条：四秒后关闭，新消息重新计时。示例：<Toast :message="toast" @close="toast = ''" /> -->
 <script setup>
-import { ref, watch } from 'vue'
-import { KimaNotification } from '../ui/index.js'
-
-const props = defineProps({
-  message: { type: String, default: '' },               // 要显示的提示文字
-})
-
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { AppIcon, IconButton } from '../ui/index.js'
+const props = defineProps({ message: { type: String, default: '' } })
 const emit = defineEmits(['close'])
-
-// 关闭时父层会清空 message；保留最后一条文字，退出动画才不会变成空框。
 const shown = ref(props.message)
-watch(() => props.message, value => { if (value) shown.value = value })
+let timer
+watch(() => props.message, value => {
+  clearTimeout(timer)
+  if (!value) return
+  shown.value = value
+  timer = setTimeout(() => emit('close'), 4000)
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(timer))
 </script>
-
-<template>
-  <KimaNotification
-    class="app-toast"
-    :open="!!message"
-    position="bottom-center"
-    variant="info"
-    :message="shown"
-    :duration="4000"
-    @close="emit('close')"
-  />
-</template>
-
+<template><Teleport to="body"><Transition name="toast"><div v-if="message" class="app-toast" role="status"><span>{{ shown }}</span><IconButton label="关闭提示" variant="text" @click="emit('close')"><AppIcon name="close" :size="18" /></IconButton></div></Transition></Teleport></template>
 <style scoped lang="scss" src="../styles/app/Toast.scss"></style>

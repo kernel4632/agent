@@ -12,10 +12,10 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  animation: row-fade var(--la-motion-enter) var(--kima-curve-standard) both;
+  animation: row-fade var(--la-motion-enter) var(--ui-curve-standard) both;
 }
 @keyframes row-fade { from { opacity: 0; } to { opacity: 1; } }
-.list-row__icon { display: flex; align-items: center; justify-content: center; width: 20px; min-height: 20px; margin-top: 1px; color: var(--la-muted); transition: color var(--kima-duration-fast) var(--kima-curve-standard); }
+.list-row__icon { display: flex; align-items: center; justify-content: center; width: 20px; min-height: 20px; margin-top: 1px; color: var(--la-muted); transition: color var(--ui-duration-fast) var(--ui-curve-standard); }
 .list-row__main { min-width: 0; }
 .list-row__actions {
   display: flex;
@@ -25,14 +25,14 @@
   min-height: 20px;
   opacity: 0;
   transform: translateX(4px);
-  transition: opacity var(--kima-duration-effects) var(--kima-curve-standard), transform var(--kima-duration-effects) var(--kima-curve-standard);
+  transition: opacity var(--ui-duration-effects) var(--ui-curve-standard), transform var(--ui-duration-effects) var(--ui-curve-standard);
 }
 .message:hover .list-row__actions,
 .list-row:focus-within .list-row__actions { opacity: 1; transform: none; }
 .message__actions { flex: 0 0 auto; }
 
 /* 用户消息：同一列表结构，只在悬停时轻微高亮，没有气泡卡片。 */
-.list-row--user { transition: background var(--kima-duration-fast) var(--kima-curve-standard); }
+.list-row--user { transition: background var(--ui-duration-fast) var(--ui-curve-standard); }
 .list-row--user:hover { background: var(--la-hover); }
 .user-head__avatar {
   display: grid;
@@ -40,7 +40,7 @@
   height: 20px;
   border-radius: 50%;
   background: var(--la-accent-soft);
-  color: var(--md-sys-color-on-primary-container, var(--la-text));
+  color: var(--ui-color-on-primary-container, var(--la-text));
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
@@ -108,7 +108,7 @@
 .tool-toggle .list-row__status { margin-left: auto; }
 @keyframes soft-pulse { 50% { opacity: .5; } }
 .list-row--thinking.is-live .list-row__icon, .list-row--tool.is-live .list-row__icon { color: var(--la-accent); }
-.row-caret { flex: 0 0 auto; color: var(--la-muted); transition: transform var(--kima-duration-medium) var(--kima-curve-emphasized), color var(--kima-duration-fast) var(--kima-curve-standard); }
+.row-caret { flex: 0 0 auto; color: var(--la-muted); transition: transform var(--ui-duration-medium) var(--ui-curve-emphasized), color var(--ui-duration-fast) var(--ui-curve-standard); }
 .list-row--thinking .row-caret { margin-left: auto; }
 .tool-toggle .row-caret { margin-left: 2px; }
 .row-caret.is-open { transform: rotate(180deg); }
@@ -127,7 +127,7 @@
   overflow-wrap: anywhere;
   -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
-  animation: preview-in var(--la-motion-enter) var(--kima-curve-standard) both;
+  animation: preview-in var(--la-motion-enter) var(--ui-curve-standard) both;
 }
 .thinking-preview__text { white-space: pre-wrap; }
 .thinking-preview__caret { margin-left: 1px; color: var(--la-accent); text-shadow: 0 0 10px var(--la-accent-border); animation: caret-blink 1.06s steps(1, end) infinite; }
@@ -135,7 +135,7 @@
 @keyframes caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .15; } }
 
 /* 0fr -> 1fr 的高度过渡，收起时完全不占位；内容在文本列下方展开。 */
-.flow-content { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--kima-curve-standard); }
+.flow-content { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--ui-curve-standard); }
 .flow-content.is-open { grid-template-rows: 1fr; }
 .flow-content__inner { min-height: 0; overflow: hidden; }
 .flow-content__body { min-width: 0; padding: 2px 0 8px; }
@@ -210,15 +210,15 @@
 .reasoning-text,
 .rikka-bubble--user .markdown-body,
 .rikka-bubble--assistant .markdown-body,
-.rikka-bubble--user .kima-typography,
-.rikka-bubble--assistant .kima-typography,
+.rikka-bubble--user .ui-typography,
+.rikka-bubble--assistant .ui-typography,
 .cot-card .markdown-body,
-.cot-card .kima-typography { font-family: var(--la-font-reading); }
+.cot-card .ui-typography { font-family: var(--la-font-reading); }
 .rikka-bubble--user code,
 .rikka-bubble--assistant code,
 .cot-card code,
 .markdown-body pre,
-.kima-code-block,
+.ui-code-block,
 .tool-output { font-family: var(--la-font-mono) !important; }
 .rikka-bubble { max-width: 100%; min-width: 0; padding: 10px; border-radius: 24px; }
 .rikka-bubble--user {
@@ -226,7 +226,7 @@
   margin-left: 24px;
   border-top-right-radius: 6px;
   background: var(--la-accent-soft);
-  color: var(--md-sys-color-on-primary-container);
+  color: var(--ui-color-on-primary-container);
   font-size: 16px;
   line-height: 24px;
   overflow-wrap: anywhere;
@@ -289,7 +289,7 @@
   cursor: pointer;
 }
 .cot-fold:hover { color: var(--la-text); }
-.cot-fold svg { transition: transform var(--la-motion-enter) var(--kima-curve-standard); }
+.cot-fold svg { transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .cot-fold.is-open svg { transform: rotate(180deg); }
 .cot-steps { display: flex; flex-direction: column; }
 .cot-step { position: relative; min-width: 0; padding-left: 32px; }
@@ -375,9 +375,9 @@
 .cot-step__extra.is-completed { color: var(--la-success); background: color-mix(in srgb, var(--la-success) 12%, transparent); }
 .cot-step__extra.is-running, .cot-step__extra.is-waiting { color: var(--la-accent); background: color-mix(in srgb, var(--la-accent) 12%, transparent); }
 .cot-step__extra.is-error, .cot-step__extra.is-rejected { color: var(--la-danger); background: color-mix(in srgb, var(--la-danger) 12%, transparent); }
-.cot-step__caret { flex: none; color: var(--la-muted); transition: transform var(--kima-duration-medium) var(--kima-curve-emphasized); }
+.cot-step__caret { flex: none; color: var(--la-muted); transition: transform var(--ui-duration-medium) var(--ui-curve-emphasized); }
 .cot-step__caret.is-open { transform: rotate(180deg); }
-.cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--kima-curve-standard); }
+.cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--ui-curve-standard); }
 .cot-collapse.is-open { grid-template-rows: 1fr; }
 /* 收起的思考内容仍然留在 DOM 里，但不参与布局和绘制；长会话里几十段思考很占渲染时间。 */
 .cot-collapse:not(.is-open) .cot-collapse__inner { content-visibility: auto; contain-intrinsic-size: 0 0; }

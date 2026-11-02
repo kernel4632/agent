@@ -13,7 +13,7 @@
 -->
 <script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
-import { KimaSpinner } from '../ui/index.js'
+import { Spinner } from '../ui/index.js'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from './AgentDrawer.vue'
@@ -104,7 +104,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="reconnect">
           <div v-if="showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
             <div class="reconnect-card">
-              <KimaSpinner label="正在重新连接" size="large" decorative />
+              <Spinner label="正在重新连接" size="large" decorative />
               <strong>正在重新连接</strong>
               <p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p>
             </div>

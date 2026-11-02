@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { KimaSpinner } from '../ui/index.js'
+import { Spinner } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 
 const props = defineProps({
@@ -61,7 +61,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
     :aria-label="`${label} ${detail}`"
   >
     <span class="request-status__icon">
-      <KimaSpinner v-if="running" size="small" decorative />
+      <Spinner v-if="running" size="small" decorative />
       <AppIcon v-else :name="failed ? 'close' : 'stats'" :size="16" />
     </span>
     <span class="request-status__main">

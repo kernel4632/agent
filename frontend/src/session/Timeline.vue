@@ -14,7 +14,7 @@ import { Session } from './session.js'
 import { UI } from '../app/ui.js'
 import { groupMessageTurns } from './turns.js'
 import { isSavedMessage } from './continue.js'
-import { AppIcon, KimaMarkdown } from '../ui/index.js'
+import { AppIcon, Markdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import CompactionNotice from './CompactionNotice.vue'
 
@@ -171,7 +171,7 @@ function onUserMenu(message, action) {
         >
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user">
-              <KimaMarkdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
+              <Markdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
               <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
                 <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
                   <AppIcon name="document" :size="14" />

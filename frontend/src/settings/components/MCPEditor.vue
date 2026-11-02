@@ -5,7 +5,7 @@ MCP 服务编辑页：编辑一个服务的传输方式、命令或地址、参�
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaSelect } from '../../ui/index.js'
+import { Select } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 
 const props = defineProps({ item: { type: Object, required: true } })
@@ -63,7 +63,7 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
 
     <div class="mcp-field">
       <span class="mcp-field__caption">传输方式</span>
-      <KimaSelect
+      <Select
         label="传输方式"
         :model-value="item.definition?.transport || 'stdio'"
         :items="TRANSPORT_OPTIONS"

@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaPopover, KimaRingProgress } from '../ui/index.js'
+import { Popover, RingProgress } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 
 const props = defineProps({
@@ -98,9 +98,9 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 </script>
 
 <template>
-  <KimaPopover class="session-stats" variant="text" placement="bottom-end" label="会话统计" content-label="会话统计">
+  <Popover class="session-stats" :label="`上下文占用 ${percentText}，点击查看会话统计`" content-label="会话统计">
     <template #trigger>
-      <KimaRingProgress
+      <RingProgress
         class="session-stats__ring"
         :class="ringClass"
         :value="percent"
@@ -122,7 +122,7 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 
       <div class="stats-panel__hero">
         <div class="stats-panel__ring">
-          <KimaRingProgress
+          <RingProgress
             :class="ringClass"
             :value="percent"
             :max="100"
@@ -200,7 +200,7 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
         </div>
       </template>
     </div>
-  </KimaPopover>
+  </Popover>
 </template>
 
 <style scoped lang="scss" src="../styles/session/SessionStats.scss"></style>

@@ -1,6 +1,6 @@
 <!--
 消息操作层：右键、长按或键盘菜单键打开，只显示这条消息的摘要和操作按钮。
-外壳用 ui/Dialog，焦点陷阱、Esc 和关闭后的焦点归还都由 KIMA 原生 dialog 处理。
+外壳用 ui/Dialog，焦点陷阱、Esc 和关闭后的焦点归还都由 自有 原生 dialog 处理。
 调用示例：<MessageActionTarget :items="items" :preview="content" role-label="助手回复" @select="onMenu"><slot /></MessageActionTarget>
 -->
 <script setup>

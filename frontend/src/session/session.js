@@ -1,6 +1,6 @@
 /*
 Session 指令：负责创建、读取、打开、重命名、删除和切换会话模型。
-Server 会话会被归一化为现有 M3E 组件可直接渲染的消息与工具结构。
+Server 会话会被归一化为现有 页面组件可直接渲染的消息与工具结构。
 调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
 */
 import { AgentAPI } from '../api.js'                    // 引入正式 Session HTTP 契约

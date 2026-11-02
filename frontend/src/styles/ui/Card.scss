@@ -1,0 +1,3 @@
+/* Card.vue：可复用边框表面。 */
+.ui-card { min-width: 0; border: 1px solid var(--la-line); border-radius: 20px; background: var(--la-layer-01); }
+.ui-card__body { padding: 20px; }

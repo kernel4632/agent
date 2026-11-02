@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaDrawer } from '../ui/index.js'
+import { Dialog } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
-import { KimaProgress } from '../ui/index.js'
+import { Progress } from '../ui/index.js'
 import { todoStatus } from './todos.js'
 
 const props = defineProps({
@@ -22,10 +22,10 @@ const label = status => todoStatus(status).label
 </script>
 
 <template>
-  <KimaDrawer
+  <Dialog
     class="session-todo-panel"
     :open="open"
-    title="任务清单"
+    label="任务清单"
     placement="right"
     @update:open="emit('update:open', $event)"
   >
@@ -35,7 +35,7 @@ const label = status => todoStatus(status).label
           <span>当前进度</span>
           <strong>{{ done }} / {{ todos.length }}</strong>
         </div>
-        <KimaProgress class="session-todo-panel__bar" :value="done" :max="todos.length" label="任务完成进度" />
+        <Progress class="session-todo-panel__bar" :value="done" :max="todos.length" label="任务完成进度" />
       </header>
 
       <div v-if="todos.length" class="session-todo-panel__list">
@@ -47,7 +47,7 @@ const label = status => todoStatus(status).label
       </div>
       <p v-else class="session-todo-panel__empty">还没有任务。模型更新清单后会显示在这里。</p>
     </div>
-  </KimaDrawer>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="../styles/session/SessionTodoPanel.scss"></style>

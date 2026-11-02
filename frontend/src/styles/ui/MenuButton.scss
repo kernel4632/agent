@@ -1,9 +1,5 @@
-/* 图标触发器的尺寸和箭头由 KIMA 负责；会话行里只保留图标，悬停才出现底色。 */
-.ui-menu-button :deep(.kima-menu__trigger) {
-  background: transparent;
-  color: var(--la-secondary);
-}
-.ui-menu-button :deep(.kima-menu__trigger:hover) {
-  background: var(--la-hover);
-  color: var(--la-text);
-}
+/* MenuButton.vue：紧贴行右边缘，宽度不超过屏幕。 */
+.ui-menu-button { display: inline-flex; }
+.ui-menu__popup { position: fixed; inset: auto; min-width: 160px; max-width: calc(100vw - 24px); margin: 0; padding: 8px; border: 1px solid var(--la-line); border-radius: 16px; background: var(--la-layer-02); color: var(--la-text); box-shadow: var(--la-shadow-floating); }
+.ui-menu__popup button { display: block; width: 100%; min-height: 48px; padding: 10px 20px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ui-menu__popup button:hover, .ui-menu__popup button:focus-visible { background: var(--la-hover); }

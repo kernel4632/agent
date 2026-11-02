@@ -7,7 +7,6 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaDrawer } from '../ui/index.js'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import DrawerConversations from './DrawerConversations.vue'
 import { Session } from '../session/session.js'
@@ -59,7 +58,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <KimaDrawer
+  <Dialog
     class="app-drawer"
     :open="open"
     placement="left"
@@ -116,7 +115,7 @@ async function confirmDelete() {
         <Button type="button" variant="danger" :disabled="deleting" @click="confirmDelete">删除</Button>
       </div>
     </Dialog>
-  </KimaDrawer>
+  </Dialog>
 </template>
 
 <style scoped lang="scss" src="../styles/app/AppDrawer.scss"></style>

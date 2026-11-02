@@ -27,8 +27,8 @@
 .settings-home { display: block; }
 .settings-detail { display: block; min-width: 0; }
 /* 首页和详情页只做纵向轻移：设置内容可能比视口高，横向移动会摸到滚动边界。 */
-.settings-view-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.settings-view-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.settings-view-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
+.settings-view-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .settings-view-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
 .settings-view-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
 @media (prefers-reduced-motion: reduce) {

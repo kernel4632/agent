@@ -1,9 +1,9 @@
 <!--
-输入区附件条：用 KIMA Chip 显示已附加文件，并上抛移除动作。
+输入区附件条：用 自有 Chip 显示已附加文件，并上抛移除动作。
 调用示例：<ComposerAttachments :files="files" @remove="removeFile" />
 -->
 <script setup>
-import { KimaChip } from '../ui/index.js'
+import { Chip } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 
 defineProps({ files: { type: Array, default: () => [] } })
@@ -13,17 +13,16 @@ const emit = defineEmits(['remove'])
 <template>
   <Transition name="attachments">
     <div v-if="files.length" class="chat-composer__files">
-      <KimaChip
+      <Chip
         v-for="file in files"
         :key="file.id"
         class="chat-composer__file"
-        removable
+        closable
         :label="file.name"
-        remove-label="移除附件"
-        @remove="emit('remove', file.id)"
+        @close="emit('remove', file.id)"
       >
         <AppIcon name="document" :size="16" />{{ file.name }}
-      </KimaChip>
+      </Chip>
     </div>
   </Transition>
 </template>

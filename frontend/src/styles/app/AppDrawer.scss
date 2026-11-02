@@ -1,7 +1,7 @@
-/* KIMA 左侧抽屉：宽度、遮罩、焦点陷阱和关闭按钮都由组件负责。 */
-.app-drawer { --kima-drawer-max-width: 380px; }
-.app-drawer :global(.kima-drawer__heading) { flex: 1; min-width: 0; }
-.app-drawer :global(.kima-drawer__body) { display: flex; flex-direction: column; overflow: hidden; }
+/* 原生 dialog 在顶层显示，根规则用完整选择器限定到这个抽屉。 */
+:global(.app-drawer) { --ui-drawer-max-width: 380px; }
+:global(.app-drawer .ui-dialog__heading) { flex: 1; min-width: 0; padding-top: 0; }
+:global(.app-drawer .ui-dialog__body) { display: flex; flex-direction: column; overflow: hidden; }
 
 /* --- 标题栏和搜索 --- */
 .app-drawer__head { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; }
@@ -15,7 +15,7 @@
   gap: 10px;
   font-size: 16px;
 }
-.drawer-action-enter-active, .drawer-action-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
+.drawer-action-enter-active, .drawer-action-leave-active { transition: opacity var(--ui-duration-fast) var(--ui-curve-standard), transform var(--ui-duration-medium) var(--ui-curve-standard); }
 .drawer-action-enter-from, .drawer-action-leave-to { opacity: 0; transform: translateY(6px); }
 .app-drawer__confirm { margin: 0 0 20px; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
 

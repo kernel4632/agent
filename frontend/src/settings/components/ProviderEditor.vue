@@ -7,7 +7,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import {
-  KimaJsonInput, KimaSelect, KimaTabs,
+  JsonInput, Select, Tabs,
 } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
@@ -55,7 +55,7 @@ function setJson(field, value) {
     const parsed = JSON.parse(text)
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) update({ [field]: text })
   } catch {
-    // 还没输入完整；KimaJsonInput 自己会显示错误位置。
+    // 还没输入完整；JsonInput 自己会显示错误位置。
   }
 }
 
@@ -81,7 +81,7 @@ async function testConnection() {
 
 <template>
   <div class="provider-form">
-    <KimaTabs v-model="tab" :items="tabs">
+    <Tabs v-model="tab" :items="tabs">
       <template #panel="{ item }">
         <section v-if="item.value === 'config'" class="provider-tab" aria-label="供应商配置">
           <Field caption="供应商名" label="供应商名" :model-value="provider.name" clearable @update:model-value="update({ name: $event })" />
@@ -90,7 +90,7 @@ async function testConnection() {
 
           <div class="provider-field">
             <span class="provider-field__label">接口类型</span>
-            <KimaSelect label="接口类型" :model-value="provider.apiType" :items="API_TYPES" @update:model-value="update({ apiType: $event })" />
+            <Select label="接口类型" :model-value="provider.apiType" :items="API_TYPES" @update:model-value="update({ apiType: $event })" />
             <p class="provider-field__hint">换类型不会自动改地址；地址按对应服务的接口文档填写。</p>
           </div>
 
@@ -143,20 +143,20 @@ async function testConnection() {
         <section v-else class="provider-tab" aria-label="供应商高级设置">
           <div class="provider-field">
             <span class="provider-field__label">自定义请求头</span>
-            <KimaJsonInput :model-value="provider.headers ?? ''" label="自定义请求头" :rows="4" @change="setJson('headers', $event)" />
+            <JsonInput :model-value="provider.headers ?? ''" label="自定义请求头" :rows="4" @change="setJson('headers', $event)" />
             <p class="provider-field__hint">写成一个 JSON 对象，例如 <code>{"X-Title": "la"}</code>；会合并进每次模型请求。</p>
           </div>
 
           <div class="provider-field">
             <span class="provider-field__label">额外请求体</span>
-            <KimaJsonInput :model-value="provider.body ?? ''" label="额外请求体" :rows="4" @change="setJson('body', $event)" />
+            <JsonInput :model-value="provider.body ?? ''" label="额外请求体" :rows="4" @change="setJson('body', $event)" />
             <p class="provider-field__hint">写成一个 JSON 对象，例如温度、top_p；这些字段会原样合并进请求体。</p>
           </div>
 
           <p class="provider-advanced__note">高级字段会直接发给供应商。不确定含义时保持为空，避免覆盖模型需要的参数。</p>
         </section>
       </template>
-    </KimaTabs>
+    </Tabs>
   </div>
 
   <Dialog

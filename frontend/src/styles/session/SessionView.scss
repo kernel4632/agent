@@ -2,7 +2,7 @@
 .session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; margin-inline: auto; }
 .session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--kima-curve-standard), opacity var(--la-motion-enter) var(--kima-curve-standard); }
+.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .session-composer.is-reconnecting { filter: blur(2px); opacity: .6; }
 .chat-notice {
   display: flex;
@@ -28,8 +28,8 @@
   background: var(--la-warning);
 }
 /* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
-.notice-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.notice-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.notice-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
+.notice-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
 /* 断线重连：直接盖住对话区和输入区，背景虚化，只留一句状态和加载动画。 */
 .reconnect-overlay {
@@ -56,11 +56,11 @@
 }
 .reconnect-card strong { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
 .reconnect-card p { margin: 0; color: var(--la-muted); font-size: 13.5px; line-height: 20px; }
-.reconnect-enter-active, .reconnect-leave-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard); }
+.reconnect-enter-active, .reconnect-leave-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .reconnect-enter-from, .reconnect-leave-to { opacity: 0; }
 /* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
-.session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
+.session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .session-swap-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
 .session-swap-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
 @media (prefers-reduced-motion: reduce) {

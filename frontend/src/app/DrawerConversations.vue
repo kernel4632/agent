@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaCheckbox, KimaList } from '../ui/index.js'
+import { Checkbox, List } from '../ui/index.js'
 import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
 import { Session } from '../session/session.js'
 
@@ -69,7 +69,7 @@ const target = ref(null)
 const value = ref('')
 const busy = ref(false)
 
-// 会话行的 KIMA 菜单只返回动作名，具体弹窗仍由这里管理。
+// 会话行的 自有 菜单只返回动作名，具体弹窗仍由这里管理。
 function onMenuSelect(session, action) {
   if (action === 'rename') openRename(session)
   else if (action === 'delete') openDelete(session)
@@ -112,11 +112,11 @@ async function submitDialog() {
       <template v-if="groups.length">
         <section v-for="group in groups" :key="group.key" class="home-sessions__group">
           <h2 class="group-label">{{ group.label }}</h2>
-          <KimaList variant="plain" :gap="2" :items="group.items" :label="group.label">
+          <List variant="plain" :gap="2" :items="group.items" :label="group.label">
             <template #item="{ item }">
               <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
                 <Transition name="session-check">
-                  <KimaCheckbox
+                  <Checkbox
                     v-if="selecting"
                     class="home-session__check"
                     :model-value="isSelected(item.id)"
@@ -136,7 +136,7 @@ async function submitDialog() {
                 />
               </div>
             </template>
-          </KimaList>
+          </List>
         </section>
       </template>
       <div v-else class="home-empty">

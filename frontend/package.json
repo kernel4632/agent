@@ -1,22 +1,20 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.62.3",
+  "version": "0.63.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
-    "test:ui": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js",
-    "test:ui:headed": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js --headed"
+    "test:ui": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js tests/ui-controls.spec.js",
+    "test:ui:headed": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js tests/ui-controls.spec.js --headed"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/vue": "1.0.7",
-    "@kernel4632/kima": "0.9.9",
-    "@m3e/icons": "^1.0.11",
-    "@m3e/web": "^2.7.1",
+    "@material/material-color-utilities": "^0.3.0",
     "dompurify": "latest",
     "highlight.js": "^11.11.1",
     "katex": "^0.18.1",

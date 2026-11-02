@@ -1,7 +1,4 @@
-/*
- * 提示条默认贴底，会盖住输入框的发送/继续按钮；抬到输入框上方。
- * 其他样式由 KIMA 0.9.9 自带的 notification 组件提供，不再在项目里复制一份。
- */
-:global(.app-toast.kima-notification--bottom-center) {
-  bottom: calc(104px + env(safe-area-inset-bottom));
-}
+/* Toast.vue：位置避开输入框与手机安全区域。 */
+.app-toast { position: fixed; z-index: 3000; left: 50%; bottom: max(100px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 16px; max-width: calc(100vw - 32px); padding: 8px 12px 8px 20px; border: 1px solid var(--la-line); border-radius: 20px; background: var(--la-layer-03); color: var(--la-text); box-shadow: var(--la-shadow-floating); transform: translateX(-50%); }
+.toast-enter-active, .toast-leave-active { transition: opacity 150ms, transform 200ms; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 12px); }

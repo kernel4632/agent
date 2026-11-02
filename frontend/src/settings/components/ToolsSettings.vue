@@ -1,12 +1,12 @@
 <!--
 工具管理：默认是工具列表，点一行进入该工具的权限页。
-列表只负责选择；权限页用 KIMA RadioGroup 选自动执行 / 每次询问 / 禁止调用。
+列表只负责选择；权限页用 自有 RadioGroup 选自动执行 / 每次询问 / 禁止调用。
 核心数据：tools（每项含 name、title、kind、permission）；开关不再另存一份 enabled。
 调用示例：<ToolsSettings v-model:tools="draft.tools" :detail="detail" @open-detail="..." @close-detail="..." />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaRadioGroup } from '../../ui/index.js'
+import { RadioGroup } from '../../ui/index.js'
 import { AppIcon, Button, ChoiceContent } from '../../ui/index.js'
 
 const props = defineProps({
@@ -71,7 +71,7 @@ function updatePermission(name, permission) {
       </div>
     </header>
 
-    <KimaRadioGroup
+    <RadioGroup
       label="权限"
       :model-value="selected.permission"
       :options="PERMISSION_OPTIONS"
@@ -86,7 +86,7 @@ function updatePermission(name, permission) {
           :hint="item.description"
         />
       </template>
-    </KimaRadioGroup>
+    </RadioGroup>
   </section>
 
   <div v-else class="tool-missing">

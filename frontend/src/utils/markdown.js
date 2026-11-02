@@ -53,7 +53,7 @@ export function renderMarkdown(content = '') {
   return DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] }) // 清理脚本和危险属性后交给组件增强
 }
 
-// --- 按块解析：KIMA Markdown 用它把代码块交给 KimaCodeBlock ---
+// --- 按块解析：自有 Markdown 用它把代码块交给 CodeBlock ---
 export function lexMarkdown(content = '') {
   return markdown.lexer(content)
 }

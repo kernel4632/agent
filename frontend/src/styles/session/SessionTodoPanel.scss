@@ -1,9 +1,9 @@
-.session-todo-panel { --kima-drawer-max-width: 380px; }
+:global(.session-todo-panel) { --ui-drawer-max-width: 380px; }
 .session-todo-panel__body { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
 .session-todo-panel__head { display: grid; gap: 10px; }
 .session-todo-panel__summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; color: var(--la-muted); font-size: 13px; line-height: 18px; }
 .session-todo-panel__summary strong { color: var(--la-text); font-size: 14px; font-weight: 600; }
-.session-todo-panel__bar { --kima-progress-height: 4px; }
+.session-todo-panel__bar { --ui-progress-height: 4px; }
 .session-todo-panel__list { display: flex; min-width: 0; flex-direction: column; }
 .session-todo-panel__item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 9px 0; border-bottom: .5px solid var(--la-line); }
 .session-todo-panel__item:last-child { border-bottom: 0; }

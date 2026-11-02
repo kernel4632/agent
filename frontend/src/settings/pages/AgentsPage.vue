@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaCheckboxGroup, KimaSelect } from '../../ui/index.js'
+import { CheckboxGroup, Select } from '../../ui/index.js'
 import { AppIcon, Button, Field, Switch } from '../../ui/index.js'
 import { store } from '../../store.js'
 
@@ -164,7 +164,7 @@ function patchPermission(text) {
 
       <div class="agent-field">
         <span class="agent-field__label">模型</span>
-        <KimaSelect
+        <Select
           label="模型"
           :model-value="selected.model ? `${selected.model.provider}/${selected.model.model}` : ''"
           :items="modelOptions"
@@ -190,7 +190,7 @@ function patchPermission(text) {
 
       <div v-if="!allTools" class="agent-field">
         <span class="agent-field__label">工具</span>
-        <KimaCheckboxGroup
+        <CheckboxGroup
           class="agent-tools"
           label="工具"
           :options="toolOptions"

@@ -1,11 +1,12 @@
 <!--
-KIMA Markdown：按块渲染 Markdown，代码块交给 KimaCodeBlock，标题和段落交给 KimaTypography。
+自有 Markdown：按块渲染 Markdown，代码块交给 CodeBlock，标题和段落交给 Typography。
 列表、表格、引用等块仍由 Marked 生成 HTML，再交给现有 markdown-body 样式。
-调用示例：<KimaMarkdown :content="text" compact />
+调用示例：<Markdown :content="text" compact />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaCodeBlock, KimaTypography } from '@kernel4632/kima'
+import CodeBlock from './CodeBlock.vue'
+import Typography from './Typography.vue'
 import { lexMarkdown, renderInline, renderToken } from '../utils/markdown.js'
 
 const props = defineProps({
@@ -29,29 +30,29 @@ function inlineHTML(token) {
 </script>
 
 <template>
-  <div class="markdown-body kima-md" :class="{ 'kima-md--compact': compact }">
+  <div class="markdown-body ui-md" :class="{ 'ui-md--compact': compact }">
     <template v-for="(token, index) in blocks" :key="index">
-      <KimaCodeBlock
+      <CodeBlock
         v-if="token.type === 'code' && closedCode(token)"
         :code="token.text"
         :language="token.lang || 'text'"
         :line-numbers="token.text.split('\n').length > 8"
       />
-      <pre v-else-if="token.type === 'code'" class="kima-md__code-fallback"><code>{{ token.text }}</code></pre>
-      <KimaTypography
+      <pre v-else-if="token.type === 'code'" class="ui-md__code-fallback"><code>{{ token.text }}</code></pre>
+      <Typography
         v-else-if="token.type === 'heading'"
         type="heading"
         :level="token.depth"
         :size="headingSize(token.depth)"
       >
         <span v-html="inlineHTML(token)"></span>
-      </KimaTypography>
-      <KimaTypography v-else-if="token.type === 'paragraph'" type="body" size="body-medium">
+      </Typography>
+      <Typography v-else-if="token.type === 'paragraph'" type="body" size="body-medium">
         <span v-html="inlineHTML(token)"></span>
-      </KimaTypography>
-      <div v-else class="kima-md__block" v-html="renderToken(token)"></div>
+      </Typography>
+      <div v-else class="ui-md__block" v-html="renderToken(token)"></div>
     </template>
   </div>
 </template>
 
-<style scoped lang="scss" src="../styles/ui/KimaMarkdown.scss"></style>
+<style scoped lang="scss" src="../styles/ui/Markdown.scss"></style>

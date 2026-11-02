@@ -18,8 +18,8 @@
   background: var(--la-layer-02);
   color: var(--la-secondary);
   transition:
-    background-color var(--kima-duration-medium) var(--kima-curve-standard),
-    color var(--kima-duration-medium) var(--kima-curve-standard);
+    background-color var(--ui-duration-medium) var(--ui-curve-standard),
+    color var(--ui-duration-medium) var(--ui-curve-standard);
 }
 
 .choice-content.is-selected .choice-content__icon {
@@ -64,8 +64,8 @@
   border-radius: 50%;
   color: transparent;
   transition:
-    background-color var(--kima-duration-medium) var(--kima-curve-standard),
-    border-color var(--kima-duration-medium) var(--kima-curve-standard);
+    background-color var(--ui-duration-medium) var(--ui-curve-standard),
+    border-color var(--ui-duration-medium) var(--ui-curve-standard);
 }
 
 .choice-content__mark.is-selected {

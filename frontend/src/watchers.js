@@ -1,7 +1,7 @@
 /*
 数据监听：集中处理真正由数据变化自动触发的前端副作用。
 包括 SSE 订阅生命周期、视图切换、消息滚动和 Markdown 增强。业务修改继续来自 commands。
-主题属性与 M3E token 同步已移到 theme/ThemeProvider.vue，本文件不再接触主题。
+主题属性与 主题变量 同步已移到 theme/ThemeProvider.vue，本文件不再接触主题。
 每个监听说明：监听什么数据、为什么监听、触发后做什么。
 调用示例：startWatchers()
 */

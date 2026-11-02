@@ -7,7 +7,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { AppIcon, KimaMarkdown, SmoothMarkdown } from '../ui/index.js'
+import { AppIcon, Markdown, SmoothMarkdown } from '../ui/index.js'
 import { UI } from '../app/ui.js'
 import { useSmoothText } from '../utils/smooth-text.js'
 import { outputText } from './tool-ui.js'
@@ -146,7 +146,7 @@ function onMenu(action) {
       </div>
 
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }">
-        <KimaMarkdown :content="bubbleContent" />
+        <Markdown :content="bubbleContent" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>

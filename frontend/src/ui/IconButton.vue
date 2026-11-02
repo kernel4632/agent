@@ -1,37 +1,10 @@
-<!--
-通用图标按钮：保留 label/active/size API，实际渲染 KIMA 的 KimaIconButton。
-active → tonal；普通 → standard；尺寸沿用 KIMA 的 small/default。
-调用示例：<IconButton label="设置" title="设置" @click="openSettings"><AppIcon name="settings" /></IconButton>
--->
+<!-- 图标按钮：名称始终提供给辅助技术。示例：<IconButton label="设置"><AppIcon name="settings" /></IconButton> -->
 <script setup>
-import { computed } from 'vue'
-import { KimaIconButton } from '@kernel4632/kima'
-
-const props = defineProps({
-  label: { type: String, required: true },
-  title: { type: String, default: '' },
-  size: { type: String, default: 'normal' },
-  variant: { type: String, default: '' },   // 传 text 时去掉底色，用于列表行里的小动作
-  active: Boolean,
-  disabled: Boolean,
-  type: { type: String, default: 'button' },
-})
-const emit = defineEmits(['click'])
-const kimaVariant = computed(() => props.variant || (props.active ? 'tonal' : 'standard'))
-const kimaSize = computed(() => props.size === 'small' ? 'small' : 'default')
+import { press } from './press.js'
+defineProps({ label: { type: String, required: true }, title: String, size: { type: String, default: 'normal' }, variant: { type: String, default: 'standard' }, active: Boolean, disabled: Boolean, type: { type: String, default: 'button' } })
+defineEmits(['click'])
 </script>
-
 <template>
-  <KimaIconButton
-    v-bind="$attrs"
-    :label="label"
-    :title="title || label"
-    :variant="kimaVariant"
-    :size="kimaSize"
-    :disabled="disabled"
-    :type="type"
-    @click="emit('click', $event)"
-  ><slot /></KimaIconButton>
+  <button class="ui-icon-button" :class="[{ 'is-active': active }, `ui-icon-button--${variant}`, `ui-icon-button--${size}`]" :aria-label="label" :title="title || label" :type="type" :disabled="disabled" @pointerdown="press" @click="$emit('click', $event)"><slot /></button>
 </template>
-
 <style scoped lang="scss" src="../styles/ui/IconButton.scss"></style>

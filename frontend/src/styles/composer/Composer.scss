@@ -23,7 +23,7 @@
     color: var(--la-text);
     font: 16px/24px var(--la-font-sans);
     letter-spacing: 0;
-    transition: min-height var(--la-motion-enter) var(--kima-curve-standard), max-height var(--la-motion-enter) var(--kima-curve-standard);
+    transition: min-height var(--la-motion-enter) var(--ui-curve-standard), max-height var(--la-motion-enter) var(--ui-curve-standard);
 
     &::placeholder { color: var(--la-muted); }
   }
@@ -53,7 +53,7 @@
     opacity: .7;
     pointer-events: none;
     transform-origin: top right;
-    transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard);
+    transition: opacity var(--ui-duration-fast) var(--ui-curve-standard), transform var(--ui-duration-medium) var(--ui-curve-standard);
   }
   &__expand-button {
     position: absolute;
@@ -71,13 +71,13 @@
     opacity: 0;
     pointer-events: none;
     transform: translate(4px, -4px) scale(.8) rotate(-8deg);
-    transition: opacity var(--kima-duration-medium) var(--kima-curve-standard), transform var(--kima-duration-slow) var(--kima-curve-emphasized), color var(--kima-duration-effects) var(--kima-curve-standard), background-color var(--kima-duration-effects) var(--kima-curve-standard);
+    transition: opacity var(--ui-duration-medium) var(--ui-curve-standard), transform var(--ui-duration-slow) var(--ui-curve-emphasized), color var(--ui-duration-effects) var(--ui-curve-standard), background-color var(--ui-duration-effects) var(--ui-curve-standard);
   }
   &__expand-button:hover {
     background: var(--la-layer-03);
     color: var(--la-text);
   }
-  &__expand-button :deep(svg) { transition: transform var(--kima-duration-medium) var(--kima-curve-emphasized); }
+  &__expand-button :deep(svg) { transition: transform var(--ui-duration-medium) var(--ui-curve-emphasized); }
   &__expand-corner:hover &__expand-line,
   &__expand-corner:focus-within &__expand-line {
     opacity: 0;
@@ -113,7 +113,7 @@
   }
   &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, var(--la-on-action)); }
   &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
-  &__send.is-stop { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+  &__send.is-stop { background: var(--ui-color-error-container); color: var(--ui-color-on-error-container); }
   &__send.is-continue { background: var(--la-accent-soft); color: var(--la-accent); }
   &__send.is-continue:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-soft) 84%, var(--la-accent)); }
 }
@@ -149,15 +149,15 @@
 .model-group h3 { position: static; margin: 0; padding: 4px 16px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
 .model-row { display: flex; min-height: 68px; align-items: center; gap: 14px; padding: 10px 16px; border: 0; border-radius: 14px; background: transparent; color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
 .model-row:hover { background: var(--la-hover); }
-.model-row.is-selected { background: var(--la-accent-soft); color: var(--md-sys-color-on-primary-container); }
+.model-row.is-selected { background: var(--la-accent-soft); color: var(--ui-color-on-primary-container); }
 .model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
 .model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 斜杠菜单和发送/停止按钮的切换都从操作点附近出现。 */
-.slash-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.slash-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.slash-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
+.slash-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .slash-enter-from, .slash-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
-.send-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-emphasized); }
-.send-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
+.send-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-emphasized); }
+.send-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .send-enter-from, .send-leave-to { opacity: 0; transform: scale(.86); }
 @media (prefers-reduced-motion: reduce) {
   .slash-enter-active, .slash-leave-active, .send-enter-active, .send-leave-active { transition-duration: .01ms; }

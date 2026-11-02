@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaSlider } from '../ui/index.js'
+import { Slider } from '../ui/index.js'
 import { AppIcon, Button, Sheet } from '../ui/index.js'
 import { REASONING_LEVELS, reasoningIndex } from './reasoning.js'
 
@@ -62,7 +62,7 @@ function setLevel(value) {
 
       <div class="reasoning-scale">
         <div class="reasoning-scale__ends"><span>更快</span><span>更聪明</span></div>
-        <KimaSlider
+        <Slider
           v-model="index"
           :min="0"
           :max="REASONING_LEVELS.length - 1"

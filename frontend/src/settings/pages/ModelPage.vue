@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaSelect } from '../../ui/index.js'
+import { Select } from '../../ui/index.js'
 import { Switch } from '../../ui/index.js'
 import { store } from '../../store.js'
 
@@ -76,7 +76,7 @@ function setUse(use, value) {
       </div>
       <div class="model-settings__field">
         <span class="model-settings__label">模型</span>
-        <KimaSelect label="默认模型" :model-value="modelValue" :items="modelOptions" @update:model-value="chooseModel" />
+        <Select label="默认模型" :model-value="modelValue" :items="modelOptions" @update:model-value="chooseModel" />
       </div>
       <p v-if="!modelOptions.length" class="model-settings__empty">还没有可用模型。先在「模型供应商」里添加一个供应商和模型。</p>
     </div>
@@ -110,7 +110,7 @@ function setUse(use, value) {
       <div class="model-settings__fields">
         <div class="model-settings__field" v-for="item in useEntries" :key="item.use">
           <span class="model-settings__label">{{ item.label }}</span>
-          <KimaSelect :label="item.label" :model-value="useKey(item.use)" :items="modelChoices" @update:model-value="setUse(item.use, $event)" />
+          <Select :label="item.label" :model-value="useKey(item.use)" :items="modelChoices" @update:model-value="setUse(item.use, $event)" />
         </div>
       </div>
     </div>

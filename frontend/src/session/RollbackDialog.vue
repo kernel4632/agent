@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaCheckbox } from '../ui/index.js'
+import { Checkbox } from '../ui/index.js'
 import { Button, Dialog } from '../ui/index.js'
 
 const props = defineProps({
@@ -45,7 +45,7 @@ defineExpose({ show, close })
       <span>这一段的改动（{{ preview.files.length }} 个文件）</span>
       <ul><li v-for="file in preview.files" :key="file.path">{{ file.path }}</li></ul>
     </label>
-    <KimaCheckbox v-model="restoreFiles" label="同时把文件改回原样" />
+    <Checkbox v-model="restoreFiles" label="同时把文件改回原样" />
     <p class="rollback-hint">{{ restoreFiles ? '文件和对话一起退回这一步之前。' : '只退对话，工作区里的文件保持现在的样子。' }}</p>
     <div class="dialog-actions">
       <Button @click="close">取消</Button>
