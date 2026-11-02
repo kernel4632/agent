@@ -188,7 +188,7 @@ test.describe('chat motion', () => {
     await navigate(page, '新建对话')
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
     await page.getByRole('button', { name: '发送消息', exact: true }).click()
-    await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+    await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
     await mock.emit('session-2', [
       { type: 'agent-start' },
       { type: 'tool-call', toolCallId: 'todo-motion', toolName: 'update_todo_list', input: { todos: '- [ ] 动效任务' } },

@@ -1,22 +1,52 @@
 /*
-聊天页测试夹具：拦截前端真实会用到的 /api 契约，提供可读写的内存会话。
-ui-audit.spec.js 和 ui-motion.spec.js 共用这一份，避免两套 mock 对同一接口给出不同行为。
+聊天页测试夹具：拦截 /api 契约，提供可读写的内存会话；SSE 使用本机持续连接。
+界面测试共用这一份，页面关闭时释放测试端口和连接。
 调用示例：
   const mock = await backend(page)
   await navigate(page, '新建对话')
   await mock.emit('session-1', [{ type: 'agent-finish' }])
 */
 import { expect } from '@playwright/test'
+import { createServer } from 'node:http'
 
 export async function backend(page, { configured = true } = {}) {
   let config = { providers: configured ? [{ name: 'Test Provider', enabled: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: ['test-model'], headers: { 'x-preserve': 'yes' }, modelSettings: { 'test-model': { context: 64000 } } }] : [], prompt: { system: 'Be helpful.', summary: 'Keep this.' }, permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { url: 'https://mcp.example.test' } }, rules: { enabled: true }, agents: {}, diagnostics: {}, snapshot: {} }
   const sessions = new Map()
   const calls = []
-  const waiting = new Map()
+  const connections = new Map()
   const queued = new Map()
   const errors = []
   const CONTINUE_TEXT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。' // 真实后端隐藏的内部提示
   page.on('pageerror', error => errors.push(error.message))
+
+  // route.fulfill 会结束响应，不能模拟持续 SSE：它曾触发假重连，刷新掉未保存的回复。
+  // 仅事件流走这个临时端口，其余 HTTP 请求仍由下面的路由夹具处理。
+  const eventServer = createServer((request, response) => {
+    const id = new URL(request.url, 'http://localhost').pathname.split('/').at(-1)
+    connections.get(id)?.end()
+    connections.set(id, response)
+    response.on('close', () => {
+      if (connections.get(id) === response) connections.delete(id)
+    })
+    response.writeHead(200, {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      'access-control-allow-origin': request.headers.origin || new URL(page.url()).origin,
+      'access-control-allow-credentials': 'true',
+    })
+    response.write(queued.get(id) || ': connected\n\n')
+    queued.delete(id)
+  })
+  await new Promise((resolve, reject) => {
+    eventServer.once('error', reject)
+    eventServer.listen(0, '127.0.0.1', resolve)
+  })
+  page.once('close', () => {
+    eventServer.close()
+    eventServer.closeAllConnections()
+  })
+  const eventsURL = `http://127.0.0.1:${eventServer.address().port}`
+
   // 真实后端会把进行中的工具调用写进历史；mock 也照做，
   // 否则 SSE 断开重连后的刷新会把审批卡片冲掉，测试就会看到假失败。
   function persistTool(id, event) {
@@ -51,9 +81,9 @@ export async function backend(page, { configured = true } = {}) {
   async function emit(id, events) {
     for (const event of events) persistTool(id, event)
     const body = events.map((event, index) => `id: ${event.type === 'agent-finish' ? 1 : index + 1}\ndata: ${JSON.stringify(event)}\n\n`).join('')
-    const route = waiting.get(id)
-    if (route) { waiting.delete(id); await route.fulfill({ status: 200, contentType: 'text/event-stream', body }) }
-    else queued.set(id, body)
+    const connection = connections.get(id)
+    if (connection && !connection.destroyed && !connection.writableEnded) connection.write(body)
+    else queued.set(id, (queued.get(id) || '') + body) // 建立连接前的多批事件按顺序保留
   }
   await page.route('**/api/**', async route => {
     const request = route.request()
@@ -180,9 +210,7 @@ export async function backend(page, { configured = true } = {}) {
       return json({ sessionId: newId })
     }
     if (path.startsWith('/sse/connect/')) {
-      if (queued.has(id)) { const eventBody = queued.get(id); queued.delete(id); return route.fulfill({ contentType: 'text/event-stream', body: eventBody }) }
-      waiting.set(id, route)
-      return
+      return route.continue({ url: `${eventsURL}/${id}` })
     }
     if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
     if (path.startsWith('/session/settings/')) {

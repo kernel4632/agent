@@ -179,11 +179,9 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await mock.emit('session-1', [{ type: 'agent-start' }, { type: 'permission', callID: 'call-1', tool: 'read', input: { path: 'example.txt' } }])
   await expect(page.getByText('等待你的许可')).toBeVisible()
-  // 先点决定再做整页截图：mock 的 SSE 响应读完会触发一次重连，
-  // 截图太慢时旧的审批按钮已经被重连刷新替换掉，点不到是测试时序问题。
   await page.getByRole('button', { name: '始终允许此参数', exact: true }).click()
   await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'approval-decided')
@@ -197,13 +195,14 @@ test('reasoning preview stays half-open while streaming', async ({ page }, testI
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
-    { type: 'reasoning-delta', text: '先确认消息结构和工具调用顺序。'.repeat(40) },
     { type: 'tool-call', toolCallId: 'reason-1', toolName: 'read_file', input: { path: 'example.txt' } },
     { type: 'tool-result', toolCallId: 'reason-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+    // 思考留在最后，后续增量才属于同一步；工具之后再思考会创建另一条步骤。
+    { type: 'reasoning-delta', text: '先确认消息结构和工具调用顺序。'.repeat(40) },
   ])
 
   await expect(page.locator('.cot-card')).toBeVisible()
@@ -220,6 +219,8 @@ test('reasoning preview stays half-open while streaming', async ({ page }, testI
   await expect(head).toHaveAttribute('aria-expanded', 'false')
   await expect(content).not.toHaveClass(/is-open/)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: '继续输出也不展开' }])
+  await expect(page.locator('.reasoning-preview')).toContainText('继续输出也不展开')
+  await expect(content).toHaveCount(1)
   await expect(content).not.toHaveClass(/is-open/)
   await head.click()
   await expect(content).toHaveClass(/is-open/)
@@ -231,7 +232,7 @@ test('reasoning preview collapses after the llm finishes', async ({ page }) => {
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
@@ -252,7 +253,7 @@ test('tool row keeps declared metadata and shows generic input and output', asyn
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
@@ -296,7 +297,7 @@ test('core compact deltas stay outside the answer and stop partial', async ({ pa
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await mock.emit('session-1', [
     { type: 'agent-resume' },
     { type: 'compact-start', messages: [] },
@@ -323,7 +324,7 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
@@ -367,8 +368,10 @@ test('assistant markdown uses local code blocks and typography', async ({ page }
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
-  await page.getByRole('textbox', { name: '消息', exact: true }).fill('来一段 Markdown')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  // 先等默认开场事件被处理，再注入本例内容，避免两批回复互相覆盖。
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
@@ -488,6 +491,7 @@ test('Chinese IME does not submit and stop uses the existing endpoint', async ({
   expect(mock.calls.filter(call => call.path.startsWith('/agent/send/'))).toHaveLength(0)
   await editor.fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '继续助手', exact: true })).toBeVisible()
   expect(mock.calls.some(call => call.path === '/agent/stop/session-1')).toBe(true)

@@ -8,7 +8,7 @@ test('unregistered tools show input, JSON and error text without a renderer', as
   await navigate(page, '新建对话')
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await mock.emit('session-1', [
     { type: 'agent-start' },
     { type: 'tool-call', toolCallId: 'unknown-1', toolName: 'custom_report', input: { limit: 0, filter: { active: false } } },
@@ -121,7 +121,7 @@ test('attachment removal and code copying work without a component library', asy
   await expect(page.locator('.chat-composer__file')).toHaveCount(0)
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await mock.emit('session-1', [{ type: 'agent-start' }, { type: 'text-delta', text: '```js\nconst answer = 42\n```' }])
   await page.getByRole('button', { name: '复制代码' }).click()
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('const answer = 42')
