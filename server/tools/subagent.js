@@ -23,11 +23,7 @@ const ui = {
 }
 
 // --- 做出一张"子 agent 能用的工具表"：去掉这一层的 new_task，下一层自己装 ---
-const subTools = tools => {
-    const schema = { ...tools.schema }
-    delete schema.new_task
-    return { schema, handlers: tools.handlers }
-}
+const subTools = tools => Agent.tool.omit(tools, ['new_task'])
 
 // --- 某一层的 agent 能拿到哪些工具 ---
 const toolsForDepth = ({ config, tools, sessionId, onPermission, depth, maxDepth = MAX_DEPTH }) => {
@@ -45,8 +41,8 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
         config,
         tools,
         callbacks: {
-            onToolCall: call => SSE.send({ id: sessionId, data: { type: 'subagent-tool', taskId: id, description, ...call } }),
-            onToolResult: result => SSE.send({ id: sessionId, data: { type: 'subagent-tool-result', taskId: id, description, ...result } }),
+            onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'subagent-tool', taskId: id, description } }),
+            onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'subagent-tool-result', taskId: id, description } }),
             // 子 agent 的审批回到同一个会话，用户能看到"子任务想读这个文件"。
             onPermission: call => onPermission({ sessionId, ...call }),
         },

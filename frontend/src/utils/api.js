@@ -28,6 +28,7 @@ async function request(path, method = 'GET', body) {
 
 
 // --- 建立会话事件订阅 ---
+// core 0.27 的压缩流带 request:'compact'，由聊天入口分流；compact-finish 带 content / usage。
 function subscribeSession(sessionID, signal) {
   return fetch(`${apiRoot}/sse/connect/${encodeURIComponent(sessionID)}`, {
     signal,
@@ -62,7 +63,7 @@ export const AgentAPI = {
   setSessionModel:  (sessionID, provider, model) => request(`/session/model/${encodeURIComponent(sessionID)}`, 'PATCH', { provider, model }),
   removeSession:    (sessionID)                 => request(`/session/remove/${encodeURIComponent(sessionID)}`, 'DELETE'),
   sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
-  // 继续被中断的助手回复；内部提示不会作为用户消息保存。
+  // 原生继续被中断的助手回复；服务端调用 core.resume()，不添加用户消息。
   resumeSession:    (sessionID)                 => request(`/agent/resume/${encodeURIComponent(sessionID)}`, 'POST'),
   // 停止时可以带上已经流出的半段回复，Server 先保存再停，刷新后不会丢正文。
   stopSession:      (sessionID, partial)        => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST', partial ? { partial } : undefined),

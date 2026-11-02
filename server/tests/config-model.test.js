@@ -38,17 +38,20 @@ const resolve = ({ provider, model, settings = {} }) => Agent.resolve({
 })
 
 // 起一个假模型服务，把收到的请求体交出来。
-const withFakeModel = async callback => {
+const withFakeModel = async (callback, respond) => {
     const seen = []
     const server = Bun.serve({
         port: 0,
         async fetch(request) {
-            seen.push(await request.json().catch(() => null))
-            return Response.json({
-                id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fake',
-                choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
-                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-            })
+            const body = await request.json().catch(() => null)
+            seen.push(body)
+            return Response.json(respond
+                ? await respond(body, seen.length)
+                : {
+                    id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fake',
+                    choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+                    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+                })
         },
     })
     try {
@@ -59,6 +62,88 @@ const withFakeModel = async callback => {
 }
 
 describe('交给 agent-core 的 config', () => {
+    test('0.27 自动压缩：增量独立标记，任务用量包含压缩请求', async () => {
+        await withHome(async () => {
+            const requests = []
+            const server = Bun.serve({ port: 0, async fetch(request) {
+                const body = await request.json()
+                requests.push(body)
+                const compact = body.messages.at(-1)?.content?.includes?.('压缩成一段总结')
+                return new Response(new ReadableStream({
+                    async start(controller) {
+                        for (const chunk of [
+                            { choices: [{ index: 0, delta: { role: 'assistant', content: compact ? '压缩摘要' : '正常答案' } }] },
+                            { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: compact
+                                ? { prompt_tokens: 7, completion_tokens: 2, total_tokens: 9 }
+                                : { prompt_tokens: 11, completion_tokens: 3, total_tokens: 14 } },
+                        ]) {
+                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ id: 'stream', object: 'chat.completion.chunk', created: 1, model: 'fake', ...chunk })}\n\n`))
+                        }
+                        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+                        controller.close()
+                    },
+                }), { headers: { 'content-type': 'text/event-stream' } })
+            } })
+            try {
+                await Settings.set({
+                    providers: [{ name: 'fake', models: [{ id: 'm', context: 1000, capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: true }],
+                })
+                const agent = AgentCore.create({
+                    history: [],
+                    config: { ...resolve({ provider: 'fake', model: 'm' }), maxContextTokens: 1000, compactThreshold: 0.1 },
+                    callbacks: {},
+                })
+                const events = []
+                const result = await agent.send({
+                    input: '很长的记录。'.repeat(400),
+                    callbacks: { onLLMEvent: event => events.push(event), onCompact: event => events.push(event) },
+                })
+
+                expect(requests.length).toBeGreaterThanOrEqual(2)
+                const compactEvents = events.filter(event => event.request === 'compact' || event.type.startsWith('compact-'))
+                expect(compactEvents.some(event => event.type === 'text-delta' && event.request === 'compact')).toBe(true)
+                expect(compactEvents.find(event => event.type === 'compact-finish')).toMatchObject({
+                    content: '压缩摘要', usage: { inputTokens: 7, outputTokens: 2, totalTokens: 9 },
+                })
+                expect(agent.history.some(message => message.compact)).toBe(true)
+                expect(result.text).toBe('正常答案')
+                expect(result.usage).toMatchObject({ inputTokens: 18, outputTokens: 5, totalTokens: 23 })
+            } finally {
+                await server.stop(true)
+            }
+        })
+    })
+
+    test('0.27 拒绝工具也回调完整 onToolResult 和 onStep.toolResults', async () => {
+        await withHome(async () => {
+            await withFakeModel(async ({ port }) => {
+                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'm', name: 'm' }], baseURL: `http://127.0.0.1:${port}/v1` }] })
+                const tools = AgentCore.tool.adopt({
+                    read: { name: 'read', inputSchema: { type: 'object', properties: {} }, execute: () => 'must not execute' },
+                })
+                const agent = AgentCore.create({
+                    history: [], config: { ...resolve({ provider: 'fake', model: 'm' }), stream: false }, tools,
+                })
+                const callbacks = []
+                const result = await agent.send({ input: '拒绝工具', callbacks: {
+                    onPermission: () => false,
+                    onToolResult: item => callbacks.push(item),
+                    onStep: step => { if (step.toolCalls.length) callbacks.push(...step.toolResults) },
+                } })
+                expect(result.reason).toBe('no-tool')
+                expect(callbacks.length).toBeGreaterThanOrEqual(2)
+                expect(callbacks[0]).toMatchObject({ toolName: 'read', output: { type: 'execution-denied' } })
+                expect(callbacks[1]).toMatchObject({ call: { toolName: 'read' }, output: { type: 'execution-denied' } })
+            }, (_body, count) => ({
+                id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fake',
+                choices: [{ index: 0, message: count === 1
+                    ? { role: 'assistant', content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'read', arguments: '{}' } }] }
+                    : { role: 'assistant', content: '已收到拒绝' }, finish_reason: count === 1 ? 'tool_calls' : 'stop' }],
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            }))
+        })
+    })
+
     test('模型名真的出现在请求体里', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
