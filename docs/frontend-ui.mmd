@@ -1,0 +1,118 @@
+%%{init: {"theme":"base","themeVariables":{"darkMode":true,"fontFamily":"system-ui, Microsoft YaHei, sans-serif","fontSize":"16px","background":"#0d0f16","primaryColor":"#241c35","primaryBorderColor":"#b5a4d5","primaryTextColor":"#f8fafc","secondaryColor":"#20253b","tertiaryColor":"#20253b","lineColor":"#9ba9c7","clusterBkg":"#151521","clusterBorder":"#60526d","edgeLabelBackground":"#171822","titleColor":"#f8fafc"},"flowchart":{"htmlLabels":false,"useMaxWidth":true,"nodeSpacing":30,"rankSpacing":55},"htmlLabels":false}}%%
+flowchart TB
+
+subgraph g_ui["ui/ · 37 个文件"]
+direction TB
+n_ui_AppIcon_vue["AppIcon.vue"]
+n_ui_Button_vue["Button.vue"]
+n_ui_Card_vue["Card.vue"]
+n_ui_Checkbox_vue["Checkbox.vue"]
+n_ui_CheckboxGroup_vue["CheckboxGroup.vue"]
+n_ui_Chip_vue["Chip.vue"]
+n_ui_ChoiceContent_vue["ChoiceContent.vue"]
+n_ui_CodeBlock_vue["CodeBlock.vue"]
+n_ui_Dialog_vue["Dialog.vue"]
+n_ui_Divider_vue["Divider.vue"]
+n_ui_Field_vue["Field.vue"]
+n_ui_Flex_vue["Flex.vue"]
+n_ui_IconButton_vue["IconButton.vue"]
+n_ui_JsonInput_vue["JsonInput.vue"]
+n_ui_List_vue["List.vue"]
+n_ui_Markdown_vue["Markdown.vue"]
+n_ui_MenuButton_vue["MenuButton.vue"]
+n_ui_ModelIcon_vue["ModelIcon.vue"]
+n_ui_NumberField_vue["NumberField.vue"]
+n_ui_Popover_vue["Popover.vue"]
+n_ui_Progress_vue["Progress.vue"]
+n_ui_RadioGroup_vue["RadioGroup.vue"]
+n_ui_RingProgress_vue["RingProgress.vue"]
+n_ui_Select_vue["Select.vue"]
+n_ui_Sheet_vue["Sheet.vue"]
+n_ui_Slider_vue["Slider.vue"]
+n_ui_SmoothMarkdown_vue["SmoothMarkdown.vue"]
+n_ui_Spinner_vue["Spinner.vue"]
+n_ui_Switch_vue["Switch.vue"]
+n_ui_Tabs_vue["Tabs.vue"]
+n_ui_Typography_vue["Typography.vue"]
+n_ui_avatar_js["avatar.js"]
+n_ui_index_js["index.js"]
+n_ui_model_icon_assets_js["model-icon-assets.js"]
+n_ui_model_icon_js["model-icon.js"]
+n_ui_press_js["press.js"]
+n_ui_usePopup_js["usePopup.js"]
+end
+subgraph g_theme["theme/ · 1 个文件"]
+direction TB
+n_theme_index_js["index.js"]
+end
+subgraph g_utils["utils/ · 2 个文件"]
+direction TB
+n_utils_markdown_js["markdown.js"]
+n_utils_smooth_text_js["smooth-text.js"]
+end
+n_ui_AppIcon_vue --> n_theme_index_js
+n_ui_Button_vue --> n_ui_press_js
+n_ui_CheckboxGroup_vue --> n_ui_Checkbox_vue
+n_ui_Chip_vue --> n_ui_AppIcon_vue
+n_ui_ChoiceContent_vue --> n_ui_AppIcon_vue
+n_ui_CodeBlock_vue --> n_ui_Button_vue
+n_ui_Dialog_vue --> n_ui_IconButton_vue
+n_ui_Dialog_vue --> n_ui_AppIcon_vue
+n_ui_Field_vue --> n_ui_AppIcon_vue
+n_ui_IconButton_vue --> n_ui_press_js
+n_ui_JsonInput_vue --> n_ui_Field_vue
+n_ui_Markdown_vue --> n_ui_CodeBlock_vue
+n_ui_Markdown_vue --> n_ui_Typography_vue
+n_ui_Markdown_vue --> n_utils_markdown_js
+n_ui_MenuButton_vue --> n_ui_IconButton_vue
+n_ui_MenuButton_vue --> n_ui_AppIcon_vue
+n_ui_MenuButton_vue --> n_ui_usePopup_js
+n_ui_ModelIcon_vue --> n_ui_AppIcon_vue
+n_ui_ModelIcon_vue --> n_ui_model_icon_assets_js
+n_ui_NumberField_vue --> n_ui_Field_vue
+n_ui_Popover_vue --> n_ui_usePopup_js
+n_ui_RadioGroup_vue --> n_ui_AppIcon_vue
+n_ui_Select_vue --> n_ui_AppIcon_vue
+n_ui_Select_vue --> n_ui_usePopup_js
+n_ui_Sheet_vue --> n_ui_Dialog_vue
+n_ui_SmoothMarkdown_vue --> n_utils_smooth_text_js
+n_ui_SmoothMarkdown_vue --> n_ui_Markdown_vue
+n_ui_index_js --> n_ui_AppIcon_vue
+n_ui_index_js --> n_ui_Button_vue
+n_ui_index_js --> n_ui_Card_vue
+n_ui_index_js --> n_ui_Checkbox_vue
+n_ui_index_js --> n_ui_CheckboxGroup_vue
+n_ui_index_js --> n_ui_Chip_vue
+n_ui_index_js --> n_ui_ChoiceContent_vue
+n_ui_index_js --> n_ui_CodeBlock_vue
+n_ui_index_js --> n_ui_Dialog_vue
+n_ui_index_js --> n_ui_Divider_vue
+n_ui_index_js --> n_ui_Field_vue
+n_ui_index_js --> n_ui_Flex_vue
+n_ui_index_js --> n_ui_IconButton_vue
+n_ui_index_js --> n_ui_JsonInput_vue
+n_ui_index_js --> n_ui_List_vue
+n_ui_index_js --> n_ui_Markdown_vue
+n_ui_index_js --> n_ui_MenuButton_vue
+n_ui_index_js --> n_ui_ModelIcon_vue
+n_ui_index_js --> n_ui_NumberField_vue
+n_ui_index_js --> n_ui_Popover_vue
+n_ui_index_js --> n_ui_Progress_vue
+n_ui_index_js --> n_ui_RadioGroup_vue
+n_ui_index_js --> n_ui_RingProgress_vue
+n_ui_index_js --> n_ui_Select_vue
+n_ui_index_js --> n_ui_Sheet_vue
+n_ui_index_js --> n_ui_Slider_vue
+n_ui_index_js --> n_ui_SmoothMarkdown_vue
+n_ui_index_js --> n_ui_Spinner_vue
+n_ui_index_js --> n_ui_Switch_vue
+n_ui_index_js --> n_ui_Tabs_vue
+n_ui_index_js --> n_ui_Typography_vue
+n_ui_index_js --> n_ui_avatar_js
+n_ui_model_icon_assets_js --> n_ui_model_icon_js
+classDef dir_ui fill:#221e32,stroke:#f9a8d4,color:#f8fafc
+class n_ui_AppIcon_vue,n_ui_Button_vue,n_ui_Card_vue,n_ui_Checkbox_vue,n_ui_CheckboxGroup_vue,n_ui_Chip_vue,n_ui_ChoiceContent_vue,n_ui_CodeBlock_vue,n_ui_Dialog_vue,n_ui_Divider_vue,n_ui_Field_vue,n_ui_Flex_vue,n_ui_IconButton_vue,n_ui_JsonInput_vue,n_ui_List_vue,n_ui_Markdown_vue,n_ui_MenuButton_vue,n_ui_ModelIcon_vue,n_ui_NumberField_vue,n_ui_Popover_vue,n_ui_Progress_vue,n_ui_RadioGroup_vue,n_ui_RingProgress_vue,n_ui_Select_vue,n_ui_Sheet_vue,n_ui_Slider_vue,n_ui_SmoothMarkdown_vue,n_ui_Spinner_vue,n_ui_Switch_vue,n_ui_Tabs_vue,n_ui_Typography_vue,n_ui_avatar_js,n_ui_index_js,n_ui_model_icon_assets_js,n_ui_model_icon_js,n_ui_press_js,n_ui_usePopup_js dir_ui
+classDef dir_theme fill:#221e32,stroke:#c4b5fd,color:#f8fafc
+class n_theme_index_js dir_theme
+classDef dir_utils fill:#221e32,stroke:#b7bed8,color:#f8fafc
+class n_utils_markdown_js,n_utils_smooth_text_js dir_utils

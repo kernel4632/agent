@@ -1,0 +1,129 @@
+%%{init: {"theme":"base","themeVariables":{"darkMode":true,"fontFamily":"system-ui, Microsoft YaHei, sans-serif","fontSize":"16px","background":"#0d0f16","primaryColor":"#241c35","primaryBorderColor":"#b5a4d5","primaryTextColor":"#f8fafc","secondaryColor":"#20253b","tertiaryColor":"#20253b","lineColor":"#9ba9c7","clusterBkg":"#151521","clusterBorder":"#60526d","edgeLabelBackground":"#171822","titleColor":"#f8fafc"},"flowchart":{"htmlLabels":false,"useMaxWidth":true,"nodeSpacing":30,"rankSpacing":55},"htmlLabels":false}}%%
+flowchart TB
+
+subgraph g_root["src 根目录 · 9 个文件"]
+direction TB
+n_App_vue["App.vue"]
+n_api_js["api.js"]
+n_config_js["config.js"]
+n_defaults_js["defaults.js"]
+n_i18n_js["i18n.js"]
+n_main_js["main.js"]
+n_store_js["store.js"]
+n_watchers_js["watchers.js"]
+n_workspace_js["workspace.js"]
+end
+subgraph g_app["app/ · 4 个文件"]
+direction TB
+n_app_shortcuts_js["shortcuts.js"]
+n_app_tabs_js["tabs.js"]
+n_app_ui_js["ui.js"]
+n_app_usePalette_js["usePalette.js"]
+end
+subgraph g_composer["composer/ · 1 个文件"]
+direction TB
+n_composer_reasoning_js["reasoning.js"]
+end
+subgraph g_session["session/ · 10 个文件"]
+direction TB
+n_session_chat_js["chat.js"]
+n_session_continue_js["continue.js"]
+n_session_session_js["session.js"]
+n_session_stats_js["stats.js"]
+n_session_stop_tools_js["stop-tools.js"]
+n_session_todos_js["todos.js"]
+n_session_tool_ui_js["tool-ui.js"]
+n_session_tools_use_tool_content_js["tools/use-tool-content.js"]
+n_session_turns_js["turns.js"]
+n_session_usage_js["usage.js"]
+end
+subgraph g_settings["settings/ · 2 个文件"]
+direction TB
+n_settings_pages_js["pages.js"]
+n_settings_settings_js["settings.js"]
+end
+subgraph g_utils["utils/ · 6 个文件"]
+direction TB
+n_utils_attachments_js["attachments.js"]
+n_utils_markdown_js["markdown.js"]
+n_utils_ndjson_js["ndjson.js"]
+n_utils_smooth_text_js["smooth-text.js"]
+n_utils_sse_js["sse.js"]
+n_utils_user_message_js["user-message.js"]
+end
+n_App_vue --> n_app_usePalette_js
+n_App_vue --> n_app_shortcuts_js
+n_App_vue --> n_store_js
+n_App_vue --> n_session_session_js
+n_App_vue --> n_session_chat_js
+n_App_vue --> n_app_ui_js
+n_App_vue --> n_defaults_js
+n_App_vue --> n_utils_attachments_js
+n_api_js --> n_defaults_js
+n_app_tabs_js --> n_store_js
+n_app_tabs_js --> n_defaults_js
+n_app_ui_js --> n_store_js
+n_app_ui_js --> n_settings_settings_js
+n_app_ui_js --> n_config_js
+n_app_ui_js --> n_i18n_js
+n_app_usePalette_js --> n_store_js
+n_app_usePalette_js --> n_app_ui_js
+n_config_js --> n_api_js
+n_config_js --> n_store_js
+n_config_js --> n_defaults_js
+n_main_js --> n_App_vue
+n_main_js --> n_watchers_js
+n_main_js --> n_config_js
+n_main_js --> n_workspace_js
+n_main_js --> n_store_js
+n_session_chat_js --> n_api_js
+n_session_chat_js --> n_store_js
+n_session_chat_js --> n_utils_sse_js
+n_session_chat_js --> n_session_session_js
+n_session_chat_js --> n_app_tabs_js
+n_session_chat_js --> n_app_ui_js
+n_session_chat_js --> n_i18n_js
+n_session_chat_js --> n_session_tool_ui_js
+n_session_chat_js --> n_session_usage_js
+n_session_chat_js --> n_utils_attachments_js
+n_session_continue_js --> n_session_turns_js
+n_session_continue_js --> n_session_stop_tools_js
+n_session_session_js --> n_api_js
+n_session_session_js --> n_store_js
+n_session_session_js --> n_app_ui_js
+n_session_session_js --> n_app_tabs_js
+n_session_session_js --> n_i18n_js
+n_session_session_js --> n_session_tool_ui_js
+n_session_session_js --> n_session_usage_js
+n_session_session_js --> n_utils_user_message_js
+n_session_session_js --> n_defaults_js
+n_session_stop_tools_js --> n_session_tool_ui_js
+n_session_todos_js --> n_session_tool_ui_js
+n_session_tool_ui_js --> n_store_js
+n_session_tool_ui_js --> n_i18n_js
+n_session_tools_use_tool_content_js --> n_session_tool_ui_js
+n_settings_settings_js --> n_api_js
+n_settings_settings_js --> n_store_js
+n_settings_settings_js --> n_config_js
+n_settings_settings_js --> n_app_ui_js
+n_watchers_js --> n_store_js
+n_watchers_js --> n_session_chat_js
+n_workspace_js --> n_api_js
+n_workspace_js --> n_store_js
+n_workspace_js --> n_defaults_js
+classDef dir_root fill:#221e32,stroke:#e879f9,color:#f8fafc
+class n_App_vue,n_api_js,n_config_js,n_defaults_js,n_i18n_js,n_main_js,n_store_js,n_watchers_js,n_workspace_js dir_root
+classDef dir_app fill:#221e32,stroke:#f3a6ce,color:#f8fafc
+class n_app_shortcuts_js,n_app_tabs_js,n_app_ui_js,n_app_usePalette_js dir_app
+classDef dir_composer fill:#221e32,stroke:#93c5fd,color:#f8fafc
+class n_composer_reasoning_js dir_composer
+classDef dir_session fill:#221e32,stroke:#a78bfa,color:#f8fafc
+class n_session_chat_js,n_session_continue_js,n_session_session_js,n_session_stats_js,n_session_stop_tools_js,n_session_todos_js,n_session_tool_ui_js,n_session_tools_use_tool_content_js,n_session_turns_js,n_session_usage_js dir_session
+classDef dir_settings fill:#221e32,stroke:#60a5fa,color:#f8fafc
+class n_settings_pages_js,n_settings_settings_js dir_settings
+classDef dir_utils fill:#221e32,stroke:#b7bed8,color:#f8fafc
+class n_utils_attachments_js,n_utils_markdown_js,n_utils_ndjson_js,n_utils_smooth_text_js,n_utils_sse_js,n_utils_user_message_js dir_utils
+style n_app_ui_js stroke:#fb7185,stroke-width:3px
+style n_settings_settings_js stroke:#fb7185,stroke-width:3px
+linkStyle 12 stroke:#fb7185,stroke-width:2px
+linkStyle 54 stroke:#fb7185,stroke-width:2px
