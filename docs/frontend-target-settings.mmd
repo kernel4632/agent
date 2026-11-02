@@ -1,0 +1,16 @@
+%%{init: {"theme":"base","htmlLabels":false,"themeVariables":{"darkMode":true,"background":"#0d0f16","fontFamily":"system-ui, Microsoft YaHei, sans-serif","fontSize":"16px","primaryColor":"#241e34","primaryTextColor":"#f8fafc","primaryBorderColor":"#bfaad9","lineColor":"#b8b5cf","clusterBkg":"#171520","clusterBorder":"#66576f","edgeLabelBackground":"#171520"},"flowchart":{"htmlLabels":false,"curve":"linear","nodeSpacing":32,"rankSpacing":52}}}%%
+flowchart TB
+S["SettingsView<br/>设置导航与面板组装"]:::dir_views --> A["AppearanceSettings<br/>外观"]:::dir_components
+S --> P["ProviderList<br/>供应商列表"]:::dir_components
+P --> E["ProviderEditor<br/>供应商编辑"]:::dir_components
+E --> M["ProviderModels<br/>模型列表与编辑"]:::dir_components
+S --> C["MCPList → MCPEditor<br/>服务列表与编辑"]:::dir_components
+S --> O["Model / Agent / Tools<br/>各自的设置面板"]:::dir_components
+S --> R["Prompt / Context / Advanced<br/>各自的编辑面板"]:::dir_components
+classDef dir_root fill:#241e34,stroke:#d8b4fe,color:#f8fafc
+classDef dir_commands fill:#241e34,stroke:#93c5fd,color:#f8fafc
+classDef dir_views fill:#241e34,stroke:#f9a8d4,color:#f8fafc
+classDef dir_components fill:#241e34,stroke:#d6b5f2,color:#f8fafc
+classDef dir_ui fill:#241e34,stroke:#b8bdfa,color:#f8fafc
+classDef dir_utils fill:#241e34,stroke:#a8bada,color:#f8fafc
+classDef dir_styles fill:#241e34,stroke:#c3a9d3,color:#f8fafc

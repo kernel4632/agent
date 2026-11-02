@@ -1,51 +1,169 @@
 frontend/src/
-├── main.js
+├── commands/
+│   ├── appearance.js
+│   ├── attachment.js
+│   ├── chat.js
+│   ├── history.js
+│   ├── navigation.js
+│   ├── notice.js
+│   ├── provider.js
+│   ├── session.js
+│   ├── settings.js
+│   ├── stats.js
+│   └── tool.js
+├── components/
+│   ├── results/
+│   │   ├── CommandView.vue
+│   │   ├── EditView.vue
+│   │   ├── FileListView.vue
+│   │   ├── FileView.vue
+│   │   ├── GenericView.vue
+│   │   ├── PatchView.vue
+│   │   ├── ResultView.vue
+│   │   ├── SearchView.vue
+│   │   ├── SubtaskView.vue
+│   │   ├── TodoView.vue
+│   │   └── WebView.vue
+│   ├── AdvancedSettings.vue
+│   ├── AgentPicker.vue
+│   ├── AgentSettings.vue
+│   ├── AppearanceSettings.vue
+│   ├── AssistantTurn.vue
+│   ├── CommandPalette.vue
+│   ├── CompactionNotice.vue
+│   ├── Composer.vue
+│   ├── ConnectionError.vue
+│   ├── ContextSettings.vue
+│   ├── MCPEditor.vue
+│   ├── MCPList.vue
+│   ├── MessageActions.vue
+│   ├── ModelPicker.vue
+│   ├── ModelSettings.vue
+│   ├── PromptSettings.vue
+│   ├── ProviderEditor.vue
+│   ├── ProviderList.vue
+│   ├── ProviderModels.vue
+│   ├── ReasoningPicker.vue
+│   ├── ReasoningStep.vue
+│   ├── RequestStatus.vue
+│   ├── RollbackDialog.vue
+│   ├── SessionList.vue
+│   ├── Sidebar.vue
+│   ├── StatsPanel.vue
+│   ├── TaskPanel.vue
+│   ├── Timeline.vue
+│   ├── Toast.vue
+│   ├── ToolCall.vue
+│   ├── ToolResult.vue
+│   ├── ToolsSettings.vue
+│   └── TopBar.vue
+├── styles/
+│   ├── components/
+│   │   ├── results/
+│   │   │   ├── CommandView.scss
+│   │   │   ├── EditView.scss
+│   │   │   ├── FileListView.scss
+│   │   │   ├── FileView.scss
+│   │   │   ├── GenericView.scss
+│   │   │   ├── PatchView.scss
+│   │   │   ├── ResultView.scss
+│   │   │   ├── SearchView.scss
+│   │   │   ├── SubtaskView.scss
+│   │   │   ├── TodoView.scss
+│   │   │   └── WebView.scss
+│   │   ├── AdvancedSettings.scss
+│   │   ├── AgentPicker.scss
+│   │   ├── AgentSettings.scss
+│   │   ├── AppearanceSettings.scss
+│   │   ├── AssistantTurn.scss
+│   │   ├── CommandPalette.scss
+│   │   ├── CompactionNotice.scss
+│   │   ├── Composer.scss
+│   │   ├── ConnectionError.scss
+│   │   ├── ContextSettings.scss
+│   │   ├── MCPEditor.scss
+│   │   ├── MCPList.scss
+│   │   ├── MessageActions.scss
+│   │   ├── ModelPicker.scss
+│   │   ├── ModelSettings.scss
+│   │   ├── PromptSettings.scss
+│   │   ├── ProviderEditor.scss
+│   │   ├── ProviderList.scss
+│   │   ├── ProviderModels.scss
+│   │   ├── ReasoningPicker.scss
+│   │   ├── ReasoningStep.scss
+│   │   ├── RequestStatus.scss
+│   │   ├── RollbackDialog.scss
+│   │   ├── SessionList.scss
+│   │   ├── Sidebar.scss
+│   │   ├── StatsPanel.scss
+│   │   ├── TaskPanel.scss
+│   │   ├── Timeline.scss
+│   │   ├── Toast.scss
+│   │   ├── ToolCall.scss
+│   │   ├── ToolResult.scss
+│   │   ├── ToolsSettings.scss
+│   │   └── TopBar.scss
+│   ├── ui/
+│   │   ├── Button.scss
+│   │   ├── Checkbox.scss
+│   │   ├── Chip.scss
+│   │   ├── ChoiceContent.scss
+│   │   ├── CodeBlock.scss
+│   │   ├── Dialog.scss
+│   │   ├── Field.scss
+│   │   ├── Icon.scss
+│   │   ├── JsonInput.scss
+│   │   ├── Markdown.scss
+│   │   ├── Menu.scss
+│   │   ├── ModelIcon.scss
+│   │   ├── RadioGroup.scss
+│   │   ├── RingProgress.scss
+│   │   ├── Select.scss
+│   │   ├── Switch.scss
+│   │   └── Tabs.scss
+│   ├── views/
+│   │   ├── ChatView.scss
+│   │   └── SettingsView.scss
+│   ├── App.scss
+│   ├── base.scss
+│   ├── mixins.scss
+│   └── tokens.scss
+├── ui/
+│   ├── Button.vue
+│   ├── Checkbox.vue
+│   ├── Chip.vue
+│   ├── ChoiceContent.vue
+│   ├── CodeBlock.vue
+│   ├── Dialog.vue
+│   ├── Field.vue
+│   ├── Icon.vue
+│   ├── index.js
+│   ├── JsonInput.vue
+│   ├── Markdown.vue
+│   ├── Menu.vue
+│   ├── model-icon-assets.js
+│   ├── model-icon.js
+│   ├── ModelIcon.vue
+│   ├── RadioGroup.vue
+│   ├── RingProgress.vue
+│   ├── Select.vue
+│   ├── Switch.vue
+│   └── Tabs.vue
+├── utils/
+│   ├── api.js
+│   ├── avatar.js
+│   ├── clipboard.js
+│   ├── i18n.js
+│   ├── markdown.js
+│   ├── popup.js
+│   ├── press.js
+│   ├── smooth-text.js
+│   └── sse.js
+├── views/
+│   ├── ChatView.vue
+│   ├── pages.js
+│   └── SettingsView.vue
 ├── App.vue
-├── features/  13 个文件
-│   ├── store.js  [≤ 3.5 KiB]
-│   ├── api.js  [≤ 7.5 KiB]
-│   ├── session.js  [≤ 9.5 KiB]
-│   ├── conversation.js  [≤ 8.0 KiB]
-│   ├── stream.js  [≤ 7.0 KiB]
-│   ├── messages.js  [≤ 9.0 KiB]
-│   ├── config.js  [≤ 7.0 KiB]
-│   ├── stats.js  [≤ 6.0 KiB]
-│   ├── tools.js  [≤ 5.0 KiB]
-│   ├── theme.js  [≤ 2.0 KiB]
-│   ├── settings.js  [≤ 8.0 KiB]
-│   ├── feedback.js  [≤ 1.2 KiB]
-│   └── attachments.js  [≤ 1.2 KiB]
-├── views/  2 个文件
-│   ├── ChatView.vue  [≤ 9.5 KiB]
-│   └── SettingsView.vue  [≤ 8.0 KiB]
-├── components/  17 个文件
-│   ├── Sidebar.vue  [≤ 8.0 KiB]
-│   ├── TopBar.vue  [≤ 4.0 KiB]
-│   ├── StatsPanel.vue  [≤ 7.0 KiB]
-│   ├── CommandPalette.vue  [≤ 4.0 KiB]
-│   ├── Conversation.vue  [≤ 11.0 KiB]
-│   ├── Message.vue  [≤ 9.5 KiB]
-│   ├── ToolCall.vue  [≤ 4.5 KiB]
-│   ├── ToolResult.vue  [≤ 8.0 KiB]
-│   ├── Composer.vue  [≤ 9.5 KiB]
-│   ├── ComposerTools.vue  [≤ 5.5 KiB]
-│   ├── SettingsGeneral.vue  [≤ 9.5 KiB]
-│   ├── SettingsProviders.vue  [≤ 8.5 KiB]
-│   ├── ProviderModels.vue  [≤ 7.5 KiB]
-│   ├── SettingsModels.vue  [≤ 4.0 KiB]
-│   ├── SettingsAgents.vue  [≤ 7.0 KiB]
-│   ├── SettingsTools.vue  [≤ 4.5 KiB]
-│   └── SettingsMCP.vue  [≤ 6.5 KiB]
-├── ui/  7 个文件
-│   ├── Icon.vue  [≤ 3.0 KiB]
-│   ├── Button.vue  [≤ 1.2 KiB]
-│   ├── Field.vue  [≤ 2.8 KiB]
-│   ├── Dialog.vue  [≤ 2.2 KiB]
-│   ├── Menu.vue  [≤ 1.8 KiB]
-│   ├── Markdown.vue  [≤ 6.0 KiB]
-│   └── ModelIcon.vue  [≤ 1.8 KiB]
-└── styles/  4 个文件
-    ├── tokens.scss  [≤ 1.8 KiB]
-    ├── base.scss  [≤ 6.5 KiB]
-    ├── ui.scss  [≤ 4.5 KiB]
-    └── chat.scss  [≤ 7.5 KiB]
+├── main.js
+└── store.js
