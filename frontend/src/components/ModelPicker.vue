@@ -3,7 +3,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Icon, Button, Field, ModelIcon, Dialog } from '../ui/index.js'
+import { Icon, Button, Field, Dialog } from '../ui/index.js'
 
 const props = defineProps({ providers: { type: Object, required: true }, model: String, provider: String })
 const open = defineModel('open', { type: Boolean, default: false })
@@ -33,7 +33,7 @@ function choose(provider, model) {
         <section v-for="group in groups" :key="group.provider" class="model-group">
           <h3>{{ group.provider }}</h3>
           <button v-for="item in group.models" :key="item" type="button" class="model-row" :class="{ 'is-selected': item === model && group.provider === provider }" :aria-pressed="item === model && group.provider === provider" @click="choose(group.provider, item)">
-            <span class="model-row__icon"><ModelIcon :model="item" :provider="group.provider" :size="28" /></span>
+            <span class="model-row__icon"><Icon name="model" :size="28" /></span>
             <span class="model-row__name">{{ item }}</span>
             <Icon v-if="item === model && group.provider === provider" name="check" :size="20" />
           </button>

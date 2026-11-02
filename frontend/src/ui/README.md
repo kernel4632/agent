@@ -16,6 +16,8 @@
 | 富文本与代码 | `Markdown.vue`（`smooth` 启用渐进文字）、`CodeBlock.vue` |
 | 颜色、尺寸、动画 | `styles/tokens.scss`；动态颜色计算在 `commands/appearance.js` |
 
+模型位置统一用 `<Icon name="model" />`，不维护品牌识别和本地品牌图标资源。
+
 ## 使用示例
 
 ```vue

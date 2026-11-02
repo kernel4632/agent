@@ -810,9 +810,12 @@ test('existing conversation switches model from the input bar', async ({ page },
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await page.getByRole('button', { name: '选择模型（当前 test-model）' }).click()
-  // 有品牌图标的模型画原始 SVG，未知模型退回通用 Brain 图标。
-  await expect(page.locator('.model-row').filter({ hasText: 'gpt-4.1' }).locator('.model-icon__art svg')).toHaveCount(1)
-  await expect(page.locator('.model-row').filter({ hasText: 'another-model' }).locator('.model-icon__art')).toHaveCount(0)
+  // 所有模型使用同一个装饰图标，名称和选择行为仍然可访问。
+  const named = page.locator('.model-row').filter({ hasText: 'gpt-4.1' }).locator('.model-row__icon svg')
+  const generic = page.locator('.model-row').filter({ hasText: 'another-model' }).locator('.model-row__icon svg')
+  await expect(named).toBeVisible()
+  await expect(generic).toBeVisible()
+  expect(await named.innerHTML()).toBe(await generic.innerHTML())
   await screenshot(page, testInfo, 'model-sheet')
   await page.getByRole('button', { name: 'another-model', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/model/session-1')?.body)

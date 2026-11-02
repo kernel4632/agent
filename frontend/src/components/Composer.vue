@@ -20,7 +20,7 @@
 import { Navigation } from '../commands/navigation.js'
 
 import { computed, nextTick, ref, watch } from 'vue'
-import { Icon, Button, Chip, ModelIcon, Dialog } from '../ui/index.js'
+import { Icon, Button, Chip, Dialog } from '../ui/index.js'
 import { store } from '../store.js'
 import { Session } from '../commands/session.js'
 import ModelPicker from './ModelPicker.vue'
@@ -176,7 +176,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
-        <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="modelOpen = true"><ModelIcon :model="selectedModel" :provider="currentProvider" :size="28" /></button>
+        <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="modelOpen = true"><Icon name="model" :size="28" /></button>
         <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
         <button v-if="showSessionControls" type="button" class="composer-agent" :class="{ 'is-open': agentOpen }"
           :aria-label="`切换智能体（当前 ${agent || '智能体'}）`" :title="`切换智能体（当前 ${agent || '智能体'}）`" @click="emit('open-agent')">

@@ -11,7 +11,7 @@ import { Notice } from '../commands/notice.js'
 
 import { computed, ref } from 'vue'
 import { Chip, Field,  } from '../ui/index.js'
-import { Icon, Button, Dialog, ModelIcon, Switch } from '../ui/index.js'
+import { Icon, Button, Dialog, Switch } from '../ui/index.js'
 import { Settings } from '../commands/settings.js'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
@@ -155,7 +155,7 @@ function saveModel() {
       <div v-for="(model, index) in models" :key="model.id" class="ui-card model-card"><div class="ui-card__body">
         <div class="model-card__main">
           <div class="model-card__title">
-            <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
+            <Icon name="model" :size="20" />
             <strong>{{ model.name }}</strong>
             <span v-if="model.name !== model.id">{{ model.id }}</span>
           </div>
@@ -186,7 +186,7 @@ function saveModel() {
           :aria-pressed="models.some(item => item.id === model.id)"
           @click="toggleAvailable(model)"
         >
-          <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
+          <Icon name="model" :size="20" />
           <span class="model-chooser__name">{{ model.name }}</span>
           <span class="model-chooser__id">{{ model.id }}</span>
           <Icon v-if="models.some(item => item.id === model.id)" name="check" :size="18" class="model-chooser__check" />
