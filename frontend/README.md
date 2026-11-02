@@ -1,6 +1,6 @@
 # la Frontend
 
-基于 Figma `agent` 设计实现的 Vue 3 + Vite 前端。主界面以聊天为中心：会话从左侧抽屉打开，右侧显示消息，底部共用一个输入组件。新对话在首次发送时创建，模型选择按供应商与模型 ID 一起保存。设置是全屏视图，关闭时保存；保存失败时保留编辑内容和面板。
+Vue 3 + Vite 聊天前端。会话从左侧抽屉打开，新对话在首次发送时创建。设置修改自动保存；失败时保留编辑内容和面板。
 
 ## 界面与样式
 
@@ -10,11 +10,11 @@
 - `src/ui/` 是项目自有控件，由 Vue 和原生 HTML 实现；使用处直接导入所需的 `.vue` 文件。按钮、输入、弹层和选择控件不依赖第三方 UI 组件库。
 - `src/commands/appearance.js` 使用 Material Color Utilities 的纯色彩算法生成颜色。Hugeicons 只提供图标，Markdown 相关依赖只负责内容解析和高亮。
 
-当前外观延续迁移前的圆角表面、深浅主题和交互节奏。具体控件约定见 [UI 组件说明](src/ui/README.md)。
+具体控件约定见 [UI 组件说明](src/ui/README.md)。所有模型使用通用图标，不保存品牌 SVG。
 
 ## 从哪里修改
 
-功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分；文件数量与行数不作为配额。
+功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分，同类区域每组 3～5 个文件。
 
 | 要改的内容 | 入口 |
 | --- | --- |
@@ -33,7 +33,7 @@
 
 导航可以调用会话和设置；这些功能不反向调用导航。业务状态集中在 `store.js`，公共默认值在 `defaults.js`。`commands/` 不导入 Vue 组件，`ui/` 不调用业务功能；这些约束和零循环由 `tests/architecture.test.js` 检查。
 
-工具结果统一由 `ToolResult.vue` 显示参数与返回文本/JSON，保留状态和工具声明的动作。新增工具不需要新增前端组件，也没有按工具类型分发的注册表。
+工具结果统一由 `src/components/activity/ToolResult.vue` 显示参数与返回文本/JSON，保留状态和工具声明的动作。新增工具不需要新增前端组件，也没有按工具类型分发的注册表。
 
 `components/` 按可见区域归类，样式在 `styles/components/` 中保持同样目录：
 
@@ -48,9 +48,7 @@
 | `providers/` | 供应商列表与编辑、供应商模型、模型设置 | 4 |
 | `capabilities/` | 智能体、工具权限、MCP 列表与编辑 | 4 |
 
-`views/` 和 `ui/` 只放组件，没有独立 JS。功能操作属于 `commands/`；页面装配留在页面，通用网络和浏览器能力放 `utils/`。`commands/` 不导入 Vue，也不承担控件的转出表。
-
-当前实测结构与依赖图见 [源码体量](../docs/frontend-structure.html) 和 [依赖报告](../docs/frontend-dependencies.html)。设计依据见 [目标可视化](../docs/frontend-target.html)。
+`views/` 和 `ui/` 只放组件，没有独立 JS。功能操作属于 `commands/`；页面装配留在页面，通用网络和浏览器能力放 `utils/`。`commands/` 不导入 Vue 组件，也不承担控件的转出表。
 
 ## 开发
 
@@ -63,34 +61,15 @@ bun run dev
 
 前端默认监听 `127.0.0.1:5173`，Vite 将 `/api` 转发至 `AGENT_SERVER_URL`，默认 `http://127.0.0.1:3000`。依赖使用 Bun 安装，后端 Agent 循环来自已发布的 `@kernel4632/agent-core` 包。
 
-## 已对接的接口
+## 接口与数据
 
-完整请求示例、响应字段、SSE 事件和后端限制见 [前后端接口文档](docs/API.md)。
+接口和事件定义统一看 [服务端说明](../server/README.md) 与 [OpenAPI](../server/openapi.json)，实际请求在 [`src/utils/api.js`](src/utils/api.js)。前端不再保存另一份接口文档。
 
-接口以实际 `server/server.js` 为准，不采用根 README 中尚未实现的资源路径。
-
-| 功能 | 实际接口 |
-| --- | --- |
-| 服务状态、工作区 | `GET /health`、`GET /workspace/read` |
-| 配置读取、整体保存、连接测试 | `GET /config/read`、`PATCH /config/set`、`POST /config/test` |
-| 会话列表、新建、读取、重命名、删除 | `GET /session/list`、`/session/create`、`/session/read/:sessionId`、`/session/rename/:sessionId`、`/session/remove/:sessionId` |
-| 任务改过的文件 | `GET /session/changes/:sessionId` |
-| 回退预览、回退、撤销回退 | `POST /session/rollback/preview/:sessionId`、`POST /session/rollback/:sessionId`、`POST /session/redo/:sessionId` |
-| 发送、停止 | `POST /agent/send/:sessionId`、`POST /agent/stop/:sessionId` |
-| 工具审批 | `POST /agent/decide/:sessionId` |
-| 事件流 | `GET /sse/connect/:sessionId` |
-
-发送字段为 `{ input }`，审批字段为 `{ toolCallId, decision }`，历史读取字段为 `history`。回退提交 `{ messageId, files }`：`files` 默认 `true`（对话和文件一起退），传 `false` 只退对话；还能撤销几层看读取结果里的 `undoable`。SSE 按标准事件帧读取，不按 NDJSON 解析；现有后端会在保存后重置事件 ID，因此不发送 `Last-Event-ID`，重连时先读取历史，再重放当前轮次。
-配置保存保留未编辑的提供商参数、提示词字段、权限、MCP、项目规则、自定义模式、写后诊断和快照配置。仅修改外观时只写浏览器 localStorage，不发送后端配置写请求。API Key 只保存在表单内存和后端配置中，不写入浏览器持久存储。
-
-## 明确的能力边界
-- 后端只有只读的工作区接口（读取和 git 状态）：没有新建、重命名、删除工作区的能力，相关入口禁用。
-- 会话模型可以在对话顶部切换；任务运行中需要先停止（后端返回 409）。
-- 输入 `/` 可以调用用户自定义的斜杠命令，来源是数据目录 `commands/`、工作区 `.roo/commands/` 和 `.agent/commands/`。
-- 数据管理没有完整接口：设置中标注待支持并禁用；工具权限和 MCP 服务都可以在设置里改，MCP 支持 stdio / SSE / HTTP。
-- 附件只支持文本和代码，每个不超过 1 MiB；读取后作为本轮输入的一部分发送。不是服务器文件上传，不支持图片或二进制文件。
-- 后端的运行错误可能被吞掉且没有终态事件：前端显示等待提示与停止操作，不伪造执行成功。
-- 没有新增登录、认证或远程部署能力。原始后端配置接口包含敏感值，只在可信的本机环境使用，勿直接暴露公网。
+- 会话历史以服务端为准。实时连接按 SSE 帧解析，重连时刷新历史。
+- 配置保存保留未编辑字段；仅改外观时只写浏览器 localStorage。
+- API Key 只保存在表单内存和后端配置中，不写入浏览器持久存储。
+- 附件只支持文本和代码，每个不超过 1 MiB；正文随本轮消息发送。
+- 输入 `/` 选择后端返回的自定义命令。数据管理尚无完整接口，入口保持禁用。
 
 ## 验证
 
@@ -104,6 +83,6 @@ bun run build
 
 浏览器测试使用现有 Chrome，不需下载新浏览器。其他环境可安装 Playwright Chromium 后不设置 `PLAYWRIGHT_CHANNEL`。
 
-协议测试覆盖 UTF-8/CRLF 分块、标准 SSE、错误处理与现有 HTTP 契约。浏览器测试在桌面和移动尺寸下使用受控接口响应，验证完整交互与布局；它们不冒充真实模型调用。真实模型对话需要在设置中填写你自己的提供商地址、密钥和模型 ID。
+协议测试覆盖 UTF-8/CRLF 分块、SSE 和 HTTP 契约。浏览器测试用模拟接口检查桌面和手机流程；真实模型对话需要填写供应商地址、密钥和模型 ID。测试截图与日志统一写入根目录的 `tmp/`。
 
 生产构建在 `dist/`。`vite preview` 已配置同源 API 代理；正式静态部署需自行将 `/api/*` 转发至原始后端并移除 `/api` 前缀，SSE 不应缓冲。模型发现使用已有 Vite `/openai-proxy/models` 开发代理；静态部署无此代理时可手动添加模型 ID。

@@ -2,6 +2,8 @@
 
 审查日期：2026-10-28。范围：`server/` 与 `frontend/src/` 的业务代码；不含 `node_modules/`、`dist/`、测试夹具和 KIMA 源码。
 
+以下记录审查当时的状态。前端已完成后续重构，现行目录与开发约定见 [前端说明](../frontend/README.md)。
+
 结论：**严格重审后，12 条里 4 条通过、8 条部分通过。** 这一轮先修真实故障：`UNTITLED` 未定义、MCP/子任务/审批提示的 SSE 投递、空请求体返回 500、请求头 JSON 解析、`/agent` 重复路由、删除会话不清 SSE。结构上把工具拆成一文件一工具，并让工具目录每轮重扫。剩下的问题主要是会话门面、设置页包装、默认值重复、长函数和注释密度。
 
 ## 一、十二原则逐条清点
@@ -19,7 +21,7 @@
 | 9 | 说人话 | `[~]` 部分 | 架构词 `handler` 已清掉；`providerPayload`、`permissionPayload`、`mcpPayload`、`backendSnapshot`、`isolateDraft`、`persistQueue` 仍是技术味较重的名字。 |
 | 10 | 注释讲业务 | `[~]` 部分 | 关键流程和危险点有注释；`Composer.vue`、`SessionStats.vue`、`SettingsPage.vue`、`AgentsPage.vue` 等大组件仍然稀疏，远没到“一段里大多数行右边都有说明”。 |
 | 11 | 修问题做减法 | `[~]` 部分 | 这一轮修的是源头：SSE 统一用会话 id、工具目录重建、空 body 在入口处理。旧工具别名和旧会话格式的兼容代码仍在。 |
-| 12 | 改到哪里整理到哪里 | `[~]` 部分 | 路由表、工具数量、接口数量、设置页说明、KIMA 版本都更新了；`HOP-REFACTOR.md` 仍是历史计划，不能当作当前结构说明。 |
+| 12 | 改到哪里整理到哪里 | `[~]` 部分 | 此表记录审查当时的状态；前端已完成的计划已清理，现行目录见 `frontend/README.md`。 |
 
 ## 二、这一轮修掉的真实故障
 
@@ -36,7 +38,7 @@
 | 位置 | 重复内容 | 现状 |
 | --- | --- | --- |
 | `frontend/src/defaults.js` | 会话默认值、上下文窗口、未命名标题 | 首屏和组件 props 初始化要用，后端此时还没返回；保留为跨进程最小默认值 |
-| `frontend/src/components/ReasoningPicker.vue` 与服务端设置定义 | 思考强度七档 | 前端有标签和图标，后端有合法值列表；加一档仍要改两处 |
+| `frontend/src/components/composer/ReasoningPicker.vue` 与服务端设置定义 | 思考强度七档 | 前端有标签和图标，后端有合法值列表；加一档仍要改两处 |
 
 ## 四、其他没有做到完美的地方
 
@@ -66,5 +68,4 @@
 
 - `server/openapi.json`、`server/README.md`、`frontend/src/utils/api.js` 是同一份 HTTP 契约的三处记录，改一处必须三处一起改。
 - 没有用量记录的会话 token 是估算值，标记在 `frontend/src/commands/stats.js` 和面板的“估算”徽标里。
-- KIMA 必须保持最新版；升级前看 `D:\kernyr\KIMA` 的源码和发布说明，升级后跑单测、构建和完整界面检查。
 - 本文件是接手清单，不是“12/12 完美”的证明。第 1、3、6、8、9、10、11、12 条仍是部分通过。
