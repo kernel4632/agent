@@ -15,7 +15,7 @@ const run = async ({ sessionId, agent, onEvent }) => {
     if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`) // 跑着的任务不能同时压缩
     // 模型地址没填时压缩必然失败，说清是配置问题，别报成程序错误。
     if (!agent.config.baseURL || !agent.config.model) throw fail(400, `Session has no model configured: ${sessionId}`)
-    return agent.compact({ onCompact: onEvent })                                // agent-core 把总结追加到 agent.history
+    return agent.compact({ onCompact: onEvent })                                // core 0.27 把总结追加到 agent.history；用量经 compact-finish 事件返回
 }
 
 export default { run }

@@ -24,14 +24,12 @@ import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
+import usageOf from '../utils/usage.js'
 
 // --- 把有状态 feature 需要的兄弟服务接起来；命令文件之间不互相 import ---
 Tool.bind({ mcp: Mcp })
 Approval.bind({ tool: Tool, config: FeatureConfig })
 Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })
-
-// 继续被中断的助手回复：只在发送时占位，onStart 里会从历史删掉。
-const RESUME_INPUT = '继续'
 
 // 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
 const saveQueue = new Map()
@@ -51,37 +49,21 @@ const textOf = message => {
     return parts.filter(part => part?.type === 'text').map(part => part.text || '').join('')
 }
 
-// --- 把一次模型请求的用量收成固定字段 ---
-const usageOf = ({ usage, startedAt, finishedAt }) => {
-    const input = Number(usage?.inputTokens ?? usage?.promptTokens ?? 0)
-    const output = Number(usage?.outputTokens ?? usage?.completionTokens ?? 0)
-    return {
-        input,
-        output,
-        cacheRead: Number(usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0),
-        cacheWrite: Number(usage?.inputTokenDetails?.cacheWriteTokens ?? usage?.cacheWriteTokens ?? 0),
-        reasoning: Number(usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens ?? 0),
-        total: Number(usage?.totalTokens ?? input + output),
-        startedAt,
-        finishedAt,
-        durationMs: Math.max(0, finishedAt - startedAt),
-    }
-}
-
 // --- 一次模型请求结束时，把用量挂到刚追加的那条助手消息上 ---
 const attachUsage = ({ agent, usage }) => {
     if (!usage) return
-    const message = [...agent.history].reverse().find(item => item.role === 'assistant' && !item.usage)
+    const message = [...agent.history].reverse().find(item => item.role === 'assistant' && !item.compact && !item.usage)
     if (message) message.usage = usage
 }
 
-// --- 删掉继续占位：历史长度和内容都对上才删 ---
-const dropResumeInput = ({ agent, previousLength }) => {
-    const marker = agent.history.at(-1)
-    if (agent.history.length !== previousLength + 1) return false
-    if (marker?.role !== 'user' || textOf(marker) !== RESUME_INPUT) return false
-    agent.history.pop()
-    return true
+// 压缩用量记在本轮追加的 compact 项，不覆盖旧总结或普通回答。
+const attachCompactUsage = ({ agent, state }) => {
+    if (!state?.pendingCompactUsage) return
+    for (const message of agent.history.slice(state.compactStartIndex)) {
+        if (!message.compact || message.usage) continue
+        const usage = state.pendingCompactUsage.shift()
+        if (usage) message.usage = usage
+    }
 }
 
 // --- 把 Agent 内存里的新消息同步到历史文件 ---
@@ -104,15 +86,6 @@ const syncHistory = async ({ sessionId, agent }) => {
     return task
 }
 
-// --- 继续占位识别失败时的收尾：只发错误，不保存半段 ---
-const finishResumeError = async ({ sessionId, token, resumeError }) => {
-    if (token.stopped) return
-    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-    await SSE.reset({ id: sessionId })
-    await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: resumeError } })
-    finishRun(sessionId, token)
-}
-
 // --- 任务成功后的收尾：保存、起标题、通知前端 ---
 const finishSuccess = async ({ sessionId, token, agent, resume, result }) => {
     if (token.stopped) return
@@ -129,8 +102,7 @@ const finishSuccess = async ({ sessionId, token, agent, resume, result }) => {
 }
 
 // --- 任务失败后的收尾：保留已产生的进度，再把错误交给前端 ---
-const finishFailure = async ({ sessionId, token, agent, resumeError, error }) => {
-    if (resumeError) return finishResumeError({ sessionId, token, resumeError })
+const finishFailure = async ({ sessionId, token, agent, state, error }) => {
     if (token.stopped) return
     if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
     // 只有 kind=aborted 才是 core 的主动取消；timeout 等仍要报错结束。
@@ -138,6 +110,7 @@ const finishFailure = async ({ sessionId, token, agent, resumeError, error }) =>
         finishRun(sessionId, token)
         return
     }
+    attachCompactUsage({ agent, state })
     await syncHistory({ sessionId, agent }).catch(() => {})
     if (token.stopped) return
     if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
@@ -147,7 +120,7 @@ const finishFailure = async ({ sessionId, token, agent, resumeError, error }) =>
 
 // --- 发送前检查：输入、停止状态、运行状态和继续位置 ---
 const validateRun = async ({ sessionId, input, resume }) => {
-    if (typeof input !== 'string' || !input.trim()) throw fail(400, 'input must be a non-empty string')
+    if (!resume && (typeof input !== 'string' || !input.trim())) throw fail(400, 'input must be a non-empty string')
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     await History.load(sessionId)
@@ -161,14 +134,8 @@ const validateRun = async ({ sessionId, input, resume }) => {
     return agent
 }
 
-// --- 开跑前：处理继续占位、保存用户消息，然后通知前端开始 ---
-const startAgent = ({ sessionId, agent, resume, previousLength, token, state }) => async () => {
-    if (resume && !dropResumeInput({ agent, previousLength })) {
-        state.resumeError = '继续占位没有出现在历史末尾，已停止本次继续'
-        await SSE.reset({ id: sessionId })
-        void agent.stop()
-        return
-    }
+// --- 开跑前：保存当前历史，然后通知前端开始；resume 不追加用户消息 ---
+const startAgent = ({ sessionId, agent, resume, token }) => async () => {
     await syncHistory({ sessionId, agent })
     if (token.stopped || activeRuns.get(sessionId) !== token) return
     await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
@@ -188,12 +155,23 @@ const modelEvents = ({ sessionId, state }) => ({
 })
 
 // --- 原样转发给前端的事件 ---
-const forwardedEvents = ({ sessionId }) => ({
+const forwardedEvents = ({ sessionId, state }) => ({
     onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
     onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
     onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
     onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
-    onCompact: event => SSE.send({ id: sessionId, data: event }),
+    onCompact: event => {
+        if (event.type === 'compact-start') state.compactStartedAt = Date.now()
+        if (event.type === 'compact-finish') {
+            const finishedAt = Date.now()
+            state.pendingCompactUsage.push(usageOf({
+                usage: event.usage,
+                startedAt: state.compactStartedAt || finishedAt,
+                finishedAt,
+            }))
+        }
+        return SSE.send({ id: sessionId, data: event })
+    },
 })
 
 // --- 工具结果原样推给前端 ---
@@ -203,6 +181,7 @@ const sendToolResult = ({ sessionId }) => async result => {
 
 // --- 每完成一步就落盘 ---
 const saveStep = ({ sessionId, agent, state }) => () => {
+    attachCompactUsage({ agent, state })
     attachUsage({ agent, usage: state.pendingUsage })
     state.pendingUsage = null
     return syncHistory({ sessionId, agent }).catch(error => {
@@ -226,29 +205,28 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     const settings = await Agent.readSettings(sessionId)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
-    const previousLength = agent.history.length
-    const token = { stopped: false }
+    const state = { llmStartedAt: 0, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
+    const token = { stopped: false, state }
     activeRuns.set(sessionId, token)
-    const state = { resumeError: '', llmStartedAt: 0, pendingUsage: null }
     let task
     try {
-        task = agent.send({
-            input: input.trim(),
+        const options = {
             config: Agent.resolve({ session, settings }),
             callbacks: {
-                onStart: startAgent({ sessionId, agent, resume, previousLength, token, state }),
+                onStart: startAgent({ sessionId, agent, resume, token }),
                 ...modelEvents({ sessionId, state }),
-                ...forwardedEvents({ sessionId }),
+                ...forwardedEvents({ sessionId, state }),
                 onToolResult: sendToolResult({ sessionId }),
                 onStep: saveStep({ sessionId, agent, state }),
                 onPermission: askBeforeTool({ sessionId, agent }),
             },
-        })
+        }
+        task = resume ? agent.resume(options) : agent.send({ ...options, input: input.trim() })
     } catch (error) {
         finishRun(sessionId, token)
         throw error
     }
-    return { task, token, state }
+    return { task, token }
 }
 
 const run = async ({ sessionId, input, resume = false }) => {
@@ -258,12 +236,10 @@ const run = async ({ sessionId, input, resume = false }) => {
     await Tool.clearUndo({ sessionId })
     Approval.reset(sessionId)
 
-    const { task, token, state } = await startRun({ sessionId, input, resume, agent })
+    const { task, token } = await startRun({ sessionId, input, resume, agent })
     task
-        .then(result => state.resumeError
-            ? finishResumeError({ sessionId, token, resumeError: state.resumeError })
-            : finishSuccess({ sessionId, token, agent, resume, result }))
-        .catch(error => finishFailure({ sessionId, token, agent, error, resumeError: state.resumeError }))
+        .then(result => finishSuccess({ sessionId, token, agent, resume, result }))
+        .catch(error => finishFailure({ sessionId, token, agent, state: token.state, error }))
     return { ok: true }
 }
 
@@ -322,7 +298,10 @@ const stop = async ({ sessionId, partial }) => {
         if (token && wasRunning) token.stopped = true
         const result = await agent.stop()
         if (activeRuns.get(sessionId) !== token) return result
-        if (result.ok) appendPartial({ agent, partial })
+        if (result.ok) {
+            attachCompactUsage({ agent, state: token?.state })
+            appendPartial({ agent, partial })
+        }
         try {
             await syncHistory({ sessionId, agent })
         } catch {
@@ -339,7 +318,7 @@ const stop = async ({ sessionId, partial }) => {
 }
 
 const send = ({ sessionId, input }) => run({ sessionId, input })
-const resume = ({ sessionId }) => run({ sessionId, input: RESUME_INPUT, resume: true })
+const resume = ({ sessionId }) => run({ sessionId, resume: true })
 const decide = input => Approval.decide(input)
 
 export default { send, resume, stop, decide }

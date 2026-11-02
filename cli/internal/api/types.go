@@ -29,6 +29,7 @@ type Message struct {
 	Role      string          `json:"role"`
 	Content   json.RawMessage `json:"content"`
 	Usage     json.RawMessage `json:"usage,omitempty"`
+	Compact   bool            `json:"compact,omitempty"`
 }
 
 type Part struct {
@@ -50,6 +51,7 @@ type Permission struct {
 type Event struct {
 	Raw        json.RawMessage `json:"-"`
 	Type       string          `json:"type"`
+	Request    json.RawMessage `json:"request"`
 	Text       string          `json:"text"`
 	Error      json.RawMessage `json:"error"`
 	ErrorText  string          `json:"errorText"`
@@ -82,6 +84,11 @@ func (e Event) MarshalJSON() ([]byte, error) {
 	}
 	type fields Event
 	return json.Marshal(fields(e))
+}
+
+// Core tags compaction with a string; regular SDK events may use an object.
+func (e Event) IsCompact() bool {
+	return string(e.Request) == `"compact"`
 }
 
 func (e Event) Failure() string {

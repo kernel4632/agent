@@ -76,3 +76,26 @@ describe('onPermission 的返回值', () => {
         })
     })
 })
+
+describe('agent-core 0.27 生命周期契约', () => {
+    test('Agent.tool.omit 同时从 schema 与 handlers 移除工具', () => {
+        const set = AgentCore.tool.adopt({
+            keep: { name: 'keep', inputSchema: { type: 'object' }, execute: () => 'ok' },
+            drop: { name: 'drop', inputSchema: { type: 'object' }, execute: () => 'no' },
+        })
+        const omitted = AgentCore.tool.omit(set, ['drop'])
+        expect(omitted.schema.drop).toBeUndefined()
+        expect(omitted.handlers.drop).toBeUndefined()
+        expect(omitted.schema.keep).toBeDefined()
+        expect(omitted.handlers.keep).toBeDefined()
+    })
+
+    test('工具 schema 标注内存和文件来源', async () => {
+        const memory = AgentCore.tool.adopt({
+            sample: { name: 'sample', inputSchema: { type: 'object' }, execute: () => 'ok' },
+        })
+        const file = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
+        expect(memory.schema.sample.source).toBe('memory')
+        expect(file.schema.read_file.source).toBe('file')
+    })
+})

@@ -172,6 +172,14 @@ func Run(ctx context.Context, client *api.Client, initial api.Session, action, i
 					if !accept {
 						continue
 					}
+					// Compaction shares delta/error event types with answers. Keep the
+					// raw events for NDJSON, but never save them as a partial answer.
+					if event.IsCompact() {
+						if hooks.Event != nil {
+							hooks.Event(event)
+						}
+						continue
+					}
 					switch event.Type {
 					case "llm-start":
 						content, reasoning = "", ""

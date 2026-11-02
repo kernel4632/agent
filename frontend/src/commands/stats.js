@@ -117,7 +117,7 @@ export function sessionStats(session) {
   const messages = session.messages || []
   const requests = messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : [])
   const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
-  const last = requests.at(-1)
+  const last = messages.filter(message => !message.compact).flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : []).at(-1)
   const input = sum('input')
   const output = sum('output')
   const total = requests.reduce((value, item) => value + Number(item.total || 0), 0) || input + output

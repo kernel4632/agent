@@ -289,6 +289,33 @@ test('tool row renders the ui declared by the tool', async ({ page }, testInfo) 
   expect(mock.errors).toEqual([])
 })
 
+test('core compact deltas stay outside the answer and stop partial', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await mock.emit('session-1', [
+    { type: 'agent-resume' },
+    { type: 'compact-start', messages: [] },
+    { type: 'text-delta', request: 'compact', text: '仅供内部使用的压缩摘要' },
+    { type: 'reasoning-delta', request: 'compact', text: '仅供内部使用的摘要思考' },
+    { type: 'compact-finish', content: '仅供内部使用的压缩摘要', usage: { inputTokens: 7, outputTokens: 2, totalTokens: 9 } },
+    { type: 'llm-start' },
+    { type: 'text-delta', text: '保留的用户回答' },
+  ])
+  await expect(page.locator('.rikka-bubble--assistant')).toContainText('保留的用户回答')
+  await expect(page.getByText('仅供内部使用的压缩摘要', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('仅供内部使用的摘要思考', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
+  await expect.poll(() => mock.calls.filter(call => call.path === '/agent/stop/session-1').length).toBe(1)
+  const stopped = mock.calls.find(call => call.path === '/agent/stop/session-1')
+  expect(stopped.body.partial.content).toContain('保留的用户回答')
+  expect(JSON.stringify(stopped.body.partial)).not.toContain('仅供内部使用')
+  expect(mock.errors).toEqual([])
+})
+
 test('auto-continued assistant keeps non-stop text in the timeline and finish result as the reply', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')

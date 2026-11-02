@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.50.9",
+    "version": "0.51.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。配置、MCP、技能、子智能体和自动标题都是基座能力。"
   },
   "servers": [
@@ -1658,7 +1658,7 @@
           "SSE"
         ],
         "summary": "建立实时事件连接",
-        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、permission-limit、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。",
+        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、permission-limit、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages，compact-finish 带 content 和原始 AI SDK usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
         "operationId": "sseConnect",
         "parameters": [
           {

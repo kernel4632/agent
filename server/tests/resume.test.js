@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import AgentCore from '@kernel4632/agent-core'
 
 import Chat from '../commands/chat.js'
 import Settings from '../commands/settings.js'
@@ -57,6 +58,32 @@ const waitForHistory = async (sessionId, count) => {
     }
 }
 
+const readEventsUntil = async (stream, type) => {
+    const reader = stream.body.getReader()
+    const decoder = new TextDecoder()
+    const events = []
+    let buffer = ''
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+        const chunk = await Promise.race([reader.read(), Bun.sleep(1000).then(() => null)])
+        if (!chunk || chunk.done) break
+        buffer += decoder.decode(chunk.value, { stream: true }).replaceAll('\r', '')
+        let boundary
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+            const packet = buffer.slice(0, boundary)
+            buffer = buffer.slice(boundary + 2)
+            const data = packet.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n')
+            if (!data) continue
+            events.push(JSON.parse(data))
+            if (events.at(-1).type === type) {
+                await reader.cancel().catch(() => {})
+                return events
+            }
+        }
+    }
+    await reader.cancel().catch(() => {})
+    throw new Error(`SSE did not receive ${type}`)
+}
+
 const setup = async () => {
     await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
     const { sessionId } = await Session.create({ title: '继续测试' })
@@ -65,6 +92,111 @@ const setup = async () => {
 }
 
 describe('继续被中断的助手', () => {
+    test('手动压缩返回文本并把 compact-finish 用量写入 compact 历史', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const agent = {
+                history: [{ id: 'u1', role: 'user', content: text('已有记录') }],
+                config: { baseURL: 'http://fixture/v1', model: 'fixture' },
+                running: null,
+                async compact({ onCompact }) {
+                    await onCompact({ type: 'compact-start', messages: [] })
+                    await onCompact({ type: 'compact-finish', content: '手动总结', usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } })
+                    agent.history.push(AgentCore.history.compact({ id: 'c1', content: '手动总结' }))
+                    return '手动总结'
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+            const result = await Session.compact({ sessionId })
+            expect(result.content).toBe('手动总结')
+            expect(result.history.find(message => message.id === 'c1').usage).toMatchObject({ input: 4, output: 2, total: 6 })
+            expect(result.history.find(message => message.id === 'c1').compact).toBe(true)
+        })
+    })
+
+    test('0.27 compact SSE 原样转发并把用量写到对应的历史消息', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const agent = {
+                history: [],
+                running: null,
+                stop: async () => ({ ok: false }),
+                send(options) {
+                    return (async () => {
+                        agent.history.push({ id: 'u1', role: 'user', content: text(options.input) })
+                        await options.callbacks.onStart()
+                        await options.callbacks.onCompact({ type: 'compact-start', messages: [] })
+                        await options.callbacks.onCompact({ type: 'text-delta', text: '内部摘要增量', request: 'compact' })
+                        await options.callbacks.onCompact({
+                            type: 'compact-finish', content: '内部摘要',
+                            usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+                        })
+                        agent.history.push(AgentCore.history.compact({ id: 'c1', content: '内部摘要' }))
+                        await options.callbacks.onLLMStart({ messages: [], tools: {} })
+                        await options.callbacks.onLLMFinish({ text: '正常回答', usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 } })
+                        agent.history.push({ id: 'a1', role: 'assistant', content: text('正常回答') })
+                        await options.callbacks.onStep({})
+                        return { reason: 'finished', text: '正常回答', usage: { inputTokens: 7, outputTokens: 3, totalTokens: 10 } }
+                    })()
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+            const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
+            const received = readEventsUntil(stream, 'agent-finish')
+            expect(await Chat.send({ sessionId, input: '开始任务' })).toEqual({ ok: true })
+            const events = await received
+
+            expect(events.find(event => event.type === 'text-delta' && event.request === 'compact')).toMatchObject({ text: '内部摘要增量' })
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.id)).toEqual(['u1', 'c1', 'a1'])
+            expect(history.find(message => message.id === 'c1').usage).toMatchObject({ input: 2, output: 1, total: 3 })
+            expect(history.find(message => message.id === 'a1').usage).toMatchObject({ input: 5, output: 2, total: 7 })
+            await SSE.close({ id: sessionId })
+        })
+    })
+
+    test('core 0.27 拒绝工具结果通过服务端适配发成 tool-result SSE', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const agent = {
+                history: [],
+                running: null,
+                stop: async () => ({ ok: false }),
+                send(options) {
+                    return (async () => {
+                        agent.history.push({ id: 'u1', role: 'user', content: text(options.input) })
+                        await options.callbacks.onStart()
+                        const result = {
+                            toolCallId: 'call-denied', toolName: 'read_file', input: { path: 'a.txt' },
+                            output: { type: 'execution-denied', reason: '用户拒绝' },
+                        }
+                        await options.callbacks.onToolResult(result)
+                        agent.history.push({
+                            id: 'a1', role: 'assistant',
+                            content: [{ type: 'tool-call', toolCallId: result.toolCallId, toolName: result.toolName, input: result.input }],
+                        })
+                        agent.history.push({
+                            id: 't1', role: 'tool',
+                            content: [{ type: 'tool-result', ...result }],
+                        })
+                        await options.callbacks.onStep({})
+                        return { reason: 'no-tool', text: '', usage: {} }
+                    })()
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+            const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
+            const received = readEventsUntil(stream, 'agent-finish')
+            expect(await Chat.send({ sessionId, input: '尝试读取' })).toEqual({ ok: true })
+            const events = await received
+            expect(events.find(event => event.type === 'tool-result')).toMatchObject({
+                toolCallId: 'call-denied', toolName: 'read_file',
+                output: { type: 'execution-denied', reason: '用户拒绝' },
+            })
+            await SSE.close({ id: sessionId })
+        })
+    })
+
     test('停止时把已经产生的进度写进历史，并丢掉内部提示', async () => {
         await withHome(async () => {
             const sessionId = await setup()
@@ -92,7 +224,7 @@ describe('继续被中断的助手', () => {
         })
     })
 
-    test('继续时不在历史里留下用户消息，模型只看到原来的进度', async () => {
+    test('原生 resume 不接收 input，也不在历史里新增用户消息', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
@@ -103,9 +235,8 @@ describe('继续被中断的助手', () => {
                 history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
                 running: null,
                 stop: async () => ({ ok: true }),
-                send(options) {
+                resume(options) {
                     calls.push(options)
-                    agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
                     return Promise.resolve().then(() => options.callbacks.onStart()).then(() => {
                         calls[0].historyAtRequest = agent.history.map(message => message.id)
                         agent.history.push({ id: 'a2', role: 'assistant', content: text('继续完成') })
@@ -114,20 +245,33 @@ describe('继续被中断的助手', () => {
                 },
             }
             Agent.runtime().set(sessionId, agent)
+            const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
 
             expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
+            const reader = stream.body.getReader()
+            const decoder = new TextDecoder()
+            let events = ''
+            while (!events.includes('agent-finish')) {
+                const chunk = await Promise.race([reader.read(), Bun.sleep(1000).then(() => null)])
+                if (!chunk || chunk.done) break
+                events += decoder.decode(chunk.value, { stream: true })
+            }
             await waitForHistory(sessionId, 2)
             await Bun.sleep(50)
 
+            expect(events).toContain('agent-resume')
+            expect(events).toContain('agent-finish')
             expect(calls).toHaveLength(1)
+            expect(calls[0]).not.toHaveProperty('input')
             expect(calls[0].historyAtRequest).toEqual(['a1'])
             const history = History.get({ sessionId })
             expect(history.map(message => message.id)).toEqual(['a1', 'a2'])
             expect(history.at(-1).content).toEqual(text('继续完成'))
+            await SSE.close({ id: sessionId })
         })
     })
 
-    test('真实执行时发给模型的末尾仍是原来的助手回复', async () => {
+    test('真实 resume 时发给模型的末尾仍是原来的助手回复', async () => {
         await withHome(async () => {
             const seen = []
             const server = Bun.serve({
@@ -176,23 +320,24 @@ describe('继续被中断的助手', () => {
             await History.add({ sessionId, message: { id: 'a0', role: 'assistant', content: text('旧进度') } })
             await History.save(sessionId)
 
+            let stepSaved
             const agent = {
                 history: [{ id: 'a0', role: 'assistant', content: text('旧进度') }],
                 running: null,
                 stop: async () => ({ ok: true }),
                 send(options) {
                     agent.history.push({ id: 'u1', role: 'user', content: text('新任务') })
-                    options.callbacks.onStart()
-                    setTimeout(() => {
+                    stepSaved = options.callbacks.onStart().then(async () => {
                         agent.history.push({ id: 'a1', role: 'assistant', content: text('已完成一步') })
-                        options.callbacks.onStep()
-                    }, 0)
+                        await options.callbacks.onStep()
+                    })
                     return new Promise(() => {})
                 },
             }
             Agent.runtime().set(sessionId, agent)
 
             expect(await Chat.send({ sessionId, input: '新任务' })).toEqual({ ok: true })
+            await stepSaved
             await waitForHistory(sessionId, 3)
 
             const history = History.get({ sessionId })
@@ -228,20 +373,22 @@ describe('继续被中断的助手', () => {
                 ],
                 running: null,
                 stop: async () => ({ ok: true }),
-                send(options) {
-                    agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
+                resume(options) {
                     return options.callbacks.onStart().then(() => ({ reason: 'finished' }))
                 },
             }
             Agent.runtime().set(sessionId, agent)
 
+            const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
+            const finished = readEventsUntil(stream, 'agent-finish')
             expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
-            await waitForHistory(sessionId, 2)
+            await finished
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 't1'])
+            await SSE.close({ id: sessionId })
         })
     })
 
-    test('继续占位被改写时不删除也不保存', async () => {
+    test('原生继续失败时保留原历史并发出错误终态', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
@@ -250,18 +397,30 @@ describe('继续被中断的助手', () => {
                 history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
                 running: null,
                 stop: async () => ({ ok: true }),
-                send(options) {
-                    agent.history.push({ id: 'real-user', role: 'user', content: text('继续上次未完成的任务，但被加了后缀') })
-                    return options.callbacks.onStart()
+                resume(options) {
+                    expect(options).not.toHaveProperty('input')
+                    return options.callbacks.onStart().then(() => { throw new Error('继续请求失败') })
                 },
             }
             Agent.runtime().set(sessionId, agent)
+            const stream = await SSE.connect({ id: sessionId, request: new Request('http://localhost/sse') })
 
             expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
-            await Bun.sleep(50)
+            const reader = stream.body.getReader()
+            const decoder = new TextDecoder()
+            let events = ''
+            while (!events.includes('agent-finish')) {
+                const chunk = await Promise.race([reader.read(), Bun.sleep(1000).then(() => null)])
+                if (!chunk || chunk.done) break
+                events += decoder.decode(chunk.value, { stream: true })
+            }
 
-            expect(agent.history.map(message => message.id)).toEqual(['a1', 'real-user'])
+            expect(events).toContain('agent-resume')
+            expect(events).toContain('继续请求失败')
+            expect(events.match(/agent-finish/g)).toHaveLength(1)
+            expect(agent.history.map(message => message.id)).toEqual(['a1'])
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1'])
+            await SSE.close({ id: sessionId })
         })
     })
 
@@ -425,8 +584,7 @@ describe('继续助手的 HTTP 接口', () => {
                 history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
                 running: null,
                 stop: async () => ({ ok: true }),
-                send(options) {
-                    agent.history.push({ id: 'resume-input', role: 'user', content: text(options.input) })
+                resume(options) {
                     options.callbacks.onStart()
                     return Promise.resolve().then(() => {
                         agent.history.push({ id: 'a2', role: 'assistant', content: text('继续完成') })

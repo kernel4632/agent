@@ -250,8 +250,8 @@ data: {"type":"text-delta","text":"你好"}
 | --- | --- | --- |
 | `agent-start` | 无 | 读取当前历史，重建最新用户消息之后的流式轮次，标记运行 |
 | `llm-start` | `messages`, `tools` | 接收进度，不直接展示请求上下文 |
-| `text-delta` | `text`，兼容 `textDelta` / `delta` | 追加助手正文 |
-| `reasoning-delta` | `text`，兼容 `textDelta` / `delta` | 追加思考过程 |
+| `text-delta` | `text`，压缩时有 `request: "compact"` | 仅普通请求追加助手正文；压缩增量不展示 |
+| `reasoning-delta` | `text`，压缩时有 `request: "compact"` | 仅普通请求追加思考过程；压缩增量不展示 |
 | `llm-finish` | `text`, `usage`, `toolCalls` 等 | 固定本轮文字和用量；工具由独立事件展示 |
 | `retry` | `attempt`, `error`, `delay` | 显示重试提示 |
 | `tool-call` | `toolCallId`, `toolName`, `input` | 建立或更新运行中的工具卡片 |
@@ -263,7 +263,8 @@ data: {"type":"text-delta","text":"你好"}
 | `permission-blocked` | `tool`, `input`, `reason` | 工具碰到 `.agentignore` 护着的文件，被直接拦下，卡片显示原因 |
 | `subagent-tool` / `subagent-tool-result` | `description` | 子任务在做事，助手气泡上显示描述 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，提示一句，会话照常继续 |
-| 压缩相关事件及其他 AI SDK 事件 | 核心透传字段 | 不提供专用展示，不推断为执行成功 |
+| `compact-start` / `compact-finish` | `messages` / `content`, 原始 `usage` | 压缩进度与总结；压缩流事件均带 `request: "compact"`，不得合并到回答或停止 partial |
+| 其他 AI SDK 事件 | 核心透传字段 | 不推断为执行成功 |
 
 工具输出常见结构为 `{ type: "text", value: "..." }`、`{ type: "json", value: {...} }`、`{ type: "error-text", value: "..." }`、`{ type: "execution-denied", reason: "..." }`。字段来自当前工具和核心回调，不能假设每个供应商事件都有相同可选字段。
 连接顺序：

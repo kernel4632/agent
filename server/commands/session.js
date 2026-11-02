@@ -26,6 +26,7 @@ import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
+import usageOf from '../utils/usage.js'
 
 // --- 有状态 feature 的服务在这里接起来；命令文件之间不互相 import ---
 Tool.bind({ mcp: Mcp })
@@ -231,12 +232,28 @@ const saveSettings = async ({ sessionId, ...change }) => Agent.saveSettings({ se
 const compact = async ({ sessionId }) => {
     const agent = await Agent.get({ sessionId })                         // 已经装配好的 agent
     const start = agent.history.length                                  // 压缩前的位置
+    let compactStartedAt = 0
+    let compactUsage
     const content = await Compact.run({
         sessionId,
         agent,
-        onEvent: event => SSE.send({ id: sessionId, data: event }),     // 压缩进度直接推给界面
+        onEvent: event => {
+            if (event.type === 'compact-start') compactStartedAt = Date.now()
+            if (event.type === 'compact-finish') {
+                const finishedAt = Date.now()
+                compactUsage = usageOf({
+                    usage: event.usage,
+                    startedAt: compactStartedAt || finishedAt,
+                    finishedAt,
+                })
+            }
+            return SSE.send({ id: sessionId, data: event })
+        },
     })
-    for (const message of agent.history.slice(start)) await History.add({ sessionId, message }) // 只保存新追加的总结
+    for (const message of agent.history.slice(start)) {
+        if (message.compact && compactUsage) message.usage = compactUsage
+        await History.add({ sessionId, message }) // 只保存新追加的总结
+    }
     await History.save(sessionId)
     return { ...await read({ sessionId }), content }
 }

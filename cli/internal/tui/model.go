@@ -288,6 +288,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) event(e api.Event) {
+	if e.IsCompact() {
+		return
+	}
 	switch e.Type {
 	case "text-delta":
 		m.liveText += e.Text

@@ -26,7 +26,7 @@ func TestRunIgnoresPreviousFinishAndSavesPartialOnCancel(t *testing.T) {
 			fmt.Fprint(w, "data: {\"type\":\"agent-finish\",\"error\":\"old error\"}\n\n")
 			w.(http.Flusher).Flush()
 			<-sent
-			fmt.Fprint(w, "data: {\"type\":\"agent-start\"}\n\ndata: {\"type\":\"text-delta\",\"text\":\"半段回复\"}\n\n")
+			fmt.Fprint(w, "data: {\"type\":\"agent-start\"}\n\ndata: {\"type\":\"text-delta\",\"text\":\"压缩摘要\",\"request\":\"compact\"}\n\ndata: {\"type\":\"text-delta\",\"text\":\"半段回复\"}\n\n")
 			w.(http.Flusher).Flush()
 			<-r.Context().Done()
 		case "/agent/send/s":
@@ -42,7 +42,7 @@ func TestRunIgnoresPreviousFinishAndSavesPartialOnCancel(t *testing.T) {
 	defer server.Close()
 	client, _ := api.New(server.URL)
 	err := Run(ctx, client, api.Session{ID: "s"}, "send", "hello", Hooks{Event: func(e api.Event) {
-		if e.Type == "text-delta" {
+		if e.Type == "text-delta" && !e.IsCompact() {
 			cancel()
 		}
 	}})

@@ -317,6 +317,8 @@ async function receive(sessionID, event) {
   const session = store.sessions[sessionID]
   if (!session) return
   session.lastEventAt = Date.now()
+  // core 0.27 给压缩请求的流事件单独打标；总结不能混进回答或停止时的 partial。
+  if (event.request === 'compact') return
   if (TOOL_EVENTS.has(event.type)) receiveTool(session, event)
   else if (RUN_EVENTS.has(event.type)) await receiveRun(sessionID, session, event)
   else receiveMessage(session, event)                    // 正文增量；不认识的事件自然忽略

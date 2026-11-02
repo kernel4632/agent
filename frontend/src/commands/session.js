@@ -369,6 +369,9 @@ function normalizeMessage(item, messages) {
       // 步骤里已经有思考正文，顶层再留一份只会让长会话多占一倍内存。
       message.reasoning = ''
     }
+  }
+  // core 的 compact 项是带 compact 标记的 user 消息，也有真实请求用量。
+  if (item.role === 'assistant' || item.compact) {
     const request = normalizeRequest(item)
     if (request) {
       message.request = request
@@ -400,7 +403,7 @@ function normalize(source, previous = {}) {
   // 统计从每条助手消息的请求用量里重新算，刷新后总消耗和上下文不会归零。
   const requests = messages.flatMap(message => message.requests || [])
   const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
-  const lastRequest = requests.at(-1)
+  const lastRequest = messages.filter(message => !message.compact).flatMap(message => message.requests || []).at(-1)
   // 返回前端最终结构，补齐仅前端使用的草稿和用量字段
   return {
     ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务

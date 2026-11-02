@@ -22,7 +22,7 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 
 根目录不放业务代码。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
 
-Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。
+Agent 循环来自 `@kernel4632/agent-core` **0.27.0**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
 
 ## 五个核心概念
 
@@ -377,21 +377,21 @@ Accept: text/event-stream
 
 | `type` | 主要字段 | 前端行为 |
 | --- | --- | --- |
-| `text-delta` | `text` | 追加到当前 assistant 文本 |
-| `reasoning-delta` | `text` | 追加到当前 assistant 思考文本 |
+| `text-delta` | `text`，压缩时 `request: 'compact'` | 仅普通回答追加到 assistant 文本 |
+| `reasoning-delta` | `text`，压缩时 `request: 'compact'` | 仅普通回答追加到 assistant 思考文本 |
 | `retry` | `attempt`, `error`, `delay` | 显示正在重试 |
 | `llm-start` | `messages`, `tools` | 显示正在请求模型 |
 | `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `durationMs` | 统计本轮模型请求 |
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具卡片 |
 | `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
-| `tool-result` | `toolCallId`, `toolName`, `output` | 更新工具最终结果 |
+| `tool-result` | `toolCallId`, `toolName`, `input`, `output` | 更新工具最终结果；拒绝、取消、无效调用也会结算 |
 | `permission` | `callID`, `tool`, `input` | 显示“始终允许 / 允许一次 / 拒绝” |
 | `permission-blocked` | `callID`, `tool`, `input`, `reason` | 被权限规则拒绝，不用等用户决定 |
 | `permission-limit` | `limit`, `reason` | 同一个调用连续三次，接下来要确认一次 |
 | `subagent-tool` | `taskId`, `description`, `toolName`, `input` | 子任务正在用工具 |
 | `subagent-tool-result` | `taskId`, `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |
-| `compact-start` / `compact-finish` | 无 / `text` | 上下文压缩进度 |
+| `compact-start` / `compact-finish` | `messages` / `content`, `usage` | 上下文压缩进度；usage 为原始 AI SDK 用量 |
 | `title` | `title` | 后端起好了标题 |
 | `agent-start` | 无 | 任务开始 |
 | `agent-resume` | 无 | 继续任务开始 |
@@ -399,7 +399,11 @@ Accept: text/event-stream
 
 工具结果 `output` 是 AI SDK 标准结构：`text`、`json`、`error-text`、`execution-denied`、`content`。用户主动停止只发一条 `agent-finish`，`reason` 是 `stopped`。
 
+压缩请求的原生流事件统一带 `request: 'compact'`，必须先分流，不能当成普通回答或停止时的 `partial`。`compact-finish.content` 是总结正文，`usage` 使用 `inputTokens` / `outputTokens` / `totalTokens` 等原始字段；`agent-finish.usage` 已包含自动压缩的请求消耗，不要再重复累加。手动压缩调用的是实例 `agent.compact()`，返回的 `content` 仍为字符串；底层 `Agent.compact.run()` 才返回 `{ content, usage }`，二者不混用。
+
 ## 部署注意事项
+
+压缩完成后，服务端会把标准化 `usage` 保存到对应的 `compact: true` 历史项（core 中角色为 `user`）。前端统计应同时累计回答与压缩请求，不能把压缩请求的输入 token 当成主模型当前上下文大小。
 
 前端和后端不在同一个域名或端口时，浏览器会要求 CORS 响应头；当前后端没有单独配置 CORS。推荐让前端静态文件和后端使用同一个域名和端口，或在反向代理中转发 `/session`、`/agent`、`/sse`、`/config`、`/tool`。反向代理必须关闭 SSE 缓冲，并允许长连接。
 

@@ -40,6 +40,19 @@ func TestStreamingReasoningCanStayCollapsed(t *testing.T) {
 	}
 }
 
+func TestCompactionDeltasAreNotRenderedAsAssistantAnswers(t *testing.T) {
+	m := newModel(context.Background(), nil, api.Session{ID: "s"})
+	m.event(api.Event{Type: "text-delta", Request: json.RawMessage(`"compact"`), Text: "内部总结"})
+	m.event(api.Event{Type: "reasoning-delta", Request: json.RawMessage(`"compact"`), Text: "内部推理"})
+	if m.liveText != "" || m.liveReasoning != "" {
+		t.Fatal("compaction content leaked into the answer")
+	}
+	m.event(api.Event{Type: "text-delta", Text: "用户回答"})
+	if m.liveText != "用户回答" {
+		t.Fatalf("answer was lost: %q", m.liveText)
+	}
+}
+
 func TestApprovalKeyboardControlsRealRequestAndFinishesRun(t *testing.T) {
 	for _, choice := range []struct {
 		key      rune

@@ -10,6 +10,7 @@ import { Session } from '../src/commands/session.js'
 import { store } from '../src/store.js'
 import { toolStatus, formatToolOutput } from '../src/commands/tool.js'
 import { hasStopTool, isFinishedStopTool } from '../src/session/stop-tools.js'
+import { sessionStats } from '../src/commands/stats.js'
 
 const cases = [
     {
@@ -131,4 +132,36 @@ test('被拒绝的 attempt_completion 不算收尾，继续按钮才会出现', 
     // 正常完成的结束工具仍然算收尾，正文直接显示它的结果。
     const finished = { name: 'attempt_completion', status: 'completed', output: { type: 'text', value: '最终结果' } }
     assert.equal(isFinishedStopTool(finished), true)
+})
+
+test('刷新后压缩用量进入总计，压缩请求不覆盖主模型上下文用量', () => {
+    const session = Session.normalize({ id: 'compact-usage', history: [
+        { id: 'u1', role: 'user', content: '任务' },
+        { id: 'a1', role: 'assistant', content: '回答', usage: { input: 11, output: 3, total: 14 } },
+        { id: 'c1', role: 'user', compact: true, content: '总结', usage: { input: 7, output: 2, total: 9 } },
+    ] })
+    assert.equal(session.inputTokens, 18)
+    assert.equal(session.outputTokens, 5)
+    assert.equal(session.contextTokens, 11)
+    assert.equal(session.messages.at(-1).requests[0].total, 9)
+    assert.equal(sessionStats(session).usage.total, 23)
+    assert.equal(sessionStats(session).usage.requests, 2)
+    assert.equal(sessionStats(session).context.used, 11)
+})
+
+test('压缩流增量不会混进助手正文或思考', async () => {
+    const sessionID = `compact-${crypto.randomUUID()}`
+    store.sessions[sessionID] = { id: sessionID, messages: [], status: 'running', connection: 'connected', lastEventAt: 0, files: [] }
+    try {
+        await Chat.receive(sessionID, { type: 'text-delta', text: '上下文摘要', request: 'compact' })
+        await Chat.receive(sessionID, { type: 'reasoning-delta', text: '摘要推理', request: 'compact' })
+        assert.deepEqual(store.sessions[sessionID].messages, [])
+
+        await Chat.receive(sessionID, { type: 'text-delta', text: '真实回答' })
+        assert.equal(store.sessions[sessionID].messages.length, 1)
+        assert.equal(store.sessions[sessionID].messages[0].content, '真实回答')
+        assert.equal(store.sessions[sessionID].messages[0].reasoning, '')
+    } finally {
+        delete store.sessions[sessionID]
+    }
 })
