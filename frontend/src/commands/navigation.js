@@ -1,9 +1,9 @@
 /* 页面导航：离开设置前保存草稿，再改变当前页面；不依赖 Vue 组件。
  * 调用：await Navigation.openHome()；await Navigation.openSettings('providers')。
  */
-import { store } from '../store.js' // 页面位置只有一份
-import { Settings } from './settings.js' // 离页保存交给设置功能
-import { Config } from './config.js' // 重连时读取后端配置
+import { store } from '../store.js'
+import { Settings } from './settings.js'
+import { Session } from './session.js'
 
 async function leaveSettings() {
   if (!store.ui.settingsOpen) return true // 聊天之间切换不用保存设置
@@ -17,9 +17,11 @@ async function openHome() {
   return true
 }
 
-/** 将已经读取的会话显示出来。 */
+/** 读取会话并显示；保存或读取失败都保留原页面。 */
 async function openChat(sessionID) {
   if (!await leaveSettings()) return false // 切会话也必须完成离页保存
+  const session = await Session.read(sessionID) // 先读取，失败时留在原页
+  if (!session) return false
   store.ui.activeSessionID = sessionID
   store.ui.view = 'chat'
   return true
@@ -46,10 +48,34 @@ async function closeSettings() {
 async function retry() {
   store.ui.isLoading = true // 请求中禁用需要后端的操作
   try {
-    await Config.load() // 读取成功会清除连接错误
+    await Settings.load() // 读取成功会清除连接错误
   } finally {
     store.ui.isLoading = false
   }
 }
 
-export const Navigation = { openHome, openChat, openSettings, closeSettings, retry }
+/** 从新对话创建会话并显示；与侧栏打开使用同一个离页规则。 */
+async function createSession() {
+  if (!await leaveSettings()) return null
+  const session = await Session.create()
+  if (!session) return null
+  store.ui.activeSessionID = session.id
+  store.ui.view = 'chat'
+  return session
+}
+
+function openDetail({ id, title = '' } = {}) {
+  if (!id) return
+  store.ui.settingsDetail = { id, title }
+}
+
+function closeDetail() {
+  store.ui.settingsDetail = null
+}
+
+function updateDetailTitle(title) {
+  if (!store.ui.settingsDetail) return
+  store.ui.settingsDetail = { ...store.ui.settingsDetail, title: title || '' }
+}
+
+export const Navigation = { openHome, openChat, openSettings, closeSettings, retry, createSession, openDetail, closeDetail, updateDetailTitle }

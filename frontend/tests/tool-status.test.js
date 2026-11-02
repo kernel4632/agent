@@ -2,14 +2,15 @@
  * 工具状态回归测试：历史归一化和实时 SSE 必须给出同一个 status 和同一段结果文本。
  * 重点盯被拒绝的 attempt_completion：它只是失败的工具步骤，不能被当成正常收尾。
  */
+import { History } from '../src/commands/history.js'
+
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { Chat } from '../src/commands/chat.js'
-import { Session } from '../src/commands/session.js'
 import { store } from '../src/store.js'
 import { toolStatus, formatToolOutput } from '../src/commands/tool.js'
-import { hasStopTool, isFinishedStopTool } from '../src/session/stop-tools.js'
+import { hasStopTool, isFinishedStopTool } from '../src/commands/history.js'
 import { sessionStats } from '../src/commands/stats.js'
 
 const cases = [
@@ -82,7 +83,7 @@ test('toolStatus 把拒绝、失败和正常结果分开', () => {
 
 test('历史归一化和实时事件得到相同的工具状态和文本', async () => {
     for (const example of cases) {
-        const normalized = Session.normalize({ id: 'session-1', history: historyFor(example) }).messages[0].tools[0]
+        const normalized = History.normalize({ id: 'session-1', history: historyFor(example) }).messages[0].tools[0]
         const live = await liveTool(example)
 
         assert.equal(normalized.status, example.status, example.name)
@@ -94,7 +95,7 @@ test('历史归一化和实时事件得到相同的工具状态和文本', async
 })
 
 test('历史归一化保留正文和工具的原始顺序', () => {
-    const normalized = Session.normalize({
+    const normalized = History.normalize({
         id: 'session-1',
         history: [{
             messageId: 'message-1',
@@ -113,7 +114,7 @@ test('历史归一化保留正文和工具的原始顺序', () => {
 
 test('历史里的用户附件只留下文件名，附件正文仍保留给回退', () => {
     const raw = '看看附件\n\n附件 "a.txt":\nsecret'
-    const normalized = Session.normalize({
+    const normalized = History.normalize({
         id: 'session-1',
         history: [{ messageId: 'user-1', role: 'user', content: raw }],
     })
@@ -123,7 +124,7 @@ test('历史里的用户附件只留下文件名，附件正文仍保留给回�
 })
 
 test('被拒绝的 attempt_completion 不算收尾，继续按钮才会出现', async () => {
-    const normalized = Session.normalize({ id: 'session-1', history: historyFor(cases[0]) }).messages
+    const normalized = History.normalize({ id: 'session-1', history: historyFor(cases[0]) }).messages
     const tool = normalized[0].tools[0]
 
     assert.equal(tool.status, 'rejected')
@@ -135,7 +136,7 @@ test('被拒绝的 attempt_completion 不算收尾，继续按钮才会出现', 
 })
 
 test('刷新后压缩用量进入总计，压缩请求不覆盖主模型上下文用量', () => {
-    const session = Session.normalize({ id: 'compact-usage', history: [
+    const session = History.normalize({ id: 'compact-usage', history: [
         { id: 'u1', role: 'user', content: '任务' },
         { id: 'a1', role: 'assistant', content: '回答', usage: { input: 11, output: 3, total: 14 } },
         { id: 'c1', role: 'user', compact: true, content: '总结', usage: { input: 7, output: 2, total: 9 } },

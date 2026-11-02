@@ -2,7 +2,7 @@
  * 工具界面描述：工具脚本里的 ui 字段通过 /tool/list 来到这里。
  *
  * 工具只声明“用哪个视图、显示什么摘要、提供哪些操作”，真正的 Vue 组件放在
- * session/tools/ToolView.vue。这样旧后端或没有 ui 的自定义工具仍能退回通用行。
+ * session/tools/ToolResult.vue。这样旧后端或没有 ui 的自定义工具仍能退回通用行。
  * 调用示例：
  *   toolLabel(tool)                                              // '读取文件 · src/a.js'
  *   outputValue(tool)                                            // 工具结果里的真实对象
@@ -107,4 +107,25 @@ export function actionValue(tool, action) {
 export function actionTarget(tool, action) {
     const value = actionValue(tool, action)
     return value == null ? '' : String(value)
+}
+
+// 三种状态的图标和文案只在这里定义，两个清单界面都从它派生，避免一处改了另一处没改。
+export const TODO_STATUS = {
+  completed: { icon: 'check', label: '已完成' },
+  in_progress: { icon: 'clock', label: '进行中' },
+  pending: { icon: 'info', label: '待处理' },
+}
+
+export const todoStatus = status => TODO_STATUS[status] || TODO_STATUS.pending
+
+/** 任务清单取最近一次工具输出，主界面和工具结果共用同一来源。 */
+export function latestTodos(messages = []) {
+  for (const message of [...messages].reverse()) {
+    for (const tool of [...(message.tools || [])].reverse()) {
+      if (canonicalToolName(tool.name) !== 'update_todo_list') continue
+      const items = outputValue(tool)?.items
+      if (Array.isArray(items)) return items
+    }
+  }
+  return []
 }

@@ -14,6 +14,13 @@ for (const [file, edges] of graph) {
     const target = resolve(dirname(file), match[1])
     if (graph.has(target)) edges.push(target)
   }
+  for (const match of text.matchAll(/import\.meta\.glob\(['"]([^'"]+)['"]/g)) {
+    const [prefix, suffix] = resolve(dirname(file), match[1]).replaceAll('\\', '/').split('*')
+    for (const target of graph.keys()) {
+      const name = target.replaceAll('\\', '/')
+      if (name.startsWith(prefix) && name.endsWith(suffix)) edges.push(target)
+    }
+  }
 }
 
 test('前端源码没有循环导入', () => {
@@ -34,6 +41,9 @@ test('commands 不导入视觉组件，基础 UI 不调用业务功能', () => {
   for (const [file, targets] of graph) {
     const name = file.slice(src.length).replaceAll('\\', '/')
     if (name.startsWith('commands/')) assert.ok(targets.every(target => !target.endsWith('.vue')), name)
+    if (name.startsWith('commands/') && name !== 'commands/navigation.js') {
+      assert.ok(!targets.includes(resolve(src, 'commands/navigation.js')), `${name} 不应反向依赖导航`)
+    }
     if (name.startsWith('ui/')) assert.ok(targets.every(target => !target.slice(src.length).replaceAll('\\', '/').startsWith('commands/')), name)
   }
 })

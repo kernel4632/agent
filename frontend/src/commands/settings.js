@@ -1,15 +1,144 @@
-/*
-设置指令：负责隔离草稿、保存、模型发现和离页自动保存。
-保存时把页面字段转换回 Server 配置结构，成功后重新加载最终生效数据。
-调用示例：Settings.open()、await Settings.save()、Settings.discoverModels()。
-*/
-import { Notice } from './notice.js' // 保存失败只反馈，不反向调用导航
-import { AgentAPI } from '../utils/api.js'                    // 引入正式配置和能力 HTTP 契约
-import { store } from '../store.js'                     // 引入已保存配置和设置反馈
-import { Config } from './config.js'                    // 引入保存后的配置重新加载动作
+/* 设置：加载配置、隔离编辑草稿、校验并串行保存。
+ * 调用：await Settings.load()；Settings.open()；await Settings.autoSave()。
+ * 供应商数据映射交给 Provider，外观持久化交给 Appearance；不反向调用导航。
+ */
+import { AgentAPI } from '../utils/api.js'
+import { store } from '../store.js'
+import { Notice } from './notice.js'
+import { Provider } from './provider.js'
+import { Appearance } from './appearance.js'
+import { COMPACT_RANGE, DEFAULT_SETTINGS } from '../defaults.js'
+
+// 前端默认值只留一处
+
+
+// --- 加载完整设置数据 ---
+async function load() {
+  try {
+    // 这些接口属于同一版后端，缺任何一个都说明连接不对；不再为旧后端逐项兜底。
+    const [raw, catalog, agents, kinds, meta, commands] = await Promise.all([
+      AgentAPI.getConfig(),                              // 脱敏持久化配置
+      AgentAPI.getTools(),                               // 全部工具和当前权限
+      AgentAPI.getAgents(),                              // 内置和自定义智能体
+      AgentAPI.getToolKinds(),                           // 工具类别的名字和顺序
+      AgentAPI.getConfigMeta(),                          // “按用途配模型”的标签和说明
+      AgentAPI.getCommands(),                            // 用户自定义的斜杠命令
+    ])
+    apply(raw, catalog, agents, kinds, meta)              // 将 Server 数据转换为设置页面结构
+    store.commands = Array.isArray(commands) ? commands : []
+    store.ui.errorMessage = ''
+    return true                                           // 反馈应用启动可以继续
+  } catch (error) {
+    store.ui.errorMessage = error.message                 // 页面展示真实连接或协议错误
+    return false                                          // 不制造假配置
+  }
+}
+
+// --- 供应商：后端数组转成设置页按名字索引的对象 ---
+
+
+// --- 工具目录：新后端给完整目录，旧后端退回 permission 里的字符串规则 ---
+function toolSettingsFor(raw, catalog) {
+  const toolCatalog = Array.isArray(catalog) ? catalog : []
+  const tools = toolCatalog.length
+    ? toolCatalog
+      .filter(tool => tool.configurable !== false)
+      .map(tool => ({
+        name: tool.name,
+        title: tool.ui?.title || tool.name,
+        kind: tool.kind,
+        kindLabel: tool.kindLabel || tool.kind,
+        kindHint: tool.kindHint || '',
+        enabled: tool.permission !== 'deny',
+        permission: tool.permission,
+        original: tool.permission,
+        // 工具脚本声明的渲染信息；设置页保存时不会把它写回 permission。
+        ui: tool.ui && typeof tool.ui === 'object' && !Array.isArray(tool.ui) ? tool.ui : null,
+      }))
+    : Object.entries(raw.permission || {})
+      .filter(([, action]) => typeof action === 'string')
+      .map(([name, action]) => ({ name, title: name, kind: 'other', enabled: action !== 'deny', permission: action, original: action }))
+  return { toolCatalog, tools }
+}
+
+// --- MCP 服务：对象转成设置页的数组，并补上旧配置缺的 transport ---
+function mcpList(raw) {
+  return Object.entries(raw.mcp ?? {}).map(([name, definition]) => {
+    const normalized = structuredClone(definition || {})
+    // 老配置可能只写了 url 没写 transport；补成 sse，保存时才不会被当成 stdio 命令。
+    if (!normalized.transport) normalized.transport = normalized.url ? 'sse' : 'stdio'
+    return {
+      id: name,
+      name,
+      command: normalized.command || normalized.url || '',
+      enabled: normalized.enabled !== false,
+      definition: normalized,
+    }
+  })
+}
+
+// --- 默认模型：优先用户选过的那组，供应商或模型被删掉时退回第一个可用模型 ---
+function modelChoice(providers, raw) {
+  const firstProvider = Object.keys(providers).find(key => providers[key].enabled && providers[key].models.length) || Object.keys(providers)[0] || ''
+  const firstModel = providers[firstProvider]?.models?.[0] || ''
+  const preferred = raw.model && typeof raw.model === 'object' ? raw.model : null
+  const preferredModels = preferred ? providers[preferred.provider]?.models || [] : []
+  const valid = preferred?.provider && preferred?.model && preferredModels.includes(preferred.model)
+  return {
+    activeProvider: valid ? preferred.provider : firstProvider,
+    activeModel: valid ? preferred.model : firstModel,
+  }
+}
+
+// --- 智能体：清单只来自后端 /agent/list；原始定义用于设置页编辑 ---
+function agentList(raw, catalogAgents) {
+  const agentDefinitions = raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents) ? raw.agents : {}
+  const agents = Array.isArray(catalogAgents) ? catalogAgents : []
+  return { agents, agentDefinitions }
+}
+
+// --- 应用 Server 配置到设置结构 ---
+function apply(raw, catalog = [], catalogAgents = [], catalogKinds = [], meta = {}) {
+  const providers = Provider.map(raw)
+  const { toolCatalog, tools } = toolSettingsFor(raw, catalog)
+  const { activeProvider, activeModel } = modelChoice(providers, raw)
+  const { agents, agentDefinitions } = agentList(raw, catalogAgents)
+
+  const globalCapabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {}
+  const globalUses = raw.uses && typeof raw.uses === 'object' && !Array.isArray(raw.uses) ? raw.uses : {}
+  const compactThreshold = Number(raw.compactThreshold)
+
+  Object.assign(store.config, {
+    providers,
+    tools,
+    toolCatalog,
+    kindOptions: Array.isArray(catalogKinds) ? catalogKinds : [],
+    useOptions: Array.isArray(meta.uses) ? meta.uses : [],
+    mcp: mcpList(raw),
+    prompt: raw.prompt?.system || '',
+    agents,
+    agentDefinitions,
+    rules: { enabled: raw.rules?.enabled !== false },
+    diagnostics: raw.diagnostics && typeof raw.diagnostics === 'object' ? raw.diagnostics : {},
+    snapshot: raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : {},
+    appearance: store.config.appearance,
+    activeProvider,
+    activeModel,
+    capabilities: {
+      image: globalCapabilities.image !== false,
+      cache: globalCapabilities.cache !== false,
+      stream: globalCapabilities.stream !== false,
+    },
+    uses: globalUses,
+    compactThreshold: Number.isFinite(compactThreshold) && compactThreshold >= COMPACT_RANGE.min && compactThreshold <= COMPACT_RANGE.max ? compactThreshold : DEFAULT_SETTINGS.compactThreshold,
+    autoTitle: raw.autoTitle !== false,
+    raw: structuredClone(raw),
+  })
+}
+
+// 引入保存后的配置重新加载动作
 
 let initialBackendDraft = ''
-
 
 // --- 后端配置里由设置页负责的字段 ---
 function backendSnapshot(draft) {
@@ -31,35 +160,18 @@ function backendSnapshot(draft) {
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
 
-
 // --- 隔离设置草稿数据 ---
 function isolateDraft(value) {
   return JSON.parse(JSON.stringify(value))              // 设置只包含 JSON 数据，隔离后修改不影响已保存配置
 }
 
-
 // --- 把配置里的请求头/请求体转成编辑框里的 JSON 文本 ---
 // 空对象显示成空字符串，编辑框给占位示例；已有内容保持易读的缩进。
-function jsonText(value) {
-  if (!value) return ''
-  let object = value
-  if (typeof value === 'string') {
-    try { object = JSON.parse(value) } catch { return value }
-  }
-  if (!object || typeof object !== 'object' || Array.isArray(object) || !Object.keys(object).length) return ''
-  return JSON.stringify(object, null, 2)
-}
+
 
 // --- 把编辑框里的 JSON 文本变回对象 ---
 // 空文本表示没有自定义内容；写错时直接说明是哪一栏，别把坏 JSON 发到后端。
-function objectFromJson(text, label) {
-  const trimmed = String(text || '').trim()
-  if (!trimmed) return {}
-  let value
-  try { value = JSON.parse(trimmed) } catch { throw new Error(`${label}不是合法的 JSON`) }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}必须是 JSON 对象`)
-  return value
-}
+
 
 // --- 进入设置页 ---
 function open() {
@@ -73,8 +185,8 @@ function open() {
     apiUrl: provider.baseURL || '',                      // Server 的 baseURL 对应编辑器中的请求地址
     apiKey: provider.apiKey || '',                       // 脱敏密钥原样保留，保存时 Server 会恢复真实值
     stream: provider.stream,                             // 不写时跟随全局的流式开关
-    headers: jsonText(provider.headers) || '{}',         // 自定义请求头以 JSON 文本编辑
-    body: jsonText(provider.body) || '{}',               // 额外请求体以 JSON 文本编辑
+    headers: Provider.jsonText(provider.headers) || '{}',         // 自定义请求头以 JSON 文本编辑
+    body: Provider.jsonText(provider.body) || '{}',               // 额外请求体以 JSON 文本编辑
     models: (provider.models || []).map(model => {
       const id = typeof model === 'string' ? model : model.id || model.name
       const settings = provider.modelSettings?.[id] || {}
@@ -106,7 +218,6 @@ function open() {
   initialBackendDraft = backendSnapshot(store.settings.draft)
 }
 
-
 // --- 保存设置：关闭时保存整份，输入变化时自动保存但保留草稿 ---
 let lastAutoSaveError = ''
 
@@ -119,44 +230,7 @@ function persist(options = {}) {
 }
 
 // --- 供应商：把设置页的数组转回后端认的对象，并保留没改过的上游字段 ---
-function providerPayload(draft) {
-  return (draft.providers || []).map(provider => {
-    // 改名后还要能找到原来的那一份，才能保留密钥、请求头和模型设置。
-    const original = (store.config.raw?.providers || []).find(item => item.name === (provider.sourceName || provider.name))
-    const modelSettings = { ...(original?.modelSettings || {}) }        // 每个模型的上下文窗口单独存
-    const models = (provider.models || []).map(model => {
-      const id = typeof model === 'string' ? model : model.id || model.name
-      const context = Number(model?.context)
-      if (context > 0) modelSettings[id] = { ...modelSettings[id], context }
-      else if (modelSettings[id]) {
-        // 清空上下文窗口时只删这两个键，其他模型设置不动。
-        const next = { ...modelSettings[id] }
-        delete next.context
-        delete next.contextWindow
-        if (Object.keys(next).length) modelSettings[id] = next
-        else delete modelSettings[id]
-      }
-      const name = String(model?.name || id).trim() || id
-      const capabilities = Array.isArray(model?.capabilities) && model.capabilities.length ? [...model.capabilities] : ['文本', '工具']
-      // 只改了默认值时仍存成字符串，保持旧配置格式，也避免无意义的对象膨胀。
-      if (name === id && capabilities.length === 2 && capabilities[0] === '文本' && capabilities[1] === '工具') return id
-      return { id, name, capabilities }
-    })
-    return {
-      ...original,                                                     // 保留 id、密钥等上游不认识的字段
-      name: provider.name.trim(),
-      baseURL: provider.apiUrl || '',
-      apiKey: provider.apiKey || '',
-      enabled: provider.enabled !== false,
-      protocol: provider.apiType || 'openai-compatible',
-      ...(provider.stream === undefined ? {} : { stream: provider.stream }),
-      headers: objectFromJson(provider.headers, '自定义请求头'),
-      body: objectFromJson(provider.body, '额外请求体'),
-      models,
-      ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
-    }
-  })
-}
+
 
 // --- 工具开关写回 permission；只写用户真的改过的那几个，对象规则里的参数模式保留 ---
 function permissionPayload(draft) {
@@ -195,7 +269,7 @@ function mcpPayload(draft) {
 function configPayload(draft) {
   return {
     ...JSON.parse(JSON.stringify(store.config.raw || {})),
-    providers: providerPayload(draft),
+    providers: Provider.payload(draft),
     mcp: mcpPayload(draft),
     permission: permissionPayload(draft),
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
@@ -218,7 +292,7 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
   try {
     if (backendSnapshot(draft) === initialBackendDraft) {
       store.config.appearance = isolateDraft(draft.appearance)
-      persistAppearance(draft.appearance)
+      Appearance.save(draft.appearance)
       store.settings.savedAt = Date.now()
       lastAutoSaveError = ''
       if (!keepDraft) store.settings.draft = null
@@ -230,8 +304,8 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     if (mcpNames.some(name => !name) || new Set(mcpNames).size !== mcpNames.length) throw new Error('MCP 服务名称不能为空或重复')
     await AgentAPI.updateConfig(configPayload(draft))
     store.config.appearance = isolateDraft(draft.appearance)
-    persistAppearance(draft.appearance)
-    if (!await Config.load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
+    Appearance.save(draft.appearance)
+    if (!await load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
     // 改名已经落盘；草稿里的来源名也跟上，下一次自动保存才不会按旧名字找丢请求头和模型设置。
     for (const provider of draft.providers || []) provider.sourceName = provider.name.trim()
     store.settings.savedAt = Date.now()
@@ -257,47 +331,14 @@ async function autoSave() {
   return persist({ keepDraft: true, silent: true })
 }
 
-
 // --- 外观偏好持久化到 localStorage ---
-const appearanceKey = 'agent.appearance'
 
-function persistAppearance(appearance) {
-  try {
-    localStorage.setItem(appearanceKey, JSON.stringify(appearance))
-  } catch { /* localStorage 不可用时静默忽略 */ }
-}
+
+
 
 
 // --- 获取可添加模型目录 ---
-async function fetchModels(provider, currentModels = []) {
-  const baseURL = provider?.apiUrl?.trim().replace(/\/+$/, '')
-  if (!baseURL) {
-    Notice.show('请先填写请求地址（API）')
-    return currentModels.map(model => ({ ...model }))
-  }
 
-  try {
-    const response = await fetch(`/openai-proxy/models?baseURL=${encodeURIComponent(baseURL)}`, {
-      headers: {
-        accept: 'application/json',
-        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
-      },
-    })
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(payload.error?.message || payload.error || `获取模型失败: ${response.status}`)
-
-    const source = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : []
-    const discovered = source
-      .map(model => typeof model === 'string' ? model : model.id || model.name)
-      .filter(Boolean)
-      .map(id => ({ id, name: id, capabilities: ['文本', '工具'] }))
-    if (!discovered.length) throw new Error('接口未返回可用模型')
-    return discovered
-  } catch (error) {
-    Notice.show(error.message)
-    return currentModels.map(model => ({ ...model }))
-  }
-}
 
 
 async function replaceDraftAndSave(snapshot) {
@@ -305,43 +346,4 @@ async function replaceDraftAndSave(snapshot) {
   return save()
 }
 
-
-// --- 获取远程模型并与已有模型合并去重 ---
-async function discoverModels(provider, currentModels = []) {
-  const discovered = await fetchModels(provider, currentModels)
-  const merged = new Map()
-  for (const model of currentModels) merged.set(model.id, model)
-  for (const model of discovered) merged.set(model.id, model)
-  return [...merged.values()]
-}
-
-
-// --- 切换模型的添加/移除状态 ---
-function toggleModelInList(models, model) {
-  const exists = models.some(item => item.id === model.id)
-  if (exists) return models.filter(item => item.id !== model.id)
-  return [...models, { ...model }]
-}
-
-
-// --- 设置里的二级页面：供应商、MCP 服务、工具等 ---
-// 只存一个 id 和标题；具体内容由当前页面从草稿里查，避免复制一份实体数据。
-function openDetail({ id, title = '' } = {}) {
-  if (!id) return
-  store.ui.settingsDetail = { id, title }
-}
-
-function closeDetail() {
-  store.ui.settingsDetail = null
-}
-
-function updateDetailTitle(title) {
-  if (!store.ui.settingsDetail) return
-  store.ui.settingsDetail = { ...store.ui.settingsDetail, title: title || '' }
-}
-
-
-export const Settings = {
-  open, save, autoSave, replaceDraftAndSave, discoverModels, toggleModelInList,
-  openDetail, closeDetail, updateDetailTitle,
-}
+export const Settings = { load, apply, open, save, autoSave, replaceDraftAndSave }
