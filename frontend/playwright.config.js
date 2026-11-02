@@ -2,11 +2,11 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  outputDir: process.env.LA_TEST_OUTPUT_DIR || './test-results/ui-audit',
+  outputDir: process.env.LA_TEST_OUTPUT_DIR || '../tmp/ui-audit',
   timeout: 90_000,
   expect: { timeout: 6_000 },
   workers: 1,
-  reporter: [['line'], ['html', { open: 'never', outputFolder: process.env.LA_TEST_OUTPUT_DIR ? `${process.env.LA_TEST_OUTPUT_DIR}-report` : 'playwright-report' }]],
+  reporter: [['line'], ['html', { open: 'never', outputFolder: process.env.LA_TEST_OUTPUT_DIR ? `${process.env.LA_TEST_OUTPUT_DIR}-report` : '../tmp/ui-report' }]],
   use: {
     baseURL: 'http://127.0.0.1:4174',
     colorScheme: 'dark',

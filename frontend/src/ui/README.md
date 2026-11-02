@@ -1,29 +1,47 @@
-# UI 适配边界
+# 项目自有 UI
 
-页面和业务组件只从 `./index.js` 导入控件，包括 `AppIcon`、`Button`、`Dialog`、`Field`、`IconButton`、`Switch` 和直接转出的 KIMA 组件（例如 `KimaSelect`）。业务文件不直接 import `@kernel4632/kima`；换组件库只改这一层。
+页面只从 `src/ui/index.js` 导入控件。控件的结构、事件与临时状态写在 `ui/*.vue`，外观写在 `styles/ui/*.scss`。两者同名、一一对应，Vue 用外部 `<style scoped lang="scss" src="…">` 关联样式。
 
-这些名字是 KIMA 适配层，不是独立手写控件：
+## 找到要改的地方
 
-- `AppIcon` → `KimaIcon`
-- `Button` → `KimaButton`（`plain` 行按钮保留自定义外壳）
-- `Dialog` → `KimaDialog`
-- `Field` → `KimaTextField` / `KimaTextarea`
-- `IconButton` → `KimaIconButton`
-- `Switch` → `KimaSwitch`
-- `Sheet` → `KimaDrawer`
-- 左侧会话抽屉 `app/AppDrawer.vue` → `KimaDrawer`（left）
-- 会话历史列表 → `KimaList`（`variant="plain"`）；行右侧菜单 → `MenuButton` → `KimaMenu`（`icon-only`）
-- 下拉选择使用 `KimaSelect`，由 `ui/index.js` 统一转出。
-- 提示条 → `KimaNotification`；连接错误 → `KimaAlert`。KIMA 0.9.9 已修好通知样式作用域问题，`app/Toast.vue` 只保留应用自己的位置上移。
-- 附件、建议和会话选项 → `KimaChip`；回退确认里的勾选 → `KimaCheckbox`。
+| 内容 | 文件 |
+| --- | --- |
+| 动作按钮、图标按钮 | `Button.vue`、`IconButton.vue`；按压反馈在 `press.js` |
+| 输入、密码可见、清空 | `Field.vue` |
+| JSON 草稿与完整对象校验 | `JsonInput.vue` |
+| 数字、滑块、开关、勾选 | `NumberField.vue`、`Slider.vue`、`Switch.vue`、`Checkbox.vue` |
+| 单选、多选 | `RadioGroup.vue`、`CheckboxGroup.vue` |
+| 下拉框、菜单、统计弹层 | `Select.vue`、`MenuButton.vue`、`Popover.vue`；顶层定位在 `usePopup.js` |
+| 居中弹窗、侧面抽屉 | `Dialog.vue` 的 `placement="center/left/right"` |
+| 底部选择面板 | `Sheet.vue`：设置 `Dialog` 的底部位置和宽度 |
+| 富文本与代码 | `Markdown.vue`、`CodeBlock.vue`、`SmoothMarkdown.vue` |
+| 颜色、尺寸、动画 | `styles/tokens.scss`；动态颜色计算在 `theme/palette.js` |
 
-颜色、字体、阴影统一来自 KIMA token，映射写在 `styles/tokens.scss`。页面里可以继续写聊天、时间线、工具行这类 KIMA 没有的领域组件，但视觉要使用 `--kima-*`，不要另起一套配色。
+## 使用示例
 
-## 尺寸和样式归属
+```vue
+<script setup>
+import { ref } from 'vue'
+import { Button, Dialog, Field } from '../ui/index.js'
+const open = ref(false)
+const name = ref('')
+</script>
 
-- 控件尺寸由适配层统一：`Field` 64（`size="small"` 48），`Button` 48/56，`IconButton` 48/40。KIMA 控件按自己的尺寸走，页面只控制布局宽度。
-- 页面优先不写 `:deep()` 去改 KIMA 内部元素，也不在页面里给 KIMA 控件设高度。当前例外集中在 `ui/` 适配层的尺寸（`Field`、`Sheet`）、自动批准和模式抽屉的卡片底色与右对齐单选点；每处都在代码旁写了原因。
-- 需要新的尺寸档位时，在适配层增加变体，再让页面使用；不要每个页面各写一套。
-- 设置页统一用 20–24px 圆角卡片、24px 内边距和 16–24px 的分组间距；不做紧凑表格式布局。
+<template>
+  <Button @click="open = true">编辑</Button>
+  <Dialog v-model:open="open" label="编辑名称">
+    <Field v-model="name" label="名称" clearable />
+  </Dialog>
+</template>
+```
 
-发现 KIMA 的问题时提到 `kernel4632/kima`，不要在项目里写覆盖式兼容层；通知样式已由 KIMA 0.9.9 修好，项目里只保留位置覆盖，不再复制组件样式。
+## 行为约定
+
+- 表单控件发出 `update:modelValue`；滑块的 `change` 在松手时提交。JSON 只有完整对象或空文本才发 `change`，未完成输入留在本地。
+- `Dialog` 使用原生模态对话框处理焦点、Tab 循环和焦点归还。始终挂载，让关闭动画有时间完成；Escape 与遮罩发出 `update:open=false`。
+- `Select` 只暴露一个组合框。方向键、Home/End、字符搜索和 Enter 选择均可用。菜单按方向键移动，Escape 关闭并把焦点还给触发按钮。
+- 浮层使用原生 Popover API，避免被滚动区域裁剪。主题写在 `html`，因此顶层弹窗也能继承颜色和减少动画设置。
+- 公共尺寸：Field 64px（small 48px）、动作按钮 56px、图标按钮 48px。页面控制布局，公共控件 SCSS 控制外观。
+- 新组件必须配同名 SCSS，并从 `index.js` 导出；无专属样式的组合组件也保留对应文件作为修改入口。
+
+运行 `bun run test` 检查组件边界与样式对应关系，`bun run test:ui` 验证键盘、弹层、设置和聊天流程，`bun run build` 验证生产构建。

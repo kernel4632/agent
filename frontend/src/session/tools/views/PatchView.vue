@@ -19,3 +19,5 @@ const paths = computed(() => (Array.isArray(input.value.patches) ? input.value.p
   </div>
   <div v-if="text" class="tool-result">{{ text }}</div>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/PatchView.scss"></style>

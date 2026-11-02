@@ -39,37 +39,4 @@ const open = ref(false)
   </div>
 </template>
 
-<style scoped lang="scss">
-.compaction-notice { display: flex; width: 100%; align-items: center; gap: 10px; padding: 10px 0; color: var(--la-muted); }
-.compaction-notice__line { height: 1px; flex: 1; background: var(--la-line); }
-.compaction-notice__button {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--la-muted);
-  font: inherit;
-  font-size: 11.5px;
-  line-height: 18px;
-  cursor: pointer;
-}
-.compaction-notice__button:hover { color: var(--la-text); background: var(--la-hover); }
-.compaction-notice__caret { transition: transform var(--la-motion-enter) var(--kima-curve-standard); }
-.compaction-notice__caret.is-open { transform: rotate(180deg); }
-.compaction-summary {
-  display: grid;
-  gap: 6px;
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 12px;
-  background: var(--la-layer-01);
-  color: var(--la-muted);
-}
-.compaction-summary strong { color: var(--la-secondary); font-size: 12px; font-weight: 650; }
-.compaction-summary p { max-height: 260px; overflow: auto; margin: 0; font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
-</style>
+<style scoped lang="scss" src="../styles/session/CompactionNotice.scss"></style>

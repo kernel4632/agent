@@ -1,0 +1,8 @@
+/* RadioGroup.vue：大触达范围，选中项用主题表面和勾号标记。 */
+.ui-radio-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ui-radio-group.is-horizontal { flex-direction: row; flex-wrap: wrap; }
+.ui-radio-group__item { display: flex; min-height: 64px; padding: 12px; border-radius: 14px; align-items: center; gap: 12px; font-size: 18px; font-weight: 600; cursor: pointer; }
+.ui-radio-group__item input { appearance: none; width: 24px; height: 24px; margin: 0; border: 2px solid var(--la-secondary); border-radius: 50%; background: transparent; flex-shrink: 0; cursor: inherit; }
+.ui-radio-group__item input:checked { border: 7px solid var(--la-accent); background: var(--la-on-accent); }
+.ui-radio-group__item:has(:checked) { background: var(--la-accent-soft); color: var(--la-accent); }
+.ui-radio-group__item:has(:disabled) { opacity: .5; cursor: not-allowed; }

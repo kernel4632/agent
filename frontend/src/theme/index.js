@@ -5,11 +5,11 @@
 */
 
 // --- 图标线条粗细 ---
-// 所有 AppIcon 都从这里取线宽。KimaIcon 会把它当成屏幕上的绝对像素，
+// 所有 AppIcon 都从这里取线宽。SVG 使用不随尺寸缩放的屏幕像素，
 // 所以 18px 的小图标用 1.5px 正好；2px 会显得又黑又重。
 export const ICON_STROKE_WIDTH = 1.5
 
-// --- M3E ThemeElement 的完整可配置面 ---
+// --- 外观偏好；主题色计算在 palette.js，页面只传这份设置 ---
 export const DEFAULT_APPEARANCE = Object.freeze({
   theme: 'light',
   color: '#3b5cf6',

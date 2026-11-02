@@ -1,0 +1,7 @@
+/* CodeBlock.vue：代码可横向滚动，不撑宽消息。 */
+.ui-code-block { max-width: 100%; margin: 12px 0; overflow: hidden; border: 1px solid var(--la-line); border-radius: 14px; background: var(--la-layer-02); }
+.ui-code-block figcaption { display: flex; align-items: center; justify-content: space-between; padding: 4px 16px; border-bottom: 1px solid var(--la-line); color: var(--la-secondary); font-size: 12px; }
+.ui-code-block figcaption :deep(button) { min-height: 36px; padding: 0 12px; }
+.ui-code-block__body { display: flex; overflow: auto; max-height: 500px; }
+.ui-code-block pre { flex: 1; margin: 0; padding: 16px; background: transparent; white-space: pre; font: 13px/1.7 var(--la-font-mono); }
+.ui-code-block .ui-code-block__numbers { flex: 0; padding-right: 0; color: var(--la-muted); user-select: none; }

@@ -5,11 +5,12 @@
 ## 界面与样式
 
 - `src/styles/tokens.scss`：深浅主题颜色、侧栏和聊天区尺寸变量，微调视觉优先从这里开始。
-- `src/styles/base.scss`：页面重置、按钮、输入框、头像、开关和对话框等通用控件。
-- 各 Vue 文件的 `style scoped lang="scss"`：组件布局、状态及移动端断点。
-- 基础控件来自 KIMA；`src/ui/` 只做业务适配，不直接改 KIMA 内部样式；不使用 Tailwind。
+- `src/styles/base.scss`：页面重置、全局焦点与减少动画规则。
+- `src/styles/` 镜像组件目录：例如 `src/ui/Button.vue` 对应 `src/styles/ui/Button.scss`。每个 Vue 文件通过 `<style src>` 引入唯一的同名样式文件，不内嵌样式正文。
+- `src/ui/` 是项目自有控件，由 Vue 和原生 HTML 实现；页面统一从 `src/ui/index.js` 导入。按钮、输入、弹层和选择控件不依赖第三方 UI 组件库。
+- `src/theme/palette.js` 使用 Material Color Utilities 的纯色彩算法生成颜色。Hugeicons 只提供图标，Markdown 相关依赖只负责内容解析和高亮。
 
-设计依据为公开 Figma 预览图中可确认的页面组成。画布访问返回 403，因此未取得完整节点尺寸和原始背景、头像素材；当前使用纯深蓝聊天背景及本地图标头像。
+当前外观延续迁移前的圆角表面、深浅主题和交互节奏。具体控件约定见 [UI 组件说明](src/ui/README.md)。
 
 ## 开发
 

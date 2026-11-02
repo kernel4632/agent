@@ -1,0 +1,62 @@
+.command-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 16px 16px;
+  background: var(--la-scrim);
+}
+.command-palette__panel {
+  display: flex;
+  width: min(680px, 100%);
+  max-height: min(560px, 72vh);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--la-layer-01);
+  box-shadow: var(--la-shadow-overlay);
+}
+.command-palette__input {
+  height: 64px;
+  flex: none;
+  padding: 0 20px;
+  border: 0;
+  border-bottom: .5px solid var(--la-line);
+  outline: 0;
+  background: transparent;
+  color: var(--la-text);
+  font: 16px/24px var(--la-font-sans);
+}
+.command-palette__input::placeholder { color: var(--la-muted); }
+.command-palette__list { min-height: 0; overflow-y: auto; padding: 8px; }
+.command-palette__item {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--la-text);
+  text-align: left;
+  font-size: 15px;
+  cursor: pointer;
+}
+.command-palette__item:hover, .command-palette__item.is-active { background: var(--la-layer-03); }
+/* 窄屏或长标题时先截断名称，右侧提示最多占一半，不能把行撑出面板。 */
+.command-palette__item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.command-palette__item small { max-width: 50%; flex: 0 1 auto; overflow: hidden; color: var(--la-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.command-palette__empty { margin: 0; padding: 24px 14px; color: var(--la-muted); font-size: 14px; }
+.palette-enter-active, .palette-leave-active { transition: opacity .18s ease; }
+.palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition: transform var(--ui-duration-medium) var(--ui-curve-standard), opacity var(--ui-duration-effects) var(--ui-curve-standard); }
+.palette-enter-from, .palette-leave-to { opacity: 0; }
+.palette-enter-from .command-palette__panel, .palette-leave-to .command-palette__panel { opacity: 0; transform: translateY(-10px) scale(.98); }
+@media (prefers-reduced-motion: reduce) {
+  .palette-enter-active, .palette-leave-active,
+  .palette-enter-active .command-palette__panel, .palette-leave-active .command-palette__panel { transition-duration: .01ms; }
+}

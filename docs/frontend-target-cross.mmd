@@ -1,0 +1,34 @@
+%%{init: {"theme":"base","htmlLabels":false,"themeVariables":{"darkMode":true,"background":"#0d0f16","fontFamily":"system-ui, Microsoft YaHei, sans-serif","fontSize":"16px","primaryColor":"#241e34","primaryTextColor":"#f8fafc","primaryBorderColor":"#bfaad9","lineColor":"#b8b5cf","clusterBkg":"#171520","clusterBorder":"#66576f","edgeLabelBackground":"#171520"},"flowchart":{"htmlLabels":false,"curve":"linear","nodeSpacing":32,"rankSpacing":52}}}%%
+flowchart TB
+session["session.js<br/>会话管理"]:::dir_commands
+chat["chat.js<br/>消息收发"]:::dir_commands
+history["history.js<br/>历史与回退"]:::dir_commands
+settings["settings.js<br/>设置读写"]:::dir_commands
+provider["provider.js<br/>供应商与模型目录"]:::dir_commands
+appearance["appearance.js<br/>外观偏好"]:::dir_commands
+attachment["attachment.js<br/>附件管理"]:::dir_commands
+tool["tool.js<br/>工具与任务信息"]:::dir_commands
+stats["stats.js<br/>用量统计"]:::dir_commands
+navigation["navigation.js<br/>页面导航"]:::dir_commands
+notice["notice.js<br/>操作反馈"]:::dir_commands
+navigation --> settings
+navigation --> session
+chat --> session
+chat --> history
+chat --> attachment
+chat --> tool
+chat --> stats
+session --> history
+settings --> provider
+settings --> appearance
+settings --> tool
+history --> tool
+history --> stats
+notice ~~~ appearance
+classDef dir_root fill:#241e34,stroke:#d8b4fe,color:#f8fafc
+classDef dir_commands fill:#241e34,stroke:#93c5fd,color:#f8fafc
+classDef dir_views fill:#241e34,stroke:#f9a8d4,color:#f8fafc
+classDef dir_components fill:#241e34,stroke:#d6b5f2,color:#f8fafc
+classDef dir_ui fill:#241e34,stroke:#b8bdfa,color:#f8fafc
+classDef dir_utils fill:#241e34,stroke:#a8bada,color:#f8fafc
+classDef dir_styles fill:#241e34,stroke:#c3a9d3,color:#f8fafc

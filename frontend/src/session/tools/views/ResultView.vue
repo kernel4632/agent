@@ -4,7 +4,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { uiFor } from '../../tool-ui.js'
+import { uiFor } from '../../../commands/tool.js'
 import { useToolContent } from '../use-tool-content.js'
 
 const props = defineProps({ tool: { type: Object, required: true } })
@@ -16,3 +16,5 @@ const content = computed(() => text.value || input.value.question || input.value
 <template>
   <div class="tool-result" :class="{ 'is-question': question }">{{ content }}</div>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/ResultView.scss"></style>

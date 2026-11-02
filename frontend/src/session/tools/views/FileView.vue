@@ -13,3 +13,5 @@ const { text } = useToolContent(props)
   <pre v-if="text" class="tool-output" :class="{ 'is-error': tool.status === 'error' || tool.status === 'rejected' }">{{ text }}</pre>
   <p v-else class="tool-empty">暂无输出</p>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/FileView.scss"></style>

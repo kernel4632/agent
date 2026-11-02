@@ -6,11 +6,13 @@
 调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" @rollback="..." @fork="..." />
 -->
 <script setup>
+import { Notice } from '../commands/notice.js'
+import { copyText } from '../utils/clipboard.js'
+
 import { computed, ref } from 'vue'
-import { AppIcon, KimaMarkdown, SmoothMarkdown } from '../ui/index.js'
-import { UI } from '../app/ui.js'
+import { AppIcon, Markdown, SmoothMarkdown } from '../ui/index.js'
 import { useSmoothText } from '../utils/smooth-text.js'
-import { outputText } from './tool-ui.js'
+import { outputText } from '../commands/tool.js'
 import { isFinishedStopTool } from './stop-tools.js'
 import { isSavedMessage } from './continue.js'
 import MessageActionTarget from './MessageActionTarget.vue'
@@ -104,10 +106,13 @@ const menuItems = computed(() => {
 })
 
 function onMenu(action) {
-  if (action === 'copy') UI.copy(content.value)
+  if (action === 'copy') copyMessage(content.value)
   else if (action === 'rollback') emit('rollback', rollbackTarget.value)
   else if (action === 'fork') emit('fork', forkTarget.value)
 }
+
+// 复制只在本区域反馈，剪贴板工具不依赖页面。
+async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
 </script>
 
 <template>
@@ -146,7 +151,7 @@ function onMenu(action) {
       </div>
 
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }">
-        <KimaMarkdown :content="bubbleContent" />
+        <Markdown :content="bubbleContent" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>
@@ -159,3 +164,5 @@ function onMenu(action) {
     </MessageActionTarget>
   </div>
 </template>
+
+<style scoped lang="scss" src="../styles/session/AssistantTurn.scss"></style>

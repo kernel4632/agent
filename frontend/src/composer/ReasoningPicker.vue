@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaSlider } from '../ui/index.js'
+import { Slider } from '../ui/index.js'
 import { AppIcon, Button, Sheet } from '../ui/index.js'
 import { REASONING_LEVELS, reasoningIndex } from './reasoning.js'
 
@@ -62,7 +62,7 @@ function setLevel(value) {
 
       <div class="reasoning-scale">
         <div class="reasoning-scale__ends"><span>更快</span><span>更聪明</span></div>
-        <KimaSlider
+        <Slider
           v-model="index"
           :min="0"
           :max="REASONING_LEVELS.length - 1"
@@ -90,72 +90,4 @@ function setLevel(value) {
   </Sheet>
 </template>
 
-<style scoped lang="scss">
-.reasoning-option {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  flex: none;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--la-muted);
-  cursor: pointer;
-}
-.reasoning-option:hover:not(:disabled) { background: var(--la-hover); color: var(--la-text); }
-.reasoning-option.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
-.reasoning-option.is-off { opacity: .62; }
-.reasoning-option:disabled { opacity: .38; cursor: default; }
-
-.reasoning-sheet { display: grid; gap: 18px; padding-bottom: 8px; }
-.reasoning-sheet__intro { margin: 0; color: var(--la-muted); font-size: 13.5px; line-height: 21px; }
-.reasoning-hero {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 20px;
-  background: var(--la-accent-soft);
-  color: var(--la-text);
-}
-.reasoning-hero.is-off { background: var(--la-layer-02); }
-.reasoning-hero__icon {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  flex: none;
-  place-items: center;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--la-accent) 18%, transparent);
-  color: var(--la-accent);
-}
-.reasoning-hero.is-off .reasoning-hero__icon { background: var(--la-layer-03); color: var(--la-muted); }
-.reasoning-hero strong { display: block; font-size: 18px; font-weight: 600; line-height: 26px; }
-.reasoning-hero p { margin: 2px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.reasoning-scale { display: grid; gap: 6px; }
-.reasoning-scale__ends { display: flex; justify-content: space-between; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.reasoning-scale__ticks { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
-.reasoning-tick {
-  min-width: 0;
-  min-height: 32px;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--la-muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.reasoning-tick:hover { background: var(--la-hover); color: var(--la-text); }
-.reasoning-tick.is-active { color: var(--la-accent); background: var(--la-accent-soft); font-weight: 600; }
-.reasoning-sheet__note { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 19px; }
-@media (max-width: 767px) {
-  .reasoning-option { width: 44px; height: 44px; }
-  .reasoning-tick { font-size: 11px; }
-}
-@media (max-width: 360px) {
-  .reasoning-option { width: 40px; height: 40px; }
-}
-</style>
+<style scoped lang="scss" src="../styles/composer/ReasoningPicker.scss"></style>

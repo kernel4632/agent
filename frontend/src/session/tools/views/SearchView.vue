@@ -17,3 +17,5 @@ const { input, text } = useToolContent(props)
   <pre v-if="text" class="tool-output">{{ text }}</pre>
   <p v-else class="tool-empty">没有匹配结果</p>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/SearchView.scss"></style>

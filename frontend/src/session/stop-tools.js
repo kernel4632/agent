@@ -5,7 +5,7 @@
  *   isFinishedStopTool(tool)      // true 时结果直接成为助手回复
  *   hasStopTool(turn.messages)    // false 时时间线提供“继续助手”
  */
-import { canonicalToolName, outputText, toolStatus } from './tool-ui.js'
+import { canonicalToolName, outputText, toolStatus } from '../commands/tool.js'
 
 export const STOP_TOOLS = new Set(['attempt_completion', 'ask_followup_question'])
 

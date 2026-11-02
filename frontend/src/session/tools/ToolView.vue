@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { uiFor } from '../tool-ui.js'
+import { uiFor } from '../../commands/tool.js'
 import ToolActions from './ToolActions.vue'
 import TodoView from './views/TodoView.vue'
 import CommandView from './views/CommandView.vue'
@@ -18,7 +18,7 @@ import SubtaskView from './views/SubtaskView.vue'
 import PatchView from './views/PatchView.vue'
 import FileView from './views/FileView.vue'
 import GenericView from './views/GenericView.vue'
-import './tool-views.scss'
+
 
 const props = defineProps({ tool: { type: Object, required: true } })
 
@@ -46,3 +46,5 @@ const view = computed(() => views[uiFor(props.tool.name).view] || GenericView)
     <ToolActions :tool="tool" />
   </div>
 </template>
+
+<style lang="scss" src="../../styles/session/tools/ToolView.scss"></style>

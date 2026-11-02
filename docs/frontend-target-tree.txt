@@ -1,0 +1,169 @@
+frontend/src/
+├── commands/
+│   ├── appearance.js
+│   ├── attachment.js
+│   ├── chat.js
+│   ├── history.js
+│   ├── navigation.js
+│   ├── notice.js
+│   ├── provider.js
+│   ├── session.js
+│   ├── settings.js
+│   ├── stats.js
+│   └── tool.js
+├── components/
+│   ├── results/
+│   │   ├── CommandView.vue
+│   │   ├── EditView.vue
+│   │   ├── FileListView.vue
+│   │   ├── FileView.vue
+│   │   ├── GenericView.vue
+│   │   ├── PatchView.vue
+│   │   ├── ResultView.vue
+│   │   ├── SearchView.vue
+│   │   ├── SubtaskView.vue
+│   │   ├── TodoView.vue
+│   │   └── WebView.vue
+│   ├── AdvancedSettings.vue
+│   ├── AgentPicker.vue
+│   ├── AgentSettings.vue
+│   ├── AppearanceSettings.vue
+│   ├── AssistantTurn.vue
+│   ├── CommandPalette.vue
+│   ├── CompactionNotice.vue
+│   ├── Composer.vue
+│   ├── ConnectionError.vue
+│   ├── ContextSettings.vue
+│   ├── MCPEditor.vue
+│   ├── MCPList.vue
+│   ├── MessageActions.vue
+│   ├── ModelPicker.vue
+│   ├── ModelSettings.vue
+│   ├── PromptSettings.vue
+│   ├── ProviderEditor.vue
+│   ├── ProviderList.vue
+│   ├── ProviderModels.vue
+│   ├── ReasoningPicker.vue
+│   ├── ReasoningStep.vue
+│   ├── RequestStatus.vue
+│   ├── RollbackDialog.vue
+│   ├── SessionList.vue
+│   ├── Sidebar.vue
+│   ├── StatsPanel.vue
+│   ├── TaskPanel.vue
+│   ├── Timeline.vue
+│   ├── Toast.vue
+│   ├── ToolCall.vue
+│   ├── ToolResult.vue
+│   ├── ToolsSettings.vue
+│   └── TopBar.vue
+├── styles/
+│   ├── components/
+│   │   ├── results/
+│   │   │   ├── CommandView.scss
+│   │   │   ├── EditView.scss
+│   │   │   ├── FileListView.scss
+│   │   │   ├── FileView.scss
+│   │   │   ├── GenericView.scss
+│   │   │   ├── PatchView.scss
+│   │   │   ├── ResultView.scss
+│   │   │   ├── SearchView.scss
+│   │   │   ├── SubtaskView.scss
+│   │   │   ├── TodoView.scss
+│   │   │   └── WebView.scss
+│   │   ├── AdvancedSettings.scss
+│   │   ├── AgentPicker.scss
+│   │   ├── AgentSettings.scss
+│   │   ├── AppearanceSettings.scss
+│   │   ├── AssistantTurn.scss
+│   │   ├── CommandPalette.scss
+│   │   ├── CompactionNotice.scss
+│   │   ├── Composer.scss
+│   │   ├── ConnectionError.scss
+│   │   ├── ContextSettings.scss
+│   │   ├── MCPEditor.scss
+│   │   ├── MCPList.scss
+│   │   ├── MessageActions.scss
+│   │   ├── ModelPicker.scss
+│   │   ├── ModelSettings.scss
+│   │   ├── PromptSettings.scss
+│   │   ├── ProviderEditor.scss
+│   │   ├── ProviderList.scss
+│   │   ├── ProviderModels.scss
+│   │   ├── ReasoningPicker.scss
+│   │   ├── ReasoningStep.scss
+│   │   ├── RequestStatus.scss
+│   │   ├── RollbackDialog.scss
+│   │   ├── SessionList.scss
+│   │   ├── Sidebar.scss
+│   │   ├── StatsPanel.scss
+│   │   ├── TaskPanel.scss
+│   │   ├── Timeline.scss
+│   │   ├── Toast.scss
+│   │   ├── ToolCall.scss
+│   │   ├── ToolResult.scss
+│   │   ├── ToolsSettings.scss
+│   │   └── TopBar.scss
+│   ├── ui/
+│   │   ├── Button.scss
+│   │   ├── Checkbox.scss
+│   │   ├── Chip.scss
+│   │   ├── ChoiceContent.scss
+│   │   ├── CodeBlock.scss
+│   │   ├── Dialog.scss
+│   │   ├── Field.scss
+│   │   ├── Icon.scss
+│   │   ├── JsonInput.scss
+│   │   ├── Markdown.scss
+│   │   ├── Menu.scss
+│   │   ├── ModelIcon.scss
+│   │   ├── RadioGroup.scss
+│   │   ├── RingProgress.scss
+│   │   ├── Select.scss
+│   │   ├── Switch.scss
+│   │   └── Tabs.scss
+│   ├── views/
+│   │   ├── ChatView.scss
+│   │   └── SettingsView.scss
+│   ├── App.scss
+│   ├── base.scss
+│   ├── mixins.scss
+│   └── tokens.scss
+├── ui/
+│   ├── Button.vue
+│   ├── Checkbox.vue
+│   ├── Chip.vue
+│   ├── ChoiceContent.vue
+│   ├── CodeBlock.vue
+│   ├── Dialog.vue
+│   ├── Field.vue
+│   ├── Icon.vue
+│   ├── index.js
+│   ├── JsonInput.vue
+│   ├── Markdown.vue
+│   ├── Menu.vue
+│   ├── model-icon-assets.js
+│   ├── model-icon.js
+│   ├── ModelIcon.vue
+│   ├── RadioGroup.vue
+│   ├── RingProgress.vue
+│   ├── Select.vue
+│   ├── Switch.vue
+│   └── Tabs.vue
+├── utils/
+│   ├── api.js
+│   ├── avatar.js
+│   ├── clipboard.js
+│   ├── i18n.js
+│   ├── markdown.js
+│   ├── popup.js
+│   ├── press.js
+│   ├── smooth-text.js
+│   └── sse.js
+├── views/
+│   ├── ChatView.vue
+│   ├── pages.js
+│   └── SettingsView.vue
+├── App.vue
+├── main.js
+└── store.js

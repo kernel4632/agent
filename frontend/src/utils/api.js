@@ -1,0 +1,89 @@
+/*
+Agent HTTP 指令集：集中声明前端使用的正式 Server API 契约。
+普通请求统一解析 JSON；会话事件保留原始 Response 交给 SSE 工具按顺序读取。
+调用示例：await AgentAPI.getConfig()、await AgentAPI.sendMessage(sessionID, content)。
+*/
+import { NEW_SESSION_TITLE } from '../defaults.js'
+
+const apiRoot = '/api'                                  // Vite 开发和预览服务转发的同源前缀
+
+
+// --- 发送普通 JSON 请求 ---
+async function request(path, method = 'GET', body) {
+  const response = await fetch(`${apiRoot}${path}`, {   // 向真实 Agent Server 发起 HTTP 请求
+    method,                                             // 使用业务动作指定方法
+    credentials: 'include',                             // 保留同源凭据；当前后端没有登录鉴权接口
+    headers: body === undefined ? undefined : { 'content-type': 'application/json' }, // 有请求体时声明 JSON
+    body: body === undefined ? undefined : JSON.stringify(body), // 将结构化数据编码为请求正文
+  })
+  const data = await response.json().catch(() => ({ error: `服务暂不可用 (${response.status})，请检查后端连接` }))
+  if (!response.ok) {
+    const error = new Error(data.error ?? `请求失败: ${response.status}`) // 将 HTTP 失败转换为可展示异常
+    error.status = response.status                      // 保留状态码供冲突场景处理
+    error.data = data                                   // 保留业务字段供界面反馈
+    throw error
+  }
+  return data                                           // 返回对应指令的业务结果
+}
+
+
+// --- 建立会话事件订阅 ---
+function subscribeSession(sessionID, signal) {
+  return fetch(`${apiRoot}/sse/connect/${encodeURIComponent(sessionID)}`, {
+    signal,
+    headers: { accept: 'text/event-stream' },
+    credentials: 'include',                             // 与普通请求采用相同凭据策略
+  })
+}
+
+
+export const AgentAPI = {
+  getHealth:        ()                          => request('/health'),
+  // 用户自定义的斜杠命令；旧后端没有这个接口时由调用方兜底。
+  getCommands:      ()                          => request('/command/list'),
+  // 全部工具和当前权限，设置页画开关用。
+  getTools:         ()                          => request('/tool/list'),
+  // 工具类别；名字和顺序由后端给。
+  getToolKinds:     ()                          => request('/tool/kinds'),
+  // 内置和自定义智能体的完整定义；旧后端没有这个接口时由调用方兜底。
+  getAgents:        ()                          => request('/agent/list'),
+  getWorkspace:     ()                          => request('/workspace/read'),
+  getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  createSession:    async (workspaceID, provider, model) => {
+    const body = { title: NEW_SESSION_TITLE, provider, model, ...(workspaceID ? { workspaceId: workspaceID } : {}) }
+    const { sessionId } = await request('/session/create', 'POST', body)
+    return request(`/session/read/${encodeURIComponent(sessionId)}`)
+  },
+  // 从现有会话分出一个新分支；可以只复制到某条消息。
+  forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
+  getSession:       (sessionID)                 => request(`/session/read/${encodeURIComponent(sessionID)}`),
+  renameSession:    (sessionID, title)          => request(`/session/rename/${encodeURIComponent(sessionID)}`, 'PATCH', { title }),
+  // 已有会话切换模型；任务运行中后端返回 409。
+  setSessionModel:  (sessionID, provider, model) => request(`/session/model/${encodeURIComponent(sessionID)}`, 'PATCH', { provider, model }),
+  removeSession:    (sessionID)                 => request(`/session/remove/${encodeURIComponent(sessionID)}`, 'DELETE'),
+  sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
+  // 继续被中断的助手回复；内部提示不会作为用户消息保存。
+  resumeSession:    (sessionID)                 => request(`/agent/resume/${encodeURIComponent(sessionID)}`, 'POST'),
+  // 停止时可以带上已经流出的半段回复，Server 先保存再停，刷新后不会丢正文。
+  stopSession:      (sessionID, partial)        => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST', partial ? { partial } : undefined),
+  subscribeSession,
+  // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。
+  decideTool:       (sessionID, toolCallId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, decision }),
+  getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
+  // 会话运行设置：思考强度。
+  getSettings:      (sessionID)                 => request(`/session/settings/${encodeURIComponent(sessionID)}`),
+  saveSettings:     (sessionID, change)         => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', change),
+  // 每次改过文件的工具调用；回退可以退到其中任意一次之前。
+  getToolCalls:     (sessionID)                 => request(`/session/tools/${encodeURIComponent(sessionID)}`),
+  // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
+  previewRollback:  (sessionID, messageId)      => request(`/session/rollback/preview/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
+  rollback:         (sessionID, messageId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files }),
+  // 工具级回退：只退这一次工具调用改的文件，对话不动。
+  rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/tool/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
+  redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
+  getConfig:        ()                          => request('/config/read'),
+  getConfigMeta:    ()                          => request('/config/meta'),
+  updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
+  // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
+  testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),
+}

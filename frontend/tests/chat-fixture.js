@@ -278,10 +278,10 @@ export async function backend(page, { configured = true } = {}) {
 export async function openDrawer(page) {
   const menu = page.getByRole('button', { name: '打开会话抽屉', exact: true })
   const drawer = page.locator('.app-drawer')
-  // KIMA 关闭时还会短暂保留 open 属性和 leaving 类名；等它真正离场，
+  // 自有 关闭时还会短暂保留 open 属性和 leaving 类名；等它真正离场，
   // 否则会把“正在关闭”误判成已打开，接着点到一个不可见的会话行。
-  const closing = await drawer.evaluate(element => element.classList.contains('kima-drawer--leaving')).catch(() => false)
-  if (closing) await expect(drawer).not.toHaveClass(/kima-drawer--leaving/)
+  const closing = await drawer.evaluate(element => element.classList.contains('ui-drawer--leaving')).catch(() => false)
+  if (closing) await expect(drawer).not.toHaveClass(/ui-drawer--leaving/)
   const dialog = page.getByRole('dialog', { name: '项目与会话' })
   if (await menu.isVisible() && !await dialog.isVisible()) await menu.click()
   await expect(dialog).toBeVisible()

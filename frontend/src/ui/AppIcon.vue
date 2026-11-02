@@ -4,7 +4,7 @@
 调用示例：<AppIcon name="settings" />、<AppIcon name="info" :size="16" />
 -->
 <script setup>
-import { KimaIcon } from '@kernel4632/kima'
+import { HugeiconsIcon } from '@hugeicons/vue'
 import { ICON_STROKE_WIDTH } from '../theme/index.js'
 import {
   Add01Icon,
@@ -132,5 +132,7 @@ const icons = {
 </script>
 
 <template>
-  <KimaIcon :icon="icons[name] || SparklesIcon" :size="Number(size)" :stroke-width="ICON_STROKE_WIDTH" />
+  <HugeiconsIcon class="ui-icon" :icon="icons[name] || SparklesIcon" :size="Number(size)" :stroke-width="ICON_STROKE_WIDTH" aria-hidden="true" />
 </template>
+
+<style scoped lang="scss" src="../styles/ui/AppIcon.scss"></style>

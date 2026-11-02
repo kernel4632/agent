@@ -24,8 +24,4 @@ const dimension = computed(() => `${Number(props.size) || 20}px`)
   </span>
 </template>
 
-<style scoped lang="scss">
-.model-icon { display: inline-grid; flex: none; place-items: center; color: currentColor; }
-.model-icon__art { display: block; width: 100%; height: 100%; }
-.model-icon__art :deep(svg) { display: block; width: 100% !important; height: 100% !important; }
-</style>
+<style scoped lang="scss" src="../styles/ui/ModelIcon.scss"></style>

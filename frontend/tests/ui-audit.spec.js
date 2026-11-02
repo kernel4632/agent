@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 import { backend, navigate, openDrawer } from './chat-fixture.js'
 
 async function screenshot(page, testInfo, name) {
-  const layout = await page.evaluate(() => ['html', 'body', 'm3e-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
+  const layout = await page.evaluate(() => ['html', 'body', '.app-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
     const element = document.querySelector(selector)
     if (!element) return null
     const box = element.getBoundingClientRect()
@@ -90,9 +90,9 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   await openDrawer(page)
   const created = page.locator('.home-session').filter({ hasText: '一个新的项目' })
   await created.hover()
-  await created.locator('.home-session__menu button').click()
+  await created.getByRole('button', { name: /更多操作/ }).click()
   await screenshot(page, testInfo, 'session-menu')
-  await page.getByRole('menuitemradio', { name: '重命名', exact: true }).click()
+  await page.getByRole('menuitem', { name: '重命名', exact: true }).click()
   await page.getByRole('textbox', { name: '会话标题' }).fill('我的计划')
   await page.getByRole('button', { name: '保存', exact: true }).click()
   await page.reload()
@@ -100,13 +100,13 @@ test('real contract: create, stream, rename, persistence, rollback and delete', 
   const renamed = page.locator('.home-session').filter({ hasText: '我的计划' })
   await expect(renamed).toBeVisible()
   await renamed.hover()
-  await renamed.locator('.home-session__menu button').click()
-  await page.getByRole('menuitemradio', { name: '删除', exact: true }).click()
+  await renamed.getByRole('button', { name: /更多操作/ }).click()
+  await page.getByRole('menuitem', { name: '删除', exact: true }).click()
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await expect(page.locator('.home-session')).toHaveCount(1)
   await renamed.hover()
-  await renamed.locator('.home-session__menu button').click()
-  await page.getByRole('menuitemradio', { name: '删除', exact: true }).click()
+  await renamed.getByRole('button', { name: /更多操作/ }).click()
+  await page.getByRole('menuitem', { name: '删除', exact: true }).click()
   await page.getByRole('button', { name: '删除', exact: true }).click()
   await expect(page.locator('.home-session')).toHaveCount(0)
   expect(mock.calls.find(call => call.path === '/session/rollback/preview/session-1').body).toEqual({ messageId: 'user-1' })
@@ -158,16 +158,16 @@ test('settings auto-save preserves uneditable backend configuration and secrets 
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /通用/ }).click()
   await page.getByRole('radio', { name: '浅色', exact: true }).check()
-  await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'light')
-  await expect(page.locator('html')).toHaveAttribute('data-kima-theme', 'light')
+  await expect(page.locator('.app-theme')).toHaveAttribute('data-theme', 'light')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await screenshot(page, testInfo, 'appearance-light')
   await page.getByRole('radio', { name: '深色', exact: true }).check()
-  await expect(page.locator('m3e-theme')).toHaveAttribute('scheme', 'dark')
-  await expect(page.locator('html')).toHaveAttribute('data-kima-theme', 'dark')
+  await expect(page.locator('.app-theme')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await screenshot(page, testInfo, 'appearance')
   const writes = mock.calls.filter(call => call.path === '/config/set').length
   await page.getByRole('switch', { name: '减少界面动画' }).check()
-  await expect(page.locator('m3e-theme')).toHaveAttribute('reduced-motion', '')
+  await expect(page.locator('html')).toHaveAttribute('data-reduced-motion', '')
   await page.waitForTimeout(700)
   expect(mock.calls.filter(call => call.path === '/config/set')).toHaveLength(writes)
   expect(mock.errors).toEqual([])
@@ -335,7 +335,7 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   expect(mock.errors).toEqual([])
 })
 
-test('assistant markdown uses KIMA code blocks and typography', async ({ page }) => {
+test('assistant markdown uses local code blocks and typography', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -348,10 +348,10 @@ test('assistant markdown uses KIMA code blocks and typography', async ({ page })
   ])
 
   const bubble = page.locator('.rikka-bubble--assistant')
-  await expect(bubble.locator('.kima-typography--heading')).toContainText('示例标题')
-  await expect(bubble.locator('.kima-typography--body')).toContainText('加粗')
-  await expect(bubble.locator('.kima-code-block')).toContainText('const answer = 42')
-  await expect(bubble.locator('.kima-code-block').getByRole('button', { name: '复制代码' })).toBeVisible()
+  await expect(bubble.locator('.ui-typography--heading')).toContainText('示例标题')
+  await expect(bubble.locator('.ui-typography--body')).toContainText('加粗')
+  await expect(bubble.locator('.ui-code-block')).toContainText('const answer = 42')
+  await expect(bubble.locator('.ui-code-block').getByRole('button', { name: '复制代码' })).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
@@ -446,7 +446,7 @@ test('reconnecting covers the chat with a status overlay', async ({ page }) => {
   await expect(overlay).toContainText('正在重新连接')
   await expect(overlay).toContainText('和后台的连接暂时断开')
   // 覆盖层要挡住输入区，避免断线时还能继续点。
-  await expect(page.locator('.reconnect-overlay .kima-spinner')).toBeVisible()
+  await expect(page.locator('.reconnect-overlay .ui-spinner')).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
@@ -991,7 +991,7 @@ test('new chat agent applies to the created session', async ({ page }) => {
   expect(mock.errors).toEqual([])
 })
 
-test('KIMA select keeps one combobox, hides the native select and chooses from its listbox', async ({ page }) => {
+test('select keeps one combobox and chooses from its listbox', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '设置')
@@ -999,33 +999,23 @@ test('KIMA select keeps one combobox, hides the native select and chooses from i
   const card = page.locator('.appearance-card')
   await expect(card).toBeVisible()
 
-  // 只暴露一个可访问的组合框；原生 select 退到 1x1 的屏幕阅读器兜底位置。
+  // 只暴露一个可访问的组合框，不再维护第二个隐藏的原生 select。
   const combobox = card.getByRole('combobox')
   await expect(combobox).toHaveCount(1)
   await expect(combobox).toHaveAttribute('aria-label', '强调色')
-  const native = card.locator('select.kima-select__native')
-  await expect(native).toHaveCount(1)
-  const nativeBox = await native.boundingBox()
-  expect(nativeBox.width).toBeLessThanOrEqual(1)
-  expect(nativeBox.height).toBeLessThanOrEqual(1)
-  const nativeStyle = await native.evaluate(element => {
-    const style = getComputedStyle(element)
-    return { position: style.position, clipPath: style.clipPath }
-  })
-  expect(nativeStyle.position).toBe('absolute')
-  expect(nativeStyle.clipPath).toContain('inset')
+  await expect(card.locator('select')).toHaveCount(0)
 
-  // 点击组合框弹出 KIMA 自己的 listbox，而不是浏览器原生下拉。
-  await expect(card.getByRole('listbox')).toHaveCount(0)
+  // 点击组合框打开项目自己的选项列表。
+  await expect(card.getByRole('listbox')).toBeHidden()
   await combobox.click()
   const listbox = card.getByRole('listbox')
   await expect(listbox).toBeVisible()
-  await expect(listbox).toHaveClass(/kima-select__options/)
+  await expect(listbox).toHaveClass(/ui-select__options/)
   await expect(listbox.getByRole('option')).toHaveCount(5)
   await listbox.getByRole('option', { name: '雾蓝', exact: true }).click()
 
   // 选中后值写回草稿，自动保存再落到 localStorage。
-  await expect(listbox).toHaveCount(0)
+  await expect(listbox).toBeHidden()
   await expect(combobox).toContainText('雾蓝')
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('agent.appearance') || '{}').color)).toBe('#8badf4')
   expect(mock.errors).toEqual([])
@@ -1042,17 +1032,17 @@ test('session row menu stays inside the drawer and centers on its row', async ({
 
   const row = page.locator('.home-session').first()
   await expect(row).toBeVisible()
-  const trigger = row.locator('.home-session__menu .kima-menu__trigger')
+  const trigger = row.locator('.home-session__menu .ui-menu__trigger')
   const rowBox = await row.boundingBox()
   const triggerBox = await trigger.boundingBox()
-  // 触发器是 48px 图标按钮（KIMA 的触控目标），要和 48px 会话行同一个垂直中心。
+  // 48px 图标按钮要和会话行保持同一个垂直中心。
   expect(triggerBox.height).toBeLessThanOrEqual(48)
   expect(Math.abs((rowBox.y + rowBox.height / 2) - (triggerBox.y + triggerBox.height / 2))).toBeLessThanOrEqual(2)
 
   await trigger.click()
-  const popup = page.locator('.kima-menu__popup')
+  const popup = page.locator('.ui-menu__popup')
   await expect(popup).toBeVisible()
-  const panelBox = await page.locator('.app-drawer .kima-drawer__panel').boundingBox()
+  const panelBox = await page.locator('.app-drawer .ui-dialog__panel').boundingBox()
   const popupBox = await popup.boundingBox()
   // 弹层贴着行右边缘展开，不能越过抽屉面板，也不能跑出视口。
   expect(popupBox.x).toBeGreaterThanOrEqual(panelBox.x - 1)
@@ -1099,7 +1089,7 @@ test('long attachment names stay on one line in the composer', async ({ page }) 
     buffer: Buffer.from('hello'),
   })
   const chip = page.locator('.chat-composer__file')
-  const text = chip.locator('.kima-chip__text')
+  const text = chip.locator('.ui-chip__text')
   await expect(chip).toBeVisible()
   expect(await text.evaluate(element => getComputedStyle(element).whiteSpace)).toBe('nowrap')
   expect(await chip.evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(44)
@@ -1149,7 +1139,7 @@ test('narrow settings keep controls readable and inside the screen', async ({ pa
   expect(mock.errors).toEqual([])
 })
 
-test.describe('KIMA motion', () => {
+test.describe('control motion', () => {
   test.use({ reducedMotion: 'no-preference' })
 
   test('switch keeps a real thumb transition and moves when toggled', async ({ page }) => {
@@ -1158,7 +1148,7 @@ test.describe('KIMA motion', () => {
     await navigate(page, '设置')
     await page.getByRole('button', { name: /通用/ }).click()
     const toggle = page.getByRole('switch', { name: '增强键盘焦点' })
-    const thumb = page.locator('.appearance-card .kima-switch', { hasText: '增强键盘焦点' }).locator('.kima-switch__thumb')
+    const thumb = page.locator('.appearance-card .ui-switch', { hasText: '增强键盘焦点' }).locator('.ui-switch__thumb')
     await expect(toggle).not.toBeChecked()
 
     const duration = await thumb.evaluate(element => getComputedStyle(element).transitionDuration)
@@ -1166,7 +1156,7 @@ test.describe('KIMA motion', () => {
     expect(duration).toMatch(/\d/)
 
     const before = await thumb.boundingBox()
-    // KIMA 的透明 input 盖在拇指上，按拇指中心点真实点击一次。
+    // 透明 input 盖在拇指上，按拇指中心点真实点击一次。
     await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2)
     await expect(toggle).toBeChecked()
     await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)

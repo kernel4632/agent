@@ -3,14 +3,12 @@
 调用示例：由 index.html 的 <script type="module" src="/src/main.js"> 自动执行。
 */
 import { createApp } from 'vue'
-import '@m3e/web/theme'
-import '@kernel4632/kima/style.css'   // KIMA 完整样式包
-import './styles/base.scss'          // 应用自己的排版和布局覆盖，必须排在 KIMA 之后
-import './styles/tokens.scss'        // 把 KIMA 色板映射成 --la-* 业务 token
+import './styles/tokens.scss'        // 项目自己的颜色、尺寸和动效变量
+import './styles/base.scss'          // 全局重置与可访问性规则
 import App from './App.vue'
 import { startWatchers } from './watchers.js'
-import { Config } from './config.js'
-import { Workspace } from './workspace.js'
+import { Config } from './commands/config.js'
+import { Workspace } from './commands/workspace.js'
 import { store } from './store.js'
 
 startWatchers()

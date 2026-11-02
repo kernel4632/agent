@@ -13,3 +13,5 @@ const { input } = useToolContent(props)
   <div v-if="input.description" class="tool-kicker">{{ input.description }}</div>
   <pre v-if="input.prompt" class="tool-output">{{ input.prompt }}</pre>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/SubtaskView.scss"></style>

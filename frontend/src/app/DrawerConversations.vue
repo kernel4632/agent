@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { KimaCheckbox, KimaList } from '../ui/index.js'
+import { Checkbox, List } from '../ui/index.js'
 import { Button, Dialog, Field, MenuButton } from '../ui/index.js'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 
 const MENU_ITEMS = [
   { value: 'rename', label: '重命名' },
@@ -69,7 +69,7 @@ const target = ref(null)
 const value = ref('')
 const busy = ref(false)
 
-// 会话行的 KIMA 菜单只返回动作名，具体弹窗仍由这里管理。
+// 会话行的 自有 菜单只返回动作名，具体弹窗仍由这里管理。
 function onMenuSelect(session, action) {
   if (action === 'rename') openRename(session)
   else if (action === 'delete') openDelete(session)
@@ -112,11 +112,11 @@ async function submitDialog() {
       <template v-if="groups.length">
         <section v-for="group in groups" :key="group.key" class="home-sessions__group">
           <h2 class="group-label">{{ group.label }}</h2>
-          <KimaList variant="plain" :gap="2" :items="group.items" :label="group.label">
+          <List variant="plain" :gap="2" :items="group.items" :label="group.label">
             <template #item="{ item }">
               <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
                 <Transition name="session-check">
-                  <KimaCheckbox
+                  <Checkbox
                     v-if="selecting"
                     class="home-session__check"
                     :model-value="isSelected(item.id)"
@@ -136,7 +136,7 @@ async function submitDialog() {
                 />
               </div>
             </template>
-          </KimaList>
+          </List>
         </section>
       </template>
       <div v-else class="home-empty">
@@ -159,47 +159,4 @@ async function submitDialog() {
   </div>
 </template>
 
-<style scoped lang="scss">
-.home-sessions { display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; }
-.home-sessions__group { display: flex; flex-direction: column; gap: 6px; }
-.group-label { display: flex; height: 30px; flex: none; align-items: center; margin: 0; padding: 0 12px; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; letter-spacing: 0; }
-.home-session { display: flex; width: 100%; min-height: 48px; flex: none; align-items: center; border-radius: 12px; }
-.home-session:hover { background: var(--la-hover); }
-.home-session.is-active { background: var(--la-layer-02); }
-.home-session.is-selected { background: var(--la-accent-soft); }
-.home-session__check { flex: none; margin-left: 8px; }
-.session-check-enter-active, .session-check-leave-active { transition: opacity var(--kima-duration-fast) var(--kima-curve-standard), transform var(--kima-duration-medium) var(--kima-curve-standard); }
-.session-check-enter-from, .session-check-leave-to { opacity: 0; transform: scale(.8); }
-.home-session__main {
-  display: flex;
-  height: 100%;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 9px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--la-secondary);
-  text-align: left;
-  cursor: pointer;
-}
-.home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.home-session__menu { flex: none; margin-right: 4px; opacity: .6; transition: opacity .12s ease; }
-.home-session:hover .home-session__menu,
-.home-session.is-active .home-session__menu,
-.home-session__menu:focus-within { opacity: 1; }
-.home-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; text-align: center; }
-.home-empty strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
-.home-empty p { max-width: 320px; margin: 0 0 8px; color: var(--la-muted); font-size: 14px; font-weight: 400; line-height: 22px; }
-@media (max-width: 1023px) {
-  .home-sessions { padding-top: 0; }
-}
-@media (max-width: 767px) {
-  .home-sessions { padding-top: 4px; }
-  .home-session { height: 48px; }
-  .home-session__menu :deep(.kima-menu__trigger) { opacity: 1; }
-}
-</style>
+<style scoped lang="scss" src="../styles/app/DrawerConversations.scss"></style>

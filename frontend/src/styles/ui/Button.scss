@@ -1,0 +1,16 @@
+/* Button.vue：动作按钮；plain 由所在页面决定排版。 */
+.ui-button {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 56px; min-width: 80px; padding: 0 24px; border: 1px solid var(--la-line-strong);
+  border-radius: 999px; background: transparent; color: var(--la-accent); font: inherit; font-weight: 600;
+  cursor: pointer; overflow: hidden; transition: background-color 150ms ease, transform 150ms ease;
+  &:hover { background: var(--la-hover); }
+  &:active:not(:disabled) { transform: scale(.97); }
+  &--primary { background: var(--la-accent); border-color: transparent; color: var(--la-on-accent); }
+  &--primary:hover { background: color-mix(in srgb, var(--la-accent) 90%, var(--la-text)); }
+  &--tonal { background: color-mix(in srgb, var(--la-accent) 20%, transparent); border-color: transparent; }
+  &--text, &--ghost, &--danger { border-color: transparent; }
+  &--danger { color: var(--la-danger); }
+  &--small { min-width: 0; }
+  &--plain { justify-content: initial; min-height: 0; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: inherit; text-align: inherit; overflow: visible; }
+}

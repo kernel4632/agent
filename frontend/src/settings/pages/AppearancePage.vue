@@ -12,3 +12,5 @@ defineProps({ draft: { type: Object, required: true } })
 <template>
   <AppearanceSettings :appearance="draft.appearance" @change="draft.appearance[$event.field] = $event.value" />
 </template>
+
+<style scoped lang="scss" src="../../styles/settings/pages/AppearancePage.scss"></style>

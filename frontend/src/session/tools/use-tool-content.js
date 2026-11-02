@@ -5,7 +5,7 @@
   clip(text.value) // 超长文本只留前 2400 字
 */
 import { computed } from 'vue'
-import { outputText, outputValue } from '../tool-ui.js'
+import { outputText, outputValue } from '../../commands/tool.js'
 
 /**
  * 工具结果视图共用的输入/输出读取逻辑。

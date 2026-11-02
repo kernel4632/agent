@@ -1,0 +1,4 @@
+/* Checkbox.vue：原生焦点、勾选与禁用状态。 */
+.ui-checkbox { display: inline-flex; min-height: 40px; align-items: center; gap: 12px; cursor: pointer; color: var(--la-text); }
+.ui-checkbox input { width: 22px; height: 22px; margin: 0; accent-color: var(--la-accent); flex-shrink: 0; cursor: inherit; }
+.ui-checkbox:has(:disabled) { opacity: .5; cursor: not-allowed; }

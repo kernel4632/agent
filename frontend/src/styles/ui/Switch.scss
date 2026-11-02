@@ -1,0 +1,10 @@
+/* Switch.vue：整行可点，滑块通过 transform 过渡。 */
+.ui-switch { display: inline-flex; align-items: center; gap: 16px; min-height: 48px; font-size: 18px; line-height: 28px; color: var(--la-text); cursor: pointer; }
+.ui-switch__control { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 64px; height: 48px; }
+.ui-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; z-index: 1; }
+.ui-switch__track { display: flex; align-items: center; width: 60px; height: 36px; border: 2px solid var(--la-secondary); border-radius: 99px; background: transparent; transition: background-color 200ms, border-color 200ms; }
+.ui-switch__thumb { width: 28px; height: 28px; margin-left: 2px; border-radius: 50%; background: var(--la-secondary); transition: transform 220ms cubic-bezier(.2,0,0,1), background-color 200ms; }
+.ui-switch input:checked + .ui-switch__track { border-color: var(--la-accent); background: var(--la-accent); }
+.ui-switch input:checked + .ui-switch__track .ui-switch__thumb { background: var(--la-on-accent); transform: translateX(24px); }
+.ui-switch input:focus-visible + .ui-switch__track { outline: 2px solid var(--la-accent); outline-offset: 4px; }
+.ui-switch.is-disabled { opacity: .5; cursor: not-allowed; }

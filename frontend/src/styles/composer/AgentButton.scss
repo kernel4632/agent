@@ -1,0 +1,26 @@
+.composer-agent {
+  display: inline-flex;
+  width: auto;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--la-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.composer-agent:hover { background: var(--la-hover); }
+.composer-agent.is-open { background: var(--la-accent-soft); color: var(--la-accent); }
+.composer-agent__label { min-width: 0; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 767px) {
+  .composer-agent { min-height: 44px; }
+}
+@media (max-width: 360px) {
+  .composer-agent { width: 40px; min-height: 40px; gap: 0; padding: 0; }
+  .composer-agent__label { display: none; }
+}

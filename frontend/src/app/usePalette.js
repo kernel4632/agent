@@ -1,3 +1,5 @@
+
+import { Navigation } from '../commands/navigation.js'
 /*
 命令面板数据：管理面板开关和可执行的命令项。
 导航和会话读取仍走传入的动作，这里只负责列表、开关和关闭后执行，不复制业务逻辑。
@@ -7,7 +9,6 @@
 */
 import { computed, ref } from 'vue'
 import { store } from '../store.js'
-import { UI } from './ui.js'
 
 export function usePalette({ openDraft, openSession }) {
   const open = ref(false)                                           // 面板是否显示
@@ -16,7 +17,7 @@ export function usePalette({ openDraft, openSession }) {
   const items = computed(() => {
     const list = [
       { id: 'new', label: '新建会话', hint: 'N', run: openDraft },
-      { id: 'settings', label: '设置', hint: 'Ctrl ,', run: () => UI.openSettings() },
+      { id: 'settings', label: '设置', hint: 'Ctrl ,', run: () => Navigation.openSettings() },
     ]
     for (const workspace of store.workspaces) {
       for (const item of workspace.sessions || []) {

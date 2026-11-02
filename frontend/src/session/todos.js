@@ -6,7 +6,7 @@
  *   TODO_STATUS.in_progress.label                      // '进行中'
  *   TODO_STATUS.completed.icon                        // 'check'
  */
-import { canonicalToolName, outputValue } from './tool-ui.js'
+import { canonicalToolName, outputValue } from '../commands/tool.js'
 
 // 三种状态的图标和文案只在这里定义，两个清单界面都从它派生，避免一处改了另一处没改。
 export const TODO_STATUS = {

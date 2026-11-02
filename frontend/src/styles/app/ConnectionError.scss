@@ -1,0 +1,3 @@
+.connection-error { margin: 8px var(--la-content-inset) 12px; }
+.connection-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border: 1px solid var(--la-danger); border-radius: 16px; color: var(--la-danger); background: var(--la-layer-01); }
+.connection-error p { margin: 4px 0 0; overflow-wrap: anywhere; }

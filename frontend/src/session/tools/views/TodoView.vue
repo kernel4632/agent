@@ -25,3 +25,5 @@ const label = status => todoStatus(status).label
   </div>
   <p v-else class="tool-empty">暂无任务项</p>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/TodoView.scss"></style>

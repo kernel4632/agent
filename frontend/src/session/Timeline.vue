@@ -7,17 +7,19 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
+import { Notice } from '../commands/notice.js'
+import { copyText } from '../utils/clipboard.js'
+
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
-import { Chat } from './chat.js'
-import { Session } from './session.js'
-import { UI } from '../app/ui.js'
+import { Chat } from '../commands/chat.js'
+import { Session } from '../commands/session.js'
 import { groupMessageTurns } from './turns.js'
 import { isSavedMessage } from './continue.js'
-import { AppIcon, KimaMarkdown } from '../ui/index.js'
+import { AppIcon, Markdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import CompactionNotice from './CompactionNotice.vue'
-import './conversation.scss'
+
 import AssistantTurn from './AssistantTurn.vue'
 import RollbackDialog from './RollbackDialog.vue'
 import 'highlight.js/styles/github-dark.css'
@@ -144,12 +146,15 @@ function userMenuItems(message) {
 }
 
 function onUserMenu(message, action) {
-  if (action === 'copy') UI.copy(message.displayContent ?? message.content)
+  if (action === 'copy') copyMessage(message.displayContent ?? message.content)
   else if (action === 'rollback') requestRollback(message)
   else if (action === 'fork') forkFrom(message)
 }
 
 // 继续入口已经合并到输入框的发送按钮。
+
+// 复制只在本区域反馈，剪贴板工具不依赖页面。
+async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
 </script>
 
 <template>
@@ -171,7 +176,7 @@ function onUserMenu(message, action) {
         >
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user">
-              <KimaMarkdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
+              <Markdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
               <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
                 <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
                   <AppIcon name="document" :size="14" />
@@ -205,45 +210,4 @@ function onUserMenu(message, action) {
   </div>
 </template>
 
-<style scoped lang="scss">
-.conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-.conversation-top-sentinel { display: block; width: 100%; height: 1px; flex: none; }
-.conversation-earlier {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 999px;
-  background: var(--la-layer-01);
-  color: var(--la-muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.conversation-earlier:hover { color: var(--la-text); background: var(--la-layer-02); }
-.conversation-latest {
-  position: sticky;
-  bottom: 12px;
-  z-index: 2;
-  display: inline-flex;
-  align-self: flex-end;
-  align-items: center;
-  gap: 5px;
-  margin-right: 8px;
-  padding: 7px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--la-panel) 92%, transparent);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--la-shadow-floating);
-  color: var(--la-text);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.conversation-latest:hover { background: var(--la-layer-01); }
-.message { display: block; min-width: 0; }
-
-</style>
+<style lang="scss" src="../styles/session/Timeline.scss"></style>

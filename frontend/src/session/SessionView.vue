@@ -12,17 +12,18 @@
 />
 -->
 <script setup>
+import { Navigation } from '../commands/navigation.js'
+
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
-import { KimaSpinner } from '../ui/index.js'
+import { Spinner } from '../ui/index.js'
 import { Button } from '../ui/index.js'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from './AgentDrawer.vue'
 import SessionTodoPanel from './SessionTodoPanel.vue'
 import { latestTodos } from './todos.js'
 import { canContinueSession } from './continue.js'
-import { Session } from './session.js'
-import { Chat } from './chat.js'
-import { UI } from '../app/ui.js'
+import { Session } from '../commands/session.js'
+import { Chat } from '../commands/chat.js'
 
 // 时间线单独拆包，只有进入会话页时才加载。
 const Timeline = defineAsyncComponent(() => import('./Timeline.vue'))
@@ -104,7 +105,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
         <Transition name="reconnect">
           <div v-if="showReconnect" class="reconnect-overlay" role="status" aria-live="polite">
             <div class="reconnect-card">
-              <KimaSpinner label="正在重新连接" size="large" decorative />
+              <Spinner label="正在重新连接" size="large" decorative />
               <strong>正在重新连接</strong>
               <p>和后台的连接暂时断开。恢复后会自动回到这段对话。</p>
             </div>
@@ -113,7 +114,7 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
       </div>
       <div class="session-composer" :class="{ 'is-reconnecting': showReconnect }">
         <Transition name="notice">
-          <div v-if="!session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="UI.openSettings('providers')">连接模型</Button></div>
+          <div v-if="!session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div>
         </Transition>
         <Transition name="notice">
           <div v-if="session.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="Chat.undoRollback(session.id)">撤销回退</Button></div>
@@ -126,76 +127,4 @@ function removeFile(id) { Chat.removeFile(props.session.id, id) }
   </section>
 </template>
 
-<style scoped lang="scss">
-.session-panel { display: flex; min-height: 0; flex: 1; }
-.session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; margin-inline: auto; }
-.session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--kima-curve-standard), opacity var(--la-motion-enter) var(--kima-curve-standard); }
-.session-composer.is-reconnecting { filter: blur(2px); opacity: .6; }
-.chat-notice {
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  align-items: center;
-  align-self: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: var(--la-layer-02);
-  color: var(--la-secondary);
-  font-size: 14px;
-  line-height: 20px;
-}
-.chat-notice[role="status"]::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--la-warning);
-}
-/* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
-.notice-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.notice-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
-.notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
-/* 断线重连：直接盖住对话区和输入区，背景虚化，只留一句状态和加载动画。 */
-.reconnect-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--la-bg) 55%, transparent);
-  backdrop-filter: blur(16px) saturate(120%);
-}
-.reconnect-card {
-  display: grid;
-  max-width: 320px;
-  justify-items: center;
-  gap: 12px;
-  padding: 28px 30px;
-  border: .5px solid var(--la-line);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--la-panel) 88%, transparent);
-  box-shadow: var(--la-shadow-floating);
-  text-align: center;
-}
-.reconnect-card strong { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
-.reconnect-card p { margin: 0; color: var(--la-muted); font-size: 13.5px; line-height: 20px; }
-.reconnect-enter-active, .reconnect-leave-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard); }
-.reconnect-enter-from, .reconnect-leave-to { opacity: 0; }
-/* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
-.session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--kima-curve-standard), transform var(--la-motion-enter) var(--kima-curve-standard); }
-.session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--kima-curve-standard), transform var(--la-motion-exit) var(--kima-curve-standard); }
-.session-swap-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
-.session-swap-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
-@media (prefers-reduced-motion: reduce) {
-  .notice-enter-active, .notice-leave-active, .session-swap-enter-active, .session-swap-leave-active { transition-duration: .01ms; }
-}
-@media (max-width: 767px) {
-  .session-composer { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }
-}
-</style>
+<style scoped lang="scss" src="../styles/session/SessionView.scss"></style>

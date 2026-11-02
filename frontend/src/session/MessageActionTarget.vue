@@ -1,6 +1,6 @@
 <!--
 消息操作层：右键、长按或键盘菜单键打开，只显示这条消息的摘要和操作按钮。
-外壳用 ui/Dialog，焦点陷阱、Esc 和关闭后的焦点归还都由 KIMA 原生 dialog 处理。
+外壳用 ui/Dialog，焦点陷阱、Esc 和关闭后的焦点归还都由 自有 原生 dialog 处理。
 调用示例：<MessageActionTarget :items="items" :preview="content" role-label="助手回复" @select="onMenu"><slot /></MessageActionTarget>
 -->
 <script setup>
@@ -100,27 +100,4 @@ onBeforeUnmount(cancelPress)
   </Dialog>
 </template>
 
-<style scoped lang="scss">
-.message-action-target { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 10px; }
-.message-action-target:focus-visible { outline: 2px solid var(--kima-color-primary); outline-offset: 3px; border-radius: 8px; }
-.message-actions { display: grid; gap: 14px; }
-.message-actions-enter-active, .message-actions-leave-active { transition: opacity 220ms var(--kima-curve-standard), transform 220ms var(--kima-curve-emphasized); }
-.message-actions-enter-from, .message-actions-leave-to { opacity: 0; transform: translateY(8px) scale(.98); }
-@media (prefers-reduced-motion: reduce) { .message-actions-enter-active, .message-actions-leave-active { transition-duration: 1ms; } }
-.message-actions__role { color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
-.message-actions__preview {
-  display: -webkit-box;
-  max-height: 132px;
-  margin: 0;
-  overflow: hidden;
-  color: var(--la-text);
-  font-size: 15px;
-  line-height: 22px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 6;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.message-actions__items { display: flex; flex-direction: column; gap: 2px; }
-.message-actions__item { width: 100%; justify-content: flex-start; gap: 10px; }
-</style>
+<style scoped lang="scss" src="../styles/session/MessageActionTarget.scss"></style>

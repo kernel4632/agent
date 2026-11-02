@@ -1,0 +1,190 @@
+.chat-composer {
+  position: relative;
+  padding: 10px 12px 6px;
+  border: 1px solid var(--la-line);
+  border-radius: 20px;
+  background: var(--la-panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+
+  &:focus-within { border-color: var(--la-line-strong); }
+  &__editor-wrap { position: relative; min-width: 0; }
+  /* 全屏输入在原来的位置向上长高：只过渡高度，按钮和聊天内容跟着平滑移动。 */
+  &__editor {
+    display: block;
+    width: 100%;
+    min-height: 56px;
+    max-height: 240px;
+    padding: 8px 28px 10px 4px;
+    resize: none;
+    field-sizing: content;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--la-text);
+    font: 16px/24px var(--la-font-sans);
+    letter-spacing: 0;
+    transition: min-height var(--la-motion-enter) var(--ui-curve-standard), max-height var(--la-motion-enter) var(--ui-curve-standard);
+
+    &::placeholder { color: var(--la-muted); }
+  }
+  &.is-expanded &__editor {
+    min-height: max(320px, calc(100dvh - var(--la-topbar-height, 64px) - 180px));
+    max-height: max(320px, calc(100dvh - var(--la-topbar-height, 64px) - 180px));
+    overflow-y: auto;
+  }
+  /* 右上角贴边圆角线；靠近时缩成半透明，并让展开按钮滑入。 */
+  &__expand-corner {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    z-index: 4;
+    width: 32px;
+    height: 32px;
+  }
+  &__expand-line {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 12px;
+    height: 12px;
+    border-top: 1.5px solid color-mix(in srgb, var(--la-text) 60%, transparent);
+    border-right: 1.5px solid color-mix(in srgb, var(--la-text) 60%, transparent);
+    border-top-right-radius: 16px;
+    opacity: .7;
+    pointer-events: none;
+    transform-origin: top right;
+    transition: opacity var(--ui-duration-fast) var(--ui-curve-standard), transform var(--ui-duration-medium) var(--ui-curve-standard);
+  }
+  &__expand-button {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--la-muted);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(4px, -4px) scale(.8) rotate(-8deg);
+    transition: opacity var(--ui-duration-medium) var(--ui-curve-standard), transform var(--ui-duration-slow) var(--ui-curve-emphasized), color var(--ui-duration-effects) var(--ui-curve-standard), background-color var(--ui-duration-effects) var(--ui-curve-standard);
+  }
+  &__expand-button:hover {
+    background: var(--la-layer-03);
+    color: var(--la-text);
+  }
+  &__expand-button :deep(svg) { transition: transform var(--ui-duration-medium) var(--ui-curve-emphasized); }
+  &__expand-corner:hover &__expand-line,
+  &__expand-corner:focus-within &__expand-line {
+    opacity: 0;
+    transform: scale(.5);
+  }
+  &__expand-corner:hover &__expand-button,
+  &__expand-corner:focus-within &__expand-button {
+    opacity: 1;
+    pointer-events: auto;
+    background: var(--la-layer-02);
+    color: var(--la-text);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .14);
+    transform: none;
+  }
+  &__expand-corner:hover &__expand-button :deep(svg),
+  &__expand-corner:focus-within &__expand-button :deep(svg) { transform: scale(1.1); }
+  &__bottom { display: flex; min-height: 48px; align-items: center; gap: 8px; padding: 0 2px 2px; }
+  &__options { display: flex; min-width: 0; flex: 1; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  &__options::-webkit-scrollbar { display: none; }
+  &__right { display: flex; flex: none; align-items: center; gap: 8px; }
+  &__send {
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--la-accent-solid);
+    color: var(--la-on-action);
+    cursor: pointer;
+  }
+  &__send:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-solid) 88%, var(--la-on-action)); }
+  &__send:disabled { background: var(--la-layer-02); color: var(--la-muted); }
+  &__send.is-stop { background: var(--ui-color-error-container); color: var(--ui-color-on-error-container); }
+  &__send.is-continue { background: var(--la-accent-soft); color: var(--la-accent); }
+  &__send.is-continue:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-soft) 84%, var(--la-accent)); }
+}
+.composer-option, .composer-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--la-text);
+  cursor: pointer;
+}
+.composer-option { width: 48px; height: 48px; }
+.composer-action { width: 40px; height: 40px; }
+.composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
+.composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
+.composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
+.composer-sheet { display: grid; width: 100%; gap: 16px; min-width: 0; padding-bottom: 8px; }
+.composer-sheet--models { max-height: 70vh; grid-template-rows: auto minmax(0, 1fr); }
+.composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 400; line-height: 28px; }
+.composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
+.composer-sheet__actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.composer-sheet__empty { display: grid; gap: 16px; justify-items: start; padding: 16px 0; color: var(--la-secondary); }
+.composer-sheet__empty p { margin: 0; font-size: 14px; }
+.composer-sheet__list { display: grid; gap: 4px; }
+.composer-sheet__list button { display: flex; min-height: 56px; align-items: center; gap: 16px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
+.composer-sheet__list button:hover:not(:disabled) { background: var(--la-hover); }
+.composer-sheet__list button:disabled { opacity: .38; cursor: default; }
+.model-list { display: flex; min-height: 0; flex-direction: column; gap: 8px; overflow-y: auto; padding-bottom: 8px; }
+.model-group { display: grid; flex: none; gap: 6px; }
+.model-group h3 { position: static; margin: 0; padding: 4px 16px; background: transparent; color: var(--la-muted); font-size: 13px; font-weight: 600; line-height: 18px; }
+.model-row { display: flex; min-height: 68px; align-items: center; gap: 14px; padding: 10px 16px; border: 0; border-radius: 14px; background: transparent; color: var(--la-text); text-align: left; font-size: 15px; cursor: pointer; }
+.model-row:hover { background: var(--la-hover); }
+.model-row.is-selected { background: var(--la-accent-soft); color: var(--ui-color-on-primary-container); }
+.model-row__icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
+.model-row__name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 斜杠菜单和发送/停止按钮的切换都从操作点附近出现。 */
+.slash-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
+.slash-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
+.slash-enter-from, .slash-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
+.send-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-emphasized); }
+.send-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
+.send-enter-from, .send-leave-to { opacity: 0; transform: scale(.86); }
+@media (prefers-reduced-motion: reduce) {
+  .slash-enter-active, .slash-leave-active, .send-enter-active, .send-leave-active { transition-duration: .01ms; }
+}
+@media (max-width: 767px) {
+  .chat-composer {
+    padding: 8px 10px 4px;
+    &__editor { font-size: 16px; }
+    &__send { width: 44px; height: 44px; flex-basis: 44px; }
+  }
+  .composer-option { width: 44px; height: 44px; }
+}
+@media (max-width: 360px) {
+  .chat-composer__options { gap: 0; }
+  .composer-option { width: 40px; height: 40px; }
+}
+@media (hover: none) {
+  .chat-composer__expand-line { opacity: 0; }
+  .chat-composer__expand-button {
+    top: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    opacity: 1;
+    pointer-events: auto;
+    background: var(--la-layer-02);
+    color: var(--la-text);
+    transform: none;
+  }
+}

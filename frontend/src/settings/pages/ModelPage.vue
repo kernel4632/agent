@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaSelect } from '../../ui/index.js'
+import { Select } from '../../ui/index.js'
 import { Switch } from '../../ui/index.js'
 import { store } from '../../store.js'
 
@@ -76,7 +76,7 @@ function setUse(use, value) {
       </div>
       <div class="model-settings__field">
         <span class="model-settings__label">模型</span>
-        <KimaSelect label="默认模型" :model-value="modelValue" :items="modelOptions" @update:model-value="chooseModel" />
+        <Select label="默认模型" :model-value="modelValue" :items="modelOptions" @update:model-value="chooseModel" />
       </div>
       <p v-if="!modelOptions.length" class="model-settings__empty">还没有可用模型。先在「模型供应商」里添加一个供应商和模型。</p>
     </div>
@@ -110,35 +110,11 @@ function setUse(use, value) {
       <div class="model-settings__fields">
         <div class="model-settings__field" v-for="item in useEntries" :key="item.use">
           <span class="model-settings__label">{{ item.label }}</span>
-          <KimaSelect :label="item.label" :model-value="useKey(item.use)" :items="modelChoices" @update:model-value="setUse(item.use, $event)" />
+          <Select :label="item.label" :model-value="useKey(item.use)" :items="modelChoices" @update:model-value="setUse(item.use, $event)" />
         </div>
       </div>
     </div>
   </section>
 </template>
 
-<style scoped lang="scss">
-.model-settings { display: flex; flex-direction: column; gap: 20px; }
-.model-settings__head p { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
-.model-settings__section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 22px;
-  border-radius: 20px;
-  background: var(--la-layer-01);
-}
-.model-settings__intro { display: flex; flex-direction: column; gap: 6px; }
-.model-settings__intro h3 { margin: 0; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
-.model-settings__intro p { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.model-settings__field { display: flex; flex-direction: column; gap: 8px; }
-.model-settings__label { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.model-settings__fields { display: flex; flex-direction: column; gap: 16px; }
-.model-settings__switches { display: flex; flex-direction: column; gap: 4px; }
-.model-settings__switches :deep(.kima-switch) { width: 100%; min-height: 52px; padding: 0 16px; border-radius: 14px; background: var(--la-layer-02); }
-.model-settings__hint { margin: 4px 2px 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-settings__empty { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-@media (max-width: 767px) {
-  .model-settings__section { padding: 18px; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/pages/ModelPage.scss"></style>

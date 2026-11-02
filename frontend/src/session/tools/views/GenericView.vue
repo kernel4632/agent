@@ -15,3 +15,5 @@ const hasInput = computed(() => Object.keys(input.value).length > 0)
   <pre v-if="hasInput" class="tool-output">{{ JSON.stringify(input, null, 2) }}</pre>
   <pre v-if="text" class="tool-output" :class="{ 'is-error': tool.status === 'error' || tool.status === 'rejected' }">{{ text }}</pre>
 </template>
+
+<style scoped lang="scss" src="../../../styles/session/tools/views/GenericView.scss"></style>

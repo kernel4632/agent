@@ -1,0 +1,3 @@
+/* AppIcon.vue：图标不挤压、不接收点击，线宽不随尺寸缩放。 */
+.ui-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; pointer-events: none; }
+.ui-icon :deep(*) { vector-effect: non-scaling-stroke; }

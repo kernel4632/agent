@@ -64,7 +64,7 @@
 
 ## 七、不要误判的边界
 
-- `server/openapi.json`、`server/README.md`、`frontend/src/api.js` 是同一份 HTTP 契约的三处记录，改一处必须三处一起改。
+- `server/openapi.json`、`server/README.md`、`frontend/src/utils/api.js` 是同一份 HTTP 契约的三处记录，改一处必须三处一起改。
 - 旧会话的 token 是估算值，标记在 `frontend/src/session/stats.js` 和面板的“估算”徽标里。
 - KIMA 必须保持最新版；升级前看 `D:\kernyr\KIMA` 的源码和发布说明，升级后跑单测、构建和完整界面检查。
 - 本文件是接手清单，不是“12/12 完美”的证明。第 1、3、6、8、9、10、11、12 条仍是部分通过。

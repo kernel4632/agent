@@ -5,9 +5,9 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaDrawer } from '../ui/index.js'
+import { Dialog } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
-import { KimaProgress } from '../ui/index.js'
+import { Progress } from '../ui/index.js'
 import { todoStatus } from './todos.js'
 
 const props = defineProps({
@@ -22,10 +22,10 @@ const label = status => todoStatus(status).label
 </script>
 
 <template>
-  <KimaDrawer
+  <Dialog
     class="session-todo-panel"
     :open="open"
-    title="任务清单"
+    label="任务清单"
     placement="right"
     @update:open="emit('update:open', $event)"
   >
@@ -35,7 +35,7 @@ const label = status => todoStatus(status).label
           <span>当前进度</span>
           <strong>{{ done }} / {{ todos.length }}</strong>
         </div>
-        <KimaProgress class="session-todo-panel__bar" :value="done" :max="todos.length" label="任务完成进度" />
+        <Progress class="session-todo-panel__bar" :value="done" :max="todos.length" label="任务完成进度" />
       </header>
 
       <div v-if="todos.length" class="session-todo-panel__list">
@@ -47,29 +47,7 @@ const label = status => todoStatus(status).label
       </div>
       <p v-else class="session-todo-panel__empty">还没有任务。模型更新清单后会显示在这里。</p>
     </div>
-  </KimaDrawer>
+  </Dialog>
 </template>
 
-<style scoped lang="scss">
-.session-todo-panel { --kima-drawer-max-width: 380px; }
-.session-todo-panel__body { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
-.session-todo-panel__head { display: grid; gap: 10px; }
-.session-todo-panel__summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; color: var(--la-muted); font-size: 13px; line-height: 18px; }
-.session-todo-panel__summary strong { color: var(--la-text); font-size: 14px; font-weight: 600; }
-.session-todo-panel__bar { --kima-progress-height: 4px; }
-.session-todo-panel__list { display: flex; min-width: 0; flex-direction: column; }
-.session-todo-panel__item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 9px 0; border-bottom: .5px solid var(--la-line); }
-.session-todo-panel__item:last-child { border-bottom: 0; }
-.session-todo-panel__icon { margin-top: 3px; color: var(--la-muted); }
-.session-todo-panel__icon.is-completed { color: var(--la-success); }
-.session-todo-panel__icon.is-in_progress { color: var(--la-accent); }
-.session-todo-panel__text { min-width: 0; color: var(--la-text); font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
-.session-todo-panel__text.is-done { color: var(--la-muted); text-decoration: line-through; }
-.session-todo-panel__status { flex: none; color: var(--la-muted); font-size: 12px; line-height: 20px; white-space: nowrap; }
-.session-todo-panel__status.is-completed { color: var(--la-success); }
-.session-todo-panel__status.is-in_progress { color: var(--la-accent); }
-.session-todo-panel__empty { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
-@media (prefers-reduced-motion: reduce) {
-  .session-todo-panel__bar span { transition: none; }
-}
-</style>
+<style scoped lang="scss" src="../styles/session/SessionTodoPanel.scss"></style>

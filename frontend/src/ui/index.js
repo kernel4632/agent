@@ -1,30 +1,35 @@
-/*
- * UI 原语出口：页面只从这里拿按钮、输入框和 KIMA 组件。
- *
- * 业务页面不直接 import @kernel4632/kima；换组件库时只改这一层。
- * 调用示例：
- *   import { AppIcon, Button, Field, KimaSelect } from './index.js'
+/* 自有 UI 出口：页面从这里导入，行为在 ui/*.vue，外观在 styles/ui/*.scss。
+ * 示例：import { Button, Field, Select } from './index.js'
  */
-
-export {
-  KimaAlert, KimaButton, KimaCard, KimaCheckbox, KimaCheckboxGroup, KimaChip,
-  KimaCodeBlock, KimaDialog, KimaDivider, KimaDrawer, KimaFlex, KimaIcon,
-  KimaIconButton, KimaJsonInput, KimaList, KimaListbox, KimaMenu, KimaNotification,
-  KimaNumberField, KimaPopover, KimaProgress, KimaRadioGroup, KimaRingProgress,
-  KimaSelect, KimaSlider, KimaSpinner, KimaSwitch, KimaTabs, KimaTextField,
-  KimaTextarea, KimaTypography,
-} from '@kernel4632/kima'
-
 export { default as AppIcon } from './AppIcon.vue'
 export { default as Button } from './Button.vue'
+export { default as Card } from './Card.vue'
+export { default as Checkbox } from './Checkbox.vue'
+export { default as CheckboxGroup } from './CheckboxGroup.vue'
+export { default as Chip } from './Chip.vue'
 export { default as ChoiceContent } from './ChoiceContent.vue'
+export { default as CodeBlock } from './CodeBlock.vue'
 export { default as Dialog } from './Dialog.vue'
+export { default as Divider } from './Divider.vue'
 export { default as Field } from './Field.vue'
+export { default as Flex } from './Flex.vue'
 export { default as IconButton } from './IconButton.vue'
-export { default as KimaMarkdown } from './KimaMarkdown.vue'
+export { default as JsonInput } from './JsonInput.vue'
+export { default as List } from './List.vue'
+export { default as Markdown } from './Markdown.vue'
 export { default as MenuButton } from './MenuButton.vue'
 export { default as ModelIcon } from './ModelIcon.vue'
+export { default as NumberField } from './NumberField.vue'
+export { default as Popover } from './Popover.vue'
+export { default as Progress } from './Progress.vue'
+export { default as RadioGroup } from './RadioGroup.vue'
+export { default as RingProgress } from './RingProgress.vue'
+export { default as Select } from './Select.vue'
 export { default as Sheet } from './Sheet.vue'
+export { default as Slider } from './Slider.vue'
 export { default as SmoothMarkdown } from './SmoothMarkdown.vue'
+export { default as Spinner } from './Spinner.vue'
 export { default as Switch } from './Switch.vue'
+export { default as Tabs } from './Tabs.vue'
+export { default as Typography } from './Typography.vue'
 export { avatarColor, initial } from './avatar.js'

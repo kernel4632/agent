@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { KimaCheckboxGroup, KimaSelect } from '../../ui/index.js'
+import { CheckboxGroup, Select } from '../../ui/index.js'
 import { AppIcon, Button, Field, Switch } from '../../ui/index.js'
 import { store } from '../../store.js'
 
@@ -164,7 +164,7 @@ function patchPermission(text) {
 
       <div class="agent-field">
         <span class="agent-field__label">模型</span>
-        <KimaSelect
+        <Select
           label="模型"
           :model-value="selected.model ? `${selected.model.provider}/${selected.model.model}` : ''"
           :items="modelOptions"
@@ -190,7 +190,7 @@ function patchPermission(text) {
 
       <div v-if="!allTools" class="agent-field">
         <span class="agent-field__label">工具</span>
-        <KimaCheckboxGroup
+        <CheckboxGroup
           class="agent-tools"
           label="工具"
           :options="toolOptions"
@@ -221,67 +221,4 @@ function patchPermission(text) {
   </div>
 </template>
 
-<style scoped lang="scss">
-.agents-page { display: flex; flex-direction: column; gap: 16px; }
-.agents-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.agents-head p { max-width: 620px; margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
-.agents-card { overflow: hidden; border-radius: 24px; background: var(--la-layer-01); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
-.agent-row {
-  display: flex;
-  width: 100%;
-  min-height: 84px;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 20px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--la-text);
-  text-align: left;
-  cursor: pointer;
-}
-.agent-row + .agent-row { border-top: .5px solid var(--la-line); }
-.agent-row:hover { background: var(--la-hover); }
-.agent-row:focus-visible { position: relative; z-index: 1; outline-offset: -2px; }
-.agent-row__icon {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  place-items: center;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--la-accent) 16%, transparent);
-  color: var(--la-accent);
-}
-.agent-row__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
-.agent-row__copy strong { overflow: hidden; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; text-overflow: ellipsis; white-space: nowrap; }
-.agent-row__copy small { overflow: hidden; color: var(--la-muted); font-size: 13px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
-.agent-row__badge { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--la-layer-02); color: var(--la-muted); font-size: 12px; line-height: 18px; }
-.agent-row__arrow { flex: none; color: var(--la-muted); }
-.agents-empty { margin: 0; padding: 40px 20px; border-radius: 24px; background: var(--la-layer-01); color: var(--la-muted); text-align: center; font-size: 14px; }
-
-.agent-detail { display: grid; gap: 20px; }
-.agent-detail__head { display: flex; align-items: center; gap: 16px; padding: 20px; border-radius: 20px; background: var(--la-layer-01); }
-.agent-detail__icon { display: grid; width: 48px; height: 48px; flex: none; place-items: center; border-radius: 15px; background: color-mix(in srgb, var(--la-accent) 16%, transparent); color: var(--la-accent); }
-.agent-detail__head h3 { margin: 0; color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
-.agent-detail__head p { margin: 2px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.agent-form { display: flex; flex-direction: column; gap: 24px; padding: 24px; border-radius: 20px; background: var(--la-layer-01); }
-.agent-field { display: grid; gap: 8px; }
-.agent-field__label { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.agent-hint { margin: -16px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.agent-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.agent-switch-row strong { display: block; color: var(--la-text); font-size: 15px; line-height: 22px; }
-.agent-switch-row small { display: block; margin-top: 2px; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.agent-tools { max-height: 360px; overflow-y: auto; padding: 8px 12px; border-radius: 16px; background: var(--la-layer-02); }
-.agent-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
-.agent-missing { display: grid; justify-items: start; gap: 16px; padding: 24px; border-radius: 20px; background: var(--la-layer-01); }
-.agent-missing p { margin: 0; color: var(--la-muted); font-size: 14px; }
-
-@media (max-width: 767px) {
-  .agents-head { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .agent-row { min-height: 80px; padding: 12px 16px; }
-  .agent-row__badge { display: none; }
-  .agent-form { padding: 20px; }
-  .agent-switch-row { align-items: flex-start; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/pages/AgentsPage.scss"></style>

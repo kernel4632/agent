@@ -17,7 +17,7 @@
 import { computed, ref } from 'vue'
 import Composer from '../composer/Composer.vue'
 import AgentDrawer from '../session/AgentDrawer.vue'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 import { DEFAULT_SETTINGS } from '../defaults.js'
 
 const props = defineProps({
@@ -70,11 +70,4 @@ defineExpose({ focus: () => composer.value?.focus() })
   </section>
 </template>
 
-<style scoped lang="scss">
-.draft-panel { display: flex; flex: 1; min-height: 0; flex-direction: column; }
-.draft-empty { min-height: 0; flex: 1; }
-.draft-form { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; }
-@media (max-width: 767px) {
-  .draft-form { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }
-}
-</style>
+<style scoped lang="scss" src="../styles/draft/DraftView.scss"></style>

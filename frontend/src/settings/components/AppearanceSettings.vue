@@ -1,11 +1,11 @@
 <!--
 外观设置：主题、强调色、动画和键盘焦点偏好；所有改动只通过 change 事件交给上层写回草稿。
-控件全部使用 KIMA：KimaRadioGroup、KimaSelect、KimaDivider、KimaFlex、KimaTypography；普通开关和按钮走 ui/Switch、ui/Button。
+控件全部使用 自有控件：RadioGroup、Select、Divider、Flex、Typography；普通开关和按钮走 ui/Switch、ui/Button。
 调用示例：<AppearanceSettings :appearance="draft.appearance" @change="update" />
 -->
 <script setup>
 import { computed } from 'vue'
-import { KimaDivider, KimaFlex, KimaRadioGroup, KimaSelect, KimaTypography } from '../../ui/index.js'
+import { Divider, Flex, RadioGroup, Select, Typography } from '../../ui/index.js'
 import { Button, Switch } from '../../ui/index.js'
 import { DEFAULT_APPEARANCE } from '../../theme/index.js'
 
@@ -34,14 +34,14 @@ function reset() {
 </script>
 
 <template>
-  <KimaFlex class="appearance-card" direction="column" :gap="4">
-    <KimaTypography type="heading" :level="3" size="title-small">外观</KimaTypography>
+  <Flex class="appearance-card" direction="column" :gap="4">
+    <Typography type="heading" :level="3" size="title-small">外观</Typography>
 
-    <KimaFlex direction="column" :gap="6">
-      <KimaFlex direction="column" :gap="2">
-        <KimaTypography>界面主题</KimaTypography>
-        <KimaTypography type="caption">选择工作区的显示方式</KimaTypography>
-        <KimaRadioGroup
+    <Flex direction="column" :gap="6">
+      <Flex direction="column" :gap="2">
+        <Typography>界面主题</Typography>
+        <Typography type="caption">选择工作区的显示方式</Typography>
+        <RadioGroup
           label="界面主题"
           name="theme"
           orientation="horizontal"
@@ -49,44 +49,34 @@ function reset() {
           :model-value="appearance.theme"
           @update:model-value="update('theme', $event)"
         />
-      </KimaFlex>
+      </Flex>
 
-      <KimaFlex direction="column" :gap="2">
-        <KimaTypography>强调色</KimaTypography>
-        <KimaTypography type="caption">按钮与选中状态的颜色</KimaTypography>
-        <KimaSelect
+      <Flex direction="column" :gap="2">
+        <Typography>强调色</Typography>
+        <Typography type="caption">按钮与选中状态的颜色</Typography>
+        <Select
           class="appearance-color"
           label="强调色"
           :items="colors"
           :model-value="appearance.color"
           @update:model-value="update('color', $event)"
         />
-      </KimaFlex>
-    </KimaFlex>
+      </Flex>
+    </Flex>
 
-    <KimaDivider />
+    <Divider />
 
-    <KimaTypography type="heading" :level="3" size="title-small">通用</KimaTypography>
+    <Typography type="heading" :level="3" size="title-small">通用</Typography>
     <Switch :model-value="appearance.reduceMotion" label="减少界面动画" @update:model-value="update('reduceMotion', $event)" />
     <Switch :model-value="appearance.strongFocus" label="增强键盘焦点" @update:model-value="update('strongFocus', $event)" />
 
-    <KimaDivider />
+    <Divider />
 
-    <KimaFlex justify="space-between" align="center" :gap="3">
-      <KimaTypography type="caption">外观偏好保存在当前浏览器</KimaTypography>
+    <Flex justify="space-between" align="center" :gap="3">
+      <Typography type="caption">外观偏好保存在当前浏览器</Typography>
       <Button variant="text" @click="reset">恢复默认</Button>
-    </KimaFlex>
-  </KimaFlex>
+    </Flex>
+  </Flex>
 </template>
 
-<style scoped lang="scss">
-.appearance-card {
-  padding: 24px;
-  border-radius: 20px;
-  background: var(--la-layer-01);
-}
-.appearance-color { max-width: 360px; }
-@media (max-width: 767px) {
-  .appearance-card { padding: 20px; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/components/AppearanceSettings.scss"></style>

@@ -21,36 +21,4 @@ const emit = defineEmits(['choose'])
   </div>
 </template>
 
-<style scoped lang="scss">
-.chat-composer__slash {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 20;
-  display: grid;
-  max-height: 320px;
-  padding: 8px;
-  overflow-y: auto;
-  gap: 2px;
-  border-radius: 14px;
-  background: var(--la-layer-01);
-  box-shadow: var(--la-shadow-floating);
-}
-.chat-composer__slash-item {
-  display: flex;
-  min-height: 44px;
-  align-items: baseline;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--la-secondary);
-  text-align: left;
-  cursor: pointer;
-}
-.chat-composer__slash-item.is-active, .chat-composer__slash-item:hover { background: var(--la-hover); color: var(--la-text); }
-.chat-composer__slash-name { flex: none; color: var(--la-accent); font: 13px/1.6 var(--la-font-mono); white-space: nowrap; }
-.chat-composer__slash-description { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-</style>
+<style scoped lang="scss" src="../styles/composer/ComposerSlashMenu.scss"></style>

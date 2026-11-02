@@ -34,6 +34,7 @@ async function watchMotion(page) {
         seen.add(key)
         window.__motion.push({
           name,
+          properties: [...new Set(animation.effect.getKeyframes().flatMap(frame => Object.keys(frame)).filter(key => /^(opacity|transform)$/.test(key)))],
           duration: Number(timing.duration) || 0,
           className,
           tag: target.tagName,
@@ -56,16 +57,16 @@ async function readMotion(page) {
   return page.evaluate(() => window.__stopMotion())
 }
 
-// 只挑目标元素上的 opacity/transform 过渡，排除 KIMA 抽屉等无关动画。
+// 只挑目标元素上的 opacity/transform 过渡，排除 自有 抽屉等无关动画。
 function moving(motion, className) {
-  return motion.list.filter(item => item.className.includes(className) && MOVING.test(item.name))
+  return motion.list.filter(item => item.className.includes(className) && (MOVING.test(item.name) || item.properties.length > 0))
 }
 
 // 等采样器真的看到目标动画再停：元素刚挂载时 opacity 还是 0，
 // Playwright 的 toBeVisible 会立刻通过，这时停采样会漏掉整段过渡。
 async function waitForMotion(page, className) {
   await expect.poll(() => page.evaluate(name => {
-    const hit = window.__motion.find(item => item.className.includes(name) && /^(opacity|transform)$/.test(item.name))
+    const hit = window.__motion.find(item => item.className.includes(name) && (/^(opacity|transform)$/.test(item.name) || item.properties.length > 0))
     return hit ? `${hit.name}:${hit.duration}` : ''
   }, className), { message: `${className} 没有产生 opacity/transform 动画` }).not.toBe('')
 }
@@ -193,26 +194,26 @@ test.describe('chat motion', () => {
       { type: 'tool-call', toolCallId: 'todo-motion', toolName: 'update_todo_list', input: { todos: '- [ ] 动效任务' } },
       { type: 'tool-result', toolCallId: 'todo-motion', toolName: 'update_todo_list', output: { type: 'json', value: { items: [{ text: '动效任务', status: 'pending' }] } } },
     ])
-    // 清单不再占输入框上方；打开右侧面板时走 KIMA 抽屉动画。
+    // 清单不再占输入框上方；打开右侧面板时走 自有 抽屉动画。
     await expect(page.locator('.session-todos')).toHaveCount(0)
     await watchMotion(page)
     await page.getByRole('button', { name: '任务清单', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '任务清单' })).toBeVisible()
-    await waitForMotion(page, 'kima-drawer__panel')
+    await waitForMotion(page, 'ui-dialog__panel')
     const motion = await readMotion(page)
-    expect(moving(motion, 'kima-drawer__panel').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    expect(moving(motion, 'kima-drawer__panel').some(item => item.duration > 0)).toBe(true)
+    expect(moving(motion, 'ui-dialog__panel').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
+    expect(moving(motion, 'ui-dialog__panel').some(item => item.duration > 0)).toBe(true)
     expect(mock.errors).toEqual([])
   })
 
-  test('settings switches use the same KIMA thumb motion', async ({ page }) => {
+  test('settings switches use the same local thumb motion', async ({ page }) => {
     await backend(page)
     await page.goto('/')
     await navigate(page, '设置')
     await page.getByRole('button', { name: /智能体/ }).click()
     await page.locator('.agent-row').first().click()
     const toggle = page.getByRole('switch', { name: '只读' })
-    const thumb = page.locator('.agent-switch-row', { hasText: '只读' }).locator('.kima-switch__thumb')
+    const thumb = page.locator('.agent-switch-row', { hasText: '只读' }).locator('.ui-switch__thumb')
     await expect(toggle).not.toBeChecked()
 
     const duration = await thumb.evaluate(element => getComputedStyle(element).transitionDuration)

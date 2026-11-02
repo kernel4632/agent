@@ -5,13 +5,14 @@
 调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="setModels" />
 -->
 <script setup>
+import { Notice } from '../../commands/notice.js'
+
 import { computed, ref } from 'vue'
 import {
-  KimaCard, KimaChip, KimaFlex, KimaNumberField, KimaTypography,
+  Card, Chip, Flex, NumberField, Typography,
 } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, IconButton, ModelIcon, Switch } from '../../ui/index.js'
-import { Settings } from '../settings.js'
-import { UI } from '../../app/ui.js'
+import { Settings } from '../../commands/settings.js'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
@@ -51,7 +52,7 @@ const newModel = id => ({ id, name: id, capabilities: defaultCapabilities(), con
 function addManual() {
   const id = manual.value.trim()
   if (!id) return
-  if (props.models.some(model => model.id === id)) { UI.notify('这个模型已经在列表里了'); return }
+  if (props.models.some(model => model.id === id)) { Notice.show('这个模型已经在列表里了'); return }
   emit('update:models', [...props.models, newModel(id)])
   manual.value = ''
 }
@@ -124,7 +125,7 @@ function saveModel() {
   <div class="provider-models">
     <header class="provider-models__head">
       <div>
-        <KimaTypography type="heading" :level="3" size="title-small">模型</KimaTypography>
+        <Typography type="heading" :level="3" size="title-small">模型</Typography>
         <p>{{ models.length }} 个模型。列表里的第一个会作为这个供应商的默认模型。</p>
       </div>
       <Button variant="tonal" :disabled="loading" @click="discover">
@@ -151,7 +152,7 @@ function saveModel() {
     <p v-if="!models.length" class="provider-models__empty">还没有模型。可以获取供应商支持的模型，也可以手动填一个 ID。</p>
 
     <div v-else class="provider-models__list">
-      <KimaCard v-for="(model, index) in models" :key="model.id" variant="outlined" class="model-card">
+      <Card v-for="(model, index) in models" :key="model.id" variant="outlined" class="model-card">
         <div class="model-card__main">
           <div class="model-card__title">
             <ModelIcon :model="model.id" :provider="provider.name" :size="20" />
@@ -159,7 +160,7 @@ function saveModel() {
             <span v-if="model.name !== model.id">{{ model.id }}</span>
           </div>
           <div class="model-card__meta">
-            <KimaChip v-for="capability in model.capabilities" :key="capability">{{ capability }}</KimaChip>
+            <Chip v-for="capability in model.capabilities" :key="capability">{{ capability }}</Chip>
             <span class="model-card__context">上下文 {{ formatContext(model.context) }}</span>
           </div>
         </div>
@@ -169,7 +170,7 @@ function saveModel() {
           <IconButton label="编辑模型" variant="text" @click="editModel(model)"><AppIcon name="edit" :size="18" /></IconButton>
           <IconButton :label="`移除模型 ${model.name}`" variant="text" @click="removeModel(model.id)"><AppIcon name="trash" :size="18" /></IconButton>
         </div>
-      </KimaCard>
+      </Card>
     </div>
   </div>
 
@@ -199,7 +200,7 @@ function saveModel() {
   </Dialog>
 
   <Dialog :open="Boolean(editing)" label="编辑模型" @update:open="value => { if (!value) editing = null }">
-    <KimaFlex v-if="editDraft" direction="column" :gap="4">
+    <Flex v-if="editDraft" direction="column" :gap="4">
       <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" readonly />
       <Field caption="显示名称" label="显示名称" :model-value="editDraft.name" clearable @update:model-value="editDraft.name = $event" />
 
@@ -218,19 +219,19 @@ function saveModel() {
       <div class="model-edit__field">
         <span class="model-edit__label">上下文窗口</span>
         <div class="model-edit__presets">
-          <KimaChip
+          <Chip
             v-for="preset in CONTEXT_PRESETS"
             :key="preset"
             selectable
             :model-value="Number(editDraft.context) === preset"
             @update:model-value="value => setContext(value ? preset : 0)"
-          >{{ formatContext(preset) }}</KimaChip>
+          >{{ formatContext(preset) }}</Chip>
         </div>
-        <KimaNumberField label="上下文窗口" :min="0" :step="1000" :model-value="Number(editDraft.context) || 0" @update:model-value="setContext" />
+        <NumberField label="上下文窗口" :min="0" :step="1000" :model-value="Number(editDraft.context) || 0" @update:model-value="setContext" />
         <p class="model-edit__hint">不填就按 128K 处理；填了以后压缩阈值按这个窗口计算。</p>
       </div>
       <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
-    </KimaFlex>
+    </Flex>
     <template #footer>
       <Button variant="text" @click="editing = null">取消</Button>
       <Button @click="saveModel">保存模型</Button>
@@ -238,40 +239,4 @@ function saveModel() {
   </Dialog>
 </template>
 
-<style scoped lang="scss">
-.provider-models { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
-.provider-models__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.provider-models__head p { margin: 4px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
-.provider-models__add { display: flex; align-items: flex-end; gap: 12px; }
-.provider-models__input { min-width: 0; flex: 1; }
-.provider-models__empty { margin: 0; padding: 18px; border-radius: 16px; background: var(--la-layer-02); color: var(--la-muted); font-size: 13.5px; line-height: 21px; }
-.provider-models__list { display: grid; gap: 10px; }
-.model-card { padding: 14px 16px; }
-.model-card :deep(.kima-card__body) { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 12px; }
-.model-card__main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 8px; }
-.model-card__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
-.model-card__title strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
-.model-card__title span { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.model-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.model-card__context { color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-card__actions { display: flex; flex: none; align-items: center; gap: 2px; }
-.model-chooser { display: flex; flex-direction: column; gap: 12px; }
-.model-chooser__list { display: flex; max-height: 360px; flex-direction: column; gap: 2px; overflow: auto; }
-.model-chooser__row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 22px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; }
-.model-chooser__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-chooser__id { overflow: hidden; color: var(--la-muted); font-family: var(--la-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.model-chooser__check { color: var(--la-accent); }
-.model-chooser__empty { margin: 0; padding: 14px; color: var(--la-muted); font-size: 13px; }
-.model-edit__field { display: grid; gap: 8px; }
-.model-edit__label { color: var(--kima-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
-.model-edit__presets { display: flex; flex-wrap: wrap; gap: 6px; }
-.model-edit__hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 18px; }
-.model-edit__error { margin: 0; color: var(--kima-color-error); font-size: 13px; line-height: 20px; }
-@media (max-width: 560px) {
-  .provider-models__head { flex-direction: column; }
-  .provider-models__add { flex-wrap: wrap; }
-  .provider-models__input { flex-basis: 100%; }
-  .model-chooser__row { grid-template-columns: 20px minmax(0, 1fr) 22px; }
-  .model-chooser__id { display: none; }
-}
-</style>
+<style scoped lang="scss" src="../../styles/settings/components/ProviderModels.scss"></style>

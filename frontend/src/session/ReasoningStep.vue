@@ -87,3 +87,5 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+
+<style scoped lang="scss" src="../styles/session/ReasoningStep.scss"></style>

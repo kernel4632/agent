@@ -1,0 +1,7 @@
+/* Chip.vue：附件与能力标签。 */
+.ui-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; height: 36px; border: 1px solid var(--la-line); border-radius: 10px; background: var(--la-layer-01); color: var(--la-text); font-size: 13px; }
+.ui-chip__text { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; height: 100%; padding: 0 12px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; }
+button.ui-chip__text, .ui-chip__close { cursor: pointer; }
+.ui-chip__close { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; margin-right: 4px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; }
+.ui-chip__close:hover { background: var(--la-hover); }
+.ui-chip.is-selected { background: var(--la-accent-soft); border-color: transparent; color: var(--la-accent); }

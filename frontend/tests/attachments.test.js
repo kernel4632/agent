@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENT_SIZE, attachmentError, readAttachments } from '../src/utils/attachments.js'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENT_SIZE, attachmentError, readAttachments } from '../src/commands/attachment.js'
 
 test('accepts text and code files', () => {
   assert.equal(attachmentError({ name: 'src/App.vue', size: 1024 }), '')

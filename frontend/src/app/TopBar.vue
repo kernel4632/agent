@@ -15,9 +15,9 @@
 import { computed, ref, watch } from 'vue'
 import { AppIcon, Button, Dialog, Field, IconButton } from '../ui/index.js'
 import SessionStats from '../session/SessionStats.vue'
-import { sessionStats } from '../session/stats.js'
+import { sessionStats } from '../commands/stats.js'
 import { latestTodos } from '../session/todos.js'
-import { Session } from '../session/session.js'
+import { Session } from '../commands/session.js'
 import { NEW_SESSION_TITLE } from '../defaults.js'
 
 const props = defineProps({
@@ -76,50 +76,4 @@ async function saveTitle() {
   </Dialog>
 </template>
 
-<style scoped lang="scss">
-.topbar {
-  display: flex;
-  height: var(--la-topbar-height);
-  flex: 0 0 var(--la-topbar-height);
-  align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  background: transparent;
-}
-.topbar__menu { display: inline-flex; }
-.topbar__heading { display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: center; gap: 2px; }
-.topbar__heading h1 {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--la-text);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 26px;
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.topbar__title {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: text;
-}
-.topbar__title:hover { color: var(--la-accent); }
-.topbar__actions { display: flex; flex: none; align-items: center; gap: 4px; }
-
-/* 手机上保留任务清单入口；标题让出空间，长标题自己截断。 */
-@media (max-width: 767px) {
-  .topbar { padding: 0 8px; gap: 4px; }
-  .topbar__heading h1 { font-size: 16px; line-height: 24px; }
-}
-</style>
+<style scoped lang="scss" src="../styles/app/TopBar.scss"></style>
