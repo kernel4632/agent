@@ -168,7 +168,7 @@ test.describe('chat motion', () => {
     expect(timelineEnter.some(item => item.opacity !== '1' || item.transform !== 'none')).toBe(true)
     expect(timelineEnter.some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
 
-    // 输入框在 SessionView 里，不跟着 Timeline 重建；同时只能有一套聊天内容。
+    // 输入框在 ChatView 里，不跟着 Timeline 重建；同时只能有一套聊天内容。
     await expect(page.locator('.chat-composer')).toHaveCount(1)
     await expect(page.locator('.conversation-flow')).toHaveCount(1)
     expect(await page.locator('.chat-composer').getAttribute('data-motion-keep')).toBe('yes')

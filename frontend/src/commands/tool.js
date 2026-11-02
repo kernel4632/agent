@@ -2,7 +2,7 @@
  * 工具界面描述：工具脚本里的 ui 字段通过 /tool/list 来到这里。
  *
  * 工具只声明“用哪个视图、显示什么摘要、提供哪些操作”，真正的 Vue 组件放在
- * session/tools/ToolView.vue。这样旧后端或没有 ui 的自定义工具仍能退回通用行。
+ * session/tools/ToolResult.vue。这样旧后端或没有 ui 的自定义工具仍能退回通用行。
  * 调用示例：
  *   toolLabel(tool)                                              // '读取文件 · src/a.js'
  *   outputValue(tool)                                            // 工具结果里的真实对象

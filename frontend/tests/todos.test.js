@@ -21,8 +21,8 @@ test('三种任务状态各有一份图标和文案', () => {
 
 test('两个清单界面都从同一张状态表派生，没有各自复制文案', () => {
     const files = [
-        '../src/session/SessionTodoPanel.vue',
-        '../src/session/tools/views/TodoView.vue',
+        '../src/components/TaskPanel.vue',
+        '../src/components/results/TodoView.vue',
     ]
     for (const file of files) {
         const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8')

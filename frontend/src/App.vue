@@ -1,7 +1,7 @@
 <!--
 应用外壳：负责视图切换、抽屉、顶部栏和跨视图事件接线。
 页面在 draft/、session/、settings/；抽屉、顶部栏、命令面板、提示条和快捷键在 app/；导航、设置、反馈等动作由 session/、settings/、app/ 里的指令提供。
-入口：main.js 挂载本组件；调用示例：<AppDrawer :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
+入口：main.js 挂载本组件；调用示例：<Sidebar :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
 <script setup>
 import { Navigation } from './commands/navigation.js'
@@ -9,16 +9,16 @@ import { Notice } from './commands/notice.js'
 import { activeSession } from './store.js'
 
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import DraftView from './draft/DraftView.vue'
-import SessionView from './session/SessionView.vue'
-import AppDrawer from './app/AppDrawer.vue'
-import TopBar from './app/TopBar.vue'
-import CommandPalette from './app/CommandPalette.vue'
-import ConnectionError from './app/ConnectionError.vue'
-import Toast from './app/Toast.vue'
-import { usePalette } from './app/usePalette.js'
-import { shortcutListener } from './app/shortcuts.js'
-import ThemeProvider from './theme/ThemeProvider.vue'
+import DraftView from './views/DraftView.vue'
+import ChatView from './views/ChatView.vue'
+import Sidebar from './components/Sidebar.vue'
+import TopBar from './components/TopBar.vue'
+import CommandPalette from './components/CommandPalette.vue'
+import ConnectionError from './components/ConnectionError.vue'
+import Toast from './components/Toast.vue'
+import { usePalette } from './components/usePalette.js'
+import { shortcutListener } from './utils/shortcuts.js'
+import ThemeProvider from './components/ThemeProvider.vue'
 import { store } from './store.js'
 import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
@@ -26,7 +26,7 @@ import { DEFAULT_SETTINGS } from './defaults.js'
 import { normalizeAppearance } from './store.js'
 import { readAttachments } from './commands/attachment.js'
 
-const SettingsPage = defineAsyncComponent(() => import('./settings/SettingsPage.vue'))
+const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 const draftView = ref(null)
 const homeDraft = ref('')
 const homeFiles = ref([])
@@ -132,7 +132,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 <template>
   <ThemeProvider :appearance="appearance">
     <div class="rikka-app">
-      <AppDrawer
+      <Sidebar
         v-if="mode !== 'settings'"
         :open="drawerOpen"
         @close="drawerOpen = false"
@@ -156,7 +156,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
           </Transition>
 
           <Transition name="view" mode="out-in">
-            <SettingsPage v-if="mode === 'settings'" key="settings" class="settings-panel" />
+            <SettingsView v-if="mode === 'settings'" key="settings" class="settings-panel" />
 
             <DraftView
               v-else-if="mode === 'draft'"
@@ -175,7 +175,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
               @remove-file="removeFile"
             />
 
-            <SessionView
+            <ChatView
               v-else
               key="session"
               :session="session"
