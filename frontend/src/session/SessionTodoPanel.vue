@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import { Dialog } from '../ui/index.js'
 import { AppIcon } from '../ui/index.js'
 import { Progress } from '../ui/index.js'
-import { todoStatus } from './todos.js'
+import { todoStatus } from '../commands/tool.js'
 
 const props = defineProps({
   open: Boolean,

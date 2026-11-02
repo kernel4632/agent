@@ -1,18 +1,14 @@
 /*
 Session 指令：负责创建、读取、打开、重命名、删除和切换会话模型。
 Server 会话会被归一化为现有 页面组件可直接渲染的消息与工具结构。
-调用示例：await Session.create(workspaceID)、await Session.open(sessionID)。
+调用示例：await Session.create(workspaceID)、await Session.read(sessionID)；页面导航调用 Navigation。
 */
-import { Navigation } from './navigation.js' // 数据就绪后切换界面
-import { Notice } from './notice.js' // 操作结果由独立反馈功能显示
-import { AgentAPI } from '../utils/api.js'                    // 引入正式 Session HTTP 契约
-import { store } from '../store.js'                     // 引入工作区摘要与完整会话
-import { Tabs } from '../app/tabs.js'                        // 同步顶部会话标签
-import { t } from '../utils/i18n.js'                          // 引入当前语言默认文案
-import { formatToolOutput, toolStatus } from './tool.js' // 工具状态和文本只有一处判断
-import { requestFromUsage } from '../session/usage.js'             // 请求用量字段只有一处转换
-import { splitUserAttachments } from '../utils/user-message.js'      // 历史里的附件正文不能跑进用户气泡
-import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认值只留一处
+import { Notice } from './notice.js'
+import { History } from './history.js'
+import { AgentAPI } from '../utils/api.js'
+import { store } from '../store.js'
+import { t } from '../utils/i18n.js'
+import { COMPACT_RANGE, DEFAULT_CONTEXT, DEFAULT_SETTINGS, NEW_SESSION_TITLE } from '../defaults.js'
 
 
 // --- 查找会话摘要和所属工作区 ---
@@ -33,68 +29,21 @@ function rememberOpened(sessionID) {
 }
 
 
-// --- 关闭已打开会话 ---
-async function closeOpened(sessionID) {
-  const closingIndex = store.ui.openedSessionIDs.indexOf(sessionID)   // 查找要关闭的侧边栏标签位置
-  if (closingIndex < 0) return false                                  // 未打开会话无需改变任何页面状态
-  const closingActiveChat = store.ui.view === 'chat' && store.ui.activeSessionID === sessionID // 只有当前对话需要切换页面
-
-  store.ui.openedSessionIDs.splice(closingIndex, 1)                   // 关闭标签，不删除 Server 会话和主页摘要
-  if (!closingActiveChat) return true                                 // 关闭后台标签时保留当前页面
-
-  const adjacentSessionID = store.ui.openedSessionIDs[closingIndex] || store.ui.openedSessionIDs[closingIndex - 1] // 优先选择右侧标签，再选择左侧标签
-  if (adjacentSessionID) await Navigation.openChat(adjacentSessionID)         // 相邻完整会话已加载，可直接切换
-  else await Navigation.openHome()                                            // 最后一个标签关闭后返回主页
-  return true                                                         // 反馈标签关闭与页面切换完成
-}
-
-
 // --- 创建会话 ---
 async function create(workspaceID = store.ui.activeWorkspaceID) {
   const workspace = store.workspaces.find((item) => item.id === workspaceID) || store.workspaces[0] // 没有选择时使用首个工作区
   if (!workspace) return null                           // 没有工作区时不能创建归属不明的会话
   try {
     const created = await AgentAPI.createSession(workspace.id, store.config.activeProvider, store.config.activeModel) // Server 创建并持久化完整会话
-    const session = normalize(created)                  // 补齐仅前端使用的草稿和用量字段
+    const session = History.normalize(created)                  // 补齐仅前端使用的草稿和用量字段
     store.sessions[session.id] = session                // 完整会话进入响应式目录
-    workspace.sessions.unshift(summaryOf(session))      // 摘要进入当前工作区首位
+    workspace.sessions.unshift(History.summaryOf(session))      // 摘要进入当前工作区首位
     rememberOpened(session.id)                          // 新会话已经加载，应立即出现在侧边栏
-    await Navigation.openChat(session.id)                       // 新建后等待进入对话页
     return session                                      // 返回新会话供组合动作使用
   } catch (error) {
     Notice.show(error.message)                            // 反馈真实创建失败原因
     return null                                         // 保持当前页面和目录不变
   }
-}
-
-
-// --- 打开会话 ---
-async function open(sessionID) {
-  const found = locate(sessionID)                       // 确认目录中存在目标会话
-  if (!found) return false                              // 无效点击保持当前页面
-  try {
-    const loaded = await AgentAPI.getSession(sessionID) // 每次打开读取 Server 最新历史和状态
-    if (!loaded.title && found.summary.title) loaded.title = found.summary.title // 摘要已有标题时回退使用，防止侧边栏显示空标题
-    store.sessions[sessionID] = normalize(loaded, store.sessions[sessionID]) // 保留当前草稿并替换服务数据
-    store.ui.activeWorkspaceID = found.workspace.id     // 侧边栏与主页保持正确工作区归属
-    rememberOpened(sessionID)                           // 读取成功后才加入侧边栏，失败时不制造空标签
-    Tabs.openSession(sessionID, store.sessions[sessionID]?.title || '新会话')
-    await Navigation.openChat(sessionID)                        // 数据就绪后再打开对话页
-    return true                                         // 反馈页面已经切换
-  } catch (error) {
-    Notice.show(error.message)                            // 展示会话读取错误
-    return false                                        // 不进入无数据对话页
-  }
-}
-
-
-// --- 刷新完整会话 ---
-async function refresh(sessionID) {
-  const previous = store.sessions[sessionID]            // 保存当前输入草稿和附件
-  const loaded = await AgentAPI.getSession(sessionID)   // 从 Server 读取最终持久化历史
-  store.sessions[sessionID] = normalize(loaded, previous) // 写回统一前端结构
-  syncSummary(store.sessions[sessionID])                // 同步主页和侧栏摘要
-  return store.sessions[sessionID]                      // 反馈最新会话供事件终态使用
 }
 
 
@@ -135,7 +84,7 @@ async function remove(sessionID) {
   try {
     await AgentAPI.removeSession(sessionID)
     forget(sessionID)
-    if (store.ui.activeSessionID === sessionID) await Navigation.openHome()
+    if (store.ui.activeSessionID === sessionID) { store.ui.activeSessionID = ''; store.ui.view = 'home' }
     Notice.show(t('sessionDeleted'))
     return true
   } catch (error) {
@@ -159,7 +108,7 @@ async function removeMany(sessionIDs = []) {
       Notice.show(error.message)
     }
   }
-  if (removed && activeRemoved) await Navigation.openHome()
+  if (removed && activeRemoved) { store.ui.activeSessionID = ''; store.ui.view = 'home' }
   if (removed) Notice.show(`已删除 ${removed} 个会话`)
   return removed
 }
@@ -183,22 +132,6 @@ async function selectModel(sessionID, provider, model) {
 }
 
 
-// --- 从当前会话分出一个新分支 ---
-async function fork(sessionID, messageId) {
-  const session = store.sessions[sessionID]
-  if (!session) return null
-  try {
-    const { sessionId } = await AgentAPI.forkSession(sessionID, messageId ? { messageId } : {})
-    await openByID(sessionId)
-    Notice.show('已创建分支')
-    return sessionId
-  } catch (error) {
-    Notice.show(error.message)
-    return null
-  }
-}
-
-
 // --- 改会话运行设置 ---
 async function saveSettings(sessionID, change) {
   const session = store.sessions[sessionID]
@@ -211,10 +144,13 @@ async function saveSettings(sessionID, change) {
   session.settings = next
   try {
     const settings = await AgentAPI.saveSettings(sessionID, change)
-    session.settings = settings                             // 后端说的是准的，本地不自己拼
+    // 读取历史可能已经替换会话对象，响应必须写到当前对象，不能写回过期引用。
+    const current = store.sessions[sessionID]
+    if (current) current.settings = settings
     return settings
   } catch (error) {
-    session.settings = previous
+    const current = store.sessions[sessionID]
+    if (current) current.settings = previous
     Notice.show(error.message)
     return null
   }
@@ -292,202 +228,144 @@ async function setCompactThreshold(sessionID, value) {
 // --- 用途的中文名 ---
 const useLabel = use => (store.config.useOptions || []).find(item => item.use === use)?.label || use
 
-// --- 把一条协议消息整理成界面消息；工具结果只更新前面对应的工具，不单独成为气泡 ---
-function partList(item) {
-  return Array.isArray(item.parts) ? item.parts
-    : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
-}
-
-function normalizeTool(part) {
-  const call = part.toolInvocation || part                // 兼容 UIMessage parts 和旧格式
-  const result = call.state === 'result' ? call.result : null // 有结果才判断成功或失败
-  const output = result?.output ?? result ?? null
-  const status = result ? toolStatus(output, result.isError) : 'running'
-  const preview = output ? formatToolOutput(output) : ''
-  return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
-}
-
-function applyToolResult(messages, parts) {
-  for (const result of parts.filter(part => part.type === 'tool-result')) {
-    const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
-    if (!tool) continue
-    tool.status = toolStatus(result.output, result.isError) // 拒绝、失败、完成由 tool-ui 统一判断
-    tool.output = result.output
-    tool.preview = formatToolOutput(result.output)          // 结果文本和实时事件用同一套格式
-  }
-}
-
-function normalizeRequest(item) {
-  return requestFromUsage(item.usage)
-}
-
-function normalizeMessage(item, messages) {
-  const parts = partList(item)
-  // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
-  const message = {
-    id: item.messageId || item.id,
-    role: item.role,
-    startedAt: Number(item.startedAt || 0),
-    finishedAt: Number(item.finishedAt || 0),
-  }
-  if (item.compact) message.compact = true
-  if (item.role === 'tool') {
-    applyToolResult(messages, parts)
-    return null
-  }
-
-  message.reasoning = parts.filter(part => part.type === 'reasoning').map(part => part.reasoning || part.text || '').join('') // 合并推理块
-  message.content = parts.filter(part => part.type === 'text').map(part => part.text || '').join('') // 合并文本块
-  if (item.role === 'user') {
-    const parsed = splitUserAttachments(message.content) // 历史只保存拼好的输入，附件正文不能进气泡
-    message.displayContent = parsed.content              // content 保留完整输入，回退和重新发送仍然可用
-    message.attachments = parsed.attachments
-  }
-  message.tools = parts
-    .filter(part => part.type === 'tool-invocation' || part.type === 'tool-call')
-    .map(normalizeTool)
-  // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
-  message.steps = []
-  if (item.role === 'assistant') {
-    for (const part of parts) {
-      if (part.type === 'reasoning') {
-        const text = part.reasoning || part.text || ''
-        if (text) message.steps.push({ type: 'reasoning', text })
-      } else if (part.type === 'text') {
-        if (part.text) message.steps.push({ type: 'text', text: part.text })
-      } else if (part.type === 'tool-invocation' || part.type === 'tool-call') {
-        const call = part.toolInvocation || part
-        if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId })
-      }
-    }
-    // 旧会话没有 parts 顺序时，退回“思考 → 正文 → 工具”的旧顺序。
-    if (!message.steps.length) {
-      if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
-      if (message.content) message.steps.push({ type: 'text', text: message.content })
-      for (const tool of message.tools) message.steps.push({ type: 'tool', toolId: tool.id })
-    } else {
-      // 步骤里已经有思考正文，顶层再留一份只会让长会话多占一倍内存。
-      message.reasoning = ''
-    }
-    const request = normalizeRequest(item)
-    if (request) {
-      message.request = request
-      message.requests = [request]
-    }
-  }
-  return message
-}
-
-// --- 归一化 Server 会话 ---
-function normalize(source, previous = {}) {
-  const provider = source.provider || findModelProvider(source.model)
-
-  // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
-  // 不保留后端原始 history：它在界面里只通过 messages 使用，留着会多占一倍内存。
-  const { history: _history, ...sessionData } = source
-  const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
-  for (const item of source.history ?? []) {
-    const message = normalizeMessage(item, messages)
-    if (message) messages.push(message)                  // 用户和助手消息进入可见时间线
-  }
-  // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。
-  // 历史里的工具调用本身只有“调用中”，必须用这份清单把它标回“等待你的许可”，否则按钮会消失。
-  for (const pending of source.pending || []) {
-    const callID = pending.callID || pending.toolCallId              // 两种字段名都认
-    const tool = messages.flatMap(item => item.tools || []).find(item => item.id === callID)
-    if (tool) tool.status = 'waiting'
-  }
-  // 统计从每条助手消息的请求用量里重新算，刷新后总消耗和上下文不会归零。
-  const requests = messages.flatMap(message => message.requests || [])
-  const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
-  const lastRequest = requests.at(-1)
-  // 返回前端最终结构，补齐仅前端使用的草稿和用量字段
-  return {
-    ...sessionData,                                      // 保留公开 Session 身份、工作区、状态和任务
-    workspaceID: source.workspaceId,
-    // 刷新或重连时以后端真实 running 为准；否则正在重试的会话会显示成空闲，
-    // 输入区只剩发送按钮，用户就没法点停止。
-    status: source.running ? 'running' : 'idle',
-    connection: previous.connection || 'connecting',
-    undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
-    // 智能体、能力开关、按用途的模型，后端读取时一并给出。
-    // 缺字段时用下面这份兜底；默认值和后端 defaultSettings() 是同一套值（有契约测试盯着）。
-    settings: source.settings || previous.settings || {
-      ...DEFAULT_SETTINGS,
-      capabilities: { ...DEFAULT_SETTINGS.capabilities },
-      uses: { ...DEFAULT_SETTINGS.uses },
-    },
-    title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
-    titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
-    provider,                                           // 模型选择器显示供应商
-    model: source.model || store.config.activeModel,    // 模型选择器显示模型
-    messages,                                            // 使用合并后的可见消息
-    draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
-    files: previous.files || [],                         // 刷新历史不丢失附件元数据
-    contextTokens: lastRequest?.input || previous.contextTokens || 0, // 最后一次请求的提示词 token 就是上下文占用
-    contextLimit: store.config.providers[provider]?.modelSettings?.[source.model]?.context || previous.contextLimit || DEFAULT_CONTEXT, // 读取模型上下文限制
-    inputTokens: requests.length ? sum('input') : previous.inputTokens || 0,       // 历史里的累计输入
-    outputTokens: requests.length ? sum('output') : previous.outputTokens || 0,    // 历史里的累计输出
-    cacheTokens: requests.length ? sum('cache') : previous.cacheTokens || 0,       // 历史里的缓存读取
-  }
-}
-
-
-// --- 从配置模型目录解析供应商 ---
-function findModelProvider(model) {
-  const activeProvider = store.config.activeProvider
-  if (store.config.providers[activeProvider]?.models?.includes(model)) return activeProvider // 同名模型优先使用当前供应商
-  return Object.entries(store.config.providers).find(([, config]) => config.models?.includes(model))?.[0] || activeProvider // 再查找首个配置来源
-}
-
-
-// --- 创建会话摘要 ---
-function summaryOf(session) {
-  return {
-    id: session.id,                                      // 会话唯一身份
-    workspaceID: session.workspaceID,                    // 所属工作区
-    title: session.title || t('newConversation'),        // 列表显示标题，空标题使用默认文案
-    model: session.model,                                // 当前使用模型
-    status: session.status,                              // 运行或空闲状态
-    messageCount: session.messages.length,               // 消息数量用于列表摘要展示
-    createdAt: session.createdAt,                        // 创建时间
-    updatedAt: session.updatedAt,                        // 最近更新时间
-    lastActiveAt: session.lastActiveAt,                  // 最近活跃时间
-  }
-}
-
-
-// --- 同步会话摘要 ---
-function syncSummary(session) {
-  const found = locate(session.id)                       // 查找工作区内摘要
-  if (!found) return                                     // 异常游离会话不制造目录项
-  Object.assign(found.summary, summaryOf(session))       // 将最新标题、状态、计数和时间写回列表
-}
-
-async function openByID(id) {
+/** 读取并登记会话；导航和当前页面由 Navigation 决定。 */
+async function read(id) {
   const sessionID = id.trim()
   if (!/^[\w-]+$/.test(sessionID)) { Notice.show('请输入有效的会话 ID'); return false }
   try {
     const source = await AgentAPI.getSession(sessionID)
-    const session = normalize(source)
-    if (!locate(sessionID)) store.workspaces[0].sessions.unshift(summaryOf(session))
+    const found = locate(sessionID)
+    if (!source.title && found) source.title = found.summary.title
+    const session = History.normalize(source, store.sessions[sessionID])
+    if (!locate(sessionID)) store.workspaces[0].sessions.unshift(History.summaryOf(session))
     store.sessions[sessionID] = session
     rememberOpened(sessionID)
-    await Navigation.openChat(sessionID)
-    return true
+    Tabs.openSession(sessionID, session.title || NEW_SESSION_TITLE)
+    if (found) store.ui.activeWorkspaceID = found.workspace.id
+    return session
   } catch (error) { Notice.show(error.message); return false }
 }
 
 
-// --- 完成标题编辑器保存 ---
-async function saveTitleEditing(currentTitle, draft, editing, emit) {
-  const nextTitle = draft.value.trim()                   // 编辑器草稿转换为业务标题
-  if (!nextTitle) return                                 // 空标题保持编辑状态
-  if (nextTitle === currentTitle) return void (editing.value = false) // 未变化时直接退出
-  emit('save', nextTitle, (saved) => { if (saved) editing.value = false }) // 页面 Command 决定是否退出
+// --- 加载会话列表 ---
+async function list() {
+  try {
+    const reading = [AgentAPI.getSessionList(), AgentAPI.getWorkspace().catch(() => null)]
+    const [sessions, workspace] = await Promise.all(reading)
+
+    const id = workspace?.path || 'local'
+    // 会话按 Server 的记录组装；一条都没有时列表是空的，这是真实状态，不造假数据。
+    store.workspaces.splice(0, store.workspaces.length, {
+      id,
+      name: workspace?.path?.split(/[/\\]/).filter(Boolean).pop() || '本机会话',
+      path: workspace?.path || '',
+      git: workspace?.git || null,
+      files: Array.isArray(workspace?.files) ? workspace.files : [],
+      sessions: sessions.map(summaryOf),
+    })
+    store.ui.activeWorkspaceID = id
+    return true
+  } catch (error) {
+    // 启动时后端没起来不该在控制台留下未处理的 rejection；用可见的错误提示代替。
+    store.ui.errorMessage = error.message
+    return false
+  }
 }
 
-export const Session = {
-  locate, create, open, openByID, closeOpened, refresh, rename, remove, removeMany, selectModel, fork, normalize, syncSummary, saveTitleEditing,
-  saveSettings, setAgent, agentLabel, toggleCapability, toggleAutoTitle, setUse, setCompactThreshold, setReasoning,
+// --- 重新加载会话列表 ---
+async function reload() {
+  const sessions = await AgentAPI.getSessionList()
+  const current = store.workspaces[0]
+  if (!current) return list()
+  current.sessions = sessions.map(summaryOf)
+  return true
 }
+
+// --- 把 Server 会话转换成列表摘要 ---
+function summaryOf(session) {
+  return {
+    id: session.id,
+    title: session.title || NEW_SESSION_TITLE,
+    provider: session.provider,
+    model: session.model,
+    messageCount: session.messageCount ?? 0,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  }
+}
+
+// --- 创建一个草稿标签 ---
+function createDraft() {
+  const tabStore = store.tabs                            // 读取当前标签顺序
+  const key = `draft:${crypto.randomUUID()}`             // 为独立输入上下文生成稳定身份
+  tabStore.items.push({ key, sessionID: '', title: '新会话' }) // 将草稿加入顶部工作区
+  tabStore.activeKey = key                               // 新草稿立即成为当前标签
+  return key                                             // 返回身份供对话指令建立数据
+}
+
+// --- 打开一个已有会话标签 ---
+function openSession(sessionID, title = NEW_SESSION_TITLE, activate = true) {
+  const tabStore = store.tabs                            // 读取当前标签顺序
+  const key = `session:${sessionID}`                     // 将会话 ID 转换为稳定标签身份
+  if (!tabStore.items.some((tab) => tab.key === key)) tabStore.items.push({ key, sessionID, title }) // 已打开时不重复添加
+  if (activate) tabStore.activeKey = key                 // 前台打开时切换当前选择
+  return key                                             // 返回身份供对话指令定位数据
+}
+
+// --- 将草稿升级为真实会话标签 ---
+function promote(draftKey, sessionID) {
+  const tabStore = store.tabs                            // 读取草稿标签和当前选择
+  const tab = tabStore.items.find((item) => item.key === draftKey) // 查找收到 Server 会话 ID 的草稿
+  const nextKey = `session:${sessionID}`                 // 创建可持久化的真实标签身份
+  if (!tab) return nextKey                               // 标签已关闭时仍允许后台流完成
+
+  tab.key = nextKey                                      // 原位升级以保持标签顺序
+  tab.sessionID = sessionID                              // 保存后续重新读取所需的会话 ID
+  if (tabStore.activeKey === draftKey) tabStore.activeKey = nextKey // 当前草稿继续保持选中
+  return nextKey                                         // 返回新身份供对话映射迁移
+}
+
+// --- 选择一个已打开标签 ---
+function select(key) {
+  const tabStore = store.tabs                            // 读取当前标签集合
+  if (!tabStore.items.some((tab) => tab.key === key)) return // 不存在的标签不能成为当前选择
+  tabStore.activeKey = key                               // 将聊天页切换到目标标签
+}
+
+// --- 关闭标签并选择相邻项 ---
+function close(key) {
+  const tabStore = store.tabs                            // 读取当前标签顺序和选择
+  const index = tabStore.items.findIndex((tab) => tab.key === key) // 定位关闭项和邻居位置
+  if (index < 0) return tabStore.activeKey               // 标签不存在时保持当前选择
+  const wasActive = tabStore.activeKey === key           // 记录是否需要选择邻居
+  tabStore.items.splice(index, 1)                        // 从顶部工作区移除目标标签
+  if (wasActive) tabStore.activeKey = tabStore.items[index]?.key ?? tabStore.items[index - 1]?.key ?? '' // 优先选择右侧邻居
+  return tabStore.activeKey                              // 返回关闭后的当前标签
+}
+
+// --- 更新一个标签标题 ---
+function setTitle(key, title) {
+  const tabStore = store.tabs                            // 读取当前标签集合
+  const tab = tabStore.items.find((item) => item.key === key) // 定位需要更新的标签
+  if (!tab || !title) return                             // 无目标或空标题时保持现状
+  tab.title = title                                      // 将 Server 最终标题写入顶部反馈
+}
+
+// --- 用会话摘要同步全部标题 ---
+function syncTitles(sessions) {
+  const tabStore = store.tabs                            // 读取所有已打开标签
+  tabStore.items.forEach((tab) => {
+    const session = sessions.find((item) => item.id === tab.sessionID) // 查找标签对应的最新摘要
+    if (session?.title) tab.title = session.title        // 异步标题生成后更新标签反馈
+  })
+}
+
+// --- 删除会话关联标签 ---
+function removeSession(sessionID) {
+  const tabStore = store.tabs                            // 读取所有已打开标签
+  const tab = tabStore.items.find((item) => item.sessionID === sessionID) // 查找被删除会话的标签
+  if (tab) close(tab.key)                                // 复用相邻选择规则移除标签
+}
+
+export const Tabs = {  createDraft, openSession, promote, select, close, setTitle, syncTitles, removeSession  }
+export const Session = { locate, list, reload, create, read, rename, remove, removeMany, selectModel, saveSettings, setAgent, agentLabel, toggleCapability, toggleAutoTitle, setUse, setCompactThreshold, setReasoning }

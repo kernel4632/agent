@@ -23,7 +23,7 @@ import { store } from './store.js'
 import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { DEFAULT_SETTINGS } from './defaults.js'
-import { normalizeAppearance } from './theme/index.js'
+import { normalizeAppearance } from './store.js'
 import { readAttachments } from './commands/attachment.js'
 
 const SettingsPage = defineAsyncComponent(() => import('./settings/SettingsPage.vue'))
@@ -59,7 +59,7 @@ async function openDraft() {
 
 function openSession(id) {
   drawerOpen.value = false
-  return Session.open(id)
+  return Navigation.openChat(id)
 }
 
 async function openSettings(section) {
@@ -83,7 +83,7 @@ async function submitMessage(content) {
   let current
   creating.value = true
   try {
-    current = await Session.create()
+    current = await Navigation.createSession()
     if (!current) return
     current.draft = content
     current.files = homeFiles.value

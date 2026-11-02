@@ -3,8 +3,23 @@
 本文件只定义字段结构，不读取网络、不执行业务动作，也不直接操作页面。
 调用示例：store.workspaces、store.sessions[sessionID]、store.ui.activeSessionID。
 */
-import { computed, reactive } from 'vue'               // 状态与当前会话派生值只有一份
-import { normalizeAppearance } from './theme/index.js'
+import { computed, reactive } from 'vue'
+
+
+export const DEFAULT_APPEARANCE = Object.freeze({
+  theme: 'light',
+  color: '#3b5cf6',
+  variant: 'tonal-spot',
+  contrast: 'standard',
+  density: 0,
+  motion: 'standard',
+  strongFocus: false,
+  reduceMotion: false,
+})
+
+export function normalizeAppearance(value = {}) {
+  return { ...DEFAULT_APPEARANCE, ...(value && typeof value === 'object' ? value : {}) }
+}
 
 
 // --- 从 localStorage 恢复外观偏好 ---

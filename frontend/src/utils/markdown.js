@@ -5,8 +5,8 @@ Mermaid 和代码复制需要真实 DOM，因此这里只生成带语义类名�
 */
 import DOMPurify from 'dompurify'                         // 引入最终 HTML 安全清理能力
 import hljs from 'highlight.js/lib/common'               // 引入常见语言集合，避免把全部语法塞入首屏包
-import { Marked } from 'marked'                          // 引入可隔离配置的 Markdown 解析器
-import { markedHighlight } from 'marked-highlight'      // 引入 Marked 与 highlight.js 桥接扩展
+import { Marked } from 'marked'
+import { markedHighlight } from 'marked-highlight'
 import markedKatex from 'marked-katex-extension'        // 引入行内和块级数学公式扩展
 
 const markdown = new Marked(                             // 创建对话专用解析器，避免污染其他调用方

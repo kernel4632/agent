@@ -5,13 +5,14 @@
 调用示例：<ProviderEditor :provider="selectedProvider" @update:provider="saveProvider" @delete="removeProvider" />
 -->
 <script setup>
+import { Provider } from '../../commands/provider.js'
+
 import { computed, ref } from 'vue'
 import {
   JsonInput, Select, Tabs,
 } from '../../ui/index.js'
 import { AppIcon, Button, Dialog, Field, Switch } from '../../ui/index.js'
 import ProviderModels from './ProviderModels.vue'
-import { Config } from '../../commands/config.js'
 import { Settings } from '../../commands/settings.js'
 
 const props = defineProps({ provider: { type: Object, required: true } })
@@ -69,7 +70,7 @@ async function testConnection() {
   try {
     // 测试读的是服务端已保存的配置，所以先把当前草稿落盘。
     if (!await Settings.autoSave()) { testState.value = { ok: false, text: '保存失败，先处理配置里的错误。' }; return }
-    const result = await Config.testConnection(name, model)
+    const result = await Provider.testConnection(name, model)
     testState.value = result.ok
       ? { ok: true, text: `连接成功：${result.text || '模型有回复'}` }
       : { ok: false, text: result.error || '连接失败' }

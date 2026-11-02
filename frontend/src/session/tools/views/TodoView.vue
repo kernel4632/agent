@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import { AppIcon } from '../../../ui/index.js'
 import { useToolContent } from '../use-tool-content.js'
-import { todoStatus } from '../../todos.js'
+import { todoStatus } from '../../../commands/tool.js'
 
 const props = defineProps({ tool: { type: Object, required: true } })
 const { value } = useToolContent(props)

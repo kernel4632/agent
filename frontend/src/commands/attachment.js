@@ -3,7 +3,7 @@
  * 只接受纯文本/代码，图片和二进制文件需要模型支持视觉能力，当前先不放进附件列表。
  * 调用示例：
  *   const { files, errors } = await readAttachments(input.files)
- *   errors.forEach(UI.notify)
+ *   errors.forEach(Notice.show)
  */
 export const MAX_ATTACHMENT_SIZE = 1024 * 1024        // 1 MiB：再大就会把上下文一次撑爆
 export const ATTACHMENT_EXTENSIONS = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'html', 'vue', 'py', 'go', 'rs', 'yaml', 'yml', 'csv', 'xml', 'sh', 'log']

@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { HugeiconsIcon } from '@hugeicons/vue'
-import { ICON_STROKE_WIDTH } from '../theme/index.js'
+const ICON_STROKE_WIDTH = 1.5 // 图标线宽用屏幕像素，只有这一处来源
 import {
   Add01Icon,
   Activity01Icon,

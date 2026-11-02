@@ -7,6 +7,9 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
+import { History } from '../commands/history.js'
+import { Navigation } from '../commands/navigation.js'
+
 import { Notice } from '../commands/notice.js'
 import { copyText } from '../utils/clipboard.js'
 
@@ -14,8 +17,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { Session } from '../commands/session.js'
-import { groupMessageTurns } from './turns.js'
-import { isSavedMessage } from './continue.js'
+import { groupMessageTurns } from '../commands/history.js'
+import { isSavedMessage } from '../commands/history.js'
 import { AppIcon, Markdown } from '../ui/index.js'
 import MessageActionTarget from './MessageActionTarget.vue'
 import CompactionNotice from './CompactionNotice.vue'
@@ -125,15 +128,16 @@ async function requestRollback(message) {
   rollbackPreview.value = null
   // 点开就已经能看到代价：多少条消息、哪些文件。等确认时再说太晚了。
   rollbackDialog.value?.show()
-  rollbackPreview.value = await Chat.previewRollback(session.value.id, message.id)
+  rollbackPreview.value = await History.previewRollback(session.value.id, message.id)
 }
 async function confirmRollback(restoreFiles) {
-  if (await Chat.rollbackMessage(session.value.id, rollbackTarget.value.id, restoreFiles)) rollbackDialog.value?.close()
+  if (await History.rollbackMessage(session.value.id, rollbackTarget.value.id, restoreFiles)) rollbackDialog.value?.close()
 }
 
 // 从这条用户消息分出一个新对话，原对话不动。
 async function forkFrom(message) {
-  await Session.fork(session.value.id, message.id)
+  const id = await History.fork(session.value.id, message.id)
+  if (id) await Navigation.openChat(id)
 }
 
 function userMenuItems(message) {

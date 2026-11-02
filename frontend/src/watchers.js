@@ -5,9 +5,9 @@
 每个监听说明：监听什么数据、为什么监听、触发后做什么。
 调用示例：startWatchers()
 */
-import { watch } from 'vue'                                            // 引入 Vue 响应式监听
-import { store } from './store.js'                                    // 引入全局工作台数据，读取活跃会话和视图状态
-import { Chat } from './commands/chat.js'                             // 引入 SSE 订阅和取消订阅指令
+import { watch } from 'vue'
+import { store } from './store.js'
+import { Chat } from './commands/chat.js'
 
 
 // --- 启动全局监听 ---

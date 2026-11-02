@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { TODO_STATUS, todoStatus } from '../src/session/todos.js'
+import { TODO_STATUS, todoStatus } from '../src/commands/tool.js'
 
 test('三种任务状态各有一份图标和文案', () => {
     assert.deepEqual(TODO_STATUS, {

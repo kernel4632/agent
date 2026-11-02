@@ -7,16 +7,16 @@
  *   await Chat.stop(sessionID)                     // 停止并刷新到最终状态
  *   Chat.subscribe(sessionID)                      // 打开会话时建立实时连接
  */
-import { Notice } from './notice.js' // 反馈是叶子，不依赖导航
+import { Notice } from './notice.js'
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
-import { Session } from './session.js'
-import { Tabs } from '../app/tabs.js'                          // 后端起好标题后同步顶部标签文字
-import { t } from '../utils/i18n.js'                            // 工具被拦下等提示需要当前语言文案
-import { formatToolOutput, toolStatus } from './tool.js' // 工具状态和结果文本只有一处判断
-import { usageFields } from '../session/usage.js' // 请求用量字段只有一处转换
-import { readAttachments } from './attachment.js'          // 附件大小和类型检查只有一处
+import { History } from './history.js'
+import { Tabs } from './session.js'
+import { t } from '../utils/i18n.js'
+import { formatToolOutput, toolStatus } from './tool.js'
+import { usageFields } from './stats.js'
+import { readAttachments } from './attachment.js'
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
@@ -65,7 +65,7 @@ async function subscribe(sessionID) {
           controller.signal.addEventListener('abort', stop, { once: true })
         })
         if (controller.signal.aborted) break
-        try { await Session.refresh(sessionID) } catch { /* Retry the same session after the next backoff. */ }
+        try { await History.refresh(sessionID) } catch { /* Retry the same session after the next backoff. */ }
       }
     }
   } finally {
@@ -97,7 +97,7 @@ async function send(sessionID, content) {
   createAssistant(session)
   session.status = 'running'
   session.lastEventAt = Date.now()
-  Session.syncSummary(session)
+  History.syncSummary(session)
   try {
     await AgentAPI.sendMessage(sessionID, input)
     session.files = []
@@ -107,7 +107,7 @@ async function send(sessionID, content) {
     if (assistant) { assistant.error = error.message; assistant.isStreaming = false; assistant.finishedAt = Date.now() }
     session.status = 'idle'
     Notice.show(error.message)
-    Session.syncSummary(session)
+    History.syncSummary(session)
     return false
   }
 }
@@ -162,7 +162,7 @@ function toolFor(session, event, status) {
 // --- 重连后重建这一轮：只保留最后一条用户消息之前的历史，再接新的回答 ---
 async function startRun(sessionID, session) {
   const source = await AgentAPI.getSession(sessionID)
-  const snapshot = Session.normalize(source, session)
+  const snapshot = History.normalize(source, session)
   const lastUser = snapshot.messages.findLastIndex(message => message.role === 'user')
   session.messages = snapshot.messages.slice(0, lastUser + 1)
   createAssistant(session)
@@ -234,7 +234,7 @@ function failRun(session, event) {
 // --- 后端起好标题后单独推一条，不用等下一次刷新整条会话 ---
 function setTitle(session, event) {
   session.title = event.title
-  Session.syncSummary(session)
+  History.syncSummary(session)
   Tabs.syncTitles(Object.values(store.sessions))
 }
 
@@ -242,7 +242,7 @@ function setTitle(session, event) {
 async function finishRun(sessionID, session, event) {
   session.status = 'idle'
   const error = event.error || session.messages.findLast(message => message.error)?.error
-  await Session.refresh(sessionID)
+  await History.refresh(sessionID)
   const refreshed = store.sessions[sessionID]
   refreshed.status = 'idle'
   if (error) refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error }) // 每次失败一个独立 id，不用会重复的 SSE 序号
@@ -320,7 +320,7 @@ async function receive(sessionID, event) {
   if (TOOL_EVENTS.has(event.type)) receiveTool(session, event)
   else if (RUN_EVENTS.has(event.type)) await receiveRun(sessionID, session, event)
   else receiveMessage(session, event)                    // 正文增量；不认识的事件自然忽略
-  Session.syncSummary(store.sessions[sessionID])
+  History.syncSummary(store.sessions[sessionID])
 }
 
 async function stop(sessionID) {
@@ -343,14 +343,14 @@ async function stop(sessionID) {
   unsubscribe(sessionID)
   try {
     await AgentAPI.stopSession(sessionID, partial)
-    await Session.refresh(sessionID)
+    await History.refresh(sessionID)
     store.sessions[sessionID].status = 'idle'
     store.sessions[sessionID].connection = 'idle'
     Notice.show('已停止生成')
     return true
   } catch (error) {
     // 停止请求失败时也要刷新，避免界面一直停在“已停止”的假状态。
-    try { await Session.refresh(sessionID) } catch { /* 保留原错误提示 */ }
+    try { await History.refresh(sessionID) } catch { /* 保留原错误提示 */ }
     Notice.show(error.message)
     return false
   } finally {
@@ -386,35 +386,10 @@ function removeFile(sessionID, fileID) {
 }
 
 // --- 回退前先看会改动什么 ---
-async function previewRollback(sessionID, messageID) {
-  try {
-    return await AgentAPI.previewRollback(sessionID, messageID)
-  } catch (error) {
-    Notice.show(error.message)
-    return null
-  }
-}
 
-async function rollbackMessage(sessionID, messageID, files = true) {
-  try {
-    const session = store.sessions[sessionID]
-    const message = session.messages.find(item => item.id === messageID)
-    const result = await AgentAPI.rollback(sessionID, messageID, files)
-    await Session.refresh(sessionID)
-    // 只有回退到用户消息时才把正文放回输入框；助手回复不是用户的草稿。
-    store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
-    const where = message?.role === 'user' ? '已回退到用户消息之前' : '已回退到助手回复之前'
-    Notice.show(result.restored?.length ? `${where}，并恢复 ${result.restored.length} 个文件` : where)
-    return true
-  } catch (error) { Notice.show(error.message); return false }
-}
 
-async function undoRollback(sessionID, files = true) {
-  try {
-    const result = await AgentAPI.redo(sessionID, files)
-    await Session.refresh(sessionID)
-    Notice.show(result.restored?.length ? `已撤销回退，并还原 ${result.restored.length} 个文件` : '已撤销回退')
-  } catch (error) { Notice.show(error.message) }
-}
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile, previewRollback, rollbackMessage, undoRollback }
+
+
+
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile }

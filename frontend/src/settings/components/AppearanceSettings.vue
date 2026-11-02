@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { Divider, Flex, RadioGroup, Select, Typography } from '../../ui/index.js'
 import { Button, Switch } from '../../ui/index.js'
-import { DEFAULT_APPEARANCE } from '../../theme/index.js'
+import { DEFAULT_APPEARANCE } from '../../store.js'
 
 const props = defineProps({ appearance: { type: Object, required: true } })
 const emit = defineEmits(['change'])

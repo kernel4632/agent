@@ -5,6 +5,8 @@
 调用示例：<ProviderModels :provider="provider" :models="provider.models" @update:models="setModels" />
 -->
 <script setup>
+import { Provider } from '../../commands/provider.js'
+
 import { Notice } from '../../commands/notice.js'
 
 import { computed, ref } from 'vue'
@@ -61,7 +63,7 @@ async function discover() {
   if (loading.value) return
   loading.value = true
   try {
-    available.value = await Settings.discoverModels(props.provider, props.models)
+    available.value = await Provider.discoverModels(props.provider, props.models)
     filter.value = ''
     chooserOpen.value = true
   } finally {

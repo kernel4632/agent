@@ -37,7 +37,7 @@ const title = computed(() => detail.value?.title || selectedPage.value?.label ||
 // 首页分组来自登记表；新增页面只要写对 group，就会自动出现在对应卡片里。
 function openPage(page) {
   if (page.disabled || !page.component) return
-  Settings.closeDetail()
+  Navigation.closeDetail()
   selected.value = page.id
 }
 
@@ -45,7 +45,7 @@ function openPage(page) {
 function goHome() {
   window.clearTimeout(autoSaveTimer)
   void Settings.autoSave()
-  Settings.closeDetail()
+  Navigation.closeDetail()
   selected.value = ''
 }
 
@@ -69,7 +69,7 @@ onBeforeUnmount(() => window.clearTimeout(autoSaveTimer))
 
 // 只有返回动作：详情页回到列表，列表回到设置首页，首页返回聊天页。关闭时仍会补一次保存。
 function goBack() {
-  if (detail.value) return Settings.closeDetail()
+  if (detail.value) return Navigation.closeDetail()
   if (selectedPage.value) return goHome()
   void Navigation.closeSettings()
 }
@@ -96,9 +96,9 @@ function goBack() {
             :is="selectedPage.component"
             :draft="draft"
             :detail="selectedPage.nested ? detail : undefined"
-            @open-detail="Settings.openDetail"
-            @close-detail="Settings.closeDetail"
-            @update-detail-title="Settings.updateDetailTitle"
+            @open-detail="Navigation.openDetail"
+            @close-detail="Navigation.closeDetail"
+            @update-detail-title="Navigation.updateDetailTitle"
           />
         </div>
 
