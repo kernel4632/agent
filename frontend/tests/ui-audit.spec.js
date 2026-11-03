@@ -961,12 +961,13 @@ test('narrow composer keeps model and reasoning controls visible', async ({ page
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
-  // 320px 下两个模型相关入口仍同时可见。
+  // 320px 下模型、思考强度和权限入口同时可见。
   await page.setViewportSize({ width: 320, height: 568 })
   const options = page.locator('.chat-composer__options')
   expect(await options.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
   await expect(page.getByRole('button', { name: '选择模型（当前 test-model）' })).toBeVisible()
   await expect(page.getByRole('button', { name: '思考强度：自动' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '工具权限' })).toBeVisible()
   await expect(page.getByRole('button', { name: /切换智能体/ })).toHaveCount(0)
   expect(mock.errors).toEqual([])
 })
