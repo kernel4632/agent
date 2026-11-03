@@ -5,7 +5,7 @@ import { AgentAPI } from '../utils/api.js' // 持久化历史与回退接口
 import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from './notice.js' // 操作完成或失败的反馈
 import { t } from '../utils/i18n.js' // 共享文案
-import { formatToolOutput, toolStatus, canonicalToolName, outputText } from './tool.js' // 历史和实时事件共用工具解释
+import { formatToolOutput, toolStatus, outputText } from './tool.js' // 历史和实时事件共用工具解释
 import { requestFromUsage } from './stats.js' // 请求统计统一投影
 import { DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认上下文与运行参数
 
@@ -221,7 +221,7 @@ async function fork(id, messageId) {
 
 export const STOP_TOOLS = new Set(['attempt_completion', 'ask_followup_question'])
 
-export const isStopTool = tool => STOP_TOOLS.has(canonicalToolName(tool?.name))
+export const isStopTool = tool => STOP_TOOLS.has(tool?.name)
 
 // 状态、输出内容、输出文本都从 tool-ui 来；被拒绝或执行失败的任务不会被当成正常收尾。
 export const isFinishedStopTool = tool => isStopTool(tool)

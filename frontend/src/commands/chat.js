@@ -299,7 +299,7 @@ function receiveTool(session, event) {
       tool.preview = formatToolOutput(tool.output)
     }
   } else if (event.type === 'permission-blocked') {
-    // 这个工具碰到了 .agentignore 护着的文件，已被直接拦下，不用等用户决定。
+    // 这个工具调用被服务端的权限规则直接拒绝，不用等用户决定。
     // 卡片要说清原因：用户看不到“谁来问过”，只看到工具没执行会以为是坏了。
     // 结果类型用 execution-denied，和“用户拒绝”走同一条 rejected 判断。
     const tool = toolFor(session, event, 'rejected')
@@ -386,10 +386,5 @@ function removeFile(sessionID, fileID) {
 }
 
 // --- 回退前先看会改动什么 ---
-
-
-
-
-
 
 export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile }

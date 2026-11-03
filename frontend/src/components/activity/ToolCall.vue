@@ -9,14 +9,14 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import { Chat } from '../../commands/chat.js'
 import ToolResult from './ToolResult.vue'
-import { canonicalToolName, fillTemplate, toolIcon, toolTitle, uiFor } from '../../commands/tool.js'
+import { fillTemplate, toolIcon, toolTitle, uiFor } from '../../commands/tool.js'
 
 const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
 })
 const now = ref(Date.now())
-const expanded = ref(canonicalToolName(props.tool.name) === 'update_todo_list')
+const expanded = ref(props.tool.name === 'update_todo_list')
 const bodyId = `tool-body-${props.tool.id || props.tool.name}`
 let timer = null
 
@@ -25,7 +25,7 @@ const summary = computed(() => fillTemplate(uiFor(props.tool.name).summary, prop
 const statusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 const statusText = computed(() => {
   // 任务清单的工具完成只代表“清单已更新”，不是清单里的任务都完成了。
-  if (canonicalToolName(props.tool.name) === 'update_todo_list' && props.tool.status === 'completed') return '已更新'
+  if (props.tool.name === 'update_todo_list' && props.tool.status === 'completed') return '已更新'
   return statusLabel(props.tool.status)
 })
 const statusClass = status => `is-${status || 'waiting'}`

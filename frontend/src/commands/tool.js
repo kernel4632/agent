@@ -14,18 +14,9 @@
 import { store } from '../store.js'
 import { t } from '../utils/i18n.js'
 
-// 旧会话里的工具名从后端工具目录的 previousNames 找回新名字，前端不再存一份别名表。
-export const canonicalToolName = name => {
-    if (typeof name !== 'string') return name
-    const catalog = store.config.toolCatalog?.length ? store.config.toolCatalog : (store.config.tools || [])
-    const tool = catalog.find(item => item.name === name || item.previousNames?.includes(name))
-    return tool?.name || name
-}
-
 export function uiFor(name) {
-    const canonical = canonicalToolName(name)
     const catalog = store.config.toolCatalog?.length ? store.config.toolCatalog : (store.config.tools || [])
-    const tool = catalog.find(item => item.name === canonical)
+    const tool = catalog.find(item => item.name === name)
     if (tool?.ui && typeof tool.ui === 'object' && !Array.isArray(tool.ui)) return tool.ui
     return {}
 }
@@ -122,7 +113,7 @@ export const todoStatus = status => TODO_STATUS[status] || TODO_STATUS.pending
 export function latestTodos(messages = []) {
   for (const message of [...messages].reverse()) {
     for (const tool of [...(message.tools || [])].reverse()) {
-      if (canonicalToolName(tool.name) !== 'update_todo_list') continue
+      if (tool.name !== 'update_todo_list') continue
       const items = outputValue(tool)?.items
       if (Array.isArray(items)) return items
     }
