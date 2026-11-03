@@ -17,21 +17,17 @@ import store from '../store.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
-import FeatureConfig from '../features/config.js'
-import Context from '../features/context.js'
 import History from '../features/history.js'
-import Mcp from '../features/mcp.js'
 import Rollback from '../features/rollback.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
+import bind from './bind.js'
 
-// --- 有状态 feature 的服务在这里接起来；命令文件之间不互相 import ---
-Tool.bind({ mcp: Mcp })
-Approval.bind({ tool: Tool, config: FeatureConfig })
-Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })
+// --- 装配有状态 feature 需要的服务；装配内容只写在 commands/bind.js ---
+bind()
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {

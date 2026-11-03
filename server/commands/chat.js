@@ -2,8 +2,8 @@
  * 对话指令：发送、继续、停止和审批决定。
  *
  * 一次运行的编排都在这里：启动 Agent、把过程推成 SSE、保存新消息、收尾。
- * 模型请求和工具循环由 @kernel4632/agent-core 负责；本文件只 import features，
- * 不 import 别的命令文件。三个有状态 feature 的服务在这里 bind 一次。
+ * 模型请求和工具循环由 @kernel4632/agent-core 负责；本文件只 import features 和
+ * commands/bind.js，不 import 别的命令文件。服务装配写在 bind.js，这里只调用一次。
  *
  * 调用示例：
  *   await Chat.send({ sessionId, input: '你好' })
@@ -16,20 +16,16 @@ import { nanoid } from 'nanoid'
 import store from '../store.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
-import FeatureConfig from '../features/config.js'
-import Context from '../features/context.js'
 import History from '../features/history.js'
-import Mcp from '../features/mcp.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
+import bind from './bind.js'
 
-// --- 把有状态 feature 需要的兄弟服务接起来；命令文件之间不互相 import ---
-Tool.bind({ mcp: Mcp })
-Approval.bind({ tool: Tool, config: FeatureConfig })
-Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })
+// --- 装配有状态 feature 需要的服务；装配内容只写在 commands/bind.js ---
+bind()
 
 // 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
 const saveQueue = new Map()

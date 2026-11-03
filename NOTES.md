@@ -115,6 +115,7 @@ server/
   bun.lock
 
   commands/              入口指令：一个文件对应一组 HTTP 动作，命令之间不互相 import
+    bind.js              把有状态 feature 需要的兄弟服务接起来，装配只写这一处
     session.js           会话创建、列表、读取、分支、改名、删除、目录、设置、模型
     chat.js              发送、继续、停止、审批决定；一次运行的编排也在这里
     settings.js          配置读写、模型测试、工具目录
