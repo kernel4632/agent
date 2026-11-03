@@ -1,12 +1,12 @@
 # Agent
 
-围绕工作区和会话组织对话的个人 Agent 软件。本仓库提供服务端、网页界面和 CLI 客户端。
+以会话为中心的个人 Agent 软件。用户在一个会话里持续对话，当前目录只是会话的一个属性；本仓库提供服务端、网页界面和 CLI 客户端。
 
 ## 现在有什么
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，32 个接口，`bun run test` 全覆盖 |
+| `server/` | 可用 | Bun + Elysia 服务端，30 个接口，`bun test` 覆盖每条路由 |
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
@@ -14,16 +14,16 @@
 
 ## 功能
 
-- 会话创建、重命名、删除；列表存在服务端，换浏览器或清掉缓存都还在
-- 按工作区归类，主页显示工作区路径、文件列表和 git 状态
+- 会话创建、重命名、分支、删除和按后续对话重新生成标题；列表存在服务端，换浏览器或清掉缓存都还在
+- 当前目录 `cwd` 只是会话的一个属性：用户可以改，agent 也能用 `cwd` 工具自己移动，换目录不丢历史
 - Markdown 消息、思考过程、工具调用和用量展示
-- 消息回退与撤销回退，**回退时同时把 agent 改过的文件恢复回去**
+- 消息回退与撤销回退，**回退时可同时把 agent 改过的文件恢复回去**；也可以只退某一次工具调用改的文件
 - 查看 agent 改过哪些文件（改动前后对照）
 - 任务清单和执行状态展示
-- 工具权限规则，拒绝 / 允许一次 / 始终允许；敏感文件由 `.agentignore` 兜底
-- 停止运行中的任务
-- 内置十二个工具，加上用户自己写的工具、MCP 外部服务和技能
-- 供应商、模型、系统提示词、工具、MCP、外观与数据设置
+- 工具权限规则：拒绝 / 允许一次 / 始终允许；敏感文件（`.env`、私钥、`.ssh`、agent 自己的数据目录）由文件工具自己判断，配置关不掉
+- 停止运行中的任务，继续被中断的助手回复
+- 内置十四个常驻工具，加上按需出现的技能读取工具、用户自己写的工具、MCP 外部服务和子智能体
+- 供应商、模型、系统提示词、工具、MCP、外观与数据设置；对话、压缩、标题、子任务可以分别指定模型
 
 ## 技术栈
 
@@ -40,40 +40,56 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 ```text
 .agent/
-  config.json        模型服务、系统提示词、工具权限规则、MCP 服务
-  .agentignore       额外的不许工具碰的文件（可选）
-  sessions/<id>/     每条会话一个目录：meta.json、history.json、文件快照
-  tools/             用户自己写的工具
-  skills/            用户自己的技能，一个文件夹一份 SKILL.md
+  config.json                模型服务、按任务的默认模型、工具权限规则、MCP 服务
+  sessions/<id>/             每条会话一个目录
+    meta.json                标题、当前目录、模型、时间
+    history.json             消息和回退栈
+    settings.json            思考强度
+    checkpoints.json         每次改文件的工具调用对应哪些快照
+    snapshots/               改文件之前的原样副本
+  tools/                     用户自己写的工具
 ```
 
-内置工具在 `server/tools/`，内置技能在 `server/skills/`；同名时用户版本覆盖内置版本。
+技能不在数据目录里：全局技能在 `%USERPROFILE%\.agents\skills`，项目技能在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。把 `AGENT_HOME` 指到临时目录做测试时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。
+
+内置工具在 `server/tools/`；按类别分文件，加一个工具只往这个目录放一个文件。内置技能目录不存在，技能全部来自上面两处用户数据。
 
 ## HTTP API
 
-服务端公开这些资源：
+服务端公开 29 个地址、30 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法）：
 
 | 方法 | 地址 | 说明 |
 | --- | --- | --- |
 | `GET` | `/health` | 服务状态和版本 |
-| `GET` | `/workspace/read` | 工作区路径、文件列表、git 状态 |
-| `GET` | `/workspace/status` | 某个目录的 git 状态 |
+| `GET` | `/tool/list` | 工具名、类别、权限动作和界面信息 |
+| `GET` | `/tool/kinds` | 工具类别 |
 | `GET` | `/config/read` | 读取配置 |
+| `GET` | `/config/meta` | 按任务的模型标签 |
 | `PATCH` | `/config/set` | 整体替换配置 |
 | `POST` | `/config/test` | 真实试一次模型请求 |
 | `GET` | `/session/list` | 磁盘上的全部会话，带搜索 |
 | `POST` | `/session/create` | 创建会话 |
-| `GET` | `/session/read/:id` | 会话、历史、任务清单、待批准 |
-| `GET` | `/session/changes/:id` | agent 改过的文件，改动前后对照 |
-| `PATCH` | `/session/rename/:id` | 改标题 |
-| `DELETE` | `/session/remove/:id` | 删除会话 |
-| `POST` | `/session/rollback/:id` | 回退对话和文件 |
-| `POST` | `/session/redo/:id` | 撤销上一次回退 |
-| `POST` | `/session/compact/:id` | 压缩上下文 |
-| `POST` | `/agent/send/:id` | 发送消息，过程走 SSE |
-| `POST` | `/agent/stop/:id` | 停止任务 |
-| `POST` | `/agent/decide/:id` | 处理工具审批 |
-| `GET` | `/sse/connect/:id` | 订阅实时事件 |
+| `POST` | `/session/fork/{sessionId}` | 从现有会话分出一个新分支 |
+| `GET` | `/session/read/{sessionId}` | 会话、历史、任务清单、待批准 |
+| `GET` | `/session/changes/{sessionId}` | agent 改过的文件，改动前后对照 |
+| `GET` | `/session/settings/{sessionId}` | 会话运行设置 |
+| `PATCH` | `/session/settings/{sessionId}` | 修改会话运行设置 |
+| `GET` | `/session/tools/{sessionId}` | 每次改过文件的工具调用 |
+| `PATCH` | `/session/rename/{sessionId}` | 改标题 |
+| `POST` | `/session/title/{sessionId}` | 按后续对话重新生成标题 |
+| `PATCH` | `/session/model/{sessionId}` | 换会话模型 |
+| `PATCH` | `/session/cwd/{sessionId}` | 换会话当前目录 |
+| `DELETE` | `/session/remove/{sessionId}` | 删除会话 |
+| `POST` | `/session/rollback/preview/{sessionId}` | 回退前预览会消失多少消息、哪些文件 |
+| `POST` | `/session/rollback/{sessionId}` | 回退对话和文件 |
+| `POST` | `/session/rollback/tool/{sessionId}` | 只回退某一次工具调用改的文件 |
+| `POST` | `/session/redo/{sessionId}` | 撤销上一次回退 |
+| `POST` | `/session/compact/{sessionId}` | 压缩上下文 |
+| `POST` | `/agent/send/{sessionId}` | 发送消息，过程走 SSE |
+| `POST` | `/agent/resume/{sessionId}` | 继续被中断的助手 |
+| `POST` | `/agent/stop/{sessionId}` | 停止任务 |
+| `POST` | `/agent/decide/{sessionId}` | 处理工具审批 |
+| `GET` | `/sse/connect/{sessionId}` | 订阅实时事件 |
 
 错误响应统一是 `{ "error": "说明" }`：填错按 400、找不到按 404、会话在跑按 409、程序问题按 500。
 完整说明见 [`server/openapi.json`](server/openapi.json)，前端怎么接见 [`server/README.md`](server/README.md)。
@@ -100,8 +116,10 @@ bun run dev
 ## 验证
 
 ```text
-cd server && bun test         # 真实启动服务端 + 真实 HTTP 请求，用临时数据目录
-cd frontend && bun run build  # 前端能构建通过
+cd server && bun test          # 后端：真实启动服务端 + 真实 HTTP 请求，用临时数据目录
+cd frontend && bun run test    # 前端逻辑测试
+cd frontend && bun run build   # 前端能构建通过
+cd cli && go test ./...        # CLI：HTTP/SSE 协议和终端交互
 ```
 
 界面检查（Playwright）改到界面时手动跑：
