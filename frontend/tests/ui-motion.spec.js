@@ -90,6 +90,40 @@ async function openSession(page, title) {
 test.describe('chat motion', () => {
   test.use({ reducedMotion: 'no-preference' })
 
+  test('a pressed option clips its ripple before the next row', async ({ page }, testInfo) => {
+    await backend(page)
+    await page.goto('/')
+    await navigate(page, '设置')
+    const row = page.getByRole('button', { name: /模型供应商/ })
+    const nextRow = page.locator('.settings-row').filter({ hasText: '默认模型和任务分工' })
+    await expect(row).toBeVisible()
+    await page.locator('.settings-home').evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {}))))
+    const before = await nextRow.screenshot({ animations: 'allow' })
+
+    const painted = await row.evaluate(button => {
+      const box = button.getBoundingClientRect()
+      const x = box.x + box.width / 2
+      const y = box.y + box.height / 2
+      // 点击图标也必须只给它所属的选项加涟漪；固定在扩散中段检查实际裁剪。
+      button.querySelector('svg').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: x, clientY: y }))
+      const ripple = button.querySelector('.ui-ripple')
+      const animation = ripple.getAnimations()[0]
+      animation.pause()
+      animation.currentTime = 300
+      // 确认动画仍在选项内部显示，不能靠移除涟漪让测试通过。
+      ripple.style.pointerEvents = 'auto'
+      return {
+        attachedToPressedOption: ripple.parentElement === button,
+        visibleInside: document.elementFromPoint(x, y) === ripple,
+      }
+    })
+    const during = await nextRow.screenshot({ animations: 'allow' })
+    await expect(row.locator('.ui-ripple')).toHaveCount(1)
+    await page.screenshot({ path: testInfo.outputPath('option-ripple.png'), animations: 'allow' })
+    expect(painted).toEqual({ attachedToPressedOption: true, visibleInside: true })
+    expect(during.equals(before), '按下供应商选项后，相邻模型选项的像素不应改变').toBe(true)
+  })
+
   test('draft, session and settings switches run opacity and transform transitions', async ({ page }) => {
     await backend(page)
     await page.goto('/')

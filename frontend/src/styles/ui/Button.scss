@@ -12,7 +12,8 @@
   &--text, &--ghost, &--danger { border-color: transparent; }
   &--danger { color: var(--la-danger); }
   &--small { min-width: 0; }
-  &--plain { justify-content: initial; min-height: 0; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: inherit; text-align: inherit; overflow: visible; }
+  /* 列表选项也沿用按钮本身的裁剪，涟漪不能扩散到整组卡片。 */
+  &--plain { justify-content: initial; min-height: 0; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: inherit; text-align: inherit; }
 }
 
 /* Button.vue：圆形触达范围，统一 48px。 */
