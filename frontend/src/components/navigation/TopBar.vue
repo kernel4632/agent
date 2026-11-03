@@ -1,6 +1,6 @@
 <!--
-会话顶部栏：左边菜单（只在手机）和标题，右边任务清单、上下文统计和设置。
-任务清单只在模型真的产生过清单后出现；上下文统计默认是一个圆环，点开看数据。
+会话顶部栏：左边菜单（只在手机）和标题，右边任务清单和设置。
+任务清单只在模型真的产生过清单后出现；上下文与用量移到输入框下方。
 只读取传入的会话；切换模型调用现有命令。
 调用示例：
 <TopBar
@@ -17,8 +17,6 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
-import StatsPanel from '../activity/StatsPanel.vue'
-import { sessionStats } from '../../commands/stats.js'
 import { latestTodos } from '../../commands/tool.js'
 import { Session } from '../../commands/session.js'
 import { NEW_SESSION_TITLE } from '../../defaults.js'
@@ -30,7 +28,6 @@ const props = defineProps({
 const emit = defineEmits(['menu', 'settings', 'update:todoOpen'])
 
 const title = computed(() => props.session ? props.session.title || '新会话' : NEW_SESSION_TITLE)
-const stats = computed(() => sessionStats(props.session))
 const hasTodos = computed(() => {
   if (!props.session) return false
   const fromMessages = latestTodos(props.session.messages || [])
@@ -63,7 +60,6 @@ async function saveTitle() {
 
     <div class="topbar__actions">
       <Button icon v-if="session && hasTodos" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><Icon :name="todoOpen ? 'close' : 'todo'" :size="18" /></Button>
-      <StatsPanel v-if="stats" :stats="stats" />
       <Button icon label="设置" title="设置" @click="emit('settings')"><Icon name="settings" :size="18" /></Button>
     </div>
   </header>

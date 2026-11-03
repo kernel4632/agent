@@ -129,6 +129,7 @@
   cursor: pointer;
 }
 .composer-option { width: 48px; height: 48px; }
+.composer-option--permission { width: auto; gap: 5px; padding-inline: 10px; border-radius: 999px; font-size: 12px; }
 .composer-action { width: 40px; height: 40px; }
 .composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
 .composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
@@ -155,10 +156,12 @@
     &__send { width: 44px; height: 44px; flex-basis: 44px; }
   }
   .composer-option { width: 44px; height: 44px; }
+  .composer-option--permission { width: auto; }
 }
 @media (max-width: 360px) {
   .chat-composer__options { gap: 0; }
   .composer-option { width: 40px; height: 40px; }
+  .composer-option--permission { width: auto; padding-inline: 7px; }
 }
 @media (hover: none) {
   .chat-composer__expand-line { opacity: 0; }

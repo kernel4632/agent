@@ -112,6 +112,7 @@ defineExpose({ focus: () => editor.value?.focus() })
       <div class="chat-composer__options">
         <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="modelOpen = true"><Icon name="model" :size="28" /></button>
         <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
+        <button type="button" class="composer-option composer-option--permission" aria-label="工具权限" title="打开工具权限设置" @click="Navigation.openSettings('tools')"><Icon name="permission" :size="18" /><span>权限</span></button>
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><Icon name="plus" :size="18" /></button>

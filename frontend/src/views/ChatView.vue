@@ -7,11 +7,13 @@ import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
 import TaskPanel from '../components/activity/TaskPanel.vue'
+import StatsPanel from '../components/activity/StatsPanel.vue'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
 import { History, canContinueSession } from '../commands/history.js'
 import { Navigation } from '../commands/navigation.js'
 import { latestTodos } from '../commands/tool.js'
+import { sessionStats } from '../commands/stats.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
 const props = defineProps({
@@ -33,6 +35,7 @@ const draft = computed({
 const files = computed(() => props.session?.files || props.files)
 const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
 const resumable = computed(() => canContinueSession(props.session))
+const stats = computed(() => props.session ? sessionStats(props.session) : null)
 const todos = computed(() => {
   if (!props.session) return []
   const latest = latestTodos(props.session.messages)
@@ -85,6 +88,7 @@ function chooseReasoning(reasoning) {
         <Transition name="notice"><div v-if="session?.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div></Transition>
         <Composer ref="composer" v-model:draft="draft" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
           @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
+        <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>
     </div>
     <TaskPanel v-if="session" :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />

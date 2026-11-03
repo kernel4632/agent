@@ -1,7 +1,7 @@
 /*
  * 会话统计：优先使用每次模型请求记下的真实用量；
  * 旧会话没有用量时，用消息正文和工具结果估算，并标记“估算”，不把 0 当成真实值。
- * TopBar 和别的汇总面板共用这一份，避免两处各算一套。
+ * 输入框下方的状态栏和详细面板共用这一份，避免两处各算一套。
  * 调用示例：import { sessionStats } from './stats.js'
  */
 
@@ -131,7 +131,7 @@ export function sessionStats(session) {
   const usedApproximate = !exactUsed && Boolean(estimate)
   const used = exactUsed || estimate?.contextUsed || 0
   const usageApproximate = !requests.length && Boolean(estimate)
-  // 空会话没有内容可统计，顶栏不显示一个 0% 的空圆环；发出第一条消息后再出现。
+  // 空会话没有内容可统计；发出第一条消息后才显示输入框下方的状态栏。
   if (!messages.length && !requests.length && !session.contextTokens) return null
   // 真实请求最多保留最近 18 次；旧会话没有请求记录时，用最近 18 条回复的估算值画同一张图。
   const estimatedSeries = usageApproximate

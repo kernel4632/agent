@@ -2,7 +2,8 @@
 .session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; margin-inline: auto; }
 .session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .session-scroll { min-height: 0; flex: 1; overflow: auto; }
-.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 8px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
+.session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 4px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
+.session-composer__stats { width: 100%; padding: 0 8px 3px; }
 .session-composer.is-reconnecting { filter: blur(2px); opacity: .6; }
 .chat-notice {
   display: flex;
@@ -68,6 +69,7 @@
 }
 @media (max-width: 767px) {
   .session-composer { padding: 0 16px max(8px, env(safe-area-inset-bottom)); }
+  .session-composer__stats { padding-inline: 2px; }
 }
 
 /* 新会话仅是空状态，不建立第二套页面组件。 */

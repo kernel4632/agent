@@ -2,6 +2,25 @@
 import { expect, test } from '@playwright/test'
 import { backend, navigate } from './chat-fixture.js'
 
+test('composer groups model and permission controls and keeps the draft when returning', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  const editor = page.getByRole('textbox', { name: '消息', exact: true })
+  await editor.fill('尚未发送的内容')
+  const controls = page.locator('.chat-composer__options')
+  await expect(controls.getByRole('button', { name: /选择模型/ })).toBeVisible()
+  await expect(controls.getByRole('button', { name: '思考强度：自动' })).toBeVisible()
+  await expect(controls.getByRole('button', { name: '工具权限' })).toBeVisible()
+  await expect(page.locator('.session-stats')).toHaveCount(0)
+  await controls.getByRole('button', { name: '工具权限' }).click()
+  await expect(page.getByRole('heading', { name: '工具管理', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(editor).toHaveValue('尚未发送的内容')
+  expect(mock.errors).toEqual([])
+})
+
 test('provider type sheet, search and model form keep edits deliberate', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const capture = async name => {

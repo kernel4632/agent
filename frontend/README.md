@@ -16,6 +16,8 @@ Vue 3 + Vite 聊天前端。会话从左侧抽屉打开，新对话在首次发�
 
 供应商管理参考 [RikkaHub 的供应商页面](https://github.com/rikkahub/rikkahub/blob/master/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingProviderDetailPage.kt)：添加前先选接口类型，详情分为配置、模型和高级设置。连接字段使用分段表单，底部操作栏与滚动内容分开；模型在底部面板中添加或编辑，可用模型支持搜索与批量选择。配置自动保存，界面不展示自动保存说明或手动保存配置按钮；模型编辑确认后才写入草稿。
 
+聊天输入框旁放模型、思考强度和工具权限入口；用量、轮次与上下文占用显示在输入框下方，点击状态栏查看会话统计。工具权限入口打开设置里的全局工具权限。
+
 ## 从哪里修改
 
 功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分，同类区域每组 3～5 个文件。

@@ -277,13 +277,13 @@ test('tool row keeps declared metadata and shows generic input and output', asyn
   await expect(page.locator('.cot-step--tool .tool-input')).toContainText('读现有实现')
   await expect(page.locator('.cot-step--tool .tool-result')).toContainText('补测试')
   await expect(page.locator('.cot-step--tool .tool-result')).toContainText('"status": "pending"')
-  // 任务清单不再常驻输入框上方，改从顶栏打开右侧面板；有清单时按钮在统计圆环左边。
+  // 清单入口保留在顶栏，用量统计只显示在输入框下方。
   await expect(page.locator('.session-todos')).toHaveCount(0)
   const todoButton = page.getByRole('button', { name: '任务清单', exact: true })
   await expect(todoButton).toBeVisible()
-  const todoBox = await todoButton.boundingBox()
-  const statsBox = await page.locator('.topbar .session-stats').boundingBox()
-  expect(todoBox.x + todoBox.width).toBeLessThanOrEqual(statsBox.x)
+  const statsBox = await page.locator('.session-composer__stats').boundingBox()
+  const composerBox = await page.locator('.chat-composer').boundingBox()
+  expect(statsBox.y).toBeGreaterThanOrEqual(composerBox.y + composerBox.height - 1)
   await todoButton.click()
   const panel = page.getByRole('dialog', { name: '任务清单' })
   await expect(panel).toBeVisible()
@@ -694,7 +694,7 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   expect(mock.errors).toEqual([])
 })
 
-test('topbar stats opens the session data panel', async ({ page }, testInfo) => {
+test('composer footer stats opens the session data panel', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -702,7 +702,14 @@ test('topbar stats opens the session data panel', async ({ page }, testInfo) => 
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
-  await expect(page.locator('.topbar .session-stats')).toBeVisible()
+  const stats = page.locator('.session-composer__stats')
+  await expect(stats).toBeVisible()
+  await expect(page.locator('.topbar .session-stats')).toHaveCount(0)
+  await expect(stats).toContainText('1 轮')
+  await expect(stats).toContainText('50 tokens')
+  const composerBox = await page.locator('.chat-composer').boundingBox()
+  const statsBox = await stats.boundingBox()
+  expect(statsBox.y).toBeGreaterThanOrEqual(composerBox.y + composerBox.height - 1)
   await expect(page.locator('.topbar__subtitle')).toHaveCount(0)
   // 宽屏下输入卡片和对话流居中，不再贴着左侧。
   if (testInfo.project.name === 'desktop') {
@@ -712,15 +719,15 @@ test('topbar stats opens the session data panel', async ({ page }, testInfo) => 
     const right = panel.x + panel.width - card.x - card.width
     expect(Math.abs(left - right)).toBeLessThanOrEqual(1.5)
   }
-  await screenshot(page, testInfo, 'topbar-stats')
+  await screenshot(page, testInfo, 'composer-footer-stats')
 
-  await page.getByRole('button', { name: /上下文占用/ }).click()
+  await stats.getByRole('button', { name: /上下文占用/ }).click()
   const usage = page.getByRole('dialog', { name: '会话统计' })
   await expect(usage).toContainText('50')
   await expect(usage).toContainText('30')
   await expect(usage).toContainText('20')
   await expect(usage).toContainText('33%')
-  await screenshot(page, testInfo, 'topbar-stats-panel')
+  await screenshot(page, testInfo, 'composer-footer-stats-panel')
   expect(mock.errors).toEqual([])
 })
 
@@ -748,7 +755,7 @@ test('legacy history without usage shows estimated stats, not zeros', async ({ p
   await page.getByRole('button', { name: '旧会话', exact: true }).click()
   await expect(page.locator('.topbar h1')).toHaveText('旧会话')
 
-  const ring = page.getByRole('button', { name: /上下文占用/ })
+  const ring = page.locator('.session-composer__stats').getByRole('button', { name: /上下文占用/ })
   await expect(ring).toBeVisible()
   await expect(ring).toContainText('~')
   await ring.click()

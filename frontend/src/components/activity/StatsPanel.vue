@@ -1,7 +1,7 @@
 <!--
-顶部栏会话统计：默认只显示一个上下文圆环，点开是图形化的会话数据面板。
-圆环优先使用真实请求用量；旧会话没有用量时显示“估算”，不再把有内容的会话画成全 0。
-调用示例：<StatsPanel :stats="stats" />
+输入框下方的会话状态：展示上下文、请求轮数、token 与速度；点开查看详细用量。
+真实请求数据优先；旧会话缺少记录时显示“估算”。
+调用示例：<StatsPanel :stats="stats" />。
 -->
 <script setup>
 import { computed } from 'vue'
@@ -9,9 +9,7 @@ import Menu from '../../ui/Menu.vue'
 import RingProgress from '../../ui/RingProgress.vue'
 import Icon from '../../ui/Icon.vue'
 
-const props = defineProps({
-  stats: { type: Object, required: true },
-})
+const props = defineProps({ stats: { type: Object, required: true } })
 
 const context = computed(() => props.stats.context || {})
 const usage = computed(() => props.stats.usage || {})
@@ -66,8 +64,6 @@ const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,
   'is-danger': percent.value >= 90,
 }))
-// 顶栏只放得下三四个字符，估算的 ~ 留给面板；圆环本身还是按真实比例画。
-const triggerPercent = computed(() => percentText.value.replace('~', ''))
 const hasUsage = computed(() => total.value > 0)
 const trendLabel = computed(() => usageApproximate.value ? '最近回复' : '最近请求')
 const cells = computed(() => {
@@ -99,20 +95,18 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 </script>
 
 <template>
-  <Menu mode="content" class="session-stats" :label="`上下文占用 ${percentText}，点击查看会话统计`" content-label="会话统计">
+  <Menu mode="content" class="session-stats" :label="`上下文占用 ${percentText}，${usage.requests || 0} 轮，${formatTokens(total, usageApproximate)} tokens，点击查看会话统计`" content-label="会话统计">
     <template #trigger>
-      <RingProgress
-        class="session-stats__ring"
-        :class="ringClass"
-        :value="percent"
-        :max="100"
-        :size="42"
-        :stroke-width="4.5"
-        label="上下文占用"
-        aria-hidden="true"
-      />
-      <span class="session-stats__percent">{{ triggerPercent }}</span>
-      <span class="sr-only">上下文占用 {{ percentText }}，点击查看会话统计</span>
+      <span class="session-stats__summary-context">
+        <RingProgress class="session-stats__ring" :class="ringClass" :value="percent" :max="100" :size="20" :stroke-width="3" label="上下文占用" aria-hidden="true" />
+        <span>上下文 {{ percentText }}</span>
+      </span>
+      <i class="session-stats__separator" aria-hidden="true"></i>
+      <span class="session-stats__summary-item"><Icon name="activity" :size="14" />{{ usage.requests || 0 }} 轮</span>
+      <i class="session-stats__separator" aria-hidden="true"></i>
+      <span class="session-stats__summary-item"><Icon name="database" :size="14" />{{ formatTokens(total, usageApproximate) }} tokens</span>
+      <span v-if="speed" class="session-stats__summary-item session-stats__speed"><Icon name="gauge" :size="14" />{{ speed }}</span>
+      <span v-if="approximate" class="session-stats__summary-estimate">估算</span>
     </template>
 
     <div class="stats-panel">

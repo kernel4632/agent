@@ -1,31 +1,30 @@
-.session-stats { display: inline-flex; }
-.session-stats :deep(.ui-button) {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
-  border-radius: 50%;
-  color: var(--la-muted);
-}
-.session-stats :deep(.ui-button:hover) { background: var(--la-hover); color: var(--la-text); }
+.session-stats { display: flex; width: 100%; min-width: 0; }
 .session-stats__ring { color: var(--la-accent); }
 .session-stats__ring :deep(.ui-ring-progress__track) { stroke: color-mix(in srgb, var(--la-text) 16%, transparent); }
 .session-stats__ring.is-warn { color: var(--la-warning); }
 .session-stats__ring.is-danger { color: var(--ui-color-error); }
-.session-stats__percent {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--la-text);
-  font-size: 9.5px;
-  font-weight: 650;
-  letter-spacing: -.04em;
+.session-stats :deep(.ui-popover__trigger) {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  color: var(--la-muted);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  pointer-events: none;
+  white-space: nowrap;
 }
+.session-stats :deep(.ui-popover__trigger:hover) { background: var(--la-hover); color: var(--la-text); }
+.session-stats__summary-context, .session-stats__summary-item { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
+.session-stats__summary-context { color: var(--la-secondary); }
+.session-stats__summary-context .session-stats__ring { flex: none; }
+.session-stats__separator { width: 1px; height: 12px; flex: none; background: var(--la-line-strong); }
+.session-stats__summary-item svg { color: var(--la-accent); }
+.session-stats__summary-estimate { flex: none; color: var(--la-warning); }
 .stats-panel { display: grid; width: 100%; gap: 12px; }
 .stats-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .stats-panel__heading { display: inline-flex; align-items: center; gap: 6px; color: var(--la-secondary); font-size: 12.5px; font-weight: 650; }
@@ -99,6 +98,8 @@
 .stats-panel__chip strong { color: var(--la-text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats-panel__chip small { color: var(--la-muted); font-size: 10px; white-space: nowrap; }
 @media (max-width: 360px) {
+  .session-stats :deep(.ui-popover__trigger) { justify-content: space-between; gap: 6px; padding-inline: 2px; font-size: 10px; }
+  .session-stats__speed { display: none; }
   .stats-panel__hero { gap: 12px; }
   .stats-panel__ring :deep(.ui-ring-progress) { width: 78px !important; height: 78px !important; }
   .stats-panel__percent { font-size: 16px; }
