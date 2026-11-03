@@ -6,13 +6,11 @@
  * 压缩是另一件事，见 compact.js。
  *
  * 调用示例：
- *   const system = Context.system({ config: store.config, agent })
+ *   const system = Context.system({ config: store.config })
  *   const info = Context.modelInfo({ provider: 'local', model: 'qwen3' })
- *   const messages = Context.build({ history, system, tools })
  */
 
-import Agent from '@kernel4632/agent-core'
-import store, { DEFAULT_PROMPT } from '../store.js'
+import store from '../store.js'
 
 const DEFAULT_CONTEXT = 128000
 
@@ -30,15 +28,4 @@ const modelInfo = ({ provider: name, model }) => {
 // --- 最终交给模型的 system：用户写的那段提示词 ---
 const system = ({ config = store.config } = {}) => (config.prompt?.system || '').trim()
 
-// --- 把历史变成这次模型请求的 messages ---
-const build = ({ history, system: prompt = '', tools = {}, budget = DEFAULT_CONTEXT, capabilities } = {}) => {
-    return Agent.context.build({
-        history,
-        system: prompt,
-        tools,
-        budget,
-        capabilities,
-    })
-}
-
-export default { DEFAULT_CONTEXT, DEFAULT_PROMPT, modelInfo, system, build }
+export default { DEFAULT_CONTEXT, modelInfo, system }

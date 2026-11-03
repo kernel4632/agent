@@ -8,8 +8,7 @@ import { tmpdir } from 'node:os'
 
 import Settings from '../commands/settings.js'
 import Agent from '../features/agent.js'
-import Context from '../features/context.js'
-import store from '../store.js'
+import store, { DEFAULT_PROMPT } from '../store.js'
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)
@@ -40,7 +39,7 @@ describe('默认系统提示词', () => {
             await writeFile(path, JSON.stringify({ providers: provider }))
 
             const config = await Settings.read(path)
-            expect(config.prompt.system).toBe(Context.DEFAULT_PROMPT)
+            expect(config.prompt.system).toBe(DEFAULT_PROMPT)
             expect(config.prompt.seeded).toBe(true)
         })
     })
