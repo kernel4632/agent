@@ -24,7 +24,6 @@ const emit = defineEmits(['delete', 'update:provider'])
 const tab = ref('config')
 const deleteOpen = ref(false)
 const testing = ref(false)
-const saving = ref(false)
 const testState = ref(null)
 const tabs = [
   { value: 'config', label: '配置' },
@@ -33,14 +32,6 @@ const tabs = [
 ]
 
 const type = computed(() => PROVIDER_TYPES.find(item => item.value === props.provider.apiType))
-
-async function saveConfig() {
-  saving.value = true
-  try {
-    const ok = await Settings.autoSave()
-    testState.value = { ok, text: ok ? '配置已保存' : '保存失败，请检查填写内容' }
-  } finally { saving.value = false }
-}
 
 function update(patch) {
   testState.value = null
@@ -81,7 +72,7 @@ async function testConnection() {
 
 <template>
   <div class="provider-form">
-    <div class="provider-form__meta"><span>{{ type.label }}</span><small>修改后自动保存</small></div>
+    <div class="provider-form__meta"><span>{{ type.label }}</span></div>
     <Tabs v-model="tab" :items="tabs">
       <template #panel="{ item }">
         <section v-if="item.value === 'config'" class="provider-tab provider-config" aria-label="供应商配置">
@@ -140,8 +131,7 @@ async function testConnection() {
       <p v-if="testState" class="provider-test__result" :class="{ 'is-error': !testState.ok }" role="status">{{ testState.text }}</p>
       <div class="provider-actions" aria-label="供应商操作">
         <Button icon variant="text" label="删除供应商" class="provider-delete" @click="deleteOpen = true"><Icon name="trash" /></Button>
-        <Button variant="text" :disabled="testing || saving" @click="testConnection"><Icon name="play" :size="18" />{{ testing ? '测试中…' : '测试连接' }}</Button>
-        <Button :disabled="testing || saving" @click="saveConfig"><Icon name="check" :size="18" />{{ saving ? '保存中…' : '保存配置' }}</Button>
+        <Button variant="text" :disabled="testing" @click="testConnection"><Icon name="play" :size="18" />{{ testing ? '测试中…' : '测试连接' }}</Button>
       </div>
     </div>
   </div>
@@ -151,7 +141,7 @@ async function testConnection() {
     label="删除供应商"
     @update:open="deleteOpen = $event"
   >
-    <p class="provider-dialog__text">删除后会自动保存，此供应商配置将被移除。</p>
+    <p class="provider-dialog__text">此供应商及其模型配置将被移除。</p>
     <template #footer>
       <Button variant="text" @click="deleteOpen = false">取消</Button>
       <Button variant="text" class="provider-delete" @click="emit('delete'); deleteOpen = false">删除</Button>

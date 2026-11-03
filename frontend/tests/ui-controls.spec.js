@@ -27,6 +27,10 @@ test('provider type sheet, search and model form keep edits deliberate', async (
   await types.getByRole('button', { name: /Anthropic/ }).click()
   await expect(page.getByRole('textbox', { name: '请求地址（API）', exact: true })).toHaveValue('https://api.anthropic.com/v1')
   await expect.poll(() => mock.config().providers[0].protocol).toBe('anthropic')
+  await expect(page.getByText('修改后自动保存', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '保存配置', exact: true })).toHaveCount(0)
+  await page.getByRole('textbox', { name: '供应商名', exact: true }).fill('Anthropic 测试')
+  await expect.poll(() => mock.config().providers[0].name).toBe('Anthropic 测试')
   await capture('provider-config')
 
   await page.getByRole('tab', { name: '模型', exact: true }).click()

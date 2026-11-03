@@ -109,7 +109,7 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
   </form>
 
   <Dialog :open="deleteOpen" label="删除 MCP 服务" @update:open="deleteOpen = $event">
-    <p>删除后会自动保存，这个 MCP 服务会从列表中移除。</p>
+    <p>这个 MCP 服务会从列表中移除。</p>
     <div class="dialog-actions">
       <Button @click="deleteOpen = false">取消</Button>
       <Button variant="danger" @click="deleteOpen = false; emit('delete')">删除</Button>
