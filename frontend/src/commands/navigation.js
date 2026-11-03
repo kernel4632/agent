@@ -38,10 +38,17 @@ async function openSettings(section = '') {
 
 /** 保存成功才离开设置。 */
 async function closeSettings() {
-  if (!await Settings.save()) return false
+  if (!await Settings.save({ keepDraft: true })) return false
   store.ui.settingsOpen = false
-  store.ui.settingsDetail = null
   return true
+}
+
+/** 整页滑出后再释放草稿与路径，退出过程中不把详情变成空页面。 */
+function finishSettingsClose() {
+  if (store.ui.settingsOpen) return // 用户在退场结束前重新打开了设置
+  store.settings.draft = null
+  store.ui.settingsSection = ''
+  store.ui.settingsDetail = null
 }
 
 /** 连接错误条的重试操作。 */
@@ -78,4 +85,4 @@ function updateDetailTitle(title) {
   store.ui.settingsDetail = { ...store.ui.settingsDetail, title: title || '' }
 }
 
-export const Navigation = { openHome, openChat, openSettings, closeSettings, retry, createSession, openDetail, closeDetail, updateDetailTitle }
+export const Navigation = { openHome, openChat, openSettings, closeSettings, finishSettingsClose, retry, createSession, openDetail, closeDetail, updateDetailTitle }

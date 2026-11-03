@@ -237,8 +237,8 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
   }
 }
 
-async function save() {
-  return persist()
+async function save({ keepDraft = false } = {}) {
+  return persist({ keepDraft }) // 页面退出动画结束前仍需要同一份草稿渲染内容
 }
 
 // 输入变化时调用：成功后保留草稿和当前焦点，不重建正在编辑的页面。

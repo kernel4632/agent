@@ -11,15 +11,27 @@ const MOVING = /^(opacity|transform)$/
 
 // 在页面里逐帧采样 document.getAnimations()：只留真正处于 running 的过渡/动画。
 // 采样式探针不会因为断言慢半拍而漏掉 200ms 的切换动画。
-async function watchMotion(page) {
-  await page.evaluate(() => {
+async function watchMotion(page, stableSelectors = []) {
+  await page.evaluate(selectors => {
     window.__stopMotion?.()                              // 先停掉上一次采样器，避免旧帧写进新数组
     window.__motion = []
     window.__motionFrames = 0
+    const tracked = selectors.map(selector => {
+      const node = document.querySelector(selector)
+      const { x, y, width, height } = node.getBoundingClientRect()
+      return { selector, node, before: { x, y, width, height } }
+    })
+    const layoutChanges = []
     const seen = new Set()
     let alive = true
     function tick() {
       if (!alive) return                                 // 采样器被停掉后不再申请下一帧
+      for (const { selector, node, before } of tracked) {
+        const after = node.getBoundingClientRect()
+        if (!node.isConnected || Object.keys(before).some(key => Math.abs(before[key] - after[key]) > 0.5)) {
+          layoutChanges.push({ selector, connected: node.isConnected, before, after: { x: after.x, y: after.y, width: after.width, height: after.height } })
+        }
+      }
       let active = false
       for (const animation of document.getAnimations()) {
         if (animation.playState !== 'running') continue
@@ -48,9 +60,9 @@ async function watchMotion(page) {
     tick()
     window.__stopMotion = () => {
       alive = false
-      return { list: window.__motion, frames: window.__motionFrames }
+      return { list: window.__motion, frames: window.__motionFrames, layoutChanges }
     }
-  })
+  }, stableSelectors)
 }
 
 async function readMotion(page) {
@@ -97,7 +109,7 @@ test.describe('chat motion', () => {
     const row = page.getByRole('button', { name: /模型供应商/ })
     const nextRow = page.locator('.settings-row').filter({ hasText: '默认模型和任务分工' })
     await expect(row).toBeVisible()
-    await page.locator('.settings-home').evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {}))))
+    await page.locator('.settings-stack').evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {}))))
     const before = await nextRow.screenshot({ animations: 'allow' })
 
     const painted = await row.evaluate(button => {
@@ -124,47 +136,71 @@ test.describe('chat motion', () => {
     expect(during.equals(before), '按下供应商选项后，相邻模型选项的像素不应改变').toBe(true)
   })
 
-  test('draft, session and settings switches run opacity and transform transitions', async ({ page }) => {
+  test('pages slide over retained parents without moving their layout', async ({ page }, testInfo) => {
     await backend(page)
     await page.goto('/')
     await navigate(page, '新建对话')
-
-    await watchMotion(page)
     await send(page, '动效测试')
-    await expect(page.locator('.session-panel')).toBeVisible()
-    await waitForMotion(page, 'session-panel')
-    let motion = await readMotion(page)
-    const sessionEnter = moving(motion, 'session-panel')
-    expect(motion.frames, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    expect(sessionEnter.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    expect(sessionEnter.some(item => item.opacity !== '1' || item.transform !== 'none')).toBe(true)
-    expect(sessionEnter.some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
+    await page.locator('.chat-composer').evaluate(element => { element.dataset.retained = 'chat' })
 
-    await page.waitForTimeout(400)
-    await watchMotion(page)
+    const chat = ['.rikka-main', '.topbar', '.chat-composer']
+    await watchMotion(page, chat)
     await navigate(page, '设置')
-    await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
-    await waitForMotion(page, 'settings-screen')
-    motion = await readMotion(page)
-    const settingsEnter = moving(motion, 'settings-screen')
-    expect(settingsEnter.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
-    expect(settingsEnter.some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
+    await waitForMotion(page, 'settings-stack')
+    await expect(page.locator('.settings-stack')).toHaveCSS('transform', 'none')
+    let motion = await readMotion(page)
+    const fromRight = item => item.transform.startsWith('matrix(') && Number(item.transform.slice(7, -1).split(',')[4]) > 0
+    expect(moving(motion, 'settings-stack').some(fromRight)).toBe(true)
+    expect(motion.layoutChanges).toEqual([])
+    await expect(page.locator('.rikka-main')).toHaveAttribute('inert', '')
 
-    // 供应商页现在是一层列表、一层编辑页；两层都要有过渡。
-    await page.waitForTimeout(400)
-    await watchMotion(page)
+    const home = '.settings-screen[data-page-key="home"]'
+    await watchMotion(page, [home, `${home} .settings-topbar`, `${home} .settings-scroll`])
     await page.getByRole('button', { name: /模型供应商/ }).click()
     await expect(page.getByRole('heading', { name: '模型供应商', exact: true, level: 1 })).toBeVisible()
-    await waitForMotion(page, 'settings-detail')
+    await waitForMotion(page, 'settings-page-enter-active')
+    const providers = '.settings-screen[data-page-key="section:providers"]'
+    await expect(page.locator(providers)).toHaveCSS('transform', 'none')
     motion = await readMotion(page)
-    expect(moving(motion, 'settings-detail').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
+    expect(moving(motion, 'settings-page-enter-active').some(fromRight)).toBe(true)
+    expect(motion.layoutChanges).toEqual([])
+    await expect(page.locator(home)).toHaveAttribute('inert', '')
+    await page.getByRole('searchbox', { name: '搜索供应商' }).fill('Test')
+    await page.locator(`${providers} .provider-list`).evaluate(element => { element.dataset.retained = 'providers' })
 
-    await watchMotion(page)
+    // 详情自己的紧凑页头不能套到仍在下面的列表页面上。
+    await watchMotion(page, [providers, `${providers} .settings-topbar`, `${providers} .provider-list`])
     await page.getByRole('button', { name: /Test Provider/ }).click()
     await expect(page.getByRole('textbox', { name: '供应商名' })).toBeVisible()
-    await waitForMotion(page, 'settings-detail')
+    await waitForMotion(page, 'settings-page-enter-active')
+    await expect(page.locator('.settings-screen--provider')).toHaveCSS('transform', 'none')
     motion = await readMotion(page)
-    expect(moving(motion, 'settings-detail').length, JSON.stringify(motion.list)).toBeGreaterThan(0)
+    expect(moving(motion, 'settings-page-enter-active').some(fromRight)).toBe(true)
+    expect(motion.layoutChanges).toEqual([])
+    await expect(page.locator('.settings-screen')).toHaveCount(3)
+
+    await watchMotion(page, [providers, `${providers} .settings-topbar`, `${providers} .provider-list`])
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await waitForMotion(page, 'settings-page-leave-active')
+    await expect(page.locator('.settings-screen--provider')).toHaveCount(0)
+    motion = await readMotion(page)
+    expect(moving(motion, 'settings-page-leave-active').some(fromRight)).toBe(true)
+    expect(motion.layoutChanges).toEqual([])
+    await expect(page.getByRole('searchbox', { name: '搜索供应商' })).toHaveValue('Test')
+    await expect(page.locator(`${providers} .provider-list`)).toHaveAttribute('data-retained', 'providers')
+    await page.screenshot({ path: testInfo.outputPath('retained-provider-list.png'), fullPage: true })
+
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(page.locator(providers)).toHaveCount(0)
+    await watchMotion(page, chat)
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await waitForMotion(page, 'page-leave-active')
+    await expect(page.locator('.settings-stack')).toHaveCount(0)
+    motion = await readMotion(page)
+    expect(moving(motion, 'settings-stack').some(fromRight)).toBe(true)
+    expect(motion.layoutChanges).toEqual([])
+    await expect(page.locator('.chat-composer')).toHaveAttribute('data-retained', 'chat')
+    await expect(page.locator('.rikka-main')).not.toHaveAttribute('inert', '')
   })
 
   test('switching sessions animates the timeline and keeps one composer', async ({ page }) => {

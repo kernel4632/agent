@@ -1,7 +1,11 @@
-/* --- 全屏外壳：顶部大标题栏 + 可滚动内容 + 详情保存栏 --- */
+/* 每页独立覆盖同一视口，父页面不参与进出动画，也不共享滚动容器。 */
+.settings-stack { position: absolute; inset: 0; z-index: 20; overflow: hidden; background: var(--la-bg); }
 .settings-screen {
+  position: absolute;
+  inset: 0;
   display: flex;
   width: 100%;
+  height: 100%;
   min-height: 0;
   flex: 1;
   flex-direction: column;
@@ -32,13 +36,12 @@
 .settings-screen--provider .settings-topbar__heading h1 { overflow: hidden; font-size: 22px; line-height: 30px; text-overflow: ellipsis; white-space: nowrap; }
 .settings-screen--provider .settings-scroll { display: flex; overflow: hidden; padding-bottom: 16px; }
 .settings-screen--provider .settings-detail { display: flex; min-height: 0; flex: 1; }
-/* 首页和详情页只做纵向轻移：设置内容可能比视口高，横向移动会摸到滚动边界。 */
-.settings-view-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
-.settings-view-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
-.settings-view-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
-.settings-view-leave-to { opacity: 0; transform: translateY(calc(var(--la-motion-rise) * -.75)); }
+/* 进入从右侧覆盖，返回向右侧滑出；未离开的页面保持原位。 */
+.settings-page-enter-active { transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.settings-page-leave-active { transition: transform var(--la-motion-exit) var(--ui-curve-standard); }
+.settings-page-enter-from, .settings-page-leave-to { transform: translateX(100%); }
 @media (prefers-reduced-motion: reduce) {
-  .settings-view-enter-active, .settings-view-leave-active { transition-duration: .01ms; }
+  .settings-page-enter-active, .settings-page-leave-active { transition-duration: .01ms; }
 }
 
 /* --- 首页：按 group 排列的圆角卡片和 80px 行 --- */

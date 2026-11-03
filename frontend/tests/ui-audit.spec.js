@@ -595,7 +595,7 @@ test('settings auto-save on change and back keeps the chat draft', async ({ page
   await page.getByRole('textbox', { name: '供应商名' }).fill('')
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
-  await expect(page.locator('.settings-screen')).toBeVisible()
+  await expect(page.locator('.settings-screen:not([inert])')).toBeVisible()
   await expect(page.getByRole('status')).toContainText('供应商名称不能为空或重复')
   await page.getByRole('button', { name: /模型供应商/ }).click()
   await page.locator('.provider-row').first().click()
@@ -1055,24 +1055,28 @@ test('session row menu stays inside the drawer and centers on its row', async ({
   expect(mock.errors).toEqual([])
 })
 
-test('settings pages start at the top instead of keeping the previous scroll', async ({ page }) => {
+test('new settings pages start at the top and returning restores the parent scroll', async ({ page }) => {
   const mock = await backend(page)
+  await page.setViewportSize({ width: page.viewportSize().width, height: 568 })
   await page.goto('/')
   await navigate(page, '设置')
-  const scroll = page.locator('.settings-scroll')
+  const scroll = page.locator('.settings-screen[data-page-key="home"] .settings-scroll')
   await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
 
   // 首页滚到底再打开详情，详情必须从顶部开始。
   await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await page.getByRole('button', { name: /模型供应商/ }).scrollIntoViewIfNeeded()
+  const originalScroll = await scroll.evaluate(element => element.scrollTop)
   await page.getByRole('button', { name: /模型供应商/ }).click()
   await expect(page.getByRole('heading', { name: '模型供应商', exact: true, level: 1 })).toBeVisible()
-  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBe(0)
+  const detailScroll = page.locator('.settings-screen[data-page-key="section:providers"] .settings-scroll')
+  await expect.poll(() => detailScroll.evaluate(element => element.scrollTop)).toBe(0)
 
-  // 详情滚到中间再返回，首页也必须从顶部开始。
-  await scroll.evaluate(element => { element.scrollTop = 600 })
+  // 详情使用自己的滚动容器，返回时首页继续停在原位置。
+  await detailScroll.evaluate(element => { element.scrollTop = 600 })
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设置', exact: true, level: 1 })).toBeVisible()
-  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBe(0)
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBe(originalScroll)
   expect(mock.errors).toEqual([])
 })
 
@@ -1123,7 +1127,7 @@ test('narrow settings keep controls readable and inside the screen', async ({ pa
   await page.waitForTimeout(500)
   await page.getByRole('button', { name: /工具管理/ }).click()
   await expect(page.getByRole('heading', { name: '工具管理', exact: true, level: 1 })).toBeVisible()
-  const toolsOverflow = await page.locator('.settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
+  const toolsOverflow = await page.locator('.settings-screen:not([inert]) .settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
   expect(toolsOverflow).toBeLessThanOrEqual(1)
 
   // 提示词多行输入不能把设置卡片撑出 320px 屏幕。
@@ -1131,7 +1135,7 @@ test('narrow settings keep controls readable and inside the screen', async ({ pa
   await page.waitForTimeout(400)
   await page.getByRole('button', { name: /系统提示词/ }).click()
   await expect(page.getByRole('heading', { name: '系统提示词', exact: true, level: 1 })).toBeVisible()
-  const overflow = await page.locator('.settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
+  const overflow = await page.locator('.settings-screen:not([inert]) .settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
   expect(overflow).toBeLessThanOrEqual(1)
   expect(mock.errors).toEqual([])
 })

@@ -1,7 +1,7 @@
 <!--
-设置页外壳：全屏占用 App 主区，只负责“设置首页 / 一级页面 / 二级页面”的切换、草稿保存和关闭。
-首页按本文件设置表的 group 显示圆角卡片；点一行进入一级页面，实体页面再点一行进入二级编辑页。
-字段接线和保存逻辑都不在这里：保存统一调用 Settings.save()，关闭仍由 Navigation.closeSettings() 自动保存。
+设置页面栈：首页、一级页面、二级编辑页各有自己的页头与滚动区域。
+进入新页只在上面加一层，返回时只滑出最上层；下面页面的内容、搜索和滚动位置保留。
+字段保存调用 Settings，路径操作调用 Navigation；本文件只装配页面与管理动画焦点。
 调用示例：<SettingsView />；打开首页用 Navigation.openSettings()，直接进详情用 Navigation.openSettings('providers')。
 -->
 <script setup>
@@ -9,7 +9,7 @@ import { Navigation } from '../commands/navigation.js'
 import { Settings } from '../commands/settings.js'
 import { store } from '../store.js'
 
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '../ui/Icon.vue'
 import Button from '../ui/Button.vue'
 // 面板顺序和视觉组件属于本页面；功能保存仍调用 commands/settings。
@@ -46,26 +46,56 @@ function groupSettingsPages(pages = settingsPages) {
   return groups
 }
 
-// 当前页只存一份：Navigation.openSettings(section) 写 store，页面和标题都从它派生。
+// 路径只存一份；从路径派生整条页面栈，父页面始终使用自己的标题、布局和 detail。
 const selected = computed({
   get: () => store.ui.settingsSection || '',
   set: value => { store.ui.settingsSection = value },
 })
-const scroll = ref(null)
-
-// 换设置页时从顶部开始：上一页滚到一半，新页面不能接着从中间显示。
-function resetScroll() {
-  if (scroll.value) scroll.value.scrollTop = 0
-}
+const stack = ref(null)
 const selectedPage = computed(() => {
   const page = settingsPages.find(item => item.id === selected.value)
   return page?.component && !page.disabled ? page : null
 })
-const groups = computed(() => groupSettingsPages(settingsPages))
+const groups = groupSettingsPages(settingsPages)
 const draft = computed(() => store.settings.draft)
-// 二级页面只多一层：供应商列表 → 某个供应商，MCP 列表 → 某个服务。
 const detail = computed(() => store.ui.settingsDetail)
-const title = computed(() => detail.value?.title || selectedPage.value?.label || '设置')
+const layers = computed(() => {
+  const pages = [{ key: 'home', title: '设置', page: null, detail: null }]
+  const page = selectedPage.value
+  if (!page) return pages
+  pages.push({ key: `section:${page.id}`, title: page.label, page, detail: null })
+  if (page.nested && detail.value) pages.push({ key: `detail:${page.id}:${detail.value.id}`, title: detail.value.title || page.label, page, detail: detail.value })
+  return pages
+})
+const activeKey = computed(() => layers.value.at(-1).key)
+
+// 被覆盖的页面仍在 DOM 中，但不能接收键盘或鼠标；返回时恢复原来的触发器焦点。
+const openers = new Map()
+watch(activeKey, (key, previous) => {
+  if (layers.value.some(layer => layer.key === previous)) openers.set(key, document.activeElement)
+}, { flush: 'sync' })
+
+function focusPage() {
+  // 动画期间用户已经开始操作新页或弹层时，结束动画不能再把焦点抢回标题。
+  const focused = document.activeElement
+  if (focused !== document.body && !focused.closest('[inert]')) return
+  stack.value?.querySelector('.settings-screen:not([inert]) h1')?.focus({ preventScroll: true })
+}
+
+function beforeLeave(element) {
+  element.inert = true
+  element.setAttribute('aria-hidden', 'true')
+}
+
+function afterLeave(element) {
+  const opener = openers.get(element.dataset.pageKey)
+  openers.delete(element.dataset.pageKey)
+  if (!store.ui.settingsOpen) return
+  if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true })
+  else focusPage()
+}
+
+onMounted(() => nextTick(focusPage))
 
 // 首页分组来自登记表；新增页面只要写对 group，就会自动出现在对应卡片里。
 function openPage(page) {
@@ -86,14 +116,14 @@ function goHome() {
 let autoSaveTimer = null
 
 function scheduleAutoSave() {
-  if (!store.settings.draft) return
+  if (!store.ui.settingsOpen || !store.settings.draft) return
   window.clearTimeout(autoSaveTimer)
   autoSaveTimer = window.setTimeout(runAutoSave, 600)
 }
 
 async function runAutoSave() {
   autoSaveTimer = null
-  await Settings.autoSave()
+  if (store.ui.settingsOpen) await Settings.autoSave()
 }
 
 watch(() => store.settings.draft, scheduleAutoSave, { deep: true })
@@ -109,61 +139,49 @@ function goBack() {
 </script>
 
 <template>
-  <section class="settings-screen" :class="{ 'settings-screen--provider': selected === 'providers' && detail }" aria-label="设置">
-    <header class="settings-topbar">
-      <div class="settings-topbar__inner">
-        <div class="settings-topbar__actions">
-          <Button icon label="返回" @click="goBack"><Icon name="arrow" :size="18" class="settings-back-icon" /></Button>
-        </div>
-        <div class="settings-topbar__heading">
-          <h1 :title="title">{{ title }}</h1>
-        </div>
-      </div>
-    </header>
-
-    <div ref="scroll" class="settings-scroll">
-      <Transition name="settings-view" mode="out-in" @before-enter="resetScroll">
-        <!-- 详情页自己可能是多根组件（如模型供应商页），统一包一层单根容器，过渡才有落点。 -->
-        <div v-if="selectedPage && draft" :key="`${selected}:${detail?.id || ''}`" class="settings-detail">
-          <component
-            :is="selectedPage.component"
-            :draft="draft"
-            :detail="selectedPage.nested ? detail : undefined"
-            @open-detail="Navigation.openDetail"
-            @close-detail="Navigation.closeDetail"
-            @update-detail-title="Navigation.updateDetailTitle"
-          />
-        </div>
-
-        <div v-else key="home" class="settings-home">
-          <section v-for="group in groups" :key="group.label" class="settings-group">
-            <h2 class="settings-group__label">{{ group.label }}</h2>
-            <div class="settings-card">
-              <Button
-                v-for="page in group.items"
-                :key="page.id"
-                variant="plain"
-                class="settings-row"
-                :disabled="page.disabled"
-                :title="page.disabled ? '暂不支持此管理功能' : undefined"
-                @click="openPage(page)"
-              >
-                <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true">
-                  <Icon :name="page.icon" :size="20" />
-                </span>
-                <span class="settings-row__text">
-                  <span class="settings-row__title">{{ page.label }}</span>
-                  <span class="settings-row__description">{{ page.description }}</span>
-                </span>
-                <span v-if="page.disabled" class="settings-row__badge">待支持</span>
-                <Icon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
-              </Button>
+  <section ref="stack" class="settings-stack" aria-label="设置">
+    <TransitionGroup name="settings-page" @before-leave="beforeLeave" @after-enter="focusPage" @after-leave="afterLeave">
+      <section
+        v-for="(layer, index) in layers" :key="layer.key" :data-page-key="layer.key"
+        class="settings-screen" :class="{ 'settings-screen--provider': layer.page?.id === 'providers' && layer.detail }"
+        :style="{ zIndex: index }" :inert="layer.key !== activeKey" :aria-hidden="layer.key !== activeKey || undefined"
+      >
+        <header class="settings-topbar">
+          <div class="settings-topbar__inner">
+            <div class="settings-topbar__actions">
+              <Button icon label="返回" @click="goBack"><Icon name="arrow" :size="18" class="settings-back-icon" /></Button>
             </div>
-          </section>
-        </div>
-      </Transition>
-    </div>
+            <div class="settings-topbar__heading"><h1 :title="layer.title" tabindex="-1">{{ layer.title }}</h1></div>
+          </div>
+        </header>
 
+        <div class="settings-scroll">
+          <div v-if="layer.page && draft" class="settings-detail">
+            <component
+              :is="layer.page.component" :draft="draft" :detail="layer.page.nested ? layer.detail : undefined"
+              @open-detail="Navigation.openDetail" @close-detail="Navigation.closeDetail" @update-detail-title="Navigation.updateDetailTitle"
+            />
+          </div>
+
+          <div v-else class="settings-home">
+            <section v-for="group in groups" :key="group.label" class="settings-group">
+              <h2 class="settings-group__label">{{ group.label }}</h2>
+              <div class="settings-card">
+                <Button
+                  v-for="page in group.items" :key="page.id" variant="plain" class="settings-row"
+                  :disabled="page.disabled" :title="page.disabled ? '暂不支持此管理功能' : undefined" @click="openPage(page)"
+                >
+                  <span class="settings-row__icon" :class="`settings-row__icon--${page.tone || 'secondary'}`" aria-hidden="true"><Icon :name="page.icon" :size="20" /></span>
+                  <span class="settings-row__text"><span class="settings-row__title">{{ page.label }}</span><span class="settings-row__description">{{ page.description }}</span></span>
+                  <span v-if="page.disabled" class="settings-row__badge">待支持</span>
+                  <Icon name="arrow" :size="16" class="settings-row__arrow" aria-hidden="true" />
+                </Button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </TransitionGroup>
   </section>
 </template>
 

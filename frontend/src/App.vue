@@ -1,5 +1,5 @@
 <!--
-应用外壳：负责视图切换、抽屉、顶部栏和跨视图事件接线。
+应用外壳：聊天页常驻，设置作为独立整页覆盖其上；关闭后露出原来的聊天页。
 views/ 组装聊天与设置，components/ 保存独立视觉区域；所有业务操作由 commands/ 提供。
 入口：main.js 挂载本组件；调用示例：<Sidebar :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
@@ -32,7 +32,6 @@ const todoOpen = ref(false)
 // 新对话先保留思考强度，创建后写进会话设置。
 const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
-const mode = computed(() => store.ui.settingsOpen ? 'settings' : session.value ? 'session' : 'draft')
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
 
 
@@ -73,11 +72,23 @@ async function openSettings(section) {
 }
 
 // 打开设置后可能从命令面板或快捷键进入，统一在这里收起抽屉和任务面板。
+let settingsOpener
 watch(() => store.ui.settingsOpen, open => {
   if (!open) return
+  settingsOpener = document.activeElement // 原页面一直在，返回时可以把焦点交还原按钮
   drawerOpen.value = false
   todoOpen.value = false
-})
+}, { flush: 'sync' })
+
+function leaveSettingsPage(element) {
+  element.inert = true
+  element.setAttribute('aria-hidden', 'true')
+}
+
+function finishSettingsPage() {
+  Navigation.finishSettingsClose()
+  if (!store.ui.settingsOpen && settingsOpener?.isConnected) settingsOpener.focus({ preventScroll: true })
+}
 
 // --- 命令面板：入口把导航动作传给列表，开关是本地临时状态 ---
 const paletteOpen = ref(false)
@@ -145,16 +156,14 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
   <div class="app-theme" :data-theme="scheme">
     <div class="rikka-app">
       <Sidebar
-        v-if="mode !== 'settings'"
         :open="drawerOpen"
         @close="drawerOpen = false"
         @open="openSession"
         @new="openDraft"
       />
 
-      <div class="rikka-main">
+      <div class="rikka-main" :inert="store.ui.settingsOpen" :aria-hidden="store.ui.settingsOpen || undefined">
         <TopBar
-          v-if="mode !== 'settings'"
           :session="session"
           :todo-open="todoOpen"
           @menu="drawerOpen = true"
@@ -167,28 +176,26 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
             <ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
           </Transition>
 
-          <Transition name="view" mode="out-in">
-            <SettingsView v-if="mode === 'settings'" key="settings" class="settings-panel" />
-
-            <ChatView
-              v-else
-              :key="mode"
-              ref="draftView"
-              :session="session"
-              v-model:draft="homeDraft"
-              :model="store.config.activeModel"
-              :reasoning="draftReasoning"
-              :files="homeFiles"
-              :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-              v-model:todo-open="todoOpen"
-              @update:reasoning="draftReasoning = $event"
-              @submit="submitMessage"
-              @attach="attachFiles"
-              @remove-file="removeFile"
-            />
-          </Transition>
+          <ChatView
+            ref="draftView"
+            :session="session"
+            v-model:draft="homeDraft"
+            :model="store.config.activeModel"
+            :reasoning="draftReasoning"
+            :files="homeFiles"
+            :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
+            v-model:todo-open="todoOpen"
+            @update:reasoning="draftReasoning = $event"
+            @submit="submitMessage"
+            @attach="attachFiles"
+            @remove-file="removeFile"
+          />
         </main>
       </div>
+
+      <Transition name="page" @before-leave="leaveSettingsPage" @after-leave="finishSettingsPage">
+        <SettingsView v-if="store.ui.settingsOpen" class="settings-panel" />
+      </Transition>
 
       <Toast :message="store.ui.toast || ''" @close="Notice.clear()" />
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
