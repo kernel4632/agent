@@ -13,7 +13,6 @@
  */
 
 import { nanoid } from 'nanoid'
-import store from '../store.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import History from '../features/history.js'
@@ -244,8 +243,8 @@ const titleFor = async ({ sessionId }) => {
     const session = await History.load(sessionId)
     if (session.title !== Title.UNTITLED) return
 
-    // 标题用哪份连接：config.models.title，没配就和这条会话的模型共用。
-    const target = Agent.configured(store.config.models?.title) || session.model
+    // 标题用哪份连接：models.title，没配就跟这条会话自己的模型走。
+    const target = Agent.taskModel('title', session.model)
     const messages = History.get({ sessionId }).filter(message => !message.internal)
     const title = await Title.generate({
         connection: Agent.connection(target),

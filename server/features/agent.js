@@ -4,7 +4,8 @@
  * 主 Agent 只有一个通用运行角色：使用全部工具，不按会话切换身份。
  * 模型请求和循环由 @kernel4632/agent-core 负责；这里只回答四件事：
  * 用哪个模型、带哪段提示词、给哪些工具、这次会话的权限和设置。
- * 默认模型按任务分开：对话、压缩、标题、子任务各用 config.models 里那一个。
+ * 默认模型按任务分开：对话、压缩、标题、子任务各用 config.models 里那一个；
+ * 没配的那几项跟会话自己的模型走，压缩交给 core 用主连接。
  * 审批、工具、历史和上下文由命令层在启动时 bind；本文件不 import 任何 feature。
  *
  * 调用示例：
@@ -94,14 +95,8 @@ const configured = target => {
     return provider ? { provider: provider.name, model: target.model } : null
 }
 
-// --- 某件事默认用哪个模型：先看 models 里那一项，再回退到对话模型 ---
-const taskModel = task => {
-    const chosen = configured(store.config.models?.[task])
-    if (chosen) return chosen
-    const chat = configured(store.config.models?.chat)
-    if (chat) return chat
-    return firstModel()
-}
+// --- 某件事用哪个模型：先看 models 里那一项，再退到调用方给的连接（会话自己的模型），最后退到第一个可用模型 ---
+const taskModel = (task, fallback) => configured(store.config.models?.[task]) || configured(fallback) || defaultModel()
 
 // --- 配置里第一个能用的模型 ---
 const firstModel = () => {
@@ -244,8 +239,8 @@ const create = async ({ sessionId }) => {
     const config = resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
     const tools = await services.tool.build({
         sessionId,
-        // 子任务可以用 models.task 单独指定；没配就沿用会话当前模型。
-        taskConfig: resolveFor({ session, settings, target: configured(store.config.models?.task) || session.model }),
+        // 子任务可以用 models.task 单独指定；没配就跟这条会话自己的模型走。
+        taskConfig: resolveFor({ session, settings, target: taskModel('task', session.model) }),
         onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口
         saveSession: () => services.history.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
     })

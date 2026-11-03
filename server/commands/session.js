@@ -183,7 +183,7 @@ const setModel = async ({ sessionId, provider, model }) => {
 // --- 按后续对话重新生成标题 ---
 const generateTitle = async ({ sessionId }) => {
     const session = await History.load(sessionId)
-    const target = Agent.configured(store.config.models?.title) || session.model
+    const target = Agent.taskModel('title', session.model)
     const messages = History.get({ sessionId }).filter(message => !message.internal)
     const title = await Title.generate({ connection: Agent.connection(target), messages }) || Title.fallback(messages)
     if (title) {

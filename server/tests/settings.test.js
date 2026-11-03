@@ -181,6 +181,50 @@ describe('哪件事用哪个模型', () => {
             expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: '主模型' })
         })
     })
+
+    test('没单独配标题模型时，跟这条会话自己的模型走', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: '主模型', name: '主模型' }, { id: '会话模型', name: '会话模型' }] }],
+                models: { chat: { provider: 'local', model: '主模型' } },
+            })
+            const { sessionId } = await Session.create({ title: '标题跟会话' })
+            await Session.setModel({ sessionId, provider: 'local', model: '会话模型' })
+
+            const original = Title.generate
+            let used
+            Title.generate = async ({ connection }) => { used = connection; return '标题' }
+            try {
+                await Session.generateTitle({ sessionId })
+            } finally {
+                Title.generate = original
+            }
+            expect(used.model).toBe('会话模型')
+        })
+    })
+
+    test('没单独配子任务模型时，跟这条会话自己的模型走', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: '主模型', name: '主模型' }, { id: '会话模型', name: '会话模型' }] }],
+                models: { chat: { provider: 'local', model: '主模型' } },
+            })
+            const { sessionId } = await Session.create({ title: '子任务跟会话' })
+
+            const original = Delegation.build
+            let used
+            Delegation.build = options => {
+                used = options.config
+                return original(options)
+            }
+            try {
+                await Session.setModel({ sessionId, provider: 'local', model: '会话模型' })
+            } finally {
+                Delegation.build = original
+            }
+            expect(used.model).toBe('会话模型')
+        })
+    })
 })
 
 describe('压缩阈值', () => {

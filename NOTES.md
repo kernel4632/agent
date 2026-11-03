@@ -175,7 +175,7 @@ const store = {
       // },
     ],
 
-    // 不同任务可以分别指定默认模型；不填就回退到 chat。
+    // 不同任务可以分别指定默认模型；不填就回退到会话自己的模型（新会话默认取 chat）。
     models: {
       chat: { provider: '', model: '' },
       compact: { provider: '', model: '' },
