@@ -41,7 +41,6 @@ export const store = reactive({
     settingsSection: '',                               // 空字符串表示设置首页；传页面 id 才直接进入详情
     settingsDetail: null,                              // 二级页面：{ id, title }，如某个供应商或 MCP 服务
     activeSessionID: '',                               // 对话页当前会话身份
-    openedSessionIDs: [],                              // 用户本次运行中主动打开的会话，顺序即标签顺序
     toast: '',                                         // 短时全局反馈
     isLoading: true,                                   // 首次 API 数据加载状态
     errorMessage: '',                                  // 最近一次跨页面 API 错误
@@ -68,11 +67,6 @@ export const store = reactive({
   events: {
     lastIDs: {},                                      // 每个会话最后处理的递增 SSE ID
     controllers: {},                                  // 每个会话当前订阅的中断控制器
-  },
-
-  tabs: {
-    items: [],                                        // 顶部标签列表，每项包含 key、sessionID、title
-    activeKey: '',                                    // 当前选中标签的稳定键名
   },
 
   settings: {

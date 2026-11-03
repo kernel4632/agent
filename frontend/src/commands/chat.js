@@ -12,7 +12,6 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { History } from './history.js'
-import { Tabs } from './session.js'
 import { t } from '../utils/i18n.js'
 import { formatToolOutput, toolStatus } from './tool.js'
 import { usageFields } from './stats.js'
@@ -235,7 +234,6 @@ function failRun(session, event) {
 function setTitle(session, event) {
   session.title = event.title
   History.syncSummary(session)
-  Tabs.syncTitles(Object.values(store.sessions))
 }
 
 // --- 这一轮结束：以 Server 写盘的最终历史为准 ---

@@ -17,14 +17,6 @@ function locate(sessionID) {
 }
 
 
-// --- 记录已打开会话 ---
-function rememberOpened(sessionID) {
-  const previousIndex = store.ui.openedSessionIDs.indexOf(sessionID) // 查找会话是否已经出现在侧边栏
-  if (previousIndex >= 0) store.ui.openedSessionIDs.splice(previousIndex, 1) // 再次打开时先移除旧位置
-  store.ui.openedSessionIDs.unshift(sessionID)                        // 最近打开的会话放在侧边栏最前
-}
-
-
 // --- 创建会话 ---
 async function create(cwd) {
   try {
@@ -32,7 +24,6 @@ async function create(cwd) {
     const session = History.normalize(created)                  // 补齐仅前端使用的草稿和用量字段
     store.sessions[session.id] = session                // 完整会话进入响应式目录
     store.sessionList.unshift(History.summaryOf(session)) // 摘要进入列表首位
-    rememberOpened(session.id)                          // 新会话已经加载，应立即出现在侧边栏
     return session                                      // 返回新会话供组合动作使用
   } catch (error) {
     Notice.show(error.message)                            // 反馈真实创建失败原因
@@ -51,8 +42,6 @@ async function rename(sessionID, title) {
     const result = await AgentAPI.renameSession(sessionID, cleanTitle)
     found.title = result.title                          // 更新侧边栏摘要
     if (session) session.title = result.title
-    const tab = store.tabs.items.find(item => item.sessionID === sessionID)
-    if (tab) Tabs.setTitle(tab.key, result.title)
     return true                                         // 标题编辑器退出编辑
   } catch (error) {
     Notice.show(error.message)                            // 保留编辑器内容并显示错误
@@ -67,9 +56,6 @@ function forget(sessionID) {
   if (!found) return false
   store.sessionList.splice(store.sessionList.indexOf(found), 1)
   delete store.sessions[sessionID]
-  const openedIndex = store.ui.openedSessionIDs.indexOf(sessionID)
-  if (openedIndex >= 0) store.ui.openedSessionIDs.splice(openedIndex, 1)
-  Tabs.removeSession(sessionID)
   return true
 }
 
@@ -169,8 +155,6 @@ async function read(id) {
     const session = History.normalize(source, store.sessions[sessionID])
     if (!found) store.sessionList.unshift(History.summaryOf(session))
     store.sessions[sessionID] = session
-    rememberOpened(sessionID)
-    Tabs.openSession(sessionID, session.title || NEW_SESSION_TITLE)
     return session
   } catch (error) { Notice.show(error.message); return false }
 }
@@ -210,78 +194,4 @@ function summaryOf(session) {
   }
 }
 
-// --- 创建一个草稿标签 ---
-function createDraft() {
-  const tabStore = store.tabs                            // 读取当前标签顺序
-  const key = `draft:${crypto.randomUUID()}`             // 为独立输入上下文生成稳定身份
-  tabStore.items.push({ key, sessionID: '', title: '新会话' }) // 将草稿加入顶部工作区
-  tabStore.activeKey = key                               // 新草稿立即成为当前标签
-  return key                                             // 返回身份供对话指令建立数据
-}
-
-// --- 打开一个已有会话标签 ---
-function openSession(sessionID, title = NEW_SESSION_TITLE, activate = true) {
-  const tabStore = store.tabs                            // 读取当前标签顺序
-  const key = `session:${sessionID}`                     // 将会话 ID 转换为稳定标签身份
-  if (!tabStore.items.some((tab) => tab.key === key)) tabStore.items.push({ key, sessionID, title }) // 已打开时不重复添加
-  if (activate) tabStore.activeKey = key                 // 前台打开时切换当前选择
-  return key                                             // 返回身份供对话指令定位数据
-}
-
-// --- 将草稿升级为真实会话标签 ---
-function promote(draftKey, sessionID) {
-  const tabStore = store.tabs                            // 读取草稿标签和当前选择
-  const tab = tabStore.items.find((item) => item.key === draftKey) // 查找收到 Server 会话 ID 的草稿
-  const nextKey = `session:${sessionID}`                 // 创建可持久化的真实标签身份
-  if (!tab) return nextKey                               // 标签已关闭时仍允许后台流完成
-
-  tab.key = nextKey                                      // 原位升级以保持标签顺序
-  tab.sessionID = sessionID                              // 保存后续重新读取所需的会话 ID
-  if (tabStore.activeKey === draftKey) tabStore.activeKey = nextKey // 当前草稿继续保持选中
-  return nextKey                                         // 返回新身份供对话映射迁移
-}
-
-// --- 选择一个已打开标签 ---
-function select(key) {
-  const tabStore = store.tabs                            // 读取当前标签集合
-  if (!tabStore.items.some((tab) => tab.key === key)) return // 不存在的标签不能成为当前选择
-  tabStore.activeKey = key                               // 将聊天页切换到目标标签
-}
-
-// --- 关闭标签并选择相邻项 ---
-function close(key) {
-  const tabStore = store.tabs                            // 读取当前标签顺序和选择
-  const index = tabStore.items.findIndex((tab) => tab.key === key) // 定位关闭项和邻居位置
-  if (index < 0) return tabStore.activeKey               // 标签不存在时保持当前选择
-  const wasActive = tabStore.activeKey === key           // 记录是否需要选择邻居
-  tabStore.items.splice(index, 1)                        // 从顶部工作区移除目标标签
-  if (wasActive) tabStore.activeKey = tabStore.items[index]?.key ?? tabStore.items[index - 1]?.key ?? '' // 优先选择右侧邻居
-  return tabStore.activeKey                              // 返回关闭后的当前标签
-}
-
-// --- 更新一个标签标题 ---
-function setTitle(key, title) {
-  const tabStore = store.tabs                            // 读取当前标签集合
-  const tab = tabStore.items.find((item) => item.key === key) // 定位需要更新的标签
-  if (!tab || !title) return                             // 无目标或空标题时保持现状
-  tab.title = title                                      // 将 Server 最终标题写入顶部反馈
-}
-
-// --- 用会话摘要同步全部标题 ---
-function syncTitles(sessions) {
-  const tabStore = store.tabs                            // 读取所有已打开标签
-  tabStore.items.forEach((tab) => {
-    const session = sessions.find((item) => item.id === tab.sessionID) // 查找标签对应的最新摘要
-    if (session?.title) tab.title = session.title        // 异步标题生成后更新标签反馈
-  })
-}
-
-// --- 删除会话关联标签 ---
-function removeSession(sessionID) {
-  const tabStore = store.tabs                            // 读取所有已打开标签
-  const tab = tabStore.items.find((item) => item.sessionID === sessionID) // 查找被删除会话的标签
-  if (tab) close(tab.key)                                // 复用相邻选择规则移除标签
-}
-
-export const Tabs = {  createDraft, openSession, promote, select, close, setTitle, syncTitles, removeSession  }
 export const Session = { locate, list, reload, create, read, rename, remove, removeMany, selectModel, saveSettings, setReasoning }
