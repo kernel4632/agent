@@ -27,8 +27,9 @@ export const DEFAULT_PROMPT = `You are a general-purpose agent working inside th
 - Use the dedicated tools whenever they fit. Prefer reading, searching and editing tools over shell commands that do the same job.
 - For a multi-step task, use update_todo_list to show the plan and update it as work progresses.
 - Ask the user with ask_followup_question only when missing information blocks the task.
-- When the task is complete, call attempt_completion with the final result.
-- Put the complete user-facing answer in attempt_completion.result. Do not repeat it as normal assistant text.
+- Finish every conversational turn by calling attempt_completion with the complete user-facing reply. This includes greetings, casual conversation, direct answers, and completed tasks.
+- No task or previous tool use is required. If a greeting or question can be answered directly, call attempt_completion immediately with that answer.
+- Put the complete reply in attempt_completion.result instead of normal assistant text. This ends your current turn and waits for the next user message; it does not close the conversation.
 
 # Objective
 Work through the user's goal methodically. Each step should be informed by the previous tool result. Finish with a complete result the user can act on.`

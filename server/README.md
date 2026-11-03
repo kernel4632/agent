@@ -137,6 +137,8 @@ Agent 循环来自 `@kernel4632/agent-core` **0.27.0**（[仓库](https://github
 
 每个工具文件导出工具对象或数组，对象里有 `name`、`kind`、`description`、`inputSchema`、`execute` 就会被扫描到。会改文件的工具带自己的快照钩子；命令工具不做文件快照。
 
+`attempt_completion` 提交本轮最终回复并等待用户下一条消息，问候、闲聊和直接问答也使用它；不要求先执行任务或调用其他工具。完整回复放入 `result`，中途进度仍走普通助手文本。描述参考 [Roo Code 的结束工具](https://github.com/RooCodeInc/Roo-Code/blob/main/src/core/prompts/tools/native-tools/attempt_completion.ts)，并补全通用聊天场景。缺少必要信息时用 `ask_followup_question` 提问。
+
 **敏感文件由文件工具自己判断。** `.env`、`*.pem`、`*.key`、`.ssh`、agent 自己的 `.agent` 数据目录等永远不交给模型，配置关不掉。命令工具本身能做的事由权限规则管。
 
 ### MCP
