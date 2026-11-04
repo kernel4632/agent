@@ -380,6 +380,9 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user">
               <Markdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
+              <div v-if="turn.messages[0].images?.length" class="user-images">
+                <img v-for="(image, index) in turn.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
+              </div>
               <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
                 <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
                   <Icon name="document" :size="14" />

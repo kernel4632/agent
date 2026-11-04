@@ -27,7 +27,7 @@ import Dialog from '../../ui/Dialog.vue'
 import { store } from '../../store.js'
 import { Session } from '../../commands/session.js'
 import ComposerMenu from './ComposerMenu.vue'
-import { ATTACHMENT_ACCEPT } from '../../commands/attachment.js'
+import { ATTACHMENT_ACCEPT, ATTACHMENT_PATTERN } from '../../commands/attachment.js'
 
 const props = defineProps({
   selectedModel: { type: String, default: '' },
@@ -73,6 +73,24 @@ function keydown(event) {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit() }
 }
 function addFiles(event) { emit('attach', [...event.target.files]); event.target.value = '' }
+
+// --- 粘贴：图片转成 File 走统一附件检查，文本仍走浏览器默认 ---
+// 剪贴板里的截图没有文件名，起个带时间戳的名字，扩展名按真实类型写。
+const IMAGE_EXTENSION = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp' }
+async function paste(event) {
+    const images = [...event.clipboardData.items]
+        .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean)
+    if (!images.length) return
+    event.preventDefault()
+    const files = images.map((blob, index) => {
+        const extension = IMAGE_EXTENSION[blob.type] || '.png'
+        const name = blob.name && ATTACHMENT_PATTERN.test(blob.name) ? blob.name : `粘贴的图片 ${new Date().toLocaleTimeString()}${extension}`
+        return new File([blob], name, { type: blob.type })
+    })
+    emit('attach', files, { pasted: true })
+}
 defineExpose({ focus: () => editor.value?.focus() })
 </script>
 
@@ -80,14 +98,20 @@ defineExpose({ focus: () => editor.value?.focus() })
   <form class="chat-composer" :class="{ 'is-expanded': expanded }" aria-label="对话编辑器" @submit.prevent="submit">
     <Transition name="attachments">
       <div v-if="files.length" class="chat-composer__files">
-        <Chip v-for="file in files" :key="file.id" class="chat-composer__file" closable :label="file.name" @close="emit('remove-file', file.id)">
-          <Icon name="document" :size="16" />{{ file.name }}
-        </Chip>
+        <template v-for="file in files" :key="file.id">
+          <span v-if="file.kind === 'image'" class="chat-composer__image" :title="file.name">
+            <img :src="file.dataUrl" alt="" class="chat-composer__image-thumb" />
+            <button type="button" class="chat-composer__image-remove" :aria-label="`移除 ${file.name}`" @click="emit('remove-file', file.id)"><Icon name="close" :size="12" /></button>
+          </span>
+          <Chip v-else class="chat-composer__file" closable :label="file.name" @close="emit('remove-file', file.id)">
+            <Icon name="document" :size="16" />{{ file.name }}
+          </Chip>
+        </template>
       </div>
     </Transition>
     <!-- 消息编辑器直接使用原生输入，焦点和输入法组合状态由此处处理。 -->
     <div class="chat-composer__editor-wrap">
-      <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" placeholder="输入消息与 AI 聊天" rows="2" @keydown="keydown"></textarea>
+      <textarea ref="editor" v-model="draft" class="chat-composer__editor" aria-label="消息" placeholder="输入消息与 AI 聊天" rows="2" @keydown="keydown" @paste="paste"></textarea>
     </div>
     <div class="chat-composer__expand-corner">
       <span class="chat-composer__expand-line" aria-hidden="true"></span>

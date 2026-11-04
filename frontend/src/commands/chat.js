@@ -16,6 +16,7 @@ import { t } from '../utils/i18n.js'
 import { formatToolOutput, toolStatus } from './tool.js'
 import { usageFields } from './stats.js'
 import { readAttachments } from './attachment.js'
+import { imagePasteNotice } from './imageNotice.js'
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
@@ -83,7 +84,13 @@ async function send(sessionID, content) {
   const provider = store.config.providers[session.provider]
   if (!session.model || !provider?.baseURL || provider.enabled === false) { Notice.show('请先配置并启用此会话使用的模型供应商'); return false }
   const files = session.files || []
-  const input = content.trim() + files.map(file => `\n\n附件 ${JSON.stringify(file.name)}:\n${file.content}`).join('')
+  // 图片附件变成内容块随消息进 history 常驻；能不能发给模型由后端按 capabilities 决定。
+  const imageParts = files.filter(file => file.kind === 'image').map(file => ({ type: 'image', image: file.dataUrl }))
+  const textFiles = files.filter(file => file.kind !== 'image')
+  const text = content.trim() + textFiles.map(file => `\n\n附件 ${JSON.stringify(file.name)}:\n${file.content}`).join('')
+  const input = imageParts.length
+    ? [...(text.trim() ? [{ type: 'text', text }] : []), ...imageParts]
+    : text
   void subscribe(sessionID)
   // content 保留完整输入（回退后还能重新发送附件正文），气泡只读 displayContent。
   session.messages.push({
@@ -91,7 +98,8 @@ async function send(sessionID, content) {
     role: 'user',
     content: input,
     displayContent: content.trim(),
-    attachments: files.map(file => ({ id: file.id, name: file.name })),
+    attachments: files.map(file => ({ id: file.id, name: file.name, kind: file.kind || 'text' })),
+    images: files.filter(file => file.kind === 'image').map(file => file.dataUrl),
   })
   createAssistant(session)
   session.status = 'running'
@@ -466,12 +474,16 @@ async function decide(sessionID, callID, decision) {
   finally { tool.deciding = false }
 }
 
-async function attach(sessionID, files) {
+async function attach(sessionID, files, options = {}) {
   const session = store.sessions[sessionID]
   if (!session) return
   const { files: accepted, errors } = await readAttachments(files) // 和草稿页共用同一套检查
   session.files.push(...accepted)                                  // 通过检查的附件跟着会话草稿走
   errors.forEach(message => Notice.show(message))                     // 超限或类型不对的文件逐个提示
+  // 粘贴图片时按当前模型能力提醒一次；不影响粘贴和发送本身。
+  if (options?.pasted && accepted.some(file => file.kind === 'image')) {
+    imagePasteNotice({ hasImage: true, provider: session.provider, model: session.model })
+  }
 }
 
 function removeFile(sessionID, fileID) {

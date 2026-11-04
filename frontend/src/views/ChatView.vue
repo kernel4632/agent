@@ -65,9 +65,9 @@ async function submit(content) {
   const id = props.session.id
   if (await Chat.send(id, content) && props.session?.id === id && draft.value === content) draft.value = ''
 }
-function attach(files) {
-  if (props.session) void Chat.attach(props.session.id, files)
-  else emit('attach', files)
+function attach(files, options) {
+  if (props.session) void Chat.attach(props.session.id, files, options)
+  else emit('attach', files, options)
 }
 function removeFile(id) {
   if (props.session) Chat.removeFile(props.session.id, id)

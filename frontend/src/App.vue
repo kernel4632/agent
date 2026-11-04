@@ -21,6 +21,7 @@ import { Session } from './commands/session.js'
 import { Chat } from './commands/chat.js'
 import { DEFAULT_SETTINGS } from './defaults.js'
 import { readAttachments } from './commands/attachment.js'
+import { imagePasteNotice } from './commands/imageNotice.js'
 
 const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 const draftView = ref(null)
@@ -124,10 +125,14 @@ async function submitMessage(content) {
 }
 
 // 草稿页附件先在本地收好，创建会话时一起写进新会话。
-async function attachFiles(selected) {
+async function attachFiles(selected, options = {}) {
   const { files, errors } = await readAttachments(selected) // 大小和类型检查只在附件工具里做一次
   homeFiles.value.push(...files)                            // 通过检查的文件进入草稿附件列表
   errors.forEach(Notice.show)                                 // 被拒绝的文件逐个说明原因
+  // 粘贴图片时按当前模型能力提醒一次；不影响粘贴本身。
+  if (options?.pasted && files.some(file => file.kind === 'image')) {
+    imagePasteNotice({ hasImage: true, provider: store.config.activeProvider, model: store.config.activeModel })
+  }
 }
 
 // 只从草稿页的待发送附件里移除。

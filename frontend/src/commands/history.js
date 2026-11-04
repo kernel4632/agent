@@ -56,6 +56,7 @@ function normalizeMessage(item, messages) {
 
   message.reasoning = parts.filter(part => part.type === 'reasoning').map(part => part.reasoning || part.text || '').join('') // 合并推理块
   message.content = parts.filter(part => part.type === 'text').map(part => part.text || '').join('') // 合并文本块
+  if (item.role === 'user') message.images = parts.filter(part => part.type === 'image' && typeof part.image === 'string').map(part => part.image) // 图片块缩略图
   if (item.role === 'user') {
     const parsed = splitUserAttachments(message.content) // 历史只保存拼好的输入，附件正文不能进气泡
     message.displayContent = parsed.content              // content 保留完整输入，回退和重新发送仍然可用

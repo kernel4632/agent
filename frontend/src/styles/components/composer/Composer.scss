@@ -186,3 +186,7 @@
 }
 .attachments-enter-active, .attachments-leave-active { transition: opacity var(--ui-duration-fast) var(--ui-curve-standard), transform var(--ui-duration-medium) var(--ui-curve-standard); }
 .attachments-enter-from, .attachments-leave-to { opacity: 0; transform: translateY(6px); }
+/* 附件里的图片：小缩略图 + 右上角移除按钮 */
+.chat-composer__image { position: relative; display: inline-block; }
+.chat-composer__image-thumb { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 0.5px solid var(--la-line); }
+.chat-composer__image-remove { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--la-text); background: var(--la-surface); border: 0.5px solid var(--la-line); cursor: pointer; }
