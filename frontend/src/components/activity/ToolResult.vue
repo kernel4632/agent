@@ -14,7 +14,14 @@ import { outputText, actionTarget, toolActions } from '../../commands/tool.js'
 
 const props = defineProps({ tool: { type: Object, required: true } })
 
+// 参数流一直在追加，滚动到底部才能看到模型当前拼到哪。
+const vAutoScroll = {
+  mounted: element => { element.scrollTop = element.scrollHeight },
+  updated: element => { element.scrollTop = element.scrollHeight },
+}
+
 const input = computed(() => Object.keys(props.tool.input || {}).length ? JSON.stringify(props.tool.input, null, 2) : '') // 同一套参数显示支持新工具
+const streaming = computed(() => props.tool.assembling && props.tool.streamInput) // 模型还在拼参数，先显示原始增量
 const result = computed(() => outputText(props.tool)) // 输出包装和流式预览由功能代码统一解释
 const actions = computed(() => toolActions(props.tool)) // 保留工具声明的复制、打开动作
 
@@ -32,7 +39,11 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 
 <template>
   <div class="tool-view">
-    <section v-if="input" class="tool-content" aria-label="输入参数">
+    <section v-if="streaming" class="tool-content" aria-label="正在生成参数">
+      <h4>参数正在生成</h4>
+      <pre v-auto-scroll class="tool-output tool-input is-streaming">{{ tool.streamInput }}</pre>
+    </section>
+    <section v-else-if="input" class="tool-content" aria-label="输入参数">
       <h4>输入参数</h4>
       <pre class="tool-output tool-input">{{ input }}</pre>
     </section>

@@ -21,6 +21,11 @@
   background: color-mix(in srgb, var(--la-danger) 6%, var(--la-layer-02));
   color: var(--la-danger);
 }
+/* 参数还在流式生成：用左边一条细线表示“还在写”，不闪、不影响滚动。 */
+.tool-output.is-streaming {
+  border-color: var(--la-accent-border);
+  background: color-mix(in srgb, var(--la-accent) 5%, var(--la-layer-02));
+}
 .tool-empty { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 1.6; }
 .tool-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .tool-actions :deep(.ui-button) { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--la-muted); font-size: 12.5px; }

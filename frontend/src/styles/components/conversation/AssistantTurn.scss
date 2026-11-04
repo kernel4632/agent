@@ -134,3 +134,16 @@
 .cot-step__body { padding: 2px 0 10px; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
 .cot-step--text .cot-step__body--text { padding: 8px 0 12px; }
 .cot-step__body--text .markdown-body { font-size: 14px; line-height: 1.7; color: var(--la-text); }
+/* 压缩总结的实时预览：跟着模型输出往下滚，最多占一小块，不把时间线顶走。 */
+.compact-stream {
+  max-height: 200px;
+  margin: 0 4px 8px;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 12px;
+  background: var(--la-layer-01);
+  color: var(--la-secondary);
+  font: 12.5px/1.65 var(--la-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

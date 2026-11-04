@@ -24,6 +24,7 @@ const title = computed(() => toolTitle(props.tool))
 const summary = computed(() => fillTemplate(uiFor(props.tool.name).summary, props.tool.input))
 const statusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 const statusText = computed(() => {
+  if (props.tool.assembling) return '正在生成参数'
   // 任务清单的工具完成只代表“清单已更新”，不是清单里的任务都完成了。
   if (props.tool.name === 'update_todo_list' && props.tool.status === 'completed') return '已更新'
   return statusLabel(props.tool.status)

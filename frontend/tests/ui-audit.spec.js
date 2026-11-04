@@ -774,11 +774,12 @@ test('compaction shows a status row before the next model request', async ({ pag
   await mock.emit('session-1', [
     { type: 'agent-start' },
     { type: 'compact-start', messages: 40, startedAt: Date.now() - 3000 },
-    { type: 'reasoning-delta', text: '总结中', request: 'compact' },
+    { type: 'text-delta', text: '正在总结前面的对话', request: 'compact' },
   ])
   const compact = page.locator('.request-status').last()
   await expect(compact).toContainText('正在压缩上下文…')
   await expect(compact).toContainText('正在把前面的对话总结成一段')
+  await expect(page.locator('.compact-stream')).toContainText('正在总结前面的对话')
   await expect(page.locator('.cot-card')).toBeVisible()
 
   await mock.emit('session-1', [
@@ -789,7 +790,35 @@ test('compaction shows a status row before the next model request', async ({ pag
   await expect(page.locator('.request-status')).toHaveCount(2)
   await expect(page.locator('.request-status').first()).toContainText('上下文压缩完成')
   await expect(page.locator('.request-status').first()).toContainText('120 tokens')
+  await expect(page.locator('.compact-stream')).toContainText('摘要')
   await expect(page.locator('.request-status').last()).toContainText('正在请求模型…')
+  expect(mock.errors).toEqual([])
+})
+
+test('tool arguments stream into the timeline before the tool call', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'llm-start', startedAt: Date.now() - 2000 },
+    { type: 'tool-input-start', id: 'call-stream', toolName: 'write_file' },
+    { type: 'tool-input-delta', id: 'call-stream', delta: '{"path": "a.txt",' },
+    { type: 'tool-input-delta', id: 'call-stream', delta: ' "content": "hello"}' },
+  ])
+
+  const tool = page.locator('.cot-step--tool')
+  await expect(tool).toHaveCount(1)
+  await expect(tool.locator('.cot-step__extra')).toContainText('正在生成参数')
+  await expect(tool.locator('.tool-input.is-streaming')).toContainText('"path": "a.txt"')
+
+  await mock.emit('session-1', [{ type: 'tool-call', toolCallId: 'call-stream', toolName: 'write_file', input: { path: 'a.txt', content: 'hello' } }])
+  await expect(tool.locator('.cot-step__extra')).toContainText('正在执行')
+  await expect(tool.locator('.tool-input')).toContainText('"path": "a.txt"')
   expect(mock.errors).toEqual([])
 })
 

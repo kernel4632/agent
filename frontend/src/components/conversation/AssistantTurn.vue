@@ -28,6 +28,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['rollback', 'fork'])
 
+// 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
+const vAutoScroll = {
+  mounted: element => { element.scrollTop = element.scrollHeight },
+  updated: element => { element.scrollTop = element.scrollHeight },
+}
+
 const actionable = message => isSavedMessage(message)
 
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
@@ -137,7 +143,10 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         <div class="cot-steps">
           <template v-for="step in visibleSteps" :key="step.key">
             <RequestStatus v-if="step.type === 'request'" :request="step.request" />
-            <RequestStatus v-else-if="step.type === 'compact'" :request="step.request" kind="compact" />
+            <template v-else-if="step.type === 'compact'">
+              <RequestStatus :request="step.request" kind="compact" />
+              <pre v-if="step.request.content || step.request.reasoning" v-auto-scroll class="compact-stream">{{ step.request.content || step.request.reasoning }}</pre>
+            </template>
             <ReasoningStep
               v-else-if="step.type === 'reasoning'"
               :reasoning="step.text"

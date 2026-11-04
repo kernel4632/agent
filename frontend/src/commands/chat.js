@@ -140,12 +140,12 @@ function appendTextStep(assistant, type, text) {
 
 // --- 找到工具步骤；还没有时补一条 ---
 function toolFor(session, event, status) {
-  const id = event.toolCallId || event.callID || event.callId
+  const id = event.toolCallId || event.callID || event.callId || event.id
   if (!id) return null
   let tool = session.messages.flatMap(message => message.tools || []).find(item => item.id === id)
   if (!tool) {
     const assistant = streaming(session) || createAssistant(session) // 工具事件也可能先到，保证有承载消息
-    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: Date.now() }
+    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: Date.now(), streamInput: '', assembling: false }
     assistant.tools.push(tool)
     assistant.steps.push({ type: 'tool', toolId: id })               // 工具在时间线里的位置由第一次出现决定
   }
@@ -184,6 +184,7 @@ function startCompact(session, event) {
     startedAt: Number(event.startedAt) || Date.now(),
     firstTokenAt: 0,
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+    content: '', reasoning: '',
   }
   assistant.steps.push({ type: 'compact', request })
   assistant.isStreaming = true
@@ -193,7 +194,13 @@ function finishCompact(session, event) {
   const assistant = streaming(session) || createAssistant(session)
   const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
   if (!step) return
-  step.request = { ...step.request, status: 'completed', ...usageFields(event.usage, event.durationMs), finishedAt: Date.now() }
+  step.request = {
+    ...step.request,
+    ...(typeof event.content === 'string' ? { content: event.content } : {}),
+    status: 'completed',
+    ...usageFields(event.usage, event.durationMs),
+    finishedAt: Date.now(),
+  }
 }
 
 // --- 模型请求开始：在时间线当前的位置放一条请求行，完成后这一行留在原地显示用量 ---
@@ -328,12 +335,33 @@ function receiveMessage(session, event) {
   }
 }
 
-// --- 工具事件：调用、审批、流式输出、结果 ---
-const TOOL_EVENTS = new Set(['tool-call', 'permission', 'tool-output', 'tool-result', 'permission-blocked'])
+// --- 工具事件：参数流、调用、审批、流式输出、结果 ---
+const TOOL_EVENTS = new Set(['tool-input-start', 'tool-input-delta', 'tool-input-end', 'tool-call', 'permission', 'tool-output', 'tool-result', 'permission-blocked'])
 function receiveTool(session, event) {
-  if (event.type === 'tool-call') {
-    markFirstToken(streaming(session) || createAssistant(session)) // 模型直接给工具调用也算开始输出
-    toolFor(session, event, 'running')
+  if (event.type === 'tool-input-start') {
+    // 模型开始拼工具参数：先占一行，别等整个 JSON 收完才出现。
+    const tool = toolFor(session, event, 'running')
+    if (tool) {
+      tool.assembling = true
+      tool.streamInput = ''
+    }
+  } else if (event.type === 'tool-input-delta') {
+    const tool = toolFor(session, event)
+    if (tool) {
+      tool.assembling = true
+      // 只留尾巴，参数可以很长；完整内容由后面的 tool-call 给。
+      tool.streamInput = `${tool.streamInput || ''}${event.delta || ''}`.slice(-6000)
+    }
+  } else if (event.type === 'tool-input-end') {
+    const tool = toolFor(session, event)
+    if (tool) tool.assembling = true
+  } else if (event.type === 'tool-call') {
+    const tool = toolFor(session, event, 'running') // 模型直接给工具调用也算开始输出
+    if (tool) {
+      tool.assembling = false
+      tool.streamInput = ''
+    }
+    markFirstToken(streaming(session) || createAssistant(session))
   } else if (event.type === 'permission') {
     toolFor(session, event, 'waiting')
   } else if (event.type === 'tool-output') {
@@ -368,10 +396,20 @@ async function receive(sessionID, event) {
   const session = store.sessions[sessionID]
   if (!session) return
   session.lastEventAt = Date.now()
-  // 压缩的开始和结束要显示成一行；压缩流里的正文增量不能混进回答，仍然直接丢掉。
+  // 压缩的开始和结束显示成一行；压缩流里的正文留在这一行里实时显示，不进正常回答。
   if (event.type === 'compact-start') return startCompact(session, event)
   if (event.type === 'compact-finish') return finishCompact(session, event)
-  if (event.request === 'compact') return
+  if (event.request === 'compact') {
+    if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
+      const assistant = streaming(session) || createAssistant(session)
+      const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+      if (step) {
+        const field = event.type === 'text-delta' ? 'content' : 'reasoning'
+        step.request[field] = (step.request[field] || '') + (event.text || '')
+      }
+    }
+    return
+  }
   if (TOOL_EVENTS.has(event.type)) receiveTool(session, event)
   else if (RUN_EVENTS.has(event.type)) await receiveRun(sessionID, session, event)
   else receiveMessage(session, event)                    // 正文增量；不认识的事件自然忽略

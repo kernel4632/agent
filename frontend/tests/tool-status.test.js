@@ -170,9 +170,16 @@ test('压缩流增量不会混进助手正文或思考', async () => {
     const sessionID = `compact-${crypto.randomUUID()}`
     store.sessions[sessionID] = { id: sessionID, messages: [], status: 'running', connection: 'connected', lastEventAt: 0, files: [] }
     try {
+        await Chat.receive(sessionID, { type: 'compact-start', messages: 5 })
         await Chat.receive(sessionID, { type: 'text-delta', text: '上下文摘要', request: 'compact' })
         await Chat.receive(sessionID, { type: 'reasoning-delta', text: '摘要推理', request: 'compact' })
-        assert.deepEqual(store.sessions[sessionID].messages, [])
+
+        const compactMessage = store.sessions[sessionID].messages[0]
+        assert.equal(compactMessage.content, '')
+        assert.equal(compactMessage.reasoning, '')
+        const compact = compactMessage.steps.find(step => step.type === 'compact')
+        assert.equal(compact.request.content, '上下文摘要')
+        assert.equal(compact.request.reasoning, '摘要推理')
 
         await Chat.receive(sessionID, { type: 'text-delta', text: '真实回答' })
         assert.equal(store.sessions[sessionID].messages.length, 1)
