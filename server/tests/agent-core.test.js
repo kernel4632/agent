@@ -41,16 +41,16 @@ describe('工具子集', () => {
         const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
         const before = Object.keys(scanned.schema).length
 
-        const missing = AgentCore.tool.omit(scanned, ['write_to_file', 'execute_command']).schema
-        expect(missing.write_to_file).toBeUndefined()
+        const missing = AgentCore.tool.omit(scanned, ['write_file', 'execute_command']).schema
+        expect(missing.write_file).toBeUndefined()
         expect(missing.execute_command).toBeUndefined()
         expect(Object.keys(scanned.schema)).toHaveLength(before)
-        expect(scanned.schema.write_to_file).toBeDefined()
+        expect(scanned.schema.write_file).toBeDefined()
     })
 
     test('拿不存在或空的集合去 omit 不会炸', async () => {
-        expect(() => AgentCore.tool.omit(undefined, ['write_to_file'])).not.toThrow()
-        expect(() => AgentCore.tool.omit(AgentCore.tool.adopt(null), ['write_to_file'])).not.toThrow()
+        expect(() => AgentCore.tool.omit(undefined, ['write_file'])).not.toThrow()
+        expect(() => AgentCore.tool.omit(AgentCore.tool.adopt(null), ['write_file'])).not.toThrow()
     })
 })
 

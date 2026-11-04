@@ -7,7 +7,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { read_file, write_to_file, list_files, search_files, edit, apply_patch } from '../tools/file.js'
+import { read_file, write_file, find_files, search_text, edit } from '../tools/file.js'
 import shell from '../tools/shell.js'
 import todo from '../tools/todo.js'
 
@@ -20,82 +20,96 @@ afterAll(async () => {
 describe('工具接口', () => {
     test('暴露工具名和参数', () => {
         expect(read_file.name).toBe('read_file')
-        expect(write_to_file.name).toBe('write_to_file')
-        expect(list_files.name).toBe('list_files')
-        expect(search_files.name).toBe('search_files')
-        expect(shell.name).toBe('execute_command')
+        expect(write_file.name).toBe('write_file')
+        expect(find_files.name).toBe('find_files')
+        expect(search_text.name).toBe('search_text')
         expect(edit.name).toBe('edit')
-        expect(apply_patch.name).toBe('apply_patch')
+        expect(shell.name).toBe('execute_command')
         expect(todo.name).toBe('update_todo_list')
 
         expect(Object.keys(read_file.inputSchema.properties)).toEqual(['path'])
-        expect(Object.keys(write_to_file.inputSchema.properties)).toEqual(['path', 'content'])
-        expect(Object.keys(list_files.inputSchema.properties)).toEqual(['path', 'recursive'])
-        expect(Object.keys(search_files.inputSchema.properties)).toEqual(['path', 'regex', 'file_pattern', 'context'])
+        expect(Object.keys(write_file.inputSchema.properties)).toEqual(['path', 'content'])
+        expect(Object.keys(find_files.inputSchema.properties)).toEqual(['path', 'pattern', 'recursive'])
+        expect(Object.keys(search_text.inputSchema.properties)).toEqual(['path', 'regex', 'filePattern', 'context'])
         expect(Object.keys(shell.inputSchema.properties)).toEqual(['command', 'cwd'])
-        expect(Object.keys(edit.inputSchema.properties)).toEqual(['file_path', 'old_string', 'new_string', 'replace_all'])
+        expect(Object.keys(edit.inputSchema.properties)).toEqual(['edits'])
+        expect(Object.keys(edit.inputSchema.properties.edits.items.properties)).toEqual(['path', 'oldText', 'newText', 'replaceAll'])
         expect(Object.keys(todo.inputSchema.properties)).toEqual(['todos'])
     })
 
-    test('read_file、write_to_file、list_files 能读写和递归列目录', async () => {
+    test('read_file、write_file、find_files 能读写、列目录和按名字找文件', async () => {
         const target = join(root, 'nested', 'a.txt')
-        await write_to_file.execute({ path: target, content: 'hello' })
+        await write_file.execute({ path: target, content: 'hello' })
         expect(await read_file.execute({ path: target })).toBe('hello')
 
         await mkdir(join(root, 'nested', 'child'), { recursive: true })
         await writeFile(join(root, 'nested', 'child', 'b.txt'), 'b')
-        const entries = await list_files.execute({ path: root, recursive: true })
+        const entries = await find_files.execute({ path: root, recursive: true })
         expect(entries).toContain('nested/a.txt')
         expect(entries).toContain('nested/child/')
         expect(entries).toContain('nested/child/b.txt')
+
+        const found = await find_files.execute({ path: root, pattern: '**/*.txt' })
+        expect(found).toContain('nested/a.txt')
+        expect(found).toContain('nested/child/b.txt')
     })
 
     test('相对路径按会话当前目录算', async () => {
-        await write_to_file.execute({ path: 'relative.txt', content: 'ok' }, { cwd: root })
+        await write_file.execute({ path: 'relative.txt', content: 'ok' }, { cwd: root })
         expect(await read_file.execute({ path: 'relative.txt' }, { cwd: root })).toBe('ok')
     })
 
-    test('edit 使用 file_path、old_string、new_string，并支持 replace_all', async () => {
+    test('edit 单文件默认只替换一处，replaceAll 替换全部', async () => {
         const target = join(root, 'edit.txt')
         await writeFile(target, 'old\nold\n')
 
-        await expect(edit.execute({ file_path: target, old_string: 'old', new_string: 'new' }))
+        await expect(edit.execute({ edits: [{ path: target, oldText: 'old', newText: 'new' }] }))
             .rejects.toThrow('exactly once')
-        await edit.execute({ file_path: target, old_string: 'old', new_string: 'new', replace_all: true })
+        await edit.execute({ edits: [{ path: target, oldText: 'old', newText: 'new', replaceAll: true }] })
         expect(await readFile(target, 'utf8')).toBe('new\nnew\n')
     })
 
-    test('apply_patch 一次改多个文件，任一失败就整体不改', async () => {
+    test('edit 一次改多个文件，任一失败就整体不改', async () => {
         const first = join(root, 'patch-a.txt')
         const second = join(root, 'patch-b.txt')
         await writeFile(first, 'a0')
         await writeFile(second, 'b0')
 
-        await apply_patch.execute({ patches: [
+        await edit.execute({ edits: [
             { path: first, oldText: 'a0', newText: 'a1' },
             { path: second, oldText: 'b0', newText: 'b1' },
         ] })
         expect(await readFile(first, 'utf8')).toBe('a1')
         expect(await readFile(second, 'utf8')).toBe('b1')
 
-        await expect(apply_patch.execute({ patches: [
+        await expect(edit.execute({ edits: [
             { path: first, oldText: 'a1', newText: 'a2' },
             { path: second, oldText: 'missing', newText: 'b2' },
-        ] })).rejects.toThrow('exactly once')
+        ] })).rejects.toThrow('not found')
         expect(await readFile(first, 'utf8')).toBe('a1')
     })
 
-    test('search_files 使用 regex 和 file_pattern', async () => {
+    test('edit 对同一文件的多条修改按顺序叠加', async () => {
+        const target = join(root, 'stack.txt')
+        await writeFile(target, 'a b')
+        await edit.execute({ edits: [
+            { path: target, oldText: 'a', newText: 'A' },
+            { path: target, oldText: 'b', newText: 'B' },
+        ] })
+        expect(await readFile(target, 'utf8')).toBe('A B')
+    })
+
+    test('search_text 使用 regex 和 filePattern', async () => {
         await writeFile(join(root, 'search.js'), 'const needle = 1\n')
         await writeFile(join(root, 'search.txt'), 'needle\n')
-        const result = await search_files.execute({ path: root, regex: 'needle', file_pattern: '*.js' }, {})
+        const result = await search_text.execute({ path: root, regex: 'needle', filePattern: '*.js' }, {})
         expect(result).toContain('search.js')
         expect(result).not.toContain('search.txt')
     })
 
-    test('search_files 的 context 返回命中前后几行', async () => {
+    test('search_text 的 context 返回命中前后几行', async () => {
         await writeFile(join(root, 'context.js'), 'before\nneedle\nafter\n')
-        const result = await search_files.execute({ path: root, regex: 'needle', file_pattern: 'context.js', context: 1 }, {})
+        const result = await search_text.execute({ path: root, regex: 'needle', filePattern: 'context.js', context: 1 }, {})
         expect(result).toContain('before')
         expect(result).toContain('needle')
         expect(result).toContain('after')
@@ -109,7 +123,7 @@ describe('工具接口', () => {
 
     test('只传 input 时搜索和命令也能执行', async () => {
         await writeFile(join(root, 'bare.js'), 'const needle = 1\n')
-        expect(await search_files.execute({ path: root, regex: 'needle', file_pattern: 'bare.js' }))
+        expect(await search_text.execute({ path: root, regex: 'needle', filePattern: 'bare.js' }))
             .toContain('bare.js')
         const result = await shell.execute({ command: 'echo bare', cwd: root })
         expect(result.exitCode).toBe(0)

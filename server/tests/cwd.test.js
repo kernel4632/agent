@@ -42,8 +42,8 @@ describe('会话当前目录', () => {
 
             const a = await Session.create({ title: 'A', cwd: first })
             const b = await Session.create({ title: 'B', cwd: second })
-            await Agent.runtime().get(a.sessionId).tools.handlers.write_to_file.execute({ path: 'note.txt', content: 'A' })
-            await Agent.runtime().get(b.sessionId).tools.handlers.write_to_file.execute({ path: 'note.txt', content: 'B' })
+            await Agent.runtime().get(a.sessionId).tools.handlers.write_file.execute({ path: 'note.txt', content: 'A' })
+            await Agent.runtime().get(b.sessionId).tools.handlers.write_file.execute({ path: 'note.txt', content: 'B' })
 
             expect(await Bun.file(join(first, 'note.txt')).text()).toBe('A')
             expect(await Bun.file(join(second, 'note.txt')).text()).toBe('B')

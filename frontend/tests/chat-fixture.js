@@ -139,7 +139,7 @@ export async function backend(page, { configured = true } = {}) {
         ui: { view: 'file-read', icon: 'document', title: '读取文件', summary: '{path}' },
       },
       {
-        name: 'write_to_file', kind: 'write', kindLabel: '写入', kindHint: '改文件、打补丁不用问', permission: 'ask', configurable: true,
+        name: 'write_file', kind: 'write', kindLabel: '写入', kindHint: '改文件、打补丁不用问', permission: 'ask', configurable: true,
         ui: { view: 'file-write', icon: 'edit', title: '写入文件', summary: '{path}' },
       },
       {

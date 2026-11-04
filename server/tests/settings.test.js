@@ -70,11 +70,14 @@ describe('会话运行设置', () => {
         await withHome(async () => {
             const sessionId = await newSession()
             const names = toolNames(sessionId)
-            expect(names).toContain('write_to_file')
+            expect(names).toContain('write_file')
             expect(names).toContain('execute_command')
-            expect(names).toContain('apply_patch')
+            expect(names).toContain('find_files')
+            expect(names).toContain('search_text')
             expect(names).toContain('read_file')
             expect(names).toContain('new_task')
+            expect(names).not.toContain('apply_patch')
+            expect(names).not.toContain('glob')
         })
     })
 

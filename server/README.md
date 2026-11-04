@@ -126,7 +126,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.27.0**（[仓库](https://github
 
 | 文件 | 工具 |
 | --- | --- |
-| `tools/file.js` | `read_file`、`write_to_file`、`list_files`、`glob`、`search_files`、`edit`、`apply_patch`，以及文件快照和恢复 |
+| `tools/file.js` | `read_file`、`write_file`、`find_files`、`search_text`、`edit`（单文件或批量），以及文件快照和恢复 |
 | `tools/shell.js` | `execute_command` |
 | `tools/web.js` | `webfetch` |
 | `tools/todo.js` | `update_todo_list` |

@@ -430,7 +430,7 @@ describe('server file snapshots', () => {
 
             const { sessionId } = await Session.create({ title: 'Snapshot task' })
             const blockId = AgentCore.history.user({ content: 'change the file' }).id
-            const record = await File.snapshot({ sessionId, messageId: blockId, toolName: 'write_to_file', input: { path: target } })
+            const record = await File.snapshot({ sessionId, messageId: blockId, toolName: 'write_file', input: { path: target } })
             expect(record).toContain(resolve(target))
 
             await writeFile(target, 'changed by agent')
@@ -459,9 +459,9 @@ describe('server file snapshots', () => {
             await History.save(sessionId)
             const messageId = added.message.id
 
-            await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'write_to_file', input: { path: edited } })
-            await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'write_to_file', input: { path: removed } })
-            await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'write_to_file', input: { path: created } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'write_file', input: { path: edited } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'write_file', input: { path: removed } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'write_file', input: { path: created } })
             await writeFile(edited, 'after')
             await rm(removed, { force: true })
             await writeFile(created, 'brand new')
@@ -490,7 +490,7 @@ describe('server file snapshots', () => {
             const second = await History.add({ sessionId, message: AgentCore.history.user({ content: '第二步' }) })
             await History.save(sessionId)
 
-            await File.snapshot({ sessionId, messageId: second.message.id, toolName: 'write_to_file', input: { path: target } })
+            await File.snapshot({ sessionId, messageId: second.message.id, toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'changed in step two')
 
             const preview = await Session.rollbackPreview({ sessionId, messageId: first.messageId })
@@ -526,7 +526,7 @@ describe('server file snapshots', () => {
             const added = await History.add({ sessionId, message: AgentCore.history.user({ content: 'create a file' }) })
             await History.save(sessionId)
 
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'write_to_file', input: { path: target } })
+            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'created by agent')
 
             const rolledBack = await Session.rollback({ sessionId, messageId: added.messageId })
@@ -690,8 +690,8 @@ describe('server Agent integration boundary', () => {
             const { sessionId } = await Session.create({ title: 'Tool scan' })
             const agent = Agent.runtime().get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
-                'read_file', 'write_to_file', 'list_files', 'edit', 'apply_patch',
-                'execute_command', 'glob', 'search_files', 'update_todo_list', 'webfetch',
+                'read_file', 'write_file', 'find_files', 'search_text', 'edit',
+                'execute_command', 'update_todo_list', 'webfetch',
                 'attempt_completion', 'ask_followup_question', 'cwd',
             ]))
         })

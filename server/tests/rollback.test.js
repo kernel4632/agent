@@ -57,9 +57,9 @@ describe('工具级回退', () => {
             await History.save(sessionId)
             const messageId = added.message.id
 
-            await Approval.check({ sessionId, messageId, toolCallId: 'call-a', toolName: 'write_to_file', input: { path: first } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'call-a', toolName: 'write_file', input: { path: first } })
             await writeFile(first, 'a1')
-            await Approval.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'write_to_file', input: { path: second } })
+            await Approval.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'write_file', input: { path: second } })
             await writeFile(second, 'b1')
 
             expect((await Session.toolChanges({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a', 'call-b'])
@@ -99,7 +99,7 @@ describe('工具级回退', () => {
             const added = await History.add({ sessionId, message: AgentCore.history.user({ content: '改一个文件' }) })
             await History.save(sessionId)
 
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'write_to_file', input: { path: target } })
+            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'after')
 
             await Session.rollbackTool({ sessionId, toolCallId: 'call-x' })
@@ -116,9 +116,9 @@ describe('工具级回退', () => {
             const target = await tempFile('agent-twice', 'v0')
 
             const { sessionId } = await Session.create({ title: 'Two edits' })
-            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'write_to_file', input: { path: target } })
+            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'v1')
-            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'write_to_file', input: { path: target } })
+            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'v2')
 
             await Session.rollbackTool({ sessionId, toolCallId: 't2' })
@@ -136,7 +136,7 @@ describe('工具级回退', () => {
             const { sessionId } = await Session.create({ title: 'Invalid rollback' })
             const added = await History.add({ sessionId, message: AgentCore.history.user({ content: '改一个文件' }) })
             await History.save(sessionId)
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-invalid', toolName: 'write_to_file', input: { path: target } })
+            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-invalid', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'after')
 
             await expect(Session.rollback({ sessionId, messageId: 'missing-message', files: true })).rejects.toThrow(/not found/i)

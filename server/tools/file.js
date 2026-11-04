@@ -1,5 +1,5 @@
 /*
- * 文件与目录工具：读、写、列目录、编辑、多文件补丁，以及文件自己的快照和恢复。
+ * 文件与目录工具：读、写、找文件、搜内容、编辑（单文件或批量），以及文件自己的快照和恢复。
  *
  * 这一组工具只碰文件，不碰会话运行状态。会改文件的工具都带一个 snapshot 钩子：
  * 真正写入之前由审批关口调用，把原样存进会话的快照目录；回退时从这里恢复。
@@ -8,7 +8,8 @@
  * 调用示例：
  *   import File from '../tools/file.js'
  *   await File.read_file.execute({ path: './a.txt' }, { cwd: 'D:/notes' })
- *   await File.snapshot({ sessionId, messageId, toolCallId, toolName: 'write_to_file', input, cwd })
+ *   await File.edit.execute({ edits: [{ path: './a.txt', oldText: 'a', newText: 'b' }] }, { cwd: 'D:/notes' })
+ *   await File.snapshot({ sessionId, messageId, toolCallId, toolName: 'write_file', input, cwd })
  *   await File.restoreTool({ sessionId, toolCallId })
  *   const changes = await File.diff({ sessionId })
  */
@@ -63,10 +64,9 @@ const guard = paths => {
 const absolute = (path, cwd) => isAbsolute(path) ? path : resolve(cwd || process.cwd(), path)
 
 // --- 一次工具调用会碰哪些文件 ---
-const filePaths = ({ toolName, input, cwd }) => {
-    if (toolName === 'write_to_file') return [input.path]
-    if (toolName === 'edit') return [input.file_path ?? input.path]
-    if (toolName === 'apply_patch') return (input.patches || []).map(item => item.path).filter(Boolean)
+const filePaths = ({ toolName, input }) => {
+    if (toolName === 'write_file') return [input.path]
+    if (toolName === 'edit') return (input.edits || []).map(item => item.path).filter(Boolean)
     return []
 }
 
@@ -326,8 +326,8 @@ const readFile = {
 }
 
 // --- 写入完整文本文件 ---
-const writeToFile = {
-    name: 'write_to_file',
+const writeFile = {
+    name: 'write_file',
     kind: 'write',
     files: input => [input.path],
     snapshot,
@@ -358,31 +358,51 @@ const writeToFile = {
     },
 }
 
-// --- 列出目录 ---
-const listFiles = {
-    name: 'list_files',
+// --- 找文件：不带模式就是列目录，带模式就是按名字搜 ---
+const findFiles = {
+    name: 'find_files',
     kind: 'read',
     files: input => [input.path],
     ui: {
         view: 'file-list',
         icon: 'folder',
-        title: '列出目录',
+        title: '查找文件',
         summary: '{path}',
         actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
     },
     description: [
-        'List files and subdirectories inside a directory. Subdirectory names end with /.',
-        'Set recursive to true to walk nested directories; dependency and build folders are skipped.',
-        'Parameters: - path (required): directory to list. - recursive (optional): true to include nested entries.',
+        'List files under a directory, or find files whose names match a glob pattern.',
+        'Without pattern: lists immediate children; set recursive to true to walk nested directories. Directories end with /.',
+        'With pattern: searches the tree for matching names (e.g. **/*.test.js, src/*.ts). Dependency and build folders are skipped.',
+        'Returns paths only, not contents. To search inside files use search_text.',
+        'Parameters: - path (required): directory to search in. - pattern (optional): glob pattern for file names. - recursive (optional): walk nested directories when pattern is omitted.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
-        properties: { path: { type: 'string' }, recursive: { type: 'boolean' } },
+        properties: {
+            path: { type: 'string' },
+            pattern: { type: 'string' },
+            recursive: { type: 'boolean' },
+        },
         required: ['path'],
     },
-    async execute({ path, recursive = false }, options = {}) {
+    async execute({ path, pattern, recursive = false }, options = {}) {
         const root = absolute(path, options.cwd)
         guard([root])
+
+        // 带模式：按名字找，返回匹配的路径。Windows 的扫描结果用反斜杠，统一成 /。
+        if (pattern) {
+            const files = []
+            for await (const found of new Bun.Glob(pattern).scan({ cwd: root, dot: true })) {
+                const file = found.replace(/\\/g, '/')
+                if (skipPath(file)) continue
+                files.push(file)
+                if (files.length >= 1000) break
+            }
+            return files
+        }
+
+        // 不带模式：列目录；recursive 决定要不要往下走。
         if (!recursive) {
             const entries = await readdir(root, { withFileTypes: true })
             return entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`)
@@ -404,71 +424,37 @@ const listFiles = {
     },
 }
 
-// --- 按通配模式找文件 ---
-const glob = {
-    name: 'glob',
-    kind: 'read',
-    files: input => [input.path],
-    ui: {
-        view: 'file-list',
-        icon: 'folder',
-        title: '查找文件',
-        summary: '{pattern}',
-        actions: [{ id: 'copy-pattern', label: '复制模式', icon: 'copy', type: 'copy', value: 'pattern' }],
-    },
-    description: [
-        'Find files whose names match a glob pattern (e.g. **/*.test.js, src/*.ts), searching under a directory.',
-        'Returns matching paths, not contents. Follow up with read_file on the files you care about.',
-        'Parameters: - path (required): directory to search in. - pattern (required): glob pattern for file names.',
-    ].join('\n'),
-    inputSchema: {
-        type: 'object',
-        properties: { path: { type: 'string' }, pattern: { type: 'string' } },
-        required: ['path', 'pattern'],
-    },
-    async execute({ path, pattern }, options = {}) {
-        const root = absolute(path, options.cwd)
-        guard([root])
-        const files = []
-        for await (const file of new Bun.Glob(pattern).scan({ cwd: root, dot: true })) {
-            if (skipPath(file)) continue
-            files.push(file)
-            if (files.length >= 1000) break
-        }
-        return files
-    },
-}
-
 // --- 搜索文件内容 ---
-const searchFiles = {
-    name: 'search_files',
+const searchText = {
+    name: 'search_text',
     kind: 'read',
     files: input => [input.path],
     ui: {
         view: 'search',
         icon: 'search',
-        title: '搜索文件',
+        title: '搜索内容',
         summary: '{regex}',
         actions: [{ id: 'copy-regex', label: '复制正则', icon: 'copy', type: 'copy', value: 'regex' }],
     },
     description: [
-        'Search file contents for a regular expression and return the matching lines with file and line number.',
+        'Search inside file contents for a regular expression and return the matching lines with file and line number.',
+        'Use find_files when you only know part of a file name. This tool reads file contents, not names.',
         'Parameters: - path (required): file or directory to search in. - regex (required): regular expression.',
-        '- file_pattern (optional): glob filter, e.g. *.js. - context (optional): lines before and after, 0-20.',
+        '- filePattern (optional): glob filter, e.g. *.js. - context (optional): lines before and after, 0-20.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
             path: { type: 'string' },
             regex: { type: 'string' },
-            file_pattern: { type: 'string' },
+            filePattern: { type: 'string' },
             context: { type: 'integer', minimum: 0, maximum: 20 },
         },
         required: ['path', 'regex'],
     },
-    async execute({ path, regex, file_pattern, pattern, include, context }, options = {}) {
-        const needle = regex ?? pattern
-        const filter = file_pattern ?? include
+    async execute({ path, regex, filePattern, context }, options = {}) {
+        const needle = regex
+        const filter = filePattern
         if (!needle) throw new Error('regex is required')
 
         const target = absolute(path, options.cwd)
@@ -496,115 +482,83 @@ const searchFiles = {
     },
 }
 
-// --- 替换文件里的一段文本 ---
+// --- 替换文本：一次一条就是单文件，一次多条就是批量；全部校验通过才写盘 ---
 const edit = {
     name: 'edit',
     kind: 'write',
-    files: input => [input.file_path],
+    files: input => (input.edits || []).map(item => item.path).filter(Boolean),
     snapshot,
     ui: {
         view: 'edit',
         icon: 'edit',
         title: '编辑文件',
-        summary: '{file_path}',
-        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'file_path' }],
+        summary: '{edits.0.path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'edits.0.path' }],
     },
     description: [
-        'Replace a specific text block in a file with new text. By default the old block must appear exactly once.',
-        'Read the file first so old_string matches byte-for-byte, including whitespace.',
-        'Parameters: - file_path (required): file to edit. - old_string (required): exact existing text.',
-        '- new_string (required): replacement. - replace_all (optional): replace every occurrence.',
+        'Replace exact text in one or more files. Every replacement must match exactly once (unless replaceAll is true), and either all edits succeed or nothing is written.',
+        'Read the file first so oldText matches byte-for-byte, including whitespace. For a single-file change, pass one item in edits.',
+        'Several edits to the same file are applied in order.',
+        'Parameters: - edits (required): list of { path, oldText, newText, replaceAll? }.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
-            file_path: { type: 'string' },
-            old_string: { type: 'string' },
-            new_string: { type: 'string' },
-            replace_all: { type: 'boolean' },
-        },
-        required: ['file_path', 'old_string', 'new_string'],
-    },
-    async execute({ file_path, old_string, new_string, replace_all }, options = {}) {
-        const target = absolute(file_path, options.cwd)
-        guard([target])
-        const content = await Bun.file(target).text()
-        const matches = content.split(old_string).length - 1
-        if (!matches) throw new Error(`old_string was not found in ${target}`)
-        if (!replace_all && matches !== 1) throw new Error(`old_string must occur exactly once, found ${matches}`)
-
-        const next = replace_all ? content.split(old_string).join(new_string) : content.replace(old_string, new_string)
-        await atomicWrite(target, next)
-        return `Edited ${target}`
-    },
-}
-
-// --- 一次改多个文件，全部校验通过才写盘 ---
-const patch = {
-    name: 'apply_patch',
-    kind: 'write',
-    files: input => (input.patches || []).map(item => item.path).filter(Boolean),
-    snapshot,
-    ui: {
-        view: 'patch',
-        icon: 'edit',
-        title: '批量修改',
-        summary: '批量修改文件',
-    },
-    description: [
-        'Apply several exact-match text replacements across multiple files in one atomic step: either every edit succeeds, or nothing is written.',
-        'Each oldText must appear exactly once within its file. Read the files first.',
-        'Parameters: - patches (required): list of { path, oldText, newText }.',
-    ].join('\n'),
-    inputSchema: {
-        type: 'object',
-        properties: {
-            patches: {
+            edits: {
                 type: 'array',
                 items: {
                     type: 'object',
-                    properties: { path: { type: 'string' }, oldText: { type: 'string' }, newText: { type: 'string' } },
+                    properties: {
+                        path: { type: 'string' },
+                        oldText: { type: 'string' },
+                        newText: { type: 'string' },
+                        replaceAll: { type: 'boolean' },
+                    },
                     required: ['path', 'oldText', 'newText'],
                 },
             },
         },
-        required: ['patches'],
+        required: ['edits'],
     },
-    async execute({ patches }, options = {}) {
-        const prepared = []
+    async execute({ edits }, options = {}) {
+        if (!Array.isArray(edits) || !edits.length) throw new Error('edits must be a non-empty list')
 
-        // 第一轮只读不改：任何一处对不上，后面一个字节都不会写。
-        for (const { path, oldText, newText } of patches) {
+        // 第一轮只在内存里改：任何一处对不上，磁盘上一个字节都不会写。
+        const files = new Map()
+        for (const { path, oldText, newText, replaceAll } of edits) {
             const target = absolute(path, options.cwd)
             guard([target])
-            const file = Bun.file(target)
-            if (!await file.exists()) throw new Error(`Cannot patch ${target}: file not found`)
+            if (!oldText) throw new Error(`Cannot edit ${target}: oldText must not be empty`)
+            if (!files.has(target)) {
+                const file = Bun.file(target)
+                if (!await file.exists()) throw new Error(`Cannot edit ${target}: file not found`)
+                files.set(target, await file.text())
+            }
 
-            const content = await file.text()
+            const content = files.get(target)
             const matches = content.split(oldText).length - 1
-            if (matches !== 1) throw new Error(`Cannot patch ${target}: oldText must occur exactly once, found ${matches}`)
-            prepared.push({ path: target, content: content.replace(oldText, newText) })
+            if (!matches) throw new Error(`Cannot edit ${target}: oldText was not found`)
+            if (!replaceAll && matches !== 1) throw new Error(`Cannot edit ${target}: oldText must occur exactly once, found ${matches}`)
+            files.set(target, replaceAll ? content.split(oldText).join(newText) : content.replace(oldText, newText))
         }
 
         // 第二轮才写盘，此时每个文件都已经确认可以改。
-        for (const { path, content } of prepared) {
+        for (const [path, content] of files) {
             await mkdir(dirname(path), { recursive: true })
             await atomicWrite(path, content)
         }
-        return `Patched ${prepared.length} file(s): ${prepared.map(item => item.path).join(', ')}`
+        return `Edited ${files.size} file(s): ${[...files.keys()].join(', ')}`
     },
 }
 
 export {
     readFile as read_file,
-    writeToFile as write_to_file,
-    listFiles as list_files,
-    glob,
-    searchFiles as search_files,
+    writeFile as write_file,
+    findFiles as find_files,
+    searchText as search_text,
     edit,
-    patch as apply_patch,
     skipPath, sensitive, snapshot, entries,
     restoreTool, restoreMessage, dropTool, undo, clearUndo, diff, remove,
 }
 
-export default [readFile, writeToFile, listFiles, glob, searchFiles, edit, patch]
+export default [readFile, writeFile, findFiles, searchText, edit]
