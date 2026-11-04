@@ -312,8 +312,9 @@ test('core compact deltas stay outside the answer and stop partial', async ({ pa
     { type: 'text-delta', text: '保留的用户回答' },
   ])
   await expect(page.locator('.rikka-bubble--assistant')).toContainText('保留的用户回答')
-  await expect(page.getByText('仅供内部使用的压缩摘要', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('仅供内部使用的摘要思考', { exact: true })).toHaveCount(0)
+  // 压缩摘要现在单独显示在时间线的压缩行里，不能混进正常回答或停止时交给后端的 partial。
+  await expect(page.locator('.compact-stream')).toContainText('仅供内部使用的压缩摘要')
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).not.toContainText('仅供内部使用')
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect.poll(() => mock.calls.filter(call => call.path === '/agent/stop/session-1').length).toBe(1)
   const stopped = mock.calls.find(call => call.path === '/agent/stop/session-1')
