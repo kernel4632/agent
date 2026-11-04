@@ -1,6 +1,6 @@
 /* 锚定弹层：原生 Menu API 提供顶层与外点关闭；Select/Menu/Menu 调用 usePopup()。 */
 import { nextTick, onBeforeUnmount, ref } from 'vue'
-export function usePopup({ end = false } = {}) {
+export function usePopup({ end = false, align = end ? 'end' : 'start' } = {}) {
   const trigger = ref(null)
   const popup = ref(null)
   const open = ref(false)
@@ -10,7 +10,9 @@ export function usePopup({ end = false } = {}) {
     if (!anchor || !popup.value) return
     const box = anchor.getBoundingClientRect()
     const width = Math.min(Math.max(popup.value.offsetWidth, box.width), innerWidth - 24)
-    const left = Math.max(12, Math.min(end ? box.right - width : box.left, innerWidth - width - 12))
+    // center：面板中心对准触发器中心；start：左缘对齐；end：右缘对齐（防向右溢出）。
+    const anchorLeft = align === 'center' ? box.left + box.width / 2 - width / 2 : align === 'end' ? box.right - width : box.left
+    const left = Math.max(12, Math.min(anchorLeft, innerWidth - width - 12))
     const height = popup.value.offsetHeight
     const top = box.bottom + height + 8 > innerHeight ? Math.max(12, box.top - height - 8) : box.bottom + 8
     position.value = { left: `${left}px`, top: `${top}px`, minWidth: `${box.width}px` }

@@ -8,7 +8,7 @@ import Icon from './Icon.vue'
 import { usePopup } from '../utils/popup.js'
 const props = defineProps({ mode: { type: String, default: 'menu' }, label: { type: String, default: '更多操作' }, contentLabel: String, items: { type: Array, default: () => [] } })
 const emit = defineEmits(['select'])
-const { trigger, popup, open, position, toggle, hide, onToggle } = usePopup({ end: true })
+const { trigger, popup, open, position, toggle, hide, onToggle } = usePopup({ end: true, align: props.mode === 'content' ? 'center' : 'end' })
 const id = useId()
 async function launch() {
   toggle()
