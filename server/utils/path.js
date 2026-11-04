@@ -16,12 +16,18 @@
  *   Path.checkpoints('session-1')  // 快照清单
  *   Path.tools()                   // 用户自己写的工具目录
  *   Path.skills()                  // 全局技能目录
+ *   Path.skillsState()             // 外部技能目录和禁用名单
+ *   Path.userHome()                // 用户主目录，识别本机其他软件留下的配置用
  */
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const home = () => process.env.AGENT_HOME || join(process.env.HOME || process.env.USERPROFILE || homedir(), '.agent')
+
+// --- 用户主目录：识别其他软件的 MCP 配置和技能目录时用 ---
+// 测试把 AGENT_DISCOVERY_HOME 指到临时目录，就不会读到真实电脑上的配置。
+const userHome = () => process.env.AGENT_DISCOVERY_HOME || homedir()
 
 // --- 全局配置 ---
 const config = () => join(home(), 'config.json')
@@ -44,9 +50,13 @@ const skills = () => process.env.AGENT_SKILLS
     || (process.env.AGENT_HOME ? join(process.env.AGENT_HOME, 'skills') : join(homedir(), '.agents', 'skills'))
 const projectSkills = cwd => join(cwd, '.agent', 'skills')
 
+// --- 技能目录状态：用户启用或停用了哪些外部目录、单独禁用了哪些技能 ---
+const skillsState = () => join(home(), 'skills.json')
+
 export default {
     root: home,
+    userHome,
     config,
     sessions, session, meta, history, settings, snapshots, checkpoints,
-    tools, skills, projectSkills,
+    tools, skills, skillsState, projectSkills,
 }

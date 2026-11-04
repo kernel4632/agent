@@ -6,7 +6,7 @@
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，30 个接口，`bun test` 覆盖每条路由 |
+| `server/` | 可用 | Bun + Elysia 服务端，42 个接口，`bun test` 覆盖每条路由 |
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
@@ -23,7 +23,9 @@
 - 工具权限规则：拒绝 / 允许一次 / 始终允许；敏感文件（`.env`、私钥、`.ssh`、agent 自己的数据目录）由文件工具自己判断，配置关不掉
 - 停止运行中的任务，继续被中断的助手回复
 - 内置十二个常驻工具，加上按需出现的技能读取工具、用户自己写的工具、MCP 外部服务和子智能体
-- 供应商、模型、系统提示词、工具、MCP、外观与数据设置；对话、压缩、标题、子任务可以分别指定模型
+- 自动识别本机其他软件留下的 MCP 配置和技能目录；识别只读，用户确认后再导入或启用
+- MCP 服务和技能的日常管理：增删改、启停、连接测试、新建和编辑技能正文
+- 供应商、模型、系统提示词、工具、MCP、技能、外观与数据设置；对话、压缩、标题、子任务可以分别指定模型
 
 ## 技术栈
 
@@ -48,21 +50,34 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
     checkpoints.json         每次改文件的工具调用对应哪些快照
     snapshots/               改文件之前的原样副本
   tools/                     用户自己写的工具
+  skills.json                启用了哪些外部技能目录、单独禁用了哪些技能
 ```
 
-技能不在数据目录里：全局技能在 `%USERPROFILE%\.agents\skills`，项目技能在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。把 `AGENT_HOME` 指到临时目录做测试时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。
+技能不在数据目录里：全局技能在 `%USERPROFILE%\.agents\skills`，项目技能在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。把 `AGENT_HOME` 指到临时目录做测试时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。设置页还会识别 Claude Code、Codex、Gemini CLI、opencode、Cursor 等软件留下的技能目录，用户启用后才参与技能清单；启用状态存在 `skills.json`。
 
 内置工具在 `server/tools/`；按类别分文件，加一个工具只往这个目录放一个文件。内置技能目录不存在，技能全部来自上面两处用户数据。
 
 ## HTTP API
 
-服务端公开 29 个地址、30 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法）：
+服务端公开 41 个地址、42 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法）：
 
 | 方法 | 地址 | 说明 |
 | --- | --- | --- |
 | `GET` | `/health` | 服务状态和版本 |
 | `GET` | `/tool/list` | 工具名、类别、权限动作和界面信息 |
 | `GET` | `/tool/kinds` | 工具类别 |
+| `GET` | `/mcp/list` | 已配置的 MCP 服务和本机识别到的服务 |
+| `POST` | `/mcp/save` | 新增或整体替换一个 MCP 服务 |
+| `POST` | `/mcp/import` | 按识别编号导入本机的 MCP 服务 |
+| `POST` | `/mcp/remove` | 删除一个 MCP 服务 |
+| `PATCH` | `/mcp/toggle` | 启用或停用一个 MCP 服务 |
+| `POST` | `/mcp/test` | 真实连接一次并列出工具名 |
+| `GET` | `/skill/list` | 生效技能、候选目录和启用状态 |
+| `GET` | `/skill/read` | 读取一个技能的正文 |
+| `POST` | `/skill/save` | 新建或改写本应用自己的技能 |
+| `POST` | `/skill/remove` | 删除本应用自己的技能 |
+| `PATCH` | `/skill/toggle` | 把技能从模型清单里拿掉或放回来 |
+| `PATCH` | `/skill/source` | 启用或停用一个外部技能目录 |
 | `GET` | `/config/read` | 读取配置 |
 | `GET` | `/config/meta` | 按任务的模型标签 |
 | `PATCH` | `/config/set` | 整体替换配置 |

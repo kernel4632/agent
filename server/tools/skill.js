@@ -1,10 +1,11 @@
 /*
- * 技能工具：把用户放在全局目录和项目目录里的操作说明，按需要读给模型。
+ * 技能工具：把用户放在全局目录、项目目录和已启用的外部目录里的操作说明，按需要读给模型。
  *
- * 技能有两处：
- *   - 全局：%USERPROFILE%\.agents\skills（测试用 AGENT_SKILLS 覆盖）
+ * 技能来源由 utils/skills.js 统一扫描：
+ *   - 全局：数据目录的 skills/（默认 %USERPROFILE%\.agents\skills）
  *   - 项目：<会话当前目录>/.agent/skills
- * 同名时项目版覆盖全局版。每个技能一个文件夹，里面一份 SKILL.md：
+ *   - 外部：设置页里启用的其他 Agent 软件目录
+ * 同名时按“外部 → 本应用全局 → 本项目”覆盖，禁用的技能不进清单。每个技能一个文件夹，里面一份 SKILL.md：
  *   ---
  *   name: review
  *   description: 审查改动时用这个
@@ -18,39 +19,17 @@
  *   const tool = await Skill.build({ cwd: 'D:/notes' })   // 没有技能时是 null
  */
 
-import matter from 'gray-matter'
-import Path from '../utils/path.js'
-import fail from '../utils/fail.js'
+import Skills from '../utils/skills.js'
 
-// --- 读一个目录里的技能；目录不存在时当作没有技能 ---
-const scan = async directory => {
-    const found = []
-    try {
-        for await (const file of new Bun.Glob('*/SKILL.md').scan({ cwd: directory })) {
-            const text = await Bun.file(`${directory}/${file}`).text()
-            const { data, content } = matter(text)
-            // 缺名字或说明的技能模型没法判断该不该用，直接跳过，坏文件不挡住别的技能。
-            if (!data.name || !data.description) continue
-            found.push({ name: data.name, description: data.description, body: content.trim() })
-        }
-    } catch {
-        // 用户还没建过技能目录，属于正常情况。
-    }
-    return found
-}
-
-// --- 列出全部技能：先放全局，再用项目里的覆盖同名项 ---
+// --- 列出当前生效的技能；被用户禁用的不交给模型 ---
 const list = async ({ cwd = process.cwd() } = {}) => {
-    const skills = new Map()
-    for (const skill of await scan(Path.skills())) skills.set(skill.name, skill)
-    for (const skill of await scan(Path.projectSkills(cwd))) skills.set(skill.name, skill)
-    return [...skills.values()]
+    const { skills } = await Skills.list({ cwd, includeDisabled: false })
+    return skills
 }
 
 // --- 读一个技能的正文 ---
 const read = async ({ name, cwd = process.cwd() } = {}) => {
-    const skill = (await list({ cwd })).find(item => item.name === name)
-    if (!skill) throw fail(404, `Skill not found: ${name}`)
+    const skill = await Skills.read({ name, cwd, includeDisabled: false })
     return skill.body
 }
 
