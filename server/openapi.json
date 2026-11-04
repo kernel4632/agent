@@ -1021,6 +1021,69 @@
         }
       }
     },
+    "/model/family": {
+      "get": {
+        "tags": [
+          "Model"
+        ],
+        "summary": "按模型 ID 或显式 family 解析模型族",
+        "operationId": "modelFamily",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "family、候选列表和歧义标记"
+          }
+        }
+      }
+    },
+    "/model/icon": {
+      "get": {
+        "tags": [
+          "Model"
+        ],
+        "summary": "代理 models.dev 的模型族 logo",
+        "operationId": "modelIcon",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SVG 图标"
+          },
+          "404": {
+            "description": "没有可用的 family 或 logo"
+          }
+        }
+      }
+    },
     "/config/read": {
       "get": {
         "tags": [

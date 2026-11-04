@@ -20,6 +20,7 @@ import Config from './features/config.js'
 import Context from './features/context.js'
 import History from './features/history.js'
 import Mcp from './features/mcp.js'
+import ModelIcons from './features/model-icons.js'
 import Tool from './features/tool.js'
 import SSE from './utils/sse.js'
 
@@ -49,6 +50,20 @@ app.get('/health', async () => ({
 // --- 工具目录 ---
 app.get('/tool/list', () => Settings.listTools())
 app.get('/tool/kinds', () => Settings.toolKinds())
+
+// --- 模型 family 与远程 logo：目录由 models.dev 提供，服务端缓存，前端只发起图片请求 ---
+app.group('/model', model => model
+    .get('/family', ({ query }) => ModelIcons.suggest({ model: query.model, family: query.family }))
+    .get('/icon', async ({ query, set }) => {
+        const body = await ModelIcons.icon({ model: query.model, family: query.family })
+        if (!body) {
+            set.status = 404
+            return 'Not found'
+        }
+        set.headers['content-type'] = 'image/svg+xml'
+        set.headers['cache-control'] = 'public, max-age=3600'
+        return body
+    }))
 
 // --- 本机 MCP 与技能：识别、导入和日常维护 ---
 app.group('/mcp', mcp => mcp

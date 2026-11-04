@@ -62,6 +62,7 @@ function providerPayload(draft) {
     const models = provider.models.map(model => ({
       id: model.id.trim(),
       name: model.name.trim() || model.id.trim(),
+      ...(String(model.family || '').trim() ? { family: String(model.family).trim() } : {}),
       context: Number(model.context) > 0 ? Number(model.context) : DEFAULT_CONTEXT,
       capabilities: [...model.capabilities],
     }))
@@ -100,7 +101,7 @@ async function fetchModels(provider, currentModels = []) {
     const discovered = source
       .map(model => typeof model === 'string' ? model : model.id || model.name)
       .filter(Boolean)
-      .map(id => ({ id, name: id, context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }))
+      .map(id => ({ id, name: id, family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }))
     if (!discovered.length) throw new Error('接口未返回可用模型')
     return discovered
   } catch (error) {
@@ -124,4 +125,13 @@ function toggleModelInList(models, model) {
   return [...models, { ...model }]
 }
 
-export const Provider = { createDraft, map: providerMap, payload: providerPayload, jsonText, discoverModels, toggleModelInList, testConnection }
+async function suggestFamily(model) {
+  if (!model) return null
+  try {
+    return await AgentAPI.getModelFamily(model)
+  } catch {
+    return null
+  }
+}
+
+export const Provider = { createDraft, map: providerMap, payload: providerPayload, jsonText, discoverModels, toggleModelInList, testConnection, suggestFamily }

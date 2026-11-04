@@ -9,6 +9,7 @@ import { Provider } from '../../commands/provider.js'
 import { DEFAULT_CONTEXT } from '../../defaults.js'
 import Field from '../../ui/Field.vue'
 import Icon from '../../ui/Icon.vue'
+import ModelIcon from '../../ui/ModelIcon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Menu from '../../ui/Menu.vue'
@@ -81,11 +82,21 @@ function runAction(model, action) {
 function openEditor(model) {
   editing.value = model?.id || null
   editDraft.value = model
-    ? { ...model, capabilities: [...model.capabilities] }
-    : { id: '', name: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
+    ? { ...model, family: model.family || '', capabilities: [...model.capabilities] }
+    : { id: '', name: '', family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
   customContext.value = !CONTEXT_PRESETS.includes(editDraft.value.context)
   editError.value = ''
   editOpen.value = true
+  void detectFamily()
+}
+
+async function detectFamily() {
+  if (!editDraft.value?.id || editDraft.value.family) return
+  const result = await Provider.suggestFamily(editDraft.value.id)
+  // 关键词只用于图标建议，不静默写成 family；只有目录命中或明确的命名空间前缀才自动落值。
+  if (!result?.family || result.ambiguous || !['catalog', 'prefix'].includes(result.source)) return
+  if (!editDraft.value || editDraft.value.family) return
+  editDraft.value.family = result.family
 }
 
 function setId(value) {
@@ -104,14 +115,16 @@ function chooseContext(value) {
   if (value !== null) editDraft.value.context = value
 }
 
-function saveModel() {
+async function saveModel() {
+  if (!editDraft.value) return
   const id = editDraft.value.id.trim()
   const name = editDraft.value.name.trim()
   const context = Number(editDraft.value.context)
   if (!id || !name) { editError.value = '模型 ID 和显示名称不能为空'; return }
   if (!editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return }
   if (!Number.isInteger(context) || context <= 0) { editError.value = '上下文窗口需要填写正整数'; return }
-  const model = { id, name, context, capabilities: [...editDraft.value.capabilities] }
+  if (!editDraft.value.family) await detectFamily()
+  const model = { id, name, family: String(editDraft.value.family || '').trim(), context, capabilities: [...editDraft.value.capabilities] }
   emit('update:models', editing.value ? props.models.map(item => item.id === editing.value ? model : item) : [...props.models, model])
   editOpen.value = false
 }
@@ -123,7 +136,7 @@ function saveModel() {
     <div v-if="models.length" class="provider-models__list">
       <article v-for="(model, index) in models" :key="model.id" class="model-card">
         <button type="button" class="model-card__main" aria-label="编辑模型" :title="`编辑 ${model.name}`" @click="openEditor(model)">
-          <span class="model-card__icon"><Icon name="model" :size="24" /></span>
+          <span class="model-card__icon"><ModelIcon :model="model.id" :family="model.family" :size="24" /></span>
           <span class="model-card__copy">
             <span class="model-card__title">{{ model.name }}</span>
             <span class="model-card__id">{{ model.id }}</span>
@@ -145,7 +158,7 @@ function saveModel() {
       <div class="model-chooser__summary"><span>{{ loading ? '正在获取模型…' : `共 ${filtered.length} 个 · 已添加 ${models.length} 个` }}</span><Button variant="text" :disabled="loading || !filtered.length" @click="toggleAll">{{ unselected.length ? '全部添加' : '移除已选' }}</Button></div>
       <div class="model-chooser__list" :aria-busy="loading">
         <button v-for="model in filtered" :key="model.id" type="button" class="model-chooser__row" :aria-pressed="selected(model.id)" @click="toggleAvailable(model)">
-          <Icon name="model" :size="24" /><span><strong>{{ model.name }}</strong><small v-if="model.id !== model.name">{{ model.id }}</small></span>
+          <ModelIcon :model="model.id" :family="model.family" :size="24" /><span><strong>{{ model.name }}</strong><small v-if="model.id !== model.name">{{ model.id }}</small></span>
           <span class="model-chooser__mark" :class="{ 'is-selected': selected(model.id) }"><Icon :name="selected(model.id) ? 'check' : 'plus'" :size="18" /></span>
         </button>
         <p v-if="!loading && !filtered.length" class="model-chooser__empty">{{ filter ? '没有匹配的模型' : '暂未获取到模型，可以手动添加' }}</p>
@@ -159,6 +172,9 @@ function saveModel() {
       <div class="model-edit__identity">
         <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" :readonly="Boolean(editing)" placeholder="例如 deepseek-chat" @update:model-value="setId" />
         <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="在模型列表中显示的名称" />
+        <Field caption="模型族（用于图标，留空自动识别；有歧义时手动填写）" label="模型族" v-model="editDraft.family" placeholder="例如 deepseek、openai、moonshotai">
+          <template #leading><ModelIcon :model="editDraft.id" :family="editDraft.family" :size="18" /></template>
+        </Field>
       </div>
       <fieldset class="model-edit__section"><legend>输入能力</legend>
         <div class="model-choices"><span class="model-choice is-selected"><Icon name="check" :size="16" />文本</span><label class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes('image') }"><input type="checkbox" role="switch" aria-label="图像输入" :checked="editDraft.capabilities.includes('image')" @change="toggleCapability('image', $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes('image')" name="check" :size="16" />图像输入</label></div>

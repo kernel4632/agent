@@ -40,6 +40,9 @@ function subscribeSession(sessionID, signal) {
 
 export const AgentAPI = {
   getHealth:        ()                          => request('/health'),
+  // 模型 family 自动识别和远程 logo；图标响应是 SVG，直接交给 <img>。
+  getModelFamily:   (model = '')                => request(`/model/family?model=${encodeURIComponent(model)}`),
+  modelIconUrl:     (model = '', family = '')   => `${apiRoot}/model/icon?model=${encodeURIComponent(model)}${family ? `&family=${encodeURIComponent(family)}` : ''}`,
   // 全部工具和当前权限，设置页画开关用。
   getTools:         ()                          => request('/tool/list'),
   // 工具类别；名字和顺序由后端给。

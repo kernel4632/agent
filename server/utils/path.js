@@ -16,6 +16,7 @@
  *   Path.snapshots('session-1')    // 文件快照备份
  *   Path.checkpoints('session-1')  // 快照清单
  *   Path.tools()                   // 用户自己写的工具目录
+ *   Path.modelCatalog()            // models.dev 模型目录缓存
  *   Path.skills()                  // 全局技能目录
  *   Path.skillsState()             // 外部技能目录和禁用名单
  *   Path.userHome()                // 用户主目录，识别本机其他软件留下的配置用
@@ -45,6 +46,7 @@ const checkpoints = id => join(session(id), 'checkpoints.json')
 
 // --- 会不断增加的同类数据，按目录扫描 ---
 const tools = () => join(home(), 'tools')
+const modelCatalog = () => join(home(), 'cache', 'models-dev.json')
 
 // --- 技能：全局目录 + 每个会话当前目录下的 .agent/skills ---
 // 开发和测试把 AGENT_HOME 指到临时目录时，全局技能也跟着进去，不会碰到真实用户数据。
@@ -60,5 +62,5 @@ export default {
     userHome,
     config,
     sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,
-    tools, skills, skillsState, projectSkills,
+    tools, modelCatalog, skills, skillsState, projectSkills,
 }

@@ -52,6 +52,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github
     snapshots/         改文件之前的原样副本
   tools/               用户自己写的工具，和内置工具一起扫描
   skills.json          启用了哪些外部技能目录、单独禁用了哪些技能
+  cache/models-dev.json  models.dev 模型目录缓存
 ```
 
 默认情况下全局技能在 `%USERPROFILE%\.agents\skills`，不在数据目录里；测试或容器里把 `AGENT_HOME` 指到临时目录时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。项目技能放在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。
@@ -72,6 +73,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github
         {
           "id": "your-model",
           "name": "Your Model",
+          "family": "openai",
           "context": 128000,
           "capabilities": ["text", "tools", "image"]
         }
@@ -88,7 +90,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github
 }
 ```
 
-- 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。
+- 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。`family` 可选，只用于模型图标；留空时由 models.dev 目录和模型 ID 自动判断，歧义时不猜。
 - `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task` 不填就回退到 `chat`。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
 - `prompt.seeded` 表示默认提示词已经填过一次；用户保存空字符串后不会被重新填回。
@@ -302,6 +304,15 @@ bun start
 | --- | --- | --- |
 | `GET` | `/tool/list` | 工具名、类别、权限动作、`configurable`、工具自带的 `ui` |
 | `GET` | `/tool/kinds` | 工具类别：`kind`、`label`、`hint` |
+
+### 模型图标
+
+图标不放进仓库：服务端从 models.dev 目录解析 family，并代理 `logos/{family}.svg`；目录和 logo 都有缓存，新模型或换 logo 不需要前端发版。
+
+| 方法 | 地址 | 参数 | 结果 |
+| --- | --- | --- | --- |
+| `GET` | `/model/family` | `model` 或 `family` | `{ family, candidates, ambiguous, source }`；多个候选时不自动选择 |
+| `GET` | `/model/icon` | `model` 或 `family` | SVG；找不到时 404，前端回退通用模型图标 |
 
 ### 能力管理
 

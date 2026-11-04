@@ -36,6 +36,7 @@ const model = value => {
     return {
         id: value.id,
         name: typeof value.name === 'string' && value.name ? value.name : value.id,
+        family: typeof value.family === 'string' ? value.family.trim() : '',
         context: Number(value.context) > 0 ? Number(value.context) : 128000,
         capabilities: Array.isArray(value.capabilities) ? value.capabilities : ['text', 'tools'],
     }

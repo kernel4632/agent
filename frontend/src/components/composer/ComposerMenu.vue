@@ -9,6 +9,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
+import ModelIcon from '../../ui/ModelIcon.vue'
 
 // 思考强度的七档：顺序、中文名、图标和一句说明都只在这里定义。
 const REASONING_LEVELS = [
@@ -48,8 +49,9 @@ const triggerLabel = computed(() => `模型与推理（当前 ${props.model || '
 // 按供应商分组，只保留启用且有模型的那些。
 const groups = computed(() => Object.entries(props.providers || {})
   .filter(([, config]) => config?.enabled)
-  .map(([provider, config]) => ({ provider, models: (config.models || []).map(item => item.id) }))
+  .map(([provider, config]) => ({ provider, models: (config.models || []).map(model => ({ id: model.id, family: model.family || '' })) }))
   .filter(group => group.models.length))
+const currentModel = computed(() => groups.value.flatMap(group => group.models).find(model => model.id === props.model))
 
 const clamp = (value, min, max) => Math.max(min, Math.min(value, max))
 
@@ -198,7 +200,7 @@ onBeforeUnmount(() => {
       :aria-label="triggerLabel" aria-haspopup="menu" :aria-expanded="open" :aria-controls="id"
       @click="toggle" @keydown.down.prevent="show"
     >
-      <Icon name="model" :size="22" />
+      <ModelIcon :model="model" :family="currentModel?.family" :size="22" />
       <span class="composer-menu__model">{{ model || '未选择模型' }}</span>
       <span class="composer-menu__reasoning">{{ currentReasoning.short }}</span>
     </button>
@@ -214,7 +216,7 @@ onBeforeUnmount(() => {
           aria-haspopup="menu" :aria-expanded="sub === 'model'"
           @mouseenter="hoverSub('model')" @mouseleave="leaveSub" @click="showSub('model')"
         >
-          <span class="composer-menu__row-icon"><Icon name="model" :size="20" /></span>
+          <span class="composer-menu__row-icon"><ModelIcon :model="model" :family="currentModel?.family" :size="20" /></span>
           <span class="composer-menu__row-text"><strong>切换模型</strong><small>{{ model || '还没有选择模型' }}</small></span>
           <Icon name="arrow" :size="16" class="composer-menu__chevron" />
         </button>
@@ -244,14 +246,14 @@ onBeforeUnmount(() => {
             <section v-for="group in groups" :key="group.provider" class="composer-menu__group">
               <p class="composer-menu__provider">{{ group.provider }}</p>
               <button
-                v-for="item in group.models" :key="`${group.provider}:${item}`" type="button" role="menuitemradio"
-                class="composer-menu__option" :class="{ 'is-selected': group.provider === provider && item === model }"
-                :aria-label="item" :aria-checked="group.provider === provider && item === model"
-                @click="chooseModel(group.provider, item)"
+                v-for="item in group.models" :key="`${group.provider}:${item.id}`" type="button" role="menuitemradio"
+                class="composer-menu__option" :class="{ 'is-selected': group.provider === provider && item.id === model }"
+                :aria-label="item.id" :aria-checked="group.provider === provider && item.id === model"
+                @click="chooseModel(group.provider, item.id)"
               >
-                <span class="composer-menu__option-icon"><Icon name="model" :size="20" /></span>
-                <span class="composer-menu__option-text">{{ item }}</span>
-                <Icon v-if="group.provider === provider && item === model" name="check" :size="18" />
+                <span class="composer-menu__option-icon"><ModelIcon :model="item.id" :family="item.family" :size="20" /></span>
+                <span class="composer-menu__option-text">{{ item.id }}</span>
+                <Icon v-if="group.provider === provider && item.id === model" name="check" :size="18" />
               </button>
             </section>
           </template>

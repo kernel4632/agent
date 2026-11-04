@@ -52,6 +52,7 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
     snapshots/               改文件之前的原样副本
   tools/                     用户自己写的工具
   skills.json                启用了哪些外部技能目录、单独禁用了哪些技能
+  cache/models-dev.json      models.dev 模型目录缓存，用于自动解析模型图标
 ```
 
 技能不在数据目录里：全局技能在 `%USERPROFILE%\.agents\skills`，项目技能在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。把 `AGENT_HOME` 指到临时目录做测试时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。设置页还会识别 Claude Code、Codex、Gemini CLI、opencode、Cursor 等软件留下的技能目录，用户启用后才参与技能清单；启用状态存在 `skills.json`。

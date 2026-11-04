@@ -1,0 +1,14 @@
+/* ModelIcon.vue：远程模型 logo 与通用回退图标共用固定尺寸，不参与页面布局抖动。 */
+.model-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  color: inherit;
+}
+.model-icon__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
