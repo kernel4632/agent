@@ -1,5 +1,5 @@
 <!--
-输入框下方的会话状态：展示上下文、请求轮数、token 与速度；点开查看详细用量。
+输入框下方的会话状态：展示上下文、请求轮数、token 与速度；每一项独立展开自己的面板。
 真实请求数据优先；旧会话缺少记录时显示“估算”。
 调用示例：<StatsPanel :stats="stats" />。
 -->
@@ -30,16 +30,28 @@ const percentText = computed(() => {
 const remaining = computed(() => Math.max(0, Number(context.value.limit || 0) - Number(context.value.used || 0)))
 const overBy = computed(() => Math.max(0, Number(context.value.used || 0) - Number(context.value.limit || 0)))
 const threshold = computed(() => Math.min(100, Math.max(0, Number(context.value.threshold || 0.8) * 100)))
+const total = computed(() => Number(usage.value.total || Number(usage.value.input || 0) + Number(usage.value.output || 0)))
+const cacheTokens = computed(() => Math.max(0, Number(usage.value.cacheRead || 0)))
+const cacheRead = computed(() => Math.min(Number(usage.value.input || 0), cacheTokens.value))
 const cacheHit = computed(() => {
   const input = Number(usage.value.input || 0)
   if (!input) return 0
-  return Math.min(100, Math.round(Number(usage.value.cacheRead || 0) / input * 100))
+  return Math.min(100, Math.round(cacheTokens.value / input * 100))
 })
-const total = computed(() => Number(usage.value.total || Number(usage.value.input || 0) + Number(usage.value.output || 0)))
-const inputShare = computed(() => {
+const averageTokens = computed(() => {
+  const requests = Number(usage.value.requests || 0)
+  return requests ? total.value / requests : 0
+})
+const shares = computed(() => {
   const input = Number(usage.value.input || 0)
   const output = Number(usage.value.output || 0)
-  return input + output > 0 ? input / (input + output) * 100 : 0
+  const sum = input + output
+  if (!sum) return { input: 0, cache: 0, output: 0 }
+  return {
+    input: Math.max(0, input - cacheRead.value) / sum * 100,
+    cache: cacheRead.value / sum * 100,
+    output: output / sum * 100,
+  }
 })
 const formatTokens = (value, isApproximate = false) => {
   const number = Number(value || 0)
@@ -47,13 +59,6 @@ const formatTokens = (value, isApproximate = false) => {
   if (number >= 1_000_000) return `${prefix}${(number / 1_000_000).toFixed(1)}M`
   if (number >= 1000) return `${prefix}${(number / 1000).toFixed(1)}K`
   return `${prefix}${number}`
-}
-const formatDuration = value => {
-  const ms = Number(value || 0)
-  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`
-  const seconds = ms / 1000
-  if (seconds < 60) return `${seconds.toFixed(1)}s`
-  return `${Math.floor(seconds / 60)}m${Math.round(seconds % 60)}s`
 }
 const speed = computed(() => {
   const ms = Number(usage.value.durationMs || 0)
@@ -66,28 +71,21 @@ const ringClass = computed(() => ({
 }))
 const hasUsage = computed(() => total.value > 0)
 const trendLabel = computed(() => usageApproximate.value ? '最近回复' : '最近请求')
-const cells = computed(() => {
-  const items = [
-    { key: 'requests', icon: 'activity', value: usage.value.requests, label: '请求' },
-    { key: 'messages', icon: 'chat', value: usage.value.messages, label: '消息' },
-  ]
-  if (usage.value.durationMs) items.push({ key: 'duration', icon: 'clock', value: formatDuration(usage.value.durationMs), label: '耗时' })
-  if (speed.value) items.push({ key: 'speed', icon: 'gauge', value: speed.value, label: '速度' })
-  if (usage.value.reasoning) items.push({ key: 'reasoning', icon: 'idea', value: formatTokens(usage.value.reasoning, usageApproximate.value), label: '推理' })
-  return items
-})
 const trendBars = computed(() => {
   const series = props.stats.series || []
   const max = Math.max(1, ...series.map(item => Number(item.input || 0) + Number(item.output || 0)))
   return series.map((item, index) => {
     const input = Number(item.input || 0)
     const output = Number(item.output || 0)
+    const cache = Math.min(input, Math.max(0, Number(item.cache || 0)))
     return {
       key: index,
       input,
       output,
+      cache,
+      fresh: Math.max(0, input - cache),
       scale: Math.max(7, (input + output) / max * 100),
-      title: `第 ${index + 1} 次：输入 ${input}，输出 ${output}`,
+      title: `第 ${index + 1} 次：输入 ${input}（缓存 ${cache}），输出 ${output}`,
     }
   })
 })
@@ -95,84 +93,107 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
 </script>
 
 <template>
-  <Menu mode="content" class="session-stats" :label="`上下文占用 ${percentText}，${usage.requests || 0} 轮，${formatTokens(total, usageApproximate)} tokens，点击查看会话统计`" content-label="会话统计">
-    <template #trigger>
-      <span class="session-stats__summary-context">
-        <RingProgress class="session-stats__ring" :class="ringClass" :value="percent" :max="100" :size="20" :stroke-width="3" label="上下文占用" aria-hidden="true" />
-        <span>上下文 {{ percentText }}</span>
-      </span>
-      <i class="session-stats__separator" aria-hidden="true"></i>
-      <span class="session-stats__summary-item"><Icon name="activity" :size="14" />{{ usage.requests || 0 }} 轮</span>
-      <i class="session-stats__separator" aria-hidden="true"></i>
-      <span class="session-stats__summary-item"><Icon name="database" :size="14" />{{ formatTokens(total, usageApproximate) }} tokens</span>
-      <span v-if="speed" class="session-stats__summary-item session-stats__speed"><Icon name="gauge" :size="14" />{{ speed }}</span>
-      <span v-if="approximate" class="session-stats__summary-estimate">估算</span>
-    </template>
-
-    <div class="stats-panel">
-      <div class="stats-panel__head">
-        <span class="stats-panel__heading"><Icon name="stats" :size="15" />会话统计</span>
-        <span v-if="approximate" class="stats-panel__badge" title="旧会话没有保存每次请求的用量，数字按消息内容估算">估算</span>
-      </div>
-
-      <div class="stats-panel__hero">
-        <div class="stats-panel__ring">
-          <RingProgress
-            :class="ringClass"
-            :value="percent"
-            :max="100"
-            :size="92"
-            :stroke-width="8"
-            label="上下文占用"
-          />
-          <span class="stats-panel__percent">{{ percentText }}</span>
+  <div class="session-stats">
+    <Menu
+      mode="content"
+      class="session-stats__menu"
+      :label="`上下文占用 ${percentText}，点击查看上下文统计`"
+      content-label="上下文统计"
+    >
+      <template #trigger>
+        <span class="session-stats__summary-context">
+          <RingProgress class="session-stats__ring" :class="ringClass" :value="percent" :max="100" :size="16" :stroke-width="2.5" label="上下文占用" aria-hidden="true" />
+          <span>上下文 {{ percentText }}</span>
+        </span>
+      </template>
+      <div class="stats-panel stats-panel--context">
+        <div class="stats-panel__head">
+          <span class="stats-panel__heading"><Icon name="layers" :size="15" />上下文</span>
+          <span v-if="contextApproximate" class="stats-panel__badge">估算</span>
         </div>
-        <div class="stats-panel__context">
-          <div class="stats-panel__eyebrow"><Icon name="layers" :size="14" />上下文</div>
-          <div class="stats-panel__value">
-            <strong>{{ formatTokens(context.used, contextApproximate) }}</strong>
-            <span>/ {{ formatTokens(context.limit) }}</span>
+        <div class="stats-panel__hero">
+          <div class="stats-panel__ring">
+            <RingProgress :class="ringClass" :value="percent" :max="100" :size="92" :stroke-width="8" label="上下文占用" />
+            <span class="stats-panel__percent">{{ percentText }}</span>
           </div>
-          <div class="stats-panel__left" :class="{ 'is-over': context.over }">
-            <span>{{ context.over ? '超出' : '剩余' }} {{ formatTokens(context.over ? overBy : remaining, contextApproximate) }}</span>
+          <div class="stats-panel__context">
+            <div class="stats-panel__value">
+              <strong>{{ formatTokens(context.used, contextApproximate) }}</strong>
+              <span>/ {{ formatTokens(context.limit) }}</span>
+            </div>
+            <div class="stats-panel__left" :class="{ 'is-over': context.over }">
+              <span>{{ context.over ? '超出' : '剩余' }} {{ formatTokens(context.over ? overBy : remaining, contextApproximate) }}</span>
+            </div>
+            <div class="stats-panel__contextbar" :class="ringClass" role="img" :aria-label="`上下文已用 ${percentText}，自动压缩阈值 ${Math.round(threshold)}%`">
+              <span class="stats-panel__contextbar-used" :style="{ width: `${percent}%` }"></span>
+              <i v-if="threshold > 0 && threshold < 100" class="stats-panel__contextbar-mark" :style="{ left: `${threshold}%` }" :title="`自动压缩阈值 ${Math.round(threshold)}%`"></i>
+            </div>
+            <div class="stats-panel__threshold-label">自动压缩 {{ Math.round(threshold) }}%</div>
           </div>
-          <div class="stats-panel__contextbar" :class="ringClass" role="img" :aria-label="`上下文已用 ${percentText}，自动压缩阈值 ${Math.round(threshold)}%`">
-            <span class="stats-panel__contextbar-used" :style="{ width: `${percent}%` }"></span>
-            <i v-if="threshold > 0 && threshold < 100" class="stats-panel__contextbar-mark" :style="{ left: `${threshold}%` }" :title="`自动压缩阈值 ${Math.round(threshold)}%`"></i>
-          </div>
-          <div class="stats-panel__threshold-label">自动压缩 {{ Math.round(threshold) }}%</div>
         </div>
       </div>
+    </Menu>
 
-      <template v-if="hasUsage">
-        <div class="stats-panel__divider"></div>
-        <div class="stats-panel__usage">
+    <i class="session-stats__separator" aria-hidden="true"></i>
+
+    <Menu
+      mode="content"
+      class="session-stats__menu"
+      :label="`${usage.requests || 0} 轮请求，点击查看请求统计`"
+      content-label="请求统计"
+    >
+      <template #trigger>
+        <span class="session-stats__summary-item"><Icon name="activity" :size="14" />{{ usage.requests || 0 }} 轮</span>
+      </template>
+      <div class="stats-panel stats-panel--requests">
+        <div class="stats-panel__head">
+          <span class="stats-panel__heading"><Icon name="activity" :size="15" />请求</span>
+          <span v-if="usageApproximate" class="stats-panel__badge">估算</span>
+        </div>
+        <div class="stats-panel__metric"><strong>{{ usage.requests || 0 }}</strong><span>次模型请求</span></div>
+        <div v-if="usage.requests && hasUsage" class="stats-panel__metric-row">
+          <span>平均每次</span>
+          <strong>{{ formatTokens(averageTokens, usageApproximate) }}</strong>
+          <small>tokens</small>
+        </div>
+        <p class="stats-panel__note">每次模型请求算一轮；工具调用和自动续跑都包含在内。</p>
+      </div>
+    </Menu>
+
+    <i class="session-stats__separator" aria-hidden="true"></i>
+
+    <Menu
+      mode="content"
+      class="session-stats__menu"
+      :label="`${formatTokens(total, usageApproximate)} tokens，点击查看 token 用量`"
+      content-label="Token 用量"
+    >
+      <template #trigger>
+        <span class="session-stats__summary-item"><Icon name="database" :size="14" />{{ formatTokens(total, usageApproximate) }} tokens</span>
+      </template>
+      <div class="stats-panel stats-panel--usage">
+        <div class="stats-panel__head">
+          <span class="stats-panel__heading"><Icon name="database" :size="15" />Token 用量</span>
+          <span v-if="usageApproximate" class="stats-panel__badge">估算</span>
+        </div>
+        <template v-if="hasUsage">
           <div class="stats-panel__usage-head">
             <span class="stats-panel__heading"><Icon name="activity" :size="15" />用量走势</span>
             <strong>{{ formatTokens(total, usageApproximate) }} <small>tokens</small></strong>
           </div>
-          <div
-            v-if="trendBars.length > 1"
-            class="stats-panel__chart"
-            role="img"
-            :aria-label="`${trendLabel} ${trendBars.length} 次的输入和输出 token`"
-          >
+          <div v-if="trendBars.length > 1" class="stats-panel__chart" role="img" :aria-label="`${trendLabel} ${trendBars.length} 次的输入、输出和缓存 token`">
             <div class="stats-panel__chart-grid" aria-hidden="true"><i></i><i></i></div>
             <div class="stats-panel__bars">
-              <span
-                v-for="bar in trendBars"
-                :key="bar.key"
-                class="stats-panel__bar"
-                :style="{ height: `${bar.scale}%` }"
-                :title="bar.title"
-              >
+              <span v-for="bar in trendBars" :key="bar.key" class="stats-panel__bar" :style="{ height: `${bar.scale}%` }" :title="bar.title">
                 <i class="is-output" :style="{ flex: bar.output || 0.001 }"></i>
-                <i class="is-input" :style="{ flex: bar.input || 0.001 }"></i>
+                <i class="is-input" :style="{ flex: bar.fresh || 0.001 }"></i>
+                <i v-if="bar.cache" class="is-cache" :style="{ flex: bar.cache }"></i>
               </span>
             </div>
           </div>
           <div v-else class="stats-panel__stack" aria-hidden="true">
-            <span class="is-input" :style="{ width: `${inputShare}%` }"></span>
+            <span class="is-input" :style="{ width: `${shares.input}%` }"></span>
+            <span class="is-cache" :style="{ width: `${shares.cache}%` }"></span>
             <span class="is-output"></span>
           </div>
           <div class="stats-panel__chart-caption">
@@ -180,22 +201,47 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
             <span>最高 {{ formatTokens(trendMax, usageApproximate) }}</span>
           </div>
           <div class="stats-panel__legend">
-            <span><i class="is-input"></i><Icon name="up" :size="12" />输入 {{ formatTokens(usage.input, usageApproximate) }}</span>
-            <span><i class="is-output"></i><Icon name="down" :size="12" />输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
-            <span v-if="cacheHit" class="stats-panel__cache"><i class="is-cache"></i><Icon name="download" :size="12" />{{ cacheHit }}%</span>
+            <span class="stats-panel__legend-item is-input"><Icon name="up" :size="13" />输入 {{ formatTokens(usage.input, usageApproximate) }}</span>
+            <span class="stats-panel__legend-item is-output"><Icon name="down" :size="13" />输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
+            <span
+              v-if="cacheTokens"
+              class="stats-panel__legend-item is-cache"
+              :title="`缓存读取 ${formatTokens(cacheTokens, usageApproximate)} tokens，占输入 ${cacheHit}%`"
+            ><Icon name="refresh" :size="13" />缓存 {{ cacheHit }}%</span>
           </div>
-        </div>
+          <div v-if="usage.reasoning" class="stats-panel__chips">
+            <div class="stats-panel__chip">
+              <span class="stats-panel__chip-icon"><Icon name="idea" :size="14" /></span>
+              <strong>{{ formatTokens(usage.reasoning, usageApproximate) }}</strong>
+              <small>推理</small>
+            </div>
+          </div>
+        </template>
+        <p v-else class="stats-panel__note">这个会话还没有可统计的用量。</p>
+      </div>
+    </Menu>
 
-        <div class="stats-panel__chips">
-          <div v-for="cell in cells" :key="cell.key" class="stats-panel__chip">
-            <span class="stats-panel__chip-icon"><Icon :name="cell.icon" :size="14" /></span>
-            <strong>{{ cell.value }}</strong>
-            <small>{{ cell.label }}</small>
-          </div>
+    <template v-if="speed">
+      <i class="session-stats__separator session-stats__separator--speed" aria-hidden="true"></i>
+      <Menu
+        mode="content"
+        class="session-stats__menu session-stats__menu--speed"
+        :label="`生成速度 ${speed}，点击查看速度统计`"
+        content-label="生成速度"
+      >
+        <template #trigger>
+          <span class="session-stats__summary-item"><Icon name="gauge" :size="14" />{{ speed }}</span>
+        </template>
+        <div class="stats-panel stats-panel--speed">
+          <div class="stats-panel__head"><span class="stats-panel__heading"><Icon name="gauge" :size="15" />生成速度</span></div>
+          <div class="stats-panel__metric"><strong>{{ speed }}</strong></div>
+          <p class="stats-panel__note">输出 token ÷ 模型请求耗时；不包含工具执行等待。</p>
         </div>
-      </template>
-    </div>
-  </Menu>
+      </Menu>
+    </template>
+
+    <span v-if="approximate" class="session-stats__summary-estimate">估算</span>
+  </div>
 </template>
 
 <style scoped lang="scss" src="../../styles/components/activity/StatsPanel.scss"></style>

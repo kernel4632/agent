@@ -164,7 +164,7 @@ export function sessionStats(session) {
     },
     series: usageApproximate
       ? estimatedSeries
-      : requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0) })),
+      : requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0), cache: Number(item.cache || 0) })),
   }
 }
 

@@ -37,7 +37,7 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.messages, 2)
   assert.equal(stats.usage.total, 50)
   assert.equal(stats.usage.durationMs, 800)
-  assert.deepEqual(stats.series, [{ input: 30, output: 20 }])
+  assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
 })
 
 test('legacy history without usage is estimated and marked, not shown as zero', () => {
