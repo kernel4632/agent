@@ -33,8 +33,10 @@ function applyToolResult(messages, parts) {
   }
 }
 
-function normalizeRequest(item) {
-  return requestFromUsage(item.usage)
+function normalizeRequest(item, id) {
+  const request = requestFromUsage(item.usage)
+  if (request && id) request.id = `request_${id}`
+  return request
 }
 
 function normalizeMessage(item, messages) {
@@ -88,10 +90,12 @@ function normalizeMessage(item, messages) {
   }
   // core 的 compact 项是带 compact 标记的 user 消息，也有真实请求用量。
   if (item.role === 'assistant' || item.compact) {
-    const request = normalizeRequest(item)
+    const request = normalizeRequest(item, item.messageId)
     if (request) {
       message.request = request
       message.requests = [request]
+      // 请求行排在这次回复的所有步骤之前，跟实时事件的位置一致。
+      if (item.role === 'assistant') message.steps.unshift({ type: 'request', requestId: request.id })
     }
   }
   return message

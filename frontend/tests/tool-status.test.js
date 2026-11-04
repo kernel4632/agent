@@ -112,6 +112,22 @@ test('历史归一化保留正文和工具的原始顺序', () => {
     assert.deepEqual(normalized.messages[0].steps.map(step => step.type), ['reasoning', 'text', 'tool', 'text'])
 })
 
+test('历史里的模型请求在时间线开头占一个位置', () => {
+    const normalized = History.normalize({
+        id: 'session-1',
+        history: [{
+            messageId: 'message-1',
+            role: 'assistant',
+            content: '回答',
+            usage: { input: 3, output: 2, total: 5 },
+        }],
+    })
+    const [message] = normalized.messages
+    assert.equal(message.steps[0].type, 'request')
+    assert.equal(message.steps[0].requestId, 'request_message-1')
+    assert.equal(message.requests[0].total, 5)
+})
+
 test('历史里的用户附件只留下文件名，附件正文仍保留给回退', () => {
     const raw = '看看附件\n\n附件 "a.txt":\nsecret'
     const normalized = History.normalize({

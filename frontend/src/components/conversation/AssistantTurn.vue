@@ -44,7 +44,7 @@ const fallbackText = computed(() => props.messages
   .join('\n\n'))
 const content = computed(() => finalText.value || fallbackText.value)
 
-// 时间线按消息顺序排列：思考、非结束正文、工具步骤。
+// 时间线按消息顺序排列：请求行、思考、非结束正文、工具步骤。
 // 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
 const steps = computed(() => {
   const list = []
@@ -74,26 +74,32 @@ const steps = computed(() => {
         if (tool && !isFinishedStopTool(tool)) {
           list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool })
         }
+      } else if (entry.type === 'request') {
+        const request = (message.requests || []).find(item => item.id === entry.requestId)
+        if (request) list.push({ key: `${message.id}-request-${index}`, type: 'request', request })
       }
     })
   }
   return list
 })
+// 请求行不算正文：只有文字时仍然显示成普通气泡。
+const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request'))
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
-// 历史步骤很多时默认只留最后两步，和 RikkaHub 一样先给结论；展开按钮看全部过程。
+// 历史步骤很多时默认只留最后两步，和 RikkaHub 一样先给结论；请求行始终保留在原位。
 const expandedSteps = ref(false)
-const canCollapse = computed(() => steps.value.length > 3)
-const visibleSteps = computed(() => canCollapse.value && !expandedSteps.value ? steps.value.slice(-2) : steps.value)
-const hiddenSteps = computed(() => steps.value.length - visibleSteps.value.length)
-// 全部都是正文时仍显示成普通气泡；有思考、工具或结束工具时，正文按原位置留在步骤里。
-const textOnly = computed(() => !finalText.value && steps.value.length > 0 && steps.value.every(step => step.type === 'text'))
-const showSteps = computed(() => steps.value.length > 0 && !textOnly.value)
-const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!steps.value.length ? fallbackText.value : '')))
+const canCollapse = computed(() => contentSteps.value.length > 3)
+const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
+const visibleSteps = computed(() => {
+  if (textOnly.value) return steps.value.filter(step => step.type === 'request')
+  if (!canCollapse.value || expandedSteps.value) return steps.value
+  const kept = new Set(contentSteps.value.slice(-2).map(step => step.key))
+  return steps.value.filter(step => step.type === 'request' || kept.has(step.key))
+})
+const hiddenSteps = computed(() => contentSteps.value.length - visibleSteps.value.filter(step => step.type !== 'request').length)
+const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
-// 一轮里可能请求模型多次；每次的请求行按顺序显示，刷新后从历史里的 usage 恢复。
-const requests = computed(() => props.messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : []))
 
 const rollbackTarget = computed(() => props.messages.find(actionable) || null)
 const forkTarget = computed(() => [...props.messages].reverse().find(actionable) || null)
@@ -119,16 +125,16 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 <template>
   <div class="assistant-message rikka-message rikka-message--assistant">
     <MessageActions :items="menuItems" :preview="content" role-label="助手回复" label="助手消息操作" @select="onMenu">
-      <RequestStatus v-if="requests.length" :requests="requests" />
-      <div v-if="showSteps" class="cot-card">
+      <div v-if="visibleSteps.length" class="cot-card">
         <button v-if="canCollapse" type="button" class="cot-fold" :class="{ 'is-open': expandedSteps }" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
           <Icon name="down" :size="14" />
           <span>{{ expandedSteps ? '收起过程' : `展开其余 ${hiddenSteps} 步` }}</span>
         </button>
         <div class="cot-steps">
           <template v-for="step in visibleSteps" :key="step.key">
+            <RequestStatus v-if="step.type === 'request'" :request="step.request" />
             <ReasoningStep
-              v-if="step.type === 'reasoning'"
+              v-else-if="step.type === 'reasoning'"
               :reasoning="step.text"
               :streaming="step.streaming"
               :started-at="step.message.startedAt"

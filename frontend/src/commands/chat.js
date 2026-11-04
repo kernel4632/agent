@@ -175,13 +175,20 @@ function resumeRun(session) {
   if (!streaming(session)) createAssistant(session)
 }
 
-// --- 模型请求开始：先挂一行进度，完成后同一行变成消耗摘要 ---
+// --- 模型请求开始：在时间线当前的位置放一条请求行，完成后这一行留在原地显示用量 ---
 function startRequest(session) {
   const assistant = streaming(session) || createAssistant(session)
-  const request = { status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
+  const request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0 }
   assistant.requests.push(request)
+  assistant.steps.push({ type: 'request', requestId: request.id })
   assistant.request = request
   assistant.isStreaming = true
+}
+
+// 收到这次请求的第一个增量后，把“等待第一个字”换成“正在接收回复”。
+function markFirstToken(assistant) {
+  const request = assistant.requests.findLast(item => item.status === 'running')
+  if (request && !request.firstTokenAt) request.firstTokenAt = Date.now()
 }
 
 // --- 模型请求结束：补正文、结算用量，光标停住 ---
@@ -194,8 +201,9 @@ function finishRunRequest(session, event) {
   let request = assistant.requests.at(-1)
   // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
   if (!request) {
-    request = { status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0 }
+    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0 }
     assistant.requests.push(request)
+    assistant.steps.push({ type: 'request', requestId: request.id })
   }
   finishRequest(request, event.usage, event.durationMs)
   assistant.request = request
@@ -211,7 +219,11 @@ function retryRun(session, event) {
   session.status = 'running'
   const assistant = streaming(session) || createAssistant(session)
   assistant.isStreaming = true
-  assistant.retry = `连接重试 ${event.attempt || 1}，请稍候…`
+  const retry = `连接重试 ${event.attempt || 1}，请稍候…`
+  assistant.retry = retry
+  // 重试原因挂在当前请求行上，用户不用再去别处找。
+  const request = assistant.requests.findLast(item => item.status === 'running')
+  if (request) request.retry = retry
 }
 
 // --- 模型报错：结束当前请求，保留错误让用户看到 ---
@@ -223,7 +235,9 @@ function failRun(session, event) {
     request.finishedAt = Date.now()
     request.durationMs = request.finishedAt - request.startedAt
   }
-  assistant.error = event.errorText || event.error?.message || '模型请求失败'
+  const message = event.errorText || event.error?.message || '模型请求失败'
+  if (request) request.error = message
+  assistant.error = message
   assistant.isStreaming = false
   assistant.finishedAt = Date.now()
   session.status = 'idle'
@@ -265,6 +279,7 @@ async function receiveRun(sessionID, session, event) {
 function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
     const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
+    markFirstToken(assistant)                                       // 第一段输出到了，请求行改说正在接收
     const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
     const text = event.text || '' // 服务端只承诺 text 一个字段
     assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
@@ -280,6 +295,7 @@ function receiveMessage(session, event) {
 const TOOL_EVENTS = new Set(['tool-call', 'permission', 'tool-output', 'tool-result', 'permission-blocked'])
 function receiveTool(session, event) {
   if (event.type === 'tool-call') {
+    markFirstToken(streaming(session) || createAssistant(session)) // 模型直接给工具调用也算开始输出
     toolFor(session, event, 'running')
   } else if (event.type === 'permission') {
     toolFor(session, event, 'waiting')

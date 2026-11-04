@@ -680,7 +680,8 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   const running = page.locator('.request-status').last()
   await expect(running).toContainText('正在请求模型…')
-  await expect(running).toContainText('等待模型返回第一个字')
+  // 请求行在对话流里，不是浮在整轮回复外面的一条汇总。
+  await expect(page.locator('.cot-card .request-status')).toHaveCount(1)
   await screenshot(page, testInfo, 'request-status-running')
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
 
@@ -693,7 +694,38 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   await expect(done).toContainText('输入 30')
   await expect(done).toContainText('输出 20')
   await expect(done).toContainText('50 tokens')
+  await expect(page.locator('.cot-card .request-status')).toHaveCount(1)
   await screenshot(page, testInfo, 'request-status-done')
+  expect(mock.errors).toEqual([])
+})
+
+test('each model request stays at its position in the conversation flow', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'llm-start', messages: 1, tools: [] },
+    { type: 'llm-finish', text: '', usage: { input: 10, output: 2, total: 12 } },
+    { type: 'tool-call', toolCallId: 'flow-1', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'flow-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+    { type: 'llm-start', messages: 2, tools: [] },
+    { type: 'llm-finish', text: '完成', usage: { input: 20, output: 5, total: 25 } },
+  ])
+
+  const rows = page.locator('.request-status')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(0)).toContainText('12 tokens')
+  await expect(rows.nth(1)).toContainText('25 tokens')
+  // 第二次请求排在工具步骤之后，而不是被汇总到整轮回复的开头。
+  const order = await page.locator('.cot-steps > *').evaluateAll(nodes => nodes.map(node => node.className))
+  const toolIndex = order.findIndex(name => name.includes('cot-step--tool'))
+  expect(toolIndex).toBeGreaterThan(-1)
+  expect(order.slice(toolIndex + 1).some(name => name.includes('request-status'))).toBe(true)
   expect(mock.errors).toEqual([])
 })
 
