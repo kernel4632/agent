@@ -53,12 +53,6 @@ const emptyText = computed(() => props.tool.status === 'completed'
       <pre v-auto-scroll class="tool-output tool-input is-streaming">{{ tool.streamInput }}</pre>
     </section>
 
-    <section class="tool-content tool-content--output" aria-label="返回内容">
-      <h4>返回内容</h4>
-      <ToolValue v-if="hasResult" :value="resultValue" class="tool-result" :class="{ 'is-error': tool.status === 'error' || tool.status === 'rejected' }" :plain="typeof resultValue === 'string'" />
-      <p v-else class="tool-empty">{{ emptyText }}</p>
-    </section>
-
     <section v-if="hasInput && !streaming" class="tool-content tool-content--input" :class="{ 'is-collapsed': !showInput }" aria-label="输入参数">
       <div class="tool-content__head">
         <button v-if="!showInput" type="button" class="tool-input-toggle" :aria-expanded="false" @click="showInput = true">
@@ -79,6 +73,12 @@ const emptyText = computed(() => props.tool.status === 'completed'
         <ToolValue v-if="view === 'readable'" :value="tool.input" class="tool-input" />
         <pre v-else class="tool-output tool-input">{{ inputJSON }}</pre>
       </template>
+    </section>
+
+    <section class="tool-content tool-content--output" aria-label="返回内容">
+      <h4>返回内容</h4>
+      <ToolValue v-if="hasResult" :value="resultValue" class="tool-result" :class="{ 'is-error': tool.status === 'error' || tool.status === 'rejected' }" :plain="typeof resultValue === 'string'" />
+      <p v-else class="tool-empty">{{ emptyText }}</p>
     </section>
   </div>
 </template>

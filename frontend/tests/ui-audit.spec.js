@@ -878,6 +878,12 @@ test('tool input renders multiline strings and markdown code blocks', async ({ p
   }])
 
   const tool = page.locator('.cot-step--tool')
+  const inputSection = tool.locator('.tool-content--input')
+  const outputSection = tool.locator('.tool-content--output')
+  await expect(inputSection).toBeVisible()
+  const inputBox = await inputSection.boundingBox()
+  const outputBox = await outputSection.boundingBox()
+  expect(inputBox.y).toBeLessThan(outputBox.y)
   await expect(tool.locator('.tool-input')).toHaveCount(0)
   await expect(tool.getByRole('button', { name: /查看输入参数/ })).toBeVisible()
   await tool.getByRole('button', { name: /查看输入参数/ }).click()
