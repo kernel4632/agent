@@ -1,0 +1,9 @@
+.skill-form { display: flex; flex-direction: column; gap: 20px; }
+.skill-field { display: grid; gap: 8px; }
+.skill-field__caption { color: var(--ui-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
+.skill-form__error { margin: 0; color: var(--la-danger); font-size: 13px; line-height: 20px; }
+.skill-form__actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; }
+@media (max-width: 767px) {
+  .skill-form__actions { flex-direction: column-reverse; }
+  .skill-form__actions > * { width: 100%; }
+}

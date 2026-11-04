@@ -1163,6 +1163,56 @@ test('MCP service can be added and saved', async ({ page }) => {
   expect(saved.mcp['MCP 2'].enabled).toBe(false) // 上面为了保住错误草稿把开关关掉了
 })
 
+test('MCP servers detected on this machine can be imported and tested', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /MCP 服务/ }).click()
+
+  // 打开 MCP 页就会扫本机；识别结果只展示，点添加才写入本应用配置。
+  await expect(page.getByRole('heading', { name: '本机识别到的服务' })).toBeVisible()
+  await expect(page.getByText('Cursor · npx -y server-github')).toBeVisible()
+  await screenshot(page, testInfo, 'settings-mcp-detected')
+
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await expect.poll(() => mock.config().mcp.github?.command).toBe('npx')
+  await expect(page.getByText('已添加')).toBeVisible()
+
+  // 进编辑页测试已保存的服务，结果直接显示在表单里。
+  await page.getByRole('button', { name: /^github/ }).click()
+  await expect(page.getByRole('heading', { name: 'github', level: 3 })).toBeVisible()
+  await page.getByRole('button', { name: '测试连接' }).click()
+  await expect(page.getByRole('status')).toContainText('连接成功，1 个工具：echo')
+})
+
+test('skills can be listed, created and toggled', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /技能/ }).click()
+  await expect(page.getByRole('heading', { name: '技能', exact: true, level: 1 })).toBeVisible()
+  await expect(page.getByText('review', { exact: true })).toBeVisible()
+  await screenshot(page, testInfo, 'settings-skills')
+
+  // 新建技能后回到列表，服务端收到的字段和界面输入一致。
+  await page.getByRole('button', { name: /新建技能/ }).click()
+  await page.getByLabel('技能名称').fill('check-docs')
+  await page.getByLabel('什么时候用').fill('检查文档时用')
+  await page.getByLabel('正文（Markdown）').fill('先读目录')
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(page.getByText('check-docs', { exact: true })).toBeVisible()
+  expect(mock.calls.some(call => call.path === '/skill/save' && call.body?.name === 'check-docs')).toBe(true)
+
+  // 关闭只是从模型清单里拿掉，技能仍然显示在管理列表里。
+  await page.getByRole('switch', { name: 'review 交给模型' }).click()
+  await expect.poll(() => mock.calls.findLast(call => call.path === '/skill/toggle')?.body?.enabled).toBe(false)
+  await expect(page.getByText('已关闭')).toBeVisible()
+
+  // 外部目录先识别、再手动启用。
+  await page.getByRole('switch', { name: '启用 Claude Code' }).click()
+  await expect.poll(() => mock.calls.findLast(call => call.path === '/skill/source')?.body?.enabled).toBe(true)
+})
+
 test('task models save globally and clearing restores shared model', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

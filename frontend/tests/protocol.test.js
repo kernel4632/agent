@@ -46,6 +46,18 @@ test('所有前端请求的方法与路径都存在于现行 OpenAPI', async t =
   await AgentAPI.getConfig()
   await AgentAPI.updateConfig({ providers: [] })
   await AgentAPI.testProvider('provider', 'model')
+  await AgentAPI.getMcpCatalog('D:/project')
+  await AgentAPI.saveMcpServer('github', { command: 'npx', args: ['server-github'] })
+  await AgentAPI.importMcpServers(['cursor::github'], 'D:/project')
+  await AgentAPI.removeMcpServer('github')
+  await AgentAPI.toggleMcpServer('github', false)
+  await AgentAPI.testMcpServer('github')
+  await AgentAPI.getSkills('D:/project')
+  await AgentAPI.readSkill('review', 'D:/project')
+  await AgentAPI.saveSkill({ name: 'review', description: '审查', body: '正文' })
+  await AgentAPI.removeSkill({ name: 'review', cwd: 'D:/project' })
+  await AgentAPI.toggleSkill({ name: 'review', enabled: false })
+  await AgentAPI.toggleSkillSource({ path: 'D:/skills', enabled: true })
 
   assert.deepEqual(calls.map(call => [call.options.method || 'GET', call.url]), [
     ['POST', '/api/session/create'], ['GET', '/api/session/read/session-test'],
@@ -60,6 +72,13 @@ test('所有前端请求的方法与路径都存在于现行 OpenAPI', async t =
     ['POST', '/api/session/redo/session-test'],
     ['GET', '/api/sse/connect/session-test'], ['GET', '/api/config/read'],
     ['PATCH', '/api/config/set'], ['POST', '/api/config/test'],
+    ['GET', '/api/mcp/list?cwd=D%3A%2Fproject'], ['POST', '/api/mcp/save'],
+    ['POST', '/api/mcp/import'], ['POST', '/api/mcp/remove'],
+    ['PATCH', '/api/mcp/toggle'], ['POST', '/api/mcp/test'],
+    ['GET', '/api/skill/list?cwd=D%3A%2Fproject'],
+    ['GET', '/api/skill/read?name=review&cwd=D%3A%2Fproject'],
+    ['POST', '/api/skill/save'], ['POST', '/api/skill/remove'],
+    ['PATCH', '/api/skill/toggle'], ['PATCH', '/api/skill/source'],
   ])
   assert.deepEqual(calls[0].body, { title: '新对话', provider: 'provider', model: 'model', cwd: 'D:/project' })
   assert.deepEqual(calls[3].body, { input: 'Hello' })
