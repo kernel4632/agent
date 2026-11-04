@@ -491,7 +491,7 @@ test('composer expand keeps the draft', async ({ page }, testInfo) => {
   await expect(editor).toHaveValue('全屏里修改')
 })
 
-test('reconnecting covers the chat with a status overlay', async ({ page }) => {
+test('reconnecting covers the composer with a status overlay', async ({ page }) => {
   const mock = await backend(page)
   await page.route('**/sse/connect/**', route => route.abort())
   await page.goto('/')
@@ -502,9 +502,13 @@ test('reconnecting covers the chat with a status overlay', async ({ page }) => {
   const overlay = page.locator('.reconnect-overlay')
   await expect(overlay).toBeVisible()
   await expect(overlay).toContainText('正在重新连接')
-  await expect(overlay).toContainText('和后台的连接暂时断开')
-  // 覆盖层要挡住输入区，避免断线时还能继续点。
+  const overlayBox = await overlay.boundingBox()
+  const composerBox = await page.locator('.chat-composer').boundingBox()
+  expect(Math.abs(overlayBox.y - composerBox.y)).toBeLessThan(2)
+  expect(Math.abs(overlayBox.height - composerBox.height)).toBeLessThan(2)
+  // 覆盖层只挡输入区，对话内容仍可见。
   await expect(page.locator('.reconnect-overlay .ui-spinner')).toBeVisible()
+  await expect(page.locator('.chat-composer')).toHaveAttribute('inert', '')
   expect(mock.errors).toEqual([])
 })
 
@@ -595,12 +599,11 @@ test('connection failure is visible and does not replace the page with a blank s
   const overlay = page.locator('.connection-overlay')
   await expect(overlay).toHaveCSS('backdrop-filter', /blur/)
   const overlayBox = await overlay.boundingBox()
-  const panelBox = await page.locator('.draft-panel').boundingBox()
-  // 整个聊天面板被毛玻璃盖住，输入框和对话里的按钮都不可操作。
-  expect(Math.abs(overlayBox.y - panelBox.y)).toBeLessThan(2)
-  expect(Math.abs(overlayBox.height - panelBox.height)).toBeLessThan(2)
-  expect(Math.abs(overlayBox.width - panelBox.width)).toBeLessThan(2)
-  await expect(page.locator('.draft-main')).toHaveAttribute('inert', '')
+  const composerBox = await page.locator('.chat-composer').boundingBox()
+  // 只覆盖输入框，不盖住整个聊天面板。
+  expect(Math.abs(overlayBox.y - composerBox.y)).toBeLessThan(2)
+  expect(Math.abs(overlayBox.height - composerBox.height)).toBeLessThan(2)
+  expect(Math.abs(overlayBox.width - composerBox.width)).toBeLessThan(2)
   await expect(page.locator('.chat-composer')).toHaveAttribute('inert', '')
   await openDrawer(page)
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()

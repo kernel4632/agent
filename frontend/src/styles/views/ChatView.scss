@@ -4,30 +4,32 @@
 .session-scroll { min-height: 0; flex: 1; overflow: auto; overflow-anchor: none; scrollbar-gutter: stable; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 4px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .session-composer__stats { width: 100%; padding: 0 8px 3px; }
-/* 连接错误铺满整个聊天面板：毛玻璃盖住对话和输入区，中间的卡片保留唯一可点的重试。 */
-.session-panel,
-.draft-panel { position: relative; }
+.composer-state-host { position: relative; width: 100%; min-width: 0; }
+/* 连接错误只盖住输入框本身：整块毛玻璃就是错误卡片，对话内容保持可读。 */
 .connection-overlay {
   position: absolute;
   inset: 0;
   z-index: 40;
   display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--la-bg) 62%, transparent);
+  place-items: stretch;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--la-danger) 55%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--la-bg) 60%, transparent);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 32%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
   backdrop-filter: blur(18px) saturate(1.25);
 }
 .connection-overlay .connection-error {
-  width: min(520px, 100%);
+  width: 100%;
+  height: 100%;
   margin: 0;
-  padding: 20px 24px;
-  border: 1px solid color-mix(in srgb, var(--la-danger) 55%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--la-layer-03) 88%, transparent);
-  box-shadow: 0 18px 48px color-mix(in srgb, #000 32%, transparent);
+  padding: 16px 24px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: none;
 }
-.session-composer.is-reconnecting { filter: blur(2px); opacity: .6; }
 .chat-notice {
   display: flex;
   width: fit-content;
@@ -55,30 +57,32 @@
 .notice-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
 .notice-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .notice-enter-from, .notice-leave-to { opacity: 0; transform: translateY(var(--la-motion-rise-small)); }
-/* 断线重连：直接盖住对话区和输入区，背景虚化，只留一句状态和加载动画。 */
+/* 断线重连：只盖住输入框，对话仍然可以看和滚动。 */
 .reconnect-overlay {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 35;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 0 18px;
+  overflow: hidden;
+  border-radius: 20px;
   background: color-mix(in srgb, var(--la-bg) 55%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
   backdrop-filter: blur(16px) saturate(120%);
 }
 .reconnect-card {
-  display: grid;
-  max-width: 320px;
-  justify-items: center;
-  gap: 12px;
-  padding: 28px 30px;
-  border: .5px solid var(--la-line);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--la-panel) 88%, transparent);
-  box-shadow: var(--la-shadow-floating);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
 }
-.reconnect-card strong { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
+.reconnect-card strong { color: var(--la-text); font-size: 14px; font-weight: 600; line-height: 20px; }
 .reconnect-card p { margin: 0; color: var(--la-muted); font-size: 13.5px; line-height: 20px; }
 .reconnect-enter-active, .reconnect-leave-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .reconnect-enter-from, .reconnect-leave-to { opacity: 0; }
