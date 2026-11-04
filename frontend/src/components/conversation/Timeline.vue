@@ -12,6 +12,7 @@ import { Navigation } from '../../commands/navigation.js'
 
 import { Notice } from '../../commands/notice.js'
 import { copyText } from '../../utils/clipboard.js'
+import { readScroll, saveScroll } from '../../utils/session-view.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../../store.js'
@@ -46,7 +47,15 @@ function firstUserAtOrAfter(start) {
 function visibleStartFor(start) {
   return start <= 0 ? 0 : firstUserAtOrAfter(start)
 }
-const visibleStart = ref(visibleStartFor(Math.max(0, turns.value.length - INITIAL_TURNS)))
+// 时间线在挂载期间固定属于一个会话；切会话时旧组件卸载，保存位置不能写到新会话上。
+const timelineSessionID = session.value?.id || ''
+const savedView = readScroll(timelineSessionID)
+// 只有“用户主动停在中间”才恢复旧的可视起点；停在底部时继续只挂最近几轮。
+// 历史可能被回退变短，超出当前轮数的旧起点要回退到默认值，不能让时间线空掉。
+const restoredStart = savedView && !savedView.pinned && Number.isInteger(savedView.visibleStart) && savedView.visibleStart < turns.value.length
+  ? savedView.visibleStart
+  : Math.max(0, turns.value.length - INITIAL_TURNS)
+const visibleStart = ref(visibleStartFor(restoredStart))
 const visibleTurns = computed(() => turns.value.slice(visibleStart.value))
 const earlierCount = computed(() => visibleStart.value)
 let loadingEarlier = false
@@ -61,12 +70,13 @@ function loadEarlier() {
   nextTick(() => {
     scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
     loadingEarlier = false
+    rememberScroll()
   })
 }
 watch(() => turns.value.length, length => {
   if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
 })
-const pinned = ref(true)
+const pinned = ref(savedView ? savedView.pinned : true)
 const rollbackTarget = ref(null)
 const rollbackDialog = ref(null)
 const rollbackPreview = ref(null)
@@ -77,6 +87,23 @@ let observer
 let sentinelObserver
 let frame = 0
 let lastTop = 0
+let saveTimer = 0
+// 滚动事件很密，先记在内存里，停手后再落一次 localStorage；刷新前再强制写一次。
+function rememberScroll() {
+  if (!scrollParent || !timelineSessionID) return
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(flushScroll, 160)
+}
+function flushScroll() {
+  clearTimeout(saveTimer)
+  saveTimer = 0
+  if (!scrollParent || !timelineSessionID) return
+  saveScroll(timelineSessionID, {
+    top: scrollParent.scrollTop,
+    visibleStart: visibleStart.value,
+    pinned: pinned.value,
+  })
+}
 // 离底部 100px 内都算“在看最新内容”；往上滚时立刻解除跟随，避免被自动滚动拽回去。
 function onScroll() {
   const top = scrollParent.scrollTop
@@ -84,6 +111,7 @@ function onScroll() {
   if (top < lastTop - 1) pinned.value = false
   else pinned.value = distance < 100
   lastTop = top
+  rememberScroll()
   if (pinned.value) scheduleScroll()
 }
 // 滚动和流式输出都可能在一帧内触发很多次；合并到下一帧，只量一次高度、只改一次 scrollTop。
@@ -97,11 +125,13 @@ function scheduleScroll() {
 function jumpToBottom() {
   pinned.value = true
   if (scrollParent) scrollParent.scrollTop = scrollParent.scrollHeight
+  rememberScroll()
 }
 watch(() => turns.value.length, scheduleScroll)
 onMounted(() => {
   scrollParent = props.scrollRoot
   scrollParent?.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('pagehide', flushScroll) // 刷新/关页前把最后位置落盘
   // 监听内容高度，而不是深度监听整段消息：流式追加文字、图片加载、工具展开都会改变高度。
   observer = new ResizeObserver(scheduleScroll)
   if (flow.value) observer.observe(flow.value)
@@ -110,13 +140,31 @@ onMounted(() => {
     if (entries.some(entry => entry.isIntersecting)) loadEarlier()
   }, { root: scrollParent, rootMargin: '120px 0px 0px 0px' })
   if (topSentinel.value) sentinelObserver.observe(topSentinel.value)
-  scheduleScroll()
+  // 刷新后回到原来的位置；没有记录或当时停在底部，就继续跟最新内容。
+  const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
+  if (restoreTop == null) {
+    scheduleScroll()
+    return
+  }
+  const applyRestore = () => {
+    if (!scrollParent) return
+    scrollParent.scrollTop = restoreTop
+    lastTop = scrollParent.scrollTop
+    pinned.value = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight < 100
+  }
+  nextTick(() => requestAnimationFrame(() => {
+    applyRestore()
+    requestAnimationFrame(applyRestore) // 字体/图片首帧后高度可能还在变，再对齐一次
+  }))
 })
 onBeforeUnmount(() => {
+  flushScroll()
   scrollParent?.removeEventListener('scroll', onScroll)
+  window.removeEventListener('pagehide', flushScroll)
   observer?.disconnect()
   sentinelObserver?.disconnect()
   if (frame) cancelAnimationFrame(frame)
+  clearTimeout(saveTimer)
 })
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
 const canRollback = message => isSavedMessage(message)

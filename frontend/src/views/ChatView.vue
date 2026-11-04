@@ -14,6 +14,7 @@ import { History, canContinueSession } from '../commands/history.js'
 import { Navigation } from '../commands/navigation.js'
 import { latestTodos } from '../commands/tool.js'
 import { sessionStats } from '../commands/stats.js'
+import { savePath } from '../utils/session-view.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
 const props = defineProps({
@@ -43,7 +44,12 @@ const todos = computed(() => {
 })
 
 // 打开已有会话就接上实时事件：刷新页面或任务在别的客户端跑着时，也能继续看到进度。
-watch(() => props.session?.id, id => { if (id) void Chat.subscribe(id) }, { immediate: true })
+// 同时把当前会话记成“上次位置”，刷新后 main.js 会按它恢复。
+watch(() => props.session?.id, id => {
+  if (!id) return
+  savePath({ view: 'chat', sessionId: id })
+  void Chat.subscribe(id)
+}, { immediate: true })
 
 // 连续重连两秒才显示遮罩；审批中仍显示原来的许可操作。
 watch([() => props.session?.connection, () => props.session?.status, () => props.session?.pending?.length], ([connection, status, pending]) => {

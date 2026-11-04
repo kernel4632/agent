@@ -4,6 +4,7 @@
 import { store } from '../store.js' // 视图位置与选中会话
 import { Settings } from './settings.js' // 离页前保存
 import { Session } from './session.js' // 进入聊天前读取会话
+import { savePath } from '../utils/session-view.js' // 刷新后回到同一会话
 
 async function leaveSettings() {
   if (!store.ui.settingsOpen) return true // 聊天之间切换不用保存设置
@@ -14,6 +15,7 @@ async function leaveSettings() {
 async function openHome() {
   if (!await leaveSettings()) return false // 不丢弃未保存的编辑
   store.ui.view = 'home'
+  savePath({ view: 'home' })
   return true
 }
 
@@ -24,6 +26,7 @@ async function openChat(sessionID) {
   if (!session) return false
   store.ui.activeSessionID = sessionID
   store.ui.view = 'chat'
+  savePath({ view: 'chat', sessionId: sessionID })
   return true
 }
 
@@ -68,6 +71,7 @@ async function createSession() {
   if (!session) return null
   store.ui.activeSessionID = session.id
   store.ui.view = 'chat'
+  savePath({ view: 'chat', sessionId: session.id })
   return session
 }
 

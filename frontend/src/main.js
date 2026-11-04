@@ -11,6 +11,7 @@ import './styles/tokens.scss'        // 项目自己的颜色、尺寸和动效�
 import './styles/base.scss'          // 全局重置与可访问性规则
 import App from './App.vue'
 import { store } from './store.js'
+import { readPath, savePath } from './utils/session-view.js'
 
 function startWatchers() {
   // 会话列表由 Server 保存，浏览器不再留副本，所以这里没有"同步到本地"的监听。
@@ -32,6 +33,21 @@ function startWatchers() {
 
 
 
+// 刷新后回到上次打开的会话；会话已被删除时退回新对话页。
+async function restorePath() {
+  const saved = readPath()
+  if (!saved || saved.view !== 'chat' || !saved.sessionId) return
+  if (!store.sessionList.some(item => item.id === saved.sessionId)) {
+    if (!store.ui.errorMessage) savePath({ view: 'home' })
+    return
+  }
+  if (!await Session.read(saved.sessionId)) return
+  store.ui.activeSessionID = saved.sessionId
+  store.ui.view = 'chat'
+}
+
 startWatchers()
 createApp(App).mount('#app')
-Promise.all([Session.list(), Settings.load()]).finally(() => { store.ui.isLoading = false })
+Promise.all([Session.list(), Settings.load()])
+  .then(restorePath)
+  .finally(() => { store.ui.isLoading = false })
