@@ -24,7 +24,7 @@ async function run(action) {
   }
 }
 
-const load = () => run(() => AgentAPI.getSkills(cwd()))
+const load = ({ full = false } = {}) => run(() => AgentAPI.getSkills(cwd(), full))
 const read = name => run(() => AgentAPI.readSkill(name, cwd()))
 const save = skill => run(() => AgentAPI.saveSkill({ ...skill, cwd: cwd() }))
 const remove = (name, scope = 'global') => run(() => AgentAPI.removeSkill({ name, scope, cwd: cwd() }))

@@ -51,8 +51,11 @@
 }
 
 .skill-roots { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.skill-roots__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .skill-roots__head h2 { margin: 0 0 4px; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
 .skill-roots__head p { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.skill-scan { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.skill-roots__more { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px; color: var(--la-muted); font-size: 13px; }
 .skill-root-row { display: flex; align-items: center; gap: 16px; padding: 14px 20px; }
 .skill-root-row + .skill-root-row { border-top: .5px solid var(--la-line); }
 .skill-root-row__icon {

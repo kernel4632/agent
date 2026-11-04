@@ -19,22 +19,23 @@ import Mcp from '../features/mcp.js'
 import Skills from '../features/skills.js'
 import fail from '../utils/fail.js'
 
-// --- MCP：已配置的服务 + 本机识别结果 ---
-const mcpList = async ({ cwd } = {}) => ({
+// --- MCP：已配置的服务 + 本机识别结果；full 时再扫一遍整机 ---
+const mcpList = async ({ cwd, full } = {}) => ({
     servers: Mcp.list(),
-    detected: await Discover.mcp({ cwd: cwd || process.cwd() }),
+    detected: await Discover.mcp({ cwd: cwd || process.cwd(), full: full === true || full === '1' || full === 'true' }),
 })
 
 // --- 手动新增或替换一个服务 ---
 const mcpSave = async ({ name, definition } = {}) => Mcp.save({ name, definition })
 
 // --- 按识别编号导入；名称已经存在时不覆盖，避免覆盖用户自己的配置 ---
-const mcpImport = async ({ ids, cwd } = {}) => {
+const mcpImport = async ({ ids, cwd, full, scanRoots } = {}) => {
     if (!Array.isArray(ids) || !ids.length) throw fail(400, 'ids must be a non-empty array')
     if (ids.length > 50) throw fail(400, 'at most 50 mcp servers can be imported at once')
     if (ids.some(id => typeof id !== 'string' || !id.trim())) throw fail(400, 'ids must contain server ids')
 
-    const { servers } = await Discover.mcp({ cwd: cwd || process.cwd(), redact: false })
+    const needsFullScan = full === true || full === '1' || full === 'true' || ids.some(id => id.startsWith('scan::'))
+    const { servers } = await Discover.mcp({ cwd: cwd || process.cwd(), redact: false, full: needsFullScan, scanRoots })
     const byId = new Map(servers.map(item => [item.id, item]))
     const configured = new Set(Mcp.list().map(item => item.name))
     const imported = []
@@ -61,8 +62,15 @@ const mcpRemove = async ({ name } = {}) => Mcp.remove({ name })
 const mcpToggle = async ({ name, enabled } = {}) => Mcp.toggle({ name, enabled })
 const mcpTest = async ({ name } = {}) => Mcp.test({ name })
 
-// --- 技能：生效清单、目录、正文和增改删 ---
-const skillList = async ({ cwd } = {}) => Skills.list({ cwd: cwd || process.cwd() })
+// --- 技能：生效清单、目录、正文和增改删；full 时把整机找到的目录一起带回来 ---
+const skillList = async ({ cwd, full } = {}) => {
+    const target = cwd || process.cwd()
+    const scanned = full === true || full === '1' || full === 'true'
+        ? await Discover.skills({ cwd: target, full: true })
+        : { roots: [], scan: null }
+    const result = await Skills.list({ cwd: target, extraRoots: scanned.roots })
+    return { ...result, scan: scanned.scan }
+}
 const skillRead = async ({ name, cwd } = {}) => Skills.read({ name, cwd: cwd || process.cwd() })
 const skillSave = async body => Skills.save(body || {})
 const skillRemove = async body => Skills.remove(body || {})

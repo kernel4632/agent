@@ -24,8 +24,8 @@ async function run(action) {
   }
 }
 
-const load = () => run(() => AgentAPI.getMcpCatalog(cwd()))
-const importServers = ids => run(() => AgentAPI.importMcpServers(ids, cwd()))
+const load = ({ full = false } = {}) => run(() => AgentAPI.getMcpCatalog(cwd(), full))
+const importServers = (ids, full = false) => run(() => AgentAPI.importMcpServers(ids, cwd(), full))
 const test = name => run(() => AgentAPI.testMcpServer(name))
 
 // --- 识别结果列表里的传输目标摘要 ---

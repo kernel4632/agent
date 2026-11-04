@@ -176,7 +176,7 @@ const rank = root => root.kind === 'own'
     : (root.scope === 'project' ? 1 : 0)
 
 // --- 描述全部候选目录：是否存在、是否启用、里面有几个技能 ---
-const describe = async ({ cwd, saved }) => {
+const describe = async ({ cwd, saved, extraRoots = [] }) => {
     const known = candidates({ cwd })
     const extra = saved.sources
         .filter(path => !known.some(root => samePath(root.path, path)))
@@ -189,12 +189,22 @@ const describe = async ({ cwd, saved }) => {
             kind: 'source',
             editable: false,
         }))
+    // 整机扫描找到、但还没启用的目录；已经认识的路径不重复列。
+    const discovered = extraRoots
+        .filter(root => !known.some(item => samePath(item.path, root.path)) && !saved.sources.some(path => samePath(path, root.path)))
+        .map((root, index) => ({
+            ...root,
+            id: `found-${index + 1}`,
+            kind: 'found',
+            editable: false,
+        }))
 
     const roots = []
-    for (const root of [...known, ...extra]) {
-        const exists = await isDirectory(root.path)
+    for (const root of [...known, ...extra, ...discovered]) {
+        const exists = root.exists ?? await isDirectory(root.path)
         const enabled = root.kind === 'own' ? true : saved.sources.some(path => samePath(path, root.path))
-        const found = exists ? await scan(root.path, root, { preview: true }) : []
+        // 整机扫描已经算过目录里的技能名，这里不再重复读一遍。
+        const found = root.skillCount === undefined && exists ? await scan(root.path, root, { preview: true }) : []
         roots.push({
             id: root.id,
             label: root.label,
@@ -205,17 +215,17 @@ const describe = async ({ cwd, saved }) => {
             editable: root.kind === 'own',
             enabled,
             exists,
-            skillCount: found.length,
-            skills: found.map(skill => skill.name).slice(0, 20),
+            skillCount: root.skillCount ?? found.length,
+            skills: root.skills ?? found.map(skill => skill.name).slice(0, 20),
         })
     }
     return roots.sort((first, second) => rank(first) - rank(second) || first.label.localeCompare(second.label))
 }
 
 // --- 当前生效的技能：外部目录 → 本应用全局 → 项目目录，后者覆盖同名项 ---
-const list = async ({ cwd = process.cwd(), includeDisabled = true } = {}) => {
+const list = async ({ cwd = process.cwd(), includeDisabled = true, extraRoots = [] } = {}) => {
     const saved = await state()
-    const roots = await describe({ cwd, saved })
+    const roots = await describe({ cwd, saved, extraRoots })
     const skills = new Map()
     for (const root of roots) {
         if (!root.exists || !root.enabled) continue

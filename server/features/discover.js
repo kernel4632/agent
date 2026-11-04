@@ -10,13 +10,27 @@
  *   const { servers } = await Discover.mcp({ cwd, redact: false })   // 导入时用原始定义
  */
 
-import { join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import store from '../store.js'
+import Machine from '../utils/machine.js'
 import Path from '../utils/path.js'
 import Skills from '../utils/skills.js'
 
 const FILE_LIMIT = 16 * 1024 * 1024   // 有些客户端把整个项目表写进一个文件，给足余量
 const SERVER_LIMIT = 200
+const FULL_SERVER_LIMIT = 500          // 整机扫描可能翻出很多份配置，给一个上限防止页面被撑爆
+const ROOT_LIMIT = 5000                // 整机扫描的技能目录上限；页面自己分页
+const CACHE_TTL = 5 * 60 * 1000
+
+// 整机扫描很慢，同一次服务进程里复用结果；导入/启停只改本应用状态，不影响这份缓存。
+const cache = { mcp: { at: 0, key: '', value: null }, skills: { at: 0, key: '', value: null } }
+const cached = (slot, key) => cache[slot].value && cache[slot].key === key && Date.now() - cache[slot].at < CACHE_TTL
+    ? cache[slot].value
+    : null
+const remember = (slot, key, value) => {
+    cache[slot] = { at: Date.now(), key, value }
+    return value
+}
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 const textMap = value => isObject(value)
@@ -189,8 +203,78 @@ const readConfig = async (path, format) => {
     }
 }
 
-// --- 扫描本机全部已知位置 ---
-const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.env, redact = true } = {}) => {
+// --- 从一个配置对象里找出所有 MCP 服务表；整机扫描时文件可能长在任何位置 ---
+const blocksOf = (data, path, format) => {
+    if (!isObject(data)) return []
+    if (format === 'toml') return [data]
+    const blocks = []
+    for (const key of ['mcpServers', 'mcp_servers', 'context_servers']) {
+        if (isObject(data[key])) blocks.push(data[key])
+    }
+    // opencode 用 mcp；VS Code 用 servers，但只认文件名里带 mcp 的文件。
+    if (isObject(data.mcp)) blocks.push(data.mcp)
+    if (/mcp/i.test(basename(path)) && isObject(data.servers)) blocks.push(data.servers)
+    if (isObject(data.projects)) {
+        for (const project of Object.values(data.projects)) {
+            if (isObject(project?.mcpServers)) blocks.push(project.mcpServers)
+        }
+    }
+    return blocks
+}
+
+const formatOf = path => path.toLowerCase().endsWith('.toml') ? 'toml' : 'json'
+
+// --- 整机扫描：把 rg 找到的配置文件读一遍，返回服务条目和覆盖统计 ---
+const scanMcpFiles = async scanRoots => {
+    const [byContent, byName] = await Promise.all([
+        Machine.configFiles({ roots: scanRoots }),
+        Machine.mcpNamedFiles({ roots: scanRoots }),
+    ])
+    const files = [...new Set([...byContent.files, ...byName.files])]
+    const found = []
+    let truncated = byContent.truncated || byName.truncated
+    let failed = 0
+
+    for (const path of files) {
+        if (found.length >= FULL_SERVER_LIMIT) {
+            truncated = true
+            break
+        }
+        const format = formatOf(path)
+        const result = await readConfig(path, format)
+        if (!result || result.error) {
+            if (result?.error) failed += 1
+            continue
+        }
+        for (const block of blocksOf(result.data, path, format)) {
+            for (const [name, raw] of Object.entries(block)) {
+                if (typeof name !== 'string' || !name.trim()) continue
+                const value = normalizeServer(raw)
+                if (!value) continue
+                found.push({ id: `scan::${resolve(path)}::${name}`, name, app: '本机扫描', source: 'scan', path: resolve(path), definition: value })
+                if (found.length >= FULL_SERVER_LIMIT) break
+            }
+            if (found.length >= FULL_SERVER_LIMIT) break
+        }
+    }
+
+    return {
+        files,
+        servers: found,
+        scan: {
+            full: true,
+            files: files.length,
+            failed,
+            durationMs: Math.max(byContent.durationMs || 0, byName.durationMs || 0),
+            truncated,
+        },
+    }
+}
+
+// --- 扫描本机全部已知位置；full 时再补一遍整机扫描 ---
+const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.env, redact = true, full = false, scanRoots = null } = {}) => {
+    const key = `${cwd}:${home}:${scanRoots ? JSON.stringify(scanRoots) : ''}`
+    const fullResult = full ? (cached('mcp', key) || remember('mcp', key, await scanMcpFiles(scanRoots))) : null
     const sources = []
     const servers = []
     const seen = new Set()
@@ -228,6 +312,7 @@ const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.
                 count += 1
                 const id = `${source.id}::${name}`
                 if (seen.has(id)) continue
+                seen.add(`${resolve(source.path)}::${name}`)
                 seen.add(id)
                 const masked = redact ? mask(value) : { definition: value, envKeys: [], headerKeys: [] }
                 servers.push({
@@ -246,8 +331,82 @@ const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.
         sources.push({ id: source.id, app: source.app, path: resolve(source.path), servers: count })
     }
 
+    if (fullResult) {
+        let added = 0
+        for (const server of fullResult.servers) {
+            if (servers.length >= FULL_SERVER_LIMIT) break
+            const keyOfServer = `${server.path}::${server.name}`
+            if (seen.has(keyOfServer)) continue
+            seen.add(keyOfServer)
+            const masked = redact ? mask(server.definition) : { definition: server.definition, envKeys: [], headerKeys: [] }
+            servers.push({
+                ...server,
+                definition: masked.definition,
+                envKeys: masked.envKeys,
+                headerKeys: masked.headerKeys,
+                configured: Boolean(configured[server.name]),
+            })
+            added += 1
+        }
+        sources.push({ id: 'scan', app: '本机扫描', path: '多个位置', servers: added })
+    }
+
     servers.sort((first, second) => first.name.localeCompare(second.name) || first.app.localeCompare(second.app))
-    return { sources, servers }
+    return { sources, servers, scan: fullResult?.scan || null }
 }
 
-export default { mcp }
+// --- 整机技能目录：把每个 SKILL.md 归到它所属的 skills 目录；不是 skills 布局的按单技能目录算 ---
+const scanSkillRoots = async scanRoots => {
+    const result = await Machine.skillFiles({ roots: scanRoots })
+    const groups = new Map()
+    for (const file of result.files) {
+        const directory = dirname(file)
+        const parent = dirname(directory)
+        const parentName = basename(parent).toLowerCase()
+        const root = parentName === 'skills' || parentName === 'skill' ? parent : directory
+        const key = process.platform === 'win32' ? root.toLowerCase() : root
+        if (!groups.has(key)) groups.set(key, { root, count: 0 })
+        groups.get(key).count += 1
+    }
+
+    const groupsList = [...groups.values()].sort((first, second) => second.count - first.count || first.root.localeCompare(second.root))
+    const roots = []
+    let truncated = result.truncated || groupsList.length > ROOT_LIMIT
+
+    // 只按文件数出目录，不再逐个目录重读 SKILL.md；启用某个目录时才真正读取正文。
+    for (const group of groupsList.slice(0, ROOT_LIMIT)) {
+        roots.push({
+            id: `found-${roots.length + 1}`,
+            label: basename(group.root) || group.root,
+            app: '本机扫描',
+            path: resolve(group.root),
+            scope: 'global',
+            kind: 'found',
+            editable: false,
+            enabled: false,
+            exists: true,
+            skillCount: group.count,
+            skills: [],
+        })
+    }
+
+    return {
+        roots,
+        scan: {
+            full: true,
+            files: result.files.length,
+            roots: groups.size,
+            durationMs: result.durationMs,
+            truncated,
+        },
+    }
+}
+
+const skills = async ({ cwd = process.cwd(), full = false, scanRoots = null } = {}) => {
+    if (!full) return { roots: [], scan: null }
+    const key = `${cwd}:${scanRoots ? JSON.stringify(scanRoots) : ''}`
+    const value = cached('skills', key) || remember('skills', key, await scanSkillRoots(scanRoots))
+    return value
+}
+
+export default { mcp, skills }

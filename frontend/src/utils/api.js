@@ -7,6 +7,15 @@ import { NEW_SESSION_TITLE } from '../defaults.js'
 
 const apiRoot = '/api'                                  // Vite 开发和预览服务转发的同源前缀
 
+// --- 带目录和整机扫描开关的查询串；full 只在用户同意扫描整台电脑时加 ---
+function capabilityQuery(cwd = '', full = false) {
+  const params = new URLSearchParams()
+  if (cwd) params.set('cwd', cwd)
+  if (full) params.set('full', '1')
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
 
 // --- 发送普通 JSON 请求 ---
 async function request(path, method = 'GET', body) {
@@ -44,16 +53,16 @@ export const AgentAPI = {
   getTools:         ()                          => request('/tool/list'),
   // 工具类别；名字和顺序由后端给。
   getToolKinds:     ()                          => request('/tool/kinds'),
-  // 本机 MCP：已配置的服务 + 其他软件留下的配置（env / headers 只有键名）。
-  getMcpCatalog:    (cwd = '')                  => request(`/mcp/list${cwd ? `?cwd=${encodeURIComponent(cwd)}` : ''}`),
+  // 本机 MCP：已配置的服务 + 其他软件留下的配置（env / headers 只有键名）；full 时扫整台电脑。
+  getMcpCatalog:    (cwd = '', full = false)    => request(`/mcp/list${capabilityQuery(cwd, full)}`),
   saveMcpServer:    (name, definition)          => request('/mcp/save', 'POST', { name, definition }),
-  importMcpServers: (ids, cwd = '')             => request('/mcp/import', 'POST', { ids, ...(cwd ? { cwd } : {}) }),
+  importMcpServers: (ids, cwd = '', full = false) => request('/mcp/import', 'POST', { ids, ...(cwd ? { cwd } : {}), ...(full ? { full: true } : {}) }),
   removeMcpServer:  (name)                      => request('/mcp/remove', 'POST', { name }),
   toggleMcpServer:  (name, enabled)             => request('/mcp/toggle', 'PATCH', { name, enabled }),
   // 真实连一次；连不上返回 { ok: false, error }，不算请求失败。
   testMcpServer:    (name)                      => request('/mcp/test', 'POST', { name }),
-  // 技能：生效清单 + 本机识别到的目录；禁用中的技能也带 enabled=false 返回。
-  getSkills:        (cwd = '')                  => request(`/skill/list${cwd ? `?cwd=${encodeURIComponent(cwd)}` : ''}`),
+  // 技能：生效清单 + 本机识别到的目录；full 时扫整台电脑，禁用中的技能也带 enabled=false 返回。
+  getSkills:        (cwd = '', full = false)    => request(`/skill/list${capabilityQuery(cwd, full)}`),
   readSkill:        (name, cwd = '')            => request(`/skill/read?name=${encodeURIComponent(name)}${cwd ? `&cwd=${encodeURIComponent(cwd)}` : ''}`),
   saveSkill:        (skill)                     => request('/skill/save', 'POST', skill),
   removeSkill:      (body)                      => request('/skill/remove', 'POST', body),

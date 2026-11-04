@@ -10,11 +10,13 @@ import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Agent from '../features/agent.js'
+import Capabilities from '../commands/capabilities.js'
 import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
 import Skill from '../tools/skill.js'
+import Skills from '../utils/skills.js'
 import store from '../store.js'
 import { app } from '../server.js'
 
@@ -162,6 +164,67 @@ describe('本机 MCP 识别', () => {
             expect((await json('/mcp/import', 'POST', {})).status).toBe(400)
             expect((await json('/mcp/import', 'POST', { ids: [] })).status).toBe(400)
             expect((await json('/mcp/import', 'POST', { ids: [123] })).status).toBe(400)
+        })
+    })
+})
+
+describe('整机扫描', () => {
+    test('按 SKILL.md 找到非标准位置的技能目录', async () => {
+        await withHome(async () => {
+            const machine = join(process.cwd(), '..', 'tmp', `machine-skills-${crypto.randomUUID()}`)
+            try {
+                await writeSkill(join(machine, 'pack', 'skills', 'one'), 'one', 'one skill', 'body')
+                await writeSkill(join(machine, 'pack', 'skills', 'two'), 'two', 'two skill', 'body')
+                await writeSkill(join(machine, 'loose', 'single'), 'single', 'single skill', 'body')
+
+                const result = await Discover.skills({ cwd: machine, full: true, scanRoots: [{ path: machine, depth: 8 }] })
+                expect(result.scan.files).toBe(3)
+                expect(result.scan.truncated).toBe(false)
+
+                const pack = result.roots.find(root => root.path.endsWith(join('pack', 'skills')))
+                expect(pack.skillCount).toBe(2)
+                expect(result.roots.some(root => root.path.endsWith(join('loose', 'single')))).toBe(true)
+
+                // 管理页会把整机结果并进普通清单；未启用的目录只展示，不读取里面的技能。
+                const merged = await Skills.list({ cwd: machine, extraRoots: result.roots })
+                const listed = merged.roots.find(root => root.path.endsWith(join('pack', 'skills')))
+                expect(listed.skillCount).toBe(2)
+                expect(listed.enabled).toBe(false)
+                expect(merged.skills).toEqual([])
+            } finally {
+                await rm(machine, { recursive: true, force: true })
+            }
+        })
+    })
+
+    test('按配置内容找到任意文件名的 MCP 配置，回传时遮住值', async () => {
+        await withHome(async () => {
+            const machine = join(process.cwd(), '..', 'tmp', `machine-mcp-${crypto.randomUUID()}`)
+            const home = join(machine, 'home')
+            try {
+                await writeJson(join(machine, 'apps', 'some-tool', 'settings-any.json'), {
+                    mcpServers: {
+                        hidden: { command: 'bun', args: ['x'], env: { SECRET_VALUE: 'do-not-return' } },
+                    },
+                })
+
+                const masked = await Discover.mcp({ cwd: machine, home, env: {}, full: true, scanRoots: [{ path: machine, depth: 8 }] })
+                const found = masked.servers.find(server => server.name === 'hidden')
+                expect(found).toBeTruthy()
+                expect(found.envKeys).toEqual(['SECRET_VALUE'])
+                expect(found.definition.env).toEqual({})
+                expect(masked.scan.files).toBeGreaterThan(0)
+
+                const raw = await Discover.mcp({ cwd: machine, home, env: {}, full: true, redact: false, scanRoots: [{ path: machine, depth: 8 }] })
+                expect(raw.servers.find(server => server.name === 'hidden').definition.env.SECRET_VALUE).toBe('do-not-return')
+
+                // 整机扫描出来的编号以 scan:: 开头，导入时要能重新找到它。
+                const imported = await Capabilities.mcpImport({ ids: [found.id], cwd: machine, full: true, scanRoots: [{ path: machine, depth: 8 }] })
+                expect(imported.imported).toEqual(['hidden'])
+                expect(imported.skipped).toEqual([])
+            } finally {
+                await rm(machine, { recursive: true, force: true })
+            }
         })
     })
 })

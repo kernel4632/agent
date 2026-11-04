@@ -53,7 +53,7 @@ const validateScope = value => {
 const folderFor = name => RESERVED.test(name) ? `skill-${name}` : name
 
 // --- 列出生效技能和识别到的目录 ---
-const list = async ({ cwd = process.cwd() } = {}) => Skills.list({ cwd })
+const list = async ({ cwd = process.cwd(), extraRoots = [] } = {}) => Skills.list({ cwd, extraRoots })
 
 // --- 读一个技能的正文 ---
 const read = async ({ name, cwd = process.cwd() } = {}) => {

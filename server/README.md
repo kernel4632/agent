@@ -308,13 +308,13 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 
 | 方法 | 地址 | 请求体 / 参数 | 结果 |
 | --- | --- | --- | --- |
-| `GET` | `/mcp/list?cwd=` | 无 | `{ servers, detected: { sources, servers } }`；识别结果里 `env` / `headers` 只给键名 |
+| `GET` | `/mcp/list?cwd=&full=1` | 无 | `{ servers, detected: { sources, servers, scan } }`；识别结果里 `env` / `headers` 只给键名；`full=1` 时扫描整台电脑 |
 | `POST` | `/mcp/save` | `{ "name", "definition" }` | 保存后的服务；`definition` 是 `transport`、`command`、`args`、`env`、`url`、`headers`、`enabled` |
-| `POST` | `/mcp/import` | `{ "ids": ["cursor::github"], "cwd?" }` | `{ imported, skipped }`；跳过原因 `missing` / `exists` |
+| `POST` | `/mcp/import` | `{ "ids": ["cursor::github"], "cwd?", "full?" }` | `{ imported, skipped }`；跳过原因 `missing` / `exists`；`scan::` 编号会自动按整机扫描重新查找 |
 | `POST` | `/mcp/remove` | `{ "name" }` | `{ "ok": true, "name" }` |
 | `PATCH` | `/mcp/toggle` | `{ "name", "enabled" }` | `{ "name", "enabled" }` |
 | `POST` | `/mcp/test` | `{ "name" }` | 真实连一次：`{ ok, name, tools }`；失败时 `ok=false` 并带 `error` |
-| `GET` | `/skill/list?cwd=` | 无 | `{ skills, roots, state }`；`roots` 带 `exists`、`enabled`、`skillCount` |
+| `GET` | `/skill/list?cwd=&full=1` | 无 | `{ skills, roots, state, scan }`；`roots` 带 `exists`、`enabled`、`skillCount`；`full=1` 时扫描整台电脑 |
 | `GET` | `/skill/read?name=&cwd=` | 无 | 技能的完整内容，含 `body` |
 | `POST` | `/skill/save` | `{ "name", "description", "body?", "scope?", "cwd?" }` | 保存后的技能；`scope` 是 `global` 或 `project` |
 | `POST` | `/skill/remove` | `{ "name", "scope?", "cwd?" }` | `{ "ok": true, "name" }`；外部目录里的技能不能删 |
@@ -322,6 +322,8 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | `PATCH` | `/skill/source` | `{ "path", "enabled" }` | `{ "path", "enabled" }`；`path` 必须是存在且有可用技能的绝对路径 |
 
 `/mcp/list` 的 `cwd` 只影响项目级配置（`.mcp.json`、`.cursor/mcp.json`、`.vscode/mcp.json` 和 Claude Code 的项目表）；不填用后端当前目录。`/skill/list` 同理，只影响项目技能目录。
+
+`full=1` 会用随包的 ripgrep 扫描所有用户目录和固定磁盘：技能按 `SKILL.md` 找，MCP 按配置内容里的 `mcpServers` / `mcp_servers` / `context_servers` / `"mcp":` 找，并补上文件名带 `mcp` 的 JSON/TOML。系统目录、依赖目录和缓存目录不扫；只读，不执行配置里的命令，`env` / `headers` 仍然只回键名。返回值里的 `scan` 给出文件数、目录数、耗时和 `truncated`，整机扫描结果在服务进程内缓存 5 分钟。
 
 ### 会话
 

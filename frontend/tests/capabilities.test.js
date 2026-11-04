@@ -31,6 +31,49 @@ test('识别结果用命令或地址描述目标', () => {
   assert.equal(describeTarget(null), '')
 })
 
+test('整机扫描请求带 full=1 和当前目录', async t => {
+  store.sessions['scan-session'] = { cwd: 'D:/work' }
+  store.ui.activeSessionID = 'scan-session'
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async url => {
+    calls.push(url)
+    return Response.json({ skills: [], roots: [], state: {}, scan: null })
+  })
+  try {
+    await Skills.load({ full: true })
+    await Mcp.load({ full: true })
+    await Skills.load()
+    await Mcp.load()
+  } finally {
+    delete store.sessions['scan-session']
+    store.ui.activeSessionID = ''
+  }
+
+  assert.deepEqual(calls, [
+    '/api/skill/list?cwd=D%3A%2Fwork&full=1',
+    '/api/mcp/list?cwd=D%3A%2Fwork&full=1',
+    '/api/skill/list?cwd=D%3A%2Fwork',
+    '/api/mcp/list?cwd=D%3A%2Fwork',
+  ])
+})
+
+test('整机扫描导入时带 full 标记', async t => {
+  store.sessions['scan-import'] = { cwd: 'D:/work' }
+  store.ui.activeSessionID = 'scan-import'
+  let body
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    body = JSON.parse(options.body)
+    return Response.json({ imported: ['hidden'], skipped: [] })
+  })
+  try {
+    await Mcp.importServers(['scan::D:/work/config.json::hidden'], true)
+  } finally {
+    delete store.sessions['scan-import']
+    store.ui.activeSessionID = ''
+  }
+  assert.deepEqual(body, { ids: ['scan::D:/work/config.json::hidden'], cwd: 'D:/work', full: true })
+})
+
 test('保存技能和导入 MCP 时带上当前会话目录', async t => {
   store.sessions['capability-session'] = { cwd: 'D:/work' }
   store.ui.activeSessionID = 'capability-session'

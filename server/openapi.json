@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.57.0",
+    "version": "0.58.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -161,6 +161,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "full",
+            "in": "query",
+            "required": false,
+            "description": "设为 1 时扫描整台电脑（较慢，结果在服务进程内缓存 5 分钟）",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true"
+              ]
+            }
           }
         ],
         "responses": {
@@ -191,6 +204,16 @@
                           "items": {
                             "$ref": "#/components/schemas/McpDetectedServer"
                           }
+                        },
+                        "scan": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/ScanReport"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -293,6 +316,10 @@
                   "cwd": {
                     "type": "string",
                     "description": "识别项目级配置时使用的目录"
+                  },
+                  "full": {
+                    "type": "boolean",
+                    "description": "编号来自整机扫描时设为 true，导入会重新执行整机扫描"
                   }
                 }
               }
@@ -604,6 +631,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "full",
+            "in": "query",
+            "required": false,
+            "description": "设为 1 时扫描整台电脑（较慢，结果在服务进程内缓存 5 分钟）",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true"
+              ]
+            }
           }
         ],
         "responses": {
@@ -645,6 +685,16 @@
                       "required": [
                         "sources",
                         "disabled"
+                      ]
+                    },
+                    "scan": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ScanReport"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     }
                   },
@@ -3160,6 +3210,39 @@
           "exists",
           "skillCount",
           "skills"
+        ]
+      },
+      "ScanReport": {
+        "type": "object",
+        "description": "整机扫描的覆盖统计；truncated 表示达到文件数或目录数上限，结果不完整。",
+        "properties": {
+          "full": {
+            "type": "boolean"
+          },
+          "files": {
+            "type": "integer",
+            "description": "扫描到的技能文件或配置文件数量"
+          },
+          "roots": {
+            "type": "integer",
+            "description": "技能目录数量（只对技能扫描）"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "读不了的配置文件数量（只对 MCP 扫描）"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "full",
+          "files",
+          "durationMs",
+          "truncated"
         ]
       }
     }

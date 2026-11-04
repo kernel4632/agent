@@ -52,7 +52,7 @@ app.get('/tool/kinds', () => Settings.toolKinds())
 
 // --- 本机 MCP 与技能：识别、导入和日常维护 ---
 app.group('/mcp', mcp => mcp
-    .get('/list', ({ query }) => Capabilities.mcpList({ cwd: query.cwd }))
+    .get('/list', ({ query }) => Capabilities.mcpList({ cwd: query.cwd, full: query.full }))
     .post('/save', ({ body }) => Capabilities.mcpSave(body || {}))
     .post('/import', ({ body }) => Capabilities.mcpImport(body || {}))
     .post('/remove', ({ body }) => Capabilities.mcpRemove(body || {}))
@@ -60,7 +60,7 @@ app.group('/mcp', mcp => mcp
     .post('/test', ({ body }) => Capabilities.mcpTest(body || {})))
 
 app.group('/skill', skill => skill
-    .get('/list', ({ query }) => Capabilities.skillList({ cwd: query.cwd }))
+    .get('/list', ({ query }) => Capabilities.skillList({ cwd: query.cwd, full: query.full }))
     .get('/read', ({ query }) => Capabilities.skillRead({ name: query.name, cwd: query.cwd }))
     .post('/save', ({ body }) => Capabilities.skillSave(body || {}))
     .post('/remove', ({ body }) => Capabilities.skillRemove(body || {}))

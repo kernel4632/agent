@@ -16,8 +16,12 @@ import { Skills, externalRoots, sourceLabel } from '../../commands/skills.js'
 
 const data = ref({ skills: [], roots: [], state: { sources: [], disabled: [] } })
 const loading = ref(true)
+const scanning = ref(false)
+const scan = ref(null)
 const busy = ref('')
 const query = ref('')
+const rootQuery = ref('')
+const rootLimit = ref(20)
 const reader = ref(null)
 const deleting = ref(null)
 const sourcePath = ref('')
@@ -32,13 +36,43 @@ const visibleSkills = computed(() => {
   return skills.value.filter(skill => skill.name.toLowerCase().includes(term) || skill.description.toLowerCase().includes(term))
 })
 
-async function load() {
-  loading.value = true
-  const result = await Skills.load()
-  if (result) data.value = result
-  loading.value = false
+// 整机扫描可能找出几千个目录；默认只画前 20 个，搜索和“加载更多”都能继续往下看。
+const filteredRoots = computed(() => {
+  const term = rootQuery.value.trim().toLowerCase()
+  if (!term) return roots.value
+  return roots.value.filter(root => root.path.toLowerCase().includes(term) || root.label.toLowerCase().includes(term) || root.app.toLowerCase().includes(term))
+})
+const visibleRoots = computed(() => filteredRoots.value.slice(0, rootLimit.value))
+const hasMoreRoots = computed(() => filteredRoots.value.length > visibleRoots.value.length)
+const scanText = computed(() => {
+  if (scanning.value) return '正在扫描整台电脑…'
+  if (!scan.value) return ''
+  const seconds = (scan.value.durationMs / 1000).toFixed(1)
+  return `整机扫描：${scan.value.files} 个技能文件、${scan.value.roots} 个目录，用时 ${seconds} 秒${scan.value.truncated ? '（结果过多，只保留前 5000 个目录）' : ''}`
+})
+
+// 整机结果先快速读一次已生效的技能；后台再补一遍整台电脑，不阻塞页面操作。
+async function load({ full = false } = {}) {
+  if (full) scanning.value = true
+  else loading.value = true
+  const result = await Skills.load({ full })
+  if (result) {
+    if (!full) {
+      // 整机扫描出来的目录在快速刷新时不要丢，否则启用一个目录后其他候选会消失。
+      const discovered = (data.value.roots || []).filter(root => root.kind === 'found')
+      const seen = new Set(result.roots.map(root => root.path.toLowerCase()))
+      result.roots = [...result.roots, ...discovered.filter(root => !seen.has(root.path.toLowerCase()))]
+    }
+    data.value = result
+    if (full) scan.value = result.scan
+  }
+  if (full) scanning.value = false
+  else loading.value = false
 }
-onMounted(load)
+onMounted(async () => {
+  await load()
+  load({ full: true })
+})
 
 async function toggleSkill(skill, enabled) {
   busy.value = skill.name
@@ -169,17 +203,28 @@ async function addSource() {
 
     <section class="skill-roots" aria-label="本机技能目录">
       <header class="skill-roots__head">
-        <h2>本机识别到的技能目录</h2>
-        <p>来自其他软件的技能默认只识别不启用；打开后它的技能会出现在上面的清单里。</p>
+        <div>
+          <h2>本机识别到的技能目录</h2>
+          <p>来自其他软件的技能默认只识别不启用；打开后它的技能会出现在上面的清单里。</p>
+        </div>
+        <Button variant="text" :disabled="scanning" @click="load({ full: true })">
+          <Icon name="refresh" :size="18" />{{ scanning ? '扫描中…' : '扫描整台电脑' }}
+        </Button>
       </header>
 
-      <div v-if="roots.length" class="skill-card">
-        <div v-for="root in roots" :key="root.id" class="skill-root-row">
+      <p v-if="scanText" class="skill-scan" role="status">{{ scanText }}</p>
+
+      <Field v-if="roots.length" v-model="rootQuery" placeholder="按路径或名称筛选目录" clearable>
+        <template #leading><Icon name="search" :size="18" /></template>
+      </Field>
+
+      <div v-if="visibleRoots.length" class="skill-card">
+        <div v-for="root in visibleRoots" :key="root.id" class="skill-root-row">
           <span class="skill-root-row__icon" aria-hidden="true"><Icon name="folder" :size="20" /></span>
           <span class="skill-root-row__copy">
             <strong>{{ root.label }}</strong>
             <small>{{ root.path }}</small>
-            <small>{{ root.skillCount }} 个技能 · {{ root.enabled ? '已启用' : '未启用' }}</small>
+            <small>{{ root.app }} · {{ root.skillCount }} 个技能 · {{ root.enabled ? '已启用' : '未启用' }}</small>
           </span>
           <Switch
             :model-value="root.enabled"
@@ -190,7 +235,13 @@ async function addSource() {
           />
         </div>
       </div>
-      <p v-else class="skill-empty">没有发现其他软件留下的技能目录。</p>
+      <p v-else-if="roots.length" class="skill-empty">没有匹配的技能目录。</p>
+      <p v-else-if="!scanning" class="skill-empty">没有发现其他软件留下的技能目录。</p>
+
+      <div v-if="hasMoreRoots" class="skill-roots__more">
+        <span>还有 {{ filteredRoots.length - visibleRoots.length }} 个目录</span>
+        <Button variant="text" @click="rootLimit += 50">加载更多</Button>
+      </div>
 
       <form class="skill-source" @submit.prevent="addSource">
         <Field

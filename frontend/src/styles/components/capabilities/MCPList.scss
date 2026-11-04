@@ -50,6 +50,7 @@
 .mcp-detected__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .mcp-detected__head h2 { margin: 0 0 4px; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
 .mcp-detected__head p { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.mcp-detected__scan { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
 .mcp-detected__empty { margin: 0; padding: 24px 20px; border-radius: 20px; background: var(--la-layer-01); color: var(--la-muted); font-size: 14px; line-height: 22px; }
 .mcp-detected__card {
   overflow: hidden;

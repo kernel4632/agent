@@ -19,6 +19,8 @@ const emit = defineEmits(['open-detail', 'close-detail', 'update-detail-title'])
 
 const detected = ref({ sources: [], servers: [] })
 const detecting = ref(true)
+const scanning = ref(false)
+const scan = ref(null)
 const importBusy = ref('')
 const testState = ref(null)
 
@@ -26,15 +28,29 @@ const selected = computed(() => props.detail
   ? props.draft.mcp.find(item => item.id === props.detail.id) ?? null
   : null)
 const candidates = computed(() => detected.value.servers || [])
+const scanText = computed(() => {
+  if (scanning.value) return '正在扫描整台电脑…'
+  if (!scan.value) return ''
+  const seconds = (scan.value.durationMs / 1000).toFixed(1)
+  return `整机扫描：${scan.value.files} 个配置文件，用时 ${seconds} 秒${scan.value.truncated ? '（结果过多，已截断）' : ''}`
+})
 
-// --- 打开页面时扫一遍本机，不需要用户先点“扫描” ---
-async function loadDetected() {
-  detecting.value = true
-  const catalog = await Mcp.load()
-  if (catalog) detected.value = catalog.detected
-  detecting.value = false
+// --- 打开页面时先扫已知位置，再在后台补一遍整台电脑；扫描结果不阻塞页面操作 ---
+async function loadDetected({ full = false } = {}) {
+  if (full) scanning.value = true
+  else detecting.value = true
+  const catalog = await Mcp.load({ full })
+  if (catalog) {
+    detected.value = catalog.detected
+    if (full) scan.value = catalog.detected.scan
+  }
+  if (full) scanning.value = false
+  else detecting.value = false
 }
-onMounted(loadDetected)
+onMounted(async () => {
+  await loadDetected()
+  loadDetected({ full: true })
+})
 
 function addMCP() {
   let number = props.draft.mcp.length + 1
@@ -68,11 +84,11 @@ function removeMCP() {
 // --- 导入一个识别到的服务；服务端写进配置后刷新草稿里的 mcp，不动其他字段 ---
 async function importServer(server) {
   importBusy.value = server.id
-  const result = await Mcp.importServers([server.id])
+  const result = await Mcp.importServers([server.id], server.source === 'scan')
   importBusy.value = ''
   if (!result?.imported?.length) return
   await Settings.refreshMcp()
-  await loadDetected()
+  await loadDetected({ full: true })
 }
 
 // --- 连接测试前先把草稿落盘，测的才是用户正在看的这套配置 ---
@@ -129,11 +145,15 @@ async function testServer() {
           <h2>本机识别到的服务</h2>
           <p>从其他软件的配置里读到；点添加才写进本应用，不会修改源文件。</p>
         </div>
-        <Button variant="text" :disabled="detecting" @click="loadDetected"><Icon name="refresh" :size="18" />重新扫描</Button>
+        <Button variant="text" :disabled="scanning" @click="loadDetected({ full: true })">
+          <Icon name="refresh" :size="18" />{{ scanning ? '扫描中…' : '扫描整台电脑' }}
+        </Button>
       </header>
 
+      <p v-if="scanText" class="mcp-detected__scan" role="status">{{ scanText }}</p>
+
       <p v-if="detecting" class="mcp-detected__empty">正在扫描本机配置…</p>
-      <p v-else-if="!candidates.length" class="mcp-detected__empty">没有发现可导入的 MCP 配置。</p>
+      <p v-else-if="!candidates.length && !scanning" class="mcp-detected__empty">没有发现可导入的 MCP 配置。</p>
       <div v-else class="mcp-detected__card">
         <div v-for="server in candidates" :key="server.id" class="mcp-detected__row">
           <span class="mcp-detected__copy">
