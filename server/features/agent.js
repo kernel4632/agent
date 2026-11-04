@@ -146,6 +146,8 @@ const resolveFor = async ({ session, settings, target }) => {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
         },
+        // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
+        mediaFallback: 'strip',
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）；没配规则就只有用户提示词。
         system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，

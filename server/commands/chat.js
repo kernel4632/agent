@@ -7,6 +7,7 @@
  *
  * 调用示例：
  *   await Chat.send({ sessionId, input: '你好' })
+ *   await Chat.send({ sessionId, input: [{ type: 'text', text: '看这张图' }, { type: 'image', image: 'data:image/png;base64,...' }] })
  *   await Chat.resume({ sessionId })
  *   await Chat.stop({ sessionId })
  *   await Chat.decide({ sessionId, toolCallId, decision: 'allow-once' })
@@ -109,9 +110,33 @@ const finishFailure = async ({ sessionId, token, agent, state, error }) => {
     finishRun(sessionId, token)
 }
 
+// --- 输入归一化：纯文本原样；内容块数组校验后原样交给 core（图片由 core 转成各家协议）---
+// 图片只认 data URL 和 http(s) URL；base64 上限 8M 字符（约 6 MB 原图），防止一次请求撑爆上下文。
+const IMAGE_SOURCE = /^(data:image\/(?:png|jpe?g|gif|webp);base64,|https?:\/\/)/
+const MAX_IMAGE_CHARS = 8 * 1024 * 1024
+
+const inputHasText = input => typeof input === 'string'
+    ? Boolean(input.trim())
+    : (Array.isArray(input) && input.filter(part => part?.type === 'text').map(part => part.text || '').join('\n').trim().length > 0)
+
+const normalizeInput = input => {
+    if (typeof input === 'string') return input.trim()
+    if (!Array.isArray(input)) return null
+    const parts = input.filter(part => part && typeof part === 'object' && (part.type === 'text' || part.type === 'image'))
+    for (const part of parts) {
+        if (part.type === 'image' && (typeof part.image !== 'string' || !IMAGE_SOURCE.test(part.image))) {
+            throw fail(400, 'image part must be a data URL or an http(s) URL')
+        }
+        if (part.type === 'image' && part.image.length > MAX_IMAGE_CHARS) {
+            throw fail(400, 'image is too large: base64 form must stay under 8M characters')
+        }
+    }
+    return parts.some(part => part.type === 'text') ? parts : null
+}
+
 // --- 发送前检查：输入、停止状态、运行状态和继续位置 ---
 const validateRun = async ({ sessionId, input, resume }) => {
-    if (!resume && (typeof input !== 'string' || !input.trim())) throw fail(400, 'input must be a non-empty string')
+    if (!resume && !inputHasText(input)) throw fail(400, 'input must be a non-empty string')
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     await History.load(sessionId)
@@ -250,7 +275,7 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
                 onPermission: askBeforeTool({ sessionId, agent }),
             },
         }
-        task = resume ? agent.resume(options) : agent.send({ ...options, input: input.trim() })
+        task = resume ? agent.resume(options) : agent.send({ ...options, input })
     } catch (error) {
         finishRun(sessionId, token)
         throw error
@@ -260,12 +285,14 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
 
 const run = async ({ sessionId, input, resume = false }) => {
     const agent = await validateRun({ sessionId, input, resume })
+    // 归一化放在这里：resume 不带新输入；非法图片块在启动前就报 400。
+    const payload = resume ? undefined : normalizeInput(input)
 
     // 新消息代表新的时间线，之前的回退不能再撤销；计数也重新开始。
     await Tool.clearUndo({ sessionId })
     Approval.reset(sessionId)
 
-    const { task, token } = await startRun({ sessionId, input, resume, agent })
+    const { task, token } = await startRun({ sessionId, input: payload, resume, agent })
     task
         .then(result => finishSuccess({ sessionId, token, agent, resume, result }))
         .catch(error => finishFailure({ sessionId, token, agent, state: token.state, error }))

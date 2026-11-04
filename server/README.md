@@ -363,7 +363,7 @@ bun start
 
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
-| `POST` | `/agent/send/:sessionId` | `{ "input" }` | `{ "ok": true }`，过程走 SSE |
+| `POST` | `/agent/send/:sessionId` | `{ "input" }`；`input` 是字符串，或内容块数组 `{ type: "text" \| "image" }`（图片为 data URL / http(s) URL，base64 上限 8M 字符） | `{ "ok": true }`，过程走 SSE |
 | `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }`，继续被中断的助手 |
 | `POST` | `/agent/stop/:sessionId` | 可选 `{ "partial" }` | `{ "ok": true/false }` |
 | `POST` | `/agent/decide/:sessionId` | `{ "toolCallId", "decision" }` | `{ "ok": true/false }` |
@@ -377,6 +377,8 @@ bun start
 | `deny` | 拒绝本次调用 |
 
 `allow-always` 记住的是“用户心里那个操作”：命令类工具按命令前缀记，其他工具按完整参数记。
+
+图片随用户消息进入 history 常驻；每次请求模型前由配置的 `capabilities` 决定发不发图片块（`mediaFallback: 'strip'`），没开 `image` 能力的模型只看到文字，切换模型后图片仍然完整保留在历史里。base64 图片上限 8M 字符，data URL 与 http(s) URL 都接受。
 
 ### SSE
 
