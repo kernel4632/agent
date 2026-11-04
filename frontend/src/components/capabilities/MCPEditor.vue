@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 MCP 服务编辑页：编辑一个服务的传输方式、命令或地址、参数和环境变量。
 所有字段通过 update 事件交回页面写进草稿；删除确认是本地临时状态。
 调用示例：<MCPEditor :item="selected" @update="updateMCP" @delete="removeMCP" />
@@ -12,8 +12,11 @@ import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import Switch from '../../ui/Switch.vue'
 
-const props = defineProps({ item: { type: Object, required: true } })
-const emit = defineEmits(['update', 'delete'])
+const props = defineProps({
+  item: { type: Object, required: true },
+  testState: { type: Object, default: null },
+})
+const emit = defineEmits(['update', 'delete', 'test'])
 
 const TRANSPORT_OPTIONS = [
   { value: 'stdio', label: 'stdio（标准输入输出）' },
@@ -22,6 +25,8 @@ const TRANSPORT_OPTIONS = [
 ]
 
 const remote = computed(() => ['sse', 'http'].includes(props.item.definition?.transport))
+// 测试结果只显示在它对应的服务上，切换服务时不串台。
+const result = computed(() => props.testState?.name === props.item.name ? props.testState : null)
 const deleteOpen = ref(false)
 const envError = ref('')                              // 环境变量 JSON 写错时的可见原因
 const envText = ref('')                               // 编辑中的原始文本；写错时也要留在输入框里
@@ -104,7 +109,13 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
     />
 
     <footer class="mcp-actions">
-      <Button variant="danger" @click="deleteOpen = true"><Icon name="trash" :size="18" />删除此服务</Button>
+      <div class="mcp-actions__row">
+        <Button :disabled="result?.state === 'running'" @click="emit('test')">
+          <Icon name="play" :size="18" />{{ result?.state === 'running' ? '连接中…' : '测试连接' }}
+        </Button>
+        <Button variant="danger" @click="deleteOpen = true"><Icon name="trash" :size="18" />删除此服务</Button>
+      </div>
+      <p v-if="result" class="mcp-test" :class="`mcp-test--${result.state}`" role="status">{{ result.text }}</p>
     </footer>
   </form>
 

@@ -13,6 +13,10 @@
 .mcp-field { display: grid; gap: 8px; }
 .mcp-field__caption { color: var(--ui-color-on-surface-variant); font-size: 14px; font-weight: 500; line-height: 20px; }
 .mcp-actions { padding-top: 20px; border-top: .5px solid var(--la-line); }
+.mcp-actions__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.mcp-test { margin: 12px 0 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.mcp-test--ok { color: var(--la-success); }
+.mcp-test--error { color: var(--la-danger); }
 @media (max-width: 767px) {
   .mcp-form { padding: 20px; }
   .mcp-form__head { flex-wrap: wrap; }

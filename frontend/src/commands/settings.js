@@ -113,6 +113,24 @@ function backendSnapshot(draft) {
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
 
+// --- 导入 MCP 后只刷新服务列表，保留其他正在编辑的草稿字段 ---
+async function refreshMcp() {
+  try {
+    const raw = await AgentAPI.getConfig()
+    const items = mcpList(raw)
+    store.config.raw = structuredClone(raw)
+    store.config.mcp = items
+    if (store.settings.draft) {
+      const current = new Map((store.settings.draft.mcp || []).map(item => [item.id, item]))
+      store.settings.draft.mcp = items.map(item => current.get(item.id) || item)
+    }
+    return items
+  } catch (error) {
+    Notice.show(error.message)
+    return null
+  }
+}
+
 // --- 隔离设置草稿数据 ---
 function isolateDraft(value) {
   return JSON.parse(JSON.stringify(value))              // 设置只包含 JSON 数据，隔离后修改不影响已保存配置
@@ -253,4 +271,4 @@ async function replaceDraftAndSave(snapshot) {
   return save()
 }
 
-export const Settings = { load, apply, open, save, autoSave, replaceDraftAndSave }
+export const Settings = { load, apply, open, save, autoSave, replaceDraftAndSave, refreshMcp }

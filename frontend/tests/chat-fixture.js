@@ -23,6 +23,24 @@ export async function backend(page, { configured = true } = {}) {
     prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
     permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
   }
+  // 技能页和 MCP 识别使用同一份内存夹具；界面测试只验证读写路径，不碰真实磁盘。
+  const skills = {
+    skills: [
+      { name: 'review', description: '审查改动时用这个', body: '第一步：读 diff。', path: 'D:/mock/.agents/skills/review/SKILL.md', directory: 'D:/mock/.agents/skills/review', source: 'own', sourceLabel: '本应用', app: 'Agent', scope: 'global', kind: 'own', editable: true, enabled: true },
+    ],
+    roots: [
+      { id: 'own', label: '本应用', app: 'Agent', path: 'D:/mock/.agents/skills', scope: 'global', kind: 'own', editable: true, enabled: true, exists: true, skillCount: 1, skills: ['review'] },
+      { id: 'claude', label: 'Claude Code', app: 'Claude Code', path: 'D:/mock/.claude/skills', scope: 'global', kind: 'app', editable: false, enabled: false, exists: true, skillCount: 1, skills: ['lint'] },
+    ],
+    state: { sources: [], disabled: [] },
+  }
+  const detected = {
+    sources: [{ id: 'cursor', app: 'Cursor', path: 'D:/mock/.cursor/mcp.json', servers: 1 }],
+    servers: [{
+      id: 'cursor::github', name: 'github', app: 'Cursor', source: 'cursor', path: 'D:/mock/.cursor/mcp.json',
+      definition: { command: 'npx', args: ['-y', 'server-github'], env: {} }, envKeys: ['GITHUB_TOKEN'], headerKeys: [], configured: false,
+    }],
+  }
   const sessions = new Map()
   const calls = []
   const connections = new Map()
@@ -124,6 +142,63 @@ export async function backend(page, { configured = true } = {}) {
       return json(config)
     }
     if (path === '/config/test') return json({ ok: true, provider: body?.provider, model: body?.model, text: 'ok' })
+    if (path === '/mcp/list') return json({
+      servers: Object.entries(config.mcp || {}).map(([name, definition]) => ({ name, enabled: definition.enabled !== false, definition })),
+      detected,
+    })
+    if (path === '/mcp/import') {
+      const imported = []
+      for (const id of body.ids || []) {
+        const server = detected.servers.find(item => item.id === id)
+        if (!server || config.mcp[server.name]) continue
+        config.mcp[server.name] = { ...server.definition, enabled: true }
+        server.configured = true
+        imported.push(server.name)
+      }
+      return json({ imported, skipped: [] })
+    }
+    if (path === '/mcp/test') return json({ ok: true, name: body.name, tools: ['echo'] })
+    if (path === '/skill/list') return json(skills)
+    if (path === '/skill/read') {
+      const name = new URL(request.url()).searchParams.get('name')
+      const skill = skills.skills.find(item => item.name === name)
+      return skill ? json(skill) : route.fulfill({ status: 404, json: { error: 'Skill not found' } })
+    }
+    if (path === '/skill/save') {
+      const existing = skills.skills.find(item => item.name === body.name)
+      const item = {
+        ...(existing || {}),
+        name: body.name,
+        description: body.description,
+        body: body.body || '',
+        path: `D:/mock/.agents/skills/${body.name}/SKILL.md`,
+        directory: `D:/mock/.agents/skills/${body.name}`,
+        source: 'own',
+        sourceLabel: '本应用',
+        app: 'Agent',
+        scope: body.scope || 'global',
+        kind: 'own',
+        editable: true,
+        enabled: true,
+      }
+      if (existing) Object.assign(existing, item)
+      else skills.skills.push(item)
+      return json(item)
+    }
+    if (path === '/skill/remove') {
+      skills.skills = skills.skills.filter(item => item.name !== body.name)
+      return json({ ok: true, name: body.name })
+    }
+    if (path === '/skill/toggle') {
+      const skill = skills.skills.find(item => item.name === body.name)
+      if (skill) skill.enabled = body.enabled
+      return json({ name: body.name, enabled: body.enabled })
+    }
+    if (path === '/skill/source') {
+      const root = skills.roots.find(item => item.path === body.path)
+      if (root) root.enabled = body.enabled
+      return json({ path: body.path, enabled: body.enabled })
+    }
     if (path === '/session/list') return json([...sessions.values()])
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
     if (path === '/tool/kinds') return json([
