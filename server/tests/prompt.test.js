@@ -29,7 +29,7 @@ const withHome = async callback => {
 
 const provider = [{ name: 'local', models: [{ id: 'model', name: 'model' }] }]
 
-const resolve = () => Agent.resolve({
+const resolve = async () => Agent.resolve({
     session: { model: { provider: 'local', model: 'model' } },
     settings: Agent.defaultSettings(),
 })
@@ -67,7 +67,7 @@ describe('默认系统提示词', () => {
 
             await Settings.read(path)
             expect(store.config.prompt.system).toBe('')
-            expect(resolve().system).toBe('')
+            expect((await resolve()).system).toBe('')
         })
     })
 
@@ -78,14 +78,14 @@ describe('默认系统提示词', () => {
                 prompt: { system: '' },
             })
             expect(store.config.prompt.system).toBe('')
-            expect(resolve().system).toBe('')
+            expect((await resolve()).system).toBe('')
         })
     })
 
     test('模型不调工具时最多追问三轮，并提醒用结束工具', async () => {
         await withHome(async () => {
             await Settings.set({ providers: provider, prompt: { system: '' } })
-            const config = resolve()
+            const config = await resolve()
             expect(config.noToolRounds).toBe(3)
             expect(config.noToolPrompt).toContain('attempt_completion')
         })

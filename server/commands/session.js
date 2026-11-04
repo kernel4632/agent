@@ -175,7 +175,7 @@ const setModel = async ({ sessionId, provider, model }) => {
     if (agent?.running) {
         // core 0.30 每轮现读 agent.config；运行中只换配置，不重建实例、不中断当前任务。
         const settings = await Agent.readSettings(sessionId)
-        Object.assign(agent.config, Agent.resolve({ session, settings, target: { provider: chosen, model: name } }))
+        Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name } }))
     } else {
         Agent.invalidate(sessionId)
         await Agent.create({ sessionId })

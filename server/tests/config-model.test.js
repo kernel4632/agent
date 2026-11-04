@@ -34,7 +34,7 @@ const withHome = async callback => {
     }
 }
 
-const resolve = ({ provider, model, settings = {} }) => Agent.resolve({
+const resolve = async ({ provider, model, settings = {} }) => Agent.resolve({
     session: { model: { provider, model } },
     settings: { ...Agent.defaultSettings(), ...settings },
 })
@@ -92,7 +92,7 @@ describe('交给 agent-core 的 config', () => {
                 })
                 const agent = AgentCore.create({
                     history: [],
-                    config: { ...resolve({ provider: 'fake', model: 'm' }), maxContextTokens: 1000, compactThreshold: 0.1 },
+                    config: { ...await resolve({ provider: 'fake', model: 'm' }), maxContextTokens: 1000, compactThreshold: 0.1 },
                     callbacks: {},
                 })
                 const events = []
@@ -124,7 +124,7 @@ describe('交给 agent-core 的 config', () => {
                     read: { name: 'read', inputSchema: { type: 'object', properties: {} }, execute: () => 'must not execute' },
                 })
                 const agent = AgentCore.create({
-                    history: [], config: { ...resolve({ provider: 'fake', model: 'm' }), stream: false }, tools,
+                    history: [], config: { ...await resolve({ provider: 'fake', model: 'm' }), stream: false }, tools,
                 })
                 const callbacks = []
                 const result = await agent.send({ input: '拒绝工具', callbacks: {
@@ -154,7 +154,7 @@ describe('交给 agent-core 的 config', () => {
                 })
 
                 await AgentCore.llm.chat({
-                    ...resolve({ provider: 'fake', model: '想用的模型' }),
+                    ...await resolve({ provider: 'fake', model: '想用的模型' }),
                     messages: [{ role: 'user', content: 'hi' }],
                     stream: false,
                 })
@@ -175,17 +175,17 @@ describe('交给 agent-core 的 config', () => {
                     { name: 'gemini', models: [{ id: 'm', name: 'm' }], protocol: 'gemini' },
                 ],
             })
-            const body = (provider, reasoning = 'low') => resolve({ provider, model: 'm', settings: { reasoning } }).provider.body
+            const body = async (provider, reasoning = 'low') => (await resolve({ provider, model: 'm', settings: { reasoning } })).provider.body
 
-            expect(body('chat')).toEqual({ reasoning_effort: 'low' })
-            expect(body('chat', 'auto')).toEqual({})
-            expect(body('chat', 'off')).toEqual({ reasoning_effort: 'none' })
-            expect(body('responses')).toEqual({ reasoning: { effort: 'low' } })
-            expect(body('anthropic')).toEqual({
+            expect(await body('chat')).toEqual({ reasoning_effort: 'low' })
+            expect(await body('chat', 'auto')).toEqual({})
+            expect(await body('chat', 'off')).toEqual({ reasoning_effort: 'none' })
+            expect(await body('responses')).toEqual({ reasoning: { effort: 'low' } })
+            expect(await body('anthropic')).toEqual({
                 thinking: { type: 'adaptive', display: 'summarized' },
                 output_config: { effort: 'low' },
             })
-            expect(body('gemini')).toEqual({
+            expect(await body('gemini')).toEqual({
                 generationConfig: { thinkingConfig: { thinkingBudget: 1000, includeThoughts: true } },
             })
         })
@@ -207,7 +207,7 @@ describe('交给 agent-core 的 config', () => {
                 })
                 const agent = AgentCore.create({
                     history: [],
-                    config: { ...resolve({ provider: 'fake', model: 'm' }), stream: false },
+                    config: { ...await resolve({ provider: 'fake', model: 'm' }), stream: false },
                     tools,
                 })
 
@@ -228,7 +228,7 @@ describe('交给 agent-core 的 config', () => {
                     models: [{ id: 'model', context: 64000 }],
                 }],
             })
-            const config = resolve({ provider: 'local', model: 'model' })
+            const config = await resolve({ provider: 'local', model: 'model' })
             expect(config.maxContextTokens).toBe(64000)
             expect(config.maxTokens).toBeUndefined()
         })
@@ -237,21 +237,21 @@ describe('交给 agent-core 的 config', () => {
     test('没配上下文时也有默认预算', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
-            expect(resolve({ provider: 'local', model: 'model' }).maxContextTokens).toBe(128000)
+            expect((await resolve({ provider: 'local', model: 'model' })).maxContextTokens).toBe(128000)
         })
     })
 
     test('resolve 返回的字段里有 model', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm1', name: 'm1' }] }] })
-            expect(resolve({ provider: 'local', model: 'm1' }).model).toBe('m1')
+            expect((await resolve({ provider: 'local', model: 'm1' })).model).toBe('m1')
         })
     })
 
     test('会话选的那个模型就是要用的那个，不是配置里的第一个', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: '第一个', name: '第一个' }, { id: '第二个', name: '第二个' }] }] })
-            expect(resolve({ provider: 'local', model: '第二个' }).model).toBe('第二个')
+            expect((await resolve({ provider: 'local', model: '第二个' })).model).toBe('第二个')
         })
     })
 
@@ -263,7 +263,7 @@ describe('交给 agent-core 的 config', () => {
                     models: [{ id: 'm', capabilities: ['文本', '工具'] }],
                 }],
             })
-            const config = resolve({ provider: 'local', model: 'm' })
+            const config = await resolve({ provider: 'local', model: 'm' })
             expect(config.capabilities.tools).toBe(true)
             expect(config.capabilities.image).toBe(false)
         })

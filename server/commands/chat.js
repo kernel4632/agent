@@ -240,7 +240,7 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     let task
     try {
         const options = {
-            config: Agent.resolve({ session, settings }),
+            config: await Agent.resolve({ session, settings }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, token }),
                 ...modelEvents({ sessionId, state }),

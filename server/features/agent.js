@@ -13,7 +13,7 @@
  *   const agent = await Agent.get({ sessionId })
  *   const settings = await Agent.readSettings(sessionId)
  *   await Agent.saveSettings({ sessionId, reasoning: 'high' })
- *   const config = Agent.resolve({ session })
+ *   const config = await Agent.resolve({ session })
  */
 
 import AgentCore from '@kernel4632/agent-core'
@@ -122,7 +122,7 @@ const hasCapability = (profile, name) => profile.some(item => {
     return false
 })
 
-const resolveFor = ({ session, settings, target }) => {
+const resolveFor = async ({ session, settings, target }) => {
     const chosen = target || session.model
     const linked = connection(chosen)
     const info = services.context.modelInfo(chosen)
@@ -146,7 +146,8 @@ const resolveFor = ({ session, settings, target }) => {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
         },
-        system: services.context.system({ config: store.config }),
+        // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）；没配规则就只有用户提示词。
+        system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
         // 中间会插一条提醒，避免模型漏调结束工具就直接把文字当成结果（参考 Roo Code 的连续错误上限）。
         noToolRounds: 3,
@@ -183,7 +184,7 @@ const testModel = async ({ provider: name, model }) => {
 // --- 试一次真实请求 ---
 const attempt = async chosen => {
     const result = await AgentCore.llm.chat({
-        ...resolveFor({ session: { model: chosen }, settings: defaultSettings() }),
+        ...await resolveFor({ session: { model: chosen }, settings: defaultSettings() }),
         messages: [{ role: 'user', content: 'hi' }],
         stream: false,
     })
@@ -227,7 +228,7 @@ const saveSettings = async ({ sessionId, ...change }) => {
     if (agent?.running) {
         // core 0.30 每轮重新读 agent.config；正在跑的请求不打断，下一轮换新强度。
         const session = await services.history.load(sessionId)
-        Object.assign(agent.config, resolveFor({ session, settings: saved }))
+        Object.assign(agent.config, await resolveFor({ session, settings: saved }))
         return saved
     }
 
@@ -241,15 +242,22 @@ const saveSettings = async ({ sessionId, ...change }) => {
 //  装配 Agent
 // =======================================================================
 
+// --- 把最新的 system（含项目规则）刷进一个已建好的 Agent ---
+const refreshSystem = async (instance, session) => {
+    // 测试注入的假实例没有 config；没有就不刷，下次真装配时自然会读到规则。
+    if (!instance?.config) return
+    instance.config.system = await services.context.systemFor({ config: store.config, cwd: session.cwd })
+}
+
 // --- 为一个会话建出 Agent 实例 ---
 const create = async ({ sessionId }) => {
     const session = await services.history.load(sessionId)                     // 先把会话元数据读进内存
     const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度
-    const config = resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
+    const config = await resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
     const tools = await services.tool.build({
         sessionId,
         // 子任务可以用 models.task 单独指定；没配就跟这条会话自己的模型走。
-        taskConfig: resolveFor({ session, settings, target: taskModel('task', session.model) }),
+        taskConfig: await resolveFor({ session, settings, target: taskModel('task', session.model) }),
         onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口
         saveSession: () => services.history.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
     })
@@ -263,6 +271,7 @@ const create = async ({ sessionId }) => {
     })
     // 记下装配时的目录：cwd 工具移动之后，下一次运行要按新目录重建工具表。
     instance.cwd = session.cwd
+    await refreshSystem(instance, session)                       // 项目规则按装配那一刻的目录读一次
     agents.set(sessionId, instance)
     return instance
 }
@@ -281,6 +290,8 @@ const getAgent = async ({ sessionId }) => {
             const stored = services.history.get({ sessionId })
             if (stored.length > current.history.length) current.history = stored
         }
+        // 项目规则可能刚被改过；每次取实例都刷一次 system，缓存的旧内容不会带过下一轮。
+        await refreshSystem(current, session)
         return current
     }
     return create({ sessionId })
