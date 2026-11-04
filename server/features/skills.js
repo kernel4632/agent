@@ -55,10 +55,12 @@ const folderFor = name => RESERVED.test(name) ? `skill-${name}` : name
 // --- 列出生效技能和识别到的目录 ---
 const list = async ({ cwd = process.cwd() } = {}) => Skills.list({ cwd })
 
-// --- 读一个技能的正文 ---
+// --- 读一个技能的正文；utils 找不到时返回 null，这里翻译成 404 ---
 const read = async ({ name, cwd = process.cwd() } = {}) => {
     if (typeof name !== 'string' || !name.trim()) throw fail(400, 'skill name is required')
-    return Skills.read({ name: name.trim(), cwd })
+    const skill = await Skills.read({ name: name.trim(), cwd })
+    if (!skill) throw fail(404, `Skill not found: ${name}`)
+    return skill
 }
 
 // --- 新建或改写本应用自己的技能 ---

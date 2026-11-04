@@ -11,7 +11,6 @@
  */
 
 import { join, resolve } from 'node:path'
-import store from '../store.js'
 import Path from '../utils/path.js'
 import Skills from '../utils/skills.js'
 
@@ -190,11 +189,13 @@ const readConfig = async (path, format) => {
 }
 
 // --- 扫描本机全部已知位置 ---
-const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.env, redact = true } = {}) => {
+// configuredNames：本应用已经配置的服务名，由命令层从 features/mcp.js 取来传入；
+// utils 之上的这一层不 import store，也不 import 兄弟 feature。
+const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.env, redact = true, configuredNames = [] } = {}) => {
     const sources = []
     const servers = []
     const seen = new Set()
-    const configured = store.config.mcp || {}
+    const configured = new Set(configuredNames)
 
     for (const source of candidates({ cwd, home, env })) {
         const result = await readConfig(source.path, source.format)
@@ -239,7 +240,7 @@ const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.
                     definition: masked.definition,
                     envKeys: masked.envKeys,
                     headerKeys: masked.headerKeys,
-                    configured: Boolean(configured[name]),
+                    configured: configured.has(name),
                 })
             }
         }

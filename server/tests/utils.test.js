@@ -194,7 +194,7 @@ describe('server skills', () => {
             await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
 
             expect((await Skill.list({ cwd: root })).map(item => item.name)).not.toContain('broken')
-            await expect(Skill.read({ name: 'nope', cwd: root })).rejects.toMatchObject({ status: 404 })
+            await expect(Skill.read({ name: 'nope', cwd: root })).rejects.toThrow(/Skill not found/)
         })
     })
 

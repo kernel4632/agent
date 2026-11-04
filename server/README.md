@@ -15,9 +15,9 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 | --- | --- |
 | `server.js` | 注册路由、统一错误、健康检查、启动 |
 | `store.js` | 全局数据中心：`config` 和 `sessions` 两个纯对象 |
-| `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`；命令文件之间不互相 import，有状态 feature 需要的兄弟服务由 `server.js` 在启动时接起来 |
-| `features/` | 独立业务模块：历史、回退、Agent、审批、上下文、压缩、标题、工具登记、MCP；feature 文件之间不互相 import |
-| `utils/` | `fail.js`、`path.js`、`sse.js` |
+| `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`、`capabilities.js`；命令文件之间不互相 import，有状态 feature 需要的兄弟服务由 `server.js` 在启动时接起来 |
+| `features/` | 独立业务模块：历史、回退、Agent、审批、上下文、压缩、标题、工具登记、MCP、本机识别（discover）、技能管理（skills）；feature 文件之间不互相 import |
+| `utils/` | `fail.js`、`path.js`、`sse.js`、`skills.js`（技能扫描与启停状态，只读写技能文件，不碰业务配置） |
 | `tools/` | 按类别分组的工具，一个文件一组；只依赖 `store.js`、`utils/` 和运行时 context |
 
 根目录不放业务代码。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。

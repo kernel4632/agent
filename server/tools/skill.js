@@ -30,6 +30,7 @@ const list = async ({ cwd = process.cwd() } = {}) => {
 // --- 读一个技能的正文 ---
 const read = async ({ name, cwd = process.cwd() } = {}) => {
     const skill = await Skills.read({ name, cwd, includeDisabled: false })
+    if (!skill) throw new Error(`Skill not found: ${name}`)
     return skill.body
 }
 

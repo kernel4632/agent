@@ -20,7 +20,6 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
 import { writeFile } from 'atomically'
 import matter from 'gray-matter'
 import Path from './path.js'
-import fail from './fail.js'
 
 const MAX_SKILLS = 200                 // 一个目录最多收这么多技能，防止有人把大仓库指进来
 const MAX_BYTES = 256 * 1024           // 一份 SKILL.md 的上限
@@ -246,12 +245,12 @@ const withBody = async skill => {
 }
 
 // --- 按名字取一个技能；禁用中的技能也能读到，管理页要能重新打开 ---
+// 找不到时返回 null：utils 不懂 HTTP 语义，404 由调用它的 features 层翻译。
 const read = async ({ name, cwd = process.cwd(), includeDisabled = true } = {}) => {
-    if (typeof name !== 'string' || !name.trim()) throw fail(400, 'skill name is required')
+    if (typeof name !== 'string' || !name.trim()) return null
     const { skills } = await list({ cwd, includeDisabled })
     const skill = skills.find(item => item.name === name)
-    if (!skill) throw fail(404, `Skill not found: ${name}`)
-    return withBody(skill)
+    return skill ? withBody(skill) : null
 }
 
 // --- 可写目录：全局技能目录，或当前目录的项目技能目录 ---

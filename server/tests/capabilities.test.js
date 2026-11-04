@@ -13,6 +13,7 @@ import Agent from '../features/agent.js'
 import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import History from '../features/history.js'
+import SkillFeature from '../features/skills.js'
 import Session from '../commands/session.js'
 import Skill from '../tools/skill.js'
 import store from '../store.js'
@@ -319,7 +320,10 @@ describe('技能识别与管理', () => {
             expect(disabled).toEqual({ name: 'review', enabled: false })
 
             expect((await Skill.list({ cwd: project })).map(item => item.name)).toEqual(['deploy'])
-            await expect(Skill.read({ name: 'review', cwd: project })).rejects.toMatchObject({ status: 404 })
+            // 管理页要能读到禁用的技能（enabled: false）才能重新打开；模型清单不含它，所以工具层读不到。
+            const disabledSkill = await SkillFeature.read({ name: 'review', cwd: project })
+            expect(disabledSkill.enabled).toBe(false)
+            await expect(Skill.read({ name: 'review', cwd: project })).rejects.toThrow(/Skill not found/)
 
             const tool = await Skill.build({ cwd: project })
             expect(tool.description).toContain('deploy')

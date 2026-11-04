@@ -19,10 +19,10 @@ import Mcp from '../features/mcp.js'
 import Skills from '../features/skills.js'
 import fail from '../utils/fail.js'
 
-// --- MCP：已配置的服务 + 本机识别结果 ---
+// --- MCP：已配置的服务 + 本机识别结果；已配置名单由这里从 mcp feature 取，discover 不依赖兄弟 feature ---
 const mcpList = async ({ cwd } = {}) => ({
     servers: Mcp.list(),
-    detected: await Discover.mcp({ cwd: cwd || process.cwd() }),
+    detected: await Discover.mcp({ cwd: cwd || process.cwd(), configuredNames: Mcp.list().map(item => item.name) }),
 })
 
 // --- 手动新增或替换一个服务 ---
@@ -34,7 +34,7 @@ const mcpImport = async ({ ids, cwd } = {}) => {
     if (ids.length > 50) throw fail(400, 'at most 50 mcp servers can be imported at once')
     if (ids.some(id => typeof id !== 'string' || !id.trim())) throw fail(400, 'ids must contain server ids')
 
-    const { servers } = await Discover.mcp({ cwd: cwd || process.cwd(), redact: false })
+    const { servers } = await Discover.mcp({ cwd: cwd || process.cwd(), redact: false, configuredNames: Mcp.list().map(item => item.name) })
     const byId = new Map(servers.map(item => [item.id, item]))
     const configured = new Set(Mcp.list().map(item => item.name))
     const imported = []
