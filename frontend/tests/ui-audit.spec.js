@@ -889,7 +889,12 @@ test('composer footer stats opens the session data panel', async ({ page }, test
   await screenshot(page, testInfo, 'composer-footer-stats-panel')
 
   await stats.getByRole('button', { name: /25 tok\/s/ }).click()
-  await expect(page.getByRole('dialog', { name: '生成速度' })).toContainText('25 tok/s')
+  const speedPanel = page.getByRole('dialog', { name: '生成速度' })
+  await expect(speedPanel).toContainText('test-model')
+  await expect(speedPanel).toContainText('Test Provider')
+  await expect(speedPanel).toContainText('200ms')
+  await expect(speedPanel).toContainText('800ms')
+  await expect(speedPanel).toContainText('25')
   expect(mock.errors).toEqual([])
 })
 

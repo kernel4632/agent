@@ -246,7 +246,7 @@ export async function backend(page, { configured = true } = {}) {
       session.history.push({
         messageId: 'assistant-1',
         role: 'assistant',
-        usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, startedAt: Date.now() - 800, finishedAt: Date.now() },
+        usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model', startedAt: Date.now() - 800, finishedAt: Date.now() },
         content: [
           { type: 'text', text },
           {
@@ -260,7 +260,7 @@ export async function backend(page, { configured = true } = {}) {
         ],
       })
       session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 900 }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800 } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
+      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 900 }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model' } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) {
       session.running = false
@@ -285,12 +285,12 @@ export async function backend(page, { configured = true } = {}) {
       session.running = false
       // 真实后端会先追加一条内部提示，再让模型接着写；read 时必须过滤掉它。
       session.history.push({ messageId: 'internal-continue', role: 'user', internal: true, content: CONTINUE_TEXT })
-      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600 }, content: [{ type: 'text', text: '继续完成' }] })
+      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' }, content: [{ type: 'text', text: '继续完成' }] })
       return emit(id, [
         { type: 'agent-resume' },
         { type: 'llm-start', startedAt: Date.now() - 700 },
         { type: 'text-delta', text: '继续完成' },
-        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600 } },
+        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' } },
         { type: 'agent-finish' },
       ])
     }
@@ -339,3 +339,4 @@ export async function navigate(page, name) {
   await drawer.getByRole('button', { name, exact: true }).first().click()
   await expect(drawer).toBeHidden()
 }
+

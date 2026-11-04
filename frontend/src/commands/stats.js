@@ -141,6 +141,46 @@ export function sessionStats(session) {
       .filter(usage => usage.input + usage.output > 0)
       .slice(-18)
     : []
+  // 速度面板按供应商 / 模型分组；旧请求没有记录来源时退回当前会话模型。
+  const currentProvider = typeof session.provider === 'string'
+    ? session.provider
+    : (typeof session.model === 'object' ? session.model?.provider : '') || ''
+  const currentModel = typeof session.model === 'string'
+    ? session.model
+    : (typeof session.model === 'object' ? session.model?.model : '') || ''
+  const modelGroups = () => {
+    if (usageApproximate || !requests.length) return []
+    const groups = new Map()
+    for (const item of requests) {
+      const provider = item.provider || currentProvider
+      const model = item.model || currentModel
+      const key = `${provider}\u0000${model}`
+      const group = groups.get(key) || {
+        provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, firstTokenMs: 0, firstTokenCount: 0,
+      }
+      group.count += 1
+      group.output += Number(item.output || 0)
+      const duration = Number(item.durationMs || 0)
+      if (duration > 0) {
+        group.durationMs += duration
+        group.durationCount += 1
+      }
+      const firstToken = Number(item.firstTokenMs || 0)
+      if (firstToken > 0) {
+        group.firstTokenMs += firstToken
+        group.firstTokenCount += 1
+      }
+      groups.set(key, group)
+    }
+    return [...groups.values()].map(group => ({
+      provider: group.provider || '未知供应商',
+      model: group.model || '未知模型',
+      count: group.count,
+      averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
+      averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
+      averageTps: group.durationMs ? group.output / (group.durationMs / 1000) : 0,
+    })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
+  }
   return {
     approximate: usedApproximate || usageApproximate,
     context: {
@@ -165,6 +205,7 @@ export function sessionStats(session) {
     series: usageApproximate
       ? estimatedSeries
       : requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0), cache: Number(item.cache || 0) })),
+    models: modelGroups(),
   }
 }
 
@@ -189,6 +230,8 @@ export function usageFields(usage = {}, durationMs = 0) {
     cacheWrite: Number(usage.cacheWrite || 0),    // 写进缓存的输入 token
     reasoning: Number(usage.reasoning || 0),      // 思考过程消耗的 token
     total: Number(usage.total ?? input + output), // 服务端没给总数时自己加
+    provider: typeof usage.provider === 'string' ? usage.provider : '',
+    model: typeof usage.model === 'string' ? usage.model : '',
     firstTokenAt: Number(usage.firstTokenAt || 0), // 第一个内容增量到达的绝对时间
     firstTokenMs: Number(usage.firstTokenMs || 0), // 首字时间（TTFT）
     durationMs: Number(durationMs || usage.durationMs || 0), // 请求完整耗时

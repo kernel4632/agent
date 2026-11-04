@@ -212,6 +212,7 @@ function startRequest(session, event = {}) {
     status: 'running',
     startedAt: Number(event.startedAt) || Date.now(),
     firstTokenAt: Number(event.firstTokenAt) || 0,
+    provider: event.provider || '', model: event.model || '',
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
   }
   assistant.requests.push(request)

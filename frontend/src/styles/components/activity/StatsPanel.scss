@@ -76,6 +76,20 @@
 .stats-panel__metric-row strong { color: var(--la-text); font-size: 14px; font-weight: 650; }
 .stats-panel__metric-row small { color: var(--la-muted); font-size: 10.5px; }
 .stats-panel__note { margin: 0; color: var(--la-muted); font-size: 11.5px; line-height: 1.65; }
+.stats-panel__hint { color: var(--la-muted); font-size: 10.5px; }
+.stats-panel__speed-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; font-variant-numeric: tabular-nums; }
+.stats-panel__speed-table th { padding: 0 0 6px; border-bottom: 1px solid var(--la-line); color: var(--la-muted); font-size: 10px; font-weight: 500; text-align: right; }
+.stats-panel__speed-table th:first-child { width: 56%; text-align: left; }
+.stats-panel__speed-table th:nth-child(2) { width: 15%; }
+.stats-panel__speed-table th:nth-child(3) { width: 16%; }
+.stats-panel__speed-table th:nth-child(4) { width: 13%; }
+.stats-panel__speed-table td { padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--la-line) 65%, transparent); color: var(--la-secondary); text-align: right; vertical-align: top; }
+.stats-panel__speed-table tr:last-child td { border-bottom: 0; padding-bottom: 0; }
+.stats-panel__speed-table td:first-child { text-align: left; }
+.stats-panel__speed-table td.is-slow { color: var(--la-warning); }
+.stats-panel__speed-model { min-width: 0; }
+.stats-panel__speed-model strong { display: block; overflow: hidden; color: var(--la-text); font-size: 11.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.stats-panel__speed-model small { display: block; overflow: hidden; color: var(--la-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 
 .stats-panel__usage { display: grid; gap: 8px; }
 .stats-panel__usage-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

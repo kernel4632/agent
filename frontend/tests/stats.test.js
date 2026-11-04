@@ -18,7 +18,10 @@ test('estimateTokens counts Chinese and English in the same text', () => {
 })
 
 test('real request usage wins over estimation', () => {
-  const request = { input: 30, output: 20, cache: 10, total: 50, durationMs: 800, startedAt: 1, finishedAt: 801 }
+  const request = {
+    input: 30, output: 20, cache: 10, total: 50, firstTokenMs: 200, durationMs: 800,
+    provider: 'Test Provider', model: 'test-model', startedAt: 1, finishedAt: 801,
+  }
   const session = {
     contextLimit: 1000,
     contextTokens: 30,
@@ -38,7 +41,32 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.total, 50)
   assert.equal(stats.usage.durationMs, 800)
   assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
+  assert.deepEqual(stats.models, [{
+    provider: 'Test Provider',
+    model: 'test-model',
+    count: 1,
+    averageFirstTokenMs: 200,
+    averageDurationMs: 800,
+    averageTps: 25,
+  }])
 })
+
+test('speed groups by provider and model, slowest first', () => {
+  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+  const slow = { input: 10, output: 10, total: 20, firstTokenMs: 900, durationMs: 4000, provider: 'Provider B', model: 'slow-model' }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 10,
+    messages: [user('比较一下速度'), assistant('好', { requests: [fast, slow], request: slow })],
+  }
+
+  const stats = sessionStats(session)
+  assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
+  assert.equal(stats.models[0].averageTps, 2.5)
+  assert.equal(stats.models[0].averageDurationMs, 4000)
+  assert.equal(stats.models[1].averageTps, 10)
+})
+
 
 test('legacy history without usage is estimated and marked, not shown as zero', () => {
   const session = {

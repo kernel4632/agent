@@ -90,6 +90,21 @@ const trendBars = computed(() => {
   })
 })
 const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(item => Number(item.input || 0) + Number(item.output || 0)))))
+const speedGroups = computed(() => [...(props.stats.models || [])].sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps)))
+const overallAverageDuration = computed(() => {
+  const groups = speedGroups.value.filter(group => group.averageDurationMs > 0)
+  if (!groups.length) return 0
+  return groups.reduce((sum, group) => sum + group.averageDurationMs, 0) / groups.length
+})
+const isSlow = group => overallAverageDuration.value > 0 && group.averageDurationMs > overallAverageDuration.value * 1.2
+const formatDuration = value => {
+  const ms = Number(value || 0)
+  if (!ms) return '—'
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  return `${Math.floor(seconds / 60)}m${Math.round(seconds % 60)}s`
+}
 </script>
 
 <template>
@@ -233,9 +248,28 @@ const trendMax = computed(() => Math.max(1, ...((props.stats.series || []).map(i
           <span class="session-stats__summary-item"><Icon name="gauge" :size="14" />{{ speed }}</span>
         </template>
         <div class="stats-panel stats-panel--speed">
-          <div class="stats-panel__head"><span class="stats-panel__heading"><Icon name="gauge" :size="15" />生成速度</span></div>
-          <div class="stats-panel__metric"><strong>{{ speed }}</strong></div>
-          <p class="stats-panel__note">输出 token ÷ 模型请求耗时；不包含工具执行等待。</p>
+          <div class="stats-panel__head">
+            <span class="stats-panel__heading"><Icon name="gauge" :size="15" />生成速度</span>
+            <span class="stats-panel__hint">按平均耗时从慢到快</span>
+          </div>
+          <table v-if="speedGroups.length" class="stats-panel__speed-table">
+            <thead>
+              <tr><th>模型 / 供应商</th><th>首字</th><th>耗时</th><th>tok/s</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="group in speedGroups" :key="`${group.provider}-${group.model}`">
+                <td class="stats-panel__speed-model" :title="`${group.provider} / ${group.model}`">
+                  <strong>{{ group.model }}</strong>
+                  <small>{{ group.provider }} · {{ group.count }} 次</small>
+                </td>
+                <td>{{ group.averageFirstTokenMs ? formatDuration(group.averageFirstTokenMs) : '—' }}</td>
+                <td :class="{ 'is-slow': isSlow(group) }">{{ group.averageDurationMs ? formatDuration(group.averageDurationMs) : '—' }}</td>
+                <td :class="{ 'is-slow': isSlow(group) }">{{ group.averageTps ? Math.round(group.averageTps) : '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="stats-panel__note">还没有足够的请求耗时数据。</p>
+          <p class="stats-panel__note">首字、耗时都是平均每次请求；慢于整体平均 20% 的模型会标黄。</p>
         </div>
       </Menu>
     </template>
