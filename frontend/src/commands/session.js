@@ -105,7 +105,7 @@ async function selectModel(sessionID, provider, model) {
     session.contextLimit = store.config.providers[provider]?.models.find(item => item.id === model)?.context || DEFAULT_CONTEXT
     return true
   } catch (error) {
-    Notice.show(error.message)                            // 运行中冲突等错误直接展示
+    Notice.show(error.message)                            // 服务端错误直接展示
     return false
   }
 }

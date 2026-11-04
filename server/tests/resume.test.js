@@ -114,7 +114,7 @@ describe('继续被中断的助手', () => {
         })
     })
 
-    test('0.27 compact SSE 原样转发并把用量写到对应的历史消息', async () => {
+    test('compact SSE 原样转发并把用量写到对应的历史消息', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             const agent = {
@@ -155,7 +155,7 @@ describe('继续被中断的助手', () => {
         })
     })
 
-    test('core 0.27 拒绝工具结果通过服务端适配发成 tool-result SSE', async () => {
+    test('core 拒绝工具结果通过服务端适配发成 tool-result SSE', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             const agent = {

@@ -212,17 +212,22 @@ const readSettings = async sessionId => {
 
 /**
  * 改设置，只改点名的那几项。
- * 思考强度要重建 Agent；其他设置随时能改。
+ * 运行中改思考强度直接更新活 Agent 的 config，下一笔请求生效，不打断当前运行。
  */
 const saveSettings = async ({ sessionId, ...change }) => {
     const current = normalizeSettings((await services.history.load(sessionId)).settings, defaultSettings())
     const saved = normalizeSettings(change, current)
 
-    if (change.reasoning !== undefined && change.reasoning !== current.reasoning && agents.get(sessionId)?.running) {
-        throw fail(409, `Agent is already running: ${sessionId}`)
-    }
     await services.history.saveSettings({ sessionId, settings: saved })
     if (change.reasoning === undefined || change.reasoning === current.reasoning) return saved
+
+    const agent = agents.get(sessionId)
+    if (agent?.running) {
+        // core 0.30 每轮重新读 agent.config；正在跑的请求不打断，下一轮换新强度。
+        const session = await services.history.load(sessionId)
+        Object.assign(agent.config, resolveFor({ session, settings: saved }))
+        return saved
+    }
 
     // 历史原样交回去，不丢消息。
     agents.delete(sessionId)

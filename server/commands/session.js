@@ -162,7 +162,6 @@ const rename = async ({ sessionId, title }) => {
 // --- 换模型 ---
 const setModel = async ({ sessionId, provider, model }) => {
     const session = await History.load(sessionId)
-    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     const chosen = typeof provider === 'string' && provider.trim() ? provider.trim() : session.model.provider
     const name = typeof model === 'string' && model.trim() ? model.trim() : session.model.model
     if (!chosen || !name) throw fail(400, 'provider and model must be non-empty strings')
@@ -171,8 +170,16 @@ const setModel = async ({ sessionId, provider, model }) => {
     session.model = { provider: chosen, model: name }
     session.updatedAt = Date.now()
     await History.save(sessionId)
-    Agent.invalidate(sessionId)
-    await Agent.create({ sessionId })
+
+    const agent = Agent.runtime().get(sessionId)
+    if (agent?.running) {
+        // core 0.30 每轮现读 agent.config；运行中只换配置，不重建实例、不中断当前任务。
+        const settings = await Agent.readSettings(sessionId)
+        Object.assign(agent.config, Agent.resolve({ session, settings, target: { provider: chosen, model: name } }))
+    } else {
+        Agent.invalidate(sessionId)
+        await Agent.create({ sessionId })
+    }
     return { ...session, provider: chosen, model: name }
 }
 

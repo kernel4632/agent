@@ -79,7 +79,7 @@ describe('onPermission 的返回值', () => {
     })
 })
 
-describe('agent-core 0.27 生命周期契约', () => {
+describe('agent-core 0.30 生命周期契约', () => {
     test('Agent.tool.omit 同时从 schema 与 handlers 移除工具', () => {
         const set = AgentCore.tool.adopt({
             keep: { name: 'keep', inputSchema: { type: 'object' }, execute: () => 'ok' },

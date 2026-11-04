@@ -22,7 +22,9 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 
 根目录不放业务代码。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
 
-Agent 循环来自 `@kernel4632/agent-core` **0.27.0**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
+Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
+
+0.30 起不再有 `maxSteps` / `step-limit`，循环轮数不设上限；运行中修改 `agent.config`（模型、思考强度、system、工具表）会在下一笔请求生效。`PATCH /session/model/:sessionId` 和保存思考强度不再要求任务空闲。
 
 模型没有调用任何工具时，最多追问 3 轮再结束；默认提示词要求每轮用 `attempt_completion` 收尾，追问时会再提醒一次。这样模型漏调结束工具时，不会把普通文字直接当成结果。
 

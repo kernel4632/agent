@@ -66,6 +66,18 @@ describe('会话运行设置', () => {
         })
     })
 
+    test('运行中调整思考强度不重建 Agent，下一轮直接生效', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const agent = Agent.runtime().get(sessionId)
+            agent.running = true
+            await Session.saveSettings({ sessionId, reasoning: 'high' })
+            expect(Agent.runtime().get(sessionId)).toBe(agent)
+            expect(agent.config.provider.body.reasoning_effort).toBe('high')
+            agent.running = false
+        })
+    })
+
     test('主 Agent 使用全部工具，不按角色裁剪', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
@@ -301,12 +313,19 @@ describe('会话模型切换', () => {
         })
     })
 
-    test('任务运行中不能切换模型', async () => {
+    test('任务运行中切换模型，直接更新运行中 Agent 的配置', async () => {
         await withHome(async () => {
-            const sessionId = await newSession()
-            Agent.runtime().get(sessionId).running = true
-            await expect(Session.setModel({ sessionId, provider: 'local', model: 'other' })).rejects.toMatchObject({ status: 409 })
-            Agent.runtime().get(sessionId).running = false
+            const sessionId = await newSession({
+                extra: { providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }, { id: 'other', name: 'other' }] }] },
+            })
+            const agent = Agent.runtime().get(sessionId)
+            agent.running = true
+            const meta = await Session.setModel({ sessionId, provider: 'local', model: 'other' })
+            expect(meta.model).toBe('other')
+            expect((await Session.read({ sessionId })).model).toBe('other')
+            expect(Agent.runtime().get(sessionId)).toBe(agent) // 不重建实例，运行不中断
+            expect(agent.config.model).toBe('other')           // 下一轮请求会读到新模型
+            agent.running = false
         })
     })
 

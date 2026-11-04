@@ -64,7 +64,7 @@ const withFakeModel = async (callback, respond) => {
 }
 
 describe('交给 agent-core 的 config', () => {
-    test('0.27 自动压缩：增量独立标记，任务用量包含压缩请求', async () => {
+    test('自动压缩：增量独立标记，任务用量包含压缩请求', async () => {
         await withHome(async () => {
             const requests = []
             const server = Bun.serve({ port: 0, async fetch(request) {
@@ -116,7 +116,7 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('0.27 拒绝工具也回调完整 onToolResult 和 onStep.toolResults', async () => {
+    test('拒绝工具也回调完整 onToolResult 和 onStep.toolResults', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port }) => {
                 await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'm', name: 'm' }], baseURL: `http://127.0.0.1:${port}/v1` }] })
