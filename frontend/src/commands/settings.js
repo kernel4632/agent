@@ -37,7 +37,6 @@ function toolSettingsFor(catalog) {
         kind: tool.kind,
         kindLabel: tool.kindLabel || tool.kind,
         kindHint: tool.kindHint || '',
-        enabled: tool.permission !== 'deny',
         permission: tool.permission,
         original: tool.permission,
         // 工具脚本声明的渲染信息；设置页保存时不会把它写回 permission。
@@ -108,7 +107,8 @@ function backendSnapshot(draft) {
     models: draft.models,
     compact: draft.compact,
     mcp: draft.mcp,
-    tools: draft.tools,
+    // original 只用来判断“这一项改过没有”，不是后端字段。
+    tools: (draft.tools || []).map(({ original, ...tool }) => tool),
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -223,6 +223,8 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     store.config.appearance = isolateDraft(draft.appearance)
     Appearance.save(draft.appearance)
     if (!await load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
+    // 保存成功后，草稿里的“已保存值”跟着前进，改回旧值也要写回后端。
+    for (const tool of draft.tools || []) tool.original = tool.permission
     store.settings.savedAt = Date.now()
     initialBackendDraft = backendSnapshot(draft)
     lastAutoSaveError = ''

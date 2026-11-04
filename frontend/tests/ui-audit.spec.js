@@ -853,18 +853,26 @@ test('tool permissions save and MCP settings remain available', async ({ page },
   await page.getByRole('button', { name: /工具管理/ }).click()
   await expect(page.getByText('读取文件', { exact: true })).toBeVisible()
   await expect(page.getByText('执行命令', { exact: true })).toBeVisible()
+  // 只有开关：没有禁止调用，也没有进入二级权限页的入口。
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  await expect(page.getByText('禁止调用')).toHaveCount(0)
   await screenshot(page, testInfo, 'settings-tools')
-  await page.getByRole('button', { name: /读取文件/ }).click()
-  await page.getByRole('radio', { name: /自动执行/ }).check()
+
+  const readSwitch = page.getByRole('switch', { name: '读取文件 自动执行' })
+  const commandSwitch = page.getByRole('switch', { name: '执行命令 自动执行' })
+  await expect(readSwitch).not.toBeChecked()
+  await readSwitch.check()
   await expect.poll(() => mock.config().permission.read_file).toBe('allow')
-  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await commandSwitch.check()
+  await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
+  await readSwitch.uncheck()
+  await expect.poll(() => mock.config().permission.read_file).toBe('ask')
 
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /MCP 服务/ }).click()
   await expect(page.getByRole('button', { name: /^sample/ })).toBeVisible()
   await screenshot(page, testInfo, 'settings-mcp')
 
-  expect(mock.config().permission.execute_command).toEqual({ '*': 'ask' })
   expect(mock.errors).toEqual([])
 })
 
