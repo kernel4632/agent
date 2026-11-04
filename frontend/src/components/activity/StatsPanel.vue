@@ -79,12 +79,17 @@ const speed = computed(() => {
   if (live.value.running) {
     const firstTokenAt = Number(live.value.firstTokenAt || 0)
     const output = Number(live.value.output || 0)
-    if (!firstTokenAt || !output) return ''
-    const elapsed = (liveNow.value - firstTokenAt) / 1000
-    return elapsed > 0 ? `${Math.max(1, Math.round(output / elapsed))} tok/s` : ''
+    if (firstTokenAt && output) {
+      const elapsed = (liveNow.value - firstTokenAt) / 1000
+      if (elapsed > 0) return `${Math.max(1, Math.round(output / elapsed))} tok/s`
+    }
   }
-  const tps = Number(live.value.tps || 0)
-  return tps > 0 ? `${Math.round(tps)} tok/s` : ''
+  const latestTps = Number(live.value.tps || 0)
+  if (latestTps > 0) return `${Math.round(latestTps)} tok/s`
+  // 旧会话或最后一笔没有耗时数据时，至少保留一个聚合速度，不能让速度项直接消失。
+  const output = Number(usage.value.output || 0)
+  const duration = Number(usage.value.durationMs || 0)
+  return output > 0 && duration > 0 ? `${Math.round(output / (duration / 1000))} tok/s` : ''
 })
 const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,
