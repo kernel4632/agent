@@ -5,3 +5,24 @@
 .ui-code-block__body { display: flex; overflow: auto; max-height: 500px; }
 .ui-code-block pre { flex: 1; margin: 0; padding: 16px; background: transparent; white-space: pre; font: 13px/1.7 var(--la-font-mono); }
 .ui-code-block .ui-code-block__numbers { flex: 0; padding-right: 0; color: var(--la-muted); user-select: none; }
+/* highlight.js 没有自带主题；这里按 opencode TUI 的语法角色上色，_v-html 内容用 :deep 穿透 scoped。 */
+.ui-code-block {
+  :deep(.hljs-comment), :deep(.hljs-quote) { color: var(--md-comment); font-style: italic; }
+  :deep(.hljs-keyword), :deep(.hljs-literal), :deep(.hljs-section), :deep(.hljs-selector-tag),
+  :deep(.hljs-doctag), :deep(.hljs-meta .hljs-keyword) { color: var(--md-keyword); }
+  :deep(.hljs-title), :deep(.hljs-title.function_), :deep(.hljs-function .hljs-title),
+  :deep(.hljs-selector-id), :deep(.hljs-selector-class) { color: var(--md-function); }
+  :deep(.hljs-string), :deep(.hljs-attr), :deep(.hljs-template-tag), :deep(.hljs-template-variable),
+  :deep(.hljs-regexp), :deep(.hljs-addition) { color: var(--md-string); }
+  :deep(.hljs-number), :deep(.hljs-symbol), :deep(.hljs-bullet), :deep(.hljs-variable.constant_),
+  :deep(.hljs-meta) { color: var(--md-number); }
+  :deep(.hljs-type), :deep(.hljs-built_in), :deep(.hljs-builtin-name), :deep(.hljs-class .hljs-title) { color: var(--md-type); }
+  :deep(.hljs-operator), :deep(.hljs-punctuation) { color: var(--md-operator); }
+  :deep(.hljs-name) { color: var(--md-type); }
+  :deep(.hljs-variable), :deep(.hljs-params), :deep(.hljs-property), :deep(.hljs-attribute),
+  :deep(.hljs-tag) { color: var(--la-text); }
+  :deep(.hljs-deletion) { color: var(--la-danger); }
+  :deep(.hljs-emphasis) { font-style: italic; }
+  :deep(.hljs-strong) { font-weight: 650; }
+  :deep(.hljs-link) { color: var(--md-link); text-decoration: underline; }
+}

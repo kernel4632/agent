@@ -36,17 +36,45 @@
 .markdown-body p:last-child { margin-bottom: 0; }
 .markdown-body h1,
 .markdown-body h2,
-.markdown-body h3 { line-height: 1.5; font-weight: 530; margin: 16px 0 8px; }
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 { color: var(--la-text); line-height: 1.5; font-weight: 620; margin: 16px 0 8px; }
 .markdown-body h1 { font-size: 20px; }
 .markdown-body h2 { font-size: 17px; }
 .markdown-body h3 { font-size: 15px; }
+.markdown-body h4 { font-size: 14px; }
+.markdown-body h5,
+.markdown-body h6 { color: var(--la-secondary); font-size: 13px; }
+.markdown-body strong { color: var(--la-text); font-weight: 650; }
+.markdown-body em { color: var(--md-em); }
+.markdown-body del { color: var(--la-muted); }
 .markdown-body pre { max-width: 100%; overflow-x: auto; margin: 0 0 10px; border: .5px solid var(--la-line); padding: 10px 12px; border-radius: 8px; background: var(--la-layer-01); color: var(--la-text); line-height: 1.7; }
 .markdown-body code { font: 12px/1.7 var(--la-font-mono); }
-.markdown-body :not(pre) > code { padding: 1px 4px; background: var(--la-layer-02); border-radius: 4px; color: var(--la-text); }
-.markdown-body a { color: var(--la-accent); text-underline-offset: 4px; }
+.markdown-body :not(pre) > code {
+  padding: 1px 4px;
+  border: .5px solid color-mix(in srgb, var(--md-code) 22%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--md-code) 10%, transparent);
+  color: var(--md-code);
+}
+.markdown-body a { color: var(--md-link); text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent); text-underline-offset: 4px; }
+.markdown-body a:hover { color: var(--md-link-text); }
 .markdown-body img { max-width: 100%; height: auto; border-radius: 8px; }
 .markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .markdown-body td,
 .markdown-body th { padding: 6px 9px; border: .5px solid var(--la-line); }
-.markdown-body blockquote { margin-left: 0; padding-left: 14px; border-left: 2px solid var(--la-accent-border); color: var(--la-secondary); }
+.markdown-body th { background: var(--la-layer-01); color: var(--la-text); font-weight: 620; }
+.markdown-body blockquote {
+  margin-left: 0;
+  padding: 5px 12px;
+  border-left: 2px solid var(--md-quote);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--md-quote) 6%, transparent);
+  color: var(--md-quote);
+}
+.markdown-body ul > li::marker { color: var(--md-list); }
+.markdown-body ol > li::marker { color: var(--md-enum); }
+.markdown-body hr { margin: 14px 0; border: 0; border-top: 1px solid var(--md-rule); }
+.markdown-body input[type=checkbox] { accent-color: var(--md-code); }
 .markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; }
