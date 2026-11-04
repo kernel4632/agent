@@ -15,10 +15,9 @@
 ## 现在长什么样
 
 ```text
-server.js              入口：注册路由、统一错误、启动
+server.js              入口：装配有状态模块、注册路由、统一错误、启动
 store.js               全局数据：config 和 sessions 两个纯对象
-commands/              HTTP 动作和运行编排
-  bind.js              把有状态 feature 需要的兄弟服务接起来，只在这里接
+commands/              HTTP 动作和运行编排，命令文件之间不互相 import
   chat.js              发送、继续、停止、审批；一次运行的编排
   session.js           会话 CRUD、目录、模型、设置、回退、压缩
   settings.js          配置读写、模型测试、工具目录
@@ -59,7 +58,7 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
                                       └─ features/tool.js → tools/*
 ```
 
-命令层不互相 import，feature 之间也不互相 import；需要别的 feature 时由 `commands/bind.js` 在启动时注入。`tools/` 只依赖 `store.js`、`utils/` 和运行时 context。
+命令层不互相 import，feature 之间也不互相 import；需要别的 feature 时由 `server.js` 在启动时注入。`tools/` 只依赖 `store.js`、`utils/` 和运行时 context。
 
 ## 验证
 
@@ -83,7 +82,7 @@ go test ./...
 - 加工具：只往 `server/tools/` 放一个文件，写 `name`、`kind`、`description`、`inputSchema`、`execute`；会改文件的工具再带 `snapshot`。
 - 改发送、停止、继续、回退：先看 `commands/chat.js` 的收尾顺序和 `tools/file.js` 的快照语义，再改测试。
 - 改接口：`server/openapi.json`、`server/README.md`、`frontend/src/utils/api.js` 三处一起改；`server/tests/contract.test.js` 会盯着路由和文档是否对得上。
-- 加 feature 依赖：只改 `commands/bind.js`，不要回到命令文件里各写一份 `Agent.bind(...)`。
+- 加 feature 依赖：只改 `server.js` 的装配段，不要回到命令文件里各写一份 `Agent.bind(...)`。
 - 数据目录：测试和开发都用 `AGENT_HOME` 指向临时目录，不写真实 `~/.agent`。
 
 ## 已知边界

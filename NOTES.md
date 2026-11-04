@@ -106,7 +106,7 @@ MCP、技能、子任务都是基座能力，不是后续插件市场的概念�
 
 ```text
 server/
-  server.js              入口：注册路由、统一错误、启动；健康检查也在这里
+  server.js              入口：装配有状态模块、注册路由、统一错误、启动；健康检查也在这里
   store.js               全局数据中心：纯对象，直接看到 config 和 sessions
   package.json
   openapi.json
@@ -115,7 +115,6 @@ server/
   bun.lock
 
   commands/              入口指令：一个文件对应一组 HTTP 动作，命令之间不互相 import
-    bind.js              把有状态 feature 需要的兄弟服务接起来，装配只写这一处
     session.js           会话创建、列表、读取、分支、改名、删除、目录、设置、模型
     chat.js              发送、继续、停止、审批决定；一次运行的编排也在这里
     settings.js          配置读写、模型测试、工具目录
@@ -124,12 +123,12 @@ server/
     config.js            配置读取、旧字段迁移、保存
     history.js           消息历史、元数据、读取
     rollback.js          消息回退和撤销；不碰文件
-    agent.js             有状态：创建 Agent；审批、工具、历史由命令层注入
-    approval.js          有状态：工具审批；工具查询和配置保存由命令层注入
+    agent.js             有状态：创建 Agent；审批、工具、历史由 server.js 注入
+    approval.js          有状态：工具审批；工具查询和配置保存由 server.js 注入
     context.js           构建模型上下文
     compact.js           纯逻辑：接收 agent 和消息，返回压缩结果
     title.js             自动标题
-    tool.js              有状态：工具登记、扫描、类别；MCP 由命令层注入
+    tool.js              有状态：工具登记、扫描、类别；MCP 由 server.js 注入
     mcp.js               MCP 服务连接
 
   utils/                 通用小工具
@@ -251,9 +250,9 @@ HTTP/SSE
 
 四个目录保留，不重排。规则只有三条：
 
-- `features/` 的文件之间不允许互相 import。每个文件只做自己的功能，需要别的模块时从参数或启动时的 `bind` 注入。
+- `features/` 的文件之间不允许互相 import。每个文件只做自己的功能，需要别的模块时从参数或 `server.js` 启动时的 `bind` 注入。
 - `commands/` 的文件之间不允许互相 import。它们只 import `features/`，把功能编排成指令。
-- `server.js` import `commands/`，一个指令对应一个 API。
+- `server.js` import `commands/` 和工具需要的 feature，装配有状态模块；一个指令对应一个 API。
 
 依赖方向：
 
@@ -271,7 +270,7 @@ server.js
 
 - **纯逻辑**：`compact`、`rollback`、`context`、`title`。传入数据，返回结果，不自己读写会话。
 - **独立适配器**：`history`、`config`、`mcp`。只碰 `store.js`、`utils/` 或外部服务，不 import 别的 feature。
-- **有状态服务**：`agent`、`approval`、`tool`。自己保存运行中的 agent、待审批和工具缓存；需要别的 feature 时由命令层在启动时 `bind` 进来，文件本身不 import 兄弟。
+- **有状态服务**：`agent`、`approval`、`tool`。自己保存运行中的 agent、待审批和工具缓存；需要别的 feature 时由 `server.js` 在启动时 `bind` 进来，文件本身不 import 兄弟。
 
 `features/run.js` 只被 `commands/chat.js` 使用，直接并进 `chat.js`。features 里不再有运行编排。
 
@@ -279,14 +278,14 @@ server.js
 
 | 文件 | 怎么改 |
 | --- | --- |
-| `features/agent.js` | 去掉对 approval/context/history/tool 的 import；加 `bind`，由命令层注入这四项服务 |
-| `features/approval.js` | 去掉 tool/config import；加 `bind`，由命令层注入工具查询和配置保存 |
-| `features/tool.js` | 去掉 mcp import；加 `bind`，由命令层注入 MCP |
+| `features/agent.js` | 去掉对 approval/context/history/tool 的 import；加 `bind`，由 `server.js` 注入这四项服务 |
+| `features/approval.js` | 去掉 tool/config import；加 `bind`，由 `server.js` 注入工具查询和配置保存 |
+| `features/tool.js` | 去掉 mcp import；加 `bind`，由 `server.js` 注入 MCP |
 | `features/compact.js` | 改成 `run({ agent, onEvent }) -> summary`，不碰 history/sse |
 | `features/rollback.js` | 改成接收 `history` 和 `agent` 参数，不 import 它们 |
 | `features/config.js` / `context.js` | 默认提示词挪到 `store.js`，去掉 config → context |
-| `commands/chat.js` | 接手 `features/run.js` 的发送/继续/停止逻辑；启动时 bind 三个有状态服务 |
-| `commands/session.js` | 压缩、回退按新签名调用；启动时 bind |
+| `commands/chat.js` | 接手 `features/run.js` 的发送/继续/停止逻辑 |
+| `commands/session.js` | 压缩、回退按新签名调用 |
 | `commands/settings.js` | 合并原 `commands/config.js` 和 `commands/tool.js`：配置读写、模型测试、工具目录 |
 | `commands/config.js` / `commands/tool.js` | 删除；`tool.js` 只是把 `Tool.list()` 原样转出去，没有做决定 |
 | `features/run.js` | 删除 |

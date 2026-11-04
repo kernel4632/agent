@@ -24,10 +24,6 @@ import Tool from '../features/tool.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
-import bind from './bind.js'
-
-// --- 装配有状态 feature 需要的服务；装配内容只写在 commands/bind.js ---
-bind()
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {

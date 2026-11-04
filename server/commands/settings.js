@@ -3,7 +3,7 @@
  *
  * 配置读取、当前形状检查和保存都在 features/config.js；工具扫描在 features/tool.js。
  * 两边都是设置页要的数据，所以合成一个命令文件，不再为工具目录单独留一个转手文件。
- * 本文件只 import features 和 commands/bind.js，不 import 别的命令；服务装配写在 bind.js。
+ * 本文件只 import features，不 import 别的命令；有状态模块的装配在 server.js。
  *
  * 调用示例：
  *   await Settings.read()
@@ -18,10 +18,6 @@ import { fileURLToPath } from 'node:url'
 import Agent from '../features/agent.js'
 import Config from '../features/config.js'
 import Tool from '../features/tool.js'
-import bind from './bind.js'
-
-// --- 装配有状态 feature 需要的服务；装配内容只写在 commands/bind.js ---
-bind()
 
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
 let cachedVersion = null

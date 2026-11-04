@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os'
 import Settings from '../commands/settings.js'
 import Agent from '../features/agent.js'
 import store, { DEFAULT_PROMPT } from '../store.js'
+// 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
+import '../server.js'
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)

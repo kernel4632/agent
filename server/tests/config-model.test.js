@@ -15,6 +15,8 @@ import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
 import store from '../store.js'
+// 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
+import '../server.js'
 
 // 每个测试用独立的临时数据目录，互不影响。
 const withHome = async callback => {
