@@ -11,7 +11,8 @@
 .session-check-enter-from, .session-check-leave-to { opacity: 0; transform: scale(.8); }
 .home-session__main {
   display: flex;
-  height: 100%;
+  /* 父级只有 min-height，百分比 height 解析不到；用 flex 交叉轴拉伸撑满整行。 */
+  align-self: stretch;
   min-width: 0;
   flex: 1;
   align-items: center;
