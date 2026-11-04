@@ -4,19 +4,28 @@
 .session-scroll { min-height: 0; flex: 1; overflow: auto; overflow-anchor: none; scrollbar-gutter: stable; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 4px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .session-composer__stats { width: 100%; padding: 0 8px 3px; }
-/* 连接错误盖住整个输入卡片：毛玻璃让下面的输入框和按钮失焦，层本身承接重试点击。 */
-.chat-input-dock { position: relative; width: 100%; min-width: 0; }
-.chat-input-dock > .connection-error {
+/* 连接错误铺满整个聊天面板：毛玻璃盖住对话和输入区，中间的卡片保留唯一可点的重试。 */
+.session-panel,
+.draft-panel { position: relative; }
+.connection-overlay {
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--la-bg) 62%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.25);
+}
+.connection-overlay .connection-error {
+  width: min(520px, 100%);
   margin: 0;
+  padding: 20px 24px;
   border: 1px solid color-mix(in srgb, var(--la-danger) 55%, transparent);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--la-layer-03) 52%, transparent);
-  box-shadow: 0 12px 32px color-mix(in srgb, #000 26%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  backdrop-filter: blur(18px) saturate(1.35);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--la-layer-03) 88%, transparent);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 32%, transparent);
 }
 .session-composer.is-reconnecting { filter: blur(2px); opacity: .6; }
 .chat-notice {

@@ -83,7 +83,7 @@ function chooseReasoning(reasoning) {
 
 <template>
   <section :class="session ? 'session-panel' : 'draft-panel'" :aria-label="session ? '聊天' : '新会话'">
-    <div :class="session ? 'session-main' : 'draft-main'">
+    <div :class="session ? 'session-main' : 'draft-main'" :inert="error ? '' : undefined">
       <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
         <div v-if="session" ref="conversationScroll" class="session-scroll">
           <Transition name="session-swap" mode="out-in"><Timeline :key="session.id" :scroll-root="conversationScroll" /></Transition>
@@ -97,14 +97,16 @@ function chooseReasoning(reasoning) {
       <div :class="[session ? 'session-composer' : 'draft-form', { 'is-reconnecting': showReconnect }]">
         <Transition name="notice"><div v-if="session && !session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div></Transition>
         <Transition name="notice"><div v-if="session?.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div></Transition>
-        <div class="chat-input-dock">
-          <Transition name="alert"><ConnectionError v-if="error" :message="error" /></Transition>
-          <Composer ref="composer" v-model:draft="draft" :blocked="!!error" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
-            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
-        </div>
+        <Composer ref="composer" v-model:draft="draft" :blocked="!!error" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
+          @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>
     </div>
+    <Transition name="alert">
+      <div v-if="error" class="connection-overlay">
+        <ConnectionError :message="error" />
+      </div>
+    </Transition>
     <TaskPanel v-if="session" :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
   </section>
 </template>
