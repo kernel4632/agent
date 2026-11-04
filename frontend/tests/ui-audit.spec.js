@@ -914,7 +914,7 @@ test('composer footer stats opens the session data panel', async ({ page }, test
   await expect(stats).toContainText('50 tokens')
   await expect(stats).toContainText('缓存命中 33.3%')
   await expect(stats).not.toContainText('轮')
-  await expect(stats).toContainText('25 tok/s')
+  await expect(stats).toContainText('33 tok/s')
   await expect(stats).not.toContainText('消息')
   const composerBox = await page.locator('.chat-composer').boundingBox()
   const statsBox = await stats.boundingBox()
@@ -946,7 +946,7 @@ test('composer footer stats opens the session data panel', async ({ page }, test
   await expect(usage.locator('.stats-panel__stack .is-cache')).toHaveCount(1)
   await screenshot(page, testInfo, 'composer-footer-stats-panel')
 
-  await stats.getByRole('button', { name: /25 tok\/s/ }).click()
+  await stats.getByRole('button', { name: /33 tok\/s/ }).click()
   const speedPanel = page.getByRole('dialog', { name: '生成速度' })
   await expect(speedPanel).toContainText('test-model')
   await expect(speedPanel).toContainText('Test Provider')

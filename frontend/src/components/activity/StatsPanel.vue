@@ -4,7 +4,7 @@
 调用示例：<StatsPanel :stats="stats" />。
 -->
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Menu from '../../ui/Menu.vue'
 import RingProgress from '../../ui/RingProgress.vue'
 import Icon from '../../ui/Icon.vue'
@@ -64,10 +64,27 @@ const formatTokens = (value, isApproximate = false) => {
   if (number >= 1000) return `${prefix}${(number / 1000).toFixed(1)}K`
   return `${prefix}${number}`
 }
+const live = computed(() => props.stats.live || {})
+const liveNow = ref(Date.now())
+let liveTimer = null
+watch(() => Boolean(live.value.running), running => {
+  if (liveTimer) { window.clearInterval(liveTimer); liveTimer = null }
+  if (!running) return
+  liveNow.value = Date.now()
+  liveTimer = window.setInterval(() => { liveNow.value = Date.now() }, 500)
+}, { immediate: true })
+onBeforeUnmount(() => { if (liveTimer) window.clearInterval(liveTimer) })
+// 外显速度：生成中看当前输出 / 首字后耗时；结束后看最后一次请求的实际速度。
 const speed = computed(() => {
-  const ms = Number(usage.value.durationMs || 0)
-  if (!ms || !usage.value.output) return ''
-  return `${(Number(usage.value.output) / (ms / 1000)).toFixed(0)} tok/s`
+  if (live.value.running) {
+    const firstTokenAt = Number(live.value.firstTokenAt || 0)
+    const output = Number(live.value.output || 0)
+    if (!firstTokenAt || !output) return ''
+    const elapsed = (liveNow.value - firstTokenAt) / 1000
+    return elapsed > 0 ? `${Math.max(1, Math.round(output / elapsed))} tok/s` : ''
+  }
+  const tps = Number(live.value.tps || 0)
+  return tps > 0 ? `${Math.round(tps)} tok/s` : ''
 })
 const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,

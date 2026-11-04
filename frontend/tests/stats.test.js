@@ -41,6 +41,9 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.total, 50)
   assert.equal(stats.usage.durationMs, 800)
   assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
+  assert.equal(stats.live.running, false)
+  // 外显速度按最后一次请求的实际生成时间算，不是会话平均。
+  assert.ok(Math.abs(stats.live.tps - 100 / 3) < 0.01)
   assert.deepEqual(stats.models, [{
     provider: 'Test Provider',
     model: 'test-model',
@@ -51,8 +54,23 @@ test('real request usage wins over estimation', () => {
   }])
 })
 
-test('speed groups by provider and model, slowest first', () => {
-  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+test('streaming output exposes a live speed snapshot', () => {
+  const firstTokenAt = Date.now() - 1000
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [user('写一段'), assistant('已经生成了一段内容，正在继续输出', {
+      isStreaming: true,
+      request: { status: 'running', startedAt: firstTokenAt - 200, firstTokenAt, output: 0, durationMs: 0, input: 30, cache: 0, cacheWrite: 0, total: 0 },
+    })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.live.running, true)
+  assert.equal(stats.live.firstTokenAt, firstTokenAt)
+  assert.ok(stats.live.output > 0)
+})
+
+test('speed groups by provider and model, slowest first', () => {  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
   const slow = { input: 10, output: 10, total: 20, firstTokenMs: 900, durationMs: 4000, provider: 'Provider B', model: 'slow-model' }
   const session = {
     contextLimit: 1000,

@@ -120,6 +120,18 @@ export function sessionStats(session) {
   const requests = messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : [])
   const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
   const last = messages.filter(message => !message.compact).flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : []).at(-1)
+  // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
+  const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
+  const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
+  const liveOutput = liveAssistant ? estimateTokens(`${liveAssistant.content || ''}${liveAssistant.reasoning || ''}`) : 0
+  const liveFirstTokenAt = Number(liveRequest?.firstTokenAt || 0)
+  // 没有正在生成的请求时，外显的是最后一次请求的实际速度；速度面板里的平均值仍单独保留。
+  const requestTps = item => {
+    const duration = Number(item?.durationMs || 0)
+    const firstToken = Number(item?.firstTokenMs || 0)
+    const generation = duration > firstToken ? duration - firstToken : duration
+    return generation > 0 ? Number(item?.output || 0) / (generation / 1000) : 0
+  }
   const input = sum('input')
   const output = sum('output')
   const total = requests.reduce((value, item) => value + Number(item.total || 0), 0) || input + output
@@ -205,6 +217,12 @@ export function sessionStats(session) {
     series: usageApproximate
       ? estimatedSeries
       : requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0), cache: Number(item.cache || 0) })),
+    live: {
+      running: Boolean(liveAssistant),
+      output: liveOutput,
+      firstTokenAt: liveFirstTokenAt,
+      tps: last ? requestTps(last) : 0,
+    },
     models: modelGroups(),
   }
 }
