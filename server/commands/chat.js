@@ -235,7 +235,7 @@ const forwardedEvents = ({ sessionId, state }) => ({
 })
 
 // --- 工具结果原样推给前端 ---
-const elapsedLabel = milliseconds => `${(Math.max(0, Number(milliseconds) || 0) / 1000).toFixed(1)}s`
+const elapsedLabel = milliseconds => `${Math.max(0, Math.round((Number(milliseconds) || 0) / 1000))}s`
 
 // 用户主动停止时 core 只返回一句“工具执行已中断”；补上已经跑的时间，
 // 让模型和界面都知道这个工具实际执行了多久。

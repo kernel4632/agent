@@ -41,8 +41,8 @@ const duration = computed(() => {
     if (!end) return ''
     milliseconds = end - startedAt
   }
-  const seconds = milliseconds / 1000
-  return seconds >= 0.1 ? `${seconds.toFixed(1)}s` : ''
+  const seconds = Math.round(milliseconds / 1000)
+  return seconds > 0 ? `${seconds}s` : ''
 })
 // 运行中和等待审批时必须看得到输出/按钮；历史里完成的工具默认收起，点标题再展开。
 const bodyOpen = computed(() => expanded.value || running.value || props.tool.status === 'error')

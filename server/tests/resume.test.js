@@ -414,7 +414,7 @@ describe('继续被中断的助手', () => {
             const toolResult = History.get({ sessionId })
                 .find(message => message.role === 'tool')?.content
                 ?.find(part => part.type === 'tool-result')
-            expect(toolResult.output.value).toMatch(/^工具执行已中断（已执行 \d+\.\ds）$/)
+            expect(toolResult.output.value).toMatch(/^工具执行已中断（已执行 \d+s）$/)
         })
     })
 
