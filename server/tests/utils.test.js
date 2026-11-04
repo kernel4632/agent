@@ -575,6 +575,37 @@ describe('server tool approval and SSE', () => {
         })
     })
 
+    test('remembers an exact read_file path across sessions, including Windows separators', async () => {
+        await withHome(async () => {
+            await Settings.set({ permission: { '*': 'ask' } })
+            const target = 'F:\\workspace\\中文 目录\\input (1).txt'
+            const waitFor = async (sessionId, callId) => {
+                // 审批请求什么时候登记由 check 的异步链决定，轮询等它出现再决定，不猜时序。
+                for (let index = 0; index < 200; index++) {
+                    if ((await Approval.pending(sessionId)).some(item => item.callID === callId)) return
+                    await Bun.sleep(10)
+                }
+                throw new Error(`approval ${callId} never appeared`)
+            }
+
+            const first = Approval.check({ sessionId: 's', toolCallId: 'r1', toolName: 'read_file', input: { path: target } })
+            await waitFor('s', 'r1')
+            await Approval.decide({ sessionId: 's', toolCallId: 'r1', decision: 'allow-always' })
+            expect(await first).toBe(true)
+
+            // 同一会话：不再询问。
+            expect(await Approval.check({ sessionId: 's', toolCallId: 'r2', toolName: 'read_file', input: { path: target } })).toBe(true)
+
+            // 新会话：审批状态里没有这条记录，规则要从配置里命中——issue #9 的主场景。
+            expect(await Approval.check({ sessionId: 'other', toolCallId: 'r3', toolName: 'read_file', input: { path: target } })).toBe(true)
+
+            // 相似但不同的路径不自动放行：仍然要问，最后拒绝掉。
+            const different = Approval.check({ sessionId: 'other', toolCallId: 'r4', toolName: 'read_file', input: { path: 'F:\\workspace\\中文 目录\\other (1).txt' } })
+            await waitFor('other', 'r4')
+            await Approval.decide({ sessionId: 'other', toolCallId: 'r4', decision: 'deny' })
+            expect(await different).toBe(false)
+        })
+    })
     test('remembers a whole command instead of one exact argument list', async () => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'ask' } })

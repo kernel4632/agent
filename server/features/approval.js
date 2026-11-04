@@ -85,7 +85,12 @@ const plainObject = value => value && typeof value === 'object' && !Array.isArra
 // --- 把"始终允许"写成一条全局规则 ---
 const remember = ({ toolName, input, matchValue }) => {
     const pattern = toolName === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
-    const escaped = pattern.replace(/[\\?[\]{()]/g, character => `[${character}]`)
+    // 精确参数里的 glob 特殊字符按字面量转义，模式才能匹配回保存时的原值；
+    // 反斜杠在 bash 模式下是字面量，不进字符类——否则模式永远匹配不上 Windows 路径（issue #9）。
+    // execute_command 的命令前缀模式以 * 结尾表示"这类命令都放行"，这个星号是通配，不转义。
+    const escaped = (toolName === 'execute_command' ? pattern : pattern.replace(/\*/g, '\\*'))
+        .replace(/\\/g, '\\\\')
+        .replace(/[?[\]{()}]/g, character => `\\${character}`)
     store.config.permission = plainObject(store.config.permission) || { '*': 'ask' }
     const toolRule = plainObject(store.config.permission[toolName])
     if (toolRule) toolRule[escaped] = 'allow'
