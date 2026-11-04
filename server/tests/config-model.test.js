@@ -191,7 +191,7 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('模型没有调用工具时只请求一次，不会把回答显示两遍', async () => {
+    test('模型不调工具时最多追问三轮，第三轮前提醒用结束工具', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
                 await Settings.set({
@@ -213,7 +213,9 @@ describe('交给 agent-core 的 config', () => {
 
                 const result = await agent.send({ input: '你好' })
                 expect(result.reason).toBe('no-tool')
-                expect(seen).toHaveLength(1)
+                expect(seen).toHaveLength(3)
+                // 最后一轮请求带着“必须用工具收尾”的提醒。
+                expect(JSON.stringify(seen[2])).toContain('attempt_completion')
             })
         })
     })

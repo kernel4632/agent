@@ -145,8 +145,10 @@ const resolveFor = ({ session, settings, target }) => {
             tools: hasCapability(profile, 'tools'),
         },
         system: services.context.system({ config: store.config }),
-        // 一轮没有工具调用就结束；默认提示词要求用 attempt_completion 收尾。
-        noToolRounds: 1,
+        // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
+        // 中间会插一条提醒，避免模型漏调结束工具就直接把文字当成结果（参考 Roo Code 的连续错误上限）。
+        noToolRounds: 3,
+        noToolPrompt: '[Error] Your last response did not call any tool. Continue the task. Finish by calling attempt_completion with the complete reply in result, or ask_followup_question if you are blocked. Do not answer in plain text.',
     }
 
     // 压缩可以另换一个模型，只换连接那一半；上下文预算仍按主模型算。

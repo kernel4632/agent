@@ -24,6 +24,8 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 
 Agent 循环来自 `@kernel4632/agent-core` **0.27.0**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
 
+模型没有调用任何工具时，最多追问 3 轮再结束；默认提示词要求每轮用 `attempt_completion` 收尾，追问时会再提醒一次。这样模型漏调结束工具时，不会把普通文字直接当成结果。
+
 ## 五个核心概念
 
 1. **会话**：唯一的长期容器。标题、当前目录 `cwd`、模型、历史、设置都在会话里。

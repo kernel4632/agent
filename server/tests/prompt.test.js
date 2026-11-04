@@ -82,10 +82,12 @@ describe('默认系统提示词', () => {
         })
     })
 
-    test('空提示词不会让 agent-core 再请求一轮', async () => {
+    test('模型不调工具时最多追问三轮，并提醒用结束工具', async () => {
         await withHome(async () => {
             await Settings.set({ providers: provider, prompt: { system: '' } })
-            expect(resolve().noToolRounds).toBe(1)
+            const config = resolve()
+            expect(config.noToolRounds).toBe(3)
+            expect(config.noToolPrompt).toContain('attempt_completion')
         })
     })
 })
