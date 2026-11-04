@@ -590,7 +590,14 @@ test('retry keeps the stop button available after reconnecting', async ({ page }
 test('connection failure is visible and does not replace the page with a blank screen', async ({ page }) => {
   await page.route('**/api/config/read', route => route.fulfill({ status: 503, body: 'Unavailable' }))
   await page.goto('/')
-  await expect(page.getByRole('alert')).toContainText('无法连接后端')
+  const alert = page.getByRole('alert')
+  await expect(alert).toContainText('无法连接后端')
+  await expect(alert).toHaveCSS('backdrop-filter', /blur/)
+  const alertBox = await alert.boundingBox()
+  const composerBox = await page.locator('.chat-composer').boundingBox()
+  // 提示浮在输入框上沿，不再占页面顶部的一整行。
+  expect(alertBox.y + alertBox.height).toBeGreaterThan(composerBox.y)
+  expect(alertBox.y + alertBox.height).toBeLessThan(composerBox.y + 20)
   await openDrawer(page)
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible()

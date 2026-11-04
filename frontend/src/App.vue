@@ -13,7 +13,6 @@ import ChatView from './views/ChatView.vue'
 import Sidebar from './components/navigation/Sidebar.vue'
 import TopBar from './components/navigation/TopBar.vue'
 import CommandPalette from './components/navigation/CommandPalette.vue'
-import ConnectionError from './components/feedback/ConnectionError.vue'
 import Toast from './components/feedback/Toast.vue'
 import { shortcutListener } from './utils/shortcuts.js'
 import { Appearance } from './commands/appearance.js'
@@ -177,10 +176,6 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
         />
 
         <main class="app-main">
-          <Transition name="alert">
-            <ConnectionError v-if="store.ui.errorMessage" :message="store.ui.errorMessage" />
-          </Transition>
-
           <ChatView
             ref="draftView"
             :session="session"
@@ -188,6 +183,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
             :model="store.config.activeModel"
             :reasoning="draftReasoning"
             :files="homeFiles"
+            :error="store.ui.errorMessage"
             :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
             v-model:todo-open="todoOpen"
             @update:reasoning="draftReasoning = $event"

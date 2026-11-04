@@ -6,6 +6,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
+import ConnectionError from '../components/feedback/ConnectionError.vue'
 import TaskPanel from '../components/activity/TaskPanel.vue'
 import StatsPanel from '../components/activity/StatsPanel.vue'
 import { Session } from '../commands/session.js'
@@ -20,6 +21,7 @@ const Timeline = defineAsyncComponent(() => import('../components/conversation/T
 const props = defineProps({
   session: { type: Object, default: null }, model: String,
   reasoning: { type: String, default: 'auto' }, files: { type: Array, default: () => [] }, busy: Boolean, todoOpen: Boolean,
+  error: { type: String, default: '' },
 })
 const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:todoOpen', 'update:reasoning'])
 const homeDraft = defineModel('draft', { type: String, default: '' })
@@ -95,8 +97,11 @@ function chooseReasoning(reasoning) {
       <div :class="[session ? 'session-composer' : 'draft-form', { 'is-reconnecting': showReconnect }]">
         <Transition name="notice"><div v-if="session && !session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div></Transition>
         <Transition name="notice"><div v-if="session?.undoable" class="chat-notice" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步，发新消息后不能再撤销）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div></Transition>
-        <Composer ref="composer" v-model:draft="draft" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
-          @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
+        <div class="chat-input-dock">
+          <Transition name="alert"><ConnectionError v-if="error" :message="error" /></Transition>
+          <Composer ref="composer" v-model:draft="draft" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
+            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
+        </div>
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>
     </div>
