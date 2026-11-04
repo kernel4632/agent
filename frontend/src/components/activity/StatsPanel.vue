@@ -32,6 +32,7 @@ const overBy = computed(() => Math.max(0, Number(context.value.used || 0) - Numb
 const threshold = computed(() => Math.min(100, Math.max(0, Number(context.value.threshold || 0.8) * 100)))
 const total = computed(() => Number(usage.value.total || Number(usage.value.input || 0) + Number(usage.value.output || 0)))
 const cacheTokens = computed(() => Math.max(0, Number(usage.value.cacheRead || 0)))
+const cacheWriteTokens = computed(() => Math.max(0, Number(usage.value.cacheWrite || 0)))
 const cacheRead = computed(() => Math.min(Number(usage.value.input || 0), cacheTokens.value))
 const cacheHit = computed(() => {
   const input = Number(usage.value.input || 0)
@@ -186,13 +187,18 @@ const formatDuration = value => {
             <span>最高 {{ formatTokens(trendMax, usageApproximate) }}</span>
           </div>
           <div class="stats-panel__legend">
-            <span class="stats-panel__legend-item is-input"><Icon name="up" :size="13" />输入 {{ formatTokens(usage.input, usageApproximate) }}</span>
-            <span class="stats-panel__legend-item is-output"><Icon name="down" :size="13" />输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
+            <span class="stats-panel__legend-item is-input"><Icon name="input" :size="13" />输入 {{ formatTokens(usage.input, usageApproximate) }}</span>
+            <span class="stats-panel__legend-item is-output"><Icon name="output" :size="13" />输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
             <span
               v-if="cacheTokens"
               class="stats-panel__legend-item is-cache"
               :title="`缓存读取 ${formatTokens(cacheTokens, usageApproximate)} tokens，占输入 ${cacheHit}%`"
-            ><Icon name="refresh" :size="13" />缓存 {{ cacheHit }}%</span>
+            ><Icon name="cache-read" :size="13" />缓存读 {{ cacheHit }}%</span>
+            <span
+              v-if="cacheWriteTokens"
+              class="stats-panel__legend-item is-cache-write"
+              :title="`缓存写入 ${formatTokens(cacheWriteTokens, usageApproximate)} tokens`"
+            ><Icon name="cache-write" :size="13" />缓存写 {{ formatTokens(cacheWriteTokens, usageApproximate) }}</span>
           </div>
           <div v-if="usage.reasoning" class="stats-panel__chips">
             <div class="stats-panel__chip">

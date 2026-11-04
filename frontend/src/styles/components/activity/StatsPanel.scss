@@ -110,6 +110,8 @@
 .stats-panel__legend-item.is-output svg { color: var(--la-success); }
 .stats-panel__legend-item.is-cache { color: var(--la-secondary); }
 .stats-panel__legend-item.is-cache svg { color: var(--la-warning); }
+.stats-panel__legend-item.is-cache-write { color: var(--la-secondary); }
+.stats-panel__legend-item.is-cache-write svg { color: var(--la-secondary); }
 
 .stats-panel__chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .stats-panel__chip { display: inline-flex; min-width: 0; flex: none; max-width: 100%; align-items: center; gap: 4px; padding: 4px 7px 4px 5px; border: 1px solid color-mix(in srgb, var(--la-text) 7%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--la-text) 4%, transparent); }
