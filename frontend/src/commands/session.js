@@ -103,7 +103,6 @@ async function selectModel(sessionID, provider, model) {
     session.provider = meta.provider
     session.model = meta.model
     session.contextLimit = store.config.providers[provider]?.models.find(item => item.id === model)?.context || DEFAULT_CONTEXT
-    Notice.show(`已切到 ${meta.model}`)
     return true
   } catch (error) {
     Notice.show(error.message)                            // 运行中冲突等错误直接展示
