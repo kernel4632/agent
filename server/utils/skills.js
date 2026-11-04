@@ -121,10 +121,11 @@ const candidates = ({ cwd = process.cwd() } = {}) => {
 }
 
 // --- 读一份 SKILL.md；缺名字或说明的坏文件直接跳过 ---
-const readFile = async (file, root, preview) => {
+const readFile = async (file, root, { preview = false, body = false } = {}) => {
     try {
         const handle = Bun.file(file)
         if (!(await handle.exists()) || handle.size > MAX_BYTES) return null
+        // 列表只需要前面的头部；正文只在真正读取这一个技能时才读全文。
         const text = preview ? await handle.slice(0, PREVIEW_BYTES).text() : await handle.text()
         const { data, content } = matter(text)
         const name = typeof data.name === 'string' ? data.name.trim() : ''
@@ -134,7 +135,7 @@ const readFile = async (file, root, preview) => {
         return {
             name,
             description,
-            body: preview ? '' : content.trim(),
+            body: body && !preview ? content.trim() : '',
             path,
             directory: dirname(path),
             source: root.id,
@@ -150,7 +151,7 @@ const readFile = async (file, root, preview) => {
 }
 
 // --- 扫描一个目录：支持目录本身是一个技能，也支持下面一层每个文件夹一个技能 ---
-const scan = async (path, root, { preview = false } = {}) => {
+const scan = async (path, root, { preview = false, body = false } = {}) => {
     if (!(await isDirectory(path))) return []
     const files = [join(path, 'SKILL.md')]
     try {
@@ -163,7 +164,7 @@ const scan = async (path, root, { preview = false } = {}) => {
     const skills = new Map()
     for (const file of files) {
         if (skills.size >= MAX_SKILLS) break
-        const skill = await readFile(file, root, preview)
+        const skill = await readFile(file, root, { preview, body })
         if (skill && !skills.has(skill.name)) skills.set(skill.name, skill)
     }
     return [...skills.values()]
@@ -218,7 +219,7 @@ const list = async ({ cwd = process.cwd(), includeDisabled = true } = {}) => {
     const skills = new Map()
     for (const root of roots) {
         if (!root.exists || !root.enabled) continue
-        for (const skill of await scan(root.path, root)) skills.set(skill.name, skill)
+        for (const skill of await scan(root.path, root, { preview: true })) skills.set(skill.name, skill)
     }
 
     const found = [...skills.values()]
@@ -231,13 +232,26 @@ const list = async ({ cwd = process.cwd(), includeDisabled = true } = {}) => {
     }
 }
 
+// --- 读正文时才读整份文件，列表不把几百 KB 的正文带出来 ---
+const withBody = async skill => {
+    const detail = await readFile(skill.path, {
+        id: skill.source,
+        label: skill.sourceLabel,
+        app: skill.app,
+        scope: skill.scope,
+        kind: skill.kind,
+        editable: skill.editable,
+    }, { body: true })
+    return detail ? { ...skill, body: detail.body } : skill
+}
+
 // --- 按名字取一个技能；禁用中的技能也能读到，管理页要能重新打开 ---
 const read = async ({ name, cwd = process.cwd(), includeDisabled = true } = {}) => {
     if (typeof name !== 'string' || !name.trim()) throw fail(400, 'skill name is required')
     const { skills } = await list({ cwd, includeDisabled })
     const skill = skills.find(item => item.name === name)
     if (!skill) throw fail(404, `Skill not found: ${name}`)
-    return skill
+    return withBody(skill)
 }
 
 // --- 可写目录：全局技能目录，或当前目录的项目技能目录 ---
@@ -256,7 +270,7 @@ const findOwn = async ({ name, cwd = process.cwd(), scope = 'global' } = {}) => 
         kind: 'own',
         editable: true,
     }
-    const skills = await scan(root, descriptor)
+    const skills = await scan(root, descriptor, { preview: true })
     return { root, skill: skills.find(item => item.name === name) }
 }
 

@@ -230,6 +230,7 @@ describe('技能识别与管理', () => {
 
             const before = await (await request(`/skill/list?cwd=${encodeURIComponent(project)}`)).json()
             expect(before.skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
+            expect(before.skills.find(item => item.name === 'review').body).toBe('')   // 列表不带正文
             const claudeRoot = before.roots.find(item => item.id === 'claude')
             expect(claudeRoot).toMatchObject({ exists: true, enabled: false, skillCount: 1 })
 
