@@ -61,10 +61,21 @@
 .markdown-body a { color: var(--md-link); text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent); text-underline-offset: 4px; }
 .markdown-body a:hover { color: var(--md-link-text); }
 .markdown-body img { max-width: 100%; height: auto; border-radius: 8px; }
-.markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
-.markdown-body td,
-.markdown-body th { padding: 6px 9px; border: .5px solid var(--la-line); }
-.markdown-body th { background: var(--la-layer-01); color: var(--la-text); font-weight: 620; }
+.ui-md__table { max-width: 100%; margin: 10px 0 12px; overflow-x: auto; }
+.ui-md__table > table { margin: 0; }
+/* 表格按 opencode TUI 的 columns 样式：不画格子，靠列间距和表头颜色分层。 */
+.markdown-body table { width: auto; border-collapse: collapse; border-spacing: 0; font-size: 13px; line-height: 1.7; }
+.markdown-body th,
+.markdown-body td { padding: 5px 22px 5px 0; border: 0; text-align: left; vertical-align: top; overflow-wrap: break-word; }
+.markdown-body th:last-child,
+.markdown-body td:last-child { padding-right: 0; }
+.markdown-body th { color: var(--md-heading); font-weight: 650; white-space: nowrap; }
+.markdown-body th[align=center],
+.markdown-body td[align=center] { text-align: center; }
+.markdown-body th[align=right],
+.markdown-body td[align=right] { text-align: right; }
+.markdown-body td code,
+.markdown-body th code { white-space: nowrap; }
 .markdown-body blockquote {
   margin-left: 0;
   padding: 5px 12px;

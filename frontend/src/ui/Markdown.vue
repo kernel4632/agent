@@ -52,6 +52,7 @@ function inlineHTML(token) {
       <p v-else-if="token.type === 'paragraph'" class="ui-typography ui-typography--body ui-typography--body-medium">
         <span v-html="inlineHTML(token)"></span>
       </p>
+      <div v-else-if="token.type === 'table'" class="ui-md__table" v-html="renderToken(token)"></div>
       <div v-else class="ui-md__block" v-html="renderToken(token)"></div>
     </template>
   </div>
