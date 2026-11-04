@@ -130,6 +130,7 @@ test('unregistered tools show input, JSON and error text without a renderer', as
   const report = page.locator('.cot-step--tool').filter({ hasText: 'custom_report' })
   await expect(report).toBeVisible()
   if (!await report.locator('.tool-result').isVisible()) await report.getByRole('button', { name: /custom_report/ }).click()
+  await report.getByRole('button', { name: /查看输入参数/ }).click()
   await expect(report.locator('.tool-input')).toContainText('active')
   await expect(report.locator('.tool-input')).toContainText('false')
   await expect(report.locator('.tool-result')).toContainText('total')
