@@ -688,6 +688,7 @@ describe('继续助手的 HTTP 接口', () => {
             const agent = {
                 history: [],
                 running: null,
+                config: { providerName: 'local', model: 'model' },
                 stop: async () => ({ ok: true }),
                 async send(options) {
                     const callbacks = options.callbacks
@@ -712,6 +713,8 @@ describe('继续助手的 HTTP 接口', () => {
             const starts = events.filter(event => event.type === 'llm-start')
             expect(starts).toHaveLength(1)
             expect(starts[0].startedAt).toBeGreaterThan(0)
+            expect(starts[0].provider).toBe('local')
+            expect(starts[0].model).toBe('model')
             expect(events.filter(event => event.type === 'llm-first-token')).toHaveLength(1)
             const compactStart = events.find(event => event.type === 'compact-start')
             expect(compactStart.startedAt).toBeGreaterThan(0)
@@ -719,6 +722,8 @@ describe('继续助手的 HTTP 接口', () => {
             expect(compactFinish.usage).toMatchObject({ input: 5, output: 2, total: 7 })
             expect(compactFinish.durationMs).toBeGreaterThanOrEqual(0)
             const finish = events.find(event => event.type === 'llm-finish')
+            expect(finish.usage.provider).toBe('local')
+            expect(finish.usage.model).toBe('model')
             expect(finish.usage.firstTokenMs).toBeGreaterThanOrEqual(0)
             expect(finish.usage.durationMs).toBeGreaterThanOrEqual(0)
             await SSE.close({ id: sessionId })

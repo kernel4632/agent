@@ -140,7 +140,13 @@ const modelEvents = ({ sessionId, state }) => ({
         state.requesting = true
         state.llmStartedAt = Date.now()
         state.firstTokenAt = 0
-        return SSE.send({ id: sessionId, data: { type: 'llm-start', ...request, startedAt: state.llmStartedAt } })
+        // 每轮现读 config：运行中切模型后，这一笔就按新供应商/模型记录。
+        state.provider = state.agent?.config?.providerName || ''
+        state.model = state.agent?.config?.model || ''
+        return SSE.send({
+            id: sessionId,
+            data: { type: 'llm-start', ...request, startedAt: state.llmStartedAt, provider: state.provider, model: state.model },
+        })
     },
     onLLMFinish: result => {
         state.requesting = false
@@ -150,6 +156,8 @@ const modelEvents = ({ sessionId, state }) => ({
             startedAt: state.llmStartedAt || finishedAt,
             finishedAt,
             firstTokenAt: state.firstTokenAt,
+            provider: state.provider,
+            model: state.model,
         })
         return SSE.send({
             id: sessionId,
@@ -226,7 +234,7 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     const settings = await Agent.readSettings(sessionId)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
-    const state = { llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
+    const state = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
     const token = { stopped: false, state }
     activeRuns.set(sessionId, token)
     let task

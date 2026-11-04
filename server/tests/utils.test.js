@@ -681,8 +681,10 @@ describe('请求用量', () => {
             startedAt: 1000,
             firstTokenAt: 2500,
             finishedAt: 9000,
+            provider: 'local',
+            model: 'model',
         })
-        expect(usage).toMatchObject({ input: 30, output: 20, total: 50, firstTokenMs: 1500, durationMs: 8000 })
+        expect(usage).toMatchObject({ input: 30, output: 20, total: 50, firstTokenMs: 1500, durationMs: 8000, provider: 'local', model: 'model' })
         // 没有首字时就是 0，前端据此省略这一项。
         expect(usageOf({ usage: null, startedAt: 1000, finishedAt: 2000 }).firstTokenMs).toBe(0)
     })

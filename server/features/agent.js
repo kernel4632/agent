@@ -131,6 +131,8 @@ const resolveFor = ({ session, settings, target }) => {
 
     const config = {
         ...linked,
+        // 记录来源名字；core 的连接字段只有 provider 对象，统计面板需要可读的供应商名。
+        providerName: chosen.provider,
         provider: {
             ...linked.provider,
             body: reasoningBody({ protocol: linked.protocol, level: settings.reasoning, source: linked.provider.body }),

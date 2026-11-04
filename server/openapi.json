@@ -1658,7 +1658,7 @@
           "SSE"
         ],
         "summary": "建立实时事件连接",
-        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、permission-limit、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。llm-start 带 startedAt（这次请求的真实开始时间），llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时和输入 / 输出 / 缓存。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
+        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、permission-limit、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。llm-start 带 startedAt（这次请求的真实开始时间）和 provider / model，llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 provider / model。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
         "operationId": "sseConnect",
         "parameters": [
           {

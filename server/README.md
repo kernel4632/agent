@@ -388,9 +388,9 @@ Accept: text/event-stream
 | `text-delta` | `text`，压缩时 `request: 'compact'` | 仅普通回答追加到 assistant 文本 |
 | `reasoning-delta` | `text`，压缩时 `request: 'compact'` | 仅普通回答追加到 assistant 思考文本 |
 | `retry` | `attempt`, `error`, `delay` | 显示正在重试 |
-| `llm-start` | `messages`, `tools`, `startedAt` | 显示正在请求模型；`startedAt` 是这次请求的真实开始时间，重连后计时接着走 |
+| `llm-start` | `messages`, `tools`, `startedAt`, `provider`, `model` | 显示正在请求模型；`startedAt` 是这次请求的真实开始时间，供应商 / 模型用于统计，重连后计时接着走 |
 | `llm-first-token` | `firstTokenAt`, `firstTokenMs` | 第一次收到内容增量；用来显示首字时间，重连后也能恢复 |
-| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `durationMs` | 统计本轮模型请求；`usage` 里带 `firstTokenMs`、`durationMs`、输入 / 输出 / 缓存 |
+| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `durationMs` | 统计本轮模型请求；`usage` 里带 `firstTokenMs`、`durationMs`、输入 / 输出 / 缓存和这次请求的 `provider` / `model` |
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具卡片 |
 | `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `input`, `output` | 更新工具最终结果；拒绝、取消、无效调用也会结算 |
