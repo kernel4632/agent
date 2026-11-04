@@ -24,6 +24,7 @@
 .session-stats__summary-context .session-stats__ring { flex: none; }
 .session-stats__separator { width: 1px; height: 14px; flex: none; margin: 0 3px; background: var(--la-line-strong); opacity: .7; }
 .session-stats__summary-item svg { color: var(--la-accent); }
+.session-stats__cache-hit { color: var(--la-secondary); }
 .session-stats__summary-estimate { flex: none; color: var(--la-warning); font-size: 11px; }
 
 .stats-panel { display: grid; width: 100%; gap: 12px; }

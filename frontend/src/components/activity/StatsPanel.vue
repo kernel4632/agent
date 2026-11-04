@@ -39,6 +39,13 @@ const cacheHit = computed(() => {
   if (!input) return 0
   return Math.min(100, Math.round(cacheTokens.value / input * 100))
 })
+// 底栏显示一位小数，面板保留整数；100% 不显示成 100.0%。
+const cacheHitText = computed(() => {
+  const input = Number(usage.value.input || 0)
+  if (!input) return '0'
+  const percent = Math.min(100, cacheTokens.value / input * 100)
+  return percent >= 100 ? '100' : percent.toFixed(1).replace(/\.0$/, '')
+})
 const shares = computed(() => {
   const input = Number(usage.value.input || 0)
   const output = Number(usage.value.output || 0)
@@ -151,11 +158,11 @@ const formatDuration = value => {
     <Menu
       mode="content"
       class="session-stats__menu"
-      :label="`${formatTokens(total, usageApproximate)} tokens，点击查看 token 用量`"
+      :label="`${formatTokens(total, usageApproximate)} tokens${cacheTokens ? `，缓存命中 ${cacheHitText}%` : ''}，点击查看 token 用量`"
       content-label="Token 用量"
     >
       <template #trigger>
-        <span class="session-stats__summary-item"><Icon name="database" :size="14" />{{ formatTokens(total, usageApproximate) }} tokens</span>
+        <span class="session-stats__summary-item"><Icon name="database" :size="14" />{{ formatTokens(total, usageApproximate) }} tokens<template v-if="cacheTokens"><span class="session-stats__cache-hit"> · 缓存命中 {{ cacheHitText }}%</span></template></span>
       </template>
       <div class="stats-panel stats-panel--usage">
         <div class="stats-panel__head">

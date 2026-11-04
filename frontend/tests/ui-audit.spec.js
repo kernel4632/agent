@@ -912,6 +912,7 @@ test('composer footer stats opens the session data panel', async ({ page }, test
   await expect(stats).toBeVisible()
   await expect(page.locator('.topbar .session-stats')).toHaveCount(0)
   await expect(stats).toContainText('50 tokens')
+  await expect(stats).toContainText('缓存命中 33.3%')
   await expect(stats).not.toContainText('轮')
   await expect(stats).toContainText('25 tok/s')
   await expect(stats).not.toContainText('消息')
