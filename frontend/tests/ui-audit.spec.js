@@ -595,9 +595,11 @@ test('connection failure is visible and does not replace the page with a blank s
   await expect(alert).toHaveCSS('backdrop-filter', /blur/)
   const alertBox = await alert.boundingBox()
   const composerBox = await page.locator('.chat-composer').boundingBox()
-  // 提示浮在输入框上沿，不再占页面顶部的一整行。
-  expect(alertBox.y + alertBox.height).toBeGreaterThan(composerBox.y)
-  expect(alertBox.y + alertBox.height).toBeLessThan(composerBox.y + 20)
+  // 提示盖住整个输入卡片，下面的输入框和按钮都被遮住并禁用。
+  expect(Math.abs(alertBox.y - composerBox.y)).toBeLessThan(2)
+  expect(Math.abs(alertBox.height - composerBox.height)).toBeLessThan(2)
+  expect(Math.abs(alertBox.width - composerBox.width)).toBeLessThan(2)
+  await expect(page.locator('.chat-composer')).toHaveAttribute('inert', '')
   await openDrawer(page)
   await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible()

@@ -37,6 +37,7 @@ const props = defineProps({
   isRunning: Boolean,
   canContinue: Boolean,
   busy: Boolean,
+  blocked: Boolean,
   files: { type: Array, default: () => [] },
 })
 const draft = defineModel('draft', { type: String, default: '' })
@@ -95,7 +96,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 </script>
 
 <template>
-  <form class="chat-composer" :class="{ 'is-expanded': expanded }" aria-label="对话编辑器" @submit.prevent="submit">
+  <form class="chat-composer" :class="{ 'is-expanded': expanded }" :inert="blocked ? '' : undefined" :aria-hidden="blocked ? 'true' : undefined" aria-label="对话编辑器" @submit.prevent="submit">
     <Transition name="attachments">
       <div v-if="files.length" class="chat-composer__files">
         <template v-for="file in files" :key="file.id">

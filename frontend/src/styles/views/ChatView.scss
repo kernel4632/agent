@@ -4,17 +4,16 @@
 .session-scroll { min-height: 0; flex: 1; overflow: auto; overflow-anchor: none; scrollbar-gutter: stable; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 4px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .session-composer__stats { width: 100%; padding: 0 8px 3px; }
-/* 连接错误浮在输入框上方，玻璃底模糊下面的对话，不占输入区高度。 */
+/* 连接错误盖住整个输入卡片：毛玻璃让下面的输入框和按钮失焦，层本身承接重试点击。 */
 .chat-input-dock { position: relative; width: 100%; min-width: 0; }
 .chat-input-dock > .connection-error {
   position: absolute;
-  right: 0;
-  bottom: calc(100% - 10px);
-  left: 0;
+  inset: 0;
   z-index: 30;
   margin: 0;
   border: 1px solid color-mix(in srgb, var(--la-danger) 55%, transparent);
-  background: color-mix(in srgb, var(--la-layer-03) 76%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--la-layer-03) 52%, transparent);
   box-shadow: 0 12px 32px color-mix(in srgb, #000 26%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.35);
   backdrop-filter: blur(18px) saturate(1.35);
