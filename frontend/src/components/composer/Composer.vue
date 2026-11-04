@@ -1,7 +1,7 @@
 <!--
-会话输入区：消息输入、附件、模型选择、发送和停止。
+会话输入区：消息输入、附件、模型与推理强度入口、发送和停止。
 会话页和新建会话页共用；只通过 v-model:draft 和事件与外面交互。
-模型面板独立在 ModelPicker；附件标签跟随同一份编辑状态。
+模型和推理强度合并在一个按钮里，点开是二层小窗，见 ComposerMenu；附件标签跟随同一份编辑状态。
 调用示例：
 <Composer
   ref="composer"
@@ -26,8 +26,7 @@ import Chip from '../../ui/Chip.vue'
 import Dialog from '../../ui/Dialog.vue'
 import { store } from '../../store.js'
 import { Session } from '../../commands/session.js'
-import ModelPicker from './ModelPicker.vue'
-import ReasoningPicker from './ReasoningPicker.vue'
+import ComposerMenu from './ComposerMenu.vue'
 import { ATTACHMENT_ACCEPT } from '../../commands/attachment.js'
 
 const props = defineProps({
@@ -45,7 +44,6 @@ const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file',
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
-const modelOpen = ref(false)
 const addOpen = ref(false)
 const expanded = ref(false)
 
@@ -54,10 +52,7 @@ function toggleExpanded() {
   nextTick(() => editor.value?.focus())
 }
 
-
-
 async function chooseModel(provider, model) {
-  modelOpen.value = false
   if (props.sessionId) await Session.selectModel(props.sessionId, provider, model)
   else {
     store.config.activeProvider = provider
@@ -110,9 +105,11 @@ defineExpose({ focus: () => editor.value?.focus() })
     </div>
     <div class="chat-composer__bottom">
       <div class="chat-composer__options">
-        <button type="button" class="composer-option composer-option--model" :aria-label="`选择模型（当前 ${selectedModel || '未选择'}）`" :title="selectedModel ? `选择模型：${selectedModel}` : '选择模型'" @click="modelOpen = true"><Icon name="model" :size="28" /></button>
-        <ReasoningPicker :reasoning="reasoning" :disabled="!selectedModel" @update:reasoning="emit('update:reasoning', $event)" />
-        <button type="button" class="composer-option composer-option--permission" aria-label="工具权限" title="打开工具权限设置" @click="Navigation.openSettings('tools')"><Icon name="permission" :size="18" /><span>权限</span></button>
+        <ComposerMenu
+          :providers="store.config.providers" :model="selectedModel" :provider="currentProvider" :reasoning="reasoning"
+          @choose-model="chooseModel" @update:reasoning="emit('update:reasoning', $event)"
+          @configure="Navigation.openSettings('providers')"
+        />
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><Icon name="plus" :size="18" /></button>
@@ -126,8 +123,6 @@ defineExpose({ focus: () => editor.value?.focus() })
     <!-- 隐藏的 file input 是编辑器专用控件：由更多选项里的附件按钮触发，保留原生实现。 -->
     <input ref="fileInput" class="sr-only" type="file" multiple :accept="ATTACHMENT_ACCEPT" tabindex="-1" aria-label="选择文本附件" @change="addFiles" />
   </form>
-
-  <ModelPicker v-model:open="modelOpen" :providers="store.config.providers" :model="selectedModel" :provider="currentProvider" @choose="chooseModel" @configure="Navigation.openSettings('providers')" />
 
   <Dialog placement="bottom" :open="addOpen" label="更多选项" @update:open="addOpen = $event">
     <div class="composer-sheet">

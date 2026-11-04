@@ -16,11 +16,11 @@ Vue 3 + Vite 聊天前端。会话从左侧抽屉打开，新对话在首次发�
 
 供应商管理参考 [RikkaHub 的供应商页面](https://github.com/rikkahub/rikkahub/blob/master/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingProviderDetailPage.kt)：添加前先选接口类型，详情分为配置、模型和高级设置。连接字段使用分段表单，底部操作栏与滚动内容分开；模型在底部面板中添加或编辑，可用模型支持搜索与批量选择。配置自动保存，界面不展示自动保存说明或手动保存配置按钮；模型编辑确认后才写入草稿。
 
-聊天输入框旁放模型、思考强度和工具权限入口；用量、轮次与上下文占用显示在输入框下方，点击状态栏查看会话统计。工具权限入口打开设置里的全局工具权限。
+聊天输入框旁只有一个「模型与推理」入口：点开是一层小窗，悬停展开二级窗选择模型或思考强度；工具权限入口移到了设置里。用量、轮次与上下文占用显示在输入框下方，点击状态栏查看会话统计。
 
 ## 从哪里修改
 
-功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分，同类区域每组 3～5 个文件。
+功能主体平铺在 `commands/`。页面在 `views/`，可见区域在 `components/`，基础控件在 `ui/`。组件按独立修改的理由和视觉整体划分，同类区域每组 2～5 个文件。
 
 | 要改的内容 | 入口 |
 | --- | --- |
@@ -34,7 +34,7 @@ Vue 3 + Vite 聊天前端。会话从左侧抽屉打开，新对话在首次发�
 | 切换页面、离页保存、提示 | `src/commands/navigation.js`、`notice.js` |
 | 网络契约 | `src/utils/api.js`；SSE 帧解析在 `src/utils/sse.js` |
 | 新会话和已有会话的页面排布 | `src/views/ChatView.vue`，两种状态共享输入接线 |
-| 模型选择面板 | `src/components/composer/ModelPicker.vue`，输入区只控制开关和选择动作 |
+| 模型与推理入口 | `src/components/composer/ComposerMenu.vue`，一个按钮打开一层小窗，悬停展开二级窗 |
 | 设置导航和各编辑面板 | `src/views/SettingsView.vue` 中的装配表，及对应的设置组件 |
 
 导航可以调用会话和设置；这些功能不反向调用导航。业务状态集中在 `store.js`，公共默认值在 `defaults.js`。`commands/` 不导入 Vue 组件，`ui/` 不调用业务功能；这些约束和零循环由 `tests/architecture.test.js` 检查。

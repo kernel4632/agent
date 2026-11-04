@@ -1,0 +1,210 @@
+/* ComposerMenu.vue：输入区一个按钮，一层菜单，悬停时右侧（或左侧）展开二级窗。 */
+.composer-menu { display: inline-flex; min-width: 0; }
+
+/* 合并后的唯一入口：模型名 + 当前思考档位。 */
+.composer-menu__trigger {
+  display: inline-flex;
+  max-width: 230px;
+  height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--la-text);
+  cursor: pointer;
+}
+.composer-menu__trigger:hover,
+.composer-menu__trigger[aria-expanded='true'] { background: var(--la-hover); }
+.composer-menu__model {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--la-text);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-menu__reasoning {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--la-layer-03);
+  color: var(--la-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* 一层菜单：贴着按钮，两个入口。 */
+.composer-menu__popup {
+  position: fixed;
+  inset: auto;
+  width: 244px;
+  min-width: 0;
+  margin: 0;
+  padding: 6px;
+  overflow: visible;
+  border: 1px solid var(--la-line);
+  border-radius: 20px;
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  box-shadow: var(--la-shadow-floating);
+}
+.composer-menu__popup:popover-open { animation: composer-menu-in var(--ui-duration-fast) var(--ui-curve-standard); }
+.composer-menu__list { display: grid; gap: 2px; }
+.composer-menu__row {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--la-text);
+  text-align: left;
+  cursor: pointer;
+}
+.composer-menu__row:hover,
+.composer-menu__row.is-active { background: var(--la-hover); }
+.composer-menu__row-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--la-accent-soft);
+  color: var(--la-accent);
+}
+.composer-menu__row-text { display: grid; min-width: 0; flex: 1; gap: 1px; }
+.composer-menu__row-text strong { font-size: 14px; font-weight: 500; line-height: 20px; }
+.composer-menu__row-text small {
+  overflow: hidden;
+  color: var(--la-muted);
+  font-size: 12px;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-menu__chevron { flex: none; color: var(--la-muted); }
+
+/* 二级窗：独立小窗，底边对齐一层菜单，向上长。 */
+.composer-menu__sub {
+  position: absolute;
+  bottom: 0;
+  display: grid;
+  width: 304px;
+  max-height: min(70vh, 520px);
+  align-content: start;
+  gap: 2px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--la-line);
+  border-radius: 18px;
+  background: var(--la-layer-02);
+  box-shadow: var(--la-shadow-overlay);
+}
+.composer-menu__sub.is-right { left: calc(100% + 8px); }
+.composer-menu__sub.is-left { right: calc(100% + 8px); }
+.composer-menu__heading {
+  margin: 0;
+  padding: 4px 10px 6px;
+  color: var(--la-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.composer-menu__group { display: grid; gap: 1px; }
+.composer-menu__group + .composer-menu__group { margin-top: 4px; }
+.composer-menu__provider { margin: 0; padding: 4px 10px 2px; color: var(--la-muted); font-size: 11.5px; }
+.composer-menu__option {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--la-text);
+  text-align: left;
+  cursor: pointer;
+}
+.composer-menu__option:hover { background: var(--la-hover); }
+.composer-menu__option.is-selected { background: var(--la-accent-soft); color: var(--ui-color-on-primary-container); }
+.composer-menu__option-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--la-accent) 12%, transparent);
+  color: var(--la-accent);
+}
+.composer-menu__option-text { min-width: 0; flex: 1; overflow: hidden; font-size: 13.5px; line-height: 19px; text-overflow: ellipsis; }
+.composer-menu__option-text strong { display: block; font-weight: 500; }
+.composer-menu__option-text small { display: block; color: var(--la-muted); font-size: 11.5px; line-height: 16px; }
+.composer-menu__option--reasoning { min-height: 52px; }
+.composer-menu__empty { margin: 0; padding: 10px; color: var(--la-muted); font-size: 13px; }
+.composer-menu__manage {
+  margin-top: 6px;
+  padding: 9px 10px;
+  border: 0;
+  border-top: 1px solid var(--la-line);
+  border-radius: 0 0 12px 12px;
+  background: transparent;
+  color: var(--la-accent);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.composer-menu__manage:hover { background: var(--la-hover); }
+
+/* 窄屏：二级窗替换一层菜单，用「返回」回退；高度跟着内容走。 */
+.composer-menu__popup.is-compact { width: min(304px, calc(100vw - 24px)); }
+.composer-menu__popup.is-compact .composer-menu__sub {
+  position: static;
+  inset: auto;
+  width: auto;
+  max-height: min(60vh, 420px);
+  padding: 0 2px 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.composer-menu__back {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--la-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.composer-menu__back:hover { background: var(--la-hover); }
+.composer-menu__back .is-back { transform: rotate(180deg); }
+
+@keyframes composer-menu-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 767px) {
+  .composer-menu__trigger { max-width: 190px; height: 44px; padding: 0 8px; }
+  .composer-menu__model { max-width: 108px; }
+}
+@media (max-width: 360px) {
+  .composer-menu__trigger { max-width: 168px; height: 40px; }
+  .composer-menu__model { max-width: 86px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-menu__popup:popover-open { animation-duration: .01ms; }
+}

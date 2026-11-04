@@ -117,7 +117,7 @@
   &__send.is-continue { background: var(--la-accent-soft); color: var(--la-accent); }
   &__send.is-continue:hover:not(:disabled) { background: color-mix(in srgb, var(--la-accent-soft) 84%, var(--la-accent)); }
 }
-.composer-option, .composer-action {
+.composer-action {
   display: grid;
   flex: none;
   place-items: center;
@@ -128,12 +128,10 @@
   color: var(--la-text);
   cursor: pointer;
 }
-.composer-option { width: 48px; height: 48px; }
-.composer-option--permission { width: auto; gap: 5px; padding-inline: 10px; border-radius: 999px; font-size: 12px; }
 .composer-action { width: 40px; height: 40px; }
-.composer-option:hover:not(:disabled), .composer-action:hover:not(:disabled) { background: var(--la-hover); }
-.composer-option.is-active, .composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
-.composer-option:disabled, .composer-action:disabled { opacity: .38; cursor: default; }
+.composer-action:hover:not(:disabled) { background: var(--la-hover); }
+.composer-action.is-active { color: var(--la-accent); background: var(--la-accent-soft); }
+.composer-action:disabled { opacity: .38; cursor: default; }
 .composer-sheet { display: grid; width: 100%; gap: 16px; min-width: 0; padding-bottom: 8px; }
 .composer-sheet h2 { margin: 0; color: var(--la-text); font-size: 20px; font-weight: 400; line-height: 28px; }
 .composer-sheet__hint { margin: 0; color: var(--la-secondary); font-size: 14px; line-height: 22px; }
@@ -155,13 +153,9 @@
     &__editor { font-size: 16px; }
     &__send { width: 44px; height: 44px; flex-basis: 44px; }
   }
-  .composer-option { width: 44px; height: 44px; }
-  .composer-option--permission { width: auto; }
 }
 @media (max-width: 360px) {
   .chat-composer__options { gap: 0; }
-  .composer-option { width: 40px; height: 40px; }
-  .composer-option--permission { width: auto; padding-inline: 7px; }
 }
 @media (hover: none) {
   .chat-composer__expand-line { opacity: 0; }

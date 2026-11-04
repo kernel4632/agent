@@ -2,21 +2,24 @@
 import { expect, test } from '@playwright/test'
 import { backend, navigate } from './chat-fixture.js'
 
-test('composer groups model and permission controls and keeps the draft when returning', async ({ page }) => {
+test('composer merges model and reasoning into one button and keeps the draft when returning', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
   const editor = page.getByRole('textbox', { name: '消息', exact: true })
   await editor.fill('尚未发送的内容')
   const controls = page.locator('.chat-composer__options')
-  await expect(controls.getByRole('button', { name: /选择模型/ })).toBeVisible()
-  await expect(controls.getByRole('button', { name: '思考强度：自动' })).toBeVisible()
-  await expect(controls.getByRole('button', { name: '工具权限' })).toBeVisible()
+  await expect(controls.getByRole('button')).toHaveCount(1)
+  await expect(controls.getByRole('button', { name: /模型与推理/ })).toBeVisible()
+  await expect(controls.getByRole('button', { name: '工具权限' })).toHaveCount(0)
   await expect(page.locator('.session-stats')).toHaveCount(0)
-  await controls.getByRole('button', { name: '工具权限' }).click()
-  await expect(page.getByRole('heading', { name: '工具管理', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '返回', exact: true }).click()
-  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await controls.getByRole('button', { name: /模型与推理/ }).click()
+  const menu = page.getByRole('menu', { name: '模型与推理' })
+  await expect(menu.getByRole('menuitem')).toHaveCount(2)
+  await expect(menu.getByRole('menuitem', { name: /切换模型/ })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: /推理强度/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
   await expect(editor).toHaveValue('尚未发送的内容')
   expect(mock.errors).toEqual([])
 })
@@ -138,22 +141,19 @@ test('unregistered tools show input, JSON and error text without a renderer', as
   expect(mock.errors).toEqual([])
 })
 
-test('model picker owns its search and resets it when reopened', async ({ page }) => {
+test('composer menu lists every model and marks the current one', async ({ page }) => {
   await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
-  const trigger = page.getByRole('button', { name: '选择模型（当前 test-model）' })
+  const trigger = page.getByRole('button', { name: /模型与推理（当前 test-model/ })
   await trigger.click()
-  const panel = page.getByRole('dialog', { name: '选择模型', exact: true })
-  await panel.getByRole('searchbox', { name: '搜索模型' }).fill('no-such-model')
-  await expect(panel.getByText('还没有可用模型。')).toBeVisible()
-  await panel.getByRole('button', { name: '关闭', exact: true }).click()
-  await expect(panel).toBeHidden()
-  await trigger.click()
-  await expect(panel.getByRole('searchbox', { name: '搜索模型' })).toHaveValue('')
-  await panel.getByRole('button', { name: 'test-model', exact: true }).click()
-  await expect(panel).toBeHidden()
-  await expect(trigger).toBeVisible()
+  await page.getByRole('menuitem', { name: /切换模型/ }).click()
+  const models = page.getByRole('menu', { name: '选择模型' })
+  await expect(models.getByRole('menuitemradio')).toHaveCount(1)
+  await expect(models.getByRole('menuitemradio', { name: 'test-model', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await models.getByRole('menuitemradio', { name: 'test-model', exact: true }).click()
+  await expect(models).toBeHidden()
+  await expect(trigger).toBeFocused()
 })
 
 test('select keyboard chooses a color and Escape keeps settings open', async ({ page }) => {
@@ -175,23 +175,19 @@ test('select keyboard chooses a color and Escape keeps settings open', async ({ 
   await expect(page.getByRole('heading', { name: '通用', level: 1 })).toBeVisible()
 })
 
-test('modal traps Tab, returns focus, and receives the document theme', async ({ page }) => {
+test('composer menu keeps keyboard focus inside until Escape', async ({ page }) => {
   await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
-  const trigger = page.getByRole('button', { name: '选择模型（当前 test-model）' })
+  const trigger = page.getByRole('button', { name: /模型与推理/ })
   await trigger.click()
-  const dialog = page.getByRole('dialog', { name: '选择模型', exact: true })
-  await expect(dialog).toBeVisible()
-  for (let index = 0; index < 12; index++) {
-    await page.keyboard.press('Tab')
-    expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
-  }
-  const colors = await dialog.evaluate(element => [getComputedStyle(element).getPropertyValue('--la-text').trim(), getComputedStyle(document.documentElement).getPropertyValue('--la-text').trim()])
-  expect(colors[0]).toBeTruthy()
-  expect(colors[0]).toBe(colors[1])
+  const menu = page.getByRole('menu', { name: '模型与推理' })
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('menuitem').first()).toBeFocused()
+  await page.keyboard.press('Tab')
+  expect(await menu.evaluate(element => element.contains(document.activeElement))).toBe(true)
   await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
+  await expect(menu).toBeHidden()
   await expect(trigger).toBeFocused()
 })
 
