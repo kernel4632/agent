@@ -763,6 +763,36 @@ test('collapsing a long turn hides old request rows', async ({ page }) => {
   expect(mock.errors).toEqual([])
 })
 
+test('compaction shows a status row before the next model request', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'compact-start', messages: 40, startedAt: Date.now() - 3000 },
+    { type: 'reasoning-delta', text: '总结中', request: 'compact' },
+  ])
+  const compact = page.locator('.request-status').last()
+  await expect(compact).toContainText('正在压缩上下文…')
+  await expect(compact).toContainText('正在把前面的对话总结成一段')
+  await expect(page.locator('.cot-card')).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'compact-finish', content: '摘要', usage: { input: 100, output: 20, total: 120 }, durationMs: 3000 },
+    { type: 'llm-start', startedAt: Date.now() },
+    { type: 'text-delta', text: '继续处理' },
+  ])
+  await expect(page.locator('.request-status')).toHaveCount(2)
+  await expect(page.locator('.request-status').first()).toContainText('上下文压缩完成')
+  await expect(page.locator('.request-status').first()).toContainText('120 tokens')
+  await expect(page.locator('.request-status').last()).toContainText('正在请求模型…')
+  expect(mock.errors).toEqual([])
+})
+
 test('composer footer stats opens the session data panel', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')

@@ -77,13 +77,15 @@ const steps = computed(() => {
       } else if (entry.type === 'request') {
         const request = (message.requests || []).find(item => item.id === entry.requestId)
         if (request) list.push({ key: `${message.id}-request-${index}`, type: 'request', request })
+      } else if (entry.type === 'compact') {
+        list.push({ key: `${message.id}-compact-${index}`, type: 'compact', request: entry.request })
       }
     })
   }
   return list
 })
-// 请求行不算正文：只有文字时仍然显示成普通气泡。
-const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request'))
+// 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
+const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
 // 历史步骤很多时默认只留最后两步，和 RikkaHub 一样先给结论；请求行始终保留在原位。
 const expandedSteps = ref(false)
@@ -91,11 +93,11 @@ const canCollapse = computed(() => contentSteps.value.length > 3)
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 折叠时只留最近两步和最新一条请求；展开后才按原位显示全部请求。
 const visibleSteps = computed(() => {
-  if (textOnly.value) return steps.value.filter(step => step.type === 'request')
+  if (textOnly.value) return steps.value.filter(step => step.type === 'request' || step.type === 'compact')
   if (!canCollapse.value || expandedSteps.value) return steps.value
   const kept = new Set(contentSteps.value.slice(-2).map(step => step.key))
-  const lastRequest = steps.value.findLast(step => step.type === 'request')
-  return steps.value.filter(step => kept.has(step.key) || step === lastRequest)
+  const lastStatus = steps.value.findLast(step => step.type === 'request' || step.type === 'compact')
+  return steps.value.filter(step => kept.has(step.key) || step === lastStatus)
 })
 const hiddenSteps = computed(() => contentSteps.value.length - visibleSteps.value.filter(step => step.type !== 'request').length)
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
@@ -135,6 +137,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         <div class="cot-steps">
           <template v-for="step in visibleSteps" :key="step.key">
             <RequestStatus v-if="step.type === 'request'" :request="step.request" />
+            <RequestStatus v-else-if="step.type === 'compact'" :request="step.request" kind="compact" />
             <ReasoningStep
               v-else-if="step.type === 'reasoning'"
               :reasoning="step.text"

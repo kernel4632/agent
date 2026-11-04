@@ -175,6 +175,27 @@ function resumeRun(session) {
   if (!streaming(session)) createAssistant(session)
 }
 
+// --- 上下文压缩：同样是一次模型请求，在时间线里单独占一行，用户不会觉得界面卡住了 ---
+function startCompact(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  const request = {
+    id: `compact_${crypto.randomUUID()}`,
+    status: 'running',
+    startedAt: Number(event.startedAt) || Date.now(),
+    firstTokenAt: 0,
+    finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+  }
+  assistant.steps.push({ type: 'compact', request })
+  assistant.isStreaming = true
+}
+
+function finishCompact(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  if (!step) return
+  step.request = { ...step.request, status: 'completed', ...usageFields(event.usage, event.durationMs), finishedAt: Date.now() }
+}
+
 // --- 模型请求开始：在时间线当前的位置放一条请求行，完成后这一行留在原地显示用量 ---
 // 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
 function startRequest(session, event = {}) {
@@ -347,7 +368,9 @@ async function receive(sessionID, event) {
   const session = store.sessions[sessionID]
   if (!session) return
   session.lastEventAt = Date.now()
-  // core 0.27 给压缩请求的流事件单独打标；总结不能混进回答或停止时的 partial。
+  // 压缩的开始和结束要显示成一行；压缩流里的正文增量不能混进回答，仍然直接丢掉。
+  if (event.type === 'compact-start') return startCompact(session, event)
+  if (event.type === 'compact-finish') return finishCompact(session, event)
   if (event.request === 'compact') return
   if (TOOL_EVENTS.has(event.type)) receiveTool(session, event)
   else if (RUN_EVENTS.has(event.type)) await receiveRun(sessionID, session, event)

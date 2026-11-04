@@ -396,7 +396,7 @@ Accept: text/event-stream
 | `subagent-tool` | `taskId`, `description`, `toolName`, `input` | 子任务正在用工具 |
 | `subagent-tool-result` | `taskId`, `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |
-| `compact-start` / `compact-finish` | `messages` / `content`, `usage` | 上下文压缩进度；usage 为原始 AI SDK 用量 |
+| `compact-start` / `compact-finish` | `messages` + `startedAt` / `content`, `usage`, `durationMs` | 上下文压缩进度；`usage` 已统一成 `input` / `output` / `cacheRead` / `total` |
 | `title` | `title` | 后端起好了标题 |
 | `agent-start` | 无 | 任务开始 |
 | `agent-resume` | 无 | 继续任务开始 |
@@ -404,7 +404,7 @@ Accept: text/event-stream
 
 工具结果 `output` 是 AI SDK 标准结构：`text`、`json`、`error-text`、`execution-denied`、`content`。用户主动停止只发一条 `agent-finish`，`reason` 是 `stopped`。
 
-压缩请求的原生流事件统一带 `request: 'compact'`，必须先分流，不能当成普通回答或停止时的 `partial`。`compact-finish.content` 是总结正文，`usage` 使用 `inputTokens` / `outputTokens` / `totalTokens` 等原始字段；`agent-finish.usage` 已包含自动压缩的请求消耗，不要再重复累加。手动压缩调用的是实例 `agent.compact()`，返回的 `content` 仍为字符串；底层 `Agent.compact.run()` 才返回 `{ content, usage }`，二者不混用。
+压缩请求的原生流事件统一带 `request: 'compact'`，必须先分流，不能当成普通回答或停止时的 `partial`。`compact-start` 带 `messages` 和 `startedAt`；`compact-finish.content` 是总结正文，`usage` 已统一成 `input` / `output` / `cacheRead` / `total` / `durationMs`（不再是原始 AI SDK 字段）；`agent-finish.usage` 已包含自动压缩的请求消耗，不要再重复累加。手动压缩调用的是实例 `agent.compact()`，返回的 `content` 仍为字符串；底层 `Agent.compact.run()` 才返回 `{ content, usage }`，二者不混用。
 
 ## 部署注意事项
 

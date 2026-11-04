@@ -692,6 +692,8 @@ describe('继续助手的 HTTP 接口', () => {
                 async send(options) {
                     const callbacks = options.callbacks
                     await callbacks.onStart()
+                    await callbacks.onCompact({ type: 'compact-start', messages: 5 })
+                    await callbacks.onCompact({ type: 'compact-finish', content: '摘要', usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 } })
                     await callbacks.onLLMStart({ messages: [], tools: {} })
                     await callbacks.onLLMStart({ messages: [], tools: {} })   // 重试：不能再开一行
                     await callbacks.onLLMEvent({ type: 'text-delta', text: '你' })
@@ -711,6 +713,11 @@ describe('继续助手的 HTTP 接口', () => {
             expect(starts).toHaveLength(1)
             expect(starts[0].startedAt).toBeGreaterThan(0)
             expect(events.filter(event => event.type === 'llm-first-token')).toHaveLength(1)
+            const compactStart = events.find(event => event.type === 'compact-start')
+            expect(compactStart.startedAt).toBeGreaterThan(0)
+            const compactFinish = events.find(event => event.type === 'compact-finish')
+            expect(compactFinish.usage).toMatchObject({ input: 5, output: 2, total: 7 })
+            expect(compactFinish.durationMs).toBeGreaterThanOrEqual(0)
             const finish = events.find(event => event.type === 'llm-finish')
             expect(finish.usage.firstTokenMs).toBeGreaterThanOrEqual(0)
             expect(finish.usage.durationMs).toBeGreaterThanOrEqual(0)

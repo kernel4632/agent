@@ -10,16 +10,20 @@ import Icon from '../../ui/Icon.vue'
 
 const props = defineProps({
   request: { type: Object, required: true },
+  kind: { type: String, default: 'request' }, // request | compact
 })
 
 const now = ref(Date.now())
 let timer = null
+const compact = computed(() => props.kind === 'compact')
 const running = computed(() => props.request.status === 'running')
 const failed = computed(() => props.request.status === 'failed')
 const elapsed = computed(() => running.value && props.request.startedAt ? Math.max(0, now.value - props.request.startedAt) : 0)
 
 const seconds = value => value < 1000 ? `${Math.round(value)}ms` : `${(value / 1000).toFixed(value < 10000 ? 1 : 0)}s`
-const label = computed(() => running.value ? '正在请求模型…' : failed.value ? '模型请求失败' : '模型请求完成')
+const label = computed(() => compact.value
+  ? (running.value ? '正在压缩上下文…' : failed.value ? '上下文压缩失败' : '上下文压缩完成')
+  : (running.value ? '正在请求模型…' : failed.value ? '模型请求失败' : '模型请求完成'))
 const badge = computed(() => running.value ? seconds(elapsed.value) : props.request.total ? `${Number(props.request.total).toLocaleString()} tokens` : '')
 const firstTokenMs = computed(() => {
   if (props.request.firstTokenMs) return Number(props.request.firstTokenMs)
@@ -29,11 +33,12 @@ const firstTokenMs = computed(() => {
 const detail = computed(() => {
   if (running.value) {
     if (props.request.retry) return props.request.retry
+    if (compact.value) return '正在把前面的对话总结成一段'
     return firstTokenMs.value ? `首字 ${seconds(firstTokenMs.value)}，正在接收` : '等待模型返回第一个字'
   }
   if (failed.value && props.request.error) return props.request.error
   const parts = []
-  if (firstTokenMs.value) parts.push(`首字 ${seconds(firstTokenMs.value)}`)
+  if (!compact.value && firstTokenMs.value) parts.push(`首字 ${seconds(firstTokenMs.value)}`)
   if (props.request.durationMs) parts.push(`总耗时 ${seconds(props.request.durationMs)}`)
   if (props.request.input || props.request.output) {
     parts.push(`输入 ${Number(props.request.input).toLocaleString()}`, `输出 ${Number(props.request.output).toLocaleString()}`)

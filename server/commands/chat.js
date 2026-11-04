@@ -175,16 +175,23 @@ const forwardedEvents = ({ sessionId, state }) => ({
     onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
     onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
     onCompact: event => {
-        if (event.type === 'compact-start') state.compactStartedAt = Date.now()
+        const data = { ...event }
+        if (event.type === 'compact-start') {
+            state.compactStartedAt = Date.now()
+            data.startedAt = state.compactStartedAt
+        }
         if (event.type === 'compact-finish') {
             const finishedAt = Date.now()
-            state.pendingCompactUsage.push(usageOf({
+            const usage = usageOf({
                 usage: event.usage,
                 startedAt: state.compactStartedAt || finishedAt,
                 finishedAt,
-            }))
+            })
+            state.pendingCompactUsage.push(usage)
+            data.usage = usage                       // 统一成界面字段，和 llm-finish 一样
+            data.durationMs = usage.durationMs
         }
-        return SSE.send({ id: sessionId, data: event })
+        return SSE.send({ id: sessionId, data })
     },
 })
 
