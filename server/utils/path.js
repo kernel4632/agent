@@ -12,6 +12,7 @@
  *   Path.meta('session-1')         // 会话元数据
  *   Path.history('session-1')      // 会话历史
  *   Path.settings('session-1')     // 会话运行设置
+ *   Path.toolTimings('session-1')  // 工具开始/结束时间
  *   Path.snapshots('session-1')    // 文件快照备份
  *   Path.checkpoints('session-1')  // 快照清单
  *   Path.tools()                   // 用户自己写的工具目录
@@ -38,6 +39,7 @@ const session = id => join(sessions(), id)
 const meta = id => join(session(id), 'meta.json')
 const history = id => join(session(id), 'history.json')
 const settings = id => join(session(id), 'settings.json')
+const toolTimings = id => join(session(id), 'tool-timings.json')
 const snapshots = id => join(session(id), 'snapshots')
 const checkpoints = id => join(session(id), 'checkpoints.json')
 
@@ -57,6 +59,6 @@ export default {
     root: home,
     userHome,
     config,
-    sessions, session, meta, history, settings, snapshots, checkpoints,
+    sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,
     tools, skills, skillsState, projectSkills,
 }

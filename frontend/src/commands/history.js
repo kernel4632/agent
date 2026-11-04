@@ -14,13 +14,26 @@ function partList(item) {
     : (typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : (Array.isArray(item.content) ? item.content : [])) // 兼容 parts 和旧 content 格式
 }
 
-function normalizeTool(part) {
+function normalizeTool(part, toolTimings = {}) {
   const call = part.toolInvocation || part                // 兼容 UIMessage parts 和旧格式
   const result = call.state === 'result' ? call.result : null // 有结果才判断成功或失败
   const output = result?.output ?? result ?? null
   const status = result ? toolStatus(output, result.isError) : 'running'
   const preview = output ? formatToolOutput(output) : ''
-  return { id: call.toolCallId, name: call.toolName, title: call.toolName, input: call.args || call.input || {}, preview, output, status, checkpoint: null }
+  const timing = toolTimings[call.toolCallId] || {}
+  return {
+    id: call.toolCallId,
+    name: call.toolName,
+    title: call.toolName,
+    input: call.args || call.input || {},
+    preview,
+    output,
+    status,
+    checkpoint: null,
+    startedAt: Number(timing.startedAt || call.startedAt || 0),
+    finishedAt: Number(timing.finishedAt || call.finishedAt || 0),
+    durationMs: Number(timing.durationMs || call.durationMs || 0),
+  }
 }
 
 function applyToolResult(messages, parts) {
@@ -30,6 +43,9 @@ function applyToolResult(messages, parts) {
     tool.status = toolStatus(result.output, result.isError) // 拒绝、失败、完成由 tool-ui 统一判断
     tool.output = result.output
     tool.preview = formatToolOutput(result.output)          // 结果文本和实时事件用同一套格式
+    if (result.startedAt) tool.startedAt = Number(result.startedAt)
+    if (result.finishedAt) tool.finishedAt = Number(result.finishedAt)
+    if (result.durationMs) tool.durationMs = Number(result.durationMs)
   }
 }
 
@@ -39,7 +55,7 @@ function normalizeRequest(item, id) {
   return request
 }
 
-function normalizeMessage(item, messages) {
+function normalizeMessage(item, messages, toolTimings) {
   const parts = partList(item)
   // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
   const message = {
@@ -64,7 +80,7 @@ function normalizeMessage(item, messages) {
   }
   message.tools = parts
     .filter(part => part.type === 'tool-invocation' || part.type === 'tool-call')
-    .map(normalizeTool)
+    .map(part => normalizeTool(part, toolTimings))
   // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
   message.steps = []
   if (item.role === 'assistant') {
@@ -107,10 +123,10 @@ function normalize(source, previous = {}) {
 
   // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
   // 不保留后端原始 history：它在界面里只通过 messages 使用，留着会多占一倍内存。
-  const { history: _history, ...sessionData } = source
+  const { history: _history, toolTimings: _toolTimings, ...sessionData } = source
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
   for (const item of source.history ?? []) {
-    const message = normalizeMessage(item, messages)
+    const message = normalizeMessage(item, messages, source.toolTimings || {})
     if (message) messages.push(message)                  // 用户和助手消息进入可见时间线
   }
   // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。

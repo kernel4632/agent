@@ -19,6 +19,7 @@ import Approval from '../features/approval.js'
 import History from '../features/history.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
+import ToolTiming from '../features/tool-timing.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
@@ -205,7 +206,12 @@ const forwardedEvents = ({ sessionId, state }) => ({
         return SSE.send({ id: sessionId, data: event })
     },
     onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
-    onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
+    onToolCall: async call => {
+        const startedAt = Date.now()
+        const toolCallId = call.toolCallId || call.callID || call.callId || call.id
+        await ToolTiming.start({ sessionId, toolCallId, at: startedAt }).catch(() => {})
+        return SSE.send({ id: sessionId, data: { ...call, type: 'tool-call', startedAt } })
+    },
     onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
     onCompact: event => {
         const data = { ...event }
@@ -230,7 +236,13 @@ const forwardedEvents = ({ sessionId, state }) => ({
 
 // --- 工具结果原样推给前端 ---
 const sendToolResult = ({ sessionId }) => async result => {
-    await SSE.send({ id: sessionId, data: { ...result, type: 'tool-result' } })
+    const finishedAt = Date.now()
+    const timing = await ToolTiming.finish({
+        sessionId,
+        toolCallId: result.toolCallId || result.callID || result.callId || result.id,
+        at: finishedAt,
+    }).catch(() => null)
+    await SSE.send({ id: sessionId, data: { ...result, type: 'tool-result', ...(timing || {}) } })
 }
 
 // --- 每完成一步就落盘 ---

@@ -3,7 +3,7 @@
  * 这里用假 Agent 检查历史读写，不真的请求模型。
  */
 import { afterEach, describe, expect, test } from 'bun:test'
-import { rm } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import AgentCore from '@kernel4632/agent-core'
@@ -343,6 +343,44 @@ describe('继续被中断的助手', () => {
             const history = History.get({ sessionId })
             expect(history.map(message => message.id)).toEqual(['a0', 'u1', 'a1'])
             expect(history.at(-1).content).toEqual(text('已完成一步'))
+        })
+    })
+
+    test('工具开始和结束时间落到会话计时账本', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const call = { toolCallId: 'call-timing', toolName: 'read_file', input: { path: 'a.txt' } }
+            const agent = {
+                history: [],
+                running: null,
+                stop: async () => ({ ok: true }),
+                send(options) {
+                    return (async () => {
+                        await options.callbacks.onStart()
+                        agent.history.push({ id: 'u1', role: 'user', content: text('读文件') })
+                        await options.callbacks.onToolCall(call)
+                        await Bun.sleep(30)
+                        const result = { ...call, output: { type: 'text', value: 'ok' } }
+                        await options.callbacks.onToolResult(result)
+                        agent.history.push({ id: 'a1', role: 'assistant', content: [{ type: 'tool-call', ...call }] })
+                        agent.history.push({ id: 't1', role: 'tool', content: [{ type: 'tool-result', ...result }] })
+                        await options.callbacks.onStep()
+                        return { reason: 'finished' }
+                    })()
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+
+            expect(await Chat.send({ sessionId, input: '读文件' })).toEqual({ ok: true })
+            await waitForHistory(sessionId, 3)
+            const read = await Session.read({ sessionId })
+            const timing = read.toolTimings['call-timing']
+            expect(timing.startedAt).toBeGreaterThan(0)
+            expect(timing.finishedAt).toBeGreaterThanOrEqual(timing.startedAt)
+            expect(timing.durationMs).toBeGreaterThanOrEqual(20)
+
+            const onDisk = JSON.parse(await readFile(join(process.env.AGENT_HOME, 'sessions', sessionId, 'tool-timings.json'), 'utf8'))
+            expect(onDisk['call-timing']).toMatchObject(timing)
         })
     })
 

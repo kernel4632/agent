@@ -21,6 +21,7 @@ import History from '../features/history.js'
 import Rollback from '../features/rollback.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
+import ToolTiming from '../features/tool-timing.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
@@ -133,6 +134,7 @@ const read = async ({ sessionId }) => {
         history,
         todos: latestTodos(history),
         running,
+        toolTimings: await ToolTiming.read(sessionId),
         pending: Approval.pending(sessionId),
         settings: await Agent.readSettings(sessionId),
         undoable: History.redoCount({ sessionId }),
@@ -217,6 +219,7 @@ const remove = async ({ sessionId }) => {
     await Tool.remove({ sessionId })
     await SSE.close({ id: sessionId })
     await History.destroy(sessionId)
+    ToolTiming.forget(sessionId)
     return { ok: true }
 }
 

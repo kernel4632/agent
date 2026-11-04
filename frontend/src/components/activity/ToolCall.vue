@@ -32,10 +32,16 @@ const statusText = computed(() => {
 const statusClass = status => `is-${status || 'waiting'}`
 const running = computed(() => props.tool.status === 'running' || props.tool.status === 'waiting')
 const duration = computed(() => {
-  if (!props.tool.startedAt) return ''
-  const end = props.tool.finishedAt || (running.value ? now.value : 0)
-  if (!end) return ''
-  const seconds = (end - props.tool.startedAt) / 1000
+  const recorded = Number(props.tool.durationMs || 0)
+  let milliseconds = recorded
+  if (!milliseconds) {
+    const startedAt = Number(props.tool.startedAt || 0)
+    if (!startedAt) return ''
+    const end = Number(props.tool.finishedAt || 0) || (running.value ? now.value : 0)
+    if (!end) return ''
+    milliseconds = end - startedAt
+  }
+  const seconds = milliseconds / 1000
   return seconds >= 0.1 ? `${seconds.toFixed(1)}s` : ''
 })
 // 运行中和等待审批时必须看得到输出/按钮；历史里完成的工具默认收起，点标题再展开。

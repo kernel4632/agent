@@ -47,6 +47,7 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
     meta.json                标题、当前目录、模型、时间
     history.json             消息和回退栈
     settings.json            思考强度
+    tool-timings.json        工具开始/结束时间，刷新后恢复计时
     checkpoints.json         每次改文件的工具调用对应哪些快照
     snapshots/               改文件之前的原样副本
   tools/                     用户自己写的工具

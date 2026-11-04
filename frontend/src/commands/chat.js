@@ -151,15 +151,22 @@ function toolFor(session, event, status) {
   const id = event.toolCallId || event.callID || event.callId || event.id
   if (!id) return null
   let tool = session.messages.flatMap(message => message.tools || []).find(item => item.id === id)
+  const eventStartedAt = Number(event.startedAt) || 0
   if (!tool) {
     const assistant = streaming(session) || createAssistant(session) // 工具事件也可能先到，保证有承载消息
-    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: Date.now(), streamInput: '', assembling: false }
+    tool = { id, name: event.toolName || event.tool || '工具', input: event.input || {}, preview: '', output: null, status, startedAt: eventStartedAt || Date.now(), finishedAt: 0, durationMs: 0, streamInput: '', assembling: false }
     assistant.tools.push(tool)
     assistant.steps.push({ type: 'tool', toolId: id })               // 工具在时间线里的位置由第一次出现决定
+  } else if (eventStartedAt && (event.type === 'tool-call' || !tool.startedAt)) {
+    // 参数流阶段的 startedAt 只是“开始拼参数”；真正执行时以服务端的 tool-call 时间为准。
+    tool.startedAt = eventStartedAt
   }
   if (status) {
     tool.status = status
-    if (status !== 'running' && status !== 'waiting') tool.finishedAt = Date.now()
+    if (status !== 'running' && status !== 'waiting') {
+      tool.finishedAt = Number(event.finishedAt) || Date.now()
+      tool.durationMs = Number(event.durationMs) || Math.max(0, tool.finishedAt - (Number(tool.startedAt) || tool.finishedAt))
+    }
   }
   if (event.input) tool.input = event.input
   if (event.toolName) tool.name = event.toolName
