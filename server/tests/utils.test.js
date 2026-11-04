@@ -615,8 +615,12 @@ describe('server tool approval and SSE', () => {
             expect(await pending).toBe(true)
 
             expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'execute_command', input: { command: 'make build --release' } })).toBe(true)
+            // 不同子命令仍要问，最后拒绝掉：不给进程留未决的审批 Promise，-t 单跑也能正常退出。
             const deploy = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'execute_command', input: { command: 'make deploy' } })
-            await Bun.sleep(0)
+            for (let index = 0; index < 200; index++) {
+                if ((await Approval.pending('s')).some(item => item.callID === 's3')) break
+                await Bun.sleep(10)
+            }
             await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
             expect(await deploy).toBe(false)
         })

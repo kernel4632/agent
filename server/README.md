@@ -139,7 +139,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github
 | 文件 | 工具 |
 | --- | --- |
 | `tools/file.js` | `read_file`、`write_file`、`find_files`、`search_text`、`edit`（一次调用改一个文件），以及文件快照和恢复 |
-| `tools/shell.js` | `execute_command` |
+| `tools/shell.js` | `execute_command`（可选 `timeout` 参数：毫秒数，超时按进程树杀掉并返回 `timedOut: true`，默认 10 分钟） |
 | `tools/web.js` | `webfetch` |
 | `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
