@@ -235,6 +235,18 @@ const forwardedEvents = ({ sessionId, state }) => ({
 })
 
 // --- 工具结果原样推给前端 ---
+const elapsedLabel = milliseconds => `${(Math.max(0, Number(milliseconds) || 0) / 1000).toFixed(1)}s`
+
+// 用户主动停止时 core 只返回一句“工具执行已中断”；补上已经跑的时间，
+// 让模型和界面都知道这个工具实际执行了多久。
+const annotateInterruption = (result, timing) => {
+    const output = result?.output
+    if (output?.type !== 'error-text' || !timing) return
+    const text = String(output.value || '')
+    if (!/工具执行已(中断|取消)/.test(text) || /已执行/.test(text)) return
+    output.value = `${text}（已执行 ${elapsedLabel(timing.durationMs)}）`
+}
+
 const sendToolResult = ({ sessionId }) => async result => {
     const finishedAt = Date.now()
     const timing = await ToolTiming.finish({
@@ -242,6 +254,7 @@ const sendToolResult = ({ sessionId }) => async result => {
         toolCallId: result.toolCallId || result.callID || result.callId || result.id,
         at: finishedAt,
     }).catch(() => null)
+    annotateInterruption(result, timing)
     await SSE.send({ id: sessionId, data: { ...result, type: 'tool-result', ...(timing || {}) } })
 }
 

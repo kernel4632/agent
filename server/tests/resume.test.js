@@ -384,6 +384,40 @@ describe('继续被中断的助手', () => {
         })
     })
 
+    test('中断的工具结果带上已执行时间', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const call = { toolCallId: 'call-interrupted', toolName: 'read_file', input: { path: 'a.txt' } }
+            const agent = {
+                history: [],
+                running: null,
+                stop: async () => ({ ok: true }),
+                send(options) {
+                    return (async () => {
+                        await options.callbacks.onStart()
+                        agent.history.push({ id: 'u1', role: 'user', content: text('读文件') })
+                        await options.callbacks.onToolCall(call)
+                        await Bun.sleep(30)
+                        const result = { ...call, output: { type: 'error-text', value: '工具执行已中断' } }
+                        await options.callbacks.onToolResult(result)
+                        agent.history.push({ id: 'a1', role: 'assistant', content: [{ type: 'tool-call', ...call }] })
+                        agent.history.push({ id: 't1', role: 'tool', content: [{ type: 'tool-result', ...result }] })
+                        await options.callbacks.onStep()
+                        return { reason: 'finished' }
+                    })()
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+
+            expect(await Chat.send({ sessionId, input: '读文件' })).toEqual({ ok: true })
+            await waitForHistory(sessionId, 3)
+            const toolResult = History.get({ sessionId })
+                .find(message => message.role === 'tool')?.content
+                ?.find(part => part.type === 'tool-result')
+            expect(toolResult.output.value).toMatch(/^工具执行已中断（已执行 \d+\.\ds）$/)
+        })
+    })
+
     test('任务在跑或最后一条不是助手回复时拒绝继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()
