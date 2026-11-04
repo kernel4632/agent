@@ -10,6 +10,7 @@
  */
 
 import { Elysia } from 'elysia'
+import Capabilities from './commands/capabilities.js'
 import Chat from './commands/chat.js'
 import Session from './commands/session.js'
 import Settings from './commands/settings.js'
@@ -23,6 +24,7 @@ import Tool from './features/tool.js'
 import SSE from './utils/sse.js'
 
 // --- 装配有状态模块：feature 之间不互相 import，需要的兄弟服务在这里接起来 ---
+Mcp.bind({ config: Config })                                                         // MCP 服务增删改后把配置写回磁盘
 Tool.bind({ mcp: Mcp })                                                              // 工具表里要能取到 MCP 服务给的工具
 Approval.bind({ tool: Tool, config: Config })                                        // 审批要查工具类别，并把“始终允许”写回配置
 Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })   // 会话装配要读历史、工具表、审批和上下文
@@ -47,6 +49,23 @@ app.get('/health', async () => ({
 // --- 工具目录 ---
 app.get('/tool/list', () => Settings.listTools())
 app.get('/tool/kinds', () => Settings.toolKinds())
+
+// --- 本机 MCP 与技能：识别、导入和日常维护 ---
+app.group('/mcp', mcp => mcp
+    .get('/list', ({ query }) => Capabilities.mcpList({ cwd: query.cwd }))
+    .post('/save', ({ body }) => Capabilities.mcpSave(body || {}))
+    .post('/import', ({ body }) => Capabilities.mcpImport(body || {}))
+    .post('/remove', ({ body }) => Capabilities.mcpRemove(body || {}))
+    .patch('/toggle', ({ body }) => Capabilities.mcpToggle(body || {}))
+    .post('/test', ({ body }) => Capabilities.mcpTest(body || {})))
+
+app.group('/skill', skill => skill
+    .get('/list', ({ query }) => Capabilities.skillList({ cwd: query.cwd }))
+    .get('/read', ({ query }) => Capabilities.skillRead({ name: query.name, cwd: query.cwd }))
+    .post('/save', ({ body }) => Capabilities.skillSave(body || {}))
+    .post('/remove', ({ body }) => Capabilities.skillRemove(body || {}))
+    .patch('/toggle', ({ body }) => Capabilities.skillToggle(body || {}))
+    .patch('/source', ({ body }) => Capabilities.skillSource(body || {})))
 
 // --- 对话：发送、继续、停止、审批 ---
 app.group('/agent', agent => agent

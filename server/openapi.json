@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.56.0",
-    "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。"
+    "version": "0.57.0",
+    "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
     {
@@ -19,6 +19,10 @@
     {
       "name": "Tool",
       "description": "查看工具目录和工具类别。"
+    },
+    {
+      "name": "Capability",
+      "description": "识别本机的 MCP 服务与技能，并维护本应用启用的那一份。"
     },
     {
       "name": "Session",
@@ -133,6 +137,883 @@
                       "hint"
                     ]
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/list": {
+      "get": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "列出已配置的 MCP 服务和本机识别结果",
+        "description": "识别只会读取其他软件的配置文件，不修改它们；环境变量和请求头的值不回传，只给键名。",
+        "operationId": "mcpList",
+        "parameters": [
+          {
+            "name": "cwd",
+            "in": "query",
+            "required": false,
+            "description": "按这个目录识别项目级 MCP 配置；不填用后端当前目录",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已配置服务和识别到的服务",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/McpServer"
+                      }
+                    },
+                    "detected": {
+                      "type": "object",
+                      "properties": {
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/McpDetectedSource"
+                          }
+                        },
+                        "servers": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/McpDetectedServer"
+                          }
+                        }
+                      },
+                      "required": [
+                        "sources",
+                        "servers"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "servers",
+                    "detected"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/save": {
+      "post": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "新增或整体替换一个 MCP 服务",
+        "operationId": "mcpSave",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "definition"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "服务名，工具名会以它作前缀"
+                  },
+                  "definition": {
+                    "$ref": "#/components/schemas/McpDefinition"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的服务",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "名称为空、stdio 缺命令或 sse / http 缺地址",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/import": {
+      "post": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "按识别编号导入本机的 MCP 服务",
+        "description": "导入时重新读一遍源文件，环境变量和请求头的值会完整写进本应用的配置；同名服务不覆盖。",
+        "operationId": "mcpImport",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "识别项目级配置时使用的目录"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "导入结果；跳过的项带原因（missing / exists）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "imported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "skipped": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "enum": [
+                              "missing",
+                              "exists"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "reason"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "imported",
+                    "skipped"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ids 为空、不是数组或超过 50 个",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/remove": {
+      "post": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "删除一个 MCP 服务",
+        "operationId": "mcpRemove",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "名称为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "服务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/toggle": {
+      "patch": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "启用或停用一个 MCP 服务",
+        "operationId": "mcpToggle",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "enabled"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的启用状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "enabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "enabled 不是布尔值或名称为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "服务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/test": {
+      "post": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "真实连接一次 MCP 服务并列出工具名",
+        "operationId": "mcpTest",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "连接结果；起不来时 ok=false，error 给原因",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "name",
+                    "tools"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "名称为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "服务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skill/list": {
+      "get": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "列出生效的技能和本机识别到的技能目录",
+        "description": "其他软件的技能目录默认只识别不启用；启用状态和禁用名单保存在数据目录的 skills.json。",
+        "operationId": "skillList",
+        "parameters": [
+          {
+            "name": "cwd",
+            "in": "query",
+            "required": false,
+            "description": "按这个目录查找项目技能；不填用后端当前目录",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "生效技能、全部候选目录和启用状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Skill"
+                      }
+                    },
+                    "roots": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SkillRoot"
+                      }
+                    },
+                    "state": {
+                      "type": "object",
+                      "properties": {
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "disabled": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "sources",
+                        "disabled"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "skills",
+                    "roots",
+                    "state"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skill/read": {
+      "get": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "读取一个技能的正文",
+        "operationId": "skillRead",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "技能名",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cwd",
+            "in": "query",
+            "required": false,
+            "description": "项目技能所在的目录",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "技能的完整内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少技能名",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "技能不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skill/save": {
+      "post": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "新建或改写本应用自己的技能",
+        "description": "只写数据目录的 skills/ 或当前目录的 .agent/skills；外部目录里的技能不会被改写。",
+        "operationId": "skillSave",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "description"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "技能名，也会作为文件夹名"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "一句话说明什么时候用"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "技能正文（Markdown）"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "project"
+                    ],
+                    "default": "global"
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "scope=project 时写进这个目录"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的技能",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "名称、说明或目录不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skill/remove": {
+      "post": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "删除本应用自己的技能",
+        "operationId": "skillRemove",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "project"
+                    ],
+                    "default": "global"
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "scope=project 时从该目录删除"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "名称不合法或目录不在允许范围内",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "技能不存在，或它在外部目录里",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skill/toggle": {
+      "patch": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "把技能从模型清单里拿掉或放回来",
+        "operationId": "skillToggle",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "enabled"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "cwd": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "enabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "名称或 enabled 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "技能不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skill/source": {
+      "patch": {
+        "tags": [
+          "Capability"
+        ],
+        "summary": "启用或停用一个外部技能目录",
+        "description": "启用前会确认真实存在且里面至少有一个能读的技能；本应用自己的目录永远生效，不能作为外部目录。",
+        "operationId": "skillSource",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "enabled"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "绝对路径"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存后的状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "enabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "路径不是绝对路径、目录不存在、没有可用技能，或指向本应用目录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1414,17 +2295,31 @@
                 "properties": {
                   "input": {
                     "oneOf": [
-                      { "type": "string" },
+                      {
+                        "type": "string"
+                      },
                       {
                         "type": "array",
                         "description": "内容块数组；图片块是 data URL 或 http(s) URL",
                         "items": {
                           "type": "object",
-                          "required": ["type"],
+                          "required": [
+                            "type"
+                          ],
                           "properties": {
-                            "type": { "type": "string", "enum": ["text", "image"] },
-                            "text": { "type": "string" },
-                            "image": { "type": "string" }
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "image"
+                              ]
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "image": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -1993,6 +2888,279 @@
             "additionalProperties": true
           }
         }
+      },
+      "McpDefinition": {
+        "type": "object",
+        "properties": {
+          "transport": {
+            "type": "string",
+            "enum": [
+              "stdio",
+              "sse",
+              "http"
+            ]
+          },
+          "command": {
+            "type": "string",
+            "description": "stdio 服务的启动命令"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string",
+            "description": "sse / http 服务的地址"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "McpServer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/McpDefinition"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "definition"
+        ]
+      },
+      "McpDetectedSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "servers": {
+            "type": "integer",
+            "description": "这个文件里认出来的服务数"
+          },
+          "error": {
+            "type": "string",
+            "description": "文件读不了或格式坏了时的原因"
+          }
+        },
+        "required": [
+          "id",
+          "app",
+          "path"
+        ]
+      },
+      "McpDetectedServer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "导入时使用的稳定编号"
+          },
+          "name": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/McpDefinition"
+          },
+          "envKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "环境变量的键名，值不回传"
+          },
+          "headerKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "请求头的键名，值不回传"
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "本应用里是否已经有同名服务"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "app",
+          "source",
+          "path",
+          "definition",
+          "envKeys",
+          "headerKeys",
+          "configured"
+        ]
+      },
+      "Skill": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "SKILL.md 的完整路径"
+          },
+          "directory": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "技能目录的编号"
+          },
+          "sourceLabel": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string",
+            "description": "来自哪个软件"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "global",
+              "project"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "own",
+              "app",
+              "source"
+            ]
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "是否属于本应用、可以改写或删除"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否交给模型"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "path",
+          "directory",
+          "source",
+          "sourceLabel",
+          "app",
+          "scope",
+          "kind",
+          "editable",
+          "enabled"
+        ]
+      },
+      "SkillRoot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "global",
+              "project"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "own",
+              "app",
+              "source"
+            ]
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "skillCount": {
+            "type": "integer"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "目录里的技能名，最多 20 个"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "app",
+          "path",
+          "scope",
+          "kind",
+          "editable",
+          "enabled",
+          "exists",
+          "skillCount",
+          "skills"
+        ]
       }
     }
   }

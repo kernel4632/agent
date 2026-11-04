@@ -20,6 +20,7 @@ import ProviderList from '../components/providers/ProviderList.vue'
 import PromptSettings from '../components/preferences/PromptSettings.vue'
 import ToolsSettings from '../components/capabilities/ToolsSettings.vue'
 import MCPList from '../components/capabilities/MCPList.vue'
+import SkillList from '../components/capabilities/SkillList.vue'
 
 const settingsPages = [
   { id: 'appearance', label: '通用', description: '主题、强调色和界面偏好', icon: 'settings', group: '通用设置', tone: 'primary', component: AppearanceSettings },
@@ -28,6 +29,7 @@ const settingsPages = [
   { id: 'context', label: '上下文', description: '自动压缩阈值和历史整理', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptSettings },
   { id: 'tools', label: '工具管理', description: '用开关控制工具直接执行还是先询问', icon: 'code', group: '模型与服务', tone: 'primary', component: ToolsSettings },
+  { id: 'skills', label: '技能', description: '识别并管理本机的操作说明', icon: 'idea', group: '模型与服务', tone: 'tertiary', component: SkillList },
   { id: 'mcp', label: 'MCP 服务', description: '连接外部工具和数据服务', icon: 'link', group: '模型与服务', tone: 'tertiary', component: MCPList, nested: true },
   { id: 'data', label: '数据管理', description: '导出、备份和清理本地数据', icon: 'folder', group: '数据设置', tone: 'secondary', disabled: true },
 ]

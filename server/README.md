@@ -50,6 +50,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github
     checkpoints.json   每次改文件的工具调用对应哪些快照
     snapshots/         改文件之前的原样副本
   tools/               用户自己写的工具，和内置工具一起扫描
+  skills.json          启用了哪些外部技能目录、单独禁用了哪些技能
 ```
 
 默认情况下全局技能在 `%USERPROFILE%\.agents\skills`，不在数据目录里；测试或容器里把 `AGENT_HOME` 指到临时目录时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。项目技能放在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。
@@ -190,6 +191,19 @@ description: 审查改动时用这个
 
 模型平时只看到技能清单，正文在调用 `skill` 工具时才读取。格式不对的文件直接跳过；一个技能都没有时 `skill` 工具不出现。
 
+技能清单由三处合并：本应用全局目录、会话当前目录的项目目录、设置页里启用的外部技能目录。同名时按“外部目录 → 本应用全局 → 项目目录”覆盖；单独禁用的技能不会出现在清单里。
+
+### 识别本机的 MCP 和技能
+
+设置页打开 MCP 或技能页时，后端会扫一遍这台电脑上常见客户端留下的配置。识别只读，不改别人的文件：
+
+| 类型 | 会看的位置 |
+| --- | --- |
+| MCP | Claude Desktop、Claude Code（含项目级）、Cursor、VS Code、Windsurf、Cline、Roo Code、Continue、Gemini CLI、opencode、Codex（TOML）、Zed、LM Studio，以及当前目录的 `.mcp.json`、`.cursor/mcp.json`、`.vscode/mcp.json` |
+| 技能 | 本应用自己的全局和项目目录，以及 Claude Code、Codex、Gemini CLI、opencode、Cursor 的对应目录 |
+
+MCP 识别结果里的 `env` 和 `headers` 只回传键名，值不回传；导入时后端按编号重新读一遍源文件，把完整值写进本应用的配置。同名服务不会覆盖已有配置。技能默认不会自动交给模型，用户在设置页启用整个目录或导入正文后才生效；启用状态保存在 `skills.json`。
+
 ### 子智能体
 
 `new_task` 把一件独立的探索工作交给子 agent，子 agent 有自己的历史，只把结论交回来。它复用同一套工具和同一个审批关口，还能再往下委托一层，最多两层。主任务被停止时子任务一起停。
@@ -287,6 +301,27 @@ bun start
 | --- | --- | --- |
 | `GET` | `/tool/list` | 工具名、类别、权限动作、`configurable`、工具自带的 `ui` |
 | `GET` | `/tool/kinds` | 工具类别：`kind`、`label`、`hint` |
+
+### 能力管理
+
+MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分。识别只读，管理只写本应用自己的配置和技能目录。
+
+| 方法 | 地址 | 请求体 / 参数 | 结果 |
+| --- | --- | --- | --- |
+| `GET` | `/mcp/list?cwd=` | 无 | `{ servers, detected: { sources, servers } }`；识别结果里 `env` / `headers` 只给键名 |
+| `POST` | `/mcp/save` | `{ "name", "definition" }` | 保存后的服务；`definition` 是 `transport`、`command`、`args`、`env`、`url`、`headers`、`enabled` |
+| `POST` | `/mcp/import` | `{ "ids": ["cursor::github"], "cwd?" }` | `{ imported, skipped }`；跳过原因 `missing` / `exists` |
+| `POST` | `/mcp/remove` | `{ "name" }` | `{ "ok": true, "name" }` |
+| `PATCH` | `/mcp/toggle` | `{ "name", "enabled" }` | `{ "name", "enabled" }` |
+| `POST` | `/mcp/test` | `{ "name" }` | 真实连一次：`{ ok, name, tools }`；失败时 `ok=false` 并带 `error` |
+| `GET` | `/skill/list?cwd=` | 无 | `{ skills, roots, state }`；`roots` 带 `exists`、`enabled`、`skillCount` |
+| `GET` | `/skill/read?name=&cwd=` | 无 | 技能的完整内容，含 `body` |
+| `POST` | `/skill/save` | `{ "name", "description", "body?", "scope?", "cwd?" }` | 保存后的技能；`scope` 是 `global` 或 `project` |
+| `POST` | `/skill/remove` | `{ "name", "scope?", "cwd?" }` | `{ "ok": true, "name" }`；外部目录里的技能不能删 |
+| `PATCH` | `/skill/toggle` | `{ "name", "enabled", "cwd?" }` | `{ "name", "enabled" }`；只影响模型清单，文件不动 |
+| `PATCH` | `/skill/source` | `{ "path", "enabled" }` | `{ "path", "enabled" }`；`path` 必须是存在且有可用技能的绝对路径 |
+
+`/mcp/list` 的 `cwd` 只影响项目级配置（`.mcp.json`、`.cursor/mcp.json`、`.vscode/mcp.json` 和 Claude Code 的项目表）；不填用后端当前目录。`/skill/list` 同理，只影响项目技能目录。
 
 ### 会话
 
