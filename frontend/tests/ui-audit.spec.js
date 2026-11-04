@@ -230,6 +230,26 @@ test('reasoning preview stays half-open while streaming', async ({ page }, testI
   await expect(content).toHaveClass(/is-open/)
 })
 
+test('reasoning content renders markdown', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'reasoning-delta', text: '**先确认**消息结构，再读 `README`。\n\n- 看目录\n- 看工具' },
+  ])
+
+  const reasoning = page.locator('.cot-step--reasoning')
+  await expect(reasoning.locator('.markdown-body strong')).toHaveText('先确认')
+  await expect(reasoning.locator('.markdown-body code')).toHaveText('README')
+  await expect(reasoning.locator('.markdown-body li')).toHaveCount(2)
+  expect(mock.errors).toEqual([])
+})
+
 test('reasoning preview collapses after the llm finishes', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

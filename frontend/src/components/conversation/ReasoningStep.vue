@@ -6,6 +6,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
+import Markdown from '../../ui/Markdown.vue'
 
 // 折叠按钮和内容用同一个 id 关联，读屏才知道按钮控制的是哪一块。
 const contentId = `reasoning-${useId()}`
@@ -80,7 +81,8 @@ onBeforeUnmount(() => {
       <div class="cot-collapse__inner">
         <div class="cot-step__body">
           <div ref="previewEl" class="reasoning-preview" :class="{ 'is-preview': previewing }">
-            <p class="reasoning-text">{{ reasoning || '正在整理思路…' }}</p>
+            <Markdown v-if="reasoning.trim()" class="reasoning-markdown" :content="reasoning" compact />
+            <p v-else class="reasoning-placeholder">正在整理思路…</p>
           </div>
         </div>
       </div>
