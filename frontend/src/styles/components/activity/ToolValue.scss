@@ -33,3 +33,47 @@
 .tool-value__markdown :deep(.markdown-body > :first-child) { margin-top: 0; }
 .tool-value__markdown :deep(.markdown-body > :last-child) { margin-bottom: 0; }
 .tool-value__markdown :deep(.markdown-body p) { margin-bottom: 8px; }
+.tool-value__text--rich { tab-size: 4; }
+.tool-value__text--rich :deep(.ansi-bold) { font-weight: 700; }
+.tool-value__text--rich :deep(.ansi-dim) { opacity: .62; }
+.tool-value__text--rich :deep(.ansi-italic) { font-style: italic; }
+.tool-value__text--rich :deep(.ansi-underline) { text-decoration: underline; }
+.tool-value__text--rich :deep(.ansi-fg-30) { color: #4b5563; }
+.tool-value__text--rich :deep(.ansi-fg-31) { color: #ef4444; }
+.tool-value__text--rich :deep(.ansi-fg-32) { color: #22c55e; }
+.tool-value__text--rich :deep(.ansi-fg-33) { color: #eab308; }
+.tool-value__text--rich :deep(.ansi-fg-34) { color: #3b82f6; }
+.tool-value__text--rich :deep(.ansi-fg-35) { color: #d946ef; }
+.tool-value__text--rich :deep(.ansi-fg-36) { color: #06b6d4; }
+.tool-value__text--rich :deep(.ansi-fg-37) { color: var(--la-text); }
+.tool-value__text--rich :deep(.ansi-fg-90) { color: #9ca3af; }
+.tool-value__text--rich :deep(.ansi-fg-91) { color: #f87171; }
+.tool-value__text--rich :deep(.ansi-fg-92) { color: #4ade80; }
+.tool-value__text--rich :deep(.ansi-fg-93) { color: #facc15; }
+.tool-value__text--rich :deep(.ansi-fg-94) { color: #60a5fa; }
+.tool-value__text--rich :deep(.ansi-fg-95) { color: #e879f9; }
+.tool-value__text--rich :deep(.ansi-fg-96) { color: #22d3ee; }
+.tool-value__text--rich :deep(.ansi-fg-97) { color: #f9fafb; }
+.tool-value__text--rich :deep(.ansi-bg-40) { background-color: #111827; }
+.tool-value__text--rich :deep(.ansi-bg-41) { background-color: #7f1d1d; }
+.tool-value__text--rich :deep(.ansi-bg-42) { background-color: #14532d; }
+.tool-value__text--rich :deep(.ansi-bg-43) { background-color: #713f12; }
+.tool-value__text--rich :deep(.ansi-bg-44) { background-color: #1e3a8a; }
+.tool-value__text--rich :deep(.ansi-bg-45) { background-color: #701a75; }
+.tool-value__text--rich :deep(.ansi-bg-46) { background-color: #164e63; }
+.tool-value__text--rich :deep(.ansi-bg-47) { background-color: #374151; }
+.tool-value__text--rich :deep(.ansi-bg-100) { background-color: #4b5563; }
+.tool-value__text--rich :deep(.ansi-bg-101) { background-color: #991b1b; }
+.tool-value__text--rich :deep(.ansi-bg-102) { background-color: #166534; }
+.tool-value__text--rich :deep(.ansi-bg-103) { background-color: #854d0e; }
+.tool-value__text--rich :deep(.ansi-bg-104) { background-color: #1e40af; }
+.tool-value__text--rich :deep(.ansi-bg-105) { background-color: #86198f; }
+.tool-value__text--rich :deep(.ansi-bg-106) { background-color: #155e75; }
+.tool-value__text--rich :deep(.ansi-bg-107) { background-color: #6b7280; }
+.tool-value__text--rich :deep(.diff-line) { display: block; min-height: 1.7em; }
+.tool-value__text--rich :deep(.diff-add) { color: #4ade80; background: color-mix(in srgb, #22c55e 10%, transparent); }
+.tool-value__text--rich :deep(.diff-del) { color: #f87171; background: color-mix(in srgb, #ef4444 10%, transparent); }
+.tool-value__text--rich :deep(.diff-hunk) { color: var(--la-accent); background: color-mix(in srgb, var(--la-accent) 7%, transparent); }
+.tool-value__text--rich :deep(.diff-meta) { color: var(--la-muted); }
+.tool-value__text--rich :deep(.diff-header) { color: var(--la-secondary); font-weight: 600; }
+.tool-value__text--rich :deep(.diff-context) { color: var(--la-text); }

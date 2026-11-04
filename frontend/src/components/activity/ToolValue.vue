@@ -1,11 +1,13 @@
 <!--
 工具参数/结果的通用值视图：不认工具名，递归展示对象和数组。
-多行字符串按真实换行显示；带 fenced code 的内容交给 Markdown，代码块等语法可以正常渲染。
+多行字符串按真实换行显示；ANSI 终端输出和 unified diff 会着色；带 fenced code 的内容交给 Markdown。
 调用示例：<ToolValue :value="tool.input" />。
 -->
 <script setup>
 import { computed } from 'vue'
 import Markdown from '../../ui/Markdown.vue'
+import { ansiToHtml, hasAnsi } from '../../utils/ansi.js'
+import { diffToHtml, looksLikeDiff } from '../../utils/diff.js'
 
 const props = defineProps({
   value: { type: null, default: null },
@@ -21,6 +23,11 @@ const multiline = computed(() => text.value.includes('\n'))
 // 只把明确带 fenced code 的内容当 Markdown；普通代码/命令保持原文，避免被 Markdown 改写。
 const markdown = computed(() => multiline.value && /(^|\n)\s*(```|~~~)/.test(text.value))
 const lineCount = computed(() => text.value ? text.value.split('\n').length : 0)
+const richHtml = computed(() => {
+  if (!multiline.value) return ''
+  if (hasAnsi(text.value)) return ansiToHtml(text.value)
+  return looksLikeDiff(text.value) ? diffToHtml(text.value) : ''
+})
 const scalar = computed(() => props.value === null ? 'null' : (props.plain && isString.value ? props.value : JSON.stringify(props.value)))
 </script>
 
@@ -51,6 +58,7 @@ const scalar = computed(() => props.value === null ? 'null' : (props.plain && is
       <div v-if="markdown" class="tool-value__markdown">
         <Markdown :content="value" compact />
       </div>
+      <pre v-else-if="richHtml" class="tool-value__text tool-value__text--rich" v-html="richHtml"></pre>
       <pre v-else class="tool-value__text">{{ value }}</pre>
     </template>
 
