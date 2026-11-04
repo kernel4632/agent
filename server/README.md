@@ -323,7 +323,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 
 `/mcp/list` 的 `cwd` 只影响项目级配置（`.mcp.json`、`.cursor/mcp.json`、`.vscode/mcp.json` 和 Claude Code 的项目表）；不填用后端当前目录。`/skill/list` 同理，只影响项目技能目录。
 
-`full=1` 会用随包的 ripgrep 扫描所有用户目录和固定磁盘：技能按 `SKILL.md` 找，MCP 按配置内容里的 `mcpServers` / `mcp_servers` / `context_servers` / `"mcp":` 找，并补上文件名带 `mcp` 的 JSON/TOML。系统目录、依赖目录和缓存目录不扫；只读，不执行配置里的命令，`env` / `headers` 仍然只回键名。返回值里的 `scan` 给出文件数、目录数、耗时和 `truncated`，整机扫描结果在服务进程内缓存 5 分钟。
+`full=1` 会用随包的 ripgrep 扫描所有用户目录和固定磁盘：技能按 `SKILL.md` 找，MCP 按配置内容里的 `mcpServers` / `mcp_servers` / `context_servers` / `"mcp":` 找，并补上文件名带 `mcp` 的 JSON/TOML。用户目录按完整深度，其他固定磁盘按七层（MCP 内容搜索到六层）；系统目录、依赖目录和缓存目录不扫。只读，不执行配置里的命令，`env` / `headers` 仍然只回键名。返回值里的 `scan` 给出文件数、目录数、耗时和 `truncated`，整机扫描结果在服务进程内缓存 5 分钟。
 
 ### 会话
 

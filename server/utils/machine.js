@@ -31,7 +31,7 @@ const EXCLUDES = [
 
 const globArgs = () => EXCLUDES.flatMap(name => ['-g', `!**/${name}/**`])
 
-// --- 扫描根：所有用户目录按完整深度，其他固定磁盘按五层；系统目录由 EXCLUDES 排除 ---
+// --- 扫描根：所有用户目录按完整深度，其他固定磁盘按七层；系统目录由 EXCLUDES 排除 ---
 let rootsCache = null
 const roots = async () => {
     if (rootsCache) return rootsCache
@@ -46,7 +46,7 @@ const roots = async () => {
         if (path.startsWith((process.env.SystemDrive || 'C:').slice(0, 1))) continue
         try {
             await readdir(path)
-            list.push({ path, depth: 5 })
+            list.push({ path, depth: 7 })
         } catch {
             // 光驱、网络盘和没插的盘符直接跳过。
         }
@@ -116,7 +116,8 @@ const configFiles = options => scan(depth => [
     '--hidden',
     '--no-ignore',
     '--no-messages',
-    '--max-depth', String(depth),
+    // 内容搜索比按文件名找慢得多；固定磁盘只下探到六层，用户目录仍按完整深度。
+    '--max-depth', String(depth >= 12 ? depth : Math.min(depth, 6)),
     '--max-filesize', '2M',
     '-g', '*.json',
     '-g', '*.toml',
@@ -131,7 +132,7 @@ const mcpNamedFiles = options => scan(depth => [
     '--hidden',
     '--no-ignore',
     '--no-messages',
-    '--max-depth', String(depth),
+    '--max-depth', String(depth >= 12 ? depth : Math.min(depth, 6)),
     '-g', '*mcp*.json',
     '-g', '*mcp*.toml',
 ], options)
