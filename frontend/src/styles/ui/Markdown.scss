@@ -92,6 +92,9 @@
 .markdown-body td[align=right] { text-align: right; }
 .markdown-body td code,
 .markdown-body th code { white-space: nowrap; }
+/* 短单元格按完整内容占宽；长正文用 pretty 尽量避免最后一行只剩一个词/字。 */
+.markdown-body td { text-wrap: pretty; }
+.markdown-body td.md-cell--nowrap { white-space: nowrap; }
 .markdown-body blockquote {
   margin-left: 0;
   padding: 5px 12px;

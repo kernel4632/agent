@@ -29,10 +29,23 @@ function closedCode(token) {
 function inlineHTML(token) {
   return token.tokens?.length ? renderInline(token.tokens) : ''
 }
+
+// 短单元格不折行：像“第 34 行”这种只有一两行的内容，交给浏览器按完整宽度分列，
+// 避免出现最后一行只剩一个字的瑕疵；长正文仍然正常换行。
+const SHORT_CELL = 16
+function fitTables(root) {
+  if (!root?.querySelector('table')) return
+  for (const cell of root.querySelectorAll('td')) {
+    const text = (cell.textContent || '').replace(/\s+/g, ' ').trim()
+    const block = cell.querySelector('br, img, pre, ul, ol, p, div')
+    cell.classList.toggle('md-cell--nowrap', text.length > 0 && text.length <= SHORT_CELL && !block)
+  }
+}
+const vTableFit = { mounted: fitTables, updated: fitTables }
 </script>
 
 <template>
-  <div class="markdown-body ui-md" :class="{ 'ui-md--compact': compact }">
+  <div class="markdown-body ui-md" v-table-fit :class="{ 'ui-md--compact': compact }">
     <template v-for="(token, index) in blocks" :key="index">
       <CodeBlock
         v-if="token.type === 'code' && closedCode(token)"
