@@ -36,7 +36,7 @@ Work through the user's goal methodically. Each step should be informed by the p
 
 // 工具类别：工具文件和设置页共用，避免互相 import。
 export const TOOL_KINDS = [
-    { kind: 'read', label: '读取', hint: '读文件、列目录、搜代码、抓网页' },
+    { kind: 'read', label: '读取', hint: '读文件、列目录、搜文件内容、抓网页' },
     { kind: 'write', label: '写入', hint: '改文件、打补丁' },
     { kind: 'command', label: '执行命令', hint: '跑命令' },
     { kind: 'mcp', label: '使用 MCP', hint: 'MCP 服务提供的工具' },
