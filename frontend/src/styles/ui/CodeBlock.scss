@@ -17,10 +17,11 @@
   :deep(.hljs-number), :deep(.hljs-symbol), :deep(.hljs-bullet), :deep(.hljs-variable.constant_),
   :deep(.hljs-meta) { color: var(--md-number); }
   :deep(.hljs-type), :deep(.hljs-built_in), :deep(.hljs-builtin-name), :deep(.hljs-class .hljs-title) { color: var(--md-type); }
-  :deep(.hljs-operator), :deep(.hljs-punctuation) { color: var(--md-operator); }
+  :deep(.hljs-operator) { color: var(--md-operator); }
+  :deep(.hljs-punctuation) { color: var(--md-punctuation); }
   :deep(.hljs-name) { color: var(--md-type); }
-  :deep(.hljs-variable), :deep(.hljs-params), :deep(.hljs-property), :deep(.hljs-attribute),
-  :deep(.hljs-tag) { color: var(--la-text); }
+  :deep(.hljs-variable) { color: var(--md-variable); }
+  :deep(.hljs-params), :deep(.hljs-property), :deep(.hljs-attribute), :deep(.hljs-tag) { color: var(--la-text); }
   :deep(.hljs-deletion) { color: var(--la-danger); }
   :deep(.hljs-emphasis) { font-style: italic; }
   :deep(.hljs-strong) { font-weight: 650; }

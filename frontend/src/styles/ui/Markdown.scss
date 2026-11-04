@@ -39,14 +39,14 @@
 .markdown-body h3,
 .markdown-body h4,
 .markdown-body h5,
-.markdown-body h6 { color: var(--la-text); line-height: 1.5; font-weight: 620; margin: 16px 0 8px; }
+.markdown-body h6 { color: var(--md-heading); line-height: 1.5; font-weight: 620; margin: 16px 0 8px; }
 .markdown-body h1 { font-size: 20px; }
 .markdown-body h2 { font-size: 17px; }
 .markdown-body h3 { font-size: 15px; }
 .markdown-body h4 { font-size: 14px; }
 .markdown-body h5,
-.markdown-body h6 { color: var(--la-secondary); font-size: 13px; }
-.markdown-body strong { color: var(--la-text); font-weight: 650; }
+.markdown-body h6 { color: var(--md-heading); font-size: 13px; }
+.markdown-body strong { color: var(--md-strong); font-weight: 650; }
 .markdown-body em { color: var(--md-em); }
 .markdown-body del { color: var(--la-muted); }
 .markdown-body pre { max-width: 100%; overflow-x: auto; margin: 0 0 10px; border: .5px solid var(--la-line); padding: 10px 12px; border-radius: 8px; background: var(--la-layer-01); color: var(--la-text); line-height: 1.7; }

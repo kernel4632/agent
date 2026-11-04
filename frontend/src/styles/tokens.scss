@@ -18,13 +18,14 @@
   --la-hover: color-mix(in srgb, var(--la-text) 7%, transparent); --la-pressed: color-mix(in srgb, var(--la-text) 12%, transparent); --la-scrim: color-mix(in srgb, #000 60%, transparent);
   --la-accent: var(--ui-color-primary); --la-accent-solid: var(--la-accent); --la-accent-soft: var(--ui-color-primary-container); --la-accent-border: color-mix(in srgb, var(--la-accent) 42%, transparent);
   --la-danger: var(--ui-color-error); --la-success: var(--ui-color-success); --la-warning: var(--ui-color-warning); --la-on-accent: var(--ui-color-on-primary); --la-action: var(--la-accent); --la-on-action: var(--la-on-accent);
-  /* Markdown、代码高亮：按 opencode TUI 的语义分工，正文之外的元素各用一色。 */
-  --md-link: #005cc5; --md-link-text: #0b7285;
-  --md-code: #2b8a3e; --md-quote: #9a6700; --md-em: #9a6700;
-  --md-list: #005cc5; --md-enum: #0b7285;
-  --md-keyword: #8250df; --md-function: #005cc5; --md-string: #2b8a3e; --md-number: #b35900;
-  --md-type: #0b7285; --md-operator: #0b7285; --md-comment: #6e7781;
-  --md-rule: var(--la-line-strong);
+  /* Markdown、代码高亮：按 opencode 默认 v2 主题的语义分工，正文之外的元素各用一色。 */
+  --md-heading: #d68c27; --md-strong: #d68c27;
+  --md-link: #3b7dd8; --md-link-text: #318795;
+  --md-code: #3d9a57; --md-quote: #b0851f; --md-em: #b0851f;
+  --md-list: #3b7dd8; --md-enum: #318795;
+  --md-keyword: #d68c27; --md-function: #3b7dd8; --md-variable: #d1383d; --md-string: #3d9a57; --md-number: #d68c27;
+  --md-type: #b0851f; --md-operator: #318795; --md-comment: #8a8a8a; --md-punctuation: #1a1a1a;
+  --md-rule: #8a8a8a;
   --la-radius: 10px; --la-radius-panel: 24px; --la-content-inset: 8px; --la-settings-width: 800px; --la-topbar-height: 64px;
   --la-chat-gutter: clamp(16px, 5vw, 80px); --la-chat-width: 1040px;
   --la-font-sans: var(--ui-font-family); --la-font-mono: var(--ui-font-family); --la-font-reading: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
@@ -33,9 +34,11 @@
 :root[data-theme=light] { color-scheme: light; }
 :root[data-theme=dark] {
   color-scheme: dark;
-  --md-link: #82aaff; --md-link-text: #89ddff;
-  --md-code: #c3e88d; --md-quote: #ffcb6b; --md-em: #ffcb6b;
-  --md-list: #82aaff; --md-enum: #89ddff;
-  --md-keyword: #c792ea; --md-function: #82aaff; --md-string: #c3e88d; --md-number: #ffcb6b;
-  --md-type: #89ddff; --md-operator: #89ddff; --md-comment: #7a7f8a;
+  --md-heading: #9d7cd8; --md-strong: #f5a742;
+  --md-link: #fab283; --md-link-text: #56b6c2;
+  --md-code: #7fd88f; --md-quote: #e5c07b; --md-em: #e5c07b;
+  --md-list: #fab283; --md-enum: #56b6c2;
+  --md-keyword: #9d7cd8; --md-function: #fab283; --md-variable: #e06c75; --md-string: #7fd88f; --md-number: #f5a742;
+  --md-type: #e5c07b; --md-operator: #56b6c2; --md-comment: #808080; --md-punctuation: #eeeeee;
+  --md-rule: #808080;
 }
