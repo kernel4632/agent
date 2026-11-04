@@ -24,6 +24,7 @@ import Skill from '../tools/skill.js'
 import store from '../store.js'
 import { app } from '../server.js'
 import SSE from '../utils/sse.js'
+import usageOf from '../utils/usage.js'
 
 // 每个测试使用独立目录和干净的内存数据，避免测试之间互相影响。
 const withHome = async callback => {
@@ -670,6 +671,20 @@ describe('server tool approval and SSE', () => {
             const result = spawnSync(process.execPath, [script, mode], { encoding: 'utf8', timeout: 10000 })
             expect(result.status, `${mode}: ${result.stderr || result.stdout}`).toBe(0)
         }
+    })
+})
+
+describe('请求用量', () => {
+    test('记录首字时间和完整耗时', () => {
+        const usage = usageOf({
+            usage: { inputTokens: 30, outputTokens: 20, totalTokens: 50 },
+            startedAt: 1000,
+            firstTokenAt: 2500,
+            finishedAt: 9000,
+        })
+        expect(usage).toMatchObject({ input: 30, output: 20, total: 50, firstTokenMs: 1500, durationMs: 8000 })
+        // 没有首字时就是 0，前端据此省略这一项。
+        expect(usageOf({ usage: null, startedAt: 1000, finishedAt: 2000 }).firstTokenMs).toBe(0)
     })
 })
 

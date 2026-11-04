@@ -189,7 +189,9 @@ export function usageFields(usage = {}, durationMs = 0) {
     cacheWrite: Number(usage.cacheWrite || 0),    // 写进缓存的输入 token
     reasoning: Number(usage.reasoning || 0),      // 思考过程消耗的 token
     total: Number(usage.total ?? input + output), // 服务端没给总数时自己加
-    durationMs: Number(durationMs || usage.durationMs || 0), // 请求耗时
+    firstTokenAt: Number(usage.firstTokenAt || 0), // 第一个内容增量到达的绝对时间
+    firstTokenMs: Number(usage.firstTokenMs || 0), // 首字时间（TTFT）
+    durationMs: Number(durationMs || usage.durationMs || 0), // 请求完整耗时
   }
 }
 

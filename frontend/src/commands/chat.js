@@ -176,9 +176,16 @@ function resumeRun(session) {
 }
 
 // --- 模型请求开始：在时间线当前的位置放一条请求行，完成后这一行留在原地显示用量 ---
-function startRequest(session) {
+// 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
+function startRequest(session, event = {}) {
   const assistant = streaming(session) || createAssistant(session)
-  const request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0 }
+  const request = {
+    id: `request_${crypto.randomUUID()}`,
+    status: 'running',
+    startedAt: Number(event.startedAt) || Date.now(),
+    firstTokenAt: Number(event.firstTokenAt) || 0,
+    finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+  }
   assistant.requests.push(request)
   assistant.steps.push({ type: 'request', requestId: request.id })
   assistant.request = request
@@ -189,6 +196,14 @@ function startRequest(session) {
 function markFirstToken(assistant) {
   const request = assistant.requests.findLast(item => item.status === 'running')
   if (request && !request.firstTokenAt) request.firstTokenAt = Date.now()
+}
+
+// 服务端在第一个内容增量时补一条事件，重连后能拿回真实的首次响应时间。
+function setFirstToken(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  const request = assistant.requests.findLast(item => item.status === 'running')
+  if (!request || request.firstTokenAt) return
+  request.firstTokenAt = Number(event.firstTokenAt) || Date.now()
 }
 
 // --- 模型请求结束：补正文、结算用量，光标停住 ---
@@ -261,11 +276,12 @@ async function finishRun(sessionID, session, event) {
 }
 
 // --- 运行状态：开始、继续、结束、重试和标题 ---
-const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-finish', 'retry', 'error', 'mcp-error', 'permission-limit', 'title', 'agent-finish'])
+const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-first-token', 'llm-finish', 'retry', 'error', 'mcp-error', 'permission-limit', 'title', 'agent-finish'])
 async function receiveRun(sessionID, session, event) {
   if (event.type === 'agent-start') return startRun(sessionID, session)
   if (event.type === 'agent-resume') return resumeRun(session)
-  if (event.type === 'llm-start') return startRequest(session)
+  if (event.type === 'llm-start') return startRequest(session, event)
+  if (event.type === 'llm-first-token') return setFirstToken(session, event)
   if (event.type === 'llm-finish') return finishRunRequest(session, event)
   if (event.type === 'retry') return retryRun(session, event)
   if (event.type === 'error') return failRun(session, event)

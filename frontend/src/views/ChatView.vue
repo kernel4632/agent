@@ -42,6 +42,9 @@ const todos = computed(() => {
   return latest.length ? latest : props.session.todos || []
 })
 
+// 打开已有会话就接上实时事件：刷新页面或任务在别的客户端跑着时，也能继续看到进度。
+watch(() => props.session?.id, id => { if (id) void Chat.subscribe(id) }, { immediate: true })
+
 // 连续重连两秒才显示遮罩；审批中仍显示原来的许可操作。
 watch([() => props.session?.connection, () => props.session?.status, () => props.session?.pending?.length], ([connection, status, pending]) => {
   clearTimeout(reconnectTimer)

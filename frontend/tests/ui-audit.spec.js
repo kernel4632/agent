@@ -680,6 +680,8 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   const running = page.locator('.request-status').last()
   await expect(running).toContainText('正在请求模型…')
+  // 计时按服务端给的 startedAt 走（mock 里把开始时间往前挪了 5 秒），不是从 0 重新算。
+  await expect(running).toHaveAttribute('aria-label', /首字/)
   // 请求行在对话流里，不是浮在整轮回复外面的一条汇总。
   await expect(page.locator('.cot-card .request-status')).toHaveCount(1)
   await screenshot(page, testInfo, 'request-status-running')
@@ -691,8 +693,11 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   const done = page.locator('.request-status').last()
   await expect(done).toContainText('模型请求完成')
+  await expect(done).toContainText('首字 200ms')
+  await expect(done).toContainText('总耗时 800ms')
   await expect(done).toContainText('输入 30')
   await expect(done).toContainText('输出 20')
+  await expect(done).toContainText('缓存 10')
   await expect(done).toContainText('50 tokens')
   await expect(page.locator('.cot-card .request-status')).toHaveCount(1)
   await screenshot(page, testInfo, 'request-status-done')

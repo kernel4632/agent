@@ -132,22 +132,45 @@ const startAgent = ({ sessionId, agent, resume, token }) => async () => {
     await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
 }
 
-// --- 模型请求的开始和结束：记录耗时和用量 ---
+// --- 模型请求的开始和结束：记录首字时间、总耗时和用量 ---
 const modelEvents = ({ sessionId, state }) => ({
     onLLMStart: request => {
+        // core 每次真实请求都调这里，重试也算；同一个请求只开一行，重试沿用原来的开始时间。
+        if (state.requesting) return
+        state.requesting = true
         state.llmStartedAt = Date.now()
-        return SSE.send({ id: sessionId, data: { type: 'llm-start', ...request } })
+        state.firstTokenAt = 0
+        return SSE.send({ id: sessionId, data: { type: 'llm-start', ...request, startedAt: state.llmStartedAt } })
     },
     onLLMFinish: result => {
+        state.requesting = false
         const finishedAt = Date.now()
-        state.pendingUsage = usageOf({ usage: result.usage, startedAt: state.llmStartedAt || finishedAt, finishedAt })
-        return SSE.send({ id: sessionId, data: { type: 'llm-finish', ...result, usage: state.pendingUsage, durationMs: state.pendingUsage.durationMs } })
+        state.pendingUsage = usageOf({
+            usage: result.usage,
+            startedAt: state.llmStartedAt || finishedAt,
+            finishedAt,
+            firstTokenAt: state.firstTokenAt,
+        })
+        return SSE.send({
+            id: sessionId,
+            data: { type: 'llm-finish', ...result, usage: state.pendingUsage, durationMs: state.pendingUsage.durationMs },
+        })
     },
 })
 
 // --- 原样转发给前端的事件 ---
+const contentEvent = event => typeof event?.type === 'string'
+    && (event.type.endsWith('-delta') || event.type === 'tool-call' || event.type.startsWith('tool-input'))
+
 const forwardedEvents = ({ sessionId, state }) => ({
-    onLLMEvent: event => SSE.send({ id: sessionId, data: event }),
+    onLLMEvent: event => {
+        // 第一次收到内容增量时记下首字时间；重连后前端也能靠这条事件恢复。
+        if (!state.firstTokenAt && contentEvent(event)) {
+            state.firstTokenAt = Date.now()
+            SSE.send({ id: sessionId, data: { type: 'llm-first-token', firstTokenAt: state.firstTokenAt, firstTokenMs: Math.max(0, state.firstTokenAt - (state.llmStartedAt || state.firstTokenAt)) } })
+        }
+        return SSE.send({ id: sessionId, data: event })
+    },
     onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
     onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'tool-call' } }),
     onToolOutput: output => SSE.send({ id: sessionId, data: { ...output, type: 'tool-output' } }),
@@ -196,7 +219,7 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     const settings = await Agent.readSettings(sessionId)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
-    const state = { llmStartedAt: 0, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
+    const state = { llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
     const token = { stopped: false, state }
     activeRuns.set(sessionId, token)
     let task

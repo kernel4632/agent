@@ -21,15 +21,24 @@ const elapsed = computed(() => running.value && props.request.startedAt ? Math.m
 const seconds = value => value < 1000 ? `${Math.round(value)}ms` : `${(value / 1000).toFixed(value < 10000 ? 1 : 0)}s`
 const label = computed(() => running.value ? '正在请求模型…' : failed.value ? '模型请求失败' : '模型请求完成')
 const badge = computed(() => running.value ? seconds(elapsed.value) : props.request.total ? `${Number(props.request.total).toLocaleString()} tokens` : '')
+const firstTokenMs = computed(() => {
+  if (props.request.firstTokenMs) return Number(props.request.firstTokenMs)
+  if (props.request.firstTokenAt && props.request.startedAt) return Math.max(0, props.request.firstTokenAt - props.request.startedAt)
+  return 0
+})
 const detail = computed(() => {
-  if (running.value) return props.request.retry || (props.request.firstTokenAt ? '正在接收回复' : '等待模型返回第一个字')
+  if (running.value) {
+    if (props.request.retry) return props.request.retry
+    return firstTokenMs.value ? `首字 ${seconds(firstTokenMs.value)}，正在接收` : '等待模型返回第一个字'
+  }
   if (failed.value && props.request.error) return props.request.error
   const parts = []
+  if (firstTokenMs.value) parts.push(`首字 ${seconds(firstTokenMs.value)}`)
+  if (props.request.durationMs) parts.push(`总耗时 ${seconds(props.request.durationMs)}`)
   if (props.request.input || props.request.output) {
     parts.push(`输入 ${Number(props.request.input).toLocaleString()}`, `输出 ${Number(props.request.output).toLocaleString()}`)
   }
   if (props.request.cache) parts.push(`缓存 ${Number(props.request.cache).toLocaleString()}`)
-  if (props.request.durationMs) parts.push(seconds(props.request.durationMs))
   return parts.join(' · ')
 })
 
