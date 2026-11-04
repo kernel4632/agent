@@ -109,6 +109,17 @@ describe('项目结构', () => {
         expect(entries.filter(entry => !allowed.has(entry))).toEqual([])
     })
 
+    test('直接 import 命令的测试都经过服务入口装配', async () => {
+        const directory = fileURLToPath(new URL('./', import.meta.url))
+        const files = (await readdir(directory)).filter(name => name.endsWith('.test.js'))
+        for (const file of files) {
+            const code = await Bun.file(new URL(`./${file}`, import.meta.url)).text()
+            if (!code.includes("from '../commands/")) continue
+            // 有状态服务只在 server.js 装配；漏了它，单独跑这个文件时命令会缺依赖。
+            expect(code.includes("'../server.js'"), `${file} 没 import ../server.js`).toBe(true)
+        }
+    })
+
     test('store 只放全局配置和会话两份数据', async () => {
         expect(Object.keys(store).sort()).toEqual(['config', 'sessions'])
         expect(store.config.models).toBeDefined()

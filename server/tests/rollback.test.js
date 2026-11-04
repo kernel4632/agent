@@ -19,6 +19,8 @@ import History from '../features/history.js'
 import Session from '../commands/session.js'
 import * as File from '../tools/file.js'
 import store from '../store.js'
+// 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
+import '../server.js'
 
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
