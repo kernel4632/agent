@@ -1,7 +1,15 @@
 /* ToolResult.vue：通用参数和返回内容，任何工具使用同一份排版。 */
 .tool-view { display: grid; gap: 12px; min-width: 0; }
 .tool-content { display: grid; min-width: 0; gap: 6px; }
+.tool-content__head { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
 .tool-content h4 { margin: 0; color: var(--la-muted); font-size: 12px; font-weight: 500; }
+/* 参数默认按可读视图展示；原始 JSON 仍可一键切回。 */
+.tool-view-switch { display: inline-flex; flex: none; gap: 2px; padding: 2px; border-radius: 7px; background: var(--la-layer-02); }
+.tool-view-switch button { min-height: 22px; padding: 1px 7px; border: 0; border-radius: 5px; background: transparent; color: var(--la-muted); font: inherit; font-size: 10.5px; cursor: pointer; }
+.tool-view-switch button:hover { color: var(--la-text); }
+.tool-view-switch button.is-active { background: var(--la-layer-04); color: var(--la-text); }
+.tool-input,
+.tool-result { min-width: 0; }
 .tool-output {
   max-width: 100%;
   max-height: 300px;

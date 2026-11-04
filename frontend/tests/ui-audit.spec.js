@@ -296,7 +296,8 @@ test('tool row keeps declared metadata and shows generic input and output', asyn
   await expect(page.locator('.cot-step--tool .cot-step__extra')).toContainText('已更新')
   await expect(page.locator('.cot-step--tool .tool-input')).toContainText('读现有实现')
   await expect(page.locator('.cot-step--tool .tool-result')).toContainText('补测试')
-  await expect(page.locator('.cot-step--tool .tool-result')).toContainText('"status": "pending"')
+  await expect(page.locator('.cot-step--tool .tool-result')).toContainText('status')
+  await expect(page.locator('.cot-step--tool .tool-result')).toContainText('pending')
   // 清单入口保留在顶栏，用量统计只显示在输入框下方。
   await expect(page.locator('.session-todos')).toHaveCount(0)
   const todoButton = page.getByRole('button', { name: '任务清单', exact: true })
@@ -839,7 +840,35 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
 
   await mock.emit('session-1', [{ type: 'tool-call', toolCallId: 'call-stream', toolName: 'write_file', input: { path: 'a.txt', content: 'hello' } }])
   await expect(tool.locator('.cot-step__extra')).toContainText('正在执行')
-  await expect(tool.locator('.tool-input')).toContainText('"path": "a.txt"')
+  await expect(tool.locator('.tool-input')).toContainText('path')
+  await expect(tool.locator('.tool-input')).toContainText('a.txt')
+  expect(mock.errors).toEqual([])
+})
+
+test('tool input renders multiline strings and markdown code blocks', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [{
+    type: 'tool-call',
+    toolCallId: 'markdown-input',
+    toolName: 'write_file',
+    input: { path: 'README.md', content: '# 标题\n\n普通行\n\n```js\nconst answer = 42\n```\n' },
+  }])
+
+  const tool = page.locator('.cot-step--tool')
+  await expect(tool.locator('.tool-input .markdown-body h1')).toHaveText('标题')
+  await expect(tool.locator('.tool-input .ui-code-block')).toContainText('const answer = 42')
+  await expect(tool.locator('.tool-input')).not.toContainText('\\n')
+
+  await tool.getByRole('button', { name: '原始', exact: true }).click()
+  await expect(tool.locator('.tool-input')).toContainText('\\n')
+  await tool.getByRole('button', { name: '渲染', exact: true }).click()
+  await expect(tool.locator('.tool-input .ui-code-block')).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
