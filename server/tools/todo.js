@@ -6,8 +6,6 @@
  * 调用示例：模型调用 update_todo_list({ todos: '- [x] 读现有实现\n- [-] 改代码' })
  */
 
-const STATUSES = ['pending', 'in_progress', 'completed']
-
 // 把 Markdown 清单转成结构化条目。
 const parseTodos = text => String(text)
     .split('\n')
@@ -46,12 +44,10 @@ const todo = {
         required: ['todos'],
     },
 
-    async execute({ todos, items }) {
-        const list = Array.isArray(items)
-            ? items.map(item => ({ text: item.text, status: STATUSES.includes(item.status) ? item.status : 'pending' }))
-            : parseTodos(todos ?? '')
+    async execute({ todos }) {
+        const list = parseTodos(todos ?? '')
         if (!list.length) throw new Error('todos is required')
-        return { todos: typeof todos === 'string' ? todos : '', items: list }
+        return { todos, items: list }
     },
 }
 

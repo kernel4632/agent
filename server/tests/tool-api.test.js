@@ -32,8 +32,8 @@ describe('工具接口', () => {
         expect(Object.keys(find_files.inputSchema.properties)).toEqual(['path', 'pattern', 'recursive'])
         expect(Object.keys(search_text.inputSchema.properties)).toEqual(['path', 'regex', 'filePattern', 'context'])
         expect(Object.keys(shell.inputSchema.properties)).toEqual(['command', 'cwd'])
-        expect(Object.keys(edit.inputSchema.properties)).toEqual(['edits'])
-        expect(Object.keys(edit.inputSchema.properties.edits.items.properties)).toEqual(['path', 'oldText', 'newText', 'replaceAll'])
+        expect(Object.keys(edit.inputSchema.properties)).toEqual(['path', 'edits'])
+        expect(Object.keys(edit.inputSchema.properties.edits.items.properties)).toEqual(['oldText', 'newText', 'replaceAll'])
         expect(Object.keys(todo.inputSchema.properties)).toEqual(['todos'])
     })
 
@@ -63,40 +63,44 @@ describe('工具接口', () => {
         const target = join(root, 'edit.txt')
         await writeFile(target, 'old\nold\n')
 
-        await expect(edit.execute({ edits: [{ path: target, oldText: 'old', newText: 'new' }] }))
+        await expect(edit.execute({ path: target, edits: [{ oldText: 'old', newText: 'new' }] }))
             .rejects.toThrow('exactly once')
-        await edit.execute({ edits: [{ path: target, oldText: 'old', newText: 'new', replaceAll: true }] })
+        await edit.execute({ path: target, edits: [{ oldText: 'old', newText: 'new', replaceAll: true }] })
         expect(await readFile(target, 'utf8')).toBe('new\nnew\n')
     })
 
-    test('edit 一次改多个文件，任一失败就整体不改', async () => {
-        const first = join(root, 'patch-a.txt')
-        const second = join(root, 'patch-b.txt')
-        await writeFile(first, 'a0')
-        await writeFile(second, 'b0')
+    test('edit 一次调用只改一个文件，任一条对不上就整体不改', async () => {
+        const target = join(root, 'patch.txt')
+        await writeFile(target, 'a0 b0')
 
-        await edit.execute({ edits: [
-            { path: first, oldText: 'a0', newText: 'a1' },
-            { path: second, oldText: 'b0', newText: 'b1' },
+        await edit.execute({ path: target, edits: [
+            { oldText: 'a0', newText: 'a1' },
+            { oldText: 'b0', newText: 'b1' },
         ] })
-        expect(await readFile(first, 'utf8')).toBe('a1')
-        expect(await readFile(second, 'utf8')).toBe('b1')
+        expect(await readFile(target, 'utf8')).toBe('a1 b1')
 
-        await expect(edit.execute({ edits: [
-            { path: first, oldText: 'a1', newText: 'a2' },
-            { path: second, oldText: 'missing', newText: 'b2' },
+        await expect(edit.execute({ path: target, edits: [
+            { oldText: 'a1', newText: 'a2' },
+            { oldText: 'missing', newText: 'b2' },
         ] })).rejects.toThrow('not found')
-        expect(await readFile(first, 'utf8')).toBe('a1')
+        expect(await readFile(target, 'utf8')).toBe('a1 b1')
     })
 
     test('edit 对同一文件的多条修改按顺序叠加', async () => {
         const target = join(root, 'stack.txt')
         await writeFile(target, 'a b')
-        await edit.execute({ edits: [
-            { path: target, oldText: 'a', newText: 'A' },
-            { path: target, oldText: 'b', newText: 'B' },
+        await edit.execute({ path: target, edits: [
+            { oldText: 'a', newText: 'A' },
+            { oldText: 'b', newText: 'B' },
         ] })
         expect(await readFile(target, 'utf8')).toBe('A B')
+    })
+
+    test('edit 对 CRLF 文件用 \\n 也能匹配，写回保持原行尾', async () => {
+        const target = join(root, 'crlf.txt')
+        await writeFile(target, 'one\r\ntwo\r\n')
+        await edit.execute({ path: target, edits: [{ oldText: 'one\ntwo', newText: 'ONE\nTWO' }] })
+        expect(await readFile(target, 'utf8')).toBe('ONE\r\nTWO\r\n')
     })
 
     test('search_text 使用 regex 和 filePattern', async () => {

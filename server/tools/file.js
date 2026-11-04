@@ -1,5 +1,5 @@
 /*
- * 文件与目录工具：读、写、找文件、搜内容、编辑（单文件或批量），以及文件自己的快照和恢复。
+ * 文件与目录工具：读、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
  *
  * 这一组工具只碰文件，不碰会话运行状态。会改文件的工具都带一个 snapshot 钩子：
  * 真正写入之前由审批关口调用，把原样存进会话的快照目录；回退时从这里恢复。
@@ -8,7 +8,7 @@
  * 调用示例：
  *   import File from '../tools/file.js'
  *   await File.read_file.execute({ path: './a.txt' }, { cwd: 'D:/notes' })
- *   await File.edit.execute({ edits: [{ path: './a.txt', oldText: 'a', newText: 'b' }] }, { cwd: 'D:/notes' })
+ *   await File.edit.execute({ path: './a.txt', edits: [{ oldText: 'a', newText: 'b' }] }, { cwd: 'D:/notes' })
  *   await File.snapshot({ sessionId, messageId, toolCallId, toolName: 'write_file', input, cwd })
  *   await File.restoreTool({ sessionId, toolCallId })
  *   const changes = await File.diff({ sessionId })
@@ -66,7 +66,7 @@ const absolute = (path, cwd) => isAbsolute(path) ? path : resolve(cwd || process
 // --- 一次工具调用会碰哪些文件 ---
 const filePaths = ({ toolName, input }) => {
     if (toolName === 'write_file') return [input.path]
-    if (toolName === 'edit') return (input.edits || []).map(item => item.path).filter(Boolean)
+    if (toolName === 'edit') return input.path ? [input.path] : []
     return []
 }
 
@@ -482,75 +482,73 @@ const searchText = {
     },
 }
 
-// --- 替换文本：一次一条就是单文件，一次多条就是批量；全部校验通过才写盘 ---
+// --- 替换文本：一次调用改一个文件，多条修改按顺序应用；全部对上才写盘。改多个文件就同一步并行调多次 ---
 const edit = {
     name: 'edit',
     kind: 'write',
-    files: input => (input.edits || []).map(item => item.path).filter(Boolean),
+    files: input => (input.path ? [input.path] : []),
     snapshot,
     ui: {
         view: 'edit',
         icon: 'edit',
         title: '编辑文件',
-        summary: '{edits.0.path}',
-        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'edits.0.path' }],
+        summary: '{path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
     },
     description: [
-        'Replace exact text in one or more files. Every replacement must match exactly once (unless replaceAll is true), and either all edits succeed or nothing is written.',
-        'Read the file first so oldText matches byte-for-byte, including whitespace. For a single-file change, pass one item in edits.',
-        'Several edits to the same file are applied in order.',
-        'Parameters: - edits (required): list of { path, oldText, newText, replaceAll? }.',
+        'Replace exact text in one file. Every replacement must match exactly once (unless replaceAll is true), and either all edits succeed or nothing is written.',
+        'Read the file first so oldText matches byte-for-byte, including whitespace.',
+        'Several edits to the file are applied in order. To change several files, call this tool once per file in the same step.',
+        'Line endings are normalized for matching: \\n in oldText also matches CRLF files, and the file keeps its own ending style.',
+        'Parameters: - path (required): the file to edit. - edits (required): list of { oldText, newText, replaceAll? }.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
         properties: {
+            path: { type: 'string' },
             edits: {
                 type: 'array',
                 items: {
                     type: 'object',
                     properties: {
-                        path: { type: 'string' },
                         oldText: { type: 'string' },
                         newText: { type: 'string' },
                         replaceAll: { type: 'boolean' },
                     },
-                    required: ['path', 'oldText', 'newText'],
+                    required: ['oldText', 'newText'],
                 },
             },
         },
-        required: ['edits'],
+        required: ['path', 'edits'],
     },
-    async execute({ edits }, options = {}) {
+    async execute({ path, edits }, options = {}) {
         if (!Array.isArray(edits) || !edits.length) throw new Error('edits must be a non-empty list')
 
-        // 第一轮只在内存里改：任何一处对不上，磁盘上一个字节都不会写。
-        const files = new Map()
-        for (const { path, oldText, newText, replaceAll } of edits) {
-            const target = absolute(path, options.cwd)
-            guard([target])
-            if (!oldText) throw new Error(`Cannot edit ${target}: oldText must not be empty`)
-            if (!files.has(target)) {
-                const file = Bun.file(target)
-                if (!await file.exists()) throw new Error(`Cannot edit ${target}: file not found`)
-                files.set(target, await file.text())
-            }
+        const target = absolute(path, options.cwd)
+        guard([target])
+        const file = Bun.file(target)
+        if (!await file.exists()) throw new Error(`Cannot edit ${target}: file not found`)
 
-            const content = files.get(target)
-            const matches = content.split(oldText).length - 1
+        // 统一成 \n 再匹配：模型写的 oldText 用 \n，不该因为文件是 CRLF 就对不上。
+        const original = await file.text()
+        const crlfFile = original.includes('\r\n')
+        let content = crlfFile ? original.replace(/\r\n/g, '\n') : original
+        for (const { oldText, newText, replaceAll } of edits) {
+            const from = String(oldText ?? '').replace(/\r\n/g, '\n')
+            const to = String(newText ?? '').replace(/\r\n/g, '\n')
+            if (!from) throw new Error(`Cannot edit ${target}: oldText must not be empty`)
+            const matches = content.split(from).length - 1
             if (!matches) throw new Error(`Cannot edit ${target}: oldText was not found`)
             if (!replaceAll && matches !== 1) throw new Error(`Cannot edit ${target}: oldText must occur exactly once, found ${matches}`)
-            files.set(target, replaceAll ? content.split(oldText).join(newText) : content.replace(oldText, newText))
+            content = replaceAll ? content.split(from).join(to) : content.replace(from, () => to)
         }
 
-        // 第二轮才写盘，此时每个文件都已经确认可以改。
-        for (const [path, content] of files) {
-            await mkdir(dirname(path), { recursive: true })
-            await atomicWrite(path, content)
-        }
-        return `Edited ${files.size} file(s): ${[...files.keys()].join(', ')}`
+        // 全部对上才写盘；文件原来是什么行尾，写回去还是什么行尾。
+        await mkdir(dirname(target), { recursive: true })
+        await atomicWrite(target, crlfFile ? content.replace(/\n/g, '\r\n') : content)
+        return `Edited ${target}`
     },
 }
-
 export {
     readFile as read_file,
     writeFile as write_file,
