@@ -1,5 +1,5 @@
 <!--
-输入框下方的会话状态：展示上下文、请求轮数、token 与速度；每一项独立展开自己的面板。
+输入框下方的会话状态：展示上下文、token 与速度；每一项独立展开自己的面板。
 真实请求数据优先；旧会话缺少记录时显示“估算”。
 调用示例：<StatsPanel :stats="stats" />。
 -->
@@ -37,10 +37,6 @@ const cacheHit = computed(() => {
   const input = Number(usage.value.input || 0)
   if (!input) return 0
   return Math.min(100, Math.round(cacheTokens.value / input * 100))
-})
-const averageTokens = computed(() => {
-  const requests = Number(usage.value.requests || 0)
-  return requests ? total.value / requests : 0
 })
 const shares = computed(() => {
   const input = Number(usage.value.input || 0)
@@ -146,32 +142,6 @@ const formatDuration = value => {
             <div class="stats-panel__threshold-label">自动压缩 {{ Math.round(threshold) }}%</div>
           </div>
         </div>
-      </div>
-    </Menu>
-
-    <i class="session-stats__separator" aria-hidden="true"></i>
-
-    <Menu
-      mode="content"
-      class="session-stats__menu"
-      :label="`${usage.requests || 0} 轮请求，点击查看请求统计`"
-      content-label="请求统计"
-    >
-      <template #trigger>
-        <span class="session-stats__summary-item"><Icon name="activity" :size="14" />{{ usage.requests || 0 }} 轮</span>
-      </template>
-      <div class="stats-panel stats-panel--requests">
-        <div class="stats-panel__head">
-          <span class="stats-panel__heading"><Icon name="activity" :size="15" />请求</span>
-          <span v-if="usageApproximate" class="stats-panel__badge">估算</span>
-        </div>
-        <div class="stats-panel__metric"><strong>{{ usage.requests || 0 }}</strong><span>次模型请求</span></div>
-        <div v-if="usage.requests && hasUsage" class="stats-panel__metric-row">
-          <span>平均每次</span>
-          <strong>{{ formatTokens(averageTokens, usageApproximate) }}</strong>
-          <small>tokens</small>
-        </div>
-        <p class="stats-panel__note">每次模型请求算一轮；工具调用和自动续跑都包含在内。</p>
       </div>
     </Menu>
 
