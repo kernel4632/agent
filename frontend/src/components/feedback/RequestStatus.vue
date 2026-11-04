@@ -23,7 +23,7 @@ const running = computed(() => props.request.status === 'running')
 const failed = computed(() => props.request.status === 'failed')
 const elapsed = computed(() => running.value && props.request.startedAt ? Math.max(0, now.value - props.request.startedAt) : 0)
 
-const seconds = value => value < 1000 ? `${Math.round(value)}ms` : `${(value / 1000).toFixed(value < 10000 ? 1 : 0)}s`
+const seconds = value => value < 1000 ? `${Math.round(value)}ms` : `${Math.round(value / 1000)}s`
 // 一行放不下时优先把大数字压成 k/M，不靠换行或省略关键指标。
 const compactNumber = value => {
   const number = Number(value || 0)
