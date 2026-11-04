@@ -89,11 +89,13 @@ const streaming = computed(() => props.messages.some(message => message.isStream
 const expandedSteps = ref(false)
 const canCollapse = computed(() => contentSteps.value.length > 3)
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
+// 折叠时只留最近两步和最新一条请求；展开后才按原位显示全部请求。
 const visibleSteps = computed(() => {
   if (textOnly.value) return steps.value.filter(step => step.type === 'request')
   if (!canCollapse.value || expandedSteps.value) return steps.value
   const kept = new Set(contentSteps.value.slice(-2).map(step => step.key))
-  return steps.value.filter(step => step.type === 'request' || kept.has(step.key))
+  const lastRequest = steps.value.findLast(step => step.type === 'request')
+  return steps.value.filter(step => kept.has(step.key) || step === lastRequest)
 })
 const hiddenSteps = computed(() => contentSteps.value.length - visibleSteps.value.filter(step => step.type !== 'request').length)
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))

@@ -729,6 +729,35 @@ test('each model request stays at its position in the conversation flow', async 
   expect(mock.errors).toEqual([])
 })
 
+test('collapsing a long turn hides old request rows', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    ...['a', 'b', 'c', 'd'].flatMap((id, index) => [
+      { type: 'llm-start' },
+      { type: 'llm-finish', text: '', usage: { input: 10 + index, output: 1, total: 11 + index } },
+      { type: 'tool-call', toolCallId: `tool-${id}`, toolName: 'read_file', input: { path: `${id}.txt` } },
+      { type: 'tool-result', toolCallId: `tool-${id}`, toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+    ]),
+  ])
+
+  // 默认折叠：只留最近两步和最新一条请求，不把整轮的请求行全部摊开。
+  await expect(page.locator('.cot-fold')).toContainText('展开其余')
+  await expect(page.locator('.request-status')).toHaveCount(1)
+  await expect(page.locator('.cot-step')).toHaveCount(2)
+
+  await page.locator('.cot-fold').click()
+  await expect(page.locator('.request-status')).toHaveCount(4)
+  await expect(page.locator('.cot-step')).toHaveCount(4)
+  expect(mock.errors).toEqual([])
+})
+
 test('composer footer stats opens the session data panel', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
