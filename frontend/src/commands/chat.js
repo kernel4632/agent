@@ -101,7 +101,21 @@ async function send(sessionID, content) {
     attachments: files.map(file => ({ id: file.id, name: file.name, kind: file.kind || 'text' })),
     images: files.filter(file => file.kind === 'image').map(file => file.dataUrl),
   })
-  createAssistant(session)
+  const assistant = createAssistant(session)
+  // 消息一发出就先占一条请求行，不等待 llm-start；否则网络/SSE 慢时
+  // 界面会先掉进没有上下文的“正在思考”占位。
+  const pendingRequest = {
+    id: `pending_${crypto.randomUUID()}`,
+    status: 'running',
+    startedAt: Date.now(),
+    firstTokenAt: 0,
+    provider: session.provider || '',
+    model: session.model || '',
+    finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+  }
+  assistant.requests.push(pendingRequest)
+  assistant.steps.push({ type: 'request', requestId: pendingRequest.id })
+  assistant.request = pendingRequest
   session.status = 'running'
   session.lastEventAt = Date.now()
   History.syncSummary(session)
@@ -111,7 +125,17 @@ async function send(sessionID, content) {
     return true
   } catch (error) {
     const assistant = streaming(session)
-    if (assistant) { assistant.error = error.message; assistant.isStreaming = false; assistant.finishedAt = Date.now() }
+    if (assistant) {
+      for (const request of assistant.requests.filter(item => item.status === 'running')) {
+        request.status = 'failed'
+        request.error = error.message
+        request.finishedAt = Date.now()
+        request.durationMs = Math.max(0, request.finishedAt - request.startedAt)
+      }
+      assistant.error = error.message
+      assistant.isStreaming = false
+      assistant.finishedAt = Date.now()
+    }
     session.status = 'idle'
     Notice.show(error.message)
     History.syncSummary(session)
@@ -175,11 +199,22 @@ function toolFor(session, event, status) {
 
 // --- 重连后重建这一轮：只保留最后一条用户消息之前的历史，再接新的回答 ---
 async function startRun(sessionID, session) {
+  // agent-start 的历史快照会重建消息列表；发送时先放的本地请求行要一起带过去，
+  // 否则快照落下的瞬间请求状态会消失，直到 llm-start 才回来。
+  const previous = streaming(session)
+  const pending = previous?.requests?.findLast(item => item.status === 'running' && String(item.id).startsWith('pending_'))
+  const startedAt = previous?.startedAt || Date.now()
   const source = await AgentAPI.getSession(sessionID)
   const snapshot = History.normalize(source, session)
   const lastUser = snapshot.messages.findLastIndex(message => message.role === 'user')
   session.messages = snapshot.messages.slice(0, lastUser + 1)
-  createAssistant(session)
+  const assistant = createAssistant(session)
+  assistant.startedAt = startedAt
+  if (pending) {
+    assistant.requests.push(pending)
+    assistant.steps.push({ type: 'request', requestId: pending.id })
+    assistant.request = pending
+  }
   session.status = 'running'
 }
 
@@ -222,6 +257,17 @@ function finishCompact(session, event) {
 // 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
 function startRequest(session, event = {}) {
   const assistant = streaming(session) || createAssistant(session)
+  // 发送时已经创建的本地请求行直接接管，避免再插一行，也保住用户先看到的计时。
+  const pending = assistant.requests.findLast(item => item.status === 'running' && String(item.id).startsWith('pending_'))
+  if (pending) {
+    pending.startedAt = Number(event.startedAt) || pending.startedAt
+    pending.firstTokenAt = Number(event.firstTokenAt) || pending.firstTokenAt
+    pending.provider = event.provider || pending.provider
+    pending.model = event.model || pending.model
+    assistant.request = pending
+    assistant.isStreaming = true
+    return
+  }
   const request = {
     id: `request_${crypto.randomUUID()}`,
     status: 'running',

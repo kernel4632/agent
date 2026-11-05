@@ -40,15 +40,17 @@ const shortNumber = value => {
   if (number >= 1000) return `${Math.round(number / 1000)}k`
   return number.toLocaleString()
 }
-const label = computed(() => compact.value
-  ? (running.value ? '正在压缩上下文…' : failed.value ? '上下文压缩失败' : '上下文压缩完成')
-  : (running.value ? '正在请求模型…' : failed.value ? '模型请求失败' : '模型请求完成'))
-const badge = computed(() => running.value ? seconds(elapsed.value) : '')
 const firstTokenMs = computed(() => {
   if (props.request.firstTokenMs) return Number(props.request.firstTokenMs)
   if (props.request.firstTokenAt && props.request.startedAt) return Math.max(0, props.request.firstTokenAt - props.request.startedAt)
   return 0
 })
+const label = computed(() => compact.value
+  ? (running.value ? '正在压缩上下文…' : failed.value ? '上下文压缩失败' : '上下文压缩完成')
+  : (running.value
+      ? (firstTokenMs.value ? '正在接收模型流…' : '正在请求模型…')
+      : failed.value ? '模型请求失败' : '模型请求完成'))
+const badge = computed(() => running.value ? seconds(elapsed.value) : '')
 const completedParts = (formatNumber = compactNumber, tight = false) => {
   const parts = []
   const push = (name, value) => parts.push(tight ? `${name}${value}` : `${name} ${value}`)

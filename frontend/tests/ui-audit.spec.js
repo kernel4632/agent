@@ -717,7 +717,7 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   const running = page.locator('.request-status').last()
-  await expect(running).toContainText('正在请求模型…')
+  await expect(running).toContainText('正在接收模型流…')
   // 计时按服务端给的 startedAt 走（mock 里把开始时间往前挪了 5 秒），不是从 0 重新算。
   await expect(running).toHaveAttribute('aria-label', /首字/)
   // 请求行在对话流里，不是浮在整轮回复外面的一条汇总。
