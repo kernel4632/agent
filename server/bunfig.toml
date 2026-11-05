@@ -2,7 +2,11 @@
 #
 # 不加 --isolate：每个测试文件开独立全局对象会让留了活句柄的文件挂住整个跑批
 # （实测卡死在 resume.test.js 之后不再推进）。
-#
-# 数据污染用另一条路挡住：测试切 AGENT_HOME 时调 Path.lock(root)，
-# 把本进程的路径解析固定在临时目录，晚到的异步收尾不会落到真实 ~/.agent。
+[test]
+# preload 在跑任何测试文件之前把 AGENT_HOME 指向一个全新的系统临时目录，
+# 所以即使某个测试忘了自己隔离，也绝不会碰到用户真实的 ~/.agent。
+preload = ["./tests/setup.js"]
+
+# 第二道保险是 Path.lock(root)：测试切 AGENT_HOME 时锁定本进程的路径解析，
+# 让晚到的异步收尾（保存历史、清运行标记）留在临时目录里。
 # 见 tests/*.test.js 的 withHome 和 utils/path.js 的 lock。
