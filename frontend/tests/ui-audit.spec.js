@@ -1113,11 +1113,9 @@ test('message action forks the conversation at that message', async ({ page }, t
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
-  // 右键不再打开居中大菜单：直接进入聚光引导，卡片里显示这条消息的摘要。
+  // 右键不再打开居中大菜单：直接进入聚光引导，卡片里只有操作按钮。
   await expect(page.getByRole('dialog', { name: '消息操作', exact: true })).toBeVisible()
   const actions = page.locator('.rollback-spotlight__card')
-  await expect(actions).toContainText('你的消息')
-  await expect(actions).toContainText('你好')
   await screenshot(page, testInfo, 'message-actions')
   await page.getByRole('button', { name: '从这里分支', exact: true }).click()
   await expect(actions).toBeHidden()

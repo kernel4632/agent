@@ -2,7 +2,7 @@
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
 思考、工具和中间正文按发生顺序合成一张时间线卡片；完成任务/询问用户这类结束工具的结果才是正式回复，直接显示在卡片下方，不再套背景。
 没有结束工具时（停止、报错、断网）才把已经流出的正文当临时回复。
-右键或长按这一整轮，直接打开聚光引导（见 MessageActions）：框住落点所在的那条消息和它的工具，卡片里复制/回退/分支。
+右键或长按这一整轮，直接打开聚光引导（见 MessageActions）：框住落点所在的那条消息和它的工具，菜单卡片只给复制/回退/分支三个按钮；复制目标那一条的内容（stop 工具输出或正文），不展示预览。
 调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :rollback-target="..." :rollback-preview="..." @rollback="..." @fork="..." @rollback-confirm="..." />
 -->
 <script setup>
@@ -29,6 +29,13 @@ const props = defineProps({
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
 const emit = defineEmits(['rollback', 'fork', 'rollback-confirm'])
+
+// 复制目标那一条消息自己的内容：正式回复取结束工具的输出，否则取正文。
+function messageText(message) {
+  if (!message) return content.value
+  const stopTool = (message.tools || []).find(isFinishedStopTool)
+  return (stopTool ? outputText(stopTool).trim() : String(message.content || '').trim()) || content.value
+}
 
 // 右键落点决定回退/分支的目标消息：点在哪一步就归哪条助手消息；
 // 打开聚光时由 resolveTarget 从事件里解析（找不到时保留 null，退回默认目标）。
@@ -139,21 +146,10 @@ const menuItems = computed(() => {
 })
 
 function onMenu(action) {
-  if (action === 'copy') copyMessage(previews.value[rollbackTarget.value?.id] ?? content.value)
+  if (action === 'copy') copyMessage(messageText(rollbackTarget.value))
   else if (action === 'rollback') emit('rollback', rollbackTarget.value)
   else if (action === 'fork') emit('fork', forkTarget.value)
 }
-
-// 聚光卡片里每条消息自己的摘要：正式气泡来自结束工具，其余消息显示正文或工具输出。
-const previews = computed(() => {
-  const map = {}
-  for (const message of props.messages) {
-    const stopTool = (message.tools || []).find(isFinishedStopTool)
-    const text = stopTool ? outputText(stopTool).trim() : String(message.content || '').trim()
-    if (text) map[message.id] = text
-  }
-  return map
-})
 
 // 复制只在本区域反馈，剪贴板工具不依赖页面。
 async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
@@ -172,9 +168,6 @@ function clearTarget() { targetId.value = null; emit('close') }
     <MessageActions
       :items="menuItems"
       :target-id="rollbackTarget?.id || null"
-      :previews="previews"
-      :fallback-preview="content"
-      role-label="助手回复"
       label="助手消息操作"
       :rollback-target="rollbackTarget"
       :rollback-preview="rollbackPreview"

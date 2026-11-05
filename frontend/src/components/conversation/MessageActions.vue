@@ -1,11 +1,11 @@
 <!--
 消息操作层：右键、长按或键盘菜单键直接进入聚光引导——
 暗层盖住整页并模糊，只在目标消息的位置留一个亮框，决策卡片贴在亮框旁边。
-卡片先给出这条消息的摘要和操作（复制/回退/分支）；点回退后原位切换成回退确认，不再有居中大菜单。
+卡片只给可操作的按钮（复制/回退/分支），消息内容留在页面上不动；点回退后原位切换成回退确认，不再有居中大菜单。
 目标消息由父组件解析：这里把触发事件原样抛上去，父组件决定框哪一条（含落点无效时退回默认目标）。
 调用示例：
-<MessageActions :items="items" :target-id="targetId" :previews="previews" :fallback-preview="content"
-  :rollback-target="target" :rollback-preview="preview" role-label="助手回复" label="助手消息操作"
+<MessageActions :items="items" :target-id="targetId"
+  :rollback-target="target" :rollback-preview="preview" label="助手消息操作"
   @request-open="resolveTarget" @close="clearRollback" @action="onMenu" @rollback-confirm="confirmRollback">
   <slot />
 </MessageActions>
@@ -19,9 +19,6 @@ import Icon from '../../ui/Icon.vue'
 const props = defineProps({
   items: { type: Array, default: () => [] },
   targetId: { type: String, default: null },                 // 要框住的消息 id，父组件解析好再传进来
-  previews: { type: Object, default: () => ({}) },           // 消息 id → 摘要文本；卡片按目标显示对应那条
-  fallbackPreview: { type: String, default: '' },            // 目标没有专属摘要时用整轮内容
-  roleLabel: { type: String, default: '消息' },
   label: { type: String, default: '消息操作' },
   rollbackTarget: { type: Object, default: null },           // 父组件收到回退动作后设置；角色决定确认标题
   rollbackPreview: { type: Object, default: null },          // 后端代价预览；清空（成功/取消）时关闭确认态
@@ -40,7 +37,6 @@ let pressStart = null
 let pressed = false
 let pressEvent = null
 
-const preview = computed(() => props.previews?.[props.targetId] ?? props.fallbackPreview)
 const question = computed(() => props.rollbackTarget?.role === 'assistant' ? '回到这条回复之前？' : '回到这条消息之前？')
 const confirmSummary = computed(() => {
   if (!props.rollbackPreview) return '此消息及之后的内容将从对话中回退。'
@@ -246,8 +242,6 @@ onBeforeUnmount(() => {
             </footer>
           </template>
           <template v-else>
-            <div class="message-actions__role">{{ roleLabel }}</div>
-            <p class="message-actions__preview">{{ preview || '这条消息没有可复制的文字' }}</p>
             <div class="message-actions__items">
               <Button
                 v-for="item in items"

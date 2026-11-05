@@ -375,8 +375,6 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         <MessageActions
           :items="userMenuItems(turn.messages[0])"
           :target-id="turn.messages[0].id"
-          :previews="{ [turn.messages[0].id]: turn.messages[0].displayContent ?? turn.messages[0].content }"
-          role-label="你的消息"
           label="消息操作"
           :rollback-target="rollbackTarget"
           :rollback-preview="rollbackPreview"
