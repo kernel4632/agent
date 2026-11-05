@@ -313,7 +313,7 @@ bun start
 | 方法 | 地址 | 参数 | 结果 |
 | --- | --- | --- | --- |
 | `GET` | `/model/family` | `model` 或 `family` | `{ family, candidates, ambiguous, source }`；多个候选时不自动选择 |
-| `GET` | `/model/icon` | `model` 或 `family` | SVG；找不到时 404，前端回退通用模型图标 |
+| `GET` | `/model/icon` | `model` 或 `family`；可选 `theme=dark` 把 currentColor 换成浅色 | SVG；找不到时 404，前端回退通用模型图标 |
 
 ### 能力管理
 

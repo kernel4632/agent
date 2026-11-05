@@ -4,7 +4,7 @@
 调用示例：<ModelIcon :model="model.id" :family="model.family" :size="20" />
 -->
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { AgentAPI } from '../utils/api.js'
 
@@ -14,9 +14,18 @@ const props = defineProps({
   size: { type: [Number, String], default: 20 },
   label: { type: String, default: '' },
 })
+const currentTheme = () => typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+const theme = ref(currentTheme())
+let observer
+onMounted(() => {
+  theme.value = currentTheme()
+  observer = new MutationObserver(() => { theme.value = currentTheme() })
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+})
+onBeforeUnmount(() => observer?.disconnect())
 const failed = ref(false)
-const src = computed(() => props.model || props.family ? AgentAPI.modelIconUrl(props.model, props.family) : '')
-watch([() => props.model, () => props.family], () => { failed.value = false })
+const src = computed(() => props.model || props.family ? AgentAPI.modelIconUrl(props.model, props.family, theme.value) : '')
+watch(src, () => { failed.value = false })
 </script>
 
 <template>

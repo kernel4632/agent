@@ -22,6 +22,13 @@ test('显式 family 直接返回，不需要下载模型目录', async () => {
     })
 })
 
+test('暗色主题把 currentColor 换成浅色，浅色主题保持原样', () => {
+    const svg = '<svg><path fill="currentColor"/></svg>'
+    expect(ModelIcons.themed(svg, 'dark')).toContain('#e6e6e6')
+    expect(ModelIcons.themed(svg, 'dark')).not.toContain('currentColor')
+    expect(ModelIcons.themed(svg, 'light')).toContain('currentColor')
+})
+
 test('canonical 原厂信息优先于托管同名模型的平台', async () => {
     const root = join(tmpdir(), `agent-model-icons-${crypto.randomUUID()}`)
     homes.push(root)

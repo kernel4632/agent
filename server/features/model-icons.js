@@ -198,7 +198,11 @@ export const suggest = async ({ model, family } = {}) => {
     return suggestFamily(model, indexData)
 }
 
-export const icon = async ({ model, family } = {}) => {
+export const themed = (body, theme) => theme === 'dark'
+    ? body.replaceAll('currentColor', '#e6e6e6')
+    : body
+
+export const icon = async ({ model, family, theme } = {}) => {
     const result = await suggest({ model, family })
     if (!result.family || !familyPattern.test(result.family)) return null
     if (result.source === 'manual') {
@@ -208,7 +212,7 @@ export const icon = async ({ model, family } = {}) => {
         if (indexData.providers.size && !indexData.providers.has(result.family)) return null
     }
     const cached = logos.get(result.family)
-    if (cached && Date.now() - cached.at < LOGO_TTL) return cached.body
+    if (cached && Date.now() - cached.at < LOGO_TTL) return themed(cached.body, theme)
 
     try {
         const response = await fetch(`https://models.dev/logos/${encodeURIComponent(result.family)}.svg`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) })
@@ -216,9 +220,9 @@ export const icon = async ({ model, family } = {}) => {
         const body = await response.text()
         if (!body.includes('<svg')) return null
         logos.set(result.family, { body, at: Date.now() })
-        return body
+        return themed(body, theme)
     } catch {
-        return cached?.body || null
+        return cached?.body ? themed(cached.body, theme) : null
     }
 }
 
@@ -228,4 +232,4 @@ export const clear = () => {
     catalog.loadedAt = 0
 }
 
-export default { suggest, icon, clear }
+export default { suggest, icon, themed, clear }

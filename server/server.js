@@ -55,7 +55,7 @@ app.get('/tool/kinds', () => Settings.toolKinds())
 app.group('/model', model => model
     .get('/family', ({ query }) => ModelIcons.suggest({ model: query.model, family: query.family }))
     .get('/icon', async ({ query, set }) => {
-        const body = await ModelIcons.icon({ model: query.model, family: query.family })
+        const body = await ModelIcons.icon({ model: query.model, family: query.family, theme: query.theme })
         if (!body) {
             set.status = 404
             return 'Not found'
