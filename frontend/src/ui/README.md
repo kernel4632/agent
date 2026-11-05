@@ -9,7 +9,7 @@
 | 动作按钮、图标按钮 | `Button.vue`；图标按钮传 `icon` 和 `label`；反馈在 `utils/press.js` |
 | 输入、密码可见、清空 | `Field.vue` |
 | JSON 草稿与完整对象校验 | `JsonInput.vue` |
-| 数字、滑块、开关、勾选 | 数字用 `Field type="number"`；滑块用原生 range；开关和勾选用 `Switch.vue`、`Checkbox.vue` |
+| 数字、滑块、开关、勾选 | 数字用 `Field type="number"`；滑块用原生 range；开关用 `Switch.vue`；批量选择用 `SelectButton.vue`（支持 indeterminate） |
 | 单选、多选 | `RadioGroup.vue`；多选由所在面板遍历 `Checkbox` |
 | 下拉框、菜单、统计弹层 | `Select.vue`、`Menu.vue`（`mode="content"` 显示内容面板）；定位在 `utils/popup.js` |
 | 居中弹窗、侧面和底部抽屉 | `Dialog.vue` 的 `placement="center/left/right/bottom"`，底部宽度可传 `width` |

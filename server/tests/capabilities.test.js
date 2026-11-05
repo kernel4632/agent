@@ -306,6 +306,8 @@ describe('技能识别与管理', () => {
             expect((await json('/skill/source', 'PATCH', { path: 'relative/path', enabled: true })).status).toBe(400)
             expect((await json('/skill/source', 'PATCH', { path: join(discovery, 'missing'), enabled: true })).status).toBe(400)
             expect((await json('/skill/source', 'PATCH', { path: join(discovery, 'empty'), enabled: true })).status).toBe(400)
+            // 白名单外（比如根目录或任意临时目录）不允许收为技能来源。
+            expect((await json('/skill/source', 'PATCH', { path: tmpdir(), enabled: true })).status).toBe(400)
             expect((await request('/skill/read')).status).toBe(400)
             expect((await request('/skill/read?name=missing')).status).toBe(404)
         })

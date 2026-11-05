@@ -334,9 +334,10 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | `POST` | `/skill/save` | `{ "name", "description", "body?", "scope?", "cwd?" }` | 保存后的技能；`scope` 是 `global` 或 `project` |
 | `POST` | `/skill/remove` | `{ "name", "scope?", "cwd?" }` | `{ "ok": true, "name" }`；外部目录里的技能不能删 |
 | `PATCH` | `/skill/toggle` | `{ "name", "enabled", "cwd?" }` | `{ "name", "enabled" }`；只影响模型清单，文件不动 |
-| `PATCH` | `/skill/source` | `{ "path", "enabled" }` | `{ "path", "enabled" }`；`path` 必须是存在且有可用技能的绝对路径 |
-
+| `PATCH` | `/skill/source` | `{ "path", "enabled" }` | `{ "path", "enabled" }`；`path` 必须是存在且有可用技能的绝对路径，且只能落在已知配置目录（用户主目录、XDG 配置目录、Windows AppData、本应用数据目录）内，不搞全盘递归扫描 |
 `/mcp/list` 的 `cwd` 只影响项目级配置（`.mcp.json`、`.cursor/mcp.json`、`.vscode/mcp.json` 和 Claude Code 的项目表）；不填用后端当前目录。`/skill/list` 同理，只影响项目技能目录。
+
+识别只扫固定清单里的配置文件：Claude Desktop（三平台）、Claude Code（`~/.claude.json` 与 `~/.claude/settings.json`）、Cursor、VS Code、Windsurf、Cline、Roo Code、Continue、Gemini CLI、opencode、Codex、Zed、LM Studio；技能目录同理（`~/.agents/skills`、各工具 `skills/` 目录和当前目录的 `.agent/skills`）。不做全盘递归；技能扫描支持 symlink/junction 目录（readdir + stat，不用 Glob）。
 
 ### 会话
 

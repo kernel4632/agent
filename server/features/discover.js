@@ -157,6 +157,7 @@ const candidates = ({ cwd, home, env }) => {
         { id: 'claude-desktop-mac', app: 'Claude Desktop', path: join(mac, 'Claude', 'claude_desktop_config.json'), key: 'mcpServers' },
         { id: 'claude-desktop-linux', app: 'Claude Desktop', path: join(configHome, 'Claude', 'claude_desktop_config.json'), key: 'mcpServers' },
         { id: 'claude-code', app: 'Claude Code', path: join(home, '.claude.json'), key: 'mcpServers', projects: true },
+        { id: 'claude-settings', app: 'Claude Code（settings）', path: join(home, '.claude', 'settings.json'), key: 'mcpServers' },
         { id: 'cursor', app: 'Cursor', path: join(home, '.cursor', 'mcp.json'), key: 'mcpServers' },
         { id: 'cursor-project', app: 'Cursor（当前目录）', path: join(cwd, '.cursor', 'mcp.json'), key: 'mcpServers' },
         { id: 'vscode', app: 'VS Code', path: join(appData, 'Code', 'User', 'mcp.json'), key: 'servers' },

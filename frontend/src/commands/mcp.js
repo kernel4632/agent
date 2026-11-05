@@ -26,6 +26,21 @@ async function run(action) {
 
 const load = () => run(() => AgentAPI.getMcpCatalog(cwd()))
 const importServers = ids => run(() => AgentAPI.importMcpServers(ids, cwd()))
+
+// 批量导入：按后端契约单次上限（50）切片提交，防止大数组打爆单次接口。
+const IMPORT_SLICE = 50
+const importMany = async ids => {
+  const imported = []                                       // 汇总成功导入的服务名
+  const skipped = []                                        // 汇总跳过项（已存在/不存在）
+  for (let index = 0; index < ids.length; index += IMPORT_SLICE) {
+    const slice = ids.slice(index, index + IMPORT_SLICE)    // 一小片，最多 50 个
+    const result = await importServers(slice)
+    if (!result) return null                                // 请求失败时停住，让调用方提示重试
+    imported.push(...(result.imported || []))
+    skipped.push(...(result.skipped || []))
+  }
+  return { imported, skipped }
+}
 const test = name => run(() => AgentAPI.testMcpServer(name))
 
 // --- 识别结果列表里的传输目标摘要 ---
@@ -35,5 +50,5 @@ const describeTarget = definition => {
   return [definition.command, ...(definition.args || [])].filter(Boolean).join(' ')
 }
 
-export const Mcp = { load, importServers, test, cwd }
+export const Mcp = { load, importServers, importMany, test, cwd }
 export { describeTarget }

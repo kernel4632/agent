@@ -7,6 +7,8 @@ MCP 服务页：默认是服务列表；点一行进入该服务的编辑页。
 import { computed, onMounted, ref } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
+import SelectButton from '../../ui/SelectButton.vue'      // 自有选择控件，替代原生 checkbox
+import Switch from '../../ui/Switch.vue'                  // 识别项的添加/移除状态用开关表达
 import MCPEditor from './MCPEditor.vue'
 import { Mcp, describeTarget } from '../../commands/mcp.js'
 import { Settings } from '../../commands/settings.js'
@@ -19,8 +21,53 @@ const emit = defineEmits(['open-detail', 'close-detail', 'update-detail-title'])
 
 const detected = ref({ sources: [], servers: [] })
 const detecting = ref(true)
-const importBusy = ref('')
+const importBusy = ref('')                                // 单项导入中的服务 id
 const testState = ref(null)
+
+// --- 批量选择状态：键是识别服务的 id，值是是否勾选 ---
+const checked = ref({})
+const bulkBusy = ref(false)                               // 批量导入进行中，按钮置灰
+const candidateIds = computed(() => candidates.value.map(server => server.id))
+const selectedIds = computed(() => candidateIds.value.filter(id => checked.value[id] && !candidates.value.find(server => server.id === id).configured))
+const allChecked = computed(() => candidateIds.value.length > 0 && candidateIds.value.every(id => checked.value[id]))
+const someChecked = computed(() => candidateIds.value.some(id => checked.value[id]))
+
+// 全选按钮的三态：全选 → 勾；部分 → 半选；没选 → 空。
+const bulkState = computed(() => ({
+  modelValue: allChecked.value,
+  indeterminate: !allChecked.value && someChecked.value,
+  disabled: detecting.value || !candidateIds.value.length,
+}))
+
+function toggleAll(value) {
+  const next = {}                                          // 重建整个勾选表，避免残留已删项
+  for (const id of candidateIds.value) next[id] = value
+  checked.value = next
+}
+
+function toggleOne(id, value) {
+  checked.value = { ...checked.value, [id]: value }        // 单项切换，保持响应式更新
+}
+
+// 批量导入：先落盘当前草稿，再按上限切片提交，最后刷新配置与识别结果。
+async function bulkImport() {
+  const ids = selectedIds.value
+  if (!ids.length) return                                  // 没勾选时按钮本身已置灰，这里再拦一道
+  bulkBusy.value = true
+  try {
+    const saved = await Settings.save({ keepDraft: true }) // 执行前确保草稿已落盘，避免保存时回跳
+    if (!saved) return
+    const result = await Mcp.importMany(ids)               // 内部按 50/片切片提交
+    if (!result) return
+    await Settings.refreshMcp()                            // 接口响应后同步草稿，防止旧草稿覆盖回跳
+    for (const server of candidates.value) {               // 草稿同步后再刷新识别结果里的状态
+      if (result.imported.includes(server.name)) server.configured = true
+    }
+    checked.value = {}                                     // 已处理的勾选清空，避免下次误操作
+  } finally {
+    bulkBusy.value = false
+  }
+}
 
 const selected = computed(() => props.detail
   ? props.draft.mcp.find(item => item.id === props.detail.id) ?? null
@@ -68,11 +115,21 @@ function removeMCP() {
 // --- 导入一个识别到的服务；服务端写进配置后刷新草稿里的 mcp，不动其他字段 ---
 async function importServer(server) {
   importBusy.value = server.id
-  const result = await Mcp.importServers([server.id])
+  const saved = await Settings.save({ keepDraft: true })   // 导入前先落盘草稿，避免保存时覆盖
+  const result = saved ? await Mcp.importServers([server.id]) : null
   importBusy.value = ''
   if (!result?.imported?.length) return
-  await Settings.refreshMcp()
-  await loadDetected()
+  await Settings.refreshMcp()                              // 响应后同步草稿，避免旧草稿回跳
+  server.configured = true                                 // 开关状态实时同步
+  checked.value = { ...checked.value, [server.id]: false } // 清掉这一项的勾选
+}
+
+// --- 已添加服务的开关：开 = 启用，关 = 仅从本应用配置停用，不改外部文件 ---
+async function toggleConfigured(server, enabled) {
+  const item = draft.mcp.find(entry => entry.name === server.name)
+  if (!item) return
+  item.enabled = enabled                                   // 先改草稿，设置页的自动保存会提交
+  await Settings.save({ keepDraft: true })                 // 立即落盘，保证开关状态与配置一致
 }
 
 // --- 连接测试前先把草稿落盘，测的才是用户正在看的这套配置 ---
@@ -127,15 +184,38 @@ async function testServer() {
       <header class="mcp-detected__head">
         <div>
           <h2>本机识别到的服务</h2>
-          <p>从其他软件的配置里读到；点添加才写进本应用，不会修改源文件。</p>
+          <p>从其他软件的配置里读到；打开开关即写进本应用，不会修改源文件。</p>
         </div>
         <Button variant="text" :disabled="detecting" @click="loadDetected"><Icon name="refresh" :size="18" />重新扫描</Button>
       </header>
+
+      <!-- 吸顶批量操作条：全选、已选计数、取消选择、批量开启 -->
+      <div v-if="candidateIds.length && !detecting" class="mcp-bulk">
+        <SelectButton
+          :model-value="bulkState.modelValue"
+          :indeterminate="bulkState.indeterminate"
+          :disabled="bulkState.disabled"
+          label="全选识别到的服务"
+          @update:model-value="toggleAll"
+        />
+        <span class="mcp-bulk__count">已选 {{ selectedIds.length }} 项</span>
+        <span class="mcp-bulk__spacer"></span>
+        <Button variant="text" :disabled="!selectedIds.length || bulkBusy" @click="checked = {}">取消选择</Button>
+        <Button :disabled="!selectedIds.length || bulkBusy" @click="bulkImport">
+          <Icon name="plus" :size="18" />{{ bulkBusy ? '导入中…' : `批量添加 ${selectedIds.length || ''}` }}
+        </Button>
+      </div>
 
       <p v-if="detecting" class="mcp-detected__empty">正在扫描本机配置…</p>
       <p v-else-if="!candidates.length" class="mcp-detected__empty">没有发现可导入的 MCP 配置。</p>
       <div v-else class="mcp-detected__card">
         <div v-for="server in candidates" :key="server.id" class="mcp-detected__row">
+          <SelectButton
+            v-if="!server.configured"
+            :model-value="Boolean(checked[server.id])"
+            :label="`选择 ${server.name}`"
+            @update:model-value="toggleOne(server.id, $event)"
+          />
           <span class="mcp-detected__copy">
             <strong>{{ server.name }}</strong>
             <small>{{ server.app }} · {{ describeTarget(server.definition) }}</small>
@@ -143,10 +223,22 @@ async function testServer() {
               导入后需要填写：{{ [...server.envKeys, ...server.headerKeys].join('、') }}（值不显示）
             </small>
           </span>
-          <span v-if="server.configured" class="mcp-detected__state">已添加</span>
-          <Button v-else variant="text" :disabled="importBusy === server.id" @click="importServer(server)">
-            {{ importBusy === server.id ? '添加中…' : '添加' }}
-          </Button>
+          <!-- 已添加的服务用开关表达；关掉只停用本应用配置，不碰源文件 -->
+          <Switch
+            v-if="server.configured"
+            :model-value="draft.mcp.find(item => item.name === server.name)?.enabled ?? true"
+            :label="`启用 ${server.name}`"
+            hide-label
+            @update:model-value="toggleConfigured(server, $event)"
+          />
+          <Switch
+            v-else
+            :model-value="false"
+            :label="`添加 ${server.name}`"
+            :disabled="importBusy === server.id || bulkBusy"
+            hide-label
+            @update:model-value="importServer(server)"
+          />
         </div>
       </div>
     </section>

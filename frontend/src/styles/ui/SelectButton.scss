@@ -1,0 +1,54 @@
+/* SelectButton.vue：自有圆角方块选择控件，替代原生 checkbox 的生硬外观。 */
+.ui-select-button {
+  display: inline-flex;                                  // 行内排布，可放进批量条或列表行
+  min-height: 40px;                                      // 与 Checkbox 保持相同触达高度
+  align-items: center;
+  gap: 12px;
+  color: var(--la-text);
+  cursor: pointer;
+  user-select: none;
+}
+.ui-select-button__control { position: relative; display: inline-flex; flex-shrink: 0; }
+.ui-select-button input {                                // 原生 input 铺满整块，保留键盘与表单语义
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+  z-index: 1;
+}
+.ui-select-button__box {                                  // 圆角方块本体
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid var(--la-line-strong);
+  border-radius: 7px;                                     // 圆角方块，不用原生方框
+  background: transparent;
+  color: var(--la-on-accent);
+  transition: background-color 180ms var(--ui-curve-standard), border-color 180ms var(--ui-curve-standard), transform 150ms ease;
+}
+.ui-select-button__mark { width: 14px; height: 14px; }
+.ui-select-button__check,
+.ui-select-button__dash {                                 // 两个标记都从缩放进入，微动效
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(.4);
+  transition: opacity 150ms var(--ui-curve-standard), transform 180ms var(--ui-curve-standard);
+}
+.ui-select-button.is-checked .ui-select-button__box {      // 勾选：accent 填充 + 对勾
+  border-color: var(--la-accent);
+  background: var(--la-accent);
+}
+.ui-select-button.is-checked .ui-select-button__check { opacity: 1; transform: scale(1); }
+.ui-select-button.is-indeterminate .ui-select-button__box { // 半选：accent 填充 + 横线
+  border-color: var(--la-accent);
+  background: var(--la-accent);
+}
+.ui-select-button.is-indeterminate .ui-select-button__dash { opacity: 1; transform: scale(1); }
+.ui-select-button:active:not(.is-disabled) .ui-select-button__box { transform: scale(.9); } // 按压微缩
+.ui-select-button input:focus-visible + .ui-select-button__box { outline: 2px solid var(--la-accent); outline-offset: 3px; }
+.ui-select-button.is-disabled { opacity: .5; cursor: not-allowed; }
+.ui-select-button__text { font-size: 15px; line-height: 22px; }

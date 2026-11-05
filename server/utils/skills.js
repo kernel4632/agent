@@ -15,7 +15,7 @@
  *   const { root, skill } = await Skills.findOwn({ name: 'review', cwd })
  */
 
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, readdir, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { writeFile } from 'atomically'
 import matter from 'gray-matter'
@@ -40,6 +40,15 @@ const inside = (root, target) => {
 const isDirectory = async path => {
     try {
         return (await stat(path)).isDirectory()
+    } catch {
+        return false
+    }
+}
+
+// --- SKILL.md 是不是真实文件；stat 会跟随 symlink/junction ---
+const isFile = async path => {
+    try {
+        return (await stat(path)).isFile()
     } catch {
         return false
     }
@@ -85,10 +94,26 @@ const setDisabled = async ({ name, disabled }) => {
     return { name, enabled: !disabled }
 }
 
-// --- 启用或停用一个外部技能目录 ---
+// --- 白名单：允许手动添加的外部技能目录必须落在这几个根之下，防止把整盘递归进来 ---
+const whitelistRoots = () => {
+    const home = Path.userHome()
+    const configHome = process.env.XDG_CONFIG_HOME || join(home, '.config')
+    const appData = process.env.APPDATA || join(home, 'AppData', 'Roaming')
+    return [
+        home,                                          // 用户主目录下的配置（.claude、.codex 等）
+        configHome,                                    // XDG 配置目录（opencode 等）
+        appData,                                       // Windows 应用数据目录
+        Path.root(),                                   // 本应用数据目录
+    ]
+}
+
+const isWhitelisted = path => whitelistRoots().some(root => inside(root, normal(path)))
+
+// --- 启用或停用一个外部技能目录；不在白名单内的目录一律不收 ---
 const setSource = async ({ path, enabled }) => {
     const current = await state()
     const target = normal(path)
+    if (enabled && !isWhitelisted(target)) throw new Error(`skill source must be under a known config directory: ${target}`)
     const sources = current.sources.filter(item => !samePath(item, target))
     if (enabled) sources.push(target)
     await saveState({ ...current, sources })
@@ -112,8 +137,11 @@ const candidates = ({ cwd = process.cwd() } = {}) => {
         { id: 'codex-project', label: 'Codex（当前目录）', app: 'Codex', path: join(cwd, '.codex', 'skills'), scope: 'project', kind: 'app' },
         { id: 'gemini', label: 'Gemini CLI', app: 'Gemini CLI', path: join(home, '.gemini', 'skills'), scope: 'global', kind: 'app' },
         { id: 'gemini-project', label: 'Gemini CLI（当前目录）', app: 'Gemini CLI', path: join(cwd, '.gemini', 'skills'), scope: 'project', kind: 'app' },
-        { id: 'opencode', label: 'opencode', app: 'opencode', path: join(configHome, 'opencode', 'skill'), scope: 'global', kind: 'app' },
-        { id: 'opencode-windows', label: 'opencode', app: 'opencode', path: join(appData, 'opencode', 'skill'), scope: 'global', kind: 'app' },
+        { id: 'opencode', label: 'opencode', app: 'opencode', path: join(configHome, 'opencode', 'skills'), scope: 'global', kind: 'app' },
+        { id: 'opencode-singular', label: 'opencode', app: 'opencode', path: join(configHome, 'opencode', 'skill'), scope: 'global', kind: 'app' },
+        { id: 'opencode-windows', label: 'opencode', app: 'opencode', path: join(appData, 'opencode', 'skills'), scope: 'global', kind: 'app' },
+        { id: 'opencode-windows-singular', label: 'opencode', app: 'opencode', path: join(appData, 'opencode', 'skill'), scope: 'global', kind: 'app' },
+        { id: 'agents-shared', label: '通用 Agent 目录', app: 'Agent（共享）', path: join(home, '.agents', 'skills'), scope: 'global', kind: 'app' },
         { id: 'cursor', label: 'Cursor', app: 'Cursor', path: join(home, '.cursor', 'skills'), scope: 'global', kind: 'app' },
         { id: 'cursor-project', label: 'Cursor（当前目录）', app: 'Cursor', path: join(cwd, '.cursor', 'skills'), scope: 'project', kind: 'app' },
     ]
@@ -150,19 +178,24 @@ const readFile = async (file, root, { preview = false, body = false } = {}) => {
 }
 
 // --- 扫描一个目录：支持目录本身是一个技能，也支持下面一层每个文件夹一个技能 ---
+// 用 readdir + stat 而不是 Bun.Glob：Glob 在 symlink（junction）目录下会静默丢掉大部分条目，
+// 而 ~/.claude\skills、~/.agents\skills 这类目录常常是指向真实技能库的链接。readdir + stat
+// 都会正确跟随链接，且仍然是固定一层的轻量扫描，不递归下钻。
 const scan = async (path, root, { preview = false, body = false } = {}) => {
     if (!(await isDirectory(path))) return []
-    const files = [join(path, 'SKILL.md')]
+    let entries = [path]                                   // 目录本身可能就是一个技能
     try {
-        for await (const file of new Bun.Glob('*/SKILL.md').scan({ cwd: path })) files.push(join(path, file))
-        files.sort()
+        entries = [path, ...(await readdir(path)).map(name => join(path, name))]
     } catch {
         // 目录读不了时只保留目录本身那一次尝试。
     }
 
     const skills = new Map()
-    for (const file of files) {
+    for (const directory of entries) {
         if (skills.size >= MAX_SKILLS) break
+        const file = join(directory, 'SKILL.md')
+        // stat 先探一下是不是文件，避免对每个候选目录都读一次文件头。
+        if (!(await isFile(file))) continue
         const skill = await readFile(file, root, { preview, body })
         if (skill && !skills.has(skill.name)) skills.set(skill.name, skill)
     }
@@ -282,6 +315,8 @@ export default {
     saveState,
     setDisabled,
     setSource,
+    whitelistRoots,
+    isWhitelisted,
     candidates,
     scan,
     describe,
@@ -293,4 +328,5 @@ export default {
     samePath,
     inside,
     isDirectory,
+    isFile,
 }
