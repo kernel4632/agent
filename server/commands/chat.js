@@ -199,6 +199,10 @@ const contentEvent = event => typeof event?.type === 'string'
 
 const forwardedEvents = ({ sessionId, state }) => ({
     onLLMEvent: event => {
+        // 流内部的 error 帧不转发：它只是供应商收尾时的噪音（关流、重试前的失败），
+        // 真正的失败由循环 throw 统一变成 agent-finish 的错误终态；
+        // 原样转发会让前端把已完成的回答误标成“模型请求失败”。
+        if (event?.type === 'error') return
         // 第一次收到内容增量时记下首字时间；重连后前端也能靠这条事件恢复。
         if (!state.firstTokenAt && contentEvent(event)) {
             state.firstTokenAt = Date.now()

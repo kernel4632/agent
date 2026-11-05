@@ -785,8 +785,7 @@ describe('继续助手的 HTTP 接口', () => {
         })
     })
 
-    test('一次请求只开一行，重试沿用开始时间并记录首字', async () => {
-        await withHome(async () => {
+    test('一次请求只开一行，重试沿用开始时间并记录首字', async () => {        await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: '请求计时' })
             await History.load(sessionId)
@@ -832,6 +831,40 @@ describe('继续助手的 HTTP 接口', () => {
             expect(finish.usage.model).toBe('model')
             expect(finish.usage.firstTokenMs).toBeGreaterThanOrEqual(0)
             expect(finish.usage.durationMs).toBeGreaterThanOrEqual(0)
+            await SSE.close({ id: sessionId })
+        })
+    })
+
+    test('流内部的 error 帧不转发，错误终态只由 agent-finish 表达', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const agent = {
+                history: [],
+                running: null,
+                config: { providerName: 'local', model: 'model' },
+                stop: async () => ({ ok: true }),
+                async send(options) {
+                    const callbacks = options.callbacks
+                    await callbacks.onStart()
+                    await callbacks.onLLMEvent({ type: 'text-delta', text: '回完' })
+                    await callbacks.onLLMFinish({ text: '回完', usage: { inputTokens: 3, outputTokens: 1, totalTokens: 4 } })
+                    agent.history.push({ id: 'u1', role: 'user', content: text('问') })
+                    agent.history.push({ id: 'a1', role: 'assistant', content: text('回完') })
+                    await callbacks.onStep()
+                    // 供应商收尾时的噪音错误：不影响结果，不该进前端。
+                    await callbacks.onLLMEvent({ type: 'error', errorText: '收尾噪音' })
+                    return { reason: 'finished', text: '回完' }
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+            const stream = await SSE.connect({ id: sessionId })
+            await Chat.send({ sessionId, input: '问' })
+            const events = await readEventsUntil(stream, 'agent-finish')
+
+            expect(events.some(event => event.type === 'error')).toBe(false)   // 噪音错误不转发
+            expect(events.filter(event => event.type === 'agent-finish')).toHaveLength(1)
+            expect(events.find(event => event.type === 'agent-finish').error).toBeUndefined()
+            expect(events.some(event => event.type === 'text-delta')).toBe(true)
             await SSE.close({ id: sessionId })
         })
     })

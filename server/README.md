@@ -342,7 +342,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | --- | --- | --- | --- |
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }` |
-| `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照 |
+| `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
 | `GET` | `/session/read/:sessionId` | 无 | 会话资料、完整 history、`todos`、`running`、`pending`、`settings`、`undoable` |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话资料 |
 | `POST` | `/session/title/:sessionId` | 无 | 按后续对话重新生成标题：`{ "title" }` |

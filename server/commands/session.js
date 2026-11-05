@@ -80,9 +80,9 @@ const create = async ({ title, cwd, provider, model }) => {
 }
 
 // --- 从现有会话分出一个新分支 ---
+// 分支只读不写：读历史快照、另建新会话，运行中也能安全进行，原会话不受影响。
 const fork = async ({ sessionId, title, messageId }) => {
     const source = await History.load(sessionId)
-    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
     const messages = History.get({ sessionId })
     let kept = messages
@@ -104,8 +104,7 @@ const fork = async ({ sessionId, title, messageId }) => {
     for (const { messageId: oldId, ...message } of kept) await History.add({ sessionId: branch.id, message })
     await History.save(branch.id)
     await Agent.create({ sessionId: branch.id })
-    return { sessionId: branch.id }
-}
+    return { sessionId: branch.id }}
 
 // --- 读取一条会话 ---
 const read = async ({ sessionId }) => {

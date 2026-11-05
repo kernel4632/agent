@@ -377,6 +377,25 @@ describe('会话分支', () => {
         })
     })
 
+    test('任务运行中也能分支：分支只读快照，不碰原会话', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            await History.add({ sessionId, message: AgentCore.history.user({ content: '第一句' }) })
+            await History.save(sessionId)
+            const agent = Agent.runtime().get(sessionId)
+            agent.running = true
+
+            const { sessionId: branchId } = await Session.fork({ sessionId })
+            expect(branchId).not.toBe(sessionId)
+            expect((await Session.read({ sessionId: branchId })).history).toHaveLength(1)
+            // 原会话还是运行中，历史没被动过。
+            expect(Agent.runtime().get(sessionId)).toBe(agent)
+            expect(agent.running).toBe(true)
+            expect(History.get({ sessionId })).toHaveLength(1)
+            agent.running = false
+        })
+    })
+
     test('消息不存在时按填错处理', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
