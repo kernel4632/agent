@@ -22,3 +22,9 @@
   background: color-mix(in srgb, var(--la-accent) 15%, transparent);
   color: var(--la-accent);
 }
+/* 子智能体：父工具展开后继续显示它自己调用的工具，形成可继续展开的分支。 */
+.subagent-branch { margin-top: 10px; padding: 8px 10px 4px; border-left: 2px solid color-mix(in srgb, var(--la-accent) 32%, transparent); border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--la-accent) 5%, transparent); }
+.subagent-branch__head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--la-secondary); font-size: 12px; line-height: 18px; }
+.subagent-branch__head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subagent-branch__head em { flex: none; margin-left: auto; color: var(--la-muted); font-style: normal; font-size: 11px; }
+.subagent-branch__steps { display: grid; gap: 2px; }

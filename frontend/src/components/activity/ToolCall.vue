@@ -11,6 +11,8 @@ import { Chat } from '../../commands/chat.js'
 import ToolResult from './ToolResult.vue'
 import { fillTemplate, toolIcon, toolTitle, uiFor } from '../../commands/tool.js'
 
+defineOptions({ name: 'ToolCall' })
+
 const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
@@ -83,6 +85,21 @@ function decide(decision) {
       </button>
       <div v-if="bodyOpen" :id="bodyId" class="cot-step__body">
         <ToolResult :tool="tool" />
+        <div v-if="tool.subagentSteps?.length" class="subagent-branch">
+          <div class="subagent-branch__head">
+            <Icon name="branch" :size="14" />
+            <span>{{ tool.subagentDescription || '子智能体处理过程' }}</span>
+            <em>{{ tool.subagentSteps.length }} 个步骤</em>
+          </div>
+          <div class="subagent-branch__steps">
+            <ToolCall
+              v-for="child in tool.subagentSteps"
+              :key="child.id"
+              :tool="child"
+              :session-id="sessionId"
+            />
+          </div>
+        </div>
         <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
           <p>需要你的许可。检查工具和参数后再决定。</p>
           <div>

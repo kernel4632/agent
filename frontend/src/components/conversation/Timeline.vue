@@ -432,6 +432,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
           :messages="turn.messages"
           :session-id="session.id"
           :running="session.status === 'running'"
+          :active="session.status === 'running' && turn === visibleTurns.at(-1)"
           :rollback-target="rollbackTarget"
           :rollback-preview="rollbackPreview"
           @rollback="requestRollback"

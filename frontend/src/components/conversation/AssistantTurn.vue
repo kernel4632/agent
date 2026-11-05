@@ -9,7 +9,7 @@
 import { Notice } from '../../commands/notice.js'
 import { copyText } from '../../utils/clipboard.js'
 
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
@@ -25,6 +25,7 @@ const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
+  active: Boolean,                                    // 当前正在处理的最后一轮；旧轮次不应因为会话仍在跑而展开
   rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
@@ -113,19 +114,39 @@ const steps = computed(() => {
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
-// 历史步骤很多时默认只留最后两步，和 RikkaHub 一样先给结论；请求行始终保留在原位。
-const expandedSteps = ref(false)
-const canCollapse = computed(() => contentSteps.value.length > 3)
-const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
-// 折叠时只留最近两步和最新一条请求；展开后才按原位显示全部请求。
-const visibleSteps = computed(() => {
-  if (textOnly.value) return steps.value.filter(step => step.type === 'request' || step.type === 'compact')
-  if (!canCollapse.value || expandedSteps.value) return steps.value
-  const kept = new Set(contentSteps.value.slice(-2).map(step => step.key))
-  const lastStatus = steps.value.findLast(step => step.type === 'request' || step.type === 'compact')
-  return steps.value.filter(step => kept.has(step.key) || step === lastStatus)
+const activeTurn = computed(() => streaming.value || props.active)
+
+// 整轮一棵树：一级只保留“处理过程”入口，最终结束回复始终在树外。
+// 运行中默认展开到最下层；这一轮完成时自动折叠；用户手动展开/收起按会话和这一轮记住。
+const processKey = `agent.process-tree:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
+function readProcessOpen() {
+  try {
+    return localStorage.getItem(processKey) === 'open'
+  } catch {
+    return false
+  }
+}
+function writeProcessOpen(value) {
+  try { localStorage.setItem(processKey, value ? 'open' : 'closed') } catch {}
+}
+const processOpen = ref(activeTurn.value || readProcessOpen())
+function toggleProcess() {
+  processOpen.value = !processOpen.value
+  writeProcessOpen(processOpen.value)
+}
+watch(activeTurn, (value, previous) => {
+  if (value) {
+    processOpen.value = true
+  } else if (previous) {
+    processOpen.value = false
+    writeProcessOpen(false)
+  }
 })
-const hiddenSteps = computed(() => contentSteps.value.length - visibleSteps.value.filter(step => step.type !== 'request').length)
+
+const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
+// 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
+const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
+const treeContentSteps = computed(() => treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
@@ -178,13 +199,16 @@ function clearTarget() { targetId.value = null; emit('close') }
       @action="onMenu"
       @rollback-confirm="emit('rollback-confirm', $event)"
     >
-      <div v-if="visibleSteps.length" class="cot-card">
-        <button v-if="canCollapse" type="button" class="cot-fold" :class="{ 'is-open': expandedSteps }" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
-          <Icon name="down" :size="14" />
-          <span>{{ expandedSteps ? '收起过程' : `展开其余 ${hiddenSteps} 步` }}</span>
+      <div v-if="treeSteps.length" class="cot-card process-tree">
+        <button type="button" class="process-tree__head" :aria-expanded="processOpen" @click="toggleProcess">
+          <span class="process-tree__icon"><Icon name="layers" :size="15" /></span>
+          <span class="process-tree__title">处理过程</span>
+          <em>{{ treeContentSteps.length ? `${treeContentSteps.length} 步` : '运行状态' }}</em>
+          <span v-if="activeTurn" class="process-tree__live">进行中</span>
+          <Icon name="down" :size="15" class="process-tree__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
-        <div class="cot-steps">
-          <template v-for="step in visibleSteps" :key="step.key">
+        <div v-if="processOpen" class="cot-steps">
+          <template v-for="step in treeSteps" :key="step.key">
             <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
             <template v-else-if="step.type === 'compact'">
               <RequestStatus :data-message-id="step.messageId" :request="step.request" kind="compact" />

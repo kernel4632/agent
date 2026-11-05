@@ -189,3 +189,22 @@ test('压缩流增量不会混进助手正文或思考', async () => {
         delete store.sessions[sessionID]
     }
 })
+
+test('history restores nested subagent tool steps', () => {
+  const session = History.normalize({
+    provider: 'test', model: 'm',
+    history: [{
+      messageId: 'a1', role: 'assistant',
+      parts: [{
+        type: 'tool-call', toolCallId: 'task-1', toolName: 'new_task', state: 'result',
+        result: { output: { type: 'json', value: { description: '查资料', steps: [
+          { id: 'read-1', type: 'tool', name: 'read_file', input: { path: 'a.txt' }, output: { type: 'text', value: '内容' }, status: 'completed' },
+        ] } } },
+      }],
+    }],
+  })
+  const tool = session.messages[0].tools[0]
+  assert.equal(tool.subagentSteps.length, 1)
+  assert.equal(tool.subagentSteps[0].name, 'read_file')
+  assert.match(tool.subagentSteps[0].preview, /内容/)
+})

@@ -141,3 +141,14 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* 处理过程树：一级入口常驻，树体收起后只露出这一行；最终回复在树外。 */
+.process-tree { padding-top: 2px; }
+.process-tree__head { display: flex; width: 100%; min-height: 36px; align-items: center; gap: 7px; padding: 4px 2px; border: 0; border-radius: 10px; background: transparent; color: var(--la-muted); font: inherit; text-align: left; cursor: pointer; }
+.process-tree__head:hover { color: var(--la-text); }
+.process-tree__icon { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
+.process-tree__title { color: var(--la-text); font-size: 13px; font-weight: 600; }
+.process-tree__head em { color: var(--la-muted); font-size: 11px; font-style: normal; }
+.process-tree__live { padding: 1px 6px; border-radius: 6px; background: var(--la-accent-soft); color: var(--la-accent); font-size: 10.5px; }
+.process-tree__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.process-tree__caret.is-open { transform: rotate(180deg); }
+.process-tree .cot-steps { padding: 2px 0 4px; }

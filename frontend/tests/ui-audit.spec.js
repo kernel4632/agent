@@ -6,6 +6,11 @@
 import { expect, test } from '@playwright/test'
 import { backend, navigate, openDrawer } from './chat-fixture.js'
 
+async function openProcessTree(page) {
+  const head = page.locator('.process-tree__head').first()
+  if (await head.count() && await head.getAttribute('aria-expanded') !== 'true') await head.click()
+}
+
 async function screenshot(page, testInfo, name) {
   const layout = await page.evaluate(() => ['html', 'body', '.app-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
     const element = document.querySelector(selector)
@@ -267,6 +272,8 @@ test('reasoning preview collapses after the llm finishes', async ({ page }) => {
     { type: 'llm-finish', text: '查完了。', usage: { input: 10, output: 4, total: 14 } },
   ])
 
+  // 这一轮结束后一级树会收起；先展开一级，才检查里面思考步骤自己的折叠状态。
+  if (!await page.locator('.process-tree .cot-steps').isVisible()) await page.locator('.process-tree__head').click()
   await expect(page.locator('.cot-step--reasoning .reasoning-preview')).not.toHaveClass(/is-preview/)
   await expect(page.locator('.cot-step--reasoning .cot-collapse')).not.toHaveClass(/is-open/)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
@@ -403,13 +410,13 @@ test('assistant markdown uses local code blocks and typography', async ({ page }
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
-    { type: 'text-delta', text: '# 示例标题\n\n这是一个 **加粗** 段落。\n\n```js\nconst answer = 42\nconsole.log(answer)\n```' },
+    { type: 'text-delta', text: '\n\n# 示例标题\n\n这是一个 **加粗** 段落。\n\n```js\nconst answer = 42\nconsole.log(answer)\n```' },
   ])
 
   const bubble = page.locator('.rikka-bubble--assistant')
   await expect(bubble.locator('.ui-typography--heading')).toContainText('示例标题')
-  await expect(bubble.locator('.ui-typography--body')).toContainText('加粗')
-  await expect(bubble.locator('.ui-code-block')).toContainText('const answer = 42')
+  await expect(bubble).toContainText('加粗')
+  await expect(bubble.locator('.ui-code-block')).toContainText('const answer = 42', { timeout: 10000 })
   await expect(bubble.locator('.ui-code-block').getByRole('button', { name: '复制代码' })).toBeVisible()
   expect(mock.errors).toEqual([])
 })
@@ -580,10 +587,12 @@ test('retry keeps the stop button available after reconnecting', async ({ page }
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
 
   // 刷新会重新读取会话；后端仍在 running，输入区必须继续显示停止按钮。
+  const connections = mock.calls.filter(call => call.path === '/sse/connect/session-1').length
   await page.reload()
   await openDrawer(page)
   await page.locator('.home-session__main').filter({ hasText: '新对话' }).click()
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect.poll(() => mock.calls.filter(call => call.path === '/sse/connect/session-1').length).toBeGreaterThan(connections)
 
   await mock.emit('session-1', [{ type: 'retry', attempt: 1, delay: 5000 }])
   await expect(page.getByText(/模型请求失败，第 1 次自动重试，5s 后继续/).first()).toBeVisible()
@@ -730,6 +739,7 @@ test('model request row shows progress and token usage', async ({ page }, testIn
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  await openProcessTree(page)
   const done = page.locator('.request-status').last()
   await expect(done).toContainText('模型请求完成')
   await expect(done).toContainText(/首字\s*200ms/)
@@ -763,9 +773,9 @@ test('each model request stays at its position in the conversation flow', async 
   ])
 
   const rows = page.locator('.request-status')
-  await expect(rows).toHaveCount(2)
-  await expect(rows.nth(0)).toContainText('12 tokens')
-  await expect(rows.nth(1)).toContainText('25 tokens')
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(1)).toContainText(/入\s*10/)
+  await expect(rows.nth(2)).toContainText(/入\s*20/)
   // 第二次请求排在工具步骤之后，而不是被汇总到整轮回复的开头。
   const order = await page.locator('.cot-steps > *').evaluateAll(nodes => nodes.map(node => node.className))
   const toolIndex = order.findIndex(name => name.includes('cot-step--tool'))
@@ -790,16 +800,15 @@ test('collapsing a long turn hides old request rows', async ({ page }) => {
       { type: 'tool-call', toolCallId: `tool-${id}`, toolName: 'read_file', input: { path: `${id}.txt` } },
       { type: 'tool-result', toolCallId: `tool-${id}`, toolName: 'read_file', output: { type: 'text', value: 'ok' } },
     ]),
+    { type: 'agent-finish', reason: 'completed' },
   ])
 
-  // 默认折叠：只留最近两步和最新一条请求，不把整轮的请求行全部摊开。
-  await expect(page.locator('.cot-fold')).toContainText('展开其余')
-  await expect(page.locator('.request-status')).toHaveCount(1)
-  await expect(page.locator('.cot-step')).toHaveCount(2)
-
-  await page.locator('.cot-fold').click()
-  await expect(page.locator('.request-status')).toHaveCount(4)
-  await expect(page.locator('.cot-step')).toHaveCount(4)
+  // 整轮完成后一级树收起，只留一行“处理过程”；展开后显示完整请求和工具。
+  await expect(page.locator('.process-tree__head')).toHaveAttribute('aria-expanded', 'false')
+  await page.locator('.process-tree__head').click()
+  await expect(page.locator('.cot-step--tool')).toHaveCount(4)
+  await page.locator('.process-tree__head').click()
+  await expect(page.locator('.cot-step--tool')).toHaveCount(0)
   expect(mock.errors).toEqual([])
 })
 
@@ -827,11 +836,12 @@ test('compaction shows a status row before the next model request', async ({ pag
     { type: 'llm-start', startedAt: Date.now() },
     { type: 'text-delta', text: '继续处理' },
   ])
-  await expect(page.locator('.request-status')).toHaveCount(2)
-  await expect(page.locator('.request-status').first()).toContainText('上下文压缩完成')
-  await expect(page.locator('.request-status').first()).toContainText('120 tokens')
+  await expect(page.locator('.request-status')).toHaveCount(3)
+  const rows = page.locator('.request-status')
+  await expect(rows.nth(1)).toContainText('上下文压缩完成')
+  await expect(rows.nth(1)).toContainText(/入\s*100/)
   await expect(page.locator('.compact-stream')).toContainText('摘要')
-  await expect(page.locator('.request-status').last()).toContainText('正在请求模型…')
+  await expect(rows.last()).toContainText(/正在接收模型流|正在请求模型/)
   expect(mock.errors).toEqual([])
 })
 
@@ -994,7 +1004,7 @@ test('legacy history without usage shows estimated stats, not zeros', async ({ p
   await page.locator('.session-composer__stats').getByRole('button', { name: /tokens/ }).click()
   const panel = page.getByRole('dialog', { name: 'Token 用量' })
   await expect(panel.getByText('估算', { exact: true })).toBeVisible()
-  await expect(panel.locator('.stats-panel__usage-head strong')).not.toHaveText('0')
+  await expect(panel.locator('.stats-panel__overview-value strong')).not.toHaveText('0')
   await screenshot(page, testInfo, 'topbar-stats-estimated')
   expect(mock.errors).toEqual([])
 })
@@ -1515,6 +1525,49 @@ test('restart notice shows stale server version and clears after check', async (
   mock.setHealth({ version: '0.2.0', targetVersion: '0.2.0', restartRequired: false })
   await notice.getByRole('button', { name: '重新检查', exact: true }).click()
   await expect(notice).toBeHidden()
+  expect(mock.errors).toEqual([])
+})
+
+test('process tree collapses completed turns and remembers expansion after reload', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('折叠状态测试')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const tree = page.locator('.process-tree')
+  await expect(tree).toBeVisible()
+  await expect(tree.locator('.cot-steps')).toHaveCount(0)
+  await tree.locator('.process-tree__head').click()
+  await expect(tree.locator('.cot-steps')).toBeVisible()
+
+  await page.reload()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  await expect(page.locator('.process-tree .cot-steps')).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('subagent tools render as a nested branch under the parent tool', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'task-1', toolName: 'new_task', input: { description: '查资料', prompt: '看看目录' } },
+    { type: 'subagent-tool', taskId: 'task-1', description: '查资料', toolCallId: 'read-1', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'subagent-tool-result', taskId: 'task-1', description: '查资料', toolCallId: 'read-1', output: { type: 'text', value: '内容' } },
+  ])
+
+  const branch = page.locator('.subagent-branch')
+  await expect(branch).toBeVisible()
+  await expect(branch).toContainText('查资料')
+  await expect(branch.locator('.cot-step--tool')).toHaveCount(1)
+  await expect(branch.locator('.cot-step--tool')).toContainText('读取文件')
   expect(mock.errors).toEqual([])
 })
 

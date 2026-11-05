@@ -138,8 +138,35 @@ describe('会话运行设置', () => {
         })
     })
 
-})
+    test('子任务返回自己的工具步骤，供主会话还原嵌套树', async () => {
+        await withHome(async () => {
+            const sessionId = await newSession()
+            const original = AgentCore.create
+            AgentCore.create = options => ({
+                stop() {},
+                async send() {
+                    options.callbacks.onToolCall({ toolCallId: 'sub-read-1', toolName: 'read_file', input: { path: 'a.txt' } })
+                    options.callbacks.onToolResult({ toolCallId: 'sub-read-1', output: { type: 'text', value: '内容' }, finishedAt: Date.now() })
+                    return { reason: 'completed', text: '结论' }
+                },
+            })
+            try {
+                const taskTool = Delegation.build({
+                    config: {}, tools: Agent.runtime().get(sessionId).tools, sessionId,
+                    onPermission: Approval.check,
+                })
+                const result = await taskTool.execute({ description: '查资料', prompt: '看看' }, {})
+                expect(result.conclusion).toBe('结论')
+                expect(result.steps).toHaveLength(1)
+                expect(result.steps[0].name).toBe('read_file')
+                expect(result.steps[0].output).toEqual({ type: 'text', value: '内容' })
+            } finally {
+                AgentCore.create = original
+            }
+        })
+    })
 
+})
 
 describe('哪件事用哪个模型', () => {
     test('不点名时压缩和标题都跟对话模型走', async () => {

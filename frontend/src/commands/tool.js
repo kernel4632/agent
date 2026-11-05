@@ -83,6 +83,71 @@ export function formatToolOutput(output) {
     return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 }
 
+// --- 子智能体结果里的工具步骤：递归还原成可渲染的嵌套树 ---
+// 子 agent 的结论里带 steps；每个 step 的 output 还可能带下一层 steps。
+export function subagentSteps(output, parentId = 'subagent', depth = 0) {
+  if (depth > 4 || output == null) return []
+  let payload = output
+  if (payload?.type === 'json') payload = payload.value
+  else if (payload?.value && typeof payload.value === 'object') payload = payload.value
+  const steps = Array.isArray(payload?.steps) ? payload.steps : []
+  return steps
+    .filter(step => step?.type === 'tool')
+    .map((step, index) => {
+      const id = step.id || step.toolCallId || `${parentId}-${index}`
+      const childOutput = step.output ?? null
+      const status = step.status === 'error'
+        ? 'error'
+        : step.status === 'running'
+          ? 'running'
+          : toolStatus(childOutput, step.isError)
+      return {
+        id,
+        name: step.name || step.toolName || '工具',
+        input: step.input || {},
+        output: childOutput,
+        preview: formatToolOutput(childOutput),
+        status,
+        startedAt: Number(step.startedAt) || 0,
+        finishedAt: Number(step.finishedAt) || 0,
+        durationMs: Number(step.durationMs) || 0,
+        subagentSteps: subagentSteps(childOutput, id, depth + 1),
+      }
+    })
+}
+
+// --- 实时子任务事件：在父工具下维护嵌套步骤，刷新后由结果里的 steps 还原 ---
+export function applySubagentEvent(parent, event) {
+  if (!parent) return
+  if (!Array.isArray(parent.subagentSteps)) parent.subagentSteps = []
+  const id = event.toolCallId || event.callID || event.callId || event.id
+  if (!id) return
+  let step = parent.subagentSteps.find(item => item.id === id)
+  if (!step) {
+    step = {
+      id,
+      name: event.toolName || event.tool || '工具',
+      input: event.input || {},
+      output: null,
+      preview: '',
+      status: 'running',
+      startedAt: Number(event.startedAt) || Date.now(),
+      finishedAt: 0,
+      durationMs: 0,
+      subagentSteps: [],
+    }
+    parent.subagentSteps.push(step)
+  }
+  if (event.type === 'subagent-tool-result') {
+    step.output = event.output ?? event.result ?? null
+    step.preview = formatToolOutput(step.output)
+    step.status = event.isError || step.output?.type === 'error-text' ? 'error' : 'completed'
+    step.finishedAt = Number(event.finishedAt) || Date.now()
+    step.durationMs = Number(event.durationMs) || Math.max(0, step.finishedAt - (Number(step.startedAt) || step.finishedAt))
+    step.subagentSteps = subagentSteps(step.output, step.id)
+  }
+}
+
 // --- 工具对象的结果文本：还没结果时用流式预览兜底 ---
 export function outputText(tool) {
     if (tool?.output == null) return tool?.preview || ''

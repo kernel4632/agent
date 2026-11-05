@@ -5,7 +5,7 @@ import { AgentAPI } from '../utils/api.js' // 持久化历史与回退接口
 import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from './notice.js' // 操作完成或失败的反馈
 import { t } from '../utils/i18n.js' // 共享文案
-import { formatToolOutput, toolStatus, outputText } from './tool.js' // 历史和实时事件共用工具解释
+import { formatToolOutput, toolStatus, outputText, subagentSteps } from './tool.js' // 历史和实时事件共用工具解释
 import { requestFromUsage } from './stats.js' // 请求统计统一投影
 import { DEFAULT_CONTEXT, DEFAULT_SETTINGS } from '../defaults.js' // 默认上下文与运行参数
 
@@ -29,6 +29,7 @@ function normalizeTool(part, toolTimings = {}) {
     preview,
     output,
     status,
+    subagentSteps: subagentSteps(output, call.toolCallId),
     checkpoint: null,
     startedAt: Number(timing.startedAt || call.startedAt || 0),
     finishedAt: Number(timing.finishedAt || call.finishedAt || 0),

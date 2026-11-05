@@ -36,13 +36,47 @@ const toolsForDepth = ({ config, tools, sessionId, onPermission, depth, maxDepth
 
 // --- 真正跑一次子任务：建临时 Agent，把进度推回主会话 ---
 const runSubtask = async ({ config, tools, sessionId, id, description, prompt, abortSignal, onPermission }) => {
+    const steps = [] // 子 agent 自己调过的工具；随结论一起交还给父节点，刷新后还能还原分支。
+    const stepFor = call => {
+        const callId = call.toolCallId || call.callID || call.callId || call.id || `sub-${steps.length + 1}`
+        return {
+            id: callId,
+            type: 'tool',
+            name: call.toolName || call.tool || '工具',
+            input: call.input || {},
+            output: null,
+            status: 'running',
+            startedAt: Number(call.startedAt) || Date.now(),
+            finishedAt: 0,
+            durationMs: 0,
+        }
+    }
+    const finishStep = result => {
+        const callId = result.toolCallId || result.callID || result.callId || result.id
+        let step = steps.find(item => item.id === callId)
+        if (!step) {
+            step = stepFor(result)
+            steps.push(step)
+        }
+        step.output = result.output ?? result.result ?? null
+        step.status = result.isError || step.output?.type === 'error-text' || step.output?.type === 'error-json' ? 'error' : 'completed'
+        step.finishedAt = Number(result.finishedAt) || Date.now()
+        step.durationMs = Number(result.durationMs) || Math.max(0, step.finishedAt - (Number(step.startedAt) || step.finishedAt))
+    }
+
     const agent = Agent.create({
         history: [],
         config,
         tools,
         callbacks: {
-            onToolCall: call => SSE.send({ id: sessionId, data: { ...call, type: 'subagent-tool', taskId: id, description } }),
-            onToolResult: result => SSE.send({ id: sessionId, data: { ...result, type: 'subagent-tool-result', taskId: id, description } }),
+            onToolCall: call => {
+                steps.push(stepFor(call))
+                SSE.send({ id: sessionId, data: { ...call, type: 'subagent-tool', taskId: id, description } })
+            },
+            onToolResult: result => {
+                finishStep(result)
+                SSE.send({ id: sessionId, data: { ...result, type: 'subagent-tool-result', taskId: id, description } })
+            },
             // 子 agent 的审批回到同一个会话，用户能看到"子任务想读这个文件"。
             onPermission: call => onPermission({ sessionId, ...call }),
         },
@@ -54,10 +88,10 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
 
     try {
         const result = await agent.send({ input: prompt })
-        return { description, reason: result.reason, conclusion: result.text }
+        return { description, reason: result.reason, conclusion: result.text, steps }
     } catch (error) {
         // 子任务失败只是一条结论，主 agent 可以自己决定换个办法还是直接告诉用户。
-        return { description, error: error.message }
+        return { description, error: error.message, steps }
     } finally {
         abortSignal?.removeEventListener('abort', stop)
     }

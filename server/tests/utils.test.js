@@ -149,6 +149,7 @@ describe('server delegation', () => {
             const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
             expect(result.description).toBe('查点东西')
             expect(typeof result.error).toBe('string')
+            expect(Array.isArray(result.steps)).toBe(true)
 
             const bare = await task.execute({ description: '不带第二参', prompt: '随便看看' })
             expect(bare.description).toBe('不带第二参')

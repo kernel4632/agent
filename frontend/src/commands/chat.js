@@ -13,7 +13,7 @@ import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { History } from './history.js'
 import { t } from '../utils/i18n.js'
-import { formatToolOutput, toolStatus } from './tool.js'
+import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from './tool.js'
 import { usageFields } from './stats.js'
 import { readAttachments } from './attachment.js'
 import { imagePasteNotice } from './imageNotice.js'
@@ -288,6 +288,15 @@ function retryRun(session, event) {
   session.status = 'running'
   const assistant = streaming(session) || createAssistant(session)
   assistant.isStreaming = true
+  // 刷新后直接收到 retry 时还没有 llm-start；补一条请求行，否则用户看不到重试状态。
+  if (!assistant.steps.some(step => step.type === 'request')) {
+    const request = assistant.request || { status: 'running', input: 0, output: 0, cache: 0 }
+    request.id ||= `retry_${crypto.randomUUID()}`
+    request.status = 'running'
+    request.startedAt ||= Date.now()
+    assistant.requests.push(request)
+    assistant.steps.unshift({ type: 'request', requestId: request.id })
+  }
   const attempt = Math.max(1, Number(event.attempt) || 1)
   const delay = Number(event.delay || 0)
   const wait = delay > 0 ? `，${Math.max(1, Math.round(delay / 1000))}s 后继续` : '，请稍候'
@@ -349,6 +358,22 @@ async function receiveRun(sessionID, session, event) {
 }
 
 // --- 消息内容：正文、思考过程、子任务提示 ---
+function findTool(session, id) {
+  const walk = tools => {
+    for (const tool of tools || []) {
+      if (tool.id === id) return tool
+      const nested = walk(tool.subagentSteps)
+      if (nested) return nested
+    }
+    return null
+  }
+  for (const message of session.messages) {
+    const found = walk(message.tools)
+    if (found) return found
+  }
+  return null
+}
+
 function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
     const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
@@ -358,9 +383,15 @@ function receiveMessage(session, event) {
     assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
     appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
-    // 子任务在自己的历史里翻文件，这里只显示它在忙什么。
+    // 子任务事件挂到发起它的 new_task 工具下面；找不到父节点时宁可只显示描述，也不串到别的工具上。
     const assistant = streaming(session) || createAssistant(session) // 子任务事件也要有承载消息
-    assistant.subagent = event.description                             // 只显示一句描述
+    const parent = findTool(session, event.taskId)
+    if (parent) {
+      parent.subagentDescription = event.description || parent.subagentDescription || '子任务'
+      applySubagentEvent(parent, event)
+    } else {
+      assistant.subagent = event.description
+    }
   }
 }
 
@@ -407,6 +438,8 @@ function receiveTool(session, event) {
     if (tool) {
       tool.output = output
       tool.preview = formatToolOutput(tool.output)
+      const nested = subagentSteps(output, tool.id)
+      if (nested.length) tool.subagentSteps = nested
     }
   } else if (event.type === 'permission-blocked') {
     // 这个工具调用被服务端的权限规则直接拒绝，不用等用户决定。
