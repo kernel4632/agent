@@ -1467,6 +1467,40 @@ test('workspace picker switches the session cwd and remembers it', async ({ page
   expect(mock.errors).toEqual([])
 })
 
+test('conversation rail jumps between user messages and expands lazy history', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  for (let index = 1; index <= 6; index += 1) {
+    await page.getByRole('textbox', { name: '消息', exact: true }).fill(`定位消息 ${index}`)
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await expect(page.locator('.rikka-bubble--assistant .markdown-body').last()).toContainText('一步步实现')
+  }
+
+  const rail = page.getByRole('slider', { name: '按用户消息定位', exact: true })
+  await expect(rail).toBeVisible()
+  await expect(page.locator('.conversation-rail__mark')).toHaveCount(6)
+  await expect(page.locator('.conversation-rail__mark.is-active')).toHaveCount(1)
+
+  await rail.focus()
+  await rail.press('Home')
+  await expect(rail).toHaveAttribute('aria-valuenow', '1')
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 1' })).toBeInViewport()
+
+  const box = await rail.boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height - 2, { steps: 6 })
+  await page.mouse.up()
+  await expect(rail).toHaveAttribute('aria-valuenow', '6')
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 6' })).toBeInViewport()
+
+  await rail.press('End')
+  await expect(rail).toHaveAttribute('aria-valuenow', '6')
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 6' })).toBeInViewport()
+  expect(mock.errors).toEqual([])
+})
+
 test('long attachment names stay on one line in the composer', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

@@ -246,6 +246,26 @@ function jumpToBottom() {
   if (scrollParent) scrollParent.scrollTop = maxScrollTop()
   rememberScroll()
 }
+
+// 右侧定位条跳转：目标可能还没有挂到 DOM，先把包含它的那一轮展开出来。
+async function jumpToMessage(messageId) {
+  if (!scrollParent) return
+  const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
+  if (turnIndex < 0) return
+  if (turnIndex < visibleStart.value) {
+    visibleStart.value = visibleStartFor(turnIndex)
+    await nextTick()
+  }
+  await nextTick()
+  const target = scrollParent.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`)
+  if (!target) return
+  stopFollowing()
+  const top = target.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop - 12
+  scrollParent.scrollTop = Math.max(0, top)
+  lastTop = scrollParent.scrollTop
+  rememberScroll()
+}
+defineExpose({ jumpToMessage })
 watch(() => turns.value.length, length => {
   if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
   if (following.value) queueStick()

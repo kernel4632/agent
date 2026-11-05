@@ -9,6 +9,7 @@ import Composer from '../components/composer/Composer.vue'
 import ConnectionError from '../components/feedback/ConnectionError.vue'
 import TaskPanel from '../components/activity/TaskPanel.vue'
 import StatsPanel from '../components/activity/StatsPanel.vue'
+import ConversationRail from '../components/conversation/ConversationRail.vue'
 import { Session } from '../commands/session.js'
 import { Chat } from '../commands/chat.js'
 import { History, canContinueSession } from '../commands/history.js'
@@ -26,10 +27,14 @@ const props = defineProps({
 const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:todoOpen', 'update:reasoning'])
 const homeDraft = defineModel('draft', { type: String, default: '' })
 const composer = ref(null)
+const timeline = ref(null)
 const conversationScroll = ref(null)
 const showReconnect = ref(false)
 let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus() })
+function jumpToMessage(messageId) {
+  timeline.value?.jumpToMessage(messageId)
+}
 
 const draft = computed({
   get: () => props.session ? props.session.draft : homeDraft.value,
@@ -86,8 +91,14 @@ function chooseReasoning(reasoning) {
     <div :class="session ? 'session-main' : 'draft-main'">
       <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
         <div v-if="session" ref="conversationScroll" class="session-scroll">
-          <Transition name="session-swap" mode="out-in"><Timeline :key="session.id" :scroll-root="conversationScroll" /></Transition>
+          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" /></Transition>
         </div>
+        <ConversationRail
+          v-if="session"
+          :messages="session.messages"
+          :scroll-root="conversationScroll"
+          @jump="jumpToMessage"
+        />
       </div>
       <div :class="[session ? 'session-composer' : 'draft-form']">
         <Transition name="notice"><div v-if="session && !session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div></Transition>

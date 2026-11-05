@@ -359,7 +359,8 @@ export async function backend(page, { configured = true } = {}) {
       return json({ ...session, restored: [] })
     }
     if (path.startsWith('/agent/send/')) {
-      session.history.push({ messageId: 'user-1', id: 'core-user-1', role: 'user', content: body.input })
+      const number = session.history.filter(item => item.role === 'user' && !item.internal).length + 1
+      session.history.push({ messageId: `user-${number}`, id: `core-user-${number}`, role: 'user', content: body.input })
       await json({ ok: true })
       if (body.input === 'keep running') {
         session.running = true
@@ -367,14 +368,14 @@ export async function backend(page, { configured = true } = {}) {
       }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({
-        messageId: 'assistant-1',
+        messageId: `assistant-${number}`,
         role: 'assistant',
         usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model', startedAt: Date.now() - 800, finishedAt: Date.now() },
         content: [
           { type: 'text', text },
           {
             type: 'tool-invocation',
-            toolCallId: 'finish-1',
+            toolCallId: `finish-${number}`,
             toolName: 'attempt_completion',
             state: 'result',
             args: { result: text },
