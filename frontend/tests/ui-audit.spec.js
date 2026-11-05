@@ -584,7 +584,8 @@ test('retry keeps the stop button available after reconnecting', async ({ page }
   await page.locator('.home-session__main').filter({ hasText: '新对话' }).click()
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
 
-  await mock.emit('session-1', [{ type: 'retry', attempt: 1 }])
+  await mock.emit('session-1', [{ type: 'retry', attempt: 1, delay: 5000 }])
+  await expect(page.getByText(/模型请求失败，第 1 次自动重试，5s 后继续/).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()

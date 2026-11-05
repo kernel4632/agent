@@ -273,12 +273,15 @@ function finishRunRequest(session, event) {
   assistant.finishedAt = Date.now()
 }
 
-// --- 连接重试也要显示停止按钮，agent-start 丢了也不能像卡住 ---
+// --- 模型请求重试：保留停止按钮，并把退避时间显示在当前请求行上 ---
 function retryRun(session, event) {
   session.status = 'running'
   const assistant = streaming(session) || createAssistant(session)
   assistant.isStreaming = true
-  const retry = `连接重试 ${event.attempt || 1}，请稍候…`
+  const attempt = Math.max(1, Number(event.attempt) || 1)
+  const delay = Number(event.delay || 0)
+  const wait = delay > 0 ? `，${Math.max(1, Math.round(delay / 1000))}s 后继续` : '，请稍候'
+  const retry = `模型请求失败，第 ${attempt} 次自动重试${wait}…`
   assistant.retry = retry
   // 重试原因挂在当前请求行上，用户不用再去别处找。
   const request = assistant.requests.findLast(item => item.status === 'running')
