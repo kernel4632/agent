@@ -1,5 +1,5 @@
 /*
- * 文件与目录工具：读、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
+ * 文件与目录工具：读、分段读、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
  *
  * 这一组工具只碰文件，不碰会话运行状态。会改文件的工具都带一个 snapshot 钩子：
  * 真正写入之前由审批关口调用，把原样存进会话的快照目录；回退时从这里恢复。
@@ -8,6 +8,7 @@
  * 调用示例：
  *   import File from '../tools/file.js'
  *   await File.read_file.execute({ path: './a.txt' }, { cwd: 'D:/notes' })
+ *   await File.read_range.execute({ path: './a.txt', offset: 100000, limit: 50000 }, { cwd: 'D:/notes' })
  *   await File.edit.execute({ path: './a.txt', edits: [{ oldText: 'a', newText: 'b' }] }, { cwd: 'D:/notes' })
  *   await File.snapshot({ sessionId, messageId, toolCallId, toolName: 'write_file', input, cwd })
  *   await File.restoreTool({ sessionId, toolCallId })
@@ -300,6 +301,7 @@ const readFile = {
     description: [
         'Read the contents of a file at the given path. Returns the raw text, or the image itself when the file is an image.',
         'Paths are relative to the session current directory unless absolute.',
+        'For very large files (over ~200K characters) use read_range instead: this tool errors out with the total size.',
         'Parameters: - path (required): file to read.',
     ].join('\n'),
     inputSchema: {
@@ -326,6 +328,60 @@ const readFile = {
             { type: 'text', text: `Image read from ${output.path}` },
             { type: 'file', mediaType: output.mediaType, data: { type: 'data', data: output.data } },
         ] }
+    },
+}
+
+// --- 分段读取大文件：read_file 读不动的时候用它；offset/limit 按 1-based 行算 ---
+// 一次默认 6000 行，和其它工具的输出上限同一量级；续读用上一次返回的 nextOffset。
+const readRange = {
+    name: 'read_range',
+    kind: 'read',
+    files: input => [input.path],
+    ui: {
+        view: 'file-read',
+        icon: 'document',
+        title: '分段读取',
+        summary: '{path}',
+        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
+    },
+    description: [
+        'Read a slice of a very large file by line range. Use after read_file reports the file is too large.',
+        'Search inside first with search_text to find the interesting lines, then read the surrounding range.',
+        'Line numbers are 1-based and included in the output; nextOffset in the result is where the next slice starts.',
+        'Parameters: - path (required): file to read. - offset (optional): 1-based starting line, default 1.',
+        '- limit (optional): how many lines to return, default 6000, max 20000.',
+    ].join('\n'),
+    inputSchema: {
+        type: 'object',
+        properties: {
+            path: { type: 'string' },
+            offset: { type: 'integer', minimum: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: 20000 },
+        },
+        required: ['path'],
+    },
+    async execute({ path, offset, limit }, options = {}) {
+        const target = absolute(path, options.cwd)
+        guard([target])
+        const file = Bun.file(target)
+        if (!await file.exists()) throw new Error(`File not found: ${target}`)
+
+        const text = await file.text()
+        const lines = text.split('\n')                                   // 统一按 \n 切，CRLF 的行尾留在行里不影响阅读
+        const total = lines.length
+        const from = Math.max(1, Math.floor(Number(offset) || 1))
+        const size = Math.min(20000, Math.max(1, Math.floor(Number(limit) || 6000)))
+        const to = Math.min(total, from - 1 + size)
+        const slice = lines.slice(from - 1, to)
+
+        // 行号补在行首，模型引用位置时和 search_text 的行号是同一套。
+        const width = String(to).length
+        const content = slice.map((line, index) => `${String(from + index).padStart(width)} | ${line.replace(/\r$/, '')}`).join('\n')
+
+        const result = { path: target, total, from, to, content: truncate(content, 120000) }
+        if (to < total) result.nextOffset = to + 1
+        if (from > total) result.content = ''                            // 越界时返回空段，total 和范围还在，模型能自己修正 offset
+        return result
     },
 }
 
@@ -555,6 +611,7 @@ const edit = {
 }
 export {
     readFile as read_file,
+    readRange as read_range,
     writeFile as write_file,
     findFiles as find_files,
     searchText as search_text,
@@ -563,4 +620,4 @@ export {
     restoreTool, restoreMessage, dropTool, undo, clearUndo, diff, remove,
 }
 
-export default [readFile, writeFile, findFiles, searchText, edit]
+export default [readFile, readRange, writeFile, findFiles, searchText, edit]

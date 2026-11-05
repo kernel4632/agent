@@ -139,8 +139,10 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 
 | 文件 | 工具 |
 | --- | --- |
-| `tools/file.js` | `read_file`、`write_file`、`find_files`、`search_text`、`edit`（一次调用改一个文件），以及文件快照和恢复 |
+| `tools/file.js` | `read_file`、`read_range`（分段读大文件，offset/limit 按行号）、`write_file`、`find_files`、`search_text`、`edit`（一次调用改一个文件），以及文件快照和恢复 |
 | `tools/shell.js` | `execute_command`（可选 `timeout` 参数：毫秒数，超时按进程树杀掉并返回 `timedOut: true`，默认 10 分钟） |
+| `tools/background.js` | `background`（start/log/stop/list：把命令放进后台跑，日志实时落在数据目录 processes/ 下；后端重启后进程表清空） |
+| `tools/test.js` | `test`（跑测试命令并解析：bun test / Playwright 的通过数、失败数和每条失败的文件与名称，未知格式退回原始输出） |
 | `tools/web.js` | `webfetch` |
 | `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |

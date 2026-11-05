@@ -48,6 +48,9 @@ const checkpoints = id => join(session(id), 'checkpoints.json')
 const tools = () => join(home(), 'tools')
 const modelCatalog = () => join(home(), 'cache', 'models-dev.json')
 
+// --- 后台进程日志：每个进程一个文件，按进程 id 命名 ---
+const processes = () => join(home(), 'processes')
+
 // --- 技能：全局目录 + 每个会话当前目录下的 .agent/skills ---
 // 开发和测试把 AGENT_HOME 指到临时目录时，全局技能也跟着进去，不会碰到真实用户数据。
 const skills = () => process.env.AGENT_SKILLS
@@ -62,5 +65,5 @@ export default {
     userHome,
     config,
     sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,
-    tools, modelCatalog, skills, skillsState, projectSkills,
+    tools, modelCatalog, processes, skills, skillsState, projectSkills,
 }

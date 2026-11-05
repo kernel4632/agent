@@ -22,6 +22,7 @@ import History from './features/history.js'
 import Mcp from './features/mcp.js'
 import ModelIcons from './features/model-icons.js'
 import Tool from './features/tool.js'
+import Background from './tools/background.js'
 import SSE from './utils/sse.js'
 
 // --- 装配有状态模块：feature 之间不互相 import，需要的兄弟服务在这里接起来 ---
@@ -127,6 +128,12 @@ app.group('/sse', sse => sse
 const start = async ({ port = process.env.PORT || 3000 } = {}) => {
     await History.prepare()   // 数据目录先建好，后面所有读写都不用再判断目录在不在。
     await Settings.read()     // 权限规则和模型配置读一次即可。
+
+    // 后端退出时带走还挂着的后台进程，不留孤儿；正常退出和 Ctrl+C 都走这里。
+    process.on('exit', () => Background.cleanup())
+    process.on('SIGINT', () => { Background.cleanup(); process.exit(0) })
+    process.on('SIGTERM', () => { Background.cleanup(); process.exit(0) })
+
     return app.listen(port)
 }
 
