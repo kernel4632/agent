@@ -24,8 +24,10 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Chip from '../../ui/Chip.vue'
 import Dialog from '../../ui/Dialog.vue'
+import Field from '../../ui/Field.vue'
 import { store } from '../../store.js'
 import { Session } from '../../commands/session.js'
+import { Notice } from '../../commands/notice.js'
 import ComposerMenu from './ComposerMenu.vue'
 import { ATTACHMENT_ACCEPT, ATTACHMENT_PATTERN } from '../../commands/attachment.js'
 
@@ -47,6 +49,64 @@ const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
 const addOpen = ref(false)
 const expanded = ref(false)
+const workspaceOpen = ref(false)
+const workspacePath = ref('')
+const workspaceError = ref('')
+const workspaceBusy = ref(false)
+const RECENT_KEY = 'agent.recent-workspaces'
+const recentWorkspaces = ref(loadRecent())
+const currentWorkspace = computed(() => store.sessions[props.sessionId]?.cwd || '')
+
+function loadRecent() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
+    return Array.isArray(list) ? list.filter(item => typeof item === 'string' && item.trim()).slice(0, 8) : []
+  } catch {
+    return []
+  }
+}
+
+function rememberWorkspace(path) {
+  const clean = path.trim()
+  if (!clean) return
+  recentWorkspaces.value = [clean, ...recentWorkspaces.value.filter(item => item.toLowerCase() !== clean.toLowerCase())].slice(0, 8)
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(recentWorkspaces.value)) } catch {}
+}
+
+function openWorkspace() {
+  if (!props.sessionId || props.isRunning) return
+  addOpen.value = false
+  workspacePath.value = currentWorkspace.value
+  workspaceError.value = ''
+  workspaceOpen.value = true
+}
+
+async function switchWorkspace() {
+  const path = workspacePath.value.trim()
+  if (!props.sessionId) return
+  if (!path) {
+    workspaceError.value = '请输入目录路径'
+    return
+  }
+  if (props.isRunning) {
+    workspaceError.value = '任务运行中不能切换工作区'
+    return
+  }
+  workspaceBusy.value = true
+  workspaceError.value = ''
+  try {
+    const result = await Session.setCwd(props.sessionId, path)
+    workspacePath.value = result.cwd
+    rememberWorkspace(result.cwd)
+    workspaceOpen.value = false
+    Notice.show(`已切换到 ${result.cwd}`)
+    nextTick(() => editor.value?.focus())
+  } catch (error) {
+    workspaceError.value = error.message
+  } finally {
+    workspaceBusy.value = false
+  }
+}
 
 function toggleExpanded() {
   expanded.value = !expanded.value
@@ -153,8 +213,26 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="composer-sheet">
       <div class="composer-sheet__list">
         <button type="button" :disabled="isRunning || busy" @click="addOpen = false; fileInput.click()"><Icon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
+        <button type="button" :disabled="isRunning || busy || !sessionId" :title="!sessionId ? '发送一条消息创建会话后可以切换工作区' : isRunning ? '任务运行中不能切换工作区' : undefined" @click="openWorkspace"><Icon name="folder" :size="20" /><span>切换工作区</span></button>
       </div>
     </div>
+  </Dialog>
+
+  <Dialog placement="bottom" :open="workspaceOpen" label="切换工作区" @update:open="workspaceOpen = $event">
+    <form class="workspace-picker" @submit.prevent="switchWorkspace">
+      <p class="workspace-picker__current">当前目录：{{ currentWorkspace || '未设置' }}</p>
+      <Field v-model="workspacePath" label="目录路径" placeholder="例如 D:\projects\demo" required />
+      <p class="workspace-picker__hint">只切换当前会话的目录；对话历史、模型和设置都会保留。</p>
+      <div v-if="recentWorkspaces.length" class="workspace-picker__recent">
+        <span>最近目录</span>
+        <button v-for="path in recentWorkspaces" :key="path" type="button" :title="path" @click="workspacePath = path">{{ path }}</button>
+      </div>
+      <p v-if="workspaceError" class="workspace-picker__error" role="alert">{{ workspaceError }}</p>
+      <div class="dialog-actions">
+        <Button type="button" :disabled="workspaceBusy" @click="workspaceOpen = false">取消</Button>
+        <Button type="submit" :disabled="workspaceBusy || isRunning">{{ workspaceBusy ? '切换中…' : '切换到此目录' }}</Button>
+      </div>
+    </form>
   </Dialog>
 </template>
 

@@ -50,6 +50,16 @@ async function rename(sessionID, title) {
 }
 
 
+// --- 切换当前会话目录；只改 cwd，历史、模型和设置都不动 ---
+async function setCwd(sessionID, cwd) {
+  const result = await AgentAPI.setSessionCwd(sessionID, cwd)
+  const summary = locate(sessionID)
+  if (summary) summary.cwd = result.cwd
+  const session = store.sessions[sessionID]
+  if (session) session.cwd = result.cwd
+  return result
+}
+
 // --- 删除会话 ---
 function forget(sessionID) {
   const found = locate(sessionID)
@@ -193,4 +203,4 @@ function summaryOf(session) {
   }
 }
 
-export const Session = { locate, list, reload, create, read, rename, remove, removeMany, selectModel, saveSettings, setReasoning }
+export const Session = { locate, list, reload, create, read, rename, remove, removeMany, selectModel, saveSettings, setReasoning, setCwd }

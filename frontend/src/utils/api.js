@@ -66,6 +66,7 @@ export const AgentAPI = {
   getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   getSessionGroups: ()                          => request('/session/groups'),
   saveSessionGroups:(groups)                    => request('/session/groups', 'PUT', { groups }),
+  setSessionCwd:    (sessionID, cwd)            => request(`/session/cwd/${encodeURIComponent(sessionID)}`, 'PATCH', { cwd }),
   // 目录属于会话；未指定 cwd 时由后端使用自己的当前目录。
   createSession:    async (cwd, provider, model) => {
     const body = { title: NEW_SESSION_TITLE, provider, model, ...(cwd ? { cwd } : {}) }

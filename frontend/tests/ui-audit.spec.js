@@ -1445,6 +1445,28 @@ test('session groups move a session through the row menu', async ({ page }) => {
   expect(mock.errors).toEqual([])
 })
 
+test('workspace picker switches the session cwd and remembers it', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('切换目录测试')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await page.getByRole('button', { name: '切换工作区', exact: true }).click()
+  const workspace = page.getByRole('dialog', { name: '切换工作区', exact: true })
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('D:/mock-workspace')
+  await workspace.getByRole('button', { name: '切换到此目录', exact: true }).click()
+  await expect(workspace).toBeHidden()
+  expect(mock.calls.findLast(call => call.path.startsWith('/session/cwd/') && call.method === 'PATCH')?.body.cwd).toBe('D:/mock-workspace')
+
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await page.getByRole('button', { name: '切换工作区', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '切换工作区', exact: true }).getByRole('button', { name: 'D:/mock-workspace', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('long attachment names stay on one line in the composer', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

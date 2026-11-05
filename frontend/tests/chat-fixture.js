@@ -330,6 +330,10 @@ export async function backend(page, { configured = true } = {}) {
       return route.continue({ url: `${eventsURL}/${id}` })
     }
     if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
+    if (path.startsWith('/session/cwd/')) {
+      if (method === 'PATCH') session.cwd = body.cwd
+      return json({ id: session.id, cwd: session.cwd })
+    }
     if (path.startsWith('/session/settings/')) {
       if (method === 'PATCH') {
         expect(Object.keys(body)).toEqual(['reasoning'])
