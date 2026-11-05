@@ -198,10 +198,10 @@ const formatDuration = value => {
               <span class="is-tools" :style="{ flex: `0 0 ${contentShares.tools}%` }"></span>
             </div>
             <div class="stats-panel__composition-legend">
-              <span><i class="is-user"></i>用户输入 {{ formatTokens(content.user, usageApproximate) }}</span>
-              <span><i class="is-thinking"></i>助手思考 {{ formatTokens(content.thinking, usageApproximate) }}</span>
-              <span><i class="is-reply"></i>助手回复 {{ formatTokens(content.reply, usageApproximate) }}</span>
-              <span><i class="is-tools"></i>工具输出 {{ formatTokens(content.tools, usageApproximate) }}</span>
+              <span class="is-user"><Icon name="input" :size="12" />用户输入 {{ formatTokens(content.user, usageApproximate) }}</span>
+              <span class="is-thinking"><Icon name="idea" :size="12" />助手思考 {{ formatTokens(content.thinking, usageApproximate) }}</span>
+              <span class="is-reply"><Icon name="chat" :size="12" />助手回复 {{ formatTokens(content.reply, usageApproximate) }}</span>
+              <span class="is-tools"><Icon name="code" :size="12" />工具输出 {{ formatTokens(content.tools, usageApproximate) }}</span>
             </div>
           </div>
         </template>

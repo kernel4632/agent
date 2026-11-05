@@ -244,3 +244,28 @@
 .stats-panel__composition-legend i.is-thinking { background: var(--la-warning); }
 .stats-panel__composition-legend i.is-reply { background: var(--la-success); }
 .stats-panel__composition-legend i.is-tools { background: var(--la-secondary); }
+/* --- 会话内容构成：四个分类使用固定高对比色，不跟随主题色混淆 --- */
+.stats-panel__stack--content {
+  --stats-user: #8b7cf6;
+  --stats-thinking: #e5a33a;
+  --stats-reply: #42b883;
+  --stats-tools: #3aa6d8;
+  height: 10px;
+}
+.stats-panel__stack--content span { border-right: 1px solid var(--la-bg); }
+.stats-panel__stack--content span:last-child { border-right: 0; }
+.stats-panel__stack--content .is-user { background: var(--stats-user); }
+.stats-panel__stack--content .is-thinking { background: var(--stats-thinking); }
+.stats-panel__stack--content .is-reply { background: var(--stats-reply); }
+.stats-panel__stack--content .is-tools { background: var(--stats-tools); }
+.stats-panel__composition-legend span { color: var(--la-secondary); }
+.stats-panel__composition-legend .is-user svg { color: var(--stats-user); }
+.stats-panel__composition-legend .is-thinking svg { color: var(--stats-thinking); }
+.stats-panel__composition-legend .is-reply svg { color: var(--stats-reply); }
+.stats-panel__composition-legend .is-tools svg { color: var(--stats-tools); }
+.stats-panel__composition {
+  --stats-user: #8b7cf6;
+  --stats-thinking: #e5a33a;
+  --stats-reply: #42b883;
+  --stats-tools: #3aa6d8;
+}
