@@ -71,6 +71,58 @@ function messageUsage(message) {
 // 估算一次就缓存：流式输出时同一轮会反复触发统计，不能每个字都把整段历史重算一遍。
 const estimateCache = new WeakMap()
 
+// 会话内容构成：按消息类别估算用户输入、助手思考、助手回复和工具输出。
+// 这不是计费口径，而是当前时间线里各类内容的大致体积。
+const compositionCache = new WeakMap()
+
+function contentComposition(session, messages) {
+  const last = messages.at(-1)
+  const signature = [
+    messages.length,
+    last?.id || '',
+    last?.content?.length || 0,
+    last?.reasoning?.length || 0,
+    (last?.tools || []).map(tool => `${tool.id}:${tool.status}:${String(tool.preview || '').length}:${tool.durationMs || 0}`).join(','),
+  ].join(':')
+  const cached = compositionCache.get(session)
+  if (cached?.signature === signature) return cached.value
+
+  let user = 0
+  let thinking = 0
+  let reply = 0
+  let tools = 0
+  for (const message of messages) {
+    if (message.compact) continue
+    if (message.role === 'user') {
+      user += estimateTokens(message.displayContent ?? message.content)
+      continue
+    }
+    if (message.role !== 'assistant') continue
+
+    const steps = Array.isArray(message.steps) ? message.steps : []
+    const messageTools = message.tools || []
+    if (steps.length) {
+      let hasText = false
+      for (const step of steps) {
+        if (step.type === 'reasoning') thinking += estimateTokens(step.text)
+        else if (step.type === 'text') {
+          reply += estimateTokens(step.text)
+          hasText = true
+        }
+      }
+      if (!hasText) reply += estimateTokens(message.content)
+    } else {
+      thinking += estimateTokens(message.reasoning)
+      reply += estimateTokens(message.content)
+    }
+    for (const tool of messageTools) tools += estimateTokens(tool.output ?? tool.preview)
+  }
+
+  const value = { user, thinking, reply, tools, total: user + thinking + reply + tools }
+  compositionCache.set(session, { signature, value })
+  return value
+}
+
 function estimateSession(session, messages, limit) {
   const last = messages.at(-1)
   const signature = `${messages.length}:${last?.id || ''}`
@@ -223,6 +275,7 @@ export function sessionStats(session) {
       firstTokenAt: liveFirstTokenAt,
       tps: last ? requestTps(last) : 0,
     },
+    composition: contentComposition(session, messages),
     models: modelGroups(),
   }
 }

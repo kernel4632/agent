@@ -233,3 +233,14 @@
   .stats-panel__metric { padding-inline: 7px; }
   .stats-panel__metric strong { font-size: 14px; }
 }
+/* --- 会话内容构成：按用户输入 / 思考 / 回复 / 工具输出分类 --- */
+.stats-panel__metric-row { grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); }
+.stats-panel__metric.is-cache-write strong { color: var(--la-secondary); }
+.stats-panel__stack--content .is-user { background: var(--la-accent); }
+.stats-panel__stack--content .is-thinking { background: var(--la-warning); }
+.stats-panel__stack--content .is-reply { background: var(--la-success); }
+.stats-panel__stack--content .is-tools { background: var(--la-secondary); }
+.stats-panel__composition-legend i.is-user { background: var(--la-accent); }
+.stats-panel__composition-legend i.is-thinking { background: var(--la-warning); }
+.stats-panel__composition-legend i.is-reply { background: var(--la-success); }
+.stats-panel__composition-legend i.is-tools { background: var(--la-secondary); }

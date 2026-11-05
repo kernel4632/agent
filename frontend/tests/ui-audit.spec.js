@@ -945,7 +945,7 @@ test('composer footer stats opens the session data panel', async ({ page }, test
   await expect(usage).toContainText('30')
   await expect(usage).toContainText('20')
   await expect(usage).toContainText('33%')
-  await expect(usage.locator('.stats-panel__stack .is-cache')).toHaveCount(1)
+  await expect(usage.locator('.stats-panel__stack .is-user')).toHaveCount(1)
   await screenshot(page, testInfo, 'composer-footer-stats-panel')
 
   await stats.getByRole('button', { name: /33 tok\/s/ }).click()

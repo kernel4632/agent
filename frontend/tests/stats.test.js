@@ -54,6 +54,39 @@ test('real request usage wins over estimation', () => {
   }])
 })
 
+test('content composition separates user, thinking, reply and tool output', () => {
+  const tool = {
+    id: 'call-1',
+    name: 'read_file',
+    input: { path: 'a.js' },
+    output: { type: 'text', value: 'const answer = 42' },
+    preview: 'const answer = 42',
+    status: 'completed',
+  }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [
+      user('请读一下这个文件'),
+      assistant('', {
+        steps: [
+          { type: 'reasoning', text: '先看看文件内容' },
+          { type: 'text', text: '文件里是答案。' },
+          { type: 'tool', toolId: 'call-1' },
+        ],
+        tools: [tool],
+        requests: [{ input: 30, output: 20, total: 50, durationMs: 800, firstTokenMs: 200 }],
+      }),
+    ],
+  }
+  const stats = sessionStats(session)
+  assert.ok(stats.composition.user > 0)
+  assert.ok(stats.composition.thinking > 0)
+  assert.ok(stats.composition.reply > 0)
+  assert.ok(stats.composition.tools > 0)
+  assert.equal(stats.composition.total, stats.composition.user + stats.composition.thinking + stats.composition.reply + stats.composition.tools)
+})
+
 test('streaming output exposes a live speed snapshot', () => {
   const firstTokenAt = Date.now() - 1000
   const session = {

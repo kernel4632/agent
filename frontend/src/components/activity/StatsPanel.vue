@@ -86,14 +86,16 @@ const ringClass = computed(() => ({
 }))
 const hasUsage = computed(() => total.value > 0)
 const requestCount = computed(() => Number(usage.value.requests || 0) || (props.stats.series || []).length)
-const freshInput = computed(() => Math.max(0, Number(usage.value.input || 0) - cacheRead.value))
-const composition = computed(() => {
-  const sum = freshInput.value + cacheRead.value + Number(usage.value.output || 0)
-  if (!sum) return { fresh: 0, cache: 0, output: 0 }
+const content = computed(() => props.stats.composition || { user: 0, thinking: 0, reply: 0, tools: 0, total: 0 })
+const contentTotal = computed(() => Number(content.value.total || 0))
+const contentShares = computed(() => {
+  const sum = contentTotal.value
+  if (!sum) return { user: 0, thinking: 0, reply: 0, tools: 0 }
   return {
-    fresh: freshInput.value / sum * 100,
-    cache: cacheRead.value / sum * 100,
-    output: Number(usage.value.output || 0) / sum * 100,
+    user: content.value.user / sum * 100,
+    thinking: content.value.thinking / sum * 100,
+    reply: content.value.reply / sum * 100,
+    tools: content.value.tools / sum * 100,
   }
 })
 // 走势图已移除：Token 面板只保留总账和构成，不再用一条几乎不变的上下文曲线占空间。
@@ -184,20 +186,22 @@ const formatDuration = value => {
             <div class="stats-panel__metric is-input"><span>输入</span><strong>{{ formatTokens(usage.input, usageApproximate) }}</strong></div>
             <div class="stats-panel__metric is-output"><span>输出</span><strong>{{ formatTokens(usage.output, usageApproximate) }}</strong></div>
             <div class="stats-panel__metric is-cache"><span>缓存读</span><strong>{{ formatTokens(cacheTokens, usageApproximate) }}</strong><em>{{ cacheHit }}%</em></div>
+            <div v-if="cacheWriteTokens" class="stats-panel__metric is-cache-write"><span>缓存写</span><strong>{{ formatTokens(cacheWriteTokens, usageApproximate) }}</strong></div>
           </div>
 
-          <div class="stats-panel__composition">
-            <div class="stats-panel__composition-head"><span>本会话构成</span></div>
-            <div class="stats-panel__stack stats-panel__stack--composition" aria-hidden="true">
-              <span class="is-input" :style="{ flex: `0 0 ${composition.fresh}%` }"></span>
-              <span class="is-cache" :style="{ flex: `0 0 ${composition.cache}%` }"></span>
-              <span class="is-output" :style="{ flex: `0 0 ${composition.output}%` }"></span>
+          <div v-if="contentTotal" class="stats-panel__composition">
+            <div class="stats-panel__composition-head"><span>内容构成 · 估算</span><span>{{ formatTokens(contentTotal, usageApproximate) }} tokens</span></div>
+            <div class="stats-panel__stack stats-panel__stack--composition stats-panel__stack--content" aria-hidden="true">
+              <span class="is-user" :style="{ flex: `0 0 ${contentShares.user}%` }"></span>
+              <span class="is-thinking" :style="{ flex: `0 0 ${contentShares.thinking}%` }"></span>
+              <span class="is-reply" :style="{ flex: `0 0 ${contentShares.reply}%` }"></span>
+              <span class="is-tools" :style="{ flex: `0 0 ${contentShares.tools}%` }"></span>
             </div>
             <div class="stats-panel__composition-legend">
-              <span><i class="is-fresh"></i>新增输入 {{ formatTokens(freshInput, usageApproximate) }}</span>
-              <span><i class="is-cache"></i>缓存读 {{ formatTokens(cacheTokens, usageApproximate) }}</span>
-              <span><i class="is-output"></i>输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
-              <span v-if="cacheWriteTokens"><i class="is-cache-write"></i>缓存写 {{ formatTokens(cacheWriteTokens, usageApproximate) }}</span>
+              <span><i class="is-user"></i>用户输入 {{ formatTokens(content.user, usageApproximate) }}</span>
+              <span><i class="is-thinking"></i>助手思考 {{ formatTokens(content.thinking, usageApproximate) }}</span>
+              <span><i class="is-reply"></i>助手回复 {{ formatTokens(content.reply, usageApproximate) }}</span>
+              <span><i class="is-tools"></i>工具输出 {{ formatTokens(content.tools, usageApproximate) }}</span>
             </div>
           </div>
         </template>
