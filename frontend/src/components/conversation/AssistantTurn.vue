@@ -62,6 +62,8 @@ const fallbackText = computed(() => props.messages
   .filter(Boolean)
   .join('\n\n'))
 const content = computed(() => finalText.value || fallbackText.value)
+// 正式气泡的归属：它来自带结束工具的那条消息；回退聚光用它把气泡框进范围。
+const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
 
 // 时间线按消息顺序排列：请求行、思考、非结束正文、工具步骤。
 // 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
@@ -188,7 +190,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         </div>
       </div>
 
-      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }">
+      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="finalMessage?.id">
         <Markdown :content="bubbleContent" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
