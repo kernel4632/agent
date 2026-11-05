@@ -49,12 +49,6 @@ const fallbackText = computed(() => props.messages
   .filter(Boolean)
   .join('\n\n'))
 const content = computed(() => finalText.value || fallbackText.value)
-// 模型请求行要等 llm-start 才落进 steps。首字之前先用同一套请求状态占位，
-// 这样显示的是“正在请求模型”和已等待时间，而不是一句没有上下文的“正在思考”。
-const pendingRequest = computed(() => {
-  const message = props.messages.findLast(item => item.isStreaming)
-  return message ? { status: 'running', startedAt: message.startedAt || Date.now(), retry: message.retry || '' } : null
-})
 
 // 时间线按消息顺序排列：请求行、思考、非结束正文、工具步骤。
 // 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
@@ -182,8 +176,6 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>
-
-      <RequestStatus v-if="streaming && !content && !steps.length && pendingRequest" :request="pendingRequest" />
 
       <p v-if="error" class="message__error" role="alert">{{ error }}</p>
     </MessageActions>

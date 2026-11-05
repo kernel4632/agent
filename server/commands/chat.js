@@ -151,11 +151,12 @@ const validateRun = async ({ sessionId, input, resume }) => {
     return agent
 }
 
-// --- 开跑前：保存当前历史，然后通知前端开始；resume 不追加用户消息 ---
+// --- 开跑前：先通知前端开始；历史落盘不能挡在模型请求之前，长会话会白等 ---
 const startAgent = ({ sessionId, agent, resume, token }) => async () => {
-    await syncHistory({ sessionId, agent })
     if (token.stopped || activeRuns.get(sessionId) !== token) return
     await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
+    // 历史保存异步跑，onStep / finish 还会继续落盘；这里不再 await。
+    syncHistory({ sessionId, agent }).catch(error => console.error(`[session ${sessionId}] 启动时保存历史失败：${error.message}`))
 }
 
 // --- 模型请求的开始和结束：记录首字时间、总耗时和用量 ---
