@@ -120,7 +120,15 @@ const read = async ({ sessionId }) => {
     } else {
         history = visible(History.get({ sessionId }))
         if (agent) agent.history = history
-        else await Agent.create({ sessionId })
+        // 会话元数据里的供应商可能已经被删掉。历史仍应可打开，用户可以重新选模型后再发送；
+        // 不能因为 Agent 装配失败连整个会话都读不出来。
+        else {
+            try {
+                await Agent.create({ sessionId })
+            } catch (error) {
+                console.warn(`[session ${sessionId}] Agent 装配失败，仍返回历史：${error.message}`)
+            }
+        }
     }
 
     return {

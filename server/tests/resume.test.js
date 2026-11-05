@@ -3,7 +3,7 @@
  * 这里用假 Agent 检查历史读写，不真的请求模型。
  */
 import { afterEach, describe, expect, test } from 'bun:test'
-import { readFile, rm } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import AgentCore from '@kernel4632/agent-core'
@@ -107,6 +107,22 @@ describe('继续被中断的助手', () => {
             const removed = await Session.remove({ sessionId })
             expect(removed.ok).toBe(true)
             expect(await Bun.file(join(root, 'sessions', sessionId, 'meta.json')).exists()).toBe(false)
+        })
+    })
+
+    test('供应商被删掉的会话仍能打开', async () => {
+        await withHome(async root => {
+            const sessionId = await setup()
+            const metaPath = join(root, 'sessions', sessionId, 'meta.json')
+            const meta = JSON.parse(await readFile(metaPath, 'utf8'))
+            meta.model.provider = 'missing-provider'
+            await writeFile(metaPath, JSON.stringify(meta))
+            History.remove({ sessionId })
+            Agent.runtime().clear()
+
+            const session = await Session.read({ sessionId })
+            expect(session.history).toEqual([])
+            expect(session.provider).toBe('missing-provider')
         })
     })
 
