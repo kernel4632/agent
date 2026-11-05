@@ -29,6 +29,23 @@ test('暗色主题把 currentColor 换成浅色，浅色主题保持原样', () 
     expect(ModelIcons.themed(svg, 'light')).toContain('currentColor')
 })
 
+test('优先取 LobeHub 彩色 logo，只把 currentColor 留给主题适配', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async url => String(url).includes('/kimi-color.svg')
+        ? new Response('<svg><path fill="#1783FF"/><path fill="currentColor"/></svg>')
+        : new Response('not found', { status: 404 })
+    try {
+        ModelIcons.clear()
+        const body = await ModelIcons.icon({ family: 'moonshotai', theme: 'dark' })
+        expect(body).toContain('#1783FF')
+        expect(body).toContain('#e6e6e6')
+        expect(body).not.toContain('currentColor')
+    } finally {
+        globalThis.fetch = originalFetch
+        ModelIcons.clear()
+    }
+})
+
 test('canonical 原厂信息优先于托管同名模型的平台', async () => {
     const root = join(tmpdir(), `agent-model-icons-${crypto.randomUUID()}`)
     homes.push(root)

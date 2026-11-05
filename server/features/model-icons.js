@@ -4,11 +4,11 @@
  * - family 是原厂/lab，例如 openai、anthropic、deepseek、moonshotai；
  * - 目录优先用 canonical_model_id 判断中转站模型属于哪个 lab；
  * - 只在没有 canonical 信息时才用一组低风险别名做“建议”，多个匹配则判为歧义；
- * - logo 从 models.dev 代理并缓存，新模型或换 logo 不需要发版。
+ * - logo 优先取 LobeHub 的彩色 SVG，缺失时回退 models.dev 单色 SVG；都从网络代理并缓存。
  *
  * 调用示例：
  *   await ModelIcons.suggest({ model: 'deepseek-v4-flash' })
- *   await ModelIcons.icon({ family: 'deepseek' })
+ *   await ModelIcons.icon({ family: 'deepseek', theme: 'dark' })
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -16,9 +16,16 @@ import { dirname } from 'node:path'
 import Path from '../utils/path.js'
 
 const CATALOG_URL = 'https://models.dev/api.json'
+const LOBE_LOGO_URL = 'https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons'
 const CATALOG_TTL = 12 * 60 * 60 * 1000
 const LOGO_TTL = 24 * 60 * 60 * 1000
 const FETCH_TIMEOUT = 20 * 1000
+
+// LobeHub 的文件名和 models.dev 的 lab 名偶尔不同；这里只做来源命名映射，不保存任何图标。
+const LOBE_IDS = {
+    moonshotai: 'kimi',
+    zhipuai: 'zhipu',
+}
 
 // 只用于“建议”，不是图标表；真正的 family 优先来自 canonical_model_id。
 const KEYWORDS = [
@@ -119,6 +126,17 @@ const fetchJson = async url => {
     return response.json()
 }
 
+const fetchSvg = async url => {
+    try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) })
+        if (!response.ok) return null
+        const body = await response.text()
+        return body.includes('<svg') ? body : null
+    } catch {
+        return null
+    }
+}
+
 const writeDisk = async data => {
     const file = Path.modelCatalog()
     await mkdir(dirname(file), { recursive: true })
@@ -202,28 +220,35 @@ export const themed = (body, theme) => theme === 'dark'
     ? body.replaceAll('currentColor', '#e6e6e6')
     : body
 
+// 先找 LobeHub 的彩色版本；没有彩色版就用它的单色版；两款都没有才回退 models.dev。
+const loadLogo = async family => {
+    const cached = logos.get(family)
+    if (cached && Date.now() - cached.at < LOGO_TTL) return cached.body
+
+    const lobeId = LOBE_IDS[family] || family
+    const candidates = [
+        `${LOBE_LOGO_URL}/${encodeURIComponent(lobeId)}-color.svg`,
+        `${LOBE_LOGO_URL}/${encodeURIComponent(lobeId)}.svg`,
+        `https://models.dev/logos/${encodeURIComponent(family)}.svg`,
+    ]
+    for (const url of candidates) {
+        const body = await fetchSvg(url)
+        if (!body) continue
+        logos.set(family, { body, at: Date.now() })
+        return body
+    }
+    return cached?.body || null
+}
+
 export const icon = async ({ model, family, theme } = {}) => {
     const result = await suggest({ model, family })
     if (!result.family || !familyPattern.test(result.family)) return null
-    if (result.source === 'manual') {
-        // 手动 family 直接取 logo；不需要为了一个图标先下载整份模型目录。
-    } else {
+    if (result.source !== 'manual') {
         const indexData = await index()
         if (indexData.providers.size && !indexData.providers.has(result.family)) return null
     }
-    const cached = logos.get(result.family)
-    if (cached && Date.now() - cached.at < LOGO_TTL) return themed(cached.body, theme)
-
-    try {
-        const response = await fetch(`https://models.dev/logos/${encodeURIComponent(result.family)}.svg`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) })
-        if (!response.ok) return null
-        const body = await response.text()
-        if (!body.includes('<svg')) return null
-        logos.set(result.family, { body, at: Date.now() })
-        return themed(body, theme)
-    } catch {
-        return cached?.body ? themed(cached.body, theme) : null
-    }
+    const body = await loadLogo(result.family)
+    return body ? themed(body, theme) : null
 }
 
 export const clear = () => {

@@ -308,12 +308,12 @@ bun start
 
 ### 模型图标
 
-图标不放进仓库：服务端从 models.dev 目录解析 family，并代理 `logos/{family}.svg`；目录和 logo 都有缓存，新模型或换 logo 不需要前端发版。
+图标不放进仓库：优先取 LobeHub 的彩色 SVG，缺失时回退 models.dev 的单色 SVG；两者都由服务端代理并缓存，新模型或换 logo 不需要前端发版。
 
 | 方法 | 地址 | 参数 | 结果 |
 | --- | --- | --- | --- |
 | `GET` | `/model/family` | `model` 或 `family` | `{ family, candidates, ambiguous, source }`；多个候选时不自动选择 |
-| `GET` | `/model/icon` | `model` 或 `family`；可选 `theme=dark` 把 currentColor 换成浅色 | SVG；找不到时 404，前端回退通用模型图标 |
+| `GET` | `/model/icon` | `model` 或 `family`；可选 `theme=dark` 把剩余的 currentColor 换成浅色 | SVG；找不到时 404，前端回退通用模型图标 |
 
 ### 能力管理
 

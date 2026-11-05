@@ -6,6 +6,7 @@ Agent HTTP 指令集：集中声明前端使用的正式 Server API 契约。
 import { NEW_SESSION_TITLE } from '../defaults.js'
 
 const apiRoot = '/api'                                  // Vite 开发和预览服务转发的同源前缀
+const modelIconRevision = 2                             // 换图标来源后改这里，绕过浏览器里的旧 SVG
 
 
 // --- 发送普通 JSON 请求 ---
@@ -42,7 +43,7 @@ export const AgentAPI = {
   getHealth:        ()                          => request('/health'),
   // 模型 family 自动识别和远程 logo；图标响应是 SVG，直接交给 <img>。
   getModelFamily:   (model = '')                => request(`/model/family?model=${encodeURIComponent(model)}`),
-  modelIconUrl:     (model = '', family = '', theme = '') => `${apiRoot}/model/icon?model=${encodeURIComponent(model)}${family ? `&family=${encodeURIComponent(family)}` : ''}${theme ? `&theme=${encodeURIComponent(theme)}` : ''}`,
+  modelIconUrl:     (model = '', family = '', theme = '') => `${apiRoot}/model/icon?model=${encodeURIComponent(model)}${family ? `&family=${encodeURIComponent(family)}` : ''}${theme ? `&theme=${encodeURIComponent(theme)}` : ''}&v=${modelIconRevision}`,
   // 全部工具和当前权限，设置页画开关用。
   getTools:         ()                          => request('/tool/list'),
   // 工具类别；名字和顺序由后端给。
