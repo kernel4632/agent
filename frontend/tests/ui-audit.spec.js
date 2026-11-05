@@ -1398,6 +1398,31 @@ test('new settings pages start at the top and returning restores the parent scro
   expect(mock.errors).toEqual([])
 })
 
+test('data settings lists config backups and exports masked config', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /数据管理/ }).click()
+  await expect(page.getByRole('heading', { name: '数据管理', exact: true, level: 1 })).toBeVisible()
+  await expect(page.getByText('1 个供应商 · 1 个模型', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: '恢复', exact: true })).toHaveCount(1)
+
+  await page.getByRole('button', { name: '恢复', exact: true }).click()
+  const restore = page.getByRole('dialog', { name: '恢复配置备份', exact: true })
+  await expect(restore).toContainText('Test Provider · 1 个模型')
+  await restore.getByRole('button', { name: '取消', exact: true }).click()
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '导出脱敏配置', exact: true }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('agent-config-masked.json')
+
+  await page.getByRole('switch', { name: '包含 API Key 和其他敏感值' }).click()
+  await expect(page.getByRole('button', { name: '导出完整配置', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('long attachment names stay on one line in the composer', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

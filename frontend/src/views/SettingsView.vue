@@ -18,6 +18,7 @@ import ContextSettings from '../components/preferences/ContextSettings.vue'
 import ModelSettings from '../components/providers/ModelSettings.vue'
 import ProviderList from '../components/providers/ProviderList.vue'
 import PromptSettings from '../components/preferences/PromptSettings.vue'
+import DataSettings from '../components/preferences/DataSettings.vue'
 import ToolsSettings from '../components/capabilities/ToolsSettings.vue'
 import MCPList from '../components/capabilities/MCPList.vue'
 import SkillList from '../components/capabilities/SkillList.vue'
@@ -31,7 +32,7 @@ const settingsPages = [
   { id: 'tools', label: '工具管理', description: '用开关控制工具直接执行还是先询问', icon: 'code', group: '模型与服务', tone: 'primary', component: ToolsSettings },
   { id: 'skills', label: '技能', description: '识别并管理本机的操作说明', icon: 'idea', group: '模型与服务', tone: 'tertiary', component: SkillList },
   { id: 'mcp', label: 'MCP 服务', description: '连接外部工具和数据服务', icon: 'link', group: '模型与服务', tone: 'tertiary', component: MCPList, nested: true },
-  { id: 'data', label: '数据管理', description: '导出、备份和清理本地数据', icon: 'folder', group: '数据设置', tone: 'secondary', disabled: true },
+  { id: 'data', label: '数据管理', description: '配置备份、恢复与导入导出', icon: 'folder', group: '数据设置', tone: 'secondary', component: DataSettings },
 ]
 
 // 按登记顺序分组；新增页面落在哪个 group，设置首页就自动出现对应卡片。

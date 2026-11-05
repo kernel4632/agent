@@ -1,0 +1,29 @@
+.data-settings { display: flex; flex-direction: column; gap: 20px; }
+.data-settings__head p { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
+.data-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--la-layer-01);
+}
+.data-settings__copy { display: flex; flex-direction: column; gap: 6px; }
+.data-settings__copy h3 { margin: 0; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
+.data-settings__copy p { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.data-settings__backups { display: flex; flex-direction: column; gap: 2px; }
+.data-settings__backup { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--la-line); }
+.data-settings__backup:last-child { border-bottom: 0; padding-bottom: 0; }
+.data-settings__backup-icon { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border-radius: 9px; background: var(--la-layer-02); color: var(--la-secondary); }
+.data-settings__backup-main { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.data-settings__backup-main strong { overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.data-settings__backup-main small { overflow: hidden; color: var(--la-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.data-settings__empty { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 20px; }
+.data-settings__warning { margin: 0; color: var(--la-warning); font-size: 12.5px; line-height: 19px; }
+.data-settings__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.data-settings__file { display: none; }
+.data-settings__dialog-text { margin: 0 0 8px; color: var(--la-text); font-size: 14px; line-height: 22px; }
+.data-settings__dialog-hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 20px; }
+@media (max-width: 767px) {
+  .data-settings__section { padding: 18px; }
+}

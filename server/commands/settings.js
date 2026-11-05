@@ -32,10 +32,16 @@ const toolKinds = () => Tool.KINDS
 // --- 真实试一次模型请求 ---
 const test = async ({ provider, model } = {}) => Agent.testModel({ provider, model })
 
+const backups = () => Config.backups()
+const readBackup = id => Config.readBackup(id)
+const restore = body => Config.restore(body)
+const exportConfig = query => Config.export(query)
+const importConfig = body => Config.import(body)
+
 // --- 读取后端版本 ---
 const version = async () => {
     cachedVersion ??= (await Bun.file(packageFile).json()).version
     return cachedVersion
 }
 
-export default { MODELS, read, set, get, meta, test, version, listTools, toolKinds }
+export default { MODELS, read, set, get, meta, test, version, listTools, toolKinds, backups, readBackup, restore, exportConfig, importConfig }

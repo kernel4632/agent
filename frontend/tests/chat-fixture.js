@@ -23,6 +23,20 @@ export async function backend(page, { configured = true } = {}) {
     prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
     permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
   }
+  let backups = []
+  const rememberConfig = () => {
+    const serialized = JSON.stringify(config)
+    backups.unshift({
+      id: `config-mock-${Date.now()}-${backups.length}`,
+      createdAt: Date.now(),
+      size: serialized.length,
+      providers: config.providers.length,
+      models: config.providers.reduce((sum, provider) => sum + (provider.models?.length || 0), 0),
+      config: structuredClone(config),
+    })
+    backups = backups.slice(0, 20)
+  }
+  rememberConfig()
   // 技能页和 MCP 识别使用同一份内存夹具；界面测试只验证读写路径，不碰真实磁盘。
   const skills = {
     skills: [
@@ -135,9 +149,31 @@ export async function backend(page, { configured = true } = {}) {
         { task: 'task', label: '子任务', hint: '子 agent 干活时用的模型' },
       ],
     })
+    if (path === '/config/backups') return json(backups.map(({ config: _config, ...meta }) => meta))
+    if (path.startsWith('/config/backups/')) {
+      const id = decodeURIComponent(path.slice('/config/backups/'.length))
+      const backup = backups.find(item => item.id === id)
+      return backup ? json(backup) : route.fulfill({ status: 404, json: { error: 'not found' } })
+    }
+    if (path === '/config/restore') {
+      const backup = backups.find(item => item.id === body?.id)
+      if (!backup) return route.fulfill({ status: 404, json: { error: 'not found' } })
+      rememberConfig()
+      config = structuredClone(backup.config)
+      return json({ ok: true, id: backup.id })
+    }
+    if (path === '/config/import') {
+      rememberConfig()
+      config = structuredClone(body.config)
+      return json({ ok: true })
+    }
+    if (path === '/config/export') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(config) })
+    }
     if (path === '/config/set') {
       expect(Object.keys(body).sort()).toEqual(Object.keys(config).sort())
       expect(body.providers.every(provider => provider.models.every(model => typeof model.id === 'string'))).toBe(true)
+      rememberConfig()
       config = body
       return json(config)
     }

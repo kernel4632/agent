@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.60.0",
+    "version": "0.61.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -1091,6 +1091,147 @@
           },
           "404": {
             "description": "没有可用的 family 或 logo"
+          }
+        }
+      }
+    },
+    "/config/backups": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "列出配置自动备份",
+        "operationId": "configBackups",
+        "responses": {
+          "200": {
+            "description": "备份列表，按时间倒序"
+          }
+        }
+      }
+    },
+    "/config/backups/{id}": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "读取一份配置备份（密钥脱敏）",
+        "operationId": "configBackupRead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "备份元数据和脱敏后的配置"
+          },
+          "404": {
+            "description": "备份不存在"
+          }
+        }
+      }
+    },
+    "/config/restore": {
+      "post": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "恢复一份配置备份",
+        "operationId": "configRestore",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "恢复结果"
+          },
+          "400": {
+            "description": "备份格式错误"
+          },
+          "404": {
+            "description": "备份不存在"
+          }
+        }
+      }
+    },
+    "/config/export": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "导出配置；默认脱敏",
+        "operationId": "configExport",
+        "parameters": [
+          {
+            "name": "secrets",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON 配置文件；secrets=1 时包含明文密钥"
+          }
+        }
+      }
+    },
+    "/config/import": {
+      "post": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "导入整份配置；脱敏字段保留同名供应商现有密钥",
+        "operationId": "configImport",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "config"
+                ],
+                "properties": {
+                  "config": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "导入结果"
+          },
+          "400": {
+            "description": "配置格式错误"
           }
         }
       }

@@ -118,6 +118,16 @@ app.group('/config', config => config
         return Settings.get()
     })
     .get('/meta', () => Settings.meta())
+    .get('/backups', () => Settings.backups())
+    .get('/backups/:id', ({ params }) => Settings.readBackup(params.id))
+    .post('/restore', ({ body }) => Settings.restore(body || {}))
+    .get('/export', ({ query, set }) => {
+        const secrets = query.secrets === '1'
+        set.headers['content-type'] = 'application/json; charset=utf-8'
+        set.headers['content-disposition'] = `attachment; filename="agent-config-${secrets ? 'full' : 'masked'}.json"`
+        return JSON.stringify(Settings.exportConfig({ secrets }), null, 2)
+    })
+    .post('/import', ({ body }) => Settings.importConfig(body || {}))
     .patch('/set', ({ body }) => Settings.set(body))
     .post('/test', ({ body }) => Settings.test(body || {})))
 

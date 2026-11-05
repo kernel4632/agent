@@ -100,6 +100,19 @@ export const AgentAPI = {
   redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
   getConfig:        ()                          => request('/config/read'),
   getConfigMeta:    ()                          => request('/config/meta'),
+  getConfigBackups: ()                          => request('/config/backups'),
+  readConfigBackup: (id)                        => request(`/config/backups/${encodeURIComponent(id)}`),
+  restoreConfigBackup: (id)                     => request('/config/restore', 'POST', { id }),
+  importConfig:     (config)                    => request('/config/import', 'POST', { config }),
+  // 导出走原始 Response，保留文件名/下载语义；默认脱敏，secrets=true 才包含 API Key。
+  exportConfig:     async secrets => {
+    const response = await fetch(`${apiRoot}/config/export?secrets=${secrets ? 1 : 0}`, { credentials: 'include' })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || `导出失败: ${response.status}`)
+    }
+    return response.blob()
+  },
   // 整份配置使用 providers[].models[]、models.{chat,compact,title,task} 和 compact.threshold。
   updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
   // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。

@@ -55,6 +55,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 ```text
 .agent/
   config.json          模型服务、按任务的默认模型、MCP、权限、提示词、压缩阈值
+  config-backups/      配置自动备份，保留最近 20 份
   sessions/<id>/
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
     history.json       消息和回退栈
@@ -317,6 +318,11 @@ bun start
 | `GET` | `/config/meta` | 按任务的模型标签：`models` |
 | `PATCH` | `/config/set` | 保存后的完整配置 |
 | `POST` | `/config/test` | `{ provider?, model? }`，真实请求一次模型 |
+| `GET` | `/config/backups` | 自动配置备份列表，按时间倒序 |
+| `GET` | `/config/backups/{id}` | 备份元数据和脱敏配置；不返回 API Key |
+| `POST` | `/config/restore` | `{ id }`，恢复前自动备份当前配置 |
+| `GET` | `/config/export?secrets=0\|1` | 下载配置；默认脱敏，`1` 才包含明文密钥 |
+| `POST` | `/config/import` | `{ config }`，整体导入；脱敏字段保留同名供应商现有密钥 |
 
 ### 工具
 

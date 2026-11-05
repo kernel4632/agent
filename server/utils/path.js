@@ -56,6 +56,7 @@ const userHome = () => process.env.AGENT_DISCOVERY_HOME || homedir()
 
 // --- 全局配置 ---
 const config = () => join(home(), 'config.json')
+const configBackups = () => join(home(), 'config-backups')
 
 // --- 会话目录：每条会话一个目录，元数据、历史和设置分开放 ---
 const sessions = () => join(home(), 'sessions')
@@ -88,6 +89,7 @@ export default {
     lock, unlock,
     userHome,
     config,
+    configBackups,
     sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,
     tools, modelCatalog, processes, skills, skillsState, projectSkills,
 }
