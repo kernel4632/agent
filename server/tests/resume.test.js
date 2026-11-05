@@ -92,6 +92,24 @@ const setup = async () => {
 }
 
 describe('继续被中断的助手', () => {
+    test('缺 history/settings 的会话仍能打开和删除', async () => {
+        await withHome(async root => {
+            const sessionId = await setup()
+            await rm(join(root, 'sessions', sessionId, 'history.json'), { force: true })
+            await rm(join(root, 'sessions', sessionId, 'settings.json'), { force: true })
+            History.remove({ sessionId })
+            Agent.runtime().clear()
+
+            const session = await Session.read({ sessionId })
+            expect(session.history).toEqual([])
+            expect(session.settings).toEqual({ reasoning: 'auto' })
+
+            const removed = await Session.remove({ sessionId })
+            expect(removed.ok).toBe(true)
+            expect(await Bun.file(join(root, 'sessions', sessionId, 'meta.json')).exists()).toBe(false)
+        })
+    })
+
     test('手动压缩返回文本并把 compact-finish 用量写入 compact 历史', async () => {
         await withHome(async () => {
             const sessionId = await setup()

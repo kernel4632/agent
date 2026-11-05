@@ -24,14 +24,30 @@ import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 
 // --- 从磁盘读一条会话进内存；只认当前形状 ---
+// 旧版本/测试可能只留下 meta.json，历史或设置文件缺失时按空会话恢复，
+// 否则会话列表能看到、点进去却报 ENOENT，删除也会被同一步挡住。
+const readSessionFile = async (file, fallback, label) => {
+    try {
+        return await Bun.file(file).json()
+    } catch (error) {
+        if (error?.code !== 'ENOENT' && !String(error?.message || '').includes('ENOENT')) {
+            console.warn(`[session] ${label} 读取失败，按空数据恢复：${error.message}`)
+        }
+        return fallback
+    }
+}
+
 const load = async sessionId => {
     if (store.sessions[sessionId]) return store.sessions[sessionId]
 
     const metaFile = Bun.file(Path.meta(sessionId))
     if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
     const meta = await metaFile.json()                                // 当前形状的会话资料
-    const history = await Bun.file(Path.history(sessionId)).json()    // 当前形状的消息和回退栈
-    const settings = await Bun.file(Path.settings(sessionId)).json()  // 当前形状的运行设置
+    const rawHistory = await readSessionFile(Path.history(sessionId), { messages: [], redo: [] }, 'history.json')
+    const settings = await readSessionFile(Path.settings(sessionId), { reasoning: 'auto' }, 'settings.json')
+    const history = rawHistory && Array.isArray(rawHistory.messages)
+        ? { messages: rawHistory.messages, redo: Array.isArray(rawHistory.redo) ? rawHistory.redo : [] }
+        : { messages: [], redo: [] }
 
     const session = {
         id: meta.id,
