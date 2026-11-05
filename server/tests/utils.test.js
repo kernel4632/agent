@@ -346,6 +346,8 @@ describe('server health and history', () => {
             const status = await response.json()
             expect(status.ok).toBe(true)
             expect(typeof status.version).toBe('string')
+            expect(status.targetVersion).toBe(status.version)
+            expect(status.restartRequired).toBe(false)
         })
     })
 

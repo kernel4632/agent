@@ -1,0 +1,41 @@
+/* 待重启提示：贴在顶栏下方，明显但不抢对话内容的焦点。 */
+.restart-notice {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--la-warning) 28%, transparent);
+  background: color-mix(in srgb, var(--la-warning) 10%, var(--la-bg));
+  color: var(--la-text);
+}
+.restart-notice.is-error {
+  border-bottom-color: color-mix(in srgb, var(--la-danger) 30%, transparent);
+  background: color-mix(in srgb, var(--la-danger) 8%, var(--la-bg));
+}
+.restart-notice__icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--la-warning) 16%, transparent);
+  color: var(--la-warning);
+}
+.restart-notice.is-error .restart-notice__icon {
+  background: color-mix(in srgb, var(--la-danger) 14%, transparent);
+  color: var(--la-danger);
+}
+.restart-notice__copy { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; font-size: 12.5px; line-height: 19px; }
+.restart-notice__copy strong { flex: none; color: var(--la-text); font-size: 13px; font-weight: 600; }
+.restart-notice__copy span { min-width: 0; overflow: hidden; color: var(--la-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.restart-notice-enter-active, .restart-notice-leave-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
+.restart-notice-enter-from, .restart-notice-leave-to { opacity: 0; transform: translateY(-4px); }
+@media (max-width: 767px) {
+  .restart-notice { align-items: flex-start; padding: 8px 12px; }
+  .restart-notice__copy { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .restart-notice__copy span { overflow: visible; white-space: normal; }
+}

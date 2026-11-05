@@ -309,7 +309,7 @@ bun start
 
 | 方法 | 地址 | 结果 |
 | --- | --- | --- |
-| `GET` | `/health` | `{ "ok": true, "version": "x.y.z", "sessions": 2, "running": 1 }` |
+| `GET` | `/health` | `{ "ok": true, "version": "运行版本", "targetVersion": "代码版本", "restartRequired": false, "sessions": 2, "running": 1 }` |
 
 ### 配置
 

@@ -25,6 +25,7 @@ export async function backend(page, { configured = true } = {}) {
   }
   let backups = []
   let sessionGroups = []
+  let healthState = { ok: true, version: 'test', targetVersion: 'test', restartRequired: false }
   const rememberConfig = () => {
     const serialized = JSON.stringify(config)
     backups.unshift({
@@ -244,7 +245,7 @@ export async function backend(page, { configured = true } = {}) {
         return json({ groups: sessionGroups })
       }
     }
-    if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
+    if (path === '/health') return json({ ...healthState, sessions: sessions.size, running: 0 })
     if (path === '/tool/kinds') return json([
       { kind: 'read', label: '读取', hint: '读文件、搜索不用再问' },
       { kind: 'write', label: '写入', hint: '改文件、打补丁不用问' },
@@ -424,7 +425,7 @@ export async function backend(page, { configured = true } = {}) {
     }
     return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
-  return { calls, sessions, errors, emit, config: () => config }
+  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } } }
 }
 
 // 手机没有常驻主页，会话列表在左侧抽屉；桌面横向布局下抽屉常驻、菜单按钮隐藏。

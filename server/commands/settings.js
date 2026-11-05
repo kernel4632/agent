@@ -20,7 +20,9 @@ import Config from '../features/config.js'
 import Tool from '../features/tool.js'
 
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
-let cachedVersion = null
+// 进程启动时读一次版本并固定下来；之后 package.json 再变，health 才能对比出“代码已更新但进程未重启”。
+const runtimeVersion = await Bun.file(packageFile).json().then(config => config.version).catch(() => '')
+let cachedVersion = runtimeVersion || null
 
 // --- 配置读写与界面元数据：直接交给 feature，不在这里转手处理 ---
 const { MODELS, read, set, get, meta } = Config
@@ -38,10 +40,31 @@ const restore = body => Config.restore(body)
 const exportConfig = query => Config.export(query)
 const importConfig = body => Config.import(body)
 
-// --- 读取后端版本 ---
+// --- 读取后端版本：运行版本在进程启动时固定，目标版本每次读仓库文件 ---
 const version = async () => {
     cachedVersion ??= (await Bun.file(packageFile).json()).version
     return cachedVersion
 }
 
-export default { MODELS, read, set, get, meta, test, version, listTools, toolKinds, backups, readBackup, restore, exportConfig, importConfig }
+const targetVersion = async () => {
+    try {
+        return (await Bun.file(packageFile).json()).version
+    } catch {
+        return version()
+    }
+}
+
+const health = async () => {
+    const running = await version()
+    const target = await targetVersion()
+    return {
+        ok: true,
+        version: running,
+        targetVersion: target,
+        restartRequired: Boolean(running && target && running !== target),
+        sessions: 0,
+        running: 0,
+    }
+}
+
+export default { MODELS, read, set, get, meta, test, version, targetVersion, health, listTools, toolKinds, backups, readBackup, restore, exportConfig, importConfig }

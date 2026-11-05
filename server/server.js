@@ -43,8 +43,7 @@ app.onError(({ error, set }) => {
 
 // --- 服务状态 ---
 app.get('/health', async () => ({
-    ok: true,
-    version: await Settings.version(),
+    ...await Settings.health(),
     sessions: Session.count(),
     running: Session.runningCount(),
 }))

@@ -14,6 +14,7 @@ import Sidebar from './components/navigation/Sidebar.vue'
 import TopBar from './components/navigation/TopBar.vue'
 import CommandPalette from './components/navigation/CommandPalette.vue'
 import Toast from './components/feedback/Toast.vue'
+import RestartNotice from './components/feedback/RestartNotice.vue'
 import { shortcutListener } from './utils/shortcuts.js'
 import { Appearance } from './commands/appearance.js'
 import { Session } from './commands/session.js'
@@ -174,6 +175,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
           @settings="openSettings()"
           @update:todo-open="todoOpen = $event"
         />
+        <RestartNotice />
 
         <main class="app-main">
           <ChatView

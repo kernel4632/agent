@@ -1501,6 +1501,23 @@ test('conversation rail jumps between user messages and expands lazy history', a
   expect(mock.errors).toEqual([])
 })
 
+test('restart notice shows stale server version and clears after check', async ({ page }) => {
+  const mock = await backend(page)
+  mock.setHealth({ version: '0.1.0', targetVersion: '0.2.0', restartRequired: true })
+  await page.goto('/')
+  const notice = page.locator('.restart-notice')
+  await expect(notice).toContainText('需要重启服务')
+  await expect(notice).toContainText('运行版本 0.1.0')
+  await expect(notice).toContainText('代码版本 0.2.0')
+  await expect(notice.getByRole('button', { name: '重新检查', exact: true })).toBeVisible()
+  await expect(notice.getByRole('button', { name: /重启/ })).toHaveCount(0)
+
+  mock.setHealth({ version: '0.2.0', targetVersion: '0.2.0', restartRequired: false })
+  await notice.getByRole('button', { name: '重新检查', exact: true }).click()
+  await expect(notice).toBeHidden()
+  expect(mock.errors).toEqual([])
+})
+
 test('long attachment names stay on one line in the composer', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
