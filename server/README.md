@@ -22,7 +22,7 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 
 根目录不放业务代码。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
 
-Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
+Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
 
 0.30 起不再有 `maxSteps` / `step-limit`，循环轮数不设上限；运行中修改 `agent.config`（模型、思考强度、system、工具表）会在下一笔请求生效。`PATCH /session/model/:sessionId` 和保存思考强度不再要求任务空闲。
 
@@ -133,7 +133,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.2**（[仓库](https://github
 
 ### 压缩
 
-上下文用到 `config.compact.threshold`（默认 0.8）时自动压缩。手动压缩走 `POST /session/compact/{sessionId}`。压缩模型可以用 `models.compact` 单独配置；它只换连接，上下文预算仍按主模型算。
+上下文用到 `config.compact.threshold`（默认 0.8）时自动压缩。core 0.30.4 的估算把媒体块单独计费：图片每张按固定 token 算，不再让 base64 字符数虚增上下文；压缩触发比例与界面上显示的真实用量一致。手动压缩走 `POST /session/compact/{sessionId}`。压缩模型可以用 `models.compact` 单独配置；它只换连接，上下文预算仍按主模型算。
 
 ## 工具
 
