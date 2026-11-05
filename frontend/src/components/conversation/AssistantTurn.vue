@@ -137,12 +137,13 @@ const targetedMessage = computed(() => targeted(targetId.value) || defaultTarget
 const rollbackTarget = computed(() => targetedMessage.value)
 const forkTarget = computed(() => targetedMessage.value)
 const menuItems = computed(() => {
-  const items = [{ value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value }]
-  if (rollbackTarget.value && forkTarget.value) {
-    items.push({ value: 'rollback', label: '回退到这条回复', icon: 'undo', disabled: props.running })
-    items.push({ value: 'fork', label: '从这里分支', icon: 'branch', disabled: props.running })
-  }
-  return items
+  // 任务运行中仍显示回退/分支：分支由服务端直接做（只读快照），回退在确认后先停止任务再退。
+  if (!rollbackTarget.value) return [{ value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value }]
+  return [
+    { value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value },
+    { value: 'rollback', label: '回退到这条回复', icon: 'undo' },
+    { value: 'fork', label: '从这里分支', icon: 'branch' },
+  ]
 })
 
 function onMenu(action) {
@@ -169,6 +170,7 @@ function clearTarget() { targetId.value = null; emit('close') }
       :items="menuItems"
       :target-id="rollbackTarget?.id || null"
       label="助手消息操作"
+      :running="running"
       :rollback-target="rollbackTarget"
       :rollback-preview="rollbackPreview"
       @request-open="resolveTarget"

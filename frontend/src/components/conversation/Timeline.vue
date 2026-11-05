@@ -320,8 +320,9 @@ onBeforeUnmount(() => {
 const canRollback = message => isSavedMessage(message)
 
 // 右键打开聚光时就取代价预览：用户点“回退”切换到确认态时代价已经在了。
+// 任务运行中也能预览：确认卡片会写“会先停止当前任务”，真正回退前由 Chat.stop 停掉。
 async function requestRollback(message) {
-  if (!canRollback(message) || session.value?.status === 'running') return
+  if (!canRollback(message)) return
   rollbackTarget.value = message
   rollbackPreview.value = await History.previewRollback(session.value.id, message.id)
 }
@@ -331,7 +332,13 @@ function clearRollback() {
   rollbackPreview.value = null
 }
 async function confirmRollback(restoreFiles) {
-  await History.rollbackMessage(session.value.id, rollbackTarget.value?.id, restoreFiles)
+  const sessionID = session.value.id
+  // 任务还在跑时先停止：回退请求会被 409 拒绝，等待落盘后再退，历史才是完整快照。
+  if (session.value.status === 'running') {
+    const { Chat } = await import('../../commands/chat.js')
+    await Chat.stop(sessionID)
+  }
+  await History.rollbackMessage(sessionID, rollbackTarget.value?.id, restoreFiles)
   clearRollback()
 }
 
@@ -353,7 +360,7 @@ function userMenuItems(message) {
 function onUserMenu(message, action) {
   if (action === 'copy') copyMessage(message.displayContent ?? message.content)
   else if (action === 'rollback') requestRollback(message)
-  else if (action === 'fork') forkFrom(message)
+  else if (action === 'fork') { clearRollback(); forkFrom(message) }
 }
 
 // 继续入口已经合并到输入框的发送按钮。
@@ -376,6 +383,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
           :items="userMenuItems(turn.messages[0])"
           :target-id="turn.messages[0].id"
           label="消息操作"
+          :running="session.status === 'running'"
           :rollback-target="rollbackTarget"
           :rollback-preview="rollbackPreview"
           @request-open="event => requestRollback(turn.messages[0])"

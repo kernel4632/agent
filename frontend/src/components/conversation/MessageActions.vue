@@ -5,7 +5,7 @@
 目标消息由父组件解析：这里把触发事件原样抛上去，父组件决定框哪一条（含落点无效时退回默认目标）。
 调用示例：
 <MessageActions :items="items" :target-id="targetId"
-  :rollback-target="target" :rollback-preview="preview" label="助手消息操作"
+  :rollback-target="target" :rollback-preview="preview" :running="running" label="助手消息操作"
   @request-open="resolveTarget" @close="clearRollback" @action="onMenu" @rollback-confirm="confirmRollback">
   <slot />
 </MessageActions>
@@ -22,6 +22,7 @@ const props = defineProps({
   label: { type: String, default: '消息操作' },
   rollbackTarget: { type: Object, default: null },           // 父组件收到回退动作后设置；角色决定确认标题
   rollbackPreview: { type: Object, default: null },          // 后端代价预览；清空（成功/取消）时关闭确认态
+  running: Boolean,                                          // 任务进行中；确认卡片会写“会先停止当前任务”
 })
 const emit = defineEmits(['request-open', 'close', 'action', 'rollback-confirm'])
 
@@ -42,7 +43,9 @@ const confirmSummary = computed(() => {
   if (!props.rollbackPreview) return '此消息及之后的内容将从对话中回退。'
   const calls = props.rollbackPreview.toolCalls?.length || 0
   const base = `从这条消息开始的 ${props.rollbackPreview.messages} 条对话会被去掉`
-  return calls ? `${base}，随它一起回退的还有 ${calls} 次工具调用，你可以在发送新消息前撤销这次回退。` : `${base}，你可以在发送新消息前撤销这次回退。`
+  const callsPart = calls ? `，随它一起回退的还有 ${calls} 次工具调用` : ''
+  const stopPart = props.running ? '。当前任务会先停止' : ''
+  return `${base}${callsPart}${stopPart}，你可以在发送新消息前撤销这次回退。`
 })
 const dialogLabel = computed(() => mode.value === 'confirm' ? question.value : props.label)
 
