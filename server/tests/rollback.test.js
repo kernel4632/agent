@@ -147,6 +147,102 @@ describe('工具级回退', () => {
     })
 })
 
+describe('助手块回退的粒度', () => {
+    // 一次运行按步骤落多条助手消息，工具结果夹在中间；回退单位是“那条消息+它的工具”。
+    const seedRun = async () => {
+        await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
+        const { sessionId } = await Session.create({ title: 'Assistant block' })
+        const add = message => History.add({ sessionId, message })
+        const user = await add(AgentCore.history.user({ content: '连着做三步' }))
+        const a1 = await add({ id: 'a1', role: 'assistant', content: [{ type: 'text', text: '第一步' }, { type: 'tool-call', toolCallId: 'call-1', toolName: 'write_file', input: { path: 'one.txt', content: '1' } }] })
+        const t1 = await add({ id: 't1', role: 'tool', content: [{ type: 'tool-result', toolCallId: 'call-1', toolName: 'write_file', output: { type: 'text', value: 'ok' } }] })
+        const a2 = await add({ id: 'a2', role: 'assistant', content: [{ type: 'text', text: '第二步' }, { type: 'tool-call', toolCallId: 'call-2', toolName: 'write_file', input: { path: 'two.txt', content: '2' } }] })
+        const t2 = await add({ id: 't2', role: 'tool', content: [{ type: 'tool-result', toolCallId: 'call-2', toolName: 'write_file', output: { type: 'text', value: 'ok' } }] })
+        const a3 = await add({ id: 'a3', role: 'assistant', content: [{ type: 'text', text: '完成' }] })
+        await History.save(sessionId)
+        return { sessionId, user, a1, t1, a2, t2, a3 }
+    }
+
+    test('回退中间的助手消息只撤它自己和它附带的工具结果', async () => {
+        await withHome(async () => {
+            const { sessionId, user, a2 } = await seedRun()
+            const preview = await Session.rollbackPreview({ sessionId, messageId: a2.messageId })
+            expect(preview.messages).toBe(2)                               // a2 和它后面的 a3，工具结果不算
+            expect(preview.toolCalls).toEqual(['call-2'])
+
+            await Session.rollback({ sessionId, messageId: a2.messageId, files: false })
+            const ids = (await Session.read({ sessionId })).history.map(message => message.id)
+            expect(ids).toEqual([user.message.id, 'a1', 't1'])
+
+            // 撤销回退后原样放回末尾，顺序不变。
+            await Session.redo({ sessionId, files: false })
+            expect((await Session.read({ sessionId })).history.map(message => message.id))
+                .toEqual([user.message.id, 'a1', 't1', 'a2', 't2', 'a3'])
+        })
+    })
+
+    test('回退最后一条助手消息只撤它自己', async () => {
+        await withHome(async () => {
+            const { sessionId, a3 } = await seedRun()
+            const preview = await Session.rollbackPreview({ sessionId, messageId: a3.messageId })
+            expect(preview.messages).toBe(1)
+            expect(preview.toolCalls).toEqual([])
+
+            await Session.rollback({ sessionId, messageId: a3.messageId, files: false })
+            const ids = (await Session.read({ sessionId })).history.map(message => message.id)
+            expect(ids).toHaveLength(5)
+            expect(ids).not.toContain('a3')
+        })
+    })
+
+    test('回退用户消息仍然是这条和之后的全部消失', async () => {
+        await withHome(async () => {
+            const { sessionId, user } = await seedRun()
+            const preview = await Session.rollbackPreview({ sessionId, messageId: user.messageId })
+            expect(preview.messages).toBe(4)                               // u、a1、a2、a3
+            expect(preview.toolCalls).toEqual(['call-1', 'call-2'])
+
+            await Session.rollback({ sessionId, messageId: user.messageId, files: false })
+            expect((await Session.read({ sessionId })).history).toHaveLength(0)
+        })
+    })
+
+    test('回退带工具的助手消息会把它的文件改动一起恢复', async () => {
+        await withHome(async () => {
+            const target = await tempFile('agent-block-file', 'before')
+            const { sessionId, a2 } = await seedRun()
+            await File.snapshot({ sessionId, messageId: a2.message.id, toolCallId: 'call-2', toolName: 'write_file', input: { path: target, content: '' } })
+            await writeFile(target, 'after')
+
+            const result = await Session.rollback({ sessionId, messageId: a2.messageId })
+            expect(result.restored).toContain(resolve(target))
+            expect(await readFile(target, 'utf8')).toBe('before')
+
+            // 撤销回退把文件放回改动后的样子。
+            await Session.redo({ sessionId })
+            expect(await readFile(target, 'utf8')).toBe('after')
+
+            await rm(target, { force: true })
+        })
+    })
+
+    test('没有调用 id 的旧快照按消息归属兜底，不会被误恢复', async () => {
+        await withHome(async () => {
+            const target = await tempFile('agent-legacy-file', 'before')
+            const { sessionId, user, a2 } = await seedRun()
+            // 旧版快照只记了触发运行的那条用户消息，没有真实调用 id。
+            await File.snapshot({ sessionId, messageId: user.message.id, toolCallId: '', toolName: 'write_file', input: { path: target, content: '' } })
+            await writeFile(target, 'after')
+
+            const result = await Session.rollback({ sessionId, messageId: a2.messageId })
+            expect(result.restored).toEqual([])
+            expect(await readFile(target, 'utf8')).toBe('after')
+
+            await rm(target, { force: true })
+        })
+    })
+})
+
 describe('权限规则的拒绝动作', () => {
     test('deny 直接拒绝，不会留下等待中的审批', async () => {
         await withHome(async () => {

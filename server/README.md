@@ -398,14 +398,14 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
-| `POST` | `/session/rollback/preview/:sessionId` | `{ "messageId" }` | `{ "messages": 4, "files": [...] }` |
+| `POST` | `/session/rollback/preview/:sessionId` | `{ "messageId" }` | `{ "messages": 4, "toolCalls": ["call-1"], "files": [...] }` |
 | `POST` | `/session/rollback/:sessionId` | `{ "messageId", "files?" }` | 回退后的完整会话，另带 `restored` |
 | `POST` | `/session/rollback/tool/:sessionId` | `{ "toolCallId", "files?" }` | 只退某次工具调用改的文件，另带 `restored` |
 | `POST` | `/session/redo/:sessionId` | `{ "files?" }` | 撤销最近一次回退，另带 `restored` |
 | `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：`path`、`before`、`after`、`added`、`deleted` |
 | `GET` | `/session/tools/:sessionId` | 无 | 每次改过文件的工具调用，用来列出可回退的点 |
 
-`files` 传 `false` 只退对话，不动磁盘。文件快照按工具调用分组，同一份内容只备份一次；它只由文件工具自己维护。
+`files` 传 `false` 只退对话，不动磁盘。回退任何一条消息时，它和它之后的对话都会退掉；预览的 `toolCalls` 是这次会一起回退的工具调用，文件恢复按调用 id 精确匹配，没有调用 id 的旧快照退回按消息归属判断。文件快照按工具调用分组，同一份内容只备份一次；它只由文件工具自己维护。
 
 ### Agent
 

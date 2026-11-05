@@ -156,7 +156,7 @@ const add = async ({ sessionId, message }) => {
     return record
 }
 
-// --- 回退到这条消息之前 ---
+// --- 回退到这条消息之前；不管退哪条消息，它和它之后的全部都会消失 ---
 const rollback = async ({ sessionId, messageId }) => {
     const session = store.sessions[sessionId]
     const index = session.history.messages.findIndex(record => record.messageId === messageId)

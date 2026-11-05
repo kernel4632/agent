@@ -207,11 +207,15 @@ const restoreTool = async ({ sessionId, toolCallId }) => {
     return restore({ sessionId, keepIds: manifest.checkpoints.slice(0, index).map(entry => entry.id) })
 }
 
-// --- 退回某条消息之前 ---
-const restoreMessage = async ({ sessionId, keepMessages }) => {
+// --- 退回某条消息之前；点名的工具调用一起退，没有调用 id 的旧快照按消息归属兜底 ---
+const restoreMessage = async ({ sessionId, keepMessages, dropToolCalls = [] }) => {
     const manifest = await loadManifest(sessionId)
-    const keepIds = manifest.checkpoints.filter(entry => keepMessages.includes(entry.messageId)).map(entry => entry.id)
-    return restore({ sessionId, keepIds })
+    const droppedCalls = new Set(dropToolCalls)
+    const keepIds = new Set(manifest.checkpoints
+        .filter(entry => keepMessages.includes(entry.messageId))
+        .filter(entry => !entry.toolCallId || !droppedCalls.has(entry.toolCallId))
+        .map(entry => entry.id))
+    return restore({ sessionId, keepIds: [...keepIds] })
 }
 
 // --- 只去掉记录，不动磁盘上的文件 ---

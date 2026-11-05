@@ -283,14 +283,17 @@ const toolChanges = async ({ sessionId }) => {
 const rollbackPreview = async ({ sessionId, messageId }) => {
     await History.load(sessionId)
     const plan = Rollback.preview({ history: History, sessionId, messageId })
+    const droppedCalls = new Set(plan.toolCalls)
     const entries = await Tool.entries({ sessionId })
     const dropped = new Set()
     for (const entry of entries) {
-        if (plan.keep.includes(entry.messageId)) continue
+        // 新快照记着真实调用 id，按它精确匹配；没有调用 id 的旧快照退回按消息归属判断。
+        const hit = entry.toolCallId ? droppedCalls.has(entry.toolCallId) : !plan.keep.includes(entry.messageId)
+        if (!hit) continue
         for (const path of entry.paths) dropped.add(path)
     }
     const files = (await Tool.diff({ sessionId })).filter(file => dropped.has(file.path))
-    return { messages: plan.messages, files }
+    return { messages: plan.messages, toolCalls: plan.toolCalls, files }
 }
 
 // --- 消息和文件一起回退，也可以只退消息 ---
@@ -300,7 +303,7 @@ const rollback = async ({ sessionId, messageId, files = true }) => {
 
     // 先算出回退后还留哪些消息块，再恢复文件；文件失败时消息保持原样。
     const plan = Rollback.preview({ history: History, sessionId, messageId })
-    const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep }) : []
+    const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
     await Rollback.messages({ history: History, agent: Agent, sessionId, messageId })
     return { ...await read({ sessionId }), restored }
 }

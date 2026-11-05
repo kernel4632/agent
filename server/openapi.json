@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.58.8",
+    "version": "0.58.9",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -2007,14 +2007,22 @@
         },
         "responses": {
           "200": {
-            "description": "会消失的消息条数和会被恢复的文件",
+            "description": "会消失的消息条数、牵连的工具调用和会被恢复的文件",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "messages": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "会消失的对话消息条数，工具结果不算"
+                    },
+                    "toolCalls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "这次回退会一起撤销的工具调用 id"
                     },
                     "files": {
                       "type": "array",
@@ -2046,7 +2054,7 @@
           "Session"
         ],
         "summary": "回退到某条消息之前",
-        "description": "files=false 时只退对话，不碰磁盘上的文件。",
+        "description": "这条消息和它之后的对话都会退掉；随消息回退的文件快照按调用 id 精确匹配。files=false 时只退对话，不碰磁盘上的文件。",
         "operationId": "sessionRollback",
         "parameters": [
           {

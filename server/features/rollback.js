@@ -13,13 +13,23 @@
 
 import fail from '../utils/fail.js'
 
-// --- 回退之前先算清楚会消失多少条消息 ---
+// --- 一次模型回复里的工具调用 id；文件恢复按它判断要一起退掉哪些快照 ---
+const toolCallIdsOf = message => (Array.isArray(message.content) ? message.content : [])
+    .filter(part => part?.type === 'tool-call')
+    .map(part => part.toolCallId)
+    .filter(Boolean)
+
+// --- 回退之前先算清楚会消失多少条消息、牵连哪些工具调用 ---
+// 不管退哪条消息，它和它之后的全部都会消失；工具结果不算对话消息，但它的快照要跟着退。
 const preview = ({ history, sessionId, messageId }) => {
     const messages = history.get({ sessionId })                    // 当前会话的完整消息
     const index = messages.findIndex(message => message.messageId === messageId) // 目标消息在历史里的位置
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
+
+    const dropped = messages.slice(index)                          // 会消失的全部记录
     return {
-        messages: messages.length - index,                         // 会一起消失的消息条数
+        messages: dropped.filter(message => message.role !== 'tool').length, // 会消失的对话消息（工具结果不算）
+        toolCalls: dropped.flatMap(toolCallIdsOf),                 // 一起回退的工具调用
         keep: messages.slice(0, index).map(message => message.id), // 文件恢复要保留的范围
     }
 }
