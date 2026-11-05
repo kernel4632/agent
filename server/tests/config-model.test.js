@@ -248,13 +248,14 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('模型请求按 Roo Code 的无限退避策略重试', async () => {
+    test('模型请求使用 agent-core 的无限重试，只把单次退避上限收紧到 120s', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm1', name: 'm1' }] }] })
             const config = await resolve({ provider: 'local', model: 'm1' })
-            expect(config.retryBaseDelay).toBe(5000)
-            expect(config.retryMaxDelay).toBe(600000)
-            expect(config.retryMaxElapsed).toBe(Infinity)
+            expect(config.retryMaxDelay).toBe(120000)
+            // 基数和总时长不覆盖，继续使用 core 的 5000ms / 无限总时长。
+            expect(config.retryBaseDelay).toBeUndefined()
+            expect(config.retryMaxElapsed).toBeUndefined()
         })
     })
 

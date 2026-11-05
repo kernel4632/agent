@@ -148,11 +148,9 @@ const resolveFor = async ({ session, settings, target }) => {
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
-        // 重试照抄 Roo Code：首次 5s，之后翻倍，单次最多 10 分钟，总时长不限。
-        // 取消和上下文超长由 core 单独处理；其余错误（包括 401/429/5xx）一直重试。
-        retryBaseDelay: 5000,
-        retryMaxDelay: 600000,
-        retryMaxElapsed: Infinity,
+        // 重试由 agent-core 统一处理：无限次数、5s 起指数退避、总时长不限。
+        // 这里只把单次退避上限从 core 0.30.2 的默认 10 分钟收紧到 120s，其余全用 core 默认。
+        retryMaxDelay: 120000,
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）；没配规则就只有用户提示词。
         system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
