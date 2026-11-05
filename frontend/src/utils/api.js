@@ -92,6 +92,7 @@ export const AgentAPI = {
   // 每次改过文件的工具调用；回退可以退到其中任意一次之前。
   getToolCalls:     (sessionID)                 => request(`/session/tools/${encodeURIComponent(sessionID)}`),
   // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
+  // 回退任何一条消息时，它和它之后的对话都会退掉；preview 返回这次一起回退的工具调用。
   previewRollback:  (sessionID, messageId)      => request(`/session/rollback/preview/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
   rollback:         (sessionID, messageId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files }),
   // 工具级回退：只退这一次工具调用改的文件，对话不动。

@@ -20,7 +20,9 @@ const restoreFiles = ref(true)
 const question = computed(() => props.target?.role === 'assistant' ? '回到这条回复之前？' : '回到这条消息之前？')
 const summary = computed(() => {
   if (!props.preview) return '此消息及之后的内容将从对话中回退。'
-  return `从这条消息开始的 ${props.preview.messages} 条对话会被去掉，你可以在发送新消息前撤销这次回退。`
+  const calls = props.preview.toolCalls?.length || 0
+  const base = `从这条消息开始的 ${props.preview.messages} 条对话会被去掉`
+  return calls ? `${base}，随它一起回退的还有 ${calls} 次工具调用，你可以在发送新消息前撤销这次回退。` : `${base}，你可以在发送新消息前撤销这次回退。`
 })
 
 function show() {

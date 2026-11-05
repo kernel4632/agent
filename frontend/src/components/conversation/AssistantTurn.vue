@@ -28,6 +28,19 @@ const props = defineProps({
 })
 const emit = defineEmits(['rollback', 'fork'])
 
+// 右键落点决定回退/分支的目标消息：点在哪一步就归哪条助手消息；
+// 点在非步骤区域时退回整张卡片的默认目标（最后一条已落盘的消息）。
+const targetId = ref(null)
+// contextmenu 在冒泡阶段到这层也能收到；长按用捕获阶段，赶在打开菜单之前记下落点。
+const trackTarget = event => {
+  const element = event?.target instanceof Element ? event.target : null
+  targetId.value = element?.closest('[data-message-id]')?.getAttribute('data-message-id') || null
+}
+const targeted = messageId => {
+    const message = props.messages.find(item => item.id === messageId)
+    return message && actionable(message) ? message : null
+}
+
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
 const vAutoScroll = {
   mounted: element => { element.scrollTop = element.scrollHeight },
@@ -70,21 +83,20 @@ const steps = computed(() => {
           type: 'reasoning',
           text: entry.text,
           message,
+          messageId: message.id,
           streaming: message.isStreaming && entry.type === 'reasoning' && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
-        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text })
+        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text, messageId: message.id })
       } else if (entry.type === 'tool') {
         const tool = (message.tools || []).find(item => item.id === entry.toolId)
-        if (tool && !isFinishedStopTool(tool)) {
-          list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool })
-        }
+        if (tool && !isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool, messageId: message.id })
       } else if (entry.type === 'request') {
         const request = (message.requests || []).find(item => item.id === entry.requestId)
-        if (request) list.push({ key: `${message.id}-request-${index}`, type: 'request', request })
+        if (request) list.push({ key: `${message.id}-request-${index}`, type: 'request', request, messageId: message.id })
       } else if (entry.type === 'compact') {
-        list.push({ key: `${message.id}-compact-${index}`, type: 'compact', request: entry.request })
+        list.push({ key: `${message.id}-compact-${index}`, type: 'compact', request: entry.request, messageId: message.id })
       }
     })
   }
@@ -111,8 +123,11 @@ const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
 
-const rollbackTarget = computed(() => props.messages.find(actionable) || null)
-const forkTarget = computed(() => [...props.messages].reverse().find(actionable) || null)
+const defaultTarget = computed(() => [...props.messages].reverse().find(actionable) || null)
+// 落点在已落盘的消息上时用那一条，否则退回默认目标；分支和回退用同一个目标。
+const targetedMessage = computed(() => targeted(targetId.value) || defaultTarget.value)
+const rollbackTarget = computed(() => targetedMessage.value)
+const forkTarget = computed(() => targetedMessage.value)
 const menuItems = computed(() => {
   const items = [{ value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value }]
   if (rollbackTarget.value && forkTarget.value) {
@@ -133,7 +148,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 </script>
 
 <template>
-  <div class="assistant-message rikka-message rikka-message--assistant">
+  <div class="assistant-message rikka-message rikka-message--assistant" @pointerdown.capture="trackTarget" @contextmenu="trackTarget">
     <MessageActions :items="menuItems" :preview="content" role-label="助手回复" label="助手消息操作" @select="onMenu">
       <div v-if="visibleSteps.length" class="cot-card">
         <button v-if="canCollapse" type="button" class="cot-fold" :class="{ 'is-open': expandedSteps }" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
@@ -142,19 +157,20 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         </button>
         <div class="cot-steps">
           <template v-for="step in visibleSteps" :key="step.key">
-            <RequestStatus v-if="step.type === 'request'" :request="step.request" />
+            <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
             <template v-else-if="step.type === 'compact'">
-              <RequestStatus :request="step.request" kind="compact" />
+              <RequestStatus :data-message-id="step.messageId" :request="step.request" kind="compact" />
               <pre v-if="step.request.content || step.request.reasoning" v-auto-scroll class="compact-stream">{{ step.request.content || step.request.reasoning }}</pre>
             </template>
             <ReasoningStep
               v-else-if="step.type === 'reasoning'"
+              :data-message-id="step.messageId"
               :reasoning="step.text"
               :streaming="step.streaming"
               :started-at="step.message.startedAt"
               :finished-at="step.message.finishedAt"
             />
-            <div v-else-if="step.type === 'text'" class="cot-step cot-step--text">
+            <div v-else-if="step.type === 'text'" :data-message-id="step.messageId" class="cot-step cot-step--text">
               <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
               <div class="cot-step__main">
                 <div class="cot-step__body cot-step__body--text">
@@ -164,6 +180,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
             </div>
             <ToolCall
               v-else
+              :data-message-id="step.messageId"
               :tool="step.tool"
               :session-id="sessionId"
             />
