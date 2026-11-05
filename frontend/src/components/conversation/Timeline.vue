@@ -2,7 +2,7 @@
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
   用户消息和助手回复按轮排布；本组件拥有滚动、分批加载和消息操作接线。
-  按钮和图标按钮走 ui/；回退弹窗独立为 RollbackDialog，时间线只负责发起和确认。
+  按钮和图标按钮走 ui/；右键直接进聚光引导（MessageActions 内置），回退确认也在同一张卡片里。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
@@ -24,7 +24,6 @@ import MessageActions from './MessageActions.vue'
 import CompactionNotice from '../feedback/CompactionNotice.vue'
 
 import AssistantTurn from './AssistantTurn.vue'
-import RollbackDialog from './RollbackDialog.vue'
 import 'highlight.js/styles/github-dark.css'
 import 'katex/dist/katex.min.css'
 
@@ -78,7 +77,6 @@ watch(() => turns.value.length, length => {
 })
 const following = ref(savedView ? savedView.pinned : true)
 const rollbackTarget = ref(null)
-const rollbackDialog = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
 const topSentinel = ref(null)
@@ -321,16 +319,20 @@ onBeforeUnmount(() => {
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
 const canRollback = message => isSavedMessage(message)
 
+// 右键打开聚光时就取代价预览：用户点“回退”切换到确认态时代价已经在了。
 async function requestRollback(message) {
   if (!canRollback(message) || session.value?.status === 'running') return
   rollbackTarget.value = message
-  rollbackPreview.value = null
-  // 点开就已经能看到代价：多少条消息、哪些文件。等确认时再说太晚了。
-  rollbackDialog.value?.show()
   rollbackPreview.value = await History.previewRollback(session.value.id, message.id)
 }
+// 聚光关闭后清掉确认状态；回退成功由 History.rollbackMessage 刷新会话并弹提示。
+function clearRollback() {
+  rollbackTarget.value = null
+  rollbackPreview.value = null
+}
 async function confirmRollback(restoreFiles) {
-  if (await History.rollbackMessage(session.value.id, rollbackTarget.value.id, restoreFiles)) rollbackDialog.value?.close()
+  await History.rollbackMessage(session.value.id, rollbackTarget.value?.id, restoreFiles)
+  clearRollback()
 }
 
 // 从这条用户消息分出一个新对话，原对话不动。
@@ -372,10 +374,16 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
       <template v-else-if="turn.role === 'user'">
         <MessageActions
           :items="userMenuItems(turn.messages[0])"
-          :preview="turn.messages[0].displayContent ?? turn.messages[0].content"
+          :target-id="turn.messages[0].id"
+          :previews="{ [turn.messages[0].id]: turn.messages[0].displayContent ?? turn.messages[0].content }"
           role-label="你的消息"
           label="消息操作"
-          @select="onUserMenu(turn.messages[0], $event)"
+          :rollback-target="rollbackTarget"
+          :rollback-preview="rollbackPreview"
+          @request-open="event => requestRollback(turn.messages[0])"
+          @close="clearRollback"
+          @action="onUserMenu(turn.messages[0], $event)"
+          @rollback-confirm="confirmRollback"
         >
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user" :data-message-id="turn.messages[0].id">
@@ -398,8 +406,11 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
           :messages="turn.messages"
           :session-id="session.id"
           :running="session.status === 'running'"
+          :rollback-target="rollbackTarget"
+          :rollback-preview="rollbackPreview"
           @rollback="requestRollback"
           @fork="forkFrom"
+          @rollback-confirm="confirmRollback"
         />
       </template>
     </article>
@@ -407,12 +418,6 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
       <Icon name="down" :size="14" />
       回到最新
     </button>
-    <RollbackDialog
-      ref="rollbackDialog"
-      :target="rollbackTarget"
-      :preview="rollbackPreview"
-      @confirm="confirmRollback"
-    />
   </div>
 </template>
 

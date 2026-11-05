@@ -81,7 +81,9 @@ test('mocked conversation: create, stream, rename, persistence, rollback and del
   // 模型还没提出任务清单时，顶栏不显示清单按钮。
   await expect(page.getByRole('button', { name: '任务清单', exact: true })).toHaveCount(0)
   await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
+  // 右键直接进入聚光引导，卡片里选“回退”后原位切换成确认。
   await page.getByRole('button', { name: '回退到这条消息' }).click()
+  await expect(page.getByRole('heading', { name: '回到这条消息之前？', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('一个新的项目')
   await page.getByRole('button', { name: '撤销回退', exact: true }).click()
@@ -124,7 +126,6 @@ test('assistant reply block can be rolled back to that reply', async ({ page }) 
   await page.getByRole('button', { name: '回退到这条回复', exact: true }).click()
   await expect(page.getByRole('heading', { name: '回到这条回复之前？', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
-
   await expect.poll(() => mock.calls.find(call => call.path === '/session/rollback/session-1')?.body)
     .toEqual({ messageId: 'assistant-1', files: true })
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('')
@@ -1112,7 +1113,9 @@ test('message action forks the conversation at that message', async ({ page }, t
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
-  const actions = page.getByRole('dialog', { name: '消息操作', exact: true })
+  // 右键不再打开居中大菜单：直接进入聚光引导，卡片里显示这条消息的摘要。
+  await expect(page.getByRole('dialog', { name: '消息操作', exact: true })).toBeVisible()
+  const actions = page.locator('.rollback-spotlight__card')
   await expect(actions).toContainText('你的消息')
   await expect(actions).toContainText('你好')
   await screenshot(page, testInfo, 'message-actions')

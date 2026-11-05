@@ -321,11 +321,12 @@ test.describe('chat motion', () => {
 
     await watchMotion(page)
     await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
+    // 右键直接打开聚光引导；引导层和卡片进入时都要真的动。
     const actions = page.getByRole('dialog', { name: '消息操作', exact: true })
     await expect(actions).toBeVisible()
-    await waitForMotion(page, 'message-actions')
+    await waitForMotion(page, 'rollback-spotlight__card')
     const motion = await readMotion(page)
-    const card = moving(motion, 'message-actions__card')
+    const card = moving(motion, 'rollback-spotlight__card')
     expect(card.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
     expect(card.some(item => item.opacity !== '1' || item.transform !== 'none')).toBe(true)
     expect(card.some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)

@@ -2,8 +2,8 @@
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
 思考、工具和中间正文按发生顺序合成一张时间线卡片；完成任务/询问用户这类结束工具的结果才是正式回复，直接显示在卡片下方，不再套背景。
 没有结束工具时（停止、报错、断网）才把已经流出的正文当临时回复。
-右键或长按这一整轮，可以复制、回退或分支。
-调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" @rollback="..." @fork="..." />
+右键或长按这一整轮，直接打开聚光引导（见 MessageActions）：框住落点所在的那条消息和它的工具，卡片里复制/回退/分支。
+调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :rollback-target="..." :rollback-preview="..." @rollback="..." @fork="..." @rollback-confirm="..." />
 -->
 <script setup>
 import { Notice } from '../../commands/notice.js'
@@ -17,25 +17,22 @@ import { outputText } from '../../commands/tool.js'
 import { isFinishedStopTool } from '../../commands/history.js'
 import { isSavedMessage } from '../../commands/history.js'
 import MessageActions from './MessageActions.vue'
-import ReasoningStep from './ReasoningStep.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
+import ReasoningStep from './ReasoningStep.vue'
 import ToolCall from '../activity/ToolCall.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
+  rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
+  rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
-const emit = defineEmits(['rollback', 'fork'])
+const emit = defineEmits(['rollback', 'fork', 'rollback-confirm'])
 
 // 右键落点决定回退/分支的目标消息：点在哪一步就归哪条助手消息；
-// 点在非步骤区域时退回整张卡片的默认目标（最后一条已落盘的消息）。
+// 打开聚光时由 resolveTarget 从事件里解析（找不到时保留 null，退回默认目标）。
 const targetId = ref(null)
-// contextmenu 在冒泡阶段到这层也能收到；长按用捕获阶段，赶在打开菜单之前记下落点。
-const trackTarget = event => {
-  const element = event?.target instanceof Element ? event.target : null
-  targetId.value = element?.closest('[data-message-id]')?.getAttribute('data-message-id') || null
-}
 const targeted = messageId => {
     const message = props.messages.find(item => item.id === messageId)
     return message && actionable(message) ? message : null
@@ -62,8 +59,10 @@ const fallbackText = computed(() => props.messages
   .filter(Boolean)
   .join('\n\n'))
 const content = computed(() => finalText.value || fallbackText.value)
-// 正式气泡的归属：它来自带结束工具的那条消息；回退聚光用它把气泡框进范围。
+// 正式气泡的归属：它来自带结束工具的那条消息；没有结束工具时（textOnly）
+// 气泡显示的是最后一条消息流出的正文，回退聚光也按这条框住它。
 const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
+const bubbleMessageId = computed(() => finalMessage.value?.id || defaultTarget.value?.id || null)
 
 // 时间线按消息顺序排列：请求行、思考、非结束正文、工具步骤。
 // 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
@@ -140,18 +139,50 @@ const menuItems = computed(() => {
 })
 
 function onMenu(action) {
-  if (action === 'copy') copyMessage(content.value)
+  if (action === 'copy') copyMessage(previews.value[rollbackTarget.value?.id] ?? content.value)
   else if (action === 'rollback') emit('rollback', rollbackTarget.value)
   else if (action === 'fork') emit('fork', forkTarget.value)
 }
 
+// 聚光卡片里每条消息自己的摘要：正式气泡来自结束工具，其余消息显示正文或工具输出。
+const previews = computed(() => {
+  const map = {}
+  for (const message of props.messages) {
+    const stopTool = (message.tools || []).find(isFinishedStopTool)
+    const text = stopTool ? outputText(stopTool).trim() : String(message.content || '').trim()
+    if (text) map[message.id] = text
+  }
+  return map
+})
+
 // 复制只在本区域反馈，剪贴板工具不依赖页面。
 async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
+
+// 右键打开聚光：从落点解析目标消息，找不到时退回整轮默认目标（最后一条已落盘）。
+function resolveTarget(event) {
+  if (event?.target instanceof Element) targetId.value = event.target.closest('[data-message-id]')?.getAttribute('data-message-id') || targetId.value
+  return targetId.value
+}
+// 聚光关闭或回退结束就清掉落点，下一次右键重新解析。
+function clearTarget() { targetId.value = null; emit('close') }
 </script>
 
 <template>
-  <div class="assistant-message rikka-message rikka-message--assistant" @pointerdown.capture="trackTarget" @contextmenu="trackTarget">
-    <MessageActions :items="menuItems" :preview="content" role-label="助手回复" label="助手消息操作" @select="onMenu">
+  <div class="assistant-message rikka-message rikka-message--assistant">
+    <MessageActions
+      :items="menuItems"
+      :target-id="rollbackTarget?.id || null"
+      :previews="previews"
+      :fallback-preview="content"
+      role-label="助手回复"
+      label="助手消息操作"
+      :rollback-target="rollbackTarget"
+      :rollback-preview="rollbackPreview"
+      @request-open="resolveTarget"
+      @close="clearTarget"
+      @action="onMenu"
+      @rollback-confirm="emit('rollback-confirm', $event)"
+    >
       <div v-if="visibleSteps.length" class="cot-card">
         <button v-if="canCollapse" type="button" class="cot-fold" :class="{ 'is-open': expandedSteps }" :aria-expanded="expandedSteps" @click="expandedSteps = !expandedSteps">
           <Icon name="down" :size="14" />
@@ -190,7 +221,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         </div>
       </div>
 
-      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="finalMessage?.id">
+      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
         <Markdown :content="bubbleContent" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
