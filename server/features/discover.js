@@ -17,6 +17,13 @@ import Skills from '../utils/skills.js'
 const FILE_LIMIT = 16 * 1024 * 1024   // 有些客户端把整个项目表写进一个文件，给足余量
 const SERVER_LIMIT = 200
 
+// 宿主应用自带的内部 MCP 服务：不是用户配的通用工具，导入后在本应用里也跑不通，识别时直接过滤。
+// 特征：命令指向宿主自己的 exe（Codex 桌面端运行时），依赖宿主的私有管道和环境变量。
+const HOST_INTERNAL = [
+    /[\\/]WindowsApps[\\/]OpenAI\.Codex_/i,              // ChatGPT（Codex 桌面版）主程序
+    /[\\/]OpenAI[\\/]Codex[\\/]runtimes[\\/]cua_node/i,  // Codex 的 node_repl 运行时
+]
+
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 const textMap = value => isObject(value)
     ? Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === 'string'))
@@ -72,6 +79,9 @@ const normalizeServer = raw => {
     }
     return null
 }
+
+// --- 宿主内部服务：命令指向宿主自己的程序时跳过 ---
+const isHostInternal = definition => HOST_INTERNAL.some(pattern => pattern.test(String(definition.command || '')))
 
 // --- 回传前遮掉 env / headers 的值，只保留键名 ---
 const mask = value => {
@@ -157,6 +167,7 @@ const candidates = ({ cwd, home, env }) => {
         { id: 'claude-desktop-mac', app: 'Claude Desktop', path: join(mac, 'Claude', 'claude_desktop_config.json'), key: 'mcpServers' },
         { id: 'claude-desktop-linux', app: 'Claude Desktop', path: join(configHome, 'Claude', 'claude_desktop_config.json'), key: 'mcpServers' },
         { id: 'claude-code', app: 'Claude Code', path: join(home, '.claude.json'), key: 'mcpServers', projects: true },
+        { id: 'claude-settings', app: 'Claude Code（settings）', path: join(home, '.claude', 'settings.json'), key: 'mcpServers' },
         { id: 'cursor', app: 'Cursor', path: join(home, '.cursor', 'mcp.json'), key: 'mcpServers' },
         { id: 'cursor-project', app: 'Cursor（当前目录）', path: join(cwd, '.cursor', 'mcp.json'), key: 'mcpServers' },
         { id: 'vscode', app: 'VS Code', path: join(appData, 'Code', 'User', 'mcp.json'), key: 'servers' },
@@ -226,6 +237,7 @@ const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.
                 if (typeof name !== 'string' || !name.trim()) continue
                 const value = normalizeServer(raw)
                 if (!value) continue
+                if (isHostInternal(value)) continue             // 宿主内部服务过滤掉，不进识别列表
                 count += 1
                 const id = `${source.id}::${name}`
                 if (seen.has(id)) continue

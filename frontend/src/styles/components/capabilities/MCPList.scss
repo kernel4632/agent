@@ -43,10 +43,30 @@
 .mcp-row__copy small { overflow: hidden; color: var(--la-muted); font-size: 13px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
 .mcp-row__state { flex: none; color: var(--la-muted); font-size: 13px; line-height: 20px; }
 .mcp-row__state.is-on { color: var(--la-success); }
+// 起不来的服务：原因用危险色，和“已启用”区分开，用户一眼能找到
+.mcp-row__copy small.mcp-row__error { color: var(--la-danger); }
 .mcp-row__arrow { flex: none; color: var(--la-muted); }
 .mcp-list__empty { margin: 0; padding: 40px 20px; border-radius: 24px; background: var(--la-layer-01); color: var(--la-muted); text-align: center; font-size: 14px; }
 
 .mcp-detected { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+
+/* 批量操作条：sticky 吸顶，窄屏自动换行 */
+.mcp-bulk {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;                                         // 窄屏放不下时换行，不挤壅
+  gap: 8px 12px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: var(--la-layer-01);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+.mcp-bulk__count { color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.mcp-bulk__spacer { flex: 1; }
+.mcp-bulk .ui-button { min-height: 40px; white-space: nowrap; }  // 按钮文字保持单行不挤字
 .mcp-detected__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .mcp-detected__head h2 { margin: 0 0 4px; color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
 .mcp-detected__head p { margin: 0; color: var(--la-muted); font-size: 13px; line-height: 20px; }
@@ -69,5 +89,7 @@
   .mcp-row { min-height: 80px; padding: 12px 16px; }
   .mcp-row__state { display: none; }
   .mcp-detected__head { flex-direction: column; gap: 8px; }
-  .mcp-detected__row { align-items: flex-start; padding: 12px 16px; }
+  .mcp-detected__row { align-items: flex-start; flex-wrap: wrap; padding: 12px 16px; }
+  .mcp-bulk { top: 0; gap: 6px 10px; }                     // 窄屏换行后间距更紧
+  .mcp-bulk .ui-button { padding: 0 14px; }                 // 按钮变短，保证文字单行
 }

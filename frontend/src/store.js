@@ -14,6 +14,8 @@ export const DEFAULT_APPEARANCE = Object.freeze({
   contrast: 'standard',
   density: 0,
   motion: 'standard',
+  radius: 10,                                       // 控件圆角大小（px）
+  tint: 0,                                          // 背景着色强度 0~1（预留）
   strongFocus: false,
   reduceMotion: false,
 })

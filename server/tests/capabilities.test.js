@@ -13,6 +13,7 @@ import Agent from '../features/agent.js'
 import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
 import SkillFeature from '../features/skills.js'
 import Session from '../commands/session.js'
 import Skill from '../tools/skill.js'
@@ -219,6 +220,33 @@ describe('MCP 服务管理', () => {
             expect(typeof failed.error).toBe('string')
         })
     })
+
+    test('启动失败的 MCP 服务本次进程内跳过，并报出原因，但不改用户配置', async () => {
+        await withHome(async () => {
+            await json('/mcp/save', 'POST', {
+                name: 'broken_server',
+                definition: { command: 'definitely-not-a-real-command-in-this-test' },
+            })
+            // 触发一次工具装配拉取：坏服务不能把会话装配拖垮
+            const tools = await Mcp.tools()
+            expect(Object.keys(tools).some(k => k.startsWith('broken_server_'))).toBe(false)
+
+            // 设置页能看到它起不来，并带原因
+            const listed = (await (await request('/mcp/list')).json()).servers.find(item => item.name === 'broken_server')
+            expect(listed.enabled).toBe(true)                       // 用户没有关它，就不替用户关
+            expect(listed.error).toBeTruthy()                        // 起不来的原因具体写什么不重要，但必须有
+
+            // 配置一个字段都没被改：磁盘上和内存里都还是用户写的那份
+            expect(store.config.mcp.broken_server.enabled).toBe(true)
+            const onDisk = JSON.parse(await readFile(join(process.env.AGENT_HOME, 'config.json'), 'utf8'))
+            expect(onDisk.mcp.broken_server.enabled).toBe(true)
+
+            // 同一进程内不再重复重试，否则每轮对话都要白等几秒
+            const started = Date.now()
+            await Mcp.tools()
+            expect(Date.now() - started).toBeLessThan(1000)
+        })
+    })
 })
 
 describe('技能识别与管理', () => {
@@ -306,6 +334,8 @@ describe('技能识别与管理', () => {
             expect((await json('/skill/source', 'PATCH', { path: 'relative/path', enabled: true })).status).toBe(400)
             expect((await json('/skill/source', 'PATCH', { path: join(discovery, 'missing'), enabled: true })).status).toBe(400)
             expect((await json('/skill/source', 'PATCH', { path: join(discovery, 'empty'), enabled: true })).status).toBe(400)
+            // 白名单外（比如根目录或任意临时目录）不允许收为技能来源。
+            expect((await json('/skill/source', 'PATCH', { path: tmpdir(), enabled: true })).status).toBe(400)
             expect((await request('/skill/read')).status).toBe(400)
             expect((await request('/skill/read?name=missing')).status).toBe(404)
         })

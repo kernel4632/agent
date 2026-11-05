@@ -10,6 +10,7 @@ import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
+import SelectButton from '../../ui/SelectButton.vue'      // 自有选择控件，支持半选
 import Switch from '../../ui/Switch.vue'
 import SkillEditor from './SkillEditor.vue'
 import { Skills, externalRoots, sourceLabel } from '../../commands/skills.js'
@@ -31,6 +32,48 @@ const visibleSkills = computed(() => {
   if (!term) return skills.value
   return skills.value.filter(skill => skill.name.toLowerCase().includes(term) || skill.description.toLowerCase().includes(term))
 })
+
+// --- 批量选择：键是技能名，只统计当前可见且未启用的项参与批量开启 ---
+const checked = ref({})
+const bulkBusy = ref(false)                                // 批量开启进行中
+const selectableSkills = computed(() => visibleSkills.value.filter(skill => !skill.enabled))
+const selectedNames = computed(() => selectableSkills.value.filter(skill => checked.value[skill.name]).map(skill => skill.name))
+const allChecked = computed(() => selectableSkills.value.length > 0 && selectableSkills.value.every(skill => checked.value[skill.name]))
+const someChecked = computed(() => selectableSkills.value.some(skill => checked.value[skill.name]))
+const bulkState = computed(() => ({
+  modelValue: allChecked.value,
+  indeterminate: !allChecked.value && someChecked.value,
+  disabled: !selectableSkills.value.length,
+}))
+
+function toggleAll(value) {
+  const next = {}
+  for (const skill of selectableSkills.value) next[skill.name] = value
+  checked.value = next
+}
+
+function toggleOne(name, value) {
+  checked.value = { ...checked.value, [name]: value }
+}
+
+// 批量开启：先落盘草稿，再逐项提交，成功后同步列表与勾选状态。
+async function bulkEnable() {
+  const names = selectedNames.value
+  if (!names.length) return
+  bulkBusy.value = true
+  try {
+    const results = await Skills.toggleMany(names, true)   // 命令层已负责逐项提交
+    for (const skill of skills.value) {                    // 响应后同步草稿里的开关状态，防回跳
+      const result = results.find(item => item?.name === skill.name)
+      if (result) {
+        skill.enabled = result.enabled
+        checked.value = { ...checked.value, [skill.name]: false }
+      }
+    }
+  } finally {
+    bulkBusy.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -139,8 +182,33 @@ async function addSource() {
     <p v-else-if="!visibleSkills.length" class="skill-empty">
       {{ skills.length ? '没有匹配的技能。' : '还没有技能。新建一个，或在下面启用其他软件的技能目录。' }}
     </p>
-    <div v-else class="skill-card">
+    <template v-else>
+      <!-- 吸顶批量操作条：全选（半选态）、已选计数、取消选择、批量开启 -->
+      <div class="skill-bulk">
+        <SelectButton
+          :model-value="bulkState.modelValue"
+          :indeterminate="bulkState.indeterminate"
+          :disabled="bulkState.disabled || bulkBusy"
+          label="全选未开启的技能"
+          @update:model-value="toggleAll"
+        />
+        <span class="skill-bulk__count">已选 {{ selectedNames.length }} 项</span>
+        <span class="skill-bulk__spacer"></span>
+        <Button variant="text" :disabled="!selectedNames.length || bulkBusy" @click="checked = {}">取消选择</Button>
+        <Button :disabled="!selectedNames.length || bulkBusy" @click="bulkEnable">
+          <Icon name="check" :size="18" />{{ bulkBusy ? '开启中…' : `批量开启 ${selectedNames.length || ''}` }}
+        </Button>
+      </div>
+
+      <div class="skill-card">
       <div v-for="skill in visibleSkills" :key="skill.name" class="skill-row">
+        <SelectButton
+          v-if="!skill.enabled"
+          :model-value="Boolean(checked[skill.name])"
+          :disabled="bulkBusy"
+          :label="`选择 ${skill.name}`"
+          @update:model-value="toggleOne(skill.name, $event)"
+        />
         <span class="skill-row__icon" aria-hidden="true"><Icon name="document" :size="20" /></span>
         <span class="skill-row__copy">
           <strong>{{ skill.name }}</strong>
@@ -165,7 +233,8 @@ async function addSource() {
           />
         </span>
       </div>
-    </div>
+      </div>
+    </template>
 
     <section class="skill-roots" aria-label="本机技能目录">
       <header class="skill-roots__head">

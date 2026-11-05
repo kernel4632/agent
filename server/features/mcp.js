@@ -28,10 +28,26 @@ import SSE from '../utils/sse.js'
 let services = {}
 const bind = value => { services = value }
 
-// 连上是慢的（要起子进程、握手），所以连过一次就留着。
+// --- 连上的服务 ---
 const connections = new Map()
+// 连不上的服务记在这里（名字 → 失败原因）：本次进程内不再重试，避免每次装配会话都
+// 卡在同一个起不来的服务上；但绝不改用户配置。配置是用户写的，临时故障不该变成永久停用。
+const failures = new Map()
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+// --- 给一个异步操作加超时；结束后清掉定时器，不留悬挂的 timeout ---
+const withTimeout = async (promise, ms, message) => {
+    let timer
+    try {
+        return await Promise.race([
+            promise,                                                                // 正常时以它为准
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms) }),  // 到点就失败
+        ])
+    } finally {
+        clearTimeout(timer)     // 正常结束时把定时器撤掉，不让它挂在那里
+    }
+}
 
 // --- 把一份定义换成传输层；stdio 每次新建，避免复用已关闭的进程 ---
 const transportFor = definition => definition.transport === 'sse' || definition.transport === 'http'
@@ -46,19 +62,24 @@ const transportFor = definition => definition.transport === 'sse' || definition.
         env: { ...process.env, ...(definition.env || {}) },
     })
 
-// --- 连接一个 MCP 服务 ---
+// --- 连接一个服务并拉取工具清单 ---
+// 用 withTimeout 包住“建客户端”和“拉工具”两步：外部 stdio 服务起不来或不应答时，
+// 不能让整个会话装配卡在那里。失败只记进 failures 并在本次进程内跳过，
+// 不改用户配置——临时故障不该变成永久停用，用户下次修好命令就该能重连。
 const connect = async ({ name, sessionId }) => {
-    const definition = (store.config.mcp || {})[name]
-    if (!definition) return null
-    if (definition.enabled === false) return null
+    const definition = (store.config.mcp || {})[name]     // 该服务在内存里的定义
+    if (!definition) return null                          // 没配这个服务，什么都不做
+    if (definition.enabled === false) return null         // 用户停用了，不连
 
     try {
-        const client = await createMCPClient({ transport: transportFor(definition) })
-        const tools = await client.tools()
-        connections.set(name, { client, tools })
+        const client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 5000, `MCP 服务 ${name} 启动连接超时`)
+        const tools = await withTimeout(client.tools(), 5000, `MCP 服务 ${name} 读取工具清单超时`)
+        connections.set(name, { client, tools })          // 连上了就留着，下次装配直接复用
+        failures.delete(name)                             // 之前失败过也算翻篇
         return tools
     } catch (error) {
-        // 一个服务连不上不该拖垮整个会话，记下来让用户知道就行。
+        failures.set(name, error.message)                 // 记住这次失败，同一进程内不再重试
+        // 一次连不上不该拖垮整个会话，告诉界面就好。
         if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
         return null
     }
@@ -66,6 +87,7 @@ const connect = async ({ name, sessionId }) => {
 
 // --- 配置改了以后丢掉旧连接，下次用到时按新定义重连 ---
 const disconnect = async name => {
+    failures.delete(name)          // 配置变了，之前的失败结论不再成立
     const connection = connections.get(name)
     if (!connection) return
     connections.delete(name)
@@ -75,11 +97,16 @@ const disconnect = async name => {
 // --- 取全部已连服务的工具，需要时先连上新增加的服务 ---
 const tools = async ({ sessionId } = {}) => {
     const configured = Object.keys(store.config.mcp || {})
-    // 配置里已经删掉的服务，它们的连接和工具都不该再留着。
+    // 配置里已经删掉的服务，它们的连接、工具和失败记录都不该再留着。
     for (const name of [...connections.keys()]) {
         if (!configured.includes(name)) await disconnect(name)
     }
-    await Promise.all(configured.filter(name => !connections.has(name)).map(name => connect({ name, sessionId })))
+    for (const name of [...failures.keys()]) {
+        if (!configured.includes(name)) failures.delete(name)
+    }
+    // 本次进程内失败过的先跳过：每次都重试只会让每轮对话都卡几秒。
+    const pending = configured.filter(name => !connections.has(name) && !failures.has(name))
+    await Promise.all(pending.map(name => connect({ name, sessionId })))
 
     const merged = {}
     for (const [name, connection] of connections) {
@@ -89,11 +116,14 @@ const tools = async ({ sessionId } = {}) => {
 }
 
 // --- 设置页用的服务清单：只读内存配置，不主动连接 ---
+// 带上去连接失败的原因（如果有）：用户看得到“这个服务现在起不来”，
+// 而不是发现它被瞄悄悄关掉了。暂不自动改配置——临时故障不该变成永久停用。
 const list = () => Object.entries(store.config.mcp || {})
     .map(([name, definition]) => ({
         name,
         enabled: definition.enabled !== false,
         definition,
+        ...(failures.has(name) ? { error: failures.get(name) } : {}),
     }))
     .sort((first, second) => first.name.localeCompare(second.name))
 
@@ -168,19 +198,20 @@ const toggle = async ({ name, enabled } = {}) => {
 
 // --- 真实连一次并列出工具名，用来确认这套配置能不能用 ---
 const test = async ({ name } = {}) => {
-    const key = serverName(name)
-    const definition = isObject(store.config.mcp) ? store.config.mcp[key] : null
-    if (!definition) throw fail(404, `MCP server not found: ${key}`)
+    const key = serverName(name) // 格式化清理服务名称
+    const definition = isObject(store.config.mcp) ? store.config.mcp[key] : null // 读取服务定义
+    if (!definition) throw fail(404, `MCP server not found: ${key}`) // 找不到返回 404
 
-    let client = null
+    let client = null // 待关闭的临时连接实例
     try {
-        client = await createMCPClient({ transport: transportFor(definition) })
-        const tools = await client.tools()
-        return { ok: true, name: key, tools: Object.keys(tools).sort() }
+        // 测试连接增加 8 秒超时保护，拉取工具列表增加 5 秒超时保护
+        client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 8000, `连接测试超时（超过 8 秒未响应）`)
+        const tools = await withTimeout(client.tools(), 5000, `获取工具清单超时（超过 5 秒未响应）`)
+        return { ok: true, name: key, tools: Object.keys(tools).sort() } // 成功返回有序工具列表
     } catch (error) {
-        return { ok: false, name: key, tools: [], error: error.message }
+        return { ok: false, name: key, tools: [], error: error.message } // 失败返回具体超时或错误说明
     } finally {
-        await client?.close().catch(() => {})
+        await client?.close().catch(() => {}) // 确保临时测试连接正常断开释放
     }
 }
 
@@ -190,6 +221,10 @@ const close = async () => {
         await client.close().catch(() => {})
     }
     connections.clear()
+    failures.clear()
 }
 
-export default { tools, connect, close, bind, list, save, remove, toggle, test }
+// --- 最近一次连接失败的原因；设置页用它提示“这个服务起不来” ---
+const lastError = name => failures.get(name) || ''
+
+export default { tools, connect, close, bind, list, save, remove, toggle, test, lastError }

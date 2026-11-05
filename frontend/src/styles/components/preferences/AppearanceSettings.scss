@@ -4,8 +4,54 @@
   background: var(--la-layer-01);
 }
 .appearance-color { max-width: 360px; }
+
+/* 色板：点色块直接选强调色，所见即所得 */
+.appearance-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.appearance-swatch {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 2px solid var(--la-line-strong);
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+  transition: transform 150ms var(--ui-curve-standard), border-color 150ms;
+  &:hover { transform: scale(1.1); }
+  &:active { transform: scale(.95); }
+  &.is-active { border-color: var(--la-text); box-shadow: 0 0 0 2px var(--la-layer-01), 0 0 0 4px var(--la-text); }
+}
+.appearance-swatch--custom {
+  display: grid;
+  place-items: center;
+  border-style: dashed;                              // 虚线圆圈表示自定义入口
+  color: var(--la-secondary);
+  font-size: 20px;
+  line-height: 1;
+  input {                                            // 原生取色器铺满，透明化只留触发区
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+/* 滑条：圆角/密度这类连续值用原生 range，主题色由 CSS 变量控制 */
+.appearance-slider {
+  width: 100%;
+  max-width: 360px;
+  height: 32px;
+  margin: 0;
+  accent-color: var(--la-accent);
+  cursor: pointer;
+}
 @media (max-width: 767px) {
   .appearance-card { padding: 20px; }
+  .appearance-swatches { gap: 8px; }
+  .appearance-swatch { width: 32px; height: 32px; }
 }
 
 /* Divider.vue：只占 1px 的区块分界。 */

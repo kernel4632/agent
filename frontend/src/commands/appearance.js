@@ -6,6 +6,9 @@ import { argbFromHex, hexFromArgb, Hct, SchemeTonalSpot, SchemeNeutral, SchemeVi
 const variants = { 'tonal-spot': SchemeTonalSpot, neutral: SchemeNeutral, vibrant: SchemeVibrant, expressive: SchemeExpressive, monochrome: SchemeMonochrome, fidelity: SchemeFidelity, content: SchemeContent, rainbow: SchemeRainbow, 'fruit-salad': SchemeFruitSalad }
 const roles = ['surface', 'surfaceContainerLow', 'surfaceContainer', 'surfaceContainerHigh', 'surfaceContainerHighest', 'onSurface', 'onSurfaceVariant', 'outlineVariant', 'primary', 'onPrimary', 'primaryContainer', 'onPrimaryContainer', 'error', 'errorContainer', 'onErrorContainer', 'scrim']
 
+// 动效速度档位：standard 是基准 1x，expressive 放慢 1.25x，quick 加快 0.7x，off 直接归零（配合 reduceMotion）。
+const MOTION_SCALE = { standard: 1, expressive: 1.25, quick: .7, off: .01 }
+
 /** 将偏好写成项目自己的 CSS 变量；根节点让原生顶层弹窗也能继承。 */
 function applyTheme(appearance, scheme) {
   const root = document.documentElement
@@ -21,6 +24,12 @@ function applyTheme(appearance, scheme) {
   root.dataset.theme = scheme
   root.toggleAttribute('data-reduced-motion', appearance.reduceMotion)
   root.toggleAttribute('data-strong-focus', appearance.strongFocus)
+  // --- 可视化自定义扩展：圆角、密度、动效速度 ---
+  root.style.setProperty('--la-radius', `${appearance.radius ?? 10}px`)                     // 控件圆角大小
+  root.style.setProperty('--la-radius-panel', `${Math.round((appearance.radius ?? 10) * 2.4)}px`) // 面板圆角跟随等比缩放
+  root.style.setProperty('--la-density-gap', `${(appearance.density ?? 0) * 4}px`)          // 密度：每档 4px 间距增量
+  root.style.setProperty('--la-motion-enter', `${Math.round(200 * (MOTION_SCALE[appearance.motion] ?? 1))}ms`) // 动效时长
+  root.style.setProperty('--la-motion-exit', `${Math.round(150 * (MOTION_SCALE[appearance.motion] ?? 1))}ms`)
 }
 
 

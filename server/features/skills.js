@@ -120,6 +120,7 @@ const source = async ({ path, enabled } = {}) => {
     if (typeof enabled !== 'boolean') throw fail(400, 'enabled must be true or false')
     const target = resolve(path.trim())
     if (await Skills.isOwnPath(target)) throw fail(400, 'the application skill folders are always enabled')
+    if (!Skills.isWhitelisted(target)) throw fail(400, 'skill sources are limited to known config directories')
 
     if (enabled) {
         if (!(await Skills.isDirectory(target))) throw fail(400, `folder does not exist: ${target}`)

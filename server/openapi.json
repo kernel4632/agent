@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.58.15",
+    "version": "0.60.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -960,7 +960,7 @@
           "Capability"
         ],
         "summary": "启用或停用一个外部技能目录",
-        "description": "启用前会确认真实存在且里面至少有一个能读的技能；本应用自己的目录永远生效，不能作为外部目录。",
+        "description": "启用前会确认真实存在且里面至少有一个能读的技能；路径必须落在已知配置目录（用户主目录、XDG 配置目录、Windows AppData 或本应用数据目录）内；本应用自己的目录永远生效，不能作为外部目录。",
         "operationId": "skillSource",
         "requestBody": {
           "required": true,
@@ -1009,7 +1009,7 @@
             }
           },
           "400": {
-            "description": "路径不是绝对路径、目录不存在、没有可用技能，或指向本应用目录",
+            "description": "路径不是绝对路径、目录不存在、没有可用技能、指向本应用目录，或不在已知配置目录白名单内",
             "content": {
               "application/json": {
                 "schema": {
@@ -3014,6 +3014,10 @@
           },
           "definition": {
             "$ref": "#/components/schemas/McpDefinition"
+          },
+          "error": {
+            "type": "string",
+            "description": "本次进程内连接失败的原因。出现时说明这个服务现在起不来，工具不会加载；配置未被修改，修好后重新保存或重启即可重连。"
           }
         },
         "required": [
