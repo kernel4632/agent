@@ -47,20 +47,28 @@ const transportFor = definition => definition.transport === 'sse' || definition.
     })
 
 // --- 连接一个 MCP 服务 ---
+// --- 超时保护辅助函数：给异步任务附加超时，超时后立刻熔断抛错 ---
+const withTimeout = (promise, ms, message) => Promise.race([
+    promise, // 正常任务优先结算
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)), // 定时触发超时拒绝
+])
+
+// --- 连接一个服务并拉取工具清单 ---
 const connect = async ({ name, sessionId }) => {
-    const definition = (store.config.mcp || {})[name]
-    if (!definition) return null
-    if (definition.enabled === false) return null
+    const definition = (store.config.mcp || {})[name] // 获取该服务在内存中的配置定义
+    if (!definition) return null // 未配置直接跳过
+    if (definition.enabled === false) return null // 已停用直接跳过
 
     try {
-        const client = await createMCPClient({ transport: transportFor(definition) })
-        const tools = await client.tools()
-        connections.set(name, { client, tools })
-        return tools
+        // 创建客户端与列出工具均设置 5 秒超时保护，防止异常 stdio 服务挂起拖死整个会话
+        const client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 5000, `MCP 服务 ${name} 启动连接超时`)
+        const tools = await withTimeout(client.tools(), 5000, `MCP 服务 ${name} 读取工具清单超时`)
+        connections.set(name, { client, tools }) // 缓存已成功连接的客户端与工具
+        return tools // 返回拉取到的工具字典
     } catch (error) {
         // 一个服务连不上不该拖垮整个会话，记下来让用户知道就行。
         if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
-        return null
+        return null // 捕获超时或异常，保证外部流程正常往下走
     }
 }
 
@@ -168,19 +176,20 @@ const toggle = async ({ name, enabled } = {}) => {
 
 // --- 真实连一次并列出工具名，用来确认这套配置能不能用 ---
 const test = async ({ name } = {}) => {
-    const key = serverName(name)
-    const definition = isObject(store.config.mcp) ? store.config.mcp[key] : null
-    if (!definition) throw fail(404, `MCP server not found: ${key}`)
+    const key = serverName(name) // 格式化清理服务名称
+    const definition = isObject(store.config.mcp) ? store.config.mcp[key] : null // 读取服务定义
+    if (!definition) throw fail(404, `MCP server not found: ${key}`) // 找不到返回 404
 
-    let client = null
+    let client = null // 待关闭的临时连接实例
     try {
-        client = await createMCPClient({ transport: transportFor(definition) })
-        const tools = await client.tools()
-        return { ok: true, name: key, tools: Object.keys(tools).sort() }
+        // 测试连接增加 8 秒超时保护，拉取工具列表增加 5 秒超时保护
+        client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 8000, `连接测试超时（超过 8 秒未响应）`)
+        const tools = await withTimeout(client.tools(), 5000, `获取工具清单超时（超过 5 秒未响应）`)
+        return { ok: true, name: key, tools: Object.keys(tools).sort() } // 成功返回有序工具列表
     } catch (error) {
-        return { ok: false, name: key, tools: [], error: error.message }
+        return { ok: false, name: key, tools: [], error: error.message } // 失败返回具体超时或错误说明
     } finally {
-        await client?.close().catch(() => {})
+        await client?.close().catch(() => {}) // 确保临时测试连接正常断开释放
     }
 }
 
