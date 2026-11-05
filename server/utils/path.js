@@ -25,7 +25,30 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const home = () => process.env.AGENT_HOME || join(process.env.HOME || process.env.USERPROFILE || homedir(), '.agent')
+// --- 当前是否跑在 bun test 里 ---
+// BUN_ENV 在测试进程里是 'test'；拿不到时退回看入口脚本名。
+const testing = process.env.NODE_ENV === 'test'
+    || process.env.BUN_ENV === 'test'
+    || /bun-test|\.test\.(js|ts)$/.test(process.argv[1] || '')
+
+const home = () => {
+    const dir = locked ?? process.env.AGENT_HOME ?? join(process.env.HOME || process.env.USERPROFILE || homedir(), '.agent')
+    // 跑测试时绝不允许落到真实数据目录。漏加 Path.lock 的测试会在这里当场失败，
+    // 而不是静悄悄地在 ~/.agent 里留下垃圾会话——那会污染用户真实数据，事后很难分辨。
+    if (testing && !locked && !process.env.AGENT_HOME) {
+        throw new Error('测试进程没有把数据目录指向临时目录：请在 withHome 里设置 AGENT_HOME 并调 Path.lock(root)')
+    }
+    return dir
+}
+
+// --- 把数据目录锁定下来 ---
+// 测试切 AGENT_HOME 时会有后台异步收尾（保存历史、清运行标记）在跑；
+// 如果测试已经把它恢复成默认值，那些晚到的写入就落到真实的数据目录里了
+// （曾经在 ~/.agent 里留下几十条“继续测试”垃圾会话）。
+// 锁定之后，本次进程的路径解析与 process.env 后续怎么改都无关，测试结束前调 unlock 即可。
+let locked = null
+const lock = dir => { locked = dir }
+const unlock = () => { locked = null }
 
 // --- 用户主目录：识别其他软件的 MCP 配置和技能目录时用 ---
 // 测试把 AGENT_DISCOVERY_HOME 指到临时目录，就不会读到真实电脑上的配置。
@@ -62,6 +85,7 @@ const skillsState = () => join(home(), 'skills.json')
 
 export default {
     root: home,
+    lock, unlock,
     userHome,
     config,
     sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,

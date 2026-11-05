@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Agent from '../features/agent.js'
+import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
@@ -19,12 +20,14 @@ const withHome = async callback => {
     const root = join(tmpdir(), `agent-cwd-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     Object.keys(store.config).forEach(key => delete store.config[key])
     Agent.runtime().clear()
     History.clear()
     try {
         return await callback(root)
     } finally {
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
         await rm(root, { recursive: true, force: true })

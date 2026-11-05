@@ -28,6 +28,15 @@
 
 推送顺序固定为：改版本号 → 跑验证 → 提交 → 推送。
 
+## 长任务放后台跑，不要堵住对话
+
+会跑超过十几秒的命令一律用后台跑（`background` 工具启动，再读日志），不要用同步执行硬等。
+这类命令包括：全量测试（`bun test`）、构建、Playwright 界面检查、`bun install`、拉取大仓库、批量文件处理。
+
+同步执行只用于秒级的小命令（读一个文件、`git status`、单条 `curl`）。
+判断标准很简单：**这个命令可能要等超过十秒吗？会就放后台。**
+被堵住的对话里用户没法插话、没法改方向，等于把我自己的等待变成用户的等待。
+
 ## 验证命令
 
 改完代码必须跑对应的一半，通过才算完成：
@@ -37,6 +46,8 @@ cd server && bun test        # 后端：真实启动服务端 + 真实 HTTP 请�
 cd frontend && bun run build # 前端：能构建通过
 cd cli && go test ./...      # CLI：HTTP/SSE 协议和终端交互
 ```
+
+`bun test` 全量要跑二三十秒以上，用后台跑再读日志，别同步等。
 
 CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test/agent.exe`（Linux/macOS 无 `.exe`），再在 `cli/` 执行 `bun test tests/integration.test.js --timeout 30000`，用真实后端验证。
 
@@ -70,6 +81,10 @@ CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test
 - `tools/`：用户自己写的工具，和内置工具一起扫描
 
 开发和测试不要写用户真实的 `~/.agent`，用 `AGENT_HOME` 指向临时目录。
+
+测试切 `AGENT_HOME` 时必须同时 `Path.lock(root)`：任务收尾是异步的，等它写盘时测试可能已经把
+`AGENT_HOME` 恢复成默认值，那些晚到的写入就落到真实的 `~/.agent` 里了（曾经因此留下几十条垃圾会话）。
+`Path.lock` 锁定之后本进程的路径解析不再看 `process.env`，测试的 `finally` 里解锁。
 
 ## Agent 循环来自外部包
 

@@ -1,2 +1,8 @@
-[test]
-preload = ["./tests/setup.js"]
+# 测试配置。
+#
+# 不加 --isolate：每个测试文件开独立全局对象会让留了活句柄的文件挂住整个跑批
+# （实测卡死在 resume.test.js 之后不再推进）。
+#
+# 数据污染用另一条路挡住：测试切 AGENT_HOME 时调 Path.lock(root)，
+# 把本进程的路径解析固定在临时目录，晚到的异步收尾不会落到真实 ~/.agent。
+# 见 tests/*.test.js 的 withHome 和 utils/path.js 的 lock。

@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { app } from '../server.js'
+import Path from '../utils/path.js'
 import ModelIcons from '../features/model-icons.js'
 
 const homes = []
@@ -51,6 +52,7 @@ test('canonical 原厂信息优先于托管同名模型的平台', async () => {
     homes.push(root)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     try {
         await mkdir(join(root, 'cache'), { recursive: true })
         await writeFile(join(root, 'cache', 'models-dev.json'), JSON.stringify({
@@ -74,6 +76,7 @@ test('canonical 原厂信息优先于托管同名模型的平台', async () => {
             ambiguous: false,
         })
     } finally {
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
     }

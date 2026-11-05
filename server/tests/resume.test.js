@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import AgentCore from '@kernel4632/agent-core'
 
 import Chat from '../commands/chat.js'
+import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
@@ -24,12 +25,25 @@ const withHome = async callback => {
     homes.push(root)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     Object.keys(store.config).forEach(key => delete store.config[key])
     Agent.runtime().clear()
     History.clear()
+    // 护栏：测试绝不能在真实数据目录里留下任何东西。
+    const real = join(process.env.USERPROFILE || process.env.HOME || '', '.agent')
+    if (root === real) throw new Error('测试把 AGENT_HOME 指到了真实数据目录')
     try {
         return await callback(root)
     } finally {
+        // 先把还活着的 Agent 停掉：收尾（保存历史、清运行标记）必须在临时目录里写完，
+        // 否则 AGENT_HOME 恢复之后它们会落到真实的 ~/.agent，留下“继续测试”这类垃圾会话。
+        // 必须带超时：有些测试的假 Agent 故意让 stop() 永不 resolve，直接 await 会挂死整个跑批。
+        for (const [, agent] of Agent.runtime()) {
+            await Promise.race([agent.stop?.().catch(() => {}), Bun.sleep(500)])
+        }
+        await Bun.sleep(50)
+        Agent.runtime().clear()
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
     }

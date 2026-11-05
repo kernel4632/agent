@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
+import Path from '../utils/path.js'
 import Approval from '../features/approval.js'
 import Settings from '../commands/settings.js'
 import Delegation from '../tools/subagent.js'
@@ -26,12 +27,14 @@ const withHome = async callback => {
     const root = join(tmpdir(), `agent-settings-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     Object.keys(store.config).forEach(key => delete store.config[key])
     Agent.runtime().clear()
     History.clear()
     try {
         return await callback(root)
     } finally {
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
         await rm(root, { recursive: true, force: true })

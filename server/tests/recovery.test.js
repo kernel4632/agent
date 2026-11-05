@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Chat from '../commands/chat.js'
+import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
@@ -24,12 +25,24 @@ const withHome = async callback => {
     homes.push(root)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     Object.keys(store.config).forEach(key => delete store.config[key])
     Agent.runtime().clear()
     History.clear()
+    // 护栏：测试绝不能在真实数据目录里留下任何东西。
+    const real = join(process.env.USERPROFILE || process.env.HOME || '', '.agent')
+    if (root === real) throw new Error('测试把 AGENT_HOME 指到了真实数据目录')
     try {
         return await callback(root)
     } finally {
+        // 先停掉这个测试留下的活 Agent，再恢复环境：收尾写盘必须在原目录里完成。
+        // 必须带超时：有些测试的假 Agent 故意让 stop() 永不 resolve，直接 await 会挂死整个跑批。
+        for (const [, agent] of Agent.runtime()) {
+            await Promise.race([agent.stop?.().catch(() => {}), Bun.sleep(500)])
+        }
+        await Bun.sleep(50)
+        Agent.runtime().clear()
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
     }
@@ -49,9 +62,10 @@ const setup = async () => {
 const text = value => [{ type: 'text', text: value }]
 
 // 等磁盘 meta 上的运行标记变成期望值，避免异步落盘还没写完就断言。
+// 目录一律从 Path.root() 取（已锁定），不读 process.env：并发跑测试时别的文件会改 env。
 const waitForRunning = async (sessionId, expected) => {
     for (let attempt = 0; attempt < 100; attempt += 1) {
-        const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json().catch(() => null)
+        const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json().catch(() => null)
         if (meta && (meta.running === true) === expected) return meta
         await Bun.sleep(10)
     }
@@ -76,7 +90,7 @@ const fakeAgent = ({ history, resumePlan }) => {
 
 // 等一次 run 的收尾落盘（历史文件包含期望条数），恢复流程才算完整走完。
 const waitForHistory = async (sessionId, count) => {
-    const path = join(process.env.AGENT_HOME, 'sessions', sessionId, 'history.json')
+    const path = join(Path.root(), 'sessions', sessionId, 'history.json')
     for (let attempt = 0; attempt < 100; attempt += 1) {
         const saved = await Bun.file(path).json().catch(() => null)
         if (saved && (saved.messages?.length || 0) >= count) return
@@ -118,7 +132,7 @@ describe('运行标记', () => {
             await waitForHistory(sessionId, 2)
             await waitForRunning(sessionId, false)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a0', 'a1'])
         })
@@ -147,7 +161,7 @@ describe('运行标记', () => {
             await SSE.close({ id: sessionId })
             await Bun.sleep(100)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
             expect(events).toContain('恢复时模型请求失败')
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1'])
@@ -168,7 +182,7 @@ describe('运行标记', () => {
             await waitForHistory(sessionId, 2)
             await Bun.sleep(100)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
         })
     })
@@ -201,7 +215,7 @@ describe('重启恢复', () => {
             await waitForHistory(sessionId, 2)
             await waitForRunning(sessionId, false)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 'a2'])
         })
@@ -232,6 +246,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('我说的最后一句话') } })
+            History.setRunning(sessionId, true)   // 模拟“任务开跑后还没产出助手回复就被重启”
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -246,7 +261,7 @@ describe('重启恢复', () => {
             expect(resumeCalled).toBe(false)
             await Bun.sleep(100)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
         })
     })
@@ -274,7 +289,7 @@ describe('重启恢复', () => {
             expect(resumeCalled).toBe(false)
             await Bun.sleep(100)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
         })
     })
@@ -319,9 +334,32 @@ describe('重启恢复', () => {
             await waitForRunning(sessionId, false)
             await Bun.sleep(50)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1'])
+        })
+    })
+
+    test('恢复续跑的重试有上限，不会无限空转', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
+
+            // 恢复路径上的配置要带封顶的重试策略；用户自己发消息的路径不带。
+            const session = await History.load(sessionId)
+            const settings = await Agent.readSettings(sessionId)
+            const recovery = await Agent.resolve({ session, settings, recovery: true })
+            const normal = await Agent.resolve({ session, settings })
+
+            expect(recovery.retryMaxElapsed).toBeGreaterThan(0)
+            expect(typeof recovery.retry).toBe('function')
+            expect(normal.retryMaxElapsed).toBeUndefined()
+            expect(normal.retry).toBeUndefined()
+
+            // 过滤函数第 3 次开始拒绝重试；core 据此结束循环。
+            const allow = [recovery.retry(), recovery.retry(), recovery.retry()]
+            const results = [allow[0](new Error('x')), allow[0](new Error('x')), allow[0](new Error('x'))]
+            expect(results).toEqual([true, true, false])
         })
     })
 
@@ -341,7 +379,7 @@ describe('重启恢复', () => {
             expect(recovered).toEqual([])
             await Bun.sleep(100)
 
-            const meta = await Bun.file(join(process.env.AGENT_HOME, 'sessions', sessionId, 'meta.json')).json()
+            const meta = await Bun.file(join(Path.root(), 'sessions', sessionId, 'meta.json')).json()
             expect(meta.running).toBeUndefined()
         })
     })

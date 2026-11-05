@@ -31,12 +31,14 @@ const activeRuns = new Map()
 // stop 处理期间不允许同一会话启动新 run。
 const stopping = new Set()
 
-const finishRun = (sessionId, token) => {
+// --- 一轮结束：清运行标记 ---
+// 必须 await 落盘：不能留后台 Promise。测试切 AGENT_HOME、进程正在退出、
+// 或用户马上又发下一句时，悬着的写入会落到错误的目录或晚到而覆盖新状态。
+const finishRun = async (sessionId, token) => {
     if (activeRuns.get(sessionId) === token) activeRuns.delete(sessionId)
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
-    // syncHistory 已经在前面把 running:true 写下去了，这里再单独补一笔 meta。
     History.setRunning(sessionId, false)
-    void History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
+    await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
 }
 
 // --- 取一条消息里的纯文本 ---
@@ -95,7 +97,7 @@ const finishSuccess = async ({ sessionId, token, agent, resume, result }) => {
     if (token.stopped) return
     if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
     await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
-    finishRun(sessionId, token)
+    await finishRun(sessionId, token)
 }
 
 // --- 任务失败后的收尾：保留已产生的进度，再把错误交给前端 ---
@@ -104,7 +106,7 @@ const finishFailure = async ({ sessionId, token, agent, state, error }) => {
     if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
     // 只有 kind=aborted 才是 core 的主动取消；timeout 等仍要报错结束。
     if (error?.kind === 'aborted') {
-        finishRun(sessionId, token)
+        await finishRun(sessionId, token)
         return
     }
     attachCompactUsage({ agent, state })
@@ -112,7 +114,7 @@ const finishFailure = async ({ sessionId, token, agent, state, error }) => {
     if (token.stopped) return
     if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
     await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
-    finishRun(sessionId, token)
+    await finishRun(sessionId, token)
 }
 
 // --- 输入归一化：纯文本原样；内容块数组校验后原样交给 core（图片由 core 转成各家协议）---
@@ -288,14 +290,16 @@ const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, 
 })
 
 // --- 真正启动这一轮 ---
-const startRun = async ({ sessionId, input, resume, agent }) => {
+const startRun = async ({ sessionId, input, resume, agent, recovery = false }) => {
     const session = await History.load(sessionId)
     const settings = await Agent.readSettings(sessionId)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
-    // 落盘“运行中”，重启后才有线索知道这个会话被意外打断。异步写，不挡模型请求。
+    // 落盘“运行中”，重启后才有线索知道这个会话被意外打断。
+    // await：标记必须在模型请求之前真的落到磁盘，否则进程刚好在写入前被杀死就没有线索。
+    // 一次小文件写入，代价可以忽略。
     History.setRunning(sessionId, true)
-    void History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
+    await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
 
     const state = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
     const token = { stopped: false, state }
@@ -303,7 +307,7 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     let task
     try {
         const options = {
-            config: await Agent.resolve({ session, settings }),
+            config: await Agent.resolve({ session, settings, recovery }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, token }),
                 ...modelEvents({ sessionId, state }),
@@ -315,13 +319,13 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
         }
         task = resume ? agent.resume(options) : agent.send({ ...options, input })
     } catch (error) {
-        finishRun(sessionId, token)
+        await finishRun(sessionId, token)
         throw error
     }
     return { task, token }
 }
 
-const run = async ({ sessionId, input, resume = false }) => {
+const run = async ({ sessionId, input, resume = false, recovery = false }) => {
     const agent = await validateRun({ sessionId, input, resume })
     // 归一化放在这里：resume 不带新输入；非法图片块在启动前就报 400。
     const payload = resume ? undefined : normalizeInput(input)
@@ -330,7 +334,7 @@ const run = async ({ sessionId, input, resume = false }) => {
     await Tool.clearUndo({ sessionId })
     Approval.reset(sessionId)
 
-    const { task, token } = await startRun({ sessionId, input: payload, resume, agent })
+    const { task, token } = await startRun({ sessionId, input: payload, resume, agent, recovery })
     task
         .then(result => finishSuccess({ sessionId, token, agent, resume, result }))
         .catch(error => finishFailure({ sessionId, token, agent, state: token.state, error }))
@@ -361,6 +365,11 @@ const skipRecovery = messages => {
 // 崩溃或重启时进程里的运行状态全部丢失，磁盘 meta 上的 running 是唯一线索。
 // 恢复就是把每条被打断的会话按原逻辑接上：末尾还是助手回合的直接 resume（core 从中断处继续），
 // 末尾是用户消息的只清标记（等用户自己发下一句）。收尾由 run 自己负责，成功失败都会清标记。
+//
+// 三条护栏：
+//   1. 恢复走 recovery: true 的配置，重试总时限和次数都封顶，provider 挂掉不会无限空转；
+//   2. 串行启动，不同时起多条续跑抢资源；
+//   3. 单条失败只记日志并清标记，不拖其他会话，也不拖服务启动。
 const recover = async () => {
     const candidates = await History.runningOnDisk()
     const recovered = []
@@ -370,17 +379,12 @@ const recover = async () => {
             const agent = await Agent.get({ sessionId: id })
             if (agent.running) continue
             const visible = History.get({ sessionId: id }).filter(message => !message.internal)
-            if (skipRecovery(visible)) {
+            if (skipRecovery(visible) || !resumable(visible)) {
                 History.setRunning(id, false)
                 await History.saveMeta(id)
                 continue
             }
-            if (!resumable(visible)) {
-                History.setRunning(id, false)
-                await History.saveMeta(id)
-                continue
-            }
-            await run({ sessionId: id, resume: true })
+            await run({ sessionId: id, resume: true, recovery: true })
             recovered.push(id)
         } catch (error) {
             // 一条会话恢复失败不该拖垮服务启动，也不该让它永远卡在“运行中”：清掉标记，下轮再说。
@@ -458,7 +462,7 @@ const stop = async ({ sessionId, partial }) => {
         }
         if (token && wasRunning && activeRuns.get(sessionId) === token) {
             await SSE.send({ id: sessionId, data: { type: 'agent-finish', reason: 'stopped' } })
-            finishRun(sessionId, token)
+            await finishRun(sessionId, token)
         }
         return result
     } finally {

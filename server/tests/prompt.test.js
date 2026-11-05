@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import Settings from '../commands/settings.js'
+import Path from '../utils/path.js'
 import Agent from '../features/agent.js'
 import store, { DEFAULT_PROMPT } from '../store.js'
 // 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
@@ -16,11 +17,13 @@ const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     await mkdir(root, { recursive: true })
     Object.keys(store.config).forEach(key => delete store.config[key])
     try {
         return await callback(root)
     } finally {
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
         await rm(root, { recursive: true, force: true })

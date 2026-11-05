@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import { read_range } from '../tools/file.js'
+import Path from '../utils/path.js'
 import Background, { running, cleanup } from '../tools/background.js'
 import Test from '../tools/test.js'
 import store from '../store.js'
@@ -23,10 +24,12 @@ const withHome = async callback => {
     homes.push(root)
     const previousHome = process.env.AGENT_HOME
     process.env.AGENT_HOME = root
+    Path.lock(root)   // 锁定数据目录：晚到的异步收尾不会落到真实 ~/.agent
     Object.keys(store.config).forEach(key => delete store.config[key])
     try {
         return await callback(root)
     } finally {
+        Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
     }
@@ -136,6 +139,7 @@ describe('background 后台进程', () => {
         })
     })
 
+    // 要启两个真子进程再杀掉，天然比默认 5 秒长；并发跑测试时更容易超。
     test('cleanup 停掉全部在跑的进程', async () => {
         await withHome(async () => {
             const script = await writeScript('sleeper', 'await Bun.sleep(60000)')
@@ -149,7 +153,7 @@ describe('background 后台进程', () => {
             expect(await Bun.file(b.logFile).exists()).toBe(false)
             await rm(script, { force: true })
         })
-    })
+    }, 30_000)
 })
 
 describe('test 测试结果解析', () => {

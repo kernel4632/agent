@@ -122,7 +122,22 @@ const hasCapability = (profile, name) => profile.some(item => {
     return false
 })
 
-const resolveFor = async ({ session, settings, target }) => {
+// --- 恢复续跑的尝试上限 ---
+// 恢复是后台自动行为，没人看着：provider 挂了、密钥过期、地址错了，无限重试会一直烧下去，
+// 而且任务永远不结束、运行标记永远不清，下次重启又续一次。给恢复路径一个总时限和次数上限，
+// 到点就把错误交给 finishFailure（发 agent-finish.error 并清标记），用户自己发的消息不受影响。
+const RECOVERY_RETRY_ELAPSED = 120000
+const RECOVERY_RETRY_TRIES = 3
+// core 的 retry 可以传一个“要不要重试这个错误”的过滤函数；这里按次数收口。
+const recoveryRetry = () => {
+    let tries = 0
+    return error => {
+        tries += 1
+        return tries < RECOVERY_RETRY_TRIES
+    }
+}
+
+const resolveFor = async ({ session, settings, target, recovery = false }) => {
     const chosen = target || session.model
     const linked = connection(chosen)
     const info = services.context.modelInfo(chosen)
@@ -151,6 +166,10 @@ const resolveFor = async ({ session, settings, target }) => {
         // 重试由 agent-core 统一处理：无限次数、5s 起指数退避、总时长不限。
         // 这里只把单次退避上限从 core 0.30.2 的默认 10 分钟收紧到 120s，其余全用 core 默认。
         retryMaxDelay: 120000,
+        // 恢复续跑必须封顶：provider 挂了或配置丢失时，无限重试会变成一个永不结束、
+        // 永不清运行标记的空转任务，每次重启又续一次。只对恢复路径设总时限和次数上限，
+        // 用户自己发的消息仍用 core 默认的无限重试，不因慢供应商而失败。
+        ...(recovery ? { retryMaxElapsed: RECOVERY_RETRY_ELAPSED, retry: recoveryRetry } : {}),
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）；没配规则就只有用户提示词。
         system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
