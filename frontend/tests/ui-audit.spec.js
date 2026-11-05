@@ -1423,6 +1423,28 @@ test('data settings lists config backups and exports masked config', async ({ pa
   expect(mock.errors).toEqual([])
 })
 
+test('session groups move a session through the row menu', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('分组测试')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  await openDrawer(page)
+  const drawer = page.getByRole('dialog', { name: '项目与会话' })
+  await drawer.getByRole('button', { name: '新建分组', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '新建分组', exact: true })
+  await dialog.getByRole('textbox', { name: '分组名称', exact: true }).fill('工作')
+  await dialog.getByRole('button', { name: '创建', exact: true }).click()
+  await expect(drawer.getByRole('heading', { name: '工作', exact: true })).toBeVisible()
+
+  const row = drawer.locator('.home-session').last()
+  await row.getByRole('button', { name: /更多操作/ }).click()
+  await page.getByRole('menuitem', { name: '移到「工作」', exact: true }).click()
+  await expect.poll(() => mock.calls.findLast(call => call.path === '/session/groups' && call.method === 'PUT')?.body.groups[0].sessions.length).toBe(1)
+  expect(mock.errors).toEqual([])
+})
+
 test('long attachment names stay on one line in the composer', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

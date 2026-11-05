@@ -24,6 +24,7 @@ export async function backend(page, { configured = true } = {}) {
     permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
   }
   let backups = []
+  let sessionGroups = []
   const rememberConfig = () => {
     const serialized = JSON.stringify(config)
     backups.unshift({
@@ -236,6 +237,13 @@ export async function backend(page, { configured = true } = {}) {
       return json({ path: body.path, enabled: body.enabled })
     }
     if (path === '/session/list') return json([...sessions.values()])
+    if (path === '/session/groups') {
+      if (method === 'GET') return json({ groups: sessionGroups })
+      if (method === 'PUT') {
+        sessionGroups = body.groups
+        return json({ groups: sessionGroups })
+      }
+    }
     if (path === '/health') return json({ ok: true, version: 'test', sessions: sessions.size, running: 0 })
     if (path === '/tool/kinds') return json([
       { kind: 'read', label: '读取', hint: '读文件、搜索不用再问' },

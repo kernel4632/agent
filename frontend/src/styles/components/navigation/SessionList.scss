@@ -47,3 +47,11 @@
 .ui-list li { min-width: 0; }
 
 .session-list-items { --list-gap: 8px; }
+.home-sessions__toolbar { display: flex; flex: none; justify-content: flex-end; padding: 0 8px 2px; }
+.home-sessions__group-head { display: flex; min-height: 30px; align-items: center; gap: 2px; }
+.home-sessions__group-head .group-label { min-width: 0; flex: 1; }
+.home-sessions__group-head .group-label[draggable="true"] { cursor: grab; }
+.home-sessions__group-head .group-label[draggable="true"]:active { cursor: grabbing; }
+.home-sessions__group-menu { flex: none; opacity: .55; }
+.home-sessions__group-menu:focus-within { opacity: 1; }
+.home-sessions__group-menu :deep(.ui-menu__trigger) { width: 28px; height: 28px; }

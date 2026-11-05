@@ -19,6 +19,7 @@ import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
 import History from '../features/history.js'
 import Rollback from '../features/rollback.js'
+import SessionGroups from '../features/session-groups.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import ToolTiming from '../features/tool-timing.js'
@@ -226,6 +227,7 @@ const remove = async ({ sessionId }) => {
     await Tool.remove({ sessionId })
     await SSE.close({ id: sessionId })
     await History.destroy(sessionId)
+    await SessionGroups.removeSession(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
     ToolTiming.forget(sessionId)
     return { ok: true }
 }

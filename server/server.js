@@ -21,6 +21,7 @@ import Context from './features/context.js'
 import History from './features/history.js'
 import Mcp from './features/mcp.js'
 import ModelIcons from './features/model-icons.js'
+import SessionGroups from './features/session-groups.js'
 import Tool from './features/tool.js'
 import Background from './tools/background.js'
 import SSE from './utils/sse.js'
@@ -93,6 +94,8 @@ app.group('/agent', agent => agent
 // --- 会话 ---
 app.group('/session', session => session
     .get('/list', ({ query }) => Session.list({ search: query.search }))
+    .get('/groups', () => SessionGroups.read())
+    .put('/groups', ({ body }) => SessionGroups.save(body || {}))
     .post('/create', ({ body }) => Session.create(body || {}))
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))

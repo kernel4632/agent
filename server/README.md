@@ -56,6 +56,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 .agent/
   config.json          模型服务、按任务的默认模型、MCP、权限、提示词、压缩阈值
   config-backups/      配置自动备份，保留最近 20 份
+  session-groups.json  会话自定义分组、组顺序和组内顺序
   sessions/<id>/
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
     history.json       消息和回退栈
@@ -367,6 +368,8 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
+| `GET` | `/session/groups` | 无 | `{ groups: [{ id, name, sessions }] }`，数组顺序就是界面顺序 |
+| `PUT` | `/session/groups` | `{ "groups": [{ "id", "name", "sessions": [] }] }` | 整体保存分组；一个会话只能属于一个组，重名或重复会话按 400 返回 |
 | `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }` |
 | `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
 | `GET` | `/session/read/:sessionId` | 无 | 会话资料、完整 history、`todos`、`running`、`pending`、`settings`、`undoable` |

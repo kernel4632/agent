@@ -64,6 +64,8 @@ export const AgentAPI = {
   toggleSkill:      (body)                      => request('/skill/toggle', 'PATCH', body),
   toggleSkillSource:(body)                      => request('/skill/source', 'PATCH', body),
   getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  getSessionGroups: ()                          => request('/session/groups'),
+  saveSessionGroups:(groups)                    => request('/session/groups', 'PUT', { groups }),
   // 目录属于会话；未指定 cwd 时由后端使用自己的当前目录。
   createSession:    async (cwd, provider, model) => {
     const body = { title: NEW_SESSION_TITLE, provider, model, ...(cwd ? { cwd } : {}) }

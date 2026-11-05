@@ -43,6 +43,8 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 ```text
 .agent/
   config.json                模型服务、按任务的默认模型、工具权限规则、MCP 服务
+  config-backups/            配置自动备份，保留最近 20 份
+  session-groups.json        会话自定义分组、组顺序和组内顺序
   sessions/<id>/             每条会话一个目录
     meta.json                标题、当前目录、模型、时间
     history.json             消息和回退栈

@@ -59,6 +59,7 @@ const config = () => join(home(), 'config.json')
 const configBackups = () => join(home(), 'config-backups')
 
 // --- 会话目录：每条会话一个目录，元数据、历史和设置分开放 ---
+const sessionGroups = () => join(home(), 'session-groups.json')
 const sessions = () => join(home(), 'sessions')
 const session = id => join(sessions(), id)
 const meta = id => join(session(id), 'meta.json')
@@ -90,6 +91,7 @@ export default {
     userHome,
     config,
     configBackups,
+    sessionGroups,
     sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,
     tools, modelCatalog, processes, skills, skillsState, projectSkills,
 }
