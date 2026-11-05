@@ -134,7 +134,13 @@ const start = async ({ port = process.env.PORT || 3000 } = {}) => {
     process.on('SIGINT', () => { Background.cleanup(); process.exit(0) })
     process.on('SIGTERM', () => { Background.cleanup(); process.exit(0) })
 
-    return app.listen(port)
+    const server = app.listen(port)
+
+    // 重启后自动接住被打断的任务：等端口开始服务后再恢复，恢复期间的请求不会撞上半初始化状态。
+    // 续跑是异步的，不挡启动；单条会话失败由 recover 自己记日志。
+    Chat.recover().catch(error => console.error(`[recovery] 启动续跑失败：${error.message}`))
+
+    return server
 }
 
 export { app, start }

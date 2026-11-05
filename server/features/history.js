@@ -23,6 +23,22 @@ import Path from '../utils/path.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 
+// meta.json 里的会话资料；读写两边都用同一份字段表，加上运行标记也不会互相走样。
+const META_FIELDS = ['id', 'title', 'cwd', 'model', 'createdAt', 'updatedAt', 'running']
+const metaOf = session => {
+    const meta = {
+        id: session.id,
+        title: session.title,
+        cwd: session.cwd,
+        model: session.model,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        ...(session.running ? { running: true } : {}),
+    }
+    for (const key of Object.keys(meta)) if (meta[key] === undefined) delete meta[key]
+    return meta
+}
+
 // --- 从磁盘读一条会话进内存；只认当前形状 ---
 // 旧版本/测试可能只留下 meta.json，历史或设置文件缺失时按空会话恢复，
 // 否则会话列表能看到、点进去却报 ENOENT，删除也会被同一步挡住。
@@ -56,6 +72,7 @@ const load = async sessionId => {
         model: meta.model,
         createdAt: meta.createdAt,
         updatedAt: meta.updatedAt,
+        running: meta.running === true,
         history,
         settings,
     }
@@ -75,6 +92,7 @@ const create = async ({ title, cwd, provider, model, settings }) => {
         model: { provider: provider || '', model: model || '' },
         createdAt: now,
         updatedAt: now,
+        running: false,
         history: { messages: [], redo: [] },
         settings,
     }
@@ -90,14 +108,9 @@ const save = async sessionId => {
     await mkdir(Path.session(sessionId), { recursive: true })
 
     // 原子写入，避免程序中断留下半份 JSON。
-    await writeFile(Path.meta(sessionId), JSON.stringify({
-        id: session.id,
-        title: session.title,
-        cwd: session.cwd,
-        model: session.model,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-    }, null, 2))
+    // running 记在 meta 上：崩溃或重启后进程内的运行状态已经丢了，磁盘上这一位
+    // 是重启后判断“这个会话被打断了”的唯一依据。
+    await writeFile(Path.meta(sessionId), JSON.stringify(metaOf(session), null, 2))
     await writeFile(Path.history(sessionId), JSON.stringify(session.history, null, 2))
     await writeFile(Path.settings(sessionId), JSON.stringify(session.settings, null, 2))
 
@@ -174,6 +187,25 @@ const redo = async ({ sessionId }) => {
     session.updatedAt = Date.now()
 }
 
+// --- 任务开跑 / 结束时更新运行标记 ---
+// 这两个入口故意只改内存：开跑时落盘由 startRun 的 saveMeta 负责，收尾时的落盘也
+// 用 saveMeta 补一笔（syncHistory 发生在 finishRun 之前，会把 true 一起写下去）。
+// 崩溃时最多留下一个“其实已结束”的脏标记，恢复时能识别。
+const setRunning = (sessionId, running) => {
+    const session = store.sessions[sessionId]
+    if (!session) return
+    session.running = Boolean(running)
+    if (running) session.updatedAt = Date.now()
+}
+
+// --- 只把 meta 写回磁盘：运行标记的变化用，不动历史也不清 SSE 缓存 ---
+const saveMeta = async sessionId => {
+    const session = store.sessions[sessionId]
+    if (!session) return
+    await mkdir(Path.session(sessionId), { recursive: true })
+    await writeFile(Path.meta(sessionId), JSON.stringify(metaOf(session), null, 2))
+}
+
 // --- 还有几次回退可以撤销 ---
 const redoCount = ({ sessionId }) => store.sessions[sessionId]?.history.redo.length || 0
 
@@ -194,6 +226,16 @@ const get = ({ sessionId }) => {
 
 // --- 内存里加载了多少条会话；健康检查用 ---
 const count = () => Object.keys(store.sessions).length
+
+// --- 磁盘上还带着运行标记的会话：重启后从这里挑出要自动续跑的 ---
+const runningOnDisk = async () => {
+    const sessions = []
+    for (const entry of await readdir(Path.sessions()).catch(() => [])) {
+        const meta = await Bun.file(Path.meta(entry)).json().catch(() => null)
+        if (meta?.running === true) sessions.push({ id: meta.id, title: meta.title, updatedAt: meta.updatedAt })
+    }
+    return sessions
+}
 
 // --- 会话删除后丢掉内存里的那一份 ---
 const remove = ({ sessionId }) => {
@@ -220,5 +262,5 @@ const prepare = async () => {
 export default {
     load, create, save, saveSettings, list,
     add, rollback, redo, redoCount, idsBefore, get,
-    count, remove, clear, destroy, prepare,
+    count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
 }

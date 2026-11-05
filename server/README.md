@@ -28,6 +28,17 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 
 模型没有调用任何工具时，最多追问 3 轮再结束；默认提示词要求每轮用 `attempt_completion` 收尾，追问时会再提醒一次。这样模型漏调结束工具时，不会把普通文字直接当成结果。
 
+## 重启恢复
+
+任务运行中后端被重启或崩溃时，进程里的运行状态全部丢失；磁盘 `meta.json` 上的 `running: true` 是“这个会话被打断了”的唯一线索。机制：
+
+- 任务开跑前把 `running: true` 写进 meta，收尾（成功、失败、被停止）后清掉；
+- 服务启动时扫描全部会话，对所有还带着 `running: true` 的会话逐条处理：
+  - 历史末尾是助手回复（包括悬着没有结果的工具调用）→ 直接 `Chat.resume` 自动续跑，过程和手动发送一样走 SSE；
+  - 历史末尾是用户消息 → 只清标记，等用户自己发下一句；
+  - 尾部 tool 消息里已经有 `attempt_completion` / `ask_followup_question` 的结果 → 任务其实已正常收尾，只清标记；
+- 恢复异步进行，不挡启动；单条会话失败（比如供应商配置丢了）只记日志并清标记，不影响其他会话和服务启动。
+
 ## 五个核心概念
 
 1. **会话**：唯一的长期容器。标题、当前目录 `cwd`、模型、历史、设置都在会话里。
@@ -44,7 +55,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 .agent/
   config.json          模型服务、按任务的默认模型、MCP、权限、提示词、压缩阈值
   sessions/<id>/
-    meta.json          标题、当前目录、模型、时间
+    meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
     history.json       消息和回退栈
     settings.json      思考强度
     tool-timings.json  工具开始/结束时间，刷新后恢复计时
@@ -414,7 +425,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | 方法 | 地址 | 请求体 | 结果 |
 | --- | --- | --- | --- |
 | `POST` | `/agent/send/:sessionId` | `{ "input" }`；`input` 是字符串，或内容块数组 `{ type: "text" \| "image" }`（图片为 data URL / http(s) URL，base64 上限 8M 字符） | `{ "ok": true }`，过程走 SSE |
-| `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }`，继续被中断的助手 |
+| `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }`，继续被中断的助手；服务启动时也会对被打断的会话自动调用 |
 | `POST` | `/agent/stop/:sessionId` | 可选 `{ "partial" }` | `{ "ok": true/false }` |
 | `POST` | `/agent/decide/:sessionId` | `{ "toolCallId", "decision" }` | `{ "ok": true/false }` |
 

@@ -33,6 +33,10 @@ const stopping = new Set()
 
 const finishRun = (sessionId, token) => {
     if (activeRuns.get(sessionId) === token) activeRuns.delete(sessionId)
+    // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
+    // syncHistory 已经在前面把 running:true 写下去了，这里再单独补一笔 meta。
+    History.setRunning(sessionId, false)
+    void History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
 }
 
 // --- 取一条消息里的纯文本 ---
@@ -289,6 +293,10 @@ const startRun = async ({ sessionId, input, resume, agent }) => {
     const settings = await Agent.readSettings(sessionId)
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
 
+    // 落盘“运行中”，重启后才有线索知道这个会话被意外打断。异步写，不挡模型请求。
+    History.setRunning(sessionId, true)
+    void History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
+
     const state = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
     const token = { stopped: false, state }
     activeRuns.set(sessionId, token)
@@ -327,6 +335,61 @@ const run = async ({ sessionId, input, resume = false }) => {
         .then(result => finishSuccess({ sessionId, token, agent, resume, result }))
         .catch(error => finishFailure({ sessionId, token, agent, state: token.state, error }))
     return { ok: true }
+}
+
+// --- 结束工具：它们的结果在历史里说明任务其实已经正常收尾 ---
+const isStopResult = part => part?.type === 'tool-result' && (part.toolName === 'attempt_completion' || part.toolName === 'ask_followup_question')
+
+// --- 会话被意外打断后，末尾是否还有一个可以继续的助手回合 ---
+// 末尾悬着一条没有结果的工具调用，也照样能继续：core 在每次请求前都会把
+// 没拿到结果的 tool-call 从上下文里摘掉，不会撑坏协议。
+const resumable = messages => {
+    const last = [...messages].reverse().find(message => !message.internal && message.role !== 'tool')
+    return last?.role === 'assistant'
+}
+
+// --- 磁盘上的标记说“当时正在运行”，但任务其实已经正常收尾：只清标记，不重发请求 ---
+// 并行工具调用时结束工具的结果可能夹在尾部几条 tool 消息中间，所以扫整个尾部 tool 段。
+const skipRecovery = messages => {
+    for (let index = messages.length - 1; index >= 0 && messages[index].role === 'tool'; index -= 1) {
+        if ((messages[index].content || []).some(isStopResult)) return true
+    }
+    return false
+}
+
+// --- 重启后自动接住被打断的任务 ---
+// 崩溃或重启时进程里的运行状态全部丢失，磁盘 meta 上的 running 是唯一线索。
+// 恢复就是把每条被打断的会话按原逻辑接上：末尾还是助手回合的直接 resume（core 从中断处继续），
+// 末尾是用户消息的只清标记（等用户自己发下一句）。收尾由 run 自己负责，成功失败都会清标记。
+const recover = async () => {
+    const candidates = await History.runningOnDisk()
+    const recovered = []
+    for (const { id } of candidates) {
+        try {
+            await History.load(id)
+            const agent = await Agent.get({ sessionId: id })
+            if (agent.running) continue
+            const visible = History.get({ sessionId: id }).filter(message => !message.internal)
+            if (skipRecovery(visible)) {
+                History.setRunning(id, false)
+                await History.saveMeta(id)
+                continue
+            }
+            if (!resumable(visible)) {
+                History.setRunning(id, false)
+                await History.saveMeta(id)
+                continue
+            }
+            await run({ sessionId: id, resume: true })
+            recovered.push(id)
+        } catch (error) {
+            // 一条会话恢复失败不该拖垮服务启动，也不该让它永远卡在“运行中”：清掉标记，下轮再说。
+            console.error(`[recovery] 会话 ${id} 自动续跑失败：${error.message}`)
+            History.setRunning(id, false)
+            await History.saveMeta(id).catch(() => {})
+        }
+    }
+    return { recovered }
 }
 
 // --- 第一次聊完之后给会话起标题 ---
@@ -407,4 +470,4 @@ const send = ({ sessionId, input }) => run({ sessionId, input })
 const resume = ({ sessionId }) => run({ sessionId, resume: true })
 const decide = input => Approval.decide(input)
 
-export default { send, resume, stop, decide }
+export default { send, resume, stop, decide, recover }
