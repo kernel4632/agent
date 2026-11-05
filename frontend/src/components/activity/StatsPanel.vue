@@ -85,14 +85,8 @@ const ringClass = computed(() => ({
   'is-danger': percent.value >= 90,
 }))
 const hasUsage = computed(() => total.value > 0)
-const trendLabel = computed(() => usageApproximate.value ? '最近回复' : '最近请求')
 const requestCount = computed(() => Number(usage.value.requests || 0) || (props.stats.series || []).length)
 const freshInput = computed(() => Math.max(0, Number(usage.value.input || 0) - cacheRead.value))
-const outputShare = computed(() => {
-  const sum = Number(usage.value.input || 0) + Number(usage.value.output || 0)
-  return sum ? Number(usage.value.output || 0) / sum * 100 : 0
-})
-const outputPercentText = computed(() => outputShare.value > 0 && outputShare.value < 1 ? '<1%' : `${Math.round(outputShare.value)}%`)
 const composition = computed(() => {
   const sum = freshInput.value + cacheRead.value + Number(usage.value.output || 0)
   if (!sum) return { fresh: 0, cache: 0, output: 0 }
@@ -137,7 +131,6 @@ const contextAreaPath = computed(() => trendChart.value.length
   ? `M 0 100 L ${trendChart.value.map(item => `${item.x.toFixed(2)} ${item.y.toFixed(2)}`).join(' L ')} L 100 100 Z`
   : '')
 const cachePath = computed(() => trendChart.value.map((item, index) => `${index ? 'L' : 'M'} ${item.x.toFixed(2)} ${item.cacheY.toFixed(2)}`).join(' '))
-const recentRows = computed(() => trend.value.slice(-5).reverse())
 const speedGroups = computed(() => [...(props.stats.models || [])].sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps)))
 const overallAverageDuration = computed(() => {
   const groups = speedGroups.value.filter(group => group.averageDurationMs > 0)
@@ -201,7 +194,7 @@ const formatDuration = value => {
 
     <Menu
       mode="content"
-      class="session-stats__menu"
+      class="session-stats__menu session-stats__menu--usage"
       :label="`${formatTokens(total, usageApproximate)} tokens${cacheTokens ? `，缓存命中 ${cacheHitText}%` : ''}，点击查看 token 用量`"
       content-label="Token 用量"
     >
@@ -214,38 +207,21 @@ const formatDuration = value => {
           <span v-if="usageApproximate" class="stats-panel__badge">估算</span>
         </div>
         <template v-if="hasUsage">
-          <div class="stats-panel__summary">
-            <div class="stats-panel__total">
-              <span class="stats-panel__total-label">本会话累计</span>
-              <div class="stats-panel__total-value"><strong>{{ formatTokens(total, usageApproximate) }}</strong><small>tokens</small></div>
-              <span class="stats-panel__total-meta">共 {{ requestCount }} 次请求</span>
+          <div class="stats-panel__overview">
+            <div class="stats-panel__overview-total">
+              <span class="stats-panel__overview-label">本会话累计</span>
+              <div class="stats-panel__overview-value"><strong>{{ formatTokens(total, usageApproximate) }}</strong><span>tokens</span></div>
             </div>
-            <div class="stats-panel__metrics">
-              <div class="stats-panel__metric is-input">
-                <span>输入</span>
-                <strong>{{ formatTokens(usage.input, usageApproximate) }}</strong>
-                <small v-if="cacheTokens">缓存占 {{ cacheHit }}%</small>
-              </div>
-              <div class="stats-panel__metric is-output">
-                <span>输出</span>
-                <strong>{{ formatTokens(usage.output, usageApproximate) }}</strong>
-                <small>占总量 {{ outputPercentText }}</small>
-              </div>
-              <div class="stats-panel__metric is-cache">
-                <span>缓存读</span>
-                <strong>{{ formatTokens(cacheTokens, usageApproximate) }}</strong>
-                <small>{{ cacheHit }}% 命中</small>
-              </div>
-              <div v-if="usage.reasoning" class="stats-panel__metric is-reasoning">
-                <span>推理</span>
-                <strong>{{ formatTokens(usage.reasoning, usageApproximate) }}</strong>
-                <small>思考 token</small>
-              </div>
-            </div>
+            <span class="stats-panel__overview-count">{{ requestCount }} 次请求<template v-if="usage.reasoning"> · 推理 {{ formatTokens(usage.reasoning, usageApproximate) }}</template></span>
+          </div>
+          <div class="stats-panel__metric-row">
+            <div class="stats-panel__metric is-input"><span>输入</span><strong>{{ formatTokens(usage.input, usageApproximate) }}</strong></div>
+            <div class="stats-panel__metric is-output"><span>输出</span><strong>{{ formatTokens(usage.output, usageApproximate) }}</strong></div>
+            <div class="stats-panel__metric is-cache"><span>缓存读</span><strong>{{ formatTokens(cacheTokens, usageApproximate) }}</strong><em>{{ cacheHit }}%</em></div>
           </div>
 
           <div class="stats-panel__composition">
-            <div class="stats-panel__composition-head"><span>本会话构成</span><span>{{ formatTokens(total, usageApproximate) }} tokens</span></div>
+            <div class="stats-panel__composition-head"><span>本会话构成</span></div>
             <div class="stats-panel__stack stats-panel__stack--composition" aria-hidden="true">
               <span class="is-input" :style="{ flex: `0 0 ${composition.fresh}%` }"></span>
               <span class="is-cache" :style="{ flex: `0 0 ${composition.cache}%` }"></span>
@@ -261,33 +237,20 @@ const formatDuration = value => {
 
           <div class="stats-panel__trend">
             <div class="stats-panel__trend-head">
-              <span class="stats-panel__heading"><Icon name="activity" :size="15" />{{ trendLabel }}</span>
-              <span class="stats-panel__hint">最近 {{ trend.length }} 次 / 共 {{ requestCount }} 次</span>
+              <span class="stats-panel__heading"><Icon name="activity" :size="15" />上下文走势</span>
+              <span class="stats-panel__hint">最近 {{ trend.length }} 次</span>
             </div>
-            <div v-if="trend.length" class="stats-panel__trend-chart" role="img" :aria-label="`${trendLabel} ${trend.length} 次的上下文和缓存命中率`">
+            <div v-if="trend.length" class="stats-panel__trend-chart" role="img" :aria-label="`最近 ${trend.length} 次的上下文和缓存命中率，最高上下文 ${formatTokens(trendMaxInput, usageApproximate)}，平均缓存命中 ${trendAverageCache.toFixed(0)}%`">
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
                 <line v-for="y in [0, 25, 50, 75, 100]" :key="y" class="stats-panel__trend-grid" x1="0" :y1="y" x2="100" :y2="y" />
                 <path class="stats-panel__trend-area" :d="contextAreaPath" />
                 <path class="stats-panel__trend-context" :d="contextPath" vector-effect="non-scaling-stroke" />
                 <path class="stats-panel__trend-cache" :d="cachePath" vector-effect="non-scaling-stroke" />
               </svg>
-              <span class="stats-panel__trend-axis is-top">{{ formatTokens(trendMaxInput, usageApproximate) }}</span>
-              <span class="stats-panel__trend-axis is-cache">{{ trendAverageCache.toFixed(0) }}%</span>
-              <span class="stats-panel__trend-axis is-bottom">0</span>
             </div>
-            <div class="stats-panel__chart-caption">
-              <span><i class="stats-panel__legend-dot is-context"></i>上下文 最高 {{ formatTokens(trendMaxInput, usageApproximate) }}</span>
-              <span><i class="stats-panel__legend-dot is-cache"></i>缓存命中 平均 {{ trendAverageCache.toFixed(0) }}%</span>
-            </div>
-          </div>
-
-          <div v-if="recentRows.length" class="stats-panel__recent">
-            <div class="stats-panel__recent-head"><span>最近请求</span><span>输入 · 输出 · 缓存</span></div>
-            <div v-for="row in recentRows" :key="row.key" class="stats-panel__recent-row" :title="row.title">
-              <span class="stats-panel__recent-index">#{{ row.index }}</span>
-              <span>{{ formatTokens(row.input, usageApproximate) }}</span>
-              <span>{{ formatTokens(row.output, usageApproximate) }}</span>
-              <span>{{ row.cacheRate.toFixed(0) }}%</span>
+            <div class="stats-panel__trend-legend">
+              <span><i class="stats-panel__legend-dot is-context"></i>上下文最高 {{ formatTokens(trendMaxInput, usageApproximate) }}</span>
+              <span><i class="stats-panel__legend-dot is-cache"></i>缓存命中平均 {{ trendAverageCache.toFixed(0) }}%</span>
             </div>
           </div>
         </template>
