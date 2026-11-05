@@ -75,21 +75,26 @@ const pushLab = (map, key, lab) => {
     map.set(key, list)
 }
 
-// 把 provider→models 的目录展开成模型 ID → 候选 lab。中转站的同名模型可能来自多个 lab，
-// 候选不唯一时保持歧义，不猜。
+// 把 provider→models 的目录展开成模型 ID → 候选 lab。
+// canonical 指向原厂时优先用 canonical；只有完全没有 canonical 的条目才按 provider 猜。
 const buildIndex = data => {
     const providers = new Set(Object.keys(data || {}))
     const exact = new Map()
+    const canonicalExact = new Map()
     for (const [providerId, provider] of Object.entries(data || {})) {
         for (const [modelId, model] of Object.entries(provider?.models || {})) {
             const canonical = normalizeModel(model?.canonical_model_id)
             const lab = canonical.split('/')[0] || normalizeModel(providerId)
             pushLab(exact, normalizeModel(modelId), lab)
             pushLab(exact, `${normalizeModel(providerId)}/${normalizeModel(modelId)}`, lab)
-            if (canonical) pushLab(exact, canonical, lab)
+            if (canonical) {
+                pushLab(exact, canonical, lab)
+                pushLab(canonicalExact, normalizeModel(modelId), lab)
+                pushLab(canonicalExact, canonical, lab)
+            }
         }
     }
-    return { providers, exact }
+    return { providers, exact, canonicalExact }
 }
 
 const readDisk = async () => {
@@ -159,6 +164,13 @@ const index = () => {
 const suggestFamily = (model, indexData) => {
     const normalized = normalizeModel(model)
     if (!normalized) return { family: '', candidates: [], ambiguous: false, source: 'empty' }
+
+    // canonical_model_id 是原厂归属的强证据；优先于“谁托管过同名模型”。
+    // 例如 kimi-k2.6 同时出现在 moonshotai 和 alibaba-cn，但只有前者给了
+    // canonical_model_id=moonshotai/kimi-k2.6。
+    const canonical = indexData.canonicalExact?.get(normalized) || []
+    if (canonical.length === 1) return { family: canonical[0], candidates: canonical, ambiguous: false, source: 'catalog' }
+    if (canonical.length > 1) return { family: '', candidates: canonical, ambiguous: true, source: 'catalog' }
 
     const exact = indexData.exact.get(normalized) || []
     if (exact.length === 1) return { family: exact[0], candidates: exact, ambiguous: false, source: 'catalog' }
