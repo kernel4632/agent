@@ -66,6 +66,11 @@ const connect = async ({ name, sessionId }) => {
         connections.set(name, { client, tools }) // 缓存已成功连接的客户端与工具
         return tools // 返回拉取到的工具字典
     } catch (error) {
+        // 外部服务启动失败、异常或超时时，自动停用该服务并落盘，防止每次会话装配都重复卡死
+        if (definition && definition.enabled !== false) {
+            definition.enabled = false // 内存中将该故障服务标记为停用
+            await services.config?.save().catch(() => {}) // 异步写回磁盘配置，保证后续开箱即过
+        }
         // 一个服务连不上不该拖垮整个会话，记下来让用户知道就行。
         if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
         return null // 捕获超时或异常，保证外部流程正常往下走

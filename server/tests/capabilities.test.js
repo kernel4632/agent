@@ -13,6 +13,7 @@ import Agent from '../features/agent.js'
 import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
 import SkillFeature from '../features/skills.js'
 import Session from '../commands/session.js'
 import Skill from '../tools/skill.js'
@@ -217,6 +218,25 @@ describe('MCP 服务管理', () => {
             expect(failed.ok).toBe(false)
             expect(failed.tools).toEqual([])
             expect(typeof failed.error).toBe('string')
+        })
+    })
+
+    test('启动失败或超时的 MCP 服务会自动关闭并落盘', async () => {
+        await withHome(async () => {
+            // 先保存一个无法执行命令的故障服务并启用
+            await json('/mcp/save', 'POST', {
+                name: 'broken_server',
+                definition: { command: 'definitely-not-a-real-command-in-this-test' },
+            })
+            // 触发一次工具装配拉取
+            const tools = await Mcp.tools()
+            // 确保故障服务的工具没有进入总工具表
+            expect(Object.keys(tools).some(k => k.startsWith('broken_server_'))).toBe(false)
+            // 内存配置中该服务已被自动停用
+            expect(store.config.mcp.broken_server.enabled).toBe(false)
+            // 验证磁盘上的配置文件也已同步落盘为停用状态
+            const onDisk = JSON.parse(await readFile(join(process.env.AGENT_HOME, 'config.json'), 'utf8'))
+            expect(onDisk.mcp.broken_server.enabled).toBe(false)
         })
     })
 })
