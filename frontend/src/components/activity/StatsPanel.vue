@@ -96,41 +96,7 @@ const composition = computed(() => {
     output: Number(usage.value.output || 0) / sum * 100,
   }
 })
-// 走势按“每次请求的完整上下文”画线，缓存命中率单独画一条线。
-// 这样不会再出现一组长得一样的堆叠柱：上下文是否稳定、缓存是否有效一眼能看出来。
-const trend = computed(() => (props.stats.series || []).map((item, index) => {
-  const input = Number(item.input || 0)
-  const output = Number(item.output || 0)
-  const cache = Math.min(input, Math.max(0, Number(item.cache || 0)))
-  return {
-    key: index,
-    index: index + 1,
-    input,
-    output,
-    cache,
-    cacheRate: input ? Math.min(100, cache / input * 100) : 0,
-    title: `第 ${index + 1} 次：上下文 ${input} tokens（缓存 ${cache}），输出 ${output}`,
-  }
-}))
-const trendMaxInput = computed(() => Math.max(1, ...trend.value.map(item => item.input)))
-const trendAverageCache = computed(() => trend.value.length
-  ? trend.value.reduce((sum, item) => sum + item.cacheRate, 0) / trend.value.length
-  : 0)
-// 只有一次请求时也画一条水平线，避免折线退化成三角形面积。
-const trendChart = computed(() => {
-  const values = trend.value.length === 1 ? [trend.value[0], trend.value[0]] : trend.value
-  return values.map((item, index) => ({
-    ...item,
-    x: values.length > 1 ? index / (values.length - 1) * 100 : 50,
-    y: 100 - Math.min(100, item.input / trendMaxInput.value * 100),
-    cacheY: 100 - item.cacheRate,
-  }))
-})
-const contextPath = computed(() => trendChart.value.map((item, index) => `${index ? 'L' : 'M'} ${item.x.toFixed(2)} ${item.y.toFixed(2)}`).join(' '))
-const contextAreaPath = computed(() => trendChart.value.length
-  ? `M 0 100 L ${trendChart.value.map(item => `${item.x.toFixed(2)} ${item.y.toFixed(2)}`).join(' L ')} L 100 100 Z`
-  : '')
-const cachePath = computed(() => trendChart.value.map((item, index) => `${index ? 'L' : 'M'} ${item.x.toFixed(2)} ${item.cacheY.toFixed(2)}`).join(' '))
+// 走势图已移除：Token 面板只保留总账和构成，不再用一条几乎不变的上下文曲线占空间。
 const speedGroups = computed(() => [...(props.stats.models || [])].sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps)))
 const overallAverageDuration = computed(() => {
   const groups = speedGroups.value.filter(group => group.averageDurationMs > 0)
@@ -232,25 +198,6 @@ const formatDuration = value => {
               <span><i class="is-cache"></i>缓存读 {{ formatTokens(cacheTokens, usageApproximate) }}</span>
               <span><i class="is-output"></i>输出 {{ formatTokens(usage.output, usageApproximate) }}</span>
               <span v-if="cacheWriteTokens"><i class="is-cache-write"></i>缓存写 {{ formatTokens(cacheWriteTokens, usageApproximate) }}</span>
-            </div>
-          </div>
-
-          <div class="stats-panel__trend">
-            <div class="stats-panel__trend-head">
-              <span class="stats-panel__heading"><Icon name="activity" :size="15" />上下文走势</span>
-              <span class="stats-panel__hint">最近 {{ trend.length }} 次</span>
-            </div>
-            <div v-if="trend.length" class="stats-panel__trend-chart" role="img" :aria-label="`最近 ${trend.length} 次的上下文和缓存命中率，最高上下文 ${formatTokens(trendMaxInput, usageApproximate)}，平均缓存命中 ${trendAverageCache.toFixed(0)}%`">
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <line v-for="y in [0, 25, 50, 75, 100]" :key="y" class="stats-panel__trend-grid" x1="0" :y1="y" x2="100" :y2="y" />
-                <path class="stats-panel__trend-area" :d="contextAreaPath" />
-                <path class="stats-panel__trend-context" :d="contextPath" vector-effect="non-scaling-stroke" />
-                <path class="stats-panel__trend-cache" :d="cachePath" vector-effect="non-scaling-stroke" />
-              </svg>
-            </div>
-            <div class="stats-panel__trend-legend">
-              <span><i class="stats-panel__legend-dot is-context"></i>上下文最高 {{ formatTokens(trendMaxInput, usageApproximate) }}</span>
-              <span><i class="stats-panel__legend-dot is-cache"></i>缓存命中平均 {{ trendAverageCache.toFixed(0) }}%</span>
             </div>
           </div>
         </template>
