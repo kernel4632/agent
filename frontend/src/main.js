@@ -6,6 +6,7 @@ import { Settings } from "./features/settings.js"
 import { Session } from "./features/session.js"
 
 import { Chat } from './commands/chat.js'
+import { Navigation } from './commands/navigation.js'
 import { createApp, watch } from 'vue'
 import './styles/tokens.scss'        // 项目自己的颜色、尺寸和动效变量
 import './styles/base.scss'          // 全局重置与可访问性规则
@@ -33,17 +34,29 @@ function startWatchers() {
 
 
 
-// 刷新后回到上次打开的会话；会话已被删除时退回新对话页。
+// 刷新后回到上次打开的会话或设置页；数据不存在时退回新对话页。
 async function restorePath() {
   const saved = readPath()
-  if (!saved || saved.view !== 'chat' || !saved.sessionId) return
-  if (!store.sessionList.some(item => item.id === saved.sessionId)) {
-    if (!store.ui.errorMessage) savePath({ view: 'home' })
+  if (!saved) return
+
+  const restoreChat = async sessionID => {
+    if (!sessionID || !store.sessionList.some(item => item.id === sessionID)) return false
+    if (!await Session.read(sessionID)) return false
+    store.ui.activeSessionID = sessionID
+    store.ui.view = 'chat'
+    return true
+  }
+
+  if (saved.view === 'settings') {
+    if (saved.baseView === 'chat') await restoreChat(saved.sessionId)
+    else store.ui.view = 'home'
+    await Navigation.openSettings(saved.section || '')
+    if (saved.detail) Navigation.openDetail(saved.detail)
     return
   }
-  if (!await Session.read(saved.sessionId)) return
-  store.ui.activeSessionID = saved.sessionId
-  store.ui.view = 'chat'
+
+  if (saved.view !== 'chat') return
+  if (!await restoreChat(saved.sessionId) && !store.ui.errorMessage) savePath({ view: 'home' })
 }
 
 startWatchers()

@@ -652,6 +652,20 @@ test('connection failure is visible and does not replace the page with a blank s
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible()
 })
 
+test('settings page and provider detail survive refresh', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.getByRole('button', { name: /Test Provider/ }).click()
+  await expect(page.getByRole('heading', { name: 'Test Provider', exact: true, level: 1 })).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Test Provider', exact: true, level: 1 })).toBeVisible()
+  await expect(page.locator('.settings-screen:not([inert])')).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('settings auto-save on change and back keeps the chat draft', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

@@ -76,6 +76,9 @@ const layers = computed(() => {
   return pages
 })
 const activeKey = computed(() => layers.value.at(-1).key)
+watch(activeKey, () => {
+  if (store.ui.settingsOpen) Navigation.saveSettingsPath()
+}, { flush: 'post' })
 
 // 被覆盖的页面仍在 DOM 中，但不能接收键盘或鼠标；返回时恢复原来的触发器焦点。
 const openers = new Map()

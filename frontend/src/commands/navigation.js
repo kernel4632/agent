@@ -6,6 +6,22 @@ import { Settings } from "../features/settings.js" // 离页前保存
 import { Session } from "../features/session.js" // 进入聊天前读取会话
 import { savePath } from '../utils/session-view.js' // 刷新后回到同一会话
 
+function saveBasePath() {
+  if (store.ui.view === 'chat' && store.ui.activeSessionID) savePath({ view: 'chat', sessionId: store.ui.activeSessionID })
+  else savePath({ view: 'home' })
+}
+
+function saveSettingsPath() {
+  if (!store.ui.settingsOpen) return
+  savePath({
+    view: 'settings',
+    baseView: store.ui.view === 'home' ? 'home' : 'chat',
+    sessionId: store.ui.activeSessionID || '',
+    section: store.ui.settingsSection || '',
+    detail: store.ui.settingsDetail || null,
+  })
+}
+
 async function leaveSettings() {
   if (!store.ui.settingsOpen) return true // 聊天之间切换不用保存设置
   return closeSettings() // 保存失败时继续留在设置页
@@ -36,6 +52,7 @@ async function openSettings(section = '') {
   store.ui.settingsSection = section
   store.ui.settingsDetail = null
   store.ui.settingsOpen = true
+  saveSettingsPath()
   return true
 }
 
@@ -43,6 +60,7 @@ async function openSettings(section = '') {
 async function closeSettings() {
   if (!await Settings.save({ keepDraft: true })) return false
   store.ui.settingsOpen = false
+  saveBasePath()
   return true
 }
 
@@ -78,15 +96,18 @@ async function createSession() {
 function openDetail({ id, title = '' } = {}) {
   if (!id) return
   store.ui.settingsDetail = { id, title }
+  saveSettingsPath()
 }
 
 function closeDetail() {
   store.ui.settingsDetail = null
+  saveSettingsPath()
 }
 
 function updateDetailTitle(title) {
   if (!store.ui.settingsDetail) return
   store.ui.settingsDetail = { ...store.ui.settingsDetail, title: title || '' }
+  saveSettingsPath()
 }
 
-export const Navigation = { openHome, openChat, openSettings, closeSettings, finishSettingsClose, retry, createSession, openDetail, closeDetail, updateDetailTitle }
+export const Navigation = { openHome, openChat, openSettings, closeSettings, finishSettingsClose, retry, createSession, openDetail, closeDetail, updateDetailTitle, saveSettingsPath }

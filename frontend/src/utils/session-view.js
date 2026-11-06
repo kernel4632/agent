@@ -26,12 +26,30 @@ export function readPath() {
   if (value?.view === 'chat' && typeof value.sessionId === 'string' && value.sessionId) {
     return { view: 'chat', sessionId: value.sessionId }
   }
+  if (value?.view === 'settings') {
+    return {
+      view: 'settings',
+      baseView: value.baseView === 'home' ? 'home' : 'chat',
+      sessionId: typeof value.sessionId === 'string' ? value.sessionId : '',
+      section: typeof value.section === 'string' ? value.section : '',
+      detail: value.detail?.id ? { id: String(value.detail.id), title: String(value.detail.title || '') } : null,
+    }
+  }
   return null
 }
 
 export function savePath(path) {
   if (path?.view === 'home') writeJSON(PATH_KEY, { view: 'home' })
   else if (path?.view === 'chat' && path.sessionId) writeJSON(PATH_KEY, { view: 'chat', sessionId: path.sessionId })
+  else if (path?.view === 'settings') {
+    writeJSON(PATH_KEY, {
+      view: 'settings',
+      baseView: path.baseView === 'home' ? 'home' : 'chat',
+      sessionId: typeof path.sessionId === 'string' ? path.sessionId : '',
+      section: typeof path.section === 'string' ? path.section : '',
+      detail: path.detail?.id ? { id: String(path.detail.id), title: String(path.detail.title || '') } : null,
+    })
+  }
 }
 
 export function readScroll(sessionID) {
