@@ -160,23 +160,23 @@ watch(activeTurn, (value, previous) => {
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
-// 按原始顺序分段：正常说话/请求留在外面，连续的思考与工具收进同一个二级组。
+// 一级正文/请求留在外面；不管中间夹了多少句话，工具与思考始终收进同一个二级组。
+// 组放在第一次出现工具/思考的位置，组前后的正文保持前后顺序。
 const processSections = computed(() => {
-  const sections = []
-  let group = null
+  const directs = []
+  const tools = []
+  let insertAt = 0
   for (const step of treeSteps.value) {
     if (step.type === 'reasoning' || step.type === 'tool') {
-      if (!group) {
-        group = { type: 'group', key: `group-${step.key}`, steps: [] }
-        sections.push(group)
-      }
-      group.steps.push(step)
+      if (!tools.length) insertAt = directs.length
+      tools.push(step)
     } else {
-      group = null
-      sections.push({ type: 'step', key: step.key, step })
+      directs.push({ type: 'step', key: step.key, step })
     }
   }
-  return sections
+  if (!tools.length) return directs
+  const group = { type: 'group', key: 'group-tools', steps: tools }
+  return [...directs.slice(0, insertAt), group, ...directs.slice(insertAt)]
 })
 const treeContentSteps = computed(() => treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))

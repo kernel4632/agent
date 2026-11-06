@@ -1555,6 +1555,28 @@ test('process tree collapses completed turns and remembers expansion after reloa
   expect(mock.errors).toEqual([])
 })
 
+test('interleaved assistant text still produces one tools-and-thinking group', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await page.getByText('正在处理', { exact: true }).waitFor()
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'a', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'a', toolName: 'read_file', output: { type: 'text', value: 'a' } },
+    { type: 'text-delta', text: '中间先说一句。' },
+    { type: 'tool-call', toolCallId: 'b', toolName: 'read_file', input: { path: 'b.txt' } },
+    { type: 'tool-result', toolCallId: 'b', toolName: 'read_file', output: { type: 'text', value: 'b' } },
+    { type: 'agent-finish', reason: 'completed' },
+  ])
+  await page.locator('.process-tree__head').click()
+  await expect(page.locator('.process-group__head')).toHaveCount(1)
+  await page.locator('.process-group__head').click()
+  await expect(page.locator('.process-row__body > .cot-step--tool')).toHaveCount(2)
+})
+
 test('subagent tools render as a nested branch under the parent tool', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
