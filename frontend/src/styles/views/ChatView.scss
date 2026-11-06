@@ -1,7 +1,7 @@
 .session-panel { display: flex; min-height: 0; flex: 1; }
 .session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; margin-inline: auto; }
 .session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.session-scroll { min-height: 0; flex: 1; overflow: auto; overflow-anchor: none; }
+.session-scroll { min-height: 0; flex: 1; overflow: auto; overflow-anchor: auto; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 4px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .session-composer__stats { width: 100%; padding: 0 8px 3px; }
 .composer-state-host { position: relative; width: 100%; min-width: 0; }

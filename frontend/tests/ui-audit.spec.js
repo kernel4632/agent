@@ -882,6 +882,48 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
+test('collapsing a process group above the viewport keeps the reader position', async ({ page }) => {
+  test.skip((await page.viewportSize()).width < 800, 'wheel scrolling is desktop-only here')
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  for (let index = 1; index <= 4; index += 1) {
+    await page.getByRole('textbox', { name: '消息', exact: true }).fill(`消息 ${index}`)
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await expect(page.locator('.rikka-bubble--assistant .markdown-body').last()).toContainText('一步步实现')
+  }
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await page.getByText('正在处理', { exact: true }).waitFor()
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'reasoning-delta', text: '先检查。' },
+    { type: 'tool-call', toolCallId: 'anchor-a', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'anchor-a', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+  ])
+
+  await page.mouse.move(700, 500)
+  await page.mouse.wheel(0, -220)
+  await page.waitForTimeout(250)
+  const before = await page.evaluate(() => {
+    const scroll = document.querySelector('.session-scroll')
+    const user = [...document.querySelectorAll('.rikka-bubble--user')].at(-1)
+    return { top: scroll.scrollTop, userTop: user.getBoundingClientRect().top }
+  })
+
+  // 开始说正文会让上面的工具组自动折叠；滚动位置不能跳到用户消息。
+  await mock.emit('session-1', [{ type: 'text-delta', text: '正文开始。' }])
+  await page.waitForTimeout(500)
+  const after = await page.evaluate(() => {
+    const scroll = document.querySelector('.session-scroll')
+    const user = [...document.querySelectorAll('.rikka-bubble--user')].at(-1)
+    return { top: scroll.scrollTop, userTop: user.getBoundingClientRect().top }
+  })
+  expect(Math.abs(after.top - before.top)).toBeLessThan(8)
+  expect(Math.abs(after.userTop - before.userTop)).toBeLessThan(8)
+  expect(mock.errors).toEqual([])
+})
+
 test('completed steps collapse individually, not the whole process', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

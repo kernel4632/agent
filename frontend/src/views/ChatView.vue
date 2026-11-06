@@ -70,7 +70,10 @@ async function submit(content) {
   if (props.busy) return
   if (!props.session) { emit('submit', content); return }
   const id = props.session.id
-  if (await Chat.send(id, content) && props.session?.id === id && draft.value === content) draft.value = ''
+  if (await Chat.send(id, content) && props.session?.id === id && draft.value === content) {
+    draft.value = ''
+    timeline.value?.jumpToBottom()
+  }
 }
 function attach(files, options) {
   if (props.session) void Chat.attach(props.session.id, files, options)

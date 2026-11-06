@@ -311,9 +311,13 @@ async function jumpToMessage(messageId) {
     }
   }, 900)
 }
-defineExpose({ jumpToMessage })
-watch(() => turns.value.length, length => {
-  if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
+defineExpose({ jumpToMessage, jumpToBottom })
+watch(() => turns.value.length, async () => {
+  if (!following.value) {
+    await nextTick()
+    if (atBottom(24)) setFollowing(true)
+  }
+  if (visibleStart.value > turns.value.length) visibleStart.value = visibleStartFor(Math.max(0, turns.value.length - INITIAL_TURNS))
   if (following.value) queueStick()
 })
 onMounted(() => {
@@ -359,7 +363,10 @@ onMounted(() => {
   }
   nextTick(() => requestAnimationFrame(() => {
     applyRestore()
-    requestAnimationFrame(applyRestore) // 字体/图片首帧后高度可能还在变，再对齐一次
+    requestAnimationFrame(() => {
+      applyRestore() // 字体/图片首帧后高度可能还在变，再对齐一次
+      if (!following.value && atBottom(24)) setFollowing(true)
+    })
   }))
 })
 onBeforeUnmount(() => {
