@@ -18,6 +18,7 @@ const track = ref(null)
 const ratio = ref(0)
 const dragging = ref(false)
 const hoverIndex = ref(-1)
+const activeOverride = ref(null)
 const viewport = ref({ top: '0px', height: '0px' })
 let scrollParent = null
 let observer = null
@@ -58,6 +59,8 @@ const widthOf = node => 6 + Math.round(18 * Math.min(1, node.length / maxLength.
 
 const activeIndex = computed(() => {
   if (!nodes.value.length) return -1
+  // 点击/键盘定位后先锁定被点的刻度；滚动过程的连续 ratio 不能把蓝色提示带到别的消息。
+  if (activeOverride.value !== null) return Math.min(nodes.value.length - 1, Math.max(0, activeOverride.value))
   return Math.min(nodes.value.length - 1, Math.max(0, Math.round(ratio.value * (nodes.value.length - 1))))
 })
 const activeNode = computed(() => nodes.value[activeIndex.value] || null)
@@ -103,6 +106,7 @@ function ratioAt(event) {
 function queueJump(index) {
   if (!nodes.value.length || index < 0) return
   pendingIndex = Math.min(nodes.value.length - 1, index)
+  activeOverride.value = pendingIndex
   if (frame) return
   frame = requestAnimationFrame(() => {
     frame = 0
@@ -114,8 +118,11 @@ function queueJump(index) {
 
 function seekTo(event) {
   if (!nodes.value.length) return
-  ratio.value = ratioAt(event)
-  const index = activeIndex.value
+  const mark = event.target instanceof Element ? event.target.closest('.conversation-rail__mark') : null
+  const index = mark
+    ? Math.min(nodes.value.length - 1, Math.max(0, Number(mark.dataset.index)))
+    : Math.min(nodes.value.length - 1, Math.max(0, Math.round(ratioAt(event) * (nodes.value.length - 1))))
+  ratio.value = positionOf(index) / 100
   hoverIndex.value = index
   queueJump(index)
 }
@@ -145,6 +152,11 @@ function pointerUp(event) {
   syncFromScroll()
 }
 
+// 用户自己滚动时重新交给滚动比例决定蓝色位置。
+function releaseActive() {
+  activeOverride.value = null
+}
+
 function keydown(event) {
   if (!nodes.value.length || !['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) return
   event.preventDefault()
@@ -163,6 +175,8 @@ onMounted(() => {
   // 滚动容器由页面传入；极端挂载顺序下 ref 还未展开时，用当前会话的滚动区兜底。
   scrollParent = props.scrollRoot?.nodeType === 1 ? props.scrollRoot : document.querySelector('.session-scroll')
   scrollParent?.addEventListener('scroll', syncFromScroll, { passive: true })
+  scrollParent?.addEventListener('wheel', releaseActive, { passive: true })
+  scrollParent?.addEventListener('touchstart', releaseActive, { passive: true })
   observer = new ResizeObserver(onResize)
   if (scrollParent) observer.observe(scrollParent)
   window.addEventListener('resize', onResize)
@@ -174,6 +188,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   scrollParent?.removeEventListener('scroll', syncFromScroll)
+  scrollParent?.removeEventListener('wheel', releaseActive)
+  scrollParent?.removeEventListener('touchstart', releaseActive)
   observer?.disconnect()
   window.removeEventListener('resize', onResize)
   if (frame) cancelAnimationFrame(frame)
@@ -216,3 +232,4 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss" src="../../styles/components/conversation/ConversationRail.scss"></style>
+

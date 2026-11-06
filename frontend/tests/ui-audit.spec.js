@@ -1601,6 +1601,7 @@ test('rail jump keeps the reader position when new output arrives', async ({ pag
   // 点在顶部刻度上，应该留在第一条消息；随后底部继续出字也不能吸回去。
   await page.locator('.conversation-rail__mark').first().click({ force: true })
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 1' })).toBeInViewport()
+  await expect(page.locator('.conversation-rail__mark').first()).toHaveClass(/is-active/)
   const before = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
 
   await mock.emit('session-1', [
