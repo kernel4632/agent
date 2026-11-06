@@ -457,6 +457,7 @@ function receiveTool(session, event) {
 async function receive(sessionID, event) {
   const session = store.sessions[sessionID]
   if (!session) return
+  session.eventRevision = (session.eventRevision || 0) + 1
   session.lastEventAt = Date.now()
   // 压缩的开始和结束显示成一行；压缩流里的正文留在这一行里实时显示，不进正常回答。
   if (event.type === 'compact-start') return startCompact(session, event)
