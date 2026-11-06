@@ -384,6 +384,9 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第一段。')
   await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第二段。')
   const card = page.locator('.cot-card')
+  // 结束工具完成后默认折叠整轮过程；先展开整轮，再展开处理组。
+  await expect(card.locator('.process-fold__head')).toHaveAttribute('aria-expanded', 'false')
+  await card.locator('.process-fold__head').click()
   await openContextGroups(page)
   if (await card.locator('.cot-more').count()) await card.locator('.cot-more').click()
   await expect(card).toContainText('第一段。')
@@ -809,6 +812,42 @@ test('narrative text stays visible while process actions fold', async ({ page })
   expect(mock.errors).toEqual([])
 })
 
+test('active process group folds when speech starts and keeps manual state', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'reasoning-delta', text: '先检查。' },
+    { type: 'tool-call', toolCallId: 'auto-fold', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'auto-fold', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+  ])
+  const processHead = page.locator('.process-fold__head')
+  const group = page.locator('.context-group__head')
+  await expect(processHead).toHaveAttribute('aria-expanded', 'true')
+  await expect(group).toHaveAttribute('aria-expanded', 'true')
+
+  // 助手开始说正文后，前面那批工具自动折叠。
+  await mock.emit('session-1', [{ type: 'text-delta', text: '现在说正文。' }])
+  await expect(group).toHaveAttribute('aria-expanded', 'false')
+
+  // 用户主动点开过，结束工具完成后也保留这个状态；整轮则自动折叠。
+  await group.click()
+  await expect(group).toHaveAttribute('aria-expanded', 'true')
+  await mock.emit('session-1', [
+    { type: 'tool-call', toolCallId: 'auto-done', toolName: 'attempt_completion', input: { result: '完成。' } },
+    { type: 'tool-result', toolCallId: 'auto-done', toolName: 'attempt_completion', output: { type: 'text', value: '完成。' } },
+  ])
+  await expect(processHead).toHaveAttribute('aria-expanded', 'false')
+  await processHead.click()
+  await expect(group).toHaveAttribute('aria-expanded', 'true')
+  expect(mock.errors).toEqual([])
+})
+
 test('process fold summarizes work, toggles steps, and stays transparent', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -858,7 +897,10 @@ test('completed steps collapse individually, not the whole process', async ({ pa
     { type: 'agent-finish', reason: 'completed' },
   ])
 
-  // 工具组完成后收起，组内工具也各自收起；展开组后再点开单条工具。
+  // 整轮完成后默认折叠；展开整轮后组仍是收起的，再展开组查看工具。
+  const processHead = page.locator('.process-fold__head')
+  await expect(processHead).toHaveAttribute('aria-expanded', 'false')
+  await processHead.click()
   await expect(page.locator('.context-group__head')).toHaveCount(1)
   await expect(page.locator('.context-group__head')).toHaveAttribute('aria-expanded', 'false')
   await expect(page.locator('.context-group__head')).toContainText('使用了 4 次工具：读取文件 4 次')

@@ -115,15 +115,23 @@ const steps = computed(() => {
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
+// 结束工具已经产出完整回答，就视为这一轮活动结束；不等到连接关闭才收折叠。
+const turnActive = computed(() => streaming.value && !finalText.value)
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
-// 整轮处理仍可一键收起，但默认保持展开；每个步骤自己完成后自动收起。
+// 整轮处理默认折叠；活动时自动展开。用户手动改过就按用户的选择保留。
 const processKey = `agent.process-fold:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
-const processOpen = ref((() => {
-  try { return localStorage.getItem(processKey) !== 'closed' } catch { return true }
-})())
+const processStored = (() => {
+  try { return localStorage.getItem(processKey) } catch { return null }
+})()
+const processTouched = ref(processStored !== null)
+const processOpen = ref(processStored === 'open' || (processStored === null && turnActive.value))
+watch(turnActive, value => {
+  if (!processTouched.value) processOpen.value = value
+})
 function toggleProcess() {
+  processTouched.value = true
   processOpen.value = !processOpen.value
   try { localStorage.setItem(processKey, processOpen.value ? 'open' : 'closed') } catch {}
 }
@@ -202,15 +210,19 @@ const processSections = computed(() => {
   return sections
 })
 
-const groupOpen = ref({})
+const groupStoreKey = `${processKey}:groups`
+const groupOpen = ref((() => {
+  try { return JSON.parse(localStorage.getItem(groupStoreKey) || '{}') || {} } catch { return {} }
+})())
 const lastGroupKey = computed(() => processSections.value.filter(section => section.type === 'group').at(-1)?.key)
-const isGroupOpen = section => groupOpen.value[section.key] ?? (streaming.value && section.key === lastGroupKey.value)
+// 只有“还在动作中”的最后一组自动展开；助手一旦开始说正文，前面的工具组自动收起。
+const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
+const activeGroupKey = computed(() => turnActive.value && lastStepType.value !== 'text' ? lastGroupKey.value : null)
+const isGroupOpen = section => groupOpen.value[section.key] ?? (section.key === activeGroupKey.value)
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
+  try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
 }
-watch(streaming, (value, previous) => {
-  if (previous && !value) groupOpen.value = {}
-})
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
