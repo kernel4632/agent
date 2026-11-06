@@ -194,7 +194,7 @@
 .process-fold__icon,
 .context-group__icon { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 8px; }
 .process-fold__icon { background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
-.context-group__icon { color: var(--la-secondary); }
+.context-group__icon { color: var(--la-secondary); background: var(--la-layer-02); }
 .process-fold__icon svg,
 .context-group__icon svg { display: block; width: 16px; height: 16px; }
 
