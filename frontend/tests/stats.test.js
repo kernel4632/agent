@@ -87,6 +87,17 @@ test('content composition separates user, thinking, reply and tool output', () =
   assert.equal(stats.composition.total, stats.composition.user + stats.composition.thinking + stats.composition.reply + stats.composition.tools)
 })
 
+test('content composition refreshes when a streaming message settles', () => {
+  const message = assistant('短', { isStreaming: true, requests: [{ input: 10, output: 1, total: 11 }] })
+  const session = { contextLimit: 1000, contextTokens: 10, messages: [user('开始'), message] }
+  const before = sessionStats(session).composition.reply
+  message.content = '一段长得多的最终回答'.repeat(20)
+  message.steps[0].text = message.content
+  assert.equal(sessionStats(session).composition.reply, before)
+  message.isStreaming = false
+  assert.ok(sessionStats(session).composition.reply > before)
+})
+
 test('streaming output exposes a live speed snapshot', () => {
   const firstTokenAt = Date.now() - 1000
   const session = {

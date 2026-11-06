@@ -1195,7 +1195,7 @@ test('compaction summary renders as a divider, not a user bubble', async ({ page
     history: [
       { messageId: 'compact-u1', role: 'user', content: '旧问题' },
       { messageId: 'compact-a1', role: 'assistant', content: [{ type: 'text', text: '旧回答' }] },
-      { messageId: 'compact-summary', role: 'user', compact: true, content: '## 项目背景\n\n- 仓库：`kernel4632/agent`\n- 版本：server 0.65.2 / frontend 0.99.29\n\n**关键发现**：旧后端没有加载修复。' },
+      { messageId: 'compact-summary', role: 'user', compact: true, content: '## 项目背景\n\n- 仓库：`kernel4632/agent`\n- 版本：server 0.65.2 / frontend 0.99.30\n\n**关键发现**：旧后端没有加载修复。' },
       { messageId: 'compact-u2', role: 'user', content: '新问题' },
       { messageId: 'compact-a2', role: 'assistant', content: [{ type: 'text', text: '新回答' }] },
     ],

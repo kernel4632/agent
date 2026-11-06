@@ -71,36 +71,63 @@ function messageUsage(message) {
 // 估算一次就缓存：流式输出时同一轮会反复触发统计，不能每个字都把整段历史重算一遍。
 const estimateCache = new WeakMap()
 
-// 会话内容构成：按消息类别估算用户输入、助手思考、助手回复和工具输出。
-// 这不是计费口径，而是当前时间线里各类内容的大致体积。
-const compositionCache = new WeakMap()
+// 请求行只在新增消息或结束一次请求时变化；正文增量不该重新摊平整段历史。
+const requestSummaryCache = new WeakMap()
 
-function contentComposition(session, messages) {
+function requestSummary(session, messages) {
   const last = messages.at(-1)
+  const lastRequest = last?.requests?.at(-1) || last?.request || null
   const signature = [
     messages.length,
     last?.id || '',
-    last?.content?.length || 0,
-    last?.reasoning?.length || 0,
-    (last?.tools || []).map(tool => `${tool.id}:${tool.status}:${String(tool.preview || '').length}:${tool.durationMs || 0}`).join(','),
+    last?.requests?.length || 0,
+    lastRequest?.status || '',
+    lastRequest?.input || 0,
+    lastRequest?.output || 0,
+    lastRequest?.finishedAt || 0,
   ].join(':')
-  const cached = compositionCache.get(session)
+  const cached = requestSummaryCache.get(session)
+  if (cached?.signature === signature) return cached
+  const requests = messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : [])
+  const request = messages.filter(message => !message.compact).flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : []).at(-1)
+  const value = { signature, requests, last: request }
+  requestSummaryCache.set(session, value)
+  return value
+}
+
+// 内容构成按消息缓存：流式时只有正在增长的最后一条会失效，历史消息不重复估算。
+const messageCompositionCache = new WeakMap()
+
+const valueLength = value => {
+  if (value == null) return 0
+  if (typeof value === 'string') return value.length
+  if (typeof value.value === 'string') return value.value.length
+  return 1
+}
+
+function compositionOf(message) {
+  const steps = Array.isArray(message.steps) ? message.steps : []
+  const messageTools = message.tools || []
+  // 内容构成是面板里的估算值，不需要每个 token 更新；流式结束或结构变化时再重算。
+  const signature = [
+    message.role,
+    message.compact ? 1 : 0,
+    message.isStreaming ? 1 : 0,
+    steps.length,
+    steps.map(step => step.type).join(','),
+    messageTools.length,
+    messageTools.map(tool => `${tool.id}:${tool.status}`).join(','),
+  ].join('|')
+  const cached = messageCompositionCache.get(message)
   if (cached?.signature === signature) return cached.value
 
   let user = 0
   let thinking = 0
   let reply = 0
   let tools = 0
-  for (const message of messages) {
-    if (message.compact) continue
-    if (message.role === 'user') {
-      user += estimateTokens(message.displayContent ?? message.content)
-      continue
-    }
-    if (message.role !== 'assistant') continue
-
-    const steps = Array.isArray(message.steps) ? message.steps : []
-    const messageTools = message.tools || []
+  if (message.role === 'user') {
+    user = estimateTokens(message.displayContent ?? message.content)
+  } else if (message.role === 'assistant') {
     if (steps.length) {
       let hasText = false
       for (const step of steps) {
@@ -119,8 +146,22 @@ function contentComposition(session, messages) {
   }
 
   const value = { user, thinking, reply, tools, total: user + thinking + reply + tools }
-  compositionCache.set(session, { signature, value })
+  messageCompositionCache.set(message, { signature, value })
   return value
+}
+
+function contentComposition(messages) {
+  const total = { user: 0, thinking: 0, reply: 0, tools: 0, total: 0 }
+  for (const message of messages) {
+    if (message.compact) continue
+    const part = compositionOf(message)
+    total.user += part.user
+    total.thinking += part.thinking
+    total.reply += part.reply
+    total.tools += part.tools
+    total.total += part.total
+  }
+  return total
 }
 
 function estimateSession(session, messages, limit) {
@@ -169,9 +210,8 @@ function estimateSession(session, messages, limit) {
 export function sessionStats(session) {
   if (!session) return null
   const messages = session.messages || []
-  const requests = messages.flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : [])
+  const { requests, last } = requestSummary(session, messages)
   const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
-  const last = messages.filter(message => !message.compact).flatMap(message => message.requests?.length ? message.requests : message.request ? [message.request] : []).at(-1)
   // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
   const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
@@ -275,7 +315,8 @@ export function sessionStats(session) {
       firstTokenAt: liveFirstTokenAt,
       tps: last ? requestTps(last) : 0,
     },
-    composition: contentComposition(session, messages),
+    // 内容构成只在统计面板真正读取时才算；流式正文不经过这里。
+    get composition() { return contentComposition(messages) },
     models: modelGroups(),
   }
 }
