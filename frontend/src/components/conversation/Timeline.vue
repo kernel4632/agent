@@ -258,6 +258,7 @@ async function jumpToMessage(messageId) {
   }
   await nextTick()
   const target = scrollParent.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`)
+    || scrollParent.querySelector(`[data-turn-id="${CSS.escape(String(messageId))}"]`)
   if (!target) return
   stopFollowing()
   const top = target.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop - 12
@@ -396,7 +397,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
       <Icon name="up" :size="14" />
       更早的 {{ earlierCount }} 轮
     </button>
-    <article v-for="turn in visibleTurns" :key="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'la 的回复'">
+    <article v-for="turn in visibleTurns" :key="turn.id" :data-turn-id="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'la 的回复'">
       <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
       <template v-else-if="turn.role === 'user'">
         <MessageActions

@@ -1,10 +1,11 @@
 <!--
-对话右侧快捷定位条：以用户消息为单位显示刻度，点击或拖动定位到对应消息。
-轨道只覆盖当前滚动容器，不改变消息宽度，也不替代浏览器滚动条。
+对话右侧快捷定位条：一轮一条刻度，用户短、助手长；不画竖线、不做滑块。
+鼠标停留显示“你/回答”的消息前缀，点击或拖动跳转；轨道只覆盖对话滚动区。
 调用示例：<ConversationRail :messages="session.messages" :scroll-root="conversationScroll" @jump="jumpToMessage" />。
 -->
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { groupMessageTurns } from '../../commands/history.js'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -21,17 +22,29 @@ let observer = null
 let frame = 0
 let pendingIndex = -1
 
-const nodes = computed(() => props.messages
-  .filter(message => message.role === 'user' && !message.compact && message.id)
-  .map(message => {
-    const raw = String(message.displayContent ?? message.content ?? '').replace(/\s+/g, ' ').trim()
-    const attachments = message.attachments?.length ? ` · ${message.attachments.length} 个附件` : ''
-    const images = message.images?.length ? ` · ${message.images.length} 张图片` : ''
+// 一轮一条刻度：用户问题和助手回答都能定位，刻度长度由这一轮的文字量决定。
+const nodes = computed(() => groupMessageTurns(props.messages)
+  .filter(turn => !turn.messages[0].compact)
+  .map(turn => {
+    const text = turn.messages
+      .map(message => String(message.displayContent ?? message.content ?? ''))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const fallback = turn.messages[0].images?.length ? '图片消息' : '空消息'
+    const prefix = text || fallback
+    const attachments = turn.messages[0].attachments?.length ? ` · ${turn.messages[0].attachments.length} 个附件` : ''
     return {
-      id: message.id,
-      title: `${raw || '图片消息'}${attachments || images}`.slice(0, 120),
+      id: turn.messages[0].id,
+      role: turn.role,
+      length: prefix.length,
+      title: `${turn.role === 'user' ? '你' : '回答'}：${prefix}${attachments}`.slice(0, 120),
     }
   }))
+
+// 按这一轮相对最长消息的比例给宽度；短问题明显短，长回答接近满格。
+const maxLength = computed(() => Math.max(1, ...nodes.value.map(node => node.length)))
+const widthOf = node => 6 + Math.round(18 * Math.min(1, node.length / maxLength.value))
 
 const activeIndex = computed(() => {
   if (!nodes.value.length) return -1
@@ -137,7 +150,7 @@ onBeforeUnmount(() => {
       class="conversation-rail__track"
       role="slider"
       tabindex="0"
-      aria-label="按用户消息定位"
+      aria-label="按消息定位"
       aria-orientation="vertical"
       :aria-valuemin="1"
       :aria-valuemax="nodes.length"
@@ -154,12 +167,11 @@ onBeforeUnmount(() => {
         v-for="(node, index) in nodes" :key="node.id"
         class="conversation-rail__mark"
         :class="{ 'is-active': index === activeIndex, 'is-hover': index === hoverIndex }"
-        :style="{ top: `${positionOf(index)}%` }"
+        :style="{ top: `${positionOf(index)}%`, width: `${widthOf(node)}px` }"
         :data-index="index"
         aria-hidden="true"
         @pointerenter="hoverIndex = index"
       ></span>
-      <span class="conversation-rail__thumb" :style="{ top: `${ratio * 100}%` }" aria-hidden="true"></span>
       <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${positionOf(hoverIndex)}%` }" aria-hidden="true">{{ hoverNode.title }}</span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>

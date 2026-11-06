@@ -1,58 +1,34 @@
-/* 右侧定位条：绝对定位在对话滚动区上，不占消息宽度，也不盖住浏览器滚动条。 */
+/* 对话右侧刻度：只显示消息前缀刻度，不画竖线、不塞滑块；长度代表这一轮的文字量。 */
 .conversation-rail {
   position: absolute;
   top: 8px;
   bottom: 8px;
-  right: max(12px, env(safe-area-inset-right));
+  right: max(6px, env(safe-area-inset-right));
   z-index: 8;
-  width: 22px;
+  width: 34px;
   pointer-events: none;
 }
 .conversation-rail__track {
   position: absolute;
-  inset: 0 7px;
+  inset: 0 4px;
   border-radius: 8px;
   outline: none;
   pointer-events: auto;
   touch-action: none;
   cursor: pointer;
 }
-.conversation-rail__track::before {
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: 50%;
-  width: 1px;
-  transform: translateX(-50%);
-  background: color-mix(in srgb, var(--la-secondary) 18%, transparent);
-  content: "";
-}
 .conversation-rail__track:focus-visible { box-shadow: 0 0 0 2px var(--la-accent-border); }
 .conversation-rail__mark {
   position: absolute;
   left: 50%;
-  width: 6px;
   height: 2px;
   transform: translate(-50%, -50%);
   border-radius: 2px;
   background: color-mix(in srgb, var(--la-secondary) 45%, transparent);
-  transition: width .12s ease, background .12s ease, height .12s ease;
+  transition: background .12s ease, height .12s ease;
 }
-.conversation-rail__mark.is-hover { width: 11px; background: var(--la-text); }
-.conversation-rail__mark.is-active { width: 14px; height: 3px; background: var(--la-accent); }
-.conversation-rail__thumb {
-  position: absolute;
-  left: 50%;
-  width: 10px;
-  height: 22px;
-  transform: translate(-50%, -50%);
-  border: 1px solid color-mix(in srgb, var(--la-accent) 45%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--la-accent) 30%, var(--la-bg));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--la-accent) 8%, transparent);
-  pointer-events: none;
-}
-.conversation-rail.is-dragging .conversation-rail__thumb { background: color-mix(in srgb, var(--la-accent) 55%, var(--la-bg)); }
+.conversation-rail__mark.is-hover { background: var(--la-text); }
+.conversation-rail__mark.is-active { height: 3px; background: var(--la-accent); }
 .conversation-rail__preview {
   position: absolute;
   right: calc(100% + 10px);
@@ -80,9 +56,8 @@
   white-space: nowrap;
 }
 @media (max-width: 767px) {
-  .conversation-rail { top: 4px; bottom: 4px; right: max(6px, env(safe-area-inset-right)); width: 18px; opacity: .42; transition: opacity .16s ease; }
+  .conversation-rail { top: 4px; bottom: 4px; right: max(4px, env(safe-area-inset-right)); width: 30px; opacity: .42; transition: opacity .16s ease; }
   .conversation-rail:focus-within, .conversation-rail.is-dragging { opacity: 1; }
-  .conversation-rail__track { inset-inline: 4px; }
   .conversation-rail__preview { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

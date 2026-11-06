@@ -62,7 +62,7 @@
 @media (max-width: 767px) {
 .rikka-bubble--user { max-width: 100%; }
 }
-.conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
+.conversation-flow { width: 100%; margin: 0; padding: 16px calc(var(--la-chat-gutter) + 44px) 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
 .conversation-top-sentinel { display: block; width: 100%; height: 1px; flex: none; }
 .conversation-earlier {
   align-self: center;
