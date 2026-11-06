@@ -189,6 +189,8 @@ const processSections = computed(() => {
     if (step.type === 'text') {
       flush()
       sections.push({ type: 'step', key: step.key, step })
+      // 正文后的动作只承接最后一个请求，不能把整轮历史请求重复带进每个组。
+      currentRequests = currentRequests.slice(-1)
       continue
     }
     if (step.type === 'request' || step.type === 'compact') {
