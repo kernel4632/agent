@@ -69,7 +69,7 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   await screenshot(page, testInfo, 'settings')
   await general.click()
   await expect(page.getByRole('heading', { name: '通用', exact: true, level: 1 })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '通用', exact: true, level: 3 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '通用', exact: true, level: 2 })).toBeVisible()
   expect(mock.calls.some(call => /workspace|agent\/list|command\/list/.test(call.path))).toBe(false)
   expect(mock.errors).toEqual([])
 })
