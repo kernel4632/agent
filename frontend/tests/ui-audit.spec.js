@@ -1525,6 +1525,33 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   expect(mock.errors).toEqual([])
 })
 
+test('rail jump keeps the reader position when new output arrives', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  for (let index = 1; index <= 6; index += 1) {
+    await page.getByRole('textbox', { name: '消息', exact: true }).fill(`定位消息 ${index}`)
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await expect(page.locator('.rikka-bubble--assistant .markdown-body').last()).toContainText('一步步实现')
+  }
+
+  // 点在顶部刻度上，应该留在第一条消息；随后底部继续出字也不能吸回去。
+  await page.locator('.conversation-rail__mark').first().click({ force: true })
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 1' })).toBeInViewport()
+  const before = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'llm-start' },
+    { type: 'text-delta', text: '后面继续出现的很长一段输出。'.repeat(20) },
+  ])
+  await page.waitForTimeout(400)
+  const after = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
+  expect(Math.abs(after - before)).toBeLessThan(80)
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 1' })).toBeInViewport()
+  expect(mock.errors).toEqual([])
+})
+
 test('restart notice shows stale server version and clears after check', async ({ page }) => {
   const mock = await backend(page)
   mock.setHealth({ version: '0.1.0', targetVersion: '0.2.0', restartRequired: true })

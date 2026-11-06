@@ -85,6 +85,8 @@ let observer
 let viewportObserver
 let sentinelObserver
 let stickFrame = 0
+let jumpTimer = 0
+let jumping = false
 let lastTop = 0
 let saveTimer = 0
 let pointerActive = false
@@ -124,7 +126,26 @@ function setFollowing(value) {
 }
 function stopFollowing() {
   resumeFollow = false
+  if (stickFrame) {
+    cancelAnimationFrame(stickFrame)
+    stickFrame = 0
+  }
   setFollowing(false)
+}
+// 定位跳转期间不接受滚轮/滚动条的程序滚动判定，避免平滑动画被“回到底部”打断。
+function beginJump() {
+  jumping = true
+  clearTimeout(jumpTimer)
+  jumpTimer = window.setTimeout(() => {
+    jumping = false
+    lastTop = scrollParent?.scrollTop || 0
+    rememberScroll()
+  }, 1000)
+}
+function endJump() {
+  jumping = false
+  clearTimeout(jumpTimer)
+  jumpTimer = 0
 }
 
 // 内容变高/变矮、视口高度变化都只触发这一条路径；没有 scroll 事件反馈。
@@ -152,6 +173,11 @@ function nestedScroller(target) {
 
 function onScroll() {
   const top = scrollParent.scrollTop
+  if (jumping) {
+    lastTop = top
+    rememberScroll()
+    return
+  }
   // 只有按住指针/拖动滚动条时的位置变化才可能是读者移动；程序写入不参与。
   if (pointerActive) {
     if (top < lastTop - 1) stopFollowing()
@@ -242,6 +268,7 @@ function onClick(event) {
 }
 
 function jumpToBottom() {
+  endJump()
   setFollowing(true)
   if (scrollParent) scrollParent.scrollTop = maxScrollTop()
   rememberScroll()
@@ -261,10 +288,19 @@ async function jumpToMessage(messageId) {
     || scrollParent.querySelector(`[data-turn-id="${CSS.escape(String(messageId))}"]`)
   if (!target) return
   stopFollowing()
+  beginJump()
   const top = target.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop - 12
-  scrollParent.scrollTop = Math.max(0, top)
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
   lastTop = scrollParent.scrollTop
   rememberScroll()
+  // 平滑滚动结束后再记一次最终位置；中间的 scroll 事件不反向触发跟随。
+  setTimeout(() => {
+    if (jumping) {
+      lastTop = scrollParent.scrollTop
+      rememberScroll()
+    }
+  }, 900)
 }
 defineExpose({ jumpToMessage })
 watch(() => turns.value.length, length => {
@@ -335,6 +371,7 @@ onBeforeUnmount(() => {
   viewportObserver?.disconnect()
   sentinelObserver?.disconnect()
   if (stickFrame) cancelAnimationFrame(stickFrame)
+  clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
 })
 // 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
