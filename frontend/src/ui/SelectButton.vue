@@ -1,7 +1,8 @@
 <!--
 选择按钮：替代原生生硬 Checkbox 的自有圆角方块控件。
 支持 checked / indeterminate（半选横线）两态视觉，键盘与禁用语义仍由原生 input 提供。
-示例：<SelectButton v-model="checked" label="全选" />；<SelectButton :model-value="true" indeterminate disabled />
+示例：<SelectButton v-model="checked" label="全选" />；<SelectButton :model-value="true" indeterminate disabled />。
+列表行只用方块选择时加 hide-label，label 仍保留给读屏。
 -->
 <script setup>
 import { computed } from 'vue' // 用 computed 把 indeterminate 映射成原生属性
@@ -10,6 +11,7 @@ const props = defineProps({
   modelValue: Boolean,                 // 是否勾选
   indeterminate: Boolean,              // 半选：显示横线，视觉上不算全选
   label: String,                       // 无障碍名称；不显示文字时也要给
+  hideLabel: Boolean,                  // 只显示方块，label 仍作为 aria-label
   disabled: Boolean,                   // 禁用时整块变灰且不可点
 })
 const emit = defineEmits(['update:modelValue'])
@@ -44,7 +46,7 @@ function onChange(event) {
         </svg>
       </span>
     </span>
-    <span v-if="label" class="ui-select-button__text">{{ label }}</span>
+    <span v-if="label && !hideLabel" class="ui-select-button__text">{{ label }}</span>
   </label>
 </template>
 

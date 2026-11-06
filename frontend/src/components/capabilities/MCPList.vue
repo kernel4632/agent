@@ -276,6 +276,7 @@ async function testServer() {
             v-if="!group.configured"
             :model-value="Boolean(checked[group.id])"
             :label="`选择 ${group.name}`"
+            hide-label
             @update:model-value="toggleOne(group.id, $event)"
           />
           <span class="mcp-detected__copy">
