@@ -83,15 +83,9 @@ const ringClass = computed(() => ({
 const hasUsage = computed(() => total.value > 0)
 // 走势图已移除：Token 面板只保留总账和构成，不再用一条几乎不变的上下文曲线占空间。
 const speedGroups = computed(() => [...(props.stats.models || [])].sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps)))
-// 一个会话可以换几十个模型；小面板只展示最近使用的两个，不滚动、不折叠。
+// 一个会话可以换几十个模型；小面板用紧凑表格只展示最近使用的五个。
 const recentSpeedGroups = computed(() => [...speedGroups.value].sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0) || (b.averageDurationMs - a.averageDurationMs)))
-const recentSpeedHighlights = computed(() => recentSpeedGroups.value.slice(0, 2))
-const overallAverageDuration = computed(() => {
-  const groups = speedGroups.value.filter(group => group.averageDurationMs > 0)
-  if (!groups.length) return 0
-  return groups.reduce((sum, group) => sum + group.averageDurationMs, 0) / groups.length
-})
-const isSlow = group => overallAverageDuration.value > 0 && group.averageDurationMs > overallAverageDuration.value * 1.2
+const recentSpeedHighlights = computed(() => recentSpeedGroups.value.slice(0, 5))
 const formatDuration = value => {
   const ms = Number(value || 0)
   if (!ms) return '—'
@@ -179,36 +173,32 @@ const formatDuration = value => {
         class="session-stats__menu session-stats__menu--speed"
         :label="`生成速度 ${speed}，点击查看速度统计`"
         content-label="生成速度"
-        :content-style="{ width: '360px' }"
+        :content-style="{ width: '400px' }"
       >
         <template #trigger>
           <span class="session-stats__summary-item"><Icon name="gauge" :size="14" />{{ speed }}</span>
         </template>
         <div class="stats-panel stats-panel--speed-simple">
           <div class="stats-panel__speed-simple-head">
-            <span class="stats-panel__simple-title"><Icon name="gauge" :size="18" />生成速度</span>
+            <span class="stats-panel__simple-title">生成速度</span>
             <small v-if="recentSpeedGroups.length" class="stats-panel__speed-count">{{ recentSpeedGroups.length }} 个模型</small>
           </div>
-          <div v-if="recentSpeedHighlights.length" class="stats-panel__speed-list">
-            <article v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-card" :class="{ 'is-slow': isSlow(group) }">
-              <div class="stats-panel__speed-model-row">
-                <span class="stats-panel__speed-model-icon"><Icon name="model" :size="16" /></span>
-                <div class="stats-panel__speed-model">
-                  <strong>{{ group.model }}</strong>
-                  <small>{{ group.provider }} · {{ group.count }} 次</small>
-                </div>
-              </div>
-              <div class="stats-panel__speed-metric is-average">
-                <span class="stats-panel__speed-metric-label"><Icon name="activity" :size="13" />平均</span>
-                <strong class="stats-panel__speed-metric-value">{{ group.averageTps ? Math.round(group.averageTps) : '—' }} <small>tok/s</small></strong>
-                <span class="stats-panel__speed-metric-detail">首字 {{ formatDuration(group.averageFirstTokenMs) }} · 耗时 {{ formatDuration(group.averageDurationMs) }}</span>
-              </div>
-              <div class="stats-panel__speed-metric is-last">
-                <span class="stats-panel__speed-metric-label"><Icon name="flash" :size="13" />最近</span>
-                <strong class="stats-panel__speed-metric-value">{{ group.lastTps ? Math.round(group.lastTps) : '—' }} <small>tok/s</small></strong>
-                <span class="stats-panel__speed-metric-detail">首字 {{ formatDuration(group.lastFirstTokenMs) }} · 耗时 {{ formatDuration(group.lastDurationMs) }}</span>
-              </div>
-            </article>
+          <div v-if="recentSpeedHighlights.length" class="stats-panel__speed-table-wrap">
+            <table class="stats-panel__speed-grid">
+              <colgroup><col style="width: 24px"><col style="width: 80px"><col><col style="width: 44px"><col style="width: 46px"></colgroup>
+              <thead>
+                <tr><th aria-label="模型"></th><th>供应商</th><th>模型</th><th>首字</th><th>tok/s</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-row">
+                  <td class="stats-panel__speed-model-icon"><Icon name="model" :size="15" /></td>
+                  <td class="stats-panel__speed-provider" :title="group.provider"><span>{{ group.provider }}</span></td>
+                  <td class="stats-panel__speed-model" :title="group.model"><span><strong>{{ group.model }}</strong></span></td>
+                  <td class="stats-panel__speed-first">{{ formatDuration(group.lastFirstTokenMs) }}</td>
+                  <td class="stats-panel__speed-tps">{{ group.lastTps ? Math.round(group.lastTps) : '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <p v-else class="stats-panel__note">还没有足够的请求耗时数据。</p>
         </div>
