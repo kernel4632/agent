@@ -23,7 +23,8 @@ import { join } from 'node:path'
 import Agent from '@kernel4632/agent-core'
 import store, { TOOL_KINDS } from '../store.js'
 import Path from '../utils/path.js'
-import Delegation from '../tools/subagent.js'
+// 子智能体功能暂时下架：正式版再引入。文件保留、测试保留，只在这里不再装配。
+// import Delegation from '../tools/subagent.js'
 import Skill from '../tools/skill.js'
 import * as File from '../tools/file.js'
 
@@ -81,8 +82,8 @@ const permissionOf = name => {
 // --- 给设置页列出全部工具 ---
 const list = async () => {
     const { tools } = await scan()
+    // new_task 暂不进入清单：子智能体正式版再加回来（tools/subagent.js 和测试都在）。
     const extra = new Map([
-        ['new_task', { name: 'new_task', kind: 'subtask', ui: Delegation.ui }],
         ['skill', { name: 'skill', kind: 'read', ui: { view: 'skill', icon: 'book', title: '读取技能', summary: '{name}' } }],
     ])
     for (const [name, tool] of extra) if (!tools.has(name)) tools.set(name, tool)
@@ -113,7 +114,7 @@ const ready = async () => {
 // --- 这个工具属于哪一类；MCP 工具按配置里的服务名前缀认 ---
 const kindOf = ({ toolName, mcpServers = [] }) => {
     if (mcpServers.some(name => toolName.startsWith(`${name}_`))) return 'mcp'
-    if (toolName === 'new_task') return 'subtask'
+    // new_task 属于子任务类，恢复子智能体时这里的判断要一起回来。
     if (toolName === 'skill') return 'read'
     return current.tools.get(toolName)?.kind || 'other'
 }
@@ -147,15 +148,14 @@ const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
     const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
     let set = Agent.tool.adopt(bound)                               // 转成 agent-core 认识的工具表
 
-    // 子智能体仍然只是一个工具；它拿到的是主 Agent 的同一张工具表。
-    // onPermission 从这里往下传：子任务自己再开工具时，审批仍回到主会话。
-    const task = Delegation.build({
-        config: taskConfig,
-        tools: set,
-        sessionId,
-        onPermission,
-    })
-    set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
+    // 子智能体暂时下架（正式版再引入）：恢复时取消这段注释，并把 import Delegation 一起恢复。
+    // const task = Delegation.build({
+    //     config: taskConfig,
+    //     tools: set,
+    //     sessionId,
+    //     onPermission,
+    // })
+    // set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
     return set
 }
 

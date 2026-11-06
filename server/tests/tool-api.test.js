@@ -31,7 +31,7 @@ describe('工具接口', () => {
         expect(Object.keys(write_file.inputSchema.properties)).toEqual(['path', 'content'])
         expect(Object.keys(find_files.inputSchema.properties)).toEqual(['path', 'pattern', 'recursive'])
         expect(Object.keys(search_text.inputSchema.properties)).toEqual(['path', 'regex', 'filePattern', 'context'])
-        expect(Object.keys(shell.inputSchema.properties)).toEqual(['command', 'cwd', 'timeout'])
+        expect(Object.keys(shell.inputSchema.properties)).toEqual(['command', 'cwd', 'timeout', 'background'])
         expect(Object.keys(edit.inputSchema.properties)).toEqual(['path', 'edits'])
         expect(Object.keys(edit.inputSchema.properties.edits.items.properties)).toEqual(['oldText', 'newText', 'replaceAll'])
         expect(Object.keys(todo.inputSchema.properties)).toEqual(['todos'])

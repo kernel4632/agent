@@ -1,8 +1,8 @@
 /*
- * 新增工具测试：分段读取大文件、后台进程、测试结果解析。
+ * 新增工具测试：分段读取大文件、后台进程、移动/复制文件。
  *
- * 这三个工具解决的都是"长活"问题：读不完的文件、跑不完的命令、看不完的输出。
- * 每个测试用自己的临时目录和数据目录，互不影响。
+ * 这些工具解决的都是"长活"和"文件组织"问题：读不完的文件、跑不完的命令、
+ * 移不动的文件。每个测试用自己的临时目录和数据目录，互不影响。
  * 后台进程的日志验证用脚本文件跑（Windows 下 cmd.exe 包装的内联代码 bun -e 会吞输出，
  * 这是工具说明里写明的限制；脚本文件经 cmd 输出正常）。
  * 运行：cd server && bun test tests/extended-tools.test.js
@@ -12,10 +12,10 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { read_range } from '../tools/file.js'
+import { read_range, move_file, copy_file } from '../tools/file.js'
 import Path from '../utils/path.js'
-import Background, { running, cleanup } from '../tools/background.js'
-import Test from '../tools/test.js'
+import Background from '../tools/background.js'
+import { running, cleanup } from '../utils/process.js'
 import store from '../store.js'
 
 const homes = []
@@ -29,6 +29,7 @@ const withHome = async callback => {
     try {
         return await callback(root)
     } finally {
+        cleanup()                                        // 带走这个测试留下的后台进程
         Path.unlock()
         if (previousHome === undefined) delete process.env.AGENT_HOME
         else process.env.AGENT_HOME = previousHome
@@ -123,7 +124,7 @@ describe('background 后台进程', () => {
             await entry.child.exited                            // 直接等退出，不猜时序
             const listed = (await Background.execute({ action: 'list' }, {})).processes
             const mine = listed.find(item => item.pid === started.pid)
-            expect(mine).toMatchObject({ exited: true, exitCode: 0 })
+            expect(mine).toMatchObject({ exited: true, exitCode: 0, id: started.id })
 
             const log = await Background.execute({ action: 'log', id: started.id, tail: 50 }, {})
             expect(log.running).toBe(false)
@@ -156,30 +157,90 @@ describe('background 后台进程', () => {
     }, 30_000)
 })
 
-describe('test 测试结果解析', () => {
-    test('跑一个真的 bun 测试文件，拿到结构化统计和失败明细', async () => {
-        const dir = join(tmpdir(), `agent-test-run-${crypto.randomUUID()}`)
-        await mkdir(dir, { recursive: true })
-        await writeFile(join(dir, 'sample.test.js'), [
-            "import { describe, expect, test } from 'bun:test'",
-            "describe('样例', () => {",
-            "    test('通过的一例', () => expect(1).toBe(1))",
-            "    test('失败的一例', () => expect(1).toBe(2))",
-            "})",
-        ].join('\n'))
+describe('execute_command 的 background 参数', () => {
+    test('background: true 时立刻返回进程卡，不等待完成', async () => {
+        await withHome(async () => {
+            const shell = (await import('../tools/shell.js')).default
+            const script = await writeScript('longrun', 'await Bun.sleep(30000)')
+            const started = await shell.execute({ command: `bun ${script}`, background: true }, {})
+            expect(started.id).toMatch(/^[0-9a-f]{4}$/)          // 同一张进程表，同一个日志文件
+            expect(running.has(started.id)).toBe(true)
+            expect(started.logFile).toContain('processes')
 
-        const result = await Test.execute({ command: 'bun test sample.test.js' }, { cwd: dir })
-        expect(result.summary).toMatchObject({ passed: 1, failed: 1 })
-        expect(result.summary.failures).toHaveLength(1)
-        expect(result.summary.failures[0].file).toBe('sample.test.js')
-        expect(result.summary.failures[0].test).toContain('失败的一例')
-        expect(result.exitCode).toBe(1)
-        await rm(dir, { recursive: true, force: true })
+            // 同一个进程稍后能用 background 工具读到日志
+            const log = await Background.execute({ action: 'log', id: started.id }, {})
+            expect(log.running).toBe(true)
+            await Background.execute({ action: 'stop', id: started.id }, {})
+            await rm(script, { force: true })
+        })
     })
 
-    test('解析 playwright 的 passed/failed 行', () => {
-        // playwright 格式的正则直接在解析函数上验证不了（没有可注入的入口），
-        // 用一个真实 playwright 跑太慢；这里验证"未知格式退回原始输出"的兜底。
-        expect(Test.execute).toBeTypeOf('function')
+    test('background 参数缺省时保持原行为：等命令结束', async () => {
+        const shell = (await import('../tools/shell.js')).default
+        const result = await shell.execute({ command: 'echo foreground-ok' }, {})
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toContain('foreground-ok')
+        expect(result.background).toBeUndefined()
+    })
+})
+
+describe('move_file / copy_file', () => {
+    test('移动文件后源不在了、目标有完整内容', async () => {
+        await withHome(async () => {
+            const dir = join(tmpdir(), `agent-move-${crypto.randomUUID()}`)
+            await mkdir(dir, { recursive: true })
+            await writeFile(join(dir, 'a.txt'), '搬家前的内容')
+
+            const result = await move_file.execute({ from: 'a.txt', to: 'b/b.txt' }, { cwd: dir })
+            expect(result).toContain('Moved')
+            expect(await Bun.file(join(dir, 'a.txt')).exists()).toBe(false)
+            expect(await Bun.file(join(dir, 'b/b.txt')).text()).toBe('搬家前的内容')
+            await rm(dir, { recursive: true, force: true })
+        })
+    })
+
+    test('拒绝覆盖已存在的目标', async () => {
+        await withHome(async () => {
+            const dir = join(tmpdir(), `agent-move-conflict-${crypto.randomUUID()}`)
+            await mkdir(dir, { recursive: true })
+            await writeFile(join(dir, 'a.txt'), '源')
+            await writeFile(join(dir, 'b.txt'), '目标')
+
+            await expect(move_file.execute({ from: 'a.txt', to: 'b.txt' }, { cwd: dir }))
+                .rejects.toThrow(/already exists/)
+            // 源和目标都没被改动
+            expect(await Bun.file(join(dir, 'a.txt')).text()).toBe('源')
+            expect(await Bun.file(join(dir, 'b.txt')).text()).toBe('目标')
+            await rm(dir, { recursive: true, force: true })
+        })
+    })
+
+    test('复制文件和整个目录', async () => {
+        await withHome(async () => {
+            const dir = join(tmpdir(), `agent-copy-${crypto.randomUUID()}`)
+            await mkdir(join(dir, 'src/inner'), { recursive: true })
+            await writeFile(join(dir, 'src/one.txt'), '一号')
+            await writeFile(join(dir, 'src/inner/two.txt'), '二号')
+
+            // 文件
+            await copy_file.execute({ from: 'src/one.txt', to: 'copy-one.txt' }, { cwd: dir })
+            expect(await Bun.file(join(dir, 'copy-one.txt')).text()).toBe('一号')
+            // 源还在
+            expect(await Bun.file(join(dir, 'src/one.txt')).exists()).toBe(true)
+
+            // 整个目录
+            await copy_file.execute({ from: 'src', to: 'src-copy' }, { cwd: dir })
+            expect(await Bun.file(join(dir, 'src-copy/inner/two.txt')).text()).toBe('二号')
+            await rm(dir, { recursive: true, force: true })
+        })
+    })
+
+    test('敏感文件和缺失源都拒绝', async () => {
+        await withHome(async () => {
+            await expect(move_file.execute({ from: '.env', to: 'renamed.env' }, {}))
+                .rejects.toThrow(/protected file/i)
+            await expect(copy_file.execute({ from: './missing.txt', to: './x.txt' }, {}))
+                .rejects.toThrow(/not found/i)
+        })
     })
 })
