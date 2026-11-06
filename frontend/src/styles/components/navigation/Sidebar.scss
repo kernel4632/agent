@@ -7,6 +7,8 @@
 .app-drawer__head { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; }
 .app-drawer__title { color: var(--la-text); font-size: 18px; font-weight: 600; line-height: 26px; }
 .app-drawer__head-actions { display: flex; align-items: center; gap: 2px; }
+.app-drawer__group-add-icon { position: relative; display: grid; place-items: center; }
+.app-drawer__group-add-plus { position: absolute; right: -5px; bottom: -3px; padding: 1px; border-radius: 50%; background: var(--la-layer-01); }
 .app-drawer__search { margin-bottom: 16px; }
 .drawer-footer {
   width: 100%;

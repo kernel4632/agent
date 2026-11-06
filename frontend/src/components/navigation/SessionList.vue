@@ -302,13 +302,11 @@ async function submitGroupDialog() {
 }
 
 onMounted(loadGroups)
+defineExpose({ openCreateGroup })
 </script>
 
 <template>
   <div class="home-sessions">
-    <div v-if="!selecting" class="home-sessions__toolbar">
-      <Button variant="ghost" size="small" @click="openCreateGroup">新建分组</Button>
-    </div>
     <nav class="home-sessions__list" aria-label="会话列表">
       <template v-if="sections.length">
         <section
