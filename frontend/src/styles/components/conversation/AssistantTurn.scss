@@ -152,3 +152,13 @@
 .process-tree__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .process-tree__caret.is-open { transform: rotate(180deg); }
 .process-tree .cot-steps { padding: 2px 0 4px; }
+/* 二级层：工具与思考聚类。挂在处理过程下面，展开后才进入具体工具/思考。 */
+.process-group { margin: 4px 0 2px; border-radius: 12px; background: color-mix(in srgb, var(--la-bg) 55%, transparent); }
+.process-group__head { display: flex; width: 100%; min-height: 34px; align-items: center; gap: 6px; padding: 4px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--la-secondary); font: inherit; text-align: left; cursor: pointer; }
+.process-group__head:hover { background: var(--la-hover); color: var(--la-text); }
+.process-group__icon { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--la-accent) 10%, transparent); color: var(--la-accent); }
+.process-group__title { color: var(--la-text); font-size: 12.5px; font-weight: 600; }
+.process-group__head em { color: var(--la-muted); font-size: 11px; font-style: normal; }
+.process-group__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.process-group__caret.is-open { transform: rotate(180deg); }
+.process-group__steps { padding: 2px 8px 6px 4px; }

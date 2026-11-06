@@ -134,18 +134,57 @@ function toggleProcess() {
   processOpen.value = !processOpen.value
   writeProcessOpen(processOpen.value)
 }
+
+// 二级“工具与思考”聚类：思考、工具和子智能体都收在这里，正常说话留在外面。
+const groupKey = `${processKey}:group`
+function readGroupOpen() {
+  try {
+    return localStorage.getItem(groupKey) === 'open'
+  } catch {
+    return false
+  }
+}
+function writeGroupOpen(value) {
+  try { localStorage.setItem(groupKey, value ? 'open' : 'closed') } catch {}
+}
+const groupOpen = ref(activeTurn.value || readGroupOpen())
+function toggleGroup() {
+  groupOpen.value = !groupOpen.value
+  writeGroupOpen(groupOpen.value)
+}
 watch(activeTurn, (value, previous) => {
   if (value) {
     processOpen.value = true
+    groupOpen.value = true
   } else if (previous) {
     processOpen.value = false
+    groupOpen.value = false
     writeProcessOpen(false)
+    writeGroupOpen(false)
   }
 })
 
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
+// 按原始顺序分段：正常说话/请求留在外面，连续的思考与工具收进同一个二级组。
+const processSections = computed(() => {
+  const sections = []
+  let group = null
+  for (const step of treeSteps.value) {
+    if (step.type === 'reasoning' || step.type === 'tool') {
+      if (!group) {
+        group = { type: 'group', key: `group-${step.key}`, steps: [] }
+        sections.push(group)
+      }
+      group.steps.push(step)
+    } else {
+      group = null
+      sections.push({ type: 'step', key: step.key, step })
+    }
+  }
+  return sections
+})
 const treeContentSteps = computed(() => treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
@@ -208,34 +247,49 @@ function clearTarget() { targetId.value = null; emit('close') }
           <Icon name="down" :size="15" class="process-tree__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
         <div v-if="processOpen" class="cot-steps">
-          <template v-for="step in treeSteps" :key="step.key">
-            <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
-            <template v-else-if="step.type === 'compact'">
-              <RequestStatus :data-message-id="step.messageId" :request="step.request" kind="compact" />
-              <pre v-if="step.request.content || step.request.reasoning" v-auto-scroll class="compact-stream">{{ step.request.content || step.request.reasoning }}</pre>
-            </template>
-            <ReasoningStep
-              v-else-if="step.type === 'reasoning'"
-              :data-message-id="step.messageId"
-              :reasoning="step.text"
-              :streaming="step.streaming"
-              :started-at="step.message.startedAt"
-              :finished-at="step.message.finishedAt"
-            />
-            <div v-else-if="step.type === 'text'" :data-message-id="step.messageId" class="cot-step cot-step--text">
-              <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
-              <div class="cot-step__main">
-                <div class="cot-step__body cot-step__body--text">
-                  <Markdown smooth :content="step.text" compact />
+          <template v-for="section in processSections" :key="section.key">
+            <template v-if="section.type === 'step'">
+              <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
+              <template v-else-if="section.step.type === 'compact'">
+                <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
+                <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
+              </template>
+              <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
+                <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
+                <div class="cot-step__main">
+                  <div class="cot-step__body cot-step__body--text">
+                    <Markdown smooth :content="section.step.text" compact />
+                  </div>
                 </div>
               </div>
+            </template>
+
+            <div v-else class="process-group">
+              <button type="button" class="process-group__head" :aria-expanded="groupOpen" @click="toggleGroup">
+                <span class="process-group__icon"><Icon name="layers" :size="14" /></span>
+                <span class="process-group__title">工具与思考</span>
+                <em>{{ section.steps.length }} 项</em>
+                <Icon name="down" :size="14" class="process-group__caret" :class="{ 'is-open': groupOpen }" aria-hidden="true" />
+              </button>
+              <div v-if="groupOpen" class="process-group__steps">
+                <template v-for="step in section.steps" :key="step.key">
+                  <ReasoningStep
+                    v-if="step.type === 'reasoning'"
+                    :data-message-id="step.messageId"
+                    :reasoning="step.text"
+                    :streaming="step.streaming"
+                    :started-at="step.message.startedAt"
+                    :finished-at="step.message.finishedAt"
+                  />
+                  <ToolCall
+                    v-else
+                    :data-message-id="step.messageId"
+                    :tool="step.tool"
+                    :session-id="sessionId"
+                  />
+                </template>
+              </div>
             </div>
-            <ToolCall
-              v-else
-              :data-message-id="step.messageId"
-              :tool="step.tool"
-              :session-id="sessionId"
-            />
           </template>
         </div>
       </div>

@@ -9,6 +9,8 @@ import { backend, navigate, openDrawer } from './chat-fixture.js'
 async function openProcessTree(page) {
   const head = page.locator('.process-tree__head').first()
   if (await head.count() && await head.getAttribute('aria-expanded') !== 'true') await head.click()
+  const group = page.locator('.process-group__head').first()
+  if (await group.count() && await group.getAttribute('aria-expanded') !== 'true') await group.click()
 }
 
 async function screenshot(page, testInfo, name) {
@@ -777,10 +779,13 @@ test('each model request stays at its position in the conversation flow', async 
   await expect(rows.nth(1)).toContainText(/入\s*10/)
   await expect(rows.nth(2)).toContainText(/入\s*20/)
   // 第二次请求排在工具步骤之后，而不是被汇总到整轮回复的开头。
-  const order = await page.locator('.cot-steps > *').evaluateAll(nodes => nodes.map(node => node.className))
-  const toolIndex = order.findIndex(name => name.includes('cot-step--tool'))
-  expect(toolIndex).toBeGreaterThan(-1)
-  expect(order.slice(toolIndex + 1).some(name => name.includes('request-status'))).toBe(true)
+  await expect(page.locator('.process-group__steps .cot-step--tool')).toHaveCount(1)
+  const requestAfterTool = await page.evaluate(() => {
+    const tool = document.querySelector('.process-group__steps .cot-step--tool')
+    const lastRequest = [...document.querySelectorAll('.request-status')].at(-1)
+    return Boolean(tool && lastRequest && (tool.compareDocumentPosition(lastRequest) & Node.DOCUMENT_POSITION_FOLLOWING))
+  })
+  expect(requestAfterTool).toBe(true)
   expect(mock.errors).toEqual([])
 })
 
@@ -806,8 +811,10 @@ test('collapsing a long turn hides old request rows', async ({ page }) => {
   // 整轮完成后一级树收起，只留一行“处理过程”；展开后显示完整请求和工具。
   await expect(page.locator('.process-tree__head')).toHaveAttribute('aria-expanded', 'false')
   await page.locator('.process-tree__head').click()
+  await expect(page.locator('.process-group__head')).toHaveAttribute('aria-expanded', 'false')
+  await page.locator('.process-group__head').click()
   await expect(page.locator('.cot-step--tool')).toHaveCount(4)
-  await page.locator('.process-tree__head').click()
+  await page.locator('.process-group__head').click()
   await expect(page.locator('.cot-step--tool')).toHaveCount(0)
   expect(mock.errors).toEqual([])
 })
