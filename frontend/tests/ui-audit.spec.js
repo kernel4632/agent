@@ -1695,7 +1695,7 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
 
   const rail = page.getByRole('slider', { name: '按消息定位', exact: true })
   await expect(rail).toBeVisible()
-  await expect(page.locator('.conversation-rail__mark')).toHaveCount(12)
+  await expect(page.locator('.conversation-rail__mark')).toHaveCount(6)
   await expect(page.locator('.conversation-rail__mark.is-active')).toHaveCount(1)
   // 轨道贴屏幕右边；所有刻度共用同一条右边界。
   const railBox = await rail.boundingBox()
@@ -1716,6 +1716,8 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await expect(page.locator('.conversation-rail__preview')).toContainText('你：定位消息 1')
   await page.locator('.conversation-rail__mark').nth(1).hover()
   await expect(page.locator('.conversation-rail__preview')).toContainText('回答：')
+  await expect(page.locator('.conversation-rail__preview strong')).toContainText('接下来')
+  await expect(page.locator('.conversation-rail__preview')).not.toContainText('**')
   // 预览必须贴着被悬停的刻度，不能被夹到定位条顶部。
   await page.locator('.conversation-rail__mark').nth(5).hover()
   const hoveredMark = await page.locator('.conversation-rail__mark').nth(5).boundingBox()
@@ -1740,11 +1742,11 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2, box.y + box.height - 2, { steps: 6 })
   await page.mouse.up()
-  await expect(rail).toHaveAttribute('aria-valuenow', '12')
+  await expect(rail).toHaveAttribute('aria-valuenow', '6')
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 6' })).toBeInViewport()
 
   await rail.press('End')
-  await expect(rail).toHaveAttribute('aria-valuenow', '12')
+  await expect(rail).toHaveAttribute('aria-valuenow', '6')
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 6' })).toBeInViewport()
   expect(mock.errors).toEqual([])
 })
@@ -1920,4 +1922,5 @@ test.describe('control motion', () => {
     await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)
   })
 })
+
 

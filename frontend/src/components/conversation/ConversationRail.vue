@@ -8,6 +8,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { groupMessageTurns, isFinishedStopTool } from "../../features/session.js"
 import { outputText } from "../../utils/tool.js"
+import { renderMarkdown } from "../../utils/markdown.js"
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -39,8 +40,8 @@ let pendingIndex = -1
 let viewportRetry = 0
 let pointerInside = false
 
-// 一轮一条刻度：用户问题用原话；助手只保留有结束工具完整回答的轮次。
-// 预览同时带上这一问和最终回答，长内容在浮层里折行，不再压成一行。
+// 一问一答合并成一条刻度；刻度长度是问题与回答文字量之和。
+// 还没生成完的问答先按问题长度显示，回答完成后同一条刻度自然变长。
 const userTextOf = turn => {
   const first = turn?.messages?.[0]
   if (!first || turn.role !== 'user') return ''
@@ -57,32 +58,35 @@ const answerOf = turn => {
 }
 const nodes = computed(() => {
   const turns = groupMessageTurns(props.messages).filter(turn => !turn.messages[0].compact)
-  return turns.flatMap((turn, index) => {
-    const first = turn.messages[0]
+  const merged = []
+  for (let index = 0; index < turns.length; index += 1) {
+    const turn = turns[index]
     if (turn.role === 'user') {
+      const next = turns[index + 1]
       const prompt = userTextOf(turn)
-      const response = answerOf(turns[index + 1])
-      return [{
-        id: first.id,
-        role: turn.role,
-        length: prompt.length,
+      const response = answerOf(next)
+      merged.push({
+        id: turn.messages[0].id,
+        length: prompt.length + response.length,
         prompt,
         response,
         title: `你：${prompt}`.slice(0, 120),
-      }]
+      })
+      if (next?.role === 'assistant') index += 1
+      continue
     }
+    // 没有用户问题的助手回合（例如中断后续跑）也保留一条，跳转目标是这条回答。
     const response = answerOf(turn)
-    if (!response) return []
-    const prompt = userTextOf(turns[index - 1])
-    return [{
-      id: first.id,
-      role: turn.role,
+    if (!response) continue
+    merged.push({
+      id: turn.messages[0].id,
       length: response.length,
-      prompt,
+      prompt: '',
       response,
       title: `回答：${response}`.slice(0, 120),
-    }]
-  })
+    })
+  }
+  return merged
 })
 
 // 保留原定义：刻度宽度表示这一轮的文字量，短问题和长回答仍然可区分。
@@ -100,6 +104,8 @@ const activeIndex = computed(() => {
 })
 const activeNode = computed(() => nodes.value[activeIndex.value] || null)
 const hoverNode = computed(() => nodes.value[hoverIndex.value] || null)
+const previewPrompt = computed(() => hoverNode.value?.prompt ? renderMarkdown(hoverNode.value.prompt) : '')
+const previewResponse = computed(() => hoverNode.value?.response ? renderMarkdown(hoverNode.value.response) : '')
 const ariaValue = computed(() => activeIndex.value + 1)
 
 const markTop = index => INSET + index * PITCH
@@ -331,8 +337,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">
-        <span v-if="hoverNode.prompt" class="conversation-rail__preview-prompt">你：{{ hoverNode.prompt }}</span>
-        <span v-if="hoverNode.response" class="conversation-rail__preview-response">回答：{{ hoverNode.response }}</span>
+        <span v-if="previewPrompt" class="conversation-rail__preview-prompt"><span class="conversation-rail__preview-label">你：</span><span class="conversation-rail__preview-body" v-html="previewPrompt"></span></span>
+        <span v-if="previewResponse" class="conversation-rail__preview-response"><span class="conversation-rail__preview-label">回答：</span><span class="conversation-rail__preview-body" v-html="previewResponse"></span></span>
       </span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>
