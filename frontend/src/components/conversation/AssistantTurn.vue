@@ -151,6 +151,10 @@ const processSummary = computed(() => {
   return pieces.join(' · ') || '运行状态'
 })
 
+// 请求统计从时间线里收起来了，但数据还在；需要核对首字/耗时/token 时从这里展开。
+const requestSteps = computed(() => treeSteps.value.filter(step => step.type === 'request'))
+const requestStatsOpen = ref(false)
+
 // 按 OpenCode 的消息分组思路：没有单独的请求数据行，只有连续的工具/思考折叠组。
 // 每组折叠条直接显示“使用了几次什么”，正文和组之间保持发生顺序。
 const processSections = computed(() => {
@@ -288,6 +292,23 @@ function clearTarget() { targetId.value = null; emit('close') }
               </Fold>
             </div>
           </template>
+            </div>
+            <div v-if="requestSteps.length" class="request-stats">
+              <button type="button" class="request-stats__head" :aria-expanded="requestStatsOpen" @click="requestStatsOpen = !requestStatsOpen">
+                <span class="request-stats__title">请求统计</span>
+                <em class="request-stats__count">{{ requestSteps.length }} 次</em>
+                <Icon name="down" :size="14" class="request-stats__caret" :class="{ 'is-open': requestStatsOpen }" aria-hidden="true" />
+              </button>
+              <Fold :open="requestStatsOpen">
+                <div class="request-stats__body">
+                  <RequestStatus
+                    v-for="step in requestSteps"
+                    :key="step.key"
+                    :data-message-id="step.messageId"
+                    :request="step.request"
+                  />
+                </div>
+              </Fold>
             </div>
         </Fold>
       </div>
