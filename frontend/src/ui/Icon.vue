@@ -6,20 +6,21 @@
 <script setup>
 import { computed } from 'vue'
 import { HugeiconsIcon } from '@hugeicons/vue'
-// 以 18px 图标配 1.5px 线宽为基准做等比缩放；小图标保底 1.3px，
-// 避免底栏 14px 图标缩得过细，大图标也封顶在 2px。
+// 以 14px→1.3px、18px→2px 两个实际尺寸为锚点做线性过渡。
+// 小图标保持底栏合适的细度，顶栏恢复到之前的 2px，大图标不再继续变粗。
+const MIN_SIZE = 14
 const DESIGN_SIZE = 18
-const DESIGN_STROKE = 1.5
+const DESIGN_STROKE = 2
 const MIN_STROKE = 1.3
-const MAX_STROKE = 2
 import { Add01Icon, Activity01Icon, AiBrain01Icon, ArrowDown01Icon, ArrowDown02Icon, ArrowExpand01Icon, ArrowRight01Icon, ArrowShrink01Icon, ArrowTurnBackwardIcon, ArrowUp02Icon, Attachment01Icon, Brain02Icon, BulbChargingIcon, BulbIcon, Cancel01Icon, ChartColumnIcon, ChatBotIcon, CheckListIcon, Clock01Icon, CodeIcon, Copy01Icon, Database01Icon, Delete01Icon, Download01Icon, EyeIcon, File02Icon, FlashIcon, Folder01Icon, GaugeIcon, GitForkIcon, Grid2X2PlusIcon, Home01Icon, Idea01Icon, IdeaIcon, InLoveIcon, InformationCircleIcon, InternetIcon, Layers01Icon, LeftToRightListBulletIcon, LightbulbOffIcon, Link01Icon, LookTopIcon, Menu03Icon, Message01Icon, MessageAdd01Icon, MoreVerticalIcon, PencilEdit01Icon, PlayIcon, Refresh01Icon, Search01Icon, Settings03Icon, Shield01Icon, Sorting01Icon, SparklesIcon, Tick02Icon, Upload01Icon, VolumeHighIcon, VolumeOffIcon,  } from '@hugeicons/core-free-icons'
 
 const props = defineProps({ name: { type: String, default: 'spark' }, size: { type: [Number, String], default: 20 }, stroke: { type: [Number, String], default: 0 } })
 const strokeWidth = computed(() => {
   if (Number(props.stroke)) return Number(props.stroke)
-  const size = Number(props.size) || 20
-  const scaled = DESIGN_STROKE * size / DESIGN_SIZE
-  return Number(Math.min(MAX_STROKE, Math.max(MIN_STROKE, scaled)).toFixed(2))
+  const size = Number(props.size) || 18
+  const progress = Math.min(1, Math.max(0, (size - MIN_SIZE) / (DESIGN_SIZE - MIN_SIZE)))
+  const scaled = MIN_STROKE + (DESIGN_STROKE - MIN_STROKE) * progress
+  return Number(scaled.toFixed(2))
 })
 
 // Names are kept stable for the rest of the app; the artwork is all Hugeicons.
