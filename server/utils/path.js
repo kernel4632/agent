@@ -20,10 +20,11 @@
  *   Path.skills()                  // 全局技能目录
  *   Path.skillsState()             // 外部技能目录和禁用名单
  *   Path.userHome()                // 用户主目录，识别本机其他软件留下的配置用
+ *   Path.samePath(a, b)            // 两个路径是否指向同一位置
  */
 
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 // --- 当前是否跑在 bun test 里 ---
 // BUN_ENV 在测试进程里是 'test'；拿不到时退回看入口脚本名。
@@ -53,6 +54,11 @@ const unlock = () => { locked = null }
 // --- 用户主目录：识别其他软件的 MCP 配置和技能目录时用 ---
 // 测试把 AGENT_DISCOVERY_HOME 指到临时目录，就不会读到真实电脑上的配置。
 const userHome = () => process.env.AGENT_DISCOVERY_HOME || homedir()
+
+// --- 两个路径是否指向同一位置：Windows 不区分大小写 ---
+const samePath = (first, second) => process.platform === 'win32'
+    ? resolve(String(first)).toLowerCase() === resolve(String(second)).toLowerCase()
+    : resolve(String(first)) === resolve(String(second))
 
 // --- 全局配置 ---
 const config = () => join(home(), 'config.json')
@@ -89,6 +95,7 @@ export default {
     root: home,
     lock, unlock,
     userHome,
+    samePath,
     config,
     configBackups,
     sessionGroups,

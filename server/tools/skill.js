@@ -1,7 +1,7 @@
 /*
  * 技能工具：把用户放在全局目录、项目目录和已启用的外部目录里的操作说明，按需要读给模型。
  *
- * 技能来源由 utils/skills.js 统一扫描：
+ * 技能来源由 features/skills.js 统一扫描：
  *   - 全局：数据目录的 skills/（默认 %USERPROFILE%\.agents\skills）
  *   - 项目：<会话当前目录>/.agent/skills
  *   - 外部：设置页里启用的其他 Agent 软件目录
@@ -19,7 +19,7 @@
  *   const tool = await Skill.build({ cwd: 'D:/notes' })   // 没有技能时是 null
  */
 
-import Skills from '../utils/skills.js'
+import Skills from '../features/skills.js'
 
 // --- 列出当前生效的技能；被用户禁用的不交给模型 ---
 const list = async ({ cwd = process.cwd() } = {}) => {
@@ -65,3 +65,4 @@ const build = async ({ cwd = process.cwd() } = {}) => {
 }
 
 export default { list, read, build }
+

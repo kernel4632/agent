@@ -12,7 +12,6 @@
 
 import { join, resolve } from 'node:path'
 import Path from '../utils/path.js'
-import Skills from '../utils/skills.js'
 
 const FILE_LIMIT = 16 * 1024 * 1024   // 有些客户端把整个项目表写进一个文件，给足余量
 const SERVER_LIMIT = 200
@@ -224,7 +223,7 @@ const mcp = async ({ cwd = process.cwd(), home = Path.userHome(), env = process.
             if (isObject(result.data?.[source.key])) blocks.push({ block: result.data[source.key], label: source.app })
             if (source.projects && isObject(result.data?.projects)) {
                 for (const [projectPath, project] of Object.entries(result.data.projects)) {
-                    if (!Skills.samePath(projectPath, cwd)) continue
+                    if (!Path.samePath(projectPath, cwd)) continue
                     if (isObject(project?.mcpServers)) blocks.push({ block: project.mcpServers, label: `${source.app}（当前目录）` })
                 }
             }
