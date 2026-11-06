@@ -91,7 +91,11 @@ async function testConnection() {
             <SettingsRow title="请求地址" description="模型服务提供的 API 地址">
               <Field class="provider-control" label="请求地址（API）" type="url" :placeholder="type.url" :model-value="provider.apiUrl" @update:model-value="update({ apiUrl: $event })" />
             </SettingsRow>
+            <SettingsRow title="连接测试" description="先保存当前配置，再用第一个模型发送一次真实请求">
+              <Button variant="text" :disabled="testing" @click="testConnection"><Icon name="play" :size="18" />{{ testing ? '测试中…' : '测试连接' }}</Button>
+            </SettingsRow>
           </SettingsList>
+          <p v-if="testState" class="provider-test__result" :class="{ 'is-error': !testState.ok }" role="status">{{ testState.text }}</p>
 
           <SettingsList title="请求选项">
             <SettingsRow title="接口类型" description="与模型服务提供的接口一致">
@@ -99,6 +103,12 @@ async function testConnection() {
             </SettingsRow>
             <SettingsRow title="流式输出" description="回复边生成边显示">
               <Switch :model-value="provider.stream !== false" label="流式输出：回复边生成边显示" hide-label @update:model-value="update({ stream: $event })" />
+            </SettingsRow>
+          </SettingsList>
+
+          <SettingsList title="危险操作">
+            <SettingsRow title="删除供应商" description="移除这个供应商以及它下面的全部模型配置">
+              <Button variant="danger" @click="deleteOpen = true">删除供应商</Button>
             </SettingsRow>
           </SettingsList>
         </section>
@@ -119,13 +129,6 @@ async function testConnection() {
         </section>
       </template>
     </Tabs>
-    <div v-if="tab === 'config'" class="provider-actions-wrap">
-      <p v-if="testState" class="provider-test__result" :class="{ 'is-error': !testState.ok }" role="status">{{ testState.text }}</p>
-      <div class="provider-actions" aria-label="供应商操作">
-        <Button icon variant="text" label="删除供应商" class="provider-delete" @click="deleteOpen = true"><Icon name="trash" /></Button>
-        <Button variant="text" :disabled="testing" @click="testConnection"><Icon name="play" :size="18" />{{ testing ? '测试中…' : '测试连接' }}</Button>
-      </div>
-    </div>
   </div>
 
   <Dialog

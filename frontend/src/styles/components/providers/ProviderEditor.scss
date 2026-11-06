@@ -9,16 +9,10 @@
 .provider-tab--models { height: 100%; }
 .provider-control { width: 300px; }
 
-.provider-actions-wrap { display: grid; flex: none; align-self: center; justify-items: center; width: max-content; max-width: 100%; gap: 10px; padding-top: 4px; }
-.provider-actions { display: flex; align-items: center; gap: 4px; padding: 8px; border: 1px solid var(--la-line); border-radius: 24px; background: var(--la-layer-02); box-shadow: 0 4px 18px color-mix(in srgb, var(--la-text) 10%, transparent); }
-.provider-actions :deep(.ui-button) { min-height: 46px; gap: 8px; padding-inline: 16px; font-size: 14px; }
-.provider-actions :deep(.ui-icon-button) { width: 46px; height: 46px; padding: 0; }
 .provider-test__result { margin: 0; max-width: 100%; padding: 10px 16px; border-radius: 14px; background: var(--la-layer-02); color: var(--la-accent); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
 .provider-test__result.is-error, .provider-delete { color: var(--ui-color-error); }
 .provider-dialog__text { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
 
 @media (max-width: 767px) {
   .provider-control { width: 100%; }
-  .provider-actions :deep(.ui-button) { gap: 6px; padding-inline: 12px; font-size: 13px; }
-  .provider-actions :deep(.ui-icon-button) { padding: 0; }
 }
