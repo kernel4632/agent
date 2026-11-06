@@ -5,7 +5,8 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { groupMessageTurns } from '../../commands/history.js'
+import { groupMessageTurns, isFinishedStopTool } from '../../commands/history.js'
+import { outputText } from '../../commands/tool.js'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -24,20 +25,26 @@ let frame = 0
 let pendingIndex = -1
 let viewportRetry = 0
 
-// 一轮一条刻度：用户问题和助手回答都能定位，刻度长度由这一轮的文字量决定。
+// 一轮一条刻度：用户问题用原话，助手只取结束工具/最后一条的完整回答，不把中间处理混进来。
 const nodes = computed(() => groupMessageTurns(props.messages)
   .filter(turn => !turn.messages[0].compact)
   .map(turn => {
-    const text = turn.messages
-      .map(message => String(message.displayContent ?? message.content ?? ''))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    const fallback = turn.messages[0].images?.length ? '图片消息' : '空消息'
+    const first = turn.messages[0]
+    let text = ''
+    if (turn.role === 'user') {
+      text = String(first.displayContent ?? first.content ?? '')
+    } else {
+      const stopMessage = [...turn.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool))
+      const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
+      text = String(outputText(stopTool) || '').trim()
+      if (!text) text = String(turn.messages.at(-1)?.content || '')
+    }
+    text = text.replace(/\s+/g, ' ').trim()
+    const fallback = turn.role === 'user' ? (first.images?.length ? '图片消息' : '空消息') : '处理完成'
     const prefix = text || fallback
-    const attachments = turn.messages[0].attachments?.length ? ` · ${turn.messages[0].attachments.length} 个附件` : ''
+    const attachments = first.attachments?.length ? ` · ${first.attachments.length} 个附件` : ''
     return {
-      id: turn.messages[0].id,
+      id: first.id,
       role: turn.role,
       length: prefix.length,
       title: `${turn.role === 'user' ? '你' : '回答'}：${prefix}${attachments}`.slice(0, 120),

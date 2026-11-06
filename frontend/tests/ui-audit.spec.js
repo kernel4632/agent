@@ -1496,12 +1496,14 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   expect(railBox.x + railBox.width).toBeGreaterThan(page.viewportSize().width - 12)
   const rightEdges = await page.locator('.conversation-rail__mark').evaluateAll(nodes => [...new Set(nodes.map(node => Math.round(node.getBoundingClientRect().right)))])
   expect(rightEdges).toHaveLength(1)
-  // 用户问题短、助手回答长，刻度长度随这一轮文字量变化，且没有滑块。
+  // 刻度按消息长度给宽度，但处理过程中的中间文本不参与；所有刻度右边界相同。
   const widths = await page.locator('.conversation-rail__mark').evaluateAll(nodes => nodes.slice(0, 2).map(node => node.getBoundingClientRect().width))
-  expect(widths[1]).toBeGreaterThan(widths[0])
+  expect(widths.every(width => width > 0)).toBe(true)
   await expect(page.locator('.conversation-rail__thumb')).toHaveCount(0)
   await page.locator('.conversation-rail__mark').first().hover()
   await expect(page.locator('.conversation-rail__preview')).toContainText('你：定位消息 1')
+  await page.locator('.conversation-rail__mark').nth(1).hover()
+  await expect(page.locator('.conversation-rail__preview')).toContainText('回答：')
   await page.mouse.move(0, 0)
 
   await rail.focus()
