@@ -152,6 +152,18 @@ function onRailScroll(event) {
   scrollTop.value = event.currentTarget.scrollTop
 }
 
+// 定位条在会话出现第二轮后才挂载，不能只在 onMounted 时观察一次；否则 frameHeight
+// 永远是 0，预览会被夹到顶部，自动跟随也会失效。
+function observeFrame(element) {
+  frameObserver?.disconnect()
+  if (!element) {
+    frameHeight.value = 0
+    return
+  }
+  frameObserver?.observe(element)
+  frameHeight.value = Math.round(element.getBoundingClientRect().height)
+}
+
 function indexAt(event) {
   const rect = track.value?.getBoundingClientRect()
   if (!rect?.height || !nodes.value.length) return -1
@@ -225,6 +237,7 @@ function keydown(event) {
 }
 
 watch([activeIndex, () => nodes.value.length, frameHeight], () => followActive())
+watch(frame, element => observeFrame(element), { flush: 'post' })
 watch(() => props.messages, () => nextTick(() => {
   syncViewport()
   followActive('auto')
@@ -242,7 +255,7 @@ onMounted(() => {
     if (!entry) return
     frameHeight.value = Math.round(entry.contentRect.height)
   })
-  if (frame.value) frameObserver.observe(frame.value)
+  observeFrame(frame.value)
   window.addEventListener('resize', onResize)
   syncViewport()
   syncFromScroll()

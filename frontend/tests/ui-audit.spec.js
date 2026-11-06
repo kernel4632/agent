@@ -1716,6 +1716,11 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await expect(page.locator('.conversation-rail__preview')).toContainText('你：定位消息 1')
   await page.locator('.conversation-rail__mark').nth(1).hover()
   await expect(page.locator('.conversation-rail__preview')).toContainText('回答：')
+  // 预览必须贴着被悬停的刻度，不能被夹到定位条顶部。
+  await page.locator('.conversation-rail__mark').nth(5).hover()
+  const hoveredMark = await page.locator('.conversation-rail__mark').nth(5).boundingBox()
+  const previewBox = await page.locator('.conversation-rail__preview').boundingBox()
+  expect(Math.abs((previewBox.y + previewBox.height / 2) - (hoveredMark.y + hoveredMark.height / 2))).toBeLessThan(4)
   await page.mouse.move(0, 0)
   // 当前轮的刻度只显示预览，不应该把已经在看的正文往上拉走。
   const beforeCurrent = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
