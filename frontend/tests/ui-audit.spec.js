@@ -1721,6 +1721,7 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   const hoveredMark = await page.locator('.conversation-rail__mark').nth(5).boundingBox()
   const previewBox = await page.locator('.conversation-rail__preview').boundingBox()
   expect(Math.abs((previewBox.y + previewBox.height / 2) - (hoveredMark.y + hoveredMark.height / 2))).toBeLessThan(4)
+  await screenshot(page, testInfo, 'conversation-rail-preview')
   await page.mouse.move(0, 0)
   // 当前轮的刻度只显示预览，不应该把已经在看的正文往上拉走。
   const beforeCurrent = await page.locator('.session-scroll').evaluate(element => element.scrollTop)

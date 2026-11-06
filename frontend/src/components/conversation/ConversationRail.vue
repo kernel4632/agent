@@ -40,31 +40,50 @@ let viewportRetry = 0
 let pointerInside = false
 
 // 一轮一条刻度：用户问题用原话；助手只保留有结束工具完整回答的轮次。
-// 没有最终回答的助手轮次直接不生成刻度，不能用中间正文或占位符补。
-const nodes = computed(() => groupMessageTurns(props.messages)
-  .filter(turn => !turn.messages[0].compact)
-  .flatMap(turn => {
+// 预览同时带上这一问和最终回答，长内容在浮层里折行，不再压成一行。
+const userTextOf = turn => {
+  const first = turn?.messages?.[0]
+  if (!first || turn.role !== 'user') return ''
+  const text = String(first.displayContent ?? first.content ?? '').replace(/\s+/g, ' ').trim()
+  const fallback = first.images?.length ? '图片消息' : '空消息'
+  const attachments = first.attachments?.length ? ` · ${first.attachments.length} 个附件` : ''
+  return `${text || fallback}${attachments}`
+}
+const answerOf = turn => {
+  if (!turn || turn.role !== 'assistant') return ''
+  const stopMessage = [...turn.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool))
+  const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
+  return String(outputText(stopTool) || '').replace(/\s+/g, ' ').trim()
+}
+const nodes = computed(() => {
+  const turns = groupMessageTurns(props.messages).filter(turn => !turn.messages[0].compact)
+  return turns.flatMap((turn, index) => {
     const first = turn.messages[0]
-    let text = ''
     if (turn.role === 'user') {
-      text = String(first.displayContent ?? first.content ?? '')
-    } else {
-      const stopMessage = [...turn.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool))
-      const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
-      text = String(outputText(stopTool) || '').trim()
-      if (!text) return []
+      const prompt = userTextOf(turn)
+      const response = answerOf(turns[index + 1])
+      return [{
+        id: first.id,
+        role: turn.role,
+        length: prompt.length,
+        prompt,
+        response,
+        title: `你：${prompt}`.slice(0, 120),
+      }]
     }
-    text = text.replace(/\s+/g, ' ').trim()
-    const fallback = turn.role === 'user' ? (first.images?.length ? '图片消息' : '空消息') : ''
-    const prefix = text || fallback
-    const attachments = first.attachments?.length ? ` · ${first.attachments.length} 个附件` : ''
+    const response = answerOf(turn)
+    if (!response) return []
+    const prompt = userTextOf(turns[index - 1])
     return [{
       id: first.id,
       role: turn.role,
-      length: prefix.length,
-      title: `${turn.role === 'user' ? '你' : '回答'}：${prefix}${attachments}`.slice(0, 120),
+      length: response.length,
+      prompt,
+      response,
+      title: `回答：${response}`.slice(0, 120),
     }]
-  }))
+  })
+})
 
 // 保留原定义：刻度宽度表示这一轮的文字量，短问题和长回答仍然可区分。
 const maxLength = computed(() => Math.max(1, ...nodes.value.map(node => node.length)))
@@ -311,7 +330,10 @@ onBeforeUnmount(() => {
           ></span>
         </div>
       </div>
-      <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">{{ hoverNode.title }}</span>
+      <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">
+        <span v-if="hoverNode.prompt" class="conversation-rail__preview-prompt">你：{{ hoverNode.prompt }}</span>
+        <span v-if="hoverNode.response" class="conversation-rail__preview-response">回答：{{ hoverNode.response }}</span>
+      </span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>
   </aside>

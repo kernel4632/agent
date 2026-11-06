@@ -59,20 +59,37 @@
   position: absolute;
   right: calc(100% + 10px);
   z-index: 1;
-  max-width: 260px;
-  padding: 6px 9px;
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 80px));
+  max-height: 100px;
+  padding: 10px 12px;
   transform: translateY(-50%);
   overflow: hidden;
-  border: 1px solid var(--la-line);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 12px;
   background: var(--la-panel);
-  box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, #000 22%, transparent);
   color: var(--la-text);
+  pointer-events: none;
+}
+.conversation-rail__preview-prompt,
+.conversation-rail__preview-response {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+.conversation-rail__preview-prompt {
+  -webkit-line-clamp: 1;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.conversation-rail__preview-response {
+  -webkit-line-clamp: 3;
+  margin-top: 4px;
+  color: var(--la-secondary);
   font-size: 12px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
 }
 .conversation-rail__sr {
   position: absolute;
