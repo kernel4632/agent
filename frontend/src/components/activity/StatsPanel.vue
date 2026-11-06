@@ -98,6 +98,13 @@ const contentShares = computed(() => {
     tools: content.value.tools / sum * 100,
   }
 })
+const shareText = value => `${value > 0 && value < 0.1 ? '<0.1' : value.toFixed(1)}%`
+const contentRows = computed(() => [
+  { key: 'user', icon: 'user', label: '用户输入', value: content.value.user, share: contentShares.value.user },
+  { key: 'thinking', icon: 'idea', label: '助手思考', value: content.value.thinking, share: contentShares.value.thinking },
+  { key: 'reply', icon: 'chat', label: '助手回复', value: content.value.reply, share: contentShares.value.reply },
+  { key: 'tools', icon: 'code', label: '工具输出', value: content.value.tools, share: contentShares.value.tools },
+])
 // 走势图已移除：Token 面板只保留总账和构成，不再用一条几乎不变的上下文曲线占空间。
 const speedGroups = computed(() => [...(props.stats.models || [])].sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps)))
 const overallAverageDuration = computed(() => {
@@ -168,8 +175,14 @@ const formatDuration = value => {
       </template>
       <div class="stats-panel stats-panel--usage">
         <div class="stats-panel__head">
-          <span class="stats-panel__heading"><Icon name="database" :size="15" />Token 用量</span>
-          <span v-if="usageApproximate" class="stats-panel__badge">估算</span>
+          <div class="stats-panel__head-main">
+            <span class="stats-panel__heading"><Icon name="database" :size="17" />Token 用量</span>
+            <small class="stats-panel__subtitle">清晰洞察 · 合理使用 · 高效构建</small>
+          </div>
+          <div v-if="hasUsage" class="stats-panel__head-aside">
+            <span class="stats-panel__head-meta">{{ requestCount }} 次请求<template v-if="usage.reasoning"> · 推理 {{ formatTokens(usage.reasoning, usageApproximate) }}</template></span>
+            <span v-if="usageApproximate" class="stats-panel__badge">估算</span>
+          </div>
         </div>
         <template v-if="hasUsage">
           <div class="stats-panel__overview">
@@ -177,29 +190,54 @@ const formatDuration = value => {
               <span class="stats-panel__overview-label">本会话累计</span>
               <div class="stats-panel__overview-value"><strong>{{ formatTokens(total, usageApproximate) }}</strong><span>tokens</span></div>
             </div>
-            <span class="stats-panel__overview-count">{{ requestCount }} 次请求<template v-if="usage.reasoning"> · 推理 {{ formatTokens(usage.reasoning, usageApproximate) }}</template></span>
+            <div class="stats-panel__overview-side">
+              <div class="stats-panel__overview-stat">
+                <span class="stats-panel__overview-icon"><Icon name="document" :size="16" /></span>
+                <span><small>请求次数</small><strong>{{ requestCount }}</strong></span>
+              </div>
+              <div v-if="usage.reasoning" class="stats-panel__overview-stat">
+                <span class="stats-panel__overview-icon"><Icon name="cpu" :size="16" /></span>
+                <span><small>推理 tokens</small><strong>{{ formatTokens(usage.reasoning, usageApproximate) }}</strong></span>
+              </div>
+            </div>
           </div>
           <div class="stats-panel__metric-row">
-            <div class="stats-panel__metric is-input"><span>输入</span><strong>{{ formatTokens(usage.input, usageApproximate) }}</strong></div>
-            <div class="stats-panel__metric is-output"><span>输出</span><strong>{{ formatTokens(usage.output, usageApproximate) }}</strong></div>
-            <div class="stats-panel__metric is-cache"><span>缓存读</span><strong>{{ formatTokens(cacheTokens, usageApproximate) }}</strong><em>{{ cacheHit }}%</em></div>
-            <div v-if="cacheWriteTokens" class="stats-panel__metric is-cache-write"><span>缓存写</span><strong>{{ formatTokens(cacheWriteTokens, usageApproximate) }}</strong></div>
+            <div class="stats-panel__metric is-input">
+              <span class="stats-panel__metric-icon"><Icon name="input" :size="17" /></span>
+              <span class="stats-panel__metric-label">输入 tokens</span>
+              <strong>{{ formatTokens(usage.input, usageApproximate) }}</strong>
+            </div>
+            <div class="stats-panel__metric is-output">
+              <span class="stats-panel__metric-icon"><Icon name="output" :size="17" /></span>
+              <span class="stats-panel__metric-label">输出 tokens</span>
+              <strong>{{ formatTokens(usage.output, usageApproximate) }}</strong>
+            </div>
+            <div class="stats-panel__metric is-cache">
+              <span class="stats-panel__metric-icon"><Icon name="cache-read" :size="17" /></span>
+              <span class="stats-panel__metric-label">缓存读 tokens</span>
+              <strong>{{ formatTokens(cacheTokens, usageApproximate) }}</strong>
+              <em>{{ cacheHit }}%</em>
+            </div>
+            <div v-if="cacheWriteTokens" class="stats-panel__metric is-cache-write">
+              <span class="stats-panel__metric-icon"><Icon name="cache-write" :size="17" /></span>
+              <span class="stats-panel__metric-label">缓存写 tokens</span>
+              <strong>{{ formatTokens(cacheWriteTokens, usageApproximate) }}</strong>
+            </div>
           </div>
 
           <div v-if="contentTotal" class="stats-panel__composition">
-            <div class="stats-panel__composition-head"><span>内容构成 · 估算</span><span>{{ formatTokens(contentTotal, usageApproximate) }} tokens</span></div>
-            <div class="stats-panel__composition-body">
-              <div class="stats-panel__stack stats-panel__stack--composition stats-panel__stack--content stats-panel__composition-stack" aria-hidden="true">
-                <span class="is-user" :style="{ height: `${contentShares.user}%` }"></span>
-                <span class="is-thinking" :style="{ height: `${contentShares.thinking}%` }"></span>
-                <span class="is-reply" :style="{ height: `${contentShares.reply}%` }"></span>
-                <span class="is-tools" :style="{ height: `${contentShares.tools}%` }"></span>
-              </div>
-              <div class="stats-panel__composition-legend">
-                <span class="is-user"><Icon name="input" :size="12" /><span>用户输入</span><strong>{{ formatTokens(content.user, usageApproximate) }}</strong></span>
-                <span class="is-thinking"><Icon name="idea" :size="12" /><span>助手思考</span><strong>{{ formatTokens(content.thinking, usageApproximate) }}</strong></span>
-                <span class="is-reply"><Icon name="chat" :size="12" /><span>助手回复</span><strong>{{ formatTokens(content.reply, usageApproximate) }}</strong></span>
-                <span class="is-tools"><Icon name="code" :size="12" /><span>工具输出</span><strong>{{ formatTokens(content.tools, usageApproximate) }}</strong></span>
+            <div class="stats-panel__composition-head"><span>内容构成 · 估算</span><span>总计 {{ formatTokens(contentTotal, usageApproximate) }} tokens</span></div>
+            <div class="stats-panel__composition-list">
+              <div v-for="row in contentRows" :key="row.key" class="stats-panel__composition-item" :class="`is-${row.key}`">
+                <span class="stats-panel__composition-icon"><Icon :name="row.icon" :size="17" /></span>
+                <div class="stats-panel__composition-main">
+                  <div class="stats-panel__composition-line">
+                    <span>{{ row.label }}</span>
+                    <strong>{{ formatTokens(row.value, usageApproximate) }}</strong>
+                    <em>{{ shareText(row.share) }}</em>
+                  </div>
+                  <div class="stats-panel__composition-track"><span :style="{ width: `${row.share}%` }"></span></div>
+                </div>
               </div>
             </div>
           </div>

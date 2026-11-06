@@ -6,7 +6,7 @@
 <script setup>
 import { HugeiconsIcon } from '@hugeicons/vue'
 const ICON_STROKE_WIDTH = 1.5 // 图标线宽用屏幕像素，只有这一处来源
-import { Add01Icon, Activity01Icon, AiBrain01Icon, ArrowDown01Icon, ArrowDown02Icon, ArrowExpand01Icon, ArrowRight01Icon, ArrowShrink01Icon, ArrowTurnBackwardIcon, ArrowUp02Icon, Attachment01Icon, Brain02Icon, BulbChargingIcon, BulbIcon, Cancel01Icon, ChartColumnIcon, ChatBotIcon, CheckListIcon, Clock01Icon, CodeIcon, Copy01Icon, Database01Icon, Delete01Icon, Download01Icon, EyeIcon, File02Icon, FlashIcon, Folder01Icon, GaugeIcon, GitForkIcon, Grid2X2PlusIcon, Home01Icon, Idea01Icon, IdeaIcon, InLoveIcon, InformationCircleIcon, InternetIcon, Layers01Icon, LeftToRightListBulletIcon, LightbulbOffIcon, Link01Icon, LookTopIcon, Menu03Icon, Message01Icon, MessageAdd01Icon, MoreVerticalIcon, PencilEdit01Icon, PlayIcon, Refresh01Icon, Search01Icon, Settings03Icon, Shield01Icon, Sorting01Icon, SparklesIcon, Tick02Icon, Upload01Icon, VolumeHighIcon, VolumeOffIcon,  } from '@hugeicons/core-free-icons'
+import { Add01Icon, Activity01Icon, AiBrain01Icon, ArrowDown01Icon, ArrowDown02Icon, ArrowExpand01Icon, ArrowRight01Icon, ArrowShrink01Icon, ArrowTurnBackwardIcon, ArrowUp02Icon, Attachment01Icon, Brain02Icon, BulbChargingIcon, BulbIcon, Cancel01Icon, ChartColumnIcon, ChatBotIcon, CheckListIcon, Clock01Icon, CodeIcon, Copy01Icon, CpuIcon, Database01Icon, Delete01Icon, Download01Icon, EyeIcon, File02Icon, FlashIcon, Folder01Icon, GaugeIcon, GitForkIcon, Grid2X2PlusIcon, Home01Icon, Idea01Icon, IdeaIcon, InLoveIcon, InformationCircleIcon, InternetIcon, Layers01Icon, LeftToRightListBulletIcon, LightbulbOffIcon, Link01Icon, LookTopIcon, Menu03Icon, Message01Icon, MessageAdd01Icon, MoreVerticalIcon, PencilEdit01Icon, PlayIcon, Refresh01Icon, Search01Icon, Settings03Icon, Shield01Icon, Sorting01Icon, SparklesIcon, Tick02Icon, Upload01Icon, UserIcon, VolumeHighIcon, VolumeOffIcon,  } from '@hugeicons/core-free-icons'
 
 defineProps({ name: { type: String, default: 'spark' }, size: { type: [Number, String], default: 20 } })
 
@@ -54,6 +54,8 @@ const icons = {
   mode: AiBrain01Icon,
   model: Brain02Icon,
   idea: Idea01Icon,
+  user: UserIcon,
+  cpu: CpuIcon,
   info: InformationCircleIcon,
   link: Link01Icon,
   eye: EyeIcon,
