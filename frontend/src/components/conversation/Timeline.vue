@@ -117,6 +117,7 @@ function flushScroll() {
 // 是否跟随末尾只由读者输入改变；程序滚动、resize、浏览器 clamp 都不参与判断。
 function setFollowing(value) {
   if (!value) resumeFollow = false
+  scrollParent?.classList.toggle('is-following', value)
   if (following.value === value) return
   following.value = value
   if (value) {
@@ -312,17 +313,14 @@ async function jumpToMessage(messageId) {
   }, 900)
 }
 defineExpose({ jumpToMessage, jumpToBottom })
-watch(() => turns.value.length, async () => {
-  if (!following.value) {
-    await nextTick()
-    if (atBottom(24)) setFollowing(true)
-  }
-  if (visibleStart.value > turns.value.length) visibleStart.value = visibleStartFor(Math.max(0, turns.value.length - INITIAL_TURNS))
+watch(() => turns.value.length, length => {
+  if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
   if (following.value) queueStick()
 })
 onMounted(() => {
   scrollParent = props.scrollRoot
   lastTop = scrollParent?.scrollTop || 0
+  scrollParent?.classList.toggle('is-following', following.value)
   scrollParent?.addEventListener('scroll', onScroll, { passive: true })
   scrollParent?.addEventListener('wheel', onWheel, { passive: true })
   scrollParent?.addEventListener('pointerdown', onPointerDown, { passive: true })
