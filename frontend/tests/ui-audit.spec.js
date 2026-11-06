@@ -740,12 +740,19 @@ test('context groups summarize tools and keep text between groups', async ({ pag
     { type: 'tool-result', toolCallId: 'flow-b', toolName: 'execute_command', output: { type: 'text', value: 'ok' } },
   ])
 
-  await expect(page.locator('.request-status')).toHaveCount(0)
   const groups = page.locator('.context-group__head')
-  await expect(groups).toHaveCount(2)
+  await expect(groups).toHaveCount(1)
   await expect(groups.first()).toContainText('读取文件 1 次')
-  await expect(groups.nth(1)).toContainText('执行命令 1 次')
-  await expect(groups.first()).toHaveAttribute('aria-expanded', 'false')
+  await expect(groups.first()).toHaveAttribute('aria-expanded', 'true')
+  // 只调一次的工具不折叠，直接留在时间线上；多步的一组仍保持展开。
+  await expect(page.locator('.cot-step--tool')).toHaveCount(2)
+  await expect(page.locator('.cot-step--tool').last()).toContainText('执行命令')
+  const requestBeforeGroup = await page.evaluate(() => {
+    const request = document.querySelector('.request-status')
+    const group = document.querySelector('.context-group__head')
+    return Boolean(request && group && (request.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING))
+  })
+  expect(requestBeforeGroup).toBe(true)
   await expect(page.locator('.process-fold__head')).toContainText('使用了 2 次工具')
   await openContextGroups(page)
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
@@ -770,11 +777,7 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(head).toContainText('1 次思考')
   await expect(head).toContainText('使用了 1 次工具')
   await expect(head).toContainText('读取文件 1 次')
-  const requestStats = page.locator('.request-stats__head')
-  await expect(requestStats).toContainText('请求统计')
-  await expect(page.locator('.request-stats__body')).toHaveCount(0)
-  await requestStats.click()
-  await expect(page.locator('.request-stats__body .request-status')).toHaveCount(1)
+  await expect(page.locator('.request-status')).toHaveCount(1)
   expect(await page.locator('.fold').first().evaluate(element => getComputedStyle(element).transitionProperty)).toContain('height')
   await page.mouse.move(0, 0)
   expect(await head.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
@@ -840,13 +843,11 @@ test('compaction shows a status row before the next model request', async ({ pag
     { type: 'llm-start', startedAt: Date.now() },
     { type: 'text-delta', text: '继续处理' },
   ])
-  // 普通模型请求不再单独占一行；压缩状态仍保留。
-  await expect(page.locator('.request-status')).toHaveCount(1)
-  const rows = page.locator('.request-status')
-  await expect(rows.first()).toContainText('上下文压缩完成')
-  await expect(rows.first()).toContainText(/入\s*100/)
+  // 请求行按真实位置留在压缩状态前后，不再集中到顶部。
+  await expect(page.locator('.request-status')).toHaveCount(3)
+  const compactRow = page.locator('.request-status').filter({ hasText: '上下文压缩完成' })
+  await expect(compactRow).toContainText(/入\s*100/)
   await expect(page.locator('.compact-stream')).toContainText('摘要')
-  await expect(page.locator('.cot-step--text')).toContainText('继续处理')
   expect(mock.errors).toEqual([])
 })
 

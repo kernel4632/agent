@@ -151,17 +151,12 @@ const processSummary = computed(() => {
   return pieces.join(' · ') || '运行状态'
 })
 
-// 请求统计从时间线里收起来了，但数据还在；需要核对首字/耗时/token 时从这里展开。
-const requestSteps = computed(() => treeSteps.value.filter(step => step.type === 'request'))
-const requestStatsOpen = ref(false)
-
-// 按 OpenCode 的消息分组思路：没有单独的请求数据行，只有连续的工具/思考折叠组。
-// 每组折叠条直接显示“使用了几次什么”，正文和组之间保持发生顺序。
+// 时间线保持请求-思考-正文-工具的真实顺序；只有连续的工具/思考可以折叠成组。
+// 请求统计不再单独聚到顶部，而是留在它实际发生的位置。
 const processSections = computed(() => {
   const sections = []
   let group = null
   for (const step of treeSteps.value) {
-    if (step.type === 'request') continue // 请求用量在整轮摘要和 Token 面板里，不再逐行占时间线。
     if (step.type === 'reasoning' || step.type === 'tool') {
       if (!group) {
         group = { type: 'group', key: `group-${step.key}`, steps: [] }
@@ -173,9 +168,15 @@ const processSections = computed(() => {
       sections.push({ type: 'step', key: step.key, step })
     }
   }
-  return sections.map(section => section.type === 'group'
-    ? { ...section, summary: summarizeSteps(section.steps) }
-    : section)
+  return sections.flatMap(section => {
+    if (section.type !== 'group') return [section]
+    // 单个思考或单次工具直接留在时间线上，不为了折叠造一个只有一项的组。
+    if (section.steps.length === 1) {
+      const step = section.steps[0]
+      return [{ type: 'step', key: `single-${step.key}`, step }]
+    }
+    return [{ ...section, summary: summarizeSteps(section.steps) }]
+  })
 })
 
 const groupOpen = ref({})
@@ -247,28 +248,11 @@ function clearTarget() { targetId.value = null; emit('close') }
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
         <Fold :open="processOpen">
-          <div v-if="requestSteps.length" class="request-stats">
-            <button type="button" class="request-stats__head" :aria-expanded="requestStatsOpen" @click="requestStatsOpen = !requestStatsOpen">
-              <span class="request-stats__title">请求统计</span>
-              <em class="request-stats__count">{{ requestSteps.length }} 次</em>
-              <Icon name="down" :size="14" class="request-stats__caret" :class="{ 'is-open': requestStatsOpen }" aria-hidden="true" />
-            </button>
-            <Fold :open="requestStatsOpen">
-              <div class="request-stats__body">
-                <RequestStatus
-                  v-for="step in requestSteps"
-                  :key="step.key"
-                  :data-message-id="step.messageId"
-                  :request="step.request"
-                />
-              </div>
-            </Fold>
-          </div>
-
           <div class="process-fold__body context-sections">
             <template v-for="section in processSections" :key="section.key">
               <template v-if="section.type === 'step'">
-                <template v-if="section.step.type === 'compact'">
+                <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
+                <template v-else-if="section.step.type === 'compact'">
                   <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
                   <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
                 </template>
@@ -280,6 +264,20 @@ function clearTarget() { targetId.value = null; emit('close') }
                     </div>
                   </div>
                 </div>
+                <ReasoningStep
+                  v-else-if="section.step.type === 'reasoning'"
+                  :data-message-id="section.step.messageId"
+                  :reasoning="section.step.text"
+                  :streaming="section.step.streaming"
+                  :started-at="section.step.message.startedAt"
+                  :finished-at="section.step.message.finishedAt"
+                />
+                <ToolCall
+                  v-else-if="section.step.type === 'tool'"
+                  :data-message-id="section.step.messageId"
+                  :tool="section.step.tool"
+                  :session-id="sessionId"
+                />
               </template>
 
               <div v-else class="context-group">
