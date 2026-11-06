@@ -25,32 +25,31 @@ let frame = 0
 let pendingIndex = -1
 let viewportRetry = 0
 
-// 一轮一条刻度：用户问题用原话，助手只取结束工具/最后一条的完整回答，不把中间处理混进来。
+// 一轮一条刻度：用户问题用原话；助手只保留有结束工具完整回答的轮次。
+// 没有最终回答的助手轮次直接不生成刻度，不能用中间正文或占位符补。
 const nodes = computed(() => groupMessageTurns(props.messages)
   .filter(turn => !turn.messages[0].compact)
-  .map(turn => {
+  .flatMap(turn => {
     const first = turn.messages[0]
     let text = ''
     if (turn.role === 'user') {
       text = String(first.displayContent ?? first.content ?? '')
     } else {
-      // 只认结束工具的完整回答；取不到时宁可显示占位，也不把中间处理正文算进来。
       const stopMessage = [...turn.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool))
       const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
       text = String(outputText(stopTool) || '').trim()
+      if (!text) return []
     }
     text = text.replace(/\s+/g, ' ').trim()
-    const fallback = turn.role === 'user'
-      ? (first.images?.length ? '图片消息' : '空消息')
-      : (turn.messages.some(message => message.isStreaming) ? '处理中…' : '没有最终回答')
+    const fallback = turn.role === 'user' ? (first.images?.length ? '图片消息' : '空消息') : ''
     const prefix = text || fallback
     const attachments = first.attachments?.length ? ` · ${first.attachments.length} 个附件` : ''
-    return {
+    return [{
       id: first.id,
       role: turn.role,
       length: prefix.length,
       title: `${turn.role === 'user' ? '你' : '回答'}：${prefix}${attachments}`.slice(0, 120),
-    }
+    }]
   }))
 
 // 按这一轮相对最长消息的比例给宽度；短问题明显短，长回答接近满格。
