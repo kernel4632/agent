@@ -1,7 +1,10 @@
 /* 模型卡片只保留名称、能力和更多操作；新增与编辑在独立底部面板完成。 */
 .provider-models { display: flex; min-width: 0; height: 100%; min-height: 0; flex-direction: column; gap: 16px; }
-.provider-models__head { display: flex; align-items: center; justify-content: space-between; padding-inline: 4px; }
-.provider-models__head h2, .provider-models__head > span { margin: 0; color: var(--la-muted); font-size: 13px; font-weight: 500; }
+.provider-models__head { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 16px; padding-inline: 4px; }
+.provider-models__heading { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.provider-models__head h2, .provider-models__head span { margin: 0; color: var(--la-muted); font-size: 13px; font-weight: 500; }
+.provider-models__toolbar { display: flex; flex: none; align-items: center; gap: 4px; margin-left: auto; }
+.provider-models__toolbar :deep(.ui-button) { min-width: 0; min-height: 36px; gap: 6px; padding-inline: 10px; font-size: 13px; }
 .provider-models__list { display: grid; min-height: 0; align-content: start; gap: 8px; flex: 1; overflow-y: auto; }
 .model-card { display: grid; min-width: 0; padding-right: 6px; border-radius: 20px; background: var(--la-layer-01); }
 .model-card__row { display: flex; min-width: 0; align-items: center; }
@@ -18,7 +21,7 @@
 .model-card__meta > .model-card__capability { display: grid; min-width: 24px; height: 22px; padding: 0 5px; place-items: center; color: var(--la-secondary); }
 .model-card__capability svg { display: block; }
 .model-card__meta .model-card__default { background: var(--la-accent-soft); color: var(--la-accent); }
-.model-card__editor { display: grid; gap: 16px; padding: 16px 20px 18px; border-top: .5px solid var(--la-line); }
+.model-card__editor { display: grid; gap: 16px; padding: 16px 20px 18px; border-top: .5px solid var(--la-line); overflow: hidden; }
 .model-card__editor :deep(.ui-field__input) { min-height: 48px; padding-block: 11px; }
 .model-edit__grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .model-edit__field { display: grid; min-width: 0; gap: 8px; }
@@ -36,8 +39,6 @@
 .provider-models__empty { display: grid; flex: 1; justify-items: center; align-content: center; gap: 14px; min-height: 230px; padding: 32px 16px; color: var(--la-muted); text-align: center; }
 .provider-models__empty strong { color: var(--la-text); font-size: 18px; font-weight: 500; }
 .provider-models__empty p { margin: 0; font-size: 13px; line-height: 20px; }
-.provider-models__toolbar { display: flex; flex: none; align-self: center; align-items: center; gap: 8px; max-width: 100%; margin-top: 8px; padding: 8px; border: 1px solid var(--la-line); border-radius: 24px; background: var(--la-layer-02); box-shadow: 0 4px 18px color-mix(in srgb, var(--la-text) 10%, transparent); }
-.provider-models__toolbar :deep(.ui-button) { min-height: 46px; gap: 8px; padding-inline: 16px; font-size: 14px; }
 .model-chooser { display: flex; min-height: 200px; flex-direction: column; gap: 10px; }
 .model-chooser__summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; color: var(--la-muted); font-size: 12px; }
 .model-chooser__summary :deep(.ui-button) { min-height: 40px; font-size: 13px; }
@@ -86,7 +87,8 @@
   .model-edit__identity { grid-template-columns: minmax(0, 1fr); }
   .model-edit__identity > :last-child { grid-column: auto; }
   .model-card__editor { padding-inline: 14px; }
-  .provider-models__toolbar { gap: 4px; }
-  .provider-models__toolbar :deep(.ui-button) { gap: 6px; padding-inline: 12px; font-size: 13px; }
+  .provider-models__head { flex-wrap: wrap; gap: 8px 12px; }
+  .provider-models__toolbar { max-width: 100%; }
+  .provider-models__toolbar :deep(.ui-button) { gap: 5px; padding-inline: 8px; font-size: 12px; }
   .model-choice { gap: 6px; padding-inline: 8px; font-size: 13px; }
 }

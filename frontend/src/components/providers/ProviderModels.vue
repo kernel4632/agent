@@ -236,6 +236,34 @@ function scheduleAutoSave() {
   autoSaveTimer = setTimeout(() => void autoSave(), 450)
 }
 
+function enterEditor(element) {
+  const height = element.scrollHeight
+  element.style.height = '0px'
+  element.style.opacity = '0'
+  element.style.overflow = 'hidden'
+  void element.offsetHeight
+  element.style.transition = 'height 260ms var(--ui-curve-standard), opacity 180ms ease'
+  element.style.height = `${height}px`
+  element.style.opacity = '1'
+}
+
+function leaveEditor(element) {
+  element.style.height = `${element.scrollHeight}px`
+  element.style.opacity = '1'
+  element.style.overflow = 'hidden'
+  void element.offsetHeight
+  element.style.transition = 'height 220ms var(--ui-curve-standard), opacity 140ms ease'
+  element.style.height = '0px'
+  element.style.opacity = '0'
+}
+
+function finishEditor(element) {
+  element.style.height = ''
+  element.style.opacity = ''
+  element.style.transition = ''
+  element.style.overflow = ''
+}
+
 watch(editDraft, () => scheduleAutoSave(), { deep: true })
 onBeforeUnmount(() => clearTimeout(autoSaveTimer))
 
@@ -246,7 +274,13 @@ async function saveModel() {
 
 <template>
   <div class="provider-models">
-    <header class="provider-models__head"><h2>已添加的模型</h2><span>{{ models.length }} 个</span></header>
+    <header class="provider-models__head">
+      <div class="provider-models__heading"><h2>已添加的模型</h2><span>{{ models.length }} 个</span></div>
+      <div class="provider-models__toolbar" aria-label="模型操作">
+        <Button variant="text" :aria-busy="loading" @click="discover"><Icon name="download" :size="16" />{{ loading ? '获取中…' : '获取模型列表' }}</Button>
+        <Button @click="openEditor()"><Icon name="plus" :size="16" />添加模型</Button>
+      </div>
+    </header>
     <div v-if="models.length" class="provider-models__list">
       <article v-for="(model, index) in models" :key="model.id" class="model-card" :class="{ 'is-expanded': expandedId === model.id }">
         <div class="model-card__row">
@@ -272,7 +306,8 @@ async function saveModel() {
           <Menu :label="`${model.name} 的更多操作`" :items="modelActions(index)" @select="runAction(model, $event)" />
         </div>
 
-        <div v-if="expandedId === model.id && editDraft" class="model-card__editor">
+        <Transition name="model-editor" @enter="enterEditor" @after-enter="finishEditor" @leave="leaveEditor" @after-leave="finishEditor">
+          <div v-if="expandedId === model.id && editDraft" class="model-card__editor">
           <div class="model-edit__grid">
             <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
             <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="留空则使用模型 ID" />
@@ -297,16 +332,12 @@ async function saveModel() {
               <div class="model-choices"><label v-for="ability in ABILITIES" :key="ability.value" class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes(ability.value) }"><input type="checkbox" role="switch" :aria-label="ability.label" :checked="editDraft.capabilities.includes(ability.value)" @change="toggleCapability(ability.value, $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes(ability.value)" name="check" :size="16" />{{ ability.label }}</label></div>
             </fieldset>
           </div>
-          <p class="model-edit__hint">修改后自动保存；上下文窗口支持 1M、100K、512K 这类写法。</p>
           <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
-        </div>
+          </div>
+        </Transition>
       </article>
     </div>
     <div v-else class="provider-models__empty"><Icon name="model" :size="40" /><strong>还没有模型</strong><p>从服务商获取，或手动添加模型 ID</p></div>
-    <div class="provider-models__toolbar" aria-label="模型操作">
-      <Button variant="text" :aria-busy="loading" @click="discover"><Icon name="download" :size="18" />{{ loading ? '获取中…' : '获取模型列表' }}</Button>
-      <Button @click="openEditor()"><Icon name="plus" :size="18" />添加模型</Button>
-    </div>
   </div>
 
   <Dialog :open="chooserOpen" placement="bottom" :width="680" label="可用模型" class="model-picker-sheet" @update:open="chooserOpen = $event">
