@@ -1,23 +1,64 @@
-:global(.session-todo-panel) { --ui-drawer-max-width: 380px; }
+:global(.session-todo-panel) { --ui-drawer-max-width: 420px; }
 .session-todo-panel__body { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
 .session-todo-panel__head { display: grid; gap: 10px; }
 .session-todo-panel__summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; color: var(--la-muted); font-size: 13px; line-height: 18px; }
 .session-todo-panel__summary strong { color: var(--la-text); font-size: 14px; font-weight: 600; }
 .session-todo-panel__bar { --ui-progress-height: 4px; }
-.session-todo-panel__list { display: flex; min-width: 0; flex-direction: column; }
-.session-todo-panel__item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 9px 0; border-bottom: .5px solid var(--la-line); }
-.session-todo-panel__item:last-child { border-bottom: 0; }
-.session-todo-panel__icon { margin-top: 3px; color: var(--la-muted); }
+
+.session-todo-panel__section { display: grid; min-width: 0; gap: 8px; }
+.session-todo-panel__eyebrow { color: var(--la-accent); font-size: 11.5px; font-weight: 650; letter-spacing: .02em; }
+.session-todo-panel__section-head { display: flex; align-items: center; justify-content: space-between; color: var(--la-muted); font-size: 12.5px; }
+.session-todo-panel__count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--la-text) 7%, transparent); color: var(--la-secondary); font-size: 11px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.session-todo-panel__list { display: grid; min-width: 0; gap: 8px; }
+.session-todo-panel__card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 9px;
+  padding: 13px 14px;
+  border: .5px solid var(--la-line);
+  border-radius: 18px;
+  background: var(--la-layer-02);
+}
+.session-todo-panel__card.is-current {
+  border-color: color-mix(in srgb, var(--la-accent) 30%, var(--la-line));
+  background: color-mix(in srgb, var(--la-accent) 9%, var(--la-layer-02));
+  box-shadow: inset 2px 0 0 var(--la-accent);
+}
+.session-todo-panel__card.is-done { border-color: color-mix(in srgb, var(--la-line) 65%, transparent); background: color-mix(in srgb, var(--la-layer-02) 62%, transparent); }
+.session-todo-panel__icon { margin-top: 2px; color: var(--la-muted); }
 .session-todo-panel__icon.is-completed { color: var(--la-success); }
 .session-todo-panel__icon.is-in_progress { color: var(--la-accent); }
 .session-todo-panel__text { min-width: 0; color: var(--la-text); font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
-.session-todo-panel__text.is-done { color: var(--la-muted); text-decoration: line-through; }
-.session-todo-panel__status { flex: none; color: var(--la-muted); font-size: 12px; line-height: 20px; white-space: nowrap; }
-.session-todo-panel__status.is-completed { color: var(--la-success); }
-.session-todo-panel__status.is-in_progress { color: var(--la-accent); }
+.session-todo-panel__card.is-done .session-todo-panel__text { color: var(--la-muted); }
+.session-todo-panel__status { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; line-height: 18px; white-space: nowrap; }
+.session-todo-panel__status.is-in_progress { background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
+
+.session-todo-panel__completed-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--la-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.session-todo-panel__completed-toggle:hover { color: var(--la-text); }
+.session-todo-panel__caret { transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.session-todo-panel__caret.is-open { transform: rotate(180deg); }
+.session-todo-panel__list--done { margin-top: 2px; }
 .session-todo-panel__empty { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
 @media (prefers-reduced-motion: reduce) {
   .session-todo-panel__bar span { transition: none; }
+  .session-todo-panel__caret { transition: none; }
 }
 
 /* Progress.vue：完成部分沿用强调色。 */

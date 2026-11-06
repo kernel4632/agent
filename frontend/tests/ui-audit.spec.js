@@ -322,9 +322,14 @@ test('tool row keeps declared metadata and shows generic input and output', asyn
   await todoButton.click()
   const panel = page.getByRole('dialog', { name: '任务清单' })
   await expect(panel).toBeVisible()
-  await expect(panel.getByText('读现有实现', { exact: true })).toBeVisible()
+  await expect(panel.getByText('改 session 指令', { exact: true })).toBeVisible()
+  await expect(panel.getByText('补测试', { exact: true })).toBeVisible()
   await expect(panel.getByText('1 / 3')).toBeVisible()
-  await expect(panel.locator('.session-todo-panel__status')).toHaveText(['已完成', '进行中', '待处理'])
+  await expect(panel.getByText('正在执行', { exact: true })).toBeVisible()
+  await expect(panel.locator('.session-todo-panel__status')).toHaveText(['进行中'])
+  await expect(panel.getByText('读现有实现', { exact: true })).toHaveCount(0)
+  await panel.getByRole('button', { name: '已完成 1 项', exact: true }).click()
+  await expect(panel.getByText('读现有实现', { exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'tool-todo')
   await panel.getByRole('button', { name: '关闭' }).click()
   expect(mock.errors).toEqual([])
@@ -1196,7 +1201,7 @@ test('compaction summary renders as a divider, not a user bubble', async ({ page
     history: [
       { messageId: 'compact-u1', role: 'user', content: '旧问题' },
       { messageId: 'compact-a1', role: 'assistant', content: [{ type: 'text', text: '旧回答' }] },
-      { messageId: 'compact-summary', role: 'user', compact: true, content: '## 项目背景\n\n- 仓库：`kernel4632/agent`\n- 版本：server 0.65.2 / frontend 0.99.30\n\n**关键发现**：旧后端没有加载修复。' },
+      { messageId: 'compact-summary', role: 'user', compact: true, content: '## 项目背景\n\n- 仓库：`kernel4632/agent`\n- 版本：server 0.65.2 / frontend 0.99.33\n\n**关键发现**：旧后端没有加载修复。' },
       { messageId: 'compact-u2', role: 'user', content: '新问题' },
       { messageId: 'compact-a2', role: 'assistant', content: [{ type: 'text', text: '新回答' }] },
     ],
