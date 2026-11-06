@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test'
 import { mkdir, rm } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
+import Path from '../../server/utils/path.js'
 
 const root = resolve(import.meta.dir, '../..')
 const home = join(root, 'tmp', `cli-integration-${crypto.randomUUID()}`)
@@ -38,6 +39,7 @@ beforeAll(async () => {
     await mkdir(home, { recursive: true })
     await Bun.write(join(home, 'sample.txt'), 'fixture file contents')
     process.env.AGENT_HOME = home
+    Path.lock(home)
     model = Bun.serve({
         port: 0,
         async fetch(request) {
@@ -46,7 +48,7 @@ beforeAll(async () => {
             const prompt = JSON.stringify(body.messages[userIndex]?.content)
             const usedTool = body.messages.slice(userIndex).some(message => message.role === 'tool')
             const compact = prompt?.includes('压缩成一段总结')
-            let message = { role: 'assistant', content: 'CLI 中文回复' }
+            let message = { role: 'assistant', content: null, tool_calls: [{ id: 'answer-1', type: 'function', function: { name: 'attempt_completion', arguments: JSON.stringify({ result: 'CLI 中文回复' }) } }] }
             if (prompt?.includes('[invalid]') && !usedTool) {
                 message = { role: 'assistant', content: null, tool_calls: [{ id: 'invalid-1', type: 'function', function: { name: 'unknown_tool', arguments: '{}' } }] }
             } else if (prompt?.includes('[complete]') && !usedTool) {
@@ -59,7 +61,8 @@ beforeAll(async () => {
                     { choices: [{ index: 0, delta: { role: 'assistant', reasoning_content: compact ? '摘要思考' : '先分析需求。' } }] },
                     { choices: [{ index: 0, delta: { content: compact ? '隔离的' : '流式' } }] },
                     { choices: [{ index: 0, delta: { content: compact ? '压缩摘要' : '中文答复' } }] },
-                    { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: compact
+                    ...(!compact ? [{ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'stream-end', type: 'function', function: { name: 'attempt_completion', arguments: JSON.stringify({ result: '' }) } }] } }] }] : []),
+                    { choices: [{ index: 0, delta: {}, finish_reason: compact ? 'stop' : 'tool_calls' }], usage: compact
                         ? { prompt_tokens: 7, completion_tokens: 2, total_tokens: 9 }
                         : { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 } },
                 ]
@@ -95,6 +98,7 @@ beforeAll(async () => {
 afterAll(async () => {
     await app?.stop(true)
     model?.stop(true)
+    Path.unlock()
     if (previousHome === undefined) delete process.env.AGENT_HOME
     else process.env.AGENT_HOME = previousHome
     await rm(home, { recursive: true, force: true })
@@ -151,7 +155,7 @@ test('NDJSON includes final persisted history; invalid input and conflicts fail'
     expect((await cli('sessions', 'decide', 'missing', 'call', 'invalid')).code).toBe(1)
 })
 
-test('core 0.27 automatic and manual compaction account usage once', async () => {
+test('current core automatic and manual compaction account usage once', async () => {
     const config = await (await fetch(`${address}/config/read`)).json()
     config.providers[0].stream = true
     config.providers[0].models[0].context = 1000
@@ -167,7 +171,7 @@ test('core 0.27 automatic and manual compaction account usage once', async () =>
     const summaries = session.history.filter(message => message.compact)
     expect(summaries).toHaveLength(1)
     expect(summaries[0]).toMatchObject({ role: 'user', usage: { input: 7, output: 2, total: 9 } })
-    expect(session.history.at(-1)).toMatchObject({ role: 'assistant', usage: { input: 12, output: 5, total: 17 } })
+    expect(session.history.findLast(message => message.role === 'assistant')).toMatchObject({ usage: { input: 12, output: 5, total: 17 } })
     const manual = await cli('sessions', 'compact', session.id, '--json')
     expect(manual.code).toBe(0)
     expect(JSON.parse(manual.out).content).toBe('隔离的压缩摘要')
@@ -177,7 +181,7 @@ test('core 0.27 automatic and manual compaction account usage once', async () =>
     expect(reloaded.history.reduce((sum, message) => sum + (message.usage?.total || 0), 0)).toBe(35)
 }, 30000)
 
-test('core 0.27 settles denied, invalid, and cancelled calls through real SSE', async () => {
+test('current core settles denied, invalid, and cancelled calls through real SSE', async () => {
     const config = await (await fetch(`${address}/config/read`)).json()
     config.providers[0].stream = false
     config.providers[0].models[0].context = 128000
@@ -186,7 +190,7 @@ test('core 0.27 settles denied, invalid, and cancelled calls through real SSE', 
         const answer = await cli('ask', prompt, '--title', 'tool settlement', '--json', '--permission', 'deny')
         expect(answer.code).toBe(0)
         const events = answer.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
-        const results = events.filter(event => event.type === 'tool-result')
+        const results = events.filter(event => event.type === 'tool-result' && event.toolName !== 'attempt_completion')
         expect(results).toHaveLength(1)
         expect(results[0].output.type).toBe(outputType)
         const parts = events.at(-1).session.history.flatMap(message => Array.isArray(message.content) ? message.content : [])
