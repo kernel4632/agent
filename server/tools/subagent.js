@@ -78,7 +78,8 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
                 SSE.send({ id: sessionId, data: { ...result, type: 'subagent-tool-result', taskId: id, description } })
             },
             // 子 agent 的审批回到同一个会话，用户能看到"子任务想读这个文件"。
-            onPermission: call => onPermission({ sessionId, ...call }),
+            // core 的 call.sessionId 是临时子 Agent ID；审批必须发回父会话。
+            onPermission: call => onPermission({ ...call, sessionId }),
         },
     })
 

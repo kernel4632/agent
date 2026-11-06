@@ -8,9 +8,9 @@ import { resolve, join } from 'node:path'
 import Path from '../../server/utils/path.js'
 
 const root = resolve(import.meta.dir, '../..')
-const home = join(root, 'tmp', `cli-integration-${crypto.randomUUID()}`)
+const home = join(root, 'tmp', `cli-integration-中文 空格-${crypto.randomUUID()}`)
 const binary = process.env.AGENT_CLI_BIN || join(root, 'tmp/cli-test', process.platform === 'win32' ? 'agent.exe' : 'agent')
-let app, model, address
+let app, model, address, sequence = 0
 const previousHome = process.env.AGENT_HOME
 
 async function cli(...args) {
@@ -48,13 +48,16 @@ beforeAll(async () => {
             const prompt = JSON.stringify(body.messages[userIndex]?.content)
             const usedTool = body.messages.slice(userIndex).some(message => message.role === 'tool')
             const compact = prompt?.includes('压缩成一段总结')
-            let message = { role: 'assistant', content: null, tool_calls: [{ id: 'answer-1', type: 'function', function: { name: 'attempt_completion', arguments: JSON.stringify({ result: 'CLI 中文回复' }) } }] }
+            let message = { role: 'assistant', content: null, tool_calls: [{ id: `answer-${++sequence}`, type: 'function', function: { name: 'attempt_completion', arguments: JSON.stringify({ result: 'CLI 中文回复' }) } }] }
             if (prompt?.includes('[invalid]') && !usedTool) {
                 message = { role: 'assistant', content: null, tool_calls: [{ id: 'invalid-1', type: 'function', function: { name: 'unknown_tool', arguments: '{}' } }] }
             } else if (prompt?.includes('[complete]') && !usedTool) {
                 message = { role: 'assistant', content: null, tool_calls: [{ id: 'complete-1', type: 'function', function: { name: 'attempt_completion', arguments: JSON.stringify({ result: '工具最终答复' }) } }] }
             } else if (prompt?.includes('[tool]') && !usedTool) {
-                message = { role: 'assistant', content: null, tool_calls: [{ id: 'read-1', type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: join(home, 'sample.txt') }) } }] }
+                message = { role: 'assistant', content: null, tool_calls: [{ id: `read-${body.messages.filter(message => message.role === 'user').length}`, type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: join(home, 'sample.txt') }) } }] }
+            }
+            if (prompt?.includes('[delegate]') && !usedTool) {
+                message = { role: 'assistant', content: null, tool_calls: [{ id: `delegate-${sequence}`, type: 'function', function: { name: 'new_task', arguments: JSON.stringify({ description: 'Read fixture', prompt: '[tool] Read the fixture file and report.' }) } }] }
             }
             if (body.stream) {
                 const chunks = [
@@ -236,4 +239,42 @@ test('real streaming sends deltas and resume does not add a user message', async
     expect(resumed.code).toBe(0)
     expect(resumed.out).toContain('流式中文答复')
     expect((await getSession(session.id)).history.filter(item => item.role === 'user')).toHaveLength(userCount)
+}, 30000)
+
+test('remembered approval crosses sessions and hard deny cannot be bypassed', async () => {
+    const config = await (await fetch(`${address}/config/read`)).json()
+    config.providers[0].stream = false
+    config.permission = { '*': 'ask' }
+    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    const pending = await cli('ask', '[tool]', '--title', 'remember permission')
+    expect(pending.code).toBe(1)
+    const id = pending.err.match(/会话: (\S+)/)[1]
+    expect((await cli('sessions', 'decide', id, 'read-1', 'allow-always')).code).toBe(0)
+    const completed = await waitIdle(id)
+    expect(JSON.stringify(completed.history)).toContain('fixture file contents')
+    expect((await cli('ask', '[tool]', '--session', id)).code).toBe(0)
+    expect((await cli('ask', '[tool]', '--title', 'new remembered session')).code).toBe(0)
+
+    config.permission = { '*': 'ask', read_file: 'deny' }
+    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    const denied = await cli('ask', '[tool]', '--title', 'hard deny', '--json', '--permission', 'allow-once')
+    expect(denied.code).toBe(0)
+    const events = denied.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
+    expect(events.some(event => event.type === 'permission-blocked')).toBe(true)
+    expect(events.some(event => event.type === 'permission')).toBe(false)
+    expect(events.at(-1).session.pending).toEqual([])
+    expect(JSON.stringify(events.at(-1).session.history)).not.toContain('fixture file contents')
+}, 30000)
+
+test('nested task approval reaches the CLI and completes', async () => {
+    const config = await (await fetch(`${address}/config/read`)).json()
+    config.providers[0].stream = false
+    config.permission = { '*': 'ask' }
+    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    const answer = await cli('ask', '[delegate]', '--title', 'nested approval', '--json', '--permission', 'allow-once')
+    expect(answer.code).toBe(0)
+    const events = answer.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
+    expect(events.some(event => event.type === 'permission' && event.tool === 'read_file')).toBe(true)
+    expect(events.some(event => event.type === 'subagent-tool-result' && event.output?.value === 'fixture file contents')).toBe(true)
+    expect(events.at(-1).session.pending).toEqual([])
 }, 30000)
