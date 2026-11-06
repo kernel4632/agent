@@ -241,7 +241,9 @@ function clearTarget() { targetId.value = null; emit('close') }
           <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
-        <div v-if="processOpen" class="context-sections">
+        <div class="cot-collapse process-fold__body" :class="{ 'is-open': processOpen }" :inert="!processOpen" :aria-hidden="!processOpen">
+          <div class="cot-collapse__inner">
+            <div class="context-sections">
           <template v-for="section in processSections" :key="section.key">
             <template v-if="section.type === 'step'">
               <template v-if="section.step.type === 'compact'">
@@ -264,7 +266,9 @@ function clearTarget() { targetId.value = null; emit('close') }
                 <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
                 <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
               </button>
-              <div v-if="isGroupOpen(section)" class="cot-steps">
+              <div class="cot-collapse context-group__body" :class="{ 'is-open': isGroupOpen(section) }" :inert="!isGroupOpen(section)" :aria-hidden="!isGroupOpen(section)">
+                <div class="cot-collapse__inner">
+                  <div class="cot-steps">
                 <template v-for="step in section.steps" :key="step.key">
                   <ReasoningStep
                     v-if="step.type === 'reasoning'"
@@ -281,9 +285,13 @@ function clearTarget() { targetId.value = null; emit('close') }
                     :session-id="sessionId"
                   />
                 </template>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
+            </div>
+          </div>
         </div>
       </div>
 

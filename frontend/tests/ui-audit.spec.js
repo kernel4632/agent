@@ -770,13 +770,14 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(head).toContainText('1 次思考')
   await expect(head).toContainText('使用了 1 次工具')
   await expect(head).toContainText('读取文件 1 次')
+  expect(await page.locator('.process-fold__body').evaluate(element => getComputedStyle(element).transitionProperty)).toContain('grid-template-rows')
   await page.mouse.move(0, 0)
   expect(await head.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
 
   await head.click()
-  await expect(page.locator('.cot-steps')).toHaveCount(0)
+  await expect(page.locator('.process-fold__body')).toHaveAttribute('aria-hidden', 'true')
   await head.click()
-  await expect(page.locator('.cot-steps')).toBeVisible()
+  await expect(page.locator('.process-fold__body')).toHaveAttribute('aria-hidden', 'false')
 })
 
 test('completed steps collapse individually, not the whole process', async ({ page }) => {
