@@ -17,6 +17,7 @@ import { outputText, toolTitle } from '../../commands/tool.js'
 import { isFinishedStopTool } from '../../commands/history.js'
 import { isSavedMessage } from '../../commands/history.js'
 import MessageActions from './MessageActions.vue'
+import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
 import ReasoningStep from './ReasoningStep.vue'
 import ToolCall from '../activity/ToolCall.vue'
@@ -241,9 +242,8 @@ function clearTarget() { targetId.value = null; emit('close') }
           <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
-        <div class="cot-collapse process-fold__body" :class="{ 'is-open': processOpen }" :inert="!processOpen" :aria-hidden="!processOpen">
-          <div class="cot-collapse__inner">
-            <div class="context-sections">
+        <Fold :open="processOpen">
+          <div class="process-fold__body context-sections">
           <template v-for="section in processSections" :key="section.key">
             <template v-if="section.type === 'step'">
               <template v-if="section.step.type === 'compact'">
@@ -266,9 +266,8 @@ function clearTarget() { targetId.value = null; emit('close') }
                 <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
                 <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
               </button>
-              <div class="cot-collapse context-group__body" :class="{ 'is-open': isGroupOpen(section) }" :inert="!isGroupOpen(section)" :aria-hidden="!isGroupOpen(section)">
-                <div class="cot-collapse__inner">
-                  <div class="cot-steps">
+              <Fold :open="isGroupOpen(section)">
+                <div class="context-group__body cot-steps">
                 <template v-for="step in section.steps" :key="step.key">
                   <ReasoningStep
                     v-if="step.type === 'reasoning'"
@@ -286,13 +285,11 @@ function clearTarget() { targetId.value = null; emit('close') }
                   />
                 </template>
                   </div>
-                </div>
-              </div>
+              </Fold>
             </div>
           </template>
             </div>
-          </div>
-        </div>
+        </Fold>
       </div>
 
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">

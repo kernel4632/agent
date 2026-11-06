@@ -1,0 +1,11 @@
+/* Fold.vue：高度 + 透明度过渡；关闭时内容根本不在 DOM 里。 */
+.fold {
+  overflow: hidden;
+  transition:
+    height var(--la-motion-enter) var(--ui-curve-standard),
+    opacity calc(var(--la-motion-enter) * 0.72) ease;
+}
+.fold__inner { min-height: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .fold { transition: none; }
+}
