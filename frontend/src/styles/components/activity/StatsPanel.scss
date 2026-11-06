@@ -420,3 +420,66 @@
   .stats-panel--usage .stats-panel__metric { padding: 10px; }
   .stats-panel--usage .stats-panel__metric strong { font-size: 18px; }
 }
+
+/* Token 用量精简版：只保留总量、缓存命中、未缓存输入、缓存读取和输出。 */
+.stats-panel--usage-simple { gap: 0; }
+.stats-panel__simple-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.stats-panel__simple-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--la-text);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 24px;
+  white-space: nowrap;
+}
+.stats-panel__simple-title svg { color: var(--la-text); }
+.stats-panel__simple-total {
+  overflow: hidden;
+  color: var(--la-text);
+  font-size: 17px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.stats-panel__simple-total small { margin-left: 2px; color: var(--la-muted); font-size: 11px; font-weight: 500; }
+.stats-panel__simple-rule { height: 1px; flex: none; background: var(--la-line); }
+.stats-panel__simple-rows { display: grid; padding-top: 6px; }
+.stats-panel__simple-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  color: var(--la-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+.stats-panel__simple-row > span { flex: none; }
+.stats-panel__simple-row > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--la-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 420px) {
+  .stats-panel__simple-title { font-size: 16px; }
+  .stats-panel__simple-total { font-size: 16px; }
+  .stats-panel__simple-row { padding: 8px 0; font-size: 13.5px; }
+  .stats-panel__simple-row > strong { font-size: 13.5px; }
+}
