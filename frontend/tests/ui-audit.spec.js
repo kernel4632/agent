@@ -1683,7 +1683,7 @@ test('workspace picker switches the session cwd and remembers it', async ({ page
   expect(mock.errors).toEqual([])
 })
 
-test('conversation rail jumps between messages with length-scaled ticks', async ({ page }) => {
+test('conversation rail jumps between messages with length-scaled ticks', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -1705,7 +1705,13 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   // 刻度按消息长度给宽度，但处理过程中的中间文本不参与；所有刻度右边界相同。
   const widths = await page.locator('.conversation-rail__mark').evaluateAll(nodes => nodes.slice(0, 2).map(node => node.getBoundingClientRect().width))
   expect(widths.every(width => width > 0)).toBe(true)
+  // 纵向固定节距，不随轮数增长而压缩；超出定位条高度后由自己内部滚动。
+  const tops = await page.locator('.conversation-rail__mark').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().top))
+  const gaps = tops.slice(1).map((top, index) => top - tops[index])
+  expect(gaps.every(gap => Math.abs(gap - 10) < 0.6)).toBe(true)
+  await expect(page.locator('.conversation-rail__scroller')).toHaveCSS('overflow-y', 'auto')
   await expect(page.locator('.conversation-rail__thumb')).toHaveCount(0)
+  await screenshot(page, testInfo, 'conversation-rail')
   await page.locator('.conversation-rail__mark').first().hover()
   await expect(page.locator('.conversation-rail__preview')).toContainText('你：定位消息 1')
   await page.locator('.conversation-rail__mark').nth(1).hover()

@@ -1,36 +1,64 @@
-/* 对话右侧刻度：只显示消息前缀刻度，不画竖线、不塞滑块；长度代表这一轮的文字量。 */
+/* 对话右侧刻度：固定 10px 节距，超出高度由定位条自己滚动，不压扁刻度。 */
 .conversation-rail {
   position: fixed;
-  top: 0;
-  right: max(4px, env(safe-area-inset-right));
   z-index: 8;
+  right: max(4px, env(safe-area-inset-right));
   width: 34px;
   pointer-events: none;
 }
-.conversation-rail__track {
+.conversation-rail__frame {
   position: absolute;
-  inset: 0 4px;
+  top: 50%;
+  right: 4px;
+  width: 28px;
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
+.conversation-rail__scroller {
+  position: relative;
+  max-height: inherit;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   border-radius: 8px;
   outline: none;
-  pointer-events: auto;
   touch-action: none;
   cursor: pointer;
 }
-.conversation-rail__track:focus-visible { box-shadow: 0 0 0 2px var(--la-accent-border); }
+.conversation-rail__scroller::-webkit-scrollbar { display: none; }
+.conversation-rail__scroller:focus-visible { box-shadow: 0 0 0 2px var(--la-accent-border); }
+.conversation-rail__scroller.is-fade-top { mask-image: linear-gradient(transparent 0, #000 24px 100%); }
+.conversation-rail__scroller.is-fade-bottom { mask-image: linear-gradient(#000 0 calc(100% - 24px), transparent 100%); }
+.conversation-rail__scroller.is-fade-top.is-fade-bottom { mask-image: linear-gradient(transparent 0, #000 24px calc(100% - 24px), transparent 100%); }
+.conversation-rail__marks { position: relative; width: 100%; }
 .conversation-rail__mark {
   position: absolute;
   right: 0;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.conversation-rail__mark::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 100%;
   height: 2px;
-  transform: translateY(-50%);
+  transform: translateY(-50%) scaleX(.6);
+  transform-origin: 100%;
   border-radius: 2px;
   background: color-mix(in srgb, var(--la-secondary) 45%, transparent);
-  transition: background .12s ease, height .12s ease;
+  transition: background .12s ease, height .12s ease, transform .12s ease;
 }
-.conversation-rail__mark.is-hover { background: var(--la-text); }
-.conversation-rail__mark.is-active { height: 3px; background: var(--la-accent); }
+.conversation-rail__mark.is-hover::before { background: var(--la-text); transform: translateY(-50%) scaleX(.9); }
+.conversation-rail__mark.is-active::before { height: 3px; background: var(--la-accent); transform: translateY(-50%) scaleX(1); }
 .conversation-rail__preview {
   position: absolute;
   right: calc(100% + 10px);
+  z-index: 1;
   max-width: 260px;
   padding: 6px 9px;
   transform: translateY(-50%);
@@ -55,10 +83,11 @@
   white-space: nowrap;
 }
 @media (max-width: 767px) {
-  .conversation-rail { top: 4px; bottom: 4px; right: max(4px, env(safe-area-inset-right)); width: 30px; opacity: .42; transition: opacity .16s ease; }
+  .conversation-rail { right: max(4px, env(safe-area-inset-right)); width: 30px; opacity: .42; transition: opacity .16s ease; }
   .conversation-rail:focus-within, .conversation-rail.is-dragging { opacity: 1; }
+  .conversation-rail__frame { right: 3px; width: 26px; }
   .conversation-rail__preview { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .conversation-rail__mark { transition: none; }
+  .conversation-rail__mark::before { transition: none; }
 }
