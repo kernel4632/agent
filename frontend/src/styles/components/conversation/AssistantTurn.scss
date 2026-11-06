@@ -162,3 +162,68 @@
 .process-group__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .process-group__caret.is-open { transform: rotate(180deg); }
 .process-group__steps { padding: 2px 8px 6px 4px; }
+/* 真正的树：一级树干、二级分支、三级叶子连接线；不使用纯平铺。 */
+.process-tree__body {
+  position: relative;
+  margin-left: 14px;
+  padding: 2px 0 4px;
+}
+.process-tree__body::before {
+  position: absolute;
+  top: 0;
+  bottom: 16px;
+  left: 0;
+  width: 1px;
+  background: var(--la-line);
+  content: "";
+}
+.process-tree__leaf { position: relative; min-width: 0; }
+.process-tree__leaf::before {
+  position: absolute;
+  top: 22px;
+  left: -14px;
+  width: 14px;
+  height: 1px;
+  background: var(--la-line);
+  content: "";
+}
+.process-tree__body > .process-group { position: relative; }
+.process-tree__body > .process-group::before {
+  position: absolute;
+  top: 18px;
+  left: -14px;
+  width: 14px;
+  height: 1px;
+  background: var(--la-line);
+  content: "";
+}
+/* 二级组内部再起一根竖线，每个工具/思考用横线接上去。 */
+.process-group__steps {
+  position: relative;
+  margin-left: 19px;
+  padding: 2px 8px 6px 16px;
+}
+.process-group__steps::before {
+  position: absolute;
+  top: 0;
+  bottom: 16px;
+  left: 0;
+  width: 1px;
+  background: var(--la-line);
+  content: "";
+}
+.process-group__steps .process-tree__leaf::before {
+  left: -16px;
+  width: 16px;
+}
+/* 外层已经有树线，去掉这些步骤原本的平铺竖线；子智能体内部的树线仍保留。 */
+.process-tree__body > .process-tree__leaf > .cot-step::before,
+.process-group__steps > .process-tree__leaf > .cot-step::before { display: none; }
+/* 树线要比普通分隔线更清楚，否则层级会看起来像平铺。 */
+.process-tree__body::before,
+.process-tree__leaf::before,
+.process-tree__body > .process-group::before,
+.process-group__steps::before,
+.process-group__steps .process-tree__leaf::before {
+  background: color-mix(in srgb, var(--la-secondary) 34%, transparent);
+}

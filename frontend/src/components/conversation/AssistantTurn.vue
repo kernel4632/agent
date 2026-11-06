@@ -246,19 +246,21 @@ function clearTarget() { targetId.value = null; emit('close') }
           <span v-if="activeTurn" class="process-tree__live">进行中</span>
           <Icon name="down" :size="15" class="process-tree__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
-        <div v-if="processOpen" class="cot-steps">
+        <div v-if="processOpen" class="cot-steps process-tree__body">
           <template v-for="section in processSections" :key="section.key">
             <template v-if="section.type === 'step'">
-              <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
-              <template v-else-if="section.step.type === 'compact'">
-                <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
-                <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
-              </template>
-              <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
-                <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
-                <div class="cot-step__main">
-                  <div class="cot-step__body cot-step__body--text">
-                    <Markdown smooth :content="section.step.text" compact />
+              <div class="process-tree__leaf">
+                <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
+                <template v-else-if="section.step.type === 'compact'">
+                  <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
+                  <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
+                </template>
+                <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
+                  <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
+                  <div class="cot-step__main">
+                    <div class="cot-step__body cot-step__body--text">
+                      <Markdown smooth :content="section.step.text" compact />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -272,7 +274,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                 <Icon name="down" :size="14" class="process-group__caret" :class="{ 'is-open': groupOpen }" aria-hidden="true" />
               </button>
               <div v-if="groupOpen" class="process-group__steps">
-                <template v-for="step in section.steps" :key="step.key">
+                <div v-for="step in section.steps" :key="step.key" class="process-tree__leaf">
                   <ReasoningStep
                     v-if="step.type === 'reasoning'"
                     :data-message-id="step.messageId"
@@ -287,7 +289,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                     :tool="step.tool"
                     :session-id="sessionId"
                   />
-                </template>
+                </div>
               </div>
             </div>
           </template>
