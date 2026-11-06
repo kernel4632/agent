@@ -51,6 +51,9 @@ test('real request usage wins over estimation', () => {
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
     averageTps: 25,
+    lastFirstTokenMs: 200,
+    lastDurationMs: 800,
+    lastTps: 100 / 3,
   }])
 })
 
@@ -127,6 +130,24 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
   assert.equal(stats.models[0].averageTps, 2.5)
   assert.equal(stats.models[0].averageDurationMs, 4000)
   assert.equal(stats.models[1].averageTps, 10)
+})
+
+
+test('speed groups keep the latest request alongside averages', () => {
+  const first = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+  const latest = { input: 10, output: 20, total: 30, firstTokenMs: 400, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 10,
+    messages: [user('比较一下速度'), assistant('好', { requests: [first, latest], request: latest })],
+  }
+
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].count, 2)
+  assert.equal(stats.models[0].averageDurationMs, 1500)
+  assert.equal(stats.models[0].lastFirstTokenMs, 400)
+  assert.equal(stats.models[0].lastDurationMs, 2000)
+  assert.equal(stats.models[0].lastTps, 12.5)
 })
 
 

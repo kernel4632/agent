@@ -499,3 +499,33 @@
 .stats-panel__simple-row.is-cache-read .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-warning) 14%, transparent); color: var(--la-warning); }
 .stats-panel__simple-row.is-output .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-success) 13%, transparent); color: var(--la-success); }
 
+
+/* 生成速度：每个模型一张卡，平均和最近一次并列展示。 */
+.stats-panel--speed-simple { gap: 12px; }
+.stats-panel__speed-simple-head { padding-bottom: 8px; border-bottom: 1px solid var(--la-line); }
+.stats-panel__speed-list { display: grid; gap: 9px; }
+.stats-panel__speed-card {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid var(--la-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--la-text) 3%, transparent);
+}
+.stats-panel__speed-card.is-slow { border-color: color-mix(in srgb, var(--la-warning) 38%, var(--la-line)); }
+.stats-panel__speed-model-row { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.stats-panel__speed-model-icon { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 13%, transparent); color: var(--la-accent); }
+.stats-panel__speed-model { display: grid; min-width: 0; gap: 1px; }
+.stats-panel__speed-model strong { overflow: hidden; color: var(--la-text); font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.stats-panel__speed-model small { overflow: hidden; color: var(--la-muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.stats-panel__speed-metric { display: grid; min-width: 0; grid-template-columns: 48px 62px minmax(0, 1fr); align-items: baseline; gap: 8px; padding: 5px 8px; border-radius: 8px; background: color-mix(in srgb, var(--la-text) 3%, transparent); }
+.stats-panel__speed-metric-label { display: inline-flex; align-items: center; gap: 4px; color: var(--la-secondary); font-size: 10.5px; white-space: nowrap; }
+.stats-panel__speed-metric.is-average .stats-panel__speed-metric-label,
+.stats-panel__speed-metric.is-average .stats-panel__speed-metric-value { color: var(--la-accent); }
+.stats-panel__speed-metric.is-last .stats-panel__speed-metric-label,
+.stats-panel__speed-metric.is-last .stats-panel__speed-metric-value { color: var(--la-success); }
+.stats-panel__speed-metric-value { font-size: 16px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-panel__speed-metric-value small { font-size: 9.5px; font-weight: 500; }
+.stats-panel__speed-metric-detail { overflow: hidden; color: var(--la-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stats-panel__speed-card.is-slow .stats-panel__speed-metric.is-average .stats-panel__speed-metric-value { color: var(--la-warning); }

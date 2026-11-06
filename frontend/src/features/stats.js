@@ -261,6 +261,7 @@ export function sessionStats(session) {
       const key = `${provider}\u0000${model}`
       const group = groups.get(key) || {
         provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, firstTokenMs: 0, firstTokenCount: 0,
+        latest: null,
       }
       group.count += 1
       group.output += Number(item.output || 0)
@@ -274,6 +275,11 @@ export function sessionStats(session) {
         group.firstTokenMs += firstToken
         group.firstTokenCount += 1
       }
+      group.latest = {
+        firstTokenMs: firstToken,
+        durationMs: duration,
+        tps: requestTps(item),
+      }
       groups.set(key, group)
     }
     return [...groups.values()].map(group => ({
@@ -283,6 +289,9 @@ export function sessionStats(session) {
       averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
       averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
       averageTps: group.durationMs ? group.output / (group.durationMs / 1000) : 0,
+      lastFirstTokenMs: group.latest?.firstTokenMs || 0,
+      lastDurationMs: group.latest?.durationMs || 0,
+      lastTps: group.latest?.tps || 0,
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
   return {

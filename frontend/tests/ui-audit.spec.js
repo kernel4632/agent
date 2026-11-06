@@ -1169,6 +1169,11 @@ test('composer footer stats opens the session data panel', async ({ page }, test
   await expect(speedPanel).toContainText('200ms')
   await expect(speedPanel).toContainText('800ms')
   await expect(speedPanel).toContainText('25')
+  await expect(speedPanel).toContainText('平均')
+  await expect(speedPanel).toContainText('最近')
+  await expect(speedPanel.locator('.stats-panel__speed-card')).toHaveCount(1)
+  await expect(speedPanel.locator('.stats-panel__speed-metric')).toHaveCount(2)
+  await screenshot(page, testInfo, 'composer-footer-stats-speed')
   expect(mock.errors).toEqual([])
 })
 

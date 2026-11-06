@@ -176,33 +176,35 @@ const formatDuration = value => {
         class="session-stats__menu session-stats__menu--speed"
         :label="`生成速度 ${speed}，点击查看速度统计`"
         content-label="生成速度"
+        :content-style="{ width: '360px' }"
       >
         <template #trigger>
           <span class="session-stats__summary-item"><Icon name="gauge" :size="14" />{{ speed }}</span>
         </template>
-        <div class="stats-panel stats-panel--speed">
-          <div class="stats-panel__head">
-            <span class="stats-panel__heading"><Icon name="gauge" :size="15" />生成速度</span>
-            <span class="stats-panel__hint">按平均耗时从慢到快</span>
-          </div>
-          <table v-if="speedGroups.length" class="stats-panel__speed-table">
-            <thead>
-              <tr><th>模型 / 供应商</th><th>首字</th><th>耗时</th><th>tok/s</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="group in speedGroups" :key="`${group.provider}-${group.model}`">
-                <td class="stats-panel__speed-model" :title="`${group.provider} / ${group.model}`">
+        <div class="stats-panel stats-panel--speed-simple">
+          <div class="stats-panel__speed-simple-head"><span class="stats-panel__simple-title"><Icon name="gauge" :size="18" />生成速度</span></div>
+          <div v-if="speedGroups.length" class="stats-panel__speed-list">
+            <article v-for="group in speedGroups" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-card" :class="{ 'is-slow': isSlow(group) }">
+              <div class="stats-panel__speed-model-row">
+                <span class="stats-panel__speed-model-icon"><Icon name="model" :size="16" /></span>
+                <div class="stats-panel__speed-model">
                   <strong>{{ group.model }}</strong>
                   <small>{{ group.provider }} · {{ group.count }} 次</small>
-                </td>
-                <td>{{ group.averageFirstTokenMs ? formatDuration(group.averageFirstTokenMs) : '—' }}</td>
-                <td :class="{ 'is-slow': isSlow(group) }">{{ group.averageDurationMs ? formatDuration(group.averageDurationMs) : '—' }}</td>
-                <td :class="{ 'is-slow': isSlow(group) }">{{ group.averageTps ? Math.round(group.averageTps) : '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+              </div>
+              <div class="stats-panel__speed-metric is-average">
+                <span class="stats-panel__speed-metric-label"><Icon name="activity" :size="13" />平均</span>
+                <strong class="stats-panel__speed-metric-value">{{ group.averageTps ? Math.round(group.averageTps) : '—' }} <small>tok/s</small></strong>
+                <span class="stats-panel__speed-metric-detail">首字 {{ formatDuration(group.averageFirstTokenMs) }} · 耗时 {{ formatDuration(group.averageDurationMs) }}</span>
+              </div>
+              <div class="stats-panel__speed-metric is-last">
+                <span class="stats-panel__speed-metric-label"><Icon name="flash" :size="13" />最近</span>
+                <strong class="stats-panel__speed-metric-value">{{ group.lastTps ? Math.round(group.lastTps) : '—' }} <small>tok/s</small></strong>
+                <span class="stats-panel__speed-metric-detail">首字 {{ formatDuration(group.lastFirstTokenMs) }} · 耗时 {{ formatDuration(group.lastDurationMs) }}</span>
+              </div>
+            </article>
+          </div>
           <p v-else class="stats-panel__note">还没有足够的请求耗时数据。</p>
-          <p class="stats-panel__note">首字、耗时都是平均每次请求；慢于整体平均 20% 的模型会标黄。</p>
         </div>
       </Menu>
     </template>
