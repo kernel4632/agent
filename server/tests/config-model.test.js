@@ -240,6 +240,31 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
+    test('模型高级生成参数进入 core 配置', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{
+                    name: 'local',
+                    models: [{
+                        id: 'model',
+                        context: 64000,
+                        maxOutput: 8192,
+                        temperature: 0.3,
+                        topP: 0.9,
+                        seed: 42,
+                        body: { top_k: 20 },
+                    }],
+                }],
+            })
+            const config = await resolve({ provider: 'local', model: 'model' })
+            expect(config.maxTokens).toBe(8192)
+            expect(config.provider.temperature).toBe(0.3)
+            expect(config.provider.topP).toBe(0.9)
+            expect(config.provider.seed).toBe(42)
+            expect(config.provider.body).toEqual({ top_k: 20 })
+        })
+    })
+
     test('没配上下文时也有默认预算', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })

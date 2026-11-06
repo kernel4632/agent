@@ -34,15 +34,29 @@ const MODELS = [
 ]
 
 // --- 一个模型必须带 id；上下文和能力缺省时用最保守的值 ---
+const finiteNumber = (value, min, max) => {
+    const number = Number(value)
+    return Number.isFinite(number) && number >= min && number <= max ? number : undefined
+}
 const model = value => {
     if (!isObject(value) || typeof value.id !== 'string' || !value.id) throw fail(400, 'provider model must have an id')
-    return {
+    const result = {
         id: value.id,
         name: typeof value.name === 'string' && value.name ? value.name : value.id,
         family: typeof value.family === 'string' ? value.family.trim() : '',
         context: Number(value.context) > 0 ? Number(value.context) : 128000,
         capabilities: Array.isArray(value.capabilities) ? value.capabilities : ['text', 'tools'],
     }
+    const maxOutput = Number(value.maxOutput)
+    if (Number.isInteger(maxOutput) && maxOutput > 0) result.maxOutput = maxOutput
+    const temperature = finiteNumber(value.temperature, 0, 2)
+    if (temperature !== undefined) result.temperature = temperature
+    const topP = finiteNumber(value.topP, 0, 1)
+    if (topP !== undefined) result.topP = topP
+    const seed = Number(value.seed)
+    if (Number.isInteger(seed) && seed >= 0) result.seed = seed
+    if (isObject(value.body) && Object.keys(value.body).length) result.body = value.body
+    return result
 }
 
 // --- 一个供应商只保留连接需要的字段 ---

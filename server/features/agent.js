@@ -143,6 +143,11 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
     const info = services.context.modelInfo(chosen)
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
+    const profileModel = provider?.models?.find(item => item.id === chosen.model)
+    const generation = {}
+    for (const field of ['temperature', 'topP', 'seed']) {
+        if (profileModel?.[field] !== undefined) generation[field] = profileModel[field]
+    }
 
     const config = {
         ...linked,
@@ -150,9 +155,14 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         providerName: chosen.provider,
         provider: {
             ...linked.provider,
-            body: reasoningBody({ protocol: linked.protocol, level: settings.reasoning, source: linked.provider.body }),
+            ...generation,
+            body: {
+                ...reasoningBody({ protocol: linked.protocol, level: settings.reasoning, source: linked.provider.body }),
+                ...(profileModel?.body || {}),
+            },
         },
         maxContextTokens: info.context,
+        maxTokens: profileModel?.maxOutput,
         compactThreshold: threshold(),
         // 流式输出是连接配置，不是模型能力；模型能力只从 capabilities 读。
         stream: provider?.stream !== false,

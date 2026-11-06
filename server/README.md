@@ -91,7 +91,12 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
           "name": "Your Model",
           "family": "openai",
           "context": 128000,
-          "capabilities": ["text", "tools", "image"]
+          "capabilities": ["text", "tools", "image"],
+          "maxOutput": 8192,
+          "temperature": 0.3,
+          "topP": 0.9,
+          "seed": 42,
+          "body": { "top_k": 20 }
         }
       ]
     }
@@ -107,6 +112,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 ```
 
 - 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。`family` 可选，只用于模型图标；留空时由 models.dev 目录和模型 ID 自动判断，歧义时不猜。
+- `maxOutput`、`temperature`、`topP`、`seed` 是可选生成参数；`maxOutput` 映射到 agent-core 的单次最大输出，其余原样交给 AI SDK。`body` 用来覆盖请求体里没有可视化字段的高级参数，例如 `{ "top_k": 20 }`。
 - `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task` 不填就回退到 `chat`。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
 - 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，其余错误无限次指数退避；首次 5 秒，单次退避上限 120 秒，总重试时长不限。
