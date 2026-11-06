@@ -1,7 +1,7 @@
 <!--
 MCP 服务页：默认是服务列表；点一行进入该服务的编辑页。
 列表和编辑页共用 draft.mcp，保存仍由设置页自动完成；本机识别和连接测试走 /mcp/*。
-本机识别结果按“名称 + 连接目标”合并，同一服务在多个客户端出现时只占一行。
+本机识别结果按服务名合并；不同来源的启动方式保留在行内，避免一排同名开关。
 调用示例：<MCPList :draft="draft" :detail="detail" @open-detail="..." @close-detail="..." @update-detail-title="..." />
 -->
 <script setup>
@@ -34,19 +34,19 @@ const selected = computed(() => props.detail
 const candidates = computed(() => detected.value.servers || [])
 
 // 同一个服务可能同时出现在 Claude Code、Cursor、opencode 等配置里。
-// 名称和连接目标一致时合并成一组，避免用户面对一排完全相同的开关。
+// 服务名就是本应用配置里的键，所以按名称合并；不同的启动方式作为组内变体保留展示。
+// Windows 路径在有的客户端里会被写成双反斜杠，比较前压回单反斜杠。
+const targetKey = value => String(value).replace(/\\{2,}/g, '\\').replace(/\s+/g, ' ').trim()
 const sourceScore = server => server.envKeys.length + server.headerKeys.length
 const groups = computed(() => {
   const merged = new Map()
   for (const server of candidates.value) {
-    const target = describeTarget(server.definition)
-    const key = `${server.name}\u0000${target}`
-    let group = merged.get(key)
+    let group = merged.get(server.name)
     if (!group) {
       group = {
-        id: key,
+        id: server.name,
         name: server.name,
-        target,
+        variants: [],
         servers: [],
         apps: [],
         envKeys: new Set(),
@@ -54,7 +54,7 @@ const groups = computed(() => {
         configured: false,
         representative: server,
       }
-      merged.set(key, group)
+      merged.set(server.name, group)
     }
     group.servers.push(server)
     if (!group.apps.includes(server.app)) group.apps.push(server.app)
@@ -65,6 +65,15 @@ const groups = computed(() => {
     if (server.configured || (!group.representative.configured && sourceScore(server) > sourceScore(group.representative))) {
       group.representative = server
     }
+
+    const target = describeTarget(server.definition)
+    const key = targetKey(target)
+    let variant = group.variants.find(item => item.key === key)
+    if (!variant) {
+      variant = { key, target, apps: [] }
+      group.variants.push(variant)
+    }
+    if (!variant.apps.includes(server.app)) variant.apps.push(server.app)
   }
   return [...merged.values()].map(group => ({
     ...group,
@@ -237,7 +246,7 @@ async function testServer() {
       <header class="mcp-detected__head">
         <div>
           <h2>本机识别到的服务</h2>
-          <p>从其他软件的配置里读到；同名同地址的服务合并显示，打开开关即写进本应用，不会修改源文件。</p>
+          <p>从其他软件的配置里读到；同名服务合并显示，不同启动方式列在行内；打开开关即写进本应用，不会修改源文件。</p>
         </div>
         <Button variant="text" :disabled="detecting" @click="loadDetected"><Icon name="refresh" :size="18" />重新扫描</Button>
       </header>
@@ -271,7 +280,7 @@ async function testServer() {
           />
           <span class="mcp-detected__copy">
             <strong>{{ group.name }}</strong>
-            <small>{{ group.apps.join(' · ') }} · {{ group.target }}</small>
+            <small v-for="variant in group.variants" :key="variant.key" :title="variant.target">{{ variant.apps.join(' · ') }} · {{ variant.target }}</small>
             <small v-if="group.envKeys.length || group.headerKeys.length">
               导入后需要填写：{{ [...group.envKeys, ...group.headerKeys].join('、') }}（值不显示）
             </small>

@@ -61,6 +61,9 @@ export async function backend(page, { configured = true } = {}) {
     }, {
       id: 'claude-code::github', name: 'github', app: 'Claude Code', source: 'claude-code', path: 'D:/mock/.claude.json',
       definition: { command: 'npx', args: ['-y', 'server-github'], env: {} }, envKeys: ['GITHUB_TOKEN'], headerKeys: [], configured: false,
+    }, {
+      id: 'opencode::github', name: 'github', app: 'opencode', source: 'opencode', path: 'D:/mock/.config/opencode/opencode.json',
+      definition: { command: 'bunx', args: ['server-github'], env: {} }, envKeys: ['GITHUB_TOKEN'], headerKeys: [], configured: false,
     }],
   }
   const sessions = new Map()

@@ -1378,6 +1378,7 @@ test('MCP servers detected on this machine can be imported and tested', async ({
   // 打开 MCP 页就会扫本机；识别结果只展示，点添加才写入本应用配置。
   await expect(page.getByRole('heading', { name: '本机识别到的服务' })).toBeVisible()
   await expect(page.getByText('Cursor · Claude Code · npx -y server-github')).toBeVisible()
+  await expect(page.getByText('opencode · bunx server-github')).toBeVisible()
   await expect(page.locator('.mcp-detected__row')).toHaveCount(1)
   await screenshot(page, testInfo, 'settings-mcp-detected')
 
