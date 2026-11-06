@@ -105,7 +105,13 @@ function chooseReasoning(reasoning) {
       </div>
       <div :class="[session ? 'session-composer' : 'draft-form']">
         <Transition name="notice"><div v-if="session && !session.model" class="chat-notice" role="status"><span>此对话还未配置模型。</span><Button variant="ghost" @click="Navigation.openSettings('providers')">连接模型</Button></div></Transition>
-        <Transition name="notice"><div v-if="session?.undoable" class="chat-notice chat-notice--undo" role="status"><span>对话已回退{{ session.undoable > 1 ? `（可撤销 ${session.undoable} 步）` : '' }}</span><Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button></div></Transition>
+        <Transition name="notice"><div v-if="session?.undoable" class="chat-notice chat-notice--undo" role="status" aria-live="polite">
+          <div class="chat-notice__copy">
+            <span class="chat-notice__title">{{ session.rollback?.where || '对话已回退' }}{{ session.undoable > 1 ? ` · 可撤销 ${session.undoable} 步` : '' }}{{ session.rollback?.files ? ` · 恢复 ${session.rollback.files} 个文件` : '' }}</span>
+            <span v-if="session.rollback?.preview" class="chat-notice__preview">“{{ session.rollback.preview }}”</span>
+          </div>
+          <Button variant="ghost" @click="History.undoRollback(session.id)">撤销回退</Button>
+        </div></Transition>
         <div class="composer-state-host">
           <Transition name="alert"><div v-if="error" class="connection-overlay"><ConnectionError :message="error" /></div></Transition>
           <Transition name="reconnect">

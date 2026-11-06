@@ -231,10 +231,15 @@ async function rollbackMessage(sessionID, messageID, files = true) {
   try {
     const session = store.sessions[sessionID]
     const message = session.messages.find(item => item.id === messageID)
-    await AgentAPI.rollback(sessionID, messageID, files)
+    const result = await AgentAPI.rollback(sessionID, messageID, files)
     await refresh(sessionID)
     // 回退成功的反馈由输入框上方的撤销条承担，不再额外弹 Toast。
     store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
+    store.sessions[sessionID].rollback = {
+      where: message?.role === 'user' ? '已回退到用户消息之前' : '已回退到助手回复之前',
+      preview: rollbackPreview(message),
+      files: result.restored?.length || 0,
+    }
     return true
   } catch (error) { Notice.show(error.message); return false }
 }
@@ -243,7 +248,14 @@ async function undoRollback(sessionID, files = true) {
   try {
     await AgentAPI.redo(sessionID, files)
     await refresh(sessionID)
+    store.sessions[sessionID].rollback = null
   } catch (error) { Notice.show(error.message) }
+}
+
+// 撤销条只展示一行预览；保留原文开头，换行和连续空白压平成一句。
+function rollbackPreview(message) {
+  const text = String(message?.content || '').replace(/\s+/g, ' ').trim()
+  return text.length > 80 ? `${text.slice(0, 80)}…` : text
 }
 
 /** 建立分支后返回新 ID；是否打开由用户入口决定。 */

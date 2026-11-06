@@ -55,14 +55,28 @@
   border-radius: 50%;
   background: var(--la-warning);
 }
-/* 回退只留输入框上方这一条撤销提示，不再额外弹 Toast。 */
+/* 回退只留输入框上方这一条撤销提示，宽度跟输入框对齐，不再额外弹 Toast。 */
 .chat-notice--undo {
-  gap: 12px;
-  padding: 8px 10px 8px 14px;
-  border-radius: 14px;
-  background: var(--la-layer-03);
+  width: 100%;
+  align-self: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 16px;
+  background: var(--la-layer-02);
   color: var(--la-secondary);
   font-size: 13px;
+}
+.chat-notice__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.chat-notice__title { color: var(--la-secondary); font-size: 12px; line-height: 18px; }
+.chat-notice__preview {
+  overflow: hidden;
+  color: var(--la-text);
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .chat-notice--undo[role="status"]::before { display: none; }
 /* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
