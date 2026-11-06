@@ -227,3 +227,29 @@
 .process-group__steps .process-tree__leaf::before {
   background: color-mix(in srgb, var(--la-secondary) 34%, transparent);
 }
+/* 修正树枝方向：树干在左，节点向右缩进，横线从树干伸向节点。 */
+.process-tree__body { padding-left: 16px; }
+.process-tree__leaf::before { left: -16px; width: 16px; }
+.process-tree__body > .process-group::before { left: -16px; width: 35px; }
+/* 旧规则 .process-tree .cot-steps 的简写 padding 会覆盖这里的缩进，必须同级覆盖。 */
+.process-tree .process-tree__body { padding: 2px 0 4px 16px; }
+/* 组头的连接线画在按钮自身里，避免被组背景盖住，并明确从左侧树干伸向右边的图标。 */
+.process-tree__body > .process-group::before { display: none; }
+.process-group__head { position: relative; }
+.process-group__head::before {
+  position: absolute;
+  top: 50%;
+  left: -16px;
+  width: 35px;
+  height: 1px;
+  background: color-mix(in srgb, var(--la-secondary) 34%, transparent);
+  content: "";
+}
+/* 树线提高对比度，确保缩进关系一眼可见。 */
+.process-tree__body::before,
+.process-tree__leaf::before,
+.process-group__steps::before,
+.process-group__steps .process-tree__leaf::before,
+.process-group__head::before {
+  background: color-mix(in srgb, var(--la-secondary) 55%, transparent);
+}
