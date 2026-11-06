@@ -1,3 +1,5 @@
+macOS 安装、启动与验证见 [macOS 使用说明](../docs/MACOS.md)。默认数据目录为 `~/.agent`，全局技能目录为 `~/.agents/skills`。
+
 # 前端对接文档
 
 这个目录是 Agent 后端。前端只需要通过 HTTP 和 SSE 对接，不需要读取后端源码。

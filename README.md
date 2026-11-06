@@ -38,7 +38,7 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 ## 数据目录
 
-默认数据目录为 `%USERPROFILE%\.agent`，可通过 `AGENT_HOME` 修改：
+默认数据目录在 macOS/Linux 为 `~/.agent`，Windows 为 `%USERPROFILE%\.agent`，可通过 `AGENT_HOME` 修改：
 
 ```text
 .agent/
@@ -112,6 +112,10 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 错误响应统一是 `{ "error": "说明" }`：填错按 400、找不到按 404、会话在跑按 409、程序问题按 500。
 完整说明见 [`server/openapi.json`](server/openapi.json)，前端怎么接见 [`server/README.md`](server/README.md)。
+
+## macOS
+
+支持本机后端、浏览器界面和 CLI，安装、启动及验证见 [macOS 使用说明](docs/MACOS.md)。
 
 ## 跑起来
 
