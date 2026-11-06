@@ -9,21 +9,22 @@
 import { Notice } from '../../commands/notice.js'
 import { copyText } from '../../utils/clipboard.js'
 
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
-import { outputText, toolTitle } from '../../commands/tool.js'
+import { outputText } from '../../commands/tool.js'
 import { isFinishedStopTool } from '../../commands/history.js'
 import { isSavedMessage } from '../../commands/history.js'
 import MessageActions from './MessageActions.vue'
-import ProcessTree from './ProcessTree.vue'
+import RequestStatus from '../feedback/RequestStatus.vue'
+import ReasoningStep from './ReasoningStep.vue'
+import ToolCall from '../activity/ToolCall.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
-  active: Boolean,                                    // 当前正在处理的最后一轮；旧轮次不应因为会话仍在跑而展开
   rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
@@ -45,6 +46,12 @@ const targeted = messageId => {
 }
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
+// 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
+const vAutoScroll = {
+  mounted: element => { element.scrollTop = element.scrollHeight },
+  updated: element => { element.scrollTop = element.scrollHeight },
+}
+
 const actionable = message => isSavedMessage(message)
 
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
@@ -107,56 +114,9 @@ const steps = computed(() => {
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
-const activeTurn = computed(() => streaming.value || props.active)
-
-// 一级入口：运行中展开，完成后收起；用户手动展开/收起按会话和这一轮记住。
-const processKey = `agent.process-tree:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
-function readProcessOpen() {
-  try {
-    return localStorage.getItem(processKey) === 'open'
-  } catch {
-    return false
-  }
-}
-function writeProcessOpen(value) {
-  try { localStorage.setItem(processKey, value ? 'open' : 'closed') } catch {}
-}
-const processOpen = ref(activeTurn.value || readProcessOpen())
-function toggleProcess() {
-  processOpen.value = !processOpen.value
-  writeProcessOpen(processOpen.value)
-}
-watch(activeTurn, (value, previous) => {
-  if (!value && previous) {
-    processOpen.value = false
-    writeProcessOpen(false)
-  } else if (value) {
-    processOpen.value = true
-  }
-})
-
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
-const treeContentSteps = computed(() => treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
-// 折叠条直接说清这一轮做了什么，而不是只显示一个抽象的“几步”。
-const processSummary = computed(() => {
-  const reasoning = treeContentSteps.value.filter(step => step.type === 'reasoning').length
-  const tools = treeContentSteps.value.filter(step => step.type === 'tool')
-  if (!reasoning && !tools.length) return treeContentSteps.value.length ? `${treeContentSteps.value.length} 步` : '运行状态'
-  const names = new Map()
-  for (const step of tools) {
-    const name = toolTitle(step.tool)
-    names.set(name, (names.get(name) || 0) + 1)
-  }
-  const pieces = []
-  if (reasoning) pieces.push(`${reasoning} 次思考`)
-  if (tools.length) {
-    const detail = [...names].map(([name, count]) => `${name} ${count} 次`).join('、')
-    pieces.push(`使用了 ${tools.length} 次工具：${detail}`)
-  }
-  return pieces.join(' · ')
-})
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
@@ -209,19 +169,38 @@ function clearTarget() { targetId.value = null; emit('close') }
       @action="onMenu"
       @rollback-confirm="emit('rollback-confirm', $event)"
     >
-      <div v-if="treeSteps.length" class="cot-card process-tree" :class="{ 'is-open': processOpen }">
-        <button type="button" class="process-tree__head" :aria-expanded="processOpen" @click="toggleProcess">
-          <span class="process-tree__icon"><Icon name="layers" :size="15" /></span>
-          <span class="process-tree__title">处理过程</span>
-          <em class="process-tree__summary" :title="processSummary">{{ processSummary }}</em>
-          <span v-if="activeTurn" class="process-tree__live">进行中</span>
-          <Icon name="down" :size="15" class="process-tree__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
-        </button>
-        <ProcessTree
-          v-if="processOpen"
-          :steps="treeSteps"
-          :session-id="sessionId"
-        />
+      <div v-if="treeSteps.length" class="cot-card">
+        <div class="cot-steps">
+          <template v-for="step in treeSteps" :key="step.key">
+            <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
+            <template v-else-if="step.type === 'compact'">
+              <RequestStatus :data-message-id="step.messageId" :request="step.request" kind="compact" />
+              <pre v-if="step.request.content || step.request.reasoning" v-auto-scroll class="compact-stream">{{ step.request.content || step.request.reasoning }}</pre>
+            </template>
+            <ReasoningStep
+              v-else-if="step.type === 'reasoning'"
+              :data-message-id="step.messageId"
+              :reasoning="step.text"
+              :streaming="step.streaming"
+              :started-at="step.message.startedAt"
+              :finished-at="step.message.finishedAt"
+            />
+            <div v-else-if="step.type === 'text'" :data-message-id="step.messageId" class="cot-step cot-step--text">
+              <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
+              <div class="cot-step__main">
+                <div class="cot-step__body cot-step__body--text">
+                  <Markdown smooth :content="step.text" compact />
+                </div>
+              </div>
+            </div>
+            <ToolCall
+              v-else
+              :data-message-id="step.messageId"
+              :tool="step.tool"
+              :session-id="sessionId"
+            />
+          </template>
+        </div>
       </div>
 
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">

@@ -1,9 +1,0 @@
-/* 处理过程列表：无树线，只用缩进区分正文/请求和工具/思考。 */
-.process-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 6px 0 8px;
-}
-.process-row { min-width: 0; }
-.process-row.is-process-step { padding-left: 18px; }

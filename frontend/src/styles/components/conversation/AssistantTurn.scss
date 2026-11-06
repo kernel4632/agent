@@ -141,14 +141,5 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* 处理过程：一级入口常驻；二级以下由 ProcessTree 用同一套行/线渲染。 */
-.process-tree { position: relative; padding-top: 2px; }
-.process-tree__head { position: relative; display: flex; width: 100%; min-height: 36px; align-items: center; gap: 7px; padding: 4px 2px 4px 0; border: 0; border-radius: 10px; background: transparent; color: var(--la-muted); font: inherit; text-align: left; cursor: pointer; }
-.process-tree__head:hover { color: var(--la-text); }
-.process-tree__icon { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
-.process-tree__title { color: var(--la-text); font-size: 13px; font-weight: 600; }
-.process-tree__summary { min-width: 0; flex: 1; overflow: hidden; color: var(--la-muted); font-size: 12px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.process-tree__live { flex: none; padding: 1px 6px; border-radius: 6px; background: var(--la-accent-soft); color: var(--la-accent); font-size: 10.5px; }
-.process-tree__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
-.process-tree__caret.is-open { transform: rotate(180deg); }
-
+/* 连续请求行之间留出间隔，避免几行 token 数据糊在一起。 */
+.cot-steps > .request-status + .request-status { margin-top: 8px; }

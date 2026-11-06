@@ -50,8 +50,9 @@ const duration = computed(() => {
 const bodyOpen = computed(() => expanded.value || running.value || props.tool.status === 'error')
 
 watch(() => props.tool.status, (status, previous) => {
-  if (previous === 'running' || previous === 'waiting') expanded.value = true
   if (status === 'running' || status === 'waiting') expanded.value = true
+  // 完成一个就收起一个；todo 清单是结果卡片，保留原来的展开习惯。
+  else if ((previous === 'running' || previous === 'waiting') && props.tool.name !== 'update_todo_list') expanded.value = false
 })
 watch(running, value => {
   if (timer) { window.clearInterval(timer); timer = null }
