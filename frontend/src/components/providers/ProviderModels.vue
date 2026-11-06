@@ -4,7 +4,7 @@
 调用：<ProviderModels :provider="provider" :models="provider.models" @update:models="saveModels" />。
 -->
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Provider } from "../../features/settings.js"
 import { DEFAULT_CONTEXT } from '../../defaults.js'
 import Field from '../../ui/Field.vue'
@@ -14,6 +14,7 @@ import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Menu from '../../ui/Menu.vue'
 import ModelFamilyInput from './ModelFamilyInput.vue'
+import ModelConfigEditor from './ModelConfigEditor.vue'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
@@ -22,8 +23,7 @@ const chooserOpen = ref(false)
 const available = ref([])
 const filter = ref('')
 const editOpen = ref(false)
-const expandedId = ref('')
-const editing = ref(null)
+const expandedIDs = ref([])
 const editDraft = ref(null)
 const editError = ref('')
 const customContext = ref(false)
@@ -51,14 +51,15 @@ const FAMILIES = [
 ]
 const familyOptions = computed(() => {
   const options = [{ value: '', label: '自动识别' }, ...FAMILIES]
-  const family = editDraft.value?.family
-  if (family && !FAMILIES.some(item => item.value === family)) options.push({ value: family, label: family })
+  const known = new Set(FAMILIES.map(item => item.value))
+  for (const family of [editDraft.value?.family, ...props.models.map(model => model.family)]) {
+    if (family && !known.has(family)) {
+      options.push({ value: family, label: family })
+      known.add(family)
+    }
+  }
   return options
 })
-const contextDraft = ref('')
-const contextOpen = ref(false)
-const autoSaveEnabled = ref(false)
-let autoSaveTimer = null
 const ABILITIES = [
   { value: 'tools', label: '工具调用' },
   { value: 'reasoning', label: '推理输出' },
@@ -108,7 +109,11 @@ function modelActions(index) {
 }
 
 function runAction(model, action) {
-  if (action === 'remove') { emit('update:models', props.models.filter(item => item.id !== model.id)); return }
+  if (action === 'remove') {
+    expandedIDs.value = expandedIDs.value.filter(id => id !== model.id)
+    emit('update:models', props.models.filter(item => item.id !== model.id))
+    return
+  }
   const models = [...props.models]
   const index = models.findIndex(item => item.id === model.id)
   const next = index + (action === 'up' ? -1 : 1)
@@ -117,52 +122,31 @@ function runAction(model, action) {
   emit('update:models', models)
 }
 
-async function openEditor(model) {
-  clearTimeout(autoSaveTimer)
-  autoSaveEnabled.value = false
-  contextOpen.value = false
-  editing.value = model?.id || null
-  editDraft.value = model
-    ? { ...model, name: model.name === model.id ? '' : model.name, family: model.family || '', capabilities: [...model.capabilities] }
-    : { id: '', name: '', family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
-  contextDraft.value = formatContext(editDraft.value.context)
-  customContext.value = !CONTEXT_PRESETS.includes(editDraft.value.context)
-  editError.value = ''
-  if (model) {
-    expandedId.value = model.id
-    editOpen.value = false
-    await nextTick()
-    autoSaveEnabled.value = true
-  } else {
-    expandedId.value = ''
-    editOpen.value = true
-  }
-  void detectFamily()
-}
+const isExpanded = id => expandedIDs.value.includes(id)
 
 function toggleEditor(model) {
-  if (expandedId.value === model.id) {
-    void closeEditor()
-    return
-  }
-  void openEditor(model)
+  expandedIDs.value = isExpanded(model.id)
+    ? expandedIDs.value.filter(id => id !== model.id)
+    : [...expandedIDs.value, model.id]
 }
 
-async function closeEditor(save = true) {
-  clearTimeout(autoSaveTimer)
-  if (save && autoSaveEnabled.value && editDraft.value && editing.value) await persistModel()
-  autoSaveEnabled.value = false
-  expandedId.value = ''
-  editing.value = null
-  editDraft.value = null
-  editError.value = ''
-  contextOpen.value = false
+function onModelSaved({ originalId, model }) {
+  emit('update:models', props.models.map(item => item.id === originalId ? model : item))
+  if (originalId !== model.id) expandedIDs.value = expandedIDs.value.map(id => id === originalId ? model.id : id)
 }
 
 // 外部删除或重排后，已经展开的模型不存在时自动收起。
 watch(() => props.models.map(model => model.id), ids => {
-  if (expandedId.value && !ids.includes(expandedId.value)) void closeEditor(false)
+  expandedIDs.value = expandedIDs.value.filter(id => ids.includes(id))
 })
+
+async function openEditor() {
+  editDraft.value = { id: '', name: '', family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
+  customContext.value = !CONTEXT_PRESETS.includes(editDraft.value.context)
+  editError.value = ''
+  editOpen.value = true
+  void detectFamily()
+}
 
 async function detectFamily() {
   if (!editDraft.value?.id || editDraft.value.family) return
@@ -183,57 +167,17 @@ function chooseContext(value) {
   if (value !== null) editDraft.value.context = value
 }
 
-const parseContext = value => {
-  const match = String(value ?? '').trim().toLowerCase().replace(/,/g, '').match(/^(\d+(?:\.\d+)?)\s*([km])?$/)
-  if (!match) return null
-  const number = Number(match[1]) * (match[2] === 'm' ? 1000000 : match[2] === 'k' ? 1000 : 1)
-  return Number.isFinite(number) && number > 0 ? Math.round(number) : null
-}
-
-function inputContext(event) {
-  contextDraft.value = event.target.value
-  const parsed = parseContext(contextDraft.value)
-  if (parsed) editDraft.value.context = parsed
-}
-
-function blurContext() {
-  const parsed = parseContext(contextDraft.value)
-  contextDraft.value = formatContext(parsed || editDraft.value.context)
-}
-
-function chooseContextValue(value) {
-  editDraft.value.context = value
-  contextDraft.value = formatContext(value)
-  contextOpen.value = false
-}
-
-async function persistModel() {
-  if (!editDraft.value) return false
+async function saveModel() {
+  if (!editDraft.value) return
   const id = editDraft.value.id.trim()
-  const name = editDraft.value.name.trim() || id
   const context = Number(editDraft.value.context)
-  if (!id) { editError.value = '模型 ID 不能为空'; return false }
-  if (editing.value && id !== editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return false }
-  if (!editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return false }
-  if (!Number.isInteger(context) || context <= 0) { editError.value = '上下文窗口需要填写正整数'; return false }
+  if (!id) { editError.value = '模型 ID 不能为空'; return }
+  if (selected(id)) { editError.value = '这个模型已经在列表里了'; return }
+  if (!Number.isInteger(context) || context <= 0) { editError.value = '上下文窗口需要填写正整数'; return }
   if (!editDraft.value.family) await detectFamily()
-  const model = { id, name, family: String(editDraft.value.family || '').trim(), context, capabilities: [...editDraft.value.capabilities] }
-  emit('update:models', editing.value ? props.models.map(item => item.id === editing.value ? model : item) : [...props.models, model])
-  editing.value = id
-  expandedId.value = id
-  editError.value = ''
-  return true
-}
-
-async function autoSave() {
-  if (!autoSaveEnabled.value || !editing.value) return
-  await persistModel()
-}
-
-function scheduleAutoSave() {
-  if (!autoSaveEnabled.value) return
-  clearTimeout(autoSaveTimer)
-  autoSaveTimer = setTimeout(() => void autoSave(), 450)
+  const model = { id, name: editDraft.value.name.trim() || id, family: String(editDraft.value.family || '').trim(), context, capabilities: [...editDraft.value.capabilities] }
+  emit('update:models', [...props.models, model])
+  editOpen.value = false
 }
 
 function enterEditor(element) {
@@ -263,13 +207,6 @@ function finishEditor(element) {
   element.style.transition = ''
   element.style.overflow = ''
 }
-
-watch(editDraft, () => scheduleAutoSave(), { deep: true })
-onBeforeUnmount(() => clearTimeout(autoSaveTimer))
-
-async function saveModel() {
-  if (await persistModel()) editOpen.value = false
-}
 </script>
 
 <template>
@@ -282,13 +219,13 @@ async function saveModel() {
       </div>
     </header>
     <div v-if="models.length" class="provider-models__list">
-      <article v-for="(model, index) in models" :key="model.id" class="model-card" :class="{ 'is-expanded': expandedId === model.id }">
+      <article v-for="(model, index) in models" :key="model.id" class="model-card" :class="{ 'is-expanded': isExpanded(model.id) }">
         <div class="model-card__row">
           <button
             type="button"
             class="model-card__main"
             aria-label="编辑模型"
-            :aria-expanded="expandedId === model.id"
+            :aria-expanded="isExpanded(model.id)"
             :title="`编辑 ${model.name}`"
             @click="toggleEditor(model)"
           >
@@ -301,39 +238,21 @@ async function saveModel() {
                 <span>{{ formatContext(model.context) }}</span><span v-if="index === 0" class="model-card__default">默认</span>
               </span>
             </span>
-            <Icon class="model-card__chevron" :class="{ 'is-open': expandedId === model.id }" name="down" :size="16" />
+            <Icon class="model-card__chevron" :class="{ 'is-open': isExpanded(model.id) }" name="down" :size="16" />
           </button>
           <Menu :label="`${model.name} 的更多操作`" :items="modelActions(index)" @select="runAction(model, $event)" />
         </div>
 
         <Transition name="model-editor" @enter="enterEditor" @after-enter="finishEditor" @leave="leaveEditor" @after-leave="finishEditor">
-          <div v-if="expandedId === model.id && editDraft" class="model-card__editor">
-          <div class="model-edit__grid">
-            <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
-            <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="留空则使用模型 ID" />
-            <ModelFamilyInput v-model="editDraft.family" :model-id="editDraft.id" :items="familyOptions" />
-            <div class="model-edit__field">
-              <span class="model-edit__caption">上下文窗口</span>
-              <div class="model-context" @focusout="contextOpen = $event.currentTarget.contains($event.relatedTarget) ? contextOpen : false">
-                <input class="model-context__input" :value="contextDraft" aria-label="上下文窗口" placeholder="例如 1M、128K" @input="inputContext" @blur="blurContext" @keydown.esc="contextOpen = false" />
-                <button class="model-context__toggle" type="button" aria-label="选择上下文长度" @click="contextOpen = !contextOpen"><Icon name="down" :size="16" /></button>
-                <div v-if="contextOpen" class="model-context__menu">
-                  <button v-for="preset in CONTEXT_PRESETS" :key="preset" type="button" @mousedown.prevent @click="chooseContextValue(preset)">{{ formatContext(preset) }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="model-edit__abilities">
-            <fieldset class="model-edit__section"><legend>输入能力</legend>
-              <div class="model-choices"><span class="model-choice is-selected"><Icon name="check" :size="16" />文本</span><label class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes('image') }"><input type="checkbox" role="switch" aria-label="图像输入" :checked="editDraft.capabilities.includes('image')" @change="toggleCapability('image', $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes('image')" name="check" :size="16" />图像输入</label></div>
-            </fieldset>
-            <fieldset class="model-edit__section"><legend>模型能力</legend>
-              <div class="model-choices"><label v-for="ability in ABILITIES" :key="ability.value" class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes(ability.value) }"><input type="checkbox" role="switch" :aria-label="ability.label" :checked="editDraft.capabilities.includes(ability.value)" @change="toggleCapability(ability.value, $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes(ability.value)" name="check" :size="16" />{{ ability.label }}</label></div>
-            </fieldset>
-          </div>
-          <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
-          </div>
+          <ModelConfigEditor
+            v-if="isExpanded(model.id)"
+            :key="model.id"
+            class="model-card__editor"
+            :model="model"
+            :items="familyOptions"
+            :used-ids="models.map(item => item.id)"
+            @save="onModelSaved"
+          />
         </Transition>
       </article>
     </div>
@@ -354,7 +273,7 @@ async function saveModel() {
     <template #footer><Field v-model="filter" type="search" label="过滤模型" placeholder="按名称或 ID 过滤" clearable size="small"><template #leading><Icon name="search" :size="18" /></template></Field><Button variant="text" @click="chooserOpen = false">完成</Button></template>
   </Dialog>
 
-  <Dialog :open="editOpen" placement="bottom" :width="680" :label="editing ? '编辑模型' : '添加模型'" class="model-editor-sheet" @update:open="editOpen = $event">
+  <Dialog :open="editOpen" placement="bottom" :width="680" label="添加模型" class="model-editor-sheet" @update:open="editOpen = $event">
     <div v-if="editDraft" class="model-edit">
       <div class="model-edit__identity">
         <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
@@ -374,7 +293,7 @@ async function saveModel() {
       </fieldset>
       <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
     </div>
-    <template #footer><Button variant="text" @click="editOpen = false">取消</Button><Button @click="saveModel">{{ editing ? '保存模型' : '添加' }}</Button></template>
+    <template #footer><Button variant="text" @click="editOpen = false">取消</Button><Button @click="saveModel">添加</Button></template>
   </Dialog>
 </template>
 

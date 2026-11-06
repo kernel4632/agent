@@ -754,9 +754,17 @@ test('provider tabs test the connection and edit model metadata', async ({ page 
   await page.locator('.model-family__options button').filter({ hasText: 'DeepSeek' }).click()
   await expect.poll(() => mock.config().providers[0].models[0].family).toBe('deepseek')
 
+  await page.getByRole('button', { name: '高级', exact: true }).click()
+  await page.getByRole('spinbutton', { name: '最大输出', exact: true }).fill('8192')
+  await page.getByRole('spinbutton', { name: '温度', exact: true }).fill('0.3')
+  await page.getByRole('spinbutton', { name: 'Top P', exact: true }).fill('0.9')
+  await page.getByRole('spinbutton', { name: '随机种子', exact: true }).fill('42')
+  await page.getByRole('textbox', { name: '其他请求参数（JSON）', exact: true }).fill('{"top_k": 20}')
+  await expect.poll(() => mock.config().providers[0].models[0]).toMatchObject({ maxOutput: 8192, temperature: 0.3, topP: 0.9, seed: 42, body: { top_k: 20 } })
+
   const saved = mock.config()
   expect(saved.providers[0].headers).toEqual({ 'x-preserve': 'yes' })
-  expect(saved.providers[0].models).toEqual([{ id: 'test-model', name: '测试模型', family: 'deepseek', context: 32000, capabilities: ['text', 'tools'] }])
+  expect(saved.providers[0].models).toEqual([{ id: 'test-model', name: '测试模型', family: 'deepseek', context: 32000, capabilities: ['text', 'tools'], maxOutput: 8192, temperature: 0.3, topP: 0.9, seed: 42, body: { top_k: 20 } }])
   expect(mock.errors).toEqual([])
 })
 
@@ -1723,6 +1731,29 @@ test('data settings lists config backups and exports masked config', async ({ pa
 
   await page.getByRole('switch', { name: '包含 API Key 和其他敏感值' }).click()
   await expect(page.getByRole('button', { name: '导出完整配置', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('model cards expand independently', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /模型供应商/ }).click()
+  await page.getByRole('button', { name: /Test Provider/ }).click()
+  await page.getByRole('tab', { name: '模型', exact: true }).click()
+
+  await page.getByRole('button', { name: '添加模型', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '添加模型', exact: true })
+  await dialog.getByRole('textbox', { name: '模型 ID', exact: true }).fill('second-model')
+  await dialog.getByRole('button', { name: '添加', exact: true }).click()
+  await expect(dialog).toBeHidden()
+
+  const editButtons = page.getByRole('button', { name: '编辑模型', exact: true })
+  await editButtons.first().click()
+  await editButtons.last().click()
+  await expect(page.locator('.model-card__editor')).toHaveCount(2)
+  await editButtons.first().click()
+  await expect(page.locator('.model-card__editor')).toHaveCount(1)
   expect(mock.errors).toEqual([])
 })
 

@@ -335,13 +335,21 @@ function objectFromJson(text, label) {
 /** 编辑草稿转成当前配置形状；每个模型必须是带 id、name、context、capabilities 的对象。 */
 function providerPayload(draft) {
   return (draft.providers || []).map(provider => {
-    const models = provider.models.map(model => ({
-      id: model.id.trim(),
-      name: model.name.trim() || model.id.trim(),
-      ...(String(model.family || '').trim() ? { family: String(model.family).trim() } : {}),
-      context: Number(model.context) > 0 ? Number(model.context) : DEFAULT_CONTEXT,
-      capabilities: [...model.capabilities],
-    }))
+    const models = provider.models.map(model => {
+      const result = {
+        id: model.id.trim(),
+        name: model.name.trim() || model.id.trim(),
+        ...(String(model.family || '').trim() ? { family: String(model.family).trim() } : {}),
+        context: Number(model.context) > 0 ? Number(model.context) : DEFAULT_CONTEXT,
+        capabilities: [...model.capabilities],
+      }
+      if (Number.isInteger(Number(model.maxOutput)) && Number(model.maxOutput) > 0) result.maxOutput = Number(model.maxOutput)
+      if (Number.isFinite(Number(model.temperature))) result.temperature = Number(model.temperature)
+      if (Number.isFinite(Number(model.topP))) result.topP = Number(model.topP)
+      if (Number.isInteger(Number(model.seed)) && Number(model.seed) >= 0) result.seed = Number(model.seed)
+      if (model.body && typeof model.body === 'object' && !Array.isArray(model.body) && Object.keys(model.body).length) result.body = model.body
+      return result
+    })
     return {
       name: provider.name.trim(),
       baseURL: provider.apiUrl || '',
