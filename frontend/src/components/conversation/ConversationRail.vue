@@ -34,13 +34,15 @@ const nodes = computed(() => groupMessageTurns(props.messages)
     if (turn.role === 'user') {
       text = String(first.displayContent ?? first.content ?? '')
     } else {
+      // 只认结束工具的完整回答；取不到时宁可显示占位，也不把中间处理正文算进来。
       const stopMessage = [...turn.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool))
       const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
       text = String(outputText(stopTool) || '').trim()
-      if (!text) text = String(turn.messages.at(-1)?.content || '')
     }
     text = text.replace(/\s+/g, ' ').trim()
-    const fallback = turn.role === 'user' ? (first.images?.length ? '图片消息' : '空消息') : '处理完成'
+    const fallback = turn.role === 'user'
+      ? (first.images?.length ? '图片消息' : '空消息')
+      : (turn.messages.some(message => message.isStreaming) ? '处理中…' : '没有最终回答')
     const prefix = text || fallback
     const attachments = first.attachments?.length ? ` · ${first.attachments.length} 个附件` : ''
     return {
@@ -203,7 +205,7 @@ onBeforeUnmount(() => {
         v-for="(node, index) in nodes" :key="node.id"
         class="conversation-rail__mark"
         :class="{ 'is-active': index === activeIndex, 'is-hover': index === hoverIndex }"
-        :style="{ top: `${positionOf(index)}%`, width: `${widthOf(node)}px` }"
+        :style="{ top: `${positionOf(index)}%`, width: `${widthOf(node)}px`, right: '0px', left: 'auto' }"
         :data-index="index"
         aria-hidden="true"
         @pointerenter="hoverIndex = index"
