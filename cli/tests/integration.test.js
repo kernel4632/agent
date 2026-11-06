@@ -268,7 +268,9 @@ test('remembered approval crosses sessions and hard deny cannot be bypassed', as
     expect(JSON.stringify(events.at(-1).session.history)).not.toContain('fixture file contents')
 }, 30000)
 
-test('nested task approval reaches the CLI and completes', async () => {
+// 子智能体当前暂时下架，new_task 不会再装配；恢复子智能体时把 skip 去掉。
+// 测试和 CLI 解析代码保留，便于恢复后直接验证审批回到父会话。
+test.skip('nested task approval reaches the CLI and completes', async () => {
     const config = await (await fetch(`${address}/config/read`)).json()
     config.providers[0].stream = false
     config.permission = { '*': 'ask' }
