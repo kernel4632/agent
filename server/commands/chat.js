@@ -291,6 +291,23 @@ const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, 
 })
 
 // --- 真正启动这一轮 ---
+// --- 上下文余量提醒：距压缩点只剩 5% 预算时，往下一笔请求临时插一句，让模型收口 ---
+// 阈值从 compact.threshold 推导（压缩点 = budget * compactThreshold，提醒点再往前留 5%），
+// 用户把压缩阈值调低时提醒点自动跟着挪，两套阈值永不脱钩——这是调研 Claude Code /
+// Codex / Gemini CLI 后选的设计：用 token 余量而不是独立百分比。
+// 每个 run 只提醒一次（state.compactReminded 记录），不每轮都插：常驻提醒自己也会占上下文。
+// onInject 由 core 在每轮请求前调用（压缩之后拿到的才是这一轮真实估算），钩子抛错时 core 已容错。
+const CONTEXT_MARGIN = 0.05
+const CONTEXT_REMINDER = '[System reminder] The context is close to the compaction threshold. Wrap up cleanly: finish the current step, call attempt_completion with a complete handover (or update the todo list with the next concrete step and the key file paths), so the conversation can be summarized without losing your place. Do not start large new work this turn.'
+const compactWarning = ({ state }) => ({ tokens, budget, compactThreshold }) => {
+    if (state.compactReminded) return ''                                   // 这个 run 已经提醒过，不重复
+    if (!Number.isFinite(budget)) return ''                                // 没有预算就没有压缩，不提醒
+    const compactPoint = budget * compactThreshold
+    if (tokens < compactPoint - budget * CONTEXT_MARGIN) return ''          // 还没到提醒带
+    state.compactReminded = true
+    return CONTEXT_REMINDER
+}
+
 const startRun = async ({ sessionId, input, resume, agent, recovery = false }) => {
     const session = await History.load(sessionId)
     const settings = await Agent.readSettings(sessionId)
@@ -302,7 +319,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
     History.setRunning(sessionId, true)
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
 
-    const state = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [] }
+    const state = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
     const token = { stopped: false, state }
     activeRuns.set(sessionId, token)
     let task
@@ -311,6 +328,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
             config: await Agent.resolve({ session, settings, recovery }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, token }),
+                onInject: compactWarning({ state }),
                 ...modelEvents({ sessionId, state }),
                 ...forwardedEvents({ sessionId, state }),
                 onToolResult: sendToolResult({ sessionId }),

@@ -149,7 +149,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 
 ### 压缩
 
-上下文用到 `config.compact.threshold`（默认 0.8）时自动压缩。core 0.30.4 的估算把媒体块单独计费：图片每张按固定 token 算，不再让 base64 字符数虚增上下文；压缩触发比例与界面上显示的真实用量一致。手动压缩走 `POST /session/compact/{sessionId}`。压缩模型可以用 `models.compact` 单独配置；它只换连接，上下文预算仍按主模型算。
+上下文用到 `config.compact.threshold`（默认 0.8）时自动压缩。距压缩点只剩 5% 预算时，core 的 `onInject` 钩子会往下一笔请求临时附一句提醒（不写进历史），让模型本轮收口——阈值从压缩阈值推导（压缩点 - 5% 预算），用户调低压缩阈值时提醒点自动跟着挪；每个 run 只提醒一次。core 0.31.0 的估算把媒体块单独计费：图片每张按固定 token 算，不再让 base64 字符数虚增上下文；压缩触发比例与界面上显示的真实用量一致。手动压缩走 `POST /session/compact/{sessionId}`。压缩模型可以用 `models.compact` 单独配置；它只换连接，上下文预算仍按主模型算。
 
 ## 工具
 
