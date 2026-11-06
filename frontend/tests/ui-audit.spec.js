@@ -780,6 +780,34 @@ test('each model request stays at its position in the conversation flow', async 
   expect(mock.errors).toEqual([])
 })
 
+test('process fold summarizes work, toggles steps, and stays transparent', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await page.getByText('正在处理', { exact: true }).waitFor()
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'reasoning-delta', text: '先想一下。' },
+    { type: 'tool-call', toolCallId: 'fold-1', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'fold-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+  ])
+
+  const head = page.locator('.process-fold__head')
+  await expect(head).toContainText('处理过程')
+  await expect(head).toContainText('1 次思考')
+  await expect(head).toContainText('使用了 1 次工具')
+  await expect(head).toContainText('读取文件 1 次')
+  await page.mouse.move(0, 0)
+  expect(await head.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+
+  await head.click()
+  await expect(page.locator('.cot-steps')).toHaveCount(0)
+  await head.click()
+  await expect(page.locator('.cot-steps')).toBeVisible()
+})
+
 test('completed steps collapse individually, not the whole process', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')

@@ -143,3 +143,25 @@
 }
 /* 连续请求行之间留出间隔，避免几行 token 数据糊在一起。 */
 .cot-steps > .request-status + .request-status { margin-top: 8px; }
+/* 整轮折叠条：透明，不额外铺一块背景；步骤仍按原来的平铺时间线显示。 */
+.process-fold__head {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px 4px 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--la-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.process-fold__head:hover { color: var(--la-text); }
+.process-fold__icon { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
+.process-fold__title { flex: none; color: var(--la-text); font-size: 13px; font-weight: 600; }
+.process-fold__summary { min-width: 0; flex: 1; overflow: hidden; color: var(--la-muted); font-size: 12px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.process-fold__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.process-fold__caret.is-open { transform: rotate(180deg); }

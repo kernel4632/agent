@@ -13,7 +13,7 @@ import { computed, ref } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
-import { outputText } from '../../commands/tool.js'
+import { outputText, toolTitle } from '../../commands/tool.js'
 import { isFinishedStopTool } from '../../commands/history.js'
 import { isSavedMessage } from '../../commands/history.js'
 import MessageActions from './MessageActions.vue'
@@ -117,6 +117,30 @@ const streaming = computed(() => props.messages.some(message => message.isStream
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
+// 整轮处理仍可一键收起，但默认保持展开；每个步骤自己完成后自动收起。
+const processKey = `agent.process-fold:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
+const processOpen = ref((() => {
+  try { return localStorage.getItem(processKey) !== 'closed' } catch { return true }
+})())
+function toggleProcess() {
+  processOpen.value = !processOpen.value
+  try { localStorage.setItem(processKey, processOpen.value ? 'open' : 'closed') } catch {}
+}
+const processSummary = computed(() => {
+  const content = treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact')
+  const reasoning = content.filter(step => step.type === 'reasoning').length
+  const tools = content.filter(step => step.type === 'tool')
+  if (!reasoning && !tools.length) return content.length ? `${content.length} 步` : '运行状态'
+  const names = new Map()
+  for (const step of tools) {
+    const name = toolTitle(step.tool)
+    names.set(name, (names.get(name) || 0) + 1)
+  }
+  const pieces = []
+  if (reasoning) pieces.push(`${reasoning} 次思考`)
+  if (tools.length) pieces.push(`使用了 ${tools.length} 次工具：${[...names].map(([name, count]) => `${name} ${count} 次`).join('、')}`)
+  return pieces.join(' · ')
+})
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
@@ -169,8 +193,14 @@ function clearTarget() { targetId.value = null; emit('close') }
       @action="onMenu"
       @rollback-confirm="emit('rollback-confirm', $event)"
     >
-      <div v-if="treeSteps.length" class="cot-card">
-        <div class="cot-steps">
+      <div v-if="treeSteps.length" class="cot-card process-fold">
+        <button type="button" class="process-fold__head" :aria-expanded="processOpen" @click="toggleProcess">
+          <span class="process-fold__icon"><Icon name="layers" :size="15" /></span>
+          <span class="process-fold__title">处理过程</span>
+          <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
+          <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
+        </button>
+        <div v-if="processOpen" class="cot-steps">
           <template v-for="step in treeSteps" :key="step.key">
             <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
             <template v-else-if="step.type === 'compact'">
