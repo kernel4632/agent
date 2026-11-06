@@ -1562,6 +1562,12 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await page.locator('.conversation-rail__mark').nth(1).hover()
   await expect(page.locator('.conversation-rail__preview')).toContainText('回答：')
   await page.mouse.move(0, 0)
+  // 当前轮的刻度只显示预览，不应该把已经在看的正文往上拉走。
+  const beforeCurrent = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
+  await page.locator('.conversation-rail__mark').last().click({ force: true })
+  await page.waitForTimeout(500)
+  const afterCurrent = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
+  expect(Math.abs(afterCurrent - beforeCurrent)).toBeLessThan(80)
 
   await rail.focus()
   await rail.press('Home')

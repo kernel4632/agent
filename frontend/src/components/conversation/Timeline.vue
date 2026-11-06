@@ -279,6 +279,15 @@ async function jumpToMessage(messageId) {
   if (!scrollParent) return
   const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
   if (turnIndex < 0) return
+  const turn = turns.value[turnIndex]
+  // 点当前正在看的这一轮（比如底部最新用户消息）时不要往上跳；
+  // 只有目标轮次完全在视口外才滚动。
+  const turnElement = scrollParent.querySelector(`[data-turn-id="${CSS.escape(String(turn.id))}"]`)
+  const viewport = scrollParent.getBoundingClientRect()
+  if (turnElement) {
+    const rect = turnElement.getBoundingClientRect()
+    if (rect.bottom > viewport.top + 1 && rect.top < viewport.bottom - 1) return
+  }
   if (turnIndex < visibleStart.value) {
     visibleStart.value = visibleStartFor(turnIndex)
     await nextTick()
