@@ -4,6 +4,10 @@
   max-width: none;
   margin: 0 0 10px;
 }
+/* 标题属于下一段内容：上方留白明显大于下方，不能反过来贴住上一段。 */
+.ui-md :is(.ui-typography--heading) { margin: 18px 0 6px; }
+.ui-md :is(.ui-typography--heading:first-child) { margin-top: 0; }
+.ui-md :is(.ui-typography--heading:last-child) { margin-bottom: 0; }
 .ui-md :is(.ui-typography:last-child) { margin-bottom: 0; }
 .ui-md :is(.ui-code-block) { margin: 10px 0; }
 .ui-md__code-fallback {
