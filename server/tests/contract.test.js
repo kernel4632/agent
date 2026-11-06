@@ -129,7 +129,7 @@ describe('项目结构', () => {
     test('工具目录只有按类别分组的文件', async () => {
         const files = (await readdir(fileURLToPath(new URL('../tools/', import.meta.url)))).filter(name => name.endsWith('.js')).sort()
         // subagent.js 还在目录里，但不再装配成工具（正式版再引入），所以目录文件名单里仍包含它。
-        expect(files).toEqual(['background.js', 'control.js', 'file.js', 'shell.js', 'skill.js', 'subagent.js', 'todo.js', 'web.js'])
+        expect(files).toEqual(['background.js', 'control.js', 'file.js', 'history.js', 'shell.js', 'skill.js', 'subagent.js', 'todo.js', 'web.js'])
     })
 
     test('每个工具文件里的工具都声明了名称、类别、说明和参数', async () => {

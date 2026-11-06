@@ -161,6 +161,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 | `tools/web.js` | `webfetch` |
 | `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
+| `tools/history.js` | `history_search`（在本会话历史里按关键词/正则找当时确认过的细节；上下文压缩后用，命中返回 messageId + 片段，默认只搜当前会话） |
 | `tools/skill.js` | `skill` |
 | `tools/subagent.js` | `new_task`（**暂未启用**：文件和测试保留，正式版再装配） |
 
