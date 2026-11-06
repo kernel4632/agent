@@ -4,7 +4,7 @@
 调用：<ProviderModels :provider="provider" :models="provider.models" @update:models="saveModels" />。
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Provider } from "../../features/settings.js"
 import { DEFAULT_CONTEXT } from '../../defaults.js'
 import Field from '../../ui/Field.vue'
@@ -21,6 +21,7 @@ const chooserOpen = ref(false)
 const available = ref([])
 const filter = ref('')
 const editOpen = ref(false)
+const expandedId = ref('')
 const editing = ref(null)
 const editDraft = ref(null)
 const editError = ref('')
@@ -87,9 +88,35 @@ function openEditor(model) {
     : { id: '', name: '', family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
   customContext.value = !CONTEXT_PRESETS.includes(editDraft.value.context)
   editError.value = ''
-  editOpen.value = true
+  if (model) {
+    expandedId.value = model.id
+    editOpen.value = false
+  } else {
+    expandedId.value = ''
+    editOpen.value = true
+  }
   void detectFamily()
 }
+
+function toggleEditor(model) {
+  if (expandedId.value === model.id) {
+    closeEditor()
+    return
+  }
+  openEditor(model)
+}
+
+function closeEditor() {
+  expandedId.value = ''
+  editing.value = null
+  editDraft.value = null
+  editError.value = ''
+}
+
+// 外部删除或重排后，已经展开的模型不存在时自动收起。
+watch(() => props.models.map(model => model.id), ids => {
+  if (expandedId.value && !ids.includes(expandedId.value)) closeEditor()
+})
 
 async function detectFamily() {
   if (!editDraft.value?.id || editDraft.value.family) return
@@ -127,7 +154,8 @@ async function saveModel() {
   if (!editDraft.value.family) await detectFamily()
   const model = { id, name, family: String(editDraft.value.family || '').trim(), context, capabilities: [...editDraft.value.capabilities] }
   emit('update:models', editing.value ? props.models.map(item => item.id === editing.value ? model : item) : [...props.models, model])
-  editOpen.value = false
+  if (editing.value) closeEditor()
+  else editOpen.value = false
 }
 </script>
 
@@ -135,19 +163,57 @@ async function saveModel() {
   <div class="provider-models">
     <header class="provider-models__head"><h2>已添加的模型</h2><span>{{ models.length }} 个</span></header>
     <div v-if="models.length" class="provider-models__list">
-      <article v-for="(model, index) in models" :key="model.id" class="model-card">
-        <button type="button" class="model-card__main" aria-label="编辑模型" :title="`编辑 ${model.name}`" @click="openEditor(model)">
-          <span class="model-card__icon"><ModelIcon :model="model.id" :family="model.family" :size="24" /></span>
-          <span class="model-card__copy">
-            <span class="model-card__title">{{ model.name }}</span>
-            <span v-if="model.name !== model.id" class="model-card__id">{{ model.id }}</span>
-            <span class="model-card__meta">
-              <span v-for="capability in model.capabilities" :key="capability" class="model-card__capability" role="img" :aria-label="capabilityLabel(capability)" :title="capabilityLabel(capability)"><Icon :name="capabilityIcon(capability)" :size="14" /></span>
-              <span>{{ formatContext(model.context) }}</span><span v-if="index === 0" class="model-card__default">默认</span>
+      <article v-for="(model, index) in models" :key="model.id" class="model-card" :class="{ 'is-expanded': expandedId === model.id }">
+        <div class="model-card__row">
+          <button
+            type="button"
+            class="model-card__main"
+            aria-label="编辑模型"
+            :aria-expanded="expandedId === model.id"
+            :title="`编辑 ${model.name}`"
+            @click="toggleEditor(model)"
+          >
+            <span class="model-card__icon"><ModelIcon :model="model.id" :family="model.family" :size="24" /></span>
+            <span class="model-card__copy">
+              <span class="model-card__title">{{ model.name }}</span>
+              <span v-if="model.name !== model.id" class="model-card__id">{{ model.id }}</span>
+              <span class="model-card__meta">
+                <span v-for="capability in model.capabilities" :key="capability" class="model-card__capability" role="img" :aria-label="capabilityLabel(capability)" :title="capabilityLabel(capability)"><Icon :name="capabilityIcon(capability)" :size="14" /></span>
+                <span>{{ formatContext(model.context) }}</span><span v-if="index === 0" class="model-card__default">默认</span>
+              </span>
             </span>
-          </span>
-        </button>
-        <Menu :label="`${model.name} 的更多操作`" :items="modelActions(index)" @select="runAction(model, $event)" />
+            <Icon class="model-card__chevron" :class="{ 'is-open': expandedId === model.id }" name="down" :size="16" />
+          </button>
+          <Menu :label="`${model.name} 的更多操作`" :items="modelActions(index)" @select="runAction(model, $event)" />
+        </div>
+
+        <div v-if="expandedId === model.id && editDraft" class="model-card__editor">
+          <div class="model-edit__grid">
+            <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" readonly placeholder="例如 deepseek-chat" @update:model-value="setId" />
+            <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="在模型列表中显示的名称" />
+            <Field caption="模型族（用于图标）" label="模型族" v-model="editDraft.family" placeholder="例如 deepseek、openai">
+              <template #leading><ModelIcon :model="editDraft.id" :family="editDraft.family" :size="18" /></template>
+            </Field>
+            <Field caption="上下文窗口" label="上下文窗口" type="number" :min="1" :step="1000" v-model="editDraft.context">
+              <template #trailing><span class="model-edit__unit">tokens</span></template>
+            </Field>
+          </div>
+
+          <div class="model-edit__abilities">
+            <fieldset class="model-edit__section"><legend>输入能力</legend>
+              <div class="model-choices"><span class="model-choice is-selected"><Icon name="check" :size="16" />文本</span><label class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes('image') }"><input type="checkbox" role="switch" aria-label="图像输入" :checked="editDraft.capabilities.includes('image')" @change="toggleCapability('image', $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes('image')" name="check" :size="16" />图像输入</label></div>
+            </fieldset>
+            <fieldset class="model-edit__section"><legend>模型能力</legend>
+              <div class="model-choices"><label v-for="ability in ABILITIES" :key="ability.value" class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes(ability.value) }"><input type="checkbox" role="switch" :aria-label="ability.label" :checked="editDraft.capabilities.includes(ability.value)" @change="toggleCapability(ability.value, $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes(ability.value)" name="check" :size="16" />{{ ability.label }}</label></div>
+            </fieldset>
+          </div>
+          <p class="model-edit__hint">上下文窗口按服务商提供的数值填写；修改后立即写回供应商配置。</p>
+          <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
+          <div class="model-card__editor-actions">
+            <Button variant="text" @click="closeEditor">取消</Button>
+            <Button @click="saveModel">保存模型</Button>
+          </div>
+        </div>
       </article>
     </div>
     <div v-else class="provider-models__empty"><Icon name="model" :size="40" /><strong>还没有模型</strong><p>从服务商获取，或手动添加模型 ID</p></div>

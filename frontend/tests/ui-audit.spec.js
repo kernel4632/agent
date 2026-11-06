@@ -719,7 +719,7 @@ test('provider tabs test the connection and edit model metadata', async ({ page 
 
   await page.getByRole('tab', { name: '模型', exact: true }).click()
   await page.getByRole('button', { name: '编辑模型', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: '编辑模型' })).toBeVisible()
+  await expect(page.locator('.model-card__editor')).toBeVisible()
   await page.getByRole('spinbutton', { name: '上下文窗口' }).fill('32000')
   await page.getByRole('button', { name: '保存模型', exact: true }).click()
   await expect.poll(() => mock.config().providers[0].models[0].context).toBe(32000)

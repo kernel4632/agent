@@ -3,11 +3,14 @@
 .provider-models__head { display: flex; align-items: center; justify-content: space-between; padding-inline: 4px; }
 .provider-models__head h2, .provider-models__head > span { margin: 0; color: var(--la-muted); font-size: 13px; font-weight: 500; }
 .provider-models__list { display: grid; min-height: 0; align-content: start; gap: 8px; flex: 1; overflow-y: auto; }
-.model-card { display: flex; min-width: 0; align-items: center; padding-right: 6px; border-radius: 20px; background: var(--la-layer-01); }
+.model-card { display: grid; min-width: 0; padding-right: 6px; border-radius: 20px; background: var(--la-layer-01); }
+.model-card__row { display: flex; min-width: 0; align-items: center; }
 .model-card__main { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; padding: 16px; border: 0; border-radius: 20px; background: transparent; color: var(--la-text); text-align: left; cursor: pointer; }
 .model-card__main:hover { background: var(--la-hover); }
 .model-card__icon { display: grid; flex: 0 0 40px; height: 40px; place-items: center; color: var(--la-accent); }
-.model-card__copy { display: grid; min-width: 0; gap: 4px; }
+.model-card__copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.model-card__chevron { flex: none; color: var(--la-muted); transition: transform 180ms var(--ui-curve-standard); }
+.model-card__chevron.is-open { transform: rotate(180deg); }
 .model-card__title { overflow: hidden; font-size: 15px; font-weight: 650; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }
 .model-card__id { overflow: hidden; color: var(--la-muted); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .model-card__meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
@@ -15,6 +18,11 @@
 .model-card__meta > .model-card__capability { display: grid; min-width: 24px; height: 22px; padding: 0 5px; place-items: center; color: var(--la-secondary); }
 .model-card__capability svg { display: block; }
 .model-card__meta .model-card__default { background: var(--la-accent-soft); color: var(--la-accent); }
+.model-card__editor { display: grid; gap: 16px; padding: 16px 20px 18px; border-top: .5px solid var(--la-line); }
+.model-card__editor :deep(.ui-field__input) { min-height: 48px; padding-block: 11px; }
+.model-card__editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.model-edit__grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.model-edit__abilities { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .model-card :deep(.ui-menu-button) { flex: none; }
 .provider-models__empty { display: grid; flex: 1; justify-items: center; align-content: center; gap: 14px; min-height: 230px; padding: 32px 16px; color: var(--la-muted); text-align: center; }
 .provider-models__empty strong { color: var(--la-text); font-size: 18px; font-weight: 500; }
@@ -37,7 +45,8 @@
 .model-chooser__mark.is-selected { background: var(--la-accent-soft); color: var(--la-accent); }
 .model-chooser__empty { padding: 36px 12px; color: var(--la-muted); text-align: center; font-size: 14px; }
 .model-edit { display: grid; min-width: 0; gap: 24px; }
-.model-edit__identity { display: grid; gap: 16px; }
+.model-edit__identity { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.model-edit__identity > :last-child { grid-column: 1 / -1; }
 .model-edit__identity :deep(.ui-field__input) { min-height: 52px; padding-block: 13px; border-color: var(--la-line-strong); background: transparent; }
 .model-edit__identity :deep(.ui-field__input:focus) { border-color: var(--la-accent); }
 .model-edit__identity :deep(input[readonly]) { color: var(--la-muted); background: var(--la-layer-02); }
@@ -63,6 +72,11 @@
 @media (max-width: 480px) {
   .model-card__main { gap: 8px; padding: 14px 10px; }
   .model-card__icon { flex-basis: 32px; }
+  .model-edit__grid,
+  .model-edit__abilities,
+  .model-edit__identity { grid-template-columns: minmax(0, 1fr); }
+  .model-edit__identity > :last-child { grid-column: auto; }
+  .model-card__editor { padding-inline: 14px; }
   .provider-models__toolbar { gap: 4px; }
   .provider-models__toolbar :deep(.ui-button) { gap: 6px; padding-inline: 12px; font-size: 13px; }
   .model-choice { gap: 6px; padding-inline: 8px; font-size: 13px; }
