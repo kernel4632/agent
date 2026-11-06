@@ -54,6 +54,7 @@ test('real request usage wins over estimation', () => {
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
     lastTps: 100 / 3,
+    lastAt: 801,
   }])
 })
 

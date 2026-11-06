@@ -279,6 +279,7 @@ export function sessionStats(session) {
         firstTokenMs: firstToken,
         durationMs: duration,
         tps: requestTps(item),
+        at: Number(item.finishedAt || item.startedAt || 0),
       }
       groups.set(key, group)
     }
@@ -292,6 +293,7 @@ export function sessionStats(session) {
       lastFirstTokenMs: group.latest?.firstTokenMs || 0,
       lastDurationMs: group.latest?.durationMs || 0,
       lastTps: group.latest?.tps || 0,
+      lastAt: group.latest?.at || 0,
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
   return {
