@@ -189,12 +189,13 @@
 .context-group__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .context-group__caret.is-open { transform: rotate(180deg); }
 .context-group .cot-steps { padding: 2px 0 4px; }
-/* 图标随文字大小（1em），槽位随行高（1lh），由 grid 居中；没有任何位移补偿。 */
+/* 折叠图标和普通步骤图标同一规格：24px 圆/方槽位、16px 图标，grid 居中，不做位移。 */
 .process-fold__icon,
-.context-group__icon { display: grid; width: 1lh; height: 1lh; flex: none; place-items: center; line-height: inherit; }
-.process-fold__icon { font-size: 13px; }
-.context-group__icon { font-size: 12px; }
+.context-group__icon { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 8px; }
+.process-fold__icon { background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
+.context-group__icon { color: var(--la-secondary); }
 .process-fold__icon svg,
-.context-group__icon svg { display: block; width: 1em; height: 1em; }
+.context-group__icon svg { display: block; width: 16px; height: 16px; }
+
 
 
