@@ -22,7 +22,6 @@ const pending = computed(() => props.todos.filter(item => item.status === 'pendi
 const completed = computed(() => props.todos.filter(item => item.status === 'completed'))
 const showCompleted = ref(false)
 const icon = status => todoStatus(status).icon
-const label = status => todoStatus(status).label
 </script>
 
 <template>
@@ -48,7 +47,6 @@ const label = status => todoStatus(status).label
           <div class="session-todo-panel__card is-current">
             <Icon :name="icon(current.status)" :size="17" class="session-todo-panel__icon" :class="`is-${current.status}`" />
             <span class="session-todo-panel__text">{{ current.text }}</span>
-            <span class="session-todo-panel__status is-in_progress">{{ label(current.status) }}</span>
           </div>
         </section>
 

@@ -326,7 +326,6 @@ test('tool row keeps declared metadata and shows generic input and output', asyn
   await expect(panel.getByText('补测试', { exact: true })).toBeVisible()
   await expect(panel.getByText('1 / 3')).toBeVisible()
   await expect(panel.getByText('正在执行', { exact: true })).toBeVisible()
-  await expect(panel.locator('.session-todo-panel__status')).toHaveText(['进行中'])
   await expect(panel.getByText('读现有实现', { exact: true })).toHaveCount(0)
   await panel.getByRole('button', { name: '已完成 1 项', exact: true }).click()
   await expect(panel.getByText('读现有实现', { exact: true })).toBeVisible()

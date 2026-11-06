@@ -6,35 +6,30 @@
 .session-todo-panel__bar { --ui-progress-height: 4px; }
 
 .session-todo-panel__section { display: grid; min-width: 0; gap: 8px; }
-.session-todo-panel__eyebrow { color: var(--la-accent); font-size: 11.5px; font-weight: 650; letter-spacing: .02em; }
+.session-todo-panel__eyebrow { color: var(--la-secondary); font-size: 12.5px; }
 .session-todo-panel__section-head { display: flex; align-items: center; justify-content: space-between; color: var(--la-muted); font-size: 12.5px; }
-.session-todo-panel__count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--la-text) 7%, transparent); color: var(--la-secondary); font-size: 11px; text-align: center; font-variant-numeric: tabular-nums; }
+.session-todo-panel__count { color: var(--la-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
 
 .session-todo-panel__list { display: grid; min-width: 0; gap: 8px; }
 .session-todo-panel__card {
   display: grid;
   min-width: 0;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: start;
   gap: 9px;
   padding: 13px 14px;
-  border: .5px solid var(--la-line);
-  border-radius: 18px;
-  background: var(--la-layer-02);
+  border: 0;
+  border-radius: 20px;
+  background: var(--la-layer-03);
 }
 .session-todo-panel__card.is-current {
-  border-color: color-mix(in srgb, var(--la-accent) 30%, var(--la-line));
-  background: color-mix(in srgb, var(--la-accent) 9%, var(--la-layer-02));
-  box-shadow: inset 2px 0 0 var(--la-accent);
+  background: color-mix(in srgb, var(--la-accent) 14%, var(--la-layer-03));
 }
-.session-todo-panel__card.is-done { border-color: color-mix(in srgb, var(--la-line) 65%, transparent); background: color-mix(in srgb, var(--la-layer-02) 62%, transparent); }
-.session-todo-panel__icon { margin-top: 2px; color: var(--la-muted); }
+.session-todo-panel__card.is-done { background: var(--la-layer-02); }.session-todo-panel__icon { margin-top: 2px; color: var(--la-muted); }
 .session-todo-panel__icon.is-completed { color: var(--la-success); }
 .session-todo-panel__icon.is-in_progress { color: var(--la-accent); }
 .session-todo-panel__text { min-width: 0; color: var(--la-text); font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
 .session-todo-panel__card.is-done .session-todo-panel__text { color: var(--la-muted); }
-.session-todo-panel__status { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; line-height: 18px; white-space: nowrap; }
-.session-todo-panel__status.is-in_progress { background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
 
 .session-todo-panel__completed-toggle {
   display: flex;
@@ -66,3 +61,4 @@
 .ui-progress::-webkit-progress-bar { background: var(--la-layer-03); }
 .ui-progress::-webkit-progress-value { background: var(--la-accent); border-radius: 99px; transition: width 200ms; }
 .ui-progress::-moz-progress-bar { background: var(--la-accent); }
+
