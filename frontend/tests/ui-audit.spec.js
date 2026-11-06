@@ -748,9 +748,10 @@ test('context groups summarize tools and keep text between groups', async ({ pag
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
   await expect(page.locator('.cot-step--tool').last()).toContainText('执行命令')
   const requestBeforeGroup = await page.evaluate(() => {
-    const request = document.querySelector('.request-status')
-    const group = document.querySelector('.context-group__head')
-    return Boolean(request && group && (request.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING))
+    const group = document.querySelector('.context-group')
+    const request = group?.querySelector('.request-status')
+    const firstTool = group?.querySelector('.cot-step--tool')
+    return Boolean(request && firstTool && (request.compareDocumentPosition(firstTool) & Node.DOCUMENT_POSITION_FOLLOWING))
   })
   expect(requestBeforeGroup).toBe(true)
   await expect(page.locator('.process-fold__head')).toContainText('使用了 2 次工具')
@@ -785,10 +786,17 @@ test('narrative text stays visible while process actions fold', async ({ page })
   const groups = page.locator('.context-group__head')
   await expect(groups).toHaveCount(1)
   await expect(groups).toContainText('使用了 2 次工具')
-  // 引出正文的请求留在组外；只引出动作的请求收进组内。
-  await expect(page.locator('.request-status').first()).toBeVisible()
-  await expect(page.locator('.context-group__body .request-status')).toHaveCount(1)
+  // 正文前挂起的请求被带进正文后的第一组，放在第一个工具上方。
+  await expect(page.locator('.request-status')).toHaveCount(2)
+  await expect(page.locator('.context-group__body .request-status')).toHaveCount(2)
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
+  const requestOrder = await page.evaluate(() => {
+    const group = document.querySelector('.context-group__body')
+    const firstRequest = group?.querySelector('.request-status')
+    const firstTool = group?.querySelector('.cot-step--tool')
+    return Boolean(firstRequest && firstTool && (firstRequest.compareDocumentPosition(firstTool) & Node.DOCUMENT_POSITION_FOLLOWING))
+  })
+  expect(requestOrder).toBe(true)
   const groupBetweenText = await page.evaluate(() => {
     const first = document.querySelectorAll('.cot-step--text')[0]
     const group = document.querySelector('.context-group')

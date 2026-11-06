@@ -154,24 +154,15 @@ const processSummary = computed(() => summarizeProcess(treeSteps.value))
 
 // 通用规则：
 // 1. 助手正文永远留在折叠组外，保证一级能看到“说了什么”；
-// 2. 两段正文之间的思考、工具、以及“只引出动作的请求”组成处理组；
-// 3. 直接引出助手正文的请求留在组外，不把它藏进折叠；
-// 4. 只有 2 个以上动作才折叠，单个思考/单次工具直接显示；
-// 5. 工具自己的展开仍然是最内层细节。
-const externalRequestKeys = computed(() => {
-  const keys = new Set()
-  const list = treeSteps.value
-  list.forEach((step, index) => {
-    if (step.type !== 'request') return
-    const next = list.slice(index + 1).find(item => item.type !== 'request')
-    if (!next || next.type === 'text') keys.add(step.key)
-  })
-  return keys
-})
-
+// 2. 请求是“下一次动作”的元数据，遇到正文先挂起，交给正文之后的第一组工具/思考；
+// 3. 这一组把请求放在第一个工具上方，然后按原顺序展开思考/工具；
+// 4. 组内保持请求→思考→工具的顺序；
+// 5. 单个动作没有请求时直接显示；有请求的动作收进组里，保证请求和工具不分离。
 const processSections = computed(() => {
   const sections = []
   let group = null
+  let pending = []
+
   const flush = () => {
     if (!group) return
     const requests = group.steps.filter(step => step.type === 'request' || step.type === 'compact')
@@ -183,16 +174,31 @@ const processSections = computed(() => {
     }
     group = null
   }
+
   for (const step of treeSteps.value) {
-    if (step.type === 'text' || (step.type === 'request' && externalRequestKeys.value.has(step.key))) {
+    if (step.type === 'text') {
       flush()
       sections.push({ type: 'step', key: step.key, step })
       continue
     }
-    if (!group) group = { type: 'group', key: `group-${step.key}`, steps: [] }
+    if (step.type === 'request' || step.type === 'compact') {
+      // 已经在动作组里就按原位插入；还在正文前就挂起，等正文后的第一组动作。
+      if (group) group.steps.push(step)
+      else pending.push(step)
+      continue
+    }
+    if (!group) {
+      group = { type: 'group', key: `group-${step.key}`, steps: [] }
+      if (pending.length) {
+        group.steps.push(...pending)
+        pending = []
+      }
+    }
     group.steps.push(step)
   }
   flush()
+  // 结尾只有请求、没有后续动作时，直接留在时间线上。
+  for (const step of pending) sections.push({ type: 'step', key: step.key, step })
   return sections
 })
 
