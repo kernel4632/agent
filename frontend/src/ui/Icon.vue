@@ -6,8 +6,8 @@
 <script setup>
 import { computed } from 'vue'
 import { HugeiconsIcon } from '@hugeicons/vue'
-const STROKE_NORMAL = 2 // 常规图标（顶栏、操作区）保持更清楚的描边
-const STROKE_MINI = 1 // 底栏和行内 14px 以下的小图标才用细线
+const STROKE_NORMAL = 2 // 常规图标保持清楚的描边
+const STROKE_MINI = 1 // 底栏等 14px 以下的超小图标用细线
 import { Add01Icon, Activity01Icon, AiBrain01Icon, ArrowDown01Icon, ArrowDown02Icon, ArrowExpand01Icon, ArrowRight01Icon, ArrowShrink01Icon, ArrowTurnBackwardIcon, ArrowUp02Icon, Attachment01Icon, Brain02Icon, BulbChargingIcon, BulbIcon, Cancel01Icon, ChartColumnIcon, ChatBotIcon, CheckListIcon, Clock01Icon, CodeIcon, Copy01Icon, Database01Icon, Delete01Icon, Download01Icon, EyeIcon, File02Icon, FlashIcon, Folder01Icon, GaugeIcon, GitForkIcon, Grid2X2PlusIcon, Home01Icon, Idea01Icon, IdeaIcon, InLoveIcon, InformationCircleIcon, InternetIcon, Layers01Icon, LeftToRightListBulletIcon, LightbulbOffIcon, Link01Icon, LookTopIcon, Menu03Icon, Message01Icon, MessageAdd01Icon, MoreVerticalIcon, PencilEdit01Icon, PlayIcon, Refresh01Icon, Search01Icon, Settings03Icon, Shield01Icon, Sorting01Icon, SparklesIcon, Tick02Icon, Upload01Icon, VolumeHighIcon, VolumeOffIcon,  } from '@hugeicons/core-free-icons'
 
 const props = defineProps({ name: { type: String, default: 'spark' }, size: { type: [Number, String], default: 20 }, stroke: { type: [Number, String], default: 0 } })
