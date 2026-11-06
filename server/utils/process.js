@@ -39,12 +39,13 @@ const newId = () => {
 const killTree = pid => {
     try {
         if (process.platform === 'win32') execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' })
-        else process.kill(pid)
+        else process.kill(-pid, 'SIGKILL')
     } catch { /* 进程已经自己退了，不算失败 */ }
 }
 
 // --- 把一条命令放进后台执行；后台进程也走会话目录 ---
 const spawnDetached = async ({ command, cwd }, options = {}) => {
+    options.abortSignal?.throwIfAborted()
     if (typeof command !== 'string' || !command.trim()) throw new Error('command is required')
     const base = options.cwd || process.cwd()
     const workdir = cwd ? (isAbsolute(cwd) ? cwd : resolve(base, cwd)) : base
@@ -58,6 +59,7 @@ const spawnDetached = async ({ command, cwd }, options = {}) => {
             ? ['cmd.exe', '/d', '/s', '/c', command]
             : ['sh', '-c', command],
         cwd: workdir,
+        detached: process.platform !== 'win32',
         stdout: fd,
         stderr: fd,
     })

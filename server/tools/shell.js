@@ -7,9 +7,8 @@
  * 调用示例：模型调用 execute_command({ command: 'bun test', cwd: 'src' })
  */
 
-import { execSync } from 'node:child_process'
 import { isAbsolute, resolve } from 'node:path'
-import { spawnDetached } from '../utils/process.js'
+import { spawnDetached, killTree } from '../utils/process.js'
 
 // 命令最多跑十分钟，防止装依赖或死循环把整个任务挂死。
 const TIMEOUT_MS = 10 * 60 * 1000
@@ -53,6 +52,7 @@ const shell = {
 
     // 第二参必须可省：agent-core 的契约是 execute(input, options?)。
     async execute({ command, cwd, timeout, background }, options = {}) {
+        options.abortSignal?.throwIfAborted()
         // background: true 时不等结果，交一张进程卡就走：日志稍后用 background 工具的 log 读。
         if (background === true) return spawnDetached({ command, cwd }, options)
 
@@ -64,18 +64,14 @@ const shell = {
                 ? ['cmd.exe', '/d', '/s', '/c', command]
                 : ['sh', '-c', command],
             cwd: workdir,
+            detached: platform !== 'win32',
             stdout: 'pipe',
             stderr: 'pipe',
         })
 
-        // 用户点停止或等待超时都要结束这条命令，不让它留在后台继续跑。
-        // Windows 上 cmd /c 会留孙进程（ping、npm run 里的子命令）握着 stdout 管道不关，
-        // child.kill() 只杀 cmd 不够；用 taskkill 按进程树整棵杀掉，管道立刻关闭。
+        // POSIX 命令独占进程组，停止时连同持有输出管道的子进程一起结束。
         let timedOut = false
-        const stop = () => {
-            if (process.platform === 'win32') execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: 'ignore' })
-            else child.kill()
-        }
+        const stop = () => killTree(child.pid)
         options.abortSignal?.addEventListener('abort', stop, { once: true })
         // 按次传的 timeout 优先于默认上限；填错时用默认值，不因此拒绝执行。
         const requested = Number(timeout)
