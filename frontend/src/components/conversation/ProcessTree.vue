@@ -48,7 +48,6 @@ const rows = computed(() => {
       list.push({
         key: step.key, step, depth: 2, isLast: childLast, icon: true,
         nodeX: 48, parentX: 36, elbowY: 22,
-        ancestorRails: isLast ? [] : [{ x: 12 }],
       })
     })
   })
@@ -66,7 +65,6 @@ const line = row => ({
       v-for="row in rows" :key="row.key" class="process-row"
       :class="{ 'is-group': row.group, 'has-children': row.subtree }"
     >
-      <span v-for="rail in row.ancestorRails || []" :key="`rail-${rail.x}`" class="process-line process-line--v" :style="{ left: `${rail.x}px` }"></span>
       <span class="process-line process-line--v process-line--stem" :class="{ 'is-last': row.isLast }" :style="{ left: `${row.parentX}px`, ...line(row) }"></span>
       <span class="process-line process-line--h" :style="{ left: `${row.parentX}px`, top: `${row.elbowY}px`, width: `${(row.icon ? row.nodeX + 12 : row.nodeX) - row.parentX}px` }"></span>
       <span v-if="row.subtree" class="process-line process-line--v process-line--subtree" :style="{ left: `${row.nodeX + 12}px`, top: `${row.elbowY}px` }"></span>
