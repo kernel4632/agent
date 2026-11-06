@@ -265,7 +265,7 @@ async function addSource() {
         <Field
           caption="手动添加技能目录"
           :model-value="sourcePath"
-          placeholder="D:\\work\\skills"
+          placeholder="/Users/yourname/.agents/skills"
           :error="sourceError"
           @update:model-value="sourcePath = $event"
         />

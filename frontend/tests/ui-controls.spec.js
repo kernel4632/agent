@@ -218,8 +218,12 @@ test('password visibility and invalid JSON draft survive until a complete object
   expect(mock.errors).toEqual([])
 })
 
-test('attachment removal and code copying work without a component library', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('attachment removal and code copying work without a component library', async ({ page, context, browserName }) => {
+  if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  else await page.addInitScript(() => {
+    const write = navigator.clipboard.writeText.bind(navigator.clipboard)
+    navigator.clipboard.writeText = async text => { await write(text); window.__copiedText = text }
+  })
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -231,6 +235,6 @@ test('attachment removal and code copying work without a component library', asy
   await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await mock.emit('session-1', [{ type: 'text-delta', text: ['', '', '```js', 'const answer = 42', '```'].join(String.fromCharCode(10)) }])
   await page.getByRole('button', { name: '复制代码' }).click()
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('const answer = 42')
+  await expect.poll(() => page.evaluate(() => window.__copiedText ?? navigator.clipboard.readText())).toBe('const answer = 42')
   expect(mock.errors).toEqual([])
 })

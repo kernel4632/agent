@@ -11,6 +11,7 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:4175', channel: process.env.PLAYWRIGHT_CHANNEL, reducedMotion: 'reduce', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
     { name: 'desktop', use: { viewport: { width: 1440, height: 900 } } },
+    { name: 'webkit', use: { browserName: 'webkit', viewport: { width: 1440, height: 900 } } },
     { name: 'mobile', use: { viewport: { width: 390, height: 844 } } },
   ],
   webServer: [

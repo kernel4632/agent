@@ -155,8 +155,11 @@ function onKeydown(event) {
   if (event.key === 'Tab') {
     // 菜单内部照常 Tab；走到第一个或最后一个再按才关闭，焦点交回输入区。
     const focusable = [...popup.value.querySelectorAll('button:not(:disabled)')].filter(element => element.getClientRects().length)
-    const edge = event.shiftKey ? focusable[0] : focusable.at(-1)
-    if (document.activeElement === edge) { event.preventDefault(); hide() }
+    event.preventDefault()
+    const index = focusable.indexOf(document.activeElement)
+    const next = index + (event.shiftKey ? -1 : 1)
+    if (next < 0 || next >= focusable.length) hide()
+    else focusable[next].focus()
     return
   }
   if (sub.value) return

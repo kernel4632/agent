@@ -224,8 +224,17 @@ test.describe('chat motion', () => {
     await expect(page.locator('.conversation-earlier')).toContainText('更早的')
     await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
     const rendered = await page.locator('.message').count()
-    await page.locator('.conversation-earlier').click()
+    // 短内容直接点分页；可滚动的长内容到顶时会自动加载上一页。
+    await expect(page.locator('.conversation-flow')).not.toHaveClass(/session-swap-enter-active/)
+    const scrollable = await page.locator('.session-scroll').evaluate(element => element.scrollHeight > element.clientHeight)
+    if (scrollable) {
+      await page.locator('.session-scroll').hover()
+      await page.mouse.wheel(0, -10000)
+    } else await page.locator('.conversation-earlier').click()
     await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(rendered)
+    const latest = page.getByRole('button', { name: '回到最新', exact: true })
+    if (await latest.isVisible()) await latest.click()
+    await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
     await page.evaluate(() => { document.querySelector('.chat-composer').dataset.motionKeep = 'yes' })
 
     await watchMotion(page)

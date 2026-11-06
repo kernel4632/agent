@@ -8,6 +8,8 @@ test('real backend accepts current config and completes a persisted conversation
   const failures = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('response', response => {
+    // 自定义模型没有远程图标时接口按契约返回 404，界面使用本地回退图标。
+    if (new URL(response.url()).pathname === '/api/model/icon' && response.status() === 404) return
     if (response.url().includes('/api/') && response.status() >= 400) failures.push(`${response.status()} ${response.url()}`)
   })
   await page.goto('/')
@@ -72,7 +74,7 @@ test('real backend accepts current config and completes a persisted conversation
   await expect.poll(async () => (await session()).title).toBe(input)
   await page.reload()
   await page.getByRole('button', { name: '打开会话抽屉', exact: true }).click()
-  await page.getByRole('button', { name: input, exact: true }).click()
+  await page.getByRole('dialog', { name: '项目与会话' }).getByRole('button', { name: input, exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant')).toContainText('本地测试模型回复')
   await expect(page.getByRole('button', { name: /模型与推理（当前 local-test，思考强度：重）/ })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('real-backend-chat.png'), fullPage: true })

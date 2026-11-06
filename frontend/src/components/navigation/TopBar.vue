@@ -38,7 +38,8 @@ watch(hasTodos, value => { if (!value && props.todoOpen) emit('update:todoOpen',
 const renameOpen = ref(false)
 const titleDraft = ref('')
 
-function openRename() {
+function openRename(event) {
+  event?.currentTarget?.focus({ preventScroll: true })
   if (!props.session) return
   titleDraft.value = props.session.title || ''
   renameOpen.value = true
