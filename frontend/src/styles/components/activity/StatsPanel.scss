@@ -483,3 +483,18 @@
   .stats-panel__simple-row { padding: 8px 0; font-size: 13.5px; }
   .stats-panel__simple-row > strong { font-size: 13.5px; }
 }
+
+/* Token 明细再收紧一档：小图标用于区分缓存/输入/输出。 */
+.stats-panel__simple-head { padding-bottom: 10px; }
+.stats-panel__simple-title { font-size: 16px; line-height: 22px; }
+.stats-panel__simple-total { font-size: 16px; }
+.stats-panel__simple-rows { padding-top: 4px; }
+.stats-panel__simple-row { align-items: center; padding: 7px 0; gap: 12px; font-size: 13.5px; line-height: 18px; }
+.stats-panel__simple-label { display: inline-flex; min-width: 0; align-items: center; gap: 8px; }
+.stats-panel__simple-icon { display: grid; width: 20px; height: 20px; flex: none; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--la-text) 6%, transparent); color: var(--la-secondary); }
+.stats-panel__simple-row > strong { font-size: 13.5px; }
+.stats-panel__simple-row.is-cache-hit .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-success) 13%, transparent); color: var(--la-success); }
+.stats-panel__simple-row.is-cache-hit > strong { color: var(--la-success); }
+.stats-panel__simple-row.is-uncached .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-accent) 13%, transparent); color: var(--la-accent); }
+.stats-panel__simple-row.is-cache-read .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-warning) 14%, transparent); color: var(--la-warning); }
+.stats-panel__simple-row.is-output .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-success) 13%, transparent); color: var(--la-success); }

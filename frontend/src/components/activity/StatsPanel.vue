@@ -157,10 +157,10 @@ const formatDuration = value => {
         <div class="stats-panel__simple-rule"></div>
         <template v-if="hasUsage">
           <div class="stats-panel__simple-rows">
-            <div class="stats-panel__simple-row"><span>缓存命中</span><strong>{{ cacheHitText }}%</strong></div>
-            <div class="stats-panel__simple-row"><span>未缓存输入</span><strong>{{ formatTokens(uncachedInput, usageApproximate) }} tok</strong></div>
-            <div class="stats-panel__simple-row"><span>缓存读取</span><strong>{{ formatTokens(cacheRead, usageApproximate) }} tok</strong></div>
-            <div class="stats-panel__simple-row"><span>输出</span><strong>{{ formatTokens(usage.output, usageApproximate) }} tok</strong></div>
+            <div class="stats-panel__simple-row is-cache-hit"><span class="stats-panel__simple-label"><span class="stats-panel__simple-icon"><Icon name="flash" :size="14" /></span>缓存命中</span><strong>{{ cacheHitText }}%</strong></div>
+            <div class="stats-panel__simple-row is-uncached"><span class="stats-panel__simple-label"><span class="stats-panel__simple-icon"><Icon name="input" :size="14" /></span>未缓存输入</span><strong>{{ formatTokens(uncachedInput, usageApproximate) }} tok</strong></div>
+            <div class="stats-panel__simple-row is-cache-read"><span class="stats-panel__simple-label"><span class="stats-panel__simple-icon"><Icon name="cache-read" :size="14" /></span>缓存读取</span><strong>{{ formatTokens(cacheRead, usageApproximate) }} tok</strong></div>
+            <div class="stats-panel__simple-row is-output"><span class="stats-panel__simple-label"><span class="stats-panel__simple-icon"><Icon name="output" :size="14" /></span>输出</span><strong>{{ formatTokens(usage.output, usageApproximate) }} tok</strong></div>
           </div>
         </template>
         <p v-else class="stats-panel__note">这个会话还没有可统计的用量。</p>
