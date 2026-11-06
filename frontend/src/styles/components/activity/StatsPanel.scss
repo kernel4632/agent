@@ -499,7 +499,3 @@
 .stats-panel__simple-row.is-cache-read .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-warning) 14%, transparent); color: var(--la-warning); }
 .stats-panel__simple-row.is-output .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-success) 13%, transparent); color: var(--la-success); }
 
-/* 用量明细再收一档，减少行间空高。 */
-.stats-panel__simple-head { padding-bottom: 8px; }
-.stats-panel__simple-rows { padding-top: 2px; }
-.stats-panel__simple-row { padding: 4px 0; }

@@ -145,6 +145,8 @@ const formatDuration = value => {
       class="session-stats__menu session-stats__menu--usage"
       :label="`${formatTokens(total, usageApproximate)} tokens${cacheTokens ? `，缓存命中 ${cacheHitText}%` : ''}，点击查看 token 用量`"
       content-label="Token 用量"
+      content-class="stats-panel-menu--usage"
+      :content-style="{ width: '300px' }"
     >
       <template #trigger>
         <span class="session-stats__summary-item"><Icon name="database" :size="14" />{{ formatTokens(total, usageApproximate) }} tokens<template v-if="cacheTokens"><span class="session-stats__cache-hit"> · 缓存命中 {{ cacheHitText }}%</span></template></span>

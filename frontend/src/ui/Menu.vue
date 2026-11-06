@@ -6,7 +6,7 @@ import { nextTick, useId } from 'vue'
 import Button from './Button.vue'
 import Icon from './Icon.vue'
 import { usePopup } from '../utils/popup.js'
-const props = defineProps({ mode: { type: String, default: 'menu' }, label: { type: String, default: '更多操作' }, contentLabel: String, items: { type: Array, default: () => [] } })
+const props = defineProps({ mode: { type: String, default: 'menu' }, label: { type: String, default: '更多操作' }, contentLabel: String, contentClass: String, contentStyle: Object, items: { type: Array, default: () => [] } })
 const emit = defineEmits(['select'])
 const { trigger, popup, open, position, toggle, hide, onToggle } = usePopup({ end: true, align: props.mode === 'content' ? 'center' : 'end' })
 const id = useId()
@@ -33,7 +33,7 @@ function keydown(event) {
   <span :class="mode === 'content' ? 'ui-popover' : 'ui-menu-button'">
     <button v-if="mode === 'content'" ref="trigger" class="ui-button ui-popover__trigger" type="button" :aria-label="label" :aria-expanded="open" :aria-controls="id" @click="launch" @keydown.esc="keydown"><slot name="trigger" /></button>
     <Button v-else ref="trigger" icon class="ui-menu__trigger" :label="label" variant="text" aria-haspopup="menu" :aria-expanded="open" :aria-controls="id" @click="launch" @keydown.down.prevent="launch"><Icon name="more" :size="20" /></Button>
-    <div :id="id" ref="popup" popover="auto" :class="mode === 'content' ? 'ui-popover__content' : 'ui-menu__popup'" :role="mode === 'content' ? 'dialog' : 'menu'" :aria-label="contentLabel || label" :style="position" @toggle="onToggle" @keydown="keydown">
+    <div :id="id" ref="popup" popover="auto" :class="[mode === 'content' ? 'ui-popover__content' : 'ui-menu__popup', contentClass]" :role="mode === 'content' ? 'dialog' : 'menu'" :aria-label="contentLabel || label" :style="[position, contentStyle]" @toggle="onToggle" @keydown="keydown">
       <!-- 内容只在打开时挂载：长会话的统计面板不参与流式渲染，关闭后也不占渲染成本。 -->
       <slot v-if="mode === 'content' && open" />
       <template v-if="mode !== 'content'"><button v-for="item in items" :key="item.value" type="button" role="menuitem" :disabled="item.disabled" @click="choose(item)">{{ item.label }}</button></template>
