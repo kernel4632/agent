@@ -74,7 +74,6 @@ async function testConnection() {
 
 <template>
   <div class="provider-form">
-    <div class="provider-form__meta"><span>{{ type.label }}</span></div>
     <Tabs v-model="tab" :items="tabs">
       <template #panel="{ item }">
         <section v-if="item.value === 'config'" class="provider-tab provider-config" aria-label="供应商配置">

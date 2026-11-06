@@ -12,6 +12,8 @@
 .model-card__id { overflow: hidden; color: var(--la-muted); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .model-card__meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .model-card__meta > span { padding: 2px 6px; border-radius: 5px; background: var(--la-layer-02); color: var(--la-secondary); font-size: 10px; line-height: 16px; }
+.model-card__meta > .model-card__capability { display: grid; min-width: 24px; height: 22px; padding: 0 5px; place-items: center; color: var(--la-secondary); }
+.model-card__capability svg { display: block; }
 .model-card__meta .model-card__default { background: var(--la-accent-soft); color: var(--la-accent); }
 .model-card :deep(.ui-menu-button) { flex: none; }
 .provider-models__empty { display: grid; flex: 1; justify-items: center; align-content: center; gap: 14px; min-height: 230px; padding: 32px 16px; color: var(--la-muted); text-align: center; }

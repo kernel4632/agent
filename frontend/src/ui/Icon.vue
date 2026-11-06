@@ -6,6 +6,7 @@
 <script setup>
 import { computed } from 'vue'
 import { HugeiconsIcon } from '@hugeicons/vue'
+import { BrainIcon, Image01Icon, TextIcon, ToolsIcon } from '@hugeicons/core-free-icons'
 // 以 14px→1.3px、18px→2px 两个实际尺寸为锚点做线性过渡。
 // 小图标保持底栏合适的细度，顶栏恢复到之前的 2px，大图标不再继续变粗。
 const MIN_SIZE = 14
@@ -67,6 +68,10 @@ const icons = {
   mode: AiBrain01Icon,
   model: Brain02Icon,
   idea: Idea01Icon,
+  text: TextIcon,
+  image: Image01Icon,
+  tools: ToolsIcon,
+  reasoning: BrainIcon,
   info: InformationCircleIcon,
   link: Link01Icon,
   eye: EyeIcon,

@@ -32,8 +32,19 @@
 .settings-detail { display: block; min-width: 0; }
 /* 供应商详情参考 RikkaHub 的紧凑顶栏；内容区内部滚动，底部操作不盖住表单。 */
 .settings-screen--provider .settings-topbar__inner { display: flex; align-items: center; gap: 8px; }
-.settings-screen--provider .settings-topbar__heading { min-width: 0; padding: 0; }
+.settings-screen--provider .settings-topbar__heading { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 0; }
 .settings-screen--provider .settings-topbar__heading h1 { overflow: hidden; font-size: 22px; line-height: 30px; text-overflow: ellipsis; white-space: nowrap; }
+.settings-topbar__badge {
+  flex: none;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: var(--la-accent-soft);
+  color: var(--la-accent);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
 .settings-screen--provider .settings-scroll { display: flex; overflow: hidden; padding-bottom: 16px; }
 .settings-screen--provider .settings-detail { display: flex; min-height: 0; flex: 1; }
 /* 进入从右侧覆盖，返回向右侧滑出；未离开的页面保持原位。 */

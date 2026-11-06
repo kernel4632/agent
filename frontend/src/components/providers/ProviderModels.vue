@@ -32,6 +32,7 @@ const ABILITIES = [
   { value: 'reasoning', label: '推理输出' },
 ]
 const capabilityLabel = value => ({ text: '文本', image: '图像', tools: '工具', reasoning: '推理' }[value] || value)
+const capabilityIcon = value => ({ text: 'text', image: 'image', tools: 'tools', reasoning: 'reasoning' }[value] || 'spark')
 const formatContext = value => value >= 1000000 ? `${value / 1000000}M` : `${Math.round(value / 1000)}K`
 const selected = id => props.models.some(model => model.id === id)
 const filtered = computed(() => {
@@ -139,8 +140,11 @@ async function saveModel() {
           <span class="model-card__icon"><ModelIcon :model="model.id" :family="model.family" :size="24" /></span>
           <span class="model-card__copy">
             <span class="model-card__title">{{ model.name }}</span>
-            <span class="model-card__id">{{ model.id }}</span>
-            <span class="model-card__meta"><span v-for="capability in model.capabilities" :key="capability">{{ capabilityLabel(capability) }}</span><span>{{ formatContext(model.context) }}</span><span v-if="index === 0" class="model-card__default">默认</span></span>
+            <span v-if="model.name !== model.id" class="model-card__id">{{ model.id }}</span>
+            <span class="model-card__meta">
+              <span v-for="capability in model.capabilities" :key="capability" class="model-card__capability" role="img" :aria-label="capabilityLabel(capability)" :title="capabilityLabel(capability)"><Icon :name="capabilityIcon(capability)" :size="14" /></span>
+              <span>{{ formatContext(model.context) }}</span><span v-if="index === 0" class="model-card__default">默认</span>
+            </span>
           </span>
         </button>
         <Menu :label="`${model.name} 的更多操作`" :items="modelActions(index)" @select="runAction(model, $event)" />

@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { Navigation } from '../commands/navigation.js'
-import { Settings } from "../features/settings.js"
+import { Settings, PROVIDER_TYPES } from "../features/settings.js"
 import { store } from '../store.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -62,6 +62,11 @@ const selectedPage = computed(() => {
 const groups = groupSettingsPages(settingsPages)
 const draft = computed(() => store.settings.draft)
 const detail = computed(() => store.ui.settingsDetail)
+const detailBadge = layer => {
+  if (layer.page?.id !== 'providers' || !layer.detail || !draft.value) return ''
+  const provider = draft.value.providers.find(item => item.id === layer.detail.id)
+  return PROVIDER_TYPES.find(item => item.value === provider?.apiType)?.label || ''
+}
 const layers = computed(() => {
   const pages = [{ key: 'home', title: '设置', page: null, detail: null }]
   const page = selectedPage.value
@@ -154,7 +159,7 @@ function goBack() {
             <div class="settings-topbar__actions">
               <Button icon label="返回" @click="goBack"><Icon name="arrow" :size="18" class="settings-back-icon" /></Button>
             </div>
-            <div class="settings-topbar__heading"><h1 :title="layer.title" tabindex="-1">{{ layer.title }}</h1></div>
+            <div class="settings-topbar__heading"><h1 :title="layer.title" tabindex="-1">{{ layer.title }}</h1><span v-if="detailBadge(layer)" class="settings-topbar__badge">{{ detailBadge(layer) }}</span></div>
           </div>
         </header>
 
