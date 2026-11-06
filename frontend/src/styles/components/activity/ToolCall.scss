@@ -38,3 +38,7 @@
   background: color-mix(in srgb, var(--la-secondary) 34%, transparent);
   content: "";
 }
+/* 子智能体分支与主树保持同样的线宽。 */
+.subagent-branch { border-left-width: 2px; }
+.subagent-branch__steps .cot-step::before { width: 2px; }
+.subagent-branch__steps .cot-step::after { height: 2px; }

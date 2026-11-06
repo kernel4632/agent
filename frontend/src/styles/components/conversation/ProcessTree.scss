@@ -1,4 +1,4 @@
-/* 处理过程树：所有连线共用同一套 1px 线，缩进由数据行自己决定。 */
+/* 处理过程树：所有连线共用同一套 2px 线，缩进由数据行自己决定。 */
 .process-rows { position: relative; padding: 2px 0 4px; }
 .process-row { position: relative; min-width: 0; }
 .process-row__body { position: relative; z-index: 1; min-width: 0; }
@@ -48,3 +48,12 @@
 .process-group__caret.is-open { transform: rotate(180deg); }
 /* 外层树已经画线，叶节点本身不再重复一条平铺竖线。 */
 .process-row__body > :deep(.cot-step::before) { display: none; }
+/* 统一树线：2px 同色，所有分叉长度一致（父图标中心到子图标中心）。 */
+.process-line { background: var(--tree-line); }
+.process-line--v { width: var(--tree-width); }
+.process-line--h { height: var(--tree-width); }
+.process-rows {
+  --tree-line: color-mix(in srgb, var(--la-secondary) 55%, transparent);
+  --tree-width: 2px;
+}
+
