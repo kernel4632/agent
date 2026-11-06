@@ -111,7 +111,11 @@ app.group('/session', session => session
     .post('/rollback/tool/:sessionId', ({ params, body }) => Session.rollbackTool({ ...params, ...body }))
     .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
     .post('/redo/:sessionId', ({ params, body }) => Session.redo({ ...params, ...(body || {}) }))
-    .post('/compact/:sessionId', ({ params }) => Session.compact(params)))
+    .post('/compact/:sessionId', ({ params, request, server }) => {
+        // 模型生成总结前不会写响应字节，不能让 HTTP 空闲计时提前断开。
+        server?.timeout(request, 0)
+        return Session.compact(params)
+    }))
 
 // --- 配置 ---
 app.group('/config', config => config
