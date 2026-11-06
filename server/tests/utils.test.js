@@ -581,10 +581,10 @@ describe('server tool approval and SSE', () => {
         })
     })
 
-    test('remembers an exact read_file path across sessions, including Windows separators', async () => {
+    test.each(['input.txt', 'input (1).txt'])('remembers an exact Windows path across sessions: %s', async filename => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'ask' } })
-            const target = 'F:\\workspace\\中文 目录\\input (1).txt'
+            const target = 'F:\\workspace\\中文 目录\\' + filename
             const waitFor = async (sessionId, callId) => {
                 // 审批请求什么时候登记由 check 的异步链决定，轮询等它出现再决定，不猜时序。
                 for (let index = 0; index < 200; index++) {

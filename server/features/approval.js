@@ -63,7 +63,8 @@ const decideByRules = (toolName, matchValue, rules = store.config.permission || 
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
         // 对象形式的规则按参数匹配：最后一条命中的模式说了算。
         for (const [pattern, result] of Object.entries(toolRule)) {
-            if (picomatch.isMatch(matchValue, pattern, { bash: true, dot: true })) decision = normalize(result)
+            // 参数是原始字符串，不是待规范化的路径；快路径会丢掉中文前面的反斜杠。
+            if (picomatch.isMatch(matchValue, pattern, { bash: true, dot: true, windows: false, fastpaths: false })) decision = normalize(result)
         }
     }
     return decision
