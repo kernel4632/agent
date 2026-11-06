@@ -1630,6 +1630,12 @@ test('select keeps one combobox and chooses from its listbox', async ({ page }) 
   await expect(listbox).toBeHidden()
   await expect(combobox).toContainText('鲜艳（高饱和）')
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('agent.appearance') || '{}').variant)).toBe('vibrant')
+
+  // 圆角滑条要立即改根变量和实际卡片，而不是等保存或刷新。
+  const radius = card.getByRole('slider', { name: '圆角大小' })
+  await radius.evaluate(input => { input.value = '0'; input.dispatchEvent(new Event('input', { bubbles: true })) })
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--la-radius').trim())).toBe('0px')
+  await expect(page.locator('.ui-settings-list__card').first()).toHaveCSS('border-top-left-radius', '0px')
   expect(mock.errors).toEqual([])
 })
 

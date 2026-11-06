@@ -16,7 +16,7 @@
   place-items: stretch;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--la-danger) 55%, transparent);
-  border-radius: 20px;
+  border-radius: var(--la-shape-card);
   background: color-mix(in srgb, var(--la-bg) 60%, transparent);
   box-shadow: 0 18px 48px color-mix(in srgb, #000 32%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
@@ -63,7 +63,7 @@
   gap: 16px;
   margin-bottom: 8px;
   padding: 10px 12px 10px 14px;
-  border-radius: 16px;
+  border-radius: var(--la-shape-popup);
   background: var(--la-layer-02);
   color: var(--la-secondary);
   font-size: 13px;
@@ -92,7 +92,7 @@
   place-items: center;
   padding: 0 18px;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--la-shape-card);
   background: color-mix(in srgb, var(--la-bg) 55%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(120%);
   backdrop-filter: blur(16px) saturate(120%);
