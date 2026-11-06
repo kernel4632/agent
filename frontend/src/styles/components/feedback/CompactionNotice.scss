@@ -29,4 +29,11 @@
   color: var(--la-muted);
 }
 .compaction-summary strong { color: var(--la-secondary); font-size: 12px; font-weight: 650; }
-.compaction-summary p { max-height: 260px; overflow: auto; margin: 0; font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.compaction-summary__body { max-height: 420px; overflow: auto; }
+.compaction-summary__body :deep(.markdown-body) { color: var(--la-muted); font-size: 12px; line-height: 1.7; }
+.compaction-summary__body :deep(.markdown-body h1),
+.compaction-summary__body :deep(.markdown-body h2),
+.compaction-summary__body :deep(.markdown-body h3),
+.compaction-summary__body :deep(.markdown-body h4) { color: var(--la-text); font-size: 13px; }
+.compaction-summary__body :deep(.markdown-body h2) { margin-top: 14px; }
+.compaction-summary__body :deep(.markdown-body pre) { margin: 8px 0; }

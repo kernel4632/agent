@@ -6,6 +6,7 @@
 <script setup>
 import { ref } from 'vue'
 import Icon from '../../ui/Icon.vue'
+import Markdown from '../../ui/Markdown.vue'
 
 const props = defineProps({
   content: { type: String, default: '' },
@@ -35,7 +36,7 @@ const open = ref(false)
   </div>
   <div v-if="open && content" class="compaction-summary">
     <strong>压缩摘要</strong>
-    <p>{{ content }}</p>
+    <div class="compaction-summary__body"><Markdown :content="content" compact /></div>
   </div>
 </template>
 

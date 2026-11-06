@@ -1192,7 +1192,7 @@ test('compaction summary renders as a divider, not a user bubble', async ({ page
     history: [
       { messageId: 'compact-u1', role: 'user', content: '旧问题' },
       { messageId: 'compact-a1', role: 'assistant', content: [{ type: 'text', text: '旧回答' }] },
-      { messageId: 'compact-summary', role: 'user', compact: true, content: '压缩摘要正文' },
+      { messageId: 'compact-summary', role: 'user', compact: true, content: '## 项目背景\n\n- 仓库：`kernel4632/agent`\n- 版本：server 0.65.0 / frontend 0.99.27\n\n**关键发现**：旧后端没有加载修复。' },
       { messageId: 'compact-u2', role: 'user', content: '新问题' },
       { messageId: 'compact-a2', role: 'assistant', content: [{ type: 'text', text: '新回答' }] },
     ],
@@ -1211,7 +1211,9 @@ test('compaction summary renders as a divider, not a user bubble', async ({ page
   await expect(page.locator('.compaction-notice')).toContainText('上下文已压缩')
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '压缩摘要正文' })).toHaveCount(0)
   await page.locator('.compaction-notice__button').click()
-  await expect(page.locator('.compaction-summary')).toContainText('压缩摘要正文')
+  await expect(page.locator('.compaction-summary')).toContainText('旧后端没有加载修复')
+  await expect(page.locator('.compaction-summary .markdown-body h2')).toHaveText('项目背景')
+  await expect(page.locator('.compaction-summary .markdown-body code').first()).toHaveText('kernel4632/agent')
   await screenshot(page, testInfo, 'compaction-divider')
   expect(mock.errors).toEqual([])
 })
