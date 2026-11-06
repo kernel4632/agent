@@ -55,6 +55,16 @@
   border-radius: 50%;
   background: var(--la-warning);
 }
+/* 回退只留输入框上方这一条撤销提示，不再额外弹 Toast。 */
+.chat-notice--undo {
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border-radius: 14px;
+  background: var(--la-layer-03);
+  color: var(--la-secondary);
+  font-size: 13px;
+}
+.chat-notice--undo[role="status"]::before { display: none; }
 /* 输入框上方的提示和面板统一从下往上出现，离开时更快消失。 */
 .notice-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
 .notice-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }

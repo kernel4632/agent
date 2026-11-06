@@ -231,21 +231,18 @@ async function rollbackMessage(sessionID, messageID, files = true) {
   try {
     const session = store.sessions[sessionID]
     const message = session.messages.find(item => item.id === messageID)
-    const result = await AgentAPI.rollback(sessionID, messageID, files)
+    await AgentAPI.rollback(sessionID, messageID, files)
     await refresh(sessionID)
-    // 只有回退到用户消息时才把正文放回输入框；助手回复不是用户的草稿。
+    // 回退成功的反馈由输入框上方的撤销条承担，不再额外弹 Toast。
     store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
-    const where = message?.role === 'user' ? '已回退到用户消息之前' : '已回退到助手回复之前'
-    Notice.show(result.restored?.length ? `${where}，并恢复 ${result.restored.length} 个文件` : where)
     return true
   } catch (error) { Notice.show(error.message); return false }
 }
 
 async function undoRollback(sessionID, files = true) {
   try {
-    const result = await AgentAPI.redo(sessionID, files)
+    await AgentAPI.redo(sessionID, files)
     await refresh(sessionID)
-    Notice.show(result.restored?.length ? `已撤销回退，并还原 ${result.restored.length} 个文件` : '已撤销回退')
   } catch (error) { Notice.show(error.message) }
 }
 
