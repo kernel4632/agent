@@ -278,35 +278,67 @@ const create = async ({ sessionId }) => {
     const session = await services.history.load(sessionId)                     // 先把会话元数据读进内存
     const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度
     const config = await resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
-    const tools = await services.tool.build({
+    const built = await services.tool.build({
         sessionId,
         // 子任务可以用 models.task 单独指定；没配就跟这条会话自己的模型走。
         taskConfig: await resolveFor({ session, settings, target: taskModel('task', session.model) }),
         onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口
         saveSession: () => services.history.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
     })
-    // 审批只依赖 config 和工具宿主，不再 import agent；这里静态引入不会成环。
-    const instance = AgentCore.create({
-        id: sessionId,
-        history: session.history.messages.map(record => record.message),
-        config,
-        tools,
-        callbacks: { onPermission: services.approval.check },
-    })
-    // 记下装配时的目录：cwd 工具移动之后，下一次运行要按新目录重建工具表。
-    instance.cwd = session.cwd
-    await refreshSystem(instance, session)                       // 项目规则按装配那一刻的目录读一次
+    // Tool.build 返回工具快照和 MCP 租约；兼容旧的纯数组返回值。
+    const tools = Array.isArray(built) ? built : built.tools
+    let instance
+    try {
+        // 审批只依赖 config 和工具宿主，不再 import agent；这里静态引入不会成环。
+        instance = AgentCore.create({
+            id: sessionId,
+            history: session.history.messages.map(record => record.message),
+            config,
+            tools,
+            callbacks: { onPermission: services.approval.check },
+        })
+        // 记下装配时的目录：cwd 工具移动之后，下一次运行要按新目录重建工具表。
+        instance.cwd = session.cwd
+        instance.mcpRevision = Array.isArray(built) ? 0 : built.mcpRevision
+        instance.releaseTools = Array.isArray(built) ? null : built.release
+        await refreshSystem(instance, session)                   // 项目规则按装配那一刻的目录读一次
+    } catch (error) {
+        await Promise.resolve(built?.release?.()).catch(() => {})
+        throw error
+    }
     agents.set(sessionId, instance)
     return instance
+}
+
+// --- 丢掉一个 Agent 时一并释放它持有的 MCP 连接 ---
+const dispose = async instance => {
+    const release = instance?.releaseTools
+    if (!release) return
+    instance.releaseTools = null
+    await Promise.resolve(release()).catch(() => {})
 }
 
 // --- 获取或创建 Agent ---
 const getAgent = async ({ sessionId }) => {
     const session = await services.history.load(sessionId)
     const current = agents.get(sessionId)
+    const revision = services.tool.mcpRevision?.() || 0
     if (current) {
+        // 配置变化时只让空闲 Agent 重建；运行中的回合继续用旧快照，结束再收敛。
+        const stale = Number.isFinite(current.mcpRevision) && current.mcpRevision !== revision
+        if (stale && current.running) {
+            current.stale = true
+            await refreshSystem(current, session)
+            return current
+        }
+        if (stale) {
+            agents.delete(sessionId)
+            await dispose(current)
+            return create({ sessionId })
+        }
         if (!current.running && current.cwd !== undefined && current.cwd !== session.cwd) {
             agents.delete(sessionId)
+            await dispose(current)
             return create({ sessionId })
         }
         // 空闲时补上别的入口刚追加的消息；回退后变短的历史由 Session.read 负责交回。
@@ -321,6 +353,16 @@ const getAgent = async ({ sessionId }) => {
     return create({ sessionId })
 }
 
+// --- 回合结束后回收已经过期的 Agent，避免旧 MCP 连接一直挂着 ---
+const settle = async sessionId => {
+    const current = agents.get(sessionId)
+    if (!current || current.running) return
+    const revision = services.tool.mcpRevision?.() || 0
+    if (!Number.isFinite(current.mcpRevision) || current.mcpRevision === revision) return
+    agents.delete(sessionId)
+    await dispose(current)
+}
+
 // --- 运行中的 Agent 实例只给运行模块用 ---
 const runtime = () => agents
 
@@ -328,11 +370,15 @@ const runtime = () => agents
 const runningCount = () => [...agents.values()].filter(agent => agent.running).length
 
 // --- 供应商/模型切换后重建 ---
-const invalidate = sessionId => agents.delete(sessionId)
+const invalidate = sessionId => {
+    const current = agents.get(sessionId)
+    agents.delete(sessionId)
+    void dispose(current)
+}
 
 export default {
     defaultSettings, normalizeSettings, readSettings, saveSettings,
     connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel,
-    create, get: getAgent, runtime, runningCount, invalidate, bind,
+    create, get: getAgent, runtime, runningCount, invalidate, settle, bind,
     REASONING_LEVELS, threshold,
 }

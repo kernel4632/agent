@@ -435,6 +435,47 @@ describe('技能识别与管理', () => {
     })
 })
 
+describe('MCP 配置版本与 Agent 快照', () => {
+    test('空闲 Agent 在 MCP 配置变化后重建', async () => {
+        await withHome(async ({ project }) => {
+            await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
+            const { sessionId } = await Session.create({ title: 'MCP revision', cwd: project })
+            const before = await Agent.get({ sessionId })
+            const version = Mcp.revision()
+
+            await Mcp.save({ name: 'disabled-test', definition: { command: 'bun', enabled: false } })
+            expect(Mcp.revision()).toBe(version + 1)
+            const after = await Agent.get({ sessionId })
+            expect(after).not.toBe(before)
+            expect(after.mcpRevision).toBe(Mcp.revision())
+
+            await Mcp.remove({ name: 'disabled-test' })
+            await Mcp.close()
+        })
+    })
+
+    test('运行中的 Agent 保持旧快照，结束后再重建', async () => {
+        await withHome(async ({ project }) => {
+            await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
+            const { sessionId } = await Session.create({ title: 'MCP running', cwd: project })
+            const before = await Agent.get({ sessionId })
+            before.running = {}                                      // 模拟这一轮还没结束
+
+            await Mcp.save({ name: 'disabled-test', definition: { command: 'bun', enabled: false } })
+            expect(await Agent.get({ sessionId })).toBe(before)
+            expect(before.stale).toBe(true)
+
+            before.running = null
+            await Agent.settle(sessionId)
+            expect(Agent.runtime().get(sessionId)).toBeUndefined()
+            expect(await Agent.get({ sessionId })).not.toBe(before)
+
+            await Mcp.remove({ name: 'disabled-test' })
+            await Mcp.close()
+        })
+    })
+})
+
 describe('能力接口装配', () => {
     test('会话装配后技能清单跟着目录里的技能走', async () => {
         await withHome(async ({ project }) => {

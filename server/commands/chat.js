@@ -39,6 +39,7 @@ const finishRun = async (sessionId, token) => {
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
     History.setRunning(sessionId, false)
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
+    await Agent.settle(sessionId)
 }
 
 // --- 取一条消息里的纯文本 ---

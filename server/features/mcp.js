@@ -12,7 +12,9 @@
  * 保存配置由 server.js 启动时绑定进来（本文件不 import 其他 feature）。
  *
  * 调用示例：
- *   const tools = await Mcp.tools({ sessionId })
+ *   const lease = await Mcp.acquire({ sessionId })
+ *   const tools = lease.tools
+ *   lease.release()
  *   await Mcp.save({ name: 'everything', definition: { command: 'bun', args: ['server.js'] } })
  *   await Mcp.test({ name: 'everything' })
  *   await Mcp.close()
@@ -28,11 +30,16 @@ import SSE from '../utils/sse.js'
 let services = {}
 const bind = value => { services = value }
 
-// --- 连上的服务 ---
-const connections = new Map()
-// 连不上的服务记在这里（名字 → 失败原因）：本次进程内不再重试，避免每次装配会话都
-// 卡在同一个起不来的服务上；但绝不改用户配置。配置是用户写的，临时故障不该变成永久停用。
-const failures = new Map()
+// 每次配置变化递增。Agent 记住自己创建时的版本，旧 Agent 不会被新配置从脚下改掉。
+let revision = 0
+const revisionOf = () => revision
+
+// 连接按版本分组：旧 Agent 还在跑时，旧版本的连接不能被新配置关掉。
+const connections = new Map()                        // `${revision}\0${name}` -> { client, tools }
+const failures = new Map()                           // `${revision}\0${name}` -> 失败原因
+const leases = new Map()                             // revision -> 持有它的 Agent 数量
+
+const connectionKey = (name, rev = revision) => `${rev}\u0000${name}`
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
@@ -64,55 +71,111 @@ const transportFor = definition => definition.transport === 'sse' || definition.
 
 // --- 连接一个服务并拉取工具清单 ---
 // 用 withTimeout 包住“建客户端”和“拉工具”两步：外部 stdio 服务起不来或不应答时，
-// 不能让整个会话装配卡在那里。失败只记进 failures 并在本次进程内跳过，
-// 不改用户配置——临时故障不该变成永久停用，用户下次修好命令就该能重连。
-const connect = async ({ name, sessionId }) => {
-    const definition = (store.config.mcp || {})[name]     // 该服务在内存里的定义
+// 不能让整个会话装配卡在那里。失败只记进当前版本的 failures 并在这版配置内跳过，
+// 不改用户配置——临时故障不该变成永久停用，改配置后会重新尝试。
+const connect = async ({ name, rev = revision, definition = (store.config.mcp || {})[name], sessionId }) => {
     if (!definition) return null                          // 没配这个服务，什么都不做
     if (definition.enabled === false) return null         // 用户停用了，不连
 
+    const key = connectionKey(name, rev)
     try {
         const client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 5000, `MCP 服务 ${name} 启动连接超时`)
         const tools = await withTimeout(client.tools(), 5000, `MCP 服务 ${name} 读取工具清单超时`)
-        connections.set(name, { client, tools })          // 连上了就留着，下次装配直接复用
-        failures.delete(name)                             // 之前失败过也算翻篇
+        connections.set(key, { client, tools })           // 连上了就留着，同一版本的下次装配直接复用
+        failures.delete(key)                              // 之前失败过也算翻篇
         return tools
     } catch (error) {
-        failures.set(name, error.message)                 // 记住这次失败，同一进程内不再重试
+        failures.set(key, error.message)                  // 记住这次失败，同一版本内不再重试
         // 一次连不上不该拖垮整个会话，告诉界面就好。
         if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
         return null
     }
 }
 
-// --- 配置改了以后丢掉旧连接，下次用到时按新定义重连 ---
-const disconnect = async name => {
-    failures.delete(name)          // 配置变了，之前的失败结论不再成立
-    const connection = connections.get(name)
-    if (!connection) return
-    connections.delete(name)
-    await connection.client.close().catch(() => {})
+// --- 关闭一个版本的全部连接；只有没有 Agent 再持有这个版本时才调用 ---
+const closeRevision = async rev => {
+    // 先把失败记录和连接从索引里摘掉，避免关闭期间新 Agent 复用一半状态。
+    for (const key of [...failures.keys()]) {
+        if (key.startsWith(`${rev}\u0000`)) failures.delete(key)
+    }
+    const closing = []
+    for (const [key, connection] of [...connections]) {
+        if (!key.startsWith(`${rev}\u0000`)) continue
+        connections.delete(key)
+        closing.push(connection.client.close().catch(() => {}))
+    }
+    await Promise.all(closing)
 }
 
-// --- 取全部已连服务的工具，需要时先连上新增加的服务 ---
-const tools = async ({ sessionId } = {}) => {
+// 配置版本前进后，没有任何 Agent 持有的旧版本可以立即回收。
+const closeUnused = async () => {
+    const revisions = new Set([
+        ...leases.keys(),
+        ...[...connections.keys()].map(key => Number(key.split('\u0000')[0])),
+        ...[...failures.keys()].map(key => Number(key.split('\u0000')[0])),
+    ])
+    for (const rev of revisions) {
+        if (rev !== revision && !leases.get(rev)) await closeRevision(rev)
+    }
+}
+
+// --- 取某一版配置的全部工具；同版本内已经连上的直接复用 ---
+const toolsForRevision = async (rev, sessionId) => {
     const configured = Object.keys(store.config.mcp || {})
-    // 配置里已经删掉的服务，它们的连接、工具和失败记录都不该再留着。
-    for (const name of [...connections.keys()]) {
-        if (!configured.includes(name)) await disconnect(name)
-    }
-    for (const name of [...failures.keys()]) {
-        if (!configured.includes(name)) failures.delete(name)
-    }
-    // 本次进程内失败过的先跳过：每次都重试只会让每轮对话都卡几秒。
-    const pending = configured.filter(name => !connections.has(name) && !failures.has(name))
-    await Promise.all(pending.map(name => connect({ name, sessionId })))
+    // 固定这一版的定义快照：连接期间用户改配置时，旧 Agent 不会拿到新旧混合的工具。
+    const definitions = Object.fromEntries(configured.map(name => [name, store.config.mcp[name]]))
+    // 同一版本里失败过的先跳过：每次都重试只会让每轮对话都卡几秒；换版本会重试。
+    const pending = configured.filter(name => !connections.has(connectionKey(name, rev)) && !failures.has(connectionKey(name, rev)))
+    await Promise.all(pending.map(name => connect({ name, rev, definition: definitions[name], sessionId })))
 
     const merged = {}
-    for (const [name, connection] of connections) {
+    for (const name of configured) {
+        const connection = connections.get(connectionKey(name, rev))
+        if (!connection) continue
         for (const [toolName, tool] of Object.entries(connection.tools)) merged[`${name}_${toolName}`] = tool
     }
     return merged
+}
+
+// --- 兼容只取工具的调用：测试和诊断用，不建立租约 ---
+const tools = async ({ sessionId } = {}) => toolsForRevision(revision, sessionId)
+
+/**
+ * Agent 创建时拿一份工具租约；同一版本可以多个 Agent 共享连接。
+ * Agent 销毁时 release，最后一个持有者释放后才关闭这一版连接。
+ */
+const acquire = async ({ sessionId } = {}) => {
+    const rev = revision
+    leases.set(rev, (leases.get(rev) || 0) + 1)
+    try {
+        const tools = await toolsForRevision(rev, sessionId)
+        let released = false
+        return {
+            revision: rev,
+            tools,
+            release: () => {
+                if (released) return
+                released = true
+                const count = Math.max(0, (leases.get(rev) || 1) - 1)
+                if (count) leases.set(rev, count)
+                else {
+                    leases.delete(rev)
+                    void closeRevision(rev)
+                }
+            },
+        }
+    } catch (error) {
+        const count = Math.max(0, (leases.get(rev) || 1) - 1)
+        if (count) leases.set(rev, count)
+        else leases.delete(rev)
+        throw error
+    }
+}
+
+// 配置变了就前进一个版本；旧版本留给还在运行的 Agent，空闲旧 Agent 下次重建时回收。
+const bump = async () => {
+    revision += 1
+    await closeUnused()
 }
 
 // --- 设置页用的服务清单：只读内存配置，不主动连接 ---
@@ -123,7 +186,7 @@ const list = () => Object.entries(store.config.mcp || {})
         name,
         enabled: definition.enabled !== false,
         definition,
-        ...(failures.has(name) ? { error: failures.get(name) } : {}),
+        ...(failures.has(connectionKey(name)) ? { error: failures.get(connectionKey(name)) } : {}),
     }))
     .sort((first, second) => first.name.localeCompare(second.name))
 
@@ -170,7 +233,7 @@ const save = async ({ name, definition } = {}) => {
     if (!isObject(store.config.mcp)) store.config.mcp = {}
     store.config.mcp[key] = value
     await services.config.save()
-    await disconnect(key)
+    await bump()
     return { name: key, enabled: value.enabled !== false, definition: value }
 }
 
@@ -180,7 +243,7 @@ const remove = async ({ name } = {}) => {
     if (!isObject(store.config.mcp) || !store.config.mcp[key]) throw fail(404, `MCP server not found: ${key}`)
     delete store.config.mcp[key]
     await services.config.save()
-    await disconnect(key)
+    await bump()
     return { ok: true, name: key }
 }
 
@@ -192,7 +255,7 @@ const toggle = async ({ name, enabled } = {}) => {
     if (!current) throw fail(404, `MCP server not found: ${key}`)
     current.enabled = enabled
     await services.config.save()
-    await disconnect(key)
+    await bump()
     return { name: key, enabled }
 }
 
@@ -222,9 +285,10 @@ const close = async () => {
     }
     connections.clear()
     failures.clear()
+    leases.clear()
 }
 
 // --- 最近一次连接失败的原因；设置页用它提示“这个服务起不来” ---
-const lastError = name => failures.get(name) || ''
+const lastError = name => failures.get(connectionKey(name)) || ''
 
-export default { tools, connect, close, bind, list, save, remove, toggle, test, lastError }
+export default { tools, acquire, connect, close, bind, list, save, remove, toggle, test, lastError, revision: revisionOf }

@@ -8,12 +8,13 @@
  *
  * 调用示例：
  *   const catalog = await Tool.list()                       // 设置页用
- *   const tools = await Tool.build({                        // 会话启动时装配
+ *   const { tools } = await Tool.build({                   // 会话启动时装配
  *       sessionId,
  *       taskConfig,
  *       onPermission: Approval.check,                        // 工具执行前的审批关口
  *       saveSession: () => History.save(sessionId),          // 工具改会话后落盘
  *   })
+ *   // 返回 { tools, mcpRevision, release }；release 由 Agent 销毁时调用。
  *   await Tool.snapshot({ sessionId, toolCallId, toolName, input })
  */
 
@@ -131,33 +132,43 @@ const attach = (tool, sessionId, { saveSession }) => ({
 })
 
 // --- 组装一条会话的工具表：主 Agent 使用全部工具 ---
+// 外部 MCP 工具按配置版本租用；Agent 销毁时释放租约，最后一个 Agent 释放后才关连接。
 const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
     const session = store.sessions[sessionId]                       // 本次装配对应的会话
-    const { tools: registered } = await scan()                      // 扫描内置工具和用户工具
-    const catalog = new Map(registered)                             // 按名字索引，后面同名会覆盖
+    const lease = await services.mcp.acquire({ sessionId })
+    try {
+        const { tools: registered } = await scan()                  // 扫描内置工具和用户工具
+        const catalog = new Map(registered)                         // 按名字索引，后面同名会覆盖
 
-    // 外部服务给的工具也一起交给模型；名字已经带服务名前缀。
-    for (const [name, tool] of Object.entries(await services.mcp.tools({ sessionId }))) {
-        catalog.set(name, { ...tool, name, kind: 'mcp' })
+        // 外部服务给的工具也一起交给模型；名字已经带服务名前缀。
+        for (const [name, tool] of Object.entries(lease.tools)) {
+            catalog.set(name, { ...tool, name, kind: 'mcp' })
+        }
+
+        // 技能不把正文塞进工具表，只给一个按需读正文的工具。
+        const skill = await Skill.build({ cwd: session.cwd })       // 技能正文留在磁盘上，用时才读
+        if (skill) catalog.set(skill.name, skill)
+
+        const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
+        let set = Agent.tool.adopt(bound)                           // 转成 agent-core 认识的工具表
+
+        // 子智能体暂时下架（正式版再引入）：恢复时取消这段注释，并把 import Delegation 一起恢复。
+        // const task = Delegation.build({
+        //     config: taskConfig,
+        //     tools: set,
+        //     sessionId,
+        //     onPermission,
+        // })
+        // set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
+        return { tools: set, mcpRevision: lease.revision, release: lease.release }
+    } catch (error) {
+        lease.release()
+        throw error
     }
-
-    // 技能不把正文塞进工具表，只给一个按需读正文的工具。
-    const skill = await Skill.build({ cwd: session.cwd })           // 技能正文留在磁盘上，用时才读
-    if (skill) catalog.set(skill.name, skill)
-
-    const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
-    let set = Agent.tool.adopt(bound)                               // 转成 agent-core 认识的工具表
-
-    // 子智能体暂时下架（正式版再引入）：恢复时取消这段注释，并把 import Delegation 一起恢复。
-    // const task = Delegation.build({
-    //     config: taskConfig,
-    //     tools: set,
-    //     sessionId,
-    //     onPermission,
-    // })
-    // set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
-    return set
 }
+
+// --- 当前 MCP 配置版本；Agent 用它判断自己的工具快照是否过期 ---
+const mcpRevision = () => services.mcp?.revision?.() || 0
 
 // --- 工具真正执行之前：交给工具自己的快照钩子 ---
 const snapshot = async call => {
@@ -180,6 +191,7 @@ export default {
     KINDS,
     list,
     build,
+    mcpRevision,
     bind,
     ready,
     kindOf,
