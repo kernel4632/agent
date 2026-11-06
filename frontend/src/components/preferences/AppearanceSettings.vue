@@ -143,6 +143,6 @@ function reset() {
       <Button variant="text" @click="reset">恢复默认</Button>
     </div>
   </div>
-</template>>>
+</template>
 
 <style scoped lang="scss" src="../../styles/components/preferences/AppearanceSettings.scss"></style>
