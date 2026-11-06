@@ -141,6 +141,7 @@ function beginJump() {
     jumping = false
     lastTop = scrollParent?.scrollTop || 0
     rememberScroll()
+    if (following.value) queueStick()
   }, 1000)
 }
 function endJump() {
@@ -151,7 +152,8 @@ function endJump() {
 
 // 内容变高/变矮、视口高度变化都只触发这一条路径；没有 scroll 事件反馈。
 function queueStick() {
-  if (!following.value || !scrollParent || stickFrame) return
+  // 平滑跳转期间不要用手动吸底抢占动画；跳转结束再补一次底。
+  if (jumping || !following.value || !scrollParent || stickFrame) return
   stickFrame = requestAnimationFrame(() => {
     stickFrame = 0
     if (!following.value || !scrollParent) return
@@ -269,9 +271,12 @@ function onClick(event) {
 }
 
 function jumpToBottom() {
-  endJump()
+  if (!scrollParent) return
+  beginJump()
   setFollowing(true)
-  if (scrollParent) scrollParent.scrollTop = maxScrollTop()
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  scrollParent.scrollTo({ top: maxScrollTop(), behavior: reduce ? 'auto' : 'smooth' })
+  lastTop = scrollParent.scrollTop
   rememberScroll()
 }
 

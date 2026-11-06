@@ -882,6 +882,34 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
+test('return-to-latest scrolls to bottom and resumes following', async ({ page }) => {
+  test.skip((await page.viewportSize()).width < 800, 'wheel scrolling is desktop-only here')
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  for (let index = 1; index <= 4; index += 1) {
+    await page.getByRole('textbox', { name: '消息', exact: true }).fill(`消息 ${index}`)
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await expect(page.locator('.rikka-bubble--assistant .markdown-body').last()).toContainText('一步步实现')
+  }
+  await page.mouse.move(700, 500)
+  await page.mouse.wheel(0, -260)
+  const button = page.getByRole('button', { name: '回到最新', exact: true })
+  await expect(button).toBeVisible()
+  await button.click()
+  await expect(button).toBeHidden()
+  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.clientHeight - element.scrollTop))).toBeLessThan(4)
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'follow-a', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'follow-a', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+  ])
+  await page.waitForTimeout(400)
+  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.clientHeight - element.scrollTop))).toBeLessThan(4)
+  expect(mock.errors).toEqual([])
+})
+
 test('collapsing a process group above the viewport keeps the reader position', async ({ page }) => {
   test.skip((await page.viewportSize()).width < 800, 'wheel scrolling is desktop-only here')
   const mock = await backend(page)
