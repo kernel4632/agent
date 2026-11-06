@@ -56,8 +56,8 @@ onBeforeUnmount(() => {
     <div v-if="needsRestart || unavailable" class="restart-notice" :class="{ 'is-error': unavailable }" role="status" aria-live="polite">
       <span class="restart-notice__icon" aria-hidden="true"><Icon :name="unavailable ? 'info' : 'refresh'" :size="16" /></span>
       <span class="restart-notice__copy">
-        <strong>{{ needsRestart ? '需要重启服务' : '无法读取服务状态' }}</strong>
-        <span v-if="needsRestart">运行版本 {{ health.version }}，代码版本 {{ health.targetVersion }}。请由 harness 或手动重启后端，本应用不会操作进程。</span>
+        <strong>{{ needsRestart ? '需要重启后端' : '无法读取服务状态' }}</strong>
+        <span v-if="needsRestart">运行版本 {{ health.version }}，代码版本 {{ health.targetVersion }}。请重启后端服务以加载新代码，重启后此提示会自动消失。</span>
         <span v-else>连接断开，暂时无法确认新代码是否已生效。</span>
       </span>
       <Button variant="ghost" size="small" :disabled="checking" @click="check">{{ checking ? '检查中…' : '重新检查' }}</Button>
