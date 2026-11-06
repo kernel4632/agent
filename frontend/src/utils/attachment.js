@@ -2,7 +2,7 @@
  * 附件：草稿页和会话页共用同一套大小、类型检查和读取逻辑。
  * 文本/代码附件存 content，图片附件存 dataUrl（base64）；
  * 发送时文本拼进输入串，图片变成内容块数组随消息进 history 常驻。
- * 图片能不能发给模型由所选模型的 capabilities.image 决定，见 imageNotice.js。
+ * 图片能不能发给模型由所选模型的 capabilities.image 决定，提示逻辑在 commands/chat.js。
  * 调用示例：
  *   const { files, errors } = await readAttachments(input.files)
  *   errors.forEach(Notice.show)

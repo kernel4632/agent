@@ -6,13 +6,13 @@
 -->
 <script setup>
 import { Navigation } from '../commands/navigation.js'
-import { Settings } from '../commands/settings.js'
+import { Settings } from "../features/settings.js"
 import { store } from '../store.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '../ui/Icon.vue'
 import Button from '../ui/Button.vue'
-// 面板顺序和视觉组件属于本页面；功能保存仍调用 commands/settings。
+// 面板顺序和视觉组件属于本页面；功能保存仍调用 features/settings。
 import AppearanceSettings from '../components/preferences/AppearanceSettings.vue'
 import ContextSettings from '../components/preferences/ContextSettings.vue'
 import ModelSettings from '../components/providers/ModelSettings.vue'

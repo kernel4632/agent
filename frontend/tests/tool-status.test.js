@@ -2,16 +2,16 @@
  * 工具状态回归测试：历史归一化和实时 SSE 必须给出同一个 status 和同一段结果文本。
  * 重点盯被拒绝的 attempt_completion：它只是失败的工具步骤，不能被当成正常收尾。
  */
-import { History } from '../src/commands/history.js'
+import { History } from "../src/features/session.js"
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { Chat } from '../src/commands/chat.js'
 import { store } from '../src/store.js'
-import { toolStatus, formatToolOutput } from '../src/commands/tool.js'
-import { hasStopTool, isFinishedStopTool } from '../src/commands/history.js'
-import { sessionStats } from '../src/commands/stats.js'
+import { toolStatus, formatToolOutput } from "../src/utils/tool.js"
+import { hasStopTool, isFinishedStopTool } from "../src/features/session.js"
+import { sessionStats } from "../src/features/stats.js"
 
 const cases = [
     {

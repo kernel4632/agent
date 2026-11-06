@@ -9,7 +9,7 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
-import { Provider, PROVIDER_TYPES } from '../../commands/provider.js'
+import { Provider, PROVIDER_TYPES } from "../../features/settings.js"
 import ProviderEditor from './ProviderEditor.vue'
 
 const props = defineProps({

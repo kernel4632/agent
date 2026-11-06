@@ -10,8 +10,8 @@ import Button from '../../ui/Button.vue'
 import SelectButton from '../../ui/SelectButton.vue'      // 自有选择控件，替代原生 checkbox
 import Switch from '../../ui/Switch.vue'                  // 识别项的添加/移除状态用开关表达
 import MCPEditor from './MCPEditor.vue'
-import { Mcp, describeTarget } from '../../commands/mcp.js'
-import { Settings } from '../../commands/settings.js'
+import { Mcp, describeTarget } from "../../features/mcp.js"
+import { Settings } from "../../features/settings.js"
 
 const props = defineProps({
   draft: { type: Object, required: true },

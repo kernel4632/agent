@@ -26,10 +26,10 @@ import Chip from '../../ui/Chip.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import { store } from '../../store.js'
-import { Session } from '../../commands/session.js'
-import { Notice } from '../../commands/notice.js'
+import { Session } from "../../features/session.js"
+import { Notice } from "../../utils/notice.js"
 import ComposerMenu from './ComposerMenu.vue'
-import { ATTACHMENT_ACCEPT, ATTACHMENT_PATTERN } from '../../commands/attachment.js'
+import { ATTACHMENT_ACCEPT, ATTACHMENT_PATTERN } from "../../utils/attachment.js"
 
 const props = defineProps({
   selectedModel: { type: String, default: '' },

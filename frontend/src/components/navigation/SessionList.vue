@@ -10,9 +10,9 @@ import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import Menu from '../../ui/Menu.vue'
-import { Session } from '../../commands/session.js'
+import { Session } from "../../features/session.js"
 import { AgentAPI } from '../../utils/api.js'
-import { Notice } from '../../commands/notice.js'
+import { Notice } from "../../utils/notice.js"
 
 const MENU_ITEMS = [
   { value: 'rename', label: '重命名' },

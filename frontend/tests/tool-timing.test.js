@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { History } from '../src/commands/history.js'
+import { History } from "../src/features/session.js"
 
 const toolMessage = (finished = true) => ({
   history: [

@@ -7,7 +7,7 @@
 <script setup>
 import Icon from '../../ui/Icon.vue'
 import { computed, ref } from 'vue'
-import { outputValue } from '../../commands/tool.js'
+import { outputValue } from "../../utils/tool.js"
 import ToolValue from './ToolValue.vue'
 
 const props = defineProps({ tool: { type: Object, required: true } })

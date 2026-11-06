@@ -17,8 +17,8 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
-import { latestTodos } from '../../commands/tool.js'
-import { Session } from '../../commands/session.js'
+import { latestTodos } from "../../utils/tool.js"
+import { Session } from "../../features/session.js"
 import { NEW_SESSION_TITLE } from '../../defaults.js'
 
 const props = defineProps({

@@ -6,16 +6,16 @@
 调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :rollback-target="..." :rollback-preview="..." @rollback="..." @fork="..." @rollback-confirm="..." />
 -->
 <script setup>
-import { Notice } from '../../commands/notice.js'
+import { Notice } from "../../utils/notice.js"
 import { copyText } from '../../utils/clipboard.js'
 
 import { computed, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
-import { outputText, toolTitle } from '../../commands/tool.js'
-import { isFinishedStopTool } from '../../commands/history.js'
-import { isSavedMessage } from '../../commands/history.js'
+import { outputText, toolTitle } from "../../utils/tool.js"
+import { isFinishedStopTool } from "../../features/session.js"
+import { isSavedMessage } from "../../features/session.js"
 import MessageActions from './MessageActions.vue'
 import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
@@ -192,7 +192,8 @@ const processSections = computed(() => {
       continue
     }
     if (step.type === 'request' || step.type === 'compact') {
-      currentRequests = [step]
+      // 连续请求/压缩都是时间线节点，不能互相覆盖；动作组开始时一起放到组头。
+      currentRequests.push(step)
       if (group) group.steps.push(step)
       continue
     }

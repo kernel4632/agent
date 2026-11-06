@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { estimateTokens, sessionStats } from '../src/commands/stats.js'
+import { estimateTokens, sessionStats } from "../src/features/stats.js"
 
 const user = (content, id = 'u1') => ({ id, role: 'user', content })
 const assistant = (content, extra = {}) => ({ id: 'a1', role: 'assistant', content, steps: [{ type: 'text', text: content }], tools: [], ...extra })

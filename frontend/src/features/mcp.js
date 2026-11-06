@@ -11,7 +11,7 @@
 
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
-import { Notice } from './notice.js'
+import { Notice } from '../utils/notice.js'
 
 const cwd = () => store.sessions[store.ui.activeSessionID]?.cwd || ''
 

@@ -4,7 +4,7 @@
 调用示例：<ProviderEditor :provider="selectedProvider" @update:provider="saveProvider" @delete="removeProvider" />
 -->
 <script setup>
-import { Provider, PROVIDER_TYPES } from '../../commands/provider.js'
+import { Provider, PROVIDER_TYPES } from "../../features/settings.js"
 
 import { computed, ref } from 'vue'
 import JsonInput from '../../ui/JsonInput.vue'
@@ -16,7 +16,7 @@ import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import Switch from '../../ui/Switch.vue'
 import ProviderModels from './ProviderModels.vue'
-import { Settings } from '../../commands/settings.js'
+import { Settings } from "../../features/settings.js"
 
 const props = defineProps({ provider: { type: Object, required: true } })
 const emit = defineEmits(['delete', 'update:provider'])

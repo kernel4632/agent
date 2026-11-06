@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { groupMessageTurns } from '../src/commands/history.js'
+import { groupMessageTurns } from "../src/features/session.js"
 
 const user = id => ({ id, role: 'user', content: id })
 const assistant = id => ({ id, role: 'assistant', content: id })

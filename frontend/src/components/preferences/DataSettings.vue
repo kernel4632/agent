@@ -6,8 +6,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { AgentAPI } from '../../utils/api.js'
-import { Settings } from '../../commands/settings.js'
-import { Notice } from '../../commands/notice.js'
+import { Settings } from "../../features/settings.js"
+import { Notice } from "../../utils/notice.js"
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Icon from '../../ui/Icon.vue'

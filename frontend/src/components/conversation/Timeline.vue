@@ -7,17 +7,17 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
-import { History } from '../../commands/history.js'
+import { History } from "../../features/session.js"
 import { Navigation } from '../../commands/navigation.js'
 
-import { Notice } from '../../commands/notice.js'
+import { Notice } from "../../utils/notice.js"
 import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../../store.js'
-import { groupMessageTurns } from '../../commands/history.js'
-import { isSavedMessage } from '../../commands/history.js'
+import { groupMessageTurns } from "../../features/session.js"
+import { isSavedMessage } from "../../features/session.js"
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import MessageActions from './MessageActions.vue'

@@ -3,8 +3,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { store } from '../src/store.js'
 import { AgentAPI } from '../src/utils/api.js'
-import { Session } from '../src/commands/session.js'
-import { History } from '../src/commands/history.js'
+import { Session } from "../src/features/session.js"
+import { History } from "../src/features/session.js"
 
 const snapshot = () => ({ id: 'race', provider: 'test', model: 'm', history: [], settings: { reasoning: 'auto' } })
 

@@ -1,12 +1,21 @@
-/* 设置：加载配置、隔离编辑草稿、校验并串行保存。
- * 调用：await Settings.load()；Settings.open()；await Settings.autoSave()。
- * 供应商数据映射交给 Provider，外观持久化交给 Appearance；不反向调用导航。
+/*
+ * 设置：全局配置、供应商参数、草稿和外观偏好。
+ *
+ * 配置只在设置页修改；供应商字段映射和连接测试也在这里，避免两处各转一套。
+ * 外观只写浏览器偏好，不碰服务端配置；设置保存后由调用方刷新会话列表。
+ *
+ * 调用示例：
+ *   await Settings.load()
+ *   Settings.open()
+ *   await Settings.autoSave()
+ *   Provider.discoverModels(provider, models)
  */
-import { AgentAPI } from '../utils/api.js' // 只通过统一契约请求后端
-import { store } from '../store.js' // 已保存配置与隔离草稿
-import { Notice } from './notice.js' // 错误反馈不依赖导航
-import { Provider } from './provider.js' // 供应商参数转换只有一处
-import { Appearance } from './appearance.js' // 外观只写浏览器偏好
+
+import { AgentAPI } from '../utils/api.js'
+import { store } from '../store.js'
+import { Notice } from '../utils/notice.js'
+import { Appearance } from '../utils/appearance.js'
+import { DEFAULT_CONTEXT } from '../defaults.js'
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -76,7 +85,7 @@ function modelChoice(providers, raw) {
 
 // --- 应用 Server 配置到设置结构 ---
 function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
-  const providers = Provider.map(raw)
+  const providers = providerMap(raw)
   const { toolCatalog, tools } = toolSettingsFor(catalog)
   const { activeProvider, activeModel } = modelChoice(providers, raw)
 
@@ -147,8 +156,8 @@ function open() {
     apiUrl: provider.baseURL || '',                      // Server 的 baseURL 对应编辑器中的请求地址
     apiKey: provider.apiKey || '',                       // 密钥只保存在草稿内存和后端配置
     stream: provider.stream,                             // 流式开关属于供应商连接
-    headers: Provider.jsonText(provider.headers) || '{}',         // 自定义请求头以 JSON 文本编辑
-    body: Provider.jsonText(provider.body) || '{}',               // 额外请求体以 JSON 文本编辑
+    headers: jsonText(provider.headers) || '{}',         // 自定义请求头以 JSON 文本编辑
+    body: jsonText(provider.body) || '{}',               // 额外请求体以 JSON 文本编辑
     models: provider.models,
   }))
 
@@ -211,7 +220,7 @@ function mcpPayload(draft) {
 // --- 整份设置按当前后端形状提交；不发送已经移除的配置项 ---
 function configPayload(draft) {
   return {
-    providers: Provider.payload(draft),
+    providers: providerPayload(draft),
     mcp: mcpPayload(draft),
     permission: permissionPayload(draft),
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
@@ -272,3 +281,133 @@ async function replaceDraftAndSave(snapshot) {
 }
 
 export const Settings = { load, apply, open, save, autoSave, replaceDraftAndSave, refreshMcp }
+
+// 添加与编辑共用这份协议目录；仅列出当前后端支持的连接类型。
+export const PROVIDER_TYPES = [
+  { value: 'openai-compatible', label: 'OpenAI 兼容', hint: 'OpenAI、DeepSeek 和兼容服务', url: 'https://api.openai.com/v1' },
+  { value: 'responses', label: 'OpenAI Responses', hint: '使用 Responses 接口的服务', url: 'https://api.openai.com/v1' },
+  { value: 'anthropic', label: 'Anthropic', hint: 'Claude 和兼容服务', url: 'https://api.anthropic.com/v1' },
+  { value: 'gemini', label: 'Google Gemini', hint: 'Google Gemini 原生接口', url: 'https://generativelanguage.googleapis.com/v1beta' },
+]
+
+/** 选定接口类型后创建编辑草稿；名称不与已有供应商重复。 */
+function createDraft(type, providers) {
+  const option = PROVIDER_TYPES.find(item => item.value === type)
+  let name = option.label
+  for (let number = 2; providers.some(provider => provider.name === name); number++) name = `${option.label} ${number}`
+  return { id: crypto.randomUUID(), name, enabled: true, apiType: type, apiUrl: option.url, apiKey: '', stream: true, headers: '{}', body: '{}', models: [] }
+}
+
+/** 后端供应商按名称索引；模型对象完整保留，名称、上下文和能力不再拆成第二张表。 */
+function providerMap(raw) {
+  return Object.fromEntries(raw.providers.map(provider => [provider.name, provider]))
+}
+
+/** 用服务端已保存的供应商和模型发起真实连接测试。 */
+async function testConnection(providerName, modelName) {
+  try {
+    return await AgentAPI.testProvider(providerName, modelName) // 使用 Server 已保存认证执行真实测试
+  } catch (error) {
+    return { ok: false, provider: providerName, model: modelName, error: error.message } // 返回结构化失败反馈
+  }
+}
+
+/** 将请求头、额外请求体显示为可以编辑的 JSON 文本。 */
+function jsonText(value) {
+  if (!value) return ''
+  let object = value
+  if (typeof value === 'string') {
+    try { object = JSON.parse(value) } catch { return value }
+  }
+  if (!object || typeof object !== 'object' || Array.isArray(object) || !Object.keys(object).length) return ''
+  return JSON.stringify(object, null, 2)
+}
+
+function objectFromJson(text, label) {
+  const trimmed = String(text || '').trim()
+  if (!trimmed) return {}
+  let value
+  try { value = JSON.parse(trimmed) } catch { throw new Error(`${label}不是合法的 JSON`) }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}必须是 JSON 对象`)
+  return value
+}
+
+/** 编辑草稿转成当前配置形状；每个模型必须是带 id、name、context、capabilities 的对象。 */
+function providerPayload(draft) {
+  return (draft.providers || []).map(provider => {
+    const models = provider.models.map(model => ({
+      id: model.id.trim(),
+      name: model.name.trim() || model.id.trim(),
+      ...(String(model.family || '').trim() ? { family: String(model.family).trim() } : {}),
+      context: Number(model.context) > 0 ? Number(model.context) : DEFAULT_CONTEXT,
+      capabilities: [...model.capabilities],
+    }))
+    return {
+      name: provider.name.trim(),
+      baseURL: provider.apiUrl || '',
+      apiKey: provider.apiKey || '',
+      enabled: provider.enabled !== false,
+      protocol: provider.apiType || 'openai-compatible',
+      stream: provider.stream !== false,
+      headers: objectFromJson(provider.headers, '自定义请求头'),
+      body: objectFromJson(provider.body, '额外请求体'),
+      models,
+    }
+  })
+}
+
+async function fetchModels(provider, currentModels = []) {
+  const baseURL = provider?.apiUrl?.trim().replace(/\/+$/, '')
+  if (!baseURL) {
+    Notice.show('请先填写请求地址（API）')
+    return currentModels.map(model => ({ ...model }))
+  }
+
+  try {
+    const response = await fetch(`/openai-proxy/models?baseURL=${encodeURIComponent(baseURL)}`, {
+      headers: {
+        accept: 'application/json',
+        ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+      },
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error?.message || payload.error || `获取模型失败: ${response.status}`)
+
+    const source = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : []
+    const discovered = source
+      .map(model => typeof model === 'string' ? model : model.id || model.name)
+      .filter(Boolean)
+      .map(id => ({ id, name: id, family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }))
+    if (!discovered.length) throw new Error('接口未返回可用模型')
+    return discovered
+  } catch (error) {
+    Notice.show(error.message)
+    return currentModels.map(model => ({ ...model }))
+  }
+}
+
+/** 合并远程发现和手动模型，按 ID 去重且不丢失已编辑的条目。 */
+async function discoverModels(provider, currentModels = []) {
+  const discovered = await fetchModels(provider, currentModels)
+  const merged = new Map()
+  for (const model of discovered) merged.set(model.id, model)
+  for (const model of currentModels) merged.set(model.id, model) // 已编辑的名称和能力优先于远程目录
+  return [...merged.values()]
+}
+
+function toggleModelInList(models, model) {
+  const exists = models.some(item => item.id === model.id)
+  if (exists) return models.filter(item => item.id !== model.id)
+  return [...models, { ...model }]
+}
+
+async function suggestFamily(model) {
+  if (!model) return null
+  try {
+    return await AgentAPI.getModelFamily(model)
+  } catch {
+    return null
+  }
+}
+
+export const Provider = { createDraft, map: providerMap, payload: providerPayload, jsonText, discoverModels, toggleModelInList, testConnection, suggestFamily }

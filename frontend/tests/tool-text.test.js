@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ansiToHtml, hasAnsi } from '../src/utils/ansi.js'
 import { diffToHtml, looksLikeDiff } from '../src/utils/diff.js'
-import { subagentSteps, applySubagentEvent } from '../src/commands/tool.js'
+import { subagentSteps, applySubagentEvent } from "../src/utils/tool.js"
 
 test('ANSI SGR maps basic colors and escapes html', () => {
   assert.equal(hasAnsi('\u001b[31mred\u001b[0m'), true)

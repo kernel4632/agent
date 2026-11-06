@@ -1,11 +1,11 @@
 /*
- * 附件边界：类型和大小只在 commands/attachment.js 判断。
+ * 附件边界：类型和大小只在 utils/attachment.js 判断。
  * 这类错误是用户能自己改的，测试保证草稿页和会话页拿到同一句提示。
  * 图片是合法附件：PNG/JPEG/GIF/WebP 存成 dataUrl，别的图片类型和超大文件给原因。
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENT_SIZE, MAX_IMAGE_SIZE, attachmentError, readAttachments } from '../src/commands/attachment.js'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENT_SIZE, MAX_IMAGE_SIZE, attachmentError, readAttachments } from "../src/utils/attachment.js"
 
 test('accepts text and code files', () => {
   assert.equal(attachmentError({ name: 'src/App.vue', size: 1024, type: '' }), '')

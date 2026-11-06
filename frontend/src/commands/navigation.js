@@ -2,8 +2,8 @@
  * 调用：await Navigation.openHome()；await Navigation.openSettings('providers')。
  */
 import { store } from '../store.js' // 视图位置与选中会话
-import { Settings } from './settings.js' // 离页前保存
-import { Session } from './session.js' // 进入聊天前读取会话
+import { Settings } from "../features/settings.js" // 离页前保存
+import { Session } from "../features/session.js" // 进入聊天前读取会话
 import { savePath } from '../utils/session-view.js' // 刷新后回到同一会话
 
 async function leaveSettings() {

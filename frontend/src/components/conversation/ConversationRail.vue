@@ -5,8 +5,8 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { groupMessageTurns, isFinishedStopTool } from '../../commands/history.js'
-import { outputText } from '../../commands/tool.js'
+import { groupMessageTurns, isFinishedStopTool } from "../../features/session.js"
+import { outputText } from "../../utils/tool.js"
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },

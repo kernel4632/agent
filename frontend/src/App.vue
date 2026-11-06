@@ -1,11 +1,11 @@
 <!--
 应用外壳：聊天页常驻，设置作为独立整页覆盖其上；关闭后露出原来的聊天页。
-views/ 组装聊天与设置，components/ 保存独立视觉区域；所有业务操作由 commands/ 提供。
+views/ 组装聊天与设置，components/ 保存独立视觉区域；数据主体在 features/，编排在 commands/。
 入口：main.js 挂载本组件；调用示例：<Sidebar :open="drawerOpen" @new="openDraft" />、<TopBar :session="session" @settings="openSettings()" />。
 -->
 <script setup>
 import { Navigation } from './commands/navigation.js'
-import { Notice } from './commands/notice.js'
+import { Notice } from "./utils/notice.js"
 import { activeSession, normalizeAppearance, store } from './store.js'
 
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
@@ -16,12 +16,11 @@ import CommandPalette from './components/navigation/CommandPalette.vue'
 import Toast from './components/feedback/Toast.vue'
 import RestartNotice from './components/feedback/RestartNotice.vue'
 import { shortcutListener } from './utils/shortcuts.js'
-import { Appearance } from './commands/appearance.js'
-import { Session } from './commands/session.js'
+import { Appearance } from "./utils/appearance.js"
+import { Session } from "./features/session.js"
 import { Chat } from './commands/chat.js'
 import { DEFAULT_SETTINGS } from './defaults.js'
-import { readAttachments } from './commands/attachment.js'
-import { imagePasteNotice } from './commands/imageNotice.js'
+import { readAttachments } from "./utils/attachment.js"
 
 const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 const draftView = ref(null)
@@ -131,7 +130,7 @@ async function attachFiles(selected, options = {}) {
   errors.forEach(Notice.show)                                 // 被拒绝的文件逐个说明原因
   // 粘贴图片时按当前模型能力提醒一次；不影响粘贴本身。
   if (options?.pasted && files.some(file => file.kind === 'image')) {
-    imagePasteNotice({ hasImage: true, provider: store.config.activeProvider, model: store.config.activeModel })
+    Chat.imagePasteNotice({ hasImage: true, provider: store.config.activeProvider, model: store.config.activeModel })
   }
 }
 

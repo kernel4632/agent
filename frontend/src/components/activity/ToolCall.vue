@@ -9,7 +9,7 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import { Chat } from '../../commands/chat.js'
 import ToolResult from './ToolResult.vue'
-import { fillTemplate, toolIcon, toolTitle, uiFor } from '../../commands/tool.js'
+import { fillTemplate, toolIcon, toolTitle, uiFor } from "../../utils/tool.js"
 
 defineOptions({ name: 'ToolCall' })
 

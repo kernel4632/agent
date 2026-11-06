@@ -5,7 +5,7 @@
 -->
 <script setup>
 import { computed, ref } from 'vue'
-import { Provider } from '../../commands/provider.js'
+import { Provider } from "../../features/settings.js"
 import { DEFAULT_CONTEXT } from '../../defaults.js'
 import Field from '../../ui/Field.vue'
 import Icon from '../../ui/Icon.vue'

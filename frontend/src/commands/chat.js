@@ -7,16 +7,16 @@
  *   await Chat.stop(sessionID)                     // 停止并刷新到最终状态
  *   Chat.subscribe(sessionID)                      // 打开会话时建立实时连接
  */
-import { Notice } from './notice.js'
+import { Notice } from '../utils/notice.js'
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
-import { History } from './history.js'
+import { History } from '../features/session.js'
 import { t } from '../utils/i18n.js'
-import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from './tool.js'
-import { usageFields } from './stats.js'
-import { readAttachments } from './attachment.js'
-import { imagePasteNotice } from './imageNotice.js'
+import { Settings } from '../features/settings.js'
+import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
+import { usageFields } from '../utils/usage.js'
+import { readAttachments } from '../utils/attachment.js'
 
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
@@ -546,4 +546,45 @@ function removeFile(sessionID, fileID) {
 
 // --- 回退前先看会改动什么 ---
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile }
+// --- 这台模型配置里有没有开图片输入 ---
+export function hasImageCapability(provider, model) {
+  const config = store.config.providers[provider]
+  const entry = (config?.models || []).find(item => item.id === model)
+  return Boolean(entry?.capabilities?.includes('image'))
+}
+
+// --- 直接给这台模型补上 image 能力并保存配置 ---
+// 设置草稿已打开时改草稿并 autoSave；否则用 open() 建出同一份草稿再改，不碰用户正在编辑的界面状态。
+async function enableImage(provider, model) {
+  if (!store.settings.draft) Settings.open()
+  const draft = store.settings.draft
+  const entry = (draft.providers || []).find(item => item.name === provider)
+  if (!entry) { Notice.show('找不到这个供应商的配置'); return false }
+  const modelEntry = (entry.models || []).find(item => item.id === model)
+  if (!modelEntry) { Notice.show('找不到这个模型的配置'); return false }
+  if (Array.isArray(modelEntry.capabilities)) {
+    if (!modelEntry.capabilities.includes('image')) modelEntry.capabilities.push('image')
+  } else {
+    modelEntry.capabilities = ['text', 'image']
+  }
+  await Settings.autoSave()
+  return true
+}
+
+/**
+ * 粘贴图片后按当前模型能力提醒一次。
+ * 有能力就不打扰；没能力弹一条带按钮的提示，不影响粘贴本身。
+ */
+export function imagePasteNotice({ hasImage, provider, model }) {
+  if (!hasImage) return
+  if (hasImageCapability(provider, model)) return
+  Notice.show({
+    message: `${model} 没有开启图片输入，模型看不到这张图。确认它有多模态能力的话，`,
+    action: { label: '打开图片输入', run: async () => {
+      const done = await enableImage(provider, model)
+      Notice.show(done ? `已为 ${model} 打开图片输入，下一轮请求生效` : '没能打开图片输入，请到设置里手动开启')
+    } },
+  })
+}
+
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile, imagePasteNotice }

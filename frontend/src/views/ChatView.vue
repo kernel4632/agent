@@ -10,12 +10,12 @@ import ConnectionError from '../components/feedback/ConnectionError.vue'
 import TaskPanel from '../components/activity/TaskPanel.vue'
 import StatsPanel from '../components/activity/StatsPanel.vue'
 import ConversationRail from '../components/conversation/ConversationRail.vue'
-import { Session } from '../commands/session.js'
+import { Session } from "../features/session.js"
 import { Chat } from '../commands/chat.js'
-import { History, canContinueSession } from '../commands/history.js'
+import { History, canContinueSession } from "../features/session.js"
 import { Navigation } from '../commands/navigation.js'
-import { latestTodos } from '../commands/tool.js'
-import { sessionStats } from '../commands/stats.js'
+import { latestTodos } from "../utils/tool.js"
+import { sessionStats } from "../features/stats.js"
 import { savePath } from '../utils/session-view.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))

@@ -3,7 +3,7 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { splitUserAttachments } from '../src/commands/history.js'
+import { splitUserAttachments } from "../src/features/session.js"
 
 test('用户气泡从历史输入里剥掉附件正文', () => {
   const raw = '看看附件\n\n附件 "a.txt":\nsecret\n\n附件 "b.txt":\nmore'

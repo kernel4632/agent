@@ -4,8 +4,8 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { Skills, externalRoots, sourceLabel } from '../src/commands/skills.js'
-import { Mcp, describeTarget } from '../src/commands/mcp.js'
+import { Skills, externalRoots, sourceLabel } from "../src/features/skills.js"
+import { Mcp, describeTarget } from "../src/features/mcp.js"
 import { store } from '../src/store.js'
 
 test('只列存在的外部技能目录，本应用自己的目录不重复展示', () => {

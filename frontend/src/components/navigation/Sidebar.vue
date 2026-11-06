@@ -12,7 +12,7 @@ import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import SessionList from './SessionList.vue'
-import { Session } from '../../commands/session.js'
+import { Session } from "../../features/session.js"
 import { store } from '../../store.js'
 
 defineProps({

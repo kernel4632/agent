@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { TODO_STATUS, todoStatus, latestTodos } from '../src/commands/tool.js'
+import { TODO_STATUS, todoStatus, latestTodos } from "../src/utils/tool.js"
 
 test('三种任务状态各有一份图标和文案', () => {
     assert.deepEqual(TODO_STATUS, {

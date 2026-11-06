@@ -13,7 +13,7 @@ import Markdown from '../../ui/Markdown.vue'
 import SelectButton from '../../ui/SelectButton.vue'      // 自有选择控件，支持半选
 import Switch from '../../ui/Switch.vue'
 import SkillEditor from './SkillEditor.vue'
-import { Skills, externalRoots, sourceLabel } from '../../commands/skills.js'
+import { Skills, externalRoots, sourceLabel } from "../../features/skills.js"
 
 const data = ref({ skills: [], roots: [], state: { sources: [], disabled: [] } })
 const loading = ref(true)
