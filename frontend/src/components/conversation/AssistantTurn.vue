@@ -279,7 +279,7 @@ function clearTarget() { targetId.value = null; emit('close') }
     >
       <div v-if="treeSteps.length" class="cot-card process-fold">
         <button type="button" class="process-fold__head" :aria-expanded="processOpen" @click="toggleProcess">
-          <span class="process-fold__icon"><Icon name="process" :size="16" /></span>
+          <span class="process-fold__icon"><Icon name="assistant" :size="16" /></span>
           <span class="process-fold__title">处理过程</span>
           <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
