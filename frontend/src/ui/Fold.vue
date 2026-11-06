@@ -11,7 +11,14 @@ function enter(element) {
   element.style.height = '0px'
   element.style.opacity = '0'
   void element.offsetHeight
-  element.style.height = `${element.scrollHeight}px`
+  // 父级折叠正在展开时，子内容可能暂时量到 0；这时直接放开 auto，避免卡成空白。
+  const height = element.scrollHeight
+  if (!height) {
+    element.style.height = 'auto'
+    element.style.opacity = '1'
+    return
+  }
+  element.style.height = `${height}px`
   element.style.opacity = '1'
 }
 function afterEnter(element) {
