@@ -8,6 +8,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import Dialog from '../../ui/Dialog.vue'
 import Button from '../../ui/Button.vue'
 import Icon from '../../ui/Icon.vue'
+import Markdown from '../../ui/Markdown.vue'
 import { searchConversation } from '../../features/conversation-search.js'
 
 const props = defineProps({
@@ -22,6 +23,20 @@ const list = ref(null)
 const messages = computed(() => props.session?.messages || [])
 const results = computed(() => searchConversation(messages.value, query.value))
 const activeResult = computed(() => results.value[activeIndex.value] || null)
+
+// 命中词包成 <mark> 后交给现有 Markdown 组件渲染，不在搜索结果里另写一套 Markdown 解析。
+function markQuery(markdown, rawQuery) {
+  const needle = rawQuery.trim().replace(/\s+/g, ' ')
+  if (!needle) return markdown
+  const index = markdown.toLocaleLowerCase().indexOf(needle.toLocaleLowerCase())
+  if (index < 0) return markdown
+  return `${markdown.slice(0, index)}<mark>${markdown.slice(index, index + needle.length)}</mark>${markdown.slice(index + needle.length)}`
+}
+
+const visibleResults = computed(() => results.value.map(result => ({
+  ...result,
+  content: markQuery(result.markdown, query.value),
+})))
 
 watch(() => props.open, async open => {
   if (!open) return
@@ -98,7 +113,7 @@ function onEnter(event) {
       </div>
       <div ref="list" class="conversation-search__results">
         <Button
-          v-for="(result, index) in results"
+          v-for="(result, index) in visibleResults"
           :key="`${result.id}-${index}`"
           variant="plain"
           class="conversation-search__result"
@@ -106,9 +121,9 @@ function onEnter(event) {
           :data-search-index="index"
           @mouseenter="activeIndex = index"
           @focus="activeIndex = index"
-          @click="choose(result)"
+          @click="choose(results[index])"
         >
-          <span class="conversation-search__snippet">{{ result.before }}<mark>{{ result.match }}</mark>{{ result.after }}</span>
+          <div class="conversation-search__snippet"><Markdown :content="result.content" compact /></div>
         </Button>
         <div v-if="!query" class="conversation-search__empty">
           <Icon name="search" :size="24" />

@@ -114,17 +114,31 @@
 .conversation-search__results .conversation-search__result:focus-visible { background: var(--la-hover); outline: 0; }
 
 .conversation-search__snippet {
-  display: -webkit-box;
+  display: block;
+  max-height: 40px;
   overflow: hidden;
   color: var(--la-secondary);
   font-size: 13px;
   line-height: 20px;
   word-break: break-word;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
+.conversation-search__snippet :deep(.markdown-body),
+.conversation-search__snippet :deep(.ui-typography) { font-size: 13px; line-height: 20px; }
+.conversation-search__snippet :deep(.ui-code-block) { margin: 0; }
+.conversation-search__snippet :deep(.ui-code-block .ui-button) { display: none; }
+.conversation-search__snippet :deep(p) { display: inline; margin: 0; }
+.conversation-search__snippet :deep(p + p)::before { content: ' '; }
+.conversation-search__snippet :deep(h1),
+.conversation-search__snippet :deep(h2),
+.conversation-search__snippet :deep(h3),
+.conversation-search__snippet :deep(h4),
+.conversation-search__snippet :deep(h5),
+.conversation-search__snippet :deep(h6) { display: inline; margin: 0; }
+.conversation-search__snippet :deep(ul),
+.conversation-search__snippet :deep(ol) { margin: 0; padding-left: 18px; }
+.conversation-search__snippet :deep(pre) { max-height: 40px; margin: 0; overflow: hidden; white-space: pre-wrap; }
 
-.conversation-search__snippet mark {
+.conversation-search__snippet :deep(mark) {
   padding: 0 1px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--la-accent) 24%, transparent);

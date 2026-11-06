@@ -12,20 +12,21 @@ const messages = [
 test('conversation search matches visible messages case-insensitively', () => {
   const results = searchConversation(messages, 'token')
   assert.deepEqual(results.map(result => result.id), ['u2', 'a2'])
-  assert.equal(results[0].match, 'TOKEN')
-  assert.equal(results[1].match, 'Token')
-  const markdown = searchConversation([{ id: 'a3', role: 'assistant', content: '**重点**内容' }], '重点')[0]
-  assert.equal(`${markdown.before}${markdown.match}${markdown.after}`, '重点内容')
+  assert.ok(results[0].markdown.includes('TOKEN'))
+  assert.ok(results[1].markdown.includes('Token'))
 })
 
-test('conversation search snippets contain the match and stay bounded', () => {
-  const long = `${'前置内容'.repeat(30)}目标文本${'后置内容'.repeat(50)}`
+test('conversation search keeps markdown source for rendering', () => {
+  const [result] = searchConversation([{ id: 'a3', role: 'assistant', content: '**重点**内容和 `code`' }], '重点')
+  assert.equal(result.markdown, '**重点**内容和 `code`')
+})
+
+test('conversation search snippets stay bounded around the match', () => {
+  const long = `${'前置内容'.repeat(120)}目标文本${'后置内容'.repeat(120)}`
   const [result] = searchConversation([{ id: 'a1', role: 'assistant', content: long }], '目标文本')
-  assert.equal(result.match, '目标文本')
-  assert.ok(result.before.startsWith('…'))
-  assert.ok(result.after.endsWith('…'))
-  assert.ok(result.before.length < 50)
-  assert.ok(result.after.length < 110)
+  assert.ok(result.markdown.includes('目标文本'))
+  assert.ok(result.markdown.startsWith('…'))
+  assert.ok(result.markdown.length < 520)
 })
 
 test('conversation search skips compact markers and stops at the limit', () => {
