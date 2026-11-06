@@ -94,6 +94,9 @@ const formatDuration = value => {
   if (seconds < 60) return `${seconds.toFixed(1)}s`
   return `${Math.floor(seconds / 60)}m${Math.round(seconds % 60)}s`
 }
+// 首字越快越绿；tok/s 越高越绿。没有数据保持灰色。
+const firstTone = ms => !ms ? 'is-muted' : ms <= 3000 ? 'is-fast' : ms <= 10000 ? 'is-warn' : 'is-slow'
+const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? 'is-warn' : 'is-slow'
 </script>
 
 <template>
@@ -173,29 +176,22 @@ const formatDuration = value => {
         class="session-stats__menu session-stats__menu--speed"
         :label="`生成速度 ${speed}，点击查看速度统计`"
         content-label="生成速度"
-        :content-style="{ width: '400px' }"
+        :content-style="{ width: '360px' }"
       >
         <template #trigger>
           <span class="session-stats__summary-item"><Icon name="gauge" :size="14" />{{ speed }}</span>
         </template>
         <div class="stats-panel stats-panel--speed-simple">
-          <div class="stats-panel__speed-simple-head">
-            <span class="stats-panel__simple-title">生成速度</span>
-            <small v-if="recentSpeedGroups.length" class="stats-panel__speed-count">{{ recentSpeedGroups.length }} 个模型</small>
-          </div>
           <div v-if="recentSpeedHighlights.length" class="stats-panel__speed-table-wrap">
             <table class="stats-panel__speed-grid">
-              <colgroup><col style="width: 24px"><col style="width: 80px"><col><col style="width: 44px"><col style="width: 46px"></colgroup>
-              <thead>
-                <tr><th aria-label="模型"></th><th>供应商</th><th>模型</th><th>首字</th><th>tok/s</th></tr>
-              </thead>
+              <colgroup><col><col style="width: 50px"><col style="width: 68px"></colgroup>
               <tbody>
                 <tr v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-row">
-                  <td class="stats-panel__speed-model-icon"><Icon name="model" :size="15" /></td>
-                  <td class="stats-panel__speed-provider" :title="group.provider"><span>{{ group.provider }}</span></td>
-                  <td class="stats-panel__speed-model" :title="group.model"><span><strong>{{ group.model }}</strong></span></td>
-                  <td class="stats-panel__speed-first">{{ formatDuration(group.lastFirstTokenMs) }}</td>
-                  <td class="stats-panel__speed-tps">{{ group.lastTps ? Math.round(group.lastTps) : '—' }}</td>
+                  <td class="stats-panel__speed-model-cell" :title="`${group.provider}/${group.model}`">
+                    <span class="stats-panel__speed-model-path"><span>{{ group.provider }}</span><i>/</i><strong>{{ group.model }}</strong></span>
+                  </td>
+                  <td class="stats-panel__speed-first" :class="firstTone(group.lastFirstTokenMs)">{{ formatDuration(group.lastFirstTokenMs) }}</td>
+                  <td class="stats-panel__speed-tps" :class="tpsTone(group.lastTps)"><span>{{ group.lastTps ? Math.round(group.lastTps) : '—' }}</span><small>tok/s</small></td>
                 </tr>
               </tbody>
             </table>
