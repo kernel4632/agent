@@ -188,17 +188,19 @@ const formatDuration = value => {
 
           <div v-if="contentTotal" class="stats-panel__composition">
             <div class="stats-panel__composition-head"><span>内容构成 · 估算</span><span>{{ formatTokens(contentTotal, usageApproximate) }} tokens</span></div>
-            <div class="stats-panel__stack stats-panel__stack--composition stats-panel__stack--content" aria-hidden="true">
-              <span class="is-user" :style="{ flex: `0 0 ${contentShares.user}%` }"></span>
-              <span class="is-thinking" :style="{ flex: `0 0 ${contentShares.thinking}%` }"></span>
-              <span class="is-reply" :style="{ flex: `0 0 ${contentShares.reply}%` }"></span>
-              <span class="is-tools" :style="{ flex: `0 0 ${contentShares.tools}%` }"></span>
-            </div>
-            <div class="stats-panel__composition-legend">
-              <span class="is-user"><Icon name="input" :size="12" />用户输入 {{ formatTokens(content.user, usageApproximate) }}</span>
-              <span class="is-thinking"><Icon name="idea" :size="12" />助手思考 {{ formatTokens(content.thinking, usageApproximate) }}</span>
-              <span class="is-reply"><Icon name="chat" :size="12" />助手回复 {{ formatTokens(content.reply, usageApproximate) }}</span>
-              <span class="is-tools"><Icon name="code" :size="12" />工具输出 {{ formatTokens(content.tools, usageApproximate) }}</span>
+            <div class="stats-panel__composition-body">
+              <div class="stats-panel__stack stats-panel__stack--composition stats-panel__stack--content stats-panel__composition-stack" aria-hidden="true">
+                <span class="is-user" :style="{ height: `${contentShares.user}%` }"></span>
+                <span class="is-thinking" :style="{ height: `${contentShares.thinking}%` }"></span>
+                <span class="is-reply" :style="{ height: `${contentShares.reply}%` }"></span>
+                <span class="is-tools" :style="{ height: `${contentShares.tools}%` }"></span>
+              </div>
+              <div class="stats-panel__composition-legend">
+                <span class="is-user"><Icon name="input" :size="12" /><span>用户输入</span><strong>{{ formatTokens(content.user, usageApproximate) }}</strong></span>
+                <span class="is-thinking"><Icon name="idea" :size="12" /><span>助手思考</span><strong>{{ formatTokens(content.thinking, usageApproximate) }}</strong></span>
+                <span class="is-reply"><Icon name="chat" :size="12" /><span>助手回复</span><strong>{{ formatTokens(content.reply, usageApproximate) }}</strong></span>
+                <span class="is-tools"><Icon name="code" :size="12" /><span>工具输出</span><strong>{{ formatTokens(content.tools, usageApproximate) }}</strong></span>
+              </div>
             </div>
           </div>
         </template>
