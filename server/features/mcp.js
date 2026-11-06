@@ -41,6 +41,64 @@ const leases = new Map()                             // revision -> 持有它的
 
 const connectionKey = (name, rev = revision) => `${rev}\u0000${name}`
 
+// 同一个定义握手成功后记住该走新协议还是旧协议，后续连接不必再撞一次。
+const handshakes = new Map()
+const definitionKey = definition => JSON.stringify(definition)
+
+// --- 新协议探测失败会留下一个已经锁在 modern era 的连接；回退必须在全新的进程上做 ---
+const protocolMismatch = error => {
+    const text = [
+        error?.code,
+        error?.message,
+        error?.cause?.message,
+        typeof error?.data === 'string' ? error.data : '',
+    ].join(' ')
+    return /UNSUPPORTED_PROTOCOL_VERSION|initialize handshake|protocol version|server\/discover|2026-07-28|not accepted/i.test(text)
+}
+
+// --- 打开一条连接并读工具；建客户端和读清单都加超时，失败时关掉半开连接 ---
+const openClient = async (definition, protocolVersionDiscovery, name) => {
+    const client = await withTimeout(
+        createMCPClient({ transport: transportFor(definition), protocolVersionDiscovery }),
+        5000,
+        `MCP 服务 ${name} 启动连接超时`,
+    )
+    try {
+        const tools = await withTimeout(client.tools(), 5000, `MCP 服务 ${name} 读取工具清单超时`)
+        return { client, tools }
+    } catch (error) {
+        await client.close().catch(() => {})
+        throw error
+    }
+}
+
+/**
+ * 自动协商协议代际，用户不需要知道 initialize / server/discover。
+ * 先按新协议探测；如果服务端已经锁到新协议却又拒绝回退，换一个全新连接走旧握手。
+ * 成功的模式按定义缓存；定义变化后重新从新协议开始。
+ */
+const negotiate = async (definition, name) => {
+    const key = definitionKey(definition)
+    const preferred = handshakes.get(key)
+    const modes = preferred === false ? [false, true] : [true, false]
+    let firstProtocolError = null
+    let lastError = null
+
+    for (const discovery of modes) {
+        try {
+            const opened = await openClient(definition, discovery, name)
+            handshakes.set(key, discovery)
+            return opened
+        } catch (error) {
+            lastError = error
+            if (!protocolMismatch(error)) throw error
+            firstProtocolError ||= error
+        }
+    }
+
+    throw new Error(`MCP 协议握手失败（已自动尝试新旧两种握手）：${firstProtocolError?.message || lastError?.message || lastError}`)
+}
+
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 // --- 给一个异步操作加超时；结束后清掉定时器，不留悬挂的 timeout ---
@@ -70,8 +128,7 @@ const transportFor = definition => definition.transport === 'sse' || definition.
     })
 
 // --- 连接一个服务并拉取工具清单 ---
-// 用 withTimeout 包住“建客户端”和“拉工具”两步：外部 stdio 服务起不来或不应答时，
-// 不能让整个会话装配卡在那里。失败只记进当前版本的 failures 并在这版配置内跳过，
+// 协议代际由 negotiate 自动处理；外部服务起不来时只记进当前版本的 failures 并在这版配置内跳过，
 // 不改用户配置——临时故障不该变成永久停用，改配置后会重新尝试。
 const connect = async ({ name, rev = revision, definition = (store.config.mcp || {})[name], sessionId }) => {
     if (!definition) return null                          // 没配这个服务，什么都不做
@@ -79,8 +136,7 @@ const connect = async ({ name, rev = revision, definition = (store.config.mcp ||
 
     const key = connectionKey(name, rev)
     try {
-        const client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 5000, `MCP 服务 ${name} 启动连接超时`)
-        const tools = await withTimeout(client.tools(), 5000, `MCP 服务 ${name} 读取工具清单超时`)
+        const { client, tools } = await negotiate(definition, name)
         connections.set(key, { client, tools })           // 连上了就留着，同一版本的下次装配直接复用
         failures.delete(key)                              // 之前失败过也算翻篇
         return tools
@@ -261,20 +317,19 @@ const toggle = async ({ name, enabled } = {}) => {
 
 // --- 真实连一次并列出工具名，用来确认这套配置能不能用 ---
 const test = async ({ name } = {}) => {
-    const key = serverName(name) // 格式化清理服务名称
-    const definition = isObject(store.config.mcp) ? store.config.mcp[key] : null // 读取服务定义
-    if (!definition) throw fail(404, `MCP server not found: ${key}`) // 找不到返回 404
+    const key = serverName(name)
+    const definition = isObject(store.config.mcp) ? store.config.mcp[key] : null
+    if (!definition) throw fail(404, `MCP server not found: ${key}`)
 
-    let client = null // 待关闭的临时连接实例
+    let client = null
     try {
-        // 测试连接增加 8 秒超时保护，拉取工具列表增加 5 秒超时保护
-        client = await withTimeout(createMCPClient({ transport: transportFor(definition) }), 8000, `连接测试超时（超过 8 秒未响应）`)
-        const tools = await withTimeout(client.tools(), 5000, `获取工具清单超时（超过 5 秒未响应）`)
-        return { ok: true, name: key, tools: Object.keys(tools).sort() } // 成功返回有序工具列表
+        const opened = await negotiate(definition, key)
+        client = opened.client
+        return { ok: true, name: key, tools: Object.keys(opened.tools).sort() }
     } catch (error) {
-        return { ok: false, name: key, tools: [], error: error.message } // 失败返回具体超时或错误说明
+        return { ok: false, name: key, tools: [], error: error.message }
     } finally {
-        await client?.close().catch(() => {}) // 确保临时测试连接正常断开释放
+        await client?.close().catch(() => {})
     }
 }
 
@@ -286,6 +341,7 @@ const close = async () => {
     connections.clear()
     failures.clear()
     leases.clear()
+    handshakes.clear()
 }
 
 // --- 最近一次连接失败的原因；设置页用它提示“这个服务起不来” ---
