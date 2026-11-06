@@ -23,7 +23,7 @@ import Mcp from './features/mcp.js'
 import ModelIcons from './features/model-icons.js'
 import SessionGroups from './features/session-groups.js'
 import Tool from './features/tool.js'
-import Background from './tools/background.js'
+import { cleanup as cleanupBackground } from './tools/background.js'
 import SSE from './utils/sse.js'
 
 // --- 装配有状态模块：feature 之间不互相 import，需要的兄弟服务在这里接起来 ---
@@ -111,7 +111,11 @@ app.group('/session', session => session
     .post('/rollback/tool/:sessionId', ({ params, body }) => Session.rollbackTool({ ...params, ...body }))
     .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
     .post('/redo/:sessionId', ({ params, body }) => Session.redo({ ...params, ...(body || {}) }))
-    .post('/compact/:sessionId', ({ params }) => Session.compact(params)))
+    .post('/compact/:sessionId', ({ params, request, server }) => {
+        // 模型生成总结前不会写响应字节，不能让 HTTP 空闲计时提前断开。
+        server?.timeout(request, 0)
+        return Session.compact(params)
+    }))
 
 // --- 配置 ---
 app.group('/config', config => config
@@ -142,9 +146,9 @@ const start = async ({ port = process.env.PORT || 3000 } = {}) => {
     await Settings.read()     // 权限规则和模型配置读一次即可。
 
     // 后端退出时带走还挂着的后台进程，不留孤儿；正常退出和 Ctrl+C 都走这里。
-    process.on('exit', () => Background.cleanup())
-    process.on('SIGINT', () => { Background.cleanup(); process.exit(0) })
-    process.on('SIGTERM', () => { Background.cleanup(); process.exit(0) })
+    process.on('exit', cleanupBackground)
+    process.on('SIGINT', () => { cleanupBackground(); process.exit(0) })
+    process.on('SIGTERM', () => { cleanupBackground(); process.exit(0) })
 
     const server = app.listen(port)
 

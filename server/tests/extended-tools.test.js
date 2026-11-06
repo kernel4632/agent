@@ -11,6 +11,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 
 import { read_range } from '../tools/file.js'
 import Path from '../utils/path.js'
@@ -94,6 +95,30 @@ describe('read_range 分段读取', () => {
 })
 
 describe('background 后台进程', () => {
+    test('真实后端退出时调用清理导出，不产生异常或遗留进程', async () => {
+        await withHome(async root => {
+            await mkdir(root, { recursive: true })
+            const sleeper = join(root, 'sleeper.js')
+            await writeFile(sleeper, 'await Bun.sleep(60000)')
+            const host = join(root, 'host.mjs')
+            await writeFile(host, [
+                `import { start } from ${JSON.stringify(pathToFileURL(join(import.meta.dir, '../server.js')).href)}`,
+                `import Background from ${JSON.stringify(pathToFileURL(join(import.meta.dir, '../tools/background.js')).href)}`,
+                'const app = await start({ port: 0 })',
+                `const task = await Background.execute({ action: 'start', command: ${JSON.stringify(`"${process.execPath}" "${sleeper}"`)} })`,
+                'console.log(JSON.stringify(task))',
+                'await app.stop(true)',
+                'process.exit(0)',
+            ].join(String.fromCharCode(10)))
+            const child = Bun.spawn([process.execPath, host], { env: { ...process.env, AGENT_HOME: root }, stdout: 'pipe', stderr: 'pipe' })
+            const [exit, out, err] = await Promise.all([child.exited, child.stdout.text(), child.stderr.text()])
+            expect(exit).toBe(0)
+            expect(err).not.toContain('TypeError')
+            const task = JSON.parse(out.trim().split(String.fromCharCode(10)).at(-1))
+            expect(() => process.kill(task.pid, 0)).toThrow()
+        })
+    }, 30000)
+
     test('启动后能读日志、能停，日志文件跟着清理', async () => {
         await withHome(async () => {
             const script = await writeScript('sleeper', 'await Bun.sleep(60000)')

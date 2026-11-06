@@ -78,7 +78,8 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
                 SSE.send({ id: sessionId, data: { ...result, type: 'subagent-tool-result', taskId: id, description } })
             },
             // 子 agent 的审批回到同一个会话，用户能看到"子任务想读这个文件"。
-            onPermission: call => onPermission({ sessionId, ...call }),
+            // core 的 call.sessionId 是临时子 Agent ID；审批必须发回父会话。
+            onPermission: call => onPermission({ ...call, sessionId }),
         },
     })
 
@@ -88,7 +89,9 @@ const runSubtask = async ({ config, tools, sessionId, id, description, prompt, a
 
     try {
         const result = await agent.send({ input: prompt })
-        return { description, reason: result.reason, conclusion: result.text, steps }
+        // 按当前契约，最终答复通常在结束工具输出里，result.text 只含普通正文。
+        const completion = steps.findLast(step => ['attempt_completion', 'ask_followup_question'].includes(step.name) && step.status === 'completed' && step.output?.type === 'text')
+        return { description, reason: result.reason, conclusion: completion?.output.value || result.text, steps }
     } catch (error) {
         // 子任务失败只是一条结论，主 agent 可以自己决定换个办法还是直接告诉用户。
         return { description, error: error.message, steps }

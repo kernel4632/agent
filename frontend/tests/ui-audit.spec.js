@@ -1371,9 +1371,9 @@ test('MCP servers detected on this machine can be imported and tested', async ({
   await expect(page.getByText('Cursor · npx -y server-github')).toBeVisible()
   await screenshot(page, testInfo, 'settings-mcp-detected')
 
-  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await page.getByRole('switch', { name: '添加 github', exact: true }).click()
   await expect.poll(() => mock.config().mcp.github?.command).toBe('npx')
-  await expect(page.getByText('已添加')).toBeVisible()
+  await expect(page.getByRole('switch', { name: '启用 github', exact: true })).toBeChecked()
 
   // 进编辑页测试已保存的服务，结果直接显示在表单里。
   await page.getByRole('button', { name: /^github/ }).click()
@@ -1510,7 +1510,7 @@ test('select keeps one combobox and chooses from its listbox', async ({ page }) 
   // 只暴露一个可访问的组合框，不再维护第二个隐藏的原生 select。
   const combobox = card.getByRole('combobox')
   await expect(combobox).toHaveCount(1)
-  await expect(combobox).toHaveAttribute('aria-label', '强调色')
+  await expect(combobox).toHaveAttribute('aria-label', '配色风格')
   await expect(card.locator('select')).toHaveCount(0)
 
   // 点击组合框打开项目自己的选项列表。
@@ -1519,13 +1519,13 @@ test('select keeps one combobox and chooses from its listbox', async ({ page }) 
   const listbox = card.getByRole('listbox')
   await expect(listbox).toBeVisible()
   await expect(listbox).toHaveClass(/ui-select__options/)
-  await expect(listbox.getByRole('option')).toHaveCount(5)
-  await listbox.getByRole('option', { name: '雾蓝', exact: true }).click()
+  await expect(listbox.getByRole('option')).toHaveCount(9)
+  await listbox.getByRole('option', { name: '鲜艳（高饱和）', exact: true }).click()
 
   // 选中后值写回草稿，自动保存再落到 localStorage。
   await expect(listbox).toBeHidden()
-  await expect(combobox).toContainText('雾蓝')
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('agent.appearance') || '{}').color)).toBe('#8badf4')
+  await expect(combobox).toContainText('鲜艳（高饱和）')
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('agent.appearance') || '{}').variant)).toBe('vibrant')
   expect(mock.errors).toEqual([])
 })
 
@@ -1877,6 +1877,7 @@ test.describe('control motion', () => {
     expect(duration).not.toBe('0s')
     expect(duration).toMatch(/\d/)
 
+    await toggle.scrollIntoViewIfNeeded()
     const before = await thumb.boundingBox()
     // 透明 input 盖在拇指上，按拇指中心点真实点击一次。
     await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2)

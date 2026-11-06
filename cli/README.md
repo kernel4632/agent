@@ -2,7 +2,7 @@
 
 适配本仓库当前 HTTP/SSE 接口的 Go 客户端，与网页共用服务端会话、模型配置、历史和工具权限。版本在 `VERSION`，要求 Go 1.26 或更新版本。
 
-当前适配 agent-core 0.27.0：续跑使用服务端原生 `resume()`；带 `request: "compact"` 的压缩增量不会混进回答或停止时保存的半段回复，`--json` 仍原样输出这些事件。
+当前适配 agent-core 0.30.4：续跑使用服务端原生 `resume()`；带 `request: "compact"` 的压缩增量不会混进回答或停止时保存的半段回复，`--json` 仍原样输出这些事件。集成测试按当前协议调用结束工具，覆盖流式正文、工具答复及压缩用量。
 
 ## 构建
 
@@ -67,6 +67,8 @@ agent sessions remove SESSION_ID
 
 ## 工具审批与停止
 
+供应商或模型名含空格时使用引号，例如 `/model "provider with spaces" gpt-model`；单引号也支持。
+
 `ask` 默认遇到待审批工具就返回非零退出码，显示会话 ID 和调用 ID，任务保留在服务端等待。可以显式选择 `--permission deny` 或 `--permission allow-once`，应用于本次运行遇到的审批，不写全局规则。已有全局 `deny` 仍由后端执行。
 
 ```powershell
@@ -78,6 +80,10 @@ agent sessions decide SESSION_ID CALL_ID allow-always
 `allow-always` 会按后端语义保存全局权限规则。Ctrl+C 会请求停止，并提交当前模型已经生成的半段正文与思考。网络错误不会重发消息；重连失败时会提示任务可能仍在运行，可用 `sessions show/stop` 检查或停止。
 
 ## 验证
+
+完整覆盖范围、真实 GPT 开发结果与修复记录见 [验收报告](ACCEPTANCE.md)。
+
+`sessions compact` 会等待模型完成总结，最长 10 分钟；Ctrl+C 可取消本地等待。其他普通 HTTP 操作仍使用较短超时，避免不可达服务长期挂起。
 
 ```powershell
 cd cli
