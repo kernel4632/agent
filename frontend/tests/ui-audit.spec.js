@@ -744,12 +744,16 @@ test('context groups summarize tools and keep text between groups', async ({ pag
   ])
 
   const groups = page.locator('.context-group__head')
-  await expect(groups).toHaveCount(1)
+  await expect(groups).toHaveCount(2)
   await expect(groups.first()).toContainText('读取文件 1 次')
-  await expect(groups.first()).toHaveAttribute('aria-expanded', 'true')
-  // 只调一次的工具不折叠，直接留在时间线上；多步的一组仍保持展开。
+  await expect(groups.first()).toHaveAttribute('aria-expanded', 'false')
+  await expect(groups.nth(1)).toContainText('执行命令 1 次')
+  await expect(groups.nth(1)).toHaveAttribute('aria-expanded', 'true')
+  // 当前活动组展开；前一组的单次工具被折叠，展开后两组都在。
+  await expect(page.locator('.cot-step--tool')).toHaveCount(1)
+  await openContextGroups(page)
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
-  await expect(page.locator('.cot-step--tool').last()).toContainText('执行命令')
+  await expect(page.locator('.context-group__body .request-status')).toHaveCount(2)
   const requestBeforeGroup = await page.evaluate(() => {
     const group = document.querySelector('.context-group')
     const request = group?.querySelector('.request-status')

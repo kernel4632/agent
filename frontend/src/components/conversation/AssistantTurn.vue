@@ -169,7 +169,9 @@ const processSummary = computed(() => summarizeProcess(treeSteps.value))
 const processSections = computed(() => {
   const sections = []
   let group = null
-  let pending = []
+  // 当前模型请求会跨过正文，继续作为后续动作组的元数据；
+  // 同一个请求可以在正文前后各出现一次，但绝不会落到别的请求下面。
+  let currentRequests = []
 
   const flush = () => {
     if (!group) return
@@ -190,23 +192,23 @@ const processSections = computed(() => {
       continue
     }
     if (step.type === 'request' || step.type === 'compact') {
-      // 已经在动作组里就按原位插入；还在正文前就挂起，等正文后的第一组动作。
+      currentRequests = [step]
       if (group) group.steps.push(step)
-      else pending.push(step)
       continue
     }
     if (!group) {
-      group = { type: 'group', key: `group-${step.key}`, steps: [] }
-      if (pending.length) {
-        group.steps.push(...pending)
-        pending = []
-      }
+      group = { type: 'group', key: `group-${step.key}`, steps: [...currentRequests] }
     }
     group.steps.push(step)
   }
   flush()
   // 结尾只有请求、没有后续动作时，直接留在时间线上。
-  for (const step of pending) sections.push({ type: 'step', key: step.key, step })
+  for (const step of currentRequests) {
+    if (!sections.some(section => section.type === 'step' && section.step === step)) {
+      const inGroup = sections.some(section => section.type === 'group' && section.steps.includes(step))
+      if (!inGroup) sections.push({ type: 'step', key: step.key, step })
+    }
+  }
   return sections
 })
 
