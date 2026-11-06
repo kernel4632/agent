@@ -6,11 +6,11 @@
 <script setup>
 import { computed } from 'vue'
 import { HugeiconsIcon } from '@hugeicons/vue'
-// Hugeicons 按 24px 画布设计。这里让屏幕线宽随实际尺寸等比缩放，并限制上下限：
-// 14px 底部图标不会细成 1px，18px 顶栏图标也不会粗到 2px 以上。
-const DESIGN_SIZE = 24
-const DESIGN_STROKE = 2.25
-const MIN_STROKE = 1.25
+// 以 18px 图标配 1.5px 线宽为基准做等比缩放；小图标保底 1.3px，
+// 避免底栏 14px 图标缩得过细，大图标也封顶在 2px。
+const DESIGN_SIZE = 18
+const DESIGN_STROKE = 1.5
+const MIN_STROKE = 1.3
 const MAX_STROKE = 2
 import { Add01Icon, Activity01Icon, AiBrain01Icon, ArrowDown01Icon, ArrowDown02Icon, ArrowExpand01Icon, ArrowRight01Icon, ArrowShrink01Icon, ArrowTurnBackwardIcon, ArrowUp02Icon, Attachment01Icon, Brain02Icon, BulbChargingIcon, BulbIcon, Cancel01Icon, ChartColumnIcon, ChatBotIcon, CheckListIcon, Clock01Icon, CodeIcon, Copy01Icon, Database01Icon, Delete01Icon, Download01Icon, EyeIcon, File02Icon, FlashIcon, Folder01Icon, GaugeIcon, GitForkIcon, Grid2X2PlusIcon, Home01Icon, Idea01Icon, IdeaIcon, InLoveIcon, InformationCircleIcon, InternetIcon, Layers01Icon, LeftToRightListBulletIcon, LightbulbOffIcon, Link01Icon, LookTopIcon, Menu03Icon, Message01Icon, MessageAdd01Icon, MoreVerticalIcon, PencilEdit01Icon, PlayIcon, Refresh01Icon, Search01Icon, Settings03Icon, Shield01Icon, Sorting01Icon, SparklesIcon, Tick02Icon, Upload01Icon, VolumeHighIcon, VolumeOffIcon,  } from '@hugeicons/core-free-icons'
 
