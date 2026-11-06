@@ -142,40 +142,44 @@ function summarizeSteps(steps) {
   if (tools.length) pieces.push(`使用了 ${tools.length} 次工具：${[...names].map(([name, count]) => `${name} ${count} 次`).join('、')}`)
   return pieces.join(' · ')
 }
-const processSummary = computed(() => {
-  const requests = treeSteps.value.filter(step => step.type === 'request').length
-  const content = summarizeSteps(treeSteps.value)
+function summarizeProcess(steps) {
+  const requests = steps.filter(step => step.type === 'request').length
+  const content = summarizeSteps(steps)
   const pieces = []
   if (requests) pieces.push(`${requests} 次模型请求`)
   if (content !== '运行状态') pieces.push(content)
   return pieces.join(' · ') || '运行状态'
-})
+}
+const processSummary = computed(() => summarizeProcess(treeSteps.value))
 
-// 时间线保持请求-思考-正文-工具的真实顺序；只有连续的工具/思考可以折叠成组。
-// 请求统计不再单独聚到顶部，而是留在它实际发生的位置。
+// 时间线以助手正文分段：正文直接显示；正文之间的请求、思考、工具合成一个折叠组。
+// 这样一级能看到助手说了什么，二级展开看到中间做了什么，三级再展开单个工具细节。
 const processSections = computed(() => {
   const sections = []
   let group = null
-  for (const step of treeSteps.value) {
-    if (step.type === 'reasoning' || step.type === 'tool') {
-      if (!group) {
-        group = { type: 'group', key: `group-${step.key}`, steps: [] }
-        sections.push(group)
-      }
-      group.steps.push(step)
-    } else {
-      group = null
-      sections.push({ type: 'step', key: step.key, step })
-    }
+  const flush = () => {
+    if (!group) return
+    sections.push(group)
+    group = null
   }
+  for (const step of treeSteps.value) {
+    if (step.type === 'text') {
+      flush()
+      sections.push({ type: 'step', key: step.key, step })
+      continue
+    }
+    if (!group) group = { type: 'group', key: `group-${step.key}`, steps: [] }
+    group.steps.push(step)
+  }
+  flush()
   return sections.flatMap(section => {
     if (section.type !== 'group') return [section]
-    // 单个思考或单次工具直接留在时间线上，不为了折叠造一个只有一项的组。
+    // 单个内部步骤（例如只调一次工具）直接留在时间线上，不造单项折叠。
     if (section.steps.length === 1) {
       const step = section.steps[0]
       return [{ type: 'step', key: `single-${step.key}`, step }]
     }
-    return [{ ...section, summary: summarizeSteps(section.steps) }]
+    return [{ ...section, summary: summarizeProcess(section.steps) }]
   })
 })
 
@@ -289,8 +293,13 @@ function clearTarget() { targetId.value = null; emit('close') }
                 <Fold :open="isGroupOpen(section)">
                   <div class="context-group__body cot-steps">
                     <template v-for="step in section.steps" :key="step.key">
+                      <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
+                      <template v-else-if="step.type === 'compact'">
+                        <RequestStatus :data-message-id="step.messageId" :request="step.request" kind="compact" />
+                        <pre v-if="step.request.content || step.request.reasoning" v-auto-scroll class="compact-stream">{{ step.request.content || step.request.reasoning }}</pre>
+                      </template>
                       <ReasoningStep
-                        v-if="step.type === 'reasoning'"
+                        v-else-if="step.type === 'reasoning'"
                         :data-message-id="step.messageId"
                         :reasoning="step.text"
                         :streaming="step.streaming"

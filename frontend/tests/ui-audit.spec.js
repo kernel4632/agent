@@ -758,6 +758,45 @@ test('context groups summarize tools and keep text between groups', async ({ pag
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
   expect(mock.errors).toEqual([])
 })
+test('text answers stay outside one process fold that keeps request order', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'text-delta', text: '第一段回答。' },
+    { type: 'tool-call', toolCallId: 'seg-a', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'seg-a', toolName: 'read_file', output: { type: 'text', value: 'a' } },
+    { type: 'llm-start' },
+    { type: 'tool-call', toolCallId: 'seg-b', toolName: 'execute_command', input: { command: 'bun test' } },
+    { type: 'tool-result', toolCallId: 'seg-b', toolName: 'execute_command', output: { type: 'text', value: 'ok' } },
+    { type: 'text-delta', text: '第二段回答。' },
+  ])
+
+  const texts = page.locator('.cot-step--text')
+  await expect(texts).toHaveCount(2)
+  await expect(texts.first()).toContainText('第一段回答')
+  await expect(texts.last()).toContainText('第二段回答')
+  const groups = page.locator('.context-group__head')
+  await expect(groups).toHaveCount(1)
+  await expect(groups).toContainText('1 次模型请求')
+  await expect(groups).toContainText('使用了 2 次工具')
+  const groupBetweenText = await page.evaluate(() => {
+    const first = [...document.querySelectorAll('.cot-step--text')][0]
+    const group = document.querySelector('.context-group')
+    const last = [...document.querySelectorAll('.cot-step--text')].at(-1)
+    return Boolean(first && group && last
+      && (first.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING)
+      && (group.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING))
+  })
+  expect(groupBetweenText).toBe(true)
+  expect(mock.errors).toEqual([])
+})
+
 test('process fold summarizes work, toggles steps, and stays transparent', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
