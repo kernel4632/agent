@@ -1,6 +1,7 @@
 <!--
 MCP 服务页：默认是服务列表；点一行进入该服务的编辑页。
 列表和编辑页共用 draft.mcp，保存仍由设置页自动完成；本机识别和连接测试走 /mcp/*。
+本机识别结果按“名称 + 连接目标”合并，同一服务在多个客户端出现时只占一行。
 调用示例：<MCPList :draft="draft" :detail="detail" @open-detail="..." @close-detail="..." @update-detail-title="..." />
 -->
 <script setup>
@@ -27,11 +28,57 @@ const detecting = ref(true)
 const importBusy = ref('')                                // 单项导入中的服务 id
 const testState = ref(null)
 
-// --- 批量选择状态：键是识别服务的 id，值是是否勾选 ---
+const selected = computed(() => props.detail
+  ? props.draft.mcp.find(item => item.id === props.detail.id) ?? null
+  : null)
+const candidates = computed(() => detected.value.servers || [])
+
+// 同一个服务可能同时出现在 Claude Code、Cursor、opencode 等配置里。
+// 名称和连接目标一致时合并成一组，避免用户面对一排完全相同的开关。
+const sourceScore = server => server.envKeys.length + server.headerKeys.length
+const groups = computed(() => {
+  const merged = new Map()
+  for (const server of candidates.value) {
+    const target = describeTarget(server.definition)
+    const key = `${server.name}\u0000${target}`
+    let group = merged.get(key)
+    if (!group) {
+      group = {
+        id: key,
+        name: server.name,
+        target,
+        servers: [],
+        apps: [],
+        envKeys: new Set(),
+        headerKeys: new Set(),
+        configured: false,
+        representative: server,
+      }
+      merged.set(key, group)
+    }
+    group.servers.push(server)
+    if (!group.apps.includes(server.app)) group.apps.push(server.app)
+    for (const name of server.envKeys || []) group.envKeys.add(name)
+    for (const name of server.headerKeys || []) group.headerKeys.add(name)
+    if (server.configured) group.configured = true
+    // 导入时选配置最全的那一份；已配置的优先，开关才有确定的停用目标。
+    if (server.configured || (!group.representative.configured && sourceScore(server) > sourceScore(group.representative))) {
+      group.representative = server
+    }
+  }
+  return [...merged.values()].map(group => ({
+    ...group,
+    envKeys: [...group.envKeys].sort(),
+    headerKeys: [...group.headerKeys].sort(),
+  }))
+})
+
+// --- 批量选择状态：键是服务组的 id，值是是否勾选 ---
 const checked = ref({})
 const bulkBusy = ref(false)                               // 批量导入进行中，按钮置灰
-const candidateIds = computed(() => candidates.value.map(server => server.id))
-const selectedIds = computed(() => candidateIds.value.filter(id => checked.value[id] && !candidates.value.find(server => server.id === id).configured))
+const candidateIds = computed(() => groups.value.map(group => group.id))
+const selectedGroups = computed(() => groups.value.filter(group => checked.value[group.id] && !group.configured))
+const selectedIds = computed(() => selectedGroups.value.map(group => group.representative.id))
 const allChecked = computed(() => candidateIds.value.length > 0 && candidateIds.value.every(id => checked.value[id]))
 const someChecked = computed(() => candidateIds.value.some(id => checked.value[id]))
 
@@ -71,11 +118,6 @@ async function bulkImport() {
     bulkBusy.value = false
   }
 }
-
-const selected = computed(() => props.detail
-  ? props.draft.mcp.find(item => item.id === props.detail.id) ?? null
-  : null)
-const candidates = computed(() => detected.value.servers || [])
 
 // --- 打开页面时扫一遍本机，不需要用户先点“扫描” ---
 async function loadDetected() {
@@ -121,16 +163,16 @@ function removeMCP() {
   emit('close-detail')
 }
 
-// --- 导入一个识别到的服务；服务端写进配置后刷新草稿里的 mcp，不动其他字段 ---
-async function importServer(server) {
-  importBusy.value = server.id
+// --- 导入一个识别到的服务组；服务端写进配置后刷新草稿里的 mcp，不动其他字段 ---
+async function importServer(group) {
+  importBusy.value = group.id
   const saved = await Settings.save({ keepDraft: true })   // 导入前先落盘草稿，避免保存时覆盖
-  const result = saved ? await Mcp.importServers([server.id]) : null
+  const result = saved ? await Mcp.importServers([group.representative.id]) : null
   importBusy.value = ''
   if (!result?.imported?.length) return
   await Settings.refreshMcp()                              // 响应后同步草稿，避免旧草稿回跳
-  server.configured = true                                 // 开关状态实时同步
-  checked.value = { ...checked.value, [server.id]: false } // 清掉这一项的勾选
+  for (const server of group.servers) server.configured = true // 同一服务的所有来源一起视为已添加
+  checked.value = { ...checked.value, [group.id]: false }   // 清掉这一组的勾选
 }
 
 // --- 已添加服务的开关：开 = 启用，关 = 仅从本应用配置停用，不改外部文件 ---
@@ -195,7 +237,7 @@ async function testServer() {
       <header class="mcp-detected__head">
         <div>
           <h2>本机识别到的服务</h2>
-          <p>从其他软件的配置里读到；打开开关即写进本应用，不会修改源文件。</p>
+          <p>从其他软件的配置里读到；同名同地址的服务合并显示，打开开关即写进本应用，不会修改源文件。</p>
         </div>
         <Button variant="text" :disabled="detecting" @click="loadDetected"><Icon name="refresh" :size="18" />重新扫描</Button>
       </header>
@@ -218,37 +260,37 @@ async function testServer() {
       </div>
 
       <p v-if="detecting" class="mcp-detected__empty">正在扫描本机配置…</p>
-      <p v-else-if="!candidates.length" class="mcp-detected__empty">没有发现可导入的 MCP 配置。</p>
+      <p v-else-if="!groups.length" class="mcp-detected__empty">没有发现可导入的 MCP 配置。</p>
       <div v-else class="mcp-detected__card">
-        <div v-for="server in candidates" :key="server.id" class="mcp-detected__row">
+        <div v-for="group in groups" :key="group.id" class="mcp-detected__row">
           <SelectButton
-            v-if="!server.configured"
-            :model-value="Boolean(checked[server.id])"
-            :label="`选择 ${server.name}`"
-            @update:model-value="toggleOne(server.id, $event)"
+            v-if="!group.configured"
+            :model-value="Boolean(checked[group.id])"
+            :label="`选择 ${group.name}`"
+            @update:model-value="toggleOne(group.id, $event)"
           />
           <span class="mcp-detected__copy">
-            <strong>{{ server.name }}</strong>
-            <small>{{ server.app }} · {{ describeTarget(server.definition) }}</small>
-            <small v-if="server.envKeys.length || server.headerKeys.length">
-              导入后需要填写：{{ [...server.envKeys, ...server.headerKeys].join('、') }}（值不显示）
+            <strong>{{ group.name }}</strong>
+            <small>{{ group.apps.join(' · ') }} · {{ group.target }}</small>
+            <small v-if="group.envKeys.length || group.headerKeys.length">
+              导入后需要填写：{{ [...group.envKeys, ...group.headerKeys].join('、') }}（值不显示）
             </small>
           </span>
           <!-- 已添加的服务用开关表达；关掉只停用本应用配置，不碰源文件 -->
           <Switch
-            v-if="server.configured"
-            :model-value="draft.mcp.find(item => item.name === server.name)?.enabled ?? true"
-            :label="`启用 ${server.name}`"
+            v-if="group.configured"
+            :model-value="draft.mcp.find(item => item.name === group.name)?.enabled ?? true"
+            :label="`启用 ${group.name}`"
             hide-label
-            @update:model-value="toggleConfigured(server, $event)"
+            @update:model-value="toggleConfigured(group, $event)"
           />
           <Switch
             v-else
             :model-value="false"
-            :label="`添加 ${server.name}`"
-            :disabled="importBusy === server.id || bulkBusy"
+            :label="`添加 ${group.name}`"
+            :disabled="importBusy === group.id || bulkBusy"
             hide-label
-            @update:model-value="importServer(server)"
+            @update:model-value="importServer(group)"
           />
         </div>
       </div>

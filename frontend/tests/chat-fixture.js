@@ -51,9 +51,15 @@ export async function backend(page, { configured = true } = {}) {
     state: { sources: [], disabled: [] },
   }
   const detected = {
-    sources: [{ id: 'cursor', app: 'Cursor', path: 'D:/mock/.cursor/mcp.json', servers: 1 }],
+    sources: [
+      { id: 'cursor', app: 'Cursor', path: 'D:/mock/.cursor/mcp.json', servers: 1 },
+      { id: 'claude-code', app: 'Claude Code', path: 'D:/mock/.claude.json', servers: 1 },
+    ],
     servers: [{
       id: 'cursor::github', name: 'github', app: 'Cursor', source: 'cursor', path: 'D:/mock/.cursor/mcp.json',
+      definition: { command: 'npx', args: ['-y', 'server-github'], env: {} }, envKeys: ['GITHUB_TOKEN'], headerKeys: [], configured: false,
+    }, {
+      id: 'claude-code::github', name: 'github', app: 'Claude Code', source: 'claude-code', path: 'D:/mock/.claude.json',
       definition: { command: 'npx', args: ['-y', 'server-github'], env: {} }, envKeys: ['GITHUB_TOKEN'], headerKeys: [], configured: false,
     }],
   }
