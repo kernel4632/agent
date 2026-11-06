@@ -8,7 +8,7 @@
   padding: 16px 20px;
 }
 .ui-settings-row + .ui-settings-row { border-top: .5px solid var(--la-line); }
-.ui-settings-row--wide { grid-template-columns: minmax(220px, .8fr) minmax(320px, 1.2fr); align-items: start; }
+.ui-settings-row--wide { grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
 .ui-settings-row__copy { display: grid; min-width: 0; gap: 2px; }
 .ui-settings-row__title {
   color: var(--la-text);

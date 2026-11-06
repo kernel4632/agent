@@ -1,5 +1,5 @@
 <!--
-设置行：左侧标题和说明，右侧操作控件。宽控件可以用 wide 让右侧占更多空间。
+设置行：左侧标题和说明，右侧操作控件。高控件用 wide 改为上下布局，避免左侧留大片空白。
 调用示例：<SettingsRow title="界面主题" description="选择工作区显示方式"><Select ... /></SettingsRow>
 -->
 <script setup>
