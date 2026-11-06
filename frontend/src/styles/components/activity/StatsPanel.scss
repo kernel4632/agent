@@ -28,6 +28,7 @@
 .session-stats__summary-estimate { flex: none; color: var(--la-warning); font-size: 11px; }
 
 .stats-panel { display: grid; width: 100%; gap: 12px; }
+.stats-panel--context { position: relative; }
 .stats-panel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .stats-panel__heading { display: inline-flex; align-items: center; gap: 6px; color: var(--la-secondary); font-size: 12.5px; font-weight: 650; }
 .stats-panel__heading svg { color: var(--la-muted); }
@@ -40,6 +41,8 @@
   font-size: 10.5px;
   font-weight: 650;
 }
+/* 上下文面板不再单独占一行标题：估算徽标浮在右上角，主体铺满面板。 */
+.stats-panel__badge--floating { position: absolute; top: 0; right: 0; z-index: 1; }
 
 .stats-panel__hero { display: flex; align-items: center; gap: 16px; padding: 2px 0; }
 .stats-panel__ring { position: relative; display: grid; flex: none; place-items: center; }

@@ -131,10 +131,7 @@ const formatDuration = value => {
         </span>
       </template>
       <div class="stats-panel stats-panel--context">
-        <div class="stats-panel__head">
-          <span class="stats-panel__heading"><Icon name="layers" :size="15" />上下文</span>
-          <span v-if="contextApproximate" class="stats-panel__badge">估算</span>
-        </div>
+        <span v-if="contextApproximate" class="stats-panel__badge stats-panel__badge--floating">估算</span>
         <div class="stats-panel__hero">
           <div class="stats-panel__ring">
             <RingProgress :class="ringClass" :value="percent" :max="100" :size="92" :stroke-width="8" label="上下文占用" />

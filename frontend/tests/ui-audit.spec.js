@@ -1120,6 +1120,7 @@ test('composer footer stats opens the session data panel', async ({ page }, test
 
   await stats.getByRole('button', { name: /上下文占用/ }).click()
   const contextPanel = page.getByRole('dialog', { name: '上下文统计' })
+  await expect(contextPanel.locator('.stats-panel--context .stats-panel__heading')).toHaveCount(0)
   await expect(contextPanel.locator('.stats-panel__contextbar-used')).toBeVisible()
   await expect(contextPanel.locator('.stats-panel__contextbar')).toHaveCSS('height', '7px')
   await expect(contextPanel).toContainText('自动压缩 80%')
