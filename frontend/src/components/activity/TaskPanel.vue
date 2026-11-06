@@ -1,10 +1,10 @@
 <!--
-会话右侧任务清单：当前任务置顶，待处理独立成组，已完成默认收起。
+会话右侧任务清单：当前任务置顶，待处理独立成组，已完成全部平铺展示。
 清单由模型在 update_todo_list 工具里更新；这里只展示进度、任务文字和状态，不做用户可编辑的假复选框。
 调用示例：<TaskPanel :open="todoOpen" :todos="todos" @update:open="todoOpen = $event" />
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import Dialog from '../../ui/Dialog.vue'
 import Icon from '../../ui/Icon.vue'
 
@@ -20,7 +20,6 @@ const done = computed(() => props.todos.filter(item => item.status === 'complete
 const current = computed(() => props.todos.find(item => item.status === 'in_progress') || null)
 const pending = computed(() => props.todos.filter(item => item.status === 'pending'))
 const completed = computed(() => props.todos.filter(item => item.status === 'completed'))
-const showCompleted = ref(false)
 const icon = status => todoStatus(status).icon
 </script>
 
@@ -64,11 +63,11 @@ const icon = status => todoStatus(status).icon
         </section>
 
         <section v-if="completed.length" class="session-todo-panel__section session-todo-panel__section--done">
-          <button type="button" class="session-todo-panel__completed-toggle" :aria-expanded="showCompleted" @click="showCompleted = !showCompleted">
-            <span>已完成 {{ completed.length }} 项</span>
-            <Icon name="down" :size="14" class="session-todo-panel__caret" :class="{ 'is-open': showCompleted }" aria-hidden="true" />
-          </button>
-          <div v-if="showCompleted" class="session-todo-panel__list session-todo-panel__list--done">
+          <div class="session-todo-panel__section-head">
+            <span>已完成</span>
+            <span class="session-todo-panel__count">{{ completed.length }}</span>
+          </div>
+          <div class="session-todo-panel__list session-todo-panel__list--done">
             <div v-for="(item, index) in completed" :key="`done-${index}-${item.text}`" class="session-todo-panel__card is-done">
               <Icon :name="icon(item.status)" :size="17" class="session-todo-panel__icon" :class="`is-${item.status}`" />
               <span class="session-todo-panel__text">{{ item.text }}</span>
