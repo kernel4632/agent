@@ -17,9 +17,7 @@ import { outputText } from '../../commands/tool.js'
 import { isFinishedStopTool } from '../../commands/history.js'
 import { isSavedMessage } from '../../commands/history.js'
 import MessageActions from './MessageActions.vue'
-import RequestStatus from '../feedback/RequestStatus.vue'
-import ReasoningStep from './ReasoningStep.vue'
-import ToolCall from '../activity/ToolCall.vue'
+import ProcessTree from './ProcessTree.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
@@ -47,11 +45,6 @@ const targeted = messageId => {
 }
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
-const vAutoScroll = {
-  mounted: element => { element.scrollTop = element.scrollHeight },
-  updated: element => { element.scrollTop = element.scrollHeight },
-}
-
 const actionable = message => isSavedMessage(message)
 
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
@@ -238,7 +231,7 @@ function clearTarget() { targetId.value = null; emit('close') }
       @action="onMenu"
       @rollback-confirm="emit('rollback-confirm', $event)"
     >
-      <div v-if="treeSteps.length" class="cot-card process-tree">
+      <div v-if="treeSteps.length" class="cot-card process-tree" :class="{ 'is-open': processOpen }">
         <button type="button" class="process-tree__head" :aria-expanded="processOpen" @click="toggleProcess">
           <span class="process-tree__icon"><Icon name="layers" :size="15" /></span>
           <span class="process-tree__title">处理过程</span>
@@ -246,54 +239,13 @@ function clearTarget() { targetId.value = null; emit('close') }
           <span v-if="activeTurn" class="process-tree__live">进行中</span>
           <Icon name="down" :size="15" class="process-tree__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
-        <div v-if="processOpen" class="cot-steps process-tree__body">
-          <template v-for="section in processSections" :key="section.key">
-            <template v-if="section.type === 'step'">
-              <div class="process-tree__leaf">
-                <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
-                <template v-else-if="section.step.type === 'compact'">
-                  <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
-                  <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
-                </template>
-                <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
-                  <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
-                  <div class="cot-step__main">
-                    <div class="cot-step__body cot-step__body--text">
-                      <Markdown smooth :content="section.step.text" compact />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <div v-else class="process-group">
-              <button type="button" class="process-group__head" :aria-expanded="groupOpen" @click="toggleGroup">
-                <span class="process-group__icon"><Icon name="layers" :size="14" /></span>
-                <span class="process-group__title">工具与思考</span>
-                <em>{{ section.steps.length }} 项</em>
-                <Icon name="down" :size="14" class="process-group__caret" :class="{ 'is-open': groupOpen }" aria-hidden="true" />
-              </button>
-              <div v-if="groupOpen" class="process-group__steps">
-                <div v-for="step in section.steps" :key="step.key" class="process-tree__leaf">
-                  <ReasoningStep
-                    v-if="step.type === 'reasoning'"
-                    :data-message-id="step.messageId"
-                    :reasoning="step.text"
-                    :streaming="step.streaming"
-                    :started-at="step.message.startedAt"
-                    :finished-at="step.message.finishedAt"
-                  />
-                  <ToolCall
-                    v-else
-                    :data-message-id="step.messageId"
-                    :tool="step.tool"
-                    :session-id="sessionId"
-                  />
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
+        <ProcessTree
+          v-if="processOpen"
+          :sections="processSections"
+          :group-open="groupOpen"
+          :session-id="sessionId"
+          @toggle-group="toggleGroup"
+        />
       </div>
 
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">

@@ -141,9 +141,9 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* 处理过程树：一级入口常驻，树体收起后只露出这一行；最终回复在树外。 */
-.process-tree { padding-top: 2px; }
-.process-tree__head { display: flex; width: 100%; min-height: 36px; align-items: center; gap: 7px; padding: 4px 2px; border: 0; border-radius: 10px; background: transparent; color: var(--la-muted); font: inherit; text-align: left; cursor: pointer; }
+/* 处理过程：一级入口常驻；二级以下由 ProcessTree 用同一套行/线渲染。 */
+.process-tree { position: relative; padding-top: 2px; }
+.process-tree__head { position: relative; display: flex; width: 100%; min-height: 36px; align-items: center; gap: 7px; padding: 4px 2px 4px 0; border: 0; border-radius: 10px; background: transparent; color: var(--la-muted); font: inherit; text-align: left; cursor: pointer; }
 .process-tree__head:hover { color: var(--la-text); }
 .process-tree__icon { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--la-accent) 12%, transparent); color: var(--la-accent); }
 .process-tree__title { color: var(--la-text); font-size: 13px; font-weight: 600; }
@@ -151,122 +151,12 @@
 .process-tree__live { padding: 1px 6px; border-radius: 6px; background: var(--la-accent-soft); color: var(--la-accent); font-size: 10.5px; }
 .process-tree__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .process-tree__caret.is-open { transform: rotate(180deg); }
-.process-tree .cot-steps { padding: 2px 0 4px; }
-/* 二级层：工具与思考聚类。挂在处理过程下面，展开后才进入具体工具/思考。 */
-.process-group { margin: 4px 0 2px; border-radius: 12px; }
-.process-group__head { display: flex; width: 100%; min-height: 34px; align-items: center; gap: 6px; padding: 4px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--la-secondary); font: inherit; text-align: left; cursor: pointer; }
-.process-group__head:hover { background: var(--la-hover); color: var(--la-text); }
-.process-group__icon { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--la-accent) 10%, transparent); color: var(--la-accent); }
-.process-group__title { color: var(--la-text); font-size: 12.5px; font-weight: 600; }
-.process-group__head em { color: var(--la-muted); font-size: 11px; font-style: normal; }
-.process-group__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
-.process-group__caret.is-open { transform: rotate(180deg); }
-.process-group__steps { padding: 2px 8px 6px 4px; }
-/* 真正的树：一级树干、二级分支、三级叶子连接线；不使用纯平铺。 */
-.process-tree__body {
-  position: relative;
-  margin-left: 14px;
-  padding: 2px 0 4px;
-}
-.process-tree__body::before {
-  position: absolute;
-  top: 0;
-  bottom: 16px;
-  left: 0;
-  width: 1px;
-  background: var(--la-line);
-  content: "";
-}
-.process-tree__leaf { position: relative; min-width: 0; }
-.process-tree__leaf::before {
-  position: absolute;
-  top: 22px;
-  left: -14px;
-  width: 14px;
-  height: 1px;
-  background: var(--la-line);
-  content: "";
-}
-.process-tree__body > .process-group { position: relative; }
-.process-tree__body > .process-group::before {
-  position: absolute;
-  top: 18px;
-  left: -14px;
-  width: 14px;
-  height: 1px;
-  background: var(--la-line);
-  content: "";
-}
-/* 二级组内部再起一根竖线，每个工具/思考用横线接上去。 */
-.process-group__steps {
-  position: relative;
-  margin-left: 19px;
-  padding: 2px 8px 6px 16px;
-}
-.process-group__steps::before {
-  position: absolute;
-  top: 0;
-  bottom: 16px;
-  left: 0;
-  width: 1px;
-  background: var(--la-line);
-  content: "";
-}
-.process-group__steps .process-tree__leaf::before {
-  left: -16px;
-  width: 16px;
-}
-/* 外层已经有树线，去掉这些步骤原本的平铺竖线；子智能体内部的树线仍保留。 */
-.process-tree__body > .process-tree__leaf > .cot-step::before,
-.process-group__steps > .process-tree__leaf > .cot-step::before { display: none; }
-/* 树线要比普通分隔线更清楚，否则层级会看起来像平铺。 */
-.process-tree__body::before,
-.process-tree__leaf::before,
-.process-tree__body > .process-group::before,
-.process-group__steps::before,
-.process-group__steps .process-tree__leaf::before {
-  background: color-mix(in srgb, var(--la-secondary) 34%, transparent);
-}
-/* 修正树枝方向：树干在左，节点向右缩进，横线从树干伸向节点。 */
-.process-tree__body { padding-left: 16px; }
-.process-tree__leaf::before { left: -16px; width: 16px; }
-.process-tree__body > .process-group::before { left: -16px; width: 35px; }
-/* 旧规则 .process-tree .cot-steps 的简写 padding 会覆盖这里的缩进，必须同级覆盖。 */
-.process-tree .process-tree__body { padding: 2px 0 4px 16px; }
-/* 组头的连接线画在按钮自身里，避免被组背景盖住，并明确从左侧树干伸向右边的图标。 */
-.process-tree__body > .process-group::before { display: none; }
-.process-group__head { position: relative; }
-.process-group__head::before {
+.process-tree.is-open .process-tree__head::after {
   position: absolute;
   top: 50%;
-  left: -16px;
-  width: 35px;
-  height: 1px;
-  background: color-mix(in srgb, var(--la-secondary) 34%, transparent);
-  content: "";
-}
-/* 树线提高对比度，确保缩进关系一眼可见。 */
-.process-tree__body::before,
-.process-tree__leaf::before,
-.process-group__steps::before,
-.process-group__steps .process-tree__leaf::before,
-.process-group__head::before {
-  background: color-mix(in srgb, var(--la-secondary) 55%, transparent);
-}
-/* 每个节点自己画一段竖线：最后一个节点只画到自己的横枝处，避免枝条尾部突出。 */
-.process-tree__body::before,
-.process-group__steps::before { display: none; }
-.process-tree__body > .process-tree__leaf::after,
-.process-tree__body > .process-group::after,
-.process-group__steps > .process-tree__leaf::after {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -16px;
+  bottom: -2px;
+  left: 12px;
   width: 1px;
-  background: color-mix(in srgb, var(--la-secondary) 55%, transparent);
+  background: var(--la-line-strong);
   content: "";
 }
-.process-tree__body > .process-tree__leaf:last-child::after,
-.process-group__steps > .process-tree__leaf:last-child::after { bottom: auto; height: 22px; }
-.process-tree__body > .process-group:last-child::after { bottom: auto; height: 18px; }

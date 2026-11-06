@@ -1,0 +1,50 @@
+/* 处理过程树：所有连线共用同一套 1px 线，缩进由数据行自己决定。 */
+.process-rows { position: relative; padding: 2px 0 4px; }
+.process-row { position: relative; min-width: 0; }
+.process-row__body { position: relative; z-index: 1; min-width: 0; }
+.process-line {
+  position: absolute;
+  z-index: 0;
+  background: var(--la-line-strong);
+  pointer-events: none;
+}
+.process-line--v { top: 0; bottom: 0; width: 1px; }
+.process-line--h { height: 1px; }
+.process-line--stem.is-last { bottom: auto; height: var(--stem-end); }
+.process-line--subtree { bottom: 0; }
+.process-group__head {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--la-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.process-group__head:hover { color: var(--la-text); }
+.process-group__icon {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  transform: translateY(-50%);
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--la-accent) 10%, transparent);
+  color: var(--la-accent);
+}
+.process-group__title { color: var(--la-text); font-size: 12.5px; font-weight: 600; }
+.process-group__head em { color: var(--la-muted); font-size: 11px; font-style: normal; }
+.process-group__caret { margin-left: auto; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.process-group__caret.is-open { transform: rotate(180deg); }
+/* 外层树已经画线，叶节点本身不再重复一条平铺竖线。 */
+.process-row__body > :deep(.cot-step::before) { display: none; }

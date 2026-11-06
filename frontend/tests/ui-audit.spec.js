@@ -779,9 +779,9 @@ test('each model request stays at its position in the conversation flow', async 
   await expect(rows.nth(1)).toContainText(/入\s*10/)
   await expect(rows.nth(2)).toContainText(/入\s*20/)
   // 第二次请求排在工具步骤之后，而不是被汇总到整轮回复的开头。
-  await expect(page.locator('.process-group__steps .cot-step--tool')).toHaveCount(1)
+  await expect(page.locator('.process-row__body > .cot-step--tool')).toHaveCount(1)
   const requestAfterTool = await page.evaluate(() => {
-    const tool = document.querySelector('.process-group__steps .cot-step--tool')
+    const tool = document.querySelector('.process-row__body > .cot-step--tool')
     const lastRequest = [...document.querySelectorAll('.request-status')].at(-1)
     return Boolean(tool && lastRequest && (tool.compareDocumentPosition(lastRequest) & Node.DOCUMENT_POSITION_FOLLOWING))
   })
