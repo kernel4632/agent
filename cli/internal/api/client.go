@@ -1,3 +1,15 @@
+/*
+HTTP 客户端：统一处理 JSON 请求、错误响应和压缩这种长等待接口。
+
+普通接口使用短超时，避免服务不可达时终端一直挂住；压缩要等模型生成完整总结，
+单独放宽响应头和总超时，同时保留调用方 Ctrl+C 的取消。
+
+调用示例：
+
+	client, err := New("http://127.0.0.1:3000")
+	err = client.Request(ctx, "GET", "/health", nil, &health)
+	err = client.Compact(ctx, sessionID, &summary)
+*/
 package api
 
 import (
@@ -11,6 +23,10 @@ import (
 	"strings"
 	"time"
 )
+
+// 压缩是一次真实的模型请求；服务端要等模型生成完才返回响应头，不能被普通
+// 20 秒响应头超时或 60 秒总超时截断。调用方仍可用 Ctrl+C 取消。
+const compactTimeout = 10 * time.Minute
 
 type Client struct {
 	base string
@@ -34,18 +50,19 @@ func New(address string) (*Client, error) {
 	return &Client{base: strings.TrimRight(address, "/"), http: &http.Client{Transport: transport}}, nil
 }
 
+// Request 发普通 JSON 接口；响应头超时 20 秒、总超时 60 秒。
 func (c *Client) Request(ctx context.Context, method, path string, body, result any) error {
 	return c.request(ctx, method, path, body, result, 60*time.Second)
 }
 
-// Compaction generates a model response before returning HTTP headers. Keep the
-// normal transport deadlines for other endpoints and retain caller cancellation.
+// Compact 发手动压缩请求。压缩在服务端要等模型生成总结后才返回响应头，
+// 所以单独去掉响应头超时，并把总时限放宽到 compactTimeout；ctx 取消仍生效。
 func (c *Client) Compact(ctx context.Context, id string, result any) error {
 	transport := c.http.Transport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = 0
 	defer transport.CloseIdleConnections()
 	client := &Client{base: c.base, http: &http.Client{Transport: transport}}
-	return client.request(ctx, "POST", SessionPath("compact", id), nil, result, 10*time.Minute)
+	return client.request(ctx, "POST", SessionPath("compact", id), nil, result, compactTimeout)
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body, result any, timeout time.Duration) error {

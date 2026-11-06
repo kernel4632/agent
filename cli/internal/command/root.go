@@ -1,3 +1,12 @@
+/*
+脚本化 CLI：把命令翻译成 HTTP/SSE 调用，输出表格或 JSON。
+
+会话操作共享一张命令表；普通动作走短请求，压缩单独走长等待接口。
+调用示例：
+  agent health
+  agent sessions compact SESSION_ID
+  agent ask "继续补充" --session SESSION_ID
+*/
 // Package command exposes the scriptable CLI and the interactive chat entry.
 package command
 
@@ -166,14 +175,15 @@ func (o *options) sessions() *cobra.Command {
 	for _, spec := range []struct {
 		use, short, action, method, field string
 		count                             int
+		longRunning                       bool
 	}{
-		{"rename ID TITLE", "修改标题", "rename", "PATCH", "title", 2},
-		{"cwd ID PATH", "修改服务端当前目录", "cwd", "PATCH", "cwd", 2},
-		{"reasoning ID LEVEL", "设置思考强度", "settings", "PATCH", "reasoning", 2},
-		{"remove ID", "删除空闲会话", "remove", "DELETE", "", 1},
-		{"fork ID", "复制会话为新分支", "fork", "POST", "", 1},
-		{"changes ID", "查看文件改动", "changes", "GET", "", 1},
-		{"compact ID", "压缩上下文", "compact", "POST", "", 1},
+		{use: "rename ID TITLE", short: "修改标题", action: "rename", method: "PATCH", field: "title", count: 2},
+		{use: "cwd ID PATH", short: "修改服务端当前目录", action: "cwd", method: "PATCH", field: "cwd", count: 2},
+		{use: "reasoning ID LEVEL", short: "设置思考强度", action: "settings", method: "PATCH", field: "reasoning", count: 2},
+		{use: "remove ID", short: "删除空闲会话", action: "remove", method: "DELETE", count: 1},
+		{use: "fork ID", short: "复制会话为新分支", action: "fork", method: "POST", count: 1},
+		{use: "changes ID", short: "查看文件改动", action: "changes", method: "GET", count: 1},
+		{use: "compact ID", short: "压缩上下文", action: "compact", method: "POST", count: 1, longRunning: true},
 	} {
 		root.AddCommand(&cobra.Command{Use: spec.use, Short: spec.short, Args: cobra.ExactArgs(spec.count), RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := o.client()
@@ -190,7 +200,8 @@ func (o *options) sessions() *cobra.Command {
 				body = map[string]string{spec.field: args[1]}
 			}
 			var data any
-			if spec.action == "compact" {
+			if spec.longRunning {
+				// 压缩要等模型生成完才返回响应头；Ctrl+C 只取消本地等待。
 				ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 				defer cancel()
 				if err = client.Compact(ctx, args[0], &data); err != nil {
