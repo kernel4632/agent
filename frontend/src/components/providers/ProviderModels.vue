@@ -277,8 +277,8 @@ async function saveModel() {
     <header class="provider-models__head">
       <div class="provider-models__heading"><h2>已添加的模型</h2><span>{{ models.length }} 个</span></div>
       <div class="provider-models__toolbar" aria-label="模型操作">
-        <Button variant="text" :aria-busy="loading" @click="discover"><Icon name="download" :size="16" />{{ loading ? '获取中…' : '获取模型列表' }}</Button>
-        <Button @click="openEditor()"><Icon name="plus" :size="16" />添加模型</Button>
+        <Button variant="tonal" :aria-busy="loading" @click="discover"><Icon name="download" :size="16" />{{ loading ? '获取中…' : '获取模型列表' }}</Button>
+        <Button variant="text" @click="openEditor()"><Icon name="plus" :size="16" />添加模型</Button>
       </div>
     </header>
     <div v-if="models.length" class="provider-models__list">
