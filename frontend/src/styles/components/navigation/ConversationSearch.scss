@@ -1,0 +1,167 @@
+/*
+ * 聊天记录搜索：宽度和结果高度都受控，搜索输入框固定在顶部，结果只在内部滚动。
+ * 对话框的遮罩、blur 和进出场动画来自 ui/Dialog。
+ */
+
+:global(.conversation-search-dialog::backdrop) {
+  background: color-mix(in srgb, var(--la-bg) 62%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+:global(.conversation-search-dialog .ui-dialog__panel) {
+  width: min(640px, calc(100vw - 48px));
+}
+
+:global(.conversation-search-dialog .ui-dialog__header) {
+  align-items: center;
+  padding-bottom: 10px;
+}
+
+:global(.conversation-search-dialog .ui-dialog__heading) {
+  padding-top: 0;
+}
+
+:global(.conversation-search-dialog .ui-dialog__body) {
+  padding-top: 0;
+}
+
+.conversation-search__field {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  padding: 0 4px;
+  color: var(--la-muted);
+}
+
+.conversation-search__field input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--la-text);
+  font: inherit;
+  font-size: 17px;
+  line-height: 24px;
+}
+
+.conversation-search__field input::placeholder { color: var(--la-muted); }
+.conversation-search__field:focus-within { color: var(--la-accent); }
+
+.conversation-search__clear {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--la-text) 8%, transparent);
+  color: var(--la-secondary);
+  cursor: pointer;
+  place-items: center;
+}
+
+.conversation-search__clear:hover { background: color-mix(in srgb, var(--la-text) 13%, transparent); color: var(--la-text); }
+
+.conversation-search { display: grid; min-width: 0; gap: 6px; }
+
+.conversation-search__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 4px;
+  color: var(--la-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.conversation-search__hint { color: var(--la-muted); opacity: .8; }
+
+.conversation-search__results {
+  display: grid;
+  max-height: min(52vh, 460px);
+  gap: 2px;
+  padding: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.conversation-search__result {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--la-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ui-duration-fast) var(--ui-curve-standard), box-shadow var(--ui-duration-fast) var(--ui-curve-standard);
+}
+
+.conversation-search__result:hover,
+.conversation-search__result.is-active {
+  background: color-mix(in srgb, var(--la-accent) 8%, transparent);
+  box-shadow: inset 2px 0 var(--la-accent);
+}
+
+.conversation-search__result:focus-visible {
+  outline: 2px solid var(--la-accent);
+  outline-offset: -2px;
+}
+
+.conversation-search__role {
+  padding-top: 1px;
+  color: var(--la-muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.conversation-search__snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--la-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.conversation-search__snippet mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--la-accent) 24%, transparent);
+  color: var(--la-text);
+}
+
+.conversation-search__empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 56px 16px;
+  color: var(--la-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.conversation-search__empty svg { opacity: .55; }
+
+@media (max-width: 600px) {
+  :global(.conversation-search-dialog .ui-dialog__panel) { width: calc(100vw - 24px); }
+  .conversation-search__results { max-height: min(58vh, 460px); }
+  .conversation-search__hint { display: none; }
+}

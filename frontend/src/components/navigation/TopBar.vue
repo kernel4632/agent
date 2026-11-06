@@ -1,6 +1,6 @@
 <!--
-会话顶部栏：左边菜单（只在手机）和标题，右边任务清单和设置。
-任务清单只在模型真的产生过清单后出现；上下文与用量移到输入框下方。
+会话顶部栏：左边菜单（只在手机）和标题，右边搜索、任务清单和设置。
+搜索只在已有会话时出现；点击后由 App 打开常驻的聊天记录搜索弹窗。
 只读取传入的会话；切换模型调用现有命令。
 调用示例：
 <TopBar
@@ -25,7 +25,7 @@ const props = defineProps({
   session: { type: Object, default: null },              // 当前打开的完整会话
   todoOpen: Boolean,                                     // 右侧任务清单是否打开
 })
-const emit = defineEmits(['menu', 'settings', 'update:todoOpen'])
+const emit = defineEmits(['menu', 'settings', 'search', 'update:todoOpen'])
 
 const title = computed(() => props.session ? props.session.title || '新会话' : NEW_SESSION_TITLE)
 const hasTodos = computed(() => {
@@ -60,6 +60,7 @@ async function saveTitle() {
     </div>
 
     <div class="topbar__actions">
+      <Button v-if="session" icon class="topbar__search" label="搜索聊天记录" title="搜索聊天记录" @click="emit('search')"><Icon name="search" :size="18" /></Button>
       <Button icon v-if="session && hasTodos" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><Icon :name="todoOpen ? 'close' : 'todo'" :size="18" /></Button>
       <Button icon label="设置" title="设置" @click="emit('settings')"><Icon name="settings" :size="18" /></Button>
     </div>

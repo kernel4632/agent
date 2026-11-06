@@ -13,6 +13,7 @@ import ChatView from './views/ChatView.vue'
 import Sidebar from './components/navigation/Sidebar.vue'
 import TopBar from './components/navigation/TopBar.vue'
 import CommandPalette from './components/navigation/CommandPalette.vue'
+import ConversationSearch from './components/navigation/ConversationSearch.vue'
 import Toast from './components/feedback/Toast.vue'
 import RestartNotice from './components/feedback/RestartNotice.vue'
 import { shortcutListener } from './utils/shortcuts.js'
@@ -29,9 +30,17 @@ const homeFiles = ref([])
 const creating = ref(false)
 const drawerOpen = ref(false)
 const todoOpen = ref(false)
+const searchOpen = ref(false)
 // 新对话先保留思考强度，创建后写进会话设置。
 const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
 const session = computed(() => store.ui.view === 'chat' ? activeSession.value : null)
+
+// 搜索窗口常驻，只切 open；关闭再打开时查询、结果和滚动位置都还在。
+watch(() => session.value?.id, () => { searchOpen.value = false })
+function selectSearchResult(messageId) {
+  searchOpen.value = false
+  nextTick(() => draftView.value?.jumpToMessage(messageId))
+}
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
 
 
@@ -172,6 +181,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
           :todo-open="todoOpen"
           @menu="drawerOpen = true"
           @settings="openSettings()"
+          @search="searchOpen = true"
           @update:todo-open="todoOpen = $event"
         />
         <RestartNotice />
@@ -201,6 +211,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
 
       <Toast :message="store.ui.toast || ''" @close="Notice.clear()" />
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
+      <ConversationSearch :open="searchOpen" :session="session" @close="searchOpen = false" @select="selectSearchResult" />
     </div>
   </div>
 </template>

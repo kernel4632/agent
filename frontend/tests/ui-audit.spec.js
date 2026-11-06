@@ -1110,6 +1110,40 @@ test('tool input renders multiline strings and markdown code blocks', async ({ p
   expect(mock.errors).toEqual([])
 })
 
+test('topbar search finds a message, jumps, and keeps its state on reopen', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  for (let index = 1; index <= 6; index += 1) {
+    await page.getByRole('textbox', { name: '消息', exact: true }).fill(`定位消息 ${index}`)
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await page.locator('.rikka-bubble--assistant .markdown-body').last().waitFor()
+  }
+
+  const searchButton = page.getByRole('button', { name: '搜索聊天记录' })
+  await searchButton.click()
+  const dialog = page.getByRole('dialog', { name: '搜索聊天记录' })
+  await expect(dialog).toBeVisible()
+  const input = dialog.getByRole('textbox', { name: '搜索聊天记录' })
+  await expect(input).toBeFocused()
+  expect(await dialog.evaluate(element => getComputedStyle(element, '::backdrop').backdropFilter)).toContain('blur')
+  await input.fill('定位消息 1')
+  await expect(dialog.locator('.conversation-search__result')).toHaveCount(1)
+  await expect(dialog.locator('.conversation-search__result')).toContainText('定位消息 1')
+  await screenshot(page, testInfo, 'conversation-search')
+
+  await dialog.locator('.conversation-search__result').click()
+  await expect(dialog).toBeHidden()
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '定位消息 1' })).toBeInViewport()
+
+  await searchButton.click()
+  await expect(input).toHaveValue('定位消息 1')
+  await expect(dialog.locator('.conversation-search__result')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  expect(mock.errors).toEqual([])
+})
+
 test('composer footer stats opens the session data panel', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -1935,5 +1969,3 @@ test.describe('control motion', () => {
     await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)
   })
 })
-
-

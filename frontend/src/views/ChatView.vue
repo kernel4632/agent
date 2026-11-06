@@ -31,7 +31,7 @@ const timeline = ref(null)
 const conversationScroll = ref(null)
 const showReconnect = ref(false)
 let reconnectTimer
-defineExpose({ focus: () => composer.value?.focus() })
+defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
 function jumpToMessage(messageId) {
   timeline.value?.jumpToMessage(messageId)
 }
