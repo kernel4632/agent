@@ -189,3 +189,9 @@
 .context-group__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .context-group__caret.is-open { transform: rotate(180deg); }
 .context-group .cot-steps { padding: 2px 0 4px; }
+/* 图标盒子和文字行高统一用 22px；SVG 再做半像素光学校正。flex 几何居中不等于字形视觉居中。 */
+.process-fold__icon,
+.context-group__icon { line-height: 0; }
+.process-fold__icon { width: 22px; height: 22px; }
+.process-fold__icon svg,
+.context-group__icon svg { display: block; transform: translateY(-0.5px); }
