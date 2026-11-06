@@ -4,19 +4,29 @@
  * 数据就是会话自己的 history.json，不建第二份存储。
  * 运行：cd server && bun test tests/history-tool.test.js
  */
-import { describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
+import { rm } from 'node:fs/promises'
 
 import History from '../features/history.js'
 import Path from '../utils/path.js'
 import search from '../tools/history.js'
 
-// 直接写 history.json 到一个临时目录，不经过会话流程（工具只读这份文件）。
+// 直接写 history.json 到一个临时数据目录，不经过会话流程（工具只读这份文件）。
+// afterAll 统一清掉：写进仓库目录又忘删的测试目录曾经积累过 15 个。
+const homes = []
 const writeHistory = async (sessionId, messages) => {
-    process.env.AGENT_HOME = join(__dirname, '.tmp-history-' + crypto.randomUUID().slice(0, 8))
-    const file = Path.history(sessionId)
-    await Bun.write(file, JSON.stringify({ messages: messages.map(m => ({ messageId: m.id, message: m })), redo: [] }))
+    const home = join(process.env.TEMP || '/tmp', `agent-history-tool-${crypto.randomUUID().slice(0, 8)}`)
+    homes.push(home)
+    process.env.AGENT_HOME = home
+    Path.lock(home)
+    await Bun.write(Path.history(sessionId), JSON.stringify({ messages: messages.map(m => ({ messageId: m.id, message: m })), redo: [] }))
 }
+
+afterAll(async () => {
+    Path.unlock()
+    for (const home of homes) await rm(home, { recursive: true, force: true }).catch(() => {})
+})
 
 describe('history_search', () => {
     test('按关键词找到命中，返回消息 id、角色和片段', async () => {
