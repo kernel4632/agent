@@ -4,11 +4,12 @@
 调用示例：<SessionList :sessions="sessions" :active-session-id="id" :query="search" @open="openSession" />。
 -->
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Checkbox from '../../ui/Checkbox.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
+import Icon from '../../ui/Icon.vue'
 import Menu from '../../ui/Menu.vue'
 import { Session } from "../../features/session.js"
 import { AgentAPI } from '../../utils/api.js'
@@ -47,9 +48,40 @@ const visible = computed(() => {
 })
 
 // --- 自定义分组；没有分组时保留原来的日期分组 ---
+const collapsedKeys = ref(readStoredList('agent.session-collapsed'))
+const pinnedIDs = ref(readStoredList('agent.session-pinned'))
 const customGroups = ref([])
 const groupsReady = ref(false)
 const dragging = ref(null)
+
+function readStoredList(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key))
+    return Array.isArray(value) ? value.filter(item => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function writeStoredList(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* 隐私模式下仅本次生效 */ }
+}
+
+const isCollapsed = key => collapsedKeys.value.includes(key)
+function toggleGroup(key) {
+  collapsedKeys.value = isCollapsed(key)
+    ? collapsedKeys.value.filter(item => item !== key)
+    : [...collapsedKeys.value, key]
+  writeStoredList('agent.session-collapsed', collapsedKeys.value)
+}
+
+const isPinned = id => pinnedIDs.value.includes(id)
+function togglePin(session) {
+  pinnedIDs.value = isPinned(session.id)
+    ? pinnedIDs.value.filter(id => id !== session.id)
+    : [session.id, ...pinnedIDs.value.filter(id => id !== session.id)]
+  writeStoredList('agent.session-pinned', pinnedIDs.value)
+}
 
 const dateGroups = computed(() => {
   const startOfToday = new Date()
@@ -62,6 +94,7 @@ const dateGroups = computed(() => {
     { key: 'earlier', label: '更早', items: [] },
   ]
   for (const item of visible.value) {
+    if (isPinned(item.id)) continue
     const stamp = stampOf(item)
     if (stamp >= startOfToday.getTime()) buckets[0].items.push(item)
     else if (stamp >= startOfYesterday.getTime()) buckets[1].items.push(item)
@@ -70,21 +103,37 @@ const dateGroups = computed(() => {
   return buckets.filter(group => group.items.length)
 })
 
+const pinnedItems = computed(() => {
+  const byId = new Map(visible.value.map(item => [item.id, item]))
+  return pinnedIDs.value.map(id => byId.get(id)).filter(Boolean)
+})
+
 const sections = computed(() => {
-  if (!customGroups.value.length) return dateGroups.value
+  const pinned = new Set(pinnedItems.value.map(item => item.id))
+  const result = []
+  if (pinnedItems.value.length) result.push({ key: 'pinned', id: '', label: '置顶', items: pinnedItems.value, custom: false, pinned: true })
+  if (!customGroups.value.length) return [...result, ...dateGroups.value]
   const byId = new Map(visible.value.map(item => [item.id, item]))
   const assigned = new Set()
-  const result = []
   for (const group of customGroups.value) {
-    const items = group.sessions.map(id => byId.get(id)).filter(Boolean)
+    const items = group.sessions.map(id => byId.get(id)).filter(item => item && !pinned.has(item.id))
     group.sessions.forEach(id => assigned.add(id))
-    if (items.length || !props.query.trim()) {
+    const onlyPinned = group.sessions.length > 0 && group.sessions.every(id => pinned.has(id))
+    if (items.length || (!props.query.trim() && !onlyPinned)) {
       result.push({ key: `group:${group.id}`, id: group.id, label: group.name, items, custom: true })
     }
   }
-  const ungrouped = visible.value.filter(item => !assigned.has(item.id))
+  const ungrouped = visible.value.filter(item => !assigned.has(item.id) && !pinned.has(item.id))
   if (ungrouped.length) result.push({ key: 'ungrouped', id: '', label: '未分组', items: ungrouped, custom: false })
   return result
+})
+
+watch(() => props.sessions.map(item => item.id), ids => {
+  const next = pinnedIDs.value.filter(id => ids.includes(id))
+  if (next.length !== pinnedIDs.value.length) {
+    pinnedIDs.value = next
+    writeStoredList('agent.session-pinned', next)
+  }
 })
 
 async function loadGroups() {
@@ -149,22 +198,17 @@ async function moveGroup(groupId, direction) {
   await persistGroups()
 }
 
-function groupMenu(group, index) {
+function groupMenu() {
   return [
     { value: 'rename-group', label: '重命名分组' },
-    { value: 'group-up', label: '分组上移', disabled: index === 0 },
-    { value: 'group-down', label: '分组下移', disabled: index === customGroups.value.length - 1 },
     { value: 'delete-group', label: '删除分组' },
   ]
 }
 
 function sessionMenu(session) {
   const group = groupOf(session.id)
-  const items = MENU_ITEMS.map(item => ({ ...item }))
+  const items = [{ value: 'pin', label: isPinned(session.id) ? '取消置顶' : '置顶' }, ...MENU_ITEMS.map(item => ({ ...item }))]
   if (group) {
-    const index = group.sessions.indexOf(session.id)
-    items.push({ value: 'session-up', label: '会话上移', disabled: index === 0 })
-    items.push({ value: 'session-down', label: '会话下移', disabled: index === group.sessions.length - 1 })
     items.push({ value: 'ungroup', label: '移到未分组' })
   }
   for (const target of customGroups.value) {
@@ -174,11 +218,19 @@ function sessionMenu(session) {
   return items
 }
 
+function groupIndex(section) {
+  return customGroups.value.findIndex(group => group.id === section.id)
+}
+
+function sessionIndex(session) {
+  const group = groupOf(session.id)
+  return group ? group.sessions.indexOf(session.id) : -1
+}
+
 function onMenuSelect(session, action) {
-  if (action === 'rename') openRename(session)
+  if (action === 'pin') togglePin(session)
+  else if (action === 'rename') openRename(session)
   else if (action === 'delete') openDelete(session)
-  else if (action === 'session-up') void moveSessionWithin(session.id, -1)
-  else if (action === 'session-down') void moveSessionWithin(session.id, 1)
   else if (action === 'ungroup') void moveSession(session.id, '')
   else if (action.startsWith('move:')) void moveSession(session.id, action.slice(5))
 }
@@ -271,8 +323,6 @@ function openCreateGroup() {
 }
 
 function openGroupAction(group, action) {
-  if (action === 'group-up') return void moveGroup(group.id, -1)
-  if (action === 'group-down') return void moveGroup(group.id, 1)
   groupTarget.value = group
   groupName.value = group.name
   groupDialogMode.value = action === 'delete-group' ? 'delete' : 'rename'
@@ -311,7 +361,7 @@ defineExpose({ openCreateGroup })
       <template v-if="sections.length">
         <section
           v-for="section in sections" :key="section.key" class="home-sessions__group"
-          @dragover.prevent @drop="dropOnGroup($event, section.id)"
+          @dragover.prevent @drop="!section.pinned && dropOnGroup($event, section.id)"
         >
           <div class="home-sessions__group-head">
             <h2
@@ -319,47 +369,62 @@ defineExpose({ openCreateGroup })
               :draggable="section.custom && !selecting"
               @dragstart="startDrag($event, 'group', section.id)"
               @dragend="endDrag"
-            >{{ section.label }}</h2>
+            >
+              <button class="home-sessions__group-toggle" type="button" :aria-expanded="!isCollapsed(section.key)" @click="toggleGroup(section.key)">
+                <Icon class="home-sessions__group-chevron" :class="{ 'is-collapsed': isCollapsed(section.key) }" name="down" :size="14" />
+                <span>{{ section.label }}</span>
+              </button>
+            </h2>
+            <div v-if="section.custom && !selecting && customGroups.length > 1" class="home-sessions__group-move">
+              <button type="button" aria-label="分组上移" :disabled="groupIndex(section) <= 0" @click="moveGroup(section.id, -1)"><Icon name="up" :size="14" /></button>
+              <button type="button" aria-label="分组下移" :disabled="groupIndex(section) >= customGroups.length - 1" @click="moveGroup(section.id, 1)"><Icon class="home-sessions__move-down" name="up" :size="14" /></button>
+            </div>
             <Menu
               v-if="section.custom && !selecting"
               class="home-sessions__group-menu"
               :label="`${section.label} 的分组操作`"
-              :items="groupMenu(customGroups.find(group => group.id === section.id), customGroups.findIndex(group => group.id === section.id))"
+              :items="groupMenu()"
               @select="openGroupAction(customGroups.find(group => group.id === section.id), $event)"
             />
           </div>
-          <ul class="ui-list session-list-items" :aria-label="section.label">
-            <li
-              v-for="item in section.items" :key="item.id"
-              :draggable="!selecting"
-              @dragstart="startDrag($event, 'session', item.id, section.id)"
-              @dragend="endDrag"
-              @dragover.prevent
-              @drop="dropOnSession($event, section.id, item.id)"
-            >
-              <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
-                <Transition name="session-check">
-                  <Checkbox
-                    v-if="selecting"
-                    class="home-session__check"
-                    :model-value="isSelected(item.id)"
-                    :aria-label="`选择 ${item.title || '新会话'}`"
-                    @update:model-value="toggleSelected(item)"
+          <div class="home-sessions__group-body" :class="{ 'is-collapsed': isCollapsed(section.key) }" :inert="isCollapsed(section.key) || undefined" :aria-hidden="isCollapsed(section.key)">
+            <ul class="ui-list session-list-items" :aria-label="section.label">
+              <li
+                v-for="item in section.items" :key="item.id"
+                :draggable="!selecting"
+                @dragstart="startDrag($event, 'session', item.id, section.id)"
+                @dragend="endDrag"
+                @dragover.prevent
+                @drop="!section.pinned && dropOnSession($event, section.id, item.id)"
+              >
+                <div class="home-session" :class="{ 'is-active': item.id === activeSessionId, 'is-selected': isSelected(item.id) }">
+                  <Transition name="session-check">
+                    <Checkbox
+                      v-if="selecting"
+                      class="home-session__check"
+                      :model-value="isSelected(item.id)"
+                      :aria-label="`选择 ${item.title || '新会话'}`"
+                      @update:model-value="toggleSelected(item)"
+                    />
+                  </Transition>
+                  <Button variant="plain" class="home-session__main" @click="selecting ? toggleSelected(item) : emit('open', item.id)">
+                    <span class="home-session__title">{{ item.title || '新会话' }}</span>
+                  </Button>
+                  <div v-if="!selecting && section.custom && section.items.length > 1" class="home-session__move">
+                    <button type="button" :aria-label="`上移 ${item.title || '新会话'}`" :disabled="sessionIndex(item) <= 0" @click="moveSessionWithin(item.id, -1)"><Icon name="up" :size="14" /></button>
+                    <button type="button" :aria-label="`下移 ${item.title || '新会话'}`" :disabled="sessionIndex(item) >= groupOf(item.id)?.sessions.length - 1" @click="moveSessionWithin(item.id, 1)"><Icon class="home-sessions__move-down" name="up" :size="14" /></button>
+                  </div>
+                  <Menu
+                    v-if="!selecting"
+                    class="home-session__menu"
+                    :label="`${item.title || '新会话'} 的更多操作`"
+                    :items="sessionMenu(item)"
+                    @select="onMenuSelect(item, $event)"
                   />
-                </Transition>
-                <Button variant="plain" class="home-session__main" @click="selecting ? toggleSelected(item) : emit('open', item.id)">
-                  <span class="home-session__title">{{ item.title || '新会话' }}</span>
-                </Button>
-                <Menu
-                  v-if="!selecting"
-                  class="home-session__menu"
-                  :label="`${item.title || '新会话'} 的更多操作`"
-                  :items="sessionMenu(item)"
-                  @select="onMenuSelect(item, $event)"
-                />
-              </div>
-            </li>
-          </ul>
+                </div>
+              </li>
+            </ul>
+          </div>
         </section>
       </template>
       <div v-else-if="!groupsReady" class="home-empty"><strong>正在读取会话…</strong></div>

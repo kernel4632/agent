@@ -2,7 +2,14 @@
 .home-sessions__list { display: flex; min-height: 0; flex: 1; flex-direction: column; padding: 2px 0 8px; overflow-y: auto; }
 .home-sessions__group { display: flex; flex-direction: column; gap: 4px; }
 .home-sessions__group + .home-sessions__group { margin-top: 8px; }
-.group-label { display: flex; height: 26px; flex: none; align-items: center; margin: 0; padding: 0 10px; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 12px; font-weight: 600; letter-spacing: .01em; }
+.group-label { display: flex; height: 26px; flex: none; align-items: center; margin: 0; padding: 0; border-radius: 8px; background: transparent; color: var(--la-muted); font-size: 12px; font-weight: 600; letter-spacing: .01em; }
+.home-sessions__group-toggle { display: flex; width: 100%; height: 100%; align-items: center; gap: 5px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.home-sessions__group-toggle:hover { background: var(--la-hover); }
+.home-sessions__group-chevron { flex: none; transition: transform .2s var(--ui-curve-standard); }
+.home-sessions__group-chevron.is-collapsed { transform: rotate(-90deg); }
+.home-sessions__group-body { display: grid; min-height: 0; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .24s var(--ui-curve-standard), opacity .18s ease; }
+.home-sessions__group-body.is-collapsed { grid-template-rows: 0fr; opacity: 0; }
+.home-sessions__group-body > .session-list-items { min-height: 0; overflow: hidden; }
 .home-session { display: flex; width: 100%; min-height: 44px; flex: none; align-items: center; border-radius: 12px; }
 .home-session:hover { background: var(--la-hover); }
 .home-session.is-active { background: var(--la-layer-02); }
@@ -28,9 +35,25 @@
 }
 .home-session__title { min-width: 0; flex: 1; overflow: hidden; color: var(--la-text); font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .home-session__menu { flex: none; margin-right: 4px; opacity: 0; transition: opacity .14s ease; }
+.home-session__move { display: flex; flex: none; align-items: center; gap: 0; opacity: 0; transition: opacity .14s ease; }
+.home-session__move button,
+.home-sessions__group-move button { display: grid; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--la-muted); cursor: pointer; place-items: center; }
+.home-session__move button:hover,
+.home-sessions__group-move button:hover { background: var(--la-hover); color: var(--la-text); }
+.home-session__move button:disabled,
+.home-sessions__group-move button:disabled { opacity: .25; cursor: default; }
+.home-sessions__move-down { transform: rotate(180deg); }
+.home-sessions__group-move { display: flex; flex: none; align-items: center; gap: 0; opacity: 0; transition: opacity .14s ease; }
 .home-session:hover .home-session__menu,
+.home-session:hover .home-session__move,
 .home-session.is-active .home-session__menu,
-.home-session__menu:focus-within { opacity: 1; }
+.home-session.is-active .home-session__move,
+.home-session__menu:focus-within,
+.home-session__move:focus-within { opacity: 1; }
+.home-sessions__group-head:hover .home-sessions__group-menu,
+.home-sessions__group-head:hover .home-sessions__group-move,
+.home-sessions__group-menu:focus-within,
+.home-sessions__group-move:focus-within { opacity: 1; }
 .home-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; text-align: center; }
 .home-empty strong { color: var(--la-text); font-size: 15px; font-weight: 600; line-height: 22px; }
 .home-empty p { max-width: 320px; margin: 0 0 8px; color: var(--la-muted); font-size: 14px; font-weight: 400; line-height: 22px; }
@@ -40,7 +63,10 @@
 @media (max-width: 767px) {
   .home-sessions { padding-top: 4px; }
   .home-session { height: 48px; }
-  .home-session__menu { opacity: .55; }
+  .home-session__menu,
+  .home-session__move,
+  .home-sessions__group-menu,
+  .home-sessions__group-move { opacity: .55; }
   .home-session__menu :deep(.ui-menu__trigger) { opacity: 1; }
 }
 

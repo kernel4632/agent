@@ -1739,6 +1739,23 @@ test('session groups move a session through the row menu', async ({ page }) => {
   await row.getByRole('button', { name: /更多操作/ }).click()
   await page.getByRole('menuitem', { name: '移到「工作」', exact: true }).click()
   await expect.poll(() => mock.calls.findLast(call => call.path === '/session/groups' && call.method === 'PUT')?.body.groups[0].sessions.length).toBe(1)
+
+  const workGroup = drawer.locator('.home-sessions__group').filter({ hasText: '工作' })
+  const movedRow = workGroup.locator('.home-session').first()
+  const workBody = workGroup.locator('.home-sessions__group-body')
+  const workToggle = drawer.getByRole('button', { name: '工作', exact: true })
+  await workToggle.click()
+  await expect(workToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(workBody).toHaveClass(/is-collapsed/)
+  await workToggle.click()
+  await expect(workToggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(workBody).not.toHaveClass(/is-collapsed/)
+  await expect(movedRow).toBeVisible()
+
+  await movedRow.getByRole('button', { name: /更多操作/ }).click()
+  await page.getByRole('menuitem', { name: '置顶', exact: true }).click()
+  await expect(drawer.getByRole('heading', { name: '置顶', exact: true })).toBeVisible()
+  await expect(drawer.locator('.home-sessions__group').first().locator('.home-session')).toHaveCount(1)
   expect(mock.errors).toEqual([])
 })
 
