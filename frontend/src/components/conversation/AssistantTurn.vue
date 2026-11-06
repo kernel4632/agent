@@ -9,7 +9,7 @@
 import { Notice } from '../../commands/notice.js'
 import { copyText } from '../../utils/clipboard.js'
 
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
@@ -126,8 +126,8 @@ function toggleProcess() {
   processOpen.value = !processOpen.value
   try { localStorage.setItem(processKey, processOpen.value ? 'open' : 'closed') } catch {}
 }
-const processSummary = computed(() => {
-  const content = treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact')
+function summarizeSteps(steps) {
+  const content = steps.filter(step => step.type !== 'request' && step.type !== 'compact')
   const reasoning = content.filter(step => step.type === 'reasoning').length
   const tools = content.filter(step => step.type === 'tool')
   if (!reasoning && !tools.length) return content.length ? `${content.length} 步` : '运行状态'
@@ -140,6 +140,47 @@ const processSummary = computed(() => {
   if (reasoning) pieces.push(`${reasoning} 次思考`)
   if (tools.length) pieces.push(`使用了 ${tools.length} 次工具：${[...names].map(([name, count]) => `${name} ${count} 次`).join('、')}`)
   return pieces.join(' · ')
+}
+const processSummary = computed(() => {
+  const requests = treeSteps.value.filter(step => step.type === 'request').length
+  const content = summarizeSteps(treeSteps.value)
+  const pieces = []
+  if (requests) pieces.push(`${requests} 次模型请求`)
+  if (content !== '运行状态') pieces.push(content)
+  return pieces.join(' · ') || '运行状态'
+})
+
+// 按 OpenCode 的消息分组思路：没有单独的请求数据行，只有连续的工具/思考折叠组。
+// 每组折叠条直接显示“使用了几次什么”，正文和组之间保持发生顺序。
+const processSections = computed(() => {
+  const sections = []
+  let group = null
+  for (const step of treeSteps.value) {
+    if (step.type === 'request') continue // 请求用量在整轮摘要和 Token 面板里，不再逐行占时间线。
+    if (step.type === 'reasoning' || step.type === 'tool') {
+      if (!group) {
+        group = { type: 'group', key: `group-${step.key}`, steps: [] }
+        sections.push(group)
+      }
+      group.steps.push(step)
+    } else {
+      group = null
+      sections.push({ type: 'step', key: step.key, step })
+    }
+  }
+  return sections.map(section => section.type === 'group'
+    ? { ...section, summary: summarizeSteps(section.steps) }
+    : section)
+})
+
+const groupOpen = ref({})
+const lastGroupKey = computed(() => processSections.value.filter(section => section.type === 'group').at(-1)?.key)
+const isGroupOpen = section => groupOpen.value[section.key] ?? (streaming.value && section.key === lastGroupKey.value)
+function toggleGroup(section) {
+  groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
+}
+watch(streaming, (value, previous) => {
+  if (previous && !value) groupOpen.value = {}
 })
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
@@ -200,35 +241,48 @@ function clearTarget() { targetId.value = null; emit('close') }
           <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
-        <div v-if="processOpen" class="cot-steps">
-          <template v-for="step in treeSteps" :key="step.key">
-            <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
-            <template v-else-if="step.type === 'compact'">
-              <RequestStatus :data-message-id="step.messageId" :request="step.request" kind="compact" />
-              <pre v-if="step.request.content || step.request.reasoning" v-auto-scroll class="compact-stream">{{ step.request.content || step.request.reasoning }}</pre>
-            </template>
-            <ReasoningStep
-              v-else-if="step.type === 'reasoning'"
-              :data-message-id="step.messageId"
-              :reasoning="step.text"
-              :streaming="step.streaming"
-              :started-at="step.message.startedAt"
-              :finished-at="step.message.finishedAt"
-            />
-            <div v-else-if="step.type === 'text'" :data-message-id="step.messageId" class="cot-step cot-step--text">
-              <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
-              <div class="cot-step__main">
-                <div class="cot-step__body cot-step__body--text">
-                  <Markdown smooth :content="step.text" compact />
+        <div v-if="processOpen" class="context-sections">
+          <template v-for="section in processSections" :key="section.key">
+            <template v-if="section.type === 'step'">
+              <template v-if="section.step.type === 'compact'">
+                <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
+                <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
+              </template>
+              <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
+                <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
+                <div class="cot-step__main">
+                  <div class="cot-step__body cot-step__body--text">
+                    <Markdown smooth :content="section.step.text" compact />
+                  </div>
                 </div>
               </div>
+            </template>
+
+            <div v-else class="context-group">
+              <button type="button" class="context-group__head" :aria-expanded="isGroupOpen(section)" @click="toggleGroup(section)">
+                <span class="context-group__icon"><Icon name="layers" :size="14" /></span>
+                <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
+                <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
+              </button>
+              <div v-if="isGroupOpen(section)" class="cot-steps">
+                <template v-for="step in section.steps" :key="step.key">
+                  <ReasoningStep
+                    v-if="step.type === 'reasoning'"
+                    :data-message-id="step.messageId"
+                    :reasoning="step.text"
+                    :streaming="step.streaming"
+                    :started-at="step.message.startedAt"
+                    :finished-at="step.message.finishedAt"
+                  />
+                  <ToolCall
+                    v-else
+                    :data-message-id="step.messageId"
+                    :tool="step.tool"
+                    :session-id="sessionId"
+                  />
+                </template>
+              </div>
             </div>
-            <ToolCall
-              v-else
-              :data-message-id="step.messageId"
-              :tool="step.tool"
-              :session-id="sessionId"
-            />
           </template>
         </div>
       </div>

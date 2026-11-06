@@ -6,6 +6,14 @@
 import { expect, test } from '@playwright/test'
 import { backend, navigate, openDrawer } from './chat-fixture.js'
 
+async function openContextGroups(page) {
+  const heads = page.locator('.context-group__head')
+  const count = await heads.count()
+  for (let index = 0; index < count; index += 1) {
+    if (await heads.nth(index).getAttribute('aria-expanded') !== 'true') await heads.nth(index).click()
+  }
+}
+
 async function screenshot(page, testInfo, name) {
   const layout = await page.evaluate(() => ['html', 'body', '.app-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
     const element = document.querySelector(selector)
@@ -376,6 +384,7 @@ test('auto-continued assistant keeps non-stop text in the timeline and finish re
   await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第一段。')
   await expect(page.locator('.rikka-bubble--assistant')).not.toContainText('第二段。')
   const card = page.locator('.cot-card')
+  await openContextGroups(page)
   if (await card.locator('.cot-more').count()) await card.locator('.cot-more').click()
   await expect(card).toContainText('第一段。')
   await expect(card).toContainText('第二段。')
@@ -713,41 +722,7 @@ test('reasoning picker saves the selected level', async ({ page }, testInfo) => 
   expect(mock.errors).toEqual([])
 })
 
-test('model request row shows progress and token usage', async ({ page }, testInfo) => {
-  const mock = await backend(page)
-  await page.goto('/')
-  await navigate(page, '新建对话')
-
-  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
-  await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  const running = page.locator('.request-status').last()
-  await expect(running).toContainText('正在接收模型流…')
-  // 计时按服务端给的 startedAt 走（mock 里把开始时间往前挪了 5 秒），不是从 0 重新算。
-  await expect(running).toHaveAttribute('aria-label', /首字/)
-  // 请求行在对话流里，不是浮在整轮回复外面的一条汇总。
-  await expect(page.locator('.cot-card .request-status')).toHaveCount(1)
-  await screenshot(page, testInfo, 'request-status-running')
-  await page.getByRole('button', { name: '停止生成', exact: true }).click()
-
-  await navigate(page, '新建对话')
-  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
-  await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
-  const done = page.locator('.request-status').last()
-  await expect(done).toContainText('模型请求完成')
-  await expect(done).toContainText(/首字\s*200ms/)
-  await expect(done).toContainText(/总?耗时\s*800ms/)
-  await expect(done).toContainText(/入\s*30/)
-  await expect(done).toContainText(/出\s*20/)
-  await expect(done).toContainText(/缓(?:存)?\s*10/)
-  await expect(done.locator('.request-status__badge')).toHaveCount(0)
-  expect((await done.boundingBox()).height).toBeLessThan(40)
-  await expect(page.locator('.cot-card .request-status')).toHaveCount(1)
-  await screenshot(page, testInfo, 'request-status-done')
-  expect(mock.errors).toEqual([])
-})
-
-test('each model request stays at its position in the conversation flow', async ({ page }) => {
+test('context groups summarize tools and keep text between groups', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -757,29 +732,25 @@ test('each model request stays at its position in the conversation flow', async 
 
   await mock.emit('session-1', [
     { type: 'agent-start' },
-    { type: 'llm-start', messages: 1, tools: [] },
-    { type: 'llm-finish', text: '', usage: { input: 10, output: 2, total: 12 } },
-    { type: 'tool-call', toolCallId: 'flow-1', toolName: 'read_file', input: { path: 'a.txt' } },
-    { type: 'tool-result', toolCallId: 'flow-1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
-    { type: 'llm-start', messages: 2, tools: [] },
-    { type: 'llm-finish', text: '完成', usage: { input: 20, output: 5, total: 25 } },
+    { type: 'reasoning-delta', text: '先查一下。' },
+    { type: 'tool-call', toolCallId: 'flow-a', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'flow-a', toolName: 'read_file', output: { type: 'text', value: 'a' } },
+    { type: 'text-delta', text: '中间说一句。' },
+    { type: 'tool-call', toolCallId: 'flow-b', toolName: 'execute_command', input: { command: 'bun test' } },
+    { type: 'tool-result', toolCallId: 'flow-b', toolName: 'execute_command', output: { type: 'text', value: 'ok' } },
   ])
 
-  const rows = page.locator('.request-status')
-  await expect(rows).toHaveCount(3)
-  await expect(rows.nth(1)).toContainText(/入\s*10/)
-  await expect(rows.nth(2)).toContainText(/入\s*20/)
-  // 第二次请求排在工具步骤之后，而不是被汇总到整轮回复的开头。
-  await expect(page.locator('.cot-step--tool')).toHaveCount(1)
-  const requestAfterTool = await page.evaluate(() => {
-    const tool = document.querySelector('.cot-step--tool')
-    const lastRequest = [...document.querySelectorAll('.request-status')].at(-1)
-    return Boolean(tool && lastRequest && (tool.compareDocumentPosition(lastRequest) & Node.DOCUMENT_POSITION_FOLLOWING))
-  })
-  expect(requestAfterTool).toBe(true)
+  await expect(page.locator('.request-status')).toHaveCount(0)
+  const groups = page.locator('.context-group__head')
+  await expect(groups).toHaveCount(2)
+  await expect(groups.first()).toContainText('读取文件 1 次')
+  await expect(groups.nth(1)).toContainText('执行命令 1 次')
+  await expect(groups.first()).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('.process-fold__head')).toContainText('使用了 2 次工具')
+  await openContextGroups(page)
+  await expect(page.locator('.cot-step--tool')).toHaveCount(2)
   expect(mock.errors).toEqual([])
 })
-
 test('process fold summarizes work, toggles steps, and stays transparent', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -827,7 +798,11 @@ test('completed steps collapse individually, not the whole process', async ({ pa
     { type: 'agent-finish', reason: 'completed' },
   ])
 
-  // 每一步仍然在时间线上，完成的工具默认收起；点开只影响这一条。
+  // 工具组完成后收起，组内工具也各自收起；展开组后再点开单条工具。
+  await expect(page.locator('.context-group__head')).toHaveCount(1)
+  await expect(page.locator('.context-group__head')).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('.context-group__head')).toContainText('使用了 4 次工具：读取文件 4 次')
+  await openContextGroups(page)
   await expect(page.locator('.cot-step--tool')).toHaveCount(4)
   await expect(page.locator('.cot-step--tool .cot-step__body')).toHaveCount(0)
   await page.locator('.cot-step--tool .cot-step__head').first().click()
@@ -859,12 +834,13 @@ test('compaction shows a status row before the next model request', async ({ pag
     { type: 'llm-start', startedAt: Date.now() },
     { type: 'text-delta', text: '继续处理' },
   ])
-  await expect(page.locator('.request-status')).toHaveCount(3)
+  // 普通模型请求不再单独占一行；压缩状态仍保留。
+  await expect(page.locator('.request-status')).toHaveCount(1)
   const rows = page.locator('.request-status')
-  await expect(rows.nth(1)).toContainText('上下文压缩完成')
-  await expect(rows.nth(1)).toContainText(/入\s*100/)
+  await expect(rows.first()).toContainText('上下文压缩完成')
+  await expect(rows.first()).toContainText(/入\s*100/)
   await expect(page.locator('.compact-stream')).toContainText('摘要')
-  await expect(rows.last()).toContainText(/正在接收模型流|正在请求模型/)
+  await expect(page.locator('.cot-step--text')).toContainText('继续处理')
   expect(mock.errors).toEqual([])
 })
 
@@ -1566,6 +1542,7 @@ test('interleaved assistant text stays chronological in the flat process list', 
     { type: 'tool-call', toolCallId: 'b', toolName: 'read_file', input: { path: 'b.txt' } },
     { type: 'tool-result', toolCallId: 'b', toolName: 'read_file', output: { type: 'text', value: 'b' } },
   ])
+  await openContextGroups(page)
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
 })
 
@@ -1675,3 +1652,4 @@ test.describe('control motion', () => {
     await expect.poll(async () => (await thumb.boundingBox()).x).not.toBeCloseTo(before.x, 1)
   })
 })
+

@@ -165,3 +165,27 @@
 .process-fold__summary { min-width: 0; flex: 1; overflow: hidden; color: var(--la-muted); font-size: 12px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .process-fold__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .process-fold__caret.is-open { transform: rotate(180deg); }
+/* 上下文组：连续的工具/思考收成一组；组头透明，只显示计数摘要，不缩进、不画树线。 */
+.context-sections { display: flex; flex-direction: column; gap: 6px; }
+.context-group { min-width: 0; }
+.context-group__head {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--la-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.context-group__head:hover { color: var(--la-text); }
+.context-group__icon { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 7px; color: var(--la-secondary); }
+.context-group__summary { min-width: 0; flex: 1; overflow: hidden; color: var(--la-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.context-group__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
+.context-group__caret.is-open { transform: rotate(180deg); }
+.context-group .cot-steps { padding: 2px 0 4px; }
