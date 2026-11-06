@@ -276,5 +276,7 @@ test('nested task approval reaches the CLI and completes', async () => {
     const events = answer.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
     expect(events.some(event => event.type === 'permission' && event.tool === 'read_file')).toBe(true)
     expect(events.some(event => event.type === 'subagent-tool-result' && event.output?.value === 'fixture file contents')).toBe(true)
+    const delegated = events.find(event => event.type === 'tool-result' && event.toolName === 'new_task')
+    expect(delegated.output.value.conclusion).toBe('CLI 中文回复')
     expect(events.at(-1).session.pending).toEqual([])
 }, 30000)
