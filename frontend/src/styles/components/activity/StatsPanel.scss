@@ -500,21 +500,27 @@
 .stats-panel__simple-row.is-output .stats-panel__simple-icon { background: color-mix(in srgb, var(--la-success) 13%, transparent); color: var(--la-success); }
 
 
-/* 生成速度：无表头的紧凑表格，只保留最近五个模型的最近一次数据。 */
+/* 生成速度：按内容自动分配宽度，只保留模型路径、首字和 tok/s。 */
 .stats-panel--speed-simple { gap: 0; }
-.stats-panel__speed-table-wrap { min-width: 0; }
-.stats-panel__speed-grid { width: 100%; table-layout: fixed; border-collapse: collapse; }
-.stats-panel__speed-grid td { padding: 8px 6px; border-top: 1px solid color-mix(in srgb, var(--la-line) 62%, transparent); font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: middle; }
-.stats-panel__speed-grid tbody tr:first-child td { border-top: 0; }
-.stats-panel__speed-row:hover td { background: color-mix(in srgb, var(--la-text) 3%, transparent); }
-.stats-panel__speed-model-cell { min-width: 0; overflow: hidden; padding-left: 2px !important; text-overflow: ellipsis; }
+.stats-panel__speed-list { display: grid; }
+.stats-panel__speed-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 8px 2px;
+  border-top: 1px solid color-mix(in srgb, var(--la-line) 62%, transparent);
+}
+.stats-panel__speed-row:first-child { border-top: 0; }
+.stats-panel__speed-row:hover { background: color-mix(in srgb, var(--la-text) 3%, transparent); }
 .stats-panel__speed-model-path { display: flex; min-width: 0; align-items: baseline; gap: 2px; overflow: hidden; font-size: 11.5px; }
-.stats-panel__speed-model-path > span { overflow: hidden; color: var(--la-muted); text-overflow: ellipsis; }
+.stats-panel__speed-model-path > span { overflow: hidden; max-width: 45%; color: var(--la-muted); text-overflow: ellipsis; white-space: nowrap; }
 .stats-panel__speed-model-path > i { flex: none; color: var(--la-muted); font-style: normal; }
-.stats-panel__speed-model-path > strong { overflow: hidden; color: var(--la-text); font-weight: 600; text-overflow: ellipsis; }
-.stats-panel__speed-first { color: var(--la-secondary); font-size: 11.5px; text-align: right; }
-.stats-panel__speed-tps { color: var(--la-success); font-size: 12.5px; font-weight: 650; text-align: right; }
-.stats-panel__speed-tps small { margin-left: 3px; color: var(--la-muted); font-size: 9px; font-weight: 500; }
+.stats-panel__speed-model-path > strong { overflow: hidden; min-width: 0; color: var(--la-text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.stats-panel__speed-first { justify-self: end; color: var(--la-secondary); font-size: 11.5px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stats-panel__speed-tps { justify-self: end; color: var(--la-success); font-size: 12.5px; font-weight: 650; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stats-panel__speed-tps small { margin-left: 0; color: var(--la-muted); font-size: 9px; font-weight: 500; }
 .stats-panel__speed-first.is-fast,
 .stats-panel__speed-tps.is-fast { color: var(--la-success); }
 .stats-panel__speed-first.is-warn,
