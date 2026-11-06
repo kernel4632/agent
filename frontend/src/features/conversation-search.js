@@ -43,8 +43,6 @@ export function searchConversation(messages = [], query = '', limit = 50) {
     const end = Math.min(text.length, index + needle.length + 90)
     results.push({
       id: message.id,
-      role: message.role,
-      label: message.role === 'user' ? '你' : 'LA',
       before: `${start ? '…' : ''}${text.slice(start, index)}`,
       match: text.slice(index, index + needle.length),
       after: `${text.slice(index + needle.length, end)}${end < text.length ? '…' : ''}`,
@@ -53,5 +51,3 @@ export function searchConversation(messages = [], query = '', limit = 50) {
   }
   return results
 }
-
-

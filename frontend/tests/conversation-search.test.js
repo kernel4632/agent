@@ -12,7 +12,6 @@ const messages = [
 test('conversation search matches visible messages case-insensitively', () => {
   const results = searchConversation(messages, 'token')
   assert.deepEqual(results.map(result => result.id), ['u2', 'a2'])
-  assert.deepEqual(results.map(result => result.label), ['你', 'LA'])
   assert.equal(results[0].match, 'TOKEN')
   assert.equal(results[1].match, 'Token')
   const markdown = searchConversation([{ id: 'a3', role: 'assistant', content: '**重点**内容' }], '重点')[0]

@@ -90,16 +90,15 @@
   padding: 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  @include scrollbar-dark;
 }
 
-.conversation-search__result {
-  display: grid;
+.conversation-search__results .conversation-search__result {
+  display: block;
   width: 100%;
   min-width: 0;
-  grid-template-columns: 30px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
+  height: max-content;
   padding: 10px 12px;
   border: 0;
   border-radius: 12px;
@@ -110,25 +109,9 @@
   transition: background-color var(--ui-duration-fast) var(--ui-curve-standard), box-shadow var(--ui-duration-fast) var(--ui-curve-standard);
 }
 
-.conversation-search__result:hover,
-.conversation-search__result.is-active {
-  background: color-mix(in srgb, var(--la-accent) 8%, transparent);
-  box-shadow: inset 2px 0 var(--la-accent);
-}
-
-.conversation-search__result:focus-visible {
-  outline: 2px solid var(--la-accent);
-  outline-offset: -2px;
-}
-
-.conversation-search__role {
-  padding-top: 1px;
-  color: var(--la-muted);
-  font-size: 10px;
-  font-weight: 650;
-  line-height: 20px;
-  white-space: nowrap;
-}
+.conversation-search__results .conversation-search__result:hover,
+.conversation-search__results .conversation-search__result.is-active,
+.conversation-search__results .conversation-search__result:focus-visible { background: var(--la-hover); outline: 0; }
 
 .conversation-search__snippet {
   display: -webkit-box;

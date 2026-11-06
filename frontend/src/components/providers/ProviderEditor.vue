@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 供应商详情：配置、模型、高级设置三个标签页；配置使用分段表单和底部操作栏。
 内容顺序参考 RikkaHub ProviderConfigure；模型页交给 ProviderModels，保存仍使用设置队列。
 调用示例：<ProviderEditor :provider="selectedProvider" @update:provider="saveProvider" @delete="removeProvider" />
@@ -113,7 +113,7 @@ async function testConnection() {
           <section class="provider-section">
             <h2>自定义请求头</h2>
             <div class="provider-group"><div class="provider-group__item">
-              <p class="provider-field__hint">随每次请求发送，例如 <code>{"X-Title": "la"}</code></p>
+              <p class="provider-field__hint">随每次请求发送，例如 <code>{"X-Title": "Agent"}</code></p>
               <JsonInput :model-value="provider.headers ?? ''" label="自定义请求头" :rows="5" @change="setJson('headers', $event)" />
             </div></div>
           </section>

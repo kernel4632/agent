@@ -6,6 +6,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import Dialog from '../../ui/Dialog.vue'
+import Button from '../../ui/Button.vue'
 import Icon from '../../ui/Icon.vue'
 import { searchConversation } from '../../features/conversation-search.js'
 
@@ -96,10 +97,10 @@ function onEnter(event) {
         <span class="conversation-search__hint">↑↓ 选择 · Enter 跳转</span>
       </div>
       <div ref="list" class="conversation-search__results">
-        <button
+        <Button
           v-for="(result, index) in results"
           :key="`${result.id}-${index}`"
-          type="button"
+          variant="plain"
           class="conversation-search__result"
           :class="{ 'is-active': index === activeIndex }"
           :data-search-index="index"
@@ -107,9 +108,8 @@ function onEnter(event) {
           @focus="activeIndex = index"
           @click="choose(result)"
         >
-          <span class="conversation-search__role">{{ result.label }}</span>
           <span class="conversation-search__snippet">{{ result.before }}<mark>{{ result.match }}</mark>{{ result.after }}</span>
-        </button>
+        </Button>
         <div v-if="!query" class="conversation-search__empty">
           <Icon name="search" :size="24" />
           <span>输入关键词搜索当前聊天记录</span>
@@ -124,4 +124,3 @@ function onEnter(event) {
 </template>
 
 <style scoped lang="scss" src="../../styles/components/navigation/ConversationSearch.scss"></style>
-

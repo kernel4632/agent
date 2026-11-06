@@ -1130,6 +1130,8 @@ test('topbar search finds a message, jumps, and keeps its state on reopen', asyn
   await input.fill('定位消息 1')
   await expect(dialog.locator('.conversation-search__result')).toHaveCount(1)
   await expect(dialog.locator('.conversation-search__result')).toContainText('定位消息 1')
+  await expect(dialog.locator('.conversation-search__results')).toHaveCSS('overflow-y', 'auto')
+  await expect(dialog.locator('.conversation-search__result')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await screenshot(page, testInfo, 'conversation-search')
 
   await dialog.locator('.conversation-search__result').click()
