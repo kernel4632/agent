@@ -39,18 +39,19 @@
 .cot-fold.is-open svg { transform: rotate(180deg); }
 .cot-steps { display: flex; flex-direction: column; }
 .cot-step { position: relative; min-width: 0; padding-left: 32px; }
-.cot-step::before {
-  content: '';
+/* 时间线由 context-sections 统一画一条竖线，步骤之间不会因为分组/折叠出现长断口。 */
+.context-sections { position: relative; }
+.context-sections::before {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 22px;
+  bottom: 22px;
   left: 11.5px;
   width: 1px;
   background: var(--la-line);
+  content: "";
+  z-index: 0;
 }
-.cot-step:first-child::before { top: 22px; }
-.cot-step:last-child::before { bottom: calc(100% - 22px); }
-.cot-step:only-child::before { display: none; }
+.context-sections > * { position: relative; z-index: 1; }
 .cot-step__icon {
   position: absolute;
   top: 9px;
@@ -196,3 +197,5 @@
 .context-group__icon { color: var(--la-secondary); }
 .process-fold__icon svg,
 .context-group__icon svg { display: block; width: 16px; height: 16px; }
+
+.context-sections .request-status__icon { border-radius: 50%; background: var(--la-layer-02); }
