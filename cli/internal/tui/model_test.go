@@ -146,3 +146,35 @@ func TestCommandPanelShowsAllSessionsAndHelp(t *testing.T) {
 		t.Fatal("missing help")
 	}
 }
+
+func TestQuotedModelSelectionUsesExactNames(t *testing.T) {
+	var requests []map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			requests = append(requests, body)
+		}
+		fmt.Fprint(w, `{"id":"s"}`)
+	}))
+	defer server.Close()
+	client, _ := api.New(server.URL)
+	for _, argument := range []string{`"provider with spaces" second`, `'provider with spaces' second`, `"中文 供应商" "model with spaces"`} {
+		if _, _, err := execute(context.Background(), client, api.Session{ID: "s"}, "/model", argument); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if requests[0]["provider"] != "provider with spaces" || requests[1]["provider"] != requests[0]["provider"] || requests[2]["model"] != "model with spaces" {
+		t.Fatalf("wrong model selections: %v", requests)
+	}
+	for _, argument := range []string{`"unfinished second`, `"" second`, `provider`, `one two three`} {
+		if _, _, err := execute(context.Background(), client, api.Session{ID: "s"}, "/model", argument); err == nil {
+			t.Errorf("accepted invalid argument %q", argument)
+		}
+	}
+	if len(requests) != 3 {
+		t.Fatal("invalid input made an HTTP mutation")
+	}
+}

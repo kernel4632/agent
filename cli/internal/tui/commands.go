@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kernel4632/agent/cli/internal/api"
@@ -79,8 +80,8 @@ func execute(ctx context.Context, client *api.Client, session api.Session, name,
 		err = client.Request(ctx, "POST", "/session/create", map[string]string{"title": argument, "cwd": session.Cwd, "provider": session.Provider, "model": session.Model}, &created)
 		id = created.ID
 	case "/model":
-		fields := strings.Fields(argument)
-		if len(fields) != 2 {
+		fields, parseErr := modelArguments(argument)
+		if parseErr != nil || len(fields) != 2 || fields[0] == "" || fields[1] == "" {
 			return fail("用法: /model PROVIDER MODEL（可用 agent models 列出）")
 		}
 		err = client.Request(ctx, "PATCH", api.SessionPath("model", id), map[string]string{"provider": fields[0], "model": fields[1]}, nil)
@@ -113,4 +114,40 @@ func execute(ctx context.Context, client *api.Client, session api.Session, name,
 	}
 	saved, err := client.Session(ctx, id)
 	return saved, "", err
+}
+
+// Model names are arguments, not shell commands: preserve slashes and accept
+// quoted spaces without expansion or interpreting Windows path escapes.
+func modelArguments(argument string) ([]string, error) {
+	var fields []string
+	var word strings.Builder
+	var quote rune
+	started := false
+	for _, ch := range argument {
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			} else {
+				word.WriteRune(ch)
+			}
+		} else if ch == '"' || ch == 39 {
+			quote, started = ch, true
+		} else if unicode.IsSpace(ch) {
+			if started {
+				fields = append(fields, word.String())
+				word.Reset()
+				started = false
+			}
+		} else {
+			word.WriteRune(ch)
+			started = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("名称引号未闭合")
+	}
+	if started {
+		fields = append(fields, word.String())
+	}
+	return fields, nil
 }

@@ -67,6 +67,8 @@ agent sessions remove SESSION_ID
 
 ## 工具审批与停止
 
+供应商或模型名含空格时使用引号，例如 `/model "provider with spaces" gpt-model`；单引号也支持。
+
 `ask` 默认遇到待审批工具就返回非零退出码，显示会话 ID 和调用 ID，任务保留在服务端等待。可以显式选择 `--permission deny` 或 `--permission allow-once`，应用于本次运行遇到的审批，不写全局规则。已有全局 `deny` 仍由后端执行。
 
 ```powershell
