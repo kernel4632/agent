@@ -176,18 +176,25 @@ const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? '
         class="session-stats__menu session-stats__menu--speed"
         :label="`生成速度 ${speed}，点击查看速度统计`"
         content-label="生成速度"
-        :content-style="{ width: '360px' }"
+        :content-style="{ width: 'max-content', maxWidth: 'calc(100vw - 24px)' }"
       >
         <template #trigger>
           <span class="session-stats__summary-item"><Icon name="gauge" :size="14" />{{ speed }}</span>
         </template>
         <div class="stats-panel stats-panel--speed-simple">
-          <div v-if="recentSpeedHighlights.length" class="stats-panel__speed-list">
-            <div v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-row" :title="`${group.provider}/${group.model}`">
-              <span class="stats-panel__speed-model-path"><span>{{ group.provider }}</span><i>/</i><strong>{{ group.model }}</strong></span>
-              <span class="stats-panel__speed-first" :class="firstTone(group.lastFirstTokenMs)">{{ formatDuration(group.lastFirstTokenMs) }}</span>
-              <span class="stats-panel__speed-tps" :class="tpsTone(group.lastTps)"><span>{{ group.lastTps ? Math.round(group.lastTps) : '—' }}</span><small>&nbsp;tok/s</small></span>
-            </div>
+          <div v-if="recentSpeedHighlights.length" class="stats-panel__speed-table-wrap">
+            <table class="stats-panel__speed-grid">
+              <colgroup><col><col style="width: 46px"><col style="width: 72px"></colgroup>
+              <tbody>
+                <tr v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-row" :title="`${group.provider}/${group.model}`">
+                  <td class="stats-panel__speed-model-cell">
+                    <span class="stats-panel__speed-model-path"><span>{{ group.provider }}</span><i>/</i><strong>{{ group.model }}</strong></span>
+                  </td>
+                  <td class="stats-panel__speed-first" :class="firstTone(group.lastFirstTokenMs)">{{ formatDuration(group.lastFirstTokenMs) }}</td>
+                  <td class="stats-panel__speed-tps" :class="tpsTone(group.lastTps)"><span class="stats-panel__speed-tps-inner"><span>{{ group.lastTps ? Math.round(group.lastTps) : '—' }}</span><small>tok/s</small></span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <p v-else class="stats-panel__note">还没有足够的请求耗时数据。</p>
         </div>
