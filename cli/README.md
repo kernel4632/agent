@@ -81,6 +81,8 @@ agent sessions decide SESSION_ID CALL_ID allow-always
 
 ## 验证
 
+`sessions compact` 会等待模型完成总结，最长 10 分钟；Ctrl+C 可取消本地等待。其他普通 HTTP 操作仍使用较短超时，避免不可达服务长期挂起。
+
 ```powershell
 cd cli
 go test ./...

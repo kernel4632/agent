@@ -138,7 +138,9 @@ test('control-tool final answers and approval work without a web browser', async
     expect(pending.code).toBe(1)
     expect(pending.err).toContain('待审批')
     const id = pending.err.match(/会话: (\S+)/)[1]
-    const session = JSON.parse((await cli('sessions', 'show', id, '--json')).out)
+    const shown = await cli('sessions', 'show', id, '--json')
+    expect(shown, shown.err).toMatchObject({ code: 0 })
+    const session = JSON.parse(shown.out)
     expect(session.pending[0].callID).toBe('read-1')
     expect((await cli('ask', 'conflict', '--session', id)).code).toBe(1)
     expect((await cli('sessions', 'decide', id, 'read-1', 'deny')).code).toBe(0)

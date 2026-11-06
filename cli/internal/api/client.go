@@ -35,7 +35,21 @@ func New(address string) (*Client, error) {
 }
 
 func (c *Client) Request(ctx context.Context, method, path string, body, result any) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	return c.request(ctx, method, path, body, result, 60*time.Second)
+}
+
+// Compaction generates a model response before returning HTTP headers. Keep the
+// normal transport deadlines for other endpoints and retain caller cancellation.
+func (c *Client) Compact(ctx context.Context, id string, result any) error {
+	transport := c.http.Transport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 0
+	defer transport.CloseIdleConnections()
+	client := &Client{base: c.base, http: &http.Client{Transport: transport}}
+	return client.request(ctx, "POST", SessionPath("compact", id), nil, result, 10*time.Minute)
+}
+
+func (c *Client) request(ctx context.Context, method, path string, body, result any, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var data io.Reader
 	if body != nil {

@@ -190,6 +190,14 @@ func (o *options) sessions() *cobra.Command {
 				body = map[string]string{spec.field: args[1]}
 			}
 			var data any
+			if spec.action == "compact" {
+				ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+				defer cancel()
+				if err = client.Compact(ctx, args[0], &data); err != nil {
+					return err
+				}
+				return jsonOut(cmd.OutOrStdout(), data)
+			}
 			if err = client.Request(cmd.Context(), spec.method, api.SessionPath(spec.action, args[0]), body, &data); err != nil {
 				return err
 			}
