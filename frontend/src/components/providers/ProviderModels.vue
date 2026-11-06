@@ -4,7 +4,7 @@
 调用：<ProviderModels :provider="provider" :models="provider.models" @update:models="saveModels" />。
 -->
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { Provider } from "../../features/settings.js"
 import { DEFAULT_CONTEXT } from '../../defaults.js'
 import Field from '../../ui/Field.vue'
@@ -13,6 +13,7 @@ import ModelIcon from '../../ui/ModelIcon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Menu from '../../ui/Menu.vue'
+import Select from '../../ui/Select.vue'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
@@ -27,14 +28,49 @@ const editDraft = ref(null)
 const editError = ref('')
 const customContext = ref(false)
 
-const CONTEXT_PRESETS = [128000, 200000, 1000000]
+const CONTEXT_PRESETS = [32000, 128000, 200000, 512000, 1000000, 2000000]
+const FAMILIES = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'moonshotai', label: 'Moonshot / Kimi' },
+  { value: 'zhipuai', label: 'Zhipu / GLM' },
+  { value: 'alibaba', label: 'Alibaba / Qwen' },
+  { value: 'minimax', label: 'MiniMax' },
+  { value: 'bytedance', label: 'ByteDance / Doubao' },
+  { value: 'xai', label: 'xAI / Grok' },
+  { value: 'mistral', label: 'Mistral' },
+  { value: 'meta', label: 'Meta / Llama' },
+  { value: 'stepfun', label: 'StepFun' },
+  { value: 'iflytek', label: 'iFlytek' },
+  { value: 'baidu', label: 'Baidu / ERNIE' },
+  { value: 'tencent', label: 'Tencent / Hunyuan' },
+  { value: 'cohere', label: 'Cohere' },
+  { value: 'nvidia', label: 'NVIDIA' },
+]
+const familyOptions = computed(() => {
+  const options = [{ value: '', label: '自动识别' }, ...FAMILIES]
+  const family = editDraft.value?.family
+  if (family && !FAMILIES.some(item => item.value === family)) options.push({ value: family, label: family })
+  return options
+})
+const contextDraft = ref('')
+const contextOpen = ref(false)
+const autoSaveEnabled = ref(false)
+let autoSaveTimer = null
 const ABILITIES = [
   { value: 'tools', label: '工具调用' },
   { value: 'reasoning', label: '推理输出' },
 ]
 const capabilityLabel = value => ({ text: '文本', image: '图像', tools: '工具', reasoning: '推理' }[value] || value)
 const capabilityIcon = value => ({ text: 'text', image: 'image', tools: 'tools', reasoning: 'reasoning' }[value] || 'spark')
-const formatContext = value => value >= 1000000 ? `${value / 1000000}M` : `${Math.round(value / 1000)}K`
+const formatContext = value => {
+  const number = Number(value) || 0
+  if (number >= 1000000) return `${number / 1000000}M`
+  if (number >= 1000) return `${Math.round(number / 1000)}K`
+  return String(number)
+}
 const selected = id => props.models.some(model => model.id === id)
 const filtered = computed(() => {
   const query = filter.value.trim().toLowerCase()
@@ -81,16 +117,22 @@ function runAction(model, action) {
   emit('update:models', models)
 }
 
-function openEditor(model) {
+async function openEditor(model) {
+  clearTimeout(autoSaveTimer)
+  autoSaveEnabled.value = false
+  contextOpen.value = false
   editing.value = model?.id || null
   editDraft.value = model
-    ? { ...model, family: model.family || '', capabilities: [...model.capabilities] }
+    ? { ...model, name: model.name === model.id ? '' : model.name, family: model.family || '', capabilities: [...model.capabilities] }
     : { id: '', name: '', family: '', context: DEFAULT_CONTEXT, capabilities: ['text', 'tools'] }
+  contextDraft.value = formatContext(editDraft.value.context)
   customContext.value = !CONTEXT_PRESETS.includes(editDraft.value.context)
   editError.value = ''
   if (model) {
     expandedId.value = model.id
     editOpen.value = false
+    await nextTick()
+    autoSaveEnabled.value = true
   } else {
     expandedId.value = ''
     editOpen.value = true
@@ -100,22 +142,26 @@ function openEditor(model) {
 
 function toggleEditor(model) {
   if (expandedId.value === model.id) {
-    closeEditor()
+    void closeEditor()
     return
   }
-  openEditor(model)
+  void openEditor(model)
 }
 
-function closeEditor() {
+async function closeEditor(save = true) {
+  clearTimeout(autoSaveTimer)
+  if (save && autoSaveEnabled.value && editDraft.value && editing.value) await persistModel()
+  autoSaveEnabled.value = false
   expandedId.value = ''
   editing.value = null
   editDraft.value = null
   editError.value = ''
+  contextOpen.value = false
 }
 
 // 外部删除或重排后，已经展开的模型不存在时自动收起。
 watch(() => props.models.map(model => model.id), ids => {
-  if (expandedId.value && !ids.includes(expandedId.value)) closeEditor()
+  if (expandedId.value && !ids.includes(expandedId.value)) void closeEditor(false)
 })
 
 async function detectFamily() {
@@ -125,12 +171,6 @@ async function detectFamily() {
   if (!result?.family || result.ambiguous || !['catalog', 'prefix'].includes(result.source)) return
   if (!editDraft.value || editDraft.value.family) return
   editDraft.value.family = result.family
-}
-
-function setId(value) {
-  const previous = editDraft.value.id
-  editDraft.value.id = value
-  if (!editDraft.value.name || editDraft.value.name === previous) editDraft.value.name = value
 }
 
 function toggleCapability(value, enabled) {
@@ -143,19 +183,64 @@ function chooseContext(value) {
   if (value !== null) editDraft.value.context = value
 }
 
-async function saveModel() {
-  if (!editDraft.value) return
+const parseContext = value => {
+  const match = String(value ?? '').trim().toLowerCase().replace(/,/g, '').match(/^(\d+(?:\.\d+)?)\s*([km])?$/)
+  if (!match) return null
+  const number = Number(match[1]) * (match[2] === 'm' ? 1000000 : match[2] === 'k' ? 1000 : 1)
+  return Number.isFinite(number) && number > 0 ? Math.round(number) : null
+}
+
+function inputContext(event) {
+  contextDraft.value = event.target.value
+  const parsed = parseContext(contextDraft.value)
+  if (parsed) editDraft.value.context = parsed
+}
+
+function blurContext() {
+  const parsed = parseContext(contextDraft.value)
+  contextDraft.value = formatContext(parsed || editDraft.value.context)
+}
+
+function chooseContextValue(value) {
+  editDraft.value.context = value
+  contextDraft.value = formatContext(value)
+  contextOpen.value = false
+}
+
+async function persistModel() {
+  if (!editDraft.value) return false
   const id = editDraft.value.id.trim()
-  const name = editDraft.value.name.trim()
+  const name = editDraft.value.name.trim() || id
   const context = Number(editDraft.value.context)
-  if (!id || !name) { editError.value = '模型 ID 和显示名称不能为空'; return }
-  if (!editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return }
-  if (!Number.isInteger(context) || context <= 0) { editError.value = '上下文窗口需要填写正整数'; return }
+  if (!id) { editError.value = '模型 ID 不能为空'; return false }
+  if (editing.value && id !== editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return false }
+  if (!editing.value && selected(id)) { editError.value = '这个模型已经在列表里了'; return false }
+  if (!Number.isInteger(context) || context <= 0) { editError.value = '上下文窗口需要填写正整数'; return false }
   if (!editDraft.value.family) await detectFamily()
   const model = { id, name, family: String(editDraft.value.family || '').trim(), context, capabilities: [...editDraft.value.capabilities] }
   emit('update:models', editing.value ? props.models.map(item => item.id === editing.value ? model : item) : [...props.models, model])
-  if (editing.value) closeEditor()
-  else editOpen.value = false
+  editing.value = id
+  expandedId.value = id
+  editError.value = ''
+  return true
+}
+
+async function autoSave() {
+  if (!autoSaveEnabled.value || !editing.value) return
+  await persistModel()
+}
+
+function scheduleAutoSave() {
+  if (!autoSaveEnabled.value) return
+  clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => void autoSave(), 450)
+}
+
+watch(editDraft, () => scheduleAutoSave(), { deep: true })
+onBeforeUnmount(() => clearTimeout(autoSaveTimer))
+
+async function saveModel() {
+  if (await persistModel()) editOpen.value = false
 }
 </script>
 
@@ -189,14 +274,25 @@ async function saveModel() {
 
         <div v-if="expandedId === model.id && editDraft" class="model-card__editor">
           <div class="model-edit__grid">
-            <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" readonly placeholder="例如 deepseek-chat" @update:model-value="setId" />
-            <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="在模型列表中显示的名称" />
-            <Field caption="模型族（用于图标）" label="模型族" v-model="editDraft.family" placeholder="例如 deepseek、openai">
-              <template #leading><ModelIcon :model="editDraft.id" :family="editDraft.family" :size="18" /></template>
-            </Field>
-            <Field caption="上下文窗口" label="上下文窗口" type="number" :min="1" :step="1000" v-model="editDraft.context">
-              <template #trailing><span class="model-edit__unit">tokens</span></template>
-            </Field>
+            <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
+            <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="留空则使用模型 ID" />
+            <div class="model-edit__field">
+              <span class="model-edit__caption">模型族（用于图标）</span>
+              <Select class="model-edit__select" label="模型族（用于图标）" :items="familyOptions" :model-value="editDraft.family" @update:model-value="editDraft.family = $event">
+                <template #selected="{ item }"><ModelIcon :model="editDraft.id" :family="item?.value || editDraft.family" :size="18" /><span>{{ item?.label || '自动识别' }}</span></template>
+                <template #option="{ item }"><ModelIcon :model="editDraft.id" :family="item.value" :size="18" /><span>{{ item.label }}</span></template>
+              </Select>
+            </div>
+            <div class="model-edit__field">
+              <span class="model-edit__caption">上下文窗口</span>
+              <div class="model-context" @focusout="contextOpen = $event.currentTarget.contains($event.relatedTarget) ? contextOpen : false">
+                <input class="model-context__input" :value="contextDraft" aria-label="上下文窗口" placeholder="例如 1M、128K" @input="inputContext" @blur="blurContext" @keydown.esc="contextOpen = false" />
+                <button class="model-context__toggle" type="button" aria-label="选择上下文长度" @click="contextOpen = !contextOpen"><Icon name="down" :size="16" /></button>
+                <div v-if="contextOpen" class="model-context__menu">
+                  <button v-for="preset in CONTEXT_PRESETS" :key="preset" type="button" @mousedown.prevent @click="chooseContextValue(preset)">{{ formatContext(preset) }}</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="model-edit__abilities">
@@ -207,12 +303,8 @@ async function saveModel() {
               <div class="model-choices"><label v-for="ability in ABILITIES" :key="ability.value" class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes(ability.value) }"><input type="checkbox" role="switch" :aria-label="ability.label" :checked="editDraft.capabilities.includes(ability.value)" @change="toggleCapability(ability.value, $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes(ability.value)" name="check" :size="16" />{{ ability.label }}</label></div>
             </fieldset>
           </div>
-          <p class="model-edit__hint">上下文窗口按服务商提供的数值填写；修改后立即写回供应商配置。</p>
+          <p class="model-edit__hint">修改后自动保存；上下文窗口支持 1M、100K、512K 这类写法。</p>
           <p v-if="editError" class="model-edit__error" role="alert">{{ editError }}</p>
-          <div class="model-card__editor-actions">
-            <Button variant="text" @click="closeEditor">取消</Button>
-            <Button @click="saveModel">保存模型</Button>
-          </div>
         </div>
       </article>
     </div>
@@ -240,11 +332,15 @@ async function saveModel() {
   <Dialog :open="editOpen" placement="bottom" :width="680" :label="editing ? '编辑模型' : '添加模型'" class="model-editor-sheet" @update:open="editOpen = $event">
     <div v-if="editDraft" class="model-edit">
       <div class="model-edit__identity">
-        <Field caption="模型 ID" label="模型 ID" :model-value="editDraft.id" :readonly="Boolean(editing)" placeholder="例如 deepseek-chat" @update:model-value="setId" />
-        <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="在模型列表中显示的名称" />
-        <Field caption="模型族（用于图标，留空自动识别；有歧义时手动填写）" label="模型族" v-model="editDraft.family" placeholder="例如 deepseek、openai、moonshotai">
-          <template #leading><ModelIcon :model="editDraft.id" :family="editDraft.family" :size="18" /></template>
-        </Field>
+        <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
+        <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="留空则使用模型 ID" />
+        <div class="model-edit__field">
+          <span class="model-edit__caption">模型族（用于图标）</span>
+          <Select class="model-edit__select" label="模型族（用于图标）" :items="familyOptions" :model-value="editDraft.family" @update:model-value="editDraft.family = $event">
+            <template #selected="{ item }"><ModelIcon :model="editDraft.id" :family="item?.value || editDraft.family" :size="18" /><span>{{ item?.label || '自动识别' }}</span></template>
+            <template #option="{ item }"><ModelIcon :model="editDraft.id" :family="item.value" :size="18" /><span>{{ item.label }}</span></template>
+          </Select>
+        </div>
       </div>
       <fieldset class="model-edit__section"><legend>输入能力</legend>
         <div class="model-choices"><span class="model-choice is-selected"><Icon name="check" :size="16" />文本</span><label class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes('image') }"><input type="checkbox" role="switch" aria-label="图像输入" :checked="editDraft.capabilities.includes('image')" @change="toggleCapability('image', $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes('image')" name="check" :size="16" />图像输入</label></div>

@@ -40,9 +40,9 @@ function click() { active.value = Math.max(0, props.items.findIndex(item => item
 </script>
 <template>
   <div class="ui-select">
-    <button ref="trigger" type="button" class="ui-select__trigger" role="combobox" :aria-label="label" aria-haspopup="listbox" :aria-controls="id" :aria-expanded="open" :aria-activedescendant="open ? `${id}-${active}` : undefined" :disabled="disabled || !items.length" @click="click" @keydown="keydown"><span>{{ selected?.label || placeholder }}</span><Icon name="down" :size="20" /></button>
+    <button ref="trigger" type="button" class="ui-select__trigger" role="combobox" :aria-label="label" aria-haspopup="listbox" :aria-controls="id" :aria-expanded="open" :aria-activedescendant="open ? `${id}-${active}` : undefined" :disabled="disabled || !items.length" @click="click" @keydown="keydown"><span class="ui-select__value"><slot name="selected" :item="selected">{{ selected?.label || placeholder }}</slot></span><Icon name="down" :size="20" /></button>
     <div :id="id" ref="popup" popover="auto" class="ui-select__options" role="listbox" :aria-label="label" :style="position" @toggle="onToggle">
-      <button v-for="(item, index) in items" :id="`${id}-${index}`" :key="item.value" type="button" role="option" tabindex="-1" :aria-selected="modelValue === item.value" :disabled="item.disabled" :class="{ 'is-active': index === active }" @pointerdown.prevent @click="choose(item)">{{ item.label }}<Icon v-if="modelValue === item.value" name="check" :size="18" /></button>
+      <button v-for="(item, index) in items" :id="`${id}-${index}`" :key="item.value" type="button" role="option" tabindex="-1" :aria-selected="modelValue === item.value" :disabled="item.disabled" :class="{ 'is-active': index === active }" @pointerdown.prevent @click="choose(item)"><span class="ui-select__option"><slot name="option" :item="item" :selected="modelValue === item.value">{{ item.label }}</slot></span><Icon v-if="modelValue === item.value" name="check" :size="18" /></button>
     </div>
   </div>
 </template>
