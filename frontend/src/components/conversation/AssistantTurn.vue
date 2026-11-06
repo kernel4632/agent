@@ -247,72 +247,72 @@ function clearTarget() { targetId.value = null; emit('close') }
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
         <Fold :open="processOpen">
+          <div v-if="requestSteps.length" class="request-stats">
+            <button type="button" class="request-stats__head" :aria-expanded="requestStatsOpen" @click="requestStatsOpen = !requestStatsOpen">
+              <span class="request-stats__title">请求统计</span>
+              <em class="request-stats__count">{{ requestSteps.length }} 次</em>
+              <Icon name="down" :size="14" class="request-stats__caret" :class="{ 'is-open': requestStatsOpen }" aria-hidden="true" />
+            </button>
+            <Fold :open="requestStatsOpen">
+              <div class="request-stats__body">
+                <RequestStatus
+                  v-for="step in requestSteps"
+                  :key="step.key"
+                  :data-message-id="step.messageId"
+                  :request="step.request"
+                />
+              </div>
+            </Fold>
+          </div>
+
           <div class="process-fold__body context-sections">
-          <template v-for="section in processSections" :key="section.key">
-            <template v-if="section.type === 'step'">
-              <template v-if="section.step.type === 'compact'">
-                <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
-                <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
-              </template>
-              <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
-                <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
-                <div class="cot-step__main">
-                  <div class="cot-step__body cot-step__body--text">
-                    <Markdown smooth :content="section.step.text" compact />
+            <template v-for="section in processSections" :key="section.key">
+              <template v-if="section.type === 'step'">
+                <template v-if="section.step.type === 'compact'">
+                  <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
+                  <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
+                </template>
+                <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
+                  <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
+                  <div class="cot-step__main">
+                    <div class="cot-step__body cot-step__body--text">
+                      <Markdown smooth :content="section.step.text" compact />
+                    </div>
                   </div>
                 </div>
+              </template>
+
+              <div v-else class="context-group">
+                <button type="button" class="context-group__head" :aria-expanded="isGroupOpen(section)" @click="toggleGroup(section)">
+                  <span class="context-group__icon"><Icon name="layers" :size="16" /></span>
+                  <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
+                  <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
+                </button>
+                <Fold :open="isGroupOpen(section)">
+                  <div class="context-group__body cot-steps">
+                    <template v-for="step in section.steps" :key="step.key">
+                      <ReasoningStep
+                        v-if="step.type === 'reasoning'"
+                        :data-message-id="step.messageId"
+                        :reasoning="step.text"
+                        :streaming="step.streaming"
+                        :started-at="step.message.startedAt"
+                        :finished-at="step.message.finishedAt"
+                      />
+                      <ToolCall
+                        v-else
+                        :data-message-id="step.messageId"
+                        :tool="step.tool"
+                        :session-id="sessionId"
+                      />
+                    </template>
+                  </div>
+                </Fold>
               </div>
             </template>
-
-            <div v-else class="context-group">
-              <button type="button" class="context-group__head" :aria-expanded="isGroupOpen(section)" @click="toggleGroup(section)">
-                <span class="context-group__icon"><Icon name="layers" :size="16" /></span>
-                <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
-                <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
-              </button>
-              <Fold :open="isGroupOpen(section)">
-                <div class="context-group__body cot-steps">
-                <template v-for="step in section.steps" :key="step.key">
-                  <ReasoningStep
-                    v-if="step.type === 'reasoning'"
-                    :data-message-id="step.messageId"
-                    :reasoning="step.text"
-                    :streaming="step.streaming"
-                    :started-at="step.message.startedAt"
-                    :finished-at="step.message.finishedAt"
-                  />
-                  <ToolCall
-                    v-else
-                    :data-message-id="step.messageId"
-                    :tool="step.tool"
-                    :session-id="sessionId"
-                  />
-                </template>
-                  </div>
-              </Fold>
-            </div>
-          </template>
-            </div>
-            <div v-if="requestSteps.length" class="request-stats">
-              <button type="button" class="request-stats__head" :aria-expanded="requestStatsOpen" @click="requestStatsOpen = !requestStatsOpen">
-                <span class="request-stats__title">请求统计</span>
-                <em class="request-stats__count">{{ requestSteps.length }} 次</em>
-                <Icon name="down" :size="14" class="request-stats__caret" :class="{ 'is-open': requestStatsOpen }" aria-hidden="true" />
-              </button>
-              <Fold :open="requestStatsOpen">
-                <div class="request-stats__body">
-                  <RequestStatus
-                    v-for="step in requestSteps"
-                    :key="step.key"
-                    :data-message-id="step.messageId"
-                    :request="step.request"
-                  />
-                </div>
-              </Fold>
-            </div>
+          </div>
         </Fold>
       </div>
-
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
         <Markdown :content="bubbleContent" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
@@ -325,3 +325,4 @@ function clearTarget() { targetId.value = null; emit('close') }
 </template>
 
 <style lang="scss" src="../../styles/components/conversation/AssistantTurn.scss"></style>
+
