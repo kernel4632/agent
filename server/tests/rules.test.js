@@ -93,11 +93,14 @@ describe('项目规则', () => {
             const { sessionId } = await Session.create({ title: '规则', cwd })
             const agent = await Agent.get({ sessionId })
             expect(agent.config.system).toContain('装配时的规则')
+            // 压缩规范跟着装配后的 system 走，自动压缩才拿得到。
+            expect(agent.config.system).toContain('上下文压缩')
 
             await write('AGENTS.md', '改过之后的规则')
             await new Promise(resolve => setTimeout(resolve, 20))
             const again = await Agent.get({ sessionId })
             expect(again.config.system).toContain('改过之后的规则')
+            expect(again.config.system).toContain('上下文压缩')
         })
     })
 })

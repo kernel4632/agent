@@ -105,6 +105,9 @@ describe('交给 agent-core 的 config', () => {
                 })
 
                 expect(requests.length).toBeGreaterThanOrEqual(2)
+                // 自动压缩也必须收到我们追加的详细 Markdown 规范。
+                const compactRequest = requests.find(request => request.messages.at(-1)?.content?.includes?.('压缩成一段总结'))
+                expect(compactRequest.messages.find(message => message.role === 'system')?.content).toContain('上下文压缩')
                 const compactEvents = events.filter(event => event.request === 'compact' || event.type.startsWith('compact-'))
                 expect(compactEvents.some(event => event.type === 'text-delta' && event.request === 'compact')).toBe(true)
                 expect(compactEvents.find(event => event.type === 'compact-finish')).toMatchObject({

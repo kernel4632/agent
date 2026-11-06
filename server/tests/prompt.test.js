@@ -70,7 +70,8 @@ describe('默认系统提示词', () => {
 
             await Settings.read(path)
             expect(store.config.prompt.system).toBe('')
-            expect((await resolve()).system).toBe('')
+            // 用户提示词为空；装配配置里仍会附加内部压缩规范。
+            expect((await resolve()).system).toContain('上下文压缩')
         })
     })
 
@@ -81,7 +82,7 @@ describe('默认系统提示词', () => {
                 prompt: { system: '' },
             })
             expect(store.config.prompt.system).toBe('')
-            expect((await resolve()).system).toBe('')
+            expect((await resolve()).system).toContain('上下文压缩')
         })
     })
 

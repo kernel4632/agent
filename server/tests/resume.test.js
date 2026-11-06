@@ -348,7 +348,8 @@ describe('继续被中断的助手', () => {
                 const messages = seen[0].messages
                 expect(messages.at(-1).role).toBe('assistant')
                 expect(messages.at(-1).content).toContain('做到一半')
-                expect(JSON.stringify(messages)).not.toContain('继续')
+                // 系统提示词里有压缩规范，不能拿它判断是否多塞了对话消息。
+                expect(JSON.stringify(messages.filter(message => message.role !== 'system'))).not.toContain('继续')
 
                 const saved = History.get({ sessionId }).find(message => message.usage)
                 expect(saved?.usage).toMatchObject({ input: 1, output: 1, total: 2, cacheRead: 1 })
