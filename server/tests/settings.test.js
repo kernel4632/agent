@@ -90,7 +90,11 @@ describe('会话运行设置', () => {
             expect(names).toContain('find_files')
             expect(names).toContain('search_text')
             expect(names).toContain('read_file')
-            expect(names).toContain('new_task')
+            // new_task 已下架（子智能体正式版再引入）；cwd / test 工具已删除。
+            expect(names).not.toContain('new_task')
+            expect(names).not.toContain('cwd')
+            expect(names).not.toContain('test')
+            expect(names).toContain('background')       // background 工具保留
             expect(names).not.toContain('apply_patch')
             expect(names).not.toContain('glob')
         })
@@ -109,7 +113,8 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('子任务上带了审批回调，而且回的是同一个会话', async () => {
+    // 下面两条子任务测试暂 skip：new_task 已从工具表下架，正式版恢复时一起回来。
+    test.skip('子任务上带了审批回调，而且回的是同一个会话', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             const calls = []
@@ -138,7 +143,7 @@ describe('会话运行设置', () => {
         })
     })
 
-    test('子任务返回自己的工具步骤，供主会话还原嵌套树', async () => {
+    test.skip('子任务返回自己的工具步骤，供主会话还原嵌套树', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
             const original = AgentCore.create
@@ -248,7 +253,8 @@ describe('哪件事用哪个模型', () => {
         })
     })
 
-    test('没单独配子任务模型时，跟这条会话自己的模型走', async () => {
+    // 子智能体暂未装配（正式版再引入）：这条验证 taskConfig 传递的测试恢复时一起回来。
+    test.skip('没单独配子任务模型时，跟这条会话自己的模型走', async () => {
         await withHome(async () => {
             await Settings.set({
                 providers: [{ name: 'local', models: [{ id: '主模型', name: '主模型' }, { id: '会话模型', name: '会话模型' }] }],

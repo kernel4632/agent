@@ -16,7 +16,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { cp, mkdir, readdir, rm, stat } from 'node:fs/promises'
+import { cp, mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { writeFile as atomicWrite } from 'atomically'
 import picomatch from 'picomatch'
@@ -68,6 +68,9 @@ const absolute = (path, cwd) => isAbsolute(path) ? path : resolve(cwd || process
 const filePaths = ({ toolName, input }) => {
     if (toolName === 'write_file') return [input.path]
     if (toolName === 'edit') return input.path ? [input.path] : []
+    // move 同时碰源和目标：回退时两处都要恢复成原来的样子。
+    if (toolName === 'move_file') return [input.from, input.to]
+    if (toolName === 'copy_file') return [input.to]
     return []
 }
 
@@ -609,6 +612,87 @@ const edit = {
         return `Edited ${target}`
     },
 }
+
+// --- 移动或改名：快照记录源和目标两处，回退时两处一起恢复 ---
+const moveFile = {
+    name: 'move_file',
+    kind: 'write',
+    files: input => [input.from, input.to],
+    snapshot,
+    ui: {
+        view: 'file-move',
+        icon: 'folder',
+        title: '移动文件',
+        summary: '{from} → {to}',
+    },
+    description: [
+        'Move or rename a file or directory. The parent directory of the destination is created automatically.',
+        'Refuses to overwrite an existing destination; delete or move it away first. Protected files (.env, keys, .ssh) are refused for both source and destination.',
+        'Snapshots cover both sides: rolling back this call restores the source and removes the copy left at the destination.',
+        'Parameters: - from (required): current path. - to (required): new path.',
+    ].join('\n'),
+    inputSchema: {
+        type: 'object',
+        properties: { from: { type: 'string' }, to: { type: 'string' } },
+        required: ['from', 'to'],
+    },
+    async execute({ from, to }, options = {}) {
+        if (!from || !to) throw new Error('from and to are required')
+        const source = absolute(from, options.cwd)
+        const destination = absolute(to, options.cwd)
+        guard([source, destination])
+        if (source === destination) throw new Error(`Cannot move ${source}: source and destination are the same`)
+        // stat 一次同时确认源存在并拿到“是目录还是文件”，供快照回退用。
+        const info = await stat(source).catch(() => null)
+        if (!info) throw new Error(`Cannot move ${source}: not found`)
+        if (await Bun.file(destination).exists()) {
+            throw new Error(`Cannot move to ${destination}: already exists`)
+        }
+        await mkdir(dirname(destination), { recursive: true })
+        await rename(source, destination)
+        return `Moved ${source} → ${destination}`
+    },
+}
+
+// --- 复制：目录整个拷过去；目标已存在时拒绝，不悄悄覆盖 ---
+const copyFile = {
+    name: 'copy_file',
+    kind: 'write',
+    files: input => [input.to],
+    snapshot,
+    ui: {
+        view: 'file-write',
+        icon: 'copy',
+        title: '复制文件',
+        summary: '{from} → {to}',
+    },
+    description: [
+        'Copy a file or a whole directory to a new path. The parent directory of the destination is created automatically.',
+        'Refuses to overwrite an existing destination. Protected files (.env, keys, .ssh) are refused for both source and destination.',
+        'Snapshots cover the destination: rolling back this call removes the copy.',
+        'Parameters: - from (required): source path. - to (required): destination path.',
+    ].join('\n'),
+    inputSchema: {
+        type: 'object',
+        properties: { from: { type: 'string' }, to: { type: 'string' } },
+        required: ['from', 'to'],
+    },
+    async execute({ from, to }, options = {}) {
+        if (!from || !to) throw new Error('from and to are required')
+        const source = absolute(from, options.cwd)
+        const destination = absolute(to, options.cwd)
+        guard([source, destination])
+        if (source === destination) throw new Error(`Cannot copy ${source}: source and destination are the same`)
+        const info = await stat(source).catch(() => null)
+        if (!info) throw new Error(`Cannot copy ${source}: not found`)
+        if (await Bun.file(destination).exists()) {
+            throw new Error(`Cannot copy to ${destination}: already exists`)
+        }
+        await mkdir(dirname(destination), { recursive: true })
+        await cp(source, destination, { recursive: true })
+        return `Copied ${source} → ${destination}`
+    },
+}
 export {
     readFile as read_file,
     readRange as read_range,
@@ -616,8 +700,10 @@ export {
     findFiles as find_files,
     searchText as search_text,
     edit,
+    moveFile as move_file,
+    copyFile as copy_file,
     skipPath, sensitive, snapshot, entries,
     restoreTool, restoreMessage, dropTool, undo, clearUndo, diff, remove,
 }
 
-export default [readFile, readRange, writeFile, findFiles, searchText, edit]
+export default [readFile, readRange, writeFile, findFiles, searchText, edit, moveFile, copyFile]

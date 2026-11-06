@@ -748,10 +748,14 @@ describe('server Agent integration boundary', () => {
             const { sessionId } = await Session.create({ title: 'Tool scan' })
             const agent = Agent.runtime().get(sessionId)
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
-                'read_file', 'write_file', 'find_files', 'search_text', 'edit',
-                'execute_command', 'update_todo_list', 'webfetch',
-                'attempt_completion', 'ask_followup_question', 'cwd',
+                'read_file', 'read_range', 'write_file', 'find_files', 'search_text', 'edit',
+                'move_file', 'copy_file',
+                'execute_command', 'background', 'update_todo_list', 'webfetch',
+                'attempt_completion', 'ask_followup_question',
             ]))
+            // cwd / test 工具已删除；new_task 已下架（子智能体正式版再引入）。
+            expect(Object.keys(agent.tools.schema)).not.toContain('cwd')
+            expect(Object.keys(agent.tools.schema)).not.toContain('new_task')
         })
     })
 })

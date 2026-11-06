@@ -153,16 +153,14 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 
 | 文件 | 工具 |
 | --- | --- |
-| `tools/file.js` | `read_file`、`read_range`（分段读大文件，offset/limit 按行号）、`write_file`、`find_files`、`search_text`、`edit`（一次调用改一个文件），以及文件快照和恢复 |
-| `tools/shell.js` | `execute_command`（可选 `timeout` 参数：毫秒数，超时按进程树杀掉并返回 `timedOut: true`，默认 10 分钟） |
+| `tools/file.js` | `read_file`、`read_range`（分段读大文件，offset/limit 按行号）、`write_file`、`find_files`、`search_text`、`edit`（一次调用改一个文件）、`move_file`、`copy_file`（目标已存在时拒绝，不覆盖；move 的快照同时记录源和目标），以及文件快照和恢复 |
+| `tools/shell.js` | `execute_command`（可选 `timeout` 参数：毫秒数，超时按进程树杀掉并返回 `timedOut: true`，默认 10 分钟；可选 `background: true`：立刻返回进程卡 `id` / `pid` / `logFile`，不等完成，稍后用 `background` 的 log 读） |
 | `tools/background.js` | `background`（start/log/stop/list：把命令放进后台跑，日志实时落在数据目录 processes/ 下；后端重启后进程表清空） |
-| `tools/test.js` | `test`（跑测试命令并解析：bun test / Playwright 的通过数、失败数和每条失败的文件与名称，未知格式退回原始输出） |
 | `tools/web.js` | `webfetch` |
 | `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
-| `tools/subagent.js` | `new_task` |
-| `tools/cwd.js` | `cwd` |
 | `tools/skill.js` | `skill` |
+| `tools/subagent.js` | `new_task`（**暂未启用**：文件和测试保留，正式版再装配） |
 
 每个工具文件导出工具对象或数组，对象里有 `name`、`kind`、`description`、`inputSchema`、`execute` 就会被扫描到。会改文件的工具带自己的快照钩子；命令工具不做文件快照。
 
@@ -229,9 +227,11 @@ description: 审查改动时用这个
 
 MCP 识别结果里的 `env` 和 `headers` 只回传键名，值不回传；导入时后端按编号重新读一遍源文件，把完整值写进本应用的配置。同名服务不会覆盖已有配置。技能默认不会自动交给模型，用户在设置页启用整个目录或导入正文后才生效；启用状态保存在 `skills.json`。
 
-### 子智能体
+### 子智能体（暂未启用）
 
 `new_task` 把一件独立的探索工作交给子 agent，子 agent 有自己的历史，只把结论交回来。它复用同一套工具和同一个审批关口，还能再往下委托一层，最多两层。主任务被停止时子任务一起停。子任务结果里的 `steps` 会带上它自己调过的工具和嵌套结果，会话刷新后处理树仍然能还原。
+
+**当前版本暂未装配**：`tools/subagent.js` 和对应测试都保留，但 `features/tool.js` 不再把它加进工具表，正式版再引入。恢复时取消 `tool.js` 里两段注释即可，接口和 SSE 事件（`subagent-tool` / `subagent-tool-result`）不变。
 
 ## 从零启动
 
