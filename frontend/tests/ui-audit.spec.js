@@ -9,8 +9,6 @@ import { backend, navigate, openDrawer } from './chat-fixture.js'
 async function openProcessTree(page) {
   const head = page.locator('.process-tree__head').first()
   if (await head.count() && await head.getAttribute('aria-expanded') !== 'true') await head.click()
-  const group = page.locator('.process-group__head').first()
-  if (await group.count() && await group.getAttribute('aria-expanded') !== 'true') await group.click()
 }
 
 async function screenshot(page, testInfo, name) {
@@ -779,9 +777,9 @@ test('each model request stays at its position in the conversation flow', async 
   await expect(rows.nth(1)).toContainText(/入\s*10/)
   await expect(rows.nth(2)).toContainText(/入\s*20/)
   // 第二次请求排在工具步骤之后，而不是被汇总到整轮回复的开头。
-  await expect(page.locator('.process-row__body > .cot-step--tool')).toHaveCount(1)
+  await expect(page.locator('.process-row > .cot-step--tool')).toHaveCount(1)
   const requestAfterTool = await page.evaluate(() => {
-    const tool = document.querySelector('.process-row__body > .cot-step--tool')
+    const tool = document.querySelector('.process-row > .cot-step--tool')
     const lastRequest = [...document.querySelectorAll('.request-status')].at(-1)
     return Boolean(tool && lastRequest && (tool.compareDocumentPosition(lastRequest) & Node.DOCUMENT_POSITION_FOLLOWING))
   })
@@ -811,11 +809,9 @@ test('collapsing a long turn hides old request rows', async ({ page }) => {
   // 整轮完成后一级树收起，只留一行“处理过程”；展开后显示完整请求和工具。
   await expect(page.locator('.process-tree__head')).toHaveAttribute('aria-expanded', 'false')
   await page.locator('.process-tree__head').click()
-  await expect(page.locator('.process-group__head')).toHaveAttribute('aria-expanded', 'false')
-  await page.locator('.process-group__head').click()
-  await expect(page.locator('.cot-step--tool')).toHaveCount(4)
-  await page.locator('.process-group__head').click()
-  await expect(page.locator('.cot-step--tool')).toHaveCount(0)
+  await expect(page.locator('.process-row > .cot-step--tool')).toHaveCount(4)
+  await page.locator('.process-tree__head').click()
+  await expect(page.locator('.process-row > .cot-step--tool')).toHaveCount(0)
   expect(mock.errors).toEqual([])
 })
 
@@ -1555,7 +1551,7 @@ test('process tree collapses completed turns and remembers expansion after reloa
   expect(mock.errors).toEqual([])
 })
 
-test('interleaved assistant text still produces one tools-and-thinking group', async ({ page }) => {
+test('interleaved assistant text stays chronological without tree lines', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -1569,12 +1565,12 @@ test('interleaved assistant text still produces one tools-and-thinking group', a
     { type: 'text-delta', text: '中间先说一句。' },
     { type: 'tool-call', toolCallId: 'b', toolName: 'read_file', input: { path: 'b.txt' } },
     { type: 'tool-result', toolCallId: 'b', toolName: 'read_file', output: { type: 'text', value: 'b' } },
-    { type: 'agent-finish', reason: 'completed' },
   ])
-  await page.locator('.process-tree__head').click()
-  await expect(page.locator('.process-group__head')).toHaveCount(1)
-  await page.locator('.process-group__head').click()
-  await expect(page.locator('.process-row__body > .cot-step--tool')).toHaveCount(2)
+  await expect(page.locator('.process-group__head')).toHaveCount(0)
+  await expect(page.locator('.process-row > .cot-step--tool')).toHaveCount(2)
+  await expect(page.locator('.process-rows')).toContainText('中间先说一句')
+  await expect(page.locator('.process-tree__head')).toContainText('使用了 2 次工具')
+  await expect(page.locator('.process-tree__head')).toContainText('读取文件 2 次')
 })
 
 test('subagent tools render as a nested branch under the parent tool', async ({ page }) => {

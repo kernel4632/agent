@@ -13,7 +13,7 @@ import { computed, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
-import { outputText } from '../../commands/tool.js'
+import { outputText, toolTitle } from '../../commands/tool.js'
 import { isFinishedStopTool } from '../../commands/history.js'
 import { isSavedMessage } from '../../commands/history.js'
 import MessageActions from './MessageActions.vue'
@@ -109,8 +109,7 @@ const contentSteps = computed(() => steps.value.filter(step => step.type !== 're
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
 const activeTurn = computed(() => streaming.value || props.active)
 
-// 整轮一棵树：一级只保留“处理过程”入口，最终结束回复始终在树外。
-// 运行中默认展开到最下层；这一轮完成时自动折叠；用户手动展开/收起按会话和这一轮记住。
+// 一级入口：运行中展开，完成后收起；用户手动展开/收起按会话和这一轮记住。
 const processKey = `agent.process-tree:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 function readProcessOpen() {
   try {
@@ -127,58 +126,37 @@ function toggleProcess() {
   processOpen.value = !processOpen.value
   writeProcessOpen(processOpen.value)
 }
-
-// 二级“工具与思考”聚类：思考、工具和子智能体都收在这里，正常说话留在外面。
-const groupKey = `${processKey}:group`
-function readGroupOpen() {
-  try {
-    return localStorage.getItem(groupKey) === 'open'
-  } catch {
-    return false
-  }
-}
-function writeGroupOpen(value) {
-  try { localStorage.setItem(groupKey, value ? 'open' : 'closed') } catch {}
-}
-const groupOpen = ref(activeTurn.value || readGroupOpen())
-function toggleGroup() {
-  groupOpen.value = !groupOpen.value
-  writeGroupOpen(groupOpen.value)
-}
 watch(activeTurn, (value, previous) => {
-  if (value) {
-    processOpen.value = true
-    groupOpen.value = true
-  } else if (previous) {
+  if (!value && previous) {
     processOpen.value = false
-    groupOpen.value = false
     writeProcessOpen(false)
-    writeGroupOpen(false)
+  } else if (value) {
+    processOpen.value = true
   }
 })
 
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
-// 一级正文/请求留在外面；不管中间夹了多少句话，工具与思考始终收进同一个二级组。
-// 组放在第一次出现工具/思考的位置，组前后的正文保持前后顺序。
-const processSections = computed(() => {
-  const directs = []
-  const tools = []
-  let insertAt = 0
-  for (const step of treeSteps.value) {
-    if (step.type === 'reasoning' || step.type === 'tool') {
-      if (!tools.length) insertAt = directs.length
-      tools.push(step)
-    } else {
-      directs.push({ type: 'step', key: step.key, step })
-    }
-  }
-  if (!tools.length) return directs
-  const group = { type: 'group', key: 'group-tools', steps: tools }
-  return [...directs.slice(0, insertAt), group, ...directs.slice(insertAt)]
-})
 const treeContentSteps = computed(() => treeSteps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
+// 折叠条直接说清这一轮做了什么，而不是只显示一个抽象的“几步”。
+const processSummary = computed(() => {
+  const reasoning = treeContentSteps.value.filter(step => step.type === 'reasoning').length
+  const tools = treeContentSteps.value.filter(step => step.type === 'tool')
+  if (!reasoning && !tools.length) return treeContentSteps.value.length ? `${treeContentSteps.value.length} 步` : '运行状态'
+  const names = new Map()
+  for (const step of tools) {
+    const name = toolTitle(step.tool)
+    names.set(name, (names.get(name) || 0) + 1)
+  }
+  const pieces = []
+  if (reasoning) pieces.push(`${reasoning} 次思考`)
+  if (tools.length) {
+    const detail = [...names].map(([name, count]) => `${name} ${count} 次`).join('、')
+    pieces.push(`使用了 ${tools.length} 次工具：${detail}`)
+  }
+  return pieces.join(' · ')
+})
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 
@@ -235,16 +213,14 @@ function clearTarget() { targetId.value = null; emit('close') }
         <button type="button" class="process-tree__head" :aria-expanded="processOpen" @click="toggleProcess">
           <span class="process-tree__icon"><Icon name="layers" :size="15" /></span>
           <span class="process-tree__title">处理过程</span>
-          <em>{{ treeContentSteps.length ? `${treeContentSteps.length} 步` : '运行状态' }}</em>
+          <em class="process-tree__summary" :title="processSummary">{{ processSummary }}</em>
           <span v-if="activeTurn" class="process-tree__live">进行中</span>
           <Icon name="down" :size="15" class="process-tree__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
         <ProcessTree
           v-if="processOpen"
-          :sections="processSections"
-          :group-open="groupOpen"
+          :steps="treeSteps"
           :session-id="sessionId"
-          @toggle-group="toggleGroup"
         />
       </div>
 
