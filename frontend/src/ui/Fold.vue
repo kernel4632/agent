@@ -4,7 +4,25 @@
 <Fold :open="open"><div>...</div></Fold>
 -->
 <script setup>
-defineProps({ open: Boolean })
+import { onBeforeUnmount, ref, watch } from 'vue'
+
+const props = defineProps({ open: Boolean })
+const rootEl = ref(null)
+let safetyTimer = 0
+
+// 动画结束后如果高度还是 0（父级动画/中断导致），再兜底放开一次，绝不留空白。
+watch(() => props.open, open => {
+  clearTimeout(safetyTimer)
+  if (!open) return
+  safetyTimer = window.setTimeout(() => {
+    const element = rootEl.value
+    if (!element || !props.open) return
+    if (element.getBoundingClientRect().height === 0) {
+      element.style.height = 'auto'
+      element.style.opacity = '1'
+    }
+  }, 260)
+})
 
 // 从 0 到内容真实高度，动画结束再交回 auto，后续流式内容可以继续长高。
 function enter(element) {
@@ -36,11 +54,12 @@ function afterLeave(element) {
   element.style.height = ''
   element.style.opacity = ''
 }
+onBeforeUnmount(() => clearTimeout(safetyTimer))
 </script>
 
 <template>
   <Transition name="fold" @enter="enter" @after-enter="afterEnter" @leave="leave" @after-leave="afterLeave">
-    <div v-if="open" class="fold">
+    <div v-if="open" ref="rootEl" class="fold">
       <div class="fold__inner"><slot /></div>
     </div>
   </Transition>
