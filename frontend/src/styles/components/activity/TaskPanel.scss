@@ -3,7 +3,7 @@
 .session-todo-panel__head { display: grid; gap: 10px; }
 .session-todo-panel__summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; color: var(--la-muted); font-size: 13px; line-height: 18px; }
 .session-todo-panel__summary strong { color: var(--la-text); font-size: 14px; font-weight: 600; }
-.session-todo-panel__bar { --ui-progress-height: 4px; }
+.session-todo-panel__bar { --ui-progress-height: 8px; }
 
 .session-todo-panel__section { display: grid; min-width: 0; gap: 8px; }
 .session-todo-panel__eyebrow { color: var(--la-secondary); font-size: 12.5px; }
@@ -38,9 +38,9 @@
   .session-todo-panel__bar span { transition: none; }
 }
 
-/* Progress.vue：完成部分沿用强调色。 */
-.ui-progress { display: block; width: 100%; height: var(--ui-progress-height, 8px); appearance: none; border: 0; border-radius: 99px; overflow: hidden; }
-.ui-progress::-webkit-progress-bar { background: var(--la-layer-03); }
+/* Progress.vue：底槽用文字色轻微叠在抽屉底色上，浅色和深色主题都能看到边界。 */
+.ui-progress { display: block; width: 100%; height: var(--ui-progress-height, 8px); appearance: none; border: 0; border-radius: 99px; background: color-mix(in srgb, var(--la-text) 10%, transparent); overflow: hidden; }
+.ui-progress::-webkit-progress-bar { background: color-mix(in srgb, var(--la-text) 10%, transparent); }
 .ui-progress::-webkit-progress-value { background: var(--la-accent); border-radius: 99px; transition: width 200ms; }
 .ui-progress::-moz-progress-bar { background: var(--la-accent); }
 
