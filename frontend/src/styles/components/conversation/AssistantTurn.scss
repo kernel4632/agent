@@ -253,3 +253,20 @@
 .process-group__head::before {
   background: color-mix(in srgb, var(--la-secondary) 55%, transparent);
 }
+/* 每个节点自己画一段竖线：最后一个节点只画到自己的横枝处，避免枝条尾部突出。 */
+.process-tree__body::before,
+.process-group__steps::before { display: none; }
+.process-tree__body > .process-tree__leaf::after,
+.process-tree__body > .process-group::after,
+.process-group__steps > .process-tree__leaf::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -16px;
+  width: 1px;
+  background: color-mix(in srgb, var(--la-secondary) 55%, transparent);
+  content: "";
+}
+.process-tree__body > .process-tree__leaf:last-child::after,
+.process-group__steps > .process-tree__leaf:last-child::after { bottom: auto; height: 22px; }
+.process-tree__body > .process-group:last-child::after { bottom: auto; height: 18px; }
