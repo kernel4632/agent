@@ -152,18 +152,39 @@ function summarizeProcess(steps) {
 }
 const processSummary = computed(() => summarizeProcess(treeSteps.value))
 
-// 时间线以助手正文分段：正文直接显示；正文之间的请求、思考、工具合成一个折叠组。
-// 这样一级能看到助手说了什么，二级展开看到中间做了什么，三级再展开单个工具细节。
+// 通用规则：
+// 1. 助手正文永远留在折叠组外，保证一级能看到“说了什么”；
+// 2. 两段正文之间的思考、工具、以及“只引出动作的请求”组成处理组；
+// 3. 直接引出助手正文的请求留在组外，不把它藏进折叠；
+// 4. 只有 2 个以上动作才折叠，单个思考/单次工具直接显示；
+// 5. 工具自己的展开仍然是最内层细节。
+const externalRequestKeys = computed(() => {
+  const keys = new Set()
+  const list = treeSteps.value
+  list.forEach((step, index) => {
+    if (step.type !== 'request') return
+    const next = list.slice(index + 1).find(item => item.type !== 'request')
+    if (!next || next.type === 'text') keys.add(step.key)
+  })
+  return keys
+})
+
 const processSections = computed(() => {
   const sections = []
   let group = null
   const flush = () => {
     if (!group) return
-    sections.push(group)
+    const requests = group.steps.filter(step => step.type === 'request' || step.type === 'compact')
+    const actions = group.steps.filter(step => step.type === 'reasoning' || step.type === 'tool')
+    if (!actions.length || (actions.length === 1 && !requests.length)) {
+      for (const step of group.steps) sections.push({ type: 'step', key: step.key, step })
+    } else {
+      sections.push({ ...group, summary: summarizeSteps(actions) })
+    }
     group = null
   }
   for (const step of treeSteps.value) {
-    if (step.type === 'text') {
+    if (step.type === 'text' || (step.type === 'request' && externalRequestKeys.value.has(step.key))) {
       flush()
       sections.push({ type: 'step', key: step.key, step })
       continue
@@ -172,15 +193,7 @@ const processSections = computed(() => {
     group.steps.push(step)
   }
   flush()
-  return sections.flatMap(section => {
-    if (section.type !== 'group') return [section]
-    // 单个内部步骤（例如只调一次工具）直接留在时间线上，不造单项折叠。
-    if (section.steps.length === 1) {
-      const step = section.steps[0]
-      return [{ type: 'step', key: `single-${step.key}`, step }]
-    }
-    return [{ ...section, summary: summarizeProcess(section.steps) }]
-  })
+  return sections
 })
 
 const groupOpen = ref({})

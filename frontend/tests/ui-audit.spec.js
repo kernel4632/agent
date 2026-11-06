@@ -758,7 +758,7 @@ test('context groups summarize tools and keep text between groups', async ({ pag
   await expect(page.locator('.cot-step--tool')).toHaveCount(2)
   expect(mock.errors).toEqual([])
 })
-test('text answers stay outside one process fold that keeps request order', async ({ page }) => {
+test('narrative text stays visible while process actions fold', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -781,12 +781,16 @@ test('text answers stay outside one process fold that keeps request order', asyn
   await expect(texts).toHaveCount(2)
   await expect(texts.first()).toContainText('第一段回答')
   await expect(texts.last()).toContainText('第二段回答')
+  // 正文在组外；两段之间的动作合成一组，请求条作为组元数据放在折叠体外面。
   const groups = page.locator('.context-group__head')
   await expect(groups).toHaveCount(1)
-  await expect(groups).toContainText('1 次模型请求')
   await expect(groups).toContainText('使用了 2 次工具')
+  // 引出正文的请求留在组外；只引出动作的请求收进组内。
+  await expect(page.locator('.request-status').first()).toBeVisible()
+  await expect(page.locator('.context-group__body .request-status')).toHaveCount(1)
+  await expect(page.locator('.cot-step--tool')).toHaveCount(2)
   const groupBetweenText = await page.evaluate(() => {
-    const first = [...document.querySelectorAll('.cot-step--text')][0]
+    const first = document.querySelectorAll('.cot-step--text')[0]
     const group = document.querySelector('.context-group')
     const last = [...document.querySelectorAll('.cot-step--text')].at(-1)
     return Boolean(first && group && last
