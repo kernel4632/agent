@@ -43,10 +43,11 @@ const resolve = async ({ cwd }) => Agent.resolve({
 })
 
 describe('项目规则', () => {
-    test('没有规则文件时 system 只有用户提示词', async () => {
+    test('没有规则文件时 system 是用户提示词加压缩规范', async () => {
         await withRules(async ({ write }) => {
             const result = await Context.systemFor({ config: { prompt: { system: '我的提示词' } }, cwd: join(tmpdir(), '不存在的目录') })
-            expect(result).toBe('我的提示词')
+            expect(result).toContain('我的提示词')
+            expect(result).toContain('上下文压缩')
         })
     })
 

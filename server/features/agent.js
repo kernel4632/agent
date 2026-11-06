@@ -27,28 +27,6 @@ const agents = new Map()
 let services = {}
 const bind = value => { services = value }
 
-// agent-core 的压缩提示词只要求"保留事实/已完成/未完成"，这份规范补上后续接手
-// 真正需要的细节结构。它只在模型收到压缩任务时生效，正常对话不会照这个格式回答。
-const COMPACT_GUIDE = `# 上下文压缩
-
-仅当任务是把对话压缩成供后续继续工作的上下文时，输出详细的 Markdown 交接报告；正常回答不受此节影响。
-
-必须按顺序包含以下章节，即使某一节很短也要保留标题：
-
-1. **目标与约束**：用户最初的目标、明确要求、边界、版本、平台，以及不能改动的东西。
-2. **当前状态**：现在什么能用、什么坏了，工作区和运行服务的准确状态。
-3. **已确认的事实与数据**：实际观察到的文件路径、符号、行号、命令、URL、版本、ID、数字结果和测试数量。
-4. **已完成的工作**：按时间顺序列出动作和结果，以及做过的验证。
-5. **代码与文件**：每个改动过或检查过的文件，写绝对路径和关键代码/改动说明。
-6. **命令、测试与错误**：准确命令、失败输出、根因、修复方式，以及修复是否验证过。
-7. **决策与放弃的路径**：做过的决定、否掉的方案和原因，避免下一轮重做。
-8. **未完成事项与下一步**：待办、已知风险，以及最具体的下一个动作。
-9. **用户原话锚点**：用户措辞重要的指令，保留简短原话。
-
-规则：具体细节优先于概括；不得编造；区分已确认事实和推测；能解释约束的失败尝试要保留；只输出总结本身，不要寒暄或元评论。摘要通常应有 1500-3000 字，宁可保留可执行细节，也不要只写标题。`
-
-const withCompactGuide = system => [system, COMPACT_GUIDE].filter(Boolean).join('\n\n')
-
 // =======================================================================
 //  模型连接
 // =======================================================================
@@ -193,7 +171,7 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         // 用户自己发的消息仍用 core 默认的无限重试，不因慢供应商而失败。
         ...(recovery ? { retryMaxElapsed: RECOVERY_RETRY_ELAPSED, retry: recoveryRetry } : {}),
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）+ 压缩输出规范。
-        system: withCompactGuide(await services.context.systemFor({ config: store.config, cwd: session?.cwd })),
+        system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
         // 中间会插一条提醒，避免模型漏调结束工具就直接把文字当成结果（参考 Roo Code 的连续错误上限）。
         noToolRounds: 3,
@@ -292,7 +270,7 @@ const saveSettings = async ({ sessionId, ...change }) => {
 const refreshSystem = async (instance, session) => {
     // 测试注入的假实例没有 config；没有就不刷，下次真装配时自然会读到规则。
     if (!instance?.config) return
-    instance.config.system = withCompactGuide(await services.context.systemFor({ config: store.config, cwd: session.cwd }))
+    instance.config.system = await services.context.systemFor({ config: store.config, cwd: session.cwd })
 }
 
 // --- 为一个会话建出 Agent 实例 ---

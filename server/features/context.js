@@ -68,11 +68,32 @@ const rules = async cwd => {
     return fresh.text
 }
 
-// --- 组装发给模型的 system：用户提示词在前，工作区规则在后 ---
+// 压缩总结的固定规范：agent-core 的压缩提示词只给了保留/丢弃原则，
+// 这里补上后续接手真正需要的细节结构。它只在模型收到压缩任务时生效。
+const COMPACT_GUIDE = `# 上下文压缩
+
+仅当任务是把对话压缩成供后续继续工作的上下文时，输出详细的 Markdown 交接报告；正常回答不受此节影响。
+
+必须按顺序包含以下章节，即使某一节很短也要保留标题：
+
+1. **目标与约束**：用户最初的目标、明确要求、边界、版本、平台，以及不能改动的东西。
+2. **当前状态**：现在什么能用、什么坏了，工作区和运行服务的准确状态。
+3. **已确认的事实与数据**：实际观察到的文件路径、符号、行号、命令、URL、版本、ID、数字结果和测试数量。
+4. **已完成的工作**：按时间顺序列出动作和结果，以及做过的验证。
+5. **代码与文件**：每个改动过或检查过的文件，写绝对路径和关键代码/改动说明。
+6. **命令、测试与错误**：准确命令、失败输出、根因、修复方式，以及修复是否验证过。
+7. **决策与放弃的路径**：做过的决定、否掉的方案和原因，避免下一轮重做。
+8. **未完成事项与下一步**：待办、已知风险，以及最具体的下一个动作。
+9. **用户原话锚点**：用户措辞重要的指令，保留简短原话。
+
+规则：具体细节优先于概括；不得编造；区分已确认事实和推测；能解释约束的失败尝试要保留；只输出总结本身，不要寒暄或元评论。摘要通常应有 1500-3000 字，宁可保留可执行细节，也不要只写标题。`
+
+// --- 组装发给模型的 system：用户提示词、工作区规则、压缩规范各管一段 ---
 const systemFor = async ({ config = store.config, cwd } = {}) => {
     const parts = [system({ config })]
     const rulesText = await rules(cwd)
     if (rulesText) parts.push(`# Workspace rules\n\nThe rules below come from the project files in the current working directory. Follow them in addition to the user's instructions.\n\n${rulesText}`)
+    parts.push(COMPACT_GUIDE)
     return parts.filter(Boolean).join('\n\n')
 }
 
