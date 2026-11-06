@@ -21,22 +21,33 @@ const markdown = new Marked(                             // 创建对话专用�
   markedKatex({ throwOnError: false, output: 'htmlAndMathml' }), // 错误公式保留原文并提供可访问 MathML
 )
 
+// --- 链接渲染：外链新开标签页，站内相对链接本页跳转 ---
+// 单独拎出来：单测在纯 node 里跑不了整条 renderMarkdown（DOMPurify 需要 DOM），
+// 但"外链新开标签页"这个行为值得直接测——renderer 和测试共用这一份逻辑。
+export function linkRenderer({ href, title, tokens }, parser) {
+  const label = parser.parseInline(tokens)             // 保留链接文字中的 Markdown 格式
+  let destination = href                               // 默认保留站内相对链接
+  let external = false                                 // 绝对 http(s) 网页外链才新开标签页；站内相对链接保持本页跳转
+  try {
+    const parsed = new URL(href, window.location.href) // 解析协议以排除非网页外链
+    const isWeb = parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    if (!isWeb && parsed.origin !== window.location.origin) destination = '' // 外部危险协议交给清理前先移除
+    else external = isWeb && /^https?:/i.test(href)    // 写了完整 http(s) 地址的就是外链；相对路径不管协议都是站内
+  } catch {
+    destination = ''                                   // 无法解析的地址不生成可点击目标
+  }
+  const safeTitle = title ? ` title="${escapeHTML(title)}"` : '' // 标题属性编码后保留纯文本
+  // 外链带 target="_blank" + rel="noopener noreferrer"：新标签页打开，同时断开
+  // window.opener（新页反向操作本页）和 referrer；站内链接保持本页跳转。
+  const target = external && destination ? ' target="_blank" rel="noopener noreferrer"' : ''
+  return destination ? `<a href="${escapeHTML(destination)}"${safeTitle}${target}>${label}</a>` : label // 无安全目标时仍保留可读标签
+}
+
 markdown.use({                                           // 配置聊天文本的 GFM 和链接输出
   breaks: true,                                          // 单换行直接形成聊天可见换行
   gfm: true,                                             // 启用表格和任务列表等 GFM 结构
   renderer: {
-    link({ href, title, tokens }) {
-      const label = this.parser.parseInline(tokens)      // 保留链接文字中的 Markdown 格式
-      let destination = href                             // 默认保留站内相对链接
-      try {
-        const parsed = new URL(href, window.location.href) // 解析协议以排除非网页外链
-        if (!['http:', 'https:'].includes(parsed.protocol) && parsed.origin !== window.location.origin) destination = '' // 外部危险协议交给清理前先移除
-      } catch {
-        destination = ''                                 // 无法解析的地址不生成可点击目标
-      }
-      const safeTitle = title ? ` title="${escapeHTML(title)}"` : '' // 标题属性编码后保留纯文本
-      return destination ? `<a href="${escapeHTML(destination)}"${safeTitle}>${label}</a>` : label // 无安全目标时仍保留可读标签
-    },
+    link(call) { return linkRenderer(call, this.parser) }, // 转发到上面的共享实现；this.parser 由 marked 提供
   },
 })
 
