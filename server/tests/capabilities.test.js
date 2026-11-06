@@ -9,6 +9,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 
+import Path from '../utils/path.js'
 import Agent from '../features/agent.js'
 import Config from '../features/config.js'
 import Discover from '../features/discover.js'
@@ -39,6 +40,7 @@ const withHome = async callback => {
         appdata: process.env.APPDATA,
     }
     process.env.AGENT_HOME = data
+    Path.lock(data)
     process.env.AGENT_DISCOVERY_HOME = discovery
     process.env.XDG_CONFIG_HOME = join(discovery, '.config')
     process.env.APPDATA = join(discovery, 'AppData', 'Roaming')
@@ -51,6 +53,7 @@ const withHome = async callback => {
     try {
         return await callback({ root, data, discovery, home: discovery, project })
     } finally {
+        Path.unlock()
         for (const [key, value] of [['AGENT_HOME', previous.home], ['AGENT_DISCOVERY_HOME', previous.discovery], ['XDG_CONFIG_HOME', previous.xdg], ['APPDATA', previous.appdata]]) {
             if (value === undefined) delete process.env[key]
             else process.env[key] = value
@@ -95,6 +98,28 @@ const writeDiscovery = async ({ home, project }) => {
 }
 
 describe('本机 MCP 识别', () => {
+    test('识别 macOS Application Support 中的 MCP 并通过接口导入', async () => {
+        await withHome(async ({ home, project }) => {
+            const base = join(home, 'Library', 'Application Support')
+            const fixtures = [
+                ['claude-desktop-mac', join(base, 'Claude', 'claude_desktop_config.json'), 'mcpServers'],
+                ['vscode-mac', join(base, 'Code', 'User', 'mcp.json'), 'servers'],
+                ['cline-mac', join(base, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), 'mcpServers'],
+                ['roo-mac', join(base, 'Code', 'User', 'globalStorage', 'rooveterinaryinc.roo-cline', 'settings', 'mcp_settings.json'), 'mcpServers'],
+            ]
+            for (const [id, path, key] of fixtures) {
+                await writeJson(path, { [key]: { [id]: { command: 'bun', args: ['mcp.js'] } } })
+            }
+            const response = await request(`/mcp/list?cwd=${encodeURIComponent(project)}`)
+            expect(response.status).toBe(200)
+            const { detected } = await response.json()
+            expect(detected.servers.map(item => item.source).sort()).toEqual(fixtures.map(item => item[0]).sort())
+            const imported = await json('/mcp/import', 'POST', { ids: detected.servers.map(item => item.id), cwd: project })
+            expect(imported.status).toBe(200)
+            expect((await imported.json()).imported.sort()).toEqual(fixtures.map(item => item[0]).sort())
+        })
+    })
+
     test('扫出常见客户端的服务，并把值遮掉', async () => {
         await withHome(async ({ home, project }) => {
             await writeDiscovery({ home, project })

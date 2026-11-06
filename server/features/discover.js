@@ -170,10 +170,18 @@ const candidates = ({ cwd, home, env }) => {
         { id: 'cursor', app: 'Cursor', path: join(home, '.cursor', 'mcp.json'), key: 'mcpServers' },
         { id: 'cursor-project', app: 'Cursor（当前目录）', path: join(cwd, '.cursor', 'mcp.json'), key: 'mcpServers' },
         { id: 'vscode', app: 'VS Code', path: join(appData, 'Code', 'User', 'mcp.json'), key: 'servers' },
+        { id: 'vscode-mac', app: 'VS Code', path: join(mac, 'Code', 'User', 'mcp.json'), key: 'servers' },
+        { id: 'vscode-linux', app: 'VS Code', path: join(configHome, 'Code', 'User', 'mcp.json'), key: 'servers' },
         { id: 'vscode-project', app: 'VS Code（当前目录）', path: join(cwd, '.vscode', 'mcp.json'), key: 'servers' },
         { id: 'windsurf', app: 'Windsurf', path: join(home, '.codeium', 'windsurf', 'mcp_config.json'), key: 'mcpServers' },
         { id: 'cline', app: 'Cline', path: join(appData, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), key: 'mcpServers' },
         { id: 'roo', app: 'Roo Code', path: join(appData, 'Code', 'User', 'globalStorage', 'rooveterinaryinc.roo-cline', 'settings', 'mcp_settings.json'), key: 'mcpServers' },
+        ...[
+            ['mac', mac], ['linux', configHome],
+        ].flatMap(([platform, root]) => [
+            { id: `cline-${platform}`, app: 'Cline', path: join(root, 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), key: 'mcpServers' },
+            { id: `roo-${platform}`, app: 'Roo Code', path: join(root, 'Code', 'User', 'globalStorage', 'rooveterinaryinc.roo-cline', 'settings', 'mcp_settings.json'), key: 'mcpServers' },
+        ]),
         { id: 'continue', app: 'Continue', path: join(home, '.continue', 'config.json'), key: 'mcpServers' },
         { id: 'gemini', app: 'Gemini CLI', path: join(home, '.gemini', 'settings.json'), key: 'mcpServers' },
         { id: 'opencode', app: 'opencode', path: join(configHome, 'opencode', 'opencode.json'), key: 'mcp' },
