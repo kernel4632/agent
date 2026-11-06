@@ -44,7 +44,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 11px;
+  left: 11.5px;
   width: 1px;
   background: var(--la-line);
 }
@@ -149,7 +149,7 @@
   width: 100%;
   min-height: 36px;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   padding: 4px 2px 4px 0;
   border: 0;
   border-radius: 10px;
@@ -173,8 +173,8 @@
   width: 100%;
   min-height: 32px;
   align-items: center;
-  gap: 6px;
-  padding: 3px 2px;
+  gap: 8px;
+  padding: 3px 0;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -196,6 +196,7 @@
 .context-group__icon { color: var(--la-secondary); }
 .process-fold__icon svg,
 .context-group__icon svg { display: block; width: 16px; height: 16px; }
+
 
 
 
