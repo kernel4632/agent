@@ -337,8 +337,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">
-        <span v-if="previewPrompt" class="conversation-rail__preview-prompt"><span class="conversation-rail__preview-label">你：</span><span class="conversation-rail__preview-body" v-html="previewPrompt"></span></span>
-        <span v-if="previewResponse" class="conversation-rail__preview-response"><span class="conversation-rail__preview-label">回答：</span><span class="conversation-rail__preview-body" v-html="previewResponse"></span></span>
+        <span v-if="previewPrompt" class="conversation-rail__preview-prompt"><span class="conversation-rail__preview-body" v-html="previewPrompt"></span></span>
+        <span v-if="previewResponse" class="conversation-rail__preview-response"><span class="conversation-rail__preview-body" v-html="previewResponse"></span></span>
       </span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>

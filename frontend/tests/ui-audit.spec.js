@@ -1713,9 +1713,11 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await expect(page.locator('.conversation-rail__thumb')).toHaveCount(0)
   await screenshot(page, testInfo, 'conversation-rail')
   await page.locator('.conversation-rail__mark').first().hover()
-  await expect(page.locator('.conversation-rail__preview')).toContainText('你：定位消息 1')
+  await expect(page.locator('.conversation-rail__preview')).toContainText('定位消息 1')
+  await expect(page.locator('.conversation-rail__preview')).not.toContainText('你：')
   await page.locator('.conversation-rail__mark').nth(1).hover()
-  await expect(page.locator('.conversation-rail__preview')).toContainText('回答：')
+  await expect(page.locator('.conversation-rail__preview')).toContainText('已收到你的想法')
+  await expect(page.locator('.conversation-rail__preview')).not.toContainText('回答：')
   await expect(page.locator('.conversation-rail__preview strong')).toContainText('接下来')
   await expect(page.locator('.conversation-rail__preview')).not.toContainText('**')
   // 预览必须贴着被悬停的刻度，不能被夹到定位条顶部。
