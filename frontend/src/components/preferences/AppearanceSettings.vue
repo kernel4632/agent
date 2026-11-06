@@ -1,7 +1,6 @@
 <!--
 外观设置：主题、强调色、调色板风格、对比度、圆角、密度、动效和键盘焦点偏好；直接编辑传入的隔离草稿。
-强调色支持预设色板 + 原生取色器；变体/对比度/圆角/密度/动效是可视化自定义主区。
-控件全部使用自有控件：RadioGroup、Select、Switch、Button；保存由 SettingsView 统一触发。
+统一采用设置列表行：左侧标题和说明，右侧下拉、滑条或开关。
 调用示例：<AppearanceSettings :draft="draft" />。
 -->
 <script setup>
@@ -10,6 +9,8 @@ import RadioGroup from '../../ui/RadioGroup.vue'
 import Select from '../../ui/Select.vue'
 import Button from '../../ui/Button.vue'
 import Switch from '../../ui/Switch.vue'
+import SettingsList from '../../ui/SettingsList.vue'
+import SettingsRow from '../../ui/SettingsRow.vue'
 import { DEFAULT_APPEARANCE } from '../../store.js'
 
 const props = defineProps({ draft: { type: Object, required: true } })
@@ -81,26 +82,11 @@ function reset() {
 
 <template>
   <div class="appearance-card">
-    <h3 class="appearance-title">外观</h3>
-
-    <div class="appearance-sections">
-      <div class="appearance-field">
-        <p class="appearance-label">界面主题</p>
-        <p class="appearance-caption">选择工作区的显示方式</p>
-        <RadioGroup
-          label="界面主题"
-          name="theme"
-          orientation="horizontal"
-          :options="themes"
-          :model-value="appearance.theme"
-          @update:model-value="update('theme', $event)"
-        />
-      </div>
-
-      <div class="appearance-field">
-        <p class="appearance-label">强调色</p>
-        <p class="appearance-caption">按钮与选中状态的颜色</p>
-        <!-- 色板：点色块直接选，所见即所得 -->
+    <SettingsList title="外观">
+      <SettingsRow title="界面主题" description="选择工作区的显示方式">
+        <RadioGroup compact label="界面主题" name="theme" orientation="horizontal" :options="themes" :model-value="appearance.theme" @update:model-value="update('theme', $event)" />
+      </SettingsRow>
+      <SettingsRow title="强调色" description="按钮与选中状态使用的主色">
         <div class="appearance-swatches" role="radiogroup" aria-label="强调色色板">
           <button
             v-for="item in colors"
@@ -114,105 +100,49 @@ function reset() {
             :aria-pressed="appearance.color === item.value"
             @click="update('color', item.value)"
           ></button>
-          <!-- 原生取色器：任何颜色都能选 -->
           <label class="appearance-swatch appearance-swatch--custom" title="自定义颜色">
-            <input
-              type="color"
-              :value="appearance.color"
-              aria-label="自定义强调色"
-              @input="update('color', $event.target.value)"
-            />
+            <input type="color" :value="appearance.color" aria-label="自定义强调色" @input="update('color', $event.target.value)" />
             <span aria-hidden="true">+</span>
           </label>
         </div>
-      </div>
+      </SettingsRow>
+      <SettingsRow title="配色风格" description="同一强调色在不同方案下的整体观感">
+        <Select class="appearance-control" label="配色风格" :items="VARIANTS" :model-value="appearance.variant" @update:model-value="update('variant', $event)" />
+      </SettingsRow>
+      <SettingsRow title="对比度" description="文字与背景的对比强度">
+        <RadioGroup compact label="对比度" name="contrast" orientation="horizontal" :options="CONTRASTS" :model-value="appearance.contrast" @update:model-value="update('contrast', $event)" />
+      </SettingsRow>
+    </SettingsList>
 
-      <div class="appearance-field">
-        <p class="appearance-label">配色风格</p>
-        <p class="appearance-caption">同一强调色在不同方案下的整体观感</p>
-        <Select
-          class="appearance-color"
-          label="配色风格"
-          :items="VARIANTS"
-          :model-value="appearance.variant"
-          @update:model-value="update('variant', $event)"
-        />
-      </div>
+    <SettingsList title="形状与密度">
+      <SettingsRow title="圆角" description="控件与面板的圆角大小">
+        <div class="appearance-range-control">
+          <input class="appearance-slider" type="range" min="0" max="24" step="1" :value="appearance.radius ?? 10" aria-label="圆角大小" @input="update('radius', Number($event.target.value))" />
+          <span class="appearance-value">{{ radiusLabel }}</span>
+        </div>
+      </SettingsRow>
+      <SettingsRow title="密度" description="界面元素之间的留白">
+        <RadioGroup compact label="密度" name="density" orientation="horizontal" :options="[{ value: -1, label: '紧凑' }, { value: 0, label: '标准' }, { value: 1, label: '宽松' }]" :model-value="appearance.density" @update:model-value="update('density', Number($event))" />
+      </SettingsRow>
+    </SettingsList>
 
-      <div class="appearance-field">
-        <p class="appearance-label">对比度</p>
-        <p class="appearance-caption">文字与背景的对比强度</p>
-        <RadioGroup
-          label="对比度"
-          name="contrast"
-          orientation="horizontal"
-          :options="CONTRASTS"
-          :model-value="appearance.contrast"
-          @update:model-value="update('contrast', $event)"
-        />
-      </div>
-    </div>
-
-    <hr class="ui-divider" />
-
-    <h3 class="appearance-title">形状与密度</h3>
-    <div class="appearance-sections">
-      <div class="appearance-field">
-        <p class="appearance-label">圆角</p>
-        <p class="appearance-caption">控件与面板的圆角大小 · {{ radiusLabel }}</p>
-        <input
-          class="appearance-slider"
-          type="range"
-          min="0"
-          max="24"
-          step="1"
-          :value="appearance.radius ?? 10"
-          aria-label="圆角大小"
-          @input="update('radius', Number($event.target.value))"
-        />
-      </div>
-
-      <div class="appearance-field">
-        <p class="appearance-label">密度</p>
-        <p class="appearance-caption">界面元素之间的留白</p>
-        <RadioGroup
-          label="密度"
-          name="density"
-          orientation="horizontal"
-          :options="[{ value: -1, label: '紧凑' }, { value: 0, label: '标准' }, { value: 1, label: '宽松' }]"
-          :model-value="appearance.density"
-          @update:model-value="update('density', Number($event))"
-        />
-      </div>
-    </div>
-
-    <hr class="ui-divider" />
-
-    <h3 class="appearance-title">通用</h3>
-    <div class="appearance-sections">
-      <div class="appearance-field">
-        <p class="appearance-label">动效速度</p>
-        <p class="appearance-caption">过渡动画的整体节奏</p>
-        <RadioGroup
-          label="动效速度"
-          name="motion"
-          orientation="horizontal"
-          :options="MOTIONS"
-          :model-value="appearance.motion"
-          @update:model-value="update('motion', $event)"
-        />
-      </div>
-      <Switch :model-value="appearance.reduceMotion" label="减少界面动画" @update:model-value="update('reduceMotion', $event)" />
-      <Switch :model-value="appearance.strongFocus" label="增强键盘焦点" @update:model-value="update('strongFocus', $event)" />
-    </div>
-
-    <hr class="ui-divider" />
+    <SettingsList title="通用">
+      <SettingsRow title="动效速度" description="过渡动画的整体节奏">
+        <RadioGroup compact label="动效速度" name="motion" orientation="horizontal" :options="MOTIONS" :model-value="appearance.motion" @update:model-value="update('motion', $event)" />
+      </SettingsRow>
+      <SettingsRow title="减少界面动画" description="减少装饰性动画，保留必要的状态反馈">
+        <Switch :model-value="appearance.reduceMotion" label="减少界面动画" hide-label @update:model-value="update('reduceMotion', $event)" />
+      </SettingsRow>
+      <SettingsRow title="增强键盘焦点" description="让键盘焦点轮廓更明显">
+        <Switch :model-value="appearance.strongFocus" label="增强键盘焦点" hide-label @update:model-value="update('strongFocus', $event)" />
+      </SettingsRow>
+    </SettingsList>
 
     <div class="appearance-footer">
       <p class="appearance-caption">外观偏好保存在当前浏览器</p>
       <Button variant="text" @click="reset">恢复默认</Button>
     </div>
   </div>
-</template>
+</template>>>
 
 <style scoped lang="scss" src="../../styles/components/preferences/AppearanceSettings.scss"></style>

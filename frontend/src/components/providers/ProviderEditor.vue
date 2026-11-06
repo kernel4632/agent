@@ -15,6 +15,8 @@ import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import Switch from '../../ui/Switch.vue'
+import SettingsList from '../../ui/SettingsList.vue'
+import SettingsRow from '../../ui/SettingsRow.vue'
 import ProviderModels from './ProviderModels.vue'
 import { Settings } from "../../features/settings.js"
 
@@ -76,33 +78,29 @@ async function testConnection() {
     <Tabs v-model="tab" :items="tabs">
       <template #panel="{ item }">
         <section v-if="item.value === 'config'" class="provider-tab provider-config" aria-label="供应商配置">
-          <div class="provider-group">
-            <div class="provider-group__item provider-group__toggle">
-              <Switch :model-value="provider.enabled" label="启用此供应商" @update:model-value="update({ enabled: $event })" />
-            </div>
-          </div>
+          <SettingsList title="连接设置">
+            <SettingsRow title="启用此供应商" description="关闭后保留配置，但不会用于新对话">
+              <Switch :model-value="provider.enabled" label="启用此供应商" hide-label @update:model-value="update({ enabled: $event })" />
+            </SettingsRow>
+            <SettingsRow title="供应商名" description="用于在模型选择和任务分工里识别">
+              <Field class="provider-control" label="供应商名" :model-value="provider.name" clearable @update:model-value="update({ name: $event })" />
+            </SettingsRow>
+            <SettingsRow title="API Key" description="保存在本机配置中，不会同步到浏览器">
+              <Field class="provider-control" label="API Key" type="password" autocomplete="off" placeholder="输入 API Key" :model-value="provider.apiKey" @update:model-value="update({ apiKey: $event })" />
+            </SettingsRow>
+            <SettingsRow title="请求地址" description="模型服务提供的 API 地址">
+              <Field class="provider-control" label="请求地址（API）" type="url" :placeholder="type.url" :model-value="provider.apiUrl" @update:model-value="update({ apiUrl: $event })" />
+            </SettingsRow>
+          </SettingsList>
 
-          <section class="provider-section" aria-label="连接设置">
-            <h2>连接设置</h2>
-            <div class="provider-group">
-              <div class="provider-group__item"><Field caption="供应商名" label="供应商名" :model-value="provider.name" clearable @update:model-value="update({ name: $event })" /></div>
-              <div class="provider-group__item"><Field caption="API Key" label="API Key" type="password" autocomplete="off" placeholder="输入 API Key" :model-value="provider.apiKey" @update:model-value="update({ apiKey: $event })" /></div>
-              <div class="provider-group__item"><Field caption="API 地址" label="请求地址（API）" type="url" :placeholder="type.url" :model-value="provider.apiUrl" @update:model-value="update({ apiUrl: $event })" /></div>
-            </div>
-          </section>
-
-          <section class="provider-section" aria-label="请求选项">
-            <h2>请求选项</h2>
-            <div class="provider-group">
-              <div class="provider-group__item provider-protocol">
-                <div><span>接口类型</span><small>与模型服务提供的接口一致</small></div>
-                <Select label="接口类型" :model-value="provider.apiType" :items="PROVIDER_TYPES" @update:model-value="update({ apiType: $event })" />
-              </div>
-              <div class="provider-group__item provider-group__toggle">
-                <Switch :model-value="provider.stream !== false" label="流式输出：回复边生成边显示" @update:model-value="update({ stream: $event })" />
-              </div>
-            </div>
-          </section>
+          <SettingsList title="请求选项">
+            <SettingsRow title="接口类型" description="与模型服务提供的接口一致">
+              <Select class="provider-control" label="接口类型" :model-value="provider.apiType" :items="PROVIDER_TYPES" @update:model-value="update({ apiType: $event })" />
+            </SettingsRow>
+            <SettingsRow title="流式输出" description="回复边生成边显示">
+              <Switch :model-value="provider.stream !== false" label="流式输出：回复边生成边显示" hide-label @update:model-value="update({ stream: $event })" />
+            </SettingsRow>
+          </SettingsList>
         </section>
 
         <section v-else-if="item.value === 'models'" class="provider-tab provider-tab--models">
@@ -110,20 +108,14 @@ async function testConnection() {
         </section>
 
         <section v-else class="provider-tab provider-advanced" aria-label="供应商高级设置">
-          <section class="provider-section">
-            <h2>自定义请求头</h2>
-            <div class="provider-group"><div class="provider-group__item">
-              <p class="provider-field__hint">随每次请求发送，例如 <code>{"X-Title": "Agent"}</code></p>
+          <SettingsList title="高级设置">
+            <SettingsRow title="自定义请求头" description="随每次请求发送，例如 X-Title" wide>
               <JsonInput :model-value="provider.headers ?? ''" label="自定义请求头" :rows="5" @change="setJson('headers', $event)" />
-            </div></div>
-          </section>
-          <section class="provider-section">
-            <h2>额外请求体</h2>
-            <div class="provider-group"><div class="provider-group__item">
-              <p class="provider-field__hint">补充模型参数，例如 <code>{"temperature": 0.7}</code></p>
+            </SettingsRow>
+            <SettingsRow title="额外请求体" description="补充模型参数，例如 temperature" wide>
               <JsonInput :model-value="provider.body ?? ''" label="额外请求体" :rows="5" @change="setJson('body', $event)" />
-            </div></div>
-          </section>
+            </SettingsRow>
+          </SettingsList>
         </section>
       </template>
     </Tabs>

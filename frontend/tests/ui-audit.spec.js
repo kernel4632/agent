@@ -660,8 +660,12 @@ test('settings auto-save on change and back keeps the chat draft', async ({ page
   await editor.fill('尚未发送的草稿')
   await navigate(page, '设置')
   await page.getByRole('button', { name: /上下文/ }).click()
-  await page.getByLabel('阈值', { exact: true }).fill('0.6')
-  await page.getByLabel('阈值', { exact: true }).press('Tab')
+  const threshold = page.getByRole('slider', { name: '自动压缩阈值' })
+  await threshold.evaluate(element => {
+    element.value = '0.6'
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await threshold.press('Tab')
   await expect.poll(() => mock.config().compact.threshold).toBe(0.6)
   await page.waitForTimeout(200)
   await page.keyboard.press('Escape')

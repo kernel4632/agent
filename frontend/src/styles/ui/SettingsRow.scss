@@ -1,0 +1,39 @@
+.ui-settings-row {
+  display: grid;
+  min-width: 0;
+  min-height: 72px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 20px;
+}
+.ui-settings-row + .ui-settings-row { border-top: .5px solid var(--la-line); }
+.ui-settings-row--wide { grid-template-columns: minmax(220px, .8fr) minmax(320px, 1.2fr); align-items: start; }
+.ui-settings-row__copy { display: grid; min-width: 0; gap: 2px; }
+.ui-settings-row__title {
+  color: var(--la-text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.ui-settings-row__description {
+  color: var(--la-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+.ui-settings-row__control {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ui-settings-row__control > * { min-width: 0; }
+.ui-settings-row--wide .ui-settings-row__control { width: 100%; }
+
+@media (max-width: 767px) {
+  .ui-settings-row,
+  .ui-settings-row--wide { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px 16px; }
+  .ui-settings-row__control { width: 100%; justify-content: flex-start; }
+  .ui-settings-row__description { white-space: normal; }
+}

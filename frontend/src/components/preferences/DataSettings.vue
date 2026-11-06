@@ -10,8 +10,9 @@ import { Settings } from "../../features/settings.js"
 import { Notice } from "../../utils/notice.js"
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
-import Icon from '../../ui/Icon.vue'
 import Switch from '../../ui/Switch.vue'
+import SettingsList from '../../ui/SettingsList.vue'
+import SettingsRow from '../../ui/SettingsRow.vue'
 
 const backups = ref([])
 const loading = ref(false)
@@ -163,50 +164,28 @@ onMounted(load)
 
 <template>
   <section class="data-settings" aria-label="数据管理">
-    <header class="data-settings__head">
-      <p>配置修改前会自动保留上一版。恢复、导入和导出都按当前配置格式校验，损坏文件不会覆盖运行中的配置。</p>
-    </header>
+    <SettingsList title="配置备份">
+      <SettingsRow v-for="backup in backups" :key="backup.id" :title="formatDate(backup.createdAt)" :description="`${backup.providers} 个供应商 · ${backup.models} 个模型 · ${formatSize(backup.size)}`">
+        <Button variant="text" size="small" @click="askRestore(backup)">恢复</Button>
+      </SettingsRow>
+      <SettingsRow v-if="!backups.length" title="还没有备份" :description="loading ? '正在读取备份…' : '保存一次配置后会自动生成备份'" />
+    </SettingsList>
 
-    <section class="data-settings__section">
-      <div class="data-settings__copy">
-        <h3>配置备份</h3>
-        <p>最近 20 份自动备份。恢复前会再备份当前配置，恢复失败不会改动现有配置。</p>
-      </div>
-      <div v-if="backups.length" class="data-settings__backups">
-        <div v-for="backup in backups" :key="backup.id" class="data-settings__backup">
-          <span class="data-settings__backup-icon"><Icon name="clock" :size="18" /></span>
-          <span class="data-settings__backup-main">
-            <strong>{{ formatDate(backup.createdAt) }}</strong>
-            <small>{{ backup.providers }} 个供应商 · {{ backup.models }} 个模型 · {{ formatSize(backup.size) }}</small>
-          </span>
-          <Button variant="text" size="small" @click="askRestore(backup)">恢复</Button>
-        </div>
-      </div>
-      <p v-else class="data-settings__empty">{{ loading ? '正在读取备份…' : '还没有备份。保存一次配置后会自动生成。' }}</p>
-    </section>
-
-    <section class="data-settings__section">
-      <div class="data-settings__copy">
-        <h3>导出配置</h3>
-        <p>默认脱敏导出，API Key 和 MCP 环境变量/请求头会被替换为占位符。</p>
-      </div>
-      <Switch v-model="includeSecrets" label="包含 API Key 和其他敏感值" />
-      <p v-if="includeSecrets" class="data-settings__warning">导出文件会包含明文密钥，请只保存到可信位置。</p>
-      <div class="data-settings__actions">
+    <SettingsList title="导出配置">
+      <SettingsRow title="包含 API Key 和其他敏感值" description="关闭时导出脱敏配置，密钥和环境变量会替换为占位符">
+        <Switch v-model="includeSecrets" label="包含 API Key 和其他敏感值" hide-label />
+      </SettingsRow>
+      <SettingsRow title="导出配置文件" :description="includeSecrets ? '导出文件会包含明文密钥，请只保存到可信位置' : '默认导出脱敏配置，适合分享和备份'">
         <Button :disabled="busy" @click="download">{{ includeSecrets ? '导出完整配置' : '导出脱敏配置' }}</Button>
-      </div>
-    </section>
+      </SettingsRow>
+    </SettingsList>
 
-    <section class="data-settings__section">
-      <div class="data-settings__copy">
-        <h3>导入配置</h3>
-        <p>导入会整体替换当前配置。使用脱敏文件导入时，同名供应商会保留当前已有的 API Key。</p>
-      </div>
-      <input ref="fileInput" class="data-settings__file" type="file" accept="application/json,.json" @change="readFile" />
-      <div class="data-settings__actions">
+    <SettingsList title="导入配置">
+      <SettingsRow title="从 JSON 导入" description="导入会整体替换当前配置；脱敏文件会保留同名供应商已有的 API Key">
         <Button :disabled="busy" @click="chooseFile">选择配置文件</Button>
-      </div>
-    </section>
+      </SettingsRow>
+    </SettingsList>
+    <input ref="fileInput" class="data-settings__file" type="file" accept="application/json,.json" @change="readFile" />
 
     <Dialog :open="restoreOpen" label="恢复配置备份" @update:open="restoreOpen = $event">
       <p class="data-settings__dialog-text">确定恢复 {{ restoreTarget ? formatDate(restoreTarget.createdAt) : '' }} 的配置吗？</p>

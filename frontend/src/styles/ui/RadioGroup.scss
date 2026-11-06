@@ -6,3 +6,8 @@
 .ui-radio-group__item input:checked { border: 7px solid var(--la-accent); background: var(--la-on-accent); }
 .ui-radio-group__item:has(:checked) { background: var(--la-accent-soft); color: var(--la-accent); }
 .ui-radio-group__item:has(:disabled) { opacity: .5; cursor: not-allowed; }
+/* 紧凑模式：设置列表行右侧使用，不占用整行高度。 */
+.ui-radio-group.is-compact { gap: 2px; }
+.ui-radio-group.is-compact .ui-radio-group__item { min-height: 34px; padding: 4px 8px; border-radius: 9px; gap: 6px; font-size: 13px; font-weight: 500; }
+.ui-radio-group.is-compact .ui-radio-group__item input { width: 16px; height: 16px; border-width: 1.5px; }
+.ui-radio-group.is-compact .ui-radio-group__item input:checked { border-width: 5px; }
