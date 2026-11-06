@@ -13,7 +13,7 @@ import ModelIcon from '../../ui/ModelIcon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Menu from '../../ui/Menu.vue'
-import Select from '../../ui/Select.vue'
+import ModelFamilyInput from './ModelFamilyInput.vue'
 
 const props = defineProps({ provider: Object, models: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:models'])
@@ -276,13 +276,7 @@ async function saveModel() {
           <div class="model-edit__grid">
             <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
             <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="留空则使用模型 ID" />
-            <div class="model-edit__field">
-              <span class="model-edit__caption">模型族（用于图标）</span>
-              <Select class="model-edit__select" label="模型族（用于图标）" :items="familyOptions" :model-value="editDraft.family" @update:model-value="editDraft.family = $event">
-                <template #selected="{ item }"><ModelIcon :model="editDraft.id" :family="item?.value || editDraft.family" :size="18" /><span>{{ item?.label || '自动识别' }}</span></template>
-                <template #option="{ item }"><ModelIcon :model="editDraft.id" :family="item.value" :size="18" /><span>{{ item.label }}</span></template>
-              </Select>
-            </div>
+            <ModelFamilyInput v-model="editDraft.family" :model-id="editDraft.id" :items="familyOptions" />
             <div class="model-edit__field">
               <span class="model-edit__caption">上下文窗口</span>
               <div class="model-context" @focusout="contextOpen = $event.currentTarget.contains($event.relatedTarget) ? contextOpen : false">
@@ -334,13 +328,7 @@ async function saveModel() {
       <div class="model-edit__identity">
         <Field caption="模型 ID" label="模型 ID" v-model="editDraft.id" placeholder="例如 deepseek-chat" />
         <Field caption="显示名称" label="显示名称" v-model="editDraft.name" placeholder="留空则使用模型 ID" />
-        <div class="model-edit__field">
-          <span class="model-edit__caption">模型族（用于图标）</span>
-          <Select class="model-edit__select" label="模型族（用于图标）" :items="familyOptions" :model-value="editDraft.family" @update:model-value="editDraft.family = $event">
-            <template #selected="{ item }"><ModelIcon :model="editDraft.id" :family="item?.value || editDraft.family" :size="18" /><span>{{ item?.label || '自动识别' }}</span></template>
-            <template #option="{ item }"><ModelIcon :model="editDraft.id" :family="item.value" :size="18" /><span>{{ item.label }}</span></template>
-          </Select>
-        </div>
+        <ModelFamilyInput v-model="editDraft.family" :model-id="editDraft.id" :items="familyOptions" />
       </div>
       <fieldset class="model-edit__section"><legend>输入能力</legend>
         <div class="model-choices"><span class="model-choice is-selected"><Icon name="check" :size="16" />文本</span><label class="model-choice" :class="{ 'is-selected': editDraft.capabilities.includes('image') }"><input type="checkbox" role="switch" aria-label="图像输入" :checked="editDraft.capabilities.includes('image')" @change="toggleCapability('image', $event.target.checked)" /><Icon v-if="editDraft.capabilities.includes('image')" name="check" :size="16" />图像输入</label></div>

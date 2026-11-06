@@ -746,9 +746,17 @@ test('provider tabs test the connection and edit model metadata', async ({ page 
   await displayName.press('Tab')
   await expect.poll(() => mock.config().providers[0].models[0].name).toBe('测试模型')
 
+  const family = page.getByRole('combobox', { name: '模型族（用于图标）' })
+  await family.click()
+  await family.fill('deep')
+  await expect(page.locator('.model-family__options button').filter({ hasText: 'DeepSeek' })).toBeVisible()
+  await expect(page.locator('.model-family__options button').filter({ hasText: 'OpenAI' })).toHaveCount(0)
+  await page.locator('.model-family__options button').filter({ hasText: 'DeepSeek' }).click()
+  await expect.poll(() => mock.config().providers[0].models[0].family).toBe('deepseek')
+
   const saved = mock.config()
   expect(saved.providers[0].headers).toEqual({ 'x-preserve': 'yes' })
-  expect(saved.providers[0].models).toEqual([{ id: 'test-model', name: '测试模型', context: 32000, capabilities: ['text', 'tools'] }])
+  expect(saved.providers[0].models).toEqual([{ id: 'test-model', name: '测试模型', family: 'deepseek', context: 32000, capabilities: ['text', 'tools'] }])
   expect(mock.errors).toEqual([])
 })
 
