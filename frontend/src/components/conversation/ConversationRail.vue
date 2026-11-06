@@ -17,10 +17,12 @@ const track = ref(null)
 const ratio = ref(0)
 const dragging = ref(false)
 const hoverIndex = ref(-1)
+const viewport = ref({ top: '0px', height: '0px' })
 let scrollParent = null
 let observer = null
 let frame = 0
 let pendingIndex = -1
+let viewportRetry = 0
 
 // 一轮一条刻度：用户问题和助手回答都能定位，刻度长度由这一轮的文字量决定。
 const nodes = computed(() => groupMessageTurns(props.messages)
@@ -61,6 +63,27 @@ function syncFromScroll() {
   if (!scrollParent || dragging.value) return
   const max = scrollParent.scrollHeight - scrollParent.clientHeight
   ratio.value = max > 0 ? clamp(scrollParent.scrollTop / max) : 0
+}
+
+// 固定在视口右侧，但高度只覆盖对话滚动区；不跟着聊天列的内容宽度走。
+function syncViewport() {
+  if (!scrollParent) return
+  const rect = scrollParent.getBoundingClientRect()
+  if (rect.height <= 0 && viewportRetry < 30) {
+    viewportRetry += 1
+    requestAnimationFrame(syncViewport)
+    return
+  }
+  viewportRetry = 0
+  viewport.value = {
+    top: `${Math.max(0, rect.top)}px`,
+    height: `${Math.max(0, rect.height)}px`,
+  }
+}
+
+function onResize() {
+  syncViewport()
+  syncFromScroll()
 }
 
 function ratioAt(event) {
@@ -129,22 +152,28 @@ function keydown(event) {
 }
 
 onMounted(() => {
-  scrollParent = props.scrollRoot
+  // 滚动容器由页面传入；极端挂载顺序下 ref 还未展开时，用当前会话的滚动区兜底。
+  scrollParent = props.scrollRoot?.nodeType === 1 ? props.scrollRoot : document.querySelector('.session-scroll')
   scrollParent?.addEventListener('scroll', syncFromScroll, { passive: true })
-  observer = new ResizeObserver(syncFromScroll)
+  observer = new ResizeObserver(onResize)
   if (scrollParent) observer.observe(scrollParent)
+  window.addEventListener('resize', onResize)
+  syncViewport()
   syncFromScroll()
+  requestAnimationFrame(() => requestAnimationFrame(syncViewport))
+  setTimeout(syncViewport, 120)
 })
 
 onBeforeUnmount(() => {
   scrollParent?.removeEventListener('scroll', syncFromScroll)
   observer?.disconnect()
+  window.removeEventListener('resize', onResize)
   if (frame) cancelAnimationFrame(frame)
 })
 </script>
 
 <template>
-  <aside v-if="nodes.length > 1" class="conversation-rail" :class="{ 'is-dragging': dragging }" aria-label="对话定位">
+  <aside v-if="nodes.length > 1" class="conversation-rail" :class="{ 'is-dragging': dragging }" :style="viewport" aria-label="对话定位">
     <div
       ref="track"
       class="conversation-rail__track"

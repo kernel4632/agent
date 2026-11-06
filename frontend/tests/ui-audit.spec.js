@@ -1491,6 +1491,11 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await expect(rail).toBeVisible()
   await expect(page.locator('.conversation-rail__mark')).toHaveCount(12)
   await expect(page.locator('.conversation-rail__mark.is-active')).toHaveCount(1)
+  // 轨道贴屏幕右边；所有刻度共用同一条右边界。
+  const railBox = await rail.boundingBox()
+  expect(railBox.x + railBox.width).toBeGreaterThan(page.viewportSize().width - 12)
+  const rightEdges = await page.locator('.conversation-rail__mark').evaluateAll(nodes => [...new Set(nodes.map(node => Math.round(node.getBoundingClientRect().right)))])
+  expect(rightEdges).toHaveLength(1)
   // 用户问题短、助手回答长，刻度长度随这一轮文字量变化，且没有滑块。
   const widths = await page.locator('.conversation-rail__mark').evaluateAll(nodes => nodes.slice(0, 2).map(node => node.getBoundingClientRect().width))
   expect(widths[1]).toBeGreaterThan(widths[0])

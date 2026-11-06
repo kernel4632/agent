@@ -1,9 +1,8 @@
 /* 对话右侧刻度：只显示消息前缀刻度，不画竖线、不塞滑块；长度代表这一轮的文字量。 */
 .conversation-rail {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  right: max(6px, env(safe-area-inset-right));
+  position: fixed;
+  top: 0;
+  right: max(4px, env(safe-area-inset-right));
   z-index: 8;
   width: 34px;
   pointer-events: none;
@@ -20,9 +19,9 @@
 .conversation-rail__track:focus-visible { box-shadow: 0 0 0 2px var(--la-accent-border); }
 .conversation-rail__mark {
   position: absolute;
-  left: 50%;
+  right: 0;
   height: 2px;
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
   border-radius: 2px;
   background: color-mix(in srgb, var(--la-secondary) 45%, transparent);
   transition: background .12s ease, height .12s ease;
