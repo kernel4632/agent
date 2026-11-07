@@ -3,7 +3,7 @@
 临时面板状态在这里；发送、附件、会话设置和回退分别调用 commands。
 -->
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
 import ConnectionError from '../components/feedback/ConnectionError.vue'
@@ -32,26 +32,8 @@ const conversationScroll = ref(null)
 const showReconnect = ref(false)
 let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
-async function jumpToMessage(messageId) {
-  const session = props.session
-  const target = session?.outline?.find(turn => turn.id === messageId)
-  if (session && target) {
-    const start = session.historyStart || 0
-    const end = start + (session.messages?.length || 0)
-    if (target.index < start || target.index >= end) {
-      timeline.value?.beginPageSwap()
-      if (!await Session.loadPageAt(session.id, target.index)) return
-      await nextTick()
-    }
-  }
+function jumpToMessage(messageId) {
   timeline.value?.jumpToMessage(messageId)
-}
-
-async function loadOlderHistory() {
-  const session = props.session
-  if (!session) return
-  const loaded = await Session.loadOlder(session.id, () => timeline.value?.captureOlderAnchor())
-  if (!loaded) timeline.value?.cancelOlderRequest()
 }
 
 const draft = computed({
@@ -112,12 +94,11 @@ function chooseReasoning(reasoning) {
     <div :class="session ? 'session-main' : 'draft-main'">
       <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
         <div v-if="session" ref="conversationScroll" class="session-scroll">
-          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" @load-older="loadOlderHistory" /></Transition>
+          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" /></Transition>
         </div>
         <ConversationRail
           v-if="session"
           :messages="session.messages"
-          :outline="session.outline"
           :scroll-root="conversationScroll"
           @jump="jumpToMessage"
         />

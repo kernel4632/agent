@@ -31,7 +31,6 @@ const props = defineProps({
     // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
     scrollRoot: { type: Object, default: null },
 })
-const emit = defineEmits(['load-older'])
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
@@ -44,41 +43,6 @@ const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
-const hasMore = computed(() => (session.value?.historyStart || 0) > 0)
-let olderAnchor = null
-let olderPending = false
-
-function requestOlder() {
-  if (!hasMore.value || olderPending || olderAnchor || session.value?.loadingOlder || jumping || !scrollParent) return
-  olderPending = true
-  emit('load-older')
-}
-
-// 请求发出后读者还会继续滚；等这一页真的要插入时再取当前位置，
-// 否则拿请求发出时的旧位置补偿，会把视口拽回几百像素之外。
-function captureOlderAnchor() {
-  if (!olderPending || !scrollParent) return null
-  olderPending = false
-  olderAnchor = { height: scrollParent.scrollHeight, top: scrollParent.scrollTop }
-  return olderAnchor
-}
-
-function cancelOlderRequest() {
-  olderPending = false
-  olderAnchor = null
-}
-
-watch(() => messages.value.length, (length, previous) => {
-  if (length <= previous || !olderAnchor || !scrollParent) return
-  const anchor = olderAnchor
-  olderAnchor = null
-  // post 阶段 DOM 已经插入但浏览器还没绘制：在这里一次性补掉新增高度，
-  // 不能等到 nextTick，否则会先画出旧位置，看起来像闪到另一个窗口。
-  scrollParent.scrollTop = anchor.top + (scrollParent.scrollHeight - anchor.height)
-  lastTop = scrollParent.scrollTop
-  rememberScroll()
-  if (scrollParent.scrollTop < 240) requestOlder()
-}, { flush: 'post' })
 const rollbackTarget = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
@@ -206,7 +170,6 @@ function onScroll() {
   }
   lastTop = top
   syncLatestPosition()
-  if (!jumping && top < 300) requestOlder()
   rememberScroll()
 }
 
@@ -221,8 +184,6 @@ function onWheel(event) {
   }
   if (event.deltaY < 0) {
     stopFollowing()
-    // 已经在页顶时滚轮不会再触发 scroll 事件，仍要能补上一页。
-    if (scrollParent.scrollTop <= 0) requestOlder()
   } else if (event.deltaY > 0) {
     resumeFollow = true
     if (atBottom()) setFollowing(true)
@@ -301,15 +262,6 @@ function jumpToBottom() {
   rememberScroll()
 }
 
-// 右侧定位条换页前先冻结当前窗口：丢弃在途的上翻锚点，
-// 换页过程中的高度变化不再触发吸底或旧页补偿。
-function beginPageSwap() {
-  olderAnchor = null
-  olderPending = false
-  stopFollowing()
-  beginJump()
-}
-
 // 右侧定位条跳转：目标可能还没有挂到 DOM，先把包含它的那一轮展开出来。
 async function jumpToMessage(messageId) {
   if (!scrollParent) return
@@ -345,10 +297,9 @@ async function jumpToMessage(messageId) {
       lastTop = scrollParent.scrollTop
       rememberScroll()
     }
-    if (scrollParent.scrollTop < 300) requestOlder()
   }, 900)
 }
-defineExpose({ jumpToMessage, jumpToBottom, beginPageSwap, captureOlderAnchor, cancelOlderRequest })
+defineExpose({ jumpToMessage, jumpToBottom })
 watch(() => turns.value.length, () => {
   if (following.value) queueStick()
 })
@@ -384,9 +335,6 @@ onMounted(() => {
   const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
   if (restoreTop == null) {
     queueStick()
-    void nextTick(() => {
-      if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 1) requestOlder()
-    })
     return
   }
   const applyRestore = () => {
@@ -399,7 +347,6 @@ onMounted(() => {
     requestAnimationFrame(() => {
       applyRestore() // 字体/图片首帧后高度可能还在变，再对齐一次
       if (!following.value && atBottom(24)) setFollowing(true)
-      if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 1) requestOlder()
     })
   }))
 })
