@@ -6,7 +6,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -84,7 +84,10 @@ describe('server HTTP API', () => {
 
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
-            expect(await read.json()).toMatchObject({ id: sessionId, title: 'First task', cwd: process.cwd() })
+            const session = await read.json()
+            expect(session).toMatchObject({ id: sessionId, title: 'First task', temporary: true })
+            expect(session.cwd).not.toBe(process.cwd())
+            expect((await stat(session.cwd)).isDirectory()).toBe(true)
 
             const renamed = await jsonRequest(`/session/rename/${sessionId}`, 'PATCH', { title: 'Renamed task' })
             expect(renamed.status).toBe(200)
@@ -92,7 +95,7 @@ describe('server HTTP API', () => {
 
             const moved = await jsonRequest(`/session/cwd/${sessionId}`, 'PATCH', { cwd: process.cwd() })
             expect(moved.status).toBe(200)
-            expect(await moved.json()).toEqual({ id: sessionId, cwd: process.cwd() })
+            expect(await moved.json()).toEqual({ id: sessionId, cwd: process.cwd(), temporary: false })
 
             const removed = await request(`/session/remove/${sessionId}`, { method: 'DELETE' })
             expect(removed.status).toBe(200)
@@ -259,7 +262,8 @@ describe('server session list', () => {
             const all = await Session.list({})
             expect(all).toHaveLength(2)
             expect(all[0].id).toBe(second.sessionId)
-            expect(all[0].cwd).toBe(process.cwd())
+            expect(all[0].temporary).toBe(true)
+            expect(all[0].cwd).not.toBe(process.cwd())
 
             const searched = await Session.list({ search: 'alpha' })
             expect(searched).toHaveLength(1)

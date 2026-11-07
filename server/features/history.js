@@ -20,16 +20,18 @@ import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import store from '../store.js'
 import Path from '../utils/path.js'
+import Scratch from '../utils/scratch.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 
 // meta.json 里的会话资料；读写两边都用同一份字段表，加上运行标记也不会互相走样。
-const META_FIELDS = ['id', 'title', 'cwd', 'model', 'createdAt', 'updatedAt', 'running']
+const META_FIELDS = ['id', 'title', 'cwd', 'temporary', 'model', 'createdAt', 'updatedAt', 'running']
 const metaOf = session => {
     const meta = {
         id: session.id,
         title: session.title,
         cwd: session.cwd,
+        ...(session.temporary ? { temporary: true } : {}),
         model: session.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
@@ -59,6 +61,8 @@ const load = async sessionId => {
     const metaFile = Bun.file(Path.meta(sessionId))
     if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
     const meta = await metaFile.json()                                // 当前形状的会话资料
+    const temporary = meta.temporary === true
+    if (temporary) await Scratch.ensure(meta.cwd, true)
     const rawHistory = await readSessionFile(Path.history(sessionId), { messages: [], redo: [] }, 'history.json')
     const settings = await readSessionFile(Path.settings(sessionId), { reasoning: 'auto' }, 'settings.json')
     const history = rawHistory && Array.isArray(rawHistory.messages)
@@ -69,6 +73,7 @@ const load = async sessionId => {
         id: meta.id,
         title: meta.title,
         cwd: meta.cwd,
+        temporary,
         model: meta.model,
         createdAt: meta.createdAt,
         updatedAt: meta.updatedAt,
@@ -82,13 +87,14 @@ const load = async sessionId => {
 }
 
 // --- 新建一条会话 ---
-const create = async ({ title, cwd, provider, model, settings }) => {
+const create = async ({ title, cwd, temporary, provider, model, settings }) => {
     const id = nanoid()
     const now = Date.now()
     const session = {
         id,
         title,
         cwd: cwd || process.cwd(),
+        temporary: temporary === true,
         model: { provider: provider || '', model: model || '' },
         createdAt: now,
         updatedAt: now,
@@ -146,6 +152,7 @@ const list = async ({ search = '' } = {}) => {
             id: meta.id,
             title: meta.title,
             cwd: meta.cwd,
+            temporary: meta.temporary === true,
             provider,
             model,
             createdAt: meta.createdAt,

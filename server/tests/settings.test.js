@@ -395,7 +395,8 @@ describe('会话分支', () => {
             expect(branch.title).toBe('设置测试（分支）')
             expect(branch.history).toHaveLength(2)
             expect(branch.settings.reasoning).toBe('high')
-            expect(branch.cwd).toBe(process.cwd())
+            expect(branch.temporary).toBe(true)
+            expect(branch.cwd).not.toBe((await Session.read({ sessionId })).cwd)
         })
     })
 

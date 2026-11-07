@@ -77,6 +77,8 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 
 会话历史、文件快照和工具输出占用会持续增长，可通过「设置 → 数据管理 → 会话数据目录」把整个 `sessions/` 单独放到其他磁盘。服务只写入待迁移标记，重启后在加载会话前复制并切换；旧目录保留。启动时也可以用 `AGENT_SESSIONS` 直接指定会话目录，此时界面为只读。
 
+新会话如果没有传 `cwd`，会在系统临时目录下创建独立工作区（`agent-session-*`），避免 agent 默认在项目代码旁边动手。删除会话时清理该临时目录；用户在「切换工作区」里换成真实目录后，会话的 `temporary` 变为 `false`，旧临时目录也会被清理。可以用 `AGENT_TMP` 改临时工作区的根目录。
+
 ## 配置
 
 `PATCH /config/set` 是整体替换，不是局部合并。最小配置：
@@ -400,7 +402,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
 | `GET` | `/session/groups` | 无 | `{ groups: [{ id, name, sessions }] }`，数组顺序就是界面顺序 |
 | `PUT` | `/session/groups` | `{ "groups": [{ "id", "name", "sessions": [] }] }` | 整体保存分组；一个会话只能属于一个组，重名或重复会话按 400 返回 |
-| `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }` |
+| `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }`；省略 `cwd` 时创建独立临时工作区 |
 | `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
 | `GET` | `/session/read/:sessionId` | 无 | 会话资料、完整 history、`todos`、`running`、`pending`、`settings`、`undoable` |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话资料 |
