@@ -160,4 +160,4 @@ cd frontend && bun run test:ui
 
 Copyright (C) 2026 Kernyr
 
-本项目以 [GNU Affero General Public License v3.0](LICENSE)（`AGPL-3.0-only`）开源。通过网络使用本项目时，请遵守 AGPL 第 13 条关于提供对应源代码的要求。
+本项目以 [GNU Affero General Public License v3.0 或更新版本](LICENSE)（`AGPL-3.0-or-later`）开源。通过网络使用本项目时，请遵守 AGPL 第 13 条关于提供对应源代码的要求。
