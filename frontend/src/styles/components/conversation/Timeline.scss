@@ -63,16 +63,17 @@
 .rikka-bubble--user { max-width: 100%; }
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-.conversation-top-sentinel { display: block; width: 100%; height: 1px; flex: none; }
+.conversation-latest-layer {
+  position: fixed;
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
 .conversation-latest {
-  position: sticky;
-  bottom: 12px;
-  z-index: 2;
   display: inline-flex;
-  align-self: flex-end;
   align-items: center;
   gap: 5px;
-  margin-right: 8px;
   padding: 7px 12px;
   border: 1px solid var(--la-line);
   border-radius: 999px;
@@ -83,6 +84,7 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+  pointer-events: auto;
 }
 .conversation-latest:hover { background: var(--la-layer-01); }
 /* 离屏轮次跳过布局/绘制；真实高度会被浏览器记住，滚回去时不会先撑成空白。 */

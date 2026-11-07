@@ -35,142 +35,20 @@ const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
 const turns = computed(() => groupMessageTurns(messages.value))
-// 切换会话时只挂最近几轮，避免一下子渲染几百条历史；
-// 但窗口必须自己长到撑满视口，并在用户滚到顶部时继续补，不能把“加载更早”做成按钮。
-const INITIAL_TURNS = 8
-const LOAD_STEP = 8
-const FILL_RATIO = 1.2
-const MAX_RENDERED_TURNS = 40
-function firstUserAtOrAfter(start) {
-  const index = turns.value.slice(start).findIndex(turn => turn.role === 'user')
-  return index < 0 ? start : start + index
-}
-// 短会话从头显示，不能因为首条是助手消息就把带审批的那一轮藏起来。
-function visibleStartFor(start) {
-  return start <= 0 ? 0 : firstUserAtOrAfter(start)
-}
+// 时间线始终保留完整高度：历史轮次不在滚动过程中加载/卸载，
+// 否则滚动条长度和定位跳转都会在中途变化。
+// 单轮内部的处理过程仍是折叠内容，未展开时不会挂载大段工具输出。
 // 时间线在挂载期间固定属于一个会话；切会话时旧组件卸载，保存位置不能写到新会话上。
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
-// 只有“用户主动停在中间”才恢复旧的可视起点；停在底部时继续只挂最近几轮。
-// 历史可能被回退变短，超出当前轮数的旧起点要回退到默认值，不能让时间线空掉。
-const restoredStart = savedView && !savedView.pinned && Number.isInteger(savedView.visibleStart) && savedView.visibleStart < turns.value.length
-  ? savedView.visibleStart
-  : Math.max(0, turns.value.length - INITIAL_TURNS)
-const visibleStart = ref(visibleStartFor(restoredStart))
-const visibleTurns = computed(() => turns.value.slice(visibleStart.value))
-const earlierCount = computed(() => visibleStart.value)
-let loadingEarlier = false
-let autoFilling = false
-let trimming = false
-let trimFrame = 0
-let trimBlockedUntil = 0
-async function loadEarlier() {
-  if (loadingEarlier || !earlierCount.value || !scrollParent) return false
-  const nextStart = visibleStartFor(Math.max(0, visibleStart.value - LOAD_STEP))
-  if (nextStart >= visibleStart.value) return false
-  loadingEarlier = true
-  const beforeHeight = scrollParent.scrollHeight
-  const beforeTop = scrollParent.scrollTop
-  visibleStart.value = nextStart
-  // 旧内容插到上面后，把滚动位置往下补同样的高度，用户不会突然跳走。
-  await nextTick()
-  if (following.value) scrollParent.scrollTop = maxScrollTop()
-  else scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
-  // 这次 scrollTop 是程序补偿，不是读者向下滚动；短暂禁止裁窗口。
-  trimBlockedUntil = performance.now() + 250
-  loadingEarlier = false
-  rememberScroll()
-  return true
-}
-
-function sentinelNear() {
-  if (!scrollParent || !topSentinel.value) return false
-  const root = scrollParent.getBoundingClientRect()
-  const sentinel = topSentinel.value.getBoundingClientRect()
-  return sentinel.bottom >= root.top - 120 && sentinel.top <= root.bottom
-}
-
-// 打开会话时先把窗口补到可滚动，避免“最近几轮撑不满视口，滚轮又被直接忽略”。
-async function fillViewport() {
-  if (jumping || autoFilling || !scrollParent) return
-  autoFilling = true
-  try {
-    let guard = 0
-    while (earlierCount.value && guard++ < 30 && scrollParent.scrollHeight < scrollParent.clientHeight * FILL_RATIO) {
-      if (!await loadEarlier()) break
-    }
-  } finally {
-    autoFilling = false
-  }
-}
-
-function maybeFill() {
-  if (!scrollParent || scrollParent.clientHeight <= 0) return
-  if (earlierCount.value && scrollParent.scrollHeight < scrollParent.clientHeight * FILL_RATIO) void fillViewport()
-}
-
-// 往上翻时窗口会变大；用户再往下滚后，把已经远离视口顶部的旧轮次卸掉。
-// 只从顶部裁，调整 scrollTop 保持当前阅读位置；再往上滚时仍由自动续页补回来。
-async function trimWindow() {
-  if (jumping || trimming || loadingEarlier || autoFilling || !scrollParent || !flow.value) return
-  const nodes = [...flow.value.querySelectorAll(':scope > .message')]
-  if (nodes.length <= MAX_RENDERED_TURNS) return
-  const root = scrollParent.getBoundingClientRect()
-  const buffer = scrollParent.clientHeight * 0.6
-  let remove = 0
-  for (const node of nodes) {
-    if (nodes.length - remove <= MAX_RENDERED_TURNS) break
-    if (node.getBoundingClientRect().bottom >= root.top - buffer) break
-    remove += 1
-  }
-  if (!remove) return
-  trimming = true
-  const beforeHeight = scrollParent.scrollHeight
-  const beforeTop = scrollParent.scrollTop
-  visibleStart.value += remove
-  await nextTick()
-  const removedHeight = beforeHeight - scrollParent.scrollHeight
-  if (following.value) scrollParent.scrollTop = maxScrollTop()
-  else scrollParent.scrollTop = Math.max(0, beforeTop - removedHeight)
-  trimming = false
-  rememberScroll()
-}
-
-function scheduleTrim() {
-  if (trimFrame) return
-  trimFrame = requestAnimationFrame(() => {
-    trimFrame = 0
-    void trimWindow()
-  })
-}
-
-// 滚到顶部后连续补页：如果补完还停在顶部（内容仍不够高），继续补，不能只加载一次。
-async function loadAtTop() {
-  if (jumping || autoFilling || loadingEarlier || !scrollParent) return
-  autoFilling = true
-  try {
-    let guard = 0
-    while (earlierCount.value && guard++ < 30) {
-      if (!await loadEarlier()) break
-      if (!sentinelNear()) break
-    }
-  } finally {
-    autoFilling = false
-  }
-}
-watch(() => turns.value.length, length => {
-  if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
-})
 const following = ref(savedView ? savedView.pinned : true)
+const latestPosition = ref({ right: '24px', bottom: '96px' })
 const rollbackTarget = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
-const topSentinel = ref(null)
 let scrollParent
 let observer
 let viewportObserver
-let sentinelObserver
 let stickFrame = 0
 let jumpTimer = 0
 let jumping = false
@@ -184,6 +62,21 @@ let resumeFollow = false
 const maxScrollTop = () => scrollParent ? Math.max(0, scrollParent.scrollHeight - scrollParent.clientHeight) : 0
 const atBottom = (threshold = 4) => Boolean(scrollParent) && maxScrollTop() - scrollParent.scrollTop <= threshold
 
+// “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局；
+// 否则按钮出现/消失会改变 scrollHeight，滚动条会突然变长或变短。
+function syncLatestPosition() {
+  if (!scrollParent || !flow.value) return
+  const scrollRect = scrollParent.getBoundingClientRect()
+  const flowRect = flow.value.getBoundingClientRect()
+  latestPosition.value = {
+    right: `${Math.max(12, window.innerWidth - flowRect.right + 8)}px`,
+    bottom: `${Math.max(12, window.innerHeight - scrollRect.bottom + 12)}px`,
+  }
+}
+watch(following, value => {
+  if (!value) nextTick(syncLatestPosition)
+})
+
 // 滚动事件很密，先记在内存里，停手后再落一次 localStorage；刷新前再强制写一次。
 function rememberScroll() {
   if (!scrollParent || !timelineSessionID) return
@@ -196,7 +89,6 @@ function flushScroll() {
   if (!scrollParent || !timelineSessionID) return
   saveScroll(timelineSessionID, {
     top: scrollParent.scrollTop,
-    visibleStart: visibleStart.value,
     pinned: following.value,
   })
 }
@@ -223,15 +115,9 @@ function stopFollowing() {
 // 定位跳转期间不接受滚轮/滚动条的程序滚动判定，避免平滑动画被“回到底部”打断。
 function beginJump() {
   jumping = true
-  trimBlockedUntil = Infinity
-  if (trimFrame) {
-    cancelAnimationFrame(trimFrame)
-    trimFrame = 0
-  }
   clearTimeout(jumpTimer)
   jumpTimer = window.setTimeout(() => {
     jumping = false
-    trimBlockedUntil = 0
     lastTop = scrollParent?.scrollTop || 0
     rememberScroll()
     if (following.value) queueStick()
@@ -239,7 +125,6 @@ function beginJump() {
 }
 function endJump() {
   jumping = false
-  trimBlockedUntil = 0
   clearTimeout(jumpTimer)
   jumpTimer = 0
 }
@@ -284,18 +169,12 @@ function onScroll() {
     setFollowing(true)
   }
   lastTop = top
-  if (performance.now() >= trimBlockedUntil) scheduleTrim()
+  syncLatestPosition()
   rememberScroll()
 }
 
 function onWheel(event) {
   if (!scrollParent) return
-  // 内容还没撑满视口时浏览器不会滚，直接在这里补历史，不能把用户卡住。
-  if (event.deltaY < 0 && earlierCount.value && scrollParent.scrollTop <= 1) {
-    stopFollowing()
-    void loadAtTop()
-    return
-  }
   if (scrollParent.scrollHeight <= scrollParent.clientHeight) return
   const nested = nestedScroller(event.target)
   if (nested) {
@@ -396,12 +275,8 @@ async function jumpToMessage(messageId) {
     const rect = turnElement.getBoundingClientRect()
     if (rect.bottom > viewport.top + 1 && rect.top < viewport.bottom - 1) return
   }
-  // 先把跳转状态立起来，再展开窗口；否则点击前排队的一次 trim 会在展开中途把轮次卸掉。
+  // 先把跳转状态立起来；定位动画期间不做任何窗口/高度调整。
   beginJump()
-  if (turnIndex < visibleStart.value) {
-    visibleStart.value = visibleStartFor(turnIndex)
-    await nextTick()
-  }
   await nextTick()
   const target = scrollParent.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`)
     || scrollParent.querySelector(`[data-turn-id="${CSS.escape(String(messageId))}"]`)
@@ -424,8 +299,7 @@ async function jumpToMessage(messageId) {
   }, 900)
 }
 defineExpose({ jumpToMessage, jumpToBottom })
-watch(() => turns.value.length, length => {
-  if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
+watch(() => turns.value.length, () => {
   if (following.value) queueStick()
 })
 onMounted(() => {
@@ -452,22 +326,14 @@ onMounted(() => {
   // 输入框/窗口变高变矮会改变视口；跟随中保持贴底，浏览中保持读者位置。
   viewportObserver = new ResizeObserver(() => {
     if (following.value) queueStick()
-    maybeFill()
+    syncLatestPosition()
   })
   if (scrollParent) viewportObserver.observe(scrollParent)
-  // 顶部 sentinel 只负责触发自动补页，不显示“更早”按钮；补完仍可见就继续补。
-  sentinelObserver = new IntersectionObserver(entries => {
-    if (entries.some(entry => entry.isIntersecting)) void loadAtTop()
-  }, { root: scrollParent, rootMargin: '120px 0px 0px 0px' })
-  if (topSentinel.value) sentinelObserver.observe(topSentinel.value)
+  syncLatestPosition()
   // 刷新后回到原来的位置；没有记录或当时停在底部，就继续跟最新内容。
   const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
   if (restoreTop == null) {
     queueStick()
-    void nextTick(() => {
-      fillViewport()
-      requestAnimationFrame(fillViewport)
-    })
     return
   }
   const applyRestore = () => {
@@ -480,13 +346,11 @@ onMounted(() => {
     requestAnimationFrame(() => {
       applyRestore() // 字体/图片首帧后高度可能还在变，再对齐一次
       if (!following.value && atBottom(24)) setFollowing(true)
-      void fillViewport()
     })
   }))
 })
 onBeforeUnmount(() => {
   flushScroll()
-  if (trimFrame) cancelAnimationFrame(trimFrame)
   scrollParent?.removeEventListener('scroll', onScroll)
   scrollParent?.removeEventListener('wheel', onWheel)
   scrollParent?.removeEventListener('pointerdown', onPointerDown)
@@ -501,7 +365,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', flushScroll)
   observer?.disconnect()
   viewportObserver?.disconnect()
-  sentinelObserver?.disconnect()
   if (stickFrame) cancelAnimationFrame(stickFrame)
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
@@ -561,8 +424,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 
 <template>
   <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
-    <span ref="topSentinel" class="conversation-top-sentinel" aria-hidden="true"></span>
-    <article v-for="turn in visibleTurns" :key="turn.id" :data-turn-id="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'Agent 的回复'">
+    <article v-for="turn in turns" :key="turn.id" :data-turn-id="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'Agent 的回复'">
       <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
       <template v-else-if="turn.role === 'user'">
         <MessageActions
@@ -606,10 +468,12 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         />
       </template>
     </article>
-    <button v-if="!following" type="button" class="conversation-latest" @click="jumpToBottom">
-      <Icon name="down" :size="14" />
-      回到最新
-    </button>
+    <div v-if="!following" class="conversation-latest-layer" :style="latestPosition">
+      <button type="button" class="conversation-latest" @click="jumpToBottom">
+        <Icon name="down" :size="14" />
+        回到最新
+      </button>
+    </div>
   </div>
 </template>
 

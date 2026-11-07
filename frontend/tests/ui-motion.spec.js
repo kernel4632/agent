@@ -219,17 +219,21 @@ test.describe('chat motion', () => {
     await page.reload()
 
     await openSession(page, '会话甲')
-    // 长会话先自动补到可滚动，更早的轮次由滚动自动续页，不再提供按钮。
+    // 完整高度一次建立，滚动时不再加载/卸载轮次。
     await expect(page.locator('.rikka-bubble--user').last()).toContainText('第 22 条问题。')
     await expect(page.locator('.conversation-earlier')).toHaveCount(0)
     await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
     const rendered = await page.locator('.message').count()
+    expect(rendered).toBeGreaterThan(8)
     await expect(page.locator('.conversation-flow')).not.toHaveClass(/session-swap-enter-active/)
     const scrollable = await page.locator('.session-scroll').evaluate(element => element.scrollHeight > element.clientHeight)
     expect(scrollable).toBe(true)
+    const beforeScroll = await page.locator('.session-scroll').evaluate(element => ({ top: element.scrollTop, height: element.scrollHeight }))
     await page.locator('.session-scroll').hover()
     await page.mouse.wheel(0, -10000)
-    await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(rendered)
+    await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollTop)).toBeLessThan(beforeScroll.top)
+    expect(await page.locator('.session-scroll').evaluate(element => element.scrollHeight)).toBe(beforeScroll.height)
+    expect(await page.locator('.message').count()).toBe(rendered)
     const latest = page.getByRole('button', { name: '回到最新', exact: true })
     if (await latest.isVisible()) await latest.click()
     await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)

@@ -58,7 +58,6 @@ export function readScroll(sessionID) {
   if (!value || !Number.isFinite(value.top)) return null
   return {
     top: Math.max(0, value.top),
-    visibleStart: Number.isInteger(value.visibleStart) ? Math.max(0, value.visibleStart) : null,
     pinned: Boolean(value.pinned),
   }
 }
@@ -67,7 +66,6 @@ export function saveScroll(sessionID, scroll) {
   if (!sessionID || !Number.isFinite(scroll?.top)) return
   writeJSON(`${SCROLL_PREFIX}${sessionID}`, {
     top: Math.max(0, scroll.top),
-    visibleStart: Number.isInteger(scroll.visibleStart) ? Math.max(0, scroll.visibleStart) : 0,
     pinned: Boolean(scroll.pinned),
   })
 }

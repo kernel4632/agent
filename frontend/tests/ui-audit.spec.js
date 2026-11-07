@@ -949,7 +949,7 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
-test('timeline unloads far above turns after scrolling back down', async ({ page }, testInfo) => {
+test('timeline keeps full history height after refresh at the bottom', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const history = []
   for (let index = 1; index <= 55; index += 1) {
@@ -958,7 +958,7 @@ test('timeline unloads far above turns after scrolling back down', async ({ page
   }
   mock.sessions.set('trim-1', {
     id: 'trim-1',
-    title: '窗口会话',
+    title: '完整高度会话',
     provider: 'Test Provider',
     model: 'test-model',
     history,
@@ -972,33 +972,29 @@ test('timeline unloads far above turns after scrolling back down', async ({ page
   })
   await page.goto('/')
   await openDrawer(page)
-  await page.getByRole('button', { name: '窗口会话', exact: true }).click()
+  await page.getByRole('button', { name: '完整高度会话', exact: true }).click()
   const scroll = page.locator('.session-scroll')
-  await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(0)
-
-  // 反复到顶，把历史全部加载出来。
-  for (let index = 0; index < 8; index += 1) {
-    await scroll.evaluate(element => { element.scrollTop = 0 })
-    await page.waitForTimeout(220)
-  }
-  const loaded = await page.locator('.message').count()
-  expect(loaded).toBeGreaterThan(40)
-
-  // 回到最底下后，顶部远离视口的轮次会被卸掉，但滚动位置保持贴底。
-  await page.waitForTimeout(320)
-  await scroll.evaluate(element => { element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight - 1000) })
-  await page.waitForTimeout(120)
+  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBe(55)
   await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
-  await expect.poll(() => page.locator('.message').count()).toBeLessThanOrEqual(40)
-  await expect.poll(() => scroll.evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(4)
-  await expect(page.locator('.conversation-earlier')).toHaveCount(0)
+  await page.waitForTimeout(300)
+  const before = await scroll.evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
+  expect(before.top).toBeGreaterThan(0)
 
-  // 再往上滚，卸掉的轮次会重新补回来。
-  const trimmed = await page.locator('.message').count()
-  await scroll.hover()
-  await page.mouse.wheel(0, -10000)
-  await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(trimmed)
-  await screenshot(page, testInfo, 'timeline-window-trim')
+  // 刷新后仍然保留完整高度，不能只剩最近几轮。
+  await page.reload()
+  await expect(page.locator('.rikka-bubble--user')).toHaveCount(55)
+  const after = await page.locator('.session-scroll').evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
+  expect(Math.abs(after.height - before.height)).toBeLessThan(4)
+  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(4)
+
+  // 向上滚到顶，高度也不能变。
+  await page.locator('.session-scroll').evaluate(element => { element.scrollTop = 0 })
+  await page.waitForTimeout(200)
+  const atTop = await page.locator('.session-scroll').evaluate(element => element.scrollHeight)
+  expect(Math.abs(atTop - before.height)).toBeLessThan(4)
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 1 轮' })).toBeInViewport()
+  await expect(page.locator('.conversation-earlier')).toHaveCount(0)
+  await screenshot(page, testInfo, 'timeline-full-height-refresh')
   expect(mock.errors).toEqual([])
 })
 
@@ -1101,7 +1097,7 @@ test('rail jump keeps the timeline height stable while scrolling', async ({ page
   expect(mock.errors).toEqual([])
 })
 
-test('long history loads older turns automatically without an earlier button', async ({ page }, testInfo) => {
+test('long history renders its complete height without an earlier button', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const history = []
   for (let index = 1; index <= 30; index += 1) {
@@ -1127,20 +1123,21 @@ test('long history loads older turns automatically without an earlier button', a
   await page.getByRole('button', { name: '长会话', exact: true }).click()
   await expect(page.locator('.topbar h1')).toHaveText('长会话')
   await expect(page.locator('.conversation-earlier')).toHaveCount(0)
+  await expect(page.locator('.rikka-bubble--user')).toHaveCount(30)
+  await page.waitForTimeout(500)
 
   const scroll = page.locator('.session-scroll')
-  await expect.poll(() => scroll.evaluate(element => element.scrollHeight > element.clientHeight + 20)).toBe(true)
-  const initial = await page.locator('.message').count()
-  expect(initial).toBeGreaterThan(8)
-  expect(initial).toBeLessThan(30)
-
-  // 不再需要点按钮：直接在会话区域向上滚，就会自动续页。
+  const before = await scroll.evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
   const box = await scroll.boundingBox()
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.wheel(0, -10000)
-  await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(initial)
+  await page.waitForTimeout(300)
+  const after = await scroll.evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
+  expect(after.top).toBeLessThan(before.top)
+  expect(after.height).toBe(before.height)
+  await expect(page.locator('.rikka-bubble--user')).toHaveCount(30)
   await expect(page.locator('.conversation-earlier')).toHaveCount(0)
-  await screenshot(page, testInfo, 'long-history-auto-load')
+  await screenshot(page, testInfo, 'long-history-full-height')
   expect(mock.errors).toEqual([])
 })
 
