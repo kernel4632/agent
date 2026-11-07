@@ -56,6 +56,7 @@ const workspaceBusy = ref(false)
 const RECENT_KEY = 'agent.recent-workspaces'
 const recentWorkspaces = ref(loadRecent())
 const currentWorkspace = computed(() => store.sessions[props.sessionId]?.cwd || '')
+const currentTemporary = computed(() => store.sessions[props.sessionId]?.temporary === true)
 
 function loadRecent() {
   try {
@@ -220,7 +221,7 @@ defineExpose({ focus: () => editor.value?.focus() })
 
   <Dialog placement="bottom" :open="workspaceOpen" label="切换工作区" @update:open="workspaceOpen = $event">
     <form class="workspace-picker" @submit.prevent="switchWorkspace">
-      <p class="workspace-picker__current">当前目录：{{ currentWorkspace || '未设置' }}</p>
+      <p class="workspace-picker__current"><span class="workspace-picker__path">当前目录：{{ currentWorkspace || '未设置' }}</span><span v-if="currentTemporary" class="workspace-picker__temporary">临时工作区</span></p>
       <PathInput v-model="workspacePath" label="目录路径" placeholder="例如 /Users/yourname/projects/demo" mode="directory" />
       <p class="workspace-picker__hint">只切换当前会话的目录；对话历史、模型和设置都会保留。</p>
       <div v-if="recentWorkspaces.length" class="workspace-picker__recent">

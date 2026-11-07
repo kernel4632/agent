@@ -180,6 +180,7 @@ function summaryOf(session) {
   return {
     id: session.id,                                      // 会话唯一身份
     cwd: session.cwd,                                    // 会话当前目录
+    temporary: session.temporary === true,               // 新会话默认使用的临时工作区
     provider: session.provider,
     title: session.title || t('newConversation'),        // 列表显示标题，空标题使用默认文案
     model: session.model,                                // 当前使用模型
@@ -371,9 +372,15 @@ async function rename(sessionID, title) {
 async function setCwd(sessionID, cwd) {
   const result = await AgentAPI.setSessionCwd(sessionID, cwd)
   const summary = locate(sessionID)
-  if (summary) summary.cwd = result.cwd
+  if (summary) {
+    summary.cwd = result.cwd
+    summary.temporary = false
+  }
   const session = store.sessions[sessionID]
-  if (session) session.cwd = result.cwd
+  if (session) {
+    session.cwd = result.cwd
+    session.temporary = false
+  }
   return result
 }
 
@@ -509,6 +516,7 @@ function serverSummaryOf(session) {
   return {
     id: session.id,
     cwd: session.cwd,
+    temporary: session.temporary === true,
     title: session.title || NEW_SESSION_TITLE,
     provider: session.provider,
     model: session.model,

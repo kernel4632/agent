@@ -1860,6 +1860,7 @@ test('workspace picker switches the session cwd and remembers it', async ({ page
   await page.getByRole('button', { name: '更多选项', exact: true }).click()
   await page.getByRole('button', { name: '切换工作区', exact: true }).click()
   const workspace = page.getByRole('dialog', { name: '切换工作区', exact: true })
+  await expect(workspace.getByText('临时工作区', { exact: true })).toBeVisible()
   await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('D:/mock-workspace')
   await workspace.getByRole('button', { name: '切换到此目录', exact: true }).click()
   await expect(workspace).toBeHidden()

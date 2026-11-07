@@ -192,7 +192,9 @@
 .chat-composer__image-remove { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--la-text); background: var(--la-surface); border: 0.5px solid var(--la-line); cursor: pointer; }
 /* 工作区切换：轻量复用会话 cwd，不引入独立 workspace 实体。 */
 .workspace-picker { display: grid; gap: 14px; padding-bottom: 8px; }
-.workspace-picker__current { margin: 0; overflow: hidden; color: var(--la-secondary); font-size: 13px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-picker__current { display: flex; min-width: 0; align-items: center; gap: 8px; margin: 0; color: var(--la-secondary); font-size: 13px; line-height: 20px; }
+.workspace-picker__path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-picker__temporary { flex: none; padding: 0 7px; border-radius: 999px; background: var(--la-accent-soft); color: var(--la-accent); font-size: 12px; line-height: 20px; }
 .workspace-picker__hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 19px; }
 .workspace-picker__recent { display: grid; gap: 6px; }
 .workspace-picker__recent > span { color: var(--la-muted); font-size: 12px; }

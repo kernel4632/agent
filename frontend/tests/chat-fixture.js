@@ -333,7 +333,8 @@ export async function backend(page, { configured = true } = {}) {
       sessions.set(id, {
         id,
         title: body.title,
-        cwd: body.cwd || 'D:/mock-directory',
+        cwd: body.cwd || 'C:/mock/agent-session-test',
+    temporary: !body.cwd,
         provider: body.provider,
         model: body.model,
         history: [],
@@ -373,8 +374,11 @@ export async function backend(page, { configured = true } = {}) {
     }
     if (!session) return route.fulfill({ status: 404, json: { error: 'Session not found' } })
     if (path.startsWith('/session/cwd/')) {
-      if (method === 'PATCH') session.cwd = body.cwd
-      return json({ id: session.id, cwd: session.cwd })
+      if (method === 'PATCH') {
+        session.cwd = body.cwd
+        session.temporary = false
+      }
+      return json({ id: session.id, cwd: session.cwd, temporary: false })
     }
     if (path.startsWith('/session/settings/')) {
       if (method === 'PATCH') {
