@@ -33,6 +33,7 @@ import SSE from './utils/sse.js'
 Mcp.bind({ config: Config })                                                         // MCP 服务增删改后把配置写回磁盘
 Tool.bind({ mcp: Mcp })                                                              // 工具表里要能取到 MCP 服务给的工具
 Approval.bind({ tool: Tool, config: Config })                                        // 审批要查工具类别，并把“始终允许”写回配置
+Config.bind({ onConfigChange: () => Approval.recheck() })                            // 配置变了，等待中的审批按新规则重问
 Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })   // 会话装配要读历史、工具表、审批和上下文
 
 const app = new Elysia()
