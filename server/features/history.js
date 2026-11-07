@@ -324,10 +324,10 @@ const page = async ({ sessionId, before, limit = 200 }) => {
     }
 }
 
-const plainText = message => {
+const rawText = message => {
     const parts = Array.isArray(message?.content) ? message.content : []
-    const text = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join(' ')
-    return String(text || (typeof message?.content === 'string' ? message.content : '')).replace(/\s+/g, ' ').trim()
+    const text = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('')
+    return String(text || (typeof message?.content === 'string' ? message.content : ''))
 }
 
 const outputText = output => {
@@ -338,56 +338,89 @@ const outputText = output => {
     return ''
 }
 
-// 和右侧定位条的回答预览保持一致：优先取结束工具的最终输出。
-const answerText = message => {
-    const parts = Array.isArray(message?.content) ? message.content : []
-    for (const part of parts) {
-        if (part?.type !== 'tool-result') continue
-        if (!['attempt_completion', 'ask_followup_question'].includes(part.toolName)) continue
-        const text = outputText(part.output)
-        if (text) return String(text).replace(/\s+/g, ' ').trim()
+// 和右侧定位条的回答预览保持一致：取结束工具的最终输出原文。
+const answerText = messages => {
+    let answer = ''
+    for (const message of messages) {
+        const parts = Array.isArray(message?.content) ? message.content : []
+        for (const part of parts) {
+            if (part?.type !== 'tool-result') continue
+            if (!['attempt_completion', 'ask_followup_question'].includes(part.toolName)) continue
+            const text = outputText(part.output)
+            if (text) answer = String(text)
+        }
     }
-    return ''
+    return answer
 }
 
-// --- 整个会话的轮次大纲：只带预览，不带正文 ---
+const userText = message => {
+    const raw = rawText(message)
+    const cut = raw.indexOf('\n\n附件 "')
+    return (cut >= 0 ? raw.slice(0, cut) : raw).trimEnd()
+}
+
+// --- 整个会话的轮次大纲：只带预览，长度用未截断原文 ---
 const outline = async sessionId => {
     await load(sessionId)
+    const records = store.sessions[sessionId].history.messages
     const turns = []
     let current = null
-    for (const [index, record] of store.sessions[sessionId].history.messages.entries()) {
+
+    const finish = () => {
+        if (!current) return
+        const response = answerText(current.messages)
+        if (current.role === 'assistant' && !response) {
+            current = null
+            return
+        }
+        const prompt = current.prompt
+        turns.push({
+            id: current.id,
+            index: current.index,
+            role: current.role,
+            prompt: prompt.replace(/\s+/g, ' ').trim().slice(0, 120),
+            response: response.replace(/\s+/g, ' ').trim().slice(0, 240),
+            length: prompt.length + response.length,
+        })
+        current = null
+    }
+
+    for (const [index, record] of records.entries()) {
         const message = record.message
-        if (!message || message.compact) continue
+        if (!message) continue
+        if (message.compact) {
+            finish()
+            continue
+        }
         if (message.role === 'user') {
-            const prompt = plainText(message)
+            finish()
             current = {
                 id: record.messageId,
                 index,
                 role: 'user',
-                prompt: prompt.slice(0, 120),
-                response: '',
-                length: prompt.length,
+                prompt: userText(message),
+                messages: [],
             }
-            turns.push(current)
-        } else if (message.role === 'assistant') {
-            const text = answerText(message)
-            if (current && !current.response) {
-                current.response = text.slice(0, 240)
-                current.length = (current.length || 0) + text.length
-            } else if (!current) {
+            continue
+        }
+        if (message.role === 'assistant') {
+            if (!current) {
                 current = {
                     id: record.messageId,
                     index,
                     role: 'assistant',
                     prompt: '',
-                    response: text.slice(0, 240),
-                    length: text.length,
+                    messages: [],
                 }
-                turns.push(current)
             }
+            current.messages.push(message)
+            continue
         }
+        if (message.role === 'tool' && current) current.messages.push(message)
     }
-    return { turns, totalMessages: store.sessions[sessionId].history.messages.length }
+    finish()
+
+    return { turns, totalMessages: records.length }
 }
 
 // --- 内存里加载了多少条会话；健康检查用 ---

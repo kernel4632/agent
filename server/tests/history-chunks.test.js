@@ -84,4 +84,38 @@ describe('会话历史分块', () => {
             expect(loaded.history.archives).toEqual([])
         })
     })
+
+    test('大纲宽度按原文长度算，并包含结束工具的最终输出', async () => {
+        await withHome(async root => {
+            const session = await History.create({ title: '宽度', cwd: root, settings: { reasoning: 'auto' } })
+            await History.add({
+                sessionId: session.id,
+                message: { id: 'u1', role: 'user', content: [{ type: 'text', text: '第一行\n\n第二行' }] },
+            })
+            await History.add({
+                sessionId: session.id,
+                message: {
+                    id: 'a1',
+                    role: 'assistant',
+                    content: [{ type: 'tool-call', toolCallId: 'call-stop', toolName: 'attempt_completion', input: {} }],
+                },
+            })
+            await History.add({
+                sessionId: session.id,
+                message: {
+                    id: 't1',
+                    role: 'tool',
+                    content: [{ type: 'tool-result', toolCallId: 'call-stop', toolName: 'attempt_completion', output: { type: 'text', value: '最终答案\n\n第二段' } }],
+                },
+            })
+            await History.save(session.id)
+
+            const result = await History.outline(session.id)
+            expect(result.turns).toHaveLength(1)
+            expect(result.turns[0]).toMatchObject({ id: expect.any(String), role: 'user' })
+            expect(result.turns[0].prompt).toBe('第一行 第二行')
+            expect(result.turns[0].response).toBe('最终答案 第二段')
+            expect(result.turns[0].length).toBe('第一行\n\n第二行'.length + '最终答案\n\n第二段'.length)
+        })
+    })
 })
