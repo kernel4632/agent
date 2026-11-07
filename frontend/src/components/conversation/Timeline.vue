@@ -93,7 +93,7 @@ function sentinelNear() {
 
 // 打开会话时先把窗口补到可滚动，避免“最近几轮撑不满视口，滚轮又被直接忽略”。
 async function fillViewport() {
-  if (autoFilling || !scrollParent) return
+  if (jumping || autoFilling || !scrollParent) return
   autoFilling = true
   try {
     let guard = 0
@@ -113,7 +113,7 @@ function maybeFill() {
 // 往上翻时窗口会变大；用户再往下滚后，把已经远离视口顶部的旧轮次卸掉。
 // 只从顶部裁，调整 scrollTop 保持当前阅读位置；再往上滚时仍由自动续页补回来。
 async function trimWindow() {
-  if (trimming || loadingEarlier || autoFilling || !scrollParent || !flow.value) return
+  if (jumping || trimming || loadingEarlier || autoFilling || !scrollParent || !flow.value) return
   const nodes = [...flow.value.querySelectorAll(':scope > .message')]
   if (nodes.length <= MAX_RENDERED_TURNS) return
   const root = scrollParent.getBoundingClientRect()
@@ -147,7 +147,7 @@ function scheduleTrim() {
 
 // 滚到顶部后连续补页：如果补完还停在顶部（内容仍不够高），继续补，不能只加载一次。
 async function loadAtTop() {
-  if (autoFilling || loadingEarlier || !scrollParent) return
+  if (jumping || autoFilling || loadingEarlier || !scrollParent) return
   autoFilling = true
   try {
     let guard = 0
@@ -223,16 +223,23 @@ function stopFollowing() {
 // 定位跳转期间不接受滚轮/滚动条的程序滚动判定，避免平滑动画被“回到底部”打断。
 function beginJump() {
   jumping = true
+  trimBlockedUntil = Infinity
+  if (trimFrame) {
+    cancelAnimationFrame(trimFrame)
+    trimFrame = 0
+  }
   clearTimeout(jumpTimer)
   jumpTimer = window.setTimeout(() => {
     jumping = false
+    trimBlockedUntil = 0
     lastTop = scrollParent?.scrollTop || 0
     rememberScroll()
     if (following.value) queueStick()
-  }, 1000)
+  }, 1500)
 }
 function endJump() {
   jumping = false
+  trimBlockedUntil = 0
   clearTimeout(jumpTimer)
   jumpTimer = 0
 }
@@ -389,6 +396,8 @@ async function jumpToMessage(messageId) {
     const rect = turnElement.getBoundingClientRect()
     if (rect.bottom > viewport.top + 1 && rect.top < viewport.bottom - 1) return
   }
+  // 先把跳转状态立起来，再展开窗口；否则点击前排队的一次 trim 会在展开中途把轮次卸掉。
+  beginJump()
   if (turnIndex < visibleStart.value) {
     visibleStart.value = visibleStartFor(turnIndex)
     await nextTick()
@@ -396,9 +405,11 @@ async function jumpToMessage(messageId) {
   await nextTick()
   const target = scrollParent.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`)
     || scrollParent.querySelector(`[data-turn-id="${CSS.escape(String(messageId))}"]`)
-  if (!target) return
+  if (!target) {
+    endJump()
+    return
+  }
   stopFollowing()
-  beginJump()
   const top = target.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop - 12
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })

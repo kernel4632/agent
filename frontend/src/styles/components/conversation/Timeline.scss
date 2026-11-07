@@ -86,7 +86,7 @@
 }
 .conversation-latest:hover { background: var(--la-layer-01); }
 /* 离屏轮次跳过布局/绘制；真实高度会被浏览器记住，滚回去时不会先撑成空白。 */
-.message { display: block; min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 280px; }
+.message { display: block; min-width: 0; }
 /* 用户消息里的图片缩略图：小圆角、点击不开新页，只展示 */
 .user-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .user-images__thumb { max-width: 180px; max-height: 140px; border-radius: 10px; object-fit: cover; border: 0.5px solid var(--la-line); }

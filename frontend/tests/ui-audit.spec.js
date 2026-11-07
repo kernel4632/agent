@@ -1050,6 +1050,57 @@ test('finished process folds collapse again after switching sessions', async ({ 
   expect(mock.errors).toEqual([])
 })
 
+test('rail jump keeps the timeline height stable while scrolling', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  const history = []
+  for (let index = 1; index <= 55; index += 1) {
+    history.push({ messageId: `rail-u${index}`, role: 'user', content: `第 ${index} 轮` })
+    history.push({ messageId: `rail-a${index}`, role: 'assistant', content: [{ type: 'text', text: `回复 ${index}` }] })
+  }
+  mock.sessions.set('rail-1', {
+    id: 'rail-1',
+    title: '定位长会话',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: { reasoning: 'auto' },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '定位长会话', exact: true }).click()
+  const rail = page.getByRole('slider', { name: '按消息定位', exact: true })
+  await rail.focus()
+  // 等首次自动补页和布局稳定后再做定位跳转。
+  await page.waitForTimeout(800)
+  await rail.press('Home')
+  const scroll = page.locator('.session-scroll')
+  const heights = []
+  for (let index = 0; index < 7; index += 1) {
+    await page.waitForTimeout(100)
+    heights.push(await scroll.evaluate(element => element.scrollHeight))
+  }
+  expect(new Set(heights).size).toBe(1)
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 1 轮' })).toBeInViewport()
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 55 轮' })).not.toBeInViewport()
+
+  await rail.press('End')
+  const heightsBack = []
+  for (let index = 0; index < 7; index += 1) {
+    await page.waitForTimeout(100)
+    heightsBack.push(await scroll.evaluate(element => element.scrollHeight))
+  }
+  expect(new Set(heightsBack).size).toBe(1)
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 55 轮' })).toBeInViewport()
+  await screenshot(page, testInfo, 'rail-jump-stable')
+  expect(mock.errors).toEqual([])
+})
+
 test('long history loads older turns automatically without an earlier button', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const history = []
