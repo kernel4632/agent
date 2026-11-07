@@ -4,6 +4,7 @@
  * 这是工具执行的唯一一道关口。deny 是硬规则；没有会话级自动批准。
  * 对象规则里的 `*` 是这个工具的默认动作，不拿去对参数做通配。
  * 其余模式才按参数匹配，并且 `*` 跨过斜杠和换行，所以“始终允许”能盖住同一类命令。
+ * 全局 `*` 为 allow 是「全部批准」：工具默认写成 ask 也不能把多行命令打回弹窗，只有明确的 deny 能拦住。
  * 规则已经是 allow 的调用直接放行，不再因为重复出现而停下来问。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
  * 工具查询和配置保存由命令层在启动时 bind；本文件不 import 任何 feature。
@@ -58,14 +59,25 @@ const matchPattern = (value, pattern) => {
 // --- 按规则决定放行、询问还是拒绝 ---
 const decideByRules = (toolName, matchValue, rules = store.config.permission || { '*': 'ask' }) => {
     const toolRule = rules[toolName]
-    let decision = normalize(rules['*'])
+    const fallback = normalize(rules['*'])
+    let decision = fallback
+    let patterns = null
     if (typeof toolRule === 'string') decision = normalize(toolRule)
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
         // `*` 是这个工具的默认动作。设置页的“自动执行”写的就是它，不能再要求参数真的匹配到星号。
         if ('*' in toolRule) decision = normalize(toolRule['*'])
-        // 其余模式按参数匹配：最后一条命中的说了算，可以覆盖上面的默认动作。
-        for (const [pattern, result] of Object.entries(toolRule)) {
-            if (matchPattern(matchValue, pattern)) decision = normalize(result)
+        patterns = toolRule
+    }
+    // 多行脚本经常对不上「cd /tmp*」这种前缀。工具默认是 ask 时会弹窗。
+    // 全部批准把全局写成 allow，这一层必须盖过工具默认的 ask；deny 仍然是硬规则。
+    if (fallback === 'allow' && decision === 'ask') decision = 'allow'
+    if (patterns) {
+        // 最后一条命中的说了算，deny 可以盖过前面的允许。全部批准时，命中 ask 不再把结果打回弹窗。
+        for (const [pattern, result] of Object.entries(patterns)) {
+            if (!matchPattern(matchValue, pattern)) continue
+            const matched = normalize(result)
+            if (matched === 'ask' && fallback === 'allow') continue
+            decision = matched
         }
     }
     return decision

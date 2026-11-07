@@ -1,6 +1,6 @@
 <!--
 工具权限：最上面一个「全部批准」，下面每个工具一个开关。
-全部批准打开后，所有可配置工具直接执行，不再弹出批准。
+全部批准只写全局允许，多行命令也不再询问；不改每个工具已经记住的规则。明确拒绝仍然生效。
 单个开关打开表示这个工具直接执行，关闭表示每次调用前先询问；不再有禁止调用，也没有二级页面。
 调用示例：<ToolsSettings :draft="draft" />。
 -->
@@ -18,30 +18,27 @@ const tools = computed(() => props.draft.tools || [])
 // 后端没有为 other 这类工具准备中文类别名，界面上统一叫“自定义”。
 const kindLabel = tool => tool.kind === 'other' ? '自定义' : (tool.kindLabel || '工具')
 const isAllowed = tool => tool.permission === 'allow'
-const allAllowed = computed(() => tools.value.length > 0 && tools.value.every(isAllowed))
-
-function setPermission(tool, allowed) {
-  return { ...tool, permission: allowed ? 'allow' : 'ask' }
-}
 
 function toggle(tool, allowed) {
-  props.draft.tools = tools.value.map(item => item.name === tool.name ? setPermission(item, allowed) : item)
+  props.draft.tools = tools.value.map(item => item.name === tool.name
+    ? { ...item, permission: allowed ? 'allow' : 'ask' }
+    : item)
 }
 
-function setAll(allowed) {
-  props.draft.tools = tools.value.map(item => setPermission(item, allowed))
+function setAllowAll(allowed) {
+  props.draft.allowAll = allowed
 }
 </script>
 
 <template>
   <section class="tools-settings" aria-label="工具管理">
     <SettingsList v-if="tools.length" title="工具权限">
-      <SettingsRow title="全部批准" description="打开后所有工具直接执行，不再弹出批准">
+      <SettingsRow title="全部批准" description="打开后所有工具直接执行，多行命令也不再询问。关掉后仍保留每个工具自己的规则">
         <Switch
-          :model-value="allAllowed"
+          :model-value="draft.allowAll === true"
           label="全部批准"
           hide-label
-          @update:model-value="setAll"
+          @update:model-value="setAllowAll"
         />
       </SettingsRow>
       <SettingsRow v-for="tool in tools" :key="tool.name" :title="tool.title || tool.name" :description="`${kindLabel(tool)} · ${tool.name}`">

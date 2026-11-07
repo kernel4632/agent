@@ -8,3 +8,12 @@
 .reasoning-markdown :is(pre) { margin: 8px 0; }
 .reasoning-markdown :is(ul, ol) { margin: 6px 0; padding-left: 18px; }
 .reasoning-placeholder { margin: 0; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
+/* 展开后高度封顶，流式追加只在框内滚动，不再把时间线顶下去。 */
+.reasoning-body { max-height: 280px; overflow: auto; }
+.reasoning-live {
+  margin: 0;
+  color: var(--la-secondary);
+  font: 12.5px/1.65 var(--la-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -118,6 +118,7 @@ function backendSnapshot(draft) {
     mcp: draft.mcp,
     // original 只用来判断“这一项改过没有”，不是后端字段。
     tools: (draft.tools || []).map(({ original, ...tool }) => tool),
+    allowAll: draft.allowAll === true,
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -169,6 +170,7 @@ function open() {
     models: store.config.models,
     compact: store.config.compact,
     appearance: store.config.appearance,
+    allowAll: (store.config.raw?.permission || {})['*'] === 'allow',
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
 }
@@ -187,11 +189,8 @@ function persist(options = {}) {
 // --- 工具开关写回 permission；只写用户真的改过的那几个，对象规则里的参数模式保留 ---
 function permissionPayload(draft) {
   const permission = { ...(store.config.raw?.permission || {}) }
-  const tools = draft.tools || []
-  let toolsChanged = false
-  for (const tool of tools) {
+  for (const tool of draft.tools || []) {
     if (tool.original !== undefined && tool.permission === tool.original) continue
-    toolsChanged = true
     const current = permission[tool.name]
     if (current && typeof current === 'object' && !Array.isArray(current)) {
       permission[tool.name] = { ...current, '*': tool.permission }
@@ -199,12 +198,11 @@ function permissionPayload(draft) {
       permission[tool.name] = tool.permission
     }
   }
-  // 全部打开才写全局允许。关掉其中任意一个，全局回到询问；对象规则里更具体的模式保留。
-  if (toolsChanged) {
-    const allAllow = tools.length > 0 && tools.every(tool => tool.permission === 'allow')
-    if (allAllow) permission['*'] = 'allow'
-    else if (permission['*'] === 'allow') permission['*'] = 'ask'
-  }
+  // 全部批准只动全局 *。不改写每个工具已经记住的允许或拒绝，避免开关来回拨把规则清掉。
+  // 工具默认仍是 ask 时，由审批层用全局 allow 盖过去，多行命令也不会再弹窗。
+  const savedAllowAll = (store.config.raw?.permission || {})['*'] === 'allow'
+  if (draft.allowAll === true && !savedAllowAll) permission['*'] = 'allow'
+  else if (draft.allowAll === false && savedAllowAll) permission['*'] = 'ask'
   return permission
 }
 

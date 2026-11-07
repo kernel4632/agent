@@ -354,6 +354,43 @@ describe('允许规则直接放行', () => {
         })
     })
 
+    test('全部批准盖过工具默认询问，多行脚本不再弹窗，明确拒绝仍然生效', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                permission: { '*': 'allow', execute_command: { '*': 'ask', 'rm *': 'deny', 'ls*': 'allow' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Allow all multiline' })
+            const run = (id, command) => Approval.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
+            const script = "echo \"第一行\"\necho \"第二行\"\necho \"多行命令测试通过\""
+            const heredoc = "cd /home/proj && python3 - <<'PY'\nimport io\np='/tmp/a'\nprint(1)\nPY"
+
+            expect(await run('lines', script)).toBe(true)
+            expect(await run('heredoc', heredoc)).toBe(true)
+            expect(await run('rm', 'rm -rf build')).toBe(false)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
+    test('允许前缀能盖住带换行和斜杠的整段脚本', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                permission: { '*': 'ask', execute_command: { '*': 'ask', 'cd /home/proj*': 'allow' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Prefix multiline' })
+            const command = "cd /home/proj && python3 - <<'PY'\nimport io\np='/tmp/a'\nprint(1)\nPY"
+
+            expect(await Approval.check({
+                sessionId,
+                toolCallId: 'heredoc',
+                toolName: 'execute_command',
+                input: { command },
+            })).toBe(true)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
     test('不同参数不累计', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })

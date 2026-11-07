@@ -166,8 +166,6 @@
 .process-fold__summary { min-width: 0; flex: 1; overflow: hidden; color: var(--la-muted); font-size: 12px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .process-fold__caret { flex: none; transition: transform var(--la-motion-enter) var(--ui-curve-standard); }
 .process-fold__caret.is-open { transform: rotate(180deg); }
-/* 待批准的工具挂在折叠外面，收起时高度不变。 */
-.process-pending { display: flex; flex-direction: column; padding: 2px 0 4px; }
 /* 上下文组：连续的工具/思考收成一组；组头透明，只显示计数摘要，不缩进、不画树线。 */
 .context-sections { display: flex; flex-direction: column; gap: 6px; }
 .context-group { min-width: 0; }
