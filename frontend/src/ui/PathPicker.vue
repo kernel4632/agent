@@ -4,7 +4,7 @@
 调用：<PathPicker :open="open" mode="directory" :initial-path="path" @select="path = $event" @update:open="open = $event" />。
 -->
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { AgentAPI } from '../utils/api.js'
 import Button from './Button.vue'
 import Dialog from './Dialog.vue'
@@ -30,6 +30,7 @@ const loading = ref(false)
 const error = ref('')
 const truncated = ref(false)
 let requestToken = 0
+let typingTimer = null
 
 const selectedName = computed(() => entries.value.find(item => item.path === selected.value)?.name || '')
 
@@ -55,14 +56,37 @@ async function load(path = pathDraft.value) {
   }
 }
 
+function onInput(value) {
+  pathDraft.value = value
+  selected.value = ''
+  loading.value = false
+  error.value = ''
+  requestToken += 1
+  clearTimeout(typingTimer)
+  typingTimer = setTimeout(() => {
+    if (props.open && pathDraft.value === value && value !== current.value) void load(value)
+  }, 300)
+}
+
+function runNow() {
+  clearTimeout(typingTimer)
+  void load(pathDraft.value)
+}
+
 watch(() => props.open, open => {
-  if (!open) return
+  clearTimeout(typingTimer)
+  if (!open) {
+    requestToken += 1
+    return
+  }
   pathDraft.value = props.initialPath || ''
   current.value = ''
   entries.value = []
   selected.value = ''
   void load(pathDraft.value)
 }, { immediate: true })
+
+onBeforeUnmount(() => clearTimeout(typingTimer))
 
 function enter(entry) {
   if (entry.type === 'directory') return void load(entry.path)
@@ -92,7 +116,13 @@ function close() {
           <button v-for="root in roots" :key="root" type="button" :disabled="loading" @click="load(root)">{{ root }}</button>
         </span>
       </div>
-      <Field v-model="pathDraft" label="路径" placeholder="输入绝对路径，例如 D:\\AgentSessions" @keydown.enter.prevent="load()" />
+      <Field
+        :model-value="pathDraft"
+        label="路径"
+        placeholder="输入绝对路径，例如 D:\\AgentSessions"
+        @update:model-value="onInput"
+        @keydown.enter.prevent="runNow"
+      />
       <div class="path-picker__list" role="listbox" :aria-label="mode === 'directory' ? '文件夹' : '文件和文件夹'">
         <button
           v-for="entry in entries"
