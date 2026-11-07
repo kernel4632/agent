@@ -512,6 +512,29 @@ test('assistant markdown uses local code blocks and typography', async ({ page }
   expect(mock.errors).toEqual([])
 })
 
+test('mermaid code blocks render as diagrams and fall back to source on error', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  const good = '```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```'
+  const bad = '```mermaid\nflowchart TD\n  A[缺少闭合\n```'
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'text-delta', text: `\n\n${good}\n\n${bad}` },
+  ])
+
+  const bubble = page.locator('.rikka-bubble--assistant')
+  // 合法图渲染成 SVG；语法错误回退显示源码和一行错误。
+  await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
+  await expect(bubble.locator('.ui-code-block__mermaid-error')).toContainText(/错误|error|Parse/i)
+  await expect(bubble.locator('.ui-code-block__body pre code')).toContainText('A[缺少闭合')
+  expect(mock.errors).toEqual([])
+})
+
 test('continue resumes an interrupted assistant without a user message', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
