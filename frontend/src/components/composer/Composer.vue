@@ -24,7 +24,7 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Chip from '../../ui/Chip.vue'
 import Dialog from '../../ui/Dialog.vue'
-import Field from '../../ui/Field.vue'
+import PathInput from '../../ui/PathInput.vue'
 import { store } from '../../store.js'
 import { Session } from "../../features/session.js"
 import { Notice } from "../../utils/notice.js"
@@ -221,7 +221,7 @@ defineExpose({ focus: () => editor.value?.focus() })
   <Dialog placement="bottom" :open="workspaceOpen" label="切换工作区" @update:open="workspaceOpen = $event">
     <form class="workspace-picker" @submit.prevent="switchWorkspace">
       <p class="workspace-picker__current">当前目录：{{ currentWorkspace || '未设置' }}</p>
-      <Field v-model="workspacePath" label="目录路径" placeholder="例如 /Users/yourname/projects/demo" required />
+      <PathInput v-model="workspacePath" label="目录路径" placeholder="例如 /Users/yourname/projects/demo" mode="directory" />
       <p class="workspace-picker__hint">只切换当前会话的目录；对话历史、模型和设置都会保留。</p>
       <div v-if="recentWorkspaces.length" class="workspace-picker__recent">
         <span>最近目录</span>

@@ -10,6 +10,7 @@ import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
+import PathInput from '../../ui/PathInput.vue'
 import SelectButton from '../../ui/SelectButton.vue'      // 自有选择控件，支持半选
 import Switch from '../../ui/Switch.vue'
 import SkillEditor from './SkillEditor.vue'
@@ -264,8 +265,9 @@ async function addSource() {
       <p v-else class="skill-empty">没有发现其他软件留下的技能目录。</p>
 
       <form class="skill-source" @submit.prevent="addSource">
-        <Field
+        <PathInput
           caption="手动添加技能目录"
+          mode="directory"
           :model-value="sourcePath"
           placeholder="/Users/yourname/.agents/skills"
           :error="sourceError"

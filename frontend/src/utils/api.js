@@ -107,6 +107,10 @@ export const AgentAPI = {
   getSessionStorage:()                          => request('/storage/sessions'),
   setSessionStorage:(path)                      => request('/storage/sessions', 'PUT', { path }),
   cancelSessionStorage:()                       => request('/storage/sessions', 'DELETE'),
+  getFilesystemEntries: ({ path = '', mode = 'directory' } = {}) => {
+    const query = new URLSearchParams({ path, mode })
+    return request(`/filesystem/entries?${query}`)
+  },
   readConfigBackup: (id)                        => request(`/config/backups/${encodeURIComponent(id)}`),
   restoreConfigBackup: (id)                     => request('/config/restore', 'POST', { id }),
   importConfig:     (config)                    => request('/config/import', 'POST', { config }),

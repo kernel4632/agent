@@ -10,6 +10,7 @@ import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
 import Field from '../../ui/Field.vue'
+import PathInput from '../../ui/PathInput.vue'
 import Switch from '../../ui/Switch.vue'
 import SettingsList from '../../ui/SettingsList.vue'
 import SettingsRow from '../../ui/SettingsRow.vue'
@@ -82,12 +83,22 @@ watch(() => props.item?.definition?.env, () => resetEnvDraft(), { deep: true })
           @update:model-value="updateDefinition({ transport: $event })"
         />
       </SettingsRow>
-      <SettingsRow :title="remote ? '服务地址' : '启动命令'" :description="remote ? 'MCP 服务的 SSE 或 HTTP 地址' : '启动 MCP 服务的命令'">
-        <Field
+      <SettingsRow :title="remote ? '服务地址' : '启动命令'" :description="remote ? 'MCP 服务的 SSE 或 HTTP 地址' : 'MCP 服务的命令或可执行文件，参数填在下面'">
+        <PathInput
+          v-if="!remote"
           class="mcp-control"
-          :label="remote ? '服务地址（URL）' : '启动命令'"
+          label="启动命令 / 可执行文件"
+          mode="file"
           :model-value="item.command"
-          :placeholder="remote ? 'http://localhost:3000/sse' : 'npx @modelcontextprotocol/server-xxx'"
+          placeholder="npx 或 D:\Tools\server.exe"
+          @update:model-value="update({ command: $event })"
+        />
+        <Field
+          v-else
+          class="mcp-control"
+          label="服务地址（URL）"
+          :model-value="item.command"
+          placeholder="http://localhost:3000/sse"
           @update:model-value="update({ command: $event })"
         />
       </SettingsRow>

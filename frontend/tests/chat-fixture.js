@@ -159,6 +159,19 @@ export async function backend(page, { configured = true } = {}) {
       return route.fulfill({ status: 404, json: { error: 'NOT_FOUND' } })
     }
     const json = data => route.fulfill({ status: 200, json: data })
+    if (path === '/filesystem/entries') {
+      const target = new URL(request.url()).searchParams.get('path') || 'C:/mock'
+      const mode = new URL(request.url()).searchParams.get('mode') || 'directory'
+      const directories = {
+        'C:/mock/.agent/sessions': { current: 'C:/mock', parent: null, entries: [{ name: 'D:', path: 'D:/', type: 'directory' }] },
+        'C:/mock': { current: 'C:/mock', parent: null, entries: [{ name: 'D:', path: 'D:/', type: 'directory' }] },
+        'D:/': { current: 'D:/', parent: 'C:/', entries: [{ name: 'AgentSessions', path: 'D:/AgentSessions', type: 'directory' }, { name: 'Tools', path: 'D:/Tools', type: 'directory' }] },
+        'D:/AgentSessions': { current: 'D:/AgentSessions', parent: 'D:/', entries: [] },
+        'D:/Tools': { current: 'D:/Tools', parent: 'D:/', entries: [{ name: 'server.exe', path: 'D:/Tools/server.exe', type: 'file' }] },
+      }
+      const data = directories[target] || directories['C:/mock']
+      return json({ ...data, home: 'C:/mock', roots: ['C:/', 'D:/'], truncated: false, mode })
+    }
     if (path === '/storage/sessions') {
       if (method === 'GET') return json(storageState)
       if (method === 'PUT') {

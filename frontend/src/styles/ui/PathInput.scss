@@ -1,0 +1,17 @@
+.ui-path-input { min-width: 0; width: 100%; }
+.ui-path-input__field :deep(.ui-field__input) { padding-right: 86px; }
+.ui-path-input__browse {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--la-shape-sm);
+  background: transparent;
+  color: var(--la-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ui-path-input__browse:hover { background: var(--la-hover); }

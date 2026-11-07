@@ -10,7 +10,7 @@ import { Settings } from "../../features/settings.js"
 import { Notice } from "../../utils/notice.js"
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
-import Field from '../../ui/Field.vue'
+import PathInput from '../../ui/PathInput.vue'
 import Switch from '../../ui/Switch.vue'
 import SettingsList from '../../ui/SettingsList.vue'
 import SettingsRow from '../../ui/SettingsRow.vue'
@@ -255,7 +255,7 @@ onMounted(() => {
 
     <Dialog :open="storageOpen" label="更改会话数据目录" @update:open="storageOpen = $event">
       <p class="data-settings__dialog-text">现有会话会复制到新目录，旧目录保留；重启后端后生效。</p>
-      <Field v-model="storagePath" label="会话数据目录" placeholder="D:\AgentSessions" />
+      <PathInput v-model="storagePath" label="会话数据目录" placeholder="D:\AgentSessions" mode="directory" />
       <p class="data-settings__dialog-hint">目标目录必须是空目录。</p>
       <template #footer>
         <Button variant="text" :disabled="storageBusy" @click="storageOpen = false">取消</Button>
