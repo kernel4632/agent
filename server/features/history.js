@@ -405,7 +405,7 @@ const pageByOffset = async ({ sessionId, beforeOffset, limit = 200 }) => {
         if (error?.code !== 'ENOENT') throw error
     }
     return {
-        messages: ring,
+        messages: ring.map(record => ({ messageId: record.messageId, ...(record.message || record) })),
         startOffset: offsets[0] ?? 0,
         endOffset: Number.isFinite(end) ? Math.min(end, offset) : offset,
         total,

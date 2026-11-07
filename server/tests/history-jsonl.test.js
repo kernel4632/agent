@@ -58,12 +58,12 @@ describe('会话历史 JSONL', () => {
 
             const page = await History.pageByOffset({ sessionId: session.id, limit: 20 })
             expect(page.messages).toHaveLength(20)
-            expect(page.messages[0].message.id).toBe('m881')
+            expect(page.messages[0].id).toBe('m881')
             expect(page.hasMore).toBe(true)
             expect(page.total).toBe(901)
 
             const older = await History.pageByOffset({ sessionId: session.id, beforeOffset: page.startOffset, limit: 20 })
-            expect(older.messages.at(-1).message.id).toBe('m880')
+            expect(older.messages.at(-1).id).toBe('m880')
         })
     })
 
