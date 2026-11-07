@@ -141,11 +141,14 @@ function summarizeSteps(steps) {
   const tools = content.filter(step => step.type === 'tool')
   if (!reasoning && !tools.length) return content.length ? `${content.length} 步` : '运行状态'
   const names = new Map()
+  let waiting = 0
   for (const step of tools) {
     const name = toolTitle(step.tool)
     names.set(name, (names.get(name) || 0) + 1)
+    if (step.tool?.status === 'waiting') waiting += 1
   }
   const pieces = []
+  if (waiting) pieces.push(`${waiting} 个等待许可`)
   if (reasoning) pieces.push(`${reasoning} 次思考`)
   if (tools.length) pieces.push(`使用了 ${tools.length} 次工具：${[...names].map(([name, count]) => `${name} ${count} 次`).join('、')}`)
   return pieces.join(' · ')

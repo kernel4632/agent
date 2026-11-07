@@ -204,6 +204,8 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
   await mock.emit('session-1', [{ type: 'agent-start' }, { type: 'permission', callID: 'call-1', tool: 'read', input: { path: 'example.txt' } }])
   await expect(page.getByText('等待你的许可')).toBeVisible()
+  await expect(page.getByRole('button', { name: '始终允许此参数', exact: true })).toHaveCount(0)
+  await page.locator('.cot-step--tool .cot-step__head').click()
   await page.getByRole('button', { name: '始终允许此参数', exact: true }).click()
   await expect(page.getByText('正在执行', { exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'approval-decided')
@@ -211,7 +213,7 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   expect(mock.errors).toEqual([])
 })
 
-test('reasoning preview stays half-open while streaming', async ({ page }, testInfo) => {
+test('reasoning stays on one line while streaming and opens on click', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -228,24 +230,22 @@ test('reasoning preview stays half-open while streaming', async ({ page }, testI
   ])
 
   await expect(page.locator('.cot-card')).toBeVisible()
-  await expect(page.locator('.cot-step--reasoning .reasoning-preview')).toHaveClass(/is-preview/)
+  const head = page.locator('.cot-step--reasoning .cot-step__head')
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('.cot-step--reasoning .cot-step__summary')).toContainText('先确认消息结构')
+  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   await screenshot(page, testInfo, 'reasoning-preview')
 
-  // 流式期间也能真正收起：先展开全文，再点一次收起；后续增量不能把它重新打开。
-  const head = page.locator('.cot-step--reasoning .cot-step__head')
-  const content = page.locator('.cot-step--reasoning .cot-collapse')
+  // 点开才渲染正文；再点收起后，后续增量只改标题行，不把内容框重新打开。
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('.cot-step--reasoning .markdown-body')).toContainText('先确认消息结构')
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'false')
-  await expect(content).not.toHaveClass(/is-open/)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: '继续输出也不展开' }])
-  await expect(page.locator('.reasoning-preview')).toContainText('继续输出也不展开')
-  await expect(content).toHaveCount(1)
-  await expect(content).not.toHaveClass(/is-open/)
-  await head.click()
-  await expect(content).toHaveClass(/is-open/)
+  await expect(page.locator('.cot-step--reasoning .cot-step__summary')).toContainText('继续输出也不展开')
+  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
 })
 
 test('reasoning content renders markdown', async ({ page }) => {
@@ -262,13 +262,14 @@ test('reasoning content renders markdown', async ({ page }) => {
   ])
 
   const reasoning = page.locator('.cot-step--reasoning')
+  await reasoning.locator('.cot-step__head').click()
   await expect(reasoning.locator('.markdown-body strong')).toHaveText('先确认')
   await expect(reasoning.locator('.markdown-body code')).toHaveText('README')
   await expect(reasoning.locator('.markdown-body li')).toHaveCount(2)
   expect(mock.errors).toEqual([])
 })
 
-test('reasoning preview collapses after the llm finishes', async ({ page }) => {
+test('reasoning stays collapsed after the llm finishes', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -288,8 +289,8 @@ test('reasoning preview collapses after the llm finishes', async ({ page }) => {
   const process = page.locator('.process-fold__head')
   if (await process.getAttribute('aria-expanded') !== 'true') await process.click()
   await openContextGroups(page)
-  await expect(page.locator('.cot-step--reasoning .reasoning-preview')).not.toHaveClass(/is-preview/)
-  await expect(page.locator('.cot-step--reasoning .cot-collapse')).not.toHaveClass(/is-open/)
+  await expect(page.locator('.cot-step--reasoning .cot-step__head')).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
 })
 
@@ -1147,11 +1148,13 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
   const tool = page.locator('.cot-step--tool')
   await expect(tool).toHaveCount(1)
   await expect(tool.locator('.cot-step__extra')).toContainText('正在生成参数')
-  await expect(tool.locator('.tool-input.is-streaming')).toContainText('"path": "a.txt"')
+  await expect(tool.locator('.cot-step__summary')).toContainText('"path": "a.txt"')
+  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
 
   await mock.emit('session-1', [{ type: 'tool-call', toolCallId: 'call-stream', toolName: 'write_file', input: { path: 'a.txt', content: 'hello' } }])
   await expect(tool.locator('.cot-step__extra')).toContainText('正在执行')
-  await expect(tool.locator('.tool-input')).toHaveCount(0)
+  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
+  await tool.locator('.cot-step__head').click()
   await tool.getByRole('button', { name: /查看输入参数/ }).click()
   await expect(tool.locator('.tool-input')).toContainText('path')
   await expect(tool.locator('.tool-input')).toContainText('a.txt')
@@ -1174,6 +1177,7 @@ test('tool input renders multiline strings and markdown code blocks', async ({ p
   }])
 
   const tool = page.locator('.cot-step--tool')
+  await tool.locator('.cot-step__head').click()
   const inputSection = tool.locator('.tool-content--input')
   const outputSection = tool.locator('.tool-content--output')
   await expect(inputSection).toBeVisible()
