@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.72.7",
+    "version": "0.73.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -1657,7 +1657,8 @@
         "tags": [
           "Session"
         ],
-        "summary": "读取一条会话的完整内容",
+        "summary": "读取一条会话的最近内容",
+        "description": "只返回最近一页消息；更早历史使用 /session/history/{sessionId} 分页读取。",
         "operationId": "sessionRead",
         "parameters": [
           {
@@ -3391,7 +3392,15 @@
                   "type": "object",
                   "additionalProperties": true
                 },
-                "description": "带 messageId 的消息记录"
+                "description": "最近一页带 messageId 的消息记录"
+              },
+              "historyStart": {
+                "type": "integer",
+                "description": "当前页在完整历史中的起始下标"
+              },
+              "historyTotal": {
+                "type": "integer",
+                "description": "完整历史的消息总数"
               },
               "todos": {
                 "type": "array",

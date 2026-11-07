@@ -36,7 +36,7 @@ async function jumpToMessage(messageId) {
   const session = props.session
   const target = session?.outline?.find(turn => turn.id === messageId)
   if (session && target && target.index < (session.historyStart || 0)) {
-    if (!await Session.loadThrough(session.id, target.index)) return
+    if (!await Session.loadPageAt(session.id, target.index)) return
     await nextTick()
   }
   timeline.value?.jumpToMessage(messageId)

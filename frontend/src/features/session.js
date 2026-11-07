@@ -255,17 +255,36 @@ async function loadOlder(sessionID) {
   }
 }
 
-// --- 定位到尚未加载的轮次：按页补到目标下标 ---
-async function loadThrough(sessionID, targetIndex) {
+// --- 定位到尚未加载的轮次：直接换成包含目标的一页，不把中间历史全挂上 ---
+async function loadPageAt(sessionID, targetIndex) {
   const session = store.sessions[sessionID]
   if (!session) return false
-  let guard = 0
-  while ((session.historyStart || 0) > targetIndex && guard++ < 100) {
-    const before = session.historyStart
-    if (!await loadOlder(sessionID)) return false
-    if (session.historyStart >= before) return false
+  try {
+    const before = Math.min(session.historyTotal || targetIndex + 200, targetIndex + 200)
+    const page = await AgentAPI.getSessionHistory(sessionID, before, 200)
+    const visible = (page.messages || []).filter(message => !message.internal)
+    const normalized = normalize({
+      ...session,
+      history: visible,
+      historyStart: page.start,
+      historyTotal: page.total,
+      running: false,
+      pending: [],
+      toolTimings: {},
+    })
+    session.messages = normalized.messages
+    session.historyStart = page.start
+    session.historyTotal = page.total
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
   }
-  return true
+}
+
+// --- 兼容按页补到目标的旧入口 ---
+async function loadThrough(sessionID, targetIndex) {
+  return loadPageAt(sessionID, targetIndex)
 }
 
 async function previewRollback(sessionID, messageID) {
@@ -575,4 +594,4 @@ function serverSummaryOf(session) {
   }
 }
 
-export const Session = { locate, list, reload, create, read, rename, remove, removeMany, selectModel, saveSettings, setReasoning, setCwd, loadOlder, loadThrough }
+export const Session = { locate, list, reload, create, read, rename, remove, removeMany, selectModel, saveSettings, setReasoning, setCwd, loadOlder, loadPageAt, loadThrough }
