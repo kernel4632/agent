@@ -33,7 +33,12 @@ const exists = async path => {
 
 const managed = path => {
     const target = resolve(String(path || ''))
-    return Path.samePath(dirname(target), base()) && basename(target).startsWith(PREFIX)
+    const parent = dirname(target)
+    const name = basename(target)
+    if (Path.samePath(parent, base()) && name.startsWith(PREFIX)) return true
+    // 兼容旧版本直接放在系统临时目录根部的 agent-session-*。
+    if (Path.samePath(parent, resolve(tmpdir())) && name.startsWith('agent-session-')) return true
+    return false
 }
 
 const create = async () => {
