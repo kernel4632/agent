@@ -12,6 +12,7 @@
 import { Elysia } from 'elysia'
 import Capabilities from './commands/capabilities.js'
 import Chat from './commands/chat.js'
+import Filesystem from './commands/filesystem.js'
 import Session from './commands/session.js'
 import Settings from './commands/settings.js'
 import StorageCommand from './commands/storage.js'
@@ -138,6 +139,9 @@ app.group('/config', config => config
     .post('/import', ({ body }) => Settings.importConfig(body || {}))
     .patch('/set', ({ body }) => Settings.set(body))
     .post('/test', ({ body }) => Settings.test(body || {})))
+
+// --- 文件系统浏览：设置页路径选择器用，只读目录/文件列表 ---
+app.get('/filesystem/entries', ({ query }) => Filesystem.entries(query))
 
 // --- 存储位置：会话数据可以单独放到其他磁盘，迁移在下次启动执行 ---
 app.group('/storage', storage => storage

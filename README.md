@@ -6,7 +6,7 @@
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，45 个接口，`bun test` 覆盖每条路由 |
+| `server/` | 可用 | Bun + Elysia 服务端，46 个接口，`bun test` 覆盖每条路由 |
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
@@ -67,7 +67,7 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 ## HTTP API
 
-服务端公开 42 个地址、45 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法，`/storage/sessions` 有 GET、PUT、DELETE 三个方法）：
+服务端公开 43 个地址、46 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法，`/storage/sessions` 有 GET、PUT、DELETE 三个方法）：
 
 | 方法 | 地址 | 说明 |
 | --- | --- | --- |

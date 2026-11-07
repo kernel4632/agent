@@ -348,6 +348,7 @@ bun start
 
 | 方法 | 地址 | 参数 | 结果 |
 | --- | --- | --- | --- |
+| `GET` | `/filesystem/entries` | `path`、`mode=directory\|file` | 只读列一层目录/文件，供路径选择器使用；不读取文件内容 |
 | `GET` | `/storage/sessions` | 无 | `{ path, defaultPath, envOverride, pending, error, lastMove }` |
 | `PUT` | `/storage/sessions` | `{ "path": "D:\\AgentSessions" }` | 只写入待迁移标记；重启后复制并切换，目标必须是空目录 |
 | `DELETE` | `/storage/sessions` | 无 | 取消尚未执行的迁移 |
