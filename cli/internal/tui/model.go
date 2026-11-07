@@ -8,16 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 	"github.com/kernel4632/agent/cli/internal/api"
 	"github.com/kernel4632/agent/cli/internal/chat"
+)
+
+const (
+	focusInput = iota
+	focusTranscript
+	focusOverlay
 )
 
 type permissionMsg struct {
@@ -36,19 +42,38 @@ type commandMsg struct {
 }
 
 type model struct {
-	ctx                                                                  context.Context
-	client                                                               *api.Client
-	session                                                              api.Session
-	input                                                                textarea.Model
-	viewport                                                             viewport.Model
-	updates                                                              chan tea.Msg
-	cancel                                                               context.CancelFunc
-	runDone                                                              chan struct{}
-	running, busy, quitting                                              bool
-	permission                                                           *permissionMsg
-	width, height                                                        int
-	status, notice, panel, liveText, liveReasoning, liveLog, lastControl string
-	showReasoning                                                        bool
+	ctx                                                                               context.Context
+	client                                                                            *api.Client
+	session                                                                           api.Session
+	input                                                                             textarea.Model
+	viewport                                                                          viewport.Model
+	updates                                                                           chan tea.Msg
+	cancel                                                                            context.CancelFunc
+	runDone                                                                           chan struct{}
+	running, busy, quitting                                                           bool
+	permission                                                                        *permissionMsg
+	width, height                                                                     int
+	status, notice, panel, liveText, liveReasoning, liveLog, lastControl, finalAnswer string
+	showReasoning                                                                     bool
+	focus                                                                             int
+	overlay                                                                           overlayState
+	tools                                                                             map[string]api.Tool
+	config                                                                            api.Config
+	steps                                                                             []liveStep
+	lastUsage                                                                         usageSnap
+	todos                                                                             []api.Todo
+	open                                                                              map[string]bool
+	blocks                                                                            []block
+	selected                                                                          int
+	selectedID                                                                        string
+	choiceAt                                                                          int
+	choiceFor                                                                         string
+	choiceWrite                                                                       bool
+	llmStarted, firstTokenAt                                                          int64
+	spans                                                                             []blockSpan
+	frameTop, frameVP, statsWidth                                                     int
+	suggestAt                                                                         int
+	suggestQuery, suggestMute                                                         string
 }
 
 func CheckTerminal() error {
@@ -78,24 +103,48 @@ func Run(ctx context.Context, client *api.Client, session api.Session) error {
 
 func newModel(ctx context.Context, client *api.Client, session api.Session) *model {
 	input := textarea.New()
-	input.Placeholder = "输入消息，或 /help 查看命令"
+	styles := textarea.DefaultDarkStyles()
+	styles.Focused.CursorLine = lipgloss.NewStyle()
+	styles.Blurred.CursorLine = lipgloss.NewStyle()
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
+	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styles.Cursor.Shape = tea.CursorBar
+	input.SetStyles(styles)
+	// 输入法预编辑跟着终端光标。假光标不会上报位置，真实光标就留在最后一行，中文会先出现在底栏。
+	input.SetVirtualCursor(false)
+	input.Placeholder = "输入消息，/ 查看命令"
 	input.ShowLineNumbers = false
-	input.Prompt = "› "
+	input.EndOfBufferCharacter = ' '
+	input.Prompt = "> "
+	input.SetPromptFunc(2, func(info textarea.PromptInfo) string {
+		if info.LineNumber == 0 {
+			return "> "
+		}
+		return "  "
+	})
 	input.CharLimit = 100000
-	input.SetHeight(3)
+	input.DynamicHeight = true
+	input.MinHeight = 1
+	input.MaxHeight = 6
+	input.SetHeight(1)
 	input.SetWidth(78)
 	input.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("alt+enter", "shift+enter", "ctrl+j"))
 	view := viewport.New(viewport.WithWidth(78), viewport.WithHeight(15))
 	view.SoftWrap = true
 	view.FillHeight = true
 	m := &model{ctx: ctx, client: client, session: session, input: input, viewport: view,
-		updates: make(chan tea.Msg, 128), width: 80, height: 25, status: "就绪"}
+		updates: make(chan tea.Msg, 128), width: 80, height: 25, status: "就绪",
+		tools: map[string]api.Tool{}, open: map[string]bool{}}
+	m.todos = parseTodos(session.Todos)
+	m.lastUsage = usageFromHistory(session.History)
 	m.renderConversation(true)
 	return m
 }
 
 func (m *model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.input.Focus(), m.wait()}
+	cmds := []tea.Cmd{m.input.Focus(), m.wait(), m.loadMeta()}
 	if m.session.Running || len(m.session.Pending) > 0 {
 		cmds = append(cmds, m.begin("watch", ""))
 	}
@@ -117,7 +166,8 @@ func (m *model) begin(action, input string) tea.Cmd {
 	m.running = true
 	m.status, m.notice = "正在运行…", ""
 	m.panel = ""
-	m.liveText, m.liveReasoning, m.liveLog, m.lastControl = "", "", "", ""
+	m.liveText, m.liveReasoning, m.liveLog, m.lastControl, m.finalAnswer = "", "", "", "", ""
+	m.steps = nil
 	initial := m.session
 	if action == "send" {
 		content, _ := json.Marshal(input)
@@ -172,16 +222,32 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.input.SetWidth(max(10, msg.Width-2))
-		m.viewport.SetWidth(max(10, msg.Width-2))
-		m.viewport.SetHeight(max(2, msg.Height-10))
+		limit := max(3, min(10, msg.Height/4))
+		m.input.MaxHeight = limit
+		if m.input.Height() > limit {
+			m.input.SetHeight(limit)
+		}
 		m.renderConversation(false)
+	case tea.MouseWheelMsg:
+		switch msg.Button {
+		case tea.MouseWheelUp:
+			m.viewport.ScrollUp(3)
+		case tea.MouseWheelDown:
+			m.viewport.ScrollDown(3)
+		}
+		return m, nil
+	case tea.MouseClickMsg:
+		if cmd, handled := m.click(msg); handled {
+			return m, cmd
+		}
 	case api.Event:
 		m.event(msg)
 		m.renderConversation(false)
 		return m, m.wait()
 	case snapshotMsg:
-		m.session = api.Session(msg)
-		m.liveText, m.liveReasoning, m.liveLog, m.lastControl = "", "", "", ""
+		m.adopt(api.Session(msg))
+		m.liveText, m.liveReasoning, m.liveLog, m.lastControl, m.finalAnswer = "", "", "", "", ""
+		m.steps = nil
 		m.renderConversation(false)
 		return m, m.wait()
 	case permissionMsg:
@@ -193,8 +259,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.running, m.permission, m.cancel = false, nil, nil
 		m.status = "就绪"
 		if msg.session.ID != "" {
-			m.session = msg.session
-			m.liveText, m.liveReasoning, m.liveLog = "", "", ""
+			m.adopt(msg.session)
+			m.liveText, m.liveReasoning, m.liveLog, m.finalAnswer = "", "", "", ""
+			m.steps = nil
 		}
 		if msg.err != nil {
 			m.notice = msg.err.Error()
@@ -209,82 +276,129 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.wait()
 	case commandMsg:
 		m.busy = false
+		m.closeOverlay()
 		if msg.err != nil {
 			m.notice = msg.err.Error()
 		} else {
 			m.notice = ""
-			m.panel = msg.text
-			if msg.session.ID != "" {
-				m.session = msg.session
-				m.liveText, m.liveReasoning, m.liveLog = "", "", ""
-				if msg.session.Running || len(msg.session.Pending) > 0 {
-					return m, m.begin("watch", "")
+			if msg.session.ID == "" {
+				m.panel = msg.text
+			} else {
+				m.panel = ""
+				if msg.text != "" {
+					m.notice = msg.text
 				}
+				m.adopt(msg.session)
+				m.liveText, m.liveReasoning, m.liveLog, m.finalAnswer = "", "", "", ""
+				m.steps = nil
+				m.renderConversation(true)
+				if msg.session.Running || len(msg.session.Pending) > 0 {
+					return m, tea.Batch(m.begin("watch", ""), m.input.Focus())
+				}
+				return m, m.input.Focus()
 			}
 		}
 		m.renderConversation(true)
+		return m, m.input.Focus()
+	case readyMsg:
+		if msg.failed != "" {
+			if m.overlay.kind != "" {
+				m.overlay.loading = false
+				m.overlay.err = msg.failed
+			} else {
+				m.notice = msg.failed
+			}
+		} else if msg.configOnly {
+			m.config = msg.config
+			m.overlay.models = m.modelChoices()
+			m.overlay.loading = false
+		} else {
+			m.tools = map[string]api.Tool{}
+			for _, tool := range msg.tools {
+				m.tools[tool.Name] = tool
+			}
+			m.config = msg.config
+		}
+		m.renderConversation(false)
+		return m, nil
+	case sessionsMsg:
+		m.overlay.loading = false
+		m.overlay.sessions = msg.list
+		m.overlay.err = errString(msg.err)
+		m.clampOverlay()
+		m.renderConversation(true)
+		return m, nil
+	case changesMsg:
+		m.overlay.loading = false
+		m.overlay.changes = msg.files
+		m.overlay.err = errString(msg.err)
+		m.renderConversation(true)
+		return m, nil
+	case previewMsg:
+		m.overlay.loading = false
+		if msg.err != nil {
+			m.overlay.err = msg.err.Error()
+		} else {
+			m.overlay.preview = &msg.preview
+		}
+		m.renderConversation(true)
+		return m, nil
+	case dirMsg:
+		m.overlay.loading = false
+		if msg.err != nil {
+			m.overlay.err = msg.err.Error()
+		} else {
+			m.overlay.dir = &msg.dir
+			m.overlay.err = ""
+			m.overlay.index = 0
+		}
+		m.renderConversation(true)
+		return m, nil
+	case copiedMsg:
+		if msg.err != nil {
+			m.notice = "无法写入剪贴板：" + msg.err.Error()
+		} else {
+			m.notice = "已复制"
+		}
+		m.renderConversation(false)
 		return m, nil
 	case tea.KeyPressMsg:
-		key := msg.String()
-		if key == "ctrl+c" || key == "ctrl+q" {
-			if m.running {
-				m.quitting = key == "ctrl+q"
-				m.status = "正在停止并保存…"
-				if m.cancel != nil {
-					m.cancel()
-				}
-				return m, nil
-			}
-			return m, tea.Quit
-		}
-		if key == "pgup" || key == "pgdown" {
-			if key == "pgup" {
-				m.viewport.PageUp()
-			} else {
-				m.viewport.PageDown()
-			}
-			return m, nil
-		}
-		if key == "ctrl+r" {
-			m.showReasoning = !m.showReasoning
-			m.renderConversation(false)
-			return m, nil
-		}
-		if key == "esc" && m.running {
-			m.status = "正在停止并保存…"
-			if m.cancel != nil {
-				m.cancel()
-			}
-			return m, nil
-		}
-		if m.permission != nil {
-			decision := map[string]string{"y": "allow-once", "a": "allow-always", "n": "deny"}[key]
-			if decision != "" {
-				m.permission.reply <- decision
-				m.permission = nil
-				m.status = "正在运行…"
-				m.renderConversation(false)
-			}
-			return m, nil
-		}
-		if key == "enter" {
-			if m.running || m.busy {
-				return m, nil
-			}
-			text := strings.TrimSpace(m.input.Value())
-			if text == "" {
-				return m, nil
-			}
-			m.input.Reset()
-			if strings.HasPrefix(text, "/") {
-				return m, m.slash(text)
-			}
-			return m, m.begin("send", text)
+		if cmd, handled := m.handleKey(msg); handled {
+			return m, cmd
 		}
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	return m, cmd
+}
+
+func (m *model) adopt(session api.Session) {
+	if session.ID == "" {
+		return
+	}
+	m.session = session
+	if items := parseTodos(session.Todos); len(items) > 0 || len(session.Todos) > 0 {
+		m.todos = items
+	}
+	if usage := usageFromHistory(session.History); usage.Input+usage.Output > 0 {
+		m.lastUsage = usage
+	}
+}
+
+func (m *model) liveTool(id, name string) *liveTool {
+	for i := len(m.steps) - 1; i >= 0; i-- {
+		tool := m.steps[i].tool
+		if tool == nil {
+			continue
+		}
+		if id != "" && tool.id == id {
+			return tool
+		}
+		if id == "" && name != "" && tool.name == name && tool.running {
+			return tool
+		}
+	}
+	return nil
 }
 
 func (m *model) event(e api.Event) {
@@ -298,37 +412,72 @@ func (m *model) event(e api.Event) {
 		m.liveReasoning += e.Text
 	case "llm-start":
 		if m.liveText != "" {
-			m.liveLog += "\n" + m.liveText + "\n"
+			m.steps = append(m.steps, liveStep{kind: "text", text: m.liveText})
+			m.liveText = ""
 		}
-		m.liveText = ""
+		if m.liveReasoning != "" {
+			m.steps = append(m.steps, liveStep{kind: "reasoning", text: m.liveReasoning})
+			m.liveReasoning = ""
+		}
 		m.status = "正在请求模型…"
+		m.llmStarted = e.StartedAt
+		if m.llmStarted == 0 {
+			m.llmStarted = time.Now().UnixMilli()
+		}
+		m.firstTokenAt = 0
+	case "llm-first-token":
+		m.firstTokenAt = e.FirstTokenAt
+		if m.firstTokenAt == 0 && e.FirstTokenMs > 0 && m.llmStarted > 0 {
+			m.firstTokenAt = m.llmStarted + e.FirstTokenMs
+		}
+		if m.firstTokenAt == 0 {
+			m.firstTokenAt = time.Now().UnixMilli()
+		}
 	case "llm-finish":
 		if e.Text != "" {
 			m.liveText = e.Text
 		}
-		var usage struct{ Input, Output, CacheRead, Reasoning int }
-		if json.Unmarshal(e.Usage, &usage) == nil {
-			m.status = fmt.Sprintf("输入 %d · 输出 %d · 缓存 %d · 思考 %d tokens", usage.Input, usage.Output, usage.CacheRead, usage.Reasoning)
+		if usage := parseUsage(e.Usage); usage.Input+usage.Output > 0 {
+			m.lastUsage = usage
 		}
 	case "tool-call":
 		if m.liveText != "" {
-			m.liveLog += "\n" + m.liveText + "\n"
+			m.steps = append(m.steps, liveStep{kind: "text", text: m.liveText})
 			m.liveText = ""
 		}
 		if answer := chat.ControlAnswer(e.ToolName, e.Input); answer != "" {
-			m.liveLog += "\n" + answer + "\n"
+			m.finalAnswer = answer
 			m.lastControl = e.ToolCallID
-		} else {
-			m.liveLog += "\n[工具] " + e.ToolName + " " + string(e.Input) + "\n"
+			break
 		}
+		tool := &liveTool{id: e.ToolCallID, name: e.ToolName, input: e.Input, running: true, started: time.Now()}
+		if e.StartedAt > 0 {
+			tool.started = time.UnixMilli(e.StartedAt)
+		}
+		m.steps = append(m.steps, liveStep{kind: "tool", tool: tool})
 	case "tool-result":
-		if e.ToolCallID != m.lastControl {
-			m.liveLog += "\n[结果] " + e.ToolName + "\n" + chat.Output(e.Output) + "\n"
+		if tool := m.liveTool(e.ToolCallID, e.ToolName); tool != nil {
+			tool.running = false
+			tool.result = e.Output
+			if e.DurationMs > 0 {
+				tool.duration = time.Duration(e.DurationMs) * time.Millisecond
+			} else if !tool.started.IsZero() {
+				tool.duration = time.Since(tool.started)
+			}
+		}
+		if e.ToolName == "update_todo_list" {
+			if items := todosFromOutput(e.Output); len(items) > 0 {
+				m.todos = items
+			}
 		}
 	case "tool-output":
-		m.liveLog += chat.Output(e.Data)
+		if tool := m.liveTool(e.ToolCallID, e.ToolName); tool != nil {
+			tool.stream.WriteString(chat.Output(e.Data))
+		}
 	case "permission-blocked", "permission-limit":
-		m.liveLog += "\n" + e.Reason + "\n"
+		if e.Reason != "" {
+			m.notice = e.Reason
+		}
 	case "title":
 		m.session.Title = e.Title
 	case "reconnecting":
