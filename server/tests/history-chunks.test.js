@@ -85,8 +85,27 @@ describe('会话历史分块', () => {
         })
     })
 
-    test('大纲宽度按原文长度算，并包含结束工具的最终输出', async () => {
+    test('分块优先从上下文压缩点切开，活跃历史从摘要开始', async () => {
         await withHome(async root => {
+            const session = await History.create({ title: '压缩切块', cwd: root, settings: { reasoning: 'auto' } })
+            for (let index = 0; index < 1000; index += 1) {
+                const item = message(index)
+                if (index === 600) item.compact = true
+                await History.add({ sessionId: session.id, message: item })
+            }
+            await History.save(session.id)
+
+            const index = JSON.parse(await readFile(Path.historyIndex(session.id), 'utf8'))
+            const active = JSON.parse(await readFile(Path.history(session.id), 'utf8'))
+            expect(index.format).toBe(2)
+            expect(index.archives).toHaveLength(1)
+            expect(index.archives[0].count).toBe(600)
+            expect(active.messages[0].message.compact).toBe(true)
+            expect(active.messages).toHaveLength(400)
+        })
+    })
+
+    test('大纲宽度按原文长度算，并包含结束工具的最终输出', async () => {        await withHome(async root => {
             const session = await History.create({ title: '宽度', cwd: root, settings: { reasoning: 'auto' } })
             await History.add({
                 sessionId: session.id,

@@ -27,7 +27,7 @@ import fail from '../utils/fail.js'
 // 活跃文件只保留最近这么多条消息，更早的封存到 history/ 分块里。
 // 这样每轮保存只重写一个大小有上限的 history.json，而不是整段会话。
 const ACTIVE_MESSAGES = 400
-const ARCHIVE_BATCH = 200
+const ARCHIVE_FORMAT = 2
 
 // meta.json 里的会话资料；读写两边都用同一份字段表，加上运行标记也不会互相走样。
 const META_FIELDS = ['id', 'title', 'cwd', 'temporary', 'model', 'createdAt', 'updatedAt', 'running']
@@ -64,7 +64,7 @@ const readSessionFile = async (file, fallback, label) => {
 const readArchives = async sessionId => {
     const index = await readSessionFile(Path.historyIndex(sessionId), null, 'history-index.json')
     if (!index || !Array.isArray(index.archives) || !index.archives.length) {
-        return { records: [], archives: [] }
+        return { records: [], archives: [], format: index?.format || 0 }
     }
     const records = []
     for (const archive of index.archives) {
@@ -75,7 +75,7 @@ const readArchives = async sessionId => {
         }
         records.push(...chunk.messages)
     }
-    return { records, archives: index.archives }
+    return { records, archives: index.archives, format: index.format || 0 }
 }
 
 const load = async sessionId => {
@@ -105,6 +105,7 @@ const load = async sessionId => {
         redo: Array.isArray(rawHistory?.redo) ? rawHistory.redo : [],
         activeStart: archived.records.length,
         archives: archived.archives,
+        format: archived.format,
     }
 
     const session = {
@@ -137,7 +138,7 @@ const create = async ({ title, cwd, temporary, provider, model, settings }) => {
         createdAt: now,
         updatedAt: now,
         running: false,
-        history: { messages: [], redo: [], activeStart: 0, archives: [] },
+        history: { messages: [], redo: [], activeStart: 0, archives: [], format: ARCHIVE_FORMAT },
         settings,
     }
     store.sessions[id] = session
@@ -146,6 +147,7 @@ const create = async ({ title, cwd, temporary, provider, model, settings }) => {
 }
 
 // --- 把超出活跃窗口的消息封存到新分块；分块一旦写完就不再修改 ---
+// 优先在上下文压缩的 compact 消息处切开：一个分块就是两段压缩之间的一段历史。
 const archiveActive = async session => {
     const messages = session.history.messages
     if (!Number.isInteger(session.history.activeStart)) session.history.activeStart = 0
@@ -154,16 +156,31 @@ const archiveActive = async session => {
     const lastArchived = session.history.archives.at(-1)?.last
     const prefixMatches = activeStart === 0
         || (activeStart <= messages.length && messages[activeStart - 1]?.messageId === lastArchived)
-    if (!prefixMatches) {
-        // 回退跨过了封存边界：旧分块里的消息已经不属于当前时间线，整体重建。
+    const formatMatches = session.history.format === ARCHIVE_FORMAT
+    if (!prefixMatches || !formatMatches) {
+        // 旧分块按固定条数切，或回退跨过了封存边界：用当前完整时间线重建。
         await rm(Path.historyArchives(session.id), { recursive: true, force: true })
         session.history.archives = []
+        session.history.format = ARCHIVE_FORMAT
         activeStart = 0
     }
     await mkdir(Path.historyArchives(session.id), { recursive: true })
     while (messages.length - activeStart > ACTIVE_MESSAGES) {
-        const take = Math.min(ARCHIVE_BATCH, messages.length - activeStart - ACTIVE_MESSAGES)
-        const batch = messages.slice(activeStart, activeStart + take)
+        const limit = messages.length - ACTIVE_MESSAGES
+        let cut = -1
+        // 最后一个压缩点优先作为切点；分块从摘要之后重新开始。
+        for (let index = activeStart + 1; index <= limit; index += 1) {
+            if (messages[index]?.message?.compact) cut = index
+        }
+        if (cut < 0) {
+            // 没有压缩点就退到用户轮次边界，避免把一轮拆开。
+            for (let index = limit; index > activeStart; index -= 1) {
+                if (messages[index]?.message?.role === 'user') { cut = index; break }
+            }
+        }
+        if (cut < 0) cut = limit
+        const batch = messages.slice(activeStart, cut)
+        if (!batch.length) break
         const file = `${String(session.history.archives.length + 1).padStart(6, '0')}.json`
         await writeFile(join(Path.historyArchives(session.id), file), JSON.stringify({ messages: batch }, null, 2))
         session.history.archives.push({
@@ -172,9 +189,10 @@ const archiveActive = async session => {
             first: batch[0]?.messageId || '',
             last: batch.at(-1)?.messageId || '',
         })
-        activeStart += take
+        activeStart = cut
     }
     session.history.activeStart = activeStart
+    session.history.format = ARCHIVE_FORMAT
 }
 
 // --- 保存一条会话（元数据、活跃历史、设置） ---
@@ -186,6 +204,7 @@ const save = async sessionId => {
     await archiveActive(session)
     const active = session.history.messages.slice(session.history.activeStart)
     await writeFile(Path.historyIndex(sessionId), JSON.stringify({
+        format: ARCHIVE_FORMAT,
         activeStart: session.history.activeStart,
         archives: session.history.archives,
     }, null, 2))

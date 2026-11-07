@@ -64,7 +64,7 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
   sessions/<id>/       每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
     history.json       活跃历史，只保留最近 400 条
-    history/           更早历史的只读分块
+    history/           更早历史的只读分块；优先在上下文压缩点切开
     history-index.json 活跃历史和分块索引
     settings.json      思考强度
     tool-timings.json  工具开始/结束时间，刷新后恢复计时
