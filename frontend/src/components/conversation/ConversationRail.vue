@@ -98,7 +98,7 @@ const nodes = computed(() => {
     seen.add(turn.id)
     return {
       id: turn.id,
-      length: prompt.length + response.length,
+      length: Number.isFinite(turn.length) ? turn.length : prompt.length + response.length,
       prompt,
       response,
       title: `${turn.role === 'assistant' ? '回答' : '你'}：${(prompt || response).slice(0, 120)}`,

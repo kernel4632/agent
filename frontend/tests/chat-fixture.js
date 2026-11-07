@@ -409,12 +409,14 @@ export async function backend(page, { configured = true } = {}) {
           ? message.content.filter(part => part.type === 'text').map(part => part.text || '').join(' ')
           : String(message.content || '')
         if (message.role === 'user') {
-          current = { id: message.messageId, index, role: 'user', prompt: text.slice(0, 120), response: '' }
+          current = { id: message.messageId, index, role: 'user', prompt: text.slice(0, 120), response: '', length: text.length }
           turns.push(current)
         } else if (message.role === 'assistant') {
-          if (current && !current.response) current.response = text.slice(0, 240)
-          else if (!current) {
-            current = { id: message.messageId, index, role: 'assistant', prompt: '', response: text.slice(0, 240) }
+          if (current && !current.response) {
+            current.response = text.slice(0, 240)
+            current.length = (current.length || 0) + text.length
+          } else if (!current) {
+            current = { id: message.messageId, index, role: 'assistant', prompt: '', response: text.slice(0, 240), length: text.length }
             turns.push(current)
           }
         }

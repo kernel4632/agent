@@ -330,6 +330,26 @@ const plainText = message => {
     return String(text || (typeof message?.content === 'string' ? message.content : '')).replace(/\s+/g, ' ').trim()
 }
 
+const outputText = output => {
+    if (typeof output === 'string') return output
+    if (typeof output?.value === 'string') return output.value
+    if (typeof output?.value?.text === 'string') return output.value.text
+    if (typeof output?.text === 'string') return output.text
+    return ''
+}
+
+// 和右侧定位条的回答预览保持一致：优先取结束工具的最终输出。
+const answerText = message => {
+    const parts = Array.isArray(message?.content) ? message.content : []
+    for (const part of parts) {
+        if (part?.type !== 'tool-result') continue
+        if (!['attempt_completion', 'ask_followup_question'].includes(part.toolName)) continue
+        const text = outputText(part.output)
+        if (text) return String(text).replace(/\s+/g, ' ').trim()
+    }
+    return ''
+}
+
 // --- 整个会话的轮次大纲：只带预览，不带正文 ---
 const outline = async sessionId => {
     await load(sessionId)
@@ -339,24 +359,29 @@ const outline = async sessionId => {
         const message = record.message
         if (!message || message.compact) continue
         if (message.role === 'user') {
+            const prompt = plainText(message)
             current = {
                 id: record.messageId,
                 index,
                 role: 'user',
-                prompt: plainText(message).slice(0, 120),
+                prompt: prompt.slice(0, 120),
                 response: '',
+                length: prompt.length,
             }
             turns.push(current)
         } else if (message.role === 'assistant') {
-            const text = plainText(message)
-            if (current && !current.response) current.response = text.slice(0, 240)
-            else if (!current) {
+            const text = answerText(message)
+            if (current && !current.response) {
+                current.response = text.slice(0, 240)
+                current.length = (current.length || 0) + text.length
+            } else if (!current) {
                 current = {
                     id: record.messageId,
                     index,
                     role: 'assistant',
                     prompt: '',
                     response: text.slice(0, 240),
+                    length: text.length,
                 }
                 turns.push(current)
             }

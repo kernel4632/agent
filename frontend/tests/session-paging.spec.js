@@ -45,5 +45,10 @@ test('long session loads history pages and keeps the full outline', async ({ pag
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 0 轮' })).toBeInViewport()
   expect(await page.locator('.rikka-bubble--user').count()).toBeLessThan(225)
   expect(await rail.getAttribute('aria-valuemax')).toBe('225')
+
+  // 从第一页直接跳到最后一轮，也必须加载目标页并真正滚过去。
+  await rail.press('End')
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 224 轮' })).toBeInViewport()
+  expect(await rail.getAttribute('aria-valuemax')).toBe('225')
   expect(mock.errors).toEqual([])
 })

@@ -35,9 +35,13 @@ defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
 async function jumpToMessage(messageId) {
   const session = props.session
   const target = session?.outline?.find(turn => turn.id === messageId)
-  if (session && target && target.index < (session.historyStart || 0)) {
-    if (!await Session.loadPageAt(session.id, target.index)) return
-    await nextTick()
+  if (session && target) {
+    const start = session.historyStart || 0
+    const end = start + (session.messages?.length || 0)
+    if (target.index < start || target.index >= end) {
+      if (!await Session.loadPageAt(session.id, target.index)) return
+      await nextTick()
+    }
   }
   timeline.value?.jumpToMessage(messageId)
 }
