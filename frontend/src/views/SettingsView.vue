@@ -65,7 +65,8 @@ const detail = computed(() => store.ui.settingsDetail)
 const detailBadge = layer => {
   if (layer.page?.id !== 'providers' || !layer.detail || !draft.value) return ''
   const provider = draft.value.providers.find(item => item.id === layer.detail.id)
-  return PROVIDER_TYPES.find(item => item.value === provider?.apiType)?.label || ''
+  const label = PROVIDER_TYPES.find(item => item.value === provider?.apiType)?.label || ''
+  return label && label !== String(layer.title || '').trim() ? label : ''
 }
 const layers = computed(() => {
   const pages = [{ key: 'home', title: '设置', page: null, detail: null }]
@@ -160,9 +161,10 @@ function goBack() {
         <header class="settings-topbar">
           <div class="settings-topbar__inner">
             <div class="settings-topbar__actions">
-              <Button icon label="返回" @click="goBack"><Icon name="arrow" :size="18" class="settings-back-icon" /></Button>
+              <Button icon class="settings-back" label="返回" title="返回" @click="goBack"><Icon name="arrow" :size="18" class="settings-back-icon" /></Button>
             </div>
             <div class="settings-topbar__heading"><h1 :title="layer.title" tabindex="-1">{{ layer.title }}</h1><span v-if="detailBadge(layer)" class="settings-topbar__badge">{{ detailBadge(layer) }}</span></div>
+            <p v-if="!layer.page" class="settings-topbar__hint">所有修改会实时保存并生效</p>
           </div>
         </header>
 

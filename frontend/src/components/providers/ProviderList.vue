@@ -4,7 +4,7 @@
 调用示例：<ProviderList :draft="draft" :detail="detail" @open-detail="..." @close-detail="..." @update-detail-title="..." />
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
@@ -25,22 +25,38 @@ const filtered = computed(() => {
 })
 const typeLabel = type => PROVIDER_TYPES.find(item => item.value === type)?.label || type
 
-const selected = computed(() => props.detail
-  ? props.draft.providers.find(item => item.id === props.detail.id) ?? null
-  : null)
+const selected = computed(() => {
+  if (!props.detail) return null
+  return props.draft.providers.find(item => item.id === props.detail.id)
+    ?? (props.draft.pendingProvider?.id === props.detail.id ? props.draft.pendingProvider : null)
+})
 
 function addProvider(type) {
-  const providers = props.draft.providers
-  const provider = Provider.createDraft(type, providers)
-  providers.unshift(provider)
+  const provider = Provider.createDraft(type, props.draft.providers)
+  // 新供应商先不写进 providers；第一次真正修改时才落进去，避免返回时留下空供应商。
+  props.draft.pendingProvider = provider
   search.value = ''
   addOpen.value = false
   emit('open-detail', { id: provider.id, title: provider.name })
 }
 
+watch(() => props.detail, (next) => {
+  const pending = props.draft.pendingProvider
+  if (pending && next?.id !== pending.id) props.draft.pendingProvider = null
+})
+
+onBeforeUnmount(() => {
+  if (props.detail?.id === props.draft.pendingProvider?.id) props.draft.pendingProvider = null
+})
+
 function updateProvider(updated) {
   const providers = props.draft.providers
-  const index = providers.findIndex(item => item.id === updated.id)
+  let index = providers.findIndex(item => item.id === updated.id)
+  if (index < 0 && props.draft.pendingProvider?.id === updated.id) {
+    providers.unshift(updated)
+    props.draft.pendingProvider = null
+    index = 0
+  }
   if (index < 0) return
   // 改名或移除模型后，任务模型的指向也跟着更新，保存后不会指向已不存在的供应商。
   for (const target of Object.values(props.draft.models)) {
@@ -53,6 +69,11 @@ function updateProvider(updated) {
 }
 
 function removeProvider() {
+  if (props.draft.pendingProvider?.id === props.detail?.id) {
+    props.draft.pendingProvider = null
+    emit('close-detail')
+    return
+  }
   const providers = props.draft.providers
   const index = providers.findIndex(item => item.id === props.detail?.id)
   for (const target of Object.values(props.draft.models)) {
@@ -66,10 +87,10 @@ function removeProvider() {
 <template>
   <section v-if="!detail" class="provider-list" aria-label="模型供应商">
     <header class="provider-list__head">
-      <Field v-model="search" type="search" label="搜索供应商" placeholder="搜索供应商" clearable>
+      <Field v-model="search" class="app-search" type="search" label="搜索供应商" placeholder="搜索供应商" clearable>
         <template #leading><Icon name="search" /></template>
       </Field>
-      <Button icon variant="tonal" label="添加供应商" class="provider-list__add" @click="addOpen = true"><Icon name="plus" :size="24" /></Button>
+      <Button icon variant="tonal" label="添加供应商" title="添加供应商" class="app-add-button" @click="addOpen = true"><Icon name="plus" :size="24" /></Button>
     </header>
     <p class="provider-list__count">{{ search.trim() ? `找到 ${filtered.length} 个供应商` : `${draft.providers.length} 个供应商` }}</p>
 

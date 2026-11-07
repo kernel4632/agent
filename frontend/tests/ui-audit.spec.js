@@ -1734,6 +1734,35 @@ test('data settings lists config backups and exports masked config', async ({ pa
   expect(mock.errors).toEqual([])
 })
 
+test('untouched provider draft is discarded on back', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await expect(page.getByText('所有修改会实时保存并生效')).toBeVisible()
+  await page.getByRole('button', { name: /模型供应商/ }).click()
+  const before = mock.config().providers.length
+  await page.getByRole('button', { name: '添加供应商', exact: true }).click()
+  const add = page.getByRole('dialog', { name: '添加供应商', exact: true })
+  await add.getByRole('button', { name: /OpenAI Responses/ }).click()
+  await expect(page.getByRole('textbox', { name: '供应商名', exact: true })).toHaveValue('OpenAI Responses')
+  await expect(page.locator('.settings-topbar__badge')).toHaveCount(0)
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '模型供应商', exact: true, level: 1 })).toBeVisible()
+  await page.waitForTimeout(800)
+  expect(mock.config().providers).toHaveLength(before)
+
+  // 真正编辑后才进入草稿，不会因为“先选类型再看一眼”留下空供应商。
+  await page.getByRole('button', { name: '添加供应商', exact: true }).click()
+  await add.getByRole('button', { name: /OpenAI Responses/ }).click()
+  await page.waitForTimeout(350)
+  await page.getByRole('textbox', { name: '供应商名', exact: true }).fill('Edge Provider')
+  await expect.poll(() => mock.config().providers.length).toBe(before + 1)
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '模型供应商', exact: true, level: 1 })).toBeVisible()
+  await expect(page.locator('.provider-row').filter({ hasText: 'Edge Provider' })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
 test('model cards expand independently', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -1774,7 +1803,8 @@ test('session groups move a session through the row menu', async ({ page }) => {
 
   const row = drawer.locator('.home-session').last()
   await row.getByRole('button', { name: /更多操作/ }).click()
-  await page.getByRole('menuitem', { name: '移到「工作」', exact: true }).click()
+  await page.getByRole('menuitem', { name: '移动到分组…', exact: true }).click()
+  await page.getByRole('dialog', { name: '移动到分组', exact: true }).getByRole('button', { name: '工作', exact: true }).click()
   await expect.poll(() => mock.calls.findLast(call => call.path === '/session/groups' && call.method === 'PUT')?.body.groups[0].sessions.length).toBe(1)
 
   const workGroup = drawer.locator('.home-sessions__group').filter({ hasText: '工作' })

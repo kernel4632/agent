@@ -171,12 +171,14 @@ async function addSource() {
   <section class="skill-page" aria-label="技能">
     <header class="skill-head">
       <p>技能是写在 SKILL.md 里的操作说明。打开表示交给模型，关闭只是从清单里拿掉，文件不动。</p>
-      <Button @click="openNew"><Icon name="plus" :size="18" />新建技能</Button>
     </header>
 
-    <Field v-model="query" placeholder="搜索技能" clearable>
-      <template #leading><Icon name="search" :size="18" /></template>
-    </Field>
+    <div class="skill-toolbar">
+      <Field v-model="query" class="app-search" type="search" label="搜索技能" placeholder="搜索技能" clearable>
+        <template #leading><Icon name="search" :size="18" /></template>
+      </Field>
+      <Button icon variant="tonal" class="app-add-button" label="新建技能" title="新建技能" @click="openNew"><Icon name="plus" :size="24" /></Button>
+    </div>
 
     <p v-if="loading" class="skill-empty">正在读取技能…</p>
     <p v-else-if="!visibleSkills.length" class="skill-empty">

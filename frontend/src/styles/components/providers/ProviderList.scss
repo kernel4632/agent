@@ -1,9 +1,6 @@
 /* RikkaHub 供应商列表：搜索在上，独立圆角卡片，类型选择使用分段底部面板。 */
 .provider-list { display: grid; gap: 12px; }
 .provider-list__head { display: flex; align-items: center; gap: 12px; }
-.provider-list__head :deep(.ui-field) { flex: 1; }
-.provider-list__head :deep(.ui-field__input) { min-height: 56px; padding-block: 14px; border-radius: 999px; background: var(--la-layer-01); }
-.provider-list__add { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 999px; }
 .provider-list__count { margin: 0; padding: 2px 4px; color: var(--la-muted); font-size: 12px; }
 .provider-list__cards { display: grid; gap: 8px; }
 .provider-row { display: flex; width: 100%; min-height: 104px; align-items: center; gap: 16px; padding: 16px; border: 0; border-radius: 20px; background: var(--la-layer-01); color: var(--la-text); text-align: left; }

@@ -206,16 +206,27 @@ function groupMenu() {
 }
 
 function sessionMenu(session) {
-  const group = groupOf(session.id)
   const items = [{ value: 'pin', label: isPinned(session.id) ? '取消置顶' : '置顶' }, ...MENU_ITEMS.map(item => ({ ...item }))]
-  if (group) {
-    items.push({ value: 'ungroup', label: '移到未分组' })
-  }
-  for (const target of customGroups.value) {
-    if (target.id === group?.id) continue
-    items.push({ value: `move:${target.id}`, label: `移到「${target.name}」` })
-  }
+  if (customGroups.value.length) items.push({ value: 'move-picker', label: '移动到分组…' })
   return items
+}
+
+const groupPickerOpen = ref(false)
+const pickerSession = ref(null)
+
+function openGroupPicker(session) {
+  pickerSession.value = session
+  groupPickerOpen.value = true
+}
+
+function currentGroupId() {
+  return groupOf(pickerSession.value?.id)?.id || ''
+}
+
+function chooseGroup(groupId) {
+  const session = pickerSession.value
+  groupPickerOpen.value = false
+  if (session) void moveSession(session.id, groupId)
 }
 
 function groupIndex(section) {
@@ -229,10 +240,9 @@ function sessionIndex(session) {
 
 function onMenuSelect(session, action) {
   if (action === 'pin') togglePin(session)
+  else if (action === 'move-picker') openGroupPicker(session)
   else if (action === 'rename') openRename(session)
   else if (action === 'delete') openDelete(session)
-  else if (action === 'ungroup') void moveSession(session.id, '')
-  else if (action.startsWith('move:')) void moveSession(session.id, action.slice(5))
 }
 
 // --- 鼠标拖拽：组头可以排序和接收会话，会话可以跨组移动 ---
@@ -455,6 +465,17 @@ defineExpose({ openCreateGroup })
           <Button type="submit" :disabled="groupBusy">{{ groupDialogMode === 'create' ? '创建' : groupDialogMode === 'rename' ? '保存' : '删除分组' }}</Button>
         </div>
       </form>
+    </Dialog>
+
+    <Dialog :open="groupPickerOpen" label="移动到分组" @update:open="groupPickerOpen = $event">
+      <div class="session-group-picker">
+        <button type="button" :class="{ 'is-active': !currentGroupId() }" @click="chooseGroup('')">
+          <span>未分组</span><Icon v-if="!currentGroupId()" name="check" :size="18" />
+        </button>
+        <button v-for="group in customGroups" :key="group.id" type="button" :class="{ 'is-active': currentGroupId() === group.id }" @click="chooseGroup(group.id)">
+          <span>{{ group.name }}</span><Icon v-if="currentGroupId() === group.id" name="check" :size="18" />
+        </button>
+      </div>
     </Dialog>
   </div>
 </template>

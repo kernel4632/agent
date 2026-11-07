@@ -12,9 +12,19 @@ button svg { flex-shrink: 0; }
 ::selection { background: var(--la-accent-soft); }
 .preview-page { display: flex; flex-direction: column; width: 100%; height: 100dvh; overflow: hidden; background: var(--la-bg); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+/* 列表页共用：胶囊搜索框和同尺寸的添加按钮。 */
+.app-search { flex: 1; min-width: 0; }
+.app-search .ui-field__input { min-height: 56px; padding-block: 14px; border-radius: 999px; background: var(--la-layer-01); }
+.app-add-button { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 999px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .ui-ripple { position: absolute; pointer-events: none; width: var(--ripple-size); height: var(--ripple-size); left: var(--ripple-x); top: var(--ripple-y); border-radius: 50%; background: currentColor; animation: ui-ripple 600ms ease-out both; }
 @keyframes ui-ripple { from { transform: translate(-50%, -50%) scale(0); opacity: .15; } to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+@keyframes ui-popup-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+.ui-select__options:popover-open,
+.ui-menu__popup:popover-open,
+.ui-popover__content:popover-open,
+.model-context__menu,
+.model-family__options { animation: ui-popup-in var(--ui-duration-fast) var(--ui-curve-standard) both; transform-origin: top right; }
 html[data-strong-focus] :focus-visible { outline-width: 3px; outline-offset: 5px; }
 html[data-reduced-motion] *, html[data-reduced-motion] *::before, html[data-reduced-motion] *::after, html[data-reduced-motion] *::backdrop { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after, *::backdrop { animation: none !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }

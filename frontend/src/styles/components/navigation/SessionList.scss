@@ -86,3 +86,8 @@
 @media (max-width: 767px) {
   .home-sessions__group-menu { opacity: .55; }
 }
+
+.session-group-picker { display: grid; gap: 2px; }
+.session-group-picker button { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 0; border-radius: var(--la-shape-sm); background: transparent; color: var(--la-text); font: inherit; text-align: left; cursor: pointer; }
+.session-group-picker button:hover { background: var(--la-hover); }
+.session-group-picker button.is-active { color: var(--la-accent); background: var(--la-accent-soft); }

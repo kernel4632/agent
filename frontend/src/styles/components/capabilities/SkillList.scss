@@ -1,6 +1,6 @@
 .skill-page { display: flex; flex-direction: column; gap: 16px; }
-.skill-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .skill-head p { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
+.skill-toolbar { display: flex; align-items: center; gap: 12px; }
 
 /* 批量操作条：sticky 吸顶，窄屏自动换行 */
 .skill-bulk {
@@ -89,13 +89,14 @@
 
 .skill-source { display: flex; align-items: flex-end; gap: 12px; padding: 16px 20px; border-radius: 20px; background: var(--la-layer-01); }
 .skill-source > :first-child { flex: 1; min-width: 0; }
+.skill-source :deep(.ui-field__input) { min-height: 56px; padding-block: 14px; }
+.skill-source :deep(.ui-button) { min-height: 56px; }
 
 .skill-reader { display: flex; flex-direction: column; gap: 10px; }
 .skill-reader__meta { margin: 0; color: var(--la-muted); font-size: 12px; line-height: 18px; word-break: break-all; }
 .skill-reader__description { margin: 0; color: var(--la-text); font-size: 14px; line-height: 22px; }
 
 @media (max-width: 767px) {
-  .skill-head { align-items: flex-start; flex-direction: column; gap: 12px; }
   .skill-row { align-items: flex-start; flex-wrap: wrap; padding: 14px 16px; }
   .skill-row__actions { width: 100%; justify-content: flex-end; }
   .skill-bulk { gap: 6px 10px; }
