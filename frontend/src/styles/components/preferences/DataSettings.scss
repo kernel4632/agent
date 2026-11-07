@@ -1,4 +1,9 @@
 .data-settings { display: grid; min-width: 0; gap: 24px; }
 .data-settings__file { display: none; }
+.data-settings__storage { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.data-settings__path { min-width: 0; flex: 1 1 320px; overflow-wrap: anywhere; color: var(--la-secondary); font-family: var(--la-font-mono); font-size: 13px; line-height: 20px; }
+.data-settings__storage-actions { display: flex; flex: none; align-items: center; gap: 4px; }
+.data-settings__pending { flex-basis: 100%; margin: 0; color: var(--la-accent); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.data-settings__storage-error { flex-basis: 100%; margin: 0; color: var(--ui-color-error); font-size: 13px; line-height: 20px; }
 .data-settings__dialog-text { margin: 0 0 8px; color: var(--la-text); font-size: 14px; line-height: 22px; }
 .data-settings__dialog-hint { margin: 0; color: var(--la-muted); font-size: 12.5px; line-height: 20px; }

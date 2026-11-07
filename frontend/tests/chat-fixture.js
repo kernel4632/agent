@@ -66,6 +66,14 @@ export async function backend(page, { configured = true } = {}) {
       definition: { command: 'bunx', args: ['server-github'], env: {} }, envKeys: ['GITHUB_TOKEN'], headerKeys: [], configured: false,
     }],
   }
+  const storageState = {
+    path: 'C:/mock/.agent/sessions',
+    defaultPath: 'C:/mock/.agent/sessions',
+    envOverride: false,
+    pending: null,
+    error: '',
+    lastMove: null,
+  }
   const sessions = new Map()
   const calls = []
   const connections = new Map()
@@ -151,6 +159,17 @@ export async function backend(page, { configured = true } = {}) {
       return route.fulfill({ status: 404, json: { error: 'NOT_FOUND' } })
     }
     const json = data => route.fulfill({ status: 200, json: data })
+    if (path === '/storage/sessions') {
+      if (method === 'GET') return json(storageState)
+      if (method === 'PUT') {
+        storageState.pending = { from: storageState.path, path: body.path }
+        return json({ path: storageState.path, pending: storageState.pending })
+      }
+      if (method === 'DELETE') {
+        storageState.pending = null
+        return json({ ok: true })
+      }
+    }
     if (path === '/config/read') return json(config)
     if (path === '/config/meta') return json({
       models: [

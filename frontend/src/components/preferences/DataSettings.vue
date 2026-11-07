@@ -10,6 +10,7 @@ import { Settings } from "../../features/settings.js"
 import { Notice } from "../../utils/notice.js"
 import Button from '../../ui/Button.vue'
 import Dialog from '../../ui/Dialog.vue'
+import Field from '../../ui/Field.vue'
 import Switch from '../../ui/Switch.vue'
 import SettingsList from '../../ui/SettingsList.vue'
 import SettingsRow from '../../ui/SettingsRow.vue'
@@ -23,6 +24,11 @@ const restorePreview = ref(null)
 const restoreLoading = ref(false)
 const importDraft = ref(null)
 const fileInput = ref(null)
+const storage = ref(null)
+const storageError = ref('')
+const storageOpen = ref(false)
+const storagePath = ref('')
+const storageBusy = ref(false)
 
 const restoreOpen = computed({
   get: () => Boolean(restoreTarget.value),
@@ -70,6 +76,47 @@ async function load() {
     Notice.show(error.message)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadStorage() {
+  try {
+    storage.value = await AgentAPI.getSessionStorage()
+    storageError.value = ''
+  } catch (error) {
+    storageError.value = error.message
+  }
+}
+
+function openStorage() {
+  storagePath.value = storage.value?.pending?.path || storage.value?.path || ''
+  storageOpen.value = true
+}
+
+async function confirmStorage() {
+  if (storageBusy.value) return
+  storageBusy.value = true
+  try {
+    const result = await AgentAPI.setSessionStorage(storagePath.value.trim())
+    storage.value = { ...storage.value, path: result.path, pending: result.pending, error: '' }
+    storageError.value = ''
+    storageOpen.value = false
+    Notice.show('已安排迁移，重启后端后生效')
+  } catch (error) {
+    storageError.value = error.message
+    Notice.show(error.message)
+  } finally {
+    storageBusy.value = false
+  }
+}
+
+async function cancelStorage() {
+  try {
+    await AgentAPI.cancelSessionStorage()
+    await loadStorage()
+    Notice.show('已取消迁移')
+  } catch (error) {
+    Notice.show(error.message)
   }
 }
 
@@ -159,11 +206,30 @@ async function download() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  void loadStorage()
+})
 </script>
 
 <template>
   <section class="data-settings" aria-label="数据管理">
+    <SettingsList title="存储位置">
+      <SettingsRow wide title="会话数据目录" description="会话历史、文件快照和工具输出存放的位置">
+        <div class="data-settings__storage">
+          <code class="data-settings__path">{{ storage?.path || '正在读取…' }}</code>
+          <div class="data-settings__storage-actions">
+            <Button v-if="storage?.pending" variant="text" @click="cancelStorage">取消迁移</Button>
+            <Button :disabled="storage?.envOverride" :title="storage?.envOverride ? '由 AGENT_SESSIONS 环境变量控制' : undefined" @click="openStorage">
+              {{ storage?.envOverride ? '由环境变量控制' : '更改位置' }}
+            </Button>
+          </div>
+          <p v-if="storage?.pending" class="data-settings__pending">等待重启迁移到 {{ storage.pending.path }}</p>
+          <p v-if="storageError" class="data-settings__storage-error" role="alert">{{ storageError }}</p>
+        </div>
+      </SettingsRow>
+    </SettingsList>
+
     <SettingsList title="配置备份">
       <SettingsRow v-for="backup in backups" :key="backup.id" :title="formatDate(backup.createdAt)" :description="`${backup.providers} 个供应商 · ${backup.models} 个模型 · ${formatSize(backup.size)}`">
         <Button variant="text" size="small" @click="askRestore(backup)">恢复</Button>
@@ -186,6 +252,16 @@ onMounted(load)
       </SettingsRow>
     </SettingsList>
     <input ref="fileInput" class="data-settings__file" type="file" accept="application/json,.json" @change="readFile" />
+
+    <Dialog :open="storageOpen" label="更改会话数据目录" @update:open="storageOpen = $event">
+      <p class="data-settings__dialog-text">现有会话会复制到新目录，旧目录保留；重启后端后生效。</p>
+      <Field v-model="storagePath" label="会话数据目录" placeholder="D:\AgentSessions" />
+      <p class="data-settings__dialog-hint">目标目录必须是空目录。</p>
+      <template #footer>
+        <Button variant="text" :disabled="storageBusy" @click="storageOpen = false">取消</Button>
+        <Button :disabled="storageBusy || !storagePath.trim()" @click="confirmStorage">{{ storageBusy ? '安排中…' : '安排迁移' }}</Button>
+      </template>
+    </Dialog>
 
     <Dialog :open="restoreOpen" label="恢复配置备份" @update:open="restoreOpen = $event">
       <p class="data-settings__dialog-text">确定恢复 {{ restoreTarget ? formatDate(restoreTarget.createdAt) : '' }} 的配置吗？</p>
