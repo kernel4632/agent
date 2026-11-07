@@ -8,8 +8,10 @@
 .ui-code-block__mermaid-error { margin: 0; padding: 8px 16px 0; color: var(--la-danger); font-size: 12.5px; }
 .ui-code-block pre { flex: 1; margin: 0; padding: 16px; background: transparent; white-space: pre; font: 13px/1.7 var(--la-font-mono); }
 .ui-code-block .ui-code-block__numbers { flex: 0; padding-right: 0; color: var(--la-muted); user-select: none; }
-/* highlight.js 没有自带主题；这里按 opencode TUI 的语法角色上色，_v-html 内容用 :deep 穿透 scoped。 */
+/* highlight.js 的配色全部来自主题变量（tokens.scss 的 --md-*，明暗各一套）；
+   第三方 hljs 主题 css 不再引入，浅色界面下不再残留暗色底。v-html 内容用 :deep 穿透 scoped。 */
 .ui-code-block {
+  :deep(.hljs) { color: var(--la-text); background: transparent; }
   :deep(.hljs-comment), :deep(.hljs-quote) { color: var(--md-comment); font-style: italic; }
   :deep(.hljs-keyword), :deep(.hljs-literal), :deep(.hljs-section), :deep(.hljs-selector-tag),
   :deep(.hljs-doctag), :deep(.hljs-meta .hljs-keyword) { color: var(--md-keyword); }

@@ -6,7 +6,7 @@
 -->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { groupMessageTurns, isFinishedStopTool } from "../../features/session.js"
+import { groupMessageTurns, isFinishedStopTool } from "../../features/turns.js"
 import { outputText } from "../../utils/tool.js"
 import { renderMarkdown } from "../../utils/markdown.js"
 

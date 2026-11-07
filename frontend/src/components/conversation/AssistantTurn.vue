@@ -14,8 +14,7 @@ import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
 import { outputText, toolTitle } from "../../utils/tool.js"
-import { isFinishedStopTool } from "../../features/session.js"
-import { isSavedMessage } from "../../features/session.js"
+import { isFinishedStopTool, isSavedMessage } from "../../features/turns.js"
 import MessageActions from './MessageActions.vue'
 import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'

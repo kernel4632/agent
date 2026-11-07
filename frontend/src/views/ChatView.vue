@@ -12,7 +12,8 @@ import StatsPanel from '../components/activity/StatsPanel.vue'
 import ConversationRail from '../components/conversation/ConversationRail.vue'
 import { Session } from "../features/session.js"
 import { Chat } from '../commands/chat.js'
-import { History, canContinueSession } from "../features/session.js"
+import { History } from "../features/history.js"
+import { canContinueSession } from "../features/turns.js"
 import { Navigation } from '../commands/navigation.js'
 import { latestTodos } from "../utils/tool.js"
 import { sessionStats } from "../features/stats.js"

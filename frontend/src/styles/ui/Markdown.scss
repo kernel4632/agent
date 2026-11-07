@@ -1,4 +1,6 @@
 /* Markdown.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
+/* KaTeX 的字体和布局样式是结构样式，只有这一份来源；配色仍由主题变量接管。 */
+@import "katex/dist/katex.min.css";
 .ui-md { display: block; }
 .ui-md :is(.ui-typography) {
   max-width: none;

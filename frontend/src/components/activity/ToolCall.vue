@@ -8,7 +8,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
-import { Chat } from '../../commands/chat.js'
+import { Approval } from '../../features/approval.js'
 import ToolResult from './ToolResult.vue'
 import { fillTemplate, toolIcon, toolTitle, uiFor } from "../../utils/tool.js"
 
@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
 })
 
 function decide(decision) {
-  Chat.decide(props.sessionId, props.tool.id, decision)
+  Approval.decide(props.sessionId, props.tool.id, decision)
 }
 </script>
 

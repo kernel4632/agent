@@ -7,7 +7,7 @@
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
 <script setup>
-import { History } from "../../features/session.js"
+import { History } from "../../features/history.js"
 import { Navigation } from '../../commands/navigation.js'
 
 import { Notice } from "../../utils/notice.js"
@@ -16,16 +16,14 @@ import { readScroll, saveScroll } from '../../utils/session-view.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../../store.js'
-import { groupMessageTurns } from "../../features/session.js"
-import { isSavedMessage } from "../../features/session.js"
+import { groupMessageTurns } from "../../features/turns.js"
+import { isSavedMessage } from "../../features/turns.js"
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import MessageActions from './MessageActions.vue'
 import CompactionNotice from '../feedback/CompactionNotice.vue'
 
 import AssistantTurn from './AssistantTurn.vue'
-import 'highlight.js/styles/github-dark.css'
-import 'katex/dist/katex.min.css'
 
 const props = defineProps({
     // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
@@ -388,6 +386,7 @@ function clearRollback() {
 async function confirmRollback(restoreFiles) {
   const sessionID = session.value.id
   // 任务还在跑时先停止：回退请求会被 409 拒绝，等待落盘后再退，历史才是完整快照。
+  // stop 只在这里用到，动态引入避免把整条 chat 命令链拉进时间线的加载路径。
   if (session.value.status === 'running') {
     const { Chat } = await import('../../commands/chat.js')
     await Chat.stop(sessionID)

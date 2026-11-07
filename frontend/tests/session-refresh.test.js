@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { store } from '../src/store.js'
 import { AgentAPI } from '../src/utils/api.js'
 import { Session } from "../src/features/session.js"
-import { History } from "../src/features/session.js"
+import { History } from "../src/features/history.js"
 import { Chat } from '../src/commands/chat.js'
 
 const snapshot = () => ({ id: 'race', provider: 'test', model: 'm', history: [], settings: { reasoning: 'auto' } })

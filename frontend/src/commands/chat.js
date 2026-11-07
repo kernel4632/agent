@@ -11,7 +11,7 @@ import { Notice } from '../utils/notice.js'
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
-import { History } from '../features/session.js'
+import { History } from '../features/history.js'
 import { t } from '../utils/i18n.js'
 import { Settings } from '../features/settings.js'
 import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
@@ -514,18 +514,7 @@ async function stop(sessionID) {
   }
 }
 
-async function decide(sessionID, callID, decision) {
-  const tool = store.sessions[sessionID]?.messages.flatMap(message => message.tools || []).find(item => item.id === callID)
-  if (!tool || tool.deciding || !['deny', 'allow-once', 'always-allow'].includes(decision)) return false
-  tool.deciding = true
-  try {
-    const result = await AgentAPI.decideTool(sessionID, callID, decision === 'always-allow' ? 'allow-always' : decision)
-    if (!result.ok) throw new Error('此审批已结束，请刷新会话')
-    if (tool) tool.status = decision === 'deny' ? 'rejected' : 'running'
-    return true
-  } catch (error) { Notice.show(error.message); return false }
-  finally { tool.deciding = false }
-}
+// --- 审批决定由 features/approval.js 承担；这里只保留 SSE 接收和任务编排 ---
 
 async function attach(sessionID, files, options = {}) {
   const session = store.sessions[sessionID]
@@ -587,4 +576,4 @@ export function imagePasteNotice({ hasImage, provider, model }) {
   })
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile, imagePasteNotice }
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, attach, removeFile, imagePasteNotice }
