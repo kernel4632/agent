@@ -407,7 +407,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | `PUT` | `/session/groups` | `{ "groups": [{ "id", "name", "sessions": [] }] }` | 整体保存分组；一个会话只能属于一个组，重名或重复会话按 400 返回 |
 | `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }`；省略 `cwd` 时创建独立临时工作区 |
 | `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
-| `GET` | `/session/read/:sessionId` | 无 | 会话资料、最近一页 history、`historyStart`、`historyTotal`、`todos`、`running`、`pending`、`settings`、`undoable` |
+| `GET` | `/session/read/:sessionId` | 无 | 会话资料、完整 history、`todos`、`running`、`pending`、`settings`、`undoable` |
 | `GET` | `/session/history/:sessionId?before=&beforeOffset=&limit=` | 无 | 分页历史：`messages`、`start`、`end`、`startOffset`、`endOffset`、`total`、`hasMore`；`beforeOffset` 直接按 JSONL 字节游标扫描 |
 | `GET` | `/session/outline/:sessionId` | 无 | 全会话轮次大纲：`turns[{id,index,role,prompt,response}]` 和 `totalMessages` |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话资料 |

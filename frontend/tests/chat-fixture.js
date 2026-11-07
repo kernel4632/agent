@@ -428,8 +428,7 @@ export async function backend(page, { configured = true } = {}) {
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。
     if (path.startsWith('/session/read/')) {
       const visible = session.history.filter(item => !item.internal)
-      const start = Math.max(0, visible.length - 200)
-      return json({ ...session, history: visible.slice(start), historyStart: start, historyTotal: visible.length })
+      return json({ ...session, history: visible, historyStart: 0, historyTotal: visible.length })
     }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }

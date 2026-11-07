@@ -132,50 +132,38 @@ const fork = async ({ sessionId, title, messageId }) => {
 // --- 读取一条会话 ---
 const HISTORY_PAGE = 200
 const read = async ({ sessionId }) => {
-    const metaFile = Bun.file(Path.meta(sessionId))
-    if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
-    const meta = await metaFile.json()
-    if (meta.temporary === true) await Scratch.ensure(meta.cwd, true)
+    const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
     const running = Boolean(agent?.running)
 
     let history
-    let historyTotal
-    let historyStart
     if (running) {
-        history = visible(agent.history).slice(-HISTORY_PAGE)
-        historyTotal = agent.history.filter(message => !message.internal).length
-        historyStart = Math.max(0, historyTotal - history.length)
+        history = visible(agent.history)
     } else {
-        // 不装配 Agent、不加载完整历史：直接从 JSONL 扫最后一页。
-        const page = await History.pageByOffset({ sessionId, limit: HISTORY_PAGE })
-        const records = page.messages.map(record => ({ messageId: record.messageId, ...(record.message || record) }))
-        history = visible(records)
-        historyTotal = page.total
-        historyStart = Math.max(0, historyTotal - history.length)
+        history = visible(History.get({ sessionId }))
+        if (agent) agent.history = history
+        // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
-    const redo = await Bun.file(Path.historyRedo(sessionId)).json().catch(() => [])
-    const settings = await Agent.readSettings(sessionId)
 
     return {
-        id: meta.id,
-        title: meta.title,
-        cwd: meta.cwd,
-        temporary: meta.temporary === true,
-        provider: meta.model.provider,
-        model: meta.model.model,
-        createdAt: meta.createdAt,
-        updatedAt: meta.updatedAt,
+        id: session.id,
+        title: session.title,
+        cwd: session.cwd,
+        temporary: session.temporary === true,
+        provider: session.model.provider,
+        model: session.model.model,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
         history,
-        historyStart,
-        historyTotal,
+        historyStart: 0,
+        historyTotal: history.length,
         todos: latestTodos(history),
         running,
         toolTimings: await ToolTiming.read(sessionId),
         pending: Approval.pending(sessionId),
-        settings,
-        undoable: Array.isArray(redo) ? redo.length : 0,
+        settings: await Agent.readSettings(sessionId),
+        undoable: History.redoCount({ sessionId }),
     }
 }
 
