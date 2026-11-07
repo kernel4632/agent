@@ -11,6 +11,7 @@ import TaskPanel from '../components/activity/TaskPanel.vue'
 import StatsPanel from '../components/activity/StatsPanel.vue'
 import ConversationRail from '../components/conversation/ConversationRail.vue'
 import { Session } from "../features/session.js"
+import { store } from '../store.js'
 import { Chat } from '../commands/chat.js'
 import { History, canContinueSession } from "../features/session.js"
 import { Navigation } from '../commands/navigation.js'
@@ -119,8 +120,8 @@ function chooseReasoning(reasoning) {
               <div class="reconnect-card"><span class="ui-spinner ui-spinner--large" aria-hidden="true"><span class="ui-spinner__ring"></span></span><strong>正在重新连接</strong></div>
             </div>
           </Transition>
-          <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files"
-            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" />
+          <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files" :draft-workspace="store.ui.draftCwd"
+            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
         </div>
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>

@@ -9,8 +9,10 @@ test('composer merges model and reasoning into one button and keeps the draft wh
   const editor = page.getByRole('textbox', { name: '消息', exact: true })
   await editor.fill('尚未发送的内容')
   const controls = page.locator('.chat-composer__options')
-  await expect(controls.getByRole('button')).toHaveCount(1)
+  // 新会话把工作区按钮内联到输入框里；开始对话前就能预选目录。
+  await expect(controls.getByRole('button')).toHaveCount(2)
   await expect(controls.getByRole('button', { name: /模型与推理/ })).toBeVisible()
+  await expect(controls.getByRole('button', { name: /工作区/ })).toBeVisible()
   await expect(controls.getByRole('button', { name: '工具权限' })).toHaveCount(0)
   await expect(page.locator('.session-stats')).toHaveCount(0)
   await controls.getByRole('button', { name: /模型与推理/ }).click()
