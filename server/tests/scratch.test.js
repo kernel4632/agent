@@ -45,7 +45,7 @@ describe('临时工作区', () => {
             const { sessionId } = await Session.create({ title: '临时任务' })
             const session = await Session.read({ sessionId })
             expect(session.temporary).toBe(true)
-            expect(session.cwd.startsWith(join(root, 'scratch'))).toBe(true)
+            expect(session.cwd.startsWith(join(root, 'scratch', 'agent'))).toBe(true)
             expect((await stat(session.cwd)).isDirectory()).toBe(true)
 
             await writeFile(join(session.cwd, 'note.txt'), 'scratch')
