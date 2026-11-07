@@ -47,7 +47,6 @@ const targeted = messageId => {
 }
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
-// 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
 const vAutoScroll = {
   mounted: element => { element.scrollTop = element.scrollHeight },
   updated: element => { element.scrollTop = element.scrollHeight },
