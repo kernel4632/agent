@@ -1,5 +1,21 @@
 /* ReasoningStep.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
 
+/* 折叠用 grid 行高过渡：收起是动画到 0fr，内容常驻 DOM（content-visibility 省渲染）。 */
+.cot-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--la-motion-enter) var(--ui-curve-standard); }
+.cot-collapse.is-open { grid-template-rows: 1fr; }
+.cot-collapse:not(.is-open) .cot-collapse__inner { content-visibility: auto; contain-intrinsic-size: 0 0; }
+.cot-collapse__inner { min-height: 0; overflow: hidden; }
+
+/* 流式预览态最高 120px、上下渐隐、只滚不显示滚动条；用户点开或结束后看完整内容。 */
+.reasoning-preview { max-height: 120px; overflow-y: auto; scrollbar-width: none; }
+.reasoning-preview::-webkit-scrollbar { display: none; }
+/* 用户主动展开后不再是 120px 的预览，代码块和长思考要能完整看到。 */
+.cot-collapse.is-open .reasoning-preview:not(.is-preview) { max-height: none; }
+.reasoning-preview.is-preview {
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+
 /* 思考内容按 Markdown 渲染；正文比回答弱一档，但标题、加粗、代码仍有各自的颜色。 */
 .markdown-body.reasoning-markdown { color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
 .reasoning-markdown :is(p) { margin: 0 0 8px; }
@@ -8,12 +24,3 @@
 .reasoning-markdown :is(pre) { margin: 8px 0; }
 .reasoning-markdown :is(ul, ol) { margin: 6px 0; padding-left: 18px; }
 .reasoning-placeholder { margin: 0; color: var(--la-secondary); font-size: 13.5px; line-height: 1.7; }
-/* 展开后高度封顶，流式追加只在框内滚动，不再把时间线顶下去。 */
-.reasoning-body { max-height: 280px; overflow: auto; }
-.reasoning-live {
-  margin: 0;
-  color: var(--la-secondary);
-  font: 12.5px/1.65 var(--la-font-mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}

@@ -3,7 +3,7 @@
 临时面板状态在这里；发送、附件、会话设置和回退分别调用 commands。
 -->
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
 import ConnectionError from '../components/feedback/ConnectionError.vue'
@@ -32,7 +32,13 @@ const conversationScroll = ref(null)
 const showReconnect = ref(false)
 let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
-function jumpToMessage(messageId) {
+async function jumpToMessage(messageId) {
+  const session = props.session
+  const target = session?.outline?.find(turn => turn.id === messageId)
+  if (session && target && target.index < (session.historyStart || 0)) {
+    if (!await Session.loadThrough(session.id, target.index)) return
+    await nextTick()
+  }
   timeline.value?.jumpToMessage(messageId)
 }
 
@@ -94,11 +100,12 @@ function chooseReasoning(reasoning) {
     <div :class="session ? 'session-main' : 'draft-main'">
       <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
         <div v-if="session" ref="conversationScroll" class="session-scroll">
-          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" /></Transition>
+          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" @load-older="Session.loadOlder(session.id)" /></Transition>
         </div>
         <ConversationRail
           v-if="session"
           :messages="session.messages"
+          :outline="session.outline"
           :scroll-root="conversationScroll"
           @jump="jumpToMessage"
         />

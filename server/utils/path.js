@@ -81,6 +81,8 @@ const sessions = () => process.env.AGENT_SESSIONS
 const session = id => join(sessions(), id)
 const meta = id => join(session(id), 'meta.json')
 const history = id => join(session(id), 'history.json')
+const historyArchives = id => join(session(id), 'history')
+const historyIndex = id => join(session(id), 'history-index.json')
 const settings = id => join(session(id), 'settings.json')
 const toolTimings = id => join(session(id), 'tool-timings.json')
 const snapshots = id => join(session(id), 'snapshots')
@@ -110,6 +112,6 @@ export default {
     config,
     configBackups,
     sessionGroups,
-    sessions, setSessions, sessionsPathFile, sessionsMoveFile, sessionsMoveFailedFile, session, meta, history, settings, toolTimings, snapshots, checkpoints,
+    sessions, setSessions, sessionsPathFile, sessionsMoveFile, sessionsMoveFailedFile, session, meta, history, historyArchives, historyIndex, settings, toolTimings, snapshots, checkpoints,
     tools, modelCatalog, processes, skills, skillsState, projectSkills,
 }

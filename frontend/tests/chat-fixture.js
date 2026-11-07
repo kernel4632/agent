@@ -387,8 +387,46 @@ export async function backend(page, { configured = true } = {}) {
       }
       return json(session.settings)
     }
+    if (path.startsWith('/session/history/')) {
+      const before = Number(new URL(request.url()).searchParams.get('before'))
+      const limit = Number(new URL(request.url()).searchParams.get('limit') || 200)
+      const end = Number.isInteger(before) && before > 0 ? Math.min(before, session.history.length) : session.history.length
+      const start = Math.max(0, end - Math.min(500, Math.max(1, limit || 200)))
+      return json({
+        messages: session.history.slice(start, end),
+        start,
+        end,
+        total: session.history.length,
+        hasMore: start > 0,
+      })
+    }
+    if (path.startsWith('/session/outline/')) {
+      const turns = []
+      let current = null
+      session.history.forEach((message, index) => {
+        if (message.compact) return
+        const text = Array.isArray(message.content)
+          ? message.content.filter(part => part.type === 'text').map(part => part.text || '').join(' ')
+          : String(message.content || '')
+        if (message.role === 'user') {
+          current = { id: message.messageId, index, role: 'user', prompt: text.slice(0, 120), response: '' }
+          turns.push(current)
+        } else if (message.role === 'assistant') {
+          if (current && !current.response) current.response = text.slice(0, 240)
+          else if (!current) {
+            current = { id: message.messageId, index, role: 'assistant', prompt: '', response: text.slice(0, 240) }
+            turns.push(current)
+          }
+        }
+      })
+      return json({ turns, totalMessages: session.history.length })
+    }
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。
-    if (path.startsWith('/session/read/')) return json({ ...session, history: session.history.filter(item => !item.internal) })
+    if (path.startsWith('/session/read/')) {
+      const visible = session.history.filter(item => !item.internal)
+      const start = Math.max(0, visible.length - 200)
+      return json({ ...session, history: visible.slice(start), historyStart: start, historyTotal: visible.length })
+    }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
     if (path.startsWith('/session/rollback/preview/')) return json({ messages: 1, files: [] })

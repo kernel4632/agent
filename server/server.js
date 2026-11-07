@@ -101,6 +101,12 @@ app.group('/session', session => session
     .post('/create', ({ body }) => Session.create(body || {}))
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
+        ...params,
+        before: query.before === undefined ? undefined : Number(query.before),
+        limit: query.limit === undefined ? undefined : Number(query.limit),
+    }))
+    .get('/outline/:sessionId', ({ params }) => Session.historyOutline(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
     .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
     .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...body }))

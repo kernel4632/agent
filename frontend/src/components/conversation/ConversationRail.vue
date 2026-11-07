@@ -12,6 +12,7 @@ import { renderMarkdown } from "../../utils/markdown.js"
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
+  outline: { type: Array, default: () => [] },
   scrollRoot: { type: Object, default: null },
 })
 const emit = defineEmits(['jump'])
@@ -86,7 +87,25 @@ const nodes = computed(() => {
       title: `回答：${response}`.slice(0, 120),
     })
   }
-  return merged
+
+  // 会话大纲包含尚未加载的轮次；把当前已加载的新轮次接在后面，
+  // 这样流式运行中的新消息也能立刻出现在定位条上。
+  if (!props.outline?.length) return merged
+  const seen = new Set()
+  const all = props.outline.map(turn => {
+    const prompt = turn.prompt || ''
+    const response = turn.response || ''
+    seen.add(turn.id)
+    return {
+      id: turn.id,
+      length: prompt.length + response.length,
+      prompt,
+      response,
+      title: `${turn.role === 'assistant' ? '回答' : '你'}：${(prompt || response).slice(0, 120)}`,
+    }
+  })
+  for (const node of merged) if (!seen.has(node.id)) all.push(node)
+  return all
 })
 
 // 保留原定义：刻度宽度表示这一轮的文字量，短问题和长回答仍然可区分。
@@ -264,6 +283,10 @@ function keydown(event) {
 watch([activeIndex, () => nodes.value.length, frameHeight], () => followActive())
 watch(frame, element => observeFrame(element), { flush: 'post' })
 watch(() => props.messages, () => nextTick(() => {
+  syncViewport()
+  followActive('auto')
+}), { deep: false })
+watch(() => props.outline, () => nextTick(() => {
   syncViewport()
   followActive('auto')
 }), { deep: false })

@@ -31,6 +31,7 @@ const props = defineProps({
     // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
     scrollRoot: { type: Object, default: null },
 })
+const emit = defineEmits(['load-older'])
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
@@ -43,6 +44,31 @@ const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
+const hasMore = computed(() => (session.value?.historyStart || 0) > 0)
+let olderAnchor = null
+
+function requestOlder() {
+  if (!hasMore.value || olderAnchor || session.value?.loadingOlder || jumping || !scrollParent) return
+  const anchor = { height: scrollParent.scrollHeight, top: scrollParent.scrollTop }
+  olderAnchor = anchor
+  setTimeout(() => {
+    if (olderAnchor === anchor) olderAnchor = null
+  }, 10000)
+  emit('load-older')
+}
+
+watch(() => messages.value.length, (length, previous) => {
+  if (length <= previous || !olderAnchor) return
+  const anchor = olderAnchor
+  olderAnchor = null
+  nextTick(() => {
+    if (!scrollParent) return
+    scrollParent.scrollTop = anchor.top + (scrollParent.scrollHeight - anchor.height)
+    lastTop = scrollParent.scrollTop
+    rememberScroll()
+    if (scrollParent.scrollTop < 240) requestOlder()
+  })
+})
 const rollbackTarget = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
@@ -170,6 +196,7 @@ function onScroll() {
   }
   lastTop = top
   syncLatestPosition()
+  if (!jumping && top < 300) requestOlder()
   rememberScroll()
 }
 
@@ -334,6 +361,9 @@ onMounted(() => {
   const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
   if (restoreTop == null) {
     queueStick()
+    void nextTick(() => {
+      if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 1) requestOlder()
+    })
     return
   }
   const applyRestore = () => {
@@ -346,6 +376,7 @@ onMounted(() => {
     requestAnimationFrame(() => {
       applyRestore() // 字体/图片首帧后高度可能还在变，再对齐一次
       if (!following.value && atBottom(24)) setFollowing(true)
+      if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 1) requestOlder()
     })
   }))
 })

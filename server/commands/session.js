@@ -130,6 +130,7 @@ const fork = async ({ sessionId, title, messageId }) => {
     return { sessionId: branch.id }}
 
 // --- 读取一条会话 ---
+const HISTORY_PAGE = 200
 const read = async ({ sessionId }) => {
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
@@ -155,7 +156,9 @@ const read = async ({ sessionId }) => {
         model: session.model.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        history,
+        history: history.slice(-HISTORY_PAGE),
+        historyStart: Math.max(0, history.length - HISTORY_PAGE),
+        historyTotal: history.length,
         todos: latestTodos(history),
         running,
         toolTimings: await ToolTiming.read(sessionId),
@@ -353,11 +356,16 @@ const redo = async ({ sessionId, files = true }) => {
 // --- 统计会话数量 ---
 const count = () => History.count()
 
+// --- 历史分页与全会话大纲：前端只加载视口附近的历史 ---
+const historyPage = ({ sessionId, before, limit }) => History.page({ sessionId, before, limit })
+const historyOutline = ({ sessionId }) => History.outline(sessionId)
+
 // --- 统计正在运行的任务 ---
 const runningCount = () => Agent.runningCount()
 
 export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
+    historyPage, historyOutline,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
     count, runningCount,

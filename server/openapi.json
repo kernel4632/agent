@@ -1688,6 +1688,78 @@
         }
       }
     },
+    "/session/history/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "分页读取会话历史",
+        "description": "before 是消息下标，默认从末尾读取一页。",
+        "operationId": "sessionHistory",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          { "name": "before", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "一页消息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": { "type": "array", "items": { "type": "object" } },
+                    "start": { "type": "integer" },
+                    "end": { "type": "integer" },
+                    "total": { "type": "integer" },
+                    "hasMore": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/session/outline/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "读取整个会话的轮次大纲",
+        "operationId": "sessionOutline",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "轮次预览和消息总数",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "turns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "index": { "type": "integer" },
+                          "role": { "type": "string" },
+                          "prompt": { "type": "string" },
+                          "response": { "type": "string" }
+                        }
+                      }
+                    },
+                    "totalMessages": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/session/changes/{sessionId}": {
       "get": {
         "tags": [

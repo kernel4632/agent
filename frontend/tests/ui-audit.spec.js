@@ -226,7 +226,7 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   expect(mock.errors).toEqual([])
 })
 
-test('reasoning stays on one line while streaming and opens on click', async ({ page }, testInfo) => {
+test('reasoning half-expands while streaming and opens on click', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -244,24 +244,32 @@ test('reasoning stays on one line while streaming and opens on click', async ({ 
 
   await expect(page.locator('.cot-card')).toBeVisible()
   const head = page.locator('.cot-step--reasoning .cot-step__head')
-  await expect(head).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.locator('.cot-step--reasoning .cot-step__summary')).toContainText('先确认消息结构')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+  const preview = page.locator('.cot-step--reasoning .reasoning-preview')
+  await expect(preview).toBeVisible()
+  // 半展开预览：定高、Markdown 渲染，而不是只留一行摘要。
+  const previewHeight = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(previewHeight).toBeGreaterThan(0)
+  expect(previewHeight).toBeLessThanOrEqual(120)
+  await expect(preview).toContainText('先确认消息结构')
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   await screenshot(page, testInfo, 'reasoning-preview')
 
-  // 点开才渲染正文；再点收起后，后续增量只改标题行，不把内容框重新打开。
+  // 点开看全文；再点收起后，后续增量只改标题行，不把内容框重新打开。
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('.cot-step--reasoning .markdown-body')).toContainText('先确认消息结构')
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'false')
+  // 折叠容器归到 0 高，内容不再可见。
+  const collapse = page.locator('.cot-step--reasoning .cot-collapse')
+  await expect.poll(async () => Math.round(await collapse.evaluate(element => element.getBoundingClientRect().height))).toBe(0)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: '继续输出也不展开' }])
   await expect(page.locator('.cot-step--reasoning .cot-step__summary')).toContainText('继续输出也不展开')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
 })
 
-test('long reasoning stays capped and still shows the latest text', async ({ page }) => {
+test('long reasoning stays capped while streaming and still shows the latest text', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -274,27 +282,27 @@ test('long reasoning stays capped and still shows the latest text', async ({ pag
     { type: 'agent-start' },
     { type: 'reasoning-delta', text: `${chunk}尾部标记甲` },
   ])
-  const summary = page.locator('.cot-step--reasoning .cot-step__summary')
-  await expect(summary).toContainText('尾部标记甲')
-  const summaryHeight = await summary.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  // 长思考流式时也是 Markdown 渲染，预览框定高滚动，追加内容自动滚到底。
+  const preview = page.locator('.cot-step--reasoning .reasoning-preview')
+  await expect(preview).toBeVisible()
+  await expect(preview).toContainText('尾部标记甲')
+  await expect(page.locator('.cot-step--reasoning .markdown-body')).toContainText('尾部标记甲')
+  const previewHeight = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(previewHeight).toBeLessThanOrEqual(120)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: `${chunk}尾部标记乙` }])
-  await expect(summary).toContainText('尾部标记乙')
-  const summaryAgain = await summary.evaluate(element => Math.round(element.getBoundingClientRect().height))
-  expect(summaryAgain).toBe(summaryHeight)
-  expect(summaryHeight).toBeLessThanOrEqual(28)
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  await expect(preview).toContainText('尾部标记乙')
+  const previewAgain = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(previewAgain).toBe(previewHeight)
 
+  // 用户点开后不封顶，完整内容全部可见，追加时框随内容长高。
   await page.locator('.cot-step--reasoning .cot-step__head').click()
-  const body = page.locator('.cot-step--reasoning .reasoning-body')
-  const live = page.locator('.reasoning-live')
-  await expect(live).toContainText('尾部标记乙')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
-  const bodyHeight = await body.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  await expect(preview).toContainText('尾部标记乙')
+  const bodyHeight = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(bodyHeight).toBeGreaterThan(120)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: `${chunk}尾部标记丙` }])
-  await expect(live).toContainText('尾部标记丙')
-  const bodyAgain = await body.evaluate(element => Math.round(element.getBoundingClientRect().height))
-  expect(bodyAgain).toBe(bodyHeight)
-  expect(bodyHeight).toBeLessThanOrEqual(320)
+  await expect(preview).toContainText('尾部标记丙')
+  const bodyAgain = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(bodyAgain).toBeGreaterThan(bodyHeight)
   expect(mock.errors).toEqual([])
 })
 
@@ -340,7 +348,8 @@ test('reasoning stays collapsed after the llm finishes', async ({ page }) => {
   if (await process.getAttribute('aria-expanded') !== 'true') await process.click()
   await openContextGroups(page)
   await expect(page.locator('.cot-step--reasoning .cot-step__head')).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  const collapse = page.locator('.cot-step--reasoning .cot-collapse')
+  await expect.poll(async () => Math.round(await collapse.evaluate(element => element.getBoundingClientRect().height))).toBe(0)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
 })
 

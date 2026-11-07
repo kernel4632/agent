@@ -14,7 +14,27 @@
  *   模型调用 history_search({ query: '日志被.*覆盖', role: 'tool', limit: 5 })
  */
 
+import { join } from 'node:path'
 import Path from '../utils/path.js'
+
+// 活跃历史 + 已封存分块按顺序拼回；搜索不能只搜最近窗口。
+const readMessages = async sessionId => {
+    const records = []
+    const index = await Bun.file(Path.historyIndex(sessionId)).json().catch(() => null)
+    for (const archive of index?.archives || []) {
+        const chunk = await Bun.file(join(Path.historyArchives(sessionId), archive.file)).json().catch(() => null)
+        if (Array.isArray(chunk?.messages)) records.push(...chunk.messages)
+    }
+    const active = await Bun.file(Path.history(sessionId)).json().catch(() => null)
+    if (Array.isArray(active?.messages)) records.push(...active.messages)
+    const seen = new Set()
+    return records.filter(record => {
+        const id = record?.messageId
+        if (id && seen.has(id)) return false
+        if (id) seen.add(id)
+        return true
+    })
+}
 
 // 每条命中的摘录最多带多少字符；超过就掐断，命中详情用 read 工具看全文。
 const MAX_SNIPPET = 400
@@ -89,11 +109,7 @@ const search = {
             matcher = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
         }
 
-        const file = Bun.file(Path.history(options.sessionId))
-        if (!await file.exists()) return { matches: [], total: 0 }
-
-        const history = await file.json()
-        const messages = Array.isArray(history?.messages) ? history.messages : []
+        const messages = await readMessages(options.sessionId)
         const size = Math.min(MAX_MATCHES, Math.max(1, Math.floor(Number(limit) || 10)))
         const matches = []
 
