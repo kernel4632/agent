@@ -949,6 +949,49 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
+test('long history loads older turns automatically without an earlier button', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  const history = []
+  for (let index = 1; index <= 30; index += 1) {
+    history.push({ messageId: `many-u${index}`, role: 'user', content: `第 ${index} 轮` })
+    history.push({ messageId: `many-a${index}`, role: 'assistant', content: [{ type: 'text', text: `回复 ${index}` }] })
+  }
+  mock.sessions.set('many-1', {
+    id: 'many-1',
+    title: '长会话',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: { reasoning: 'auto' },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '长会话', exact: true }).click()
+  await expect(page.locator('.topbar h1')).toHaveText('长会话')
+  await expect(page.locator('.conversation-earlier')).toHaveCount(0)
+
+  const scroll = page.locator('.session-scroll')
+  await expect.poll(() => scroll.evaluate(element => element.scrollHeight > element.clientHeight + 20)).toBe(true)
+  const initial = await page.locator('.message').count()
+  expect(initial).toBeGreaterThan(8)
+  expect(initial).toBeLessThan(30)
+
+  // 不再需要点按钮：直接在会话区域向上滚，就会自动续页。
+  const box = await scroll.boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, -10000)
+  await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(initial)
+  await expect(page.locator('.conversation-earlier')).toHaveCount(0)
+  await screenshot(page, testInfo, 'long-history-auto-load')
+  expect(mock.errors).toEqual([])
+})
+
 test('return-to-latest scrolls to bottom and resumes following', async ({ page }) => {
   test.skip((await page.viewportSize()).width < 800, 'wheel scrolling is desktop-only here')
   const mock = await backend(page)
@@ -1916,6 +1959,8 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   expect(Math.abs((previewBox.y + previewBox.height / 2) - (hoveredMark.y + hoveredMark.height / 2))).toBeLessThan(4)
   await screenshot(page, testInfo, 'conversation-rail-preview')
   await page.mouse.move(0, 0)
+  // 等最新回复的贴底滚动稳定后再记录，避免把还在进行的平滑滚动算成“跳转”。
+  await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
   // 当前轮的刻度只显示预览，不应该把已经在看的正文往上拉走。
   const beforeCurrent = await page.locator('.session-scroll').evaluate(element => element.scrollTop)
   await page.locator('.conversation-rail__mark').last().click({ force: true })

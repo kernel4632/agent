@@ -35,9 +35,11 @@ const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
 const turns = computed(() => groupMessageTurns(messages.value))
-// 切换会话时只挂最近几轮，避免一下子渲染几百条历史；滚到顶部再按需加载更早的。
-const INITIAL_TURNS = 5
-const LOAD_STEP = 5
+// 切换会话时只挂最近几轮，避免一下子渲染几百条历史；
+// 但窗口必须自己长到撑满视口，并在用户滚到顶部时继续补，不能把“加载更早”做成按钮。
+const INITIAL_TURNS = 8
+const LOAD_STEP = 8
+const FILL_RATIO = 1.2
 function firstUserAtOrAfter(start) {
   const index = turns.value.slice(start).findIndex(turn => turn.role === 'user')
   return index < 0 ? start : start + index
@@ -58,19 +60,63 @@ const visibleStart = ref(visibleStartFor(restoredStart))
 const visibleTurns = computed(() => turns.value.slice(visibleStart.value))
 const earlierCount = computed(() => visibleStart.value)
 let loadingEarlier = false
-function loadEarlier() {
-  if (loadingEarlier || !earlierCount.value || !scrollParent) return
+let autoFilling = false
+async function loadEarlier() {
+  if (loadingEarlier || !earlierCount.value || !scrollParent) return false
+  const nextStart = visibleStartFor(Math.max(0, visibleStart.value - LOAD_STEP))
+  if (nextStart >= visibleStart.value) return false
   loadingEarlier = true
   const beforeHeight = scrollParent.scrollHeight
   const beforeTop = scrollParent.scrollTop
-  const target = Math.max(0, visibleStart.value - LOAD_STEP)
-  visibleStart.value = visibleStartFor(target)
+  visibleStart.value = nextStart
   // 旧内容插到上面后，把滚动位置往下补同样的高度，用户不会突然跳走。
-  nextTick(() => {
-    scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
-    loadingEarlier = false
-    rememberScroll()
-  })
+  await nextTick()
+  if (following.value) scrollParent.scrollTop = maxScrollTop()
+  else scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
+  loadingEarlier = false
+  rememberScroll()
+  return true
+}
+
+function sentinelNear() {
+  if (!scrollParent || !topSentinel.value) return false
+  const root = scrollParent.getBoundingClientRect()
+  const sentinel = topSentinel.value.getBoundingClientRect()
+  return sentinel.bottom >= root.top - 120 && sentinel.top <= root.bottom
+}
+
+// 打开会话时先把窗口补到可滚动，避免“最近几轮撑不满视口，滚轮又被直接忽略”。
+async function fillViewport() {
+  if (autoFilling || !scrollParent) return
+  autoFilling = true
+  try {
+    let guard = 0
+    while (earlierCount.value && guard++ < 30 && scrollParent.scrollHeight < scrollParent.clientHeight * FILL_RATIO) {
+      if (!await loadEarlier()) break
+    }
+  } finally {
+    autoFilling = false
+  }
+}
+
+function maybeFill() {
+  if (!scrollParent || scrollParent.clientHeight <= 0) return
+  if (earlierCount.value && scrollParent.scrollHeight < scrollParent.clientHeight * FILL_RATIO) void fillViewport()
+}
+
+// 滚到顶部后连续补页：如果补完还停在顶部（内容仍不够高），继续补，不能只加载一次。
+async function loadAtTop() {
+  if (autoFilling || loadingEarlier || !scrollParent) return
+  autoFilling = true
+  try {
+    let guard = 0
+    while (earlierCount.value && guard++ < 30) {
+      if (!await loadEarlier()) break
+      if (!sentinelNear()) break
+    }
+  } finally {
+    autoFilling = false
+  }
 }
 watch(() => turns.value.length, length => {
   if (visibleStart.value > length) visibleStart.value = visibleStartFor(Math.max(0, length - INITIAL_TURNS))
@@ -194,7 +240,14 @@ function onScroll() {
 }
 
 function onWheel(event) {
-  if (!scrollParent || scrollParent.scrollHeight <= scrollParent.clientHeight) return
+  if (!scrollParent) return
+  // 内容还没撑满视口时浏览器不会滚，直接在这里补历史，不能把用户卡住。
+  if (event.deltaY < 0 && earlierCount.value && scrollParent.scrollTop <= 1) {
+    stopFollowing()
+    void loadAtTop()
+    return
+  }
+  if (scrollParent.scrollHeight <= scrollParent.clientHeight) return
   const nested = nestedScroller(event.target)
   if (nested) {
     // 内部滚动区还能动时先让它消费；它到顶/到底后再轮到聊天容器。
@@ -346,17 +399,22 @@ onMounted(() => {
   // 输入框/窗口变高变矮会改变视口；跟随中保持贴底，浏览中保持读者位置。
   viewportObserver = new ResizeObserver(() => {
     if (following.value) queueStick()
+    maybeFill()
   })
   if (scrollParent) viewportObserver.observe(scrollParent)
-  // 滚到最上面时自动接上一页历史；按钮仍然保留，键盘和读屏也能主动加载。
+  // 顶部 sentinel 只负责触发自动补页，不显示“更早”按钮；补完仍可见就继续补。
   sentinelObserver = new IntersectionObserver(entries => {
-    if (entries.some(entry => entry.isIntersecting)) loadEarlier()
+    if (entries.some(entry => entry.isIntersecting)) void loadAtTop()
   }, { root: scrollParent, rootMargin: '120px 0px 0px 0px' })
   if (topSentinel.value) sentinelObserver.observe(topSentinel.value)
   // 刷新后回到原来的位置；没有记录或当时停在底部，就继续跟最新内容。
   const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
   if (restoreTop == null) {
     queueStick()
+    void nextTick(() => {
+      fillViewport()
+      requestAnimationFrame(fillViewport)
+    })
     return
   }
   const applyRestore = () => {
@@ -369,6 +427,7 @@ onMounted(() => {
     requestAnimationFrame(() => {
       applyRestore() // 字体/图片首帧后高度可能还在变，再对齐一次
       if (!following.value && atBottom(24)) setFollowing(true)
+      void fillViewport()
     })
   }))
 })
@@ -449,10 +508,6 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 <template>
   <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
     <span ref="topSentinel" class="conversation-top-sentinel" aria-hidden="true"></span>
-    <button v-if="earlierCount" type="button" class="conversation-earlier" @click="loadEarlier">
-      <Icon name="up" :size="14" />
-      更早的 {{ earlierCount }} 轮
-    </button>
     <article v-for="turn in visibleTurns" :key="turn.id" :data-turn-id="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'Agent 的回复'">
       <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
       <template v-else-if="turn.role === 'user'">

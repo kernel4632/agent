@@ -219,18 +219,16 @@ test.describe('chat motion', () => {
     await page.reload()
 
     await openSession(page, '会话甲')
-    // 长会话只先挂最近几轮，避免切换时一次渲染整段历史。
+    // 长会话先自动补到可滚动，更早的轮次由滚动自动续页，不再提供按钮。
     await expect(page.locator('.rikka-bubble--user').last()).toContainText('第 22 条问题。')
-    await expect(page.locator('.conversation-earlier')).toContainText('更早的')
+    await expect(page.locator('.conversation-earlier')).toHaveCount(0)
     await expect.poll(() => page.locator('.session-scroll').evaluate(element => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(4)
     const rendered = await page.locator('.message').count()
-    // 短内容直接点分页；可滚动的长内容到顶时会自动加载上一页。
     await expect(page.locator('.conversation-flow')).not.toHaveClass(/session-swap-enter-active/)
     const scrollable = await page.locator('.session-scroll').evaluate(element => element.scrollHeight > element.clientHeight)
-    if (scrollable) {
-      await page.locator('.session-scroll').hover()
-      await page.mouse.wheel(0, -10000)
-    } else await page.locator('.conversation-earlier').click()
+    expect(scrollable).toBe(true)
+    await page.locator('.session-scroll').hover()
+    await page.mouse.wheel(0, -10000)
     await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(rendered)
     const latest = page.getByRole('button', { name: '回到最新', exact: true })
     if (await latest.isVisible()) await latest.click()

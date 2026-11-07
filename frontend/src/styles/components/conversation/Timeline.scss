@@ -64,21 +64,6 @@
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
 .conversation-top-sentinel { display: block; width: 100%; height: 1px; flex: none; }
-.conversation-earlier {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 999px;
-  background: var(--la-layer-01);
-  color: var(--la-muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.conversation-earlier:hover { color: var(--la-text); background: var(--la-layer-02); }
 .conversation-latest {
   position: sticky;
   bottom: 12px;
