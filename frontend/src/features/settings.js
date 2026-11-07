@@ -187,14 +187,23 @@ function persist(options = {}) {
 // --- 工具开关写回 permission；只写用户真的改过的那几个，对象规则里的参数模式保留 ---
 function permissionPayload(draft) {
   const permission = { ...(store.config.raw?.permission || {}) }
-  for (const tool of draft.tools || []) {
+  const tools = draft.tools || []
+  let toolsChanged = false
+  for (const tool of tools) {
     if (tool.original !== undefined && tool.permission === tool.original) continue
+    toolsChanged = true
     const current = permission[tool.name]
     if (current && typeof current === 'object' && !Array.isArray(current)) {
       permission[tool.name] = { ...current, '*': tool.permission }
     } else {
       permission[tool.name] = tool.permission
     }
+  }
+  // 全部打开才写全局允许。关掉其中任意一个，全局回到询问；对象规则里更具体的模式保留。
+  if (toolsChanged) {
+    const allAllow = tools.length > 0 && tools.every(tool => tool.permission === 'allow')
+    if (allAllow) permission['*'] = 'allow'
+    else if (permission['*'] === 'allow') permission['*'] = 'ask'
   }
   return permission
 }

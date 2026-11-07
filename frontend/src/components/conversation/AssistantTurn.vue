@@ -162,6 +162,10 @@ function summarizeProcess(steps) {
   return pieces.join(' · ') || '运行状态'
 }
 const processSummary = computed(() => summarizeProcess(treeSteps.value))
+// 等待批准的工具不进折叠：收起处理过程时，参数和按钮仍留在卡片上，也不做高度动画。
+const needsDecision = tool => !!tool && (tool.status === 'waiting' || (tool.subagentSteps || []).some(needsDecision))
+const isPendingStep = step => step.type === 'tool' && needsDecision(step.tool)
+const pendingSteps = computed(() => treeSteps.value.filter(isPendingStep))
 
 // 通用规则：
 // 1. 助手正文永远留在折叠组外，保证一级能看到“说了什么”；
@@ -188,7 +192,7 @@ const processSections = computed(() => {
     group = null
   }
 
-  for (const step of treeSteps.value) {
+  for (const step of treeSteps.value.filter(step => !isPendingStep(step))) {
     if (step.type === 'text') {
       flush()
       sections.push({ type: 'step', key: step.key, step })
@@ -290,6 +294,15 @@ function clearTarget() { targetId.value = null; emit('close') }
           <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
           <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
         </button>
+        <div v-if="pendingSteps.length" class="process-pending">
+          <ToolCall
+            v-for="step in pendingSteps"
+            :key="step.key"
+            :data-message-id="step.messageId"
+            :tool="step.tool"
+            :session-id="sessionId"
+          />
+        </div>
         <Fold :open="processOpen">
           <div class="process-fold__body context-sections">
             <template v-for="section in processSections" :key="section.key">

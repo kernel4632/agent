@@ -1,6 +1,7 @@
 <!--
-工具步骤：默认只留一行。运行和等待批准都不把结果框撑开，避免高速执行时反复开合。
-出错或被拒绝时展开结果；任务清单保持展开。点标题可以自己打开或收起，批准按钮只在打开后出现。
+工具步骤：结果框默认收起，运行中不再跟着状态打开再关上。
+要执行的内容最多三行，批准按钮固定在这一行下面，收起处理过程时也还在。
+出错或被拒绝时展开结果；任务清单保持展开。点标题才打开完整结果。
 调用示例：<ToolCall :tool="tool" :session-id="session.id" />
 -->
 <script setup>
@@ -24,13 +25,18 @@ const bodyId = `tool-body-${props.tool.id || props.tool.name}`
 let timer = null
 
 const title = computed(() => toolTitle(props.tool))
+// 没有声明摘要时，把参数值拼出来，收起时也能看到即将执行的内容。
+function inputPreview(input) {
+  if (input == null || input === '') return ''
+  if (typeof input !== 'object') return String(input)
+  return Object.values(input).flatMap(value => {
+    if (value == null || value === '') return []
+    return [typeof value === 'string' ? value : JSON.stringify(value)]
+  }).join(' ')
+}
 const summary = computed(() => {
-  if (props.tool.assembling && props.tool.streamInput) {
-    const text = String(props.tool.streamInput).replace(/\s+/g, ' ').trim()
-    if (!text) return ''
-    return text.length > 96 ? `…${text.slice(-96)}` : text
-  }
-  return fillTemplate(uiFor(props.tool.name).summary, props.tool.input)
+  if (props.tool.assembling && props.tool.streamInput) return String(props.tool.streamInput).trim()
+  return fillTemplate(uiFor(props.tool.name).summary, props.tool.input) || inputPreview(props.tool.input)
 })
 const statusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 const statusText = computed(() => {
@@ -87,20 +93,20 @@ function decide(decision) {
         @click="toggleBody"
       >
         <span class="cot-step__label" :class="{ 'is-live': running }">{{ title }}</span>
-        <span v-if="summary" class="cot-step__summary" :title="summary">{{ summary }}</span>
         <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
         <Icon name="down" :size="14" class="cot-step__caret" :class="{ 'is-open': bodyOpen }" aria-hidden="true" />
       </button>
+      <p v-if="summary" class="cot-step__summary cot-step__summary--preview" :title="summary">{{ summary }}</p>
+      <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
+        <p>需要你的许可。检查工具和参数后再决定。</p>
+        <div>
+          <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
+          <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
+          <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
+        </div>
+      </div>
       <div v-if="bodyOpen" :id="bodyId" class="cot-step__body">
         <ToolResult :tool="tool" />
-        <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
-          <p>需要你的许可。检查工具和参数后再决定。</p>
-          <div>
-            <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
-            <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
-            <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
-          </div>
-        </div>
       </div>
       <div v-if="tool.subagentSteps?.length" class="subagent-branch">
         <div class="subagent-branch__head">
