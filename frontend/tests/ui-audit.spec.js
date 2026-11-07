@@ -512,7 +512,7 @@ test('assistant markdown uses local code blocks and typography', async ({ page }
   expect(mock.errors).toEqual([])
 })
 
-test('mermaid code blocks render as diagrams and fall back to source on error', async ({ page }) => {
+test('mermaid code blocks render as diagrams and fall back to source on error', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -532,6 +532,14 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
   await expect(bubble.locator('.ui-code-block__mermaid-error')).toContainText(/错误|error|Parse/i)
   await expect(bubble.locator('.ui-code-block__body pre code')).toContainText('A[缺少闭合')
+  // 界面切到浅色再切回：已有图按新主题重画，不崩不消失。
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  await page.getByRole('button', { name: /通用/ }).click()
+  await page.getByRole('radio', { name: '浅色', exact: true }).check()
+  await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
+  await page.getByRole('radio', { name: '深色', exact: true }).check()
+  await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
+  await screenshot(page, testInfo, 'mermaid-dark')
   expect(mock.errors).toEqual([])
 })
 

@@ -1,6 +1,6 @@
 <!-- 代码块：高亮、行号、复制；mermaid 块动态渲染成图，语法错误回退源码。示例：<CodeBlock :code="source" language="js" /> -->
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import hljs from 'highlight.js'
 import Button from './Button.vue'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
@@ -24,10 +24,16 @@ const enqueue = task => {
 
 const loadMermaid = async () => {
   if (!mermaidLib) {
-    mermaidLib = import('mermaid').then(module => {
-      module.default.initialize({ startOnLoad: false, securityLevel: 'strict' })
-      return module.default
-    })
+    mermaidLib = import('mermaid').then(module => ({
+      // 每次渲染前都重新 initialize：主题跟界面走（暗色用暗主题，浅色用中性主题），
+      // 重复 initialize 是官方支持的配置方式；securityLevel strict 转义图内 HTML。
+      configure: () => module.default.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'neutral',
+      }),
+      mermaid: module.default,
+    }))
   }
   return mermaidLib
 }
@@ -38,7 +44,8 @@ async function draw() {
   const id = `mermaid-${crypto.randomUUID()}`
   await enqueue(async () => {
     try {
-      const mermaid = await loadMermaid()
+      const { mermaid, configure } = await loadMermaid()
+      configure()
       const { svg } = await mermaid.render(id, props.code)
       diagram.value = svg
       diagramError.value = ''
@@ -55,13 +62,17 @@ async function draw() {
 
 watch([isMermaid, () => props.code], draw, { immediate: true })
 
+// mermaid 的 SVG 颜色是渲染时烧进去的具体色值，不跟 CSS 变量走；
+// 界面切主题后要按新主题重画一遍，否则暗底上留着浅色主题的深色文字。
+onMounted(() => window.addEventListener('agent-theme', draw))
+onBeforeUnmount(() => { window.removeEventListener('agent-theme', draw); clearTimeout(timer) })
+
 async function copy() {
   try { await navigator.clipboard.writeText(props.code); status.value = '已复制' }
   catch { status.value = '复制失败' }
   clearTimeout(timer)
   timer = setTimeout(() => { status.value = '复制' }, 2000)
 }
-onBeforeUnmount(() => clearTimeout(timer))
 </script>
 <template><figure class="ui-code-block"><figcaption><span>{{ language }}</span><Button variant="text" size="small" :aria-label="status === '已复制' ? '已复制' : '复制代码'" @click="copy">{{ status }}</Button></figcaption><div v-if="isMermaid && diagram" class="ui-code-block__mermaid" v-html="diagram"></div><div v-else class="ui-code-block__body"><p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p><pre v-if="lineNumbers" class="ui-code-block__numbers" aria-hidden="true">{{ code.split('\n').map((_, index) => index + 1).join('\n') }}</pre><pre><code v-html="highlighted"></code></pre></div></figure></template>
 <style scoped lang="scss" src="../styles/ui/CodeBlock.scss"></style>
