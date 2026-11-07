@@ -216,7 +216,7 @@ export default store
 - `mcp` 是配置的一部分，属于基座能力。
 - `sessions[].cwd` 是唯一的位置概念，没有 `workspaceId`。
 - `history` 和 `settings` 属于会话；消息回退只改 `history`，不碰文件。
-- 权限只有一层：`config.permission` 的全局规则（allow / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`，也没有自动批准上限；同一个调用连续三次的循环检测保留。
+- 权限只有一层：`config.permission` 的全局规则（allow / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。
 
 ## 六、请求流程
 

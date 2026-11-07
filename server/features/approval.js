@@ -2,7 +2,9 @@
  * 工具审批：按权限规则放行工具，或在规则要求询问时等用户决定。
  *
  * 这是工具执行的唯一一道关口。deny 是硬规则；没有会话级自动批准。
- * 同一个工具调用连续出现三次时，会停下来问一次。
+ * 对象规则里的 `*` 是这个工具的默认动作，不拿去对参数做通配。
+ * 其余模式才按参数匹配，并且 `*` 跨过斜杠和换行，所以“始终允许”能盖住同一类命令。
+ * 规则已经是 allow 的调用直接放行，不再因为重复出现而停下来问。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
  * 工具查询和配置保存由命令层在启动时 bind；本文件不 import 任何 feature。
  *
@@ -22,22 +24,8 @@ import SSE from '../utils/sse.js'
 let services = {}
 const bind = value => { services = value }
 
-// 同一个工具调用连续出现这么多次，就停下来问一次。
-const LOOP_LIMIT = 3
-
 // 等用户决定的工具调用：key 是 `${sessionId}:${toolCallId}`，value 里带着唤醒 Agent 的 resolve。
 const approvals = new Map()
-// 每个会话最近一次工具调用和连续次数。
-const recentCalls = new Map()
-
-// --- 把参数变成稳定的字符串，键的顺序不影响结果 ---
-const stableKey = value => {
-    if (Array.isArray(value)) return `[${value.map(stableKey).join(',')}]`
-    if (value && typeof value === 'object') {
-        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableKey(value[key])}`).join(',')}}`
-    }
-    return JSON.stringify(value)
-}
 
 // --- 把工具参数摊平成一行文字，供规则里的模式比对 ---
 const flattenInput = value => {
@@ -55,16 +43,29 @@ const flattenInput = value => {
 // --- 认不出的写法一律按"询问"处理 ---
 const normalize = value => value === 'allow' ? 'allow' : value === 'deny' ? 'deny' : 'ask'
 
+// picomatch 的 * 不跨 `/` 和换行。权限比的是命令和参数原文，先换成同一个占位再匹配。
+const loosen = value => String(value).replace(/[/\r\n]/g, '\u0001')
+
+const matchPattern = (value, pattern) => {
+    if (!pattern || pattern === '*') return false
+    try {
+        return picomatch.isMatch(loosen(value), loosen(pattern), { bash: true, dot: true, windows: false, fastpaths: false })
+    } catch {
+        return false
+    }
+}
+
 // --- 按规则决定放行、询问还是拒绝 ---
 const decideByRules = (toolName, matchValue, rules = store.config.permission || { '*': 'ask' }) => {
     const toolRule = rules[toolName]
     let decision = normalize(rules['*'])
     if (typeof toolRule === 'string') decision = normalize(toolRule)
     if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
-        // 对象形式的规则按参数匹配：最后一条命中的模式说了算。
+        // `*` 是这个工具的默认动作。设置页的“自动执行”写的就是它，不能再要求参数真的匹配到星号。
+        if ('*' in toolRule) decision = normalize(toolRule['*'])
+        // 其余模式按参数匹配：最后一条命中的说了算，可以覆盖上面的默认动作。
         for (const [pattern, result] of Object.entries(toolRule)) {
-            // 参数是原始字符串，不是待规范化的路径；快路径会丢掉中文前面的反斜杠。
-            if (picomatch.isMatch(matchValue, pattern, { bash: true, dot: true, windows: false, fastpaths: false })) decision = normalize(result)
+            if (matchPattern(matchValue, pattern)) decision = normalize(result)
         }
     }
     return decision
@@ -119,20 +120,6 @@ const ruleDecision = async ({ sessionId, toolCallId, name, matchValue, input }) 
     return { decision, denied: true }
 }
 
-// --- 同一个调用连续出现时先停下来问一次 ---
-const repeatsTooOften = ({ sessionId, name, input }) => {
-    if (!sessionId) return false
-    const key = `${name}:${stableKey(input)}`
-    const previous = recentCalls.get(sessionId)
-    const count = previous?.key === key ? previous.count + 1 : 1
-    recentCalls.set(sessionId, { key, count })
-    const looping = count >= LOOP_LIMIT
-    if (looping) {
-        SSE.send({ id: sessionId, data: { type: 'permission-limit', limit: LOOP_LIMIT, reason: `同一个工具调用连续出现 ${LOOP_LIMIT} 次，确认要继续吗` } })
-    }
-    return looping
-}
-
 // --- 把审批请求推给界面，等用户回答；任务被取消时按拒绝处理 ---
 const waitForUser = ({ sessionId, toolCallId, name, input, matchValue, signal }) => new Promise(resolve => {
     approvals.set(`${sessionId}:${toolCallId}`, { sessionId, toolName: name, input, matchValue, resolve })
@@ -159,10 +146,8 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     const rules = await ruleDecision({ sessionId, toolCallId, name, matchValue, input })
     if (rules.denied) return false
 
-    // 同一个调用连续出现三次时，即使规则说 allow 也停下来问一次。
-    const looping = repeatsTooOften({ sessionId, name, input })
-    const rule = looping ? 'ask' : rules.decision
-    if (rule === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    // allow 就是放行。重复出现同一次调用不再改回询问，否则自动执行形同失效。
+    if (rules.decision === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
 
     // 没有会话上下文时按无人值守放行。
     if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName: name, input })
@@ -186,7 +171,6 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     }
 
     approvals.delete(`${sessionId}:${toolCallId}`)
-    recentCalls.delete(sessionId)
     if (decision === 'allow-always') {
         remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue }) // 把这条规则写进内存配置
         await services.config.save()                                                                       // 规则立刻落盘，下次启动仍然生效
@@ -195,17 +179,11 @@ const decide = async ({ sessionId, toolCallId, decision }) => {
     return { ok: true }
 }
 
-// --- 发新消息时重新开始重复调用计数 ---
-const reset = sessionId => {
-    recentCalls.delete(sessionId)
-}
-
 const remove = sessionId => {
     for (const [key, approval] of approvals) {
         if (approval.sessionId !== sessionId) continue
         approvals.delete(key)
     }
-    recentCalls.delete(sessionId)
 }
 
-export default { check, decide, pending, reset, remove, bind }
+export default { check, decide, pending, remove, bind }
