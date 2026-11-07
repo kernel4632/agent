@@ -1,6 +1,7 @@
 {
   "name": "universal-agent",
-  "version": "0.69.0",
+  "version": "0.69.1",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
