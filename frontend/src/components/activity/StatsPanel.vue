@@ -83,9 +83,30 @@ const ringClass = computed(() => ({
 const hasUsage = computed(() => total.value > 0)
 // 走势图已移除：Token 面板只保留总账和构成，不再用一条几乎不变的上下文曲线占空间。
 const speedGroups = computed(() => [...(props.stats.models || [])].sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps)))
+const liveHighlight = computed(() => {
+  if (!live.value.running) return null
+  const firstTokenAt = Number(live.value.firstTokenAt || 0)
+  const startedAt = Number(live.value.startedAt || 0)
+  const elapsed = firstTokenAt ? (liveNow.value - firstTokenAt) / 1000 : 0
+  return {
+    provider: live.value.provider || '生成中',
+    model: live.value.model || '',
+    lastFirstTokenMs: firstTokenAt && startedAt ? Math.max(0, firstTokenAt - startedAt) : 0,
+    lastTps: elapsed > 0 ? Math.max(1, Math.round(Number(live.value.output || 0) / elapsed)) : 0,
+    lastAt: Number.MAX_SAFE_INTEGER,
+    live: true,
+  }
+})
 // 一个会话可以换几十个模型；小面板用紧凑表格只展示最近使用的五个。
 const recentSpeedGroups = computed(() => [...speedGroups.value].sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0) || (b.averageDurationMs - a.averageDurationMs)))
-const recentSpeedHighlights = computed(() => recentSpeedGroups.value.slice(0, 5))
+const recentSpeedHighlights = computed(() => {
+  const groups = recentSpeedGroups.value.slice(0, 5)
+  const liveGroup = liveHighlight.value
+  if (!liveGroup) return groups
+  const index = groups.findIndex(group => group.provider === liveGroup.provider && group.model === liveGroup.model)
+  if (index < 0) return [liveGroup, ...groups].slice(0, 5)
+  return groups.map((group, position) => position === index ? { ...group, ...liveGroup } : group)
+})
 const formatDuration = value => {
   const ms = Number(value || 0)
   if (!ms) return '—'
@@ -186,7 +207,7 @@ const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? '
             <table class="stats-panel__speed-grid">
               <colgroup><col><col style="width: 46px"><col style="width: 72px"></colgroup>
               <tbody>
-                <tr v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-row" :title="`${group.provider}/${group.model}`">
+                <tr v-for="group in recentSpeedHighlights" :key="`${group.provider}-${group.model}`" class="stats-panel__speed-row" :class="{ 'is-live': group.live }" :title="group.live ? `正在生成：${group.provider}/${group.model}` : `${group.provider}/${group.model}`">
                   <td class="stats-panel__speed-model-cell">
                     <span class="stats-panel__speed-model-path"><span>{{ group.provider }}</span><i>/</i><strong>{{ group.model }}</strong></span>
                   </td>

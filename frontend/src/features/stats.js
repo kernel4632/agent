@@ -324,6 +324,9 @@ export function sessionStats(session) {
       running: Boolean(liveAssistant),
       output: liveOutput,
       firstTokenAt: liveFirstTokenAt,
+      startedAt: Number(liveRequest?.startedAt || liveAssistant?.startedAt || 0),
+      provider: liveRequest?.provider || currentProvider,
+      model: liveRequest?.model || currentModel,
       tps: last ? requestTps(last) : 0,
     },
     // 内容构成只在统计面板真正读取时才算；流式正文不经过这里。
