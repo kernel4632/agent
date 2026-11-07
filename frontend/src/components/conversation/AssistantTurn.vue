@@ -120,20 +120,16 @@ const turnActive = computed(() => streaming.value && !finalText.value)
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
-// 整轮处理默认折叠；活动时自动展开。用户手动改过就按用户的选择保留。
-const processKey = `agent.process-fold:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
-const processStored = (() => {
-  try { return localStorage.getItem(processKey) } catch { return null }
-})()
-const processTouched = ref(processStored !== null)
-const processOpen = ref(processStored === 'open' || (processStored === null && turnActive.value))
+// 整轮处理默认折叠；活动时自动展开。折叠状态只保留在本次会话的当前挂载里：
+// 切换会话后重新挂载，历史轮次全部收起，正在执行的那一轮仍然展开。
+const processTouched = ref(false)
+const processOpen = ref(turnActive.value)
 watch(turnActive, value => {
   if (!processTouched.value) processOpen.value = value
 })
 function toggleProcess() {
   processTouched.value = true
   processOpen.value = !processOpen.value
-  try { localStorage.setItem(processKey, processOpen.value ? 'open' : 'closed') } catch {}
 }
 function summarizeSteps(steps) {
   const content = steps.filter(step => step.type !== 'request' && step.type !== 'compact')
@@ -215,7 +211,7 @@ const processSections = computed(() => {
   return sections
 })
 
-const groupStoreKey = `${processKey}:groups`
+const groupStoreKey = `agent.process-groups:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 const groupOpen = ref((() => {
   try { return JSON.parse(localStorage.getItem(groupStoreKey) || '{}') || {} } catch { return {} }
 })())

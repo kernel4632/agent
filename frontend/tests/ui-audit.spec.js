@@ -949,6 +949,107 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
+test('timeline unloads far above turns after scrolling back down', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  const history = []
+  for (let index = 1; index <= 55; index += 1) {
+    history.push({ messageId: `trim-u${index}`, role: 'user', content: `第 ${index} 轮` })
+    history.push({ messageId: `trim-a${index}`, role: 'assistant', content: [{ type: 'text', text: `回复 ${index}` }] })
+  }
+  mock.sessions.set('trim-1', {
+    id: 'trim-1',
+    title: '窗口会话',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: { reasoning: 'auto' },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '窗口会话', exact: true }).click()
+  const scroll = page.locator('.session-scroll')
+  await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(0)
+
+  // 反复到顶，把历史全部加载出来。
+  for (let index = 0; index < 8; index += 1) {
+    await scroll.evaluate(element => { element.scrollTop = 0 })
+    await page.waitForTimeout(220)
+  }
+  const loaded = await page.locator('.message').count()
+  expect(loaded).toBeGreaterThan(40)
+
+  // 回到最底下后，顶部远离视口的轮次会被卸掉，但滚动位置保持贴底。
+  await page.waitForTimeout(320)
+  await scroll.evaluate(element => { element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight - 1000) })
+  await page.waitForTimeout(120)
+  await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await expect.poll(() => page.locator('.message').count()).toBeLessThanOrEqual(40)
+  await expect.poll(() => scroll.evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(4)
+  await expect(page.locator('.conversation-earlier')).toHaveCount(0)
+
+  // 再往上滚，卸掉的轮次会重新补回来。
+  const trimmed = await page.locator('.message').count()
+  await scroll.hover()
+  await page.mouse.wheel(0, -10000)
+  await expect.poll(() => page.locator('.message').count()).toBeGreaterThan(trimmed)
+  await screenshot(page, testInfo, 'timeline-window-trim')
+  expect(mock.errors).toEqual([])
+})
+
+test('finished process folds collapse again after switching sessions', async ({ page }) => {
+  const mock = await backend(page)
+  const history = [
+    { messageId: 'fold-u1', role: 'user', content: '看一下 a.txt' },
+    {
+      messageId: 'fold-a1',
+      role: 'assistant',
+      content: [
+        { type: 'tool-invocation', toolCallId: 'fold-call', toolName: 'read_file', state: 'result', args: { path: 'a.txt' }, result: { output: { type: 'text', value: 'ok' } } },
+        { type: 'text', text: '文件读完了。' },
+      ],
+    },
+  ]
+  for (const [id, title] of [['fold-1', '处理一'], ['fold-2', '处理二']]) {
+    mock.sessions.set(id, {
+      id,
+      title,
+      provider: 'Test Provider',
+      model: 'test-model',
+      history: structuredClone(history),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      settings: { reasoning: 'auto' },
+      todos: [],
+      running: false,
+      pending: [],
+      undoable: 0,
+    })
+  }
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '处理一', exact: true }).click()
+  const head = page.locator('.process-fold__head')
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
+  await head.click()
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+
+  await openDrawer(page)
+  await page.getByRole('button', { name: '处理二', exact: true }).click()
+  await expect(page.locator('.topbar h1')).toHaveText('处理二')
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await openDrawer(page)
+  await page.getByRole('button', { name: '处理一', exact: true }).click()
+  await expect(page.locator('.topbar h1')).toHaveText('处理一')
+  await expect(page.locator('.process-fold__head')).toHaveAttribute('aria-expanded', 'false')
+  expect(mock.errors).toEqual([])
+})
+
 test('long history loads older turns automatically without an earlier button', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const history = []

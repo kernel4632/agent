@@ -40,6 +40,7 @@ const turns = computed(() => groupMessageTurns(messages.value))
 const INITIAL_TURNS = 8
 const LOAD_STEP = 8
 const FILL_RATIO = 1.2
+const MAX_RENDERED_TURNS = 40
 function firstUserAtOrAfter(start) {
   const index = turns.value.slice(start).findIndex(turn => turn.role === 'user')
   return index < 0 ? start : start + index
@@ -61,6 +62,9 @@ const visibleTurns = computed(() => turns.value.slice(visibleStart.value))
 const earlierCount = computed(() => visibleStart.value)
 let loadingEarlier = false
 let autoFilling = false
+let trimming = false
+let trimFrame = 0
+let trimBlockedUntil = 0
 async function loadEarlier() {
   if (loadingEarlier || !earlierCount.value || !scrollParent) return false
   const nextStart = visibleStartFor(Math.max(0, visibleStart.value - LOAD_STEP))
@@ -73,6 +77,8 @@ async function loadEarlier() {
   await nextTick()
   if (following.value) scrollParent.scrollTop = maxScrollTop()
   else scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
+  // 这次 scrollTop 是程序补偿，不是读者向下滚动；短暂禁止裁窗口。
+  trimBlockedUntil = performance.now() + 250
   loadingEarlier = false
   rememberScroll()
   return true
@@ -102,6 +108,41 @@ async function fillViewport() {
 function maybeFill() {
   if (!scrollParent || scrollParent.clientHeight <= 0) return
   if (earlierCount.value && scrollParent.scrollHeight < scrollParent.clientHeight * FILL_RATIO) void fillViewport()
+}
+
+// 往上翻时窗口会变大；用户再往下滚后，把已经远离视口顶部的旧轮次卸掉。
+// 只从顶部裁，调整 scrollTop 保持当前阅读位置；再往上滚时仍由自动续页补回来。
+async function trimWindow() {
+  if (trimming || loadingEarlier || autoFilling || !scrollParent || !flow.value) return
+  const nodes = [...flow.value.querySelectorAll(':scope > .message')]
+  if (nodes.length <= MAX_RENDERED_TURNS) return
+  const root = scrollParent.getBoundingClientRect()
+  const buffer = scrollParent.clientHeight * 0.6
+  let remove = 0
+  for (const node of nodes) {
+    if (nodes.length - remove <= MAX_RENDERED_TURNS) break
+    if (node.getBoundingClientRect().bottom >= root.top - buffer) break
+    remove += 1
+  }
+  if (!remove) return
+  trimming = true
+  const beforeHeight = scrollParent.scrollHeight
+  const beforeTop = scrollParent.scrollTop
+  visibleStart.value += remove
+  await nextTick()
+  const removedHeight = beforeHeight - scrollParent.scrollHeight
+  if (following.value) scrollParent.scrollTop = maxScrollTop()
+  else scrollParent.scrollTop = Math.max(0, beforeTop - removedHeight)
+  trimming = false
+  rememberScroll()
+}
+
+function scheduleTrim() {
+  if (trimFrame) return
+  trimFrame = requestAnimationFrame(() => {
+    trimFrame = 0
+    void trimWindow()
+  })
 }
 
 // 滚到顶部后连续补页：如果补完还停在顶部（内容仍不够高），继续补，不能只加载一次。
@@ -236,6 +277,7 @@ function onScroll() {
     setFollowing(true)
   }
   lastTop = top
+  if (performance.now() >= trimBlockedUntil) scheduleTrim()
   rememberScroll()
 }
 
@@ -433,6 +475,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   flushScroll()
+  if (trimFrame) cancelAnimationFrame(trimFrame)
   scrollParent?.removeEventListener('scroll', onScroll)
   scrollParent?.removeEventListener('wheel', onWheel)
   scrollParent?.removeEventListener('pointerdown', onPointerDown)
