@@ -14,8 +14,9 @@
  *   await History.save('session-1')
  */
 
-import { mkdir, readdir, rm } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, rm, truncate } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { createReadStream } from 'node:fs'
 import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import store from '../store.js'
@@ -24,10 +25,7 @@ import Scratch from '../utils/scratch.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 
-// 活跃文件只保留最近这么多条消息，更早的封存到 history/ 分块里。
-// 这样每轮保存只重写一个大小有上限的 history.json，而不是整段会话。
-const ACTIVE_MESSAGES = 400
-const ARCHIVE_FORMAT = 2
+// 历史以 JSONL 追加：正常保存不重写旧行，只有回退/迁移才整份重写。
 
 // meta.json 里的会话资料；读写两边都用同一份字段表，加上运行标记也不会互相走样。
 const META_FIELDS = ['id', 'title', 'cwd', 'temporary', 'model', 'createdAt', 'updatedAt', 'running']
@@ -78,20 +76,45 @@ const readArchives = async sessionId => {
     return { records, archives: index.archives, format: index.format || 0 }
 }
 
-const load = async sessionId => {
-    if (store.sessions[sessionId]) return store.sessions[sessionId]
+// --- 读取 JSONL：逐行流式扫描，不把整份文件当 JSON 解析 ---
+const readLog = async sessionId => {
+    const records = []
+    const offsets = []
+    let offset = 0
+    let buffer = Buffer.alloc(0)
+    const stream = createReadStream(Path.historyLog(sessionId))
+    try {
+        for await (const chunk of stream) {
+            buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk
+            let lineEnd = buffer.indexOf(10)
+            while (lineEnd >= 0) {
+                const line = buffer.subarray(0, lineEnd)
+                buffer = buffer.subarray(lineEnd + 1)
+                if (line.length) {
+                    try {
+                        records.push(JSON.parse(line.toString('utf8')))
+                        offsets.push(offset)
+                    } catch {
+                        // 崩溃留下的最后半行不参与读取，下一次保存会把它截掉。
+                        return { records, offsets, size: offset }
+                    }
+                }
+                offset += lineEnd + 1
+                lineEnd = buffer.indexOf(10)
+            }
+        }
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error
+        return { records: [], offsets: [], size: 0, missing: true }
+    }
+    return { records, offsets, size: offset }
+}
 
-    const metaFile = Bun.file(Path.meta(sessionId))
-    if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
-    const meta = await metaFile.json()                                // 当前形状的会话资料
-    const temporary = meta.temporary === true
-    if (temporary) await Scratch.ensure(meta.cwd, true)
+// --- 旧版 history.json + 分块迁移读取；迁完一次后只走 JSONL ---
+const readLegacy = async sessionId => {
     const rawHistory = await readSessionFile(Path.history(sessionId), { messages: [], redo: [] }, 'history.json')
     const archived = await readArchives(sessionId)
-    const settings = await readSessionFile(Path.settings(sessionId), { reasoning: 'auto' }, 'settings.json')
     const active = rawHistory && Array.isArray(rawHistory.messages) ? rawHistory.messages : []
-    // index 先于活跃文件落盘：极端崩溃时 active 可能还是旧的完整历史，
-    // 和分块重叠。按 messageId 去重，保留第一次出现的顺序。
     const seen = new Set()
     const messages = []
     for (const record of [...archived.records, ...active]) {
@@ -100,12 +123,33 @@ const load = async sessionId => {
         if (id) seen.add(id)
         messages.push(record)
     }
+    return { records: messages, offsets: [], size: 0, legacy: true, redo: rawHistory?.redo || [] }
+}
+
+const loadLog = async sessionId => {
+    if (await Bun.file(Path.historyLog(sessionId)).exists()) return readLog(sessionId)
+    if (await Bun.file(Path.history(sessionId)).exists()) return readLegacy(sessionId)
+    return { records: [], offsets: [], size: 0, legacy: false, redo: [] }
+}
+
+const load = async sessionId => {
+    if (store.sessions[sessionId]) return store.sessions[sessionId]
+
+    const metaFile = Bun.file(Path.meta(sessionId))
+    if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
+    const meta = await metaFile.json()                                // 当前形状的会话资料
+    const temporary = meta.temporary === true
+    if (temporary) await Scratch.ensure(meta.cwd, true)
+    const log = await loadLog(sessionId)
+    const settings = await readSessionFile(Path.settings(sessionId), { reasoning: 'auto' }, 'settings.json')
+    const savedRedo = await readSessionFile(Path.historyRedo(sessionId), null, 'history-redo.json')
     const history = {
-        messages,
-        redo: Array.isArray(rawHistory?.redo) ? rawHistory.redo : [],
-        activeStart: archived.records.length,
-        archives: archived.archives,
-        format: archived.format,
+        messages: log.records,
+        redo: Array.isArray(log.redo) ? log.redo : (Array.isArray(savedRedo) ? savedRedo : []),
+        persistedCount: log.records.length,
+        offsets: log.offsets,
+        fileSize: log.size,
+        legacy: log.legacy === true,
     }
 
     const session = {
@@ -138,7 +182,7 @@ const create = async ({ title, cwd, temporary, provider, model, settings }) => {
         createdAt: now,
         updatedAt: now,
         running: false,
-        history: { messages: [], redo: [], activeStart: 0, archives: [], format: ARCHIVE_FORMAT },
+        history: { messages: [], redo: [], persistedCount: 0, offsets: [], fileSize: 0, legacy: false, rewrite: false },
         settings,
     }
     store.sessions[id] = session
@@ -146,75 +190,69 @@ const create = async ({ title, cwd, temporary, provider, model, settings }) => {
     return session
 }
 
-// --- 把超出活跃窗口的消息封存到新分块；分块一旦写完就不再修改 ---
-// 优先在上下文压缩的 compact 消息处切开：一个分块就是两段压缩之间的一段历史。
-const archiveActive = async session => {
-    const messages = session.history.messages
-    if (!Number.isInteger(session.history.activeStart)) session.history.activeStart = 0
-    if (!Array.isArray(session.history.archives)) session.history.archives = []
-    let activeStart = session.history.activeStart
-    const lastArchived = session.history.archives.at(-1)?.last
-    const prefixMatches = activeStart === 0
-        || (activeStart <= messages.length && messages[activeStart - 1]?.messageId === lastArchived)
-    const formatMatches = session.history.format === ARCHIVE_FORMAT
-    if (!prefixMatches || !formatMatches) {
-        // 旧分块按固定条数切，或回退跨过了封存边界：用当前完整时间线重建。
-        await rm(Path.historyArchives(session.id), { recursive: true, force: true })
-        session.history.archives = []
-        session.history.format = ARCHIVE_FORMAT
-        activeStart = 0
+// --- 把整份时间线写成 JSONL；只有首次迁移或回退/重建时才走这里 ---
+const writeAll = async session => {
+    const history = session.history
+    const lines = []
+    const offsets = []
+    let size = 0
+    for (const record of history.messages) {
+        offsets.push(size)
+        const line = `${JSON.stringify(record)}\n`
+        lines.push(line)
+        size += Buffer.byteLength(line)
     }
-    await mkdir(Path.historyArchives(session.id), { recursive: true })
-    while (messages.length - activeStart > ACTIVE_MESSAGES) {
-        const limit = messages.length - ACTIVE_MESSAGES
-        let cut = -1
-        // 最后一个压缩点优先作为切点；分块从摘要之后重新开始。
-        for (let index = activeStart + 1; index <= limit; index += 1) {
-            if (messages[index]?.message?.compact) cut = index
-        }
-        if (cut < 0) {
-            // 没有压缩点就退到用户轮次边界，避免把一轮拆开。
-            for (let index = limit; index > activeStart; index -= 1) {
-                if (messages[index]?.message?.role === 'user') { cut = index; break }
-            }
-        }
-        if (cut < 0) cut = limit
-        const batch = messages.slice(activeStart, cut)
-        if (!batch.length) break
-        const file = `${String(session.history.archives.length + 1).padStart(6, '0')}.json`
-        await writeFile(join(Path.historyArchives(session.id), file), JSON.stringify({ messages: batch }, null, 2))
-        session.history.archives.push({
-            file,
-            count: batch.length,
-            first: batch[0]?.messageId || '',
-            last: batch.at(-1)?.messageId || '',
-        })
-        activeStart = cut
-    }
-    session.history.activeStart = activeStart
-    session.history.format = ARCHIVE_FORMAT
+    await writeFile(Path.historyLog(session.id), lines.join(''))
+    history.persistedCount = history.messages.length
+    history.offsets = offsets
+    history.fileSize = size
+    history.legacy = false
+    history.rewrite = false
+    // 旧格式迁移完成后删掉这些文件；JSONL 是唯一历史来源。
+    await rm(Path.history(session.id), { force: true })
+    await rm(Path.historyArchives(session.id), { recursive: true, force: true })
+    await rm(Path.historyIndex(session.id), { force: true })
 }
 
-// --- 保存一条会话（元数据、活跃历史、设置） ---
+// --- 正常对话只追加新行，不碰已经写好的历史 ---
+const appendNew = async session => {
+    const history = session.history
+    const records = history.messages.slice(history.persistedCount)
+    if (!records.length) return
+    let size = history.fileSize || 0
+    const offsets = history.offsets.slice(0, history.persistedCount)
+    const lines = []
+    for (const record of records) {
+        offsets.push(size)
+        const line = `${JSON.stringify(record)}\n`
+        lines.push(line)
+        size += Buffer.byteLength(line)
+    }
+    // 上次崩溃可能留下半行；从旧的有效结尾继续追加。
+    const actual = await Bun.file(Path.historyLog(session.id)).size
+    if (actual > history.fileSize) await truncate(Path.historyLog(session.id), history.fileSize)
+    await appendFile(Path.historyLog(session.id), lines.join(''))
+    history.persistedCount = history.messages.length
+    history.offsets = offsets
+    history.fileSize = size
+}
+
+// --- 保存一条会话：历史追加，元数据和设置分开写 ---
 const save = async sessionId => {
     const session = store.sessions[sessionId]
     if (!session) throw new Error(`Session not loaded: ${sessionId}`)
     await mkdir(Path.session(sessionId), { recursive: true })
 
-    await archiveActive(session)
-    const active = session.history.messages.slice(session.history.activeStart)
-    await writeFile(Path.historyIndex(sessionId), JSON.stringify({
-        format: ARCHIVE_FORMAT,
-        activeStart: session.history.activeStart,
-        archives: session.history.archives,
-    }, null, 2))
+    const history = session.history
+    if (history.legacy || history.rewrite || !Number.isInteger(history.persistedCount) || history.persistedCount > history.messages.length) {
+        await writeAll(session)
+    } else if (history.messages.length > history.persistedCount) {
+        await appendNew(session)
+    }
 
-    // 原子写入，避免程序中断留下半份 JSON。
-    // running 记在 meta 上：崩溃或重启后进程内的运行状态已经丢了，磁盘上这一位
-    // 是重启后判断“这个会话被打断了”的唯一依据。
     await writeFile(Path.meta(sessionId), JSON.stringify(metaOf(session), null, 2))
-    await writeFile(Path.history(sessionId), JSON.stringify({ messages: active, redo: session.history.redo }, null, 2))
     await writeFile(Path.settings(sessionId), JSON.stringify(session.settings, null, 2))
+    await writeFile(Path.historyRedo(sessionId), JSON.stringify(session.history.redo, null, 2))
 
     // 历史落盘后清掉已经包含的事件；断线重连会先读历史，再接收新事件。
     await SSE.reset({ id: sessionId })
@@ -279,6 +317,7 @@ const rollback = async ({ sessionId, messageId }) => {
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
 
     session.history.redo.push(session.history.messages.splice(index))
+    session.history.rewrite = true
     session.updatedAt = Date.now()
 }
 
@@ -287,6 +326,7 @@ const redo = async ({ sessionId }) => {
     const session = store.sessions[sessionId]
     const records = session.history.redo.pop()
     if (records) session.history.messages.push(...records)
+    session.history.rewrite = true
     session.updatedAt = Date.now()
 }
 
@@ -318,6 +358,59 @@ const idsBefore = ({ sessionId, messageId }) => {
     const index = session.history.messages.findIndex(record => record.messageId === messageId)
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
     return session.history.messages.slice(0, index).map(record => record.message.id)
+}
+
+// --- 直接流式扫描 JSONL 取一页，不把整份历史读进内存 ---
+const pageByOffset = async ({ sessionId, beforeOffset, limit = 200 }) => {
+    const size = Math.min(500, Math.max(1, Math.floor(Number(limit) || 200)))
+    if (!await Bun.file(Path.historyLog(sessionId)).exists()) {
+        // 旧会话还没迁到 JSONL：先按旧格式读，下一次保存会迁移。
+        const session = await load(sessionId)
+        const messages = get({ sessionId })
+        const end = Number.isInteger(beforeOffset) ? Math.max(0, beforeOffset) : messages.length
+        return {
+            messages: messages.slice(Math.max(0, end - size), end).map(({ messageId, ...message }) => ({ messageId, ...message })),
+            startOffset: 0,
+            endOffset: 0,
+            total: messages.length,
+            hasMore: end > size,
+        }
+    }
+    const end = Number.isInteger(beforeOffset) ? Math.max(0, beforeOffset) : Infinity
+    const ring = []
+    const offsets = []
+    let offset = 0
+    let total = 0
+    let buffer = Buffer.alloc(0)
+    const stream = createReadStream(Path.historyLog(sessionId))
+    try {
+        for await (const chunk of stream) {
+            buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk
+            let lineEnd = buffer.indexOf(10)
+            while (lineEnd >= 0) {
+                const line = buffer.subarray(0, lineEnd)
+                buffer = buffer.subarray(lineEnd + 1)
+                if (line.length && offset < end) {
+                    const record = JSON.parse(line.toString('utf8'))
+                    ring.push(record)
+                    offsets.push(offset)
+                    if (ring.length > size) { ring.shift(); offsets.shift() }
+                    total += 1
+                }
+                offset += lineEnd + 1
+                lineEnd = buffer.indexOf(10)
+            }
+        }
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error
+    }
+    return {
+        messages: ring,
+        startOffset: offsets[0] ?? 0,
+        endOffset: Number.isFinite(end) ? Math.min(end, offset) : offset,
+        total,
+        hasMore: (offsets[0] ?? 0) > 0,
+    }
 }
 
 // --- 读取当前历史：把 messageId 摊回消息对象上 ---
@@ -479,6 +572,6 @@ const prepare = async () => {
 
 export default {
     load, create, save, saveSettings, list,
-    add, rollback, redo, redoCount, idsBefore, get, page, outline,
+    add, rollback, redo, redoCount, idsBefore, get, page, pageByOffset, outline,
     count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
 }

@@ -57,13 +57,13 @@ const text = value => [{ type: 'text', text: value }]
 
 // 等到历史文件真的写进这么多条消息，避免测试清理目录时后台保存还在写。
 const waitForHistory = async (sessionId, count) => {
-    const path = join(process.env.AGENT_HOME, 'sessions', sessionId, 'history.json')
+    const path = join(process.env.AGENT_HOME, 'sessions', sessionId, 'history.jsonl')
     for (let attempt = 0; attempt < 100; attempt += 1) {
         try {
             const file = Bun.file(path)
             if (await file.exists()) {
-                const saved = await file.json()
-                if ((saved.messages?.length || 0) >= count) return
+                const saved = await file.text()
+                if (saved.split('\n').filter(Boolean).length >= count) return
             }
         } catch {
             // 刚好在写盘时可能读到半份内容，下一轮再读。
@@ -109,6 +109,7 @@ describe('继续被中断的助手', () => {
     test('缺 history/settings 的会话仍能打开和删除', async () => {
         await withHome(async root => {
             const sessionId = await setup()
+            await rm(join(root, 'sessions', sessionId, 'history.jsonl'), { force: true })
             await rm(join(root, 'sessions', sessionId, 'history.json'), { force: true })
             await rm(join(root, 'sessions', sessionId, 'settings.json'), { force: true })
             History.remove({ sessionId })

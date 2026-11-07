@@ -63,9 +63,8 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
   sessions-move.json   等待重启执行的会话迁移（仅迁移期间存在）
   sessions/<id>/       每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
-    history.json       活跃历史，只保留最近 400 条
-    history/           更早历史的只读分块；优先在上下文压缩点切开
-    history-index.json 活跃历史和分块索引
+    history.jsonl      追加式消息历史；正常保存只追加
+    history-redo.json  回退撤销栈
     settings.json      思考强度
     tool-timings.json  工具开始/结束时间，刷新后恢复计时
     checkpoints.json   每次改文件的工具调用对应哪些快照
@@ -409,7 +408,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }`；省略 `cwd` 时创建独立临时工作区 |
 | `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
 | `GET` | `/session/read/:sessionId` | 无 | 会话资料、最近一页 history、`historyStart`、`historyTotal`、`todos`、`running`、`pending`、`settings`、`undoable` |
-| `GET` | `/session/history/:sessionId?before=&limit=` | 无 | 分页历史：`messages`、`start`、`end`、`total`、`hasMore` |
+| `GET` | `/session/history/:sessionId?before=&beforeOffset=&limit=` | 无 | 分页历史：`messages`、`start`、`end`、`startOffset`、`endOffset`、`total`、`hasMore`；`beforeOffset` 直接按 JSONL 字节游标扫描 |
 | `GET` | `/session/outline/:sessionId` | 无 | 全会话轮次大纲：`turns[{id,index,role,prompt,response}]` 和 `totalMessages` |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话资料 |
 | `POST` | `/session/title/:sessionId` | 无 | 按后续对话重新生成标题：`{ "title" }` |

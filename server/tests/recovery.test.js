@@ -90,10 +90,10 @@ const fakeAgent = ({ history, resumePlan }) => {
 
 // 等一次 run 的收尾落盘（历史文件包含期望条数），恢复流程才算完整走完。
 const waitForHistory = async (sessionId, count) => {
-    const path = join(Path.root(), 'sessions', sessionId, 'history.json')
+    const path = join(Path.root(), 'sessions', sessionId, 'history.jsonl')
     for (let attempt = 0; attempt < 100; attempt += 1) {
-        const saved = await Bun.file(path).json().catch(() => null)
-        if (saved && (saved.messages?.length || 0) >= count) return
+        const saved = await Bun.file(path).text().catch(() => '')
+        if (saved.split('\n').filter(Boolean).length >= count) return
         await Bun.sleep(10)
     }
 }

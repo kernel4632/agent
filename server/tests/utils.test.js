@@ -389,8 +389,8 @@ describe('server health and history', () => {
             await History.add({ sessionId, message: AgentCore.history.user({ content: 'saved' }) })
             await History.save(sessionId)
 
-            const file = join(root, 'sessions', sessionId, 'history.json')
-            expect(JSON.parse(await readFile(file, 'utf8')).messages).toHaveLength(1)
+            const file = join(root, 'sessions', sessionId, 'history.jsonl')
+            expect((await readFile(file, 'utf8')).split('\n').filter(Boolean)).toHaveLength(1)
         })
     })
 

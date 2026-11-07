@@ -105,6 +105,7 @@ app.group('/session', session => session
     .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
         ...params,
         before: query.before === undefined ? undefined : Number(query.before),
+        beforeOffset: query.beforeOffset === undefined ? undefined : Number(query.beforeOffset),
         limit: query.limit === undefined ? undefined : Number(query.limit),
     }))
     .get('/outline/:sessionId', ({ params }) => Session.historyOutline(params))

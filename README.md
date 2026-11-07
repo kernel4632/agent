@@ -49,9 +49,8 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
   sessions-move.json         等待重启执行的会话迁移（仅迁移期间存在）
   sessions/<id>/             每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json                标题、当前目录、模型、时间
-    history.json             消息和回退栈
-    history/                 更早历史的只读分块
-    history-index.json       活跃历史和分块索引
+    history.jsonl            追加式消息历史
+    history-redo.json        回退撤销栈
     settings.json            思考强度
     tool-timings.json        工具开始/结束时间，刷新后恢复计时
     checkpoints.json         每次改文件的工具调用对应哪些快照

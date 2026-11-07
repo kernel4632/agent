@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.74.0",
+    "version": "0.75.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -1698,6 +1698,7 @@
         "parameters": [
           { "$ref": "#/components/parameters/SessionId" },
           { "name": "before", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
+          { "name": "beforeOffset", "in": "query", "schema": { "type": "integer", "minimum": 0 }, "description": "JSONL 字节偏移，优先使用；不传则从末尾扫描" },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
         ],
         "responses": {
@@ -1711,6 +1712,8 @@
                     "messages": { "type": "array", "items": { "type": "object" } },
                     "start": { "type": "integer" },
                     "end": { "type": "integer" },
+                    "startOffset": { "type": "integer" },
+                    "endOffset": { "type": "integer" },
                     "total": { "type": "integer" },
                     "hasMore": { "type": "boolean" }
                   }

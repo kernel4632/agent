@@ -15,10 +15,21 @@
  */
 
 import { join } from 'node:path'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import Path from '../utils/path.js'
 
 // 活跃历史 + 已封存分块按顺序拼回；搜索不能只搜最近窗口。
 const readMessages = async sessionId => {
+    if (await Bun.file(Path.historyLog(sessionId)).exists()) {
+        const records = []
+        const lines = createInterface({ input: createReadStream(Path.historyLog(sessionId)), crlfDelay: Infinity })
+        for await (const line of lines) {
+            if (!line) continue
+            try { records.push(JSON.parse(line)) } catch { /* 崩溃留下的半行 */ }
+        }
+        return records
+    }
     const records = []
     const index = await Bun.file(Path.historyIndex(sessionId)).json().catch(() => null)
     for (const archive of index?.archives || []) {
