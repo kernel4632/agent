@@ -27,7 +27,7 @@ import Path from '../utils/path.js'
 import Skill from '../tools/skill.js'
 import * as File from '../tools/file.js'
 
-// MCP 由命令层在启动时绑定；本文件不 import 别的 feature。
+// MCP 和技能由命令层在启动时绑定；本文件不 import 别的 feature。
 let services = {}
 const bind = value => { services = value }
 
@@ -141,8 +141,9 @@ const build = async ({ sessionId, onPermission, saveSession }) => {
             catalog.set(name, { ...tool, name, kind: 'mcp' })
         }
 
-        // 技能不把正文塞进工具表，只给一个按需读正文的工具。
-        const skill = await Skill.build({ cwd: session.cwd })       // 技能正文留在磁盘上，用时才读
+        // 技能不把正文塞进工具表，只给一个按需读正文的工具；
+        // 技能清单的扫描能力（features/skills）由启动装配注入。
+        const skill = await Skill.build({ cwd: session.cwd, skills: services.skills })  // 技能正文留在磁盘上，用时才读
         if (skill) catalog.set(skill.name, skill)
 
         const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文

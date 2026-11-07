@@ -78,7 +78,7 @@ describe('接口契约', () => {
     test('前端的结束工具名单和服务端一致', async () => {
         const [control, stopTools] = await Promise.all([
             source('tools/control.js'),
-            source('../frontend/src/features/session.js'),   // 前端拆分后结束工具名单住在 features/session.js
+            source('../frontend/src/features/turns.js'),      // 结束工具名单住在 features/turns.js
         ])
         const serverStops = [...control.matchAll(/name: '([^']+)'/g)].map(match => match[1]).sort()
         const stopBlock = stopTools.slice(stopTools.indexOf('STOP_TOOLS = new Set(['), stopTools.indexOf('])', stopTools.indexOf('STOP_TOOLS = new Set([')))

@@ -19,6 +19,7 @@ import Settings from '../commands/settings.js'
 import * as File from '../tools/file.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
+import SkillsFeature from '../features/skills.js'
 import Session from '../commands/session.js'
 import Skill from '../tools/skill.js'
 import store from '../store.js'
@@ -145,10 +146,10 @@ describe('server skills', () => {
             await writeSkill(join(project, '.agent', 'skills', 'review'), 'review', '项目审查', '项目正文')
             await writeSkill(join(root, 'skills', 'deploy'), 'deploy', '部署', '部署正文')
 
-            const skills = await Skill.list({ cwd: project })
+            const skills = await Skill.list({ cwd: project, skills: SkillsFeature })
             expect(skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
             expect(skills.find(item => item.name === 'review').description).toBe('项目审查')
-            expect(await Skill.read({ name: 'review', cwd: project })).toBe('项目正文')
+            expect(await Skill.read({ name: 'review', cwd: project, skills: SkillsFeature })).toBe('项目正文')
         })
     })
 
@@ -157,8 +158,8 @@ describe('server skills', () => {
             await mkdir(join(root, 'skills', 'broken'), { recursive: true })
             await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
 
-            expect((await Skill.list({ cwd: root })).map(item => item.name)).not.toContain('broken')
-            await expect(Skill.read({ name: 'nope', cwd: root })).rejects.toThrow(/Skill not found/)
+            expect((await Skill.list({ cwd: root, skills: SkillsFeature })).map(item => item.name)).not.toContain('broken')
+            await expect(Skill.read({ name: 'nope', cwd: root, skills: SkillsFeature })).rejects.toThrow(/Skill not found/)
         })
     })
 
