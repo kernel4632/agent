@@ -349,9 +349,8 @@ const run = async ({ sessionId, input, resume = false, recovery = false }) => {
     // 归一化放在这里：resume 不带新输入；非法图片块在启动前就报 400。
     const payload = resume ? undefined : normalizeInput(input)
 
-    // 新消息代表新的时间线，之前的回退不能再撤销；计数也重新开始。
+    // 新消息代表新的时间线，之前的回退不能再撤销。
     await Tool.clearUndo({ sessionId })
-    Approval.reset(sessionId)
 
     const { task, token } = await startRun({ sessionId, input: payload, resume, agent, recovery })
     task

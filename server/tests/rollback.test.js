@@ -303,22 +303,91 @@ describe('权限规则的拒绝动作', () => {
     })
 })
 
-describe('重复调用的刹车', () => {
-    test('同一个调用连续三次会停下来问，答过之后重新计数', async () => {
+describe('允许规则直接放行', () => {
+    test('同一个调用连续出现也不再询问', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
-            const { sessionId } = await Session.create({ title: 'Loop guard' })
+            const { sessionId } = await Session.create({ title: 'Allow repeats' })
 
             const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })
-            expect(await call('a1')).toBe(true)
-            expect(await call('a2')).toBe(true)
+            for (const id of ['a1', 'a2', 'a3', 'a4', 'a5']) expect(await call(id)).toBe(true)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
 
-            const third = call('a3')
+    test('对象规则的星号是默认允许，换行和空参数也放行，更具体的拒绝仍然生效', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                permission: { execute_command: { '*': 'allow', 'rm *': 'deny' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Star default' })
+            const run = (id, command) => Approval.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
+
+            expect(await run('newline', 'cd /tmp\nls')).toBe(true)
+            expect(await run('empty', '')).toBe(true)
+            expect(await run('rm', 'rm -rf build')).toBe(false)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
+    test('始终允许的命令前缀跨过路径斜杠', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                permission: { execute_command: { '*': 'ask', 'cd /tmp*': 'allow' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Prefix slash' })
+
+            expect(await Approval.check({
+                sessionId,
+                toolCallId: 'cd-sub',
+                toolName: 'execute_command',
+                input: { command: 'cd /tmp/qslrun && echo hi' },
+            })).toBe(true)
+
+            const other = Approval.check({ sessionId, toolCallId: 'ls', toolName: 'execute_command', input: { command: 'ls' } })
             await Bun.sleep(0)
             expect(Approval.pending(sessionId)).toHaveLength(1)
-            await Approval.decide({ sessionId, toolCallId: 'a3', decision: 'allow-once' })
-            expect(await third).toBe(true)
-            expect(await Approval.check({ sessionId, toolCallId: 'a4', toolName: 'read_file', input: { path: 'a.txt' } })).toBe(true)
+            await Approval.decide({ sessionId, toolCallId: 'ls', decision: 'deny' })
+            expect(await other).toBe(false)
+        })
+    })
+
+    test('全部批准盖过工具默认询问，多行脚本不再弹窗，明确拒绝仍然生效', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                permission: { '*': 'allow', execute_command: { '*': 'ask', 'rm *': 'deny', 'ls*': 'allow' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Allow all multiline' })
+            const run = (id, command) => Approval.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
+            const script = "echo \"第一行\"\necho \"第二行\"\necho \"多行命令测试通过\""
+            const heredoc = "cd /home/proj && python3 - <<'PY'\nimport io\np='/tmp/a'\nprint(1)\nPY"
+
+            expect(await run('lines', script)).toBe(true)
+            expect(await run('heredoc', heredoc)).toBe(true)
+            expect(await run('rm', 'rm -rf build')).toBe(false)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
+    test('允许前缀能盖住带换行和斜杠的整段脚本', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                permission: { '*': 'ask', execute_command: { '*': 'ask', 'cd /home/proj*': 'allow' } },
+            })
+            const { sessionId } = await Session.create({ title: 'Prefix multiline' })
+            const command = "cd /home/proj && python3 - <<'PY'\nimport io\np='/tmp/a'\nprint(1)\nPY"
+
+            expect(await Approval.check({
+                sessionId,
+                toolCallId: 'heredoc',
+                toolName: 'execute_command',
+                input: { command },
+            })).toBe(true)
+            expect(Approval.pending(sessionId)).toEqual([])
         })
     })
 
@@ -334,7 +403,7 @@ describe('重复调用的刹车', () => {
         })
     })
 
-    test('deny 仍然优先于重复刹车', async () => {
+    test('deny 仍然直接拒绝，不会改成询问', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow', read_file: 'deny' } })
             const { sessionId } = await Session.create({ title: 'Deny first' })

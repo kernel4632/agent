@@ -342,7 +342,7 @@ async function finishRun(sessionID, session, event) {
 }
 
 // --- 运行状态：开始、继续、结束、重试和标题 ---
-const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-first-token', 'llm-finish', 'retry', 'error', 'mcp-error', 'permission-limit', 'title', 'agent-finish'])
+const RUN_EVENTS = new Set(['agent-start', 'agent-resume', 'llm-start', 'llm-first-token', 'llm-finish', 'retry', 'error', 'mcp-error', 'title', 'agent-finish'])
 async function receiveRun(sessionID, session, event) {
   if (event.type === 'agent-start') return startRun(sessionID, session)
   if (event.type === 'agent-resume') return resumeRun(session)
@@ -352,7 +352,6 @@ async function receiveRun(sessionID, session, event) {
   if (event.type === 'retry') return retryRun(session, event)
   if (event.type === 'error') return failRun(session, event)
   if (event.type === 'mcp-error') return Notice.show(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
-  if (event.type === 'permission-limit') return Notice.show(event.reason) // 刹车触发，告诉用户为什么又要确认
   if (event.type === 'title') return setTitle(session, event)
   if (event.type === 'agent-finish') return finishRun(sessionID, session, event)
 }

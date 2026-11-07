@@ -118,6 +118,7 @@ function backendSnapshot(draft) {
     mcp: draft.mcp,
     // original 只用来判断“这一项改过没有”，不是后端字段。
     tools: (draft.tools || []).map(({ original, ...tool }) => tool),
+    allowAll: draft.allowAll === true,
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -169,6 +170,7 @@ function open() {
     models: store.config.models,
     compact: store.config.compact,
     appearance: store.config.appearance,
+    allowAll: (store.config.raw?.permission || {})['*'] === 'allow',
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
 }
@@ -196,6 +198,11 @@ function permissionPayload(draft) {
       permission[tool.name] = tool.permission
     }
   }
+  // 全部批准只动全局 *。不改写每个工具已经记住的允许或拒绝，避免开关来回拨把规则清掉。
+  // 工具默认仍是 ask 时，由审批层用全局 allow 盖过去，多行命令也不会再弹窗。
+  const savedAllowAll = (store.config.raw?.permission || {})['*'] === 'allow'
+  if (draft.allowAll === true && !savedAllowAll) permission['*'] = 'allow'
+  else if (draft.allowAll === false && savedAllowAll) permission['*'] = 'ask'
   return permission
 }
 

@@ -29,7 +29,7 @@ const settingsPages = [
   { id: 'model', label: '模型', description: '默认模型和任务分工', icon: 'spark', group: '模型与服务', tone: 'primary', component: ModelSettings },
   { id: 'context', label: '上下文', description: '自动压缩阈值和历史整理', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptSettings },
-  { id: 'tools', label: '工具管理', description: '用开关控制工具直接执行还是先询问', icon: 'code', group: '模型与服务', tone: 'primary', component: ToolsSettings },
+  { id: 'tools', label: '工具管理', description: '全部批准，或按工具选择直接执行还是先询问', icon: 'code', group: '模型与服务', tone: 'primary', component: ToolsSettings },
   { id: 'skills', label: '技能', description: '识别并管理本机的操作说明', icon: 'idea', group: '模型与服务', tone: 'tertiary', component: SkillList },
   { id: 'mcp', label: 'MCP 服务', description: '连接外部工具和数据服务', icon: 'link', group: '模型与服务', tone: 'tertiary', component: MCPList, nested: true },
   { id: 'data', label: '数据管理', description: '配置备份、恢复与导入导出', icon: 'folder', group: '数据设置', tone: 'secondary', component: DataSettings },

@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.110.4",
+  "version": "0.111.2",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {

@@ -451,7 +451,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | --- | --- | --- |
 | `reasoning` | `auto` | `off` / `auto` / `low` / `medium` / `high` / `xhigh` / `max` |
 
-权限只有一层：`config.permission` 的全局规则，加每次询问的“始终允许 / 允许一次 / 拒绝”。没有会话级自动批准，也没有自动批准上限。同一个工具调用连续出现三次时，会停下来让用户确认一次。
+权限只有一层：`config.permission` 的全局规则，加每次询问的“始终允许 / 允许一次 / 拒绝”。没有会话级自动批准。全局 `*` 为 allow 是「全部批准」：它盖过工具默认的 ask，多行命令也不会因为前缀没对上再弹窗；明确的 deny 仍然拒绝。对象规则里的 `*` 是这个工具的默认动作，不是必须命中的通配；其余模式按参数匹配，并且 `*` 跨过斜杠和换行。规则已经是 allow 就直接放行，不会因为同一次调用重复出现再问一遍。
 
 模型能不能看图、能不能调用工具，只从 `providers[].models[].capabilities` 读取，不在会话里另存一份。
 
@@ -513,7 +513,6 @@ Accept: text/event-stream
 | `tool-result` | `toolCallId`, `toolName`, `input`, `output` | 更新工具最终结果；拒绝、取消、无效调用也会结算 |
 | `permission` | `callID`, `tool`, `input` | 显示“始终允许 / 允许一次 / 拒绝” |
 | `permission-blocked` | `callID`, `tool`, `input`, `reason` | 被权限规则拒绝，不用等用户决定 |
-| `permission-limit` | `limit`, `reason` | 同一个调用连续三次，接下来要确认一次 |
 | `subagent-tool` | `taskId`, `description`, `toolName`, `input` | 子任务正在用工具 |
 | `subagent-tool-result` | `taskId`, `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |

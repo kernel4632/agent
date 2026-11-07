@@ -1,10 +1,10 @@
 <!--
-思考步骤：流式时半展开预览，结束后自动收起；点击标题展开完整思考内容。
-对应 RikkaHub 的 ReasoningCardState：Preview 态最高 100px、上下渐隐、自动滚到底部。
+思考步骤：收起时只在标题行显示最后一句。点开后高度封顶。
+流式且内容很长时只渲染定高纯文本，结束后再挂 Markdown，避免大段思考解析卡死和把页面顶来顶去。
 调用示例：<ReasoningStep :reasoning="message.reasoning" :streaming="message.isStreaming" :started-at="message.startedAt" :finished-at="message.finishedAt" />
 -->
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 
@@ -19,14 +19,16 @@ const props = defineProps({
 })
 
 const expanded = ref(false)
-const collapsed = ref(false)
 const now = ref(Date.now())
-const previewEl = ref(null)
+const shown = ref(props.reasoning || '')
 let timer = null
+let frame = 0
+// 超过这个长度还在流式输出时，不再每字重跑 Markdown。
+const PLAIN_STREAM = 2500
 
-const previewing = computed(() => props.streaming && !expanded.value && !collapsed.value)
-// 收起是用户明确动作：流式期间也不再强制展开，直到用户重新点开。
-const showContent = computed(() => expanded.value || (props.streaming && !collapsed.value))
+const showContent = computed(() => expanded.value)
+const streamingLarge = computed(() => props.streaming && shown.value.length >= PLAIN_STREAM)
+const liveText = computed(() => shown.value.length > 6000 ? shown.value.slice(-6000) : shown.value)
 const seconds = computed(() => {
   if (!props.startedAt) return 0
   return Math.max(0, ((props.finishedAt || now.value) - props.startedAt) / 1000)
@@ -35,57 +37,70 @@ const label = computed(() => {
   if (props.streaming && !props.reasoning) return '正在思考…'
   return props.startedAt ? `深度思考 ${seconds.value.toFixed(1)} 秒` : '深度思考'
 })
+// 只看末尾一小段，长思考不用整段扫一遍。
+const tail = computed(() => {
+  if (!shown.value || showContent.value) return ''
+  const end = shown.value.slice(-160).replace(/\s+/g, ' ').trim()
+  if (!end) return ''
+  return shown.value.length > 72 ? `…${end.slice(-72)}` : end
+})
+
+function paint(value) {
+  shown.value = value || ''
+}
 
 function toggle() {
-  if (expanded.value) {
-    expanded.value = false
-    collapsed.value = true
+  if (frame) { cancelAnimationFrame(frame); frame = 0 }
+  paint(props.reasoning)
+  expanded.value = !expanded.value
+}
+
+const vStick = {
+  mounted: element => { element.scrollTop = element.scrollHeight },
+  updated: element => { element.scrollTop = element.scrollHeight },
+}
+
+watch(() => props.reasoning, value => {
+  const next = value || ''
+  if (!props.streaming || next.length < PLAIN_STREAM) {
+    if (frame) { cancelAnimationFrame(frame); frame = 0 }
+    paint(next)
     return
   }
-  // 流式预览点一下先展开全文；已经收起时再点恢复到最新进度。
-  expanded.value = true
-  collapsed.value = false
-}
-
-watch(() => props.streaming, streaming => {
-  if (timer) { window.clearInterval(timer); timer = null }
-  if (streaming) {
-    timer = window.setInterval(() => { now.value = Date.now() }, 100)
-  } else {
-    expanded.value = false
-  }
+  if (frame) return
+  frame = requestAnimationFrame(() => {
+    frame = 0
+    paint(props.reasoning)
+  })
 }, { immediate: true })
 
-function pinPreview() {
-  nextTick(() => {
-    if (previewEl.value) previewEl.value.scrollTop = previewEl.value.scrollHeight
-  })
-}
-
-watch(() => props.reasoning, pinPreview)
-watch(previewing, pinPreview)
+watch(() => props.streaming, streaming => {
+  if (!streaming) {
+    if (frame) { cancelAnimationFrame(frame); frame = 0 }
+    paint(props.reasoning)
+  }
+  if (timer) { window.clearInterval(timer); timer = null }
+  if (streaming) timer = window.setInterval(() => { now.value = Date.now() }, 250)
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  if (frame) cancelAnimationFrame(frame)
 })
 </script>
 
 <template>
   <div class="cot-step cot-step--reasoning">
     <span class="cot-step__icon"><Icon name="idea" :size="16" /></span>
-    <button type="button" class="cot-step__head" :aria-expanded="showContent" :aria-controls="contentId" @click="toggle">
+    <button type="button" class="cot-step__head" :aria-expanded="showContent" :aria-controls="showContent ? contentId : undefined" @click="toggle">
       <span class="cot-step__label" :class="{ 'is-live': streaming }">{{ label }}</span>
+      <span v-if="tail" class="cot-step__summary" :title="tail">{{ tail }}</span>
       <Icon name="down" :size="16" class="cot-step__caret" :class="{ 'is-open': showContent }" aria-hidden="true" />
     </button>
-    <div :id="contentId" class="cot-collapse" :class="{ 'is-open': showContent }" :inert="!showContent" :aria-hidden="!showContent">
-      <div class="cot-collapse__inner">
-        <div class="cot-step__body">
-          <div ref="previewEl" class="reasoning-preview" :class="{ 'is-preview': previewing }">
-            <Markdown v-if="reasoning.trim()" class="reasoning-markdown" :content="reasoning" compact />
-            <p v-else class="reasoning-placeholder">正在整理思路…</p>
-          </div>
-        </div>
-      </div>
+    <div v-if="showContent" :id="contentId" class="cot-step__body reasoning-body">
+      <pre v-if="streamingLarge" v-stick class="reasoning-live">{{ liveText }}</pre>
+      <Markdown v-else-if="shown.trim()" class="reasoning-markdown" :content="shown" compact />
+      <p v-else class="reasoning-placeholder">正在整理思路…</p>
     </div>
   </div>
 </template>

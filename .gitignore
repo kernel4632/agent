@@ -39,6 +39,7 @@ Agent.mm
 # 调试和提交时用的临时文件都放这一个目录里，整目录忽略。
 # 一个一个列文件名的话，下次换个名字又会漏进来。
 /tmp/
+/frontend/tmp/
 
 # Local UI audit screenshots
 /*-fix*.png

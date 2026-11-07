@@ -9,7 +9,7 @@
 import { Notice } from "../../utils/notice.js"
 import { copyText } from '../../utils/clipboard.js'
 
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
@@ -137,11 +137,14 @@ function summarizeSteps(steps) {
   const tools = content.filter(step => step.type === 'tool')
   if (!reasoning && !tools.length) return content.length ? `${content.length} 步` : '运行状态'
   const names = new Map()
+  let waiting = 0
   for (const step of tools) {
     const name = toolTitle(step.tool)
     names.set(name, (names.get(name) || 0) + 1)
+    if (step.tool?.status === 'waiting') waiting += 1
   }
   const pieces = []
+  if (waiting) pieces.push(`${waiting} 个等待许可`)
   if (reasoning) pieces.push(`${reasoning} 次思考`)
   if (tools.length) pieces.push(`使用了 ${tools.length} 次工具：${[...names].map(([name, count]) => `${name} ${count} 次`).join('、')}`)
   return pieces.join(' · ')
@@ -155,6 +158,25 @@ function summarizeProcess(steps) {
   return pieces.join(' · ') || '运行状态'
 }
 const processSummary = computed(() => summarizeProcess(treeSteps.value))
+// 要批准时把收起的处理过程整个展开，按钮滚进视野；高度不做动画，避免把时间线抽一下。
+const needsDecision = tool => !!tool && (tool.status === 'waiting' || (tool.subagentSteps || []).some(needsDecision))
+const isPendingStep = step => step.type === 'tool' && needsDecision(step.tool)
+const approvalPending = computed(() => treeSteps.value.some(isPendingStep))
+const processShown = computed(() => processOpen.value || approvalPending.value)
+// 批准出现时展开，点完允许后保持展开，避免刚展开又收回去。
+watch(approvalPending, pending => {
+  if (pending) processOpen.value = true
+}, { immediate: true })
+const pendingKey = computed(() => treeSteps.value.filter(isPendingStep).map(step => step.tool?.id).filter(Boolean).join(','))
+const turnEl = ref(null)
+watch(pendingKey, value => {
+  if (!value) return
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      turnEl.value?.querySelector('.approval')?.scrollIntoView({ block: 'center', inline: 'nearest' })
+    })
+  })
+})
 
 // 通用规则：
 // 1. 助手正文永远留在折叠组外，保证一级能看到“说了什么”；
@@ -219,7 +241,7 @@ const lastGroupKey = computed(() => processSections.value.filter(section => sect
 // 只有“还在动作中”的最后一组自动展开；助手一旦开始说正文，前面的工具组自动收起。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
 const activeGroupKey = computed(() => turnActive.value && lastStepType.value !== 'text' ? lastGroupKey.value : null)
-const isGroupOpen = section => groupOpen.value[section.key] ?? (section.key === activeGroupKey.value)
+const isGroupOpen = section => section.steps?.some(isPendingStep) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
@@ -263,7 +285,7 @@ function clearTarget() { targetId.value = null; emit('close') }
 </script>
 
 <template>
-  <div class="assistant-message rikka-message rikka-message--assistant">
+  <div ref="turnEl" class="assistant-message rikka-message rikka-message--assistant">
     <MessageActions
       :items="menuItems"
       :target-id="rollbackTarget?.id || null"
@@ -277,13 +299,13 @@ function clearTarget() { targetId.value = null; emit('close') }
       @rollback-confirm="emit('rollback-confirm', $event)"
     >
       <div v-if="treeSteps.length" class="cot-card process-fold">
-        <button type="button" class="process-fold__head" :aria-expanded="processOpen" @click="toggleProcess">
+        <button type="button" class="process-fold__head" :aria-expanded="processShown" @click="toggleProcess">
           <span class="process-fold__icon"><Icon name="assistant" :size="16" /></span>
           <span class="process-fold__title">处理过程</span>
           <em class="process-fold__summary" :title="processSummary">{{ processSummary }}</em>
-          <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processOpen }" aria-hidden="true" />
+          <Icon name="down" :size="15" class="process-fold__caret" :class="{ 'is-open': processShown }" aria-hidden="true" />
         </button>
-        <Fold :open="processOpen">
+        <Fold :open="processShown" :instant="approvalPending">
           <div class="process-fold__body context-sections">
             <template v-for="section in processSections" :key="section.key">
               <template v-if="section.type === 'step'">
@@ -322,7 +344,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
                   <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
                 </button>
-                <Fold :open="isGroupOpen(section)">
+                <Fold :open="isGroupOpen(section)" :instant="section.steps.some(isPendingStep)">
                   <div class="context-group__body cot-steps">
                     <template v-for="step in section.steps" :key="step.key">
                       <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />

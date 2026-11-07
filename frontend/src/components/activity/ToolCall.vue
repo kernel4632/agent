@@ -1,6 +1,7 @@
 <!--
-工具步骤：运行时展开参数、结果和审批；已完成的历史步骤允许收起。
-流式时标题扫光并显示状态，局部展开状态只留在本组件。
+工具步骤：结果框默认收起，运行中不再跟着状态打开再关上。
+要执行的内容最多三行，批准按钮跟在这一行下面。需要批准时由外层把处理过程展开。
+出错或被拒绝时展开结果；任务清单保持展开。点标题才打开完整结果。
 调用示例：<ToolCall :tool="tool" :session-id="session.id" />
 -->
 <script setup>
@@ -18,12 +19,25 @@ const props = defineProps({
   sessionId: { type: String, required: true },
 })
 const now = ref(Date.now())
-const expanded = ref(props.tool.name === 'update_todo_list')
+// null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
+const preference = ref(props.tool.name === 'update_todo_list' ? true : null)
 const bodyId = `tool-body-${props.tool.id || props.tool.name}`
 let timer = null
 
 const title = computed(() => toolTitle(props.tool))
-const summary = computed(() => fillTemplate(uiFor(props.tool.name).summary, props.tool.input))
+// 没有声明摘要时，把参数值拼出来，收起时也能看到即将执行的内容。
+function inputPreview(input) {
+  if (input == null || input === '') return ''
+  if (typeof input !== 'object') return String(input)
+  return Object.values(input).flatMap(value => {
+    if (value == null || value === '') return []
+    return [typeof value === 'string' ? value : JSON.stringify(value)]
+  }).join(' ')
+}
+const summary = computed(() => {
+  if (props.tool.assembling && props.tool.streamInput) return String(props.tool.streamInput).trim()
+  return fillTemplate(uiFor(props.tool.name).summary, props.tool.input) || inputPreview(props.tool.input)
+})
 const statusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 const statusText = computed(() => {
   if (props.tool.assembling) return '正在生成参数'
@@ -46,14 +60,13 @@ const duration = computed(() => {
   const seconds = Math.round(milliseconds / 1000)
   return seconds > 0 ? `${seconds}s` : ''
 })
-// 运行中和等待审批时必须看得到输出/按钮；历史里完成的工具默认收起，点标题再展开。
-const bodyOpen = computed(() => expanded.value || running.value || props.tool.status === 'error')
+// 高速执行时不跟着状态把结果框打开再关上。出错或被拒绝才自动展开；其余只听用户的点击。
+const bodyOpen = computed(() => preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected'))
 
-watch(() => props.tool.status, (status, previous) => {
-  if (status === 'running' || status === 'waiting') expanded.value = true
-  // 完成一个就收起一个；todo 清单是结果卡片，保留原来的展开习惯。
-  else if ((previous === 'running' || previous === 'waiting') && props.tool.name !== 'update_todo_list') expanded.value = false
-})
+function toggleBody() {
+  preference.value = !bodyOpen.value
+}
+
 watch(running, value => {
   if (timer) { window.clearInterval(timer); timer = null }
   if (value) timer = window.setInterval(() => { now.value = Date.now() }, 200)
@@ -76,38 +89,38 @@ function decide(decision) {
         type="button"
         class="cot-step__head"
         :aria-expanded="bodyOpen"
-        :aria-controls="bodyId"
-        @click="expanded = !expanded"
+        :aria-controls="bodyOpen ? bodyId : undefined"
+        @click="toggleBody"
       >
         <span class="cot-step__label" :class="{ 'is-live': running }">{{ title }}</span>
-        <span v-if="summary" class="cot-step__summary" :title="summary">{{ summary }}</span>
         <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
         <Icon name="down" :size="14" class="cot-step__caret" :class="{ 'is-open': bodyOpen }" aria-hidden="true" />
       </button>
+      <p v-if="summary" class="cot-step__summary cot-step__summary--preview" :title="summary">{{ summary }}</p>
+      <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
+        <p>需要你的许可。检查工具和参数后再决定。</p>
+        <div>
+          <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
+          <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
+          <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
+        </div>
+      </div>
       <div v-if="bodyOpen" :id="bodyId" class="cot-step__body">
         <ToolResult :tool="tool" />
-        <div v-if="tool.subagentSteps?.length" class="subagent-branch">
-          <div class="subagent-branch__head">
-            <Icon name="branch" :size="14" />
-            <span>{{ tool.subagentDescription || '子智能体处理过程' }}</span>
-            <em>{{ tool.subagentSteps.length }} 个步骤</em>
-          </div>
-          <div class="subagent-branch__steps">
-            <ToolCall
-              v-for="child in tool.subagentSteps"
-              :key="child.id"
-              :tool="child"
-              :session-id="sessionId"
-            />
-          </div>
+      </div>
+      <div v-if="tool.subagentSteps?.length" class="subagent-branch">
+        <div class="subagent-branch__head">
+          <Icon name="branch" :size="14" />
+          <span>{{ tool.subagentDescription || '子智能体处理过程' }}</span>
+          <em>{{ tool.subagentSteps.length }} 个步骤</em>
         </div>
-        <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
-          <p>需要你的许可。检查工具和参数后再决定。</p>
-          <div>
-            <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
-            <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
-            <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
-          </div>
+        <div class="subagent-branch__steps">
+          <ToolCall
+            v-for="child in tool.subagentSteps"
+            :key="child.id"
+            :tool="child"
+            :session-id="sessionId"
+          />
         </div>
       </div>
     </div>

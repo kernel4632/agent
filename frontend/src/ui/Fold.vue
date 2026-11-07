@@ -6,7 +6,7 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 
-const props = defineProps({ open: Boolean })
+const props = defineProps({ open: Boolean, instant: Boolean })
 const rootEl = ref(null)
 let safetyTimer = 0
 
@@ -26,6 +26,11 @@ watch(() => props.open, open => {
 
 // 从 0 到内容真实高度，动画结束再交回 auto，后续流式内容可以继续长高。
 function enter(element) {
+  if (props.instant) {
+    element.style.height = 'auto'
+    element.style.opacity = '1'
+    return
+  }
   element.style.height = '0px'
   element.style.opacity = '0'
   void element.offsetHeight
@@ -44,6 +49,11 @@ function afterEnter(element) {
   element.style.opacity = ''
 }
 function leave(element) {
+  if (props.instant) {
+    element.style.height = '0px'
+    element.style.opacity = '0'
+    return
+  }
   element.style.height = `${element.scrollHeight}px`
   element.style.opacity = '1'
   void element.offsetHeight
