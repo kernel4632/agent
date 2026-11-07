@@ -5,6 +5,12 @@
  * 消息回退由 features/rollback.js 负责；文件和预览由 tools/file.js 的快照能力负责，
  * 这一层只把两边按用户看到的顺序串起来。
  *
+ * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
+ *   Agent    会话装配与运行状态（create/invalidate/readSettings/resolve）
+ *   History  会话数据的唯一读写口（load/add/save/destroy）
+ *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
+ *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
+ *
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫', cwd: 'D:/notes' })
  *   const session = await Session.read({ sessionId })

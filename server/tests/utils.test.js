@@ -16,7 +16,6 @@ import Approval from '../features/approval.js'
 import Path from '../utils/path.js'
 import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
-import Delegation from '../tools/subagent.js'
 import * as File from '../tools/file.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
@@ -129,48 +128,6 @@ describe('server HTTP API', () => {
             const response = await jsonRequest('/session/create', 'POST', { title: 'No provider', provider: 'missing' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: expect.stringContaining('missing') })
-        })
-    })
-})
-
-describe('server delegation', () => {
-    test('子 agent 可以再委托一层，最底层不能再往下开', async () => {
-        await withHome(async () => {
-            const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
-            const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
-
-            const middle = Delegation.toolsForDepth({ config, tools: scanned, onPermission: Approval.check, depth: 1, maxDepth: 2 })
-            expect(Object.keys(middle.schema)).toContain('new_task')
-            const bottom = Delegation.toolsForDepth({ config, tools: scanned, onPermission: Approval.check, depth: 2, maxDepth: 2 })
-            expect(Object.keys(bottom.schema)).not.toContain('new_task')
-            expect(Object.keys(bottom.schema)).toContain('read_file')
-
-            const task = Delegation.build({ config, tools: scanned, onPermission: Approval.check })
-            const merged = AgentCore.tool.merge(scanned, AgentCore.tool.adopt({ new_task: task }))
-            expect(Object.keys(merged.schema)).toContain('new_task')
-
-            const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
-            expect(result.description).toBe('查点东西')
-            expect(typeof result.error).toBe('string')
-            expect(Array.isArray(result.steps)).toBe(true)
-
-            const bare = await task.execute({ description: '不带第二参', prompt: '随便看看' })
-            expect(bare.description).toBe('不带第二参')
-            expect(typeof bare.error).toBe('string')
-        })
-    })
-
-    test('stops the sub-agent when the main task is stopped', async () => {
-        await withHome(async () => {
-            const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
-            const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
-            const task = Delegation.build({ config, tools: scanned, onPermission: Approval.check })
-
-            const controller = new AbortController()
-            controller.abort()
-            const result = await task.execute({ description: '查东西', prompt: '看看' }, { abortSignal: controller.signal })
-            expect(result.description).toBe('查东西')
-            expect(result.error || result.reason).toBeDefined()
         })
     })
 })

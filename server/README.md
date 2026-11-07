@@ -176,7 +176,6 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
 | `tools/history.js` | `history_search`（在本会话历史里按关键词/正则找当时确认过的细节；上下文压缩后用，命中返回 messageId + 片段，默认只搜当前会话） |
 | `tools/skill.js` | `skill` |
-| `tools/subagent.js` | `new_task`（**暂未启用**：文件和测试保留，正式版再装配） |
 
 每个工具文件导出工具对象或数组，对象里有 `name`、`kind`、`description`、`inputSchema`、`execute` 就会被扫描到。会改文件的工具带自己的快照钩子；命令工具不做文件快照。
 
@@ -244,12 +243,6 @@ description: 审查改动时用这个
 | 技能 | 本应用自己的全局和项目目录，以及 Claude Code、Codex、Gemini CLI、opencode、Cursor 的对应目录 |
 
 MCP 识别结果里的 `env` 和 `headers` 只回传键名，值不回传；导入时后端按编号重新读一遍源文件，把完整值写进本应用的配置。同名服务不会覆盖已有配置。技能默认不会自动交给模型，用户在设置页启用整个目录或导入正文后才生效；启用状态保存在 `skills.json`。
-
-### 子智能体（暂未启用）
-
-`new_task` 把一件独立的探索工作交给子 agent，子 agent 有自己的历史，只把结论交回来。它复用同一套工具和同一个审批关口，还能再往下委托一层，最多两层。主任务被停止时子任务一起停。子任务结果里的 `steps` 会带上它自己调过的工具和嵌套结果，会话刷新后处理树仍然能还原。
-
-**当前版本暂未装配**：`tools/subagent.js` 和对应测试都保留，但 `features/tool.js` 不再把它加进工具表，正式版再引入。恢复时取消 `tool.js` 里两段注释即可，接口和 SSE 事件（`subagent-tool` / `subagent-tool-result`）不变。
 
 ## 从零启动
 
@@ -516,8 +509,6 @@ Accept: text/event-stream
 | `tool-result` | `toolCallId`, `toolName`, `input`, `output` | 更新工具最终结果；拒绝、取消、无效调用也会结算 |
 | `permission` | `callID`, `tool`, `input` | 显示“始终允许 / 允许一次 / 拒绝” |
 | `permission-blocked` | `callID`, `tool`, `input`, `reason` | 被权限规则拒绝，不用等用户决定 |
-| `subagent-tool` | `taskId`, `description`, `toolName`, `input` | 子任务正在用工具 |
-| `subagent-tool-result` | `taskId`, `description`, `toolName`, `output` | 子任务的工具跑完了 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |
 | `compact-start` / `compact-finish` | `messages` + `startedAt` / `content`, `usage`, `durationMs` | 上下文压缩进度；`usage` 已统一成 `input` / `output` / `cacheRead` / `total` |
 | `title` | `title` | 后端起好了标题 |
