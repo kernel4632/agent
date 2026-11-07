@@ -14,6 +14,7 @@ import Capabilities from './commands/capabilities.js'
 import Chat from './commands/chat.js'
 import Session from './commands/session.js'
 import Settings from './commands/settings.js'
+import StorageCommand from './commands/storage.js'
 import Agent from './features/agent.js'
 import Approval from './features/approval.js'
 import Config from './features/config.js'
@@ -22,6 +23,7 @@ import History from './features/history.js'
 import Mcp from './features/mcp.js'
 import ModelIcons from './features/model-icons.js'
 import SessionGroups from './features/session-groups.js'
+import Storage from './features/storage.js'
 import Tool from './features/tool.js'
 import { cleanup } from './utils/process.js'
 import SSE from './utils/sse.js'
@@ -137,11 +139,18 @@ app.group('/config', config => config
     .patch('/set', ({ body }) => Settings.set(body))
     .post('/test', ({ body }) => Settings.test(body || {})))
 
+// --- 存储位置：会话数据可以单独放到其他磁盘，迁移在下次启动执行 ---
+app.group('/storage', storage => storage
+    .get('/sessions', () => StorageCommand.status())
+    .put('/sessions', ({ body }) => StorageCommand.setPath(body || {}))
+    .delete('/sessions', () => StorageCommand.cancel()))
+
 // --- SSE ---
 app.group('/sse', sse => sse
     .get('/connect/:sessionId', ({ params, request }) => SSE.connect({ id: params.sessionId, request })))
 
 const start = async ({ port = process.env.PORT || 3000 } = {}) => {
+    await Storage.prepare()   // 先确定 sessions/ 的位置，再做任何会话读写
     await History.prepare()   // 数据目录先建好，后面所有读写都不用再判断目录在不在。
     await Settings.read()     // 权限规则和模型配置读一次即可。
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.69.2",
+    "version": "0.70.0",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -35,6 +35,10 @@
     {
       "name": "Config",
       "description": "读取和保存全局配置。"
+    },
+    {
+      "name": "Storage",
+      "description": "把不断增长的会话数据目录单独放到其他磁盘。"
     },
     {
       "name": "SSE",
@@ -2845,6 +2849,126 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/sessions": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "读取会话数据目录和待迁移状态",
+        "operationId": "storageSessions",
+        "responses": {
+          "200": {
+            "description": "当前目录、默认目录和待迁移状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "defaultPath": { "type": "string" },
+                    "envOverride": { "type": "boolean" },
+                    "pending": {
+                      "type": ["object", "null"],
+                      "properties": {
+                        "from": { "type": "string" },
+                        "path": { "type": "string" }
+                      }
+                    },
+                    "error": { "type": "string" },
+                    "lastMove": {
+                      "type": ["object", "null"],
+                      "properties": {
+                        "from": { "type": "string" },
+                        "to": { "type": "string" },
+                        "at": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "安排会话数据目录迁移",
+        "description": "只写入待迁移标记；服务重启后先复制会话目录，再切换位置。旧目录保留。",
+        "operationId": "storageSetSessions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["path"],
+                "properties": { "path": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "当前目录和待迁移目录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pending": {
+                      "type": "object",
+                      "properties": {
+                        "from": { "type": "string" },
+                        "path": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "路径不合法",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "目录被环境变量控制或不是空目录",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "取消尚未执行的会话目录迁移",
+        "operationId": "storageCancelSessions",
+        "responses": {
+          "200": {
+            "description": "取消结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "ok": { "type": "boolean" } }
                 }
               }
             }

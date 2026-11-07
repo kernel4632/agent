@@ -9,6 +9,9 @@
  *   Path.root()                    // 数据目录
  *   Path.config()                  // 全局配置
  *   Path.sessions()                // 所有会话目录的父目录
+ *   Path.setSessions(dir)          // 启动时指向自定义会话目录
+ *   Path.sessionsPathFile()        // 自定义会话目录的指针文件
+ *   Path.sessionsMoveFile()        // 等待重启执行的会话迁移标记
  *   Path.meta('session-1')         // 会话元数据
  *   Path.history('session-1')      // 会话历史
  *   Path.settings('session-1')     // 会话运行设置
@@ -48,8 +51,8 @@ const home = () => {
 // （曾经在 ~/.agent 里留下几十条“继续测试”垃圾会话）。
 // 锁定之后，本次进程的路径解析与 process.env 后续怎么改都无关，测试结束前调 unlock 即可。
 let locked = null
-const lock = dir => { locked = dir }
-const unlock = () => { locked = null }
+const lock = dir => { locked = dir; sessionsOverride = '' }
+const unlock = () => { locked = null; sessionsOverride = '' }
 
 // --- 用户主目录：识别其他软件的 MCP 配置和技能目录时用 ---
 // 测试把 AGENT_DISCOVERY_HOME 指到临时目录，就不会读到真实电脑上的配置。
@@ -65,8 +68,16 @@ const config = () => join(home(), 'config.json')
 const configBackups = () => join(home(), 'config-backups')
 
 // --- 会话目录：每条会话一个目录，元数据、历史和设置分开放 ---
+// 会话数据可以单独放到大容量磁盘；启动时由 Storage.prepare() 读指针并调用 setSessions()。
+let sessionsOverride = ''
+const setSessions = dir => { sessionsOverride = dir ? resolve(String(dir)) : '' }
+const sessionsPathFile = () => join(home(), 'sessions-path.json')
+const sessionsMoveFile = () => join(home(), 'sessions-move.json')
+const sessionsMoveFailedFile = () => join(home(), 'sessions-move-failed.json')
 const sessionGroups = () => join(home(), 'session-groups.json')
-const sessions = () => join(home(), 'sessions')
+const sessions = () => process.env.AGENT_SESSIONS
+    ? resolve(process.env.AGENT_SESSIONS)
+    : sessionsOverride || join(home(), 'sessions')
 const session = id => join(sessions(), id)
 const meta = id => join(session(id), 'meta.json')
 const history = id => join(session(id), 'history.json')
@@ -99,6 +110,6 @@ export default {
     config,
     configBackups,
     sessionGroups,
-    sessions, session, meta, history, settings, toolTimings, snapshots, checkpoints,
+    sessions, setSessions, sessionsPathFile, sessionsMoveFile, sessionsMoveFailedFile, session, meta, history, settings, toolTimings, snapshots, checkpoints,
     tools, modelCatalog, processes, skills, skillsState, projectSkills,
 }

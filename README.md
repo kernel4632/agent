@@ -6,7 +6,7 @@
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，42 个接口，`bun test` 覆盖每条路由 |
+| `server/` | 可用 | Bun + Elysia 服务端，45 个接口，`bun test` 覆盖每条路由 |
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
@@ -45,7 +45,9 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
   config.json                模型服务、按任务的默认模型、工具权限规则、MCP 服务
   config-backups/            配置自动备份，保留最近 20 份
   session-groups.json        会话自定义分组、组顺序和组内顺序
-  sessions/<id>/             每条会话一个目录
+  sessions-path.json         自定义会话目录指针（仅在改过会话位置后存在）
+  sessions-move.json         等待重启执行的会话迁移（仅迁移期间存在）
+  sessions/<id>/             每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json                标题、当前目录、模型、时间
     history.json             消息和回退栈
     settings.json            思考强度
@@ -59,11 +61,13 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 技能不在数据目录里：全局技能在 `%USERPROFILE%\.agents\skills`，项目技能在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。把 `AGENT_HOME` 指到临时目录做测试时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。设置页还会识别 Claude Code、Codex、Gemini CLI、opencode、Cursor 等软件留下的技能目录，用户启用后才参与技能清单；启用状态存在 `skills.json`。
 
+会话历史、文件快照和工具输出可以在「设置 → 数据管理 → 会话数据目录」里单独改到其他磁盘。迁移在重启后端后执行，现有会话会复制过去，旧目录保留。也可以用 `AGENT_SESSIONS` 环境变量直接指定会话目录。
+
 内置工具在 `server/tools/`；按类别分文件，加一个工具只往这个目录放一个文件。内置技能目录不存在，技能全部来自上面两处用户数据。
 
 ## HTTP API
 
-服务端公开 41 个地址、42 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法）：
+服务端公开 42 个地址、45 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法，`/storage/sessions` 有 GET、PUT、DELETE 三个方法）：
 
 | 方法 | 地址 | 说明 |
 | --- | --- | --- |

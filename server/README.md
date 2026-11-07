@@ -59,7 +59,9 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
   config.json          模型服务、按任务的默认模型、MCP、权限、提示词、压缩阈值
   config-backups/      配置自动备份，保留最近 20 份
   session-groups.json  会话自定义分组、组顺序和组内顺序
-  sessions/<id>/
+  sessions-path.json   自定义会话目录指针（仅在改过会话位置后存在）
+  sessions-move.json   等待重启执行的会话迁移（仅迁移期间存在）
+  sessions/<id>/       每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
     history.json       消息和回退栈
     settings.json      思考强度
@@ -72,6 +74,8 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 ```
 
 默认情况下全局技能在 `%USERPROFILE%\.agents\skills`，不在数据目录里；测试或容器里把 `AGENT_HOME` 指到临时目录时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。项目技能放在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。
+
+会话历史、文件快照和工具输出占用会持续增长，可通过「设置 → 数据管理 → 会话数据目录」把整个 `sessions/` 单独放到其他磁盘。服务只写入待迁移标记，重启后在加载会话前复制并切换；旧目录保留。启动时也可以用 `AGENT_SESSIONS` 直接指定会话目录，此时界面为只读。
 
 ## 配置
 
@@ -271,6 +275,12 @@ $env:AGENT_HOME = "C:\temp\agent-data"
 
 不设置时默认是 `%USERPROFILE%\.agent`。
 
+如果只想把占用最大的会话数据放到其他磁盘，启动后可以在「设置 → 数据管理 → 会话数据目录」里选择新目录；迁移在重启后端后执行。也可以直接指定：
+
+```powershell
+$env:AGENT_SESSIONS = "D:\AgentSessions"
+```
+
 ### 4. 创建模型配置
 
 ```powershell
@@ -333,6 +343,16 @@ bun start
 | `POST` | `/config/restore` | `{ id }`，恢复前自动备份当前配置 |
 | `GET` | `/config/export?secrets=0\|1` | 下载配置；默认脱敏，`1` 才包含明文密钥 |
 | `POST` | `/config/import` | `{ config }`，整体导入；脱敏字段保留同名供应商现有密钥 |
+
+### 会话存储位置
+
+| 方法 | 地址 | 参数 | 结果 |
+| --- | --- | --- | --- |
+| `GET` | `/storage/sessions` | 无 | `{ path, defaultPath, envOverride, pending, error, lastMove }` |
+| `PUT` | `/storage/sessions` | `{ "path": "D:\\AgentSessions" }` | 只写入待迁移标记；重启后复制并切换，目标必须是空目录 |
+| `DELETE` | `/storage/sessions` | 无 | 取消尚未执行的迁移 |
+
+迁移只处理 `sessions/`，配置、工具和技能不动。`AGENT_SESSIONS` 存在时，`PUT` 会按 409 返回，界面上也不能修改。
 
 ### 工具
 
