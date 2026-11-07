@@ -39,11 +39,19 @@ async function jumpToMessage(messageId) {
     const start = session.historyStart || 0
     const end = start + (session.messages?.length || 0)
     if (target.index < start || target.index >= end) {
+      timeline.value?.beginPageSwap()
       if (!await Session.loadPageAt(session.id, target.index)) return
       await nextTick()
     }
   }
   timeline.value?.jumpToMessage(messageId)
+}
+
+async function loadOlderHistory() {
+  const session = props.session
+  if (!session) return
+  const loaded = await Session.loadOlder(session.id, () => timeline.value?.captureOlderAnchor())
+  if (!loaded) timeline.value?.cancelOlderRequest()
 }
 
 const draft = computed({
@@ -104,7 +112,7 @@ function chooseReasoning(reasoning) {
     <div :class="session ? 'session-main' : 'draft-main'">
       <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
         <div v-if="session" ref="conversationScroll" class="session-scroll">
-          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" @load-older="Session.loadOlder(session.id)" /></Transition>
+          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" @load-older="loadOlderHistory" /></Transition>
         </div>
         <ConversationRail
           v-if="session"

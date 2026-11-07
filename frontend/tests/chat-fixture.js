@@ -79,6 +79,7 @@ export async function backend(page, { configured = true } = {}) {
   const connections = new Map()
   const queued = new Map()
   const errors = []
+  const tuning = { historyDelay: 0 }
   const CONTINUE_TEXT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。' // 真实后端隐藏的内部提示
   page.on('pageerror', error => errors.push(error.message))
 
@@ -388,6 +389,7 @@ export async function backend(page, { configured = true } = {}) {
       return json(session.settings)
     }
     if (path.startsWith('/session/history/')) {
+      if (tuning.historyDelay) await new Promise(resolve => setTimeout(resolve, tuning.historyDelay))
       const before = Number(new URL(request.url()).searchParams.get('before'))
       const limit = Number(new URL(request.url()).searchParams.get('limit') || 200)
       const end = Number.isInteger(before) && before > 0 ? Math.min(before, session.history.length) : session.history.length
@@ -510,7 +512,7 @@ export async function backend(page, { configured = true } = {}) {
     }
     return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
-  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } } }
+  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } }, get delayHistory() { return tuning.historyDelay }, set delayHistory(value) { tuning.historyDelay = value } }
 }
 
 // 手机没有常驻主页，会话列表在左侧抽屉；桌面横向布局下抽屉常驻、菜单按钮隐藏。

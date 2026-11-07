@@ -202,8 +202,13 @@ function syncSummary(session) {
   Object.assign(found, summaryOf(session))               // 将最新标题、状态、计数和时间写回列表
 }
 
+const historyEpoch = new Map()
+const epochOf = id => historyEpoch.get(id) || 0
+const bumpHistory = id => historyEpoch.set(id, epochOf(id) + 1)
+
 /** 读取后端真实历史，保留当前草稿、附件和连接状态。 */
 async function refresh(id) {
+  bumpHistory(id)
   const settingsAtStart = store.sessions[id]?.settings // 记住本次读取开始时的设置引用
   const revisionAtStart = store.sessions[id]?.eventRevision || 0
   const source = await AgentAPI.getSession(id)
@@ -226,12 +231,15 @@ async function refresh(id) {
 }
 
 // --- 往上补一页历史；只把新页消息插到当前窗口前面 ---
-async function loadOlder(sessionID) {
+async function loadOlder(sessionID, captureAnchor) {
   const session = store.sessions[sessionID]
   if (!session || session.loadingOlder || (session.historyStart || 0) <= 0) return false
+  const epoch = epochOf(sessionID)
   session.loadingOlder = true
   try {
     const page = await AgentAPI.getSessionHistory(sessionID, session.historyStart, 200)
+    // 翻页途中如果已经跳到别的窗口，这一页不能再插回来，否则会突然闪到旧位置。
+    if (epochOf(sessionID) !== epoch) return false
     const visible = (page.messages || []).filter(message => !message.internal)
     const normalized = normalize({
       ...session,
@@ -242,6 +250,8 @@ async function loadOlder(sessionID) {
       pending: [],
       toolTimings: {},
     })
+    // 读者可能在请求期间继续滚动，插入前才量当前位置。
+    if (captureAnchor && !captureAnchor()) return false
     const seen = new Set(session.messages.map(message => message.id))
     session.messages = [...normalized.messages.filter(message => !seen.has(message.id)), ...session.messages]
     session.historyStart = page.start
@@ -259,9 +269,12 @@ async function loadOlder(sessionID) {
 async function loadPageAt(sessionID, targetIndex) {
   const session = store.sessions[sessionID]
   if (!session) return false
+  bumpHistory(sessionID)
+  const epoch = epochOf(sessionID)
   try {
     const before = Math.min(session.historyTotal || targetIndex + 200, targetIndex + 200)
     const page = await AgentAPI.getSessionHistory(sessionID, before, 200)
+    if (epochOf(sessionID) !== epoch) return false
     const visible = (page.messages || []).filter(message => !message.internal)
     const normalized = normalize({
       ...session,
