@@ -158,6 +158,9 @@ const start = async ({ port = process.env.PORT || 3000 } = {}) => {
     await History.prepare()   // 数据目录先建好，后面所有读写都不用再判断目录在不在。
     await Settings.read()     // 权限规则和模型配置读一次即可。
 
+    // MCP 连接慢不该挡住打开会话：启动后在后台预热，界面切换只读历史。
+    Mcp.warm().catch(error => console.error(`[mcp] 预热连接失败：${error.message}`))
+
     // 后端退出时带走还挂着的后台进程，不留孤儿；正常退出和 Ctrl+C 都走这里。
     process.on('exit', () => cleanup())
     process.on('SIGINT', () => { cleanup(); process.exit(0) })

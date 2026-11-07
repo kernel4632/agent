@@ -36,6 +36,7 @@ const revisionOf = () => revision
 
 // 连接按版本分组：旧 Agent 还在跑时，旧版本的连接不能被新配置关掉。
 const connections = new Map()                        // `${revision}\0${name}` -> { client, tools }
+const connecting = new Map()                         // `${revision}\0${name}` -> 正在进行的连接
 const failures = new Map()                           // `${revision}\0${name}` -> 失败原因
 const leases = new Map()                             // revision -> 持有它的 Agent 数量
 
@@ -135,16 +136,27 @@ const connect = async ({ name, rev = revision, definition = (store.config.mcp ||
     if (definition.enabled === false) return null         // 用户停用了，不连
 
     const key = connectionKey(name, rev)
+    const running = connecting.get(key)
+    if (running) return running                           // 同一服务只连一次，后到的复用同一个结果
+
+    const task = (async () => {
+        try {
+            const { client, tools } = await negotiate(definition, name)
+            connections.set(key, { client, tools })           // 连上了就留着，同一版本的下次装配直接复用
+            failures.delete(key)                              // 之前失败过也算翻篇
+            return tools
+        } catch (error) {
+            failures.set(key, error.message)                  // 记住这次失败，同一版本内不再重试
+            // 一次连不上不该拖垮整个会话，告诉界面就好。
+            if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
+            return null
+        }
+    })()
+    connecting.set(key, task)
     try {
-        const { client, tools } = await negotiate(definition, name)
-        connections.set(key, { client, tools })           // 连上了就留着，同一版本的下次装配直接复用
-        failures.delete(key)                              // 之前失败过也算翻篇
-        return tools
-    } catch (error) {
-        failures.set(key, error.message)                  // 记住这次失败，同一版本内不再重试
-        // 一次连不上不该拖垮整个会话，告诉界面就好。
-        if (sessionId) await SSE.send({ id: sessionId, data: { type: 'mcp-error', server: name, error: error.message } })
-        return null
+        return await task
+    } finally {
+        if (connecting.get(key) === task) connecting.delete(key)
     }
 }
 
@@ -195,6 +207,9 @@ const toolsForRevision = async (rev, sessionId) => {
 
 // --- 兼容只取工具的调用：测试和诊断用，不建立租约 ---
 const tools = async ({ sessionId } = {}) => toolsForRevision(revision, sessionId)
+
+// --- 服务启动时在后台把连接预热好；没有会话 id，所以不会往界面推连接失败提示 ---
+const warm = () => toolsForRevision(revision)
 
 /**
  * Agent 创建时拿一份工具租约；同一版本可以多个 Agent 共享连接。
@@ -339,6 +354,7 @@ const close = async () => {
         await client.close().catch(() => {})
     }
     connections.clear()
+    connecting.clear()
     failures.clear()
     leases.clear()
     handshakes.clear()
@@ -347,4 +363,4 @@ const close = async () => {
 // --- 最近一次连接失败的原因；设置页用它提示“这个服务起不来” ---
 const lastError = name => failures.get(connectionKey(name)) || ''
 
-export default { tools, acquire, connect, close, bind, list, save, remove, toggle, test, lastError, revision: revisionOf }
+export default { tools, warm, acquire, connect, close, bind, list, save, remove, toggle, test, lastError, revision: revisionOf }

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import '../server.js'
 import Session from '../commands/session.js'
+import Agent from '../features/agent.js'
 import History from '../features/history.js'
 import Path from '../utils/path.js'
 import Scratch from '../utils/scratch.js'
@@ -83,6 +84,17 @@ describe('临时工作区', () => {
             const reopened = await Session.read({ sessionId })
             expect(reopened.cwd).toBe(session.cwd)
             expect((await stat(reopened.cwd)).isDirectory()).toBe(true)
+        })
+    })
+
+    test('打开会话只读历史，不在装配 Agent 时等待 MCP', async () => {
+        await withHome(async () => {
+            await withModel()
+            const { sessionId } = await Session.create({ title: '打开不装配' })
+            Agent.invalidate(sessionId)
+            const session = await Session.read({ sessionId })
+            expect(session.id).toBe(sessionId)
+            expect(Agent.runtime().get(sessionId)).toBeUndefined()
         })
     })
 
