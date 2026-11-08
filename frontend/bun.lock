@@ -11,6 +11,7 @@
         "@tanstack/vue-virtual": "^3.13.48",
         "dompurify": "latest",
         "escape-html": "^1.0.3",
+        "fancy-ansi": "^0.2.2",
         "highlight.js": "^11.11.1",
         "katex": "^0.18.1",
         "marked": "latest",
@@ -316,6 +317,8 @@
     "escape-html": ["escape-html@1.0.3", "https://registry.npmmirror.com/escape-html/-/escape-html-1.0.3.tgz", {}, "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow=="],
 
     "estree-walker": ["estree-walker@2.0.2", "https://registry.npmmirror.com/estree-walker/-/estree-walker-2.0.2.tgz", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
+
+    "fancy-ansi": ["fancy-ansi@0.2.2", "https://registry.npmmirror.com/fancy-ansi/-/fancy-ansi-0.2.2.tgz", { "dependencies": { "escape-html": "^1.0.3" }, "peerDependencies": { "tailwindcss": "^3 || ^4" }, "optionalPeers": ["tailwindcss"] }, "sha512-OieQMQVPhP53t5YSzPiFyh6T/y2CfibXuFR9hhpXLRTy9tTmYmgaFOpyABGXPumlxILymZyl5xoRj92nEp5mhA=="],
 
     "fdir": ["fdir@6.5.0", "https://registry.npmmirror.com/fdir/-/fdir-6.5.0.tgz", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 
