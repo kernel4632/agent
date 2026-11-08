@@ -12,10 +12,9 @@
 import { AgentAPI } from '../utils/api.js' // 持久化历史与回退接口
 import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from '../utils/notice.js' // 操作完成或失败的反馈
-import { t } from '../utils/i18n.js' // 共享文案
 import { formatToolOutput, toolStatus, outputText, subagentSteps } from '../utils/tool.js' // 历史和实时事件共用工具解释
 import { requestFromUsage } from '../utils/usage.js' // 请求统计统一投影
-import { DEFAULT_CONTEXT } from '../defaults.js' // 默认上下文
+import { DEFAULT_CONTEXT, NEW_SESSION_TITLE } from '../defaults.js' // 默认上下文与默认标题
 
 function partList(item) {
   return Array.isArray(item.parts) ? item.parts
@@ -198,7 +197,7 @@ function summaryOf(session) {
     cwd: session.cwd,                                    // 会话当前目录
     temporary: session.temporary === true,               // 新会话默认使用的临时工作区
     provider: session.provider,
-    title: session.title || t('newConversation'),        // 列表显示标题，空标题使用默认文案
+    title: session.title || NEW_SESSION_TITLE,           // 列表显示标题，空标题使用默认文案
     model: session.model,                                // 当前使用模型
     status: session.status,                              // 运行或空闲状态
     messageCount: session.messages.length,               // 消息数量用于列表摘要展示

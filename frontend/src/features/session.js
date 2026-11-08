@@ -13,7 +13,6 @@
 import { AgentAPI } from '../utils/api.js' // 会话目录接口
 import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from '../utils/notice.js' // 操作完成或失败的反馈
-import { t } from '../utils/i18n.js' // 共享文案
 import { History } from './history.js' // 归一化和历史读取
 import { DEFAULT_CONTEXT, NEW_SESSION_TITLE } from '../defaults.js' // 默认上下文
 
@@ -85,7 +84,7 @@ async function remove(sessionID) {
     await AgentAPI.removeSession(sessionID)
     forget(sessionID)
     if (store.ui.activeSessionID === sessionID) { store.ui.activeSessionID = ''; store.ui.view = 'home' }
-    Notice.show(t('sessionDeleted'))
+    Notice.show('会话已删除')
     return true
   } catch (error) {
     Notice.show(error.message)

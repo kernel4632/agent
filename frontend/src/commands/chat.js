@@ -12,7 +12,6 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { History } from '../features/history.js'
-import { t } from '../utils/i18n.js'
 import { Settings } from '../features/settings.js'
 import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
 import { usageFields } from '../utils/usage.js'
@@ -351,7 +350,7 @@ async function receiveRun(sessionID, session, event) {
   if (event.type === 'llm-finish') return finishRunRequest(session, event)
   if (event.type === 'retry') return retryRun(session, event)
   if (event.type === 'error') return failRun(session, event)
-  if (event.type === 'mcp-error') return Notice.show(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
+  if (event.type === 'mcp-error') return Notice.show(`MCP 服务 ${event.server} 没连上：${event.error}`) // 某个 MCP 没连上，提醒一句就好
   if (event.type === 'title') return setTitle(session, event)
   if (event.type === 'agent-finish') return finishRun(sessionID, session, event)
 }
@@ -446,7 +445,7 @@ function receiveTool(session, event) {
     // 结果类型用 execution-denied，和“用户拒绝”走同一条 rejected 判断。
     const tool = toolFor(session, event, 'rejected')
     if (tool) {
-      tool.output = { type: 'execution-denied', reason: t('toolBlockedReason', { reason: event.reason }) }
+      tool.output = { type: 'execution-denied', reason: `已被权限规则拦下（${event.reason}）` }
       tool.preview = formatToolOutput(tool.output)
     }
   }
