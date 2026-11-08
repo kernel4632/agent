@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.112.34",
+  "version": "0.112.35",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -24,7 +24,8 @@
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.10",
     "mermaid": "^11.16.0",
-    "vue": "^3.5.44"
+    "vue": "^3.5.44",
+    "vue-stick-to-bottom": "^1.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

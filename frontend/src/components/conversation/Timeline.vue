@@ -15,6 +15,7 @@ import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useStickToBottom } from 'vue-stick-to-bottom'
 import { store } from '../../store.js'
 import { groupMessageTurns } from "../../features/turns.js"
 import { isSavedMessage } from "../../features/turns.js"
@@ -61,6 +62,26 @@ const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
+// 贴底交给 vue-stick-to-bottom 的速度弹簧；它自己观察一个零高度哨兵，
+// 真正的“内容是否变化”仍由本组件的 ResizeObserver 触发，避免和自定义滚动状态重复接管。
+const stickSentinel = ref(null)
+const {
+  scrollRef: stickScroll,
+  contentRef: stickContent,
+  scrollToBottom: smoothToBottom,
+  stopScroll: stopSmooth,
+} = useStickToBottom({
+  initial: false,
+  resize: { damping: 0.85, stiffness: 0.1, mass: 0.9 },
+})
+function smoothStick() {
+  if (!following.value || jumping || !stickScroll.value || !stickContent.value) return
+  smoothToBottom({
+    animation: { damping: 0.85, stiffness: 0.1, mass: 0.9 },
+    wait: true,
+    preserveScrollPosition: false,
+  })
+}
 const rollbackTarget = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
@@ -129,6 +150,7 @@ function stopFollowing() {
     cancelAnimationFrame(stickFrame)
     stickFrame = 0
   }
+  stopSmooth()
   setFollowing(false)
 }
 // 定位跳转期间不接受滚轮/滚动条的程序滚动判定，避免平滑动画被“回到底部”打断。
@@ -160,7 +182,7 @@ function queueStick() {
     const max = maxScrollTop()
     // 已经在底部就不写 scrollTop：写同一个值也会触发 scroll 事件和一次排版。
     if (max <= scrollParent.scrollTop + 1) return
-    scrollParent.scrollTop = max
+    smoothStick()
   })
 }
 
@@ -368,6 +390,8 @@ function mountEarlier() {
 }
 onMounted(() => {
   scrollParent = props.scrollRoot
+  stickScroll.value = scrollParent
+  stickContent.value = stickSentinel.value
   lastTop = scrollParent?.scrollTop || 0
   scrollParent?.classList.toggle('is-following', following.value)
   scrollParent?.addEventListener('scroll', onScroll, { passive: true })
@@ -541,6 +565,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         回到最新
       </button>
     </div>
+    <span ref="stickSentinel" class="conversation-stick-sentinel" aria-hidden="true"></span>
   </div>
 </template>
 

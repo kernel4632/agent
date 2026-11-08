@@ -5,6 +5,7 @@
 .rikka-message--assistant { gap: 8px; }
 @media (max-width: 767px) {
 .conversation-flow { padding: 8px 16px 18px; gap: 12px; }
+.conversation-stick-sentinel { display: block; width: 100%; height: 0; flex: none; }
 }
 .rikka-message { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 4px; contain: layout paint; }
 .rikka-message--user { align-items: flex-end; }

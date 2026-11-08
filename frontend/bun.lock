@@ -16,6 +16,7 @@
         "marked-katex-extension": "^5.1.10",
         "mermaid": "^11.16.0",
         "vue": "^3.5.44",
+        "vue-stick-to-bottom": "^1.0.1",
       },
       "devDependencies": {
         "@playwright/test": "^1.62.1",
@@ -426,6 +427,8 @@
     "vite": ["vite@8.2.0", "https://registry.npmmirror.com/vite/-/vite-8.2.0.tgz", { "dependencies": { "lightningcss": "^1.33.0", "picomatch": "^4.0.5", "postcss": "^8.5.23", "rolldown": "~1.2.0", "tinyglobby": "^0.2.17" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^20.19.0 || >=22.12.0", "@vitejs/devtools": "^0.4.0", "esbuild": "^0.27.0 || ^0.28.0", "jiti": ">=1.21.0", "less": "^4.0.0", "sass": "^1.70.0", "sass-embedded": "^1.70.0", "stylus": ">=0.54.8", "sugarss": "^5.0.0", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "@vitejs/devtools", "esbuild", "jiti", "less", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-pn+CFpM0lwDeKwmOq1ZaBK/9sjorZcgqxki6MbY/jPEVd9vichIlmlD4HmQ5wdP5EgqQCFRaACBxMC7uEGc6lQ=="],
 
     "vue": ["vue@3.5.44", "https://registry.npmmirror.com/vue/-/vue-3.5.44.tgz", { "dependencies": { "@vue/compiler-dom": "3.5.44", "@vue/compiler-sfc": "3.5.44", "@vue/runtime-dom": "3.5.44", "@vue/server-renderer": "3.5.44", "@vue/shared": "3.5.44" }, "peerDependencies": { "typescript": "*" }, "optionalPeers": ["typescript"] }, "sha512-dvvmaOCG7lAMkJTPqPwWeGMsPS6DIsFsfZDUgBp9V6mHf9b3+/wyVwYR4Es+WV6uJC0FKRxp81Obcq0ZwUcGFQ=="],
+
+    "vue-stick-to-bottom": ["vue-stick-to-bottom@1.0.1", "https://registry.npmmirror.com/vue-stick-to-bottom/-/vue-stick-to-bottom-1.0.1.tgz", { "peerDependencies": { "vue": ">=3.3.0" } }, "sha512-RuT83MqGsQuBwCYq3KOlsXIz9u2ITE5iToJyM6iOOT17gvxaCjgU6lvOCjbRNVwejy7KxSy5EZG9UOuR+WkEVA=="],
 
     "@vue/compiler-core/source-map-js": ["source-map-js@1.2.2", "https://registry.npmmirror.com/source-map-js/-/source-map-js-1.2.2.tgz", {}, "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="],
 
