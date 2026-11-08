@@ -1657,13 +1657,14 @@
         "tags": [
           "Session"
         ],
-        "summary": "读取一条会话的完整内容",
-        "description": "返回完整 history（已过滤 internal 消息）；分页历史接口继续保留给以后使用。",
+        "summary": "读取一条会话",
+        "description": "默认返回完整 history（已过滤 internal 消息）；传 historyLimit 时只返回最后 N 条并带 historyStart。",
         "operationId": "sessionRead",
         "parameters": [
           {
             "$ref": "#/components/parameters/SessionId"
-          }
+          },
+          { "name": "historyLimit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 }, "description": "只取最近 N 条历史，供首屏窗口加载" }
         ],
         "responses": {
           "200": {

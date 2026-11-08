@@ -138,7 +138,7 @@ const fork = async ({ sessionId, title, messageId }) => {
 
 // --- 读取一条会话 ---
 const HISTORY_PAGE = 200
-const read = async ({ sessionId }) => {
+const read = async ({ sessionId, historyLimit }) => {
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
@@ -153,6 +153,12 @@ const read = async ({ sessionId }) => {
         // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
 
+    const total = history.length
+    const requested = Number(historyLimit)
+    const limit = Number.isFinite(requested) && requested > 0 ? Math.min(500, Math.floor(requested)) : 0
+    const start = limit ? Math.max(0, total - limit) : 0
+    const windowed = limit ? history.slice(start) : history
+
     return {
         id: session.id,
         title: session.title,
@@ -162,9 +168,9 @@ const read = async ({ sessionId }) => {
         model: session.model.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        history,
-        historyStart: 0,
-        historyTotal: history.length,
+        history: windowed,
+        historyStart: start,
+        historyTotal: total,
         todos: latestTodos(history),
         running,
         toolTimings: await ToolTiming.read(sessionId),

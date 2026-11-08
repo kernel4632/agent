@@ -304,13 +304,14 @@ bun start
 固定顺序：
 
 ```text
-1. GET  /session/read/:sessionId
-2. 用返回的完整 history 渲染页面
-3. GET  /sse/connect/:sessionId
-4. 接收仍在运行的流式事件
+1. GET  /session/read/:sessionId?historyLimit=200
+2. 用最近一页 history 渲染页面，保留 historyStart/historyTotal
+3. 向上滚动时 GET /session/history/:sessionId?before=historyStart，补更早一页
+4. GET  /sse/connect/:sessionId
+5. 接收仍在运行的流式事件
 ```
 
-不要让 SSE 负责发送完整 history。断线时重新读一次会话，再重新连接 SSE；不要发送 `Last-Event-ID`，后端会从当前缓存的第一条事件开始重放。
+不要让 SSE 负责发送完整 history。断线时先读最近一页会话，再重新连接 SSE；不要发送 `Last-Event-ID`，后端会从当前缓存的第一条事件开始重放。
 
 ## HTTP 接口
 
@@ -401,7 +402,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | `PUT` | `/session/groups` | `{ "groups": [{ "id", "name", "sessions": [] }] }` | 整体保存分组；一个会话只能属于一个组，重名或重复会话按 400 返回 |
 | `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }`；省略 `cwd` 时创建独立临时工作区 |
 | `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
-| `GET` | `/session/read/:sessionId` | 无 | 会话资料、完整 history、`todos`、`running`、`pending`、`settings`、`undoable` |
+| `GET` | `/session/read/:sessionId?historyLimit=` | 无 | 会话资料、history 窗口、`historyStart`、`historyTotal`、`todos`、`running`、`pending`、`settings`、`undoable`；不传 `historyLimit` 返回完整 history |
 | `GET` | `/session/history/:sessionId?before=&beforeOffset=&limit=` | 无 | 分页历史：`messages`、`start`、`end`、`startOffset`、`endOffset`、`total`、`hasMore`；`beforeOffset` 直接按 JSONL 字节游标扫描 |
 | `GET` | `/session/outline/:sessionId` | 无 | 全会话轮次大纲：`turns[{id,index,role,prompt,response}]` 和 `totalMessages` |
 | `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话资料 |

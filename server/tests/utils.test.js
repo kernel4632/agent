@@ -82,6 +82,17 @@ describe('server HTTP API', () => {
             expect(created.status).toBe(200)
             const { sessionId } = await created.json()
 
+            // historyLimit 只返回最近一页，并给出完整历史里的起始下标。
+            for (const content of ['one', 'two', 'three']) {
+                await History.add({ sessionId, message: { role: 'user', content } })
+            }
+            await History.save(sessionId)
+            const windowedResponse = await request(`/session/read/${sessionId}?historyLimit=2`)
+            expect(windowedResponse.status).toBe(200)
+            const windowed = await windowedResponse.json()
+            expect(windowed).toMatchObject({ historyStart: 1, historyTotal: 3 })
+            expect(windowed.history).toHaveLength(2)
+
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
             const session = await read.json()
