@@ -3,10 +3,10 @@
 每个会话一个目录，删除会话或切换工作区时可以安全清理；只清理本文件创建的目录。
 
 调用示例：
-  const cwd = await Scratch.create()
-  await Scratch.ensure(session.cwd, session.temporary)
-  await Scratch.remove(session.cwd, session.temporary)
-  const copy = await Scratch.clone(sourceCwd)
+  const cwd = await TempWorkspace.create()
+  await TempWorkspace.ensure(session.cwd, session.temporary)
+  await TempWorkspace.remove(session.cwd, session.temporary)
+  const copy = await TempWorkspace.clone(sourceCwd)
 */
 
 import { access, cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
@@ -50,7 +50,7 @@ const create = async () => {
 const ensure = async (path, temporary) => {
     if (!temporary || !managed(path)) return
     await mkdir(path, { recursive: true }).catch(error => {
-        console.warn(`[scratch] 临时工作区创建失败：${error.message}`)
+        console.warn(`[temp-workspace] 临时工作区创建失败：${error.message}`)
     })
 }
 

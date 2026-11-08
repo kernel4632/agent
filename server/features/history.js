@@ -21,7 +21,7 @@ import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import store from '../store.js'
 import Path from '../utils/path.js'
-import Scratch from '../utils/scratch.js'
+import TempWorkspace from '../utils/temp-workspace.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 
@@ -139,7 +139,7 @@ const load = async sessionId => {
     if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
     const meta = await metaFile.json()                                // 当前形状的会话资料
     const temporary = meta.temporary === true
-    if (temporary) await Scratch.ensure(meta.cwd, true)
+    if (temporary) await TempWorkspace.ensure(meta.cwd, true)
     const log = await loadLog(sessionId)
     const settings = await readSessionFile(Path.settings(sessionId), { reasoning: 'auto' }, 'settings.json')
     const savedRedo = await readSessionFile(Path.historyRedo(sessionId), null, 'history-redo.json')
