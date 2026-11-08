@@ -44,9 +44,10 @@ function normalizeTool(part, toolTimings = {}) {
   }
 }
 
-function applyToolResult(messages, parts) {
+function applyToolResult(parts, toolIndex) {
   for (const result of parts.filter(part => part.type === 'tool-result')) {
-    const tool = messages.flatMap(item => item.tools || []).find(item => item.id === result.toolCallId)
+    // 按 toolCallId 直接取：之前每个结果都 flatMap 整段历史再 find，长会话是 O(n²)。
+    const tool = toolIndex.get(result.toolCallId)
     if (!tool) continue
     tool.status = toolStatus(result.output, result.isError) // 拒绝、失败、完成由 tool-ui 统一判断
     tool.output = result.output
@@ -81,7 +82,7 @@ export function splitUserAttachments(raw) {
   return { content: first >= 0 ? text.slice(0, first).trimEnd() : text, attachments }
 }
 
-function normalizeMessage(item, messages, toolTimings) {
+function normalizeMessage(item, toolTimings, toolIndex) {
   const parts = partList(item)
   // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
   const message = {
@@ -92,7 +93,7 @@ function normalizeMessage(item, messages, toolTimings) {
   }
   if (item.compact) message.compact = true
   if (item.role === 'tool') {
-    applyToolResult(messages, parts)
+    applyToolResult(parts, toolIndex)
     return null
   }
 
@@ -107,6 +108,8 @@ function normalizeMessage(item, messages, toolTimings) {
   message.tools = parts
     .filter(part => part.type === 'tool-invocation' || part.type === 'tool-call')
     .map(part => normalizeTool(part, toolTimings))
+  // 工具建好后立刻登记进索引，后面的 tool 结果消息（协议里单独一条）按 ID 直接回填。
+  for (const tool of message.tools) toolIndex.set(tool.id, tool)
   // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
   message.steps = []
   if (item.role === 'assistant') {
@@ -151,15 +154,17 @@ function normalize(source, previous = {}) {
   // 不保留后端原始 history：它在界面里只通过 messages 使用，留着会多占一倍内存。
   const { history: _history, toolTimings: _toolTimings, ...sessionData } = source
   const messages = []                                    // 将 AI SDK 协议消息转换为界面气泡
+  // toolCallId -> tool 索引：tool 结果在协议里是单独一条消息，按 ID 回填，一次建好全程复用。
+  const toolIndex = new Map()
   for (const item of source.history ?? []) {
-    const message = normalizeMessage(item, messages, source.toolTimings || {})
+    const message = normalizeMessage(item, source.toolTimings || {}, toolIndex)
     if (message) messages.push(message)                  // 用户和助手消息进入可见时间线
   }
   // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。
   // 历史里的工具调用本身只有“调用中”，必须用这份清单把它标回“等待你的许可”，否则按钮会消失。
   for (const pending of source.pending || []) {
     const callID = pending.callID || pending.toolCallId              // 两种字段名都认
-    const tool = messages.flatMap(item => item.tools || []).find(item => item.id === callID)
+    const tool = toolIndex.get(callID)
     if (tool) tool.status = 'waiting'
   }
   // 统计从每条助手消息的请求用量里重新算，刷新后总消耗和上下文不会归零。

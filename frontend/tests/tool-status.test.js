@@ -208,3 +208,31 @@ test('history restores nested subagent tool steps', () => {
   assert.equal(tool.subagentSteps[0].name, 'read_file')
   assert.match(tool.subagentSteps[0].preview, /内容/)
 })
+
+// 长会话不能退回到“每个 tool-result 都扫一遍全部消息”：那是 O(n²)。
+// 这里用够大的轮数让二次实现明显超时，而不是只看功能对不对。
+test('history normalization stays linear on long sessions', () => {
+  const rounds = 4000
+  const history = []
+  for (let round = 0; round < rounds; round += 1) {
+    history.push({ messageId: `u-${round}`, role: 'user', content: `问题 ${round}` })
+    history.push({
+      messageId: `a-${round}`,
+      role: 'assistant',
+      content: [{ type: 'tool-invocation', toolCallId: `call-${round}`, toolName: 'read_file', state: 'call', args: {} }],
+    })
+    // 协议里工具结果是单独一条消息，必须回填到前面那条调用上
+    history.push({ messageId: `t-${round}`, role: 'tool', content: [{ type: 'tool-result', toolCallId: `call-${round}`, output: { type: 'text', value: `内容 ${round}` } }] })
+  }
+  const start = performance.now()
+  const session = History.normalize({ id: 'long', provider: 'p', model: 'm', history })
+  const elapsed = performance.now() - start
+
+  // 结果仍然正确：每条调用都拿到了自己的输出
+  assert.equal(session.messages.length, rounds * 2)
+  assert.equal(session.messages[1].tools[0].status, 'completed')
+  assert.match(session.messages[1].tools[0].preview, /内容 0/)
+  // 线性实现下 12000 条历史约 15ms；退回到全量扫描会到 130ms 以上（实测 4000 轮 131ms）。
+  // 阈值取 100ms：既有足够机器差异余量，又能真的拦住二次实现。
+  assert.ok(elapsed < 100, `${rounds} 轮归一化耗时 ${elapsed.toFixed(0)}ms，疑似退回全量扫描`)
+})
