@@ -37,6 +37,7 @@ const shell = {
         'Execute a CLI command on the system and return its output (stdout and stderr) and exit code. Long output is truncated, keeping the head and tail.',
         'Use this for anything not covered by a dedicated tool: installing programs, converting files, fetching data, checking your system.',
         'The command runs once and waits for completion; interactive prompts that need typing will hang.',
+        'Arguments are parsed like a shell: quotes group words, so -m "two words" is one argument. When the command needs no shell features it is executed directly; pipes, redirection, variables and globs go through the system shell.',
         'Set background: true to start it in the background instead: returns immediately with a process id; read output later with background (action: log, optionally with waitFor/waitMs). Use this for long jobs that would otherwise block: full test suites, dev servers, installs.',
         'You do not have to guess how long a command takes. If it is still running when timeout elapses it is NOT killed: you get back the process id, the partial output so far, and timedOut: true. Continue with background({ action: "log", id }).',
         'Parameters: - command (required): the command line to run. - cwd (optional): directory relative to the session current directory.',
