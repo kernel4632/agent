@@ -1,6 +1,6 @@
 /*
 斜杠菜单：输入 / 后按命令名或中文说明筛选，Tab 补全，Enter 执行。
-/help 不写进对话，打开可滚动的说明页。
+slashCommands 是菜单和说明页共用的清单；说明页的版式在 help.go。
 */
 package tui
 
@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 )
 
 // slashCommand is one entry in the composer menu. RunBare means Enter can run
@@ -40,54 +39,6 @@ var slashCommands = []slashCommand{
 	{"/resume", "继续被中断的助手", "", true},
 	{"/refresh", "重新读取历史", "", true},
 	{"/quit", "退出", "", true},
-}
-
-func (m *model) helpText() string {
-	width := max(20, m.width-2)
-	var b strings.Builder
-	write := func(text string) {
-		b.WriteString(muted.Render(clipCols(text, width))) // 先裁纯文本再上色，避免把转义码切成两半
-		b.WriteByte('\n')
-	}
-	b.WriteString(accent.Render("命令"))
-	b.WriteByte('\n')
-	write("用命令名或中文说明筛选，例如 /用量")
-	b.WriteByte('\n')
-	for _, cmd := range slashCommands {
-		gap := 16 - lipgloss.Width(cmd.Name)
-		if gap < 2 {
-			gap = 2
-		}
-		room := width - lipgloss.Width(cmd.Name) - gap
-		if room < 1 {
-			b.WriteString(accent.Render(clipCols(cmd.Name, width)))
-		} else {
-			b.WriteString(accent.Render(cmd.Name))
-			b.WriteString(strings.Repeat(" ", gap))
-			b.WriteString(clipCols(cmd.Hint, room))
-		}
-		b.WriteByte('\n')
-		if cmd.Usage != "" {
-			write(strings.Repeat(" ", 16) + cmd.Usage)
-		}
-	}
-	b.WriteByte('\n')
-	for _, line := range []string{
-		"方向键选择，Tab 补全，Enter 执行不需要参数的命令",
-		"Enter 发送；Tab 在输入和消息之间切换；Alt+Enter / Ctrl+J 换行",
-		"滚轮、PgUp / PgDn 滚动记录；输入只有一行且没有选项时 ↑↓ 也能滚动",
-		"提问若写成 1) 2) 3)，会变成选项：方向键移动，数字键选中，Enter 确认",
-		"Ctrl+P 会话 · Ctrl+M 模型 · Ctrl+W 目录 · Ctrl+G 改动 · Ctrl+T 任务 · Ctrl+U 用量 · Ctrl+Y 复制",
-		"连续的工具收成一行，回答留在对话里；点击该行或 Enter 再展开",
-		"Ctrl+R 显示或收起思考；Esc / Ctrl+C 停止；Ctrl+Q 停止并退出",
-		"消息上：c 复制，x 回退，f 分支，r 只恢复这一次工具改的文件，u 撤销回退",
-		"审批期间：y 允许一次，a 始终允许（保存全局规则），n 拒绝",
-		"同一会话只保留一个实时连接，请关闭网页中该会话的实时页面",
-		"从别的界面回到这里时，会重新接上还在跑的会话",
-	} {
-		write(line)
-	}
-	return strings.TrimRight(b.String(), "\n")
 }
 
 func (m *model) slashMatches() []slashCommand {
@@ -164,15 +115,17 @@ func (m *model) slashMenu() string {
 	width := max(24, m.width-2)
 	var b strings.Builder
 	for offset, item := range matches[start:end] {
+		chosen := start+offset == selected
 		pointer := "  "
-		if start+offset == selected {
-			pointer = "> "
+		if chosen {
+			pointer = "❯ "
 		}
 		line := fit(pointer+pad(item.Name, 12)+" "+item.Hint, width)
-		if start+offset == selected {
-			line = accent.Render(line)
+		if chosen {
+			line = accent.Render(line) // 选中行整行提亮，眼睛不用在灰字里找
 		} else {
-			line = muted.Render(line)
+			name, hint := splitSlashRow(line)
+			line = muted.Render(name) + dim.Render(hint)
 		}
 		if offset > 0 {
 			b.WriteByte('\n')
@@ -180,6 +133,17 @@ func (m *model) slashMenu() string {
 		b.WriteString(line)
 	}
 	return b.String()
+}
+
+// splitSlashRow 把菜单行切成“命令名”和“说明”，两段用不同的灰。
+// 前缀固定是 2 列指针 + 12 列命令名 + 1 列空格。
+func splitSlashRow(line string) (string, string) {
+	const head = 15
+	runes := []rune(line)
+	if len(runes) <= head {
+		return line, ""
+	}
+	return string(runes[:head]), string(runes[head:])
 }
 
 func (m *model) suggestKey(key string) (tea.Cmd, bool) {

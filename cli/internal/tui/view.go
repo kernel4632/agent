@@ -17,9 +17,6 @@ import (
 	"github.com/kernel4632/agent/cli/internal/chat"
 )
 
-var accent = lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true)
-var muted = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-
 func (m *model) renderConversation(bottom bool) {
 	follow := bottom || m.viewport.AtBottom()
 	m.syncUsage()
@@ -114,7 +111,7 @@ func (m *model) header() string {
 	used := lipgloss.Width(title)
 	if metaShown != "" {
 		piece := "  " + metaShown
-		b.WriteString(muted.Render(piece))
+		b.WriteString(gold.Render(piece))
 		used += lipgloss.Width(piece)
 	}
 	if cwdW > 0 {
@@ -123,7 +120,7 @@ func (m *model) header() string {
 			pad = gap
 		}
 		b.WriteString(strings.Repeat(" ", pad))
-		b.WriteString(muted.Render(cwd))
+		b.WriteString(dim.Render(cwd))
 	}
 	return b.String()
 }
@@ -149,28 +146,50 @@ func (m *model) taskLine() string {
 	return text
 }
 
-func (m *model) statsLine() string {
+// statsLine 返回底栏用量：已上色的文本和同一份内容的纯文本。
+// 纯文本留着算宽度和判断点击落在哪，颜色只影响观感。
+func (m *model) statsLine() (string, string) {
 	usage := m.lastUsage
 	if usage.Input+usage.Output+usage.CacheRead == 0 {
-		return ""
+		return "", ""
 	}
-	parts := []string{}
+	var colored, plain []string
+	add := func(style lipgloss.Style, text string) {
+		colored = append(colored, style.Render(text))
+		plain = append(plain, text)
+	}
 	if limit := m.contextLimit(); limit > 0 && usage.Input > 0 {
 		percent := usage.Input * 100 / limit
 		label := "上下文 " + itoa(percent) + "%"
 		if percent == 0 {
 			label = "上下文 <1%"
 		}
-		parts = append(parts, label+" "+meter(percent, 8)) // 一条短条，比只读百分比容易看出还剩多少
+		bar := meter(percent, 8)
+		colored = append(colored, muted.Render(label)+" "+contextBar(percent).Render(bar)) // 颜色自己会说还剩多少
+		plain = append(plain, label+" "+bar)
 	}
-	parts = append(parts, "入 "+itoa(usage.Input), "出 "+itoa(usage.Output), "缓存 "+itoa(usage.CacheRead))
+	add(muted, "入 "+itoa(usage.Input))
+	add(muted, "出 "+itoa(usage.Output))
+	add(muted, "缓存 "+itoa(usage.CacheRead))
 	if usage.Reasoning > 0 {
-		parts = append(parts, "思考 "+itoa(usage.Reasoning))
+		add(muted, "思考 "+itoa(usage.Reasoning))
 	}
 	if speed := m.speedText(); speed != "" {
-		parts = append(parts, speed)
+		add(gold, speed)
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(colored, dim.Render(" · ")), strings.Join(plain, " · ")
+}
+
+// contextBar 选用量条的颜色：85% 前是完成绿，85% 起琥珀，95% 起警报红。
+func contextBar(percent int) lipgloss.Style {
+	switch {
+	case percent >= 95:
+		return errText
+	case percent >= 85:
+		return warnText
+	default:
+		return okText
+	}
 }
 
 func (m *model) contextLimit() int {
@@ -208,6 +227,9 @@ func (m *model) activityLine() string {
 		if elapsed := int(time.Since(m.turnAt).Seconds()); elapsed >= 1 {
 			text = itoa(elapsed) + "s  " + text // 秒数放前面：窄屏裁掉的是后半，时钟还在
 		}
+	}
+	if m.running {
+		text = spinnerFrames[m.spin%len(spinnerFrames)] + " " + text // 转圈在最前面，一眼看出还在动
 	}
 	return text
 }
@@ -252,19 +274,23 @@ func (m *model) activityText() string {
 	return ""
 }
 
-func (m *model) footer() string {
+// footer 返回底栏：左边用量，右边当前可用的快捷键。
+// 两个返回值分别是上色后的文本和纯文本，后者用来判断点击落在用量还是快捷键上。
+func (m *model) footer() (string, string) {
 	width := max(10, m.width-2)
-	stats := m.statsLine()
+	stats, plainStats := m.statsLine()
 	if stats == "" {
-		return clipCols(m.footerHint(2), width)
+		hint := clipCols(m.footerHint(2), width)
+		return dim.Render(hint), hint
 	}
 	for level := 2; level >= 0; level-- { // 先试完整快捷键，放不下就缩短，绝不截成半个词
 		hint := m.footerHint(level)
 		if lipgloss.Width(stats)+2+lipgloss.Width(hint) <= width {
-			return spread(stats, hint, width)
+			return spread(stats, dim.Render(hint), width), spread(plainStats, hint, width)
 		}
 	}
-	return clipCols(stats, width) // 用量自己已经占满：它能点开统计，快捷键仍在 /help
+	clipped := clipCols(plainStats, width)
+	return muted.Render(clipped), clipped // 用量自己已经占满：它能点开统计，快捷键仍在 /help
 }
 
 func (m *model) footerHint(level int) string {
@@ -314,7 +340,7 @@ func (m *model) footerHint(level int) string {
 
 func (m *model) View() tea.View {
 	width := max(10, m.width-2)
-	m.input.SetWidth(width)
+	m.input.SetWidth(m.inputWidth())
 	m.syncPlaceholder()
 
 	top := []string{m.header()}
@@ -336,8 +362,7 @@ func (m *model) View() tea.View {
 	}
 	dock := m.dockRows()
 	composer := m.composerLines()
-	plainFooter := m.footer()
-	footer := muted.Render(m.line(plainFooter))
+	footer, plainFooter := m.footer()
 	for m.height-(len(top)+1+len(dock)+len(below)+len(composer)+1) < 2 && len(dock) > 1 {
 		dock = shrinkDock(dock)
 	}
@@ -401,10 +426,10 @@ func (m *model) View() tea.View {
 	m.frameVP = vpHeight
 	m.statsWidth = 0
 	if m.overlay.kind == "" {
-		stats := m.statsLine()
-		if stats != "" && strings.HasPrefix(plainFooter, stats) {
-			m.statsWidth = lipgloss.Width(stats) // 只覆盖用量前缀，点到右边的快捷键不打开统计
-		} else if stats != "" {
+		_, plainStats := m.statsLine()
+		if plainStats != "" && strings.HasPrefix(plainFooter, plainStats) {
+			m.statsWidth = lipgloss.Width(plainStats) // 只覆盖用量前缀，点到右边的快捷键不打开统计
+		} else if plainStats != "" {
 			m.statsWidth = lipgloss.Width(plainFooter)
 		}
 	}
@@ -419,6 +444,7 @@ func (m *model) View() tea.View {
 	view.ReportFocus = true // 离开再回来时收到焦点消息，用来重绘并接上还在跑的会话
 	if m.permission == nil && m.focus == focusInput && m.overlay.kind == "" {
 		if cur := m.input.Cursor(); cur != nil {
+			cur.X += m.composerOffset() // 输入框左边多了一条竖线，光标跟着右移
 			cur.Y += inputAt
 			if cur.Y >= len(lines) {
 				cur.Y = len(lines) - 1
@@ -441,24 +467,70 @@ func (m *model) rule() string {
 		}
 	}
 	if hint == "" || lipgloss.Width(hint) >= width {
-		return muted.Render(strings.Repeat("-", width))
+		return hairline.Render(strings.Repeat("─", width))
 	}
 	pad := width - lipgloss.Width(hint)
 	left := pad / 2
-	return muted.Render(strings.Repeat("-", left) + hint + strings.Repeat("-", pad-left))
+	return hairline.Render(strings.Repeat("─", left) + hint + strings.Repeat("─", pad-left))
 }
 
+const (
+	composerGutter = 2  // 左右竖线各占一列，再用一列和文字隔开
+	composerMin    = 24 // 再窄就只剩竖线，放弃边框保住输入宽度
+)
+
+// composerLines 是输入区的实际画面：左右各一条竖线把输入框收住，聚焦时用强调蓝。
+// 只画左右、不画上下：多行输入不会多占行，矮终端里对话区不会被挤没。
 func (m *model) composerLines() []string {
 	text := strings.TrimRight(m.input.View(), "\n")
-	if text == "" {
-		return []string{""}
+	var lines []string
+	if text != "" {
+		lines = strings.Split(text, "\n")
 	}
-	lines := strings.Split(text, "\n")
 	limit := max(1, m.input.Height())
 	if len(lines) > limit {
 		lines = lines[:limit]
 	}
-	return lines
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	if !m.composerBordered() {
+		return lines
+	}
+	bar := hairline
+	if m.input.Focused() {
+		bar = accent
+	}
+	width := m.inputWidth()
+	rows := make([]string, len(lines))
+	for i, line := range lines {
+		if pad := width - lipgloss.Width(line); pad > 0 {
+			line += strings.Repeat(" ", pad) // 补到满宽，右边那条竖线才会落在同一列
+		}
+		rows[i] = bar.Render("┃") + " " + line + " " + bar.Render("┃")
+	}
+	return rows
+}
+
+func (m *model) composerBordered() bool {
+	return max(10, m.width-2) >= composerMin
+}
+
+// inputWidth 是输入区自己能用的列数，四周的竖线和空格先让出来。
+func (m *model) inputWidth() int {
+	outer := max(10, m.width-2)
+	if !m.composerBordered() {
+		return outer
+	}
+	return outer - composerGutter*2
+}
+
+// composerOffset 是输入文字相对屏幕左边的位移，光标要用它对齐。
+func (m *model) composerOffset() int {
+	if !m.composerBordered() {
+		return 0
+	}
+	return composerGutter
 }
 
 func exactLines(text string, n int) []string {
@@ -555,7 +627,7 @@ func (m *model) confirmDock(permit api.Permission) string {
 			body = string(permit.Input)
 		}
 	}
-	return m.limitDock(title + "\n" + body + "\n\ny 允许一次   a 始终允许   n 拒绝")
+	return m.limitDock(title + "\n" + body) // 按键提示只在底栏出现一次，这里不重复
 }
 
 func commandFields(raw json.RawMessage) (command, cwd string) {
@@ -672,4 +744,34 @@ func cutWidth(text string, width int) (string, string) {
 		used += w
 	}
 	return text, ""
+}
+
+// itoa 把计数换成文字；界面里到处在拼短句子，单独包一层比每次写 strconv 省事。
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [16]byte
+	i := len(buf)
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	return string(buf[i:])
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

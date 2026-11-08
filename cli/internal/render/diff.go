@@ -9,15 +9,13 @@ package render
 
 import (
 	"strings"
-
-	"charm.land/lipgloss/v2"
 )
 
 var (
-	addStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	delStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	hunkStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	metaStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	addStyle  = Success
+	delStyle  = Error
+	hunkStyle = Accent // @@ 行用强调蓝，和增删的绿红分开
+	metaStyle = Dim    // diff --git、索引行只是定位用的
 )
 
 // LooksLikeDiff reports whether text is a unified diff rather than ordinary output.
