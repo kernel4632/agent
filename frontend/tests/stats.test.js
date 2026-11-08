@@ -50,7 +50,7 @@ test('real request usage wins over estimation', () => {
     count: 1,
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
-    averageTps: 25,
+    averageTps: 100 / 3,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
     lastTps: 100 / 3,
@@ -128,9 +128,9 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
   const stats = sessionStats(session)
   assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
-  assert.equal(stats.models[0].averageTps, 2.5)
+  assert.equal(stats.models[0].averageTps, 10 / 3.1)
   assert.equal(stats.models[0].averageDurationMs, 4000)
-  assert.equal(stats.models[1].averageTps, 10)
+  assert.equal(stats.models[1].averageTps, 10 / 0.7)
 })
 
 

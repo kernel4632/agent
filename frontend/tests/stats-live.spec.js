@@ -73,8 +73,12 @@ test('speed panel shows the streaming request before it finishes', async ({ page
 
   await mock.emit('live-stats', [
     { type: 'llm-start', startedAt: Date.now() - 3000, provider: 'Test Provider', model: 'test-model' },
-    { type: 'text-delta', text: '正在持续输出的内容'.repeat(20) },
   ])
+  // 速度要等两秒窗口里有真实的输出增量；持续喂几段再展开面板。
+  for (let index = 0; index < 6; index += 1) {
+    await mock.emit('live-stats', [{ type: 'text-delta', text: '正在持续输出的内容'.repeat(4) }])
+    await page.waitForTimeout(300)
+  }
   await expect(page.locator('.session-composer__stats')).toBeVisible()
   const stats = page.locator('.session-composer__stats')
   await stats.getByRole('button', { name: /tok\/s/ }).click()

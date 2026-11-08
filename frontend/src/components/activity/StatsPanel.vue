@@ -59,16 +59,36 @@ watch(() => Boolean(live.value.running), running => {
   liveTimer = window.setInterval(() => { liveNow.value = Date.now() }, 500)
 }, { immediate: true })
 onBeforeUnmount(() => { if (liveTimer) window.clearInterval(liveTimer) })
-// 外显速度：生成中看当前输出 / 首字后耗时；结束后看最后一次请求的实际速度。
-const speed = computed(() => {
-  if (live.value.running) {
-    const firstTokenAt = Number(live.value.firstTokenAt || 0)
-    const output = Number(live.value.output || 0)
-    if (firstTokenAt && output) {
-      const elapsed = (liveNow.value - firstTokenAt) / 1000
-      if (elapsed > 0) return `${Math.max(1, Math.round(output / elapsed))} tok/s`
-    }
+// 实时速度用最近两秒的估算输出做滑动窗口；首字刚到时不拿极小分母硬算，
+// 先沿用上一次真实请求的速度，避免瞬间冲出一千多 tok/s。
+const liveSamples = ref([])
+let lastLiveOutput = -1
+watch([() => live.value.running, () => Number(live.value.firstTokenAt || 0), () => Number(live.value.startedAt || 0)], () => {
+  liveSamples.value = []
+  lastLiveOutput = -1
+})
+watch([() => Boolean(live.value.running), () => Number(live.value.output || 0), liveNow], ([running, output]) => {
+  if (!running || output <= 0) {
+    liveSamples.value = []
+    lastLiveOutput = -1
+    return
   }
+  if (output < lastLiveOutput) liveSamples.value = []
+  lastLiveOutput = output
+  const at = liveNow.value
+  liveSamples.value = [...liveSamples.value.filter(sample => at - sample.at <= 2000), { at, tokens: output }]
+})
+const liveRate = computed(() => {
+  if (!live.value.running || liveSamples.value.length < 2) return 0
+  const first = liveSamples.value[0]
+  const last = liveSamples.value.at(-1)
+  const seconds = (last.at - first.at) / 1000
+  if (seconds < 0.8) return 0
+  return Math.max(0, (last.tokens - first.tokens) / seconds)
+})
+// 外显速度：生成中用最近两秒的滑动窗口；结束后用最后一次真实请求。
+const speed = computed(() => {
+  if (live.value.running && liveRate.value > 0) return `${Math.round(liveRate.value)} tok/s`
   const latestTps = Number(live.value.tps || 0)
   if (latestTps > 0) return `${Math.round(latestTps)} tok/s`
   // 旧会话或最后一笔没有耗时数据时，至少保留一个聚合速度，不能让速度项直接消失。
@@ -94,12 +114,11 @@ const liveHighlight = computed(() => {
     || speedGroups.value.find(measured)
   // “正在请求模型”阶段还没有本轮首字和速度，先原样显示最近一次测到的值。
   if (!firstTokenAt) return previous ? { ...previous, lastAt: Number.MAX_SAFE_INTEGER, live: true } : null
-  const elapsed = (liveNow.value - firstTokenAt) / 1000
   return {
     provider,
     model,
     lastFirstTokenMs: startedAt ? Math.max(0, firstTokenAt - startedAt) : previous?.lastFirstTokenMs || 0,
-    lastTps: elapsed > 0 ? Math.max(1, Math.round(Number(live.value.output || 0) / elapsed)) : previous?.lastTps || 0,
+    lastTps: liveRate.value || previous?.lastTps || 0,
     lastAt: Number.MAX_SAFE_INTEGER,
     live: true,
   }

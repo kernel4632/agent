@@ -260,17 +260,19 @@ export function sessionStats(session) {
       const model = item.model || currentModel
       const key = `${provider}\u0000${model}`
       const group = groups.get(key) || {
-        provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, firstTokenMs: 0, firstTokenCount: 0,
+        provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, generationMs: 0, firstTokenMs: 0, firstTokenCount: 0,
         lastFirstTokenMs: 0, lastTps: 0, latest: null,
       }
       group.count += 1
       group.output += Number(item.output || 0)
       const duration = Number(item.durationMs || 0)
+      const firstToken = Number(item.firstTokenMs || 0)
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
+        // 平均速度也只看生成阶段，和最后一次 tok/s 使用同一分母。
+        group.generationMs += duration > firstToken ? duration - firstToken : duration
       }
-      const firstToken = Number(item.firstTokenMs || 0)
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
         group.firstTokenCount += 1
@@ -297,13 +299,17 @@ export function sessionStats(session) {
       count: group.count,
       averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
       averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
-      averageTps: group.durationMs ? group.output / (group.durationMs / 1000) : 0,
+      averageTps: group.generationMs ? group.output / (group.generationMs / 1000) : 0,
       lastFirstTokenMs: group.latest?.firstTokenMs || group.lastFirstTokenMs || 0,
       lastDurationMs: group.latest?.durationMs || 0,
       lastTps: group.latest?.tps || group.lastTps || 0,
       lastAt: group.latest?.at || 0,
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
+  const models = modelGroups()
+  // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
+  const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
+  const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
   return {
     approximate: usedApproximate || usageApproximate,
     context: {
@@ -335,10 +341,10 @@ export function sessionStats(session) {
       startedAt: Number(liveRequest?.startedAt || liveAssistant?.startedAt || 0),
       provider: liveRequest?.provider || currentProvider,
       model: liveRequest?.model || currentModel,
-      tps: last ? requestTps(last) : 0,
+      tps: lastTps,
     },
     // 内容构成只在统计面板真正读取时才算；流式正文不经过这里。
     get composition() { return contentComposition(messages) },
-    models: modelGroups(),
+    models,
   }
 }
