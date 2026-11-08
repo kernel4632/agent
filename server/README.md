@@ -168,10 +168,11 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 
 | 文件 | 工具 |
 | --- | --- |
-| `tools/file.js` | `read_file`、`read_range`（分段读大文件，offset/limit 按行号）、`write_file`、`find_files`、`search_text`、`edit`（一次调用改一个文件）、`move_file`、`copy_file`（目标已存在时拒绝，不覆盖；move 的快照同时记录源和目标），以及文件快照和恢复 |
-| `tools/shell.js` | `execute_command`（可选 `timeout` 参数：毫秒数，超时按进程树杀掉并返回 `timedOut: true`，默认 10 分钟；可选 `background: true`：立刻返回进程卡 `id` / `pid` / `logFile`，不等完成，稍后用 `background` 的 log 读） |
-| `tools/background.js` | `background`（start/log/stop/list：把命令放进后台跑，日志实时落在数据目录 processes/ 下；后端重启后进程表清空） |
+| `tools/file.js` | `read_file`（可传 `offset`/`limit` 按行分段；超过 200000 字符自动分段并给出 `nextOffset`）、`write_file`、`find_files`（`limit` 默认 200）、`search_text`（`limit` 默认 200 行）、`edit`（一次调用改一个文件）、`move_file`、`copy_file`（目标已存在时拒绝，不覆盖；move 的快照同时记录源和目标），以及文件快照和恢复 |
+| `tools/shell.js` | `execute_command`（可选 `background: true`：立刻返回进程卡；可选 `timeout`：毫秒数，默认 10 分钟。**到时未结束不会杀进程**，而是原地交给后台并返回 `timedOut: true` + 进程 id + 已产生的输出，接着用 `background` 的 log 看——不再因为猜短了时长而把整轮工作白跑掉） |
+| `tools/background.js` | `background`（log/stop/list：查看和停止后台进程；`log` 支持 `waitFor` / `waitMs` 等待新输出或特定行，不再靠反复轮询。启动进程只有 `execute_command` 的 `background: true` 一条路） |
 | `tools/web.js` | `webfetch` |
+| `tools/context.js` | `ctx_usage`（当前上下文用量、压缩点和剩余量；数据来自 `onInject` 每轮上报的真实估算，让模型自己决定何时落盘、何时收口） |
 | `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
 | `tools/history.js` | `history_search`（在本会话历史里按关键词/正则找当时确认过的细节；上下文压缩后用，命中返回 messageId + 片段，默认只搜当前会话） |

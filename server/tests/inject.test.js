@@ -15,6 +15,7 @@ import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
 import Agent from '../features/agent.js'
+import ContextUsage from '../utils/context-usage.js'
 import store from '../store.js'
 import { app } from '../server.js'
 
@@ -109,6 +110,30 @@ describe('上下文余量提醒', () => {
             const { sessionId } = await capturedInject()
             const response = await app.handle(new Request(`http://localhost/session/read/${sessionId}`))
             expect(response.status).toBe(200)
+        })
+    })
+
+    // ctx_usage 的数据就来自这里：每轮 onInject 都要把用量记下来，
+    // 不管这一轮是不是到了提醒带。
+    test('每轮都把用量记进台账，ctx_usage 才答得出余量', async () => {
+        await withHome(async () => {
+            const { sessionId, onInject } = await capturedInject()
+            // 远未到提醒带：不返回提醒文本，但数字必须记下
+            expect(onInject({ tokens: 20000, budget: 128000, compactThreshold: 0.8 })).toBe('')
+            const read = ContextUsage.read(sessionId)
+            expect(read.tokens).toBe(20000)
+            expect(read.compactAt).toBe(102400)
+            expect(read.untilCompact).toBe(82400)
+        })
+    })
+
+    test('已经提醒过之后仍然继续更新用量', async () => {
+        await withHome(async () => {
+            const { sessionId, onInject } = await capturedInject()
+            onInject({ tokens: 100000, budget: 128000, compactThreshold: 0.8 })
+            onInject({ tokens: 104000, budget: 128000, compactThreshold: 0.8 })
+            // 第二次不返回提醒文本，但台账里的数必须是新的
+            expect(ContextUsage.read(sessionId).tokens).toBe(104000)
         })
     })
 })

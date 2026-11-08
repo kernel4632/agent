@@ -20,6 +20,7 @@ import { readAttachments } from '../utils/attachment.js'
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
 const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
+const flushingQueues = new Set()                          // 正在把排队消息送入下一轮的会话
 
 function createAssistant(session) {
   const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], steps: [], requests: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
@@ -36,6 +37,65 @@ function finishRequest(request, usage, durationMs) {
   request.finishedAt = Date.now()
   Object.assign(request, usageFields(usage, durationMs ?? request.finishedAt - request.startedAt))
   return request
+}
+
+// --- 运行中排队：先记在本地，等这一轮空闲后按顺序发出去 ---
+// 队列不写进 history，也不占助手消息；它是纯前端的待发草稿，
+// 因此用户可以在真正发出前把它撤回输入框。
+function queueFor(sessionID) {
+  if (!store.ui.queued[sessionID]) store.ui.queued[sessionID] = []
+  return store.ui.queued[sessionID]
+}
+
+function enqueue(sessionID, content) {
+  const session = store.sessions[sessionID]
+  const text = String(content || '').trim()
+  if (!session || !text) return null
+  const item = {
+    id: `queued_${crypto.randomUUID()}`,
+    content: text,
+    files: [...(session.files || [])],
+    createdAt: Date.now(),
+  }
+  queueFor(sessionID).push(item)
+  session.files = []
+  return item
+}
+
+function withdrawQueued(sessionID, queuedID) {
+  const session = store.sessions[sessionID]
+  const list = queueFor(sessionID)
+  const index = list.findIndex(item => item.id === queuedID)
+  if (!session || index < 0) return null
+  const [item] = list.splice(index, 1)
+  if (item.files?.length) session.files.push(...item.files)
+  if (item.content) {
+    const draft = String(session.draft || '').trim()
+    session.draft = draft ? `${item.content}\n${draft}` : item.content
+  }
+  return item
+}
+
+async function flushQueue(sessionID) {
+  const session = store.sessions[sessionID]
+  if (!session || session.status === 'running' || stopping.has(sessionID)) return false
+  if (flushingQueues.has(sessionID)) return false
+  const list = queueFor(sessionID)
+  const item = list[0]
+  if (!item) return false
+  flushingQueues.add(sessionID)
+  list.shift()
+  try {
+    const sent = await send(sessionID, item.content, item.files)
+    if (!sent) {
+      // 发送失败时把消息放回队首，保留在输入区让用户决定继续等还是撤回。
+      list.unshift(item)
+      return false
+    }
+    return true
+  } finally {
+    flushingQueues.delete(sessionID)
+  }
 }
 
 async function subscribe(sessionID) {
@@ -77,12 +137,12 @@ function unsubscribe(sessionID) {
   delete store.events.controllers[sessionID]
 }
 
-async function send(sessionID, content) {
+async function send(sessionID, content, queuedFiles = null) {
   const session = store.sessions[sessionID]
   if (!session || !content.trim() || session.status === 'running' || stopping.has(sessionID)) return false
   const provider = store.config.providers[session.provider]
   if (!session.model || !provider?.baseURL || provider.enabled === false) { Notice.show('请先配置并启用此会话使用的模型供应商'); return false }
-  const files = session.files || []
+  const files = queuedFiles ?? session.files ?? []
   // 图片附件变成内容块随消息进 history 常驻；能不能发给模型由后端按 capabilities 决定。
   const imageParts = files.filter(file => file.kind === 'image').map(file => ({ type: 'image', image: file.dataUrl }))
   const textFiles = files.filter(file => file.kind !== 'image')
@@ -106,7 +166,7 @@ async function send(sessionID, content) {
   History.syncSummary(session)
   try {
     await AgentAPI.sendMessage(sessionID, input)
-    session.files = []
+    if (queuedFiles == null) session.files = []
     return true
   } catch (error) {
     const assistant = streaming(session)
@@ -326,6 +386,7 @@ function failRun(session, event) {
   assistant.finishedAt = Date.now()
   session.status = 'idle'
   Notice.show(assistant.error)
+  void flushQueue(session.id)
 }
 
 // --- 后端起好标题后单独推一条，不用等下一次刷新整条会话 ---
@@ -342,6 +403,7 @@ async function finishRun(sessionID, session, event) {
   const refreshed = store.sessions[sessionID]
   refreshed.status = 'idle'
   if (error) refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error }) // 每次失败一个独立 id，不用会重复的 SSE 序号
+  void flushQueue(sessionID)
 }
 
 // --- 运行状态：开始、继续、结束、重试和标题 ---
@@ -515,6 +577,7 @@ async function stop(sessionID) {
   } finally {
     stopping.delete(sessionID)
     if (store.sessions[sessionID]) store.sessions[sessionID].stopping = false
+    void flushQueue(sessionID)
   }
 }
 
@@ -580,4 +643,4 @@ export function imagePasteNotice({ hasImage, provider, model }) {
   })
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, attach, removeFile, imagePasteNotice }
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, attach, removeFile, enqueue, withdrawQueued, flushQueue, imagePasteNotice }

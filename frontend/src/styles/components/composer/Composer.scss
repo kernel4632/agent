@@ -202,6 +202,37 @@
 }
 
 .chat-composer__files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+/* 运行中已提交、但还没轮到发送的消息：留在输入框上方，可随时撤回。 */
+.chat-composer__queued { display: grid; gap: 6px; margin-bottom: 10px; }
+.chat-composer__queued-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid var(--la-line);
+  border-radius: 10px;
+  background: var(--la-layer-02);
+  color: var(--la-secondary);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+.chat-composer__queued-text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--la-text); }
+.chat-composer__queued-files { flex: none; color: var(--la-muted); font-size: 11.5px; }
+.chat-composer__queued-withdraw {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--la-muted);
+  cursor: pointer;
+}
+.chat-composer__queued-withdraw:hover { background: var(--la-hover); color: var(--la-text); }
 .chat-composer__file { max-width: 100%; }
 /* 长文件名只截一行，不能把输入框越撑越高；完整名字仍在移除按钮的无障碍名称里。 */
 .chat-composer__file :deep(.ui-chip__text) {

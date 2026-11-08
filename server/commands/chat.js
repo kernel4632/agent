@@ -23,6 +23,7 @@ import ToolTiming from '../features/tool-timing.js'
 import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
+import ContextUsage from '../utils/context-usage.js'
 
 // 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
 const saveQueue = new Map()
@@ -299,7 +300,10 @@ const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, 
 // onInject 由 core 在每轮请求前调用（压缩之后拿到的才是这一轮真实估算），钩子抛错时 core 已容错。
 const CONTEXT_MARGIN = 0.05
 const CONTEXT_REMINDER = '[System reminder] The context is close to the compaction threshold. Wrap up cleanly: finish the current step, call attempt_completion with a complete handover (or update the todo list with the next concrete step and the key file paths), so the conversation can be summarized without losing your place. Do not start large new work this turn.'
-const compactWarning = ({ state }) => ({ tokens, budget, compactThreshold }) => {
+const compactWarning = ({ state, sessionId }) => ({ tokens, budget, compactThreshold }) => {
+    // 每一轮都把当前用量记下来：ctx_usage 工具靠它回答模型“还剩多少”。
+    ContextUsage.record(sessionId, { tokens, budget, compactThreshold })
+
     if (state.compactReminded) return ''                                   // 这个 run 已经提醒过，不重复
     if (!Number.isFinite(budget)) return ''                                // 没有预算就没有压缩，不提醒
     const compactPoint = budget * compactThreshold
@@ -328,7 +332,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
             config: await Agent.resolve({ session, settings, recovery }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, token }),
-                onInject: compactWarning({ state }),
+                onInject: compactWarning({ state, sessionId }),
                 ...modelEvents({ sessionId, state }),
                 ...forwardedEvents({ sessionId, state }),
                 onToolResult: sendToolResult({ sessionId }),

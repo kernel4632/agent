@@ -13,11 +13,15 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-import { read_range, move_file, copy_file } from '../tools/file.js'
+import { read_file, move_file, copy_file } from '../tools/file.js'
 import Path from '../utils/path.js'
 import Background from '../tools/background.js'
+import Shell from '../tools/shell.js'
 import { running, cleanup } from '../utils/process.js'
 import store from '../store.js'
+
+// 启动后台进程只有一个入口：execute_command 的 background: true。
+const startBackground = (command, options = {}) => Shell.execute({ command, background: true }, options)
 
 const homes = []
 const withHome = async callback => {
@@ -49,12 +53,12 @@ afterEach(async () => {
     await Promise.all(homes.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-describe('read_range 分段读取', () => {
+describe('read_file 大文件分段', () => {
     test('按行号切片，带行号和续读位置', async () => {
         const target = join(tmpdir(), `agent-range-${crypto.randomUUID()}.txt`)
         await writeFile(target, Array.from({ length: 30 }, (_, index) => `第 ${index + 1} 行`).join('\n'))
 
-        const result = await read_range.execute({ path: target, offset: 21, limit: 5 }, {})
+        const result = await read_file.execute({ path: target, offset: 21, limit: 5 }, {})
         expect(result.total).toBe(30)                        // 30 行内容
         expect(result.from).toBe(21)
         expect(result.to).toBe(25)
@@ -70,10 +74,27 @@ describe('read_range 分段读取', () => {
         const target = join(tmpdir(), `agent-range-end-${crypto.randomUUID()}.txt`)
         await writeFile(target, '只有一行')
 
-        const result = await read_range.execute({ path: target }, {})
-        expect(result.total).toBe(1)
-        expect(result.nextOffset).toBeUndefined()
-        expect(result.content).toContain('1 | 只有一行')
+        const result = await read_file.execute({ path: target }, {})
+        // 小文件没点明分段时原样返回纯文本，保持只传 path 时的老行为。
+        expect(typeof result).toBe('string')
+        expect(result).toBe('只有一行')
+
+        await rm(target, { force: true })
+    })
+
+    test('超过整份上限时自动分段，不需要先撞一次错', async () => {
+        // 超过 200000 字符（强制分段），同时超过 6000 行默认上限（才有 nextOffset）
+        const line = 'x'.repeat(30)
+        const target = join(tmpdir(), `agent-range-big-${crypto.randomUUID()}.txt`)
+        await writeFile(target, Array.from({ length: 7000 }, () => line).join('\n'))
+
+        const result = await read_file.execute({ path: target }, {})
+        // 不再报错，直接给出第一段和续读位置
+        expect(typeof result).toBe('object')
+        expect(result.total).toBe(7000)
+        expect(result.from).toBe(1)
+        expect(result.nextOffset).toBeDefined()
+        expect(result.content).toContain('1 | ')
 
         await rm(target, { force: true })
     })
@@ -82,7 +103,7 @@ describe('read_range 分段读取', () => {
         const target = join(tmpdir(), `agent-range-out-${crypto.randomUUID()}.txt`)
         await writeFile(target, 'a\nb')
 
-        const result = await read_range.execute({ path: target, offset: 100 }, {})
+        const result = await read_file.execute({ path: target, offset: 100 }, {})
         expect(result.content).toBe('')
         expect(result.from).toBe(100)
         expect(result.total).toBe(2)
@@ -91,7 +112,7 @@ describe('read_range 分段读取', () => {
     })
 
     test('敏感文件同样拒绝', async () => {
-        await expect(read_range.execute({ path: 'D:/app/.env' }, {})).rejects.toThrow(/protected file/i)
+        await expect(read_file.execute({ path: 'D:/app/.env' }, {})).rejects.toThrow(/protected file/i)
     })
 })
 
@@ -105,8 +126,9 @@ describe('background 后台进程', () => {
             await writeFile(host, [
                 `import { start } from ${JSON.stringify(pathToFileURL(join(import.meta.dir, '../server.js')).href)}`,
                 `import Background from ${JSON.stringify(pathToFileURL(join(import.meta.dir, '../tools/background.js')).href)}`,
+                `import Shell from ${JSON.stringify(pathToFileURL(join(import.meta.dir, '../tools/shell.js')).href)}`,
                 'const app = await start({ port: 0 })',
-                `const task = await Background.execute({ action: 'start', command: ${JSON.stringify(`"${process.execPath}" "${sleeper}"`)} })`,
+                `const task = await Shell.execute({ command: ${JSON.stringify(`"${process.execPath}" "${sleeper}"`)}, background: true })`,
                 'console.log(JSON.stringify(task))',
                 'await app.stop(true)',
                 'process.exit(0)',
@@ -123,7 +145,7 @@ describe('background 后台进程', () => {
     test('启动后能读日志、能停，日志文件跟着清理', async () => {
         await withHome(async () => {
             const script = await writeScript('sleeper', 'await Bun.sleep(60000)')
-            const started = await Background.execute({ action: 'start', command: `bun ${script}` }, {})
+            const started = await startBackground(`bun ${script}`)
             expect(started.id).toMatch(/^[0-9a-f]{4}$/)
             expect(started.pid).toBeGreaterThan(0)
             expect(running.has(started.id)).toBe(true)
@@ -144,7 +166,7 @@ describe('background 后台进程', () => {
     test('进程退出后 list 里能看到退出码，log 读到完整输出', async () => {
         await withHome(async () => {
             const script = await writeScript('talker', "console.log('后台输出')")
-            const started = await Background.execute({ action: 'start', command: `bun ${script}` }, {})
+            const started = await startBackground(`bun ${script}`)
             const entry = running.get(started.id)
             await entry.child.exited                            // 直接等退出，不猜时序
             const listed = (await Background.execute({ action: 'list' }, {})).processes
@@ -165,12 +187,69 @@ describe('background 后台进程', () => {
         })
     })
 
+    test('waitFor 不把早就打印过的旧内容当命中', async () => {
+        await withHome(async () => {
+            // 先打印目标字样，然后一直不再输出
+            const script = await writeScript('already-said', "console.log('Listening on'); await Bun.sleep(60000)")
+            const started = await startBackground(`bun ${script}`)
+
+            // 等它把第一行写出来
+            await Background.execute({ action: 'log', id: started.id, waitMs: 5000 }, {})
+            // 同一个词再等一次：旧行不算新命中，应该走到超时
+            const second = await Background.execute({ action: 'log', id: started.id, waitFor: 'Listening on', waitMs: 300 }, {})
+            expect(second.matched).toBe(false)
+            expect(second.timedOut).toBe(true)
+
+            await Background.execute({ action: 'stop', id: started.id }, {})
+            await rm(script, { force: true })
+        })
+    }, 30_000)
+
+    // background 不再能启动进程：启动只有 execute_command({ background: true }) 一条路。
+    test('start 已经不是 background 的动作了，报错并指向 execute_command', async () => {
+        await withHome(async () => {
+            await expect(Background.execute({ action: 'start', command: 'echo hi' }, {}))
+                .rejects.toThrow(/execute_command/)
+        })
+    })
+
+    test('waitFor 命中就返回，不用猜睡多久', async () => {
+        await withHome(async () => {
+            // 先等 300ms 再打印，证明 waitFor 真的在“等”而不是秒返回
+            const script = await writeScript('late-ready', "await Bun.sleep(300); console.log('Listening on http://localhost:9999')")
+            const started = await startBackground(`bun ${script}`)
+
+            const result = await Background.execute({ action: 'log', id: started.id, waitFor: 'Listening on', waitMs: 20000 }, {})
+            expect(result.matched).toBe(true)
+            expect(result.output).toContain('Listening on')
+            expect(result.timedOut).toBeUndefined()
+
+            await Background.execute({ action: 'stop', id: started.id }, {})
+            await rm(script, { force: true })
+        })
+    }, 30_000)
+
+    test('waitFor 等不到时按超时返回，并明说没命中', async () => {
+        await withHome(async () => {
+            const script = await writeScript('silent', 'await Bun.sleep(60000)')
+            const started = await startBackground(`bun ${script}`)
+
+            const result = await Background.execute({ action: 'log', id: started.id, waitFor: 'never appears', waitMs: 300 }, {})
+            expect(result.matched).toBe(false)
+            expect(result.timedOut).toBe(true)
+            expect(result.running).toBe(true)
+
+            await Background.execute({ action: 'stop', id: started.id }, {})
+            await rm(script, { force: true })
+        })
+    }, 30_000)
+
     // 要启两个真子进程再杀掉，天然比默认 5 秒长；并发跑测试时更容易超。
     test('cleanup 停掉全部在跑的进程', async () => {
         await withHome(async () => {
             const script = await writeScript('sleeper', 'await Bun.sleep(60000)')
-            const a = await Background.execute({ action: 'start', command: `bun ${script}` }, {})
-            const b = await Background.execute({ action: 'start', command: `bun ${script}` }, {})
+            const a = await startBackground(`bun ${script}`)
+            const b = await startBackground(`bun ${script}`)
             expect(running.size).toBe(2)
             cleanup()                                            // 同步：杀进程、清表
             expect(running.size).toBe(0)
@@ -207,6 +286,29 @@ describe('execute_command 的 background 参数', () => {
         expect(result.stdout).toContain('foreground-ok')
         expect(result.background).toBeUndefined()
     })
+
+    test('超时不杀进程，交棒给后台，已产生的输出不丢', async () => {
+        await withHome(async () => {
+            const shell = (await import('../tools/shell.js')).default
+            // 先打一行，再等很久；超时 1 秒后应该交棒而不是被杀
+            const script = await writeScript('slow-then-wait', "console.log('早先的输出'); await Bun.sleep(60000)")
+            const result = await shell.execute({ command: `bun ${script}`, timeout: 1500 }, {})
+
+            expect(result.timedOut).toBe(true)
+            expect(result.running).toBe(true)
+            expect(result.id).toMatch(/^[0-9a-f]{4}$/)
+            // 关键：已经跑出来的输出还在，模型不必重跑命令
+            expect(result.output).toContain('早先的输出')
+            expect(result.hint).toContain('background')
+
+            // 交棒后真的能接着用 background 读日志和停掉——同一个进程没被重跑
+            const log = await Background.execute({ action: 'log', id: result.id }, {})
+            expect(log.running).toBe(true)
+            expect(log.output).toContain('早先的输出')
+            await Background.execute({ action: 'stop', id: result.id }, {})
+            await rm(script, { force: true })
+        })
+    }, 30_000)
 })
 
 describe('move_file / copy_file', () => {

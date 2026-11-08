@@ -1,5 +1,5 @@
 /*
- * 文件与目录工具：读、分段读、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
+ * 文件与目录工具：读（可按行分段）、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
  *
  * 这一组工具只碰文件，不碰会话运行状态。会改文件的工具都带一个 snapshot 钩子：
  * 真正写入之前由审批关口调用，把原样存进会话的快照目录；回退时从这里恢复。
@@ -8,7 +8,7 @@
  * 调用示例：
  *   import File from '../tools/file.js'
  *   await File.read_file.execute({ path: './a.txt' }, { cwd: 'D:/notes' })
- *   await File.read_range.execute({ path: './a.txt', offset: 100000, limit: 50000 }, { cwd: 'D:/notes' })
+ *   await File.read_file.execute({ path: './a.txt', offset: 4001, limit: 500 }, { cwd: 'D:/notes' })
  *   await File.edit.execute({ path: './a.txt', edits: [{ oldText: 'a', newText: 'b' }] }, { cwd: 'D:/notes' })
  *   await File.snapshot({ sessionId, messageId, toolCallId, toolName: 'write_file', input, cwd })
  *   await File.restoreTool({ sessionId, toolCallId })
@@ -39,6 +39,20 @@ const truncate = (text, limit = 6000) => {
     const half = Math.floor(limit / 2)
     return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
 }
+
+// 搜索和列目录的一次返回上限：超过就截断并明说截断了，不让模型以为已经看全。
+// 放在工具结果里而不是交给模型自己收窄——宽泛的关键词在稍大的仓库里一下就能撑爆上下文。
+const DEFAULT_FILES = 200
+const MAX_FILES = 5000
+const DEFAULT_MATCHES = 200
+const MAX_MATCHES = 2000
+
+// 读文件：整份返回的字符上限、单段行数上限、单段字符上限。
+// 超过整份上限就自动按行分段，结果里带 nextOffset——不用先撞一次错才知道要换方式。
+const WHOLE_CHARS = 200000
+const DEFAULT_LINES = 6000
+const MAX_LINES = 20000
+const MAX_SLICE_CHARS = 120000
 
 // --- 敏感文件：里面有密钥或机器凭据，不交给模型 ---
 const SENSITIVE = [
@@ -289,7 +303,7 @@ const remove = async ({ sessionId }) => {
 //  工具定义
 // =======================================================================
 
-// --- 读取文本或图片 ---
+// --- 读取文本或图片；大文件自动按行分段，nextOffset 接着读 ---
 const readFile = {
     name: 'read_file',
     kind: 'read',
@@ -304,15 +318,21 @@ const readFile = {
     description: [
         'Read the contents of a file at the given path. Returns the raw text, or the image itself when the file is an image.',
         'Paths are relative to the session current directory unless absolute.',
-        'For very large files (over ~200K characters) use read_range instead: this tool errors out with the total size.',
-        'Parameters: - path (required): file to read.',
+        'Large files are paginated by line automatically: the result carries total line count and, when there is more, nextOffset to pass back as offset. Line numbers are 1-based and prefixed in the output.',
+        'Search inside first with search_text to find the interesting lines, then read the surrounding range instead of the whole file.',
+        'Parameters: - path (required): file to read. - offset (optional): 1-based starting line, default 1.',
+        '- limit (optional): how many lines to return, default 6000, max 20000.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
-        properties: { path: { type: 'string' } },
+        properties: {
+            path: { type: 'string' },
+            offset: { type: 'integer', minimum: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_LINES },
+        },
         required: ['path'],
     },
-    async execute({ path }, options = {}) {
+    async execute({ path, offset, limit }, options = {}) {
         const target = absolute(path, options.cwd)
         guard([target])
         const file = Bun.file(target)
@@ -323,57 +343,16 @@ const readFile = {
             const data = Buffer.from(await file.arrayBuffer()).toString('base64')
             return { output: { path: target, mediaType, data } }
         }
-        return await file.text()
-    },
-    toModelOutput({ output }) {
-        if (typeof output === 'string') return { type: 'text', value: output }
-        return { type: 'content', value: [
-            { type: 'text', text: `Image read from ${output.path}` },
-            { type: 'file', mediaType: output.mediaType, data: { type: 'data', data: output.data } },
-        ] }
-    },
-}
 
-// --- 分段读取大文件：read_file 读不动的时候用它；offset/limit 按 1-based 行算 ---
-// 一次默认 6000 行，和其它工具的输出上限同一量级；续读用上一次返回的 nextOffset。
-const readRange = {
-    name: 'read_range',
-    kind: 'read',
-    files: input => [input.path],
-    ui: {
-        view: 'file-read',
-        icon: 'document',
-        title: '分段读取',
-        summary: '{path}',
-        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
-    },
-    description: [
-        'Read a slice of a very large file by line range. Use after read_file reports the file is too large.',
-        'Search inside first with search_text to find the interesting lines, then read the surrounding range.',
-        'Line numbers are 1-based and included in the output; nextOffset in the result is where the next slice starts.',
-        'Parameters: - path (required): file to read. - offset (optional): 1-based starting line, default 1.',
-        '- limit (optional): how many lines to return, default 6000, max 20000.',
-    ].join('\n'),
-    inputSchema: {
-        type: 'object',
-        properties: {
-            path: { type: 'string' },
-            offset: { type: 'integer', minimum: 1 },
-            limit: { type: 'integer', minimum: 1, maximum: 20000 },
-        },
-        required: ['path'],
-    },
-    async execute({ path, offset, limit }, options = {}) {
-        const target = absolute(path, options.cwd)
-        guard([target])
-        const file = Bun.file(target)
-        if (!await file.exists()) throw new Error(`File not found: ${target}`)
-
+        // 小文件且没点明要分段：原样返回纯文本，保持只传 path 时的老行为。
         const text = await file.text()
+        const wanted = Number(offset) > 1 || Number(limit) > 0
+        if (!wanted && text.length <= WHOLE_CHARS) return text
+
         const lines = text.split('\n')                                   // 统一按 \n 切，CRLF 的行尾留在行里不影响阅读
         const total = lines.length
         const from = Math.max(1, Math.floor(Number(offset) || 1))
-        const size = Math.min(20000, Math.max(1, Math.floor(Number(limit) || 6000)))
+        const size = Math.min(MAX_LINES, Math.max(1, Math.floor(Number(limit) || DEFAULT_LINES)))
         const to = Math.min(total, from - 1 + size)
         const slice = lines.slice(from - 1, to)
 
@@ -381,10 +360,24 @@ const readRange = {
         const width = String(to).length
         const content = slice.map((line, index) => `${String(from + index).padStart(width)} | ${line.replace(/\r$/, '')}`).join('\n')
 
-        const result = { path: target, total, from, to, content: truncate(content, 120000) }
+        const result = { path: target, total, from, to, content: truncate(content, MAX_SLICE_CHARS) }
         if (to < total) result.nextOffset = to + 1
         if (from > total) result.content = ''                            // 越界时返回空段，total 和范围还在，模型能自己修正 offset
         return result
+    },
+    toModelOutput({ output }) {
+        // 图片走内容块；文本原样；分段结果（对象）拼成带行号的字符串。
+        // core 调用前会把 execute 返回的 { output: X } 解包成 X，所以这里拿到的是内层对象。
+        if (typeof output === 'string') return { type: 'text', value: output }
+        if (output?.data) {
+            return { type: 'content', value: [
+                { type: 'text', text: `Image read from ${output.path}` },
+                { type: 'file', mediaType: output.mediaType, data: { type: 'data', data: output.data } },
+            ] }
+        }
+        const head = `Lines ${output.from}-${output.to} of ${output.total} in ${output.path}`
+        const tail = output.nextOffset ? `\n\n(${output.total - output.to} more lines; call read_file again with offset: ${output.nextOffset})` : ''
+        return { type: 'text', value: `${head}\n\n${output.content}${tail}` }
     },
 }
 
@@ -438,7 +431,9 @@ const findFiles = {
         'Without pattern: lists immediate children; set recursive to true to walk nested directories. Directories end with /.',
         'With pattern: searches the tree for matching names (e.g. **/*.test.js, src/*.ts). Dependency and build folders are skipped.',
         'Returns paths only, not contents. To search inside files use search_text.',
+        'Output is capped at limit entries; when truncated is true there were more, so narrow the pattern or pass a bigger limit.',
         'Parameters: - path (required): directory to search in. - pattern (optional): glob pattern for file names. - recursive (optional): walk nested directories when pattern is omitted.',
+        '- limit (optional): max entries to return, default 200, max 5000.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
@@ -446,35 +441,45 @@ const findFiles = {
             path: { type: 'string' },
             pattern: { type: 'string' },
             recursive: { type: 'boolean' },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_FILES },
         },
         required: ['path'],
     },
-    async execute({ path, pattern, recursive = false }, options = {}) {
+    async execute({ path, pattern, recursive = false, limit }, options = {}) {
         const root = absolute(path, options.cwd)
         guard([root])
+        const cap = Math.min(MAX_FILES, Math.max(1, Math.floor(Number(limit) || DEFAULT_FILES)))
 
         // 带模式：按名字找，返回匹配的路径。Windows 的扫描结果用反斜杠，统一成 /。
         if (pattern) {
             const files = []
+            let truncated = false
             for await (const found of new Bun.Glob(pattern).scan({ cwd: root, dot: true })) {
                 const file = found.replace(/\\/g, '/')
                 if (skipPath(file)) continue
+                if (files.length >= cap) { truncated = true; break }
                 files.push(file)
-                if (files.length >= 1000) break
             }
-            return files
+            return truncated ? { files, truncated, shown: files.length, hint: `More than ${cap} matches; narrow the pattern or raise limit (max ${MAX_FILES}).` } : files
         }
 
         // 不带模式：列目录；recursive 决定要不要往下走。
         if (!recursive) {
             const entries = await readdir(root, { withFileTypes: true })
-            return entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`)
+            const names = entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`)
+            return names.length > cap
+                ? { files: names.slice(0, cap), truncated: true, shown: cap, hint: `More than ${cap} entries; raise limit (max ${MAX_FILES}).` }
+                : names
         }
 
         const entries = []
+        let truncated = false
+        // 走到上限就停：递归遍历不做封顶时，node_modules 之外的深目录树能返回几十万条。
         const walk = async directory => {
+            if (truncated) return
             const children = await readdir(directory, { withFileTypes: true })
             for (const entry of children) {
+                if (entries.length >= cap) { truncated = true; return }
                 const target = join(directory, entry.name)
                 const relativePath = relative(root, target).replace(/\\/g, '/')
                 if (skipPath(relativePath)) continue
@@ -483,7 +488,14 @@ const findFiles = {
             }
         }
         await walk(root)
-        return entries
+        return truncated
+            ? { files: entries, truncated: true, shown: entries.length, hint: `More than ${cap} entries; raise limit (max ${MAX_FILES}).` }
+            : entries
+    },
+    // 截断时返回对象；模型要的是一行一个路径，不要把 JSON 原样丢过去。
+    toModelOutput({ output }) {
+        if (Array.isArray(output)) return { type: 'text', value: output.join('\n') }
+        return { type: 'text', value: `${output.files.join('\n')}\n\n${output.hint}` }
     },
 }
 
@@ -502,8 +514,10 @@ const searchText = {
     description: [
         'Search inside file contents for a regular expression and return the matching lines with file and line number.',
         'Use find_files when you only know part of a file name. This tool reads file contents, not names.',
+        'Output is capped at limit matching lines. When truncated is true there were more matches: narrow the regex or the filePattern instead of raising the limit blindly.',
         'Parameters: - path (required): file or directory to search in. - regex (required): regular expression.',
         '- filePattern (optional): glob filter, e.g. *.js. - context (optional): lines before and after, 0-20.',
+        '- limit (optional): max matching lines to return, default 200, max 2000.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
@@ -512,10 +526,11 @@ const searchText = {
             regex: { type: 'string' },
             filePattern: { type: 'string' },
             context: { type: 'integer', minimum: 0, maximum: 20 },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_MATCHES },
         },
         required: ['path', 'regex'],
     },
-    async execute({ path, regex, filePattern, context }, options = {}) {
+    async execute({ path, regex, filePattern, context, limit }, options = {}) {
         const needle = regex
         const filter = filePattern
         if (!needle) throw new Error('regex is required')
@@ -526,6 +541,7 @@ const searchText = {
         const cwd = info?.isFile() ? dirname(target) : target
         const search = info?.isFile() ? basename(target) : '.'
 
+        const cap = Math.min(MAX_MATCHES, Math.max(1, Math.floor(Number(limit) || DEFAULT_MATCHES)))
         const command = [rgPath, '--line-number', '--color', 'never']
         for (const name of SKIP.filter(item => item !== '.vscode')) command.push('--glob', `!**/${name}/**`)
         if (filter) command.push('--glob', filter)
@@ -541,7 +557,26 @@ const searchText = {
             process.exited,
         ])
         if (exitCode > 1) throw new Error(error.trim() || `ripgrep exited with code ${exitCode}`)
-        return truncate(output.trimEnd())
+
+        // 按输出行数封顶，而不是把输出从中间截掉——截中间会连“哪些文件命中过”一起吞掉。
+        // 返回对象而不是纯文本：truncated 明确告诉模型“还有更多，自己收窄关键词”。
+        const text = output.trimEnd()
+        if (!text) return text
+        const lines = text.split('\n')
+        if (lines.length > cap) {
+            return {
+                content: lines.slice(0, cap).join('\n'),
+                truncated: true,
+                shown: cap,
+                hint: `Only the first ${cap} lines are shown; narrow the regex or filePattern, or raise limit (max ${MAX_MATCHES}).`,
+            }
+        }
+        return text
+    },
+    // 封顶时返回的是对象；模型要读到的是文本本体，别把 JSON 原样丢过去。
+    toModelOutput({ output }) {
+        if (typeof output === 'string') return { type: 'text', value: output }
+        return { type: 'text', value: `${output.content}\n\n${output.hint}` }
     },
 }
 
@@ -695,7 +730,6 @@ const copyFile = {
 }
 export {
     readFile as read_file,
-    readRange as read_range,
     writeFile as write_file,
     findFiles as find_files,
     searchText as search_text,
@@ -706,4 +740,4 @@ export {
     restoreTool, restoreMessage, dropTool, undo, clearUndo, diff, remove,
 }
 
-export default [readFile, readRange, writeFile, findFiles, searchText, edit, moveFile, copyFile]
+export default [readFile, writeFile, findFiles, searchText, edit, moveFile, copyFile]

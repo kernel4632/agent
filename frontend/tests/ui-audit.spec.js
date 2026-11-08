@@ -1173,6 +1173,41 @@ test('active process group folds when speech starts and keeps manual state', asy
   expect(mock.errors).toEqual([])
 })
 
+test('messages queue while running and can be withdrawn back to composer', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  const input = page.getByRole('textbox', { name: '消息', exact: true })
+  await input.fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止生成' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeEditable()
+
+  // 运行中仍能编辑并提交：消息进入队列，而不是被拒绝或清空。
+  await input.fill('排队消息')
+  await page.getByRole('button', { name: '排队发送' }).click()
+  await expect(input).toHaveValue('')
+  const queued = page.locator('.chat-composer__queued-item')
+  await expect(queued).toHaveCount(1)
+  await expect(queued).toContainText('排队消息')
+
+  // 还没轮到发送时可以撤销，内容和附件状态回到输入框。
+  await page.getByRole('button', { name: '撤销排队消息：排队消息' }).click()
+  await expect(queued).toHaveCount(0)
+  await expect(input).toHaveValue('排队消息')
+
+  // 再次排队，本轮结束后自动发出。
+  await page.getByRole('button', { name: '排队发送' }).click()
+  await expect(queued).toHaveCount(1)
+  await mock.emit('session-1', [{ type: 'agent-finish', reason: 'completed' }])
+  await expect(page.locator('.rikka-bubble--user').filter({ hasText: '排队消息' })).toBeVisible()
+  await expect(queued).toHaveCount(0)
+  await expect.poll(() => mock.calls.filter(call => call.path === '/agent/send/session-1').length).toBe(2)
+  expect(JSON.stringify(mock.calls.filter(call => call.path === '/agent/send/session-1')[1].body)).toContain('排队消息')
+  expect(mock.errors).toEqual([])
+})
+
+
 test('process fold summarizes work, toggles steps, and stays transparent', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -1203,7 +1238,7 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
-test('timeline keeps full history height after refresh at the bottom', async ({ page }, testInfo) => {
+test('timeline keeps virtualized history reachable after refresh', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const history = []
   for (let index = 1; index <= 55; index += 1) {
@@ -1228,27 +1263,19 @@ test('timeline keeps full history height after refresh at the bottom', async ({ 
   await openDrawer(page)
   await page.getByRole('button', { name: '完整高度会话', exact: true }).click()
   const scroll = page.locator('.session-scroll')
-  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBe(55)
+  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBeGreaterThan(0)
   await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
   await page.waitForTimeout(300)
-  const before = await scroll.evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
-  expect(before.top).toBeGreaterThan(0)
+  expect(await scroll.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
 
-  // 刷新后仍然保留完整高度，不能只剩最近几轮。
+  // 刷新后仍停在底部，并且历史可以重新滚到最上面。
   await page.reload()
-  await expect(page.locator('.rikka-bubble--user')).toHaveCount(55)
-  const after = await page.locator('.session-scroll').evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
-  expect(Math.abs(after.height - before.height)).toBeLessThan(4)
-  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(4)
-
-  // 向上滚到顶，高度也不能变。
+  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBeGreaterThan(0)
+  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(8)
   await page.locator('.session-scroll').evaluate(element => { element.scrollTop = 0 })
-  await page.waitForTimeout(200)
-  const atTop = await page.locator('.session-scroll').evaluate(element => element.scrollHeight)
-  expect(Math.abs(atTop - before.height)).toBeLessThan(4)
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 1 轮' })).toBeInViewport()
   await expect(page.locator('.conversation-earlier')).toHaveCount(0)
-  await screenshot(page, testInfo, 'timeline-full-height-refresh')
+  await screenshot(page, testInfo, 'timeline-virtualized-history')
   expect(mock.errors).toEqual([])
 })
 

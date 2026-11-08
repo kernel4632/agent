@@ -19,6 +19,17 @@ const { text } = useSmoothText(computed(() => props.smooth ? props.content : '')
 const blocks = computed(() => lexMarkdown((props.smooth ? text.value : props.content) || '').filter(token => token.type !== 'space'))
 const headingSize = depth => depth <= 1 ? 'title-medium' : 'title-small'
 
+// 流式追加时大部分块没有变化；按原始 Markdown 缓存渲染结果，
+// 已稳定的段落只需复用 HTML，不再每个 delta 都重新解析。
+const htmlCache = new Map()
+function cachedHTML(key, render) {
+  if (htmlCache.has(key)) return htmlCache.get(key)
+  if (htmlCache.size > 2000) htmlCache.clear()
+  const value = render()
+  htmlCache.set(key, value)
+  return value
+}
+
 function closedCode(token) {
   const raw = String(token.raw || '').trim()
   const fence = raw.match(/^(`{3,}|~{3,})/)
@@ -27,7 +38,11 @@ function closedCode(token) {
 }
 
 function inlineHTML(token) {
-  return token.tokens?.length ? renderInline(token.tokens) : ''
+  return cachedHTML(`inline\0${token.raw || ''}`, () => token.tokens?.length ? renderInline(token.tokens) : '')
+}
+
+function blockHTML(token) {
+  return cachedHTML(`block\0${token.type}\0${token.raw || ''}`, () => renderToken(token))
 }
 
 // 短单元格不折行：像“第 34 行”这种只有一两行的内容，交给浏览器按完整宽度分列，
@@ -65,8 +80,8 @@ const vTableFit = { mounted: fitTables, updated: fitTables }
       <p v-else-if="token.type === 'paragraph'" class="ui-typography ui-typography--body ui-typography--body-medium">
         <span v-html="inlineHTML(token)"></span>
       </p>
-      <div v-else-if="token.type === 'table'" class="ui-md__table" v-html="renderToken(token)"></div>
-      <div v-else class="ui-md__block" v-html="renderToken(token)"></div>
+      <div v-else-if="token.type === 'table'" class="ui-md__table" v-html="blockHTML(token)"></div>
+      <div v-else class="ui-md__block" v-html="blockHTML(token)"></div>
     </template>
   </div>
 </template>

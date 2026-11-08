@@ -43,6 +43,7 @@ export const store = reactive({
     settingsSection: '',                               // 空字符串表示设置首页；传页面 id 才直接进入详情
     settingsDetail: null,                              // 二级页面：{ id, title }，如某个供应商或 MCP 服务
     activeSessionID: '',                               // 对话页当前会话身份
+    queued: {},                                        // 会话 ID -> 运行中排队待发的消息
     draftCwd: '',                                       // 草稿页预选的工作区；空字符串表示发送时创建临时工作区
     toast: '',                                         // 短时全局反馈
     isLoading: true,                                   // 首次 API 数据加载状态
