@@ -34,6 +34,7 @@ import Path from '../utils/path.js'
 import TempWorkspace from '../utils/temp-workspace.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
+import ContextUsage from '../utils/context-usage.js'
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
@@ -258,6 +259,7 @@ const remove = async ({ sessionId }) => {
     if (session.temporary) await TempWorkspace.remove(session.cwd, true).catch(error => console.error(`[session ${sessionId}] 清理临时工作区失败：${error.message}`))
     await SessionGroups.removeSession(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
     ToolTiming.forget(sessionId)
+    ContextUsage.remove(sessionId)
     return { ok: true }
 }
 
