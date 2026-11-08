@@ -220,6 +220,8 @@ function syncSummary(session) {
 
 /** 读取后端真实历史，首屏只取最近一页，向上滚动时再补旧消息。 */
 const HISTORY_WINDOW = 200
+// 临时远跳前保存当前最近窗口；滚回底部时同步换回来，避免再请求一页造成高度闪烁。
+const recentViews = new Map()
 async function refresh(id) {
   const settingsAtStart = store.sessions[id]?.settings // 记住本次读取开始时的设置引用
   const revisionAtStart = store.sessions[id]?.eventRevision || 0
@@ -250,6 +252,7 @@ async function refresh(id) {
     }
   }
   session.temporaryHistory = false
+  recentViews.delete(id)
   store.sessions[id] = session
   syncSummary(session)
   return session
@@ -259,6 +262,11 @@ async function refresh(id) {
 async function loadFrom(id, index) {
   const session = store.sessions[id]
   if (!session || !Number.isInteger(index) || index < 0) return false
+  const recent = session.temporaryHistory ? null : {
+    messages: session.messages,
+    historyStart: session.historyStart,
+    historyTotal: session.historyTotal,
+  }
   try {
     const source = await AgentAPI.getSession(id, { historyStart: index })
     const current = store.sessions[id]
@@ -266,6 +274,7 @@ async function loadFrom(id, index) {
     next.historyStart = Number(source.historyStart) || 0
     next.historyTotal = Number(source.historyTotal) || next.historyStart + next.messages.length
     next.temporaryHistory = true
+    if (recent) recentViews.set(id, recent)
     store.sessions[id] = next
     syncSummary(next)
     return true
@@ -273,6 +282,20 @@ async function loadFrom(id, index) {
     Notice.show(error.message)
     return false
   }
+}
+
+/** 把临时视图同步换回离开前的最近窗口；返回 false 时才回退到网络刷新。 */
+function restoreRecent(id) {
+  const session = store.sessions[id]
+  const recent = recentViews.get(id)
+  if (!session || !recent) return false
+  session.messages = recent.messages
+  session.historyStart = recent.historyStart
+  session.historyTotal = recent.historyTotal
+  session.temporaryHistory = false
+  recentViews.delete(id)
+  syncSummary(session)
+  return true
 }
 
 /** 临时打开一段早期历史：定位条点得再远也能先加载目标附近再跳过去。 */
@@ -408,4 +431,4 @@ function admit(source) {
   return session
 }
 
-export const History = { normalize, admit, refresh, loadOlder, loadFrom, loadAround, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }
+export const History = { normalize, admit, refresh, loadOlder, loadFrom, loadAround, restoreRecent, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }

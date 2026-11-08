@@ -80,14 +80,13 @@ async function restoreLatestHistory() {
   if (restoringHistory || !scrollParent || !session.value?.temporaryHistory) return
   restoringHistory = true
   try {
-    await History.refresh(session.value.id)
+    const restored = History.restoreRecent(session.value.id)
+    if (!restored) await History.refresh(session.value.id)
     await nextTick()
+    // 在浏览器绘制前直接换回最近窗口并贴底，避免中间帧出现旧高度。
     virtualizer.value.measure()
-    requestAnimationFrame(() => {
-      if (!scrollParent) return
-      virtualizer.value.scrollToEnd({ behavior: 'auto' })
-      setFollowing(true)
-    })
+    virtualizer.value.scrollToEnd({ behavior: 'auto' })
+    setFollowing(true)
   } finally {
     restoringHistory = false
   }
