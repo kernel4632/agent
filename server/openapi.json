@@ -3627,6 +3627,11 @@
                 "type": "integer",
                 "description": "完整历史的消息总数"
               },
+              "historyStats": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "基于完整历史的用量聚合；token 总量、模型速度分组和最近序列不受 history 窗口影响"
+              },
               "todos": {
                 "type": "array",
                 "items": {
