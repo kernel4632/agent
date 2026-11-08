@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.112.37",
+  "version": "0.113.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/vue": "1.0.7",
     "@material/material-color-utilities": "^0.3.0",
+    "@tanstack/vue-virtual": "^3.13.48",
     "dompurify": "latest",
     "highlight.js": "^11.11.1",
     "katex": "^0.18.1",
@@ -24,8 +25,7 @@
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.10",
     "mermaid": "^11.16.0",
-    "vue": "^3.5.44",
-    "vue-stick-to-bottom": "^1.0.1"
+    "vue": "^3.5.44"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
