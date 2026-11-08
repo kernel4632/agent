@@ -409,9 +409,14 @@ func (m *model) View() tea.View {
 		}
 	}
 
-	view := tea.NewView(strings.Join(lines, "\n"))
+	body := strings.Join(lines, "\n")
+	if m.paint%2 == 1 {
+		body += "\u200b" // 内容没变时终端不重绘；回来时翻一下，把被盖住的画面画回来
+	}
+	view := tea.NewView(body)
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion
+	view.ReportFocus = true // 离开再回来时收到焦点消息，用来重绘并接上还在跑的会话
 	if m.permission == nil && m.focus == focusInput && m.overlay.kind == "" {
 		if cur := m.input.Cursor(); cur != nil {
 			cur.Y += inputAt

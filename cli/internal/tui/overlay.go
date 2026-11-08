@@ -472,8 +472,13 @@ func (m *model) overlayKey(key string) tea.Cmd {
 	switch key {
 	case "esc":
 		m.closeOverlay()
-		m.renderConversation(false)
-		return m.input.Focus()
+		m.renderConversation(true) // 浮层的滚动位置不能留在对话上，否则回来像卡住
+		m.wakeStream()
+		cmd := m.input.Focus()
+		if !m.running {
+			cmd = tea.Batch(cmd, m.catchUp())
+		}
+		return cmd
 	case "up":
 		if m.readingOverlay() {
 			m.viewport.ScrollUp(1)

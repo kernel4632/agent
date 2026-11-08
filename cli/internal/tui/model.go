@@ -1,5 +1,7 @@
 // Package tui provides the Bubble Tea chat client. All visible state is owned
 // by Update; network workers only send messages and never edit the model.
+// Coming back from another screen redraws the conversation and reattaches a
+// session that is still running, without stopping the server task.
 package tui
 
 import (
@@ -8,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -32,6 +35,11 @@ type permissionMsg struct {
 }
 type snapshotMsg api.Session
 type doneMsg struct {
+	runID   int
+	session api.Session
+	err     error
+}
+type catchMsg struct {
 	session api.Session
 	err     error
 }
@@ -76,6 +84,48 @@ type model struct {
 	frameTop, frameVP, statsWidth                                                     int
 	suggestAt                                                                         int
 	suggestQuery, suggestMute                                                         string
+	runID, paint                                                                      int
+	gaveUp, seenFocus, sized, away                                                    bool
+	lastEvent                                                                         time.Time
+	streams                                                                           streamHold
+}
+
+// streamHold 只保存当前这一路订阅的取消函数。丢掉它会重连，不会停止服务端任务。
+type streamHold struct {
+	mu     sync.Mutex
+	cancel context.CancelFunc
+	armed  bool
+}
+
+func (h *streamHold) set(cancel context.CancelFunc) {
+	h.mu.Lock()
+	drop := h.armed
+	h.armed = false
+	h.cancel = cancel
+	h.mu.Unlock()
+	if drop {
+		cancel()
+	}
+}
+
+func (h *streamHold) drop() {
+	h.mu.Lock()
+	cancel := h.cancel
+	h.cancel = nil
+	if cancel == nil {
+		h.armed = true // 订阅还没建立，建好立刻丢掉
+	}
+	h.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (h *streamHold) clear() {
+	h.mu.Lock()
+	h.cancel = nil
+	h.armed = false
+	h.mu.Unlock()
 }
 
 func CheckTerminal() error {
@@ -165,7 +215,11 @@ func (m *model) wait() tea.Cmd {
 }
 
 func (m *model) begin(action, input string) tea.Cmd {
+	m.streams.clear()
+	m.runID++
+	runID := m.runID
 	m.running = true
+	m.lastEvent = time.Now()
 	m.turnAt = time.Now() // 这一轮的起点；界面每秒读它，不靠重绘整段对话
 	m.status, m.notice = "正在运行…", ""
 	m.panel = ""
@@ -206,6 +260,7 @@ func (m *model) begin(action, input string) tea.Cmd {
 		err := chat.Run(ctx, client, initial, action, input, chat.Hooks{
 			Event:    func(e api.Event) { emit(e) },
 			Snapshot: func(s api.Session) { emit(snapshotMsg(s)) },
+			Stream:   m.streams.set,
 			Permission: func(ctx context.Context, p api.Permission) error {
 				reply := make(chan string, 1)
 				emit(permissionMsg{permission: p, reply: reply})
@@ -225,16 +280,60 @@ func (m *model) begin(action, input string) tea.Cmd {
 		}
 		// Queue completion after all stream updates, retaining event order.
 		select {
-		case updates <- doneMsg{session: saved, err: err}:
+		case updates <- doneMsg{runID: runID, session: saved, err: err}:
 		case <-m.ctx.Done():
 		}
 		return nil
 	}
 }
 
+func (m *model) onReturn() tea.Cmd {
+	m.paint++ // 强制终端重画；内容没变时画面会停在上一个程序
+	m.renderConversation(true)
+	var focus tea.Cmd
+	if m.overlay.kind == "" && m.focus == focusInput {
+		focus = m.input.Focus()
+	}
+	if m.running {
+		if m.permission == nil {
+			m.wakeStream() // 审批还停在界面上时不能拆掉这一路，否则决定送不回去
+		}
+		return focus
+	}
+	return tea.Batch(focus, m.catchUp())
+}
+
+func (m *model) wakeStream() {
+	if !m.running {
+		return
+	}
+	// 心跳约 15 秒一次，读事件会把它丢掉。这么久没有事件，连接多半已经挂住。
+	if !m.lastEvent.IsZero() && time.Since(m.lastEvent) < 15*time.Second {
+		return
+	}
+	m.streams.drop()
+}
+
+func (m *model) catchUp() tea.Cmd {
+	if m.client == nil || m.running || m.busy || m.session.ID == "" {
+		return nil
+	}
+	client, ctx, id := m.client, m.ctx, m.session.ID
+	return func() tea.Msg {
+		readCtx, finish := context.WithTimeout(ctx, 5*time.Second)
+		defer finish()
+		session, err := client.Session(readCtx, id)
+		return catchMsg{session: session, err: err}
+	}
+}
+
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		if !m.sized {
+			m.sized = true
+			m.seenFocus = true // 首帧之前的焦点是终端启动，不算从别的界面回来
+		}
 		m.width, m.height = msg.Width, msg.Height
 		m.input.SetWidth(max(10, msg.Width-2))
 		limit := max(3, min(10, msg.Height/4))
@@ -256,10 +355,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	case api.Event:
+		m.lastEvent = time.Now()
 		m.event(msg)
 		m.renderConversation(false)
 		return m, m.wait()
 	case snapshotMsg:
+		m.lastEvent = time.Now() // 重连后的快照也算连接还活着
 		m.adopt(api.Session(msg))
 		m.liveText, m.liveReasoning, m.liveLog, m.lastControl, m.finalAnswer = "", "", "", "", ""
 		m.steps = nil
@@ -271,6 +372,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.renderConversation(true)
 		return m, m.wait()
 	case doneMsg:
+		if msg.runID != 0 && msg.runID != m.runID {
+			return m, m.wait() // 旧的一轮结束，不能清掉已经重新接上的这一轮
+		}
+		still := msg.session.Running || len(msg.session.Pending) > 0
+		if !m.quitting && msg.err != nil && !errors.Is(msg.err, context.Canceled) && still && !m.gaveUp {
+			m.gaveUp = true // 自动再接一次；再失败就停在界面上，等回到这个界面时重试
+			m.permission = nil
+			if msg.session.ID != "" {
+				m.adopt(msg.session)
+			}
+			m.notice = ""
+			return m, tea.Batch(m.wait(), m.begin("watch", ""))
+		}
+		if msg.err == nil || !still {
+			m.gaveUp = false
+		}
 		m.running, m.permission, m.cancel = false, nil, nil
 		m.status = "就绪"
 		if msg.session.ID != "" {
@@ -289,6 +406,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, m.wait()
+	case catchMsg:
+		if m.running || m.busy {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.notice = msg.err.Error()
+			m.renderConversation(false)
+			return m, nil
+		}
+		if msg.session.ID != "" {
+			m.adopt(msg.session)
+		}
+		m.renderConversation(true)
+		if msg.session.Running || len(msg.session.Pending) > 0 {
+			m.gaveUp = false
+			return m, m.begin("watch", "")
+		}
+		return m, nil
 	case commandMsg:
 		m.busy = false
 		m.closeOverlay()
@@ -379,6 +514,25 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case clockMsg:
 		return m, m.wait() // 这条消息占用了等待，必须重新排上，否则后续事件没人收
+	case tea.BlurMsg:
+		if m.seenFocus {
+			m.away = true
+		}
+		return m, nil
+	case tea.FocusMsg:
+		if !m.seenFocus {
+			m.seenFocus = true
+			return m, nil
+		}
+		if !m.away {
+			return m, nil
+		}
+		m.away = false
+		return m, m.onReturn()
+	case tea.ResumeMsg:
+		m.seenFocus = true
+		m.away = false
+		return m, m.onReturn()
 	case tea.KeyPressMsg:
 		if cmd, handled := m.handleKey(msg); handled {
 			return m, cmd

@@ -186,3 +186,73 @@ func TestQuotedModelSelectionUsesExactNames(t *testing.T) {
 		t.Fatal("invalid input made an HTTP mutation")
 	}
 }
+
+func TestClosingHelpReturnsToTheLatestLine(t *testing.T) {
+	history := make([]api.Message, 0, 30)
+	for i := range 30 {
+		raw, _ := json.Marshal("line-" + itoa(i))
+		history = append(history, api.Message{Role: "user", MessageID: "m" + itoa(i), Content: raw})
+	}
+	m := newModel(context.Background(), nil, api.Session{ID: "s", History: history})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
+	bottom := m.viewport.YOffset()
+	if !m.viewport.AtBottom() || bottom < 8 {
+		t.Fatalf("not following the latest line: %d", bottom)
+	}
+	m.openHelp()
+	m.viewport.GotoTop()
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	view := m.View().Content
+	if m.overlay.kind != "" || !m.viewport.AtBottom() || m.viewport.YOffset() != bottom {
+		t.Fatalf("stuck at %d overlay %q", m.viewport.YOffset(), m.overlay.kind)
+	}
+	if strings.Contains(view, "用命令名或中文说明筛选") || !strings.Contains(view, "line-29") {
+		t.Fatalf("help stayed over the conversation:\n%s", view)
+	}
+}
+
+func TestComingBackRepaintsAndReadsTheSession(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/session/read/s" {
+			t.Errorf("unexpected %s", r.URL.Path)
+			w.WriteHeader(500)
+			return
+		}
+		fmt.Fprint(w, `{"id":"s","running":true,"history":[{"role":"assistant","content":"后来的回答"}]}`)
+	}))
+	defer server.Close()
+	client, _ := api.New(server.URL)
+	m := newModel(context.Background(), client, api.Session{ID: "s"})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if _, cmd := m.Update(tea.FocusMsg{}); cmd != nil || m.paint != 0 {
+		t.Fatal("startup focus looked like a return")
+	}
+	m.Update(tea.BlurMsg{})
+	_, cmd := m.Update(tea.FocusMsg{})
+	if m.paint == 0 || !strings.Contains(m.View().Content, "\u200b") {
+		t.Fatal("return did not force a redraw")
+	}
+	var caught tea.Msg
+	switch got := cmd().(type) {
+	case catchMsg:
+		caught = got
+	case tea.BatchMsg:
+		for _, item := range got {
+			if item == nil {
+				continue
+			}
+			if next, ok := item().(catchMsg); ok {
+				caught = next
+			}
+		}
+	}
+	if caught == nil {
+		t.Fatal("return did not read the session")
+	}
+	if _, cmd = m.Update(caught); !m.running || cmd == nil {
+		t.Fatal("a run that started elsewhere was not reattached")
+	}
+	if !strings.Contains(m.View().Content, "后来的回答") {
+		t.Fatalf("history was not shown:\n%s", m.View().Content)
+	}
+}
