@@ -2348,6 +2348,71 @@ test('workspace picker switches the session cwd and remembers it', async ({ page
   expect(mock.errors).toEqual([])
 })
 
+test('draft composer sets the workspace inline before the first message', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+
+  // 新会话：工作区按钮内联在输入框里，默认提示临时工作区。
+  const inline = page.locator('.chat-composer__options').getByRole('button', { name: /工作区/ })
+  await expect(inline).toContainText('临时工作区')
+
+  // 二级菜单里不再放工作区入口。
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '更多选项', exact: true }).getByRole('button', { name: '切换工作区', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // 预选目录：确认后按钮跟随，创建会话时把 cwd 交给后端。
+  await inline.click()
+  const workspace = page.getByRole('dialog', { name: '设置工作区', exact: true })
+  await expect(workspace.getByText('临时工作区', { exact: true })).toBeVisible()
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('D:/AgentSessions')
+  await workspace.getByRole('button', { name: '使用此目录', exact: true }).click()
+  await expect(workspace).toBeHidden()
+  await expect(inline).toContainText('D:/AgentSessions')
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('带目录的新会话')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  const created = mock.calls.find(call => call.path === '/session/create')
+  expect(created.body.cwd).toBe('D:/AgentSessions')
+  expect(mock.sessions.get('session-1').cwd).toBe('D:/AgentSessions')
+  expect(mock.sessions.get('session-1').temporary).toBe(false)
+
+  // 开始对话后：内联按钮消失，工作区回到更多选项的二级菜单。
+  await expect(inline).toHaveCount(0)
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await expect(page.getByRole('button', { name: '切换工作区', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('draft workspace can be cleared back to a temporary workspace', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+
+  const inline = page.locator('.chat-composer__options').getByRole('button', { name: /工作区/ })
+  await inline.click()
+  const workspace = page.getByRole('dialog', { name: '设置工作区', exact: true })
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('D:/AgentSessions')
+  await workspace.getByRole('button', { name: '使用此目录', exact: true }).click()
+  await expect(inline).toContainText('D:/AgentSessions')
+
+  // 清空目录确认：回到临时工作区，创建请求不再带 cwd。
+  await inline.click()
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('')
+  await workspace.getByRole('button', { name: '使用此目录', exact: true }).click()
+  await expect(workspace).toBeHidden()
+  await expect(inline).toContainText('临时工作区')
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('回到临时工作区')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  const created = mock.calls.find(call => call.path === '/session/create')
+  expect(created.body.cwd).toBeUndefined()
+  expect(mock.sessions.get('session-1').temporary).toBe(true)
+  expect(mock.errors).toEqual([])
+})
+
 test('conversation rail jumps between messages with length-scaled ticks', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
