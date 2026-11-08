@@ -691,6 +691,31 @@ describe('请求用量', () => {
         // 没有首字时就是 0，前端据此省略这一项。
         expect(usageOf({ usage: null, startedAt: 1000, finishedAt: 2000 }).firstTokenMs).toBe(0)
     })
+
+    // 供应商返回的用量属于系统边界：脏值不能进入统计。
+    // 统计面板曾因一个 9 位数显示成 908.7M tokens，用户无法分辨真假。
+    test('把脏 token 值挡在外面', () => {
+        const dirty = (inputTokens, outputTokens) => usageOf({ usage: { inputTokens, outputTokens }, startedAt: 0, finishedAt: 0 })
+
+        // 正常值原样保留
+        expect(dirty(120, 80)).toMatchObject({ input: 120, output: 80, total: 200 })
+        // 字符串数字仍当数字（有的供应商就这么发）
+        expect(dirty('120', '80')).toMatchObject({ input: 120, output: 80 })
+        // 负数、NaN、Infinity、null 一律按 0，不能变成负统计或 NaN
+        expect(dirty(-5, 0)).toMatchObject({ input: 0, output: 0 })
+        expect(dirty('abc', undefined)).toMatchObject({ input: 0, output: 0 })
+        expect(dirty(Infinity, 0)).toMatchObject({ input: 0, output: 0 })
+        expect(dirty(null, null)).toMatchObject({ input: 0, output: 0 })
+        // 超过单次请求上限的脏值也拦住（908.7M 就是这一类）
+        expect(dirty(908_700_000, 0)).toMatchObject({ input: 0, output: 0 })
+        // 小数取整：token 计数不该带小数
+        expect(dirty(12.6, 7.4)).toMatchObject({ input: 13, output: 7 })
+    })
+
+    test('总数为脏值时退回自己算的那份', () => {
+        const usage = usageOf({ usage: { inputTokens: 10, outputTokens: 5, totalTokens: 908_700_000 }, startedAt: 0, finishedAt: 0 })
+        expect(usage.total).toBe(15)
+    })
 })
 
 describe('server Agent integration boundary', () => {

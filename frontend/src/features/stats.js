@@ -6,6 +6,7 @@
  */
 
 import { store } from '../store.js' // 压缩阈值来自当前全局配置
+import { MAX_TOKENS } from '../utils/usage.js' // 单次请求的 token 上限，和用量整理共用一份
 
 // 中文、日文、韩文大约 1.5 个字符一个 token；英文和代码大约 3.6 个字符一个 token。
 // 这是粗略换算，只用于旧会话，界面上必须带“估算”标记。
@@ -211,7 +212,12 @@ export function sessionStats(session) {
   if (!session) return null
   const messages = session.messages || []
   const { requests, last } = requestSummary(session, messages)
-  const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
+  // 历史里可能已经存着旧版本的脏值（供应商发过 9 位数）；求和时再兜一次，
+  // 宁可少算一笔，也不能让总计显示成 908.7M。
+  const sum = key => requests.reduce((total, item) => {
+    const value = Number(item[key])
+    return total + (Number.isFinite(value) && value >= 0 && value <= MAX_TOKENS ? value : 0)
+  }, 0)
   // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
   const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
@@ -226,7 +232,12 @@ export function sessionStats(session) {
   }
   const input = sum('input')
   const output = sum('output')
-  const total = requests.reduce((value, item) => value + Number(item.total || 0), 0) || input + output
+  // total 也要走同一道校验：旧写法直接 Number 相加，脏值会原样进总量。
+  const total = requests.reduce((value, item) => {
+    const reported = Number(item.total)
+    const safe = Number.isFinite(reported) && reported >= 0 && reported <= MAX_TOKENS ? reported : 0
+    return value + safe
+  }, 0) || input + output
   const limit = Number(session.contextLimit || 0)
   const exactUsed = Number(last?.input || session.contextTokens || 0)
   // 只有缺少真实用量时才遍历消息做估算，正常会话加载不必多算一遍。

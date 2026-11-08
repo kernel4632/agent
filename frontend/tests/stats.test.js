@@ -254,3 +254,37 @@ test('an empty session has no stats even when the model limit is known', () => {
   assert.equal(sessionStats({ messages: [] }), null)
   assert.equal(sessionStats({ messages: [], contextLimit: 128000 }), null)
 })
+
+// 供应商发来的脏用量不能污染统计：面板曾显示成 908.7M tokens。
+test('dirty token counts are dropped instead of summed', () => {
+  const dirty = { input: 908_700_000, output: 0, total: 908_700_000, provider: 'p', model: 'm' }
+  const good = { input: 30, output: 20, total: 50, provider: 'p', model: 'm' }
+  const session = {
+    contextLimit: 128000,
+    contextTokens: 30,
+    messages: [user('问题'), assistant('回答', { requests: [dirty, good], request: good })],
+  }
+
+  const stats = sessionStats(session)
+  // 脏值当 0，只剩那笔正常请求；不能把 9 位数累加进来
+  assert.equal(stats.usage.input, 30)
+  assert.equal(stats.usage.output, 20)
+  assert.equal(stats.usage.total, 50)
+  assert.ok(stats.usage.total < 1_000_000)
+})
+
+// 负数同样不该让总量变负（旧实现直接 Number 相加）。
+test('negative token counts do not make the total negative', () => {
+  const negative = { input: -500, output: -100, total: -600, provider: 'p', model: 'm' }
+  const good = { input: 40, output: 10, total: 50, provider: 'p', model: 'm' }
+  const session = {
+    contextLimit: 128000,
+    contextTokens: 40,
+    messages: [user('问题'), assistant('回答', { requests: [negative, good], request: good })],
+  }
+
+  const stats = sessionStats(session)
+  assert.equal(stats.usage.input, 40)
+  assert.equal(stats.usage.output, 10)
+  assert.equal(stats.usage.total, 50)
+})
