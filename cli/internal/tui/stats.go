@@ -397,7 +397,11 @@ func (m *model) click(msg tea.MouseClickMsg) (tea.Cmd, bool) {
 		m.input.Blur()
 		m.selected = span.index
 		m.selectedID = item.id
-		m.open[item.id] = !m.blockOpen(item)
+		if span.summary {
+			m.toolList[item.id] = !m.toolList[item.id] // 展开或收回这一串工具，不打开每一次的输出
+		} else {
+			m.open[item.id] = !m.blockOpen(item)
+		}
 		m.renderConversation(false)
 		return nil, true
 	}

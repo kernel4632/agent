@@ -1,3 +1,7 @@
+/*
+对话记录：用户的话和回答留在画面上，工具调用默认收成一行。
+连续几次工具合成一行，点那一行或 Enter 再展开；正在跑的输出不铺满屏幕。
+*/
 package tui
 
 import (
@@ -20,6 +24,7 @@ type block struct {
 type blockSpan struct {
 	index      int
 	start, end int
+	summary    bool // 这一行代表连续的多次工具，点击是展开整串，不是打开其中一次
 }
 
 type liveStep struct {
@@ -280,12 +285,69 @@ func (m *model) blockOpen(item block) bool {
 	if value, ok := m.open[item.id]; ok {
 		return value
 	}
-	if item.kind == "tool" {
-		_, kind := splitStatus(item.status)
-		// 跑的时候展开，结果一出来就收起。点这一行或 Enter 再打开。
-		return kind == "running" || kind == "waiting"
+	return false // 工具无论是否还在跑都先收着，避免输出把回答顶出屏幕
+}
+
+// toolRun 找出从 index 开始的连续工具。只有两行以上、且没有被点开时才收成一行。
+func (m *model) toolRun(index int) (end int, collapse bool) {
+	if index < 0 || index >= len(m.blocks) || m.blocks[index].kind != "tool" {
+		return index, false
 	}
-	return false
+	if index > 0 && m.blocks[index-1].kind == "tool" {
+		return index, false // 这一串由第一行负责
+	}
+	end = index
+	for end+1 < len(m.blocks) && m.blocks[end+1].kind == "tool" {
+		end++
+	}
+	if end == index || m.toolList[m.blocks[index].id] {
+		return end, false
+	}
+	for i := index; i <= end; i++ {
+		if m.blockOpen(m.blocks[i]) {
+			return end, false // 其中一次已经打开，整串都列出来
+		}
+	}
+	return end, true
+}
+
+func (m *model) toolHidden(index int) bool {
+	if index <= 0 || index >= len(m.blocks) || m.blocks[index].kind != "tool" {
+		return false
+	}
+	first := index
+	for first > 0 && m.blocks[first-1].kind == "tool" {
+		first--
+	}
+	end, collapse := m.toolRun(first)
+	return collapse && index > first && index <= end
+}
+
+func toolSummary(items []block) string {
+	seen := map[string]bool{}
+	var names []string
+	running := false
+	for _, item := range items {
+		if item.title != "" && !seen[item.title] && len(names) < 3 {
+			seen[item.title] = true
+			names = append(names, item.title)
+		}
+		_, kind := splitStatus(item.status)
+		if kind == "running" || kind == "waiting" {
+			running = true
+		}
+	}
+	text := "工具 " + itoa(len(items))
+	if len(names) > 0 {
+		text += " · " + strings.Join(names, "、")
+	}
+	if len(items) > len(names) && len(names) == 3 {
+		text += " 等"
+	}
+	if running {
+		text += "  正在执行"
+	}
+	return text
 }
 
 func splitStatus(status string) (label, kind string) {
@@ -300,11 +362,31 @@ func (m *model) transcriptText() (string, int) {
 	}
 	width := max(10, m.width-2)
 	var b strings.Builder
+	if m.toolHidden(m.selected) {
+		for m.selected > 0 && m.toolHidden(m.selected) {
+			m.selected-- // 收起后选中落在这一串的第一行，方向键不会停在看不见的工具上
+		}
+		m.selectedID = m.blocks[m.selected].id
+	}
 	selectedLine := 0
 	visual := 0
-	for index, item := range m.blocks {
+	for index := 0; index < len(m.blocks); index++ {
+		item := m.blocks[index]
 		if index == m.selected {
 			selectedLine = strings.Count(b.String(), "\n")
+		}
+		if end, collapse := m.toolRun(index); collapse {
+			start := visual
+			before := b.Len()
+			marker := "  "
+			if m.focus == focusTranscript && index == m.selected {
+				marker = "> "
+			}
+			fmt.Fprintf(&b, "%s%s %s\n\n", marker, muted.Render("▸"), muted.Render(toolSummary(m.blocks[index:end+1])))
+			visual += visualHeight(b.String()[before:], width)
+			m.spans = append(m.spans, blockSpan{index: index, start: start, end: visual, summary: true})
+			index = end // 这一串只占一行；循环自己还会 +1
+			continue
 		}
 		start := visual
 		before := b.Len()

@@ -131,15 +131,67 @@ func TestFinishedToolCollapsesUntilOpened(t *testing.T) {
 	}
 }
 
-func TestRunningToolStaysOpen(t *testing.T) {
+func TestRunningToolStaysCollapsed(t *testing.T) {
 	m := newModel(context.Background(), nil, api.Session{ID: "s"})
 	tool := &liveTool{id: "c", name: "execute_command", input: json.RawMessage(`{"command":"echo hi"}`), running: true}
 	tool.stream.WriteString("still running")
 	m.steps = []liveStep{{kind: "tool", tool: tool}}
+	m.running = true
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	view := m.View().Content
-	if !strings.Contains(view, "still running") || !strings.Contains(view, "▾") {
-		t.Fatalf("running tool was collapsed:\n%s", view)
+	if strings.Contains(view, "still running") || strings.Contains(view, "▾") {
+		t.Fatalf("running tool output filled the screen:\n%s", view)
+	}
+	if !strings.Contains(view, "▸") || !strings.Contains(view, "echo hi") {
+		t.Fatalf("collapsed row missing:\n%s", view)
+	}
+}
+
+func TestToolRunsCollapseToOneLine(t *testing.T) {
+	var history []api.Message
+	user, _ := json.Marshal("看一下这三个文件")
+	history = append(history, api.Message{Role: "user", MessageID: "u", Content: user})
+	var parts []api.Part
+	for i, path := range []string{"a.go", "b.go", "c.go"} {
+		parts = append(parts, api.Part{
+			Type: "tool-call", ToolName: "read_file", ToolCallID: "c" + itoa(i),
+			Input: json.RawMessage(`{"path":"` + path + `"}`),
+		})
+	}
+	call, _ := json.Marshal(parts)
+	history = append(history, api.Message{Role: "assistant", MessageID: "a", Content: call})
+	for i, path := range []string{"a.go", "b.go", "c.go"} {
+		result, _ := json.Marshal([]api.Part{{
+			Type: "tool-result", ToolCallID: "c" + itoa(i), ToolName: "read_file",
+			Output: json.RawMessage(`{"type":"text","value":"SECRET ` + path + `"}`),
+		}})
+		history = append(history, api.Message{Role: "tool", MessageID: "r" + itoa(i), Content: result})
+	}
+	answer, _ := json.Marshal("三个文件都读完了")
+	history = append(history, api.Message{Role: "assistant", MessageID: "z", Content: answer})
+	m := newModel(context.Background(), nil, api.Session{ID: "s", History: history})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := m.View().Content
+	if !strings.Contains(view, "三个文件都读完了") || !strings.Contains(view, "工具 3") {
+		t.Fatalf("answer or summary missing:\n%s", view)
+	}
+	if strings.Contains(view, "SECRET") || strings.Contains(view, "a.go") {
+		t.Fatalf("tool output stayed on screen:\n%s", view)
+	}
+	m.focus = focusTranscript
+	for i, item := range m.blocks {
+		if item.kind == "tool" {
+			m.selected = i
+			m.selectedID = item.id
+			break
+		}
+	}
+	if _, handled := m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}); !handled {
+		t.Fatal("enter did not expand the tool run")
+	}
+	opened := m.View().Content
+	if !strings.Contains(opened, "a.go") || !strings.Contains(opened, "c.go") || strings.Contains(opened, "SECRET") {
+		t.Fatalf("list did not open without the output:\n%s", opened)
 	}
 }
 

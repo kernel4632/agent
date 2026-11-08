@@ -63,7 +63,7 @@ type model struct {
 	steps                                                                             []liveStep
 	lastUsage                                                                         usageSnap
 	todos                                                                             []api.Todo
-	open                                                                              map[string]bool
+	open, toolList                                                                    map[string]bool
 	blocks                                                                            []block
 	selected                                                                          int
 	selectedID                                                                        string
@@ -138,7 +138,7 @@ func newModel(ctx context.Context, client *api.Client, session api.Session) *mod
 	view.FillHeight = true
 	m := &model{ctx: ctx, client: client, session: session, input: input, viewport: view,
 		updates: make(chan tea.Msg, 128), width: 80, height: 25, status: "就绪",
-		tools: map[string]api.Tool{}, open: map[string]bool{}}
+		tools: map[string]api.Tool{}, open: map[string]bool{}, toolList: map[string]bool{}}
 	m.todos = parseTodos(session.Todos)
 	m.lastUsage = usageFromHistory(session.History)
 	m.renderConversation(true)

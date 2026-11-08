@@ -919,19 +919,17 @@ func (m *model) globalKey(key string) (tea.Cmd, bool) {
 func (m *model) transcriptKey(key string) (tea.Cmd, bool) {
 	switch key {
 	case "j", "down":
-		if m.selected < len(m.blocks)-1 {
-			m.selected++
-			m.selectedID = m.blocks[m.selected].id
-		}
+		m.stepSelection(1)
 	case "k", "up":
-		if m.selected > 0 {
-			m.selected--
-			m.selectedID = m.blocks[m.selected].id
-		}
+		m.stepSelection(-1)
 	case "enter":
 		if m.selected >= 0 && m.selected < len(m.blocks) {
 			item := m.blocks[m.selected]
-			m.open[item.id] = !m.blockOpen(item)
+			if _, collapse := m.toolRun(m.selected); collapse {
+				m.toolList[item.id] = !m.toolList[item.id]
+			} else {
+				m.open[item.id] = !m.blockOpen(item)
+			}
 		}
 	case "c":
 		m.renderConversation(false)
@@ -955,6 +953,21 @@ func (m *model) transcriptKey(key string) (tea.Cmd, bool) {
 	}
 	m.renderConversation(false)
 	return nil, true
+}
+
+func (m *model) stepSelection(delta int) {
+	next := m.selected
+	for {
+		next += delta
+		if next < 0 || next >= len(m.blocks) {
+			return
+		}
+		if !m.toolHidden(next) {
+			m.selected = next
+			m.selectedID = m.blocks[next].id
+			return
+		}
+	}
 }
 
 func yesNo(value bool) string {
