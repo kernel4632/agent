@@ -10,7 +10,10 @@ import { computed, ref } from 'vue'
 import { outputValue } from "../../utils/tool.js"
 import ToolValue from './ToolValue.vue'
 
-const props = defineProps({ tool: { type: Object, required: true } })
+const props = defineProps({
+  tool: { type: Object, required: true },
+  holding: Boolean,
+})
 const view = ref('readable') // readable | raw
 const showInput = ref(false)
 
@@ -23,7 +26,7 @@ const vAutoScroll = {
 const hasInput = computed(() => props.tool.input != null
   && (typeof props.tool.input !== 'object' || Object.keys(props.tool.input).length > 0))
 const inputJSON = computed(() => hasInput.value ? JSON.stringify(props.tool.input, null, 2) : '')
-const streaming = computed(() => props.tool.assembling && props.tool.streamInput) // 模型还在拼参数，先显示原始增量
+const streaming = computed(() => Boolean((props.tool.assembling || props.holding) && props.tool.streamInput)) // 参数流保留到折叠结束
 const resultValue = computed(() => {
   const output = props.tool.output
   if (output == null) return props.tool.preview || ''
@@ -48,8 +51,8 @@ const emptyText = computed(() => props.tool.status === 'completed'
 
 <template>
   <div class="tool-view">
-    <section v-if="streaming" class="tool-content tool-content--stream" aria-label="正在生成参数">
-      <h4>参数正在生成</h4>
+    <section v-if="streaming" class="tool-content tool-content--stream" aria-label="参数">
+      <h4>{{ tool.assembling ? '参数正在生成' : '已生成的参数' }}</h4>
       <pre v-auto-scroll class="tool-output tool-input is-streaming">{{ tool.streamInput }}</pre>
     </section>
 

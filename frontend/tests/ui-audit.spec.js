@@ -1573,8 +1573,9 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
   await expect(tool.locator('.tool-input')).toContainText('path')
   await expect(tool.locator('.tool-input')).toContainText('a.txt')
   await mock.emit('session-1', [{ type: 'tool-result', toolCallId: 'call-stream', toolName: 'write_file', output: { type: 'text', value: 'ok' } }])
-  // 完成后先停留；下一次模型请求开始（下一段流式内容）才收起。
+  // 完成后先停留；最后一次参数流内容不能提前消失，下一次流真正出字后才收起。
   await expect(tool.locator('.cot-step__body')).toHaveCount(1)
+  await expect(tool.locator('.tool-content--stream')).toHaveCount(1)
   await mock.emit('session-1', [{ type: 'llm-start', startedAt: Date.now() }])
   // 只开始请求还不收；下一次流真正出字后才收。
   await expect(tool.locator('.cot-step__body')).toHaveCount(1)
