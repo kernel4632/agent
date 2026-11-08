@@ -1,8 +1,12 @@
-<!-- 代码块：高亮、行号、复制；mermaid 块动态渲染成图，语法错误回退源码。示例：<CodeBlock :code="source" language="js" /> -->
+<!-- 代码块：高亮、行号、复制；mermaid 块动态渲染成图，语法错误回退源码。
+     图表配色读 tokens.scss 的 Markdown 变量（--md-*），与正文渲染同色；点击图表进全屏，可缩放平移。
+     示例：<CodeBlock :code="source" language="js" /> -->
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import hljs from 'highlight.js'
 import Button from './Button.vue'
+import Dialog from './Dialog.vue'
+import Icon from './Icon.vue'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
 const status = ref('复制')
 let timer
@@ -17,21 +21,98 @@ let mermaidLib = null
 // mermaid 的渲染器是全局单例，并发 render 会互相污染甚至卡死；所有图表排队逐个画。
 let renderQueue = Promise.resolve()
 const enqueue = task => {
-    const run = renderQueue.then(task, task)
-    renderQueue = run.catch(() => undefined)
-    return run
+  const run = renderQueue.then(task, task)
+  renderQueue = run.catch(() => undefined)
+  return run
+}
+
+// --- 图表主题：与 Markdown 渲染同一套颜色 ---
+// 颜色统一来自 tokens.scss 的 --md-* / --la-*（getComputedStyle 读出的是已求值的具体色值）；
+// mermaid 的 SVG 不认 CSS 变量，渲染时把色值烧进图里，所以主题切换后要重新读取重画。
+// 变量缺失时（如纯测试环境）退回浅色默认值。
+const FALLBACK = {
+  '--md-link': '#3b7dd8', '--md-link-text': '#318795', '--md-code': '#3d9a57', '--md-quote': '#b0851f',
+  '--md-heading': '#d68c27', '--md-enum': '#318795', '--md-number': '#d68c27', '--md-type': '#b0851f', '--md-rule': '#8a8a8a',
+  '--la-text': '#1b1b21', '--la-secondary': '#45464f', '--la-bg': '#faf8ff', '--la-on-accent': '#fff',
+  '--la-danger': '#ba1a1a', '--la-success': '#286b3b',
+  '--la-font-reading': 'Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif',
+}
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || FALLBACK[name]
+
+// mermaid 不认 color-mix()，这里手动做同语义的 sRGB 混合：weight 是掺入 tint 的百分比。
+function mix(base, tint, weight) {
+  const parse = color => {
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(color).trim())?.[1]
+    if (!hex) return null
+    const digits = hex.length === 3 ? [...hex].map(digit => digit + digit).join('') : hex
+    return [0, 2, 4].map(offset => parseInt(digits.slice(offset, offset + 2), 16))
+  }
+  const from = parse(base)
+  const to = parse(tint)
+  if (!from || !to) return base
+  const ratio = weight / 100
+  return `#${from.map((channel, index) => Math.round(channel + (to[index] - channel) * ratio).toString(16).padStart(2, '0')).join('')}`
+}
+
+function diagramTheme() {
+  const text = css('--la-text')
+  const secondary = css('--la-secondary')
+  const line = css('--md-rule')
+  const bg = css('--la-bg')
+  const accent = css('--md-link')       // 链接色 = 图表主色
+  const note = css('--md-quote')        // 引用色 = 注释/说明类元素
+  const info = css('--md-link-text')    // 链接悬停色 = 次要分组
+  const heading = css('--md-heading')
+  const soft = color => mix(bg, color, 12)  // 节点底：正文底色掺 12% 语义色
+  const edge = color => mix(color, bg, 50)  // 描边：语义色向底色收一半，不压过文字
+  const cycle = [heading, accent, info, css('--md-code'), note, css('--md-enum'), css('--md-number'), css('--md-type')]
+  return {
+    darkMode: false,
+    background: 'transparent',
+    fontFamily: css('--la-font-reading'),
+    fontSize: '14px',
+    // 通用：节点、文字、连线、箭头
+    primaryColor: soft(accent), primaryTextColor: text, primaryBorderColor: edge(accent),
+    secondaryColor: soft(note), secondaryTextColor: note, secondaryBorderColor: edge(note),
+    tertiaryColor: soft(info), tertiaryTextColor: text, tertiaryBorderColor: edge(info),
+    lineColor: line, arrowheadColor: line, transitionColor: line, transitionLabelColor: secondary,
+    textColor: text, mainBkg: soft(accent), nodeBorder: edge(accent), classText: text, specialStateColor: text,
+    titleColor: heading,
+    clusterBkg: mix(bg, accent, 4), clusterBorder: mix(bg, accent, 30), clusterTitleColor: secondary,
+    edgeLabelBackground: bg, labelTextColor: text, labelBoxBkgColor: soft(accent), labelBoxBorderColor: edge(accent),
+    noteTextColor: note, noteBorderColor: edge(note), noteBkgColor: soft(note),
+    // 时序图
+    actorBkg: soft(accent), actorBorder: edge(accent), actorTextColor: text, actorLineColor: line,
+    signalColor: secondary, signalTextColor: secondary, loopTextColor: note,
+    activationBkgColor: soft(accent), activationBorderColor: edge(accent),
+    sequenceNumberColor: css('--la-on-accent'),
+    // 甘特/时间线的分区与任务
+    sectionBkgColor: soft(accent), sectionBkgColor2: soft(info), altSectionBkgColor: soft(info), altBackground: soft(info),
+    taskBkgColor: soft(accent), taskBorderColor: edge(accent), taskTextColor: text, taskTextDarkColor: text, taskTextOutsideColor: text,
+    activeTaskBkgColor: soft(heading), activeTaskBorderColor: edge(heading),
+    doneTaskBkgColor: soft(css('--la-success')), doneTaskBorderColor: edge(css('--la-success')),
+    critBkgColor: soft(css('--la-danger')), critBorderColor: edge(css('--la-danger')),
+    // 分支图
+    gitBranchLabel0: accent, gitBranchLabel1: info, gitBranchLabel2: note, gitBranchLabel3: css('--md-enum'),
+    gitBranchLabel4: css('--md-number'), gitBranchLabel5: css('--md-type'), gitBranchLabel6: heading, gitBranchLabel7: accent,
+    commitLabelColor: secondary, commitLabelBackground: bg, tagLabelColor: text, tagLabelBackground: soft(accent), tagLabelBorder: edge(accent),
+    // 饼图、时间线/象限的成组配色：按 Markdown 语义色循环取
+    pie1: cycle[0], pie2: cycle[1], pie3: cycle[2], pie4: cycle[3], pie5: cycle[4], pie6: cycle[5], pie7: cycle[6], pie8: cycle[7],
+    pieTitleTextColor: heading, pieSectionTextColor: text, pieLegendTextColor: secondary, pieStrokeColor: bg, pieOuterStrokeColor: edge(accent),
+    fillType0: soft(cycle[0]), fillType1: soft(cycle[1]), fillType2: soft(cycle[2]), fillType3: soft(cycle[3]),
+    fillType4: soft(cycle[4]), fillType5: soft(cycle[5]), fillType6: soft(cycle[6]), fillType7: soft(cycle[7]),
+    quadrant1Fill: soft(cycle[1]), quadrant2Fill: soft(cycle[0]), quadrant3Fill: soft(cycle[3]), quadrant4Fill: soft(cycle[2]),
+    quadrantPointFill: accent, quadrantPointTextFill: text, quadrantXAxisTextFill: secondary, quadrantYAxisTextFill: secondary,
+    quadrantInternalBorderStrokeFill: mix(bg, accent, 30), quadrantTitleFill: heading,
+  }
 }
 
 const loadMermaid = async () => {
   if (!mermaidLib) {
     mermaidLib = import('mermaid').then(module => ({
-      // 每次渲染前都重新 initialize：主题跟界面走（暗色用暗主题，浅色用中性主题），
+      // 每次渲染前都重新 initialize：themeVariables 要现场重读界面变量（主题切换后即新值）；
       // 重复 initialize 是官方支持的配置方式；securityLevel strict 转义图内 HTML。
-      configure: () => module.default.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'neutral',
-      }),
+      configure: () => module.default.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', themeVariables: diagramTheme() }),
       mermaid: module.default,
     }))
   }
@@ -73,6 +154,91 @@ async function copy() {
   clearTimeout(timer)
   timer = setTimeout(() => { status.value = '复制' }, 2000)
 }
+
+// --- 全屏查看：teleport 层里滚轮/按钮缩放、拖拽平移，空处点击或 Esc 关闭 ---
+const fullscreen = ref(false)
+const stage = ref(null)
+const MIN_SCALE = .2
+const MAX_SCALE = 8
+const scale = ref(1)
+const pan = ref({ x: 0, y: 0 })
+const clampScale = value => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
+const viewStyle = computed(() => ({ transform: `translate(calc(-50% + ${pan.value.x}px), calc(-50% + ${pan.value.y}px)) scale(${scale.value})` }))
+
+// 打开与“复位”都回到初始视图：整张图收进视口（留 8% 边），量不到尺寸就保持 1。
+async function fitView() {
+  scale.value = 1
+  pan.value = { x: 0, y: 0 }
+  await nextTick()
+  const svg = stage.value?.querySelector('svg')
+  const box = stage.value?.getBoundingClientRect()
+  const size = svg?.getBoundingClientRect()
+  if (!svg || !box?.width || !box?.height || !size?.width || !size?.height) return
+  scale.value = clampScale(Math.min(1, (box.width * .92) / size.width, (box.height * .92) / size.height))
+}
+watch(fullscreen, open => { if (open) fitView() })
+
+function nudge(step) { scale.value = clampScale(scale.value * (step > 0 ? 1.25 : .8)) }
+function resetView() { fitView() }
+
+// 滚轮缩放并保持光标下的内容不动；按住 Alt 反向。
+function onWheel(event) {
+  const next = clampScale(scale.value * Math.exp((event.altKey ? 1 : -1) * event.deltaY * .0016))
+  const box = stage.value?.getBoundingClientRect()
+  if (!box?.width) { scale.value = next; return }
+  const pointerX = event.clientX - box.left - box.width / 2
+  const pointerY = event.clientY - box.top - box.height / 2
+  const ratio = next / scale.value
+  pan.value = { x: pointerX - (pointerX - pan.value.x) * ratio, y: pointerY - (pointerY - pan.value.y) * ratio }
+  scale.value = next
+}
+
+let drag = null
+function dragStart(event) {
+  if (event.button !== 0) return
+  drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
+  event.currentTarget.setPointerCapture(event.pointerId)
+}
+function dragMove(event) {
+  if (drag) pan.value = { x: event.clientX - drag.x, y: event.clientY - drag.y }
+}
+function dragEnd(event) {
+  drag = null
+  event.currentTarget.releasePointerCapture?.(event.pointerId)
+}
+// 点击图表外的空处关闭；点在图上是拖拽平移，不触发。
+function closeOnEmpty(event) { if (event.target === event.currentTarget) fullscreen.value = false }
 </script>
-<template><figure class="ui-code-block"><figcaption><span>{{ language }}</span><Button variant="text" size="small" :aria-label="status === '已复制' ? '已复制' : '复制代码'" @click="copy">{{ status }}</Button></figcaption><div v-if="isMermaid && diagram" class="ui-code-block__mermaid" v-html="diagram"></div><div v-else class="ui-code-block__body"><p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p><pre v-if="lineNumbers" class="ui-code-block__numbers" aria-hidden="true">{{ code.split('\n').map((_, index) => index + 1).join('\n') }}</pre><pre><code v-html="highlighted"></code></pre></div></figure></template>
+<template>
+  <figure class="ui-code-block">
+    <figcaption>
+      <span>{{ language }}</span>
+      <span class="ui-code-block__actions">
+        <Button v-if="isMermaid && diagram" icon variant="text" size="small" label="全屏查看图表" @click="fullscreen = true"><Icon name="fullscreen" :size="16" /></Button>
+        <Button variant="text" size="small" :aria-label="status === '已复制' ? '已复制' : '复制代码'" @click="copy">{{ status }}</Button>
+      </span>
+    </figcaption>
+    <div v-if="isMermaid && diagram" class="ui-code-block__mermaid">
+      <button class="ui-code-block__mermaid-view" type="button" aria-label="全屏查看图表" title="点击全屏查看" @click="fullscreen = true" v-html="diagram"></button>
+    </div>
+    <div v-else class="ui-code-block__body">
+      <p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p>
+      <pre v-if="lineNumbers" class="ui-code-block__numbers" aria-hidden="true">{{ code.split('\n').map((_, index) => index + 1).join('\n') }}</pre>
+      <pre><code v-html="highlighted"></code></pre>
+    </div>
+    <Dialog v-if="diagram" v-model:open="fullscreen" placement="center" plain aria-label="图表全屏查看">
+      <div class="ui-code-block__fullscreen" @wheel.prevent="onWheel">
+        <div ref="stage" class="ui-code-block__stage" @click="closeOnEmpty">
+          <div class="ui-code-block__canvas" :style="viewStyle" v-html="diagram" @pointerdown="dragStart" @pointermove="dragMove" @pointerup="dragEnd" @pointercancel="dragEnd"></div>
+        </div>
+        <div class="ui-code-block__zoombar">
+          <Button icon variant="text" label="缩小" :disabled="scale <= MIN_SCALE" @click="nudge(-1)"><Icon name="zoom-out" :size="18" /></Button>
+          <button class="ui-code-block__zoom-value" type="button" title="点击复位" @click="resetView">{{ Math.round(scale * 100) }}%</button>
+          <Button icon variant="text" label="放大" :disabled="scale >= MAX_SCALE" @click="nudge(1)"><Icon name="zoom-in" :size="18" /></Button>
+          <Button icon variant="text" label="复位视图" @click="resetView"><Icon name="refresh" :size="18" /></Button>
+        </div>
+      </div>
+    </Dialog>
+  </figure>
+</template>
 <style scoped lang="scss" src="../styles/ui/CodeBlock.scss"></style>

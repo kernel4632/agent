@@ -532,6 +532,34 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
   await expect(bubble.locator('.ui-code-block__mermaid-error')).toContainText(/错误|error|Parse/i)
   await expect(bubble.locator('.ui-code-block__body pre code')).toContainText('A[缺少闭合')
+  // 图表容器不再限高截断：图完整铺开，点击区域可进全屏。
+  await expect(bubble.locator('.ui-code-block__mermaid').first()).toBeVisible()
+  await bubble.locator('.ui-code-block__mermaid-view').first().click()
+  // 全屏层 teleport 到 body，断言收在已打开的 dialog 里，避开页面上其他代码块。
+  const layer = page.locator('dialog[open]')
+  const fullscreenStage = layer.locator('.ui-code-block__stage')
+  await expect(fullscreenStage).toBeVisible()
+  await expect(layer.locator('.ui-code-block__canvas svg').first()).toBeVisible()
+  // 复位后滚轮缩放：滚动后缩放比例要偏离 100%。指针位置按全屏层包围盒取，不依赖视口尺寸。
+  await layer.getByRole('button', { name: '复位视图' }).click()
+  const initial = await layer.locator('.ui-code-block__zoom-value').textContent()
+  const box = await fullscreenStage.boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx, cy)
+  await page.mouse.wheel(0, -400)
+  await expect.poll(() => layer.locator('.ui-code-block__zoom-value').textContent()).not.toBe(initial)
+  // 拖拽平移：拖动后平移量偏离 0，0。
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 60, cy + 40, { steps: 5 })
+  await page.mouse.up()
+  await expect.poll(() => page.evaluate(() => {
+    const canvas = document.querySelector('dialog[open] .ui-code-block__canvas')
+    return canvas.style.transform.includes('translate(calc(-50% + 0px)')
+  })).toBe(false)
+  await page.keyboard.press('Escape')
+  await expect(layer).toHaveCount(0)
   // 界面切到浅色再切回：已有图按新主题重画，不崩不消失。
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: /通用/ }).click()
@@ -1388,7 +1416,8 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
   await expect(tool).toHaveCount(1)
   await expect(tool.locator('.cot-step__extra')).toContainText('正在生成参数')
   await expect(tool.locator('.cot-step__summary')).toContainText('"path": "a.txt"')
-  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
+  await expect(tool.locator('.tool-content--stream')).toContainText('"path": "a.txt"')
   await mock.emit('session-1', [{ type: 'tool-input-delta', id: 'call-stream', delta: `\n${'x'.repeat(4000)}` }])
   const preview = tool.locator('.cot-step__summary--preview')
   const full = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
@@ -1399,11 +1428,12 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
 
   await mock.emit('session-1', [{ type: 'tool-call', toolCallId: 'call-stream', toolName: 'write_file', input: { path: 'a.txt', content: 'hello' } }])
   await expect(tool.locator('.cot-step__extra')).toContainText('正在执行')
-  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
-  await tool.locator('.cot-step__head').click()
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
   await tool.getByRole('button', { name: /查看输入参数/ }).click()
   await expect(tool.locator('.tool-input')).toContainText('path')
   await expect(tool.locator('.tool-input')).toContainText('a.txt')
+  await mock.emit('session-1', [{ type: 'tool-result', toolCallId: 'call-stream', toolName: 'write_file', output: { type: 'text', value: 'ok' } }])
+  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
   expect(mock.errors).toEqual([])
 })
 

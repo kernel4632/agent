@@ -1,13 +1,30 @@
-/* CodeBlock.vue：代码可横向滚动，不撑宽消息；mermaid 渲染成图，错误回退源码。 */
+/* CodeBlock.vue：代码可横向滚动，不撑宽消息；mermaid 渲染成图——自动高度不截断，
+   点击进全屏层缩放平移（teleport 到 body，样式不带 scoped）。 */
 .ui-code-block { max-width: 100%; margin: 12px 0; overflow: hidden; border: 1px solid var(--la-line); border-radius: 14px; background: var(--la-layer-02); }
 .ui-code-block figcaption { display: flex; align-items: center; justify-content: space-between; padding: 4px 16px; border-bottom: 1px solid var(--la-line); color: var(--la-secondary); font-size: 12px; }
 .ui-code-block figcaption :deep(button) { min-height: 36px; padding: 0 12px; }
+.ui-code-block__actions { display: inline-flex; align-items: center; }
 .ui-code-block__body { display: flex; overflow: auto; max-height: 500px; }
-.ui-code-block__mermaid { display: grid; place-items: center; padding: 16px; overflow: auto; max-height: 500px; }
-.ui-code-block__mermaid :deep(svg) { max-width: 100%; height: auto; }
+/* 图表不限高：容器随图自动撑开，消息流自然变长；截图、复制都能拿到完整图。 */
+.ui-code-block__mermaid { padding: 8px 12px; }
+.ui-code-block__mermaid-view {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: zoom-in;
+  transition: border-color var(--la-motion-enter) var(--ui-curve-standard), background var(--la-motion-enter) var(--ui-curve-standard);
+}
+.ui-code-block__mermaid-view:hover { border-color: var(--la-line-strong); background: var(--la-hover); }
+.ui-code-block__mermaid-view:focus-visible { border-color: var(--la-accent); outline: none; }
+.ui-code-block__mermaid :deep(svg) { display: block; margin-inline: auto; max-width: 100%; height: auto; }
 .ui-code-block__mermaid-error { margin: 0; padding: 8px 16px 0; color: var(--la-danger); font-size: 12.5px; }
 .ui-code-block pre { flex: 1; margin: 0; padding: 16px; background: transparent; white-space: pre; font: 13px/1.7 var(--la-font-mono); }
 .ui-code-block .ui-code-block__numbers { flex: 0; padding-right: 0; color: var(--la-muted); user-select: none; }
+
 /* highlight.js 的配色全部来自主题变量（tokens.scss 的 --md-*，明暗各一套）；
    第三方 hljs 主题 css 不再引入，浅色界面下不再残留暗色底。v-html 内容用 :deep 穿透 scoped。 */
 .ui-code-block {
@@ -32,3 +49,48 @@
   :deep(.hljs-strong) { font-weight: 650; }
   :deep(.hljs-link) { color: var(--md-link); text-decoration: underline; }
 }
+
+/* --- 图表全屏层：Dialog teleport 到 body，必须是全局选择器 --- */
+.ui-code-block__fullscreen { display: flex; position: absolute; inset: 0; flex-direction: column; }
+.ui-code-block__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--la-radius-panel);
+  background: var(--la-bg);
+  cursor: grab;
+  touch-action: none;
+}
+.ui-code-block__stage:active { cursor: grabbing; }
+.ui-code-block__canvas { position: absolute; left: 50%; top: 50%; transform-origin: center; }
+/* SVG 的尺寸属性由 mermaid 烧成具体宽高；层里放开限宽，缩放和平移才有完整画布。 */
+.ui-code-block__canvas svg { display: block; max-width: none; }
+.ui-code-block__zoombar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--la-line);
+  border-radius: var(--la-shape-control);
+  background: var(--la-layer-03);
+  box-shadow: var(--la-shadow-floating);
+  transform: translateX(-50%);
+}
+.ui-code-block__zoombar :global(.ui-icon-button) { min-height: 36px; min-width: 36px; }
+.ui-code-block__zoom-value {
+  min-width: 64px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--la-secondary);
+  font: 12.5px var(--la-font-sans);
+  text-align: center;
+  cursor: pointer;
+  border-radius: var(--la-shape-sm);
+}
+.ui-code-block__zoom-value:hover { background: var(--la-hover); color: var(--la-text); }
