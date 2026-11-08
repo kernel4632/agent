@@ -142,8 +142,16 @@ func TestCommandPanelShowsAllSessionsAndHelp(t *testing.T) {
 		t.Fatal("session list was truncated to one line")
 	}
 	m.slash("/help")
-	if !strings.Contains(m.panel, "/open") || !strings.Contains(m.panel, "/reasoning") {
-		t.Fatal("missing help")
+	help := m.View().Content
+	if strings.Contains(m.panel, "/open") || strings.Contains(help, "second-session") {
+		t.Fatal("help was written into the transcript")
+	}
+	if !strings.Contains(help, "/open") || !strings.Contains(help, "/reasoning") || !strings.Contains(help, "esc 关闭") {
+		t.Fatal(help)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if !strings.Contains(m.View().Content, "second-session") {
+		t.Fatal("closing help lost the earlier result")
 	}
 }
 

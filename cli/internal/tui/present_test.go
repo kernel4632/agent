@@ -243,6 +243,29 @@ func TestSlashMenuCompletesAndExplains(t *testing.T) {
 	}
 }
 
+func TestSlashMenuMatchesChineseHint(t *testing.T) {
+	m := newModel(context.Background(), nil, api.Session{ID: "s"})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.input.Focus()
+	m.input.SetValue("/用量")
+	view := m.View().Content
+	if !strings.Contains(view, "/usage") || strings.Contains(view, "/sessions") {
+		t.Fatalf("chinese hint missed:\n%s", view)
+	}
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd != nil || m.overlay.kind != "stats" {
+		t.Fatalf("enter did not run the hinted command: %q", m.overlay.kind)
+	}
+	m.closeOverlay()
+	m.input.Focus()
+	m.input.SetValue("/回退")
+	view = m.View().Content
+	rollback := strings.Index(view, "/rollback")
+	redo := strings.Index(view, "/redo")
+	if rollback < 0 || redo < 0 || rollback > redo {
+		t.Fatalf("rollback order:\n%s", view)
+	}
+}
+
 func TestFrameKeepsMultilineInputOnScreen(t *testing.T) {
 	m := newModel(context.Background(), nil, api.Session{ID: "s"})
 	m.Update(tea.WindowSizeMsg{Width: 40, Height: 16})

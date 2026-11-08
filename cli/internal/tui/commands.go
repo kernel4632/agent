@@ -23,8 +23,7 @@ func (m *model) slash(text string) tea.Cmd {
 	argument = strings.TrimSpace(argument)
 	switch name {
 	case "/help":
-		m.panel = commandHelp()
-		m.renderConversation(true)
+		m.openHelp() // 说明盖住对话，Esc 关掉；不要追加到记录后面
 		return nil
 	case "/quit":
 		return tea.Quit

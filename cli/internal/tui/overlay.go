@@ -1,3 +1,7 @@
+/*
+全屏层：会话、模型、目录、改动、任务、用量和命令说明。
+打开时盖住对话，Esc 关掉。有选项的页用方向键移动，说明和用量只滚动。
+*/
 package tui
 
 import (
@@ -61,6 +65,10 @@ func (m *model) closeOverlay() {
 	}
 }
 
+func (m *model) readingOverlay() bool {
+	return m.overlay.kind == "stats" || m.overlay.kind == "help" // 这两页没有可选项，方向键只滚动
+}
+
 func (m *model) openSessions() tea.Cmd {
 	if m.client == nil {
 		m.notice = "没有连接"
@@ -119,6 +127,13 @@ func (m *model) openReasoning() tea.Cmd {
 
 func (m *model) openTodos() {
 	m.overlay = overlayState{kind: "todos"}
+	m.focus = focusOverlay
+	m.input.Blur()
+	m.renderConversation(true)
+}
+
+func (m *model) openHelp() {
+	m.overlay = overlayState{kind: "help"} // 只盖住对话，不擦掉刚才那条命令结果
 	m.focus = focusOverlay
 	m.input.Blur()
 	m.renderConversation(true)
@@ -447,6 +462,8 @@ func (m *model) overlayText() string {
 		b.WriteString("恢复文件：" + yesNo(m.overlay.restoreFiles) + "（空格切换）\nEnter 确认 · Esc 取消\n")
 	case "stats":
 		b.WriteString(m.statsText())
+	case "help":
+		b.WriteString(m.helpText())
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -458,7 +475,7 @@ func (m *model) overlayKey(key string) tea.Cmd {
 		m.renderConversation(false)
 		return m.input.Focus()
 	case "up":
-		if m.overlay.kind == "stats" {
+		if m.readingOverlay() {
 			m.viewport.ScrollUp(1)
 			return nil
 		}
@@ -468,7 +485,7 @@ func (m *model) overlayKey(key string) tea.Cmd {
 		m.renderConversation(false)
 		return nil
 	case "down":
-		if m.overlay.kind == "stats" {
+		if m.readingOverlay() {
 			m.viewport.ScrollDown(1)
 			return nil
 		}

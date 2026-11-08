@@ -38,8 +38,8 @@ func (m *model) renderConversation(bottom bool) {
 	}
 	m.viewport.SetContent(content)
 	switch {
-	case m.overlay.kind == "stats":
-		m.viewport.GotoTop()
+	case m.readingOverlay():
+		m.viewport.GotoTop() // 说明和用量从第一行看起，不跟到末尾
 	case m.focus == focusTranscript && m.overlay.kind == "":
 		m.viewport.SetYOffset(selectedLine)
 	case follow:
@@ -276,7 +276,7 @@ func (m *model) footerHint(level int) string {
 	switch {
 	case m.slashMenu() != "":
 		hint = "方向键选择   tab 补全   enter 执行   esc 关闭"
-	case m.overlay.kind == "stats":
+	case m.readingOverlay():
 		hint = "esc 关闭   pgup 翻页"
 	case m.overlay.kind != "":
 		hint = "esc 关闭   方向键移动   enter 确认"
