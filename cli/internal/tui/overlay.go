@@ -594,6 +594,7 @@ func (m *model) activateOverlay() tea.Cmd {
 			return nil
 		}
 		choice := list[m.overlay.index]
+		m.pendingReasoning = true // 选完模型接着选思考强度，两步一次走完
 		return m.patchSession("model", map[string]string{"provider": choice.provider, "model": choice.id})
 	case "reasoning":
 		if m.overlay.index < 0 || m.overlay.index >= len(reasoningLevels) {
@@ -850,7 +851,14 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if key == "ctrl+r" {
-		m.showReasoning = !m.showReasoning
+		m.rebuild()
+		show := !m.anyReasoningOpen()
+		m.showReasoning = show
+		for _, item := range m.blocks {
+			if item.kind == "reasoning" {
+				m.open[item.id] = show // 连正在生成的那块一起定住，按一次就看得到变化
+			}
+		}
 		m.renderConversation(false)
 		return nil, true
 	}

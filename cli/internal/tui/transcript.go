@@ -19,6 +19,7 @@ import (
 type block struct {
 	id, kind, title, body, plain, copy string
 	messageID, toolCallID, status      string
+	live                               bool // 正在生成的块：思考在回答出来前自己展开
 }
 
 type blockSpan struct {
@@ -186,7 +187,7 @@ func (m *model) liveBlocks() []block {
 	for index, step := range m.steps {
 		switch step.kind {
 		case "reasoning":
-			blocks = append(blocks, block{id: fmt.Sprintf("live-reason-%d", index), kind: "reasoning", title: "思考", body: step.text, plain: step.text, copy: step.text})
+			blocks = append(blocks, block{id: fmt.Sprintf("live-%d-reason-%d", m.runID, index), kind: "reasoning", live: true, title: "思考", body: step.text, plain: step.text, copy: step.text})
 		case "text":
 			blocks = append(blocks, block{id: fmt.Sprintf("live-text-%d", index), kind: "text", title: "过程", body: step.text, plain: step.text, copy: step.text})
 		case "tool":
@@ -206,7 +207,7 @@ func (m *model) liveBlocks() []block {
 		}
 	}
 	if strings.TrimSpace(m.liveReasoning) != "" {
-		blocks = append(blocks, block{id: "live-reasoning", kind: "reasoning", title: "思考", body: m.liveReasoning, plain: m.liveReasoning, copy: m.liveReasoning})
+		blocks = append(blocks, block{id: fmt.Sprintf("live-%d-reason", m.runID), kind: "reasoning", title: "思考", live: true, body: m.liveReasoning, plain: m.liveReasoning, copy: m.liveReasoning})
 	}
 	if strings.TrimSpace(m.liveText) != "" && strings.TrimSpace(m.liveText) != strings.TrimSpace(m.finalAnswer) {
 		blocks = append(blocks, block{id: "live-text", kind: "text", title: "Agent", body: m.liveText, plain: m.liveText, copy: m.liveText})
@@ -277,15 +278,31 @@ func (m *model) blockOpen(item block) bool {
 	if item.kind == "approval" || item.kind == "user" || item.kind == "answer" || item.kind == "text" || item.kind == "question" {
 		return true
 	}
+	if value, ok := m.open[item.id]; ok {
+		return value // 手动点过的以点击为准，包括把自动展开的思考收回
+	}
 	if item.kind == "reasoning" {
 		if m.showReasoning {
 			return true
 		}
-	}
-	if value, ok := m.open[item.id]; ok {
-		return value
+		return item.live && !m.answerDone() // 思考边生成边展开，回答一出来就收起
 	}
 	return false // 工具无论是否还在跑都先收着，避免输出把回答顶出屏幕
+}
+
+// answerDone 表示最后一条回答已经生成，思考该让位了。
+func (m *model) answerDone() bool {
+	return strings.TrimSpace(m.finalAnswer) != ""
+}
+
+// anyReasoningOpen 报告当前有没有展开的思考，Ctrl+R 用它决定这次是开还是合。
+func (m *model) anyReasoningOpen() bool {
+	for _, item := range m.blocks {
+		if item.kind == "reasoning" && m.blockOpen(item) {
+			return true
+		}
+	}
+	return false
 }
 
 // toolRun 找出从 index 开始的连续工具。只有两行以上、且没有被点开时才收成一行。

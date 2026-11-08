@@ -18,25 +18,43 @@ func press(code rune, mods tea.KeyMod) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: code, Mod: mods}
 }
 
-func TestStreamingReasoningCanStayCollapsed(t *testing.T) {
+func TestReasoningStreamsOpenAndCtrlRTucksItAway(t *testing.T) {
 	m := newModel(context.Background(), nil, api.Session{ID: "s"})
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 25})
 	m.Update(api.Event{Type: "reasoning-delta", Text: "思考第一段"})
-	if strings.Contains(m.View().Content, "思考第一段") {
-		t.Fatal("reasoning should start collapsed")
-	}
-	m.Update(press('r', tea.ModCtrl))
 	if !strings.Contains(m.View().Content, "思考第一段") {
-		t.Fatal("reasoning did not expand")
+		t.Fatal("reasoning should stream open")
 	}
 	m.Update(press('r', tea.ModCtrl))
+	if strings.Contains(m.View().Content, "思考第一段") {
+		t.Fatal("ctrl+r did not collapse the reasoning")
+	}
 	m.Update(api.Event{Type: "reasoning-delta", Text: "思考第二段"})
 	if strings.Contains(m.View().Content, "思考第二段") {
-		t.Fatal("stream forced reasoning open")
+		t.Fatal("collapsed reasoning reopened on the next chunk")
 	}
 	m.Update(api.Event{Type: "text-delta", Text: "正文"})
 	if !strings.Contains(m.View().Content, "正文") {
 		t.Fatal("answer missing")
+	}
+}
+
+func TestReasoningCollapsesOnceTheAnswerIsOut(t *testing.T) {
+	m := newModel(context.Background(), nil, api.Session{ID: "s"})
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 25})
+	m.running = true
+	m.Update(api.Event{Type: "reasoning-delta", Text: "先看目录"})
+	if !strings.Contains(m.View().Content, "先看目录") {
+		t.Fatal("reasoning should be readable while it streams")
+	}
+	m.finalAnswer = "看完了，端口被占用"
+	m.renderConversation(true)
+	view := m.View().Content
+	if strings.Contains(view, "先看目录") {
+		t.Fatalf("reasoning stayed open after the answer:\n%s", view)
+	}
+	if !strings.Contains(view, "看完了，端口被占用") {
+		t.Fatalf("answer missing:\n%s", view)
 	}
 }
 
@@ -152,6 +170,64 @@ func TestCommandPanelShowsAllSessionsAndHelp(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if !strings.Contains(m.View().Content, "second-session") {
 		t.Fatal("closing help lost the earlier result")
+	}
+}
+
+func TestPickingAModelAsksForReasoningNext(t *testing.T) {
+	var patched []map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			patched = append(patched, body)
+			fmt.Fprint(w, `{}`)
+			return
+		}
+		fmt.Fprint(w, `{"id":"s","provider":"p","model":"fast","settings":{"reasoning":"high"}}`)
+	}))
+	defer server.Close()
+	client, _ := api.New(server.URL)
+	m := newModel(context.Background(), client, api.Session{
+		ID: "s", Provider: "p", Model: "slow", Settings: api.Settings{Reasoning: "high"},
+	})
+	m.config.Providers = []struct {
+		Name    string `json:"name"`
+		Enabled *bool  `json:"enabled"`
+		Models  []struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Context int    `json:"context"`
+		} `json:"models"`
+	}{{Name: "p", Models: []struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Context int    `json:"context"`
+	}{{ID: "slow"}, {ID: "fast"}}}}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if cmd := m.openModels(); cmd != nil {
+		t.Fatal("models were already loaded from config")
+	}
+	m.overlay.index = 1 // 选第二个模型
+	cmd, handled := m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled || cmd == nil {
+		t.Fatal("enter did not send the model change")
+	}
+	m.Update(cmd())
+	if m.overlay.kind != "reasoning" {
+		t.Fatalf("overlay = %q, want reasoning after picking a model", m.overlay.kind)
+	}
+	cmd, handled = m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled || cmd == nil {
+		t.Fatal("enter did not send the reasoning level")
+	}
+	m.Update(cmd())
+	if m.overlay.kind != "" {
+		t.Fatalf("overlay stayed open: %q", m.overlay.kind)
+	}
+	if len(patched) != 2 || patched[0]["model"] != "fast" || patched[1]["reasoning"] == "" {
+		t.Fatalf("patched %v", patched)
 	}
 }
 

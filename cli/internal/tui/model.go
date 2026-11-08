@@ -65,6 +65,7 @@ type model struct {
 	width, height                                                                     int
 	status, notice, panel, liveText, liveReasoning, liveLog, lastControl, finalAnswer string
 	showReasoning                                                                     bool
+	pendingReasoning                                                                  bool // 模型选完接着打开思考强度
 	focus                                                                             int
 	overlay                                                                           overlayState
 	tools                                                                             map[string]api.Tool
@@ -430,6 +431,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.closeOverlay()
 		if msg.err != nil {
 			m.notice = msg.err.Error()
+			m.pendingReasoning = false
 		} else {
 			m.notice = ""
 			if msg.session.ID == "" {
@@ -444,7 +446,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.steps = nil
 				m.renderConversation(true)
 				if msg.session.Running || len(msg.session.Pending) > 0 {
+					m.pendingReasoning = false
 					return m, tea.Batch(m.begin("watch", ""), m.input.Focus())
+				}
+				if m.pendingReasoning {
+					m.pendingReasoning = false
+					m.openReasoning() // 模型换好了，接着问思考强度；回车就落定
+					return m, nil
 				}
 				return m, m.input.Focus()
 			}
