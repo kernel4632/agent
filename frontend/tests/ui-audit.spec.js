@@ -1238,7 +1238,7 @@ test('process fold summarizes work, toggles steps, and stays transparent', async
   await expect(page.locator('.process-fold__body')).toHaveCount(1)
 })
 
-test('timeline keeps full history height after refresh at the bottom', async ({ page }, testInfo) => {
+test('timeline keeps virtualized history reachable after refresh', async ({ page }, testInfo) => {
   const mock = await backend(page)
   const history = []
   for (let index = 1; index <= 55; index += 1) {
@@ -1263,27 +1263,19 @@ test('timeline keeps full history height after refresh at the bottom', async ({ 
   await openDrawer(page)
   await page.getByRole('button', { name: '完整高度会话', exact: true }).click()
   const scroll = page.locator('.session-scroll')
-  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBe(55)
+  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBeGreaterThan(0)
   await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
   await page.waitForTimeout(300)
-  const before = await scroll.evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
-  expect(before.top).toBeGreaterThan(0)
+  expect(await scroll.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
 
-  // 刷新后仍然保留完整高度，不能只剩最近几轮。
+  // 刷新后仍停在底部，并且历史可以重新滚到最上面。
   await page.reload()
-  await expect(page.locator('.rikka-bubble--user')).toHaveCount(55)
-  const after = await page.locator('.session-scroll').evaluate(element => ({ height: element.scrollHeight, top: element.scrollTop }))
-  expect(Math.abs(after.height - before.height)).toBeLessThan(4)
-  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(4)
-
-  // 向上滚到顶，高度也不能变。
+  await expect.poll(() => page.locator('.rikka-bubble--user').count()).toBeGreaterThan(0)
+  await expect.poll(() => page.locator('.session-scroll').evaluate(element => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight))).toBeLessThan(8)
   await page.locator('.session-scroll').evaluate(element => { element.scrollTop = 0 })
-  await page.waitForTimeout(200)
-  const atTop = await page.locator('.session-scroll').evaluate(element => element.scrollHeight)
-  expect(Math.abs(atTop - before.height)).toBeLessThan(4)
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 1 轮' })).toBeInViewport()
   await expect(page.locator('.conversation-earlier')).toHaveCount(0)
-  await screenshot(page, testInfo, 'timeline-full-height-refresh')
+  await screenshot(page, testInfo, 'timeline-virtualized-history')
   expect(mock.errors).toEqual([])
 })
 

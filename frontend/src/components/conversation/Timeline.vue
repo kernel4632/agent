@@ -33,7 +33,30 @@ const props = defineProps({
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
 // 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
-const turns = computed(() => groupMessageTurns(messages.value))
+// 流式输出只改最后一轮；前面已经完成的轮次复用原对象，避免每个 token 都让整条时间线重渲染。
+let turnCache = []
+const turns = computed(() => {
+  const next = groupMessageTurns(messages.value)
+  const previous = turnCache
+  const merged = next.map((turn, index) => {
+    const old = previous[index]
+    return old
+      && old.id === turn.id
+      && old.messages.length === turn.messages.length
+      && old.messages.every((message, offset) => message === turn.messages[offset])
+      ? old
+      : turn
+  })
+  turnCache = merged
+  return merged
+})
+const turnCount = computed(() => turns.value.length)
+// 只让轮次结构（数量、id）驱动虚拟器配置；正文增长不会重建 options。
+const turnRevision = computed(() => {
+  let signature = `${turns.value.length}:`
+  for (const turn of turns.value) signature += `${turn.id},`
+  return signature
+})
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
@@ -54,25 +77,46 @@ let resumeFollow = false
 // 按轮虚拟化：data 是完整轮次数组，虚拟器只挂载视口附近的行。
 // anchorTo: 'end' + followOnAppend 让贴底时的流式增长和追加都自动保持在末尾，
 // 不再手写 scrollHeight / scrollTop 补偿。
-const virtualizerOptions = computed(() => ({
-  count: turns.value.length,
-  getScrollElement: () => scrollElement.value,
-  estimateSize: () => 220,
-  getItemKey: index => turns.value[index]?.id ?? index,
-  anchorTo: 'end',
-  followOnAppend: true,
-  scrollEndThreshold: 8,
-  overscan: 6,
-  initialOffset: () => savedView && savedView.pinned === false && Number.isFinite(savedView.top)
-    ? savedView.top
-    : 0,
-}))
+const getItemKey = index => turns.value[index]?.id ?? index
+const virtualizerOptions = computed(() => {
+  turnRevision.value // 只有轮次结构变化才重新配置虚拟器
+  return {
+    count: turnCount.value,
+    getScrollElement: () => scrollElement.value,
+    estimateSize: () => 220,
+    getItemKey,
+    anchorTo: 'end',
+    followOnAppend: true,
+    scrollEndThreshold: 8,
+    overscan: 6,
+    initialOffset: () => savedView && savedView.pinned === false && Number.isFinite(savedView.top)
+      ? savedView.top
+      : 0,
+  }
+})
 const virtualizer = useVirtualizer(virtualizerOptions)
 const virtualItems = computed(() => virtualizer.value.getVirtualItems())
 const totalSize = computed(() => virtualizer.value.getTotalSize())
-const rows = computed(() => virtualItems.value
-  .map(item => ({ item, turn: turns.value[item.index] }))
-  .filter(row => row.turn))
+// 虚拟项变化时尽量复用行对象，让已经稳定的历史轮次跳过组件更新。
+let rowCache = new Map()
+const rows = computed(() => {
+  const next = []
+  const seen = new Set()
+  for (const item of virtualItems.value) {
+    const turn = turns.value[item.index]
+    if (!turn) continue
+    const cacheKey = `${item.index}:${item.key}`
+    const previous = rowCache.get(cacheKey)
+    const row = previous && previous.turn === turn && previous.item.start === item.start ? previous : { item, turn }
+    rowCache.set(cacheKey, row)
+    seen.add(cacheKey)
+    next.push(row)
+  }
+  for (const key of rowCache.keys()) {
+    if (!seen.has(key)) rowCache.delete(key)
+  }
+  return next
+})
 const measureElement = element => {
   if (element) virtualizer.value.measureElement(element)
 }
