@@ -97,6 +97,10 @@ describe('server HTTP API', () => {
             expect(fromStart).toMatchObject({ historyStart: 1, historyTotal: 3 })
             expect(fromStart.history).toHaveLength(2)
 
+            const searched = await (await request(`/session/search/${sessionId}?q=two`)).json()
+            expect(searched.results).toHaveLength(1)
+            expect(searched.results[0]).toMatchObject({ id: expect.any(String), index: 1, match: 'two' })
+
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
             const session = await read.json()

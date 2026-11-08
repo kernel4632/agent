@@ -145,6 +145,11 @@ app.group('/session', session => session
         beforeOffset: query.beforeOffset === undefined ? undefined : Number(query.beforeOffset),
         limit: query.limit === undefined ? undefined : Number(query.limit),
     }))
+    .get('/search/:sessionId', ({ params, query }) => Session.searchHistory({
+        ...params,
+        query: query.q,
+        limit: query.limit === undefined ? undefined : Number(query.limit),
+    }))
     .get('/outline/:sessionId', ({ params }) => Session.historyOutline(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
     .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))

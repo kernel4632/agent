@@ -377,13 +377,14 @@ const historyPage = ({ sessionId, before, beforeOffset, limit }) => beforeOffset
     ? History.page({ sessionId, before, limit })
     : History.pageByOffset({ sessionId, beforeOffset, limit })
 const historyOutline = ({ sessionId }) => History.outline(sessionId)
+const searchHistory = ({ sessionId, query, limit }) => History.search({ sessionId, query, limit })
 
 // --- 统计正在运行的任务 ---
 const runningCount = () => Agent.runningCount()
 
 export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
-    historyPage, historyOutline,
+    historyPage, historyOutline, searchHistory,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
     count, runningCount,
