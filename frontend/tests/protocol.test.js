@@ -22,6 +22,14 @@ test('SSE accepts multiline JSON and reports HTTP failures', async () => {
   await assert.rejects(readSSE(new Response('Unavailable', { status: 503 }), () => {}), /503/)
 })
 
+// 一帧坏掉只跳过它，不能让整条连接报错：事件流断一下不该让界面出错。
+test('a malformed frame is skipped without breaking the stream', async () => {
+  const events = []
+  const body = 'data:{"type":"a"}\n\ndata: 这不是合法 JSON\n\ndata:{"type":"b"}\n\n'
+  await readSSE(new Response(body), event => events.push(event))
+  assert.deepEqual(events.map(event => event.type), ['a', 'b'])
+})
+
 test('所有前端请求的方法与路径都存在于现行 OpenAPI', async t => {
   const calls = []
   t.mock.method(globalThis, 'fetch', async (url, options) => {

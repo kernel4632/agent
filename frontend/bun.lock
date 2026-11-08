@@ -11,6 +11,7 @@
         "@tanstack/vue-virtual": "^3.13.48",
         "dompurify": "latest",
         "escape-html": "^1.0.3",
+        "eventsource-parser": "^4.1.3",
         "fancy-ansi": "^0.2.2",
         "highlight.js": "^11.11.1",
         "katex": "^0.18.1",
@@ -317,6 +318,8 @@
     "escape-html": ["escape-html@1.0.3", "https://registry.npmmirror.com/escape-html/-/escape-html-1.0.3.tgz", {}, "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow=="],
 
     "estree-walker": ["estree-walker@2.0.2", "https://registry.npmmirror.com/estree-walker/-/estree-walker-2.0.2.tgz", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
+
+    "eventsource-parser": ["eventsource-parser@4.1.3", "https://registry.npmmirror.com/eventsource-parser/-/eventsource-parser-4.1.3.tgz", {}, "sha512-jZVIVilXZfAx6H20ZKKEj5dabbpD9ETmMj3uHsjMmgBzBHB6tsHrmdWB4mAiy3amtN6MOoVkfXRQu4wf1n88Rw=="],
 
     "fancy-ansi": ["fancy-ansi@0.2.2", "https://registry.npmmirror.com/fancy-ansi/-/fancy-ansi-0.2.2.tgz", { "dependencies": { "escape-html": "^1.0.3" }, "peerDependencies": { "tailwindcss": "^3 || ^4" }, "optionalPeers": ["tailwindcss"] }, "sha512-OieQMQVPhP53t5YSzPiFyh6T/y2CfibXuFR9hhpXLRTy9tTmYmgaFOpyABGXPumlxILymZyl5xoRj92nEp5mhA=="],
 
