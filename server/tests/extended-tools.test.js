@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-import { read_range, move_file, copy_file } from '../tools/file.js'
+import { read_file, move_file, copy_file } from '../tools/file.js'
 import Path from '../utils/path.js'
 import Background from '../tools/background.js'
 import { running, cleanup } from '../utils/process.js'
@@ -49,12 +49,12 @@ afterEach(async () => {
     await Promise.all(homes.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-describe('read_range 分段读取', () => {
+describe('read_file 大文件分段', () => {
     test('按行号切片，带行号和续读位置', async () => {
         const target = join(tmpdir(), `agent-range-${crypto.randomUUID()}.txt`)
         await writeFile(target, Array.from({ length: 30 }, (_, index) => `第 ${index + 1} 行`).join('\n'))
 
-        const result = await read_range.execute({ path: target, offset: 21, limit: 5 }, {})
+        const result = await read_file.execute({ path: target, offset: 21, limit: 5 }, {})
         expect(result.total).toBe(30)                        // 30 行内容
         expect(result.from).toBe(21)
         expect(result.to).toBe(25)
@@ -70,10 +70,27 @@ describe('read_range 分段读取', () => {
         const target = join(tmpdir(), `agent-range-end-${crypto.randomUUID()}.txt`)
         await writeFile(target, '只有一行')
 
-        const result = await read_range.execute({ path: target }, {})
-        expect(result.total).toBe(1)
-        expect(result.nextOffset).toBeUndefined()
-        expect(result.content).toContain('1 | 只有一行')
+        const result = await read_file.execute({ path: target }, {})
+        // 小文件没点明分段时原样返回纯文本，保持只传 path 时的老行为。
+        expect(typeof result).toBe('string')
+        expect(result).toBe('只有一行')
+
+        await rm(target, { force: true })
+    })
+
+    test('超过整份上限时自动分段，不需要先撞一次错', async () => {
+        // 超过 200000 字符（强制分段），同时超过 6000 行默认上限（才有 nextOffset）
+        const line = 'x'.repeat(30)
+        const target = join(tmpdir(), `agent-range-big-${crypto.randomUUID()}.txt`)
+        await writeFile(target, Array.from({ length: 7000 }, () => line).join('\n'))
+
+        const result = await read_file.execute({ path: target }, {})
+        // 不再报错，直接给出第一段和续读位置
+        expect(typeof result).toBe('object')
+        expect(result.total).toBe(7000)
+        expect(result.from).toBe(1)
+        expect(result.nextOffset).toBeDefined()
+        expect(result.content).toContain('1 | ')
 
         await rm(target, { force: true })
     })
@@ -82,7 +99,7 @@ describe('read_range 分段读取', () => {
         const target = join(tmpdir(), `agent-range-out-${crypto.randomUUID()}.txt`)
         await writeFile(target, 'a\nb')
 
-        const result = await read_range.execute({ path: target, offset: 100 }, {})
+        const result = await read_file.execute({ path: target, offset: 100 }, {})
         expect(result.content).toBe('')
         expect(result.from).toBe(100)
         expect(result.total).toBe(2)
@@ -91,7 +108,7 @@ describe('read_range 分段读取', () => {
     })
 
     test('敏感文件同样拒绝', async () => {
-        await expect(read_range.execute({ path: 'D:/app/.env' }, {})).rejects.toThrow(/protected file/i)
+        await expect(read_file.execute({ path: 'D:/app/.env' }, {})).rejects.toThrow(/protected file/i)
     })
 })
 

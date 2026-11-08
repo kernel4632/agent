@@ -1,5 +1,5 @@
 /*
- * 文件与目录工具：读、分段读、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
+ * 文件与目录工具：读（可按行分段）、写、找文件、搜内容、编辑（一次调用改一个文件），以及文件自己的快照和恢复。
  *
  * 这一组工具只碰文件，不碰会话运行状态。会改文件的工具都带一个 snapshot 钩子：
  * 真正写入之前由审批关口调用，把原样存进会话的快照目录；回退时从这里恢复。
@@ -8,7 +8,7 @@
  * 调用示例：
  *   import File from '../tools/file.js'
  *   await File.read_file.execute({ path: './a.txt' }, { cwd: 'D:/notes' })
- *   await File.read_range.execute({ path: './a.txt', offset: 100000, limit: 50000 }, { cwd: 'D:/notes' })
+ *   await File.read_file.execute({ path: './a.txt', offset: 4001, limit: 500 }, { cwd: 'D:/notes' })
  *   await File.edit.execute({ path: './a.txt', edits: [{ oldText: 'a', newText: 'b' }] }, { cwd: 'D:/notes' })
  *   await File.snapshot({ sessionId, messageId, toolCallId, toolName: 'write_file', input, cwd })
  *   await File.restoreTool({ sessionId, toolCallId })
@@ -39,6 +39,13 @@ const truncate = (text, limit = 6000) => {
     const half = Math.floor(limit / 2)
     return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
 }
+
+// 读文件的三个上限：整份返回的字符数、单次最多行数、单段最多字符数。
+// 超过整份上限就自动按行分段，结果里带 nextOffset——模型不用先撞一次错才知道要换工具。
+const WHOLE_CHARS = 200000
+const DEFAULT_LINES = 6000
+const MAX_LINES = 20000
+const MAX_SLICE_CHARS = 120000
 
 // --- 敏感文件：里面有密钥或机器凭据，不交给模型 ---
 const SENSITIVE = [
@@ -289,7 +296,7 @@ const remove = async ({ sessionId }) => {
 //  工具定义
 // =======================================================================
 
-// --- 读取文本或图片 ---
+// --- 读取文本或图片；大文件自动按行分段，nextOffset 接着读 ---
 const readFile = {
     name: 'read_file',
     kind: 'read',
@@ -304,15 +311,21 @@ const readFile = {
     description: [
         'Read the contents of a file at the given path. Returns the raw text, or the image itself when the file is an image.',
         'Paths are relative to the session current directory unless absolute.',
-        'For very large files (over ~200K characters) use read_range instead: this tool errors out with the total size.',
-        'Parameters: - path (required): file to read.',
+        'Large files are paginated by line automatically: the result carries total line count and, when there is more, nextOffset to pass back as offset. Line numbers are 1-based and prefixed in the output.',
+        'Search inside first with search_text to find the interesting lines, then read the surrounding range instead of the whole file.',
+        'Parameters: - path (required): file to read. - offset (optional): 1-based starting line, default 1.',
+        '- limit (optional): how many lines to return, default 6000, max 20000.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
-        properties: { path: { type: 'string' } },
+        properties: {
+            path: { type: 'string' },
+            offset: { type: 'integer', minimum: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_LINES },
+        },
         required: ['path'],
     },
-    async execute({ path }, options = {}) {
+    async execute({ path, offset, limit }, options = {}) {
         const target = absolute(path, options.cwd)
         guard([target])
         const file = Bun.file(target)
@@ -323,57 +336,16 @@ const readFile = {
             const data = Buffer.from(await file.arrayBuffer()).toString('base64')
             return { output: { path: target, mediaType, data } }
         }
-        return await file.text()
-    },
-    toModelOutput({ output }) {
-        if (typeof output === 'string') return { type: 'text', value: output }
-        return { type: 'content', value: [
-            { type: 'text', text: `Image read from ${output.path}` },
-            { type: 'file', mediaType: output.mediaType, data: { type: 'data', data: output.data } },
-        ] }
-    },
-}
 
-// --- 分段读取大文件：read_file 读不动的时候用它；offset/limit 按 1-based 行算 ---
-// 一次默认 6000 行，和其它工具的输出上限同一量级；续读用上一次返回的 nextOffset。
-const readRange = {
-    name: 'read_range',
-    kind: 'read',
-    files: input => [input.path],
-    ui: {
-        view: 'file-read',
-        icon: 'document',
-        title: '分段读取',
-        summary: '{path}',
-        actions: [{ id: 'copy-path', label: '复制路径', icon: 'copy', type: 'copy', value: 'path' }],
-    },
-    description: [
-        'Read a slice of a very large file by line range. Use after read_file reports the file is too large.',
-        'Search inside first with search_text to find the interesting lines, then read the surrounding range.',
-        'Line numbers are 1-based and included in the output; nextOffset in the result is where the next slice starts.',
-        'Parameters: - path (required): file to read. - offset (optional): 1-based starting line, default 1.',
-        '- limit (optional): how many lines to return, default 6000, max 20000.',
-    ].join('\n'),
-    inputSchema: {
-        type: 'object',
-        properties: {
-            path: { type: 'string' },
-            offset: { type: 'integer', minimum: 1 },
-            limit: { type: 'integer', minimum: 1, maximum: 20000 },
-        },
-        required: ['path'],
-    },
-    async execute({ path, offset, limit }, options = {}) {
-        const target = absolute(path, options.cwd)
-        guard([target])
-        const file = Bun.file(target)
-        if (!await file.exists()) throw new Error(`File not found: ${target}`)
-
+        // 小文件且没点明要分段：原样返回纯文本，保持只传 path 时的老行为。
         const text = await file.text()
+        const wanted = Number(offset) > 1 || Number(limit) > 0
+        if (!wanted && text.length <= WHOLE_CHARS) return text
+
         const lines = text.split('\n')                                   // 统一按 \n 切，CRLF 的行尾留在行里不影响阅读
         const total = lines.length
         const from = Math.max(1, Math.floor(Number(offset) || 1))
-        const size = Math.min(20000, Math.max(1, Math.floor(Number(limit) || 6000)))
+        const size = Math.min(MAX_LINES, Math.max(1, Math.floor(Number(limit) || DEFAULT_LINES)))
         const to = Math.min(total, from - 1 + size)
         const slice = lines.slice(from - 1, to)
 
@@ -381,10 +353,24 @@ const readRange = {
         const width = String(to).length
         const content = slice.map((line, index) => `${String(from + index).padStart(width)} | ${line.replace(/\r$/, '')}`).join('\n')
 
-        const result = { path: target, total, from, to, content: truncate(content, 120000) }
+        const result = { path: target, total, from, to, content: truncate(content, MAX_SLICE_CHARS) }
         if (to < total) result.nextOffset = to + 1
         if (from > total) result.content = ''                            // 越界时返回空段，total 和范围还在，模型能自己修正 offset
         return result
+    },
+    toModelOutput({ output }) {
+        // 图片走内容块；文本原样；分段结果（对象）拼成带行号的字符串。
+        // core 调用前会把 execute 返回的 { output: X } 解包成 X，所以这里拿到的是内层对象。
+        if (typeof output === 'string') return { type: 'text', value: output }
+        if (output?.data) {
+            return { type: 'content', value: [
+                { type: 'text', text: `Image read from ${output.path}` },
+                { type: 'file', mediaType: output.mediaType, data: { type: 'data', data: output.data } },
+            ] }
+        }
+        const head = `Lines ${output.from}-${output.to} of ${output.total} in ${output.path}`
+        const tail = output.nextOffset ? `\n\n(${output.total - output.to} more lines; call read_file again with offset: ${output.nextOffset})` : ''
+        return { type: 'text', value: `${head}\n\n${output.content}${tail}` }
     },
 }
 
@@ -695,7 +681,6 @@ const copyFile = {
 }
 export {
     readFile as read_file,
-    readRange as read_range,
     writeFile as write_file,
     findFiles as find_files,
     searchText as search_text,
@@ -706,4 +691,4 @@ export {
     restoreTool, restoreMessage, dropTool, undo, clearUndo, diff, remove,
 }
 
-export default [readFile, readRange, writeFile, findFiles, searchText, edit, moveFile, copyFile]
+export default [readFile, writeFile, findFiles, searchText, edit, moveFile, copyFile]

@@ -27,7 +27,7 @@ describe('工具接口', () => {
         expect(shell.name).toBe('execute_command')
         expect(todo.name).toBe('update_todo_list')
 
-        expect(Object.keys(read_file.inputSchema.properties)).toEqual(['path'])
+        expect(Object.keys(read_file.inputSchema.properties)).toEqual(['path', 'offset', 'limit'])
         expect(Object.keys(write_file.inputSchema.properties)).toEqual(['path', 'content'])
         expect(Object.keys(find_files.inputSchema.properties)).toEqual(['path', 'pattern', 'recursive'])
         expect(Object.keys(search_text.inputSchema.properties)).toEqual(['path', 'regex', 'filePattern', 'context'])
