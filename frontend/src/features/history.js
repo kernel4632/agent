@@ -255,6 +255,26 @@ async function refresh(id) {
   return session
 }
 
+/** 临时从指定位置加载到最新：定位条远跳时用，随后可以连续滚到目标。 */
+async function loadFrom(id, index) {
+  const session = store.sessions[id]
+  if (!session || !Number.isInteger(index) || index < 0) return false
+  try {
+    const source = await AgentAPI.getSession(id, { historyStart: index })
+    const current = store.sessions[id]
+    const next = normalize(source, current)
+    next.historyStart = Number(source.historyStart) || 0
+    next.historyTotal = Number(source.historyTotal) || next.historyStart + next.messages.length
+    next.temporaryHistory = true
+    store.sessions[id] = next
+    syncSummary(next)
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
+  }
+}
+
 /** 临时打开一段早期历史：定位条点得再远也能先加载目标附近再跳过去。 */
 async function loadAround(id, index) {
   const session = store.sessions[id]
@@ -388,4 +408,4 @@ function admit(source) {
   return session
 }
 
-export const History = { normalize, admit, refresh, loadOlder, loadAround, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }
+export const History = { normalize, admit, refresh, loadOlder, loadFrom, loadAround, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }

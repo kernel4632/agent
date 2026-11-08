@@ -40,7 +40,7 @@ async function jumpToMessage(target) {
   if (!messageId) return
   if (props.session && !props.session.messages.some(message => message.id === messageId)) {
     if (!Number.isInteger(index)) return
-    const loaded = await History.loadAround(props.session.id, index)
+    const loaded = await History.loadFrom(props.session.id, index)
     if (!loaded) return
     await nextTick()
   }
