@@ -258,7 +258,8 @@ async function refresh(id) {
   return session
 }
 
-/** 临时从指定位置加载到最新：定位条远跳时用，随后可以连续滚到目标。 */
+/** 临时从指定位置加载到最新：定位条远跳时用，前后都留一点上下文。 */
+const LOAD_CONTEXT = 120
 async function loadFrom(id, index) {
   const session = store.sessions[id]
   if (!session || !Number.isInteger(index) || index < 0) return false
@@ -268,7 +269,8 @@ async function loadFrom(id, index) {
     historyTotal: session.historyTotal,
   }
   try {
-    const source = await AgentAPI.getSession(id, { historyStart: index })
+    const start = Math.max(0, index - LOAD_CONTEXT)
+    const source = await AgentAPI.getSession(id, { historyStart: start })
     const current = store.sessions[id]
     const next = normalize(source, current)
     next.historyStart = Number(source.historyStart) || 0

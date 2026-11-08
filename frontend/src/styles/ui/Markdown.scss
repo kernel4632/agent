@@ -15,6 +15,34 @@
   font: 12px/1.7 var(--la-font-mono);
 }
 
+/* markstream 的表格默认是浅色主题；统一到项目的 layer/line/text token。 */
+:global(.markstream-vue) {
+  --table-border: var(--la-line);
+  --table-header-bg: var(--la-layer-02);
+  --ms-flow-table-cell: 8px 14px;
+}
+:global(.markstream-vue .table-node) {
+  border: 1px solid var(--la-line);
+  border-radius: 12px;
+  background: var(--la-layer-01);
+  color: var(--la-text);
+  box-shadow: none;
+}
+:global(.markstream-vue .table-node th),
+:global(.markstream-vue .table-node td) {
+  border-color: color-mix(in srgb, var(--la-line) 70%, transparent);
+  color: var(--la-text);
+}
+:global(.markstream-vue .table-node thead th) {
+  background: var(--la-layer-02) !important;
+  color: var(--md-heading);
+  font-weight: 650;
+}
+:global(.markstream-vue .table-node tbody tr:nth-child(2n)) { background: transparent !important; }
+:global(.markstream-vue .table-node tbody tr:hover) { background: var(--la-hover) !important; }
+:global(.markstream-vue .table-node tbody tr:last-child td) { border-bottom: 0; }
+:global(.markstream-vue .table-node-wrapper) { max-width: 100%; }
+
 .ui-md { display: block; }
 .ui-md :is(.ui-typography) {
   max-width: none;
