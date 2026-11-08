@@ -46,7 +46,6 @@ const rollbackPreview = ref(null)
 const flow = ref(null)
 let scrollParent
 let observer
-let viewportObserver
 let stickFrame = 0
 let jumpTimer = 0
 let jumping = false
@@ -62,14 +61,16 @@ const atBottom = (threshold = 4) => Boolean(scrollParent) && maxScrollTop() - sc
 
 // “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局；
 // 否则按钮出现/消失会改变 scrollHeight，滚动条会突然变长或变短。
+// 只在按钮真的需要显示时才算位置：贴底跟随是常态，那期间一次布局都不读。
 function syncLatestPosition() {
-  if (!scrollParent || !flow.value) return
+  if (!scrollParent || !flow.value || following.value) return
   const scrollRect = scrollParent.getBoundingClientRect()
   const flowRect = flow.value.getBoundingClientRect()
-  latestPosition.value = {
-    right: `${Math.max(12, window.innerWidth - flowRect.right + 8)}px`,
-    bottom: `${Math.max(12, window.innerHeight - scrollRect.bottom + 12)}px`,
-  }
+  const right = `${Math.max(12, window.innerWidth - flowRect.right + 8)}px`
+  const bottom = `${Math.max(12, window.innerHeight - scrollRect.bottom + 12)}px`
+  // 值没变就不写，避免触发无意义的重渲染
+  if (latestPosition.value.right === right && latestPosition.value.bottom === bottom) return
+  latestPosition.value = { right, bottom }
 }
 watch(following, value => {
   if (!value) nextTick(syncLatestPosition)
@@ -99,7 +100,7 @@ function setFollowing(value) {
   following.value = value
   if (value) {
     resumeFollow = false
-    queueStick()
+    requestStick()
   }
 }
 function stopFollowing() {
@@ -127,7 +128,9 @@ function endJump() {
   jumpTimer = 0
 }
 
-// 内容变高/变矮、视口高度变化都只触发这一条路径；没有 scroll 事件反馈。
+// 内容变高/变矮、视口高度变化都只走这一条路径；没有 scroll 事件反馈。
+// 多个来源（内容 resize、视口 resize、新增轮次）都汇到同一个 rAF，
+// 一帧内只读一次布局、只写一次 scrollTop：图表陆续画完时不会连续多帧改滚动位置。
 function queueStick() {
   // 平滑跳转期间不要用手动吸底抢占动画；跳转结束再补一次底。
   if (jumping || !following.value || !scrollParent || stickFrame) return
@@ -135,8 +138,21 @@ function queueStick() {
     stickFrame = 0
     if (!following.value || !scrollParent) return
     const max = maxScrollTop()
+    // 已经在底部就不写 scrollTop：写同一个值也会触发 scroll 事件和一次排版。
     if (max <= scrollParent.scrollTop + 1) return
     scrollParent.scrollTop = max
+  })
+}
+
+// 所有“可能需要贴底”的来源合并成一次调度：两个 ResizeObserver 不再各调一次。
+let stickPending = false
+function requestStick() {
+  if (stickPending) return
+  stickPending = true
+  requestAnimationFrame(() => {
+    stickPending = false
+    queueStick()
+    syncLatestPosition()
   })
 }
 
@@ -298,9 +314,7 @@ async function jumpToMessage(messageId) {
   }, 900)
 }
 defineExpose({ jumpToMessage, jumpToBottom })
-watch(() => turns.value.length, () => {
-  if (following.value) queueStick()
-})
+watch(() => turns.value.length, requestStick)
 onMounted(() => {
   scrollParent = props.scrollRoot
   lastTop = scrollParent?.scrollTop || 0
@@ -317,17 +331,12 @@ onMounted(() => {
   window.addEventListener('pointercancel', onPointerUp, { passive: true })
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('pagehide', flushScroll) // 刷新/关页前把最后位置落盘
-  // 内容高度变化只负责“跟随到底”，绝不反向改变 following。
-  observer = new ResizeObserver(() => {
-    if (following.value) queueStick()
-  })
+  // 内容高度和视口高度用同一个观察器：两者都只意味着“可能需要贴底”，
+  // 合成一次请求就够了。原来两个 observer 各自 queueStick，图表陆续画完时
+  // 会在多帧里反复读布局、反复写 scrollTop。
+  observer = new ResizeObserver(requestStick)
   if (flow.value) observer.observe(flow.value)
-  // 输入框/窗口变高变矮会改变视口；跟随中保持贴底，浏览中保持读者位置。
-  viewportObserver = new ResizeObserver(() => {
-    if (following.value) queueStick()
-    syncLatestPosition()
-  })
-  if (scrollParent) viewportObserver.observe(scrollParent)
+  if (scrollParent) observer.observe(scrollParent)
   syncLatestPosition()
   // 刷新后回到原来的位置；没有记录或当时停在底部，就继续跟最新内容。
   const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
@@ -363,7 +372,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('pagehide', flushScroll)
   observer?.disconnect()
-  viewportObserver?.disconnect()
   if (stickFrame) cancelAnimationFrame(stickFrame)
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
