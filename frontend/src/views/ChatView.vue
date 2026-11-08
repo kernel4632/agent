@@ -18,6 +18,7 @@ import { canContinueSession } from "../features/turns.js"
 import { Navigation } from '../commands/navigation.js'
 import { latestTodos } from "../utils/tool.js"
 import { sessionStats } from "../features/stats.js"
+import { ComposerDraft } from "../features/composer-draft.js"
 import { savePath } from '../utils/session-view.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
@@ -53,6 +54,34 @@ const draft = computed({
 })
 const files = computed(() => props.session?.files || props.files)
 const queued = computed(() => props.session ? (store.ui.queued[props.session.id] || []) : [])
+
+// 每个会话的未发送文字和图片单独持久化；输入变化先防抖，刷新/离开页面时强制落盘。
+const draftTimers = new Map()
+function queueDraftSave(session) {
+  if (!session?.id || !session.draftLoaded) return
+  const id = session.id
+  const value = {
+    text: session.draft || '',
+    files: (session.files || []).map(file => ({ ...file })),
+  }
+  clearTimeout(draftTimers.get(id))
+  draftTimers.set(id, setTimeout(() => {
+    draftTimers.delete(id)
+    void ComposerDraft.save(id, value)
+  }, 180))
+}
+function flushDraftSaves() {
+  for (const [id, timer] of draftTimers) {
+    clearTimeout(timer)
+    const session = store.sessions[id]
+    if (session?.draftLoaded) void ComposerDraft.save(id, { text: session.draft || '', files: session.files || [] })
+  }
+  draftTimers.clear()
+}
+watch([() => props.session?.id, draft, files], () => {
+  if (props.session) queueDraftSave(props.session)
+}, { deep: true })
+window.addEventListener('pagehide', flushDraftSaves)
 const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
 const resumable = computed(() => canContinueSession(props.session))
 const stats = computed(() => props.session ? sessionStats(props.session) : null)
@@ -76,7 +105,11 @@ watch([() => props.session?.connection, () => props.session?.status, () => props
   if (connection === 'reconnecting' && status === 'running' && !pending) reconnectTimer = setTimeout(() => { showReconnect.value = true }, 2000)
   else showReconnect.value = false
 }, { immediate: true })
-onBeforeUnmount(() => clearTimeout(reconnectTimer))
+onBeforeUnmount(() => {
+  clearTimeout(reconnectTimer)
+  flushDraftSaves()
+  window.removeEventListener('pagehide', flushDraftSaves)
+})
 
 async function submit(content) {
   if (props.busy) return

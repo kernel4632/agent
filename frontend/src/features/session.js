@@ -14,6 +14,7 @@ import { AgentAPI } from '../utils/api.js' // 会话目录接口
 import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from '../utils/notice.js' // 操作完成或失败的反馈
 import { History } from './history.js' // 归一化和历史读取
+import { ComposerDraft } from './composer-draft.js' // 删除会话时清理本地草稿
 import { DEFAULT_CONTEXT, NEW_SESSION_TITLE } from '../defaults.js' // 默认上下文
 
 
@@ -75,6 +76,7 @@ function forget(sessionID) {
   if (!found) return false
   store.sessionList.splice(store.sessionList.indexOf(found), 1)
   delete store.sessions[sessionID]
+  void ComposerDraft.remove(sessionID)
   return true
 }
 

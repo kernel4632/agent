@@ -779,6 +779,49 @@ test('composer expand keeps the draft', async ({ page }, testInfo) => {
   await expect(editor).toHaveValue('全屏里修改')
 })
 
+test('composer draft text and images survive reload per session', async ({ page }) => {
+  const mock = await backend(page)
+  const now = Date.now()
+  mock.sessions.set('draft-a', {
+    id: 'draft-a', title: '草稿 A', provider: 'Test Provider', model: 'test-model',
+    history: [{ messageId: 'a-u1', id: 'a-u1', role: 'user', content: '历史 A' }],
+    createdAt: now, updatedAt: now, settings: { reasoning: 'auto' }, todos: [], running: false, pending: [], undoable: 0,
+  })
+  mock.sessions.set('draft-b', {
+    id: 'draft-b', title: '草稿 B', provider: 'Test Provider', model: 'test-model',
+    history: [{ messageId: 'b-u1', id: 'b-u1', role: 'user', content: '历史 B' }],
+    createdAt: now, updatedAt: now, settings: { reasoning: 'auto' }, todos: [], running: false, pending: [], undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '草稿 A', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  const editor = page.getByRole('textbox', { name: '消息', exact: true })
+  await editor.fill('会话 A 的未发送草稿')
+
+  await openDrawer(page)
+  await page.getByRole('button', { name: '草稿 B', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await editor.fill('会话 B 的未发送草稿')
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'draft.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  })
+  await expect(page.locator('.chat-composer__image-thumb')).toHaveCount(1)
+  await page.waitForTimeout(400)
+
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('会话 B 的未发送草稿')
+  await expect(page.locator('.chat-composer__image-thumb')).toHaveCount(1)
+
+  await openDrawer(page)
+  await page.getByRole('button', { name: '草稿 A', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('会话 A 的未发送草稿')
+  await expect(page.locator('.chat-composer__image-thumb')).toHaveCount(0)
+})
+
 test('reconnecting covers the composer with a status overlay', async ({ page }) => {
   const mock = await backend(page)
   await page.route('**/sse/connect/**', route => route.abort())
