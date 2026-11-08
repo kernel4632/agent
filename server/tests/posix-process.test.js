@@ -51,14 +51,19 @@ describe.skipIf(process.platform === 'win32')('POSIX process groups', () => {
         }))
     }
     for (const mode of ['abort', 'timeout']) {
-        test(`foreground ${mode} closes descendant pipes`, async () => fixture(async ({ cwd, command, getPid }) => {
+        test(`foreground ${mode} settles the descendant process`, async () => fixture(async ({ cwd, command, getPid }) => {
             const controller = new AbortController()
             const result = Shell.execute({ command, cwd, timeout: mode === 'timeout' ? 1000 : 10000 }, { abortSignal: controller.signal })
             const pid = await getPid()
             if (mode === 'abort') controller.abort()
             const output = await result
             expect(output.timedOut).toBe(mode === 'timeout')
-            expect(output.stdout).toContain('ready')
+            // 超时是交棒，返回 output 且进程继续跑；取消是前台收尾，返回 stdout 并杀掉进程。
+            expect(mode === 'timeout' ? output.output : output.stdout).toContain('ready')
+            if (mode === 'timeout') {
+                expect(output.running).toBe(true)
+                await stopProcess(output.id)
+            }
             await waitFor(() => !alive(pid))
         }))
     }
