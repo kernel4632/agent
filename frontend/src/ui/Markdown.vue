@@ -74,10 +74,22 @@ setCustomComponents(CUSTOM_ID, {
 const { text, done } = useSmoothText(computed(() => props.smooth ? props.content : ''))
 const rawSource = computed(() => props.smooth ? text.value : (props.content || ''))
 const source = computed(() => protectMermaid(rawSource.value))
+
+// 和旧 Markdown 一样：短单元格不折行，长正文正常换行。
+function fitTables(root) {
+  if (!root?.querySelector?.('table')) return
+  for (const cell of root.querySelectorAll('td')) {
+    const content = (cell.textContent || '').replace(/\s+/g, ' ').trim()
+    const block = cell.querySelector('br, img, pre, ul, ol, p, div')
+    cell.classList.toggle('md-cell--nowrap', content.length > 0 && content.length <= 16 && !block)
+  }
+}
+const vTableFit = { mounted: fitTables, updated: fitTables }
 </script>
 
 <template>
   <MarkdownRender
+    v-table-fit
     class="markdown-body ui-md markstream-vue"
     :class="{ 'ui-md--compact': compact }"
     :custom-id="CUSTOM_ID"

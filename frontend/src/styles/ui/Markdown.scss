@@ -42,6 +42,93 @@
 :global(.markstream-vue .table-node tbody tr:hover) { background: var(--la-hover) !important; }
 :global(.markstream-vue .table-node tbody tr:last-child td) { border-bottom: 0; }
 :global(.markstream-vue .table-node-wrapper) { max-width: 100%; }
+/* markstream 的节点自带 data-v 样式，优先级高于项目的排版类；
+   这里按旧 Markdown 的最终字号/间距统一覆盖，而不是只为单个问题打补丁。 */
+:global(.markstream-vue .paragraph-node.ui-typography) {
+  margin: 0 0 10px !important;
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+  color: var(--la-text);
+}
+:global(.markstream-vue.ui-md--compact .paragraph-node.ui-typography) {
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+}
+:global(.markstream-vue .heading-node.ui-typography) {
+  margin: 18px 0 6px !important;
+  color: var(--md-heading);
+  font-weight: 620;
+  line-height: 1.5;
+}
+:global(.markstream-vue .heading-1.ui-typography) { font-size: 20px !important; }
+:global(.markstream-vue .heading-2.ui-typography) { font-size: 17px !important; }
+:global(.markstream-vue .heading-3.ui-typography) { font-size: 15px !important; }
+:global(.markstream-vue .heading-4.ui-typography) { font-size: 14px !important; }
+:global(.markstream-vue .heading-5.ui-typography),
+:global(.markstream-vue .heading-6.ui-typography) { font-size: 13px !important; }
+:global(.markstream-vue.ui-md--compact .heading-node.ui-typography) { font-size: 15px !important; }
+
+:global(.markstream-vue .list-node) {
+  margin: 0 0 10px !important;
+  padding-left: 40px !important;
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+}
+:global(.markstream-vue.ui-md--compact .list-node) { font-size: 14px !important; }
+:global(.markstream-vue .list-item) {
+  margin: 0 !important;
+  padding-left: 0 !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+:global(.markstream-vue .list-item > .paragraph-node) {
+  margin: 0 !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+:global(.markstream-vue ul > .list-item::marker) { color: var(--md-list) !important; }
+:global(.markstream-vue ol > .list-item::marker) { color: var(--md-enum) !important; }
+:global(.markstream-vue .blockquote) {
+  margin: 0 0 10px !important;
+  padding: 5px 12px !important;
+  border-left: 2px solid var(--md-quote) !important;
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--md-quote) 6%, transparent) !important;
+  color: var(--md-quote) !important;
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+}
+:global(.markstream-vue.ui-md--compact .blockquote) { font-size: 14px !important; }
+:global(.markstream-vue .blockquote > .paragraph-node) {
+  margin: 0 !important;
+  font: inherit !important;
+  line-height: inherit !important;
+}
+:global(.markstream-vue .link-node) {
+  color: var(--md-link) !important;
+  text-decoration-color: color-mix(in srgb, var(--md-link) 45%, transparent);
+  text-underline-offset: 4px;
+}
+:global(.markstream-vue .link-node:hover) { color: var(--md-link-text) !important; }
+:global(.markstream-vue .strong-node) { color: var(--md-strong); font-weight: 650; }
+:global(.markstream-vue .emphasis-node) { color: var(--md-em); }
+:global(.markstream-vue .hr-node) { margin: 14px 0 !important; border: 0 !important; border-top: 1px solid var(--md-rule) !important; }
+:global(.markstream-vue .image-node__img) { max-width: 100%; height: auto; border-radius: 8px; }
+:global(.markstream-vue .checkbox-node) { margin-right: .4em; vertical-align: -.2em; }
+:global(.markstream-vue .checkbox-icon) { width: 14px; height: 14px; }
+:global(.markstream-vue .checkbox-unchecked) { color: var(--la-muted); }
+:global(.markstream-vue .checkbox-checked) { color: var(--md-code); }
+:global(.markstream-vue .table-node) {
+  margin: 12px 0 14px !important;
+  font-size: 13px;
+  table-layout: auto !important;
+}
+:global(.markstream-vue .table-node th) { white-space: nowrap !important; }
+:global(.markstream-vue .table-node tbody tr:hover) { background: transparent !important; }
+:global(.markstream-vue > .node-slot:first-child .heading-node) { margin-top: 0 !important; }
+:global(.markstream-vue > .node-slot:last-child .paragraph-node),
+:global(.markstream-vue > .node-slot:last-child .list-node),
+:global(.markstream-vue > .node-slot:last-child .blockquote) { margin-bottom: 0 !important; }
 
 .ui-md { display: block; }
 .ui-md :is(.ui-typography) {
@@ -142,7 +229,7 @@
 .markdown-body th code { white-space: nowrap; }
 /* 短单元格按完整内容占宽；长正文用 pretty 尽量避免最后一行只剩一个词/字。 */
 .markdown-body td { text-wrap: pretty; }
-.markdown-body td.md-cell--nowrap { white-space: nowrap; }
+.markdown-body td.md-cell--nowrap { white-space: nowrap !important; }
 .markdown-body blockquote {
   margin-left: 0;
   padding: 5px 12px;
