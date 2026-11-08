@@ -1,2 +1,15 @@
 /* StreamingMarkdown 的视觉样式主要由 markstream-vue 自带 CSS 提供；
-   保留这个边界文件，项目仍然遵循“一个 Vue 组件对应一个外部样式文件”的约定。 */
+   这里只把它默认的浅色行内代码变量对齐到项目自己的 Markdown 配色。 */
+:global(.markstream-vue) {
+  --inline-code-bg: color-mix(in srgb, var(--md-code) 10%, transparent);
+  --inline-code-fg: var(--md-code);
+}
+
+:global(.markstream-vue .inline-code) {
+  border: 0.5px solid color-mix(in srgb, var(--md-code) 22%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--md-code) 10%, transparent);
+  color: var(--md-code);
+  font-family: var(--la-font-mono);
+  font-size: 12px;
+}
