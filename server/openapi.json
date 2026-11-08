@@ -1664,7 +1664,8 @@
           {
             "$ref": "#/components/parameters/SessionId"
           },
-          { "name": "historyLimit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 }, "description": "只取最近 N 条历史，供首屏窗口加载" }
+          { "name": "historyLimit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 }, "description": "只取最近 N 条历史，供首屏窗口加载" },
+          { "name": "historyStart", "in": "query", "schema": { "type": "integer", "minimum": 0 }, "description": "从该可见历史下标一直返回到末尾，供定位条跳转早期历史" }
         ],
         "responses": {
           "200": {

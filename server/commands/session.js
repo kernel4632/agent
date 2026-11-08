@@ -138,7 +138,7 @@ const fork = async ({ sessionId, title, messageId }) => {
 
 // --- 读取一条会话 ---
 const HISTORY_PAGE = 200
-const read = async ({ sessionId, historyLimit }) => {
+const read = async ({ sessionId, historyLimit, historyStart }) => {
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
@@ -154,10 +154,13 @@ const read = async ({ sessionId, historyLimit }) => {
     }
 
     const total = history.length
-    const requested = Number(historyLimit)
-    const limit = Number.isFinite(requested) && requested > 0 ? Math.min(500, Math.floor(requested)) : 0
-    const start = limit ? Math.max(0, total - limit) : 0
-    const windowed = limit ? history.slice(start) : history
+    const requestedStart = Number(historyStart)
+    const requestedLimit = Number(historyLimit)
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(500, Math.floor(requestedLimit)) : 0
+    const start = Number.isFinite(requestedStart) && requestedStart >= 0
+      ? Math.min(total, Math.floor(requestedStart))
+      : limit ? Math.max(0, total - limit) : 0
+    const windowed = start > 0 || limit ? history.slice(start) : history
 
     return {
         id: session.id,

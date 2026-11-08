@@ -137,6 +137,7 @@ app.group('/session', session => session
     .get('/read/:sessionId', ({ params, query }) => Session.read({
         ...params,
         historyLimit: query.historyLimit === undefined ? undefined : Number(query.historyLimit),
+        historyStart: query.historyStart === undefined ? undefined : Number(query.historyStart),
     }))
     .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
         ...params,

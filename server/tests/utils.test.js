@@ -93,6 +93,10 @@ describe('server HTTP API', () => {
             expect(windowed).toMatchObject({ historyStart: 1, historyTotal: 3 })
             expect(windowed.history).toHaveLength(2)
 
+            const fromStart = await (await request(`/session/read/${sessionId}?historyStart=1`)).json()
+            expect(fromStart).toMatchObject({ historyStart: 1, historyTotal: 3 })
+            expect(fromStart.history).toHaveLength(2)
+
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
             const session = await read.json()

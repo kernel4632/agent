@@ -475,7 +475,7 @@ const userText = message => {
 // --- 整个会话的轮次大纲：只带预览，长度用未截断原文 ---
 const outline = async sessionId => {
     await load(sessionId)
-    const records = store.sessions[sessionId].history.messages
+    const records = store.sessions[sessionId].history.messages.filter(record => !record.message?.internal)
     const turns = []
     let current = null
 
