@@ -6,7 +6,7 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 
-const props = defineProps({ open: Boolean, instant: Boolean })
+const props = defineProps({ open: Boolean, instant: Boolean, slow: Boolean })
 const rootEl = ref(null)
 let safetyTimer = 0
 
@@ -69,7 +69,7 @@ onBeforeUnmount(() => clearTimeout(safetyTimer))
 
 <template>
   <Transition name="fold" @enter="enter" @after-enter="afterEnter" @leave="leave" @after-leave="afterLeave">
-    <div v-if="open" ref="rootEl" class="fold" :class="{ 'is-instant': instant }">
+    <div v-if="open" ref="rootEl" class="fold" :class="{ 'is-instant': instant, 'is-slow': slow }">
       <div class="fold__inner"><slot /></div>
     </div>
   </Transition>
