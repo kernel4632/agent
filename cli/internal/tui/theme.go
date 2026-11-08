@@ -26,3 +26,6 @@ var (
 	userBar   = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorGold))
 	userLabel = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorGold)).Bold(true)
 )
+
+// spinnerFrames 是运行时转的那圈点。用盲文点阵：每帧都一样宽，不会把后面的文字推来推去。
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}

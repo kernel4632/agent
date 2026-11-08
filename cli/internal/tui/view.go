@@ -228,6 +228,9 @@ func (m *model) activityLine() string {
 			text = itoa(elapsed) + "s  " + text // 秒数放前面：窄屏裁掉的是后半，时钟还在
 		}
 	}
+	if m.running {
+		text = spinnerFrames[m.spin%len(spinnerFrames)] + " " + text // 转圈在最前面，一眼看出还在动
+	}
 	return text
 }
 

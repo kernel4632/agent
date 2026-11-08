@@ -85,7 +85,7 @@ type model struct {
 	frameTop, frameVP, statsWidth                                                     int
 	suggestAt                                                                         int
 	suggestQuery, suggestMute                                                         string
-	runID, paint                                                                      int
+	runID, paint, spin                                                                int
 	gaveUp, seenFocus, sized, away                                                    bool
 	lastEvent                                                                         time.Time
 	streams                                                                           streamHold
@@ -247,7 +247,7 @@ func (m *model) begin(action, input string) tea.Cmd {
 			}
 		}
 		go func() {
-			ticker := time.NewTicker(time.Second)
+			ticker := time.NewTicker(120 * time.Millisecond) // 转圈和秒数共用这一拍；120ms 是 8 帧/秒，够顺又不费
 			defer ticker.Stop()
 			for {
 				select {
@@ -514,6 +514,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.renderConversation(false)
 		return m, nil
 	case clockMsg:
+		if m.running {
+			m.spin++ // 转圈只在任务运行时有意义
+		}
 		return m, m.wait() // 这条消息占用了等待，必须重新排上，否则后续事件没人收
 	case tea.BlurMsg:
 		if m.seenFocus {

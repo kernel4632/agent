@@ -219,15 +219,15 @@ func (m *model) statsText() string {
 	report := m.usageReport()
 	limit := m.contextLimit()
 	var b strings.Builder
-	b.WriteString("用量\n")
+	b.WriteString(accent.Render("用量") + "\n")
 	modelName := strings.Trim(m.session.Provider+"/"+m.session.Model, "/")
 	if modelName != "" {
-		b.WriteString(modelName + "\n")
+		b.WriteString(gold.Render(modelName) + "\n")
 	}
 	if report.contextApprox || report.usageApprox {
-		b.WriteString("缺少请求记录的部分按字数估算，标了「估算」。\n")
+		b.WriteString(dim.Render("缺少请求记录的部分按字数估算，标了「估算」。") + "\n")
 	}
-	b.WriteString("\n上下文\n")
+	b.WriteString("\n" + accent.Render("上下文") + "\n")
 	used := report.contextUsed
 	if limit > 0 && used > 0 {
 		percent := used * 100 / limit
@@ -238,16 +238,16 @@ func (m *model) statsText() string {
 		if report.contextApprox {
 			label = "~" + label
 		}
-		b.WriteString("  " + label + "\n")
-		b.WriteString("  " + meter(percent, 24) + "\n")
+		b.WriteString("  " + contextBar(percent).Render(label) + "\n")
+		b.WriteString("  " + contextBar(percent).Render(meter(percent, 24)) + "\n")
 	}
 	b.WriteString("  " + formatTokens(used))
 	if limit > 0 {
 		b.WriteString(" / " + formatTokens(limit))
 		if used > limit {
-			b.WriteString("    超出 " + formatTokens(used-limit))
+			b.WriteString("    " + errText.Render("超出 "+formatTokens(used-limit)))
 		} else {
-			b.WriteString("    剩余 " + formatTokens(limit-used))
+			b.WriteString("    " + dim.Render("剩余 "+formatTokens(limit-used)))
 		}
 	}
 	b.WriteByte('\n')
@@ -255,7 +255,7 @@ func (m *model) statsText() string {
 		b.WriteString("  自动压缩 " + itoa(int(m.config.Compact.Threshold*100)) + "%\n")
 	}
 
-	b.WriteString("\nToken\n")
+	b.WriteString("\n" + accent.Render("Token") + "\n")
 	if report.total == 0 && report.input+report.output == 0 {
 		b.WriteString("  这个会话还没有可统计的用量。\n")
 	} else {
@@ -287,14 +287,14 @@ func (m *model) statsText() string {
 	}
 
 	if sum := report.userTokens + report.thinkTokens + report.replyTokens + report.tool; sum > 0 {
-		b.WriteString("\n构成  估算\n")
+		b.WriteString("\n" + accent.Render("构成") + dim.Render("  估算") + "\n")
 		b.WriteString("  你的消息 " + formatTokens(report.userTokens) + "\n")
 		b.WriteString("  思考 " + formatTokens(report.thinkTokens) + "\n")
 		b.WriteString("  回复 " + formatTokens(report.replyTokens) + "\n")
 		b.WriteString("  工具 " + formatTokens(report.tool) + "\n")
 	}
 
-	b.WriteString("\n速度\n")
+	b.WriteString("\n" + accent.Render("速度") + "\n")
 	if live := m.speedText(); m.running && live != "" {
 		b.WriteString("  正在生成  " + live + "\n")
 	}
@@ -304,7 +304,7 @@ func (m *model) statsText() string {
 			b.WriteString("  还没有足够的请求耗时。\n")
 		}
 	} else {
-		b.WriteString("  模型                    首字      速度\n")
+		b.WriteString(dim.Render("  模型                    首字      速度") + "\n")
 		shown := groups
 		if len(shown) > 5 {
 			shown = shown[:5]
