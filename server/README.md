@@ -299,10 +299,16 @@ bun start
 
 ## 接口
 
-接口清单和字段说明在 [docs/API.md](../docs/API.md)，那里也写着改动后怎么重新生成文档。
+接口的唯一来源是 `openapi.json`，它由 `api.js`（每个接口的说明）和 `server.js`（实际注册的路由）生成：
 
-`openapi.json` 是生成产物，不是手写的：`api.js` 里有每个接口的说明，路由本身来自 `server.js`。
-生成时会逐条对账，少写、多写、缺字段都直接报错，所以文档不会和代码脱钩。
+```bash
+cd server
+bun run openapi          # 生成 openapi.json
+bun run openapi:check    # 只检查是否过期
+```
+
+生成时逐条对账：少了说明、多了幽灵路由、缺 summary / operationId / responses，都直接报错退出。
+版本号只从 `package.json` 取。不存在第二份手写的接口清单——两份必然漂移。
 
 ## 部署注意事项
 

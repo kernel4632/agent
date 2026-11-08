@@ -141,7 +141,7 @@ describe('项目结构', () => {
 })
 
 describe('SSE 事件', () => {
-    test('后端自己发的每个事件类型都在对接文档里写着', async () => {
+    test('后端自己发的每个事件类型都写进了接口文档的说明', async () => {
         const sources = ['commands/chat.js', 'features/approval.js', 'features/mcp.js', 'features/history.js']
         const sent = new Set()
         for (const name of sources) {
@@ -149,8 +149,10 @@ describe('SSE 事件', () => {
             for (const [, type] of code.matchAll(/data: \{ type: '([a-z][a-z-]+)'/g)) sent.add(type)
         }
 
-        // 事件表住在 docs/API.md（README 只写不随代码变动的内容）。
-        const documented = await Bun.file(fileURLToPath(new URL('../../docs/API.md', import.meta.url))).text()
-        expect([...sent].filter(type => !documented.includes(type))).toEqual([])
+        // 事件清单只存在于一处：api.js 里 /sse/connect 的 description。
+        // 不再维护第二份手写事件表——两份表格必然漂移。
+        const { paths } = await import('../api.js')
+        const description = paths['/sse/connect/{sessionId}'].get.description
+        expect([...sent].filter(type => !description.includes(type))).toEqual([])
     })
 })
