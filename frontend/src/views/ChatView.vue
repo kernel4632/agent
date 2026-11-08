@@ -3,7 +3,7 @@
 临时面板状态在这里；发送、附件、会话设置和回退分别调用 commands。
 -->
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
 import ConnectionError from '../components/feedback/ConnectionError.vue'
@@ -43,6 +43,7 @@ const draft = computed({
   set: value => { if (props.session) props.session.draft = value; else homeDraft.value = value },
 })
 const files = computed(() => props.session?.files || props.files)
+const queued = computed(() => props.session ? (store.ui.queued[props.session.id] || []) : [])
 const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
 const resumable = computed(() => canContinueSession(props.session))
 const stats = computed(() => props.session ? sessionStats(props.session) : null)
@@ -72,10 +73,21 @@ async function submit(content) {
   if (props.busy) return
   if (!props.session) { emit('submit', content); return }
   const id = props.session.id
+  // 运行中不丢消息：先把文字和附件收进本地队列，等这一轮空闲再发。
+  if (props.session.status === 'running' || (store.ui.queued[id] || []).length || props.session.stopping) {
+    const item = Chat.enqueue(id, content)
+    if (item && draft.value === content) draft.value = ''
+    return
+  }
   if (await Chat.send(id, content) && props.session?.id === id && draft.value === content) {
     draft.value = ''
     timeline.value?.jumpToBottom()
   }
+}
+function withdrawQueued(queuedID) {
+  if (!props.session) return
+  Chat.withdrawQueued(props.session.id, queuedID)
+  nextTick(() => composer.value?.focus())
 }
 function attach(files, options) {
   if (props.session) void Chat.attach(props.session.id, files, options)
@@ -121,8 +133,8 @@ function chooseReasoning(reasoning) {
               <div class="reconnect-card"><span class="ui-spinner ui-spinner--large" aria-hidden="true"><span class="ui-spinner__ring"></span></span><strong>正在重新连接</strong></div>
             </div>
           </Transition>
-          <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files" :draft-workspace="store.ui.draftCwd"
-            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
+          <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files" :queued="queued" :draft-workspace="store.ui.draftCwd"
+            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @withdraw="withdrawQueued" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
         </div>
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>
