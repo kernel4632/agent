@@ -6,6 +6,7 @@
  */
 
 import { store } from '../store.js' // 压缩阈值来自当前全局配置
+import { MAX_TOKENS } from '../utils/usage.js' // 单次请求的 token 上限，和用量整理共用一份
 
 // 中文、日文、韩文大约 1.5 个字符一个 token；英文和代码大约 3.6 个字符一个 token。
 // 这是粗略换算，只用于旧会话，界面上必须带“估算”标记。
@@ -211,7 +212,12 @@ export function sessionStats(session) {
   if (!session) return null
   const messages = session.messages || []
   const { requests, last } = requestSummary(session, messages)
-  const sum = key => requests.reduce((total, item) => total + Number(item[key] || 0), 0)
+  // 历史里可能已经存着旧版本的脏值（供应商发过 9 位数）；求和时再兜一次，
+  // 宁可少算一笔，也不能让总计显示成 908.7M。
+  const sum = key => requests.reduce((total, item) => {
+    const value = Number(item[key])
+    return total + (Number.isFinite(value) && value >= 0 && value <= MAX_TOKENS ? value : 0)
+  }, 0)
   // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
   const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
@@ -226,7 +232,12 @@ export function sessionStats(session) {
   }
   const input = sum('input')
   const output = sum('output')
-  const total = requests.reduce((value, item) => value + Number(item.total || 0), 0) || input + output
+  // total 也要走同一道校验：旧写法直接 Number 相加，脏值会原样进总量。
+  const total = requests.reduce((value, item) => {
+    const reported = Number(item.total)
+    const safe = Number.isFinite(reported) && reported >= 0 && reported <= MAX_TOKENS ? reported : 0
+    return value + safe
+  }, 0) || input + output
   const limit = Number(session.contextLimit || 0)
   const exactUsed = Number(last?.input || session.contextTokens || 0)
   // 只有缺少真实用量时才遍历消息做估算，正常会话加载不必多算一遍。
@@ -260,26 +271,36 @@ export function sessionStats(session) {
       const model = item.model || currentModel
       const key = `${provider}\u0000${model}`
       const group = groups.get(key) || {
-        provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, firstTokenMs: 0, firstTokenCount: 0,
-        latest: null,
+        provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, generationMs: 0, firstTokenMs: 0, firstTokenCount: 0,
+        lastFirstTokenMs: 0, lastTps: 0, latest: null,
       }
       group.count += 1
       group.output += Number(item.output || 0)
       const duration = Number(item.durationMs || 0)
+      const firstToken = Number(item.firstTokenMs || 0)
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
+        // 平均速度也只看生成阶段，和最后一次 tok/s 使用同一分母。
+        group.generationMs += duration > firstToken ? duration - firstToken : duration
       }
-      const firstToken = Number(item.firstTokenMs || 0)
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
         group.firstTokenCount += 1
+        // 首字时间按字段独立保留；新请求没带这个字段时不能把旧值清成 0。
+        group.lastFirstTokenMs = firstToken
       }
-      group.latest = {
-        firstTokenMs: firstToken,
-        durationMs: duration,
-        tps: requestTps(item),
-        at: Number(item.finishedAt || item.startedAt || 0),
+      const tps = requestTps(item)
+      if (tps > 0) group.lastTps = tps
+      // 正在请求中的这一笔还没有首字/耗时，不能覆盖该模型上一次的测量值；
+      // 实时行的数据由 StatsPanel 单独从 live 补齐。
+      if (item.status !== 'running' || duration > 0 || firstToken > 0) {
+        group.latest = {
+          firstTokenMs: firstToken,
+          durationMs: duration,
+          tps,
+          at: Number(item.finishedAt || item.startedAt || 0),
+        }
       }
       groups.set(key, group)
     }
@@ -289,13 +310,17 @@ export function sessionStats(session) {
       count: group.count,
       averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
       averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
-      averageTps: group.durationMs ? group.output / (group.durationMs / 1000) : 0,
-      lastFirstTokenMs: group.latest?.firstTokenMs || 0,
+      averageTps: group.generationMs ? group.output / (group.generationMs / 1000) : 0,
+      lastFirstTokenMs: group.latest?.firstTokenMs || group.lastFirstTokenMs || 0,
       lastDurationMs: group.latest?.durationMs || 0,
-      lastTps: group.latest?.tps || 0,
+      lastTps: group.latest?.tps || group.lastTps || 0,
       lastAt: group.latest?.at || 0,
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
+  const models = modelGroups()
+  // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
+  const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
+  const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
   return {
     approximate: usedApproximate || usageApproximate,
     context: {
@@ -324,10 +349,13 @@ export function sessionStats(session) {
       running: Boolean(liveAssistant),
       output: liveOutput,
       firstTokenAt: liveFirstTokenAt,
-      tps: last ? requestTps(last) : 0,
+      startedAt: Number(liveRequest?.startedAt || liveAssistant?.startedAt || 0),
+      provider: liveRequest?.provider || currentProvider,
+      model: liveRequest?.model || currentModel,
+      tps: lastTps,
     },
     // 内容构成只在统计面板真正读取时才算；流式正文不经过这里。
     get composition() { return contentComposition(messages) },
-    models: modelGroups(),
+    models,
   }
 }

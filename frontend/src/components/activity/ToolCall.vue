@@ -8,7 +8,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
-import { Chat } from '../../commands/chat.js'
+import Fold from '../../ui/Fold.vue'
+import { Approval } from '../../features/approval.js'
 import ToolResult from './ToolResult.vue'
 import { fillTemplate, toolIcon, toolTitle, uiFor } from "../../utils/tool.js"
 
@@ -17,6 +18,10 @@ defineOptions({ name: 'ToolCall' })
 const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
+  instant: Boolean,
+  streamKey: { type: Number, default: 0 },
+  active: Boolean,
+  toolIndex: { type: Number, default: 0 },
 })
 const now = ref(Date.now())
 // null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
@@ -61,9 +66,72 @@ const duration = computed(() => {
   return seconds > 0 ? `${seconds}s` : ''
 })
 // 高速执行时不跟着状态把结果框打开再关上。出错或被拒绝才自动展开；其余只听用户的点击。
-const bodyOpen = computed(() => preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected'))
+// 参数流式生成和工具执行中自动展开，让读者能实时看到正在写入/执行的内容；
+// 这一轮结束后恢复折叠，之后由用户自己决定要不要再看结果。
+const wantsAuto = computed(() => Boolean(props.active && (props.tool.assembling || props.tool.status === 'running')))
+// 同一时间只展开最新的工具。新工具要等上一个工具的高度收起，
+// 避免两个 Fold 同时运动；第一个工具直接展开。
+const SETTLE_MS = 650
+const openReady = ref(false)
+let openTimer = null
+// 工具完成先保留展开结果；等下一次模型请求真正开始、流里出现新内容时，
+// 再从当前高度慢速收起。工具刚开始时 Fold 也从 0 高度缓慢展开。
+const lingerOpen = ref(false)
+const autoOpen = computed(() => wantsAuto.value && openReady.value)
+const bodyOpen = computed(() => autoOpen.value || lingerOpen.value || (preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected')))
+function clearOpenTimer() {
+  if (openTimer) {
+    window.clearTimeout(openTimer)
+    openTimer = null
+  }
+}
+watch([() => props.active, () => props.tool.assembling, () => props.tool.status], () => {
+  clearOpenTimer()
+  if (!wantsAuto.value) {
+    openReady.value = false
+    return
+  }
+  if (openReady.value) return
+  if (!props.active || props.toolIndex === 0) {
+    openReady.value = true
+    return
+  }
+  openTimer = window.setTimeout(() => {
+    openReady.value = true
+    openTimer = null
+  }, SETTLE_MS)
+}, { immediate: true })
+watch(wantsAuto, (open, previous) => {
+  if (open) {
+    lingerOpen.value = false
+    return
+  }
+  if (!previous) return
+  if (props.instant) {
+    lingerOpen.value = false
+    return
+  }
+  lingerOpen.value = true
+})
+watch(() => props.active, active => {
+  if (active) return
+  // 下一个工具开始：上一个工具立即开始收起，给新工具让出高度。
+  clearOpenTimer()
+  openReady.value = false
+  lingerOpen.value = false
+})
+watch(() => props.instant, instant => {
+  if (instant) lingerOpen.value = false
+})
+// 下一次请求的第一段文字/思考到达时，这个值才增加；
+// 不能在 llm-start 时关闭，那时还没有真正流出内容。
+watch(() => props.streamKey, (key, previous) => {
+  if (key === previous || !lingerOpen.value) return
+  lingerOpen.value = false
+})
 
 function toggleBody() {
+  lingerOpen.value = false
   preference.value = !bodyOpen.value
 }
 
@@ -74,10 +142,11 @@ watch(running, value => {
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  clearOpenTimer()
 })
 
 function decide(decision) {
-  Chat.decide(props.sessionId, props.tool.id, decision)
+  Approval.decide(props.sessionId, props.tool.id, decision)
 }
 </script>
 
@@ -93,10 +162,10 @@ function decide(decision) {
         @click="toggleBody"
       >
         <span class="cot-step__label" :class="{ 'is-live': running }">{{ title }}</span>
+        <span v-if="summary" class="cot-step__summary cot-step__summary--preview" :title="summary">{{ summary }}</span>
         <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
         <Icon name="down" :size="14" class="cot-step__caret" :class="{ 'is-open': bodyOpen }" aria-hidden="true" />
       </button>
-      <p v-if="summary" class="cot-step__summary cot-step__summary--preview" :title="summary">{{ summary }}</p>
       <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
         <p>需要你的许可。检查工具和参数后再决定。</p>
         <div>
@@ -105,9 +174,11 @@ function decide(decision) {
           <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
         </div>
       </div>
-      <div v-if="bodyOpen" :id="bodyId" class="cot-step__body">
-        <ToolResult :tool="tool" />
-      </div>
+      <Fold :open="bodyOpen" :instant="instant" slow appear :fade="false">
+        <div :id="bodyId" class="cot-step__body">
+          <ToolResult :tool="tool" />
+        </div>
+      </Fold>
       <div v-if="tool.subagentSteps?.length" class="subagent-branch">
         <div class="subagent-branch__head">
           <Icon name="branch" :size="14" />

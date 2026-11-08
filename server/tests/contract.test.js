@@ -78,7 +78,7 @@ describe('接口契约', () => {
     test('前端的结束工具名单和服务端一致', async () => {
         const [control, stopTools] = await Promise.all([
             source('tools/control.js'),
-            source('../frontend/src/features/session.js'),   // 前端拆分后结束工具名单住在 features/session.js
+            source('../frontend/src/features/turns.js'),      // 结束工具名单住在 features/turns.js
         ])
         const serverStops = [...control.matchAll(/name: '([^']+)'/g)].map(match => match[1]).sort()
         const stopBlock = stopTools.slice(stopTools.indexOf('STOP_TOOLS = new Set(['), stopTools.indexOf('])', stopTools.indexOf('STOP_TOOLS = new Set([')))
@@ -128,8 +128,7 @@ describe('项目结构', () => {
 
     test('工具目录只有按类别分组的文件', async () => {
         const files = (await readdir(fileURLToPath(new URL('../tools/', import.meta.url)))).filter(name => name.endsWith('.js')).sort()
-        // subagent.js 还在目录里，但不再装配成工具（正式版再引入），所以目录文件名单里仍包含它。
-        expect(files).toEqual(['background.js', 'control.js', 'file.js', 'history.js', 'shell.js', 'skill.js', 'subagent.js', 'todo.js', 'web.js'])
+        expect(files).toEqual(['background.js', 'control.js', 'file.js', 'history.js', 'shell.js', 'skill.js', 'todo.js', 'web.js'])
     })
 
     test('每个工具文件里的工具都声明了名称、类别、说明和参数', async () => {
@@ -154,7 +153,7 @@ describe('项目结构', () => {
 
 describe('SSE 事件', () => {
     test('后端自己发的每个事件类型都在对接文档里写着', async () => {
-        const sources = ['commands/chat.js', 'features/approval.js', 'features/mcp.js', 'tools/subagent.js']
+        const sources = ['commands/chat.js', 'features/approval.js', 'features/mcp.js', 'features/history.js']
         const sent = new Set()
         for (const name of sources) {
             const code = await source(name)

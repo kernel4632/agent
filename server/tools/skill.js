@@ -14,29 +14,29 @@
  *
  * 正文可能几千字，全塞进上下文会把每个会话都撑满，所以模型平时只看到清单，
  * 真要用了再调用 skill 工具读正文。
+ * 技能清单的扫描在 features/skills.js；本文件不 import features，
+ * 能力由 tool.js 装配时从参数传入（见 input.skills）。
  * 调用示例：
- *   const available = await Skill.list({ cwd: 'D:/notes' })
- *   const tool = await Skill.build({ cwd: 'D:/notes' })   // 没有技能时是 null
+ *   const available = await Skill.list({ cwd: 'D:/notes', skills: Skills })
+ *   const tool = await Skill.build({ cwd: 'D:/notes', skills: Skills })   // 没有技能时是 null
  */
 
-import Skills from '../features/skills.js'
-
 // --- 列出当前生效的技能；被用户禁用的不交给模型 ---
-const list = async ({ cwd = process.cwd() } = {}) => {
-    const { skills } = await Skills.list({ cwd, includeDisabled: false })
-    return skills
+const list = async ({ cwd = process.cwd(), skills }) => {
+    const { skills: available } = await skills.list({ cwd, includeDisabled: false })
+    return available
 }
 
 // --- 读一个技能的正文 ---
-const read = async ({ name, cwd = process.cwd() } = {}) => {
-    const skill = await Skills.read({ name, cwd, includeDisabled: false })
+const read = async ({ name, cwd = process.cwd(), skills }) => {
+    const skill = await skills.read({ name, cwd, includeDisabled: false })
     if (!skill) throw new Error(`Skill not found: ${name}`)
     return skill.body
 }
 
 // --- 造出给模型用的 skill 工具；一个技能都没有时返回 null ---
-const build = async ({ cwd = process.cwd() } = {}) => {
-    const available = await list({ cwd })
+const build = async ({ cwd = process.cwd(), skills }) => {
+    const available = await list({ cwd, skills })
     if (!available.length) return null
 
     const catalogue = available.map(item => `- ${item.name}: ${item.description}`).join('\n')
@@ -60,7 +60,7 @@ const build = async ({ cwd = process.cwd() } = {}) => {
             required: ['name'],
         },
         // 会话换目录后，绑定层会把新的 cwd 传进来，技能清单也跟着新目录走。
-        execute: ({ name }, options = {}) => read({ name, cwd: options.cwd || cwd }),
+        execute: ({ name }, options = {}) => read({ name, cwd: options.cwd || cwd, skills }),
     }
 }
 

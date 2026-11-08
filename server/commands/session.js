@@ -5,6 +5,12 @@
  * 消息回退由 features/rollback.js 负责；文件和预览由 tools/file.js 的快照能力负责，
  * 这一层只把两边按用户看到的顺序串起来。
  *
+ * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
+ *   Agent    会话装配与运行状态（create/invalidate/readSettings/resolve）
+ *   History  会话数据的唯一读写口（load/add/save/destroy）
+ *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
+ *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
+ *
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫', cwd: 'D:/notes' })
  *   const session = await Session.read({ sessionId })
@@ -25,7 +31,7 @@ import Tool from '../features/tool.js'
 import ToolTiming from '../features/tool-timing.js'
 import SSE from '../utils/sse.js'
 import Path from '../utils/path.js'
-import Scratch from '../utils/scratch.js'
+import TempWorkspace from '../utils/temp-workspace.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
 
@@ -74,7 +80,7 @@ const create = async ({ title, cwd, provider, model }) => {
     // 没有指定目录时用独立临时工作区，避免 agent 默认在项目代码旁边动手。
     const requested = typeof cwd === 'string' && cwd.trim() ? cwd : ''
     const temporary = !requested
-    const cwdPath = requested ? await folder(requested) : await Scratch.create()
+    const cwdPath = requested ? await folder(requested) : await TempWorkspace.create()
     let session
     try {
         session = await History.create({
@@ -87,7 +93,7 @@ const create = async ({ title, cwd, provider, model }) => {
         })
         await Agent.create({ sessionId: session.id })
     } catch (error) {
-        if (temporary) await Scratch.remove(cwdPath, true).catch(() => {})
+        if (temporary) await TempWorkspace.remove(cwdPath, true).catch(() => {})
         throw error
     }
     return { sessionId: session.id }
@@ -108,7 +114,7 @@ const fork = async ({ sessionId, title, messageId }) => {
 
     const clean = typeof title === 'string' && title.trim() ? title.trim() : `${source.title}（分支）`
     // 临时工作区不能和原会话共用：分支拿到自己的一份，删任何一边都不影响另一边。
-    const branchCwd = source.temporary ? await Scratch.clone(source.cwd) : source.cwd
+    const branchCwd = source.temporary ? await TempWorkspace.clone(source.cwd) : source.cwd
     let branch
     try {
         branch = await History.create({
@@ -120,7 +126,7 @@ const fork = async ({ sessionId, title, messageId }) => {
             settings: await Agent.readSettings(sessionId),
         })
     } catch (error) {
-        if (source.temporary) await Scratch.remove(branchCwd, true).catch(() => {})
+        if (source.temporary) await TempWorkspace.remove(branchCwd, true).catch(() => {})
         throw error
     }
     // 历史复制到新目录，消息重新编号，分支之后的操作不会影响原会话。
@@ -130,6 +136,7 @@ const fork = async ({ sessionId, title, messageId }) => {
     return { sessionId: branch.id }}
 
 // --- 读取一条会话 ---
+const HISTORY_PAGE = 200
 const read = async ({ sessionId }) => {
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
@@ -142,8 +149,7 @@ const read = async ({ sessionId }) => {
     } else {
         history = visible(History.get({ sessionId }))
         if (agent) agent.history = history
-        // 切换会话只读历史，不在此时装配 Agent。MCP 连接可能很慢，
-        // 不能把“打开会话”卡在外部工具连接上；首次发送消息时再按需装配。
+        // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
 
     return {
@@ -156,6 +162,8 @@ const read = async ({ sessionId }) => {
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
         history,
+        historyStart: 0,
+        historyTotal: history.length,
         todos: latestTodos(history),
         running,
         toolTimings: await ToolTiming.read(sessionId),
@@ -233,7 +241,7 @@ const setCwd = async ({ sessionId, cwd }) => {
     session.temporary = false
     session.updatedAt = Date.now()
     await History.save(sessionId)
-    if (wasTemporary && !Path.samePath(previous, session.cwd)) await Scratch.remove(previous, true).catch(() => {})
+    if (wasTemporary && !Path.samePath(previous, session.cwd)) await TempWorkspace.remove(previous, true).catch(() => {})
     return { id: session.id, cwd: session.cwd, temporary: false }
 }
 
@@ -247,7 +255,7 @@ const remove = async ({ sessionId }) => {
     await Tool.remove({ sessionId })
     await SSE.close({ id: sessionId })
     await History.destroy(sessionId)
-    if (session.temporary) await Scratch.remove(session.cwd, true).catch(error => console.error(`[session ${sessionId}] 清理临时工作区失败：${error.message}`))
+    if (session.temporary) await TempWorkspace.remove(session.cwd, true).catch(error => console.error(`[session ${sessionId}] 清理临时工作区失败：${error.message}`))
     await SessionGroups.removeSession(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
     ToolTiming.forget(sessionId)
     return { ok: true }
@@ -353,11 +361,18 @@ const redo = async ({ sessionId, files = true }) => {
 // --- 统计会话数量 ---
 const count = () => History.count()
 
+// --- 历史分页与全会话大纲：前端只加载视口附近的历史 ---
+const historyPage = ({ sessionId, before, beforeOffset, limit }) => beforeOffset === undefined
+    ? History.page({ sessionId, before, limit })
+    : History.pageByOffset({ sessionId, beforeOffset, limit })
+const historyOutline = ({ sessionId }) => History.outline(sessionId)
+
 // --- 统计正在运行的任务 ---
 const runningCount = () => Agent.runningCount()
 
 export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
+    historyPage, historyOutline,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
     count, runningCount,

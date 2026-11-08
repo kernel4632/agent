@@ -1,7 +1,7 @@
 /*
  * 历史消息查询工具：上下文压缩后把"当时确认过的细节"翻回来。
  *
- * 数据就是会话自己的 history.json，不建第二份存储。
+ * 数据就是会话自己的 JSONL 历史，不建第二份存储。
  * 运行：cd server && bun test tests/history-tool.test.js
  */
 import { afterAll, describe, expect, test } from 'bun:test'
@@ -12,7 +12,7 @@ import History from '../features/history.js'
 import Path from '../utils/path.js'
 import search from '../tools/history.js'
 
-// 直接写 history.json 到一个临时数据目录，不经过会话流程（工具只读这份文件）。
+// 直接写旧版 history.json 到一个临时数据目录，工具仍要能读旧会话。
 // afterAll 统一清掉：写进仓库目录又忘删的测试目录曾经积累过 15 个。
 const homes = []
 const writeHistory = async (sessionId, messages) => {

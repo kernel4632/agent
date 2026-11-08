@@ -6,6 +6,12 @@
     opacity calc(var(--la-motion-enter) * 0.72) ease;
 }
 .fold__inner { min-height: 0; }
+/* 外层正在做完成折叠时，内层高度直接落到目标值，避免几层 Fold 同时动画来回抽动。 */
+.fold.is-instant { transition: none; }
+/* 工具完成后先停留一会儿，再用更慢的速度收起，避免内容刚出现就被高度变化打断。 */
+.fold.is-slow { transition-duration: calc(var(--la-motion-enter) * 1.8), calc(var(--la-motion-enter) * 1.2); }
+/* 工具块只做高度折叠，内容保持完全不透明，折叠结束再随 v-if 卸载。 */
+.fold.is-no-fade { transition-property: height; }
 @media (prefers-reduced-motion: reduce) {
   .fold { transition: none; }
 }

@@ -174,6 +174,22 @@ const pending = sessionId => [...approvals.entries()]
     .filter(([, approval]) => approval.sessionId === sessionId)
     .map(([key, approval]) => ({ callID: key.slice(sessionId.length + 1), tool: approval.toolName, input: approval.input }))
 
+// --- 配置变了就重问：按新规则重新评估还挂着的审批 ---
+// 用户先遇到弹窗、再去设置页开“全部批准”，回来时任务还卡在原来那个弹窗上——
+// 挂起的审批必须跟新配置走，否则自动批准永远救不回已经挂住的任务。
+const recheck = () => {
+    const rules = effectiveRules()
+    for (const [key, approval] of approvals) {
+        const decision = decideByRules(approval.toolName, approval.matchValue, rules)
+        if (decision === 'ask') continue
+        approvals.delete(key)
+        if (decision === 'deny') {
+            SSE.send({ id: approval.sessionId, data: { type: 'permission-blocked', callID: approval.toolCallId, tool: approval.toolName, input: approval.input, reason: '被权限规则拒绝' } })
+        }
+        approval.resolve(decision !== 'deny')
+    }
+}
+
 // --- 接收用户在界面上做的决定 ---
 const decide = async ({ sessionId, toolCallId, decision }) => {
     const approval = approvals.get(`${sessionId}:${toolCallId}`)
@@ -198,4 +214,4 @@ const remove = sessionId => {
     }
 }
 
-export default { check, decide, pending, remove, bind }
+export default { check, decide, pending, recheck, remove, bind }

@@ -30,6 +30,8 @@ function applyTheme(appearance, scheme) {
   root.style.setProperty('--la-density-gap', `${(appearance.density ?? 0) * 4}px`)          // 密度：每档 4px 间距增量
   root.style.setProperty('--la-motion-enter', `${Math.round(200 * (MOTION_SCALE[appearance.motion] ?? 1))}ms`) // 动效时长
   root.style.setProperty('--la-motion-exit', `${Math.round(150 * (MOTION_SCALE[appearance.motion] ?? 1))}ms`)
+  // 主题烧进图形类内容（如 mermaid 的 SVG）里，切换后这些内容要自己重画；广播一次让关心方知道。
+  window.dispatchEvent(new CustomEvent('agent-theme'))
 }
 
 

@@ -304,6 +304,37 @@ describe('权限规则的拒绝动作', () => {
 })
 
 describe('允许规则直接放行', () => {
+    test('配置改成全部批准后，挂着的审批自动放行', async () => {
+        await withHome(async () => {
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
+            const { sessionId } = await Session.create({ title: 'Recheck on config change' })
+
+            // 先让一条调用挂进弹窗，再模拟用户去设置页开全部批准。
+            const waiting = Approval.check({ sessionId, toolCallId: 'stuck-1', toolName: 'read_file', input: { path: 'a.txt' } })
+            await Bun.sleep(0)
+            expect(Approval.pending(sessionId)).toHaveLength(1)
+
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
+            expect(await waiting).toBe(true)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
+    test('配置改成拒绝后，挂着的审批直接拒绝', async () => {
+        await withHome(async () => {
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
+            const { sessionId } = await Session.create({ title: 'Recheck deny' })
+
+            const waiting = Approval.check({ sessionId, toolCallId: 'stuck-2', toolName: 'read_file', input: { path: 'a.txt' } })
+            await Bun.sleep(0)
+            expect(Approval.pending(sessionId)).toHaveLength(1)
+
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { read_file: 'deny' } })
+            expect(await waiting).toBe(false)
+            expect(Approval.pending(sessionId)).toEqual([])
+        })
+    })
+
     test('同一个调用连续出现也不再询问', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })

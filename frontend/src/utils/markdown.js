@@ -13,7 +13,7 @@ const markdown = new Marked(                             // 创建对话专用�
   markedHighlight({
     langPrefix: 'hljs language-',                        // 输出语言类供样式和 Mermaid 生命周期识别
     highlight(code, language) {
-      if (language === 'mermaid') return escapeHTML(code) // Mermaid 源码安全编码后留给完成消息渲染
+      if (language === 'mermaid') return escapeHTML(code) // Mermaid 源码原样留给静态预览；正式回复里由 CodeBlock 动态渲染成图
       if (language && hljs.getLanguage(language)) return hljs.highlight(code, { language, ignoreIllegals: true }).value // 已知语言使用精确语法
       return hljs.highlightAuto(code).value              // 未声明语言时使用安全自动检测
     },

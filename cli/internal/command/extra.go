@@ -1,3 +1,14 @@
+/*
+额外命令：把服务器已经提供、但 CLI 还没露出的接口接上命令行。
+包括用量统计、改动列表、回退、MCP / 技能 / 工具目录、目录浏览和会话压缩。
+这些命令只做“取参数 → 请求 → 渲染”，业务判断都在服务器；
+渲染细节在 internal/render，不写在这里。
+
+调用示例：
+  agent usage SESSION_ID
+  agent changes SESSION_ID --json
+  agent tools
+*/
 package command
 
 import (

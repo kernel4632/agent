@@ -24,12 +24,10 @@ import { join } from 'node:path'
 import Agent from '@kernel4632/agent-core'
 import store, { TOOL_KINDS } from '../store.js'
 import Path from '../utils/path.js'
-// 子智能体功能暂时下架：正式版再引入。文件保留、测试保留，只在这里不再装配。
-// import Delegation from '../tools/subagent.js'
 import Skill from '../tools/skill.js'
 import * as File from '../tools/file.js'
 
-// MCP 由命令层在启动时绑定；本文件不 import 别的 feature。
+// MCP 和技能由命令层在启动时绑定；本文件不 import 别的 feature。
 let services = {}
 const bind = value => { services = value }
 
@@ -83,7 +81,6 @@ const permissionOf = name => {
 // --- 给设置页列出全部工具 ---
 const list = async () => {
     const { tools } = await scan()
-    // new_task 暂不进入清单：子智能体正式版再加回来（tools/subagent.js 和测试都在）。
     const extra = new Map([
         ['skill', { name: 'skill', kind: 'read', ui: { view: 'skill', icon: 'book', title: '读取技能', summary: '{name}' } }],
     ])
@@ -115,7 +112,6 @@ const ready = async () => {
 // --- 这个工具属于哪一类；MCP 工具按配置里的服务名前缀认 ---
 const kindOf = ({ toolName, mcpServers = [] }) => {
     if (mcpServers.some(name => toolName.startsWith(`${name}_`))) return 'mcp'
-    // new_task 属于子任务类，恢复子智能体时这里的判断要一起回来。
     if (toolName === 'skill') return 'read'
     return current.tools.get(toolName)?.kind || 'other'
 }
@@ -133,7 +129,7 @@ const attach = (tool, sessionId, { saveSession }) => ({
 
 // --- 组装一条会话的工具表：主 Agent 使用全部工具 ---
 // 外部 MCP 工具按配置版本租用；Agent 销毁时释放租约，最后一个 Agent 释放后才关连接。
-const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
+const build = async ({ sessionId, onPermission, saveSession }) => {
     const session = store.sessions[sessionId]                       // 本次装配对应的会话
     const lease = await services.mcp.acquire({ sessionId })
     try {
@@ -145,21 +141,13 @@ const build = async ({ sessionId, taskConfig, onPermission, saveSession }) => {
             catalog.set(name, { ...tool, name, kind: 'mcp' })
         }
 
-        // 技能不把正文塞进工具表，只给一个按需读正文的工具。
-        const skill = await Skill.build({ cwd: session.cwd })       // 技能正文留在磁盘上，用时才读
+        // 技能不把正文塞进工具表，只给一个按需读正文的工具；
+        // 技能清单的扫描能力（features/skills）由启动装配注入。
+        const skill = await Skill.build({ cwd: session.cwd, skills: services.skills })  // 技能正文留在磁盘上，用时才读
         if (skill) catalog.set(skill.name, skill)
 
         const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
-        let set = Agent.tool.adopt(bound)                           // 转成 agent-core 认识的工具表
-
-        // 子智能体暂时下架（正式版再引入）：恢复时取消这段注释，并把 import Delegation 一起恢复。
-        // const task = Delegation.build({
-        //     config: taskConfig,
-        //     tools: set,
-        //     sessionId,
-        //     onPermission,
-        // })
-        // set = Agent.tool.merge(set, Agent.tool.adopt({ new_task: task }))
+        const set = Agent.tool.adopt(bound)                         // 转成 agent-core 认识的工具表
         return { tools: set, mcpRevision: lease.revision, release: lease.release }
     } catch (error) {
         lease.release()

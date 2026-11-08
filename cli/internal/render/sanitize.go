@@ -1,3 +1,10 @@
+/*
+终端转义清洗：把服务器返回的内容里认不出的控制序列和隐藏字符去掉，
+只保留 SGR 颜色，免得模型输出把终端搅乱。
+
+调用示例：
+  safe := render.Sanitize(rawOutput)
+*/
 package render
 
 import (

@@ -1,3 +1,10 @@
+/*
+差异呈现：把前后两段文本算成 unified diff 并着色，长内容只给摘要。
+
+调用示例：
+  if render.LooksLikeDiff(output) { print(render.Paint(output)) }
+  text, added, removed := render.Unified(before, after)
+*/
 package render
 
 import (

@@ -50,7 +50,7 @@ test('real request usage wins over estimation', () => {
     count: 1,
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
-    averageTps: 25,
+    averageTps: 100 / 3,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
     lastTps: 100 / 3,
@@ -128,9 +128,9 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
   const stats = sessionStats(session)
   assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
-  assert.equal(stats.models[0].averageTps, 2.5)
+  assert.equal(stats.models[0].averageTps, 10 / 3.1)
   assert.equal(stats.models[0].averageDurationMs, 4000)
-  assert.equal(stats.models[1].averageTps, 10)
+  assert.equal(stats.models[1].averageTps, 10 / 0.7)
 })
 
 
@@ -149,6 +149,21 @@ test('speed groups keep the latest request alongside averages', () => {
   assert.equal(stats.models[0].lastFirstTokenMs, 400)
   assert.equal(stats.models[0].lastDurationMs, 2000)
   assert.equal(stats.models[0].lastTps, 12.5)
+})
+
+
+test('speed groups keep the last measured first token when the newest request omits it', () => {
+  const measured = { input: 10, output: 10, total: 20, firstTokenMs: 7800, durationMs: 8000, provider: 'Provider A', model: 'fast-model' }
+  const incomplete = { input: 20, output: 20, total: 40, firstTokenMs: 0, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 20,
+    messages: [user('切换模型'), assistant('继续', { requests: [measured, incomplete], request: incomplete })],
+  }
+
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastFirstTokenMs, 7800)
+  assert.equal(stats.models[0].lastTps, 10)
 })
 
 
@@ -238,4 +253,38 @@ test('an empty session has no stats even when the model limit is known', () => {
   assert.equal(sessionStats(null), null)
   assert.equal(sessionStats({ messages: [] }), null)
   assert.equal(sessionStats({ messages: [], contextLimit: 128000 }), null)
+})
+
+// 供应商发来的脏用量不能污染统计：面板曾显示成 908.7M tokens。
+test('dirty token counts are dropped instead of summed', () => {
+  const dirty = { input: 908_700_000, output: 0, total: 908_700_000, provider: 'p', model: 'm' }
+  const good = { input: 30, output: 20, total: 50, provider: 'p', model: 'm' }
+  const session = {
+    contextLimit: 128000,
+    contextTokens: 30,
+    messages: [user('问题'), assistant('回答', { requests: [dirty, good], request: good })],
+  }
+
+  const stats = sessionStats(session)
+  // 脏值当 0，只剩那笔正常请求；不能把 9 位数累加进来
+  assert.equal(stats.usage.input, 30)
+  assert.equal(stats.usage.output, 20)
+  assert.equal(stats.usage.total, 50)
+  assert.ok(stats.usage.total < 1_000_000)
+})
+
+// 负数同样不该让总量变负（旧实现直接 Number 相加）。
+test('negative token counts do not make the total negative', () => {
+  const negative = { input: -500, output: -100, total: -600, provider: 'p', model: 'm' }
+  const good = { input: 40, output: 10, total: 50, provider: 'p', model: 'm' }
+  const session = {
+    contextLimit: 128000,
+    contextTokens: 40,
+    messages: [user('问题'), assistant('回答', { requests: [negative, good], request: good })],
+  }
+
+  const stats = sessionStats(session)
+  assert.equal(stats.usage.input, 40)
+  assert.equal(stats.usage.output, 10)
+  assert.equal(stats.usage.total, 50)
 })

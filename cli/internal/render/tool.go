@@ -1,3 +1,10 @@
+/*
+工具行呈现：按工具声明的 UI 模板把参数淡化成一句摘要，并判断结果是好是坏。
+
+调用示例：
+  summary := render.Apply(ui.Summary, input)
+  label, kind := render.Outcome(output, running)
+*/
 package render
 
 import (

@@ -15,7 +15,6 @@ import Agent from '../features/agent.js'
 import Path from '../utils/path.js'
 import Approval from '../features/approval.js'
 import Settings from '../commands/settings.js'
-import Delegation from '../tools/subagent.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
 import store from '../store.js'
@@ -112,65 +111,6 @@ describe('会话运行设置', () => {
             expect(reloaded.reasoning).toBe('high')
         })
     })
-
-    // 下面两条子任务测试暂 skip：new_task 已从工具表下架，正式版恢复时一起回来。
-    test.skip('子任务上带了审批回调，而且回的是同一个会话', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            const calls = []
-            const original = AgentCore.create
-            AgentCore.create = options => { calls.push(options); return original(options) }
-            try {
-                const taskTool = Delegation.build({
-                    config: {},
-                    tools: Agent.runtime().get(sessionId).tools,
-                    sessionId,
-                    onPermission: Approval.check,   // 审批回到这条测试会话
-                })
-                await taskTool.execute({ description: '查一下', prompt: '查一下' }, {}).catch(() => {})
-            } finally {
-                AgentCore.create = original
-            }
-
-            const callbacks = calls[0]?.callbacks
-            expect(typeof callbacks?.onPermission).toBe('function')
-            // 子任务审批回到主会话：用户能在界面上看到并拒绝它。
-            const pending = Approval.check({ sessionId, toolCallId: 'sub-1', toolName: 'execute_command', input: { command: 'ls' } })
-            await Bun.sleep(0)
-            expect(Approval.pending(sessionId)).toHaveLength(1)
-            await Approval.decide({ sessionId, toolCallId: 'sub-1', decision: 'deny' })
-            expect(await pending).toBe(false)
-        })
-    })
-
-    test.skip('子任务返回自己的工具步骤，供主会话还原嵌套树', async () => {
-        await withHome(async () => {
-            const sessionId = await newSession()
-            const original = AgentCore.create
-            AgentCore.create = options => ({
-                stop() {},
-                async send() {
-                    options.callbacks.onToolCall({ toolCallId: 'sub-read-1', toolName: 'read_file', input: { path: 'a.txt' } })
-                    options.callbacks.onToolResult({ toolCallId: 'sub-read-1', output: { type: 'text', value: '内容' }, finishedAt: Date.now() })
-                    return { reason: 'completed', text: '结论' }
-                },
-            })
-            try {
-                const taskTool = Delegation.build({
-                    config: {}, tools: Agent.runtime().get(sessionId).tools, sessionId,
-                    onPermission: Approval.check,
-                })
-                const result = await taskTool.execute({ description: '查资料', prompt: '看看' }, {})
-                expect(result.conclusion).toBe('结论')
-                expect(result.steps).toHaveLength(1)
-                expect(result.steps[0].name).toBe('read_file')
-                expect(result.steps[0].output).toEqual({ type: 'text', value: '内容' })
-            } finally {
-                AgentCore.create = original
-            }
-        })
-    })
-
 })
 
 describe('哪件事用哪个模型', () => {
@@ -248,30 +188,6 @@ describe('哪件事用哪个模型', () => {
                 await Session.generateTitle({ sessionId })
             } finally {
                 Title.generate = original
-            }
-            expect(used.model).toBe('会话模型')
-        })
-    })
-
-    // 子智能体暂未装配（正式版再引入）：这条验证 taskConfig 传递的测试恢复时一起回来。
-    test.skip('没单独配子任务模型时，跟这条会话自己的模型走', async () => {
-        await withHome(async () => {
-            await Settings.set({
-                providers: [{ name: 'local', models: [{ id: '主模型', name: '主模型' }, { id: '会话模型', name: '会话模型' }] }],
-                models: { chat: { provider: 'local', model: '主模型' } },
-            })
-            const { sessionId } = await Session.create({ title: '子任务跟会话' })
-
-            const original = Delegation.build
-            let used
-            Delegation.build = options => {
-                used = options.config
-                return original(options)
-            }
-            try {
-                await Session.setModel({ sessionId, provider: 'local', model: '会话模型' })
-            } finally {
-                Delegation.build = original
             }
             expect(used.model).toBe('会话模型')
         })

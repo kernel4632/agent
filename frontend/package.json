@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.111.2",
+  "version": "0.112.31",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@vitejs/plugin-vue": "latest",
+    "pngjs": "^7.0.0",
     "sass": "latest",
     "vite": "latest"
   }

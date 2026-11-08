@@ -79,6 +79,7 @@ export async function backend(page, { configured = true } = {}) {
   const connections = new Map()
   const queued = new Map()
   const errors = []
+  const tuning = { historyDelay: 0 }
   const CONTINUE_TEXT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。' // 真实后端隐藏的内部提示
   page.on('pageerror', error => errors.push(error.message))
 
@@ -387,8 +388,48 @@ export async function backend(page, { configured = true } = {}) {
       }
       return json(session.settings)
     }
+    if (path.startsWith('/session/history/')) {
+      if (tuning.historyDelay) await new Promise(resolve => setTimeout(resolve, tuning.historyDelay))
+      const before = Number(new URL(request.url()).searchParams.get('before'))
+      const limit = Number(new URL(request.url()).searchParams.get('limit') || 200)
+      const end = Number.isInteger(before) && before > 0 ? Math.min(before, session.history.length) : session.history.length
+      const start = Math.max(0, end - Math.min(500, Math.max(1, limit || 200)))
+      return json({
+        messages: session.history.slice(start, end),
+        start,
+        end,
+        total: session.history.length,
+        hasMore: start > 0,
+      })
+    }
+    if (path.startsWith('/session/outline/')) {
+      const turns = []
+      let current = null
+      session.history.forEach((message, index) => {
+        if (message.compact) return
+        const text = Array.isArray(message.content)
+          ? message.content.filter(part => part.type === 'text').map(part => part.text || '').join(' ')
+          : String(message.content || '')
+        if (message.role === 'user') {
+          current = { id: message.messageId, index, role: 'user', prompt: text.slice(0, 120), response: '', length: text.length }
+          turns.push(current)
+        } else if (message.role === 'assistant') {
+          if (current && !current.response) {
+            current.response = text.slice(0, 240)
+            current.length = (current.length || 0) + text.length
+          } else if (!current) {
+            current = { id: message.messageId, index, role: 'assistant', prompt: '', response: text.slice(0, 240), length: text.length }
+            turns.push(current)
+          }
+        }
+      })
+      return json({ turns, totalMessages: session.history.length })
+    }
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。
-    if (path.startsWith('/session/read/')) return json({ ...session, history: session.history.filter(item => !item.internal) })
+    if (path.startsWith('/session/read/')) {
+      const visible = session.history.filter(item => !item.internal)
+      return json({ ...session, history: visible, historyStart: 0, historyTotal: visible.length })
+    }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
     if (path.startsWith('/session/rollback/preview/')) return json({ messages: 1, files: [] })
@@ -470,7 +511,7 @@ export async function backend(page, { configured = true } = {}) {
     }
     return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
-  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } } }
+  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } }, get delayHistory() { return tuning.historyDelay }, set delayHistory(value) { tuning.historyDelay = value } }
 }
 
 // 手机没有常驻主页，会话列表在左侧抽屉；桌面横向布局下抽屉常驻、菜单按钮隐藏。

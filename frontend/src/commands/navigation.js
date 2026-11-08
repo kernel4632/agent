@@ -82,10 +82,10 @@ async function retry() {
   }
 }
 
-/** 从新对话创建会话并显示；与侧栏打开使用同一个离页规则。 */
-async function createSession() {
+/** 从新对话创建会话并显示；与侧栏打开使用同一个离页规则。草稿预选的工作区一起交给后端。 */
+async function createSession(cwd = '') {
   if (!await leaveSettings()) return null
-  const session = await Session.create()
+  const session = await Session.create(cwd)
   if (!session) return null
   store.ui.activeSessionID = session.id
   store.ui.view = 'chat'

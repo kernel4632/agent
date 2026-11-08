@@ -506,7 +506,6 @@
 .stats-panel__speed-grid { width: auto; max-width: 100%; table-layout: auto; border-collapse: collapse; }
 .stats-panel__speed-grid td { padding: 8px 6px; border-top: 1px solid color-mix(in srgb, var(--la-line) 62%, transparent); vertical-align: baseline; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .stats-panel__speed-grid tbody tr:first-child td { border-top: 0; }
-.stats-panel__speed-row:hover td { background: color-mix(in srgb, var(--la-text) 3%, transparent); }
 .stats-panel__speed-model-cell { min-width: 0; max-width: 240px; overflow: hidden; padding-left: 2px !important; }
 .stats-panel__speed-model-path { display: flex; min-width: 0; max-width: 240px; align-items: baseline; gap: 2px; overflow: hidden; font-size: 11.5px; }
 .stats-panel__speed-model-path > span { overflow: hidden; max-width: 45%; color: var(--la-muted); text-overflow: ellipsis; }

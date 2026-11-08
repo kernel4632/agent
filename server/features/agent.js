@@ -8,6 +8,12 @@
  * 没配的那几项跟会话自己的模型走，压缩交给 core 用主连接。
  * 审批、工具、历史和上下文由命令层在启动时 bind；本文件不 import 任何 feature。
  *
+ * agent-core 的消费点目前有三处，各自只取需要的那块能力：
+ *   agent.js  create()          会话装配：历史 + 工具表 + 审批回调的完整循环
+ *   title.js  llm.chat()        一次性的单发请求（起标题），不走会话装配
+ *   tool.js   tool.adopt()      把本仓库的工具对象适配成 core 认识的工具表
+ * 新增 core 能力时先看这里能不能长出来，不要随手多一个直接消费点。
+ *
  * 调用示例：
  *   Agent.bind({ history, tool, approval, context })   // 命令层启动时注入
  *   const agent = await Agent.get({ sessionId })
@@ -96,9 +102,8 @@ const configured = target => {
 }
 
 // --- 某件事用哪个模型：先看 models 里那一项，再退到调用方给的连接（会话自己的模型），最后退到第一个可用模型 ---
+// 标题和压缩各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
 const taskModel = (task, fallback) => configured(store.config.models?.[task]) || configured(fallback) || defaultModel()
-
-// --- 配置里第一个能用的模型 ---
 const firstModel = () => {
     const provider = (store.config.providers || []).find(item => item.enabled !== false)
     const model = provider?.models?.[0]
@@ -290,8 +295,6 @@ const create = async ({ sessionId }) => {
     const config = await resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
     const built = await services.tool.build({
         sessionId,
-        // 子任务可以用 models.task 单独指定；没配就跟这条会话自己的模型走。
-        taskConfig: await resolveFor({ session, settings, target: taskModel('task', session.model) }),
         onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口
         saveSession: () => services.history.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
     })

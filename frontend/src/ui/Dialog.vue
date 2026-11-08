@@ -4,7 +4,7 @@ import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import Button from './Button.vue'
 import Icon from './Icon.vue'
 defineOptions({ inheritAttrs: false })
-const props = defineProps({ open: Boolean, label: String, description: String, placement: { type: String, default: 'center' }, width: [Number, String] })
+const props = defineProps({ open: Boolean, label: String, description: String, placement: { type: String, default: 'center' }, width: [Number, String], plain: Boolean })
 const emit = defineEmits(['update:open'])
 const dialog = ref(null)
 const closing = ref(false)
@@ -40,9 +40,9 @@ function keepFocus(event) {
 </script>
 <template>
   <Teleport to="body">
-    <dialog ref="dialog" v-bind="$attrs" class="ui-dialog" :class="[`ui-dialog--${placement}`, { 'is-closing': closing, 'app-sheet': placement === 'bottom' }]" :style="width ? { '--app-sheet-width': `${width}px` } : undefined" :aria-label="label || $attrs['aria-label']" :aria-describedby="description ? `${id}-description` : undefined" @cancel.prevent="dismiss" @keydown="keepFocus" @pointerdown="pointerOnBackdrop = $event.target === dialog" @click="pointerOnBackdrop && $event.target === dialog && dismiss()">
+    <dialog ref="dialog" v-bind="$attrs" class="ui-dialog" :class="[`ui-dialog--${placement}`, { 'is-closing': closing, 'app-sheet': placement === 'bottom', 'ui-dialog--plain': plain }]" :style="width ? { '--app-sheet-width': `${width}px` } : undefined" :aria-label="label || $attrs['aria-label']" :aria-describedby="description ? `${id}-description` : undefined" @cancel.prevent="dismiss" @keydown="keepFocus" @pointerdown="pointerOnBackdrop = $event.target === dialog" @click="pointerOnBackdrop && $event.target === dialog && dismiss()">
       <section class="ui-dialog__panel">
-        <header class="ui-dialog__header">
+        <header v-if="!plain" class="ui-dialog__header">
           <div class="ui-dialog__heading"><slot name="header"><h2 v-if="label">{{ label }}</h2></slot><p v-if="description" :id="`${id}-description`">{{ description }}</p></div>
           <Button icon label="关闭" variant="text" @click="dismiss"><Icon name="close" :size="20" /></Button>
         </header>

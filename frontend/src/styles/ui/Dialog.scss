@@ -25,6 +25,16 @@
 @keyframes ui-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 600px) { .ui-dialog--center { padding: 16px; } }
 
+/* plain 模式：无头、无内边距、满屏透明，内容自行铺满（如图表全屏查看）；
+   保留焦点圈定与 Esc 关闭，关闭入口由内容自带。 */
+.ui-dialog--plain { padding: 0; }
+.ui-dialog--plain .ui-dialog__panel { width: 100%; height: 100%; max-height: 100%; border-radius: 0; background: transparent; box-shadow: none; }
+.ui-dialog--plain .ui-dialog__body { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
+/* plain 层（如图表全屏）是“看内容”不是“确认操作”：只用模糊做毛玻璃，不叠任何底色。
+   叠底色是暗色主题下一片黑的主因：模糊已经把背景均成低对比，再加底色就只剩纯色。
+   要遮挡背景的是内容自己带底色的部分（图表块），不是这层。 */
+.ui-dialog--plain::backdrop { background: transparent; backdrop-filter: blur(16px) saturate(1.15); }
+
 /* 自有 的底部面板默认铺满视口；桌面端收窄到聊天宽度，标题和内容才能对齐。 */
 :global(.app-sheet .ui-dialog__panel) {
   width: 100%;

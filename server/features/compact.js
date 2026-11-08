@@ -2,7 +2,8 @@
  * 上下文压缩：把长历史总结成一段，继续留在会话里。
  *
  * 这是纯逻辑边界：调用方把已经装配好的 agent 和进度回调传进来，
- * 压缩结果直接返回；写历史、发 SSE 都由命令层做，本文件不 import 别的 feature。
+ * 压缩结果直接返回；写历史和 SSE 通知由命令层接手，本文件不 import 别的 feature。
+ * 历史落盘会顺带重置 SSE 的事件缓存（见 history.save），那是存储自己的职责。
  *
  * 调用示例：
  *   const content = await Compact.run({ sessionId, agent, onEvent })

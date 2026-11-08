@@ -12,7 +12,6 @@
  */
 
 import { store } from '../store.js'
-import { t } from '../utils/i18n.js'
 
 export function uiFor(name) {
     const catalog = store.config.toolCatalog?.length ? store.config.toolCatalog : (store.config.tools || [])
@@ -78,7 +77,7 @@ export function formatToolOutput(output) {
     if (output == null) return ''
     if (typeof output === 'string') return output
     if (output.type === 'text' || output.type === 'error-text') return String(output.value ?? '')
-    if (output.type === 'execution-denied') return output.reason || t('toolDenied')
+    if (output.type === 'execution-denied') return output.reason || '已拒绝工具调用'
     const value = output.value ?? output
     return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 }

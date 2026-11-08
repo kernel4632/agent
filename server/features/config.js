@@ -20,6 +20,9 @@ import store, { DEFAULT_PROMPT } from '../store.js'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
 
+// 配置被整体替换后要通知关心它的模块（比如审批重估挂起的调用）；兄弟 feature 靠装配接进来。
+let onConfigChange = null
+
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value)
 const BACKUP_LIMIT = 20
 const MASK = '••••••'
@@ -247,7 +250,9 @@ const set = async newConfig => {
     const config = normalize(newConfig)                            // 用户提交的配置也按当前形状收一遍
     Object.keys(store.config).forEach(key => delete store.config[key]) // 清掉内存里的现有键
     Object.assign(store.config, config)                            // 放进这份新配置
-    return save()                                                  // 立刻落盘
+    await save()                                                   // 立刻落盘
+    onConfigChange?.()                                             // 规则变了，等待中的审批按新规则重问
+    return store.config
 }
 
 const get = () => store.config
@@ -264,7 +269,10 @@ const save = async () => {
     return store.config
 }
 
+// --- 挂接兄弟 feature：配置整体替换后要重新评估挂着的审批 ---
+const bind = value => { onConfigChange = value.onConfigChange }
+
 export default {
-    MODELS, read, set, get, meta, save,
+    MODELS, bind, read, set, get, meta, save,
     backups: backupList, readBackup, restore, export: exportConfig, import: importConfig,
 }

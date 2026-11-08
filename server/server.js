@@ -24,6 +24,7 @@ import History from './features/history.js'
 import Mcp from './features/mcp.js'
 import ModelIcons from './features/model-icons.js'
 import SessionGroups from './features/session-groups.js'
+import Skills from './features/skills.js'
 import Storage from './features/storage.js'
 import Tool from './features/tool.js'
 import { cleanup } from './utils/process.js'
@@ -31,8 +32,9 @@ import SSE from './utils/sse.js'
 
 // --- 装配有状态模块：feature 之间不互相 import，需要的兄弟服务在这里接起来 ---
 Mcp.bind({ config: Config })                                                         // MCP 服务增删改后把配置写回磁盘
-Tool.bind({ mcp: Mcp })                                                              // 工具表里要能取到 MCP 服务给的工具
+Tool.bind({ mcp: Mcp, skills: Skills })                                              // 工具表里要能取到 MCP 服务和技能清单
 Approval.bind({ tool: Tool, config: Config })                                        // 审批要查工具类别，并把“始终允许”写回配置
+Config.bind({ onConfigChange: () => Approval.recheck() })                            // 配置变了，等待中的审批按新规则重问
 Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })   // 会话装配要读历史、工具表、审批和上下文
 
 const app = new Elysia()
@@ -101,6 +103,13 @@ app.group('/session', session => session
     .post('/create', ({ body }) => Session.create(body || {}))
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
+        ...params,
+        before: query.before === undefined ? undefined : Number(query.before),
+        beforeOffset: query.beforeOffset === undefined ? undefined : Number(query.beforeOffset),
+        limit: query.limit === undefined ? undefined : Number(query.limit),
+    }))
+    .get('/outline/:sessionId', ({ params }) => Session.historyOutline(params))
     .get('/changes/:sessionId', ({ params }) => Session.changes(params))
     .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
     .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...body }))

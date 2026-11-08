@@ -16,10 +16,10 @@ import Approval from '../features/approval.js'
 import Path from '../utils/path.js'
 import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
-import Delegation from '../tools/subagent.js'
 import * as File from '../tools/file.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
+import SkillsFeature from '../features/skills.js'
 import Session from '../commands/session.js'
 import Skill from '../tools/skill.js'
 import store from '../store.js'
@@ -133,48 +133,6 @@ describe('server HTTP API', () => {
     })
 })
 
-describe('server delegation', () => {
-    test('子 agent 可以再委托一层，最底层不能再往下开', async () => {
-        await withHome(async () => {
-            const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
-            const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
-
-            const middle = Delegation.toolsForDepth({ config, tools: scanned, onPermission: Approval.check, depth: 1, maxDepth: 2 })
-            expect(Object.keys(middle.schema)).toContain('new_task')
-            const bottom = Delegation.toolsForDepth({ config, tools: scanned, onPermission: Approval.check, depth: 2, maxDepth: 2 })
-            expect(Object.keys(bottom.schema)).not.toContain('new_task')
-            expect(Object.keys(bottom.schema)).toContain('read_file')
-
-            const task = Delegation.build({ config, tools: scanned, onPermission: Approval.check })
-            const merged = AgentCore.tool.merge(scanned, AgentCore.tool.adopt({ new_task: task }))
-            expect(Object.keys(merged.schema)).toContain('new_task')
-
-            const result = await task.execute({ description: '查点东西', prompt: '随便看看' }, {})
-            expect(result.description).toBe('查点东西')
-            expect(typeof result.error).toBe('string')
-            expect(Array.isArray(result.steps)).toBe(true)
-
-            const bare = await task.execute({ description: '不带第二参', prompt: '随便看看' })
-            expect(bare.description).toBe('不带第二参')
-            expect(typeof bare.error).toBe('string')
-        })
-    })
-
-    test('stops the sub-agent when the main task is stopped', async () => {
-        await withHome(async () => {
-            const scanned = await AgentCore.tool.scan(new URL('../tools/', import.meta.url))
-            const config = { baseURL: 'http://127.0.0.1:1/v1', model: 'm', retryMaxElapsed: 1, retryBaseDelay: 1 }
-            const task = Delegation.build({ config, tools: scanned, onPermission: Approval.check })
-
-            const controller = new AbortController()
-            controller.abort()
-            const result = await task.execute({ description: '查东西', prompt: '看看' }, { abortSignal: controller.signal })
-            expect(result.description).toBe('查东西')
-            expect(result.error || result.reason).toBeDefined()
-        })
-    })
-})
-
 describe('server skills', () => {
     const writeSkill = async (dir, name, description, body) => {
         await mkdir(dir, { recursive: true })
@@ -188,10 +146,10 @@ describe('server skills', () => {
             await writeSkill(join(project, '.agent', 'skills', 'review'), 'review', '项目审查', '项目正文')
             await writeSkill(join(root, 'skills', 'deploy'), 'deploy', '部署', '部署正文')
 
-            const skills = await Skill.list({ cwd: project })
+            const skills = await Skill.list({ cwd: project, skills: SkillsFeature })
             expect(skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
             expect(skills.find(item => item.name === 'review').description).toBe('项目审查')
-            expect(await Skill.read({ name: 'review', cwd: project })).toBe('项目正文')
+            expect(await Skill.read({ name: 'review', cwd: project, skills: SkillsFeature })).toBe('项目正文')
         })
     })
 
@@ -200,8 +158,8 @@ describe('server skills', () => {
             await mkdir(join(root, 'skills', 'broken'), { recursive: true })
             await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
 
-            expect((await Skill.list({ cwd: root })).map(item => item.name)).not.toContain('broken')
-            await expect(Skill.read({ name: 'nope', cwd: root })).rejects.toThrow(/Skill not found/)
+            expect((await Skill.list({ cwd: root, skills: SkillsFeature })).map(item => item.name)).not.toContain('broken')
+            await expect(Skill.read({ name: 'nope', cwd: root, skills: SkillsFeature })).rejects.toThrow(/Skill not found/)
         })
     })
 
@@ -389,8 +347,8 @@ describe('server health and history', () => {
             await History.add({ sessionId, message: AgentCore.history.user({ content: 'saved' }) })
             await History.save(sessionId)
 
-            const file = join(root, 'sessions', sessionId, 'history.json')
-            expect(JSON.parse(await readFile(file, 'utf8')).messages).toHaveLength(1)
+            const file = join(root, 'sessions', sessionId, 'history.jsonl')
+            expect((await readFile(file, 'utf8')).split('\n').filter(Boolean)).toHaveLength(1)
         })
     })
 
@@ -732,6 +690,31 @@ describe('请求用量', () => {
         expect(usage).toMatchObject({ input: 30, output: 20, total: 50, firstTokenMs: 1500, durationMs: 8000, provider: 'local', model: 'model' })
         // 没有首字时就是 0，前端据此省略这一项。
         expect(usageOf({ usage: null, startedAt: 1000, finishedAt: 2000 }).firstTokenMs).toBe(0)
+    })
+
+    // 供应商返回的用量属于系统边界：脏值不能进入统计。
+    // 统计面板曾因一个 9 位数显示成 908.7M tokens，用户无法分辨真假。
+    test('把脏 token 值挡在外面', () => {
+        const dirty = (inputTokens, outputTokens) => usageOf({ usage: { inputTokens, outputTokens }, startedAt: 0, finishedAt: 0 })
+
+        // 正常值原样保留
+        expect(dirty(120, 80)).toMatchObject({ input: 120, output: 80, total: 200 })
+        // 字符串数字仍当数字（有的供应商就这么发）
+        expect(dirty('120', '80')).toMatchObject({ input: 120, output: 80 })
+        // 负数、NaN、Infinity、null 一律按 0，不能变成负统计或 NaN
+        expect(dirty(-5, 0)).toMatchObject({ input: 0, output: 0 })
+        expect(dirty('abc', undefined)).toMatchObject({ input: 0, output: 0 })
+        expect(dirty(Infinity, 0)).toMatchObject({ input: 0, output: 0 })
+        expect(dirty(null, null)).toMatchObject({ input: 0, output: 0 })
+        // 超过单次请求上限的脏值也拦住（908.7M 就是这一类）
+        expect(dirty(908_700_000, 0)).toMatchObject({ input: 0, output: 0 })
+        // 小数取整：token 计数不该带小数
+        expect(dirty(12.6, 7.4)).toMatchObject({ input: 13, output: 7 })
+    })
+
+    test('总数为脏值时退回自己算的那份', () => {
+        const usage = usageOf({ usage: { inputTokens: 10, outputTokens: 5, totalTokens: 908_700_000 }, startedAt: 0, finishedAt: 0 })
+        expect(usage.total).toBe(15)
     })
 })
 

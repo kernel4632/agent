@@ -46,6 +46,10 @@ export default defineConfig({                       // 导出前端开发与构�
     vue(),                                          // 编译项目自己的 Vue 组件
     openAIProxy(),                                  // 本地同源代理任意 OpenAI 兼容模型目录
   ],
+  optimizeDeps: {
+    // mermaid 只在出现图表时动态 import；预构建避免 dev 首次渲染图表时触发整页 reload。
+    include: ['mermaid'],
+  },
   css: {                                            // 配置 CSS 预处理
     preprocessorOptions: {
       scss: {

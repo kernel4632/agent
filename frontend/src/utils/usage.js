@@ -8,16 +8,27 @@
  */
 
 // --- 用量字段统一成界面用的形状 ---
+// 单次请求的 token 不可能超过这个量级（现有最大模型上下文约 2M）。
+// 超过按戳数据处理：统计面板曾因此显示过 908.7M tokens。
+export const MAX_TOKENS = 5_000_000
+
+/** 把可能脏的 token 数字压成可信的非负整数；不可信时返回 0。 */
+function tokens(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < 0 || number > MAX_TOKENS) return 0 // NaN、Infinity、负数、超上限
+  return Math.round(number)
+}
+
 export function usageFields(usage = {}, durationMs = 0) {
-  const input = Number(usage.input || 0)          // 这次请求送进模型的 token
-  const output = Number(usage.output || 0)        // 模型生成的 token
+  const input = tokens(usage.input)              // 这次请求送进模型的 token
+  const output = tokens(usage.output)            // 模型生成的 token
   return {
     input,
     output,
-    cache: Number(usage.cacheRead || 0),          // 命中缓存的输入 token
-    cacheWrite: Number(usage.cacheWrite || 0),    // 写进缓存的输入 token
-    reasoning: Number(usage.reasoning || 0),      // 思考过程消耗的 token
-    total: Number(usage.total ?? input + output), // 服务端没给总数时自己加
+    cache: tokens(usage.cacheRead),              // 命中缓存的输入 token
+    cacheWrite: tokens(usage.cacheWrite),        // 写进缓存的输入 token
+    reasoning: tokens(usage.reasoning),          // 思考过程消耗的 token
+    total: tokens(usage.total) || input + output, // 服务端没给总数或给了戳值时自己加
     provider: typeof usage.provider === 'string' ? usage.provider : '',
     model: typeof usage.model === 'string' ? usage.model : '',
     firstTokenAt: Number(usage.firstTokenAt || 0), // 第一个内容增量到达的绝对时间

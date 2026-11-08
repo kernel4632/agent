@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Universal Agent 后端接口文档",
-    "version": "0.72.7",
+    "version": "0.75.6",
     "description": "会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能、子智能体和自动标题都是基座能力。 本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。"
   },
   "servers": [
@@ -1658,6 +1658,7 @@
           "Session"
         ],
         "summary": "读取一条会话的完整内容",
+        "description": "返回完整 history（已过滤 internal 消息）；分页历史接口继续保留给以后使用。",
         "operationId": "sessionRead",
         "parameters": [
           {
@@ -1681,6 +1682,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/history/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "分页读取会话历史",
+        "description": "before 是消息下标，默认从末尾读取一页。",
+        "operationId": "sessionHistory",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          { "name": "before", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
+          { "name": "beforeOffset", "in": "query", "schema": { "type": "integer", "minimum": 0 }, "description": "JSONL 字节偏移，优先使用；不传则从末尾扫描" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "一页消息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": { "type": "array", "items": { "type": "object" } },
+                    "start": { "type": "integer" },
+                    "end": { "type": "integer" },
+                    "startOffset": { "type": "integer" },
+                    "endOffset": { "type": "integer" },
+                    "total": { "type": "integer" },
+                    "hasMore": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/session/outline/{sessionId}": {
+      "get": {
+        "tags": ["Session"],
+        "summary": "读取整个会话的轮次大纲",
+        "operationId": "sessionOutline",
+        "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+        "responses": {
+          "200": {
+            "description": "轮次预览和消息总数",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "turns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "index": { "type": "integer" },
+                          "role": { "type": "string" },
+                          "prompt": { "type": "string" },
+                          "response": { "type": "string" },
+                          "length": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "totalMessages": { "type": "integer" }
+                  }
                 }
               }
             }
@@ -3047,7 +3124,7 @@
           "SSE"
         ],
         "summary": "建立实时事件连接",
-        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、subagent-tool、subagent-tool-result、mcp-error、compact-start、compact-finish、title。llm-start 带 startedAt（这次请求的真实开始时间）和 provider / model，llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 provider / model。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
+        "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、mcp-error、compact-start、compact-finish、title。llm-start 带 startedAt（这次请求的真实开始时间）和 provider / model，llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 provider / model。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
         "operationId": "sseConnect",
         "parameters": [
           {
@@ -3319,7 +3396,15 @@
                   "type": "object",
                   "additionalProperties": true
                 },
-                "description": "带 messageId 的消息记录"
+                "description": "完整 history"
+              },
+              "historyStart": {
+                "type": "integer",
+                "description": "当前页在完整历史中的起始下标"
+              },
+              "historyTotal": {
+                "type": "integer",
+                "description": "完整历史的消息总数"
               },
               "todos": {
                 "type": "array",

@@ -14,8 +14,7 @@ import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
 import { outputText, toolTitle } from "../../utils/tool.js"
-import { isFinishedStopTool } from "../../features/session.js"
-import { isSavedMessage } from "../../features/session.js"
+import { isFinishedStopTool, isSavedMessage } from "../../features/turns.js"
 import MessageActions from './MessageActions.vue'
 import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
@@ -26,6 +25,7 @@ const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
+  active: Boolean,
   rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
@@ -71,6 +71,11 @@ const content = computed(() => finalText.value || fallbackText.value)
 // 气泡显示的是最后一条消息流出的正文，回退聚光也按这条框住它。
 const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
 const bubbleMessageId = computed(() => finalMessage.value?.id || defaultTarget.value?.id || null)
+const streaming = computed(() => props.messages.some(message => message.isStreaming))
+// 一轮任务里“模型请求结束、工具还在执行、下一次请求尚未开始”不是整轮结束。
+// 只要这仍然是当前会话的最后一轮且任务在跑，处理过程和思考就保持展开，
+// 避免每次 tool-result/llm-finish 都收起再展开，形成高频闪烁。
+const turnActive = computed(() => (streaming.value || props.active) && !finalText.value)
 
 // 时间线按消息顺序排列：请求行、思考、非结束正文、工具步骤。
 // 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
@@ -93,7 +98,7 @@ const steps = computed(() => {
           text: entry.text,
           message,
           messageId: message.id,
-          streaming: message.isStreaming && entry.type === 'reasoning' && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
+          streaming: turnActive.value && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
@@ -113,9 +118,15 @@ const steps = computed(() => {
 })
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
-const streaming = computed(() => props.messages.some(message => message.isStreaming))
-// 结束工具已经产出完整回答，就视为这一轮活动结束；不等到连接关闭才收折叠。
-const turnActive = computed(() => streaming.value && !finalText.value)
+// 所有正文和思考的字符总数：下一次请求真正流出第一段内容时才会变化。
+// 工具用它判断“下一次流式已经出字”，而不是在 llm-start 时就提前收起。
+const streamSerial = computed(() => steps.value.reduce((total, step) =>
+  step.type === 'text' || step.type === 'reasoning' ? total + String(step.text || '').length : total
+, 0))
+// 同一时间只让最新的工具展开；新工具要等上一个工具收起后再开始。
+const toolSteps = computed(() => steps.value.filter(step => step.type === 'tool'))
+const activeToolKey = computed(() => toolSteps.value.at(-1)?.key || '')
+const toolIndexByKey = computed(() => new Map(toolSteps.value.map((step, index) => [step.key, index])))
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
@@ -247,6 +258,9 @@ function toggleGroup(section) {
 }
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
+// 结束工具的输出是一整段突然到达的正式回复；这里不再逐字追赶，
+// 否则它会和处理过程折叠同时改变高度，形成连续闪烁。
+const shownBubble = computed(() => finalText.value || bubbleContent.value)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
 
@@ -334,6 +348,10 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :data-message-id="section.step.messageId"
                   :tool="section.step.tool"
                   :session-id="sessionId"
+                  :instant="!processShown"
+                  :stream-key="streamSerial"
+                  :active="section.step.key === activeToolKey"
+                  :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
                 />
               </template>
 
@@ -343,7 +361,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
                   <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
                 </button>
-                <Fold :open="isGroupOpen(section)" :instant="section.steps.some(isPendingStep)">
+                <Fold :open="isGroupOpen(section)" :instant="!processShown || section.steps.some(isPendingStep)">
                   <div class="context-group__body cot-steps">
                     <template v-for="step in section.steps" :key="step.key">
                       <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
@@ -364,6 +382,10 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :data-message-id="step.messageId"
                         :tool="step.tool"
                         :session-id="sessionId"
+                        :instant="!processShown"
+                        :stream-key="streamSerial"
+                        :active="step.key === activeToolKey"
+                        :tool-index="toolIndexByKey.get(step.key) ?? 0"
                       />
                     </template>
                   </div>
@@ -374,7 +396,7 @@ function clearTarget() { targetId.value = null; emit('close') }
         </Fold>
       </div>
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
-        <Markdown :content="bubbleContent" />
+        <Markdown :content="shownBubble" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>

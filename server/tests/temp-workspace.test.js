@@ -7,7 +7,7 @@ import Session from '../commands/session.js'
 import Agent from '../features/agent.js'
 import History from '../features/history.js'
 import Path from '../utils/path.js'
-import Scratch from '../utils/scratch.js'
+import TempWorkspace from '../utils/temp-workspace.js'
 
 const homes = []
 const withHome = async callback => {
@@ -101,8 +101,8 @@ describe('临时工作区', () => {
     test('兼容旧版本直接放在临时目录根部的会话目录', async () => {
         await withHome(async () => {
             const legacy = await mkdtemp(join(tmpdir(), 'agent-session-'))
-            expect(Scratch.managed(legacy)).toBe(true)
-            await Scratch.remove(legacy, true)
+            expect(TempWorkspace.managed(legacy)).toBe(true)
+            await TempWorkspace.remove(legacy, true)
             await expect(stat(legacy)).rejects.toThrow()
         })
     })

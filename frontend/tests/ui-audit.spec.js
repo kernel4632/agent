@@ -226,7 +226,7 @@ test('tool approval uses the existing allow-always decision contract', async ({ 
   expect(mock.errors).toEqual([])
 })
 
-test('reasoning stays on one line while streaming and opens on click', async ({ page }, testInfo) => {
+test('reasoning half-expands while streaming and opens on click', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -244,24 +244,32 @@ test('reasoning stays on one line while streaming and opens on click', async ({ 
 
   await expect(page.locator('.cot-card')).toBeVisible()
   const head = page.locator('.cot-step--reasoning .cot-step__head')
-  await expect(head).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.locator('.cot-step--reasoning .cot-step__summary')).toContainText('先确认消息结构')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+  const preview = page.locator('.cot-step--reasoning .reasoning-preview')
+  await expect(preview).toBeVisible()
+  // 半展开预览：定高、Markdown 渲染，而不是只留一行摘要。
+  const previewHeight = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(previewHeight).toBeGreaterThan(0)
+  expect(previewHeight).toBeLessThanOrEqual(120)
+  await expect(preview).toContainText('先确认消息结构')
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
   await screenshot(page, testInfo, 'reasoning-preview')
 
-  // 点开才渲染正文；再点收起后，后续增量只改标题行，不把内容框重新打开。
+  // 点开看全文；再点收起后，后续增量只改标题行，不把内容框重新打开。
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('.cot-step--reasoning .markdown-body')).toContainText('先确认消息结构')
   await head.click()
   await expect(head).toHaveAttribute('aria-expanded', 'false')
+  // 折叠容器归到 0 高，内容不再可见。
+  const collapse = page.locator('.cot-step--reasoning .cot-collapse')
+  await expect.poll(async () => Math.round(await collapse.evaluate(element => element.getBoundingClientRect().height))).toBe(0)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: '继续输出也不展开' }])
   await expect(page.locator('.cot-step--reasoning .cot-step__summary')).toContainText('继续输出也不展开')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
 })
 
-test('long reasoning stays capped and still shows the latest text', async ({ page }) => {
+test('long reasoning stays capped while streaming and still shows the latest text', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -274,27 +282,27 @@ test('long reasoning stays capped and still shows the latest text', async ({ pag
     { type: 'agent-start' },
     { type: 'reasoning-delta', text: `${chunk}尾部标记甲` },
   ])
-  const summary = page.locator('.cot-step--reasoning .cot-step__summary')
-  await expect(summary).toContainText('尾部标记甲')
-  const summaryHeight = await summary.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  // 长思考流式时也是 Markdown 渲染，预览框定高滚动，追加内容自动滚到底。
+  const preview = page.locator('.cot-step--reasoning .reasoning-preview')
+  await expect(preview).toBeVisible()
+  await expect(preview).toContainText('尾部标记甲')
+  await expect(page.locator('.cot-step--reasoning .markdown-body')).toContainText('尾部标记甲')
+  const previewHeight = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(previewHeight).toBeLessThanOrEqual(120)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: `${chunk}尾部标记乙` }])
-  await expect(summary).toContainText('尾部标记乙')
-  const summaryAgain = await summary.evaluate(element => Math.round(element.getBoundingClientRect().height))
-  expect(summaryAgain).toBe(summaryHeight)
-  expect(summaryHeight).toBeLessThanOrEqual(28)
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  await expect(preview).toContainText('尾部标记乙')
+  const previewAgain = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(previewAgain).toBe(previewHeight)
 
+  // 用户点开后不封顶，完整内容全部可见，追加时框随内容长高。
   await page.locator('.cot-step--reasoning .cot-step__head').click()
-  const body = page.locator('.cot-step--reasoning .reasoning-body')
-  const live = page.locator('.reasoning-live')
-  await expect(live).toContainText('尾部标记乙')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
-  const bodyHeight = await body.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  await expect(preview).toContainText('尾部标记乙')
+  const bodyHeight = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(bodyHeight).toBeGreaterThan(120)
   await mock.emit('session-1', [{ type: 'reasoning-delta', text: `${chunk}尾部标记丙` }])
-  await expect(live).toContainText('尾部标记丙')
-  const bodyAgain = await body.evaluate(element => Math.round(element.getBoundingClientRect().height))
-  expect(bodyAgain).toBe(bodyHeight)
-  expect(bodyHeight).toBeLessThanOrEqual(320)
+  await expect(preview).toContainText('尾部标记丙')
+  const bodyAgain = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
+  expect(bodyAgain).toBeGreaterThan(bodyHeight)
   expect(mock.errors).toEqual([])
 })
 
@@ -340,7 +348,8 @@ test('reasoning stays collapsed after the llm finishes', async ({ page }) => {
   if (await process.getAttribute('aria-expanded') !== 'true') await process.click()
   await openContextGroups(page)
   await expect(page.locator('.cot-step--reasoning .cot-step__head')).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.locator('.cot-step--reasoning .markdown-body')).toHaveCount(0)
+  const collapse = page.locator('.cot-step--reasoning .cot-collapse')
+  await expect.poll(async () => Math.round(await collapse.evaluate(element => element.getBoundingClientRect().height))).toBe(0)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
 })
 
@@ -500,6 +509,203 @@ test('assistant markdown uses local code blocks and typography', async ({ page }
   await expect(bubble).toContainText('加粗')
   await expect(bubble.locator('.ui-code-block')).toContainText('const answer = 42', { timeout: 10000 })
   await expect(bubble.locator('.ui-code-block').getByRole('button', { name: '复制代码' })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('mermaid code blocks render as diagrams and fall back to source on error', async ({ page }, testInfo) => {
+  // 复制图表要拷真位图，不是 mermaid 源码。headless 环境读回剪贴板不可靠，
+  // 改为拦下 write 的入参：那正是产品要写进剪贴板的东西，再解码验证它是不透明的 PNG。
+  await page.addInitScript(() => {
+    window.__clip = []
+    const write = navigator.clipboard.write?.bind(navigator.clipboard)
+    navigator.clipboard.write = async items => {
+      for (const item of items) for (const type of item.types) {
+        const blob = await item.getType(type)
+        const bitmap = await createImageBitmap(blob)
+        const canvas = document.createElement('canvas')
+        canvas.width = bitmap.width
+        canvas.height = bitmap.height
+        canvas.getContext('2d').drawImage(bitmap, 0, 0)
+        const pixel = canvas.getContext('2d').getImageData(0, 0, 1, 1).data
+        window.__clip.push({ type, size: blob.size, width: bitmap.width, height: bitmap.height, alpha: pixel[3] })
+      }
+      try { await write(items) } catch { /* headless 可能无剪贴板权限，入参已记录 */ }
+    }
+  })
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  const good = '```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```'
+  const bad = '```mermaid\nflowchart TD\n  A[缺少闭合\n```'
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'text-delta', text: `\n\n${good}\n\n${bad}` },
+  ])
+
+  const bubble = page.locator('.rikka-bubble--assistant')
+  // 图表现在等进入视口才渲染（长会话首屏不再一次画十几张）。
+  // 测试视口里可能已经在 rootMargin 范围内直接画好，也可能还是占位；
+  // 两种都合法，关键是滚到那里之后图必须出现。
+  await bubble.scrollIntoViewIfNeeded()
+  await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
+  await expect(bubble.locator('.ui-code-block__mermaid-error')).toContainText(/错误|error|Parse/i)
+  await expect(bubble.locator('.ui-code-block__body pre code')).toContainText('A[缺少闭合')
+  // 图表容器不再限高截断：图完整铺开，点击区域可进全屏。
+  await expect(bubble.locator('.ui-code-block__mermaid').first()).toBeVisible()
+  // 图注上的复制拷的是图片位图，不是 mermaid 源码。
+  await bubble.getByRole('button', { name: '复制图表图片' }).first().click()
+  await expect.poll(() => page.evaluate(() => window.__clip.length)).toBeGreaterThan(0)
+  const copied = await page.evaluate(() => window.__clip[0])
+  expect(copied.type).toBe('image/png')
+  // 真是一张有内容的不透明位图：宽高非零、首像素不透明（导出时铺了界面底色）。
+  expect(copied.width).toBeGreaterThan(0)
+  expect(copied.height).toBeGreaterThan(0)
+  expect(copied.size).toBeGreaterThan(500)
+  expect(copied.alpha).toBe(255)
+  await bubble.locator('.ui-code-block__mermaid-view').first().click()
+  // 全屏层 teleport 到 body，断言收在已打开的 dialog 里，避开页面上其他代码块。
+  const layer = page.locator('dialog[open]')
+  const fullscreenStage = layer.locator('.ui-code-block__stage')
+  await expect(fullscreenStage).toBeVisible()
+  await expect(layer.locator('.ui-code-block__canvas svg').first()).toBeVisible()
+  // 全屏层要是毛玻璃透视：舞台本身透明（透出 backdrop 的模糊），只有图表块自带底色。
+  expect(await fullscreenStage.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+  expect(await layer.evaluate(element => getComputedStyle(element, '::backdrop').backdropFilter)).toContain('blur')
+  expect(await layer.locator('.ui-code-block__canvas').evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
+  // 复位后滚轮缩放：滚动后缩放比例要偏离 100%。指针位置按全屏层包围盒取，不依赖视口尺寸。
+  await layer.getByRole('button', { name: '复位视图' }).click()
+  const initial = await layer.locator('.ui-code-block__zoom-value').textContent()
+  const box = await fullscreenStage.boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx, cy)
+  await page.mouse.wheel(0, -400)
+  await expect.poll(() => layer.locator('.ui-code-block__zoom-value').textContent()).not.toBe(initial)
+  // 拖拽平移：拖动后平移量偏离 0，0。
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 60, cy + 40, { steps: 5 })
+  await page.mouse.up()
+  await expect.poll(() => page.evaluate(() => {
+    const canvas = document.querySelector('dialog[open] .ui-code-block__canvas')
+    return canvas.style.transform.includes('translate(calc(-50% + 0px)')
+  })).toBe(false)
+  await page.keyboard.press('Escape')
+  await expect(layer).toHaveCount(0)
+  // 界面切到浅色再切回：已有图按新主题重画，不崩不消失。
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  await page.getByRole('button', { name: /通用/ }).click()
+  await page.getByRole('radio', { name: '浅色', exact: true }).check()
+  await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
+  await page.getByRole('radio', { name: '深色', exact: true }).check()
+  await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
+  await screenshot(page, testInfo, 'mermaid-dark')
+  expect(mock.errors).toEqual([])
+})
+
+// 长会话首屏不能把所有图表一次画完：
+// 之前 9 张图一次性渲染是那次 1216ms 长任务和 0.35 布局偏移的主因。
+// 现在图表等进入视口才画，没画的用占位高度把位置占住。
+test('long sessions only render diagrams near the viewport', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  // 30 张图，每张前面有足够的正文把后面的图推到视口外
+  const blocks = []
+  for (let index = 0; index < 30; index += 1) {
+    blocks.push(`第 ${index} 段正文，用足够的字数把这一轮撑高，让后面的图表落在视口之外。\n\n\`\`\`mermaid\nflowchart TD\n  A${index}[开始${index}] --> B${index}[结束${index}]\n\`\`\``)
+  }
+  // 直接把历史塞进 mock 再刷新，走“打开很长旧会话”的真实路径
+  mock.sessions.get('session-1').history = [
+    { messageId: 'u-x', role: 'user', content: '看图' },
+    { messageId: 'a-x', role: 'assistant', content: [{ type: 'text', text: blocks.join('\n\n') }] },
+  ]
+  await page.reload()
+  await expect(page.locator('.ui-code-block')).toHaveCount(30, { timeout: 15000 })
+  // 等渲染稳定（图陆续画完）
+  await page.waitForTimeout(2500)
+
+  const counts = await page.evaluate(() => ({
+    total: document.querySelectorAll('.ui-code-block').length,
+    rendered: document.querySelectorAll('.ui-code-block__mermaid svg').length,
+    placeholders: document.querySelectorAll('.ui-code-block__mermaid-placeholder').length,
+  }))
+  // 每个图要么已画、要么在占位，不能凭空消失
+  expect(counts.rendered + counts.placeholders).toBe(counts.total)
+  // 关键：确实不是全部画完（否则等于没优化）
+  expect(counts.rendered).toBeLessThan(counts.total)
+
+  // 滚动到一个还没画的占位，它应该被画出来，而不是永远卡在占位
+  const placeholder = page.locator('.ui-code-block__mermaid-placeholder').last()
+  await placeholder.scrollIntoViewIfNeeded()
+  await expect(page.locator('.ui-code-block__mermaid svg')).toHaveCount(counts.rendered + 1, { timeout: 15000 })
+  expect(mock.errors).toEqual([])
+})
+
+// 长会话首屏只挂靠后一批轮次，更早的用占位撑高度：
+// 用户那个 160 轮会话一次性挂 11405 个节点，改用分批后降到千级，滚动条长度不变。
+test('long sessions mount only the latest turns and keep the scrollbar full', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  // 160 轮：每轮一问一答，带列表和代码块，接近真实的长会话
+  const history = []
+  for (let index = 0; index < 160; index += 1) {
+    history.push({ messageId: `u-${index}`, role: 'user', content: `第 ${index} 个问题，带一点长度让气泡有高度。` })
+    history.push({
+      messageId: `a-${index}`, role: 'assistant',
+      usage: { input: 100, output: 50, total: 150, provider: 'Test Provider', model: 'test-model' },
+      content: [{ type: 'text', text: `第 ${index} 个回答。\n\n这是第二段。\n\n- 项一\n- 项二\n\n\`\`\`js\nconst v${index} = ${index}\n\`\`\`` }],
+    })
+  }
+  mock.sessions.get('session-1').history = history
+  await page.reload()
+  await expect(page.locator('[data-turn-id]').first()).toBeVisible({ timeout: 20000 })
+  await page.waitForTimeout(2000)
+
+  const state = await page.evaluate(() => {
+    const scroll = document.querySelector('.session-scroll')
+    return {
+      nodes: document.querySelectorAll('*').length,
+      turns: document.querySelectorAll('[data-turn-id]').length,
+      placeholder: Boolean(document.querySelector('.conversation-flow__pending')),
+      scrollHeight: scroll?.scrollHeight || 0,
+      atBottom: scroll ? Math.abs(scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop) < 4 : false,
+    }
+  })
+
+  // 只挂了靠后的一批，不是全部 320 条
+  expect(state.turns).toBeGreaterThan(0)
+  expect(state.turns).toBeLessThan(320)
+  // 节点数控制在千级（分批前是 1.1 万）
+  expect(state.nodes).toBeLessThan(4000)
+  // 占位把未挂载部分的高度撑住了，滚动条长度仍是完整会话的
+  expect(state.placeholder).toBe(true)
+  expect(state.scrollHeight).toBeGreaterThan(10000)
+  // 打开时长会话停在底部
+  expect(state.atBottom).toBe(true)
+
+  // 向上滚：补出更早的轮次，且仍保持连续滚动（不是换窗口）
+  const before = await page.evaluate(() => {
+    const scroll = document.querySelector('.session-scroll')
+    scroll.scrollTop = 200
+    return document.querySelectorAll('[data-turn-id]').length
+  })
+  await page.waitForTimeout(1200)
+  const mounted = await page.evaluate(() => document.querySelectorAll('[data-turn-id]').length)
+  expect(mounted).toBeGreaterThan(before)
   expect(mock.errors).toEqual([])
 })
 
@@ -677,7 +883,9 @@ test('retry keeps the stop button available after reconnecting', async ({ page }
   await expect.poll(() => mock.calls.filter(call => call.path === '/sse/connect/session-1').length).toBeGreaterThan(connections)
 
   await mock.emit('session-1', [{ type: 'retry', attempt: 1, delay: 5000 }])
-  await expect(page.getByText(/模型请求失败，第 1 次自动重试，5s 后继续/).first()).toBeVisible()
+  const retryRow = page.locator('.request-status.is-retrying').first()
+  await expect(retryRow).toBeVisible()
+  await expect(retryRow).toContainText(/模型请求失败，第 1 次自动重试，\d+s 后继续/)
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()
@@ -1348,7 +1556,8 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
   await expect(tool).toHaveCount(1)
   await expect(tool.locator('.cot-step__extra')).toContainText('正在生成参数')
   await expect(tool.locator('.cot-step__summary')).toContainText('"path": "a.txt"')
-  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
+  await expect(tool.locator('.tool-content--stream')).toContainText('"path": "a.txt"')
   await mock.emit('session-1', [{ type: 'tool-input-delta', id: 'call-stream', delta: `\n${'x'.repeat(4000)}` }])
   const preview = tool.locator('.cot-step__summary--preview')
   const full = await preview.evaluate(element => Math.round(element.getBoundingClientRect().height))
@@ -1359,11 +1568,18 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
 
   await mock.emit('session-1', [{ type: 'tool-call', toolCallId: 'call-stream', toolName: 'write_file', input: { path: 'a.txt', content: 'hello' } }])
   await expect(tool.locator('.cot-step__extra')).toContainText('正在执行')
-  await expect(tool.locator('.cot-step__body')).toHaveCount(0)
-  await tool.locator('.cot-step__head').click()
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
   await tool.getByRole('button', { name: /查看输入参数/ }).click()
   await expect(tool.locator('.tool-input')).toContainText('path')
   await expect(tool.locator('.tool-input')).toContainText('a.txt')
+  await mock.emit('session-1', [{ type: 'tool-result', toolCallId: 'call-stream', toolName: 'write_file', output: { type: 'text', value: 'ok' } }])
+  // 完成后先停留；下一次模型请求开始（下一段流式内容）才收起。
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
+  await mock.emit('session-1', [{ type: 'llm-start', startedAt: Date.now() }])
+  // 只开始请求还不收；下一次流真正出字后才收。
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
+  await mock.emit('session-1', [{ type: 'text-delta', text: '下一段内容' }])
+  await expect(tool.locator('.cot-step__body')).toHaveCount(0, { timeout: 5000 })
   expect(mock.errors).toEqual([])
 })
 
@@ -2135,6 +2351,71 @@ test('workspace picker switches the session cwd and remembers it', async ({ page
   await page.getByRole('button', { name: '更多选项', exact: true }).click()
   await page.getByRole('button', { name: '切换工作区', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '切换工作区', exact: true }).getByRole('button', { name: 'D:/mock-workspace', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('draft composer sets the workspace inline before the first message', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+
+  // 新会话：工作区按钮内联在输入框里，默认提示临时工作区。
+  const inline = page.locator('.chat-composer__options').getByRole('button', { name: /工作区/ })
+  await expect(inline).toContainText('临时工作区')
+
+  // 二级菜单里不再放工作区入口。
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '更多选项', exact: true }).getByRole('button', { name: '切换工作区', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // 预选目录：确认后按钮跟随，创建会话时把 cwd 交给后端。
+  await inline.click()
+  const workspace = page.getByRole('dialog', { name: '设置工作区', exact: true })
+  await expect(workspace.getByText('临时工作区', { exact: true })).toBeVisible()
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('D:/AgentSessions')
+  await workspace.getByRole('button', { name: '使用此目录', exact: true }).click()
+  await expect(workspace).toBeHidden()
+  await expect(inline).toContainText('D:/AgentSessions')
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('带目录的新会话')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+  const created = mock.calls.find(call => call.path === '/session/create')
+  expect(created.body.cwd).toBe('D:/AgentSessions')
+  expect(mock.sessions.get('session-1').cwd).toBe('D:/AgentSessions')
+  expect(mock.sessions.get('session-1').temporary).toBe(false)
+
+  // 开始对话后：内联按钮消失，工作区回到更多选项的二级菜单。
+  await expect(inline).toHaveCount(0)
+  await page.getByRole('button', { name: '更多选项', exact: true }).click()
+  await expect(page.getByRole('button', { name: '切换工作区', exact: true })).toBeVisible()
+  expect(mock.errors).toEqual([])
+})
+
+test('draft workspace can be cleared back to a temporary workspace', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+
+  const inline = page.locator('.chat-composer__options').getByRole('button', { name: /工作区/ })
+  await inline.click()
+  const workspace = page.getByRole('dialog', { name: '设置工作区', exact: true })
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('D:/AgentSessions')
+  await workspace.getByRole('button', { name: '使用此目录', exact: true }).click()
+  await expect(inline).toContainText('D:/AgentSessions')
+
+  // 清空目录确认：回到临时工作区，创建请求不再带 cwd。
+  await inline.click()
+  await workspace.getByRole('textbox', { name: '目录路径', exact: true }).fill('')
+  await workspace.getByRole('button', { name: '使用此目录', exact: true }).click()
+  await expect(workspace).toBeHidden()
+  await expect(inline).toContainText('临时工作区')
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('回到临时工作区')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  const created = mock.calls.find(call => call.path === '/session/create')
+  expect(created.body.cwd).toBeUndefined()
+  expect(mock.sessions.get('session-1').temporary).toBe(true)
   expect(mock.errors).toEqual([])
 })
 

@@ -374,13 +374,13 @@ describe('技能识别与管理', () => {
             const disabled = await (await json('/skill/toggle', 'PATCH', { name: 'review', enabled: false })).json()
             expect(disabled).toEqual({ name: 'review', enabled: false })
 
-            expect((await Skill.list({ cwd: project })).map(item => item.name)).toEqual(['deploy'])
+            expect((await Skill.list({ cwd: project, skills: SkillFeature })).map(item => item.name)).toEqual(['deploy'])
             // 管理页要能读到禁用的技能（enabled: false）才能重新打开；模型清单不含它，所以工具层读不到。
             const disabledSkill = await SkillFeature.read({ name: 'review', cwd: project })
             expect(disabledSkill.enabled).toBe(false)
-            await expect(Skill.read({ name: 'review', cwd: project })).rejects.toThrow(/Skill not found/)
+            await expect(Skill.read({ name: 'review', cwd: project, skills: SkillFeature })).rejects.toThrow(/Skill not found/)
 
-            const tool = await Skill.build({ cwd: project })
+            const tool = await Skill.build({ cwd: project, skills: SkillFeature })
             expect(tool.description).toContain('deploy')
             expect(tool.description).not.toContain('review')
 
@@ -388,7 +388,7 @@ describe('技能识别与管理', () => {
             expect(listed.skills.find(item => item.name === 'review').enabled).toBe(false)
 
             await json('/skill/toggle', 'PATCH', { name: 'review', enabled: true })
-            expect((await Skill.list({ cwd: project })).map(item => item.name).sort()).toEqual(['deploy', 'review'])
+            expect((await Skill.list({ cwd: project, skills: SkillFeature })).map(item => item.name).sort()).toEqual(['deploy', 'review'])
         })
     })
 
@@ -428,7 +428,7 @@ describe('技能识别与管理', () => {
             await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
 
-            const tool = await Skill.build({ cwd: project })
+            const tool = await Skill.build({ cwd: project, skills: SkillFeature })
             expect(tool.description).toContain('lint')
             expect(await tool.execute({ name: 'lint' }, { cwd: project })).toBe('运行 lint')
         })

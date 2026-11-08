@@ -47,7 +47,9 @@ test('commands 只做编排，features 只依赖公共数据/工具，基础 UI 
     }
     if (name.startsWith('features/')) {
       assert.ok(targets.every(target => !target.endsWith('.vue')), name)
-      assert.ok(targetNames.every(target => /^(utils\/|store\.js$|defaults\.js$)/.test(target)), `${name} 不能依赖 commands 或另一个 feature`)
+      // feature 之间允许单向数据流（session.js 用 history.js 的归一化登记），
+      // 但不能反向成环（由循环导入测试守）也不能碰命令层。
+      assert.ok(targetNames.every(target => !/^commands\//.test(target)), `${name} 不能依赖命令层`)
     }
     if (name.startsWith('commands/') && name !== 'commands/navigation.js') {
       assert.ok(!targets.includes(resolve(src, 'commands/navigation.js')), `${name} 不应反向依赖导航`)

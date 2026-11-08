@@ -11,8 +11,7 @@ import { Notice } from '../utils/notice.js'
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
-import { History } from '../features/session.js'
-import { t } from '../utils/i18n.js'
+import { History } from '../features/history.js'
 import { Settings } from '../features/settings.js'
 import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
 import { usageFields } from '../utils/usage.js'
@@ -304,7 +303,11 @@ function retryRun(session, event) {
   assistant.retry = retry
   // 重试原因挂在当前请求行上，用户不用再去别处找。
   const request = assistant.requests.findLast(item => item.status === 'running')
-  if (request) request.retry = retry
+  if (request) {
+    request.retry = retry
+    request.retryAttempt = attempt
+    request.retryUntil = delay > 0 ? Date.now() + delay : 0
+  }
 }
 
 // --- 模型报错：结束当前请求，保留错误让用户看到 ---
@@ -351,7 +354,7 @@ async function receiveRun(sessionID, session, event) {
   if (event.type === 'llm-finish') return finishRunRequest(session, event)
   if (event.type === 'retry') return retryRun(session, event)
   if (event.type === 'error') return failRun(session, event)
-  if (event.type === 'mcp-error') return Notice.show(t('mcpFailed', { server: event.server, error: event.error })) // 某个 MCP 没连上，提醒一句就好
+  if (event.type === 'mcp-error') return Notice.show(`MCP 服务 ${event.server} 没连上：${event.error}`) // 某个 MCP 没连上，提醒一句就好
   if (event.type === 'title') return setTitle(session, event)
   if (event.type === 'agent-finish') return finishRun(sessionID, session, event)
 }
@@ -446,7 +449,7 @@ function receiveTool(session, event) {
     // 结果类型用 execution-denied，和“用户拒绝”走同一条 rejected 判断。
     const tool = toolFor(session, event, 'rejected')
     if (tool) {
-      tool.output = { type: 'execution-denied', reason: t('toolBlockedReason', { reason: event.reason }) }
+      tool.output = { type: 'execution-denied', reason: `已被权限规则拦下（${event.reason}）` }
       tool.preview = formatToolOutput(tool.output)
     }
   }
@@ -514,18 +517,7 @@ async function stop(sessionID) {
   }
 }
 
-async function decide(sessionID, callID, decision) {
-  const tool = store.sessions[sessionID]?.messages.flatMap(message => message.tools || []).find(item => item.id === callID)
-  if (!tool || tool.deciding || !['deny', 'allow-once', 'always-allow'].includes(decision)) return false
-  tool.deciding = true
-  try {
-    const result = await AgentAPI.decideTool(sessionID, callID, decision === 'always-allow' ? 'allow-always' : decision)
-    if (!result.ok) throw new Error('此审批已结束，请刷新会话')
-    if (tool) tool.status = decision === 'deny' ? 'rejected' : 'running'
-    return true
-  } catch (error) { Notice.show(error.message); return false }
-  finally { tool.deciding = false }
-}
+// --- 审批决定由 features/approval.js 承担；这里只保留 SSE 接收和任务编排 ---
 
 async function attach(sessionID, files, options = {}) {
   const session = store.sessions[sessionID]
@@ -587,4 +579,4 @@ export function imagePasteNotice({ hasImage, provider, model }) {
   })
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, decide, attach, removeFile, imagePasteNotice }
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, attach, removeFile, imagePasteNotice }
