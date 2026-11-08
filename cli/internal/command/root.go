@@ -21,6 +21,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/kernel4632/agent/cli"
 	"github.com/kernel4632/agent/cli/internal/api"
 	"github.com/kernel4632/agent/cli/internal/chat"
@@ -46,9 +47,8 @@ func New() *cobra.Command {
 	root.PersistentFlags().StringVar(&o.server, "server", address, "后端地址（或 AGENT_SERVER_URL）")
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "输出 JSON；ask 输出 NDJSON 事件")
 	root.AddCommand(
-		o.simple("health", "检查服务状态", "GET", "/health"),
-		o.simple("tools", "列出工具和权限", "GET", "/tool/list"),
-		o.models(), o.sessions(), o.ask(), o.interactive(),
+		o.health(), o.tools(), o.models(), o.sessions(), o.ask(), o.interactive(),
+		o.configCmd(), o.mcp(), o.skills(),
 	)
 	return root
 }
@@ -181,7 +181,6 @@ func (o *options) sessions() *cobra.Command {
 		{use: "cwd ID PATH", short: "修改服务端当前目录", action: "cwd", method: "PATCH", field: "cwd", count: 2},
 		{use: "reasoning ID LEVEL", short: "设置思考强度", action: "settings", method: "PATCH", field: "reasoning", count: 2},
 		{use: "remove ID", short: "删除空闲会话", action: "remove", method: "DELETE", count: 1},
-		{use: "fork ID", short: "复制会话为新分支", action: "fork", method: "POST", count: 1},
 		{use: "changes ID", short: "查看文件改动", action: "changes", method: "GET", count: 1},
 		{use: "compact ID", short: "压缩上下文", action: "compact", method: "POST", count: 1, longRunning: true},
 	} {
@@ -198,6 +197,13 @@ func (o *options) sessions() *cobra.Command {
 					}
 				}
 				body = map[string]string{spec.field: args[1]}
+			}
+			if spec.action == "changes" {
+				var files []api.FileChange
+				if err = client.Request(cmd.Context(), "GET", api.SessionPath("changes", args[0]), nil, &files); err != nil {
+					return err
+				}
+				return o.emit(cmd, files, func(w io.Writer) error { return o.writeChanges(w, files) })
 			}
 			var data any
 			if spec.longRunning {
@@ -233,6 +239,7 @@ func (o *options) sessions() *cobra.Command {
 		}
 		return client.Stop(cmd.Context(), args[0], "", "")
 	}})
+	o.sessionExtras(root)
 	root.AddCommand(&cobra.Command{Use: "decide ID CALL_ID DECISION", Short: "审批：allow-once / allow-always / deny", Args: cobra.ExactArgs(3), RunE: func(cmd *cobra.Command, args []string) error {
 		if args[2] != "allow-once" && args[2] != "allow-always" && args[2] != "deny" {
 			return fmt.Errorf("decision 必须是 allow-once / allow-always / deny")
@@ -308,6 +315,46 @@ func (s *sessionOptions) open(ctx context.Context, client *api.Client) (api.Sess
 	return client.Session(ctx, s.id)
 }
 
+func stdoutIsTTY(w io.Writer) bool {
+	file, ok := w.(*os.File)
+	return ok && term.IsTerminal(file.Fd())
+}
+
+// writeAnswer prints the persisted reply. A live terminal already received the
+// text deltas, so only the part that never streamed (usually the completion
+// tool's result) is written again.
+func writeAnswer(w io.Writer, streamed bool, already, final string) error {
+	if !streamed {
+		if final != "" {
+			fmt.Fprintln(w, final)
+		}
+		return nil
+	}
+	if already == final || strings.TrimSpace(already) == strings.TrimSpace(final) {
+		if already != "" && !strings.HasSuffix(already, "\n") {
+			fmt.Fprintln(w)
+		}
+		return nil
+	}
+	if strings.HasPrefix(final, already) {
+		rest := final[len(already):]
+		if rest != "" {
+			fmt.Fprint(w, rest)
+			if !strings.HasSuffix(rest, "\n") {
+				fmt.Fprintln(w)
+			}
+		}
+		return nil
+	}
+	if strings.TrimSpace(final) != "" && !strings.Contains(already, final) {
+		if already != "" && !strings.HasSuffix(already, "\n") {
+			fmt.Fprintln(w)
+		}
+		fmt.Fprintln(w, final)
+	}
+	return nil
+}
+
 func (o *options) ask() *cobra.Command {
 	s := &sessionOptions{}
 	var permission string
@@ -362,10 +409,28 @@ func (o *options) ask() *cobra.Command {
 		if resume {
 			action = "resume"
 		}
+		// 管道和重定向保持「只在结束时写最终回复」，脚本输出不变。
+		// 交互终端则边生成边把正文写到 stdout，工具进度写到 stderr。
+		stream := !o.json && stdoutIsTTY(cmd.OutOrStdout())
+		var streamed strings.Builder
 		err = chat.Run(ctx, client, session, action, input, chat.Hooks{
 			Event: func(event api.Event) {
 				if o.json {
 					_ = jsonOut(cmd.OutOrStdout(), event)
+					return
+				}
+				if !stream || event.IsCompact() {
+					return
+				}
+				switch event.Type {
+				case "text-delta":
+					fmt.Fprint(cmd.OutOrStdout(), event.Text)
+					streamed.WriteString(event.Text)
+				case "tool-call":
+					if event.ToolName == "attempt_completion" || event.ToolName == "ask_followup_question" {
+						return
+					}
+					fmt.Fprintf(cmd.ErrOrStderr(), "\n[%s] %s\n", event.ToolName, briefInput(event.Input))
 				}
 			},
 			Snapshot: func(snapshot api.Session) {
@@ -391,15 +456,19 @@ func (o *options) ask() *cobra.Command {
 		if o.json {
 			return jsonOut(cmd.OutOrStdout(), map[string]any{"type": "result", "session": final})
 		}
+		var finalText strings.Builder
 		for i, message := range final.History {
 			if i < baseline || message.Role != "assistant" {
 				continue
 			}
 			if text := chat.MessageText(message, false); text != "" {
-				fmt.Fprintln(cmd.OutOrStdout(), chat.Plain(text))
+				if finalText.Len() > 0 {
+					finalText.WriteByte('\n')
+				}
+				finalText.WriteString(chat.Plain(text))
 			}
 		}
-		return nil
+		return writeAnswer(cmd.OutOrStdout(), stream, streamed.String(), finalText.String())
 	}}
 	s.flags(cmd)
 	cmd.Flags().StringVar(&permission, "permission", "ask", "遇到审批时退出等待 / 拒绝 / 允许本次：ask|deny|allow-once")

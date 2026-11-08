@@ -15,6 +15,8 @@ type Hooks struct {
 	Event      func(api.Event)
 	Snapshot   func(api.Session)
 	Permission func(context.Context, api.Permission) error
+	// Stream 拿到当前这一路订阅的取消函数。取消它只会重连，不会停止服务端任务。
+	Stream func(context.CancelFunc)
 }
 
 type packet struct {
@@ -24,8 +26,9 @@ type packet struct {
 
 // Run starts subscribing alongside the send (Bun may defer SSE headers until
 // the first event), filters cached terminal events, and reads history on reconnect.
-// Sending is never retried.
-// Cancelling stops the run and persists the unfinished model response.
+// Sending is never retried. Cancelling the parent context stops the run and
+// persists the unfinished model response. Cancelling only the stream from
+// Hooks.Stream reconnects and leaves the server task running.
 func Run(ctx context.Context, client *api.Client, initial api.Session, action, input string, hooks Hooks) (err error) {
 	var content, reasoning string
 	started := action == "watch"
@@ -77,13 +80,16 @@ func Run(ctx context.Context, client *api.Client, initial api.Session, action, i
 			// Even an idle snapshot may still have a cached agent-finish error.
 		}
 		streamCtx, closeStream := context.WithCancel(ctx)
+		if hooks.Stream != nil {
+			hooks.Stream(closeStream) // 界面回来时只取消这一路，让循环重新读历史再订
+		}
 		packets := make(chan packet, 64)
 		go func() {
 			body, connectErr := client.Subscribe(streamCtx, initial.ID)
 			if connectErr != nil {
 				select {
 				case packets <- packet{err: connectErr}:
-				case <-streamCtx.Done():
+				case <-ctx.Done(): // 父任务还在时也要把错误交出去，否则没人醒来
 				}
 				return
 			}
@@ -98,7 +104,7 @@ func Run(ctx context.Context, client *api.Client, initial api.Session, action, i
 			})
 			select {
 			case packets <- packet{err: err}:
-			case <-streamCtx.Done():
+			case <-ctx.Done():
 			}
 		}()
 		if !started {
@@ -223,6 +229,10 @@ func Run(ctx context.Context, client *api.Client, initial api.Session, action, i
 		// Only stream errors reconnect. A permission handler error is actionable.
 		if _, ok := err.(*api.HTTPError); ok {
 			return err
+		}
+		// 只取消了这一路订阅。减回去，循环自己还会加一，所以不占用四次失败。
+		if errors.Is(err, context.Canceled) && ctx.Err() == nil {
+			attempt--
 		}
 	}
 	return fmt.Errorf("实时连接中断，任务可能仍在运行；使用 chat --session %s 重新连接: %w", initial.ID, err)
