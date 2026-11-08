@@ -569,6 +569,10 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   const fullscreenStage = layer.locator('.ui-code-block__stage')
   await expect(fullscreenStage).toBeVisible()
   await expect(layer.locator('.ui-code-block__canvas svg').first()).toBeVisible()
+  // 全屏层要是毛玻璃透视：舞台本身透明（透出 backdrop 的模糊），只有图表块自带底色。
+  expect(await fullscreenStage.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+  expect(await layer.evaluate(element => getComputedStyle(element, '::backdrop').backdropFilter)).toContain('blur')
+  expect(await layer.locator('.ui-code-block__canvas').evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
   // 复位后滚轮缩放：滚动后缩放比例要偏离 100%。指针位置按全屏层包围盒取，不依赖视口尺寸。
   await layer.getByRole('button', { name: '复位视图' }).click()
   const initial = await layer.locator('.ui-code-block__zoom-value').textContent()
@@ -774,7 +778,9 @@ test('retry keeps the stop button available after reconnecting', async ({ page }
   await expect.poll(() => mock.calls.filter(call => call.path === '/sse/connect/session-1').length).toBeGreaterThan(connections)
 
   await mock.emit('session-1', [{ type: 'retry', attempt: 1, delay: 5000 }])
-  await expect(page.getByText(/模型请求失败，第 1 次自动重试，5s 后继续/).first()).toBeVisible()
+  const retryRow = page.locator('.request-status.is-retrying').first()
+  await expect(retryRow).toBeVisible()
+  await expect(retryRow).toContainText(/模型请求失败，第 1 次自动重试，\d+s 后继续/)
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()

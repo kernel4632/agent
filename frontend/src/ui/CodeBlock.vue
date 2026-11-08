@@ -256,7 +256,8 @@ function flattenForeignObjects(original) {
   return clone
 }
 
-// SVG 里的颜色是烧死的具体色值，直接画进 canvas 就是所见图；底色补一层界面背景色，截图不再是透明底。
+// SVG 里的颜色是烧死的具体色值，直接画进 canvas 就是所见图；
+// 底色铺和屏幕上图表块同一层（--la-bg），看到什么就存下什么，粘到别处不是透明底。
 function svgToPng(svg) {
   return new Promise(resolve => {
     const clone = flattenForeignObjects(svg)
@@ -264,15 +265,17 @@ function svgToPng(svg) {
     const image = new Image()
     image.onload = () => {
       try {
-        const rect = svg.getBoundingClientRect()
+        // 尺寸用 SVG 自己的固有尺寸：先取 viewBox，再退到 width/height 属性。
+        // 不用 getBoundingClientRect——屏幕上套了 max-width: 100% 会被压缩，导出会跟着变小变糊。
         const ratio = Math.max(1, window.devicePixelRatio || 1)
-        const width = svg.viewBox.baseVal.width || rect.width
-        const height = svg.viewBox.baseVal.height || rect.height
+        const view = svg.viewBox?.baseVal
+        const width = (view?.width || Number(svg.getAttribute('width')) || image.naturalWidth) || 1
+        const height = (view?.height || Number(svg.getAttribute('height')) || image.naturalHeight) || 1
         const canvas = document.createElement('canvas')
         canvas.width = Math.max(1, Math.round(width * ratio))
         canvas.height = Math.max(1, Math.round(height * ratio))
         const context = canvas.getContext('2d')
-        context.fillStyle = css('--la-bg')
+        context.fillStyle = css('--la-layer-01')   // 与屏幕上图表卡的底色同一层，看到的和存下的一致
         context.fillRect(0, 0, canvas.width, canvas.height)
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
         resolve(canvas.toDataURL('image/png'))

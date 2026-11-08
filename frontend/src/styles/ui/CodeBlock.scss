@@ -58,12 +58,25 @@
   min-height: 0;
   overflow: hidden;
   border-radius: var(--la-radius-panel);
-  background: var(--la-bg);
+  /* 不铺底色：让 Dialog 自己的毛玻璃 backdrop 透出来，只有图表本身有背景时它才遮挡。 */
+  background: transparent;
   cursor: grab;
   touch-action: none;
 }
 .ui-code-block__stage:active { cursor: grabbing; }
-.ui-code-block__canvas { position: absolute; left: 50%; top: 50%; transform-origin: center; }
+.ui-code-block__canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+  padding: 8px;
+  /* 图表自己带底色和抬高阴影：全屏层其余部分是毛玻璃透视，
+     只有这一块完全遮挡背景，图才读得清；阴影让它从透出的内容里浮出来。 */
+  background: var(--la-layer-01);
+  border: 1px solid var(--la-line);
+  border-radius: calc(var(--la-radius) * 2);
+  box-shadow: var(--la-shadow-overlay);
+}
 /* SVG 的尺寸属性由 mermaid 烧成具体宽高；层里放开限宽，缩放和平移才有完整画布。 */
 .ui-code-block__canvas svg { display: block; max-width: none; }
 .ui-code-block__zoombar {
