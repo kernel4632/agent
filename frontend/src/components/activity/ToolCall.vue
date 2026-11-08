@@ -174,7 +174,7 @@ function decide(decision) {
           <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
         </div>
       </div>
-      <Fold :open="bodyOpen" :instant="instant" slow appear>
+      <Fold :open="bodyOpen" :instant="instant" slow appear :fade="false">
         <div :id="bodyId" class="cot-step__body">
           <ToolResult :tool="tool" />
         </div>

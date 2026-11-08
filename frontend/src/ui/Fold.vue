@@ -6,7 +6,14 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 
-const props = defineProps({ open: Boolean, instant: Boolean, slow: Boolean, appear: Boolean })
+const props = defineProps({
+  open: Boolean,
+  instant: Boolean,
+  slow: Boolean,
+  appear: Boolean,
+  // 默认高度和透明度一起过渡；工具块关闭渐变会让高速输出时像内容先消失，故可关掉。
+  fade: { type: Boolean, default: true },
+})
 const rootEl = ref(null)
 let safetyTimer = 0
 
@@ -32,7 +39,7 @@ function enter(element) {
     return
   }
   element.style.height = '0px'
-  element.style.opacity = '0'
+  element.style.opacity = props.fade ? '0' : '1'
   void element.offsetHeight
   // 父级折叠正在展开时，子内容可能暂时量到 0；这时直接放开 auto，避免卡成空白。
   const height = element.scrollHeight
@@ -51,14 +58,14 @@ function afterEnter(element) {
 function leave(element) {
   if (props.instant) {
     element.style.height = '0px'
-    element.style.opacity = '0'
+    element.style.opacity = props.fade ? '0' : '1'
     return
   }
   element.style.height = `${element.scrollHeight}px`
   element.style.opacity = '1'
   void element.offsetHeight
   element.style.height = '0px'
-  element.style.opacity = '0'
+  element.style.opacity = props.fade ? '0' : '1'
 }
 function afterLeave(element) {
   element.style.height = ''
@@ -69,7 +76,7 @@ onBeforeUnmount(() => clearTimeout(safetyTimer))
 
 <template>
   <Transition name="fold" :appear="appear" @enter="enter" @after-enter="afterEnter" @leave="leave" @after-leave="afterLeave">
-    <div v-if="open" ref="rootEl" class="fold" :class="{ 'is-instant': instant, 'is-slow': slow }">
+    <div v-if="open" ref="rootEl" class="fold" :class="{ 'is-instant': instant, 'is-slow': slow, 'is-no-fade': !fade }">
       <div class="fold__inner"><slot /></div>
     </div>
   </Transition>
