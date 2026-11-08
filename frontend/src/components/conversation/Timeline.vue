@@ -36,6 +36,26 @@ const turns = computed(() => groupMessageTurns(messages.value))
 // 时间线始终保留完整高度：历史轮次不在滚动过程中加载/卸载，
 // 否则滚动条长度和定位跳转都会在中途变化。
 // 单轮内部的处理过程仍是折叠内容，未展开时不会挂载大段工具输出。
+//
+// 首屏分批：长会话（本轮实测 160 轮、11405 个节点）一次性挂全部 Markdown 太贵。
+// 只挂载靠后的 firstBatch 轮，更早的轮用占位（估算高度）撑住；
+// 向上滚到接近已挂载区顶部时再补一批。占位高度从已挂载轮次的平均高度估算，
+// 替换时把 scrollTop 补回去，读者看到的位置不会变——滚动条长度也始终是完整的。
+const FIRST_BATCH = 24
+const MORE_BATCH = 24
+// 需要挂载的轮次起点（可写，向上滚/跳转时改它）。
+// 初始值由 turns 首次就绪时确定：用 computed 做默认值、ref 存用户位置，
+// 避开 watch 非 immediate 导致首次不触发的问题。
+const mountedEarlier = ref(null)   // null = 还没被用户改过
+const averageTurnHeight = ref(0)
+const mountedFrom = computed(() => {
+  const length = turns.value.length
+  // 短会话不分批：分批本身也有占位开销。
+  if (length <= FIRST_BATCH) return 0
+  const floor = length - FIRST_BATCH          // 默认只挂靠后的这一批
+  const start = mountedEarlier.value ?? floor // 用户往上滚过就按用户的位置
+  return Math.max(0, Math.min(start, floor))
+})
 // 时间线在挂载期间固定属于一个会话；切会话时旧组件卸载，保存位置不能写到新会话上。
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
@@ -169,6 +189,8 @@ function nestedScroller(target) {
 
 function onScroll() {
   const top = scrollParent.scrollTop
+  // 快滚到已挂载区顶部时补一批更早的轮次（一屏距离提前量）。
+  if (!jumping && top < scrollParent.clientHeight) mountEarlier()
   if (jumping) {
     lastTop = top
     rememberScroll()
@@ -276,11 +298,20 @@ function jumpToBottom() {
   rememberScroll()
 }
 
-// 右侧定位条跳转：目标可能还没有挂到 DOM，先把包含它的那一轮展开出来。
+// 右侧定位条跳转：目标可能还在未挂载的占位区里，先把它所在的批次挂载出来。
 async function jumpToMessage(messageId) {
   if (!scrollParent) return
   const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
   if (turnIndex < 0) return
+  // 目标在未挂载区：一次把到它为止的轮次都挂上，再按原来的逻辑滚动。
+  if (turnIndex < mountedFrom.value) {
+    const before = scrollParent.scrollHeight - scrollParent.scrollTop
+    mountedEarlier.value = turnIndex
+    await nextTick()
+    scrollParent.scrollTop = scrollParent.scrollHeight - before
+    lastTop = scrollParent.scrollTop
+    measureTurns()
+  }
   const turn = turns.value[turnIndex]
   // 点当前正在看的这一轮（比如底部最新用户消息）时不要往上跳；
   // 只有目标轮次完全在视口外才滚动。
@@ -314,7 +345,27 @@ async function jumpToMessage(messageId) {
   }, 900)
 }
 defineExpose({ jumpToMessage, jumpToBottom })
-watch(() => turns.value.length, requestStick)
+// 已挂载部分的高度：用来估算占位该多高。每挂载一批后重算一次。
+function measureTurns() {
+  const elements = flow.value?.querySelectorAll('[data-turn-id]')
+  if (!elements?.length) return
+  const total = [...elements].reduce((sum, element) => sum + element.getBoundingClientRect().height, 0)
+  averageTurnHeight.value = total / elements.length
+}
+
+// 向上补一批：把 scrollTop 补回新增高度，读者看到的内容不会往下跳。
+function mountEarlier() {
+  if (mountedFrom.value <= 0) return
+  const before = scrollParent.scrollHeight - scrollParent.scrollTop
+  mountedEarlier.value = Math.max(0, mountedFrom.value - MORE_BATCH)
+  nextTick(() => {
+    if (!scrollParent) return
+    // 占位换成真实内容后高度变了；保持“距底部距离”不变，视觉上完全静止。
+    scrollParent.scrollTop = scrollParent.scrollHeight - before
+    lastTop = scrollParent.scrollTop
+    measureTurns()
+  })
+}
 onMounted(() => {
   scrollParent = props.scrollRoot
   lastTop = scrollParent?.scrollTop || 0
@@ -338,6 +389,8 @@ onMounted(() => {
   if (flow.value) observer.observe(flow.value)
   if (scrollParent) observer.observe(scrollParent)
   syncLatestPosition()
+  // 首屏挂载完成后量一次轮次平均高度，占位才估得准。
+  requestAnimationFrame(measureTurns)
   // 刷新后回到原来的位置；没有记录或当时停在底部，就继续跟最新内容。
   const restoreTop = savedView && !savedView.pinned && Number.isFinite(savedView.top) ? savedView.top : null
   if (restoreTop == null) {
@@ -432,7 +485,12 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 
 <template>
   <div ref="flow" class="conversation-flow" role="log" aria-label="对话内容">
-    <article v-for="turn in turns" :key="turn.id" :data-turn-id="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'Agent 的回复'">
+    <!-- 未挂载的更早轮次：用占位把高度占住，滚动条长度从一开始就是完整的。
+         高度按已挂载轮次的平均值估，向上替换时补偿 scrollTop，视觉不跳。 -->
+    <div v-if="mountedFrom > 0" class="conversation-flow__pending" :style="{ height: `${Math.round(mountedFrom * (averageTurnHeight || 220))}px` }" aria-hidden="true">
+      <span>向上滚动加载更早的 {{ mountedFrom }} 轮</span>
+    </div>
+    <article v-for="turn in turns.slice(mountedFrom)" :key="turn.id" :data-turn-id="turn.id" class="message" :class="[`message--${turn.role}`, { 'message--compact': turn.messages[0].compact }]" :aria-label="turn.messages[0].compact ? '上下文压缩' : turn.role === 'user' ? '你的消息' : 'Agent 的回复'">
       <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
       <template v-else-if="turn.role === 'user'">
         <MessageActions

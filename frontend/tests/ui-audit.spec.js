@@ -547,7 +547,10 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   ])
 
   const bubble = page.locator('.rikka-bubble--assistant')
-  // 合法图渲染成 SVG；语法错误回退显示源码和一行错误。
+  // 图表现在等进入视口才渲染（长会话首屏不再一次画十几张）。
+  // 测试视口里可能已经在 rootMargin 范围内直接画好，也可能还是占位；
+  // 两种都合法，关键是滚到那里之后图必须出现。
+  await bubble.scrollIntoViewIfNeeded()
   await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
   await expect(bubble.locator('.ui-code-block__mermaid-error')).toContainText(/错误|error|Parse/i)
   await expect(bubble.locator('.ui-code-block__body pre code')).toContainText('A[缺少闭合')
@@ -601,6 +604,108 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   await page.getByRole('radio', { name: '深色', exact: true }).check()
   await expect(bubble.locator('.ui-code-block__mermaid svg').first()).toBeVisible({ timeout: 15000 })
   await screenshot(page, testInfo, 'mermaid-dark')
+  expect(mock.errors).toEqual([])
+})
+
+// 长会话首屏不能把所有图表一次画完：
+// 之前 9 张图一次性渲染是那次 1216ms 长任务和 0.35 布局偏移的主因。
+// 现在图表等进入视口才画，没画的用占位高度把位置占住。
+test('long sessions only render diagrams near the viewport', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  // 30 张图，每张前面有足够的正文把后面的图推到视口外
+  const blocks = []
+  for (let index = 0; index < 30; index += 1) {
+    blocks.push(`第 ${index} 段正文，用足够的字数把这一轮撑高，让后面的图表落在视口之外。\n\n\`\`\`mermaid\nflowchart TD\n  A${index}[开始${index}] --> B${index}[结束${index}]\n\`\`\``)
+  }
+  // 直接把历史塞进 mock 再刷新，走“打开很长旧会话”的真实路径
+  mock.sessions.get('session-1').history = [
+    { messageId: 'u-x', role: 'user', content: '看图' },
+    { messageId: 'a-x', role: 'assistant', content: [{ type: 'text', text: blocks.join('\n\n') }] },
+  ]
+  await page.reload()
+  await expect(page.locator('.ui-code-block')).toHaveCount(30, { timeout: 15000 })
+  // 等渲染稳定（图陆续画完）
+  await page.waitForTimeout(2500)
+
+  const counts = await page.evaluate(() => ({
+    total: document.querySelectorAll('.ui-code-block').length,
+    rendered: document.querySelectorAll('.ui-code-block__mermaid svg').length,
+    placeholders: document.querySelectorAll('.ui-code-block__mermaid-placeholder').length,
+  }))
+  // 每个图要么已画、要么在占位，不能凭空消失
+  expect(counts.rendered + counts.placeholders).toBe(counts.total)
+  // 关键：确实不是全部画完（否则等于没优化）
+  expect(counts.rendered).toBeLessThan(counts.total)
+
+  // 滚动到一个还没画的占位，它应该被画出来，而不是永远卡在占位
+  const placeholder = page.locator('.ui-code-block__mermaid-placeholder').last()
+  await placeholder.scrollIntoViewIfNeeded()
+  await expect(page.locator('.ui-code-block__mermaid svg')).toHaveCount(counts.rendered + 1, { timeout: 15000 })
+  expect(mock.errors).toEqual([])
+})
+
+// 长会话首屏只挂靠后一批轮次，更早的用占位撑高度：
+// 用户那个 160 轮会话一次性挂 11405 个节点，改用分批后降到千级，滚动条长度不变。
+test('long sessions mount only the latest turns and keep the scrollbar full', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByText('正在处理', { exact: true })).toBeVisible()
+
+  // 160 轮：每轮一问一答，带列表和代码块，接近真实的长会话
+  const history = []
+  for (let index = 0; index < 160; index += 1) {
+    history.push({ messageId: `u-${index}`, role: 'user', content: `第 ${index} 个问题，带一点长度让气泡有高度。` })
+    history.push({
+      messageId: `a-${index}`, role: 'assistant',
+      usage: { input: 100, output: 50, total: 150, provider: 'Test Provider', model: 'test-model' },
+      content: [{ type: 'text', text: `第 ${index} 个回答。\n\n这是第二段。\n\n- 项一\n- 项二\n\n\`\`\`js\nconst v${index} = ${index}\n\`\`\`` }],
+    })
+  }
+  mock.sessions.get('session-1').history = history
+  await page.reload()
+  await expect(page.locator('[data-turn-id]').first()).toBeVisible({ timeout: 20000 })
+  await page.waitForTimeout(2000)
+
+  const state = await page.evaluate(() => {
+    const scroll = document.querySelector('.session-scroll')
+    return {
+      nodes: document.querySelectorAll('*').length,
+      turns: document.querySelectorAll('[data-turn-id]').length,
+      placeholder: Boolean(document.querySelector('.conversation-flow__pending')),
+      scrollHeight: scroll?.scrollHeight || 0,
+      atBottom: scroll ? Math.abs(scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop) < 4 : false,
+    }
+  })
+
+  // 只挂了靠后的一批，不是全部 320 条
+  expect(state.turns).toBeGreaterThan(0)
+  expect(state.turns).toBeLessThan(320)
+  // 节点数控制在千级（分批前是 1.1 万）
+  expect(state.nodes).toBeLessThan(4000)
+  // 占位把未挂载部分的高度撑住了，滚动条长度仍是完整会话的
+  expect(state.placeholder).toBe(true)
+  expect(state.scrollHeight).toBeGreaterThan(10000)
+  // 打开时长会话停在底部
+  expect(state.atBottom).toBe(true)
+
+  // 向上滚：补出更早的轮次，且仍保持连续滚动（不是换窗口）
+  const before = await page.evaluate(() => {
+    const scroll = document.querySelector('.session-scroll')
+    scroll.scrollTop = 200
+    return document.querySelectorAll('[data-turn-id]').length
+  })
+  await page.waitForTimeout(1200)
+  const mounted = await page.evaluate(() => document.querySelectorAll('[data-turn-id]').length)
+  expect(mounted).toBeGreaterThan(before)
   expect(mock.errors).toEqual([])
 })
 

@@ -112,6 +112,14 @@
 .reconnect-card p { margin: 0; color: var(--la-muted); font-size: 13.5px; line-height: 20px; }
 .reconnect-enter-active, .reconnect-leave-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard); }
 .reconnect-enter-from, .reconnect-leave-to { opacity: 0; }
+/* 未挂载的更早轮次占位：不画内容，只把高度占住，滚动条长度保持完整。 */
+.conversation-flow__pending {
+  display: grid;
+  place-items: center;
+  color: var(--la-muted);
+  font-size: 12.5px;
+}
+
 /* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
 .session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
 .session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
