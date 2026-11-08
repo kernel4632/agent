@@ -195,6 +195,25 @@ test('settings auto-save preserves uneditable backend configuration and secrets 
   expect(mock.errors).toEqual([])
 })
 
+test('AI review settings save independently from tool actions', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /自动审核/ }).click()
+  await expect(page.getByRole('heading', { name: '自动审核', exact: true, level: 1 })).toBeVisible()
+
+  const enabled = page.getByRole('switch', { name: '启用 AI 审核' })
+  await enabled.check()
+  await expect.poll(() => mock.config().review.enabled).toBe(true)
+
+  await page.getByLabel('审核策略').fill('只允许读操作')
+  await expect.poll(() => mock.config().review.policy).toBe('只允许读操作')
+
+  await page.getByLabel('审核超时（毫秒）').fill('20000')
+  await expect.poll(() => mock.config().review.timeout).toBe(20000)
+  expect(mock.errors).toEqual([])
+})
+
 test('tool approval uses the existing allow-always decision contract', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -1874,30 +1893,41 @@ test('tool permissions save and MCP settings remain available', async ({ page },
   await page.getByRole('button', { name: /工具管理/ }).click()
   await expect(page.getByText('读取文件', { exact: true })).toBeVisible()
   await expect(page.getByText('执行命令', { exact: true })).toBeVisible()
-  // 只有开关：没有禁止调用，也没有进入二级权限页的入口。
+  // 每个工具和全局默认动作都是四选一，不再只有开关。
   await expect(page.getByRole('radio')).toHaveCount(0)
   await expect(page.getByText('禁止调用')).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: '默认动作' })).toBeVisible()
   await screenshot(page, testInfo, 'settings-tools')
 
-  const readSwitch = page.getByRole('switch', { name: '读取文件 自动执行' })
-  const commandSwitch = page.getByRole('switch', { name: '执行命令 自动执行' })
-  await expect(readSwitch).not.toBeChecked()
-  await readSwitch.check()
+  const readPermission = page.getByRole('combobox', { name: '读取文件 权限' })
+  await readPermission.click()
+  await page.getByRole('option', { name: '直接执行' }).click()
   await expect.poll(() => mock.config().permission.read_file).toBe('allow')
-  await commandSwitch.check()
+
+  const commandPermission = page.getByRole('combobox', { name: '执行命令 权限' })
+  await commandPermission.click()
+  await page.getByRole('option', { name: '直接执行' }).click()
   await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
-  await readSwitch.uncheck()
+
+  await readPermission.click()
+  await page.getByRole('option', { name: '每次询问' }).click()
   await expect.poll(() => mock.config().permission.read_file).toBe('ask')
 
-  const allowAll = page.getByRole('switch', { name: '全部批准' })
-  await expect(allowAll).not.toBeChecked()
-  await allowAll.check()
+  const defaultAction = page.getByRole('combobox', { name: '默认动作' })
+  await defaultAction.click()
+  await page.getByRole('option', { name: '全部批准' }).click()
   await expect.poll(() => mock.config().permission['*']).toBe('allow')
-  // 全部批准只写全局允许，不把每个工具已经记住的规则清掉或改写。
+  // 全局动作只写 *，不把每个工具已经记住的规则清掉或改写。
   await expect.poll(() => mock.config().permission.read_file).toBe('ask')
   expect(mock.config().permission.write_file).toBeUndefined()
   await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
-  await allowAll.uncheck()
+
+  await defaultAction.click()
+  await page.getByRole('option', { name: '全部 AI 审核' }).click()
+  await expect.poll(() => mock.config().permission['*']).toBe('review')
+
+  await defaultAction.click()
+  await page.getByRole('option', { name: '每次询问' }).click()
   await expect.poll(() => mock.config().permission['*']).toBe('ask')
   await expect.poll(() => mock.config().permission.read_file).toBe('ask')
   await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })

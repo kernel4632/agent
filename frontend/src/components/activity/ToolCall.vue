@@ -51,6 +51,12 @@ const statusText = computed(() => {
   return statusLabel(props.tool.status)
 })
 const statusClass = status => `is-${status || 'waiting'}`
+const reviewText = computed(() => {
+  const review = props.tool.review
+  if (!review) return ''
+  const label = review.decision === 'allow' ? 'AI 审核通过' : review.decision === 'deny' ? 'AI 审核拒绝' : 'AI 建议人工确认'
+  return review.reason ? `${label}：${review.reason}` : label
+})
 const running = computed(() => props.tool.status === 'running' || props.tool.status === 'waiting')
 const duration = computed(() => {
   const recorded = Number(props.tool.durationMs || 0)
@@ -190,6 +196,7 @@ function decide(decision) {
       </button>
       <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
         <p>需要你的许可。检查工具和参数后再决定。</p>
+        <p v-if="reviewText" class="approval__review">{{ reviewText }}</p>
         <div>
           <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
           <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
@@ -198,6 +205,7 @@ function decide(decision) {
       </div>
       <Fold :open="bodyOpen" :instant="instant" slow appear :fade="false">
         <div :id="bodyId" class="cot-step__body">
+          <p v-if="reviewText && tool.status !== 'waiting'" class="cot-step__review" :class="`cot-step__review--${tool.review.decision}`">{{ reviewText }}</p>
           <ToolResult :tool="tool" :holding="holdStream" />
         </div>
       </Fold>

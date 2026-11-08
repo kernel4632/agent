@@ -97,6 +97,7 @@ function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
     modelTasks: meta.models,
     models: raw.models,
     compact: raw.compact,
+    review: raw.review || { enabled: false, policy: '', timeout: 15000 },
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     appearance: store.config.appearance,
@@ -116,9 +117,10 @@ function backendSnapshot(draft) {
     models: draft.models,
     compact: draft.compact,
     mcp: draft.mcp,
+    review: draft.review,
     // original 只用来判断“这一项改过没有”，不是后端字段。
     tools: (draft.tools || []).map(({ original, ...tool }) => tool),
-    allowAll: draft.allowAll === true,
+    defaultAction: draft.defaultAction || 'ask',
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -162,6 +164,7 @@ function open() {
     models: provider.models,
   }))
 
+  const globalAction = (store.config.raw?.permission || {})['*']
   store.settings.draft = isolateDraft({
     providers,
     tools: store.config.tools,
@@ -169,8 +172,10 @@ function open() {
     prompt: store.config.prompt,
     models: store.config.models,
     compact: store.config.compact,
+    review: store.config.review,
     appearance: store.config.appearance,
-    allowAll: (store.config.raw?.permission || {})['*'] === 'allow',
+    // 全局默认动作；配置里没有时就是 ask。
+    defaultAction: ['allow', 'review', 'ask', 'deny'].includes(globalAction) ? globalAction : 'ask',
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
 }
@@ -198,11 +203,10 @@ function permissionPayload(draft) {
       permission[tool.name] = tool.permission
     }
   }
-  // 全部批准只动全局 *。不改写每个工具已经记住的允许或拒绝，避免开关来回拨把规则清掉。
-  // 工具默认仍是 ask 时，由审批层用全局 allow 盖过去，多行命令也不会再弹窗。
-  const savedAllowAll = (store.config.raw?.permission || {})['*'] === 'allow'
-  if (draft.allowAll === true && !savedAllowAll) permission['*'] = 'allow'
-  else if (draft.allowAll === false && savedAllowAll) permission['*'] = 'ask'
+  // 全局默认动作只动 *。不改写每个工具已经记住的允许、审核或拒绝，避免下拉框来回切把规则清掉。
+  const savedDefault = (store.config.raw?.permission || {})['*'] || 'ask'
+  const desired = draft.defaultAction || 'ask'
+  if (desired !== savedDefault) permission['*'] = desired
   return permission
 }
 
@@ -233,6 +237,7 @@ function configPayload(draft) {
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
     models: draft.models,
     compact: draft.compact,
+    review: draft.review,
   }
 }
 

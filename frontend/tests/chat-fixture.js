@@ -19,8 +19,9 @@ const routes = Object.entries(contract.paths).flatMap(([path, methods]) => Objec
 export async function backend(page, { configured = true } = {}) {
   let config = {
     providers: configured ? [{ name: 'Test Provider', enabled: true, protocol: 'openai-compatible', stream: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: [{ id: 'test-model', name: 'test-model', context: 64000, capabilities: ['text', 'tools'] }], headers: { 'x-preserve': 'yes' }, body: { temperature: 0.25 } }] : [],
-    models: { chat: { provider: configured ? 'Test Provider' : '', model: configured ? 'test-model' : '' }, compact: { provider: '', model: '' }, title: { provider: '', model: '' }, task: { provider: '', model: '' } },
+    models: { chat: { provider: configured ? 'Test Provider' : '', model: configured ? 'test-model' : '' }, compact: { provider: '', model: '' }, title: { provider: '', model: '' }, task: { provider: '', model: '' }, review: { provider: '', model: '' } },
     prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
+    review: { enabled: false, policy: '', timeout: 15000 },
     permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
   }
   let backups = []
@@ -191,6 +192,7 @@ export async function backend(page, { configured = true } = {}) {
         { task: 'compact', label: '压缩上下文', hint: '把长对话总结成一段' },
         { task: 'title', label: '生成标题', hint: '给会话起一个短标题' },
         { task: 'task', label: '子任务', hint: '子 agent 干活时用的模型' },
+        { task: 'review', label: '工具审核', hint: '自动审核工具调用的模型' },
       ],
     })
     if (path === '/config/backups') return json(backups.map(({ config: _config, ...meta }) => meta))
