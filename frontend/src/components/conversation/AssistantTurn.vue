@@ -25,6 +25,7 @@ const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
+  active: Boolean,
   rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
@@ -70,6 +71,11 @@ const content = computed(() => finalText.value || fallbackText.value)
 // 气泡显示的是最后一条消息流出的正文，回退聚光也按这条框住它。
 const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
 const bubbleMessageId = computed(() => finalMessage.value?.id || defaultTarget.value?.id || null)
+const streaming = computed(() => props.messages.some(message => message.isStreaming))
+// 一轮任务里“模型请求结束、工具还在执行、下一次请求尚未开始”不是整轮结束。
+// 只要这仍然是当前会话的最后一轮且任务在跑，处理过程和思考就保持展开，
+// 避免每次 tool-result/llm-finish 都收起再展开，形成高频闪烁。
+const turnActive = computed(() => (streaming.value || props.active) && !finalText.value)
 
 // 时间线按消息顺序排列：请求行、思考、非结束正文、工具步骤。
 // 非结束正文不拼进最终回复，否则多轮自动接续会把几段话糊成一团。
@@ -92,7 +98,7 @@ const steps = computed(() => {
           text: entry.text,
           message,
           messageId: message.id,
-          streaming: message.isStreaming && entry.type === 'reasoning' && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
+          streaming: turnActive.value && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
@@ -112,9 +118,6 @@ const steps = computed(() => {
 })
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
-const streaming = computed(() => props.messages.some(message => message.isStreaming))
-// 结束工具已经产出完整回答，就视为这一轮活动结束；不等到连接关闭才收折叠。
-const turnActive = computed(() => streaming.value && !finalText.value)
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
