@@ -29,8 +29,8 @@ describe('工具接口', () => {
 
         expect(Object.keys(read_file.inputSchema.properties)).toEqual(['path', 'offset', 'limit'])
         expect(Object.keys(write_file.inputSchema.properties)).toEqual(['path', 'content'])
-        expect(Object.keys(find_files.inputSchema.properties)).toEqual(['path', 'pattern', 'recursive'])
-        expect(Object.keys(search_text.inputSchema.properties)).toEqual(['path', 'regex', 'filePattern', 'context'])
+        expect(Object.keys(find_files.inputSchema.properties)).toEqual(['path', 'pattern', 'recursive', 'limit'])
+        expect(Object.keys(search_text.inputSchema.properties)).toEqual(['path', 'regex', 'filePattern', 'context', 'limit'])
         expect(Object.keys(shell.inputSchema.properties)).toEqual(['command', 'cwd', 'timeout', 'background'])
         expect(Object.keys(edit.inputSchema.properties)).toEqual(['path', 'edits'])
         expect(Object.keys(edit.inputSchema.properties.edits.items.properties)).toEqual(['oldText', 'newText', 'replaceAll'])
@@ -132,6 +132,35 @@ describe('工具接口', () => {
         const result = await shell.execute({ command: 'echo bare', cwd: root })
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('bare')
+    })
+
+    test('find_files 超过 limit 时明说截断了', async () => {
+        const dir = join(root, 'many')
+        await mkdir(dir, { recursive: true })
+        for (let index = 0; index < 12; index += 1) await writeFile(join(dir, `f${index}.txt`), 'x')
+
+        const capped = await find_files.execute({ path: dir, limit: 5 })
+        expect(capped.truncated).toBe(true)
+        expect(capped.files).toHaveLength(5)
+        expect(capped.hint).toContain('raise limit')
+
+        // 没超上限时还是纯数组，老调用不受影响
+        const all = await find_files.execute({ path: dir, limit: 50 })
+        expect(Array.isArray(all)).toBe(true)
+        expect(all).toHaveLength(12)
+    })
+
+    test('search_text 超过 limit 时明说截断了', async () => {
+        const lines = Array.from({ length: 20 }, (_, index) => `needle ${index}`).join('\n')
+        await writeFile(join(root, 'manymatch.js'), `${lines}\n`)
+
+        const capped = await search_text.execute({ path: root, regex: 'needle', filePattern: 'manymatch.js', limit: 4 }, {})
+        expect(capped.truncated).toBe(true)
+        expect(capped.content.split('\n')).toHaveLength(4)
+        expect(capped.hint).toContain('raise limit')
+
+        const all = await search_text.execute({ path: root, regex: 'needle', filePattern: 'manymatch.js', limit: 50 }, {})
+        expect(typeof all).toBe('string')
     })
 
     test('update_todo_list 解析 Markdown 清单', async () => {

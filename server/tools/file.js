@@ -40,8 +40,15 @@ const truncate = (text, limit = 6000) => {
     return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
 }
 
-// 读文件的三个上限：整份返回的字符数、单次最多行数、单段最多字符数。
-// 超过整份上限就自动按行分段，结果里带 nextOffset——模型不用先撞一次错才知道要换工具。
+// 搜索和列目录的一次返回上限：超过就截断并明说截断了，不让模型以为已经看全。
+// 放在工具结果里而不是交给模型自己收窄——宽泛的关键词在稍大的仓库里一下就能撑爆上下文。
+const DEFAULT_FILES = 200
+const MAX_FILES = 5000
+const DEFAULT_MATCHES = 200
+const MAX_MATCHES = 2000
+
+// 读文件：整份返回的字符上限、单段行数上限、单段字符上限。
+// 超过整份上限就自动按行分段，结果里带 nextOffset——不用先撞一次错才知道要换方式。
 const WHOLE_CHARS = 200000
 const DEFAULT_LINES = 6000
 const MAX_LINES = 20000
@@ -424,7 +431,9 @@ const findFiles = {
         'Without pattern: lists immediate children; set recursive to true to walk nested directories. Directories end with /.',
         'With pattern: searches the tree for matching names (e.g. **/*.test.js, src/*.ts). Dependency and build folders are skipped.',
         'Returns paths only, not contents. To search inside files use search_text.',
+        'Output is capped at limit entries; when truncated is true there were more, so narrow the pattern or pass a bigger limit.',
         'Parameters: - path (required): directory to search in. - pattern (optional): glob pattern for file names. - recursive (optional): walk nested directories when pattern is omitted.',
+        '- limit (optional): max entries to return, default 200, max 5000.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
@@ -432,35 +441,45 @@ const findFiles = {
             path: { type: 'string' },
             pattern: { type: 'string' },
             recursive: { type: 'boolean' },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_FILES },
         },
         required: ['path'],
     },
-    async execute({ path, pattern, recursive = false }, options = {}) {
+    async execute({ path, pattern, recursive = false, limit }, options = {}) {
         const root = absolute(path, options.cwd)
         guard([root])
+        const cap = Math.min(MAX_FILES, Math.max(1, Math.floor(Number(limit) || DEFAULT_FILES)))
 
         // 带模式：按名字找，返回匹配的路径。Windows 的扫描结果用反斜杠，统一成 /。
         if (pattern) {
             const files = []
+            let truncated = false
             for await (const found of new Bun.Glob(pattern).scan({ cwd: root, dot: true })) {
                 const file = found.replace(/\\/g, '/')
                 if (skipPath(file)) continue
+                if (files.length >= cap) { truncated = true; break }
                 files.push(file)
-                if (files.length >= 1000) break
             }
-            return files
+            return truncated ? { files, truncated, shown: files.length, hint: `More than ${cap} matches; narrow the pattern or raise limit (max ${MAX_FILES}).` } : files
         }
 
         // 不带模式：列目录；recursive 决定要不要往下走。
         if (!recursive) {
             const entries = await readdir(root, { withFileTypes: true })
-            return entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`)
+            const names = entries.map(entry => `${entry.name}${entry.isDirectory() ? '/' : ''}`)
+            return names.length > cap
+                ? { files: names.slice(0, cap), truncated: true, shown: cap, hint: `More than ${cap} entries; raise limit (max ${MAX_FILES}).` }
+                : names
         }
 
         const entries = []
+        let truncated = false
+        // 走到上限就停：递归遍历不做封顶时，node_modules 之外的深目录树能返回几十万条。
         const walk = async directory => {
+            if (truncated) return
             const children = await readdir(directory, { withFileTypes: true })
             for (const entry of children) {
+                if (entries.length >= cap) { truncated = true; return }
                 const target = join(directory, entry.name)
                 const relativePath = relative(root, target).replace(/\\/g, '/')
                 if (skipPath(relativePath)) continue
@@ -469,7 +488,14 @@ const findFiles = {
             }
         }
         await walk(root)
-        return entries
+        return truncated
+            ? { files: entries, truncated: true, shown: entries.length, hint: `More than ${cap} entries; raise limit (max ${MAX_FILES}).` }
+            : entries
+    },
+    // 截断时返回对象；模型要的是一行一个路径，不要把 JSON 原样丢过去。
+    toModelOutput({ output }) {
+        if (Array.isArray(output)) return { type: 'text', value: output.join('\n') }
+        return { type: 'text', value: `${output.files.join('\n')}\n\n${output.hint}` }
     },
 }
 
@@ -488,8 +514,10 @@ const searchText = {
     description: [
         'Search inside file contents for a regular expression and return the matching lines with file and line number.',
         'Use find_files when you only know part of a file name. This tool reads file contents, not names.',
+        'Output is capped at limit matching lines. When truncated is true there were more matches: narrow the regex or the filePattern instead of raising the limit blindly.',
         'Parameters: - path (required): file or directory to search in. - regex (required): regular expression.',
         '- filePattern (optional): glob filter, e.g. *.js. - context (optional): lines before and after, 0-20.',
+        '- limit (optional): max matching lines to return, default 200, max 2000.',
     ].join('\n'),
     inputSchema: {
         type: 'object',
@@ -498,10 +526,11 @@ const searchText = {
             regex: { type: 'string' },
             filePattern: { type: 'string' },
             context: { type: 'integer', minimum: 0, maximum: 20 },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_MATCHES },
         },
         required: ['path', 'regex'],
     },
-    async execute({ path, regex, filePattern, context }, options = {}) {
+    async execute({ path, regex, filePattern, context, limit }, options = {}) {
         const needle = regex
         const filter = filePattern
         if (!needle) throw new Error('regex is required')
@@ -512,6 +541,7 @@ const searchText = {
         const cwd = info?.isFile() ? dirname(target) : target
         const search = info?.isFile() ? basename(target) : '.'
 
+        const cap = Math.min(MAX_MATCHES, Math.max(1, Math.floor(Number(limit) || DEFAULT_MATCHES)))
         const command = [rgPath, '--line-number', '--color', 'never']
         for (const name of SKIP.filter(item => item !== '.vscode')) command.push('--glob', `!**/${name}/**`)
         if (filter) command.push('--glob', filter)
@@ -527,7 +557,26 @@ const searchText = {
             process.exited,
         ])
         if (exitCode > 1) throw new Error(error.trim() || `ripgrep exited with code ${exitCode}`)
-        return truncate(output.trimEnd())
+
+        // 按输出行数封顶，而不是把输出从中间截掉——截中间会连“哪些文件命中过”一起吞掉。
+        // 返回对象而不是纯文本：truncated 明确告诉模型“还有更多，自己收窄关键词”。
+        const text = output.trimEnd()
+        if (!text) return text
+        const lines = text.split('\n')
+        if (lines.length > cap) {
+            return {
+                content: lines.slice(0, cap).join('\n'),
+                truncated: true,
+                shown: cap,
+                hint: `Only the first ${cap} lines are shown; narrow the regex or filePattern, or raise limit (max ${MAX_MATCHES}).`,
+            }
+        }
+        return text
+    },
+    // 封顶时返回的是对象；模型要读到的是文本本体，别把 JSON 原样丢过去。
+    toModelOutput({ output }) {
+        if (typeof output === 'string') return { type: 'text', value: output }
+        return { type: 'text', value: `${output.content}\n\n${output.hint}` }
     },
 }
 
