@@ -882,10 +882,13 @@ test('retry keeps the stop button available after reconnecting', async ({ page }
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
   await expect.poll(() => mock.calls.filter(call => call.path === '/sse/connect/session-1').length).toBeGreaterThan(connections)
 
-  await mock.emit('session-1', [{ type: 'retry', attempt: 1, delay: 5000 }])
+  await mock.emit('session-1', [{ type: 'retry', attempt: 1, delay: 800 }])
   const retryRow = page.locator('.request-status.is-retrying').first()
   await expect(retryRow).toBeVisible()
   await expect(retryRow).toContainText(/模型请求失败，第 1 次自动重试，\d+s 后继续/)
+  // 倒计时归零后回到普通请求文案，不能停在“0s 后继续”。
+  await expect(page.locator('.request-status.is-retrying')).toHaveCount(0, { timeout: 3000 })
+  await expect(page.locator('.request-status').filter({ hasText: '正在请求模型' }).last()).toContainText('等待模型返回第一个字')
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeVisible()
