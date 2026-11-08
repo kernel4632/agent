@@ -40,6 +40,7 @@ type commandMsg struct {
 	text    string
 	err     error
 }
+type clockMsg struct{}
 
 type model struct {
 	ctx                                                                               context.Context
@@ -70,6 +71,7 @@ type model struct {
 	choiceFor                                                                         string
 	choiceWrite                                                                       bool
 	llmStarted, firstTokenAt                                                          int64
+	turnAt                                                                            time.Time
 	spans                                                                             []blockSpan
 	frameTop, frameVP, statsWidth                                                     int
 	suggestAt                                                                         int
@@ -164,6 +166,7 @@ func (m *model) wait() tea.Cmd {
 
 func (m *model) begin(action, input string) tea.Cmd {
 	m.running = true
+	m.turnAt = time.Now() // 这一轮的起点；界面每秒读它，不靠重绘整段对话
 	m.status, m.notice = "正在运行…", ""
 	m.panel = ""
 	m.liveText, m.liveReasoning, m.liveLog, m.lastControl, m.finalAnswer = "", "", "", "", ""
@@ -188,6 +191,18 @@ func (m *model) begin(action, input string) tea.Cmd {
 			case <-ctx.Done():
 			}
 		}
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					emit(clockMsg{}) // 只推动底栏时钟；不重建对话，避免思考区跟着跳
+				}
+			}
+		}()
 		err := chat.Run(ctx, client, initial, action, input, chat.Hooks{
 			Event:    func(e api.Event) { emit(e) },
 			Snapshot: func(s api.Session) { emit(snapshotMsg(s)) },
@@ -362,6 +377,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.renderConversation(false)
 		return m, nil
+	case clockMsg:
+		return m, m.wait() // 这条消息占用了等待，必须重新排上，否则后续事件没人收
 	case tea.KeyPressMsg:
 		if cmd, handled := m.handleKey(msg); handled {
 			return m, cmd

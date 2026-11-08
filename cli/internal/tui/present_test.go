@@ -3,10 +3,13 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/kernel4632/agent/cli/internal/api"
 )
 
@@ -482,5 +485,123 @@ func TestSessionOverlayFilters(t *testing.T) {
 	view := m.View().Content
 	if !strings.Contains(view, "keep-me") || strings.Contains(view, "hide-me") || strings.Contains(view, "beta") {
 		t.Fatalf("filter failed: %s", view)
+	}
+	if strings.Index(view, "alpha") < 0 || strings.Index(view, "alpha") > strings.Index(view, "keep-me") {
+		t.Fatalf("title should lead the row:\n%s", view)
+	}
+}
+
+func TestHeaderKeepsTitleAndShortDirectory(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Fatal(err)
+	}
+	m := newModel(context.Background(), nil, api.Session{
+		ID: "s", Title: "看板", Provider: "local", Model: "qwen",
+		Cwd:      home + "/code/agent",
+		Settings: api.Settings{Reasoning: "high"},
+	})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := m.View()
+	lines := strings.Split(view.Content, "\n")
+	if len(lines) != 24 {
+		t.Fatalf("frame height %d", len(lines))
+	}
+	if lipgloss.Width(lines[0]) > 78 || !strings.Contains(lines[0], "看板") || !strings.Contains(lines[0], "~/code/agent") || strings.Contains(lines[0], home) {
+		t.Fatalf("header %q width %d", lines[0], lipgloss.Width(lines[0]))
+	}
+	if !strings.Contains(lines[0], "local/qwen") || !strings.Contains(lines[0], "high") {
+		t.Fatalf("meta missing %q", lines[0])
+	}
+	if !strings.Contains(view.Content, "直接输入") || !strings.Contains(view.Content, "模型") {
+		t.Fatalf("welcome missing:\n%s", view.Content)
+	}
+}
+
+func TestLongDirectoryKeepsItsLeaf(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Fatal(err)
+	}
+	leaf := "workspace-leaf"
+	m := newModel(context.Background(), nil, api.Session{
+		ID: "s", Title: "看板",
+		Cwd: home + "/projects/" + strings.Repeat("very-long-directory/", 6) + leaf,
+	})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	line := strings.Split(m.View().Content, "\n")[0]
+	if lipgloss.Width(line) > 78 || !strings.Contains(line, "看板") || !strings.Contains(line, leaf) || strings.Contains(line, home) {
+		t.Fatalf("header %q width %d", line, lipgloss.Width(line))
+	}
+}
+
+func TestFooterKeepsUsageAndShortcut(t *testing.T) {
+	text, _ := json.Marshal("hello")
+	usage, _ := json.Marshal(map[string]int{"input": 9, "output": 8, "cacheRead": 7})
+	m := newModel(context.Background(), nil, api.Session{
+		ID: "s", Provider: "p", Model: "q",
+		History: []api.Message{{Role: "assistant", Content: text, Usage: usage}},
+	})
+	m.config.Providers = []struct {
+		Name    string `json:"name"`
+		Enabled *bool  `json:"enabled"`
+		Models  []struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Context int    `json:"context"`
+		} `json:"models"`
+	}{{
+		Name: "p",
+		Models: []struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Context int    `json:"context"`
+		}{{ID: "q", Context: 100}},
+	}}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	lines := strings.Split(m.View().Content, "\n")
+	last := lines[len(lines)-1]
+	if !strings.Contains(last, "上下文 9%") || !strings.Contains(last, "入 9") || !strings.Contains(last, "ctrl+") {
+		t.Fatalf("footer clipped a side: %q", last)
+	}
+	if m.statsWidth < 8 || m.statsWidth >= 78 {
+		t.Fatalf("stats click width %d", m.statsWidth)
+	}
+	if _, cmd := m.Update(tea.MouseClickMsg{X: m.statsWidth, Y: m.height - 1, Button: tea.MouseLeft}); cmd != nil || m.overlay.kind != "" {
+		t.Fatalf("shortcut click opened stats: %q", m.overlay.kind)
+	}
+	if _, cmd := m.Update(tea.MouseClickMsg{X: 1, Y: m.height - 1, Button: tea.MouseLeft}); cmd != nil || m.overlay.kind != "stats" {
+		t.Fatalf("usage click missed: %q", m.overlay.kind)
+	}
+}
+
+func TestActivityNamesTheRunningTool(t *testing.T) {
+	m := newModel(context.Background(), nil, api.Session{ID: "s"})
+	m.running = true
+	m.turnAt = time.Now().Add(-3 * time.Second)
+	m.status = "正在请求模型…"
+	m.tools = map[string]api.Tool{"read_file": {Name: "read_file", UI: struct {
+		Title   string `json:"title"`
+		Summary string `json:"summary"`
+		Icon    string `json:"icon"`
+	}{Title: "读取文件", Summary: "{path}"}}}
+	m.steps = []liveStep{{kind: "tool", tool: &liveTool{
+		id: "c", name: "read_file", running: true, input: json.RawMessage(`{"path":"main.go"}`),
+	}}}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	got := m.activityLine()
+	if !strings.Contains(got, "s  读取文件") || !strings.Contains(got, "main.go") || strings.Contains(got, "正在请求") {
+		t.Fatalf("activity %q", got)
+	}
+	m.steps = nil
+	m.liveReasoning = "先看目录"
+	if got := m.activityLine(); !strings.Contains(got, "正在思考") {
+		t.Fatalf("thinking %q", got)
+	}
+	m.running = false
+	m.busy = true
+	m.status = "就绪"
+	if m.activityLine() != "" {
+		t.Fatalf("idle command showed %q", m.activityLine())
 	}
 }

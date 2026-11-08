@@ -79,17 +79,18 @@ func writeCode(b *strings.Builder, lang string, lines []string) {
 	if lang != "" {
 		label = lang
 	}
-	b.WriteString(codeStyle.Render("┌ " + label))
+	b.WriteString(ruleStyle.Render("┌ " + label)) // 框用暗色，代码本身保持可读的前景
 	b.WriteByte('\n')
 	if len(lines) == 0 {
-		b.WriteString(codeStyle.Render("│"))
+		b.WriteString(ruleStyle.Render("│"))
 		b.WriteByte('\n')
 	}
 	for _, line := range lines {
-		b.WriteString(codeStyle.Render("│ " + line))
+		b.WriteString(ruleStyle.Render("│ "))
+		b.WriteString(codeStyle.Render(line))
 		b.WriteByte('\n')
 	}
-	b.WriteString(codeStyle.Render("└"))
+	b.WriteString(ruleStyle.Render("└"))
 	b.WriteByte('\n')
 }
 

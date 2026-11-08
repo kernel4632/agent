@@ -1,8 +1,15 @@
+/*
+界面骨架：顶栏、对话区、输入行和底栏。
+顶栏左边是标题和模型，右边是缩短后的目录。底栏左边是用量（点击打开统计），右边是当前快捷键。
+运行时的步骤写在输入行上方，带已用秒数，不写进对话记录。
+*/
 package tui
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -68,22 +75,57 @@ func (m *model) line(text string) string {
 }
 
 func (m *model) header() string {
-	title := m.session.Title
+	width := max(10, m.width-2) // 和对话区同一宽度，多一列就会把这一行挤成两行
+	title := oneLine(chat.Plain(m.session.Title), 200)
 	if title == "" {
 		title = "新对话"
 	}
-	modelName := strings.Trim(m.session.Provider+"/"+m.session.Model, "/")
-	bits := []string{title}
-	if modelName != "" {
-		bits = append(bits, modelName)
+	meta := strings.Trim(m.session.Provider+"/"+m.session.Model, "/")
+	if reasoning := strings.TrimSpace(m.session.Settings.Reasoning); reasoning != "" {
+		if meta != "" {
+			meta += " · "
+		}
+		meta += reasoning
 	}
-	if m.session.Settings.Reasoning != "" {
-		bits = append(bits, m.session.Settings.Reasoning)
+	cwd := shortPath(m.session.Cwd, max(8, width/3)) // 家目录收成 ~，放不下就留目录末尾
+	cwdW := lipgloss.Width(cwd)
+	gap := 0
+	if cwdW > 0 {
+		gap = 2
 	}
-	if m.session.Cwd != "" {
-		bits = append(bits, m.session.Cwd)
+	budget := width - cwdW - gap
+	if budget < 4 && cwdW > 0 {
+		cwd = clipCols(cwd, max(4, width/2))
+		cwdW = lipgloss.Width(cwd)
+		gap = 2
+		budget = width - cwdW - gap
 	}
-	return accent.Render(m.line(strings.Join(bits, "  ")))
+	if budget < 1 {
+		budget = width
+		cwd, cwdW, gap = "", 0, 0
+	}
+	title = clipCols(title, budget)
+	metaShown := ""
+	if room := budget - lipgloss.Width(title) - 2; meta != "" && room >= 4 {
+		metaShown = clipCols(meta, room) // 宽度不够时先丢掉模型，目录比模型更常被用到
+	}
+	var b strings.Builder
+	b.WriteString(accent.Render(title))
+	used := lipgloss.Width(title)
+	if metaShown != "" {
+		piece := "  " + metaShown
+		b.WriteString(muted.Render(piece))
+		used += lipgloss.Width(piece)
+	}
+	if cwdW > 0 {
+		pad := width - used - cwdW
+		if pad < gap {
+			pad = gap
+		}
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteString(muted.Render(cwd))
+	}
+	return b.String()
 }
 
 func (m *model) taskLine() string {
@@ -115,11 +157,11 @@ func (m *model) statsLine() string {
 	parts := []string{}
 	if limit := m.contextLimit(); limit > 0 && usage.Input > 0 {
 		percent := usage.Input * 100 / limit
-		if percent == 0 && usage.Input > 0 {
-			parts = append(parts, "上下文 <1%")
-		} else {
-			parts = append(parts, "上下文 "+itoa(percent)+"%")
+		label := "上下文 " + itoa(percent) + "%"
+		if percent == 0 {
+			label = "上下文 <1%"
 		}
+		parts = append(parts, label+" "+meter(percent, 8)) // 一条短条，比只读百分比容易看出还剩多少
 	}
 	parts = append(parts, "入 "+itoa(usage.Input), "出 "+itoa(usage.Output), "缓存 "+itoa(usage.CacheRead))
 	if usage.Reasoning > 0 {
@@ -156,50 +198,118 @@ func (m *model) syncUsage() {
 
 func (m *model) activityLine() string {
 	if m.permission != nil && m.overlay.kind == "" {
+		return "" // 批准卡已经占住输入行上方，再写一行状态就是重复
+	}
+	text := m.activityText()
+	if text == "" {
 		return ""
 	}
-	if m.running || m.busy || (m.status != "" && m.status != "就绪") {
-		if m.status == "" {
-			return "正在运行"
+	if m.running && !m.turnAt.IsZero() {
+		if elapsed := int(time.Since(m.turnAt).Seconds()); elapsed >= 1 {
+			text = itoa(elapsed) + "s  " + text // 秒数放前面：窄屏裁掉的是后半，时钟还在
 		}
+	}
+	return text
+}
+
+func (m *model) activityText() string {
+	switch m.status {
+	case "连接中断，正在重新读取历史…", "模型请求重试中…", "正在压缩上下文…", "上下文已压缩", "等待工具审批":
+		return m.status
+	}
+	if m.running {
+		for i := len(m.steps) - 1; i >= 0; i-- {
+			tool := m.steps[i].tool
+			if tool == nil || !tool.running {
+				continue
+			}
+			title, summary := m.toolLabel(tool.name, tool.input)
+			if summary != "" && summary != title {
+				return title + "  " + oneLine(summary, 48)
+			}
+			if title == "" {
+				return "正在执行工具"
+			}
+			return title
+		}
+		if strings.TrimSpace(m.liveReasoning) != "" && strings.TrimSpace(m.liveText) == "" {
+			return "正在思考…"
+		}
+		if strings.TrimSpace(m.liveText) != "" {
+			return "正在回复…"
+		}
+		if m.status != "" && m.status != "就绪" && m.status != "正在运行…" {
+			return m.status
+		}
+		return "正在请求模型…"
+	}
+	if m.busy {
+		return "" // 命令进行中由提示行写「处理中…」；这里若回写状态，空闲时的「就绪」会盖住它
+	}
+	if m.status != "" && m.status != "就绪" {
 		return m.status
 	}
 	return ""
 }
 
 func (m *model) footer() string {
+	width := max(10, m.width-2)
+	stats := m.statsLine()
+	if stats == "" {
+		return clipCols(m.footerHint(2), width)
+	}
+	for level := 2; level >= 0; level-- { // 先试完整快捷键，放不下就缩短，绝不截成半个词
+		hint := m.footerHint(level)
+		if lipgloss.Width(stats)+2+lipgloss.Width(hint) <= width {
+			return spread(stats, hint, width)
+		}
+	}
+	return clipCols(stats, width) // 用量自己已经占满：它能点开统计，快捷键仍在 /help
+}
+
+func (m *model) footerHint(level int) string {
 	var choices []answerChoice
 	if m.permission == nil && m.overlay.kind == "" && m.slashMenu() == "" {
 		_, choices = m.pendingChoices()
 	}
-	var left string
+	var hint string
 	switch {
 	case m.slashMenu() != "":
-		left = "方向键选择   tab 补全   enter 执行   esc 关闭"
+		hint = "方向键选择   tab 补全   enter 执行   esc 关闭"
 	case m.overlay.kind == "stats":
-		left = "esc 关闭   pgup 翻页"
+		hint = "esc 关闭   pgup 翻页"
 	case m.overlay.kind != "":
-		left = "esc 关闭   方向键移动   enter 确认"
+		hint = "esc 关闭   方向键移动   enter 确认"
 	case m.permission != nil:
-		left = "y 允许一次   a 始终允许   n 拒绝"
+		hint = "y 允许一次   a 始终允许   n 拒绝"
 	case len(choices) > 0 && m.choiceWrite:
-		left = "直接输入   enter 发送   方向键改选"
+		hint = "直接输入   enter 发送   方向键改选"
 	case len(choices) > 0:
-		left = "方向键选择   数字键确认   或直接输入"
+		hint = "方向键选择   数字键确认   或直接输入"
 	case m.pendingQuestion() != "":
-		left = "enter 回答   pgup 回看   / 命令"
+		hint = "enter 回答   pgup 回看   / 命令"
 	case m.focus == focusTranscript:
-		left = "j/k 移动   enter 展开   c 复制   x 回退   f 分支   r 恢复文件   esc 返回"
+		if level >= 2 {
+			hint = "j/k 移动   enter 展开   c 复制   x 回退   f 分支   r 恢复文件   esc 返回"
+		} else if level == 1 {
+			hint = "j/k 移动   enter 展开   esc 返回"
+		} else {
+			hint = "j/k 移动   esc 返回"
+		}
 	default:
-		left = "enter 发送   / 命令   pgup 回看   ctrl+p 会话   ctrl+m 模型"
+		switch level {
+		case 0:
+			hint = "enter 发送   / 命令"
+		case 1:
+			hint = "enter 发送   / 命令   ctrl+p 会话"
+		default:
+			hint = "enter 发送   / 命令   pgup 回看   ctrl+p 会话   ctrl+m 模型"
+		}
 	}
-	if m.session.Undoable > 0 {
-		left += "   /redo"
+	if m.session.Undoable > 0 && level >= 2 {
+		hint += "   /redo"
 	}
-	if stats := m.statsLine(); stats != "" {
-		return stats + "   " + left
-	}
-	return left
+	return hint
 }
 
 func (m *model) View() tea.View {
@@ -226,7 +336,8 @@ func (m *model) View() tea.View {
 	}
 	dock := m.dockRows()
 	composer := m.composerLines()
-	footer := muted.Render(m.line(m.footer()))
+	plainFooter := m.footer()
+	footer := muted.Render(m.line(plainFooter))
 	for m.height-(len(top)+1+len(dock)+len(below)+len(composer)+1) < 2 && len(dock) > 1 {
 		dock = shrinkDock(dock)
 	}
@@ -290,7 +401,12 @@ func (m *model) View() tea.View {
 	m.frameVP = vpHeight
 	m.statsWidth = 0
 	if m.overlay.kind == "" {
-		m.statsWidth = lipgloss.Width(m.statsLine())
+		stats := m.statsLine()
+		if stats != "" && strings.HasPrefix(plainFooter, stats) {
+			m.statsWidth = lipgloss.Width(stats) // 只覆盖用量前缀，点到右边的快捷键不打开统计
+		} else if stats != "" {
+			m.statsWidth = lipgloss.Width(plainFooter)
+		}
 	}
 
 	view := tea.NewView(strings.Join(lines, "\n"))
@@ -488,6 +604,53 @@ func wrapLines(text string, width int) []string {
 		}
 	}
 	return out
+}
+
+func spread(left, right string, width int) string {
+	pad := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if pad < 2 {
+		pad = 2
+	}
+	return left + strings.Repeat(" ", pad) + right
+}
+
+func clipCols(text string, width int) string {
+	if text == "" || width < 1 {
+		return ""
+	}
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+	if width == 1 {
+		head, _ := cutWidth(text, 1)
+		return head
+	}
+	head, _ := cutWidth(text, width-1) // 少一列留给省略号，避免刚好卡在双宽字符上
+	return head + "…"
+}
+
+func shortPath(path string, limit int) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		if path == home {
+			path = "~"
+		} else if rest, ok := strings.CutPrefix(path, home); ok && (strings.HasPrefix(rest, "/") || strings.HasPrefix(rest, "\\")) {
+			path = "~" + rest // 只在家目录边界替换，避免把名字碰巧相同的目录也收掉
+		}
+	}
+	if limit < 4 || lipgloss.Width(path) <= limit {
+		return path
+	}
+	ellipsis := "…"
+	room := limit - lipgloss.Width(ellipsis)
+	runes := []rune(path)
+	for len(runes) > 0 && lipgloss.Width(string(runes)) > room {
+		runes = runes[1:] // 从左边裁：最后一级目录比家目录前缀有用
+	}
+	return ellipsis + string(runes)
 }
 
 func cutWidth(text string, width int) (string, string) {

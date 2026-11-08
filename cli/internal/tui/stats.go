@@ -463,6 +463,9 @@ func meter(percent, width int) string {
 		percent = 100
 	}
 	filled := percent * width / 100
+	if percent > 0 && filled == 0 {
+		filled = 1 // 不到一格也留一格，否则 9% 在 8 格的底栏上会画成全空
+	}
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 

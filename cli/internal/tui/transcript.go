@@ -397,19 +397,28 @@ func (m *model) welcome() string {
 	if modelName == "" {
 		modelName = "未配置模型"
 	}
-	cwd := m.session.Cwd
+	cwd := shortPath(m.session.Cwd, 64)
 	if cwd == "" {
 		cwd = "未设置目录"
 	}
-	return strings.Join([]string{
+	lines := []string{
+		accent.Render("Agent"),
+		"",
 		"直接输入，发给当前会话。",
 		"",
-		"模型  " + modelName,
-		"目录  " + cwd,
+		muted.Render("模型  " + modelName),
+		muted.Render("目录  " + cwd),
+	}
+	if reasoning := strings.TrimSpace(m.session.Settings.Reasoning); reasoning != "" {
+		lines = append(lines, muted.Render("思考  "+reasoning))
+	}
+	lines = append(lines,
 		"",
-		"/       列出命令并补全",
-		"ctrl+p  打开已有会话",
-	}, "\n")
+		muted.Render("/        命令"),
+		muted.Render("ctrl+p   已有会话"),
+		muted.Render("ctrl+m   切换模型"),
+	)
+	return strings.Join(lines, "\n")
 }
 
 func quoteBar(text string) string {
@@ -426,15 +435,15 @@ func quoteBar(text string) string {
 func toolMark(kind string) (string, lipgloss.Style) {
 	switch kind {
 	case "running":
-		return "*", lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
+		return "●", accent
 	case "error":
-		return "x", lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+		return "✗", lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	case "rejected":
-		return "-", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return "−", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	case "waiting":
-		return "~", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return "…", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	default:
-		return "+", lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+		return "✓", lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	}
 }
 

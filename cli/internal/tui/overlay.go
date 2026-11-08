@@ -321,7 +321,11 @@ func (m *model) overlayText() string {
 			if i == m.overlay.index {
 				mark = "▸ "
 			}
-			b.WriteString(mark + session.ID + "  " + session.Title + "\n")
+			title := oneLine(strings.TrimSpace(session.Title), 48)
+			if title == "" {
+				title = "未命名"
+			}
+			b.WriteString(mark + title + "  " + muted.Render(session.ID) + "\n") // 标题在前，编号留着给 /open
 		}
 	case "models":
 		b.WriteString("模型")
