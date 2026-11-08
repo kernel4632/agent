@@ -8,9 +8,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { groupMessageTurns, isFinishedStopTool } from "../../features/turns.js"
 import { outputText } from "../../utils/tool.js"
-import { renderMarkdown } from "../../utils/markdown.js"
 import { AgentAPI } from "../../utils/api.js"
 import { Notice } from "../../utils/notice.js"
+import Markdown from '../../ui/Markdown.vue'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -140,8 +140,6 @@ const activeIndex = computed(() => {
 })
 const activeNode = computed(() => nodes.value[activeIndex.value] || null)
 const hoverNode = computed(() => nodes.value[hoverIndex.value] || null)
-const previewPrompt = computed(() => hoverNode.value?.prompt ? renderMarkdown(hoverNode.value.prompt) : '')
-const previewResponse = computed(() => hoverNode.value?.response ? renderMarkdown(hoverNode.value.response) : '')
 const ariaValue = computed(() => activeIndex.value + 1)
 
 const markTop = index => INSET + index * PITCH
@@ -374,8 +372,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">
-        <span v-if="previewPrompt" class="conversation-rail__preview-prompt"><span class="conversation-rail__preview-body" v-html="previewPrompt"></span></span>
-        <span v-if="previewResponse" class="conversation-rail__preview-response"><span class="conversation-rail__preview-body" v-html="previewResponse"></span></span>
+        <Markdown v-if="hoverNode.prompt" class="conversation-rail__preview-prompt" :content="hoverNode.prompt" compact />
+        <Markdown v-if="hoverNode.response" class="conversation-rail__preview-response" :content="hoverNode.response" compact />
       </span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>
