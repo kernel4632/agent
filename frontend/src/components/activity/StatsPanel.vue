@@ -87,25 +87,43 @@ const liveHighlight = computed(() => {
   if (!live.value.running) return null
   const firstTokenAt = Number(live.value.firstTokenAt || 0)
   const startedAt = Number(live.value.startedAt || 0)
-  const elapsed = firstTokenAt ? (liveNow.value - firstTokenAt) / 1000 : 0
+  const provider = live.value.provider || '生成中'
+  const model = live.value.model || ''
+  const measured = group => Boolean(group.lastDurationMs || group.lastFirstTokenMs || group.lastTps)
+  const previous = speedGroups.value.find(group => group.provider === provider && group.model === model && measured(group))
+    || speedGroups.value.find(measured)
+  // “正在请求模型”阶段还没有本轮首字和速度，先原样显示最近一次测到的值。
+  if (!firstTokenAt) return previous ? { ...previous, lastAt: Number.MAX_SAFE_INTEGER, live: true } : null
+  const elapsed = (liveNow.value - firstTokenAt) / 1000
   return {
-    provider: live.value.provider || '生成中',
-    model: live.value.model || '',
-    lastFirstTokenMs: firstTokenAt && startedAt ? Math.max(0, firstTokenAt - startedAt) : 0,
-    lastTps: elapsed > 0 ? Math.max(1, Math.round(Number(live.value.output || 0) / elapsed)) : 0,
+    provider,
+    model,
+    lastFirstTokenMs: startedAt ? Math.max(0, firstTokenAt - startedAt) : previous?.lastFirstTokenMs || 0,
+    lastTps: elapsed > 0 ? Math.max(1, Math.round(Number(live.value.output || 0) / elapsed)) : previous?.lastTps || 0,
     lastAt: Number.MAX_SAFE_INTEGER,
     live: true,
   }
 })
-// 一个会话可以换几十个模型；小面板用紧凑表格只展示最近使用的五个。
-const recentSpeedGroups = computed(() => [...speedGroups.value].sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0) || (b.averageDurationMs - a.averageDurationMs)))
+// 一个会话可以换几十个模型；小面板用紧凑表格只展示最近使用且有测量值的五个。
+const recentSpeedGroups = computed(() => [...speedGroups.value]
+  .filter(group => group.lastDurationMs || group.lastFirstTokenMs || group.lastTps)
+  .sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0) || (b.averageDurationMs - a.averageDurationMs)))
 const recentSpeedHighlights = computed(() => {
   const groups = recentSpeedGroups.value.slice(0, 5)
   const liveGroup = liveHighlight.value
   if (!liveGroup) return groups
   const index = groups.findIndex(group => group.provider === liveGroup.provider && group.model === liveGroup.model)
   if (index < 0) return [liveGroup, ...groups].slice(0, 5)
-  return groups.map((group, position) => position === index ? { ...group, ...liveGroup } : group)
+  // 等待首字时还没有本次的耗时数据，先沿用这个模型上一次测到的值；
+  // 首字到达后再覆盖成这一轮的实时值，避免面板在“正在请求模型”时变成破折号。
+  return groups.map((group, position) => position === index
+    ? {
+        ...group,
+        lastFirstTokenMs: liveGroup.lastFirstTokenMs || group.lastFirstTokenMs,
+        lastTps: liveGroup.lastTps || group.lastTps,
+        live: true,
+      }
+    : group)
 })
 const formatDuration = value => {
   const ms = Number(value || 0)

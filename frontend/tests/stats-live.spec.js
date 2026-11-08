@@ -1,6 +1,56 @@
 import { expect, test } from '@playwright/test'
 import { backend, openDrawer } from './chat-fixture.js'
 
+test('waiting for the first token keeps the last measured speed', async ({ page }) => {
+  const mock = await backend(page)
+  mock.sessions.set('wait-stats', {
+    id: 'wait-stats',
+    title: '等待首字',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history: [
+      { messageId: 'u1', role: 'user', content: '先来一轮' },
+      {
+        messageId: 'a1',
+        role: 'assistant',
+        content: [{ type: 'text', text: '上一轮回答' }],
+        usage: {
+          input: 100,
+          output: 200,
+          total: 300,
+          cacheRead: 0,
+          firstTokenMs: 500,
+          durationMs: 2000,
+          provider: 'Test Provider',
+          model: 'test-model',
+          startedAt: Date.now() - 3000,
+          finishedAt: Date.now() - 1000,
+        },
+      },
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: { reasoning: 'auto' },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '等待首字', exact: true }).click()
+
+  await mock.emit('wait-stats', [
+    { type: 'llm-start', startedAt: Date.now(), provider: 'Test Provider', model: 'test-model' },
+  ])
+  const stats = page.locator('.session-composer__stats')
+  await stats.getByRole('button', { name: /tok\/s/ }).click()
+  const liveRow = page.getByRole('dialog', { name: '生成速度' }).locator('.stats-panel__speed-row.is-live')
+  await expect(liveRow).toContainText('500ms')
+  await expect(liveRow).not.toContainText('—')
+  expect(mock.errors).toEqual([])
+})
+
 test('speed panel shows the streaming request before it finishes', async ({ page }) => {
   const mock = await backend(page)
   mock.sessions.set('live-stats', {

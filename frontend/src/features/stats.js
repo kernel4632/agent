@@ -275,11 +275,15 @@ export function sessionStats(session) {
         group.firstTokenMs += firstToken
         group.firstTokenCount += 1
       }
-      group.latest = {
-        firstTokenMs: firstToken,
-        durationMs: duration,
-        tps: requestTps(item),
-        at: Number(item.finishedAt || item.startedAt || 0),
+      // 正在请求中的这一笔还没有首字/耗时，不能覆盖该模型上一次的测量值；
+      // 实时行的数据由 StatsPanel 单独从 live 补齐。
+      if (item.status !== 'running' || duration > 0 || firstToken > 0) {
+        group.latest = {
+          firstTokenMs: firstToken,
+          durationMs: duration,
+          tps: requestTps(item),
+          at: Number(item.finishedAt || item.startedAt || 0),
+        }
       }
       groups.set(key, group)
     }
