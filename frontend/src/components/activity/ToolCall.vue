@@ -8,6 +8,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Button from '../../ui/Button.vue'
+import Fold from '../../ui/Fold.vue'
 import { Approval } from '../../features/approval.js'
 import ToolResult from './ToolResult.vue'
 import { fillTemplate, toolIcon, toolTitle, uiFor } from "../../utils/tool.js"
@@ -111,9 +112,11 @@ function decide(decision) {
           <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
         </div>
       </div>
-      <div v-if="bodyOpen" :id="bodyId" class="cot-step__body">
-        <ToolResult :tool="tool" />
-      </div>
+      <Fold :open="bodyOpen">
+        <div :id="bodyId" class="cot-step__body">
+          <ToolResult :tool="tool" />
+        </div>
+      </Fold>
       <div v-if="tool.subagentSteps?.length" class="subagent-branch">
         <div class="subagent-branch__head">
           <Icon name="branch" :size="14" />
