@@ -50,11 +50,19 @@ test('provider type sheet, search and model form keep edits deliberate', async (
   await page.getByRole('button', { name: '添加供应商', exact: true }).click()
   await types.getByRole('button', { name: /Anthropic/ }).click()
   await expect(page.getByRole('textbox', { name: '请求地址（API）', exact: true })).toHaveValue('https://api.anthropic.com/v1')
-  await expect.poll(() => mock.config().providers[0].protocol).toBe('anthropic')
   await expect(page.getByText('修改后自动保存', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '保存配置', exact: true })).toHaveCount(0)
-  await page.getByRole('textbox', { name: '供应商名', exact: true }).fill('Anthropic 测试')
+  // 新供应商先放在 pendingProvider，第一次真正修改才落进 providers，
+  // 这样点进“添加”又返回不会留下空供应商。所以先改个名字触发落盘。
+  // 先 click 再 fill：前面的 fullPage 截图会临时改视口高度、把输入框弄失焦，
+  // 而自动保存靠输入事件；真实用户也是要先点进输入框才能打字。
+  const nameBox = page.getByRole('textbox', { name: '供应商名', exact: true })
+  await nameBox.click()
+  await nameBox.fill('Anthropic 测试')
   await expect.poll(() => mock.config().providers[0].name).toBe('Anthropic 测试')
+  // 落盘后接口类型跟着一起写进去：选了 Anthropic 就是 anthropic 协议，
+  // 不能只改地址而把 protocol 留在默认值。
+  await expect.poll(() => mock.config().providers[0].protocol).toBe('anthropic')
   await capture('provider-config')
 
   await page.getByRole('tab', { name: '模型', exact: true }).click()

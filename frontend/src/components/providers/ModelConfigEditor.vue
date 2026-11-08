@@ -157,7 +157,8 @@ nextTick(() => { autoSaveEnabled.value = true })
 <template>
   <div class="model-config-editor">
     <div class="model-edit__grid">
-      <Field caption="模型 ID" label="模型 ID" v-model="draft.id" placeholder="例如 deepseek-chat" />
+      <!-- 已保存的模型不能改 ID：ID 是它在列表和请求里的身份，改了会和任务模型指向对不上。 -->
+      <Field caption="模型 ID" label="模型 ID" v-model="draft.id" :readonly="Boolean(originalId)" placeholder="例如 deepseek-chat" />
       <Field caption="显示名称" label="显示名称" v-model="draft.name" placeholder="留空则使用模型 ID" />
       <ModelFamilyInput v-model="draft.family" :model-id="draft.id" :items="items" />
       <div class="model-edit__field">

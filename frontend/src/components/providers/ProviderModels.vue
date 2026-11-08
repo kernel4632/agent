@@ -28,6 +28,22 @@ const editDraft = ref(null)
 const editError = ref('')
 const customContext = ref(false)
 
+// 新建模型时显示名称跟着模型 ID 走：填了 ID 就不用再敲一遍同样的名字。
+// 只在“名字还是空的、或者还是上一个 ID”时跟随，用户自己改过的名字不被覆盖。
+let lastNameSynced = ''
+watch(editDraft, draft => {
+  if (!draft) return
+  // 换了一个模型：记下它当前的名字作为同步基准
+  lastNameSynced = String(draft.name || '').trim() || String(draft.id || '').trim()
+}, { immediate: true })
+watch(() => editDraft.value?.id, id => {
+  if (!editDraft.value) return
+  const current = String(editDraft.value.name || '').trim()
+  if (current !== '' && current !== lastNameSynced) return
+  editDraft.value.name = String(id || '').trim()
+  lastNameSynced = editDraft.value.name
+})
+
 const CONTEXT_PRESETS = [32000, 128000, 200000, 512000, 1000000, 2000000]
 const FAMILIES = [
   { value: 'openai', label: 'OpenAI' },
