@@ -19,6 +19,7 @@ const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
   instant: Boolean,
+  requestKey: { type: Number, default: 0 },
 })
 const now = ref(Date.now())
 // null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
@@ -66,44 +67,32 @@ const duration = computed(() => {
 // 参数流式生成和工具执行中自动展开，让读者能实时看到正在写入/执行的内容；
 // 这一轮结束后恢复折叠，之后由用户自己决定要不要再看结果。
 const autoOpen = computed(() => Boolean(props.tool.assembling || props.tool.status === 'running'))
-// 工具完成先保留一下展开结果，让最后一次流内容和结果有时间被看到；
-// 下一段内容通常已经在这段时间里出现，之后再用慢速 Fold 收起。
-const DELAYED_COLLAPSE = 1600
+// 工具完成先保留展开结果；等下一次模型请求真正开始、流里出现新内容时，
+// 再从当前高度慢速收起。工具刚开始时 Fold 也从 0 高度缓慢展开。
 const lingerOpen = ref(false)
 const bodyOpen = computed(() => autoOpen.value || lingerOpen.value || (preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected')))
-let closeTimer = null
-function cancelClose() {
-  if (closeTimer) {
-    window.clearTimeout(closeTimer)
-    closeTimer = null
-  }
-}
 watch(autoOpen, (open, previous) => {
   if (open) {
-    cancelClose()
     lingerOpen.value = false
     return
   }
   if (!previous) return
-  cancelClose()
   if (props.instant) {
     lingerOpen.value = false
     return
   }
   lingerOpen.value = true
-  closeTimer = window.setTimeout(() => {
-    lingerOpen.value = false
-    closeTimer = null
-  }, DELAYED_COLLAPSE)
 })
 watch(() => props.instant, instant => {
-  if (!instant) return
-  cancelClose()
+  if (instant) lingerOpen.value = false
+})
+// 下一次请求开始（request/compact 行增加）就是“下一次流式内容”开始的时候。
+watch(() => props.requestKey, (key, previous) => {
+  if (key === previous || !lingerOpen.value) return
   lingerOpen.value = false
 })
 
 function toggleBody() {
-  cancelClose()
   lingerOpen.value = false
   preference.value = !bodyOpen.value
 }
@@ -115,7 +104,6 @@ watch(running, value => {
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
-  cancelClose()
 })
 
 function decide(decision) {
@@ -147,7 +135,7 @@ function decide(decision) {
           <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
         </div>
       </div>
-      <Fold :open="bodyOpen" :instant="instant" :slow="!autoOpen">
+      <Fold :open="bodyOpen" :instant="instant" slow>
         <div :id="bodyId" class="cot-step__body">
           <ToolResult :tool="tool" />
         </div>
