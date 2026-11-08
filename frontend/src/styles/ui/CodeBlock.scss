@@ -21,6 +21,14 @@
 .ui-code-block__mermaid-view:hover { border-color: var(--la-line-strong); background: var(--la-hover); }
 .ui-code-block__mermaid-view:focus-visible { border-color: var(--la-accent); outline: none; }
 .ui-code-block__mermaid :deep(svg) { display: block; margin-inline: auto; max-width: 100%; height: auto; }
+/* 还没进入视口的图表占位：不画任何东西，只把高度占住，避免渲染完成时下方内容跳一下。 */
+.ui-code-block__mermaid-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: var(--la-muted);
+  font-size: 12.5px;
+}
 .ui-code-block__mermaid-error { margin: 0; padding: 8px 16px 0; color: var(--la-danger); font-size: 12.5px; }
 .ui-code-block pre { flex: 1; margin: 0; padding: 16px; background: transparent; white-space: pre; font: 13px/1.7 var(--la-font-mono); }
 .ui-code-block .ui-code-block__numbers { flex: 0; padding-right: 0; color: var(--la-muted); user-select: none; }

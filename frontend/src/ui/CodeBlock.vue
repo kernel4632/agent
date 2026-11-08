@@ -8,6 +8,7 @@ import Button from './Button.vue'
 import Dialog from './Dialog.vue'
 import Icon from './Icon.vue'
 import { Notice } from '../utils/notice.js'
+import { observeOnce } from '../utils/observe-once.js'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
 const status = ref('复制')
 let timer
@@ -18,6 +19,12 @@ const isMermaid = computed(() => props.language === 'mermaid')
 const diagram = ref('')
 const diagramError = ref('')
 let mermaidLib = null
+
+// 渲染结果缓存：按图表源码缓存，同一张图在页面里出现两次（或折叠后又展开）不重画。
+// 值是 Promise，并发请求同一张图时也只渲染一次。
+// 主题变了要整体作废：SVG 颜色是烧进去的具体色值。
+const diagramCache = new Map()
+const cacheKey = code => `${document.documentElement.dataset.theme || ''}\u0000${code}`
 
 // mermaid 的渲染器是全局单例，并发 render 会互相污染甚至卡死；所有图表排队逐个画。
 let renderQueue = Promise.resolve()
@@ -120,34 +127,83 @@ const loadMermaid = async () => {
   return mermaidLib
 }
 
+// 进视口才画：长会话首屏可能同时挂十几张图，全画一遍就是那次 1216ms 长任务和
+// 0.35 布局偏移的主因。没画之前用占位高度把位置占住，画面不会在渲染完成时跳。
+const visible = ref(false)
+const host = ref(null)
+let stopObserving = () => {}
+// 占位高度：按源码行数和每行大概占的高度估一个值，下限 120px。
+// 不追求精确，只要和真实图差不多就不会在渲染完成时把下方内容推走。
+const placeholderHeight = computed(() => `${Math.min(900, Math.max(120, props.code.split('\n').length * 34))}px`)
+
 async function draw() {
   if (!isMermaid.value) { diagram.value = ''; diagramError.value = ''; return }
+  // 还没进入视口就先不画，等 observer 打开 visible。
+  if (!visible.value) return
+
+  // 缓存命中：直接拿上次的渲染结果（或正在渲染中的那次的 Promise）。
+  const key = cacheKey(props.code)
+  const cached = diagramCache.get(key)
+  if (cached) {
+    const result = await cached
+    diagram.value = result.svg
+    diagramError.value = result.error
+    return
+  }
+
   // mermaid 的临时元素按 id 挂在全局 DOM 上，两个组件实例不能撞 id，用随机 id 保证唯一。
   const id = `mermaid-${crypto.randomUUID()}`
-  await enqueue(async () => {
+  const task = enqueue(async () => {
     try {
       const { mermaid, configure } = await loadMermaid()
       configure()
       const { svg } = await mermaid.render(id, props.code)
-      diagram.value = svg
-      diagramError.value = ''
+      return { svg, error: '' }
     } catch (error) {
       // 渲染失败就亮出源码，模型能自己读到错误继续改；错误只取第一行，hash 对象不进界面。
-      diagram.value = ''
-      diagramError.value = String(error?.message || error).split('\n')[0]
+      return { svg: '', error: String(error?.message || error).split('\n')[0] }
     } finally {
       // mermaid 失败时会把错误提示元素留在 body 尾部（id 为 d<renderId>），拿走它免得页面上多出一行裸错误。
       document.getElementById(`d${id}`)?.remove()
     }
   })
+  diagramCache.set(key, task)
+  const result = await task
+  diagram.value = result.svg
+  diagramError.value = result.error
 }
 
-watch([isMermaid, () => props.code], draw, { immediate: true })
+// 代码变了、还没画过的图重新进观察队列；退出视口不影响已渲染内容。
+// 注意：immediate 的 watch 在挂载前就跑，那时 host 还是 null；
+// 真正的观察必须等 DOM 就位，所以只在这里重置状态，观察放到 onMounted。
+watch([isMermaid, () => props.code], () => {
+  if (!isMermaid.value) { diagram.value = ''; diagramError.value = ''; return }
+  visible.value = false
+  stopObserving()
+  startObserving()
+}, { immediate: true })
+watch(visible, draw)
+
+// 开始观察占位是否进入视口。元素不在 DOM 上时什么都不做（会被 onMounted 再调一次）。
+function startObserving() {
+  if (!host.value || !isMermaid.value) return
+  stopObserving = observeOnce(host.value, () => { visible.value = true }, { rootMargin: '600px' })
+}
+
 
 // mermaid 的 SVG 颜色是渲染时烧进去的具体色值，不跟 CSS 变量走；
 // 界面切主题后要按新主题重画一遍，否则暗底上留着浅色主题的深色文字。
-onMounted(() => window.addEventListener('agent-theme', draw))
-onBeforeUnmount(() => { window.removeEventListener('agent-theme', draw); clearTimeout(timer); clearTimeout(flashTimer) })
+onMounted(() => {
+  window.addEventListener('agent-theme', refreshTheme)
+  startObserving()   // DOM 就位后才观察：immediate watch 跑的时候 host 还不存在
+})
+onBeforeUnmount(() => { window.removeEventListener('agent-theme', refreshTheme); stopObserving(); clearTimeout(timer); clearTimeout(flashTimer) })
+
+// 主题变了：缓存里存的颜色已过期，清掉后按新主题重画当前这张。
+function refreshTheme() {
+  diagramCache.clear()
+  void draw()
+}
 
 async function copy() {
   try { await navigator.clipboard.writeText(props.code); status.value = '已复制' }
@@ -328,6 +384,11 @@ async function saveImage() {
     </figcaption>
     <div v-if="isMermaid && diagram" ref="mermaidBox" class="ui-code-block__mermaid">
       <button class="ui-code-block__mermaid-view" type="button" aria-label="全屏查看图表" title="点击全屏查看" @click="fullscreen = true" v-html="diagram"></button>
+    </div>
+    <!-- 图表还没进入视口：用占位把高度占住，渲染完成后不会把下面的内容推下去。
+         高度按图表规模估算（大致行数），够接近真实尺寸就不会造成明显布局偏移。 -->
+    <div v-else-if="isMermaid && !diagramError" ref="host" class="ui-code-block__mermaid-placeholder" :style="{ minHeight: placeholderHeight }">
+      <span>{{ visible ? '正在绘制图表…' : '滚动到这里时绘制图表' }}</span>
     </div>
     <div v-else class="ui-code-block__body">
       <p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p>
