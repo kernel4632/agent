@@ -364,14 +364,21 @@ test('parallel running tools stay open until they finish', async ({ page }) => {
     { type: 'agent-start' },
     { type: 'tool-call', toolCallId: 'parallel-1', toolName: 'execute_command', input: { command: 'sleep 1' } },
     { type: 'tool-call', toolCallId: 'parallel-2', toolName: 'read_file', input: { path: 'a.txt' } },
-    { type: 'tool-result', toolCallId: 'parallel-1', toolName: 'execute_command', output: { type: 'text', value: 'done' } },
-    { type: 'text-delta', text: '继续处理' },
   ])
   const tools = page.locator('.cot-step--tool')
   await page.locator('.process-fold__head').first().click()
   await expect(tools).toHaveCount(2)
   await expect(tools.nth(1)).toHaveClass(/is-open/)
   await expect(tools.nth(1)).toContainText('正在执行')
+  await expect(tools.nth(0)).toHaveClass(/is-open/)
+
+  await mock.emit('session-1', [
+    { type: 'tool-result', toolCallId: 'parallel-1', toolName: 'execute_command', output: { type: 'text', value: 'done' } },
+  ])
+  // 工具完成但下一次流式内容还没到：已完成的结果仍然保留。
+  await expect(tools.nth(0)).toHaveClass(/is-open/)
+
+  await mock.emit('session-1', [{ type: 'text-delta', text: '继续处理' }])
   await expect(tools.nth(0)).not.toHaveClass(/is-open/)
 })
 

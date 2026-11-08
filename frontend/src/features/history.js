@@ -190,6 +190,7 @@ function normalize(source, previous = {}) {
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
     draftLoaded: previous.draftLoaded || false,           // 是否已从本地 IndexedDB 恢复过
+    streamRevision: previous.streamRevision || 0,         // 全会话流式内容序号，工具折叠用
     contextTokens: lastRequest?.input || previous.contextTokens || 0, // 最后一次请求的提示词 token 就是上下文占用
     contextLimit: store.config.providers[provider]?.models.find(model => model.id === source.model)?.context || DEFAULT_CONTEXT,
     inputTokens: requests.length ? sum('input') : previous.inputTokens || 0,       // 历史里的累计输入

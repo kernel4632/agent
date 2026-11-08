@@ -12,6 +12,7 @@ import { copyText } from '../../utils/clipboard.js'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
+import { store } from '../../store.js'
 import { useSmoothText } from '../../utils/smooth-text.js'
 import { outputText, toolTitle } from "../../utils/tool.js"
 import { isFinishedStopTool, isSavedMessage } from "../../features/turns.js"
@@ -120,11 +121,9 @@ const steps = computed(() => {
 })
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
-// 所有正文和思考的字符总数：下一次请求真正流出第一段内容时才会变化。
-// 工具用它判断“下一次流式已经出字”，而不是在 llm-start 时就提前收起。
-const streamSerial = computed(() => steps.value.reduce((total, step) =>
-  step.type === 'text' || step.type === 'reasoning' ? total + String(step.text || '').length : total
-, 0))
+// 全会话的流式序号：下一段正文/思考可能落在另一条 assistant 消息里，
+// 但工具只需要知道“模型又出字了”，所以用会话级计数而不是本组 steps 的字符数。
+const streamSerial = computed(() => Number(store.sessions[props.sessionId]?.streamRevision || 0))
 // 并行工具可能同时没有结束：所有运行/等待/组装中的工具都算活动，
 // 已完成的工具才退出活动集并开始自动收起。
 const toolSteps = computed(() => steps.value.filter(step => step.type === 'tool'))
@@ -378,7 +377,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :tool="section.step.tool"
                   :session-id="sessionId"
                   :instant="approvalPending"
-                  :stream-key="isActiveTool(section.step.key) ? streamSerial : 0"
+                  :stream-key="streamSerial"
                   :active="isActiveTool(section.step.key)"
                   :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
                 />
@@ -412,7 +411,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :tool="step.tool"
                         :session-id="sessionId"
                         :instant="approvalPending"
-                        :stream-key="isActiveTool(step.key) ? streamSerial : 0"
+                        :stream-key="streamSerial"
                         :active="isActiveTool(step.key)"
                         :tool-index="toolIndexByKey.get(step.key) ?? 0"
                       />

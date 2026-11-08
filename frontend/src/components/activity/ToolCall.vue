@@ -132,14 +132,9 @@ watch(wantsAuto, (open, previous) => {
     lingerOpen.value = false
     return
   }
+  // 工具执行完不立刻收：先保留结果，等下一段流式内容真正到达（streamKey 变化）
+  // 再折叠。并行时另一个工具开始，也不会把已完成的这个提前收掉。
   lingerOpen.value = true
-})
-watch(() => props.active, active => {
-  if (active) return
-  // 下一个工具开始：上一个工具立即开始收起，给新工具让出高度。
-  clearOpenTimer()
-  openReady.value = false
-  lingerOpen.value = false
 })
 watch(() => props.instant, instant => {
   if (instant) lingerOpen.value = false
