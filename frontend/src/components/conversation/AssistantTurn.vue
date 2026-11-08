@@ -118,8 +118,11 @@ const steps = computed(() => {
 })
 // 请求行和压缩行都不算正文：只有文字时仍然显示成普通气泡。
 const contentSteps = computed(() => steps.value.filter(step => step.type !== 'request' && step.type !== 'compact'))
-// 下一次模型请求开始时这个值增加；工具用它判断“下一次流式内容到了”。
-const requestSerial = computed(() => steps.value.filter(step => step.type === 'request' || step.type === 'compact').length)
+// 所有正文和思考的字符总数：下一次请求真正流出第一段内容时才会变化。
+// 工具用它判断“下一次流式已经出字”，而不是在 llm-start 时就提前收起。
+const streamSerial = computed(() => steps.value.reduce((total, step) =>
+  step.type === 'text' || step.type === 'reasoning' ? total + String(step.text || '').length : total
+, 0))
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
@@ -342,7 +345,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :tool="section.step.tool"
                   :session-id="sessionId"
                   :instant="!processShown"
-                  :request-key="requestSerial"
+                  :stream-key="streamSerial"
                 />
               </template>
 
@@ -374,7 +377,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :tool="step.tool"
                         :session-id="sessionId"
                         :instant="!processShown"
-                        :request-key="requestSerial"
+                        :stream-key="streamSerial"
                       />
                     </template>
                   </div>

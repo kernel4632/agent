@@ -19,7 +19,7 @@ const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
   instant: Boolean,
-  requestKey: { type: Number, default: 0 },
+  streamKey: { type: Number, default: 0 },
 })
 const now = ref(Date.now())
 // null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
@@ -86,8 +86,9 @@ watch(autoOpen, (open, previous) => {
 watch(() => props.instant, instant => {
   if (instant) lingerOpen.value = false
 })
-// 下一次请求开始（request/compact 行增加）就是“下一次流式内容”开始的时候。
-watch(() => props.requestKey, (key, previous) => {
+// 下一次请求的第一段文字/思考到达时，这个值才增加；
+// 不能在 llm-start 时关闭，那时还没有真正流出内容。
+watch(() => props.streamKey, (key, previous) => {
   if (key === previous || !lingerOpen.value) return
   lingerOpen.value = false
 })
@@ -135,7 +136,7 @@ function decide(decision) {
           <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
         </div>
       </div>
-      <Fold :open="bodyOpen" :instant="instant" slow>
+      <Fold :open="bodyOpen" :instant="instant" slow appear>
         <div :id="bodyId" class="cot-step__body">
           <ToolResult :tool="tool" />
         </div>

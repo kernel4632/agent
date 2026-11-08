@@ -1576,6 +1576,9 @@ test('tool arguments stream into the timeline before the tool call', async ({ pa
   // 完成后先停留；下一次模型请求开始（下一段流式内容）才收起。
   await expect(tool.locator('.cot-step__body')).toHaveCount(1)
   await mock.emit('session-1', [{ type: 'llm-start', startedAt: Date.now() }])
+  // 只开始请求还不收；下一次流真正出字后才收。
+  await expect(tool.locator('.cot-step__body')).toHaveCount(1)
+  await mock.emit('session-1', [{ type: 'text-delta', text: '下一段内容' }])
   await expect(tool.locator('.cot-step__body')).toHaveCount(0, { timeout: 5000 })
   expect(mock.errors).toEqual([])
 })
