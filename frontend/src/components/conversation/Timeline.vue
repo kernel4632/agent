@@ -74,6 +74,24 @@ let touchStartY = null
 let touchStartTop = 0
 let resumeFollow = false
 let loadingEarlier = false
+let restoringHistory = false
+
+async function restoreLatestHistory() {
+  if (restoringHistory || !scrollParent || !session.value?.temporaryHistory) return
+  restoringHistory = true
+  try {
+    await History.refresh(session.value.id)
+    await nextTick()
+    virtualizer.value.measure()
+    requestAnimationFrame(() => {
+      if (!scrollParent) return
+      virtualizer.value.scrollToEnd({ behavior: 'auto' })
+      setFollowing(true)
+    })
+  } finally {
+    restoringHistory = false
+  }
+}
 
 async function loadEarlier() {
   if (loadingEarlier || !scrollParent || !session.value || following.value) return
@@ -210,7 +228,8 @@ function onScroll() {
   if (!scrollParent) return
   if (!jumping) {
     const atEnd = virtualizer.value.isAtEnd(8)
-    if (!atEnd && following.value) setFollowing(false)
+    if (atEnd && session.value?.temporaryHistory) void restoreLatestHistory()
+    else if (!atEnd && following.value) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
     if (scrollParent.scrollTop < 160) void loadEarlier()
   }

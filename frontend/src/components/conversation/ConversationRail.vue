@@ -85,6 +85,7 @@ const nodes = computed(() => {
       const response = String(turn.response || '')
       return {
         id: turn.id,
+        index: turn.index,
         length: prompt.length + response.length,
         prompt,
         response,
@@ -243,7 +244,7 @@ function selectIndex(index) {
     frameTimer = 0
     const node = nodes.value[pendingIndex]
     pendingIndex = -1
-    if (node) emit('jump', node.id)
+    if (node) emit('jump', node)
   })
 }
 

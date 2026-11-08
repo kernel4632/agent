@@ -34,7 +34,16 @@ const conversationScroll = ref(null)
 const showReconnect = ref(false)
 let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
-function jumpToMessage(messageId) {
+async function jumpToMessage(target) {
+  const messageId = typeof target === 'string' ? target : target?.id
+  const index = typeof target === 'object' ? target?.index : undefined
+  if (!messageId) return
+  if (props.session && !props.session.messages.some(message => message.id === messageId)) {
+    if (!Number.isInteger(index)) return
+    const loaded = await History.loadAround(props.session.id, index)
+    if (!loaded) return
+    await nextTick()
+  }
   timeline.value?.jumpToMessage(messageId)
 }
 
