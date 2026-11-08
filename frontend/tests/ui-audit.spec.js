@@ -353,6 +353,27 @@ test('reasoning stays collapsed after the llm finishes', async ({ page }) => {
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
 })
 
+test('parallel running tools stay open until they finish', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('并行执行')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'parallel-1', toolName: 'execute_command', input: { command: 'sleep 1' } },
+    { type: 'tool-call', toolCallId: 'parallel-2', toolName: 'read_file', input: { path: 'a.txt' } },
+    { type: 'tool-result', toolCallId: 'parallel-1', toolName: 'execute_command', output: { type: 'text', value: 'done' } },
+    { type: 'text-delta', text: '继续处理' },
+  ])
+  const tools = page.locator('.cot-step--tool')
+  await page.locator('.process-fold__head').first().click()
+  await expect(tools).toHaveCount(2)
+  await expect(tools.nth(1)).toHaveClass(/is-open/)
+  await expect(tools.nth(1)).toContainText('正在执行')
+  await expect(tools.nth(0)).not.toHaveClass(/is-open/)
+})
+
 test('tool row keeps declared metadata and shows generic input and output', async ({ page }, testInfo) => {
   const mock = await backend(page)
   await page.goto('/')

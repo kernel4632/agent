@@ -125,9 +125,17 @@ const contentSteps = computed(() => steps.value.filter(step => step.type !== 're
 const streamSerial = computed(() => steps.value.reduce((total, step) =>
   step.type === 'text' || step.type === 'reasoning' ? total + String(step.text || '').length : total
 , 0))
-// 同一时间只让最新的工具展开；新工具要等上一个工具收起后再开始。
+// 并行工具可能同时没有结束：所有运行/等待/组装中的工具都算活动，
+// 已完成的工具才退出活动集并开始自动收起。
 const toolSteps = computed(() => steps.value.filter(step => step.type === 'tool'))
-const activeToolKey = computed(() => toolSteps.value.at(-1)?.key || '')
+const activeToolKeys = computed(() => new Set(
+  toolSteps.value
+    .filter(step => step.tool?.assembling || ['running', 'waiting'].includes(step.tool?.status))
+    .map(step => step.key),
+))
+const isActiveTool = key => activeToolKeys.value.has(key)
+const isRunningToolStep = step => step.type === 'tool'
+  && (step.tool?.assembling || ['running', 'waiting'].includes(step.tool?.status))
 const toolIndexByKey = computed(() => new Map(toolSteps.value.map((step, index) => [step.key, index])))
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
@@ -269,9 +277,10 @@ const groupOpen = ref((() => {
 })())
 const lastGroupKey = computed(() => processSections.value.filter(section => section.type === 'group').at(-1)?.key)
 // 只有“还在动作中”的最后一组自动展开；助手一旦开始说正文，前面的工具组自动收起。
+// 组里还有运行中的工具时不收，避免并行工具被下一条流式输出折叠。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
 const activeGroupKey = computed(() => (turnActive.value || processClosing.value) && lastStepType.value !== 'text' ? lastGroupKey.value : null)
-const isGroupOpen = section => section.steps?.some(isPendingStep) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
+const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
@@ -369,8 +378,8 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :tool="section.step.tool"
                   :session-id="sessionId"
                   :instant="approvalPending"
-                  :stream-key="section.step.key === activeToolKey ? streamSerial : 0"
-                  :active="section.step.key === activeToolKey"
+                  :stream-key="isActiveTool(section.step.key) ? streamSerial : 0"
+                  :active="isActiveTool(section.step.key)"
                   :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
                 />
               </template>
@@ -403,8 +412,8 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :tool="step.tool"
                         :session-id="sessionId"
                         :instant="approvalPending"
-                        :stream-key="step.key === activeToolKey ? streamSerial : 0"
-                        :active="step.key === activeToolKey"
+                        :stream-key="isActiveTool(step.key) ? streamSerial : 0"
+                        :active="isActiveTool(step.key)"
                         :tool-index="toolIndexByKey.get(step.key) ?? 0"
                       />
                     </template>
