@@ -1,18 +1,18 @@
 /* ToolCall.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
 
-/* 摘要和批准都在结果框外面，高度封顶，流式追加不再把这一行撑高。 */
+/* 工具参数跟着工具名排在同一行，收起时也不额外占一行高度。 */
 .cot-step--tool .cot-step__summary--preview {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  width: 100%;
-  max-height: 60px;
-  flex: none;
-  margin: -2px 0 8px;
+  display: block;
+  min-width: 0;
+  max-height: 20px;
+  flex: 1;
+  margin: 0;
   overflow: hidden;
-  white-space: pre-wrap;
-  text-overflow: unset;
-  overflow-wrap: anywhere;
+  color: var(--la-muted);
+  font: 11.5px/20px var(--la-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .approval { display: grid; gap: 8px; margin: 0 0 8px; }
 .approval p { margin: 0; color: var(--la-secondary); font-size: 12.5px; line-height: 18px; }

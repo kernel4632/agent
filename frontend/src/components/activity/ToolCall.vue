@@ -93,10 +93,10 @@ function decide(decision) {
         @click="toggleBody"
       >
         <span class="cot-step__label" :class="{ 'is-live': running }">{{ title }}</span>
+        <span v-if="summary" class="cot-step__summary cot-step__summary--preview" :title="summary">{{ summary }}</span>
         <span class="cot-step__extra" :class="statusClass(tool.status)"><span>{{ statusText }}</span><template v-if="duration"> · {{ duration }}</template></span>
         <Icon name="down" :size="14" class="cot-step__caret" :class="{ 'is-open': bodyOpen }" aria-hidden="true" />
       </button>
-      <p v-if="summary" class="cot-step__summary cot-step__summary--preview" :title="summary">{{ summary }}</p>
       <div v-if="tool.status === 'waiting'" class="approval" @click.stop>
         <p>需要你的许可。检查工具和参数后再决定。</p>
         <div>
