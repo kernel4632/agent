@@ -7,6 +7,7 @@ import hljs from 'highlight.js'
 import Button from './Button.vue'
 import Dialog from './Dialog.vue'
 import Icon from './Icon.vue'
+import { Notice } from '../utils/notice.js'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
 const status = ref('复制')
 let timer
@@ -146,7 +147,7 @@ watch([isMermaid, () => props.code], draw, { immediate: true })
 // mermaid 的 SVG 颜色是渲染时烧进去的具体色值，不跟 CSS 变量走；
 // 界面切主题后要按新主题重画一遍，否则暗底上留着浅色主题的深色文字。
 onMounted(() => window.addEventListener('agent-theme', draw))
-onBeforeUnmount(() => { window.removeEventListener('agent-theme', draw); clearTimeout(timer) })
+onBeforeUnmount(() => { window.removeEventListener('agent-theme', draw); clearTimeout(timer); clearTimeout(flashTimer) })
 
 async function copy() {
   try { await navigator.clipboard.writeText(props.code); status.value = '已复制' }
@@ -158,6 +159,7 @@ async function copy() {
 // --- 全屏查看：teleport 层里滚轮/按钮缩放、拖拽平移，空处点击或 Esc 关闭 ---
 const fullscreen = ref(false)
 const stage = ref(null)
+const mermaidBox = ref(null)
 const MIN_SCALE = .2
 const MAX_SCALE = 8
 const scale = ref(1)
@@ -208,17 +210,120 @@ function dragEnd(event) {
 }
 // 点击图表外的空处关闭；点在图上是拖拽平移，不触发。
 function closeOnEmpty(event) { if (event.target === event.currentTarget) fullscreen.value = false }
+
+// --- 图表导出：栅格化成 PNG 进剪贴板/存成文件；画布被拒绝时回退矢量 SVG 源 ---
+const flash = ref('')
+let flashTimer
+// 全屏层是原生 dialog（浏览器顶层渲染），全局 Toast 会被压在下面；
+// 所以全屏里的反馈就地闪现，非全屏时仍走全局 Toast。
+function flashOrNotice(message) {
+  if (!fullscreen.value) { Notice.show(message); return }
+  flash.value = message
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => { flash.value = '' }, 2000)
+}
+
+function pickSvg() {
+  return (fullscreen.value ? stage.value : mermaidBox.value)?.querySelector('svg') || null
+}
+
+// 带 <foreignObject> 的 SVG 画进 canvas 会污染画布，toDataURL 抛 SecurityError，PNG 导不出来。
+// mermaid 的节点标签默认就是 foreignObject，且各图表类型的开关并不一致（关了就丢标签样式）；
+// 所以导出前在克隆出来的节点上把 foreignObject 降级成原生 <text>：文本居中摆放，
+// 字体颜色从原 HTML 内联样式里读回，界面上的图不受影响。
+// 尺寸要从原始节点量：克隆出来的节点没挂到文档上，getBBox 取不到值。
+function flattenForeignObjects(original) {
+  const clone = original.cloneNode(true)
+  const from = [...original.querySelectorAll('foreignObject')]
+  const to = [...clone.querySelectorAll('foreignObject')]
+  to.forEach((node, index) => {
+    const source = from[index]
+    const box = source?.getBBox?.() ?? { x: 0, y: 0, width: 0, height: 0 }
+    const label = source.textContent.replace(/\s+/g, ' ').trim()
+    const style = source.querySelector('span, div')?.getAttribute('style') || ''
+    const fill = /color:\s*([^;]+)/.exec(style)?.[1]?.trim() || css('--la-text')
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    text.setAttribute('x', String(box.x + box.width / 2))
+    text.setAttribute('y', String(box.y + box.height / 2))
+    text.setAttribute('text-anchor', 'middle')
+    text.setAttribute('dominant-baseline', 'central')
+    text.setAttribute('fill', fill)
+    text.setAttribute('font-size', '14px')
+    text.setAttribute('font-family', css('--la-font-reading'))
+    text.textContent = label
+    node.replaceWith(text)
+  })
+  return clone
+}
+
+// SVG 里的颜色是烧死的具体色值，直接画进 canvas 就是所见图；底色补一层界面背景色，截图不再是透明底。
+function svgToPng(svg) {
+  return new Promise(resolve => {
+    const clone = flattenForeignObjects(svg)
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml;charset=utf-8' }))
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const rect = svg.getBoundingClientRect()
+        const ratio = Math.max(1, window.devicePixelRatio || 1)
+        const width = svg.viewBox.baseVal.width || rect.width
+        const height = svg.viewBox.baseVal.height || rect.height
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(width * ratio))
+        canvas.height = Math.max(1, Math.round(height * ratio))
+        const context = canvas.getContext('2d')
+        context.fillStyle = css('--la-bg')
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(image, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/png'))
+      } catch { resolve(null) } finally { URL.revokeObjectURL(url) }
+    }
+    image.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    image.src = url
+  })
+}
+
+async function copyImage() {
+  const svg = pickSvg()
+  if (!svg) return Notice.show('还没有可复制的图表')
+  const png = await svgToPng(svg)
+  try {
+    if (png) await navigator.clipboard.write([new ClipboardItem({ 'image/png': await (await fetch(png)).blob() })])
+    else await navigator.clipboard.writeText(new XMLSerializer().serializeToString(svg)) // 浏览器拒绝画布导出时退回矢量源
+    flashOrNotice(png ? '已复制图表图片' : '浏览器不允许复制图片，已复制 SVG 源码')
+  } catch {
+    flashOrNotice('复制失败，浏览器拒绝了剪贴板写入')
+  }
+}
+
+async function saveImage() {
+  const svg = pickSvg()
+  if (!svg) return Notice.show('还没有可下载的图表')
+  const png = await svgToPng(svg)
+  const link = document.createElement('a')
+  if (png) {
+    link.href = png
+    link.download = '图表.png'
+  } else {
+    link.href = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }))
+    link.download = '图表.svg'
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+  }
+  link.click()
+  flashOrNotice(png ? '已下载图表图片' : '已下载图表 SVG')
+}
 </script>
 <template>
   <figure class="ui-code-block">
     <figcaption>
       <span>{{ language }}</span>
       <span class="ui-code-block__actions">
+        <Button v-if="isMermaid && diagram" icon variant="text" size="small" label="复制图表图片" @click="copyImage"><Icon name="image" :size="16" /></Button>
         <Button v-if="isMermaid && diagram" icon variant="text" size="small" label="全屏查看图表" @click="fullscreen = true"><Icon name="fullscreen" :size="16" /></Button>
         <Button variant="text" size="small" :aria-label="status === '已复制' ? '已复制' : '复制代码'" @click="copy">{{ status }}</Button>
       </span>
     </figcaption>
-    <div v-if="isMermaid && diagram" class="ui-code-block__mermaid">
+    <div v-if="isMermaid && diagram" ref="mermaidBox" class="ui-code-block__mermaid">
       <button class="ui-code-block__mermaid-view" type="button" aria-label="全屏查看图表" title="点击全屏查看" @click="fullscreen = true" v-html="diagram"></button>
     </div>
     <div v-else class="ui-code-block__body">
@@ -236,7 +341,10 @@ function closeOnEmpty(event) { if (event.target === event.currentTarget) fullscr
           <button class="ui-code-block__zoom-value" type="button" title="点击复位" @click="resetView">{{ Math.round(scale * 100) }}%</button>
           <Button icon variant="text" label="放大" :disabled="scale >= MAX_SCALE" @click="nudge(1)"><Icon name="zoom-in" :size="18" /></Button>
           <Button icon variant="text" label="复位视图" @click="resetView"><Icon name="refresh" :size="18" /></Button>
+          <Button icon variant="text" label="复制图表图片" @click="copyImage"><Icon name="image" :size="18" /></Button>
+          <Button icon variant="text" label="下载图表" @click="saveImage"><Icon name="download" :size="18" /></Button>
         </div>
+        <p v-if="flash" class="ui-code-block__flash" role="status">{{ flash }}</p>
       </div>
     </Dialog>
   </figure>

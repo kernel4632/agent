@@ -513,6 +513,25 @@ test('assistant markdown uses local code blocks and typography', async ({ page }
 })
 
 test('mermaid code blocks render as diagrams and fall back to source on error', async ({ page }, testInfo) => {
+  // 复制图表要拷真位图，不是 mermaid 源码。headless 环境读回剪贴板不可靠，
+  // 改为拦下 write 的入参：那正是产品要写进剪贴板的东西，再解码验证它是不透明的 PNG。
+  await page.addInitScript(() => {
+    window.__clip = []
+    const write = navigator.clipboard.write?.bind(navigator.clipboard)
+    navigator.clipboard.write = async items => {
+      for (const item of items) for (const type of item.types) {
+        const blob = await item.getType(type)
+        const bitmap = await createImageBitmap(blob)
+        const canvas = document.createElement('canvas')
+        canvas.width = bitmap.width
+        canvas.height = bitmap.height
+        canvas.getContext('2d').drawImage(bitmap, 0, 0)
+        const pixel = canvas.getContext('2d').getImageData(0, 0, 1, 1).data
+        window.__clip.push({ type, size: blob.size, width: bitmap.width, height: bitmap.height, alpha: pixel[3] })
+      }
+      try { await write(items) } catch { /* headless 可能无剪贴板权限，入参已记录 */ }
+    }
+  })
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -534,6 +553,16 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   await expect(bubble.locator('.ui-code-block__body pre code')).toContainText('A[缺少闭合')
   // 图表容器不再限高截断：图完整铺开，点击区域可进全屏。
   await expect(bubble.locator('.ui-code-block__mermaid').first()).toBeVisible()
+  // 图注上的复制拷的是图片位图，不是 mermaid 源码。
+  await bubble.getByRole('button', { name: '复制图表图片' }).first().click()
+  await expect.poll(() => page.evaluate(() => window.__clip.length)).toBeGreaterThan(0)
+  const copied = await page.evaluate(() => window.__clip[0])
+  expect(copied.type).toBe('image/png')
+  // 真是一张有内容的不透明位图：宽高非零、首像素不透明（导出时铺了界面底色）。
+  expect(copied.width).toBeGreaterThan(0)
+  expect(copied.height).toBeGreaterThan(0)
+  expect(copied.size).toBeGreaterThan(500)
+  expect(copied.alpha).toBe(255)
   await bubble.locator('.ui-code-block__mermaid-view').first().click()
   // 全屏层 teleport 到 body，断言收在已打开的 dialog 里，避开页面上其他代码块。
   const layer = page.locator('dialog[open]')

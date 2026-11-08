@@ -94,3 +94,19 @@
   border-radius: var(--la-shape-sm);
 }
 .ui-code-block__zoom-value:hover { background: var(--la-hover); color: var(--la-text); }
+/* 全屏内的反馈就地显示：原生 dialog 在上层，全局 Toast 压不住它。 */
+.ui-code-block__flash {
+  position: absolute;
+  bottom: 72px;
+  left: 50%;
+  margin: 0;
+  padding: 6px 16px;
+  border: 1px solid var(--la-line);
+  border-radius: 999px;
+  background: var(--la-layer-03);
+  color: var(--la-text);
+  font-size: 13px;
+  box-shadow: var(--la-shadow-floating);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
