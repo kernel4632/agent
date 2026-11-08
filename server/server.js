@@ -9,7 +9,7 @@
  *   await app.handle(new Request('http://localhost/config/read'))   // 测试里直接调用
  */
 
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import Capabilities from './commands/capabilities.js'
 import Chat from './commands/chat.js'
 import Filesystem from './commands/filesystem.js'
@@ -39,12 +39,35 @@ Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context 
 
 const app = new Elysia()
 
+// --- 校验错误转成一句话 ---
+// Elysia 校验失败时 error.message 是一整块 JSON（type/on/property/message），
+// 直接返回给前端会变成一坨转义文本。这里取出“哪个字段、错在哪”拼成可读的一句。
+const validationMessage = error => {
+    let detail = error?.message ?? ''
+    try { detail = JSON.parse(detail) } catch { return String(detail) }
+    const field = String(detail?.property || '').replace(/^\//, '').replace(/\//g, '.')
+    const where = detail?.on === 'params' ? '路径参数' : detail?.on === 'query' ? '查询参数' : '请求体'
+    const reason = detail?.message || '格式不正确'
+    return field ? `${where}里的 ${field} 不对：${reason}` : `${where}格式不对：${reason}`
+}
+
 // --- 转换业务错误 ---
-app.onError(({ error, set }) => {
+app.onError(({ error, set, code }) => {
+    // 入参形状不对是用户能自己改的。状态码沿用项目既有约定 400（契约里一直这么返回），
+    // 只把 Elysia 那块嵌套 JSON 改写成一句可读的话。
+    if (code === 'VALIDATION') {
+        set.status = 400
+        return { error: validationMessage(error) }
+    }
     // 指令抛出的错误自带状态码；没有状态码的说明是程序问题，按 500 返回并带上原因。
     set.status = error.status || 500
     return { error: error.message }
 })
+
+// --- 入参形状：会话编号是所有会话路由的必备路径参数 ---
+// 只校形状，不做业务判断（会话在不在、目录存不存在仍由指令层检查）：
+// 形状不对在进 handler 之前就返回 422，不用每个 command 各自记得写类型检查。
+const SessionParams = t.Object({ sessionId: t.String() })
 
 // --- 服务状态 ---
 app.get('/health', async () => ({
@@ -90,17 +113,26 @@ app.group('/skill', skill => skill
 
 // --- 对话：发送、继续、停止、审批 ---
 app.group('/agent', agent => agent
-    .post('/send/:sessionId', ({ params, body }) => Chat.send({ ...params, ...body }))
-    .post('/resume/:sessionId', ({ params }) => Chat.resume(params))
-    .post('/stop/:sessionId', ({ params, body }) => Chat.stop({ ...params, ...(body || {}) }))
-    .post('/decide/:sessionId', ({ params, body }) => Chat.decide({ ...params, ...body })))
+    .post('/send/:sessionId', ({ params, body }) => Chat.send({ ...params, ...body }), {
+        params: SessionParams,
+        body: t.Object({ input: t.String() }),
+    })
+    .post('/resume/:sessionId', ({ params }) => Chat.resume(params), { params: SessionParams })
+    .post('/stop/:sessionId', ({ params, body }) => Chat.stop({ ...params, ...(body || {}) }), { params: SessionParams })
+    .post('/decide/:sessionId', ({ params, body }) => Chat.decide({ ...params, ...body }), {
+        params: SessionParams,
+        body: t.Object({ toolCallId: t.String(), decision: t.String() }),
+    }))
 
 // --- 会话 ---
 app.group('/session', session => session
     .get('/list', ({ query }) => Session.list({ search: query.search }))
     .get('/groups', () => SessionGroups.read())
     .put('/groups', ({ body }) => SessionGroups.save(body || {}))
-    .post('/create', ({ body }) => Session.create(body || {}))
+    .post('/create', ({ body }) => Session.create(body || {}), {
+        // 标题必填（空白由指令层 trim 后再判，这里只管“给了个字符串”）
+        body: t.Object({ title: t.String(), cwd: t.Optional(t.String()), provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
+    })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
     .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
@@ -114,10 +146,19 @@ app.group('/session', session => session
     .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
     .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...body }))
     .get('/tools/:sessionId', ({ params }) => Session.toolChanges(params))
-    .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }))
+    .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }), {
+        params: SessionParams,
+        body: t.Object({ title: t.String() }),
+    })
     .post('/title/:sessionId', ({ params }) => Session.generateTitle(params))
-    .patch('/model/:sessionId', ({ params, body }) => Session.setModel({ ...params, ...body }))
-    .patch('/cwd/:sessionId', ({ params, body }) => Session.setCwd({ ...params, ...body }))
+    .patch('/model/:sessionId', ({ params, body }) => Session.setModel({ ...params, ...body }), {
+        params: SessionParams,
+        body: t.Object({ provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
+    })
+    .patch('/cwd/:sessionId', ({ params, body }) => Session.setCwd({ ...params, ...body }), {
+        params: SessionParams,
+        body: t.Object({ cwd: t.String() }),
+    })
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
     .post('/rollback/preview/:sessionId', ({ params, body }) => Session.rollbackPreview({ ...params, ...body }))
     .post('/rollback/tool/:sessionId', ({ params, body }) => Session.rollbackTool({ ...params, ...body }))
