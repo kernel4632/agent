@@ -9,7 +9,7 @@
 import { Notice } from "../../utils/notice.js"
 import { copyText } from '../../utils/clipboard.js'
 
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
 import { useSmoothText } from '../../utils/smooth-text.js'
@@ -175,6 +175,24 @@ const needsDecision = tool => !!tool && (tool.status === 'waiting' || (tool.suba
 const isPendingStep = step => step.type === 'tool' && needsDecision(step.tool)
 const approvalPending = computed(() => treeSteps.value.some(isPendingStep))
 const processShown = computed(() => processOpen.value || approvalPending.value)
+// 外层处理过程收起时，内层不能先 instant 清空高度：否则外层卡片还占着
+// 旧高度，里面已经空了。先保持当前分组/工具展开，让外层 Fold 带着内容收完。
+const processClosing = ref(false)
+let processCloseTimer = 0
+watch(processShown, (open, previous) => {
+  if (open) {
+    processClosing.value = false
+    clearTimeout(processCloseTimer)
+    return
+  }
+  if (!previous) return
+  processClosing.value = true
+  clearTimeout(processCloseTimer)
+  processCloseTimer = window.setTimeout(() => {
+    processClosing.value = false
+  }, 700)
+})
+onBeforeUnmount(() => clearTimeout(processCloseTimer))
 // 批准出现时展开，点完允许后保持展开，避免刚展开又收回去。
 watch(approvalPending, pending => {
   if (pending) processOpen.value = true
@@ -252,7 +270,7 @@ const groupOpen = ref((() => {
 const lastGroupKey = computed(() => processSections.value.filter(section => section.type === 'group').at(-1)?.key)
 // 只有“还在动作中”的最后一组自动展开；助手一旦开始说正文，前面的工具组自动收起。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
-const activeGroupKey = computed(() => turnActive.value && lastStepType.value !== 'text' ? lastGroupKey.value : null)
+const activeGroupKey = computed(() => (turnActive.value || processClosing.value) && lastStepType.value !== 'text' ? lastGroupKey.value : null)
 const isGroupOpen = section => section.steps?.some(isPendingStep) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
@@ -350,7 +368,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :data-message-id="section.step.messageId"
                   :tool="section.step.tool"
                   :session-id="sessionId"
-                  :instant="!processShown"
+                  :instant="approvalPending"
                   :stream-key="streamSerial"
                   :active="section.step.key === activeToolKey"
                   :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
@@ -363,7 +381,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
                   <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
                 </button>
-                <Fold :open="isGroupOpen(section)" :instant="!processShown || section.steps.some(isPendingStep)">
+                <Fold :open="isGroupOpen(section)" :instant="section.steps.some(isPendingStep)">
                   <div class="context-group__body cot-steps">
                     <template v-for="step in section.steps" :key="step.key">
                       <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
@@ -384,7 +402,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :data-message-id="step.messageId"
                         :tool="step.tool"
                         :session-id="sessionId"
-                        :instant="!processShown"
+                        :instant="approvalPending"
                         :stream-key="streamSerial"
                         :active="step.key === activeToolKey"
                         :tool-index="toolIndexByKey.get(step.key) ?? 0"
