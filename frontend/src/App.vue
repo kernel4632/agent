@@ -110,18 +110,19 @@ const openPalette = () => { paletteOpen.value = true }
 const closePalette = () => { paletteOpen.value = false }
 function runPalette(item) { closePalette(); void item.run() }
 
-// 草稿页发送：先创建会话，把草稿和附件交过去，再走正常发送。
+// 草稿页发送：先创建会话，把草稿、预选工作区和附件交过去，再走正常发送。
 async function submitMessage(content) {
   if (creating.value || store.ui.isLoading || store.ui.errorMessage) return
   let current
   creating.value = true
   try {
-    current = await Navigation.createSession()
+    current = await Navigation.createSession(store.ui.draftCwd)
     if (!current) return
     current.draft = content
     current.files = homeFiles.value
     homeDraft.value = ''
     homeFiles.value = []
+    store.ui.draftCwd = ''
     // 当前后端的会话设置只保存思考强度。
     await Session.saveSettings(current.id, {
       reasoning: draftReasoning.value,

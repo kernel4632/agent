@@ -18,35 +18,52 @@ import (
 	"github.com/kernel4632/agent/cli/internal/api"
 )
 
-const help = `命令
-/sessions                 列出会话
-/open ID                  打开会话（运行中会自动连接）
-/new [标题]               新建会话
-/model 供应商 模型        切换模型，agent models 可列出可用项
-/reasoning 强度           off/auto/low/medium/high/xhigh/max
-/cwd 路径                 修改服务端当前目录，路径无需引号
-/rename 标题              修改标题
-/resume                   继续被中断的助手
-/refresh                  重新读取服务端历史
-/quit                     退出
-
-Enter 发送；Alt+Enter / Ctrl+J 换行；PgUp/PgDn 滚动
-Ctrl+R 显示/收起思考；Esc / Ctrl+C 停止；Ctrl+Q 停止并退出
-审批期间：y 允许一次，a 始终允许（保存全局规则），n 拒绝
-同一会话只保留一个实时连接，请关闭网页中该会话的实时页面。`
-
 func (m *model) slash(text string) tea.Cmd {
 	name, argument, _ := strings.Cut(text, " ")
 	argument = strings.TrimSpace(argument)
 	switch name {
 	case "/help":
-		m.panel = help
-		m.renderConversation(true)
+		m.openHelp() // 说明盖住对话，Esc 关掉；不要追加到记录后面
 		return nil
 	case "/quit":
 		return tea.Quit
 	case "/resume":
 		return m.begin("resume", "")
+	case "/sessions":
+		return m.openSessions()
+	case "/changes":
+		return m.openChanges()
+	case "/todos":
+		m.openTodos()
+		return nil
+	case "/usage":
+		m.openStats()
+		return nil
+	case "/copy":
+		m.rebuild()
+		return m.copyTarget()
+	case "/rollback":
+		messageID, _ := m.targetIDs()
+		return m.confirmRollback(messageID, "")
+	case "/redo":
+		return m.doRedo()
+	case "/fork":
+		messageID, _ := m.targetIDs()
+		return m.doFork(messageID)
+	case "/title":
+		return m.doTitle()
+	case "/model":
+		if argument == "" {
+			return m.openModels()
+		}
+	case "/reasoning":
+		if argument == "" {
+			return m.openReasoning()
+		}
+	case "/cwd":
+		if argument == "" {
+			return m.openCwd()
+		}
 	}
 	client, session, ctx := m.client, m.session, m.ctx
 	m.busy = true

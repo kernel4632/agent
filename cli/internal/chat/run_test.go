@@ -148,3 +148,52 @@ func TestLateSubscriptionStillHandlesApprovalAfterStartWasCleared(t *testing.T) 
 		t.Fatal(err)
 	}
 }
+
+func TestDroppingTheStreamReconnectsWithoutStopping(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var connections, sends, stops atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/sse/connect/s":
+			n := connections.Add(1)
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.(http.Flusher).Flush()
+			if n == 1 {
+				fmt.Fprint(w, "data: {\"type\":\"text-delta\",\"text\":\"半段\"}\n\n")
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+				return
+			}
+			fmt.Fprint(w, "data: {\"type\":\"text-delta\",\"text\":\"续上\"}\n\ndata: {\"type\":\"agent-finish\"}\n\n")
+		case "/agent/send/s":
+			sends.Add(1)
+			fmt.Fprint(w, `{"ok":true}`)
+		case "/session/read/s":
+			fmt.Fprint(w, `{"id":"s","running":true,"history":[]}`)
+		case "/agent/stop/s":
+			stops.Add(1)
+			fmt.Fprint(w, `{"ok":true}`)
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer server.Close()
+	client, _ := api.New(server.URL)
+	var stream context.CancelFunc
+	var once atomic.Bool
+	err := Run(ctx, client, api.Session{ID: "s"}, "send", "hello", Hooks{
+		Stream: func(cancel context.CancelFunc) { stream = cancel },
+		Event: func(e api.Event) {
+			if e.Type == "text-delta" && stream != nil && once.CompareAndSwap(false, true) {
+				stream() // 只丢掉这一路，服务端任务继续
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sends.Load() != 1 || connections.Load() < 2 || stops.Load() != 0 {
+		t.Fatalf("sends=%d connections=%d stops=%d", sends.Load(), connections.Load(), stops.Load())
+	}
+}
