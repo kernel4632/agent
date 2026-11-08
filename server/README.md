@@ -112,26 +112,34 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
     "chat": { "provider": "default", "model": "your-model" },
     "compact": { "provider": "", "model": "" },
     "title": { "provider": "", "model": "" },
-    "task": { "provider": "", "model": "" }
+    "task": { "provider": "", "model": "" },
+    "review": { "provider": "", "model": "" }
   },
-  "permission": { "*": "ask" }
+  "permission": { "*": "ask" },
+  "review": {
+    "enabled": false,
+    "policy": "",
+    "timeout": 15000
+  }
 }
 ```
 
 - 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。`family` 可选，只用于模型图标；留空时由 models.dev 目录和模型 ID 自动判断，歧义时不猜。
 - `maxOutput`、`temperature`、`topP`、`seed` 是可选生成参数；`maxOutput` 映射到 agent-core 的单次最大输出，其余原样交给 AI SDK。`body` 用来覆盖请求体里没有可视化字段的高级参数，例如 `{ "top_k": 20 }`。
-- `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task` 不填就回退到 `chat`。
+- `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task`、`review` 不填就回退到 `chat`。
+- `review` 控制工具调用的 AI 审核：`enabled` 是总开关，`policy` 留空使用内置策略，`timeout` 是单次审核上限（1000–120000 毫秒）。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
 - 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，其余错误无限次指数退避；首次 5 秒，单次退避上限 120 秒，总重试时长不限。
 - `prompt.seeded` 表示默认提示词已经填过一次；用户保存空字符串后不会被重新填回。
 
 ### 权限规则
 
-`permission` 的每条规则只有三种动作：
+`permission` 的每条规则有四种动作：
 
 | 动作 | 结果 |
 | --- | --- |
 | `"allow"` | 直接执行 |
+| `"review"` | 先让审核模型判断；模型允许才执行，拒绝就拦下，不确定时转人工 |
 | `"ask"` | 停下来等用户点允许或拒绝 |
 | `"deny"` | 直接拒绝，不执行，也不登记审批 |
 
@@ -151,6 +159,18 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 ```
 
 `deny` 是硬规则，写错的动作按 `ask` 处理。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
+
+### 工具调用自动审核
+
+`review` 动作只决定“这次调用要不要先问审核模型”，审核器本身由 `review` 和 `models.review` 配置：
+
+- 审核器用 `models.review` 指向的模型；不填时和默认模型共用。
+- 审核请求只带工具名、参数、会话当前目录和最后一条用户请求，不发送完整历史。工具参数会发给审核模型，配置前请确认这个模型的隐私边界。
+- 模型必须返回 `{"decision":"allow|deny|ask","reason":"..."}`。`allow` 直接执行，`deny` 直接拒绝，`ask` 转人工审批。
+- 未启用、没有可用模型、超时、网络错误、返回不是合法 JSON，一律按 `ask` 处理，不会静默放行。
+- `review.timeout` 默认 15000 毫秒；任务取消时审核请求也会中止。
+- 审核放行会推一条 `permission-review` SSE 事件；审核拒绝复用 `permission-blocked`，原因前缀是“AI 审核拒绝”；审核不确定时，`permission` 事件会带 `review` 字段，审批弹窗显示原因。
+- 全局 `*` 为 `allow` 是「全部批准」，会盖过工具的 `ask` / `review`；明确的 `deny` 仍然拒绝。要对每次调用都审核，把全局 `*` 设为 `review`，再按需给个别工具写 `allow` / `ask` / `deny`。
 
 ### 项目规则
 
@@ -448,7 +468,7 @@ MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分�
 | --- | --- | --- |
 | `reasoning` | `auto` | `off` / `auto` / `low` / `medium` / `high` / `xhigh` / `max` |
 
-权限只有一层：`config.permission` 的全局规则，加每次询问的“始终允许 / 允许一次 / 拒绝”。没有会话级自动批准。全局 `*` 为 allow 是「全部批准」：它盖过工具默认的 ask，多行命令也不会因为前缀没对上再弹窗；明确的 deny 仍然拒绝。对象规则里的 `*` 是这个工具的默认动作，不是必须命中的通配；其余模式按参数匹配，并且 `*` 跨过斜杠和换行。规则已经是 allow 就直接放行，不会因为同一次调用重复出现再问一遍。配置每次保存后，还挂在弹窗上的审批会按新规则重新评估：改成了放行或拒绝就直接结算，不再等用户回来点按钮。
+权限只有一层：`config.permission` 的全局规则，加每次询问的“始终允许 / 允许一次 / 拒绝”。没有会话级自动批准。规则动作有 allow / review / ask / deny；review 先问审核模型，只有 allow 直接执行，deny 直接拒绝，ask、超时和审核故障都转人工。全局 `*` 为 allow 是「全部批准」：它盖过工具默认的 ask / review，多行命令也不会因为前缀没对上再弹窗；明确的 deny 仍然拒绝。对象规则里的 `*` 是这个工具的默认动作，不是必须命中的通配；其余模式按参数匹配，并且 `*` 跨过斜杠和换行。规则已经是 allow 就直接放行，不会因为同一次调用重复出现再问一遍。配置每次保存后，还挂在弹窗上的审批会按新规则重新评估：改成了放行、拒绝或 review 就直接结算，不再等用户回来点按钮。
 
 模型能不能看图、能不能调用工具，只从 `providers[].models[].capabilities` 读取，不在会话里另存一份。
 
@@ -508,8 +528,9 @@ Accept: text/event-stream
 | `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具卡片 |
 | `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
 | `tool-result` | `toolCallId`, `toolName`, `input`, `output` | 更新工具最终结果；拒绝、取消、无效调用也会结算 |
-| `permission` | `callID`, `tool`, `input` | 显示“始终允许 / 允许一次 / 拒绝” |
-| `permission-blocked` | `callID`, `tool`, `input`, `reason` | 被权限规则拒绝，不用等用户决定 |
+| `permission` | `callID`, `tool`, `input`；AI 审核不确定时另带 `review` | 显示“始终允许 / 允许一次 / 拒绝”；`review.reason` 说明 AI 为什么转人工 |
+| `permission-review` | `callID`, `tool`, `input`, `reviewer`, `decision`, `reason` | AI 审核放行，没有弹窗；前端在工具卡片上显示审核结论 |
+| `permission-blocked` | `callID`, `tool`, `input`, `reason`；AI 拒绝时另带 `review` | 被权限规则或 AI 审核拒绝，不用等用户决定 |
 | `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |
 | `compact-start` / `compact-finish` | `messages` + `startedAt` / `content`, `usage`, `durationMs` | 上下文压缩进度；`usage` 已统一成 `input` / `output` / `cacheRead` / `total` |
 | `title` | `title` | 后端起好了标题 |
