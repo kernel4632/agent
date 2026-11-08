@@ -1,0 +1,116 @@
+/* ComposerTools.vue：输入区的工具自动批准小窗。每个工具本身就是一个可点的开关。 */
+.composer-tools { display: inline-flex; }
+
+/* 入口按钮：和「模型与推理」同一档视觉重量，不抢镜。 */
+.composer-tools__trigger {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--la-secondary);
+  cursor: pointer;
+}
+.composer-tools__trigger:hover,
+.composer-tools__trigger[aria-expanded='true'] { background: var(--la-hover); color: var(--la-text); }
+.composer-tools__count { font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+
+/* 小窗：宽度按内容定，两列排开。 */
+.composer-tools__popup {
+  position: fixed;
+  inset: auto;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--la-line);
+  border-radius: var(--la-radius-panel);
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  box-shadow: var(--la-shadow-floating);
+}
+
+.composer-tools__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.composer-tools__title {
+  margin: 0;
+  color: var(--la-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 两列网格：格子本身就是按钮，不用「文字 + 开关」两段式。
+   全选按钮也在这个网格里，跨两列占据第一行，和工具格子同一档尺寸。 */
+.composer-tools__grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* 万能开关：跨两列占据第一行，和工具格子同一档尺寸、同一套开关语言。
+   点一下把下面所有开关一起打开，再点一下一起关掉。 */
+.composer-tools__tool--all {
+  grid-column: 1 / -1;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.composer-tools__tool {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--la-line);
+  border-radius: var(--la-shape-sm);
+  background: transparent;
+  color: var(--la-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.composer-tools__tool:hover { background: var(--la-hover); color: var(--la-text); }
+.composer-tools__tool:focus-visible { outline: 2px solid var(--ui-color-primary); outline-offset: 1px; }
+
+/* 开着：实心勾 + 主色边框，关着：空心圆点。状态直接画在格子上。 */
+.composer-tools__tool.is-on {
+  border-color: var(--ui-color-primary);
+  background: var(--ui-color-primary-container);
+  color: var(--ui-color-on-primary-container);
+}
+.composer-tools__check { display: inline-flex; flex: none; opacity: 0.5; }
+.composer-tools__tool.is-on .composer-tools__check { opacity: 1; }
+
+.composer-tools__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-tools__empty,
+.composer-tools__hint {
+  margin: 10px 0 0;
+  color: var(--la-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+.composer-tools__empty { margin-top: 0; }
+
+/* 窄屏：小窗只缩宽度，仍然保持两列——格子只有图标加短名字，一列会把小窗撑得比屏幕还高。 */
+@media (max-width: 480px) {
+  .composer-tools__popup { width: calc(100vw - 32px); }
+}
