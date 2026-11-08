@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.118.1",
+  "version": "0.119.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -14,6 +14,7 @@
     "test:ui:headed": "playwright test tests/ui-audit.spec.js tests/ui-motion.spec.js tests/ui-controls.spec.js --headed"
   },
   "dependencies": {
+    "@floating-ui/vue": "^2.0.1",
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/vue": "1.0.7",
     "@material/material-color-utilities": "^0.3.0",
