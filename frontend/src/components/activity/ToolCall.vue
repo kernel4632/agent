@@ -18,6 +18,7 @@ defineOptions({ name: 'ToolCall' })
 const props = defineProps({
   tool: { type: Object, required: true },
   sessionId: { type: String, required: true },
+  instant: Boolean,
 })
 const now = ref(Date.now())
 // null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
@@ -112,7 +113,7 @@ function decide(decision) {
           <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
         </div>
       </div>
-      <Fold :open="bodyOpen">
+      <Fold :open="bodyOpen" :instant="instant">
         <div :id="bodyId" class="cot-step__body">
           <ToolResult :tool="tool" />
         </div>

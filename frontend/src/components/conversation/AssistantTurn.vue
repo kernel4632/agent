@@ -246,6 +246,9 @@ function toggleGroup(section) {
 }
 const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
+// 结束工具的输出是一整段突然到达的正式回复；这里不再逐字追赶，
+// 否则它会和处理过程折叠同时改变高度，形成连续闪烁。
+const shownBubble = computed(() => finalText.value || bubbleContent.value)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
 
@@ -333,6 +336,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :data-message-id="section.step.messageId"
                   :tool="section.step.tool"
                   :session-id="sessionId"
+                  :instant="!processShown"
                 />
               </template>
 
@@ -342,7 +346,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   <span class="context-group__summary" :title="section.summary">{{ section.summary }}</span>
                   <Icon name="down" :size="14" class="context-group__caret" :class="{ 'is-open': isGroupOpen(section) }" aria-hidden="true" />
                 </button>
-                <Fold :open="isGroupOpen(section)" :instant="section.steps.some(isPendingStep)">
+                <Fold :open="isGroupOpen(section)" :instant="!processShown || section.steps.some(isPendingStep)">
                   <div class="context-group__body cot-steps">
                     <template v-for="step in section.steps" :key="step.key">
                       <RequestStatus v-if="step.type === 'request'" :data-message-id="step.messageId" :request="step.request" />
@@ -363,6 +367,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :data-message-id="step.messageId"
                         :tool="step.tool"
                         :session-id="sessionId"
+                        :instant="!processShown"
                       />
                     </template>
                   </div>
@@ -373,7 +378,7 @@ function clearTarget() { targetId.value = null; emit('close') }
         </Fold>
       </div>
       <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
-        <Markdown :content="bubbleContent" />
+        <Markdown :content="shownBubble" />
         <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
         <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
       </div>

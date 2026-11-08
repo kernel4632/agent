@@ -69,7 +69,7 @@ onBeforeUnmount(() => clearTimeout(safetyTimer))
 
 <template>
   <Transition name="fold" @enter="enter" @after-enter="afterEnter" @leave="leave" @after-leave="afterLeave">
-    <div v-if="open" ref="rootEl" class="fold">
+    <div v-if="open" ref="rootEl" class="fold" :class="{ 'is-instant': instant }">
       <div class="fold__inner"><slot /></div>
     </div>
   </Transition>
