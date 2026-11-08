@@ -73,6 +73,26 @@ let pointerActive = false
 let touchStartY = null
 let touchStartTop = 0
 let resumeFollow = false
+let loadingEarlier = false
+
+async function loadEarlier() {
+  if (loadingEarlier || !scrollParent || !session.value || following.value) return
+  if (!Number.isInteger(session.value.historyStart) || session.value.historyStart <= 0) return
+  loadingEarlier = true
+  const beforeHeight = scrollParent.scrollHeight
+  const beforeTop = scrollParent.scrollTop
+  try {
+    const loaded = await History.loadOlder(session.value.id)
+    if (!loaded) return
+    await nextTick()
+    requestAnimationFrame(() => {
+      if (!scrollParent) return
+      scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
+    })
+  } finally {
+    loadingEarlier = false
+  }
+}
 
 // 按轮虚拟化：data 是完整轮次数组，虚拟器只挂载视口附近的行。
 // anchorTo: 'end' + followOnAppend 让贴底时的流式增长和追加都自动保持在末尾，
@@ -192,6 +212,7 @@ function onScroll() {
     const atEnd = virtualizer.value.isAtEnd(8)
     if (!atEnd && following.value) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
+    if (scrollParent.scrollTop < 160) void loadEarlier()
   }
   syncLatestPosition()
   rememberScroll()

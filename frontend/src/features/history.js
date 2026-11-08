@@ -218,11 +218,12 @@ function syncSummary(session) {
   Object.assign(found, summaryOf(session))               // 将最新标题、状态、计数和时间写回列表
 }
 
-/** 读取后端真实历史，保留当前草稿、附件和连接状态。 */
+/** 读取后端真实历史，首屏只取最近一页，向上滚动时再补旧消息。 */
+const HISTORY_WINDOW = 200
 async function refresh(id) {
   const settingsAtStart = store.sessions[id]?.settings // 记住本次读取开始时的设置引用
   const revisionAtStart = store.sessions[id]?.eventRevision || 0
-  const source = await AgentAPI.getSession(id)
+  const source = await AgentAPI.getSession(id, { historyLimit: HISTORY_WINDOW })
   const current = store.sessions[id]
   const session = normalize(source, current)
   // 在 GET 途中完成的用户修改比这个快照更新，不能用旧快照覆盖。
@@ -234,9 +235,60 @@ async function refresh(id) {
     session.status = current.status
     session.eventRevision = current.eventRevision
   }
+  // 刷新窗口只包含最近一页；已经补进内存的更早历史不能被丢掉。
+  if (current && Number.isInteger(current.historyStart)
+    && Number.isInteger(source.historyStart)
+    && current.historyStart < source.historyStart
+    && current.messages.length) {
+    const incoming = new Set(session.messages.map(message => message.id))
+    const older = current.messages.filter(message => !incoming.has(message.id)
+      && !String(message.id).startsWith('pending_')
+      && !String(message.id).startsWith('error_'))
+    if (older.length) {
+      session.messages = [...older, ...session.messages]
+      session.historyStart = current.historyStart
+    }
+  }
   store.sessions[id] = session
   syncSummary(session)
   return session
+}
+
+/** 在时间线顶部补一页更早的历史；失败时保持现状。 */
+async function loadOlder(id, limit = HISTORY_WINDOW) {
+  const session = store.sessions[id]
+  if (!session || session.status === 'running') return false
+  if (!Number.isInteger(session.historyStart) || session.historyStart <= 0) return false
+  try {
+    const page = await AgentAPI.getSessionHistory(id, session.historyStart, limit)
+    if (!page?.messages?.length || page.start >= session.historyStart) return false
+    const source = {
+      id: session.id,
+      title: session.title,
+      cwd: session.cwd,
+      temporary: session.temporary,
+      provider: session.provider,
+      model: session.model,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      settings: session.settings,
+      history: page.messages,
+      toolTimings: session.toolTimings || {},
+      running: false,
+      pending: [],
+    }
+    const older = normalize(source, { settings: session.settings }).messages
+    const known = new Set(session.messages.map(message => message.id))
+    const fresh = older.filter(message => !known.has(message.id))
+    session.historyStart = page.start
+    session.historyTotal = page.total || session.historyTotal
+    if (!fresh.length) return false
+    session.messages = [...fresh, ...session.messages]
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
+  }
 }
 
 async function previewRollback(sessionID, messageID) {
@@ -298,4 +350,4 @@ function admit(source) {
   return session
 }
 
-export const History = { normalize, admit, refresh, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }
+export const History = { normalize, admit, refresh, loadOlder, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }
