@@ -6,6 +6,7 @@
  *
  * 到点没跑完不“杀”而是“交棒”：命令继续跑，返回进程 id，后续用 background 的 log 接着看。
  * 杀掉等于整轮工作白跑（装依赖、跑测试都得重来），而模型本来就猜不准要跑多久。
+ * 前台最多等 30 秒：超过后自动转后台，模型可以并行做别的事，需要时再读日志或停掉。
  *
  * 调用示例：模型调用 execute_command({ command: 'bun test', cwd: 'server' })
  */
@@ -14,8 +15,9 @@ import { isAbsolute, resolve } from 'node:path'
 import { spawnTracked, releaseTracked, readTextFile, killTree } from '../utils/process.js'
 import Text from '../utils/text.js'
 
-// 前台最多等十分钟，之后交棒给后台，避免把整个任务挂死。
-const TIMEOUT_MS = 10 * 60 * 1000
+// 前台最多等 30 秒，之后交棒给后台，避免把整个任务挂死。
+const TIMEOUT_MS = 30 * 1000
+const MAX_TIMEOUT_MS = 30 * 1000
 
 // --- 长输出只留头尾 ---
 const truncate = Text.truncate
@@ -36,9 +38,10 @@ const shell = {
         'The command runs once and waits for completion; interactive prompts that need typing will hang.',
         'Arguments are parsed like a shell: quotes group words, so -m "two words" is one argument. When the command needs no shell features it is executed directly; pipes, redirection, variables and globs go through the system shell.',
         'Set background: true to start it in the background instead: returns immediately with a process id; read output later with background (action: log, optionally with waitFor/waitMs). Use this for long jobs that would otherwise block: full test suites, dev servers, installs.',
-        'You do not have to guess how long a command takes. If it is still running when timeout elapses it is NOT killed: you get back the process id, the partial output so far, and timedOut: true. Continue with background({ action: "log", id }).',
+        'You do not have to guess how long a command takes. Foreground execution is capped at 30 seconds. If it is still running when timeout elapses it is NOT killed: it is automatically moved to the background and you get back the process id, the partial output so far, and timedOut: true.',
+        'When that happens, do not wait or poll: continue with other independent work in parallel, then read the result later with background({ action: "log", id, waitFor, waitMs }). If the process looks stuck, stop it with background({ action: "stop", id }) (kill is an alias).',
         'Parameters: - command (required): the command line to run. - cwd (optional): directory relative to the session current directory.',
-        '- timeout (optional): how long to wait before handing the still-running command over to the background, in milliseconds; default 600000 (10 minutes).',
+        '- timeout (optional): how long to wait before handing the still-running command over to the background, in milliseconds; default and maximum 30000 (30 seconds).',
         '- background (optional): true to start it in the background and return a handle instead of waiting.',
     ].join('\n'),
     inputSchema: {
@@ -46,7 +49,7 @@ const shell = {
         properties: {
             command: { type: 'string' },
             cwd: { type: 'string' },
-            timeout: { type: 'integer', minimum: 1000, maximum: 3600000 },
+            timeout: { type: 'integer', minimum: 1000, maximum: 30000 },
             background: { type: 'boolean', description: 'Run in the background: return a handle immediately instead of waiting for completion.' },
         },
         required: ['command'],
@@ -68,9 +71,9 @@ const shell = {
             return { id: started.id, pid: started.pid, logFile: started.logFile, command, cwd: workdir }
         }
 
-        // 按次传的 timeout 优先于默认上限；填错时用默认值，不因此拒绝执行。
+        // 按次传的 timeout 优先于默认上限，但不能超过前台 30 秒的硬上限。
         const requested = Number(timeout)
-        const limit = Number.isFinite(requested) && requested >= 1000 ? Math.min(requested, 3600000) : TIMEOUT_MS
+        const limit = Number.isFinite(requested) && requested >= 1000 ? Math.min(requested, MAX_TIMEOUT_MS) : TIMEOUT_MS
 
         // 用户取消才是真杀；时间到只是交棒。
         const stop = () => killTree(started.pid)
@@ -107,7 +110,7 @@ const shell = {
                 logFile: started.logFile,
                 running: true,
                 output: truncate(readTextFile(started.logFile).trimEnd()),
-                hint: `Still running after ${Math.round(limit / 1000)}s, so it was left running instead of being killed. Read more with background({ action: "log", id: "${started.id}", waitFor: "...", waitMs: 10000 }) or stop it with background({ action: "stop", id: "${started.id}" }).`,
+                hint: `Still running after ${Math.round(limit / 1000)}s. It was NOT killed; it has been moved to the background automatically with process id "${started.id}". Do not wait or poll: continue with other independent work in parallel, then read the result with background({ action: "log", id: "${started.id}", waitFor: "...", waitMs: 10000 }). If it looks stuck, stop it with background({ action: "stop", id: "${started.id}" }).`,
             }
         } finally {
             clearTimeout(timer)

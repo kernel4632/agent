@@ -27,12 +27,13 @@ const background = {
     },
     description: [
         'Inspect and control long-running processes started with execute_command({ background: true }).',
-        'Three actions: log (read latest output), stop (kill it), list (show every known process).',
+        'Three actions: log (read latest output), stop / kill (terminate it), list (show every known process).',
+        'Automatically-started background processes come from execute_command exceeding its 30s foreground limit; read their logs here instead of waiting.',
         'Starting a process is NOT done here — call execute_command with background: true for that.',
         'log blocks until there is new output or waitMs elapses, so you do not have to poll. Pass waitFor to wait for a specific line instead of guessing a sleep: log({ id, waitFor: "Listening on", waitMs: 10000 }) returns as soon as that pattern appears.',
         'Output streams live to a log file under the agent data directory; the process table resets when the backend restarts.',
         'Note: on Windows the command runs under cmd.exe; inline-code commands (e.g. bun -e "...") may produce no captured output — write a script file first for reliable logs.',
-        'Parameters: - action (required): log | stop | list. - id (log/stop): the handle returned by execute_command.',
+        'Parameters: - action (required): log | stop | kill | list. - id (log/stop/kill): the handle returned by execute_command.',
         '- tail (log): how many trailing lines to show, default 200, max 2000.',
         '- waitFor (log, optional): hold until output contains this text, then return. Case-insensitive literal match.',
         '- waitMs (log, optional): max time to wait for new output or waitFor, default 0 (return immediately), max 60000.',
@@ -40,7 +41,7 @@ const background = {
     inputSchema: {
         type: 'object',
         properties: {
-            action: { type: 'string', enum: ['log', 'stop', 'list'] },
+            action: { type: 'string', enum: ['log', 'stop', 'kill', 'list'] },
             id: { type: 'string' },
             tail: { type: 'integer', minimum: 1, maximum: 2000 },
             waitFor: { type: 'string' },
@@ -56,9 +57,10 @@ const background = {
                 waitMs: input.waitMs,
                 abortSignal: options.abortSignal,
             })
-            case 'stop': return stopProcess(input.id)
+            case 'stop':
+            case 'kill': return stopProcess(input.id)
             case 'list': return { processes: list() }
-            default: throw new Error('action must be log | stop | list; to start a process use execute_command with background: true')
+            default: throw new Error('action must be log | stop | kill | list; to start a process use execute_command with background: true')
         }
     },
 }

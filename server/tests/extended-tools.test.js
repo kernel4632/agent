@@ -281,6 +281,7 @@ describe('execute_command 的 background 参数', () => {
 
     test('background 参数缺省时保持原行为：等命令结束', async () => {
         const shell = (await import('../tools/shell.js')).default
+        expect(shell.inputSchema.properties.timeout).toMatchObject({ minimum: 1000, maximum: 30000 })
         const result = await shell.execute({ command: 'echo foreground-ok' }, {})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('foreground-ok')
@@ -342,13 +343,14 @@ describe('execute_command 的 background 参数', () => {
             expect(result.id).toMatch(/^[0-9a-f]{4}$/)
             // 关键：已经跑出来的输出还在，模型不必重跑命令
             expect(result.output).toContain('早先的输出')
-            expect(result.hint).toContain('background')
+            expect(result.hint).toContain('moved to the background')
+            expect(result.hint).toContain('continue with other independent work')
 
             // 交棒后真的能接着用 background 读日志和停掉——同一个进程没被重跑
             const log = await Background.execute({ action: 'log', id: result.id }, {})
             expect(log.running).toBe(true)
             expect(log.output).toContain('早先的输出')
-            await Background.execute({ action: 'stop', id: result.id }, {})
+            await Background.execute({ action: 'kill', id: result.id }, {})
             await rm(script, { force: true })
         })
     }, 30_000)

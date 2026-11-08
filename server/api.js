@@ -327,6 +327,11 @@ export const components = {
                             "type": "integer",
                             "description": "完整历史的消息总数"
                         },
+                        "historyStats": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "基于完整历史的用量聚合；token 总量、模型速度分组和最近序列不受 history 窗口影响"
+                        },
                         "todos": {
                             "type": "array",
                             "items": {
@@ -352,9 +357,39 @@ export const components = {
                 }
             ]
         },
-        "Change": {
+        "SessionSearchResult": {
             "type": "object",
+            "required": [
+                "id",
+                "index",
+                "role",
+                "before",
+                "match",
+                "after"
+            ],
             "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "before": {
+                    "type": "string"
+                },
+                "match": {
+                    "type": "string"
+                },
+                "after": {
+                    "type": "string"
+                }
+            }
+        },
+        "Change": {
+            "type": "object",            "properties": {
                 "path": {
                     "type": "string"
                 },
@@ -2430,6 +2465,62 @@ export const paths = {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/search/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "全量搜索聊天记录",
+            "description": "流式扫描完整历史，返回消息 id、可见下标和命中片段；不依赖首屏窗口。",
+            "operationId": "sessionSearch",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                },
+                {
+                    "name": "q",
+                    "in": "query",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    },
+                    "description": "关键词"
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 50
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "搜索结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "results"
+                                ],
+                                "properties": {
+                                    "results": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/SessionSearchResult"
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
