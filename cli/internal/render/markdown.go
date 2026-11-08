@@ -1,3 +1,10 @@
+/*
+Markdown 渲染：把模型回复里的标题、列表、代码块和行内样式翻成终端样式。
+只处理终端能表达的部分；表格和内嵌 HTML 当普通文本保留。
+
+调用示例：
+  fmt.Fprintln(w, render.Markdown(answer))
+*/
 package render
 
 import (

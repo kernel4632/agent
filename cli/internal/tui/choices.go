@@ -1,3 +1,11 @@
+/*
+选项快选：模型在问题里列出 1) 2) 3) 时，把它们做成可点可敲的选项，
+按数字键或点击直接作答，不用手打。
+
+调用示例：
+  stem, choices := parseChoices(question)
+  cmd, ok := m.choiceKey("2")
+*/
 package tui
 
 import (

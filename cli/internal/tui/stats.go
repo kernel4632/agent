@@ -1,3 +1,11 @@
+/*
+用量报告：把历史里的请求用量和正文拼成面板要显示的数——上下文占用、
+速度分组、内容构成。估算只在旧会话没有真实用量时用，且会标“估算”。
+
+调用示例：
+  report := m.usageReport()
+  fmt.Fprintln(w, m.statsText())
+*/
 package tui
 
 import (
