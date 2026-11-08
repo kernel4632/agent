@@ -113,6 +113,7 @@ function chooseReasoning(reasoning) {
         <ConversationRail
           v-if="session"
           :messages="session.messages"
+          :session-id="session.id"
           :scroll-root="conversationScroll"
           @jump="jumpToMessage"
         />
