@@ -164,15 +164,17 @@ func (m *model) slashMenu() string {
 	width := max(24, m.width-2)
 	var b strings.Builder
 	for offset, item := range matches[start:end] {
+		chosen := start+offset == selected
 		pointer := "  "
-		if start+offset == selected {
-			pointer = "> "
+		if chosen {
+			pointer = "❯ "
 		}
 		line := fit(pointer+pad(item.Name, 12)+" "+item.Hint, width)
-		if start+offset == selected {
-			line = accent.Render(line)
+		if chosen {
+			line = accent.Render(line) // 选中行整行提亮，眼睛不用在灰字里找
 		} else {
-			line = muted.Render(line)
+			name, hint := splitSlashRow(line)
+			line = muted.Render(name) + dim.Render(hint)
 		}
 		if offset > 0 {
 			b.WriteByte('\n')
@@ -180,6 +182,17 @@ func (m *model) slashMenu() string {
 		b.WriteString(line)
 	}
 	return b.String()
+}
+
+// splitSlashRow 把菜单行切成“命令名”和“说明”，两段用不同的灰。
+// 前缀固定是 2 列指针 + 12 列命令名 + 1 列空格。
+func splitSlashRow(line string) (string, string) {
+	const head = 15
+	runes := []rune(line)
+	if len(runes) <= head {
+		return line, ""
+	}
+	return string(runes[:head]), string(runes[head:])
 }
 
 func (m *model) suggestKey(key string) (tea.Cmd, bool) {

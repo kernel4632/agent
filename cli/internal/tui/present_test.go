@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -237,6 +238,11 @@ func TestUsagePanelShowsSpeedAndBreakdown(t *testing.T) {
 	}
 }
 
+// stripAnsi 去掉配色，只留文字，测试才能直接比对界面的字符。
+func stripAnsi(text string) string {
+	return regexp.MustCompile("\x1b\\[[0-9;]*m").ReplaceAllString(text, "")
+}
+
 func TestInputIsASinglePrompt(t *testing.T) {
 	m := newModel(context.Background(), nil, api.Session{ID: "s"})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -246,6 +252,30 @@ func TestInputIsASinglePrompt(t *testing.T) {
 	}
 	if strings.Contains(got, "›") || strings.Contains(got, "┃") || !strings.Contains(got, "查看命令") {
 		t.Fatal(got)
+	}
+}
+
+func TestComposerDrawsSplitBorder(t *testing.T) {
+	m := newModel(context.Background(), nil, api.Session{ID: "s"})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.input.Focus()
+	frame := m.View()
+	lines := strings.Split(frame.Content, "\n")
+	row := stripAnsi(lines[len(lines)-2])
+	if !strings.HasPrefix(row, "┃ ") || !strings.HasSuffix(row, " ┃") {
+		t.Fatalf("input row is not framed: %q", row)
+	}
+	if lipgloss.Width(row) != 78 {
+		t.Fatalf("input row width %d, want 78", lipgloss.Width(row))
+	}
+	if frame.Cursor == nil || frame.Cursor.Y != len(lines)-2 || frame.Cursor.X < 2 {
+		t.Fatalf("cursor %+v not inside the border", frame.Cursor)
+	}
+
+	m.Update(tea.WindowSizeMsg{Width: 20, Height: 24})
+	narrow := strings.Split(m.View().Content, "\n")
+	if row := stripAnsi(narrow[len(narrow)-2]); strings.HasPrefix(row, "┃") {
+		t.Fatalf("narrow terminal kept the border: %q", row)
 	}
 }
 
@@ -269,8 +299,8 @@ func TestCursorStaysOnTheInputLine(t *testing.T) {
 	if view.Cursor.Y != len(lines)-2 || !strings.Contains(lines[len(lines)-1], "ctrl+") {
 		t.Fatalf("cursor y=%d last %q", view.Cursor.Y, lines[len(lines)-1])
 	}
-	if view.Cursor.X != 6 {
-		t.Fatalf("cursor x=%d, want the cell after 你好", view.Cursor.X)
+	if view.Cursor.X != 8 {
+		t.Fatalf("cursor x=%d, want the cell after 你好 behind the input border", view.Cursor.X)
 	}
 }
 

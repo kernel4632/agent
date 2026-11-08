@@ -321,14 +321,14 @@ func (m *model) overlayText() string {
 	var b strings.Builder
 	switch m.overlay.kind {
 	case "sessions":
-		b.WriteString("会话")
+		b.WriteString(accent.Render("会话"))
 		if m.overlay.filter != "" {
-			b.WriteString(" · 筛选 " + m.overlay.filter)
+			b.WriteString(dim.Render(" · 筛选 " + m.overlay.filter))
 		}
-		b.WriteString("\nCtrl+N 新建 · Enter 打开 · Esc 关闭\n\n")
+		b.WriteString("\n" + dim.Render("Ctrl+N 新建 · Enter 打开 · Esc 关闭") + "\n\n")
 		list := m.visibleSessions()
 		if len(list) == 0 {
-			b.WriteString("没有匹配的会话")
+			b.WriteString(dim.Render("没有匹配的会话"))
 			break
 		}
 		for i, session := range list {
@@ -340,47 +340,61 @@ func (m *model) overlayText() string {
 			if title == "" {
 				title = "未命名"
 			}
-			b.WriteString(mark + title + "  " + muted.Render(session.ID) + "\n") // 标题在前，编号留着给 /open
+			row := mark + title
+			if i == m.overlay.index {
+				row = accent.Render(row)
+			}
+			b.WriteString(row + "  " + dim.Render(session.ID) + "\n") // 标题在前，编号留着给 /open
 		}
 	case "models":
-		b.WriteString("模型")
+		b.WriteString(accent.Render("模型"))
 		if m.overlay.filter != "" {
-			b.WriteString(" · 筛选 " + m.overlay.filter)
+			b.WriteString(dim.Render(" · 筛选 " + m.overlay.filter))
 		}
 		b.WriteString("\n\n")
 		list := m.visibleModels()
 		if len(list) == 0 {
-			b.WriteString("没有已配置的模型")
+			b.WriteString(dim.Render("没有已配置的模型"))
 			break
 		}
 		for i, model := range list {
 			mark := "  "
-			if i == m.overlay.index {
+			chosen := i == m.overlay.index
+			if chosen {
 				mark = "▸ "
 			}
-			current := ""
-			if model.provider == m.session.Provider && model.id == m.session.Model {
-				current = "  ←"
-			}
-			b.WriteString(mark + model.provider + "/" + model.id)
+			row := mark + model.provider + "/" + model.id
 			if model.name != model.id {
-				b.WriteString("  " + model.name)
+				row += "  " + model.name
 			}
-			b.WriteString(current + "\n")
+			if chosen {
+				row = accent.Render(row)
+			}
+			if model.provider == m.session.Provider && model.id == m.session.Model {
+				row += okText.Render("  ←")
+			}
+			b.WriteString(row + "\n")
 		}
 	case "reasoning":
-		b.WriteString("思考强度\n\n")
+		b.WriteString(accent.Render("思考强度") + "\n\n")
 		for i, level := range reasoningLevels {
 			mark := "  "
 			if i == m.overlay.index {
 				mark = "▸ "
 			}
-			b.WriteString(mark + level + "\n")
+			row := mark + level
+			if i == m.overlay.index {
+				row = accent.Render(row)
+			}
+			if level == m.session.Settings.Reasoning {
+				row += okText.Render("  ←")
+			}
+			b.WriteString(row + "\n")
 		}
 	case "todos":
-		b.WriteString("任务清单\n\n")
+		b.WriteString(accent.Render("任务清单") + "\n\n")
 		if len(m.todos) == 0 {
-			b.WriteString("还没有任务。模型更新清单后会显示在这里。")
+			b.WriteString(dim.Render("还没有任务。模型更新清单后会显示在这里。"))
 			break
 		}
 		done := 0
@@ -389,32 +403,37 @@ func (m *model) overlayText() string {
 				done++
 			}
 		}
-		b.WriteString("进度 " + itoa(done) + "/" + itoa(len(m.todos)) + "\n\n")
+		b.WriteString(gold.Render("进度 "+itoa(done)+"/"+itoa(len(m.todos))) + "\n\n")
 		for _, item := range m.todos {
-			mark := "·"
+			mark, style := "·", dim
 			switch item.Status {
 			case "completed":
-				mark = "✓"
+				mark, style = "✓", okText
 			case "in_progress":
-				mark = "▸"
+				mark, style = "▸", accent
 			}
-			b.WriteString(mark + " " + item.Text + "\n")
+			text := item.Text
+			if item.Status == "completed" {
+				text = dim.Render(text) // 做完的退到背景里，没做的才是当前要看的
+			}
+			b.WriteString(style.Render(mark) + " " + text + "\n")
 		}
 	case "changes":
 		if len(m.overlay.changes) == 0 {
-			b.WriteString("没有文件改动")
+			b.WriteString(dim.Render("没有文件改动"))
 			break
 		}
-		b.WriteString(itoa(len(m.overlay.changes)) + " 个文件有改动\n")
+		b.WriteString(accent.Render(itoa(len(m.overlay.changes))+" 个文件有改动") + "\n")
 		for _, file := range m.overlay.changes {
 			diff, added, removed := render.Unified(file.Before, file.After)
 			state := ""
 			if file.Added {
-				state = "新文件 "
+				state = gold.Render("新文件 ")
 			} else if file.Deleted {
-				state = "已删除 "
+				state = warnText.Render("已删除 ")
 			}
-			b.WriteString("\n" + state + file.Path + "  +" + itoa(added) + " -" + itoa(removed) + "\n")
+			counts := okText.Render("+"+itoa(added)) + " " + errText.Render("-"+itoa(removed))
+			b.WriteString("\n" + state + file.Path + "  " + counts + "\n")
 			if diff != "" {
 				b.WriteString(render.Paint(render.Clip(diff, 80)))
 				b.WriteByte('\n')
@@ -425,7 +444,8 @@ func (m *model) overlayText() string {
 		if m.overlay.dir != nil {
 			current = m.overlay.dir.Current
 		}
-		b.WriteString("目录 · " + current + "\nEnter 进入或使用 · Backspace 上级 · Esc 关闭\n\n")
+		b.WriteString(accent.Render("目录") + dim.Render(" · ") + gold.Render(current) + "\n")
+		b.WriteString(dim.Render("Enter 进入或使用 · Backspace 上级 · Esc 关闭") + "\n\n")
 		for i, item := range m.visibleDirs() {
 			mark := "  "
 			if i == m.overlay.index {

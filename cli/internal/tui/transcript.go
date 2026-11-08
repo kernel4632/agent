@@ -382,7 +382,7 @@ func (m *model) transcriptText() (string, int) {
 			if m.focus == focusTranscript && index == m.selected {
 				marker = "> "
 			}
-			fmt.Fprintf(&b, "%s%s %s\n\n", marker, muted.Render("▸"), muted.Render(toolSummary(m.blocks[index:end+1])))
+			fmt.Fprintf(&b, "%s%s %s\n\n", marker, dim.Render("▸"), muted.Render(toolSummary(m.blocks[index:end+1])))
 			visual += visualHeight(b.String()[before:], width)
 			m.spans = append(m.spans, blockSpan{index: index, start: start, end: visual, summary: true})
 			index = end // 这一串只占一行；循环自己还会 +1
@@ -413,16 +413,20 @@ func (m *model) transcriptText() (string, int) {
 			}
 			fmt.Fprintf(&b, "%s\n\n", body)
 		case "reasoning":
-			fmt.Fprintf(&b, "%s%s", marker, muted.Render("思考"))
+			caret := "▸"
+			if open {
+				caret = "▾"
+			}
+			fmt.Fprintf(&b, "%s%s %s", marker, dim.Render(caret), muted.Render("思考"))
 			if open {
 				fmt.Fprintf(&b, "\n%s\n\n", render.Markdown(item.body))
 			} else {
-				fmt.Fprintf(&b, "%s\n\n", muted.Render("  已收起"))
+				fmt.Fprintf(&b, "%s\n\n", dim.Render("  已收起"))
 			}
 		case "compact":
-			fmt.Fprintf(&b, "%s%s", marker, muted.Render("上下文已压缩"))
+			fmt.Fprintf(&b, "%s%s", marker, dim.Render("上下文已压缩"))
 			if open && strings.TrimSpace(item.body) != "" {
-				fmt.Fprintf(&b, "\n%s\n\n", render.Clip(render.Sanitize(item.body), 12))
+				fmt.Fprintf(&b, "\n%s\n\n", muted.Render(render.Clip(render.Sanitize(item.body), 12)))
 			} else {
 				fmt.Fprintf(&b, "\n\n")
 			}
@@ -433,9 +437,9 @@ func (m *model) transcriptText() (string, int) {
 			if open {
 				caret = "▾"
 			}
-			fmt.Fprintf(&b, "%s%s %s %s", marker, style.Render(mark), caret, item.title)
+			fmt.Fprintf(&b, "%s%s %s %s", marker, style.Render(mark), dim.Render(caret), item.title)
 			if item.plain != "" && item.plain != item.title {
-				fmt.Fprintf(&b, "  %s", muted.Render(oneLine(item.plain, 72)))
+				fmt.Fprintf(&b, "  %s", dim.Render(oneLine(item.plain, 72)))
 			}
 			if label != "" {
 				fmt.Fprintf(&b, "  %s", style.Render(label))
@@ -446,7 +450,7 @@ func (m *model) transcriptText() (string, int) {
 			}
 			b.WriteByte('\n')
 		case "approval":
-			fmt.Fprintf(&b, "%s%s %s\n", marker, lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render("!"), item.title)
+			fmt.Fprintf(&b, "%s%s %s\n", marker, warnText.Render("!"), item.title)
 			if item.plain != "" {
 				fmt.Fprintf(&b, "%s\n", oneLine(item.plain, 100))
 			}
@@ -485,20 +489,22 @@ func (m *model) welcome() string {
 	}
 	lines := []string{
 		accent.Render("Agent"),
+		dim.Render("终端里的编码助手，与服务端共用会话、历史和工具权限"),
 		"",
 		"直接输入，发给当前会话。",
 		"",
-		muted.Render("模型  " + modelName),
-		muted.Render("目录  " + cwd),
+		gold.Render("模型  ") + modelName,
+		gold.Render("目录  ") + cwd,
 	}
 	if reasoning := strings.TrimSpace(m.session.Settings.Reasoning); reasoning != "" {
-		lines = append(lines, muted.Render("思考  "+reasoning))
+		lines = append(lines, gold.Render("思考  ")+reasoning)
 	}
 	lines = append(lines,
 		"",
-		muted.Render("/        命令"),
-		muted.Render("ctrl+p   已有会话"),
-		muted.Render("ctrl+m   切换模型"),
+		dim.Render("  /         命令"),
+		dim.Render("  ctrl+p    已有会话"),
+		dim.Render("  ctrl+m    切换模型"),
+		dim.Render("  ctrl+u    用量统计"),
 	)
 	return strings.Join(lines, "\n")
 }
@@ -509,7 +515,7 @@ func quoteBar(text string) string {
 	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
-		lines[i] = userBar.Render("| ") + line
+		lines[i] = userBar.Render("┃ ") + line
 	}
 	return strings.Join(lines, "\n")
 }
@@ -519,18 +525,15 @@ func toolMark(kind string) (string, lipgloss.Style) {
 	case "running":
 		return "●", accent
 	case "error":
-		return "✗", lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+		return "✗", errText
 	case "rejected":
-		return "−", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return "−", warnText
 	case "waiting":
-		return "…", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return "…", warnText
 	default:
-		return "✓", lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+		return "✓", okText
 	}
 }
-
-var userLabel = lipgloss.NewStyle().Foreground(lipgloss.Color("111")).Bold(true)
-var userBar = lipgloss.NewStyle().Foreground(lipgloss.Color("111"))
 
 func contentParts(raw json.RawMessage) []api.Part {
 	_, parts := splitContent(raw)

@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/kernel4632/agent/cli/internal/api"
 	"github.com/kernel4632/agent/cli/internal/chat"
+	"github.com/kernel4632/agent/cli/internal/render"
 )
 
 const (
@@ -158,10 +159,10 @@ func newModel(ctx context.Context, client *api.Client, session api.Session) *mod
 	styles := textarea.DefaultDarkStyles()
 	styles.Focused.CursorLine = lipgloss.NewStyle()
 	styles.Blurred.CursorLine = lipgloss.NewStyle()
-	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
-	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorDim))
+	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorDim))
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorAccent))
+	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorMuted))
 	styles.Cursor.Shape = tea.CursorBar
 	input.SetStyles(styles)
 	// 输入法预编辑跟着终端光标。假光标不会上报位置，真实光标就留在最后一行，中文会先出现在底栏。
@@ -335,7 +336,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.seenFocus = true // 首帧之前的焦点是终端启动，不算从别的界面回来
 		}
 		m.width, m.height = msg.Width, msg.Height
-		m.input.SetWidth(max(10, msg.Width-2))
+		m.input.SetWidth(m.inputWidth())
 		limit := max(3, min(10, msg.Height/4))
 		m.input.MaxHeight = limit
 		if m.input.Height() > limit {

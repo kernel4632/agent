@@ -8,12 +8,12 @@ import (
 )
 
 var (
-	headingStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75"))
+	headingStyle = Accent
 	strongStyle  = lipgloss.NewStyle().Bold(true)
 	emStyle      = lipgloss.NewStyle().Italic(true)
-	codeStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("150"))
-	quoteStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Italic(true)
-	ruleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	codeStyle    = Gold // 内联代码用钛金，和强调蓝、成功绿分开，三种颜色各管一件事
+	quoteStyle   = Muted.Italic(true)
+	ruleStyle    = Border
 )
 
 // Markdown renders a practical subset: headings, lists, quotes, fences,
@@ -49,7 +49,7 @@ func Markdown(src string) string {
 		if strings.HasPrefix(line, "> ") || line == ">" {
 			text := strings.TrimPrefix(line, ">")
 			text = strings.TrimPrefix(text, " ")
-			b.WriteString(quoteStyle.Render("│ " + renderInline(text)))
+			b.WriteString(ruleStyle.Render("┃ ") + quoteStyle.Render(renderInline(text)))
 			b.WriteByte('\n')
 			continue
 		}
@@ -79,7 +79,8 @@ func writeCode(b *strings.Builder, lang string, lines []string) {
 	if lang != "" {
 		label = lang
 	}
-	b.WriteString(ruleStyle.Render("┌ " + label)) // 框用暗色，代码本身保持可读的前景
+	// 框线用暗灰、正文用终端默认前景：代码块靠框分开，不靠颜色，浅色终端下照样清楚。
+	b.WriteString(ruleStyle.Render("╭─ ") + Muted.Render(label))
 	b.WriteByte('\n')
 	if len(lines) == 0 {
 		b.WriteString(ruleStyle.Render("│"))
@@ -87,10 +88,10 @@ func writeCode(b *strings.Builder, lang string, lines []string) {
 	}
 	for _, line := range lines {
 		b.WriteString(ruleStyle.Render("│ "))
-		b.WriteString(codeStyle.Render(line))
+		b.WriteString(line)
 		b.WriteByte('\n')
 	}
-	b.WriteString(ruleStyle.Render("└"))
+	b.WriteString(ruleStyle.Render("╰─"))
 	b.WriteByte('\n')
 }
 
