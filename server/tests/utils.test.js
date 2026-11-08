@@ -166,6 +166,18 @@ describe('server HTTP API', () => {
         })
     })
 
+    test('accepts an image content-block input through HTTP validation', async () => {
+        await withHome(async () => {
+            const response = await jsonRequest('/agent/send/some-session', 'POST', {
+                input: [{ type: 'text', text: '看图' }, { type: 'image', image: 'data:image/png;base64,AA==' }],
+            })
+            expect(response.status).toBe(404) // 会话不存在，但已经过了形状校验
+            const { error } = await response.json()
+            expect(error).not.toContain('Expected string')
+            expect(error).not.toContain('input 不对')
+        })
+    })
+
     test('reports a missing provider as a client error instead of a server crash', async () => {
         await withHome(async () => {
             const response = await jsonRequest('/session/create', 'POST', { title: 'No provider', provider: 'missing' })
