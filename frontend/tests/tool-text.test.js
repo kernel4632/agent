@@ -18,6 +18,21 @@ test('ANSI 256 color is converted to rgb', () => {
   assert.equal(hasAnsi('plain text'), false)
 })
 
+// 转义统一走 escape-html：三个文件（ansi / diff / markdown）共用同一套规则。
+// 以前各写一份，哪天改一处忘另两处就是一个 XSS 口子，所以用测试锁住。
+test('every ANSI and diff path escapes the same five characters', () => {
+  const dangerous = `<script>alert("x&y")</script>'`
+  const ansi = ansiToHtml(`\u001b[32m${dangerous}\u001b[0m`)
+  const diff = diffToHtml(`+${dangerous}`)
+  for (const html of [ansi, diff]) {
+    assert.match(html, /&lt;/, '尖括号要转义')
+    assert.match(html, /&amp;/, '与符号要转义')
+    assert.match(html, /&quot;/, '双引号要转义')
+    assert.match(html, /&#39;/, '单引号要转义')
+    assert.doesNotMatch(html, /<script/, '不能留下可执行标签')
+  }
+})
+
 test('unified diff colors additions, deletions and hunks', () => {
   const text = 'diff --git a/a b/b\n--- a/a\n+++ b/b\n@@ -1 +1 @@\n-old\n+new\n context'
   assert.equal(looksLikeDiff(text), true)

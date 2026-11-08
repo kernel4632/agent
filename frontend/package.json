@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.113.0",
+  "version": "0.113.1",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -19,6 +19,7 @@
     "@material/material-color-utilities": "^0.3.0",
     "@tanstack/vue-virtual": "^3.13.48",
     "dompurify": "latest",
+    "escape-html": "^1.0.3",
     "highlight.js": "^11.11.1",
     "katex": "^0.18.1",
     "marked": "latest",

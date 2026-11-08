@@ -3,19 +3,14 @@
  * 所有正文都先转义，再包 span，因此可以安全放进 v-html。
  * 调用示例：ansiToHtml('\x1b[31mred\x1b[0m')
  */
+import escapeHtml from 'escape-html'   // 转义统一用库：三个文件各写一份手写实现，漏改一处就是 XSS
+
 const ESC = '\u001b'
 const ANSI_TOKEN = new RegExp(`${ESC}\\[([0-9;?]*)([A-Za-z])`, 'g')
 const BASIC = [
   '#4b5563', '#ef4444', '#22c55e', '#eab308', '#3b82f6', '#d946ef', '#06b6d4', '#e5e7eb',
   '#6b7280', '#f87171', '#4ade80', '#facc15', '#60a5fa', '#e879f9', '#22d3ee', '#f9fafb',
 ]
-
-const escapeHtml = value => String(value)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;')
 
 function xtermColor(index) {
   if (index < 16) return BASIC[index] || null

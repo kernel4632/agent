@@ -4,6 +4,7 @@ Mermaid 和代码复制需要真实 DOM，因此这里只生成带语义类名�
 调用示例：renderMarkdown('```js\nconst ready = true\n```')。
 */
 import DOMPurify from 'dompurify'                         // 引入最终 HTML 安全清理能力
+import escapeHtml from 'escape-html'                     // 转义统一用库，三个文件共用同一套规则
 import hljs from 'highlight.js/lib/common'               // 引入常见语言集合，避免把全部语法塞入首屏包
 import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
@@ -13,7 +14,7 @@ const markdown = new Marked(                             // 创建对话专用�
   markedHighlight({
     langPrefix: 'hljs language-',                        // 输出语言类供样式和 Mermaid 生命周期识别
     highlight(code, language) {
-      if (language === 'mermaid') return escapeHTML(code) // Mermaid 源码原样留给静态预览；正式回复里由 CodeBlock 动态渲染成图
+      if (language === 'mermaid') return escapeHtml(code) // Mermaid 源码原样留给静态预览；正式回复里由 CodeBlock 动态渲染成图
       if (language && hljs.getLanguage(language)) return hljs.highlight(code, { language, ignoreIllegals: true }).value // 已知语言使用精确语法
       return hljs.highlightAuto(code).value              // 未声明语言时使用安全自动检测
     },
@@ -36,11 +37,11 @@ export function linkRenderer({ href, title, tokens }, parser) {
   } catch {
     destination = ''                                   // 无法解析的地址不生成可点击目标
   }
-  const safeTitle = title ? ` title="${escapeHTML(title)}"` : '' // 标题属性编码后保留纯文本
+  const safeTitle = title ? ` title="${escapeHtml(title)}"` : '' // 标题属性编码后保留纯文本
   // 外链带 target="_blank" + rel="noopener noreferrer"：新标签页打开，同时断开
   // window.opener（新页反向操作本页）和 referrer；站内链接保持本页跳转。
   const target = external && destination ? ' target="_blank" rel="noopener noreferrer"' : ''
-  return destination ? `<a href="${escapeHTML(destination)}"${safeTitle}${target}>${label}</a>` : label // 无安全目标时仍保留可读标签
+  return destination ? `<a href="${escapeHtml(destination)}"${safeTitle}${target}>${label}</a>` : label // 无安全目标时仍保留可读标签
 }
 
 markdown.use({                                           // 配置聊天文本的 GFM 和链接输出
@@ -50,13 +51,6 @@ markdown.use({                                           // 配置聊天文本�
     link(call) { return linkRenderer(call, this.parser) }, // 转发到上面的共享实现；this.parser 由 marked 提供
   },
 })
-
-
-// --- 编码 HTML 特殊字符 ---
-function escapeHTML(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]) // 保留源码文字而不生成可执行标签或属性
-}
-
 
 // --- 转换安全 Markdown ---
 export function renderMarkdown(content = '') {
