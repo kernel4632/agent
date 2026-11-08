@@ -372,6 +372,8 @@ function bindScrollRoot(root) {
     else virtualizer.value.scrollToOffset(restoreTop, { behavior: 'auto' })
     requestAnimationFrame(() => {
       if (!scrollParent) return
+      // 恢复到顶部时不会产生 scroll 事件，这里主动补一页更早历史。
+      if (scrollParent.scrollTop < 160) void loadEarlier()
       following.value = virtualizer.value.isAtEnd(8)
       scrollParent.classList.toggle('is-following', following.value)
       syncLatestPosition()
