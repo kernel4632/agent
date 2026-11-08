@@ -123,6 +123,10 @@ const contentSteps = computed(() => steps.value.filter(step => step.type !== 're
 const streamSerial = computed(() => steps.value.reduce((total, step) =>
   step.type === 'text' || step.type === 'reasoning' ? total + String(step.text || '').length : total
 , 0))
+// 同一时间只让最新的工具展开；新工具要等上一个工具收起后再开始。
+const toolSteps = computed(() => steps.value.filter(step => step.type === 'tool'))
+const activeToolKey = computed(() => toolSteps.value.at(-1)?.key || '')
+const toolIndexByKey = computed(() => new Map(toolSteps.value.map((step, index) => [step.key, index])))
 const textOnly = computed(() => !finalText.value && contentSteps.value.length > 0 && contentSteps.value.every(step => step.type === 'text'))
 // 只有临时正文时把它留在树外的响应当中，避免和最终气泡重复；树里仍保留请求状态。
 const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => step.type === 'request' || step.type === 'compact') : steps.value)
@@ -346,6 +350,8 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :session-id="sessionId"
                   :instant="!processShown"
                   :stream-key="streamSerial"
+                  :active="section.step.key === activeToolKey"
+                  :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
                 />
               </template>
 
@@ -378,6 +384,8 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :session-id="sessionId"
                         :instant="!processShown"
                         :stream-key="streamSerial"
+                        :active="step.key === activeToolKey"
+                        :tool-index="toolIndexByKey.get(step.key) ?? 0"
                       />
                     </template>
                   </div>

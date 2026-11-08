@@ -20,6 +20,8 @@ const props = defineProps({
   sessionId: { type: String, required: true },
   instant: Boolean,
   streamKey: { type: Number, default: 0 },
+  active: Boolean,
+  toolIndex: { type: Number, default: 0 },
 })
 const now = ref(Date.now())
 // null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
@@ -66,12 +68,40 @@ const duration = computed(() => {
 // 高速执行时不跟着状态把结果框打开再关上。出错或被拒绝才自动展开；其余只听用户的点击。
 // 参数流式生成和工具执行中自动展开，让读者能实时看到正在写入/执行的内容；
 // 这一轮结束后恢复折叠，之后由用户自己决定要不要再看结果。
-const autoOpen = computed(() => Boolean(props.tool.assembling || props.tool.status === 'running'))
+const wantsAuto = computed(() => Boolean(props.active && (props.tool.assembling || props.tool.status === 'running')))
+// 同一时间只展开最新的工具。新工具要等上一个工具的高度收起，
+// 避免两个 Fold 同时运动；第一个工具直接展开。
+const SETTLE_MS = 650
+const openReady = ref(false)
+let openTimer = null
 // 工具完成先保留展开结果；等下一次模型请求真正开始、流里出现新内容时，
 // 再从当前高度慢速收起。工具刚开始时 Fold 也从 0 高度缓慢展开。
 const lingerOpen = ref(false)
+const autoOpen = computed(() => wantsAuto.value && openReady.value)
 const bodyOpen = computed(() => autoOpen.value || lingerOpen.value || (preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected')))
-watch(autoOpen, (open, previous) => {
+function clearOpenTimer() {
+  if (openTimer) {
+    window.clearTimeout(openTimer)
+    openTimer = null
+  }
+}
+watch([() => props.active, () => props.tool.assembling, () => props.tool.status], () => {
+  clearOpenTimer()
+  if (!wantsAuto.value) {
+    openReady.value = false
+    return
+  }
+  if (openReady.value) return
+  if (!props.active || props.toolIndex === 0) {
+    openReady.value = true
+    return
+  }
+  openTimer = window.setTimeout(() => {
+    openReady.value = true
+    openTimer = null
+  }, SETTLE_MS)
+}, { immediate: true })
+watch(wantsAuto, (open, previous) => {
   if (open) {
     lingerOpen.value = false
     return
@@ -82,6 +112,13 @@ watch(autoOpen, (open, previous) => {
     return
   }
   lingerOpen.value = true
+})
+watch(() => props.active, active => {
+  if (active) return
+  // 下一个工具开始：上一个工具立即开始收起，给新工具让出高度。
+  clearOpenTimer()
+  openReady.value = false
+  lingerOpen.value = false
 })
 watch(() => props.instant, instant => {
   if (instant) lingerOpen.value = false
@@ -105,6 +142,7 @@ watch(running, value => {
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  clearOpenTimer()
 })
 
 function decide(decision) {
