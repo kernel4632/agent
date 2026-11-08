@@ -261,7 +261,7 @@ export function sessionStats(session) {
       const key = `${provider}\u0000${model}`
       const group = groups.get(key) || {
         provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, firstTokenMs: 0, firstTokenCount: 0,
-        latest: null,
+        lastFirstTokenMs: 0, lastTps: 0, latest: null,
       }
       group.count += 1
       group.output += Number(item.output || 0)
@@ -274,14 +274,18 @@ export function sessionStats(session) {
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
         group.firstTokenCount += 1
+        // 首字时间按字段独立保留；新请求没带这个字段时不能把旧值清成 0。
+        group.lastFirstTokenMs = firstToken
       }
+      const tps = requestTps(item)
+      if (tps > 0) group.lastTps = tps
       // 正在请求中的这一笔还没有首字/耗时，不能覆盖该模型上一次的测量值；
       // 实时行的数据由 StatsPanel 单独从 live 补齐。
       if (item.status !== 'running' || duration > 0 || firstToken > 0) {
         group.latest = {
           firstTokenMs: firstToken,
           durationMs: duration,
-          tps: requestTps(item),
+          tps,
           at: Number(item.finishedAt || item.startedAt || 0),
         }
       }
@@ -294,9 +298,9 @@ export function sessionStats(session) {
       averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
       averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
       averageTps: group.durationMs ? group.output / (group.durationMs / 1000) : 0,
-      lastFirstTokenMs: group.latest?.firstTokenMs || 0,
+      lastFirstTokenMs: group.latest?.firstTokenMs || group.lastFirstTokenMs || 0,
       lastDurationMs: group.latest?.durationMs || 0,
-      lastTps: group.latest?.tps || 0,
+      lastTps: group.latest?.tps || group.lastTps || 0,
       lastAt: group.latest?.at || 0,
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }

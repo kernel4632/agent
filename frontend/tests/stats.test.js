@@ -152,6 +152,21 @@ test('speed groups keep the latest request alongside averages', () => {
 })
 
 
+test('speed groups keep the last measured first token when the newest request omits it', () => {
+  const measured = { input: 10, output: 10, total: 20, firstTokenMs: 7800, durationMs: 8000, provider: 'Provider A', model: 'fast-model' }
+  const incomplete = { input: 20, output: 20, total: 40, firstTokenMs: 0, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 20,
+    messages: [user('切换模型'), assistant('继续', { requests: [measured, incomplete], request: incomplete })],
+  }
+
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastFirstTokenMs, 7800)
+  assert.equal(stats.models[0].lastTps, 10)
+})
+
+
 test('legacy history without usage is estimated and marked, not shown as zero', () => {
   const session = {
     contextLimit: 128000,
