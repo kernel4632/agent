@@ -1,7 +1,19 @@
 .session-panel { display: flex; min-height: 0; flex: 1; }
 .session-main { position: relative; display: flex; min-width: 0; width: 100%; max-width: var(--la-chat-width); flex: 1; flex-direction: column; margin-inline: auto; }
 .session-conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.session-scroll { min-height: 0; flex: 1; overflow: auto; overflow-anchor: auto; }
+/* 对话流底边渐隐到输入框背景，避免最后一两行被生硬切断。 */
+.session-conversation::after {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 36px;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(to bottom, transparent 0, var(--la-bg) 100%);
+}
+.session-scroll { min-height: 0; flex: 1; padding-bottom: 44px; overflow: auto; overflow-anchor: auto; }
 /* 跟随底部时关闭浏览器锚定，避免滚动锚点与手动吸底互相拉扯；停在中间时再用锚定防折叠跳动。 */
 .session-scroll.is-following { overflow-anchor: none; }
 .session-composer { width: 100%; flex: none; padding: 0 var(--la-chat-gutter) 4px; transition: filter var(--la-motion-enter) var(--ui-curve-standard), opacity var(--la-motion-enter) var(--ui-curve-standard); }
