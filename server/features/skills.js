@@ -11,45 +11,34 @@
  *   await Skills.save({ name: 'review', description: '审查代码', body: '# Review' })
  */
 
-import { mkdir, readdir, rm, stat } from 'node:fs/promises'
-import { basename, dirname, join, resolve, sep } from 'node:path'
+import { mkdir, readdir, rm } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 import { writeFile } from 'atomically'
 import matter from 'gray-matter'
 import fail from '../utils/fail.js'
 import Path from '../utils/path.js'
+import Fs from '../utils/fs.js'
+import Text from '../utils/text.js'
 
 const MAX_SKILLS = 200                 // 一个目录最多收这么多技能，防止有人把大仓库指进来
 const MAX_BYTES = 256 * 1024           // 一份 SKILL.md 的上限
 const PREVIEW_BYTES = 4096             // 只列清单时读前面这一段就够了
 
 // --- 路径比较：Windows 不区分大小写 ---
+// 统一用 Path.samePath；本文件以前自己写过一份，两处漂移过一次。
+const samePath = Path.samePath
+const inside = Fs.inside
+// 归一成绝对路径；只做字符串层面的整理，不碰文件系统。
 const normal = value => resolve(String(value))
-const samePath = (first, second) => process.platform === 'win32'
-    ? normal(first).toLowerCase() === normal(second).toLowerCase()
-    : normal(first) === normal(second)
-const inside = (root, target) => {
-    const base = normal(root)
-    const path = normal(target)
-    return path === base || path.startsWith(base.endsWith(sep) ? base : `${base}${sep}`)
-}
 
 // --- 这个路径是不是一个目录 / 一个普通文件 ---
-// 两处都必须用 stat（而不是 lstat）：~/.claude/skills 这类目录常常是指向真实技能库的
+// 都用 stat（而不是 lstat）：~/.claude/skills 这类目录常常是指向真实技能库的
 // symlink/junction，lstat 会把它们当成非目录直接跳过。
-const isPathOf = async (path, pick) => {
-    try {
-        return pick(await stat(path))
-    } catch {
-        return false          // 不存在或没权限，当作没有
-    }
-}
-const isDirectory = path => isPathOf(path, info => info.isDirectory())
-const isFile = path => isPathOf(path, info => info.isFile())
+const isDirectory = Fs.isDirectory
+const isFile = Fs.isFile
 
 // --- 技能目录状态：外部目录和禁用名单 ---
-const textList = value => Array.isArray(value)
-    ? value.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim())
-    : []
+const textList = Text.textList
 
 const normalizeState = raw => ({
     sources: [...new Set(textList(raw?.sources).map(item => normal(item)))],

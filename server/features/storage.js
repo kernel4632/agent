@@ -8,27 +8,19 @@
   await Storage.setPath('D:\\AgentSessions') // 写入待迁移标记，重启后执行
   await Storage.cancel()                  // 取消尚未执行的迁移
 */
-import { access, cp, mkdir, readdir, rm, rename, stat, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path'
+import { access, cp, mkdir, readdir, rm, rename, stat } from 'node:fs/promises'
+import { dirname, isAbsolute, join, parse, resolve } from 'node:path'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
+import Fs from '../utils/fs.js'
 
-const exists = async path => {
-    try { await access(path); return true } catch { return false }
-}
+// 存在性、JSON 读写、子目录判断都走共用实现：这几个函数以前在本文件里
+// 各写过一份，与 skills.js / filesystem.js 的版本只是字面不同。
+const exists = Fs.exists
+const readJSON = Fs.readJson
+const writeJSON = Fs.writeJson
 
-const readJSON = async (file, fallback = null) => {
-    try { return JSON.parse(await Bun.file(file).text()) } catch { return fallback }
-}
-
-const writeJSON = async (file, value) => {
-    await mkdir(dirname(file), { recursive: true })
-    const temp = `${file}.tmp-${crypto.randomUUID()}`
-    await writeFile(temp, JSON.stringify(value, null, 2), { encoding: 'utf8', mode: 0o600 })
-    await rename(temp, file)
-}
-
-const isDirectory = async path => exists(path) && (await stat(path)).isDirectory()
+const isDirectory = Fs.isDirectory
 const same = (first, second) => Path.samePath(first, second)
 
 const countFiles = async root => {
@@ -45,10 +37,9 @@ const countFiles = async root => {
     return total
 }
 
-const inside = (parent, child) => {
-    const path = relative(resolve(parent), resolve(child))
-    return Boolean(path) && !path.startsWith(`..${sep}`) && path !== '..' && !isAbsolute(path)
-}
+// 子目录判断：用 relative 而不是字符串前缀，否则 /a/bc 会被当成 /a/b 的子目录。
+// 这里不含相等（目标就是当前目录不算“在它里面”）。
+const inside = Fs.within
 
 const clearEmptyTarget = async path => {
     if (!await exists(path)) return

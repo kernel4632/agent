@@ -4,17 +4,16 @@
   await Filesystem.entries({ path: 'D:\\', mode: 'directory' })
   // { current, parent, home, roots, entries: [{ name, path, type }], truncated }
 */
-import { access, readdir, stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { readdir, stat } from 'node:fs/promises'
+import { dirname, isAbsolute, join } from 'node:path'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
+import Fs from '../utils/fs.js'
 
 const LIMIT = 500
 let cachedRoots = null
 
-const exists = async path => {
-    try { await access(path); return true } catch { return false }
-}
+const exists = Fs.exists
 
 const windowsRoots = async () => {
     const roots = []

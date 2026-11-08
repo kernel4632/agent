@@ -19,11 +19,12 @@ import { writeFile } from 'atomically'
 import store, { DEFAULT_PROMPT } from '../store.js'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
+import Text from '../utils/text.js'
 
 // 配置被整体替换后要通知关心它的模块（比如审批重估挂起的调用）；兄弟 feature 靠装配接进来。
 let onConfigChange = null
 
-const isObject = value => value && typeof value === 'object' && !Array.isArray(value)
+const isObject = Text.isObject
 const BACKUP_LIMIT = 20
 const MASK = '••••••'
 const BACKUP_ID = /^config-[A-Za-z0-9-]+\.json$/

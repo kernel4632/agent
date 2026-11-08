@@ -12,6 +12,7 @@
 
 import { join, resolve } from 'node:path'
 import Path from '../utils/path.js'
+import Text from '../utils/text.js'
 
 const FILE_LIMIT = 16 * 1024 * 1024   // 有些客户端把整个项目表写进一个文件，给足余量
 const SERVER_LIMIT = 200
@@ -23,11 +24,12 @@ const HOST_INTERNAL = [
     /[\\/]OpenAI[\\/]Codex[\\/]runtimes[\\/]cua_node/i,  // Codex 的 node_repl 运行时
 ]
 
-const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+const isObject = Text.isObject
 const textMap = value => isObject(value)
     ? Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === 'string'))
     : {}
-const textList = value => Array.isArray(value) ? value.filter(item => typeof item === 'string') : []
+// 这里不过滤空白串：外部配置里空字符串也是有意义的值，原样带过来。
+const textList = Text.stringList
 
 // --- 传输方式：各家写法不同，归一到本应用认的 stdio / sse / http ---
 const transportOf = value => {

@@ -12,16 +12,13 @@
 
 import { isAbsolute, resolve } from 'node:path'
 import { spawnTracked, releaseTracked, readTextFile, killTree } from '../utils/process.js'
+import Text from '../utils/text.js'
 
 // 前台最多等十分钟，之后交棒给后台，避免把整个任务挂死。
 const TIMEOUT_MS = 10 * 60 * 1000
 
 // --- 长输出只留头尾 ---
-const truncate = (text, limit = 6000) => {
-    if (text.length <= limit) return text
-    const half = Math.floor(limit / 2)
-    return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
-}
+const truncate = Text.truncate
 
 const shell = {
     name: 'execute_command',
