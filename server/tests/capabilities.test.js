@@ -150,6 +150,53 @@ describe('本机 MCP 识别', () => {
         })
     })
 
+    test('Codex 的 TOML 用完整解析器：多行数组、转义、多行字符串都认得', async () => {
+        // 以前手写的解析器只认双引号、单层数组和 true/false，
+        // 下面这几种写法会静默读不到，用户改一下格式就丢服务。
+        await withHome(async ({ home, project }) => {
+            await mkdir(join(home, '.codex'), { recursive: true })
+            await writeFile(join(home, '.codex', 'config.toml'), [
+                '[mcp_servers.multiline_args]',
+                'command = "npx"',
+                'args = [',
+                '  "-y",',
+                '  "@scope/server",',
+                ']',
+                '',
+                '[mcp_servers.single_quoted]',
+                "command = 'python'",
+                'args = ["-m", "server"]',
+                '',
+                '[mcp_servers.escaped]',
+                'command = "bun"',
+                'args = ["\\u4e2d\\u6587"]',
+            ].join('\n'))
+
+            const result = await Discover.mcp({ cwd: project, home, redact: false })
+            const byName = Object.fromEntries(result.servers.map(item => [item.name, item]))
+
+            expect(byName.multiline_args.definition.args).toEqual(['-y', '@scope/server'])
+            expect(byName.single_quoted.definition.command).toBe('python')
+            // \u 转义要真的解出来，而不是原样留下反斜杠
+            expect(byName.escaped.definition.args).toEqual(['中文'])
+        })
+    })
+
+    test('Codex 配置坏了不影响其他来源的识别', async () => {
+        await withHome(async ({ home, project }) => {
+            await mkdir(join(home, '.codex'), { recursive: true })
+            await writeFile(join(home, '.codex', 'config.toml'), 'this is not valid toml [[')
+            await mkdir(join(home, '.cursor'), { recursive: true })
+            await writeFile(join(home, '.cursor', 'mcp.json'), JSON.stringify({
+                mcpServers: { cursor_server: { command: 'bunx', args: ['x'] } },
+            }))
+
+            const result = await Discover.mcp({ cwd: project, home })
+            // 坏文件按空处理，不抛错，别的来源照常
+            expect(result.servers.some(item => item.name === 'cursor_server')).toBe(true)
+        })
+    })
+
     test('导入时按编号重新读源文件，环境变量完整写进自己的配置', async () => {
         await withHome(async ({ home, project }) => {
             await writeDiscovery({ home, project })

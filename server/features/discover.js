@@ -11,6 +11,7 @@
  */
 
 import { join, resolve } from 'node:path'
+import { parse as parseToml } from 'smol-toml'
 import Path from '../utils/path.js'
 import Text from '../utils/text.js'
 
@@ -98,64 +99,17 @@ const mask = value => {
     }
 }
 
-// --- TOML 只认 Codex 配置里需要的几种写法，不追求覆盖完整 TOML ---
-const parseTomlValue = text => {
-    const value = text.trim()
-    if (value.startsWith('"')) {
-        const match = value.match(/^"((?:[^"\\]|\\.)*)"/)
-        if (!match) return undefined
-        try {
-            return JSON.parse(`"${match[1]}"`)
-        } catch {
-            return undefined
-        }
+// --- TOML 交给 smol-toml：这里只需要取 mcp_servers ---
+// 以前手写过一份只认双引号、单层数组、true/false 的解析器，
+// 遇到多行数组、\u 转义、多行字符串、单引号字符串都会静默读不到。
+// 解析失败时返回空对象：别人的配置文件坏了不该拖垮整次识别。
+const readToml = text => {
+    try {
+        const data = parseToml(text)
+        return Text.isObject(data?.mcp_servers) ? data.mcp_servers : {}
+    } catch {
+        return {}
     }
-    if (value.startsWith("'")) {
-        const match = value.match(/^'([^']*)'/)
-        return match ? match[1] : undefined
-    }
-    if (value.startsWith('[')) {
-        return [...value.matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g)].map(match => match[1] ?? match[2])
-    }
-    if (value === 'true') return true
-    if (value === 'false') return false
-    return undefined
-}
-
-const parseToml = text => {
-    const servers = {}
-    let current = null
-    let inEnv = false
-    for (const raw of text.split(/\r?\n/)) {
-        const line = raw.trim()
-        if (!line || line.startsWith('#')) continue
-        const table = line.match(/^\[([^\]]+)\]$/)
-        if (table) {
-            const parts = table[1].split('.').map(part => part.trim().replace(/^["']|["']$/g, ''))
-            if (parts[0] === 'mcp_servers' && parts[1]) {
-                current = servers[parts[1]] ||= {}
-                inEnv = parts[2] === 'env'
-                if (inEnv) current.env ||= {}
-            } else {
-                current = null
-                inEnv = false
-            }
-            continue
-        }
-        if (!current) continue
-        const pair = line.match(/^([A-Za-z0-9_-]+)\s*=\s*(.+)$/)
-        if (!pair) continue
-        const value = parseTomlValue(pair[2])
-        if (value === undefined) continue
-        if (inEnv) {
-            if (typeof value === 'string') current.env[pair[1]] = value
-            continue
-        }
-        if (pair[1] === 'command') current.command = value
-        if (pair[1] === 'args' && Array.isArray(value)) current.args = value
-        if (pair[1] === 'enabled' && typeof value === 'boolean') current.enabled = value
-    }
-    return servers
 }
 
 // --- 常见客户端把 MCP 服务放在哪个文件、哪个字段 ---
@@ -201,7 +155,7 @@ const readConfig = async (path, format) => {
         const file = Bun.file(path)
         if (!(await file.exists())) return null
         if (file.size > FILE_LIMIT) return { error: 'file is too large to read' }
-        if (format === 'toml') return { data: parseToml(await file.text()) }
+        if (format === 'toml') return { data: readToml(await file.text()) }
         return { data: await file.json() }
     } catch (error) {
         return { error: error.message }
