@@ -16,6 +16,8 @@ button svg { flex-shrink: 0; }
 .app-search { flex: 1; min-width: 0; }
 .app-search .ui-field__input { min-height: 56px; padding-block: 14px; border-radius: 999px; background: var(--la-layer-01); }
 .app-add-button { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 999px; }
+/* .ui-icon-button 的 scoped 规则也带 data-v 属性，和这里同为双类优先级；显式恢复 56×56 圆形。 */
+.app-add-button.ui-icon-button { flex: 0 0 56px !important; width: 56px !important; height: 56px !important; border-radius: 50% !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .ui-ripple { position: absolute; pointer-events: none; width: var(--ripple-size); height: var(--ripple-size); left: var(--ripple-x); top: var(--ripple-y); border-radius: 50%; background: currentColor; animation: ui-ripple 600ms ease-out both; }
 @keyframes ui-ripple { from { transform: translate(-50%, -50%) scale(0); opacity: .15; } to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
