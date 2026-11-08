@@ -387,7 +387,7 @@ export function sessionStats(session) {
       reasoning: usageApproximate ? estimate.reasoning : aggregate.reasoning,
       total: usageApproximate ? estimate.total : total,
       requests: usageApproximate ? estimate.requests : (aggregate.requests ?? requests.length),
-      messages: messages.length,
+      messages: Number.isInteger(session.historyTotal) ? session.historyTotal : messages.length,
       durationMs: usageApproximate ? 0 : aggregate.durationMs,
       approximate: usageApproximate,
     },
