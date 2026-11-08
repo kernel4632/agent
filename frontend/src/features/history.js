@@ -205,7 +205,7 @@ function summaryOf(session) {
     title: session.title || NEW_SESSION_TITLE,           // 列表显示标题，空标题使用默认文案
     model: session.model,                                // 当前使用模型
     status: session.status,                              // 运行或空闲状态
-    messageCount: session.messages.length,               // 消息数量用于列表摘要展示
+    messageCount: Number.isInteger(session.historyTotal) ? session.historyTotal : session.messages.length, // 窗口加载后仍保留全量消息数
     createdAt: session.createdAt,                        // 创建时间
     updatedAt: session.updatedAt,                        // 最近更新时间
     lastActiveAt: session.lastActiveAt,                  // 最近活跃时间

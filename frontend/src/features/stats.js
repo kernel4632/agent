@@ -224,8 +224,23 @@ export function sessionStats(session) {
     ? session.model
     : (typeof session.model === 'object' ? session.model?.model : '') || ''
   const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${currentProvider}\u0000${currentModel}`
-  let aggregate = aggregateCache.get(session)
-  if (aggregate?.signature !== requestSignature) {
+  const remote = session.historyStats
+  let aggregate = remote
+    ? {
+        signature: requestSignature,
+        input: Number(remote.input || 0),
+        output: Number(remote.output || 0),
+        total: Number(remote.total || 0),
+        cacheRead: Number(remote.cacheRead || 0),
+        cacheWrite: Number(remote.cacheWrite || 0),
+        reasoning: Number(remote.reasoning || 0),
+        durationMs: Number(remote.durationMs || 0),
+        requests: Number(remote.requests || 0),
+        series: Array.isArray(remote.series) ? remote.series : [],
+        models: Array.isArray(remote.models) ? remote.models : [],
+      }
+    : aggregateCache.get(session)
+  if (!remote && aggregate?.signature !== requestSignature) {
     let input = 0
     let output = 0
     let reportedTotal = 0
@@ -346,10 +361,12 @@ export function sessionStats(session) {
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
   const cachedModels = modelGroupsCache.get(session)
-  const models = cachedModels?.signature === requestSignature
-    ? cachedModels.value
-    : modelGroups()
-  if (cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
+  const models = Array.isArray(remote?.models)
+    ? remote.models
+    : cachedModels?.signature === requestSignature
+      ? cachedModels.value
+      : modelGroups()
+  if (!remote && cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
   // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
   const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
   const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
@@ -369,7 +386,7 @@ export function sessionStats(session) {
       cacheWrite: usageApproximate ? 0 : aggregate.cacheWrite,
       reasoning: usageApproximate ? estimate.reasoning : aggregate.reasoning,
       total: usageApproximate ? estimate.total : total,
-      requests: usageApproximate ? estimate.requests : requests.length,
+      requests: usageApproximate ? estimate.requests : (aggregate.requests ?? requests.length),
       messages: messages.length,
       durationMs: usageApproximate ? 0 : aggregate.durationMs,
       approximate: usageApproximate,
