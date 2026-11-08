@@ -423,7 +423,8 @@ const get = ({ sessionId }) => {
 // --- 历史分页：before 是消息下标；默认取最后一页 ---
 const page = async ({ sessionId, before, limit = 200 }) => {
     const session = await load(sessionId)
-    const messages = get({ sessionId })
+    // 与 /session/read 的 historyStart 使用同一套“可见历史”下标，避免 internal 消息让分页错位。
+    const messages = get({ sessionId }).filter(message => !message.internal)
     const size = Math.min(500, Math.max(1, Math.floor(Number(limit) || 200)))
     const end = Number.isInteger(before) ? Math.min(messages.length, Math.max(0, before)) : messages.length
     const start = Math.max(0, end - size)
