@@ -75,6 +75,10 @@ const estimateCache = new WeakMap()
 // 请求行只在新增消息或结束一次请求时变化；正文增量不该重新摊平整段历史。
 const requestSummaryCache = new WeakMap()
 
+// 请求聚合结果只在请求集合变化时重算；流式思考每 token 只更新 live 字段。
+const aggregateCache = new WeakMap()
+const modelGroupsCache = new WeakMap()
+
 function requestSummary(session, messages) {
   const last = messages.at(-1)
   const lastRequest = last?.requests?.at(-1) || last?.request || null
@@ -212,12 +216,49 @@ export function sessionStats(session) {
   if (!session) return null
   const messages = session.messages || []
   const { requests, last } = requestSummary(session, messages)
-  // 历史里可能已经存着旧版本的脏值（供应商发过 9 位数）；求和时再兜一次，
-  // 宁可少算一笔，也不能让总计显示成 908.7M。
-  const sum = key => requests.reduce((total, item) => {
-    const value = Number(item[key])
-    return total + (Number.isFinite(value) && value >= 0 && value <= MAX_TOKENS ? value : 0)
-  }, 0)
+  const lastRequest = requests.at(-1)
+  const currentProvider = typeof session.provider === 'string'
+    ? session.provider
+    : (typeof session.model === 'object' ? session.model?.provider : '') || ''
+  const currentModel = typeof session.model === 'string'
+    ? session.model
+    : (typeof session.model === 'object' ? session.model?.model : '') || ''
+  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${currentProvider}\u0000${currentModel}`
+  let aggregate = aggregateCache.get(session)
+  if (aggregate?.signature !== requestSignature) {
+    let input = 0
+    let output = 0
+    let reportedTotal = 0
+    let cacheRead = 0
+    let cacheWrite = 0
+    let reasoning = 0
+    let durationMs = 0
+    const safe = value => {
+      const number = Number(value)
+      return Number.isFinite(number) && number >= 0 && number <= MAX_TOKENS ? number : 0
+    }
+    for (const item of requests) {
+      input += safe(item.input)
+      output += safe(item.output)
+      reportedTotal += safe(item.total)
+      cacheRead += safe(item.cache)
+      cacheWrite += safe(item.cacheWrite)
+      reasoning += safe(item.reasoning)
+      durationMs += safe(item.durationMs)
+    }
+    aggregate = {
+      signature: requestSignature,
+      input,
+      output,
+      total: reportedTotal || input + output,
+      cacheRead,
+      cacheWrite,
+      reasoning,
+      durationMs,
+      series: requests.slice(-18).map(item => ({ input: safe(item.input), output: safe(item.output), cache: safe(item.cache) })),
+    }
+    aggregateCache.set(session, aggregate)
+  }
   // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
   const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
@@ -230,14 +271,7 @@ export function sessionStats(session) {
     const generation = duration > firstToken ? duration - firstToken : duration
     return generation > 0 ? Number(item?.output || 0) / (generation / 1000) : 0
   }
-  const input = sum('input')
-  const output = sum('output')
-  // total 也要走同一道校验：旧写法直接 Number 相加，脏值会原样进总量。
-  const total = requests.reduce((value, item) => {
-    const reported = Number(item.total)
-    const safe = Number.isFinite(reported) && reported >= 0 && reported <= MAX_TOKENS ? reported : 0
-    return value + safe
-  }, 0) || input + output
+  const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
   const exactUsed = Number(last?.input || session.contextTokens || 0)
   // 只有缺少真实用量时才遍历消息做估算，正常会话加载不必多算一遍。
@@ -257,12 +291,6 @@ export function sessionStats(session) {
       .slice(-18)
     : []
   // 速度面板按供应商 / 模型分组；旧请求没有记录来源时退回当前会话模型。
-  const currentProvider = typeof session.provider === 'string'
-    ? session.provider
-    : (typeof session.model === 'object' ? session.model?.provider : '') || ''
-  const currentModel = typeof session.model === 'string'
-    ? session.model
-    : (typeof session.model === 'object' ? session.model?.model : '') || ''
   const modelGroups = () => {
     if (usageApproximate || !requests.length) return []
     const groups = new Map()
@@ -317,7 +345,11 @@ export function sessionStats(session) {
       lastAt: group.latest?.at || 0,
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
-  const models = modelGroups()
+  const cachedModels = modelGroupsCache.get(session)
+  const models = cachedModels?.signature === requestSignature
+    ? cachedModels.value
+    : modelGroups()
+  if (cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
   // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
   const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
   const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
@@ -333,18 +365,16 @@ export function sessionStats(session) {
     usage: {
       input: usageApproximate ? estimate.input : input,
       output: usageApproximate ? estimate.output : output,
-      cacheRead: usageApproximate ? 0 : sum('cache'),
-      cacheWrite: usageApproximate ? 0 : sum('cacheWrite'),
-      reasoning: usageApproximate ? estimate.reasoning : sum('reasoning'),
+      cacheRead: usageApproximate ? 0 : aggregate.cacheRead,
+      cacheWrite: usageApproximate ? 0 : aggregate.cacheWrite,
+      reasoning: usageApproximate ? estimate.reasoning : aggregate.reasoning,
       total: usageApproximate ? estimate.total : total,
       requests: usageApproximate ? estimate.requests : requests.length,
       messages: messages.length,
-      durationMs: usageApproximate ? 0 : requests.reduce((value, item) => value + Number(item.durationMs || 0), 0),
+      durationMs: usageApproximate ? 0 : aggregate.durationMs,
       approximate: usageApproximate,
     },
-    series: usageApproximate
-      ? estimatedSeries
-      : requests.slice(-18).map(item => ({ input: Number(item.input || 0), output: Number(item.output || 0), cache: Number(item.cache || 0) })),
+    series: usageApproximate ? estimatedSeries : aggregate.series,
     live: {
       running: Boolean(liveAssistant),
       output: liveOutput,

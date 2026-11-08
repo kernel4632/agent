@@ -369,7 +369,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :tool="section.step.tool"
                   :session-id="sessionId"
                   :instant="approvalPending"
-                  :stream-key="streamSerial"
+                  :stream-key="section.step.key === activeToolKey ? streamSerial : 0"
                   :active="section.step.key === activeToolKey"
                   :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
                 />
@@ -403,7 +403,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                         :tool="step.tool"
                         :session-id="sessionId"
                         :instant="approvalPending"
-                        :stream-key="streamSerial"
+                        :stream-key="step.key === activeToolKey ? streamSerial : 0"
                         :active="step.key === activeToolKey"
                         :tool-index="toolIndexByKey.get(step.key) ?? 0"
                       />
