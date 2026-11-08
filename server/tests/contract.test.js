@@ -16,34 +16,19 @@ import Tool from '../features/tool.js'
 const source = name => Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).text()
 const readJson = name => Bun.file(fileURLToPath(new URL(`../${name}`, import.meta.url))).json()
 
-// --- 从 Elysia 应用里取出全部路由 ---
-const routes = () => app.routes.map(route => ({
-    path: route.path.replace(/:([^/]+)/g, '{$1}'),
-    method: route.method.toUpperCase(),
-}))
-
 describe('接口契约', () => {
-    test('每个后端路由都在接口文档里写着', async () => {
-        const openapi = await readJson('openapi.json')
-        const documented = new Set(Object.keys(openapi.paths))
-        expect(routes().filter(route => !documented.has(route.path))).toEqual([])
-    })
-
-    test('接口文档里写着的每个地址都真的存在', async () => {
-        const openapi = await readJson('openapi.json')
-        const actual = new Set(routes().map(route => route.path))
-        expect(Object.keys(openapi.paths).filter(path => !actual.has(path))).toEqual([])
-    })
-
-    test('接口文档里每个地址都写了方法、操作名和响应', async () => {
-        const openapi = await readJson('openapi.json')
-        for (const [path, methods] of Object.entries(openapi.paths)) {
-            for (const [method, definition] of Object.entries(methods)) {
-                expect(definition.summary, `${method} ${path} 少了 summary`).toBeTruthy()
-                expect(definition.operationId, `${method} ${path} 少了 operationId`).toBeTruthy()
-                expect(definition.responses, `${method} ${path} 少了 responses`).toBeTruthy()
-            }
-        }
+    // 原来的三条断言（每个路由都有文档、文档里的路由都存在、每条有 summary/operationId/responses）
+    // 现在全部由生成器一次担保：scripts/openapi.js 把 server.js 的注册和 api.js 的说明
+    // 摆在一起对账，少一条、多一条、缺字段都直接报错退出。
+    // 这里只需确认“提交的 openapi.json 就是当前代码的产物”。
+    test('openapi.json 和当前代码一致（改了接口要重新生成）', () => {
+        const result = Bun.spawnSync([process.execPath, 'scripts/openapi.js', '--check'], {
+            cwd: fileURLToPath(new URL('../', import.meta.url)),
+            stdout: 'pipe',
+            stderr: 'pipe',
+        })
+        expect(result.stderr.toString().trim(), '跑 bun run openapi 重新生成').toBe('')
+        expect(result.exitCode).toBe(0)
     })
 
     test('接口文档的版本和后端版本一致', async () => {
@@ -103,10 +88,14 @@ describe('项目结构', () => {
     test('根目录只有入口、数据文件和固定几个目录', async () => {
         const entries = await readdir(fileURLToPath(new URL('../', import.meta.url)))
         const allowed = new Set([
-            '.gitignore', '.vscode', 'README.md', 'bun.lock', 'bunfig.toml', 'commands', 'dist', 'features',
-            'node_modules', 'openapi.json', 'package.json', 'server.js', 'store.js', 'tests', 'tools', 'utils',
+            '.gitignore', '.vscode', 'README.md', 'api.js', 'bun.lock', 'bunfig.toml', 'commands', 'dist', 'features',
+            'node_modules', 'openapi.json', 'package.json', 'scripts', 'server.js', 'store.js', 'tests', 'tools', 'utils',
         ])
-        expect(entries.filter(entry => !allowed.has(entry))).toEqual([])
+        // 这些是跑工具时自动生成的产物目录（已在 .gitignore 里），不属于手写源码。
+        // 不能因为“目录里多了一个工具产物”就让结构检查变红，否则开发者每次跑完
+        // 浏览器检查都要先手动删目录才能提交。
+        const generated = new Set(['.playwright-mcp'])
+        expect(entries.filter(entry => !allowed.has(entry) && !generated.has(entry))).toEqual([])
     })
 
     test('直接 import 命令的测试都经过服务入口装配', async () => {
@@ -160,7 +149,8 @@ describe('SSE 事件', () => {
             for (const [, type] of code.matchAll(/data: \{ type: '([a-z][a-z-]+)'/g)) sent.add(type)
         }
 
-        const documented = await source('README.md')
+        // 事件表住在 docs/API.md（README 只写不随代码变动的内容）。
+        const documented = await Bun.file(fileURLToPath(new URL('../../docs/API.md', import.meta.url))).text()
         expect([...sent].filter(type => !documented.includes(type))).toEqual([])
     })
 })
