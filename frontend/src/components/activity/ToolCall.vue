@@ -61,7 +61,13 @@ const duration = computed(() => {
   return seconds > 0 ? `${seconds}s` : ''
 })
 // 高速执行时不跟着状态把结果框打开再关上。出错或被拒绝才自动展开；其余只听用户的点击。
-const bodyOpen = computed(() => preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected'))
+// 参数流式生成和工具执行中自动展开，让读者能实时看到正在写入/执行的内容；
+// 这一轮结束后恢复折叠，之后由用户自己决定要不要再看结果。
+const autoOpen = computed(() => Boolean(props.tool.assembling || props.tool.status === 'running'))
+const bodyOpen = computed(() => autoOpen.value || (preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected')))
+watch(autoOpen, (open, previous) => {
+  if (previous && !open) preference.value = null
+})
 
 function toggleBody() {
   preference.value = !bodyOpen.value
