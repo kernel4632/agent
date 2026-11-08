@@ -745,3 +745,33 @@ func cutWidth(text string, width int) (string, string) {
 	}
 	return text, ""
 }
+
+// itoa 把计数换成文字；界面里到处在拼短句子，单独包一层比每次写 strconv 省事。
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [16]byte
+	i := len(buf)
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	return string(buf[i:])
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
