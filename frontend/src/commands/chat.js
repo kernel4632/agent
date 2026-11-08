@@ -303,7 +303,11 @@ function retryRun(session, event) {
   assistant.retry = retry
   // 重试原因挂在当前请求行上，用户不用再去别处找。
   const request = assistant.requests.findLast(item => item.status === 'running')
-  if (request) request.retry = retry
+  if (request) {
+    request.retry = retry
+    request.retryAttempt = attempt
+    request.retryUntil = delay > 0 ? Date.now() + delay : 0
+  }
 }
 
 // --- 模型报错：结束当前请求，保留错误让用户看到 ---

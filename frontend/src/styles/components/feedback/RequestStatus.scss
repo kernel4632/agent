@@ -15,6 +15,9 @@
 .request-status.is-done { opacity: .74; transition: opacity var(--ui-duration-fast) var(--ui-curve-standard); }
 .request-status.is-done:hover { opacity: 1; }
 .request-status.is-failed { color: var(--ui-color-error); }
+.request-status.is-retrying,
+.request-status.is-retrying .request-status__label,
+.request-status.is-retrying .request-status__detail { color: var(--ui-color-error); }
 .request-status__icon { display: grid; width: 18px; height: 18px; flex: none; place-items: center; }
 .request-status__icon :deep(.ui-spinner__ring) { width: 14px; height: 14px; border-width: 2px; }
 .request-status__main { display: flex; min-width: 0; flex: 1 1 auto; flex-wrap: nowrap; align-items: baseline; gap: 6px; overflow: hidden; }

@@ -21,6 +21,12 @@ let resizeObserver = null
 const compact = computed(() => props.kind === 'compact')
 const running = computed(() => props.request.status === 'running')
 const failed = computed(() => props.request.status === 'failed')
+const retrying = computed(() => running.value && Boolean(props.request.retryUntil || props.request.retry))
+const retrySeconds = computed(() => {
+  const until = Number(props.request.retryUntil || 0)
+  if (!until) return 0
+  return Math.max(0, Math.ceil((until - now.value) / 1000))
+})
 const elapsed = computed(() => running.value && props.request.startedAt ? Math.max(0, now.value - props.request.startedAt) : 0)
 
 const seconds = value => value < 1000 ? `${Math.round(value)}ms` : `${Math.round(value / 1000)}s`
@@ -67,6 +73,11 @@ const completedDetail = (formatNumber = narrow.value ? shortNumber : compactNumb
   completedParts(formatNumber, tight).join(tight ? '·' : ' · ')
 const detail = computed(() => {
   if (running.value) {
+    if (retrying.value) {
+      const attempt = Number(props.request.retryAttempt || 1)
+      if (props.request.retryUntil) return `模型请求失败，第 ${attempt} 次自动重试，${retrySeconds.value}s 后继续…`
+      return props.request.retry
+    }
     if (props.request.retry) return props.request.retry
     if (compact.value) return '正在把前面的对话总结成一段'
     return firstTokenMs.value ? `首字 ${seconds(firstTokenMs.value)}，正在接收` : '等待模型返回第一个字'
@@ -103,7 +114,7 @@ onBeforeUnmount(() => {
   <div
     ref="surface"
     class="request-status"
-    :class="{ 'is-running': running, 'is-failed': failed, 'is-done': !running && !failed }"
+    :class="{ 'is-running': running, 'is-retrying': retrying, 'is-failed': failed, 'is-done': !running && !failed }"
     :aria-label="`${label} ${detail}`"
     :title="fullDetail ? `${label} ${fullDetail}` : label"
   >
