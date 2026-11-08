@@ -421,7 +421,8 @@ function receiveTool(session, event) {
     const tool = toolFor(session, event, 'running') // 模型直接给工具调用也算开始输出
     if (tool) {
       tool.assembling = false
-      tool.streamInput = ''
+      // 保留最后一段 raw 参数：工具完成到下一次请求之间还要继续显示，
+      // 不能在这里清空导致内容先消失、Fold 再收高度。
     }
     markFirstToken(streaming(session) || createAssistant(session))
   } else if (event.type === 'permission') {

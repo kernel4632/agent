@@ -8,7 +8,11 @@
         "@hugeicons/core-free-icons": "^4.2.3",
         "@hugeicons/vue": "1.0.7",
         "@material/material-color-utilities": "^0.3.0",
+        "@tanstack/vue-virtual": "^3.13.48",
         "dompurify": "latest",
+        "escape-html": "^1.0.3",
+        "eventsource-parser": "^4.1.3",
+        "fancy-ansi": "^0.2.2",
         "highlight.js": "^11.11.1",
         "katex": "^0.18.1",
         "marked": "latest",
@@ -124,6 +128,10 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.2.1", "https://registry.npmmirror.com/@rolldown/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.2.1.tgz", { "os": "win32", "cpu": "x64" }, "sha512-Z4eCmn5QJ/5+azF9knpLWKfVd9aidn0mAe9TpJgvBLId9Ax3t0+JVxBmT25Bv7NBbVW1TZyKjQjQReouMeH5UQ=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "https://registry.npmmirror.com/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "@tanstack/virtual-core": ["@tanstack/virtual-core@3.19.11", "https://registry.npmmirror.com/@tanstack/virtual-core/-/virtual-core-3.19.11.tgz", {}, "sha512-/5iHb0RHBvj8Di59FDs4ESNm45jls33aZAi4zccVXZjc/6ZvwQP6nzEYeT6weXjTf9E6/vrp2JhYWRyO+ZP13A=="],
+
+    "@tanstack/vue-virtual": ["@tanstack/vue-virtual@3.13.52", "https://registry.npmmirror.com/@tanstack/vue-virtual/-/vue-virtual-3.13.52.tgz", { "dependencies": { "@tanstack/virtual-core": "3.19.11" }, "peerDependencies": { "vue": "^2.7.0 || ^3.0.0" } }, "sha512-qTwG7HNr5o+FPd/u+T05N73A8howtkB9FgQI71VcBzx6J2KsYzlVugRz/0ji17kl26D8SAdKux1Wmk3yhTI1Kw=="],
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.3", "https://registry.npmmirror.com/@tybys/wasm-util/-/wasm-util-0.10.3.tgz", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg=="],
 
@@ -307,7 +315,13 @@
 
     "es-toolkit": ["es-toolkit@1.50.0", "https://registry.npmmirror.com/es-toolkit/-/es-toolkit-1.50.0.tgz", {}, "sha512-OyZKhUVvEep9ITEiwHn8GKnMRQIVqoSIX7WnRbkWgJkllCujilqP2rD0u979tkl8wqyc8ICwlc1UBVv/Sl1G6w=="],
 
+    "escape-html": ["escape-html@1.0.3", "https://registry.npmmirror.com/escape-html/-/escape-html-1.0.3.tgz", {}, "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow=="],
+
     "estree-walker": ["estree-walker@2.0.2", "https://registry.npmmirror.com/estree-walker/-/estree-walker-2.0.2.tgz", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
+
+    "eventsource-parser": ["eventsource-parser@4.1.3", "https://registry.npmmirror.com/eventsource-parser/-/eventsource-parser-4.1.3.tgz", {}, "sha512-jZVIVilXZfAx6H20ZKKEj5dabbpD9ETmMj3uHsjMmgBzBHB6tsHrmdWB4mAiy3amtN6MOoVkfXRQu4wf1n88Rw=="],
+
+    "fancy-ansi": ["fancy-ansi@0.2.2", "https://registry.npmmirror.com/fancy-ansi/-/fancy-ansi-0.2.2.tgz", { "dependencies": { "escape-html": "^1.0.3" }, "peerDependencies": { "tailwindcss": "^3 || ^4" }, "optionalPeers": ["tailwindcss"] }, "sha512-OieQMQVPhP53t5YSzPiFyh6T/y2CfibXuFR9hhpXLRTy9tTmYmgaFOpyABGXPumlxILymZyl5xoRj92nEp5mhA=="],
 
     "fdir": ["fdir@6.5.0", "https://registry.npmmirror.com/fdir/-/fdir-6.5.0.tgz", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 

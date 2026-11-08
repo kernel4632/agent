@@ -50,11 +50,19 @@ test('provider type sheet, search and model form keep edits deliberate', async (
   await page.getByRole('button', { name: '添加供应商', exact: true }).click()
   await types.getByRole('button', { name: /Anthropic/ }).click()
   await expect(page.getByRole('textbox', { name: '请求地址（API）', exact: true })).toHaveValue('https://api.anthropic.com/v1')
-  await expect.poll(() => mock.config().providers[0].protocol).toBe('anthropic')
   await expect(page.getByText('修改后自动保存', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '保存配置', exact: true })).toHaveCount(0)
-  await page.getByRole('textbox', { name: '供应商名', exact: true }).fill('Anthropic 测试')
+  // 新供应商先放在 pendingProvider，第一次真正修改才落进 providers，
+  // 这样点进“添加”又返回不会留下空供应商。所以先改个名字触发落盘。
+  // 先 click 再 fill：前面的 fullPage 截图会临时改视口高度、把输入框弄失焦，
+  // 而自动保存靠输入事件；真实用户也是要先点进输入框才能打字。
+  const nameBox = page.getByRole('textbox', { name: '供应商名', exact: true })
+  await nameBox.click()
+  await nameBox.fill('Anthropic 测试')
   await expect.poll(() => mock.config().providers[0].name).toBe('Anthropic 测试')
+  // 落盘后接口类型跟着一起写进去：选了 Anthropic 就是 anthropic 协议，
+  // 不能只改地址而把 protocol 留在默认值。
+  await expect.poll(() => mock.config().providers[0].protocol).toBe('anthropic')
   await capture('provider-config')
 
   await page.getByRole('tab', { name: '模型', exact: true }).click()
@@ -70,21 +78,27 @@ test('provider type sheet, search and model form keep edits deliberate', async (
   expect(mock.config().providers[0].models[0].capabilities).toContain('image')
   await capture('provider-models')
 
+  // “编辑模型”是卡片内展开的编辑器（.model-config-editor），不是对话框：
+  // 它没有取消/保存按钮，改动靠 450ms 防抖自动保存。
+  // 已保存模型的 ID 只读：ID 是它在配置和请求里的身份，改了任务模型指向就对不上。
   await page.getByRole('button', { name: '编辑模型', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: '编辑模型', exact: true })
+  const edit = page.locator('.model-config-editor')
+  await expect(edit).toBeVisible()
   await expect(edit.getByRole('textbox', { name: '模型 ID', exact: true })).toHaveAttribute('readonly', '')
-  await edit.getByRole('textbox', { name: '显示名称', exact: true }).fill('未保存的名称')
-  await edit.getByRole('button', { name: '取消', exact: true }).click()
-  await expect(edit).toBeHidden()
-  expect(mock.config().providers[0].models[0].name).toBe('claude-example')
-  await page.getByRole('button', { name: '编辑模型', exact: true }).click()
-  await edit.getByRole('textbox', { name: '显示名称', exact: true }).fill('我的模型')
-  await edit.getByRole('radio', { name: '自定义上下文' }).check()
-  await edit.getByRole('spinbutton', { name: '上下文窗口' }).fill('64000')
-  await capture('model-edit')
-  await edit.getByRole('button', { name: '保存模型', exact: true }).click()
+
+  // 改显示名称后自动保存生效
+  const editName = edit.getByRole('textbox', { name: '显示名称', exact: true })
+  await editName.click()
+  await editName.fill('我的模型')
   await expect.poll(() => mock.config().providers[0].models[0].name).toBe('我的模型')
-  expect(mock.config().providers[0].models[0].context).toBe(64000)
+
+  // 卡片编辑器没有预设 radio，上下文直接在文本框里填（支持 1M / 128K 这类写法）
+  const contextBox = edit.getByRole('textbox', { name: '上下文窗口', exact: true })
+  await contextBox.click()
+  await contextBox.fill('64000')
+  await contextBox.blur()
+  await capture('model-edit')
+  await expect.poll(() => mock.config().providers[0].models[0].context).toBe(64000)
   await page.getByRole('tab', { name: '高级设置', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '自定义请求头', exact: true })).toBeVisible()
   await capture('provider-advanced')

@@ -5,6 +5,7 @@
 .rikka-message--assistant { gap: 8px; }
 @media (max-width: 767px) {
 .conversation-flow { padding: 8px 16px 18px; gap: 12px; }
+.conversation-stick-sentinel { display: block; width: 100%; height: 0; flex: none; }
 }
 .rikka-message { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 4px; contain: layout paint; }
 .rikka-message--user { align-items: flex-end; }
@@ -63,6 +64,21 @@
 .rikka-bubble--user { max-width: 100%; }
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
+/* 虚拟行：总高度由 TanStack 给出，每行绝对定位，行内的间距算进被测量的高度。 */
+.conversation-flow--virtual {
+  position: relative;
+  display: block;
+  padding: 0;
+}
+.conversation-flow__row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px var(--la-chat-gutter) 12px;
+}
+.conversation-flow--virtual .message { width: 100%; }
 .conversation-latest-layer {
   position: fixed;
   z-index: 4;

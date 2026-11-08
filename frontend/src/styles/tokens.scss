@@ -26,6 +26,14 @@
   --md-keyword: #d68c27; --md-function: #3b7dd8; --md-variable: #d1383d; --md-string: #3d9a57; --md-number: #d68c27;
   --md-type: #b0851f; --md-operator: #318795; --md-comment: #8a8a8a; --md-punctuation: #1a1a1a;
   --md-rule: #8a8a8a;
+  /* 终端 ANSI 颜色：fancy-ansi 输出 color:var(--ansi-red, …)，所以命令输出的配色跟随主题。
+     用的是 Markdown 同一套语义色，两者的绿/红/黄/蓝在同一个界面里属于一个体系。 */
+  --ansi-black: #3d3d3d; --ansi-red: #d1383d; --ansi-green: #3d9a57; --ansi-yellow: #b0851f;
+  --ansi-blue: #3b7dd8; --ansi-magenta: #a2568f; --ansi-cyan: #318795; --ansi-white: #1a1a1a;
+  --ansi-bright-black: #8a8a8a; --ansi-bright-red: #e0555a; --ansi-bright-green: #4fb86a;
+  --ansi-bright-yellow: #d68c27; --ansi-bright-blue: #4f92f0; --ansi-bright-magenta: #c46bb0;
+  --ansi-bright-cyan: #3fa3b3; --ansi-bright-white: #000000;
+  --ansi-bold-font-weight: 650;
   --la-radius: 10px; --la-radius-panel: 24px; --la-content-inset: 8px; --la-settings-width: 800px; --la-topbar-height: 64px;
   --la-shape-sm: calc(var(--la-radius) * .9); --la-shape-md: calc(var(--la-radius) * 1.2); --la-shape-control: calc(var(--la-radius) * 1.4); --la-shape-popup: calc(var(--la-radius) * 1.6); --la-shape-card: calc(var(--la-radius) * 2);
   /* 密度与着色：默认档位由 Appearance.apply 按用户偏好覆盖 */
@@ -44,4 +52,11 @@
   --md-keyword: #9d7cd8; --md-function: #fab283; --md-variable: #e06c75; --md-string: #7fd88f; --md-number: #f5a742;
   --md-type: #e5c07b; --md-operator: #56b6c2; --md-comment: #808080; --md-punctuation: #eeeeee;
   --md-rule: #808080;
+  /* 终端 ANSI 颜色（暗色）：同样取 Markdown 暗色那套语义色 */
+  --ansi-black: #808080; --ansi-red: #e06c75; --ansi-green: #7fd88f; --ansi-yellow: #e5c07b;
+  --ansi-blue: #fab283; --ansi-magenta: #9d7cd8; --ansi-cyan: #56b6c2; --ansi-white: #eeeeee;
+  --ansi-bright-black: #a0a0a0; --ansi-bright-red: #ff8a92; --ansi-bright-green: #9be6a8;
+  --ansi-bright-yellow: #f5d69a; --ansi-bright-blue: #ffc79c; --ansi-bright-magenta: #b99ce6;
+  --ansi-bright-cyan: #7fd4de; --ansi-bright-white: #ffffff;
+  --ansi-bold-font-weight: 650;
 }

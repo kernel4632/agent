@@ -124,6 +124,29 @@ describe('server HTTP API', () => {
         })
     })
 
+    // 缺字段是用户能自己改的，要在进业务之前就拦住，且错误话说得明白：
+    // 直接透传 Elysia 的嵌套 JSON 会变成一坑转义文本，界面没法直接显示。
+    test('reports a missing field with a readable message', async () => {
+        await withHome(async () => {
+            const response = await jsonRequest('/session/create', 'POST', { cwd: process.cwd() })
+            expect(response.status).toBe(400)
+            const { error } = await response.json()
+            expect(error).toContain('title')
+            expect(error).toContain('请求体')
+            // 不能把嵌套 JSON 原样抖出来
+            expect(error).not.toContain('{\n')
+        })
+    })
+
+    test('rejects a send without input before reaching the agent', async () => {
+        await withHome(async () => {
+            const response = await jsonRequest('/agent/send/some-session', 'POST', {})
+            expect(response.status).toBe(400)
+            const { error } = await response.json()
+            expect(error).toContain('input')
+        })
+    })
+
     test('reports a missing provider as a client error instead of a server crash', async () => {
         await withHome(async () => {
             const response = await jsonRequest('/session/create', 'POST', { title: 'No provider', provider: 'missing' })

@@ -8,7 +8,6 @@ import Button from './Button.vue'
 import Dialog from './Dialog.vue'
 import Icon from './Icon.vue'
 import { Notice } from '../utils/notice.js'
-import { observeOnce } from '../utils/observe-once.js'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
 const status = ref('复制')
 let timer
@@ -127,25 +126,22 @@ const loadMermaid = async () => {
   return mermaidLib
 }
 
-// 进视口才画：长会话首屏可能同时挂十几张图，全画一遍就是那次 1216ms 长任务和
-// 0.35 布局偏移的主因。没画之前用占位高度把位置占住，画面不会在渲染完成时跳。
-const visible = ref(false)
-const host = ref(null)
-let stopObserving = () => {}
-// 占位高度：按源码行数和每行大概占的高度估一个值，下限 120px。
-// 不追求精确，只要和真实图差不多就不会在渲染完成时把下方内容推走。
-const placeholderHeight = computed(() => `${Math.min(900, Math.max(120, props.code.split('\n').length * 34))}px`)
+// 虚拟列表只挂载视口附近的轮次，Mermaid 组件会随行卸载/重建；
+// 这里不再做第二层 IntersectionObserver 懒加载。挂载即查缓存并排队渲染，
+// 否则重新滚回底部时会先出现一大块空白占位，等观察器和渲染队列才恢复。
+const placeholderHeight = '120px'
+let drawToken = 0
 
 async function draw() {
   if (!isMermaid.value) { diagram.value = ''; diagramError.value = ''; return }
-  // 还没进入视口就先不画，等 observer 打开 visible。
-  if (!visible.value) return
 
+  const token = ++drawToken
   // 缓存命中：直接拿上次的渲染结果（或正在渲染中的那次的 Promise）。
   const key = cacheKey(props.code)
   const cached = diagramCache.get(key)
   if (cached) {
     const result = await cached
+    if (token !== drawToken) return
     diagram.value = result.svg
     diagramError.value = result.error
     return
@@ -169,35 +165,24 @@ async function draw() {
   })
   diagramCache.set(key, task)
   const result = await task
+  if (token !== drawToken) return
   diagram.value = result.svg
   diagramError.value = result.error
 }
 
-// 代码变了、还没画过的图重新进观察队列；退出视口不影响已渲染内容。
-// 注意：immediate 的 watch 在挂载前就跑，那时 host 还是 null；
-// 真正的观察必须等 DOM 就位，所以只在这里重置状态，观察放到 onMounted。
+// 源码变化、主题变化、虚拟行重新挂载都立即重画；不再等进入视口。
 watch([isMermaid, () => props.code], () => {
-  if (!isMermaid.value) { diagram.value = ''; diagramError.value = ''; return }
-  visible.value = false
-  stopObserving()
-  startObserving()
+  diagram.value = ''
+  diagramError.value = ''
+  void draw()
 }, { immediate: true })
-watch(visible, draw)
-
-// 开始观察占位是否进入视口。元素不在 DOM 上时什么都不做（会被 onMounted 再调一次）。
-function startObserving() {
-  if (!host.value || !isMermaid.value) return
-  stopObserving = observeOnce(host.value, () => { visible.value = true }, { rootMargin: '600px' })
-}
-
 
 // mermaid 的 SVG 颜色是渲染时烧进去的具体色值，不跟 CSS 变量走；
 // 界面切主题后要按新主题重画一遍，否则暗底上留着浅色主题的深色文字。
 onMounted(() => {
   window.addEventListener('agent-theme', refreshTheme)
-  startObserving()   // DOM 就位后才观察：immediate watch 跑的时候 host 还不存在
 })
-onBeforeUnmount(() => { window.removeEventListener('agent-theme', refreshTheme); stopObserving(); clearTimeout(timer); clearTimeout(flashTimer) })
+onBeforeUnmount(() => { window.removeEventListener('agent-theme', refreshTheme); clearTimeout(timer); clearTimeout(flashTimer) })
 
 // 主题变了：缓存里存的颜色已过期，清掉后按新主题重画当前这张。
 function refreshTheme() {
@@ -385,10 +370,9 @@ async function saveImage() {
     <div v-if="isMermaid && diagram" ref="mermaidBox" class="ui-code-block__mermaid">
       <button class="ui-code-block__mermaid-view" type="button" aria-label="全屏查看图表" title="点击全屏查看" @click="fullscreen = true" v-html="diagram"></button>
     </div>
-    <!-- 图表还没进入视口：用占位把高度占住，渲染完成后不会把下面的内容推下去。
-         高度按图表规模估算（大致行数），够接近真实尺寸就不会造成明显布局偏移。 -->
-    <div v-else-if="isMermaid && !diagramError" ref="host" class="ui-code-block__mermaid-placeholder" :style="{ minHeight: placeholderHeight }">
-      <span>{{ visible ? '正在绘制图表…' : '滚动到这里时绘制图表' }}</span>
+    <!-- 虚拟行重新挂载后立即绘制；这里只留一小块过渡占位，不再按源码行数估算大块空白。 -->
+    <div v-else-if="isMermaid && !diagramError" class="ui-code-block__mermaid-placeholder" :style="{ minHeight: placeholderHeight }">
+      <span>正在绘制图表…</span>
     </div>
     <div v-else class="ui-code-block__body">
       <p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p>

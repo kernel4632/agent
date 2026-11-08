@@ -77,8 +77,29 @@ let openTimer = null
 // 工具完成先保留展开结果；等下一次模型请求真正开始、流里出现新内容时，
 // 再从当前高度慢速收起。工具刚开始时 Fold 也从 0 高度缓慢展开。
 const lingerOpen = ref(false)
+// 收起动画期间继续保留最后一段参数流；否则内容先被 v-if 移除，Fold 才量高度。
+const closing = ref(false)
+let closingTimer = null
+const holdStream = computed(() => Boolean((props.tool.assembling || lingerOpen.value || closing.value) && props.tool.streamInput))
 const autoOpen = computed(() => wantsAuto.value && openReady.value)
 const bodyOpen = computed(() => autoOpen.value || lingerOpen.value || (preference.value ?? (props.tool.status === 'error' || props.tool.status === 'rejected')))
+watch(bodyOpen, (open, previous) => {
+  if (open) {
+    closing.value = false
+    if (closingTimer) {
+      window.clearTimeout(closingTimer)
+      closingTimer = null
+    }
+    return
+  }
+  if (!previous) return
+  closing.value = true
+  if (closingTimer) window.clearTimeout(closingTimer)
+  closingTimer = window.setTimeout(() => {
+    closing.value = false
+    closingTimer = null
+  }, 700)
+})
 function clearOpenTimer() {
   if (openTimer) {
     window.clearTimeout(openTimer)
@@ -143,6 +164,7 @@ watch(running, value => {
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
   clearOpenTimer()
+  if (closingTimer) window.clearTimeout(closingTimer)
 })
 
 function decide(decision) {
@@ -176,7 +198,7 @@ function decide(decision) {
       </div>
       <Fold :open="bodyOpen" :instant="instant" slow appear :fade="false">
         <div :id="bodyId" class="cot-step__body">
-          <ToolResult :tool="tool" />
+          <ToolResult :tool="tool" :holding="holdStream" />
         </div>
       </Fold>
       <div v-if="tool.subagentSteps?.length" class="subagent-branch">

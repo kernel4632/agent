@@ -86,19 +86,21 @@ const steps = computed(() => {
     const sequence = message.steps?.length
       ? message.steps
       : [
-          ...(message.reasoning ? [{ type: 'reasoning', text: message.reasoning }] : []),
+          ...(String(message.reasoning || '').trim() ? [{ type: 'reasoning', text: message.reasoning }] : []),
           ...(message.content ? [{ type: 'text', text: message.content }] : []),
           ...(message.tools || []).map(tool => ({ type: 'tool', toolId: tool.id })),
         ]
     sequence.forEach((entry, index) => {
-      if (entry.type === 'reasoning' && entry.text) {
+      if (entry.type === 'reasoning' && String(entry.text || '').trim()) {
         list.push({
           key: `${message.id}-reasoning-${index}`,
           type: 'reasoning',
           text: entry.text,
           message,
           messageId: message.id,
-          streaming: turnActive.value && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
+          // 思考的扫光和展开只跟随这条消息自己的流，不跟随整轮。
+          // 整轮还在跑不等于这条旧思考还在输出。
+          streaming: message.isStreaming && !sequence.slice(index + 1).some(step => step.type === 'reasoning'),
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
