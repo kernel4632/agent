@@ -83,6 +83,10 @@ const store = {
 
         // 上下文用到这个比例时自动压缩。
         compact: { threshold: 0.8 },
+
+        // 压缩后还留多少总结之前的原文。
+        // firstTurns = 0 表示只信总结 + 最近现场，不再带最初那几轮原始对话。
+        contextKeep: { firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 },
     },
 
     // 每条会话一个键。会话是唯一的长期容器，目录只是它的一个属性。

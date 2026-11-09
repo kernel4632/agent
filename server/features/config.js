@@ -87,6 +87,32 @@ const target = value => isObject(value)
     }
     : { provider: '', model: '' }
 
+// --- 压缩保留量：四个值都有默认值，但用户显式写的 0 要保住 ---
+// firstTurns = 0 是合法且常用的配置（压缩后不带最初那几轮原文），所以用 ?? 而不是 ||，
+// 否则 0 会被当成“没填”退回默认值。轮数必须是非负整数，占比必须落在 [0,1]。
+const keepTurns = (value, fallback) => {
+    if (value === undefined || value === null) return fallback
+    const turns = Number(value)
+    if (!Number.isInteger(turns) || turns < 0) throw fail(400, 'contextKeep turns must be a non-negative integer')
+    return turns
+}
+const keepShare = (value, fallback) => {
+    if (value === undefined || value === null) return fallback
+    const share = Number(value)
+    if (!Number.isFinite(share) || share < 0 || share > 1) throw fail(400, 'contextKeep share must be between 0 and 1')
+    return share
+}
+const contextKeep = value => {
+    if (value !== undefined && value !== null && !isObject(value)) throw fail(400, 'contextKeep must be an object')
+    const raw = isObject(value) ? value : {}
+    return {
+        firstTurns: keepTurns(raw.firstTurns, 3),
+        recentTurns: keepTurns(raw.recentTurns, 3),
+        firstShare: keepShare(raw.firstShare, 0.2),
+        recentShare: keepShare(raw.recentShare, 0.3),
+    }
+}
+
 // --- 当前配置形状；未知字段不进入内存，也不写回磁盘 ---
 const normalize = raw => {
     const config = isObject(raw) ? raw : {}
@@ -111,6 +137,7 @@ const normalize = raw => {
                 ? Number(config.compact.threshold)
                 : 0.8,
         },
+        contextKeep: contextKeep(config.contextKeep),
     }
 }
 
