@@ -364,6 +364,18 @@ export const components = {
                             "additionalProperties": true,
                             "description": "基于完整历史的用量聚合；token 总量、模型速度分组和最近序列不受 history 窗口影响"
                         },
+                        "contextEstimate": {
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "当前进程内最近一轮的上下文估算（onInject 采样）：tokens、budget、percentOfBudget、compactAt、untilCompact；重启后首轮请求前为 null"
+                        },
                         "todos": {
                             "type": "array",
                             "items": {
