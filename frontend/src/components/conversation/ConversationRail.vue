@@ -144,6 +144,7 @@ const messageIndexById = computed(() => {
 // 大纲里的 index 可能来自回退/压缩前，不能直接和当前 DOM 的消息下标比较；
 // 用当前 messages 的 id 重新定位每个刻度。
 const nodePositions = computed(() => nodes.value.map(node => {
+  if (outline.value.length) return Number(node.index)
   const current = messageIndexById.value.get(node.id)
   return Number.isInteger(current) ? current : Number(node.index)
 }))
@@ -209,9 +210,9 @@ function syncFromScroll() {
   }
   const id = row.getAttribute('data-turn-id') || ''
   let index = nodes.value.findIndex(node => node.id === id)
-  if (index < 0) {
-    // 时间线轮的 id 可能是这一轮里某条助手/工具消息，大纲记的是用户消息；
-    // 按当前完整历史里的消息下标，找到它之前最近的大纲轮次。
+  if (index < 0 && !outline.value.length) {
+    // 没有服务端大纲时，messages 本来就是完整历史，才可以用本地下标。
+    // 有 outline 时本地 messages 只是当前段，下标是 0..N，拿来比全局 index 会把高亮带到开头。
     const messageIndex = messageIndexById.value.get(id)
     if (Number.isInteger(messageIndex)) {
       for (let offset = 0; offset < nodes.value.length; offset += 1) {
@@ -219,6 +220,11 @@ function syncFromScroll() {
         else break
       }
     }
+  }
+  if (index < 0) {
+    // 当前行可能以助手消息开头，而大纲记的是用户消息；从行内任意 messageId 反查。
+    const ids = [...row.querySelectorAll('[data-message-id]')].map(element => element.getAttribute('data-message-id'))
+    index = nodes.value.findIndex(node => ids.includes(node.id))
   }
   if (index < 0) {
     // 最后兜底：轮次里任何一条消息能对上大纲节点都算命中。
