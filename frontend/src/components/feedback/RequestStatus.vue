@@ -7,6 +7,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import Icon from '../../ui/Icon.vue'
+import Fold from '../../ui/Fold.vue'
 
 const props = defineProps({
   request: { type: Object, required: true },
@@ -156,7 +157,9 @@ onBeforeUnmount(() => {
     </span>
     <span v-if="badge" class="request-status__badge">{{ badge }}</span>
     <Icon v-if="expandable" name="down" :size="14" class="request-status__caret" :class="{ 'is-open': expanded }" aria-hidden="true" />
-    <pre v-if="expanded" class="request-status__error">{{ errorText }}</pre>
+    <Fold :open="expanded" class="request-status__error-fold">
+      <pre class="request-status__error">{{ errorText }}</pre>
+    </Fold>
   </div>
 </template>
 
