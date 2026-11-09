@@ -79,9 +79,10 @@ const familyOptions = computed(() => {
 const ABILITIES = [
   { value: 'tools', label: '工具调用' },
   { value: 'reasoning', label: '推理输出' },
+  { value: 'reasoning-replay', label: '回传思考' },
 ]
-const capabilityLabel = value => ({ text: '文本', image: '图像', tools: '工具', reasoning: '推理' }[value] || value)
-const capabilityIcon = value => ({ text: 'text', image: 'image', tools: 'tools', reasoning: 'reasoning' }[value] || 'spark')
+const capabilityLabel = value => ({ text: '文本', image: '图像', tools: '工具', reasoning: '推理', 'reasoning-replay': '回传思考' }[value] || value)
+const capabilityIcon = value => ({ text: 'text', image: 'image', tools: 'tools', reasoning: 'reasoning', 'reasoning-replay': 'reasoning' }[value] || 'spark')
 const formatContext = value => {
   const number = Number(value) || 0
   if (number >= 1000000) return `${number / 1000000}M`

@@ -40,6 +40,7 @@ const CONTEXT_PRESETS = [32000, 128000, 200000, 512000, 1000000, 2000000]
 const ABILITIES = [
   { value: 'tools', label: '工具调用' },
   { value: 'reasoning', label: '推理输出' },
+  { value: 'reasoning-replay', label: '回传思考' },
 ]
 
 function formatContext(value) {
