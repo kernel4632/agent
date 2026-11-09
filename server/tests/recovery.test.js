@@ -351,10 +351,13 @@ describe('重启恢复', () => {
             const recovery = await Agent.resolve({ session, settings, recovery: true })
             const normal = await Agent.resolve({ session, settings })
 
+            // 恢复路径封顶；用户路径也有通用过滤，但不限制总时长/次数。
             expect(recovery.retryMaxElapsed).toBeGreaterThan(0)
             expect(typeof recovery.retry).toBe('function')
             expect(normal.retryMaxElapsed).toBeUndefined()
-            expect(normal.retry).toBeUndefined()
+            expect(typeof normal.retry).toBe('function')
+            expect(normal.retry({ statusCode: 400 })).toBe(false)
+            expect(normal.retry({ statusCode: 500 })).toBe(true)
 
             // 过滤函数第 3 次开始拒绝重试；core 据此结束循环。
             const allow = [recovery.retry(), recovery.retry(), recovery.retry()]
