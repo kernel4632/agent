@@ -316,7 +316,8 @@ async function jumpToMessage(messageId) {
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   if (virtualizer.value && turnIndex < historicalTurns.value.length) {
     virtualizer.value.scrollToIndex(turnIndex, { align: 'start', smooth: !reduce })
-    return
+    // 目标行可能在虚拟窗口外，等它挂载后再按真实 DOM 校准一次。
+    await new Promise(resolve => setTimeout(resolve, 180))
   }
   await nextTick()
   const element = scrollParent?.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
