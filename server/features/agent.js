@@ -124,6 +124,7 @@ const hasCapability = (profile, name) => profile.some(item => {
     if (name === 'text') return value === '文本'
     if (name === 'tools') return value === '工具'
     if (name === 'image') return value === '图片'
+    if (name === 'reasoning') return value === '推理'
     return false
 })
 
@@ -183,9 +184,9 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         capabilities: {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
-            // reasoning 是模型输出的一部分，不是某个厂商的开关。历史里有 reasoning
-            // 块就默认全部回传，由 core 按当前协议编码；没有该块的模型自然不产生字段。
-            reasoning: true,
+            // reasoning 是否回传由模型配置里的「推理输出」能力决定，不看模型名、
+            // 供应商名或中转站地址。模型没声明该能力时保持 core 默认（不回传）。
+            reasoning: hasCapability(profile, 'reasoning'),
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
