@@ -218,7 +218,22 @@ const forwardedEvents = ({ sessionId, state }) => ({
         }
         return SSE.send({ id: sessionId, data: event })
     },
-    onRetry: info => SSE.send({ id: sessionId, data: { type: 'retry', ...info } }),
+    onRetry: info => {
+        const error = info?.error
+        // Error 对象直接 spread 会变成空对象；单独取出可读文本给前端展示。
+        const errorText = error?.message || error?.responseBody || error?.body || (typeof error === 'string' ? error : '')
+        return SSE.send({
+            id: sessionId,
+            data: {
+                type: 'retry',
+                attempt: info?.attempt,
+                delay: info?.delay,
+                error: errorText,
+                statusCode: error?.statusCode,
+                kind: error?.kind,
+            },
+        })
+    },
     onToolCall: async call => {
         const startedAt = Date.now()
         const toolCallId = call.toolCallId || call.callID || call.callId || call.id

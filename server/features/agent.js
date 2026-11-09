@@ -175,6 +175,11 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         capabilities: {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
+            // DeepSeek 思考模式要求把上一轮 assistant 的 reasoning_content 原样带回；
+            // agent-core 默认不回传 reasoning，这里按模型/地址识别后显式打开。
+            reasoning: hasCapability(profile, 'reasoning')
+                || /deepseek/i.test(chosen.model || '')
+                || /deepseek/i.test(provider?.baseURL || ''),
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',

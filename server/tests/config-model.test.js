@@ -346,6 +346,20 @@ describe('交给 agent-core 的 config', () => {
             const config = await resolve({ provider: 'local', model: 'm' })
             expect(config.capabilities.tools).toBe(true)
             expect(config.capabilities.image).toBe(false)
+            expect(config.capabilities.reasoning).toBe(false)
+        })
+    })
+
+    test('DeepSeek 思考模式打开 reasoning 历史回传', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{
+                    name: 'deepseek-proxy',
+                    models: [{ id: 'deepseek-reasoner', capabilities: ['text', 'tools'] }],
+                }],
+            })
+            const config = await resolve({ provider: 'deepseek-proxy', model: 'deepseek-reasoner' })
+            expect(config.capabilities.reasoning).toBe(true)
         })
     })
 
