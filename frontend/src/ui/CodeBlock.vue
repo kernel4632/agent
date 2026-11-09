@@ -130,7 +130,6 @@ const loadMermaid = async () => {
 // 虚拟列表只挂载视口附近的轮次，Mermaid 组件会随行卸载/重建；
 // 这里不再做第二层 IntersectionObserver 懒加载。挂载即查缓存并排队渲染，
 // 否则重新滚回底部时会先出现一大块空白占位，等观察器和渲染队列才恢复。
-const placeholderHeight = '120px'
 let drawToken = 0
 
 async function draw() {
@@ -382,10 +381,7 @@ async function saveImage() {
     <div v-if="isMermaid && diagram" ref="mermaidBox" class="ui-code-block__mermaid">
       <button class="ui-code-block__mermaid-view" type="button" aria-label="全屏查看图表" title="点击全屏查看" @click="fullscreen = true" v-html="diagram"></button>
     </div>
-    <!-- 虚拟行重新挂载后立即绘制；这里只留一小块过渡占位，不再按源码行数估算大块空白。 -->
-    <div v-else-if="isMermaid && !diagramError" class="ui-code-block__mermaid-placeholder" :style="{ minHeight: placeholderHeight }">
-      <span>正在绘制图表…</span>
-    </div>
+    <!-- 不再给图表留估算占位；未画完就是还没有内容，画完后按真实 SVG 尺寸布局。 -->
     <div v-else class="ui-code-block__body">
       <p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p>
       <pre v-if="lineNumbers" class="ui-code-block__numbers" aria-hidden="true">{{ code.split('\n').map((_, index) => index + 1).join('\n') }}</pre>

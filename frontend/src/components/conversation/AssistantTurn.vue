@@ -21,14 +21,12 @@ import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
 import ReasoningStep from './ReasoningStep.vue'
 import ToolCall from '../activity/ToolCall.vue'
-import LazyBlock from '../../ui/LazyBlock.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
   active: Boolean,
-  live: Boolean,
   rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
@@ -271,17 +269,6 @@ const processSections = computed(() => {  const sections = []
   return sections
 })
 
-// 流式/当前轮必须完整挂载；只有稳定历史才允许把离屏大块折叠成占位。
-const eagerBlocks = computed(() => props.live || props.active || streaming.value)
-const blockEstimate = section => {
-  if (!section) return 90
-  if (section.type === 'group') return 120
-  if (section.step?.type === 'tool') return 110
-  if (section.step?.type === 'request' || section.step?.type === 'compact') return 50
-  const text = String(section.step?.text || '')
-  return Math.max(60, Math.min(420, Math.ceil(text.length / 80) * 24))
-}
-
 const groupStoreKey = `agent.process-groups:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 const groupOpen = ref((() => {
   try { return JSON.parse(localStorage.getItem(groupStoreKey) || '{}') || {} } catch { return {} }
@@ -361,7 +348,6 @@ function clearTarget() { targetId.value = null; emit('close') }
         <Fold :open="processShown" :instant="approvalPending">
           <div class="process-fold__body context-sections">
             <template v-for="section in processSections" :key="section.key">
-              <LazyBlock :estimated-height="blockEstimate(section)" :eager="eagerBlocks">
               <template v-if="section.type === 'step'">
                 <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
                 <template v-else-if="section.step.type === 'compact'">
@@ -432,18 +418,15 @@ function clearTarget() { targetId.value = null; emit('close') }
                   </div>
                 </Fold>
               </div>
-              </LazyBlock>
             </template>
           </div>
         </Fold>
       </div>
-      <LazyBlock v-if="bubbleText" :estimated-height="180" :eager="eagerBlocks">
-        <div class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
-          <Markdown :content="shownBubble" />
-          <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
-          <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
-        </div>
-      </LazyBlock>
+      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
+        <Markdown :content="shownBubble" />
+        <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
+        <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
+      </div>
 
       <p v-if="error" class="message__error" role="alert">{{ error }}</p>
     </MessageActions>

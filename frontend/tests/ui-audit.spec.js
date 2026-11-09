@@ -2630,7 +2630,8 @@ test('conversation rail jumps between messages with length-scaled ticks', async 
   await page.locator('.conversation-rail__mark').nth(1).hover()
   await expect(page.locator('.conversation-rail__preview')).toContainText('已收到你的想法')
   await expect(page.locator('.conversation-rail__preview')).not.toContainText('回答：')
-  await expect(page.locator('.conversation-rail__preview strong')).toContainText('接下来')
+  await expect(page.locator('.conversation-rail__preview strong')).toHaveCount(0)
+  await expect(page.locator('.conversation-rail__preview')).toContainText('接下来')
   await expect(page.locator('.conversation-rail__preview')).not.toContainText('**')
   // 预览必须贴着被悬停的刻度，不能被夹到定位条顶部。
   await page.locator('.conversation-rail__mark').nth(5).hover()

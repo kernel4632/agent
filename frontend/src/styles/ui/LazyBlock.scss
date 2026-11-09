@@ -1,8 +1,0 @@
-.lazy-block { display: block; width: 100%; min-width: 0; }
-.lazy-block__placeholder {
-  width: 100%;
-  min-height: 24px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--la-text) 4%, transparent);
-  contain: layout paint;
-}

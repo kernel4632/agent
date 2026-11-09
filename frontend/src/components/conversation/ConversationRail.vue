@@ -43,7 +43,17 @@ let pendingIndex = -1
 let viewportRetry = 0
 let pointerInside = false
 
-// 一问一答合并成一条刻度；刻度长度是问题与回答文字量之和。
+function previewText(value) {
+  return String(value || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[*_~`>#]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // 还没生成完的问答先按问题长度显示，回答完成后同一条刻度自然变长。
 const userTextOf = turn => {
   const first = turn?.messages?.[0]
@@ -81,8 +91,8 @@ watch(() => props.messages.length, () => {
 const nodes = computed(() => {
   if (outline.value.length) {
     return outline.value.map(turn => {
-      const prompt = String(turn.prompt || '')
-      const response = String(turn.response || '')
+      const prompt = previewText(turn.prompt)
+      const response = previewText(turn.response)
       return {
         id: turn.id,
         index: turn.index,
@@ -99,8 +109,8 @@ const nodes = computed(() => {
     const turn = turns[index]
     if (turn.role === 'user') {
       const next = turns[index + 1]
-      const prompt = userTextOf(turn)
-      const response = answerOf(next)
+      const prompt = previewText(userTextOf(turn))
+      const response = previewText(answerOf(next))
       merged.push({
         id: turn.messages[0].id,
         index: props.messages.findIndex(message => message.id === turn.messages[0].id),
@@ -113,7 +123,7 @@ const nodes = computed(() => {
       continue
     }
     // 没有用户问题的助手回合（例如中断后续跑）也保留一条，跳转目标是这条回答。
-    const response = answerOf(turn)
+    const response = previewText(answerOf(turn))
     if (!response) continue
     merged.push({
       id: turn.messages[0].id,
