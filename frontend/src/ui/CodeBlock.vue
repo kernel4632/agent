@@ -213,10 +213,10 @@ const fullscreen = ref(false)
 const stage = ref(null)
 const mermaidBox = ref(null)
 const MIN_SCALE = .2
-const MAX_SCALE = 8
 const scale = ref(1)
 const pan = ref({ x: 0, y: 0 })
-const clampScale = value => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
+// 不设放大上限：SVG 是矢量图，放大到多少由读者决定；只保护非有限值。
+const clampScale = value => Number.isFinite(value) ? Math.max(MIN_SCALE, value) : scale.value
 const viewStyle = computed(() => ({ transform: `translate(calc(-50% + ${pan.value.x}px), calc(-50% + ${pan.value.y}px)) scale(${scale.value})` }))
 
 // 打开与“复位”都回到初始视图：整张图收进视口（留 8% 边），量不到尺寸就保持 1。
@@ -250,6 +250,9 @@ function onWheel(event) {
 let drag = null
 function dragStart(event) {
   if (event.button !== 0) return
+  // 拖拽平移不是选文字；不阻止默认行为时 SVG/foreignObject 里的文本会被一并选中。
+  event.preventDefault()
+  window.getSelection()?.removeAllRanges()
   drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
   event.currentTarget.setPointerCapture(event.pointerId)
 }
@@ -395,7 +398,7 @@ async function saveImage() {
         <div class="ui-code-block__zoombar">
           <Button icon variant="text" label="缩小" :disabled="scale <= MIN_SCALE" @click="nudge(-1)"><Icon name="zoom-out" :size="18" /></Button>
           <button class="ui-code-block__zoom-value" type="button" title="点击复位" @click="resetView">{{ Math.round(scale * 100) }}%</button>
-          <Button icon variant="text" label="放大" :disabled="scale >= MAX_SCALE" @click="nudge(1)"><Icon name="zoom-in" :size="18" /></Button>
+          <Button icon variant="text" label="放大" @click="nudge(1)"><Icon name="zoom-in" :size="18" /></Button>
           <Button icon variant="text" label="复位视图" @click="resetView"><Icon name="refresh" :size="18" /></Button>
           <Button icon variant="text" label="复制图表图片" @click="copyImage"><Icon name="image" :size="18" /></Button>
           <Button icon variant="text" label="下载图表" @click="saveImage"><Icon name="download" :size="18" /></Button>
