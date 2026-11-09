@@ -19,6 +19,7 @@ import (
 type block struct {
 	id, kind, title, body, plain, copy string
 	messageID, toolCallID, status      string
+	live                               bool // 正在生成的块：思考在回答出来前自己展开
 }
 
 type blockSpan struct {
@@ -186,7 +187,7 @@ func (m *model) liveBlocks() []block {
 	for index, step := range m.steps {
 		switch step.kind {
 		case "reasoning":
-			blocks = append(blocks, block{id: fmt.Sprintf("live-reason-%d", index), kind: "reasoning", title: "思考", body: step.text, plain: step.text, copy: step.text})
+			blocks = append(blocks, block{id: fmt.Sprintf("live-%d-reason-%d", m.runID, index), kind: "reasoning", live: true, title: "思考", body: step.text, plain: step.text, copy: step.text})
 		case "text":
 			blocks = append(blocks, block{id: fmt.Sprintf("live-text-%d", index), kind: "text", title: "过程", body: step.text, plain: step.text, copy: step.text})
 		case "tool":
@@ -206,7 +207,7 @@ func (m *model) liveBlocks() []block {
 		}
 	}
 	if strings.TrimSpace(m.liveReasoning) != "" {
-		blocks = append(blocks, block{id: "live-reasoning", kind: "reasoning", title: "思考", body: m.liveReasoning, plain: m.liveReasoning, copy: m.liveReasoning})
+		blocks = append(blocks, block{id: fmt.Sprintf("live-%d-reason", m.runID), kind: "reasoning", title: "思考", live: true, body: m.liveReasoning, plain: m.liveReasoning, copy: m.liveReasoning})
 	}
 	if strings.TrimSpace(m.liveText) != "" && strings.TrimSpace(m.liveText) != strings.TrimSpace(m.finalAnswer) {
 		blocks = append(blocks, block{id: "live-text", kind: "text", title: "Agent", body: m.liveText, plain: m.liveText, copy: m.liveText})
@@ -277,15 +278,31 @@ func (m *model) blockOpen(item block) bool {
 	if item.kind == "approval" || item.kind == "user" || item.kind == "answer" || item.kind == "text" || item.kind == "question" {
 		return true
 	}
+	if value, ok := m.open[item.id]; ok {
+		return value // 手动点过的以点击为准，包括把自动展开的思考收回
+	}
 	if item.kind == "reasoning" {
 		if m.showReasoning {
 			return true
 		}
-	}
-	if value, ok := m.open[item.id]; ok {
-		return value
+		return item.live && !m.answerDone() // 思考边生成边展开，回答一出来就收起
 	}
 	return false // 工具无论是否还在跑都先收着，避免输出把回答顶出屏幕
+}
+
+// answerDone 表示最后一条回答已经生成，思考该让位了。
+func (m *model) answerDone() bool {
+	return strings.TrimSpace(m.finalAnswer) != ""
+}
+
+// anyReasoningOpen 报告当前有没有展开的思考，Ctrl+R 用它决定这次是开还是合。
+func (m *model) anyReasoningOpen() bool {
+	for _, item := range m.blocks {
+		if item.kind == "reasoning" && m.blockOpen(item) {
+			return true
+		}
+	}
+	return false
 }
 
 // toolRun 找出从 index 开始的连续工具。只有两行以上、且没有被点开时才收成一行。
@@ -382,7 +399,7 @@ func (m *model) transcriptText() (string, int) {
 			if m.focus == focusTranscript && index == m.selected {
 				marker = "> "
 			}
-			fmt.Fprintf(&b, "%s%s %s\n\n", marker, muted.Render("▸"), muted.Render(toolSummary(m.blocks[index:end+1])))
+			fmt.Fprintf(&b, "%s%s %s\n\n", marker, dim.Render("▸"), muted.Render(toolSummary(m.blocks[index:end+1])))
 			visual += visualHeight(b.String()[before:], width)
 			m.spans = append(m.spans, blockSpan{index: index, start: start, end: visual, summary: true})
 			index = end // 这一串只占一行；循环自己还会 +1
@@ -413,16 +430,20 @@ func (m *model) transcriptText() (string, int) {
 			}
 			fmt.Fprintf(&b, "%s\n\n", body)
 		case "reasoning":
-			fmt.Fprintf(&b, "%s%s", marker, muted.Render("思考"))
+			caret := "▸"
+			if open {
+				caret = "▾"
+			}
+			fmt.Fprintf(&b, "%s%s %s", marker, dim.Render(caret), muted.Render("思考"))
 			if open {
 				fmt.Fprintf(&b, "\n%s\n\n", render.Markdown(item.body))
 			} else {
-				fmt.Fprintf(&b, "%s\n\n", muted.Render("  已收起"))
+				fmt.Fprintf(&b, "%s\n\n", dim.Render("  已收起"))
 			}
 		case "compact":
-			fmt.Fprintf(&b, "%s%s", marker, muted.Render("上下文已压缩"))
+			fmt.Fprintf(&b, "%s%s", marker, dim.Render("上下文已压缩"))
 			if open && strings.TrimSpace(item.body) != "" {
-				fmt.Fprintf(&b, "\n%s\n\n", render.Clip(render.Sanitize(item.body), 12))
+				fmt.Fprintf(&b, "\n%s\n\n", muted.Render(render.Clip(render.Sanitize(item.body), 12)))
 			} else {
 				fmt.Fprintf(&b, "\n\n")
 			}
@@ -433,9 +454,9 @@ func (m *model) transcriptText() (string, int) {
 			if open {
 				caret = "▾"
 			}
-			fmt.Fprintf(&b, "%s%s %s %s", marker, style.Render(mark), caret, item.title)
+			fmt.Fprintf(&b, "%s%s %s %s", marker, style.Render(mark), dim.Render(caret), item.title)
 			if item.plain != "" && item.plain != item.title {
-				fmt.Fprintf(&b, "  %s", muted.Render(oneLine(item.plain, 72)))
+				fmt.Fprintf(&b, "  %s", dim.Render(oneLine(item.plain, 72)))
 			}
 			if label != "" {
 				fmt.Fprintf(&b, "  %s", style.Render(label))
@@ -446,7 +467,7 @@ func (m *model) transcriptText() (string, int) {
 			}
 			b.WriteByte('\n')
 		case "approval":
-			fmt.Fprintf(&b, "%s%s %s\n", marker, lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render("!"), item.title)
+			fmt.Fprintf(&b, "%s%s %s\n", marker, warnText.Render("!"), item.title)
 			if item.plain != "" {
 				fmt.Fprintf(&b, "%s\n", oneLine(item.plain, 100))
 			}
@@ -485,20 +506,22 @@ func (m *model) welcome() string {
 	}
 	lines := []string{
 		accent.Render("Agent"),
+		dim.Render("终端里的编码助手，与服务端共用会话、历史和工具权限"),
 		"",
 		"直接输入，发给当前会话。",
 		"",
-		muted.Render("模型  " + modelName),
-		muted.Render("目录  " + cwd),
+		gold.Render("模型  ") + modelName,
+		gold.Render("目录  ") + cwd,
 	}
 	if reasoning := strings.TrimSpace(m.session.Settings.Reasoning); reasoning != "" {
-		lines = append(lines, muted.Render("思考  "+reasoning))
+		lines = append(lines, gold.Render("思考  ")+reasoning)
 	}
 	lines = append(lines,
 		"",
-		muted.Render("/        命令"),
-		muted.Render("ctrl+p   已有会话"),
-		muted.Render("ctrl+m   切换模型"),
+		dim.Render("  /         命令"),
+		dim.Render("  ctrl+p    已有会话"),
+		dim.Render("  ctrl+m    切换模型"),
+		dim.Render("  ctrl+u    用量统计"),
 	)
 	return strings.Join(lines, "\n")
 }
@@ -509,7 +532,7 @@ func quoteBar(text string) string {
 	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
-		lines[i] = userBar.Render("| ") + line
+		lines[i] = userBar.Render("┃ ") + line
 	}
 	return strings.Join(lines, "\n")
 }
@@ -519,18 +542,15 @@ func toolMark(kind string) (string, lipgloss.Style) {
 	case "running":
 		return "●", accent
 	case "error":
-		return "✗", lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+		return "✗", errText
 	case "rejected":
-		return "−", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return "−", warnText
 	case "waiting":
-		return "…", lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return "…", warnText
 	default:
-		return "✓", lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+		return "✓", okText
 	}
 }
-
-var userLabel = lipgloss.NewStyle().Foreground(lipgloss.Color("111")).Bold(true)
-var userBar = lipgloss.NewStyle().Foreground(lipgloss.Color("111"))
 
 func contentParts(raw json.RawMessage) []api.Part {
 	_, parts := splitContent(raw)
