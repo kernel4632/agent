@@ -1,12 +1,12 @@
 /* RequestStatus.vue：时间线里的单次模型请求，完成后变淡但仍留在原来的位置。 */
 .request-status {
-  display: flex;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   padding: 8px 4px;
   color: var(--la-muted);
   font-size: 12.5px;
@@ -22,7 +22,7 @@
 .request-status__caret { flex: none; transition: transform var(--ui-duration-fast) var(--ui-curve-standard); }
 .request-status__caret.is-open { transform: rotate(180deg); }
 .request-status__error {
-  flex: 1 0 100%;
+  grid-column: 1 / -1;
   box-sizing: border-box;
   margin: 2px 0 2px 26px;
   padding: 8px 10px;
