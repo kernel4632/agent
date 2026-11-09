@@ -218,7 +218,7 @@ export default store
 - `mcp` 是配置的一部分，属于基座能力。
 - `sessions[].cwd` 是唯一的位置概念，没有 `workspaceId`。
 - `history` 和 `settings` 属于会话；消息回退只改 `history`，不碰文件。
-- 权限只有一层：`config.permission` 的全局规则（allow / review / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。review 先问 `review` 配置和 `models.review` 指向的审核模型，只有 allow 直接执行，deny 直接拒绝，ask、超时或审核故障都转人工。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。工具管理的「全部批准」只把全局 `*` 写成 allow，不改每个工具已经记住的规则。全局 allow 盖过工具默认的 ask / review，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。关掉全部批准只把全局改回 ask。
+- 权限只有一层：`config.permission` 的全局规则（allow / review / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。review 先问 `review` 配置和 `models.review` 指向的审核模型，只有 allow 直接执行，deny 直接拒绝，ask、超时或审核故障都转人工。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。输入区「工具权限」小窗里默认动作只写全局 `*`，不改每个工具已经记住的规则；全局 allow 盖过工具默认的 ask / review，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。把单个工具改成 ask / review 时，如果全局还是 allow，会先把其余工具此刻的状态写实再撤全局，否则它们会跟着一起掉回询问。
 
 ## 六、请求流程
 

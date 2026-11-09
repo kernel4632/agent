@@ -1,89 +1,107 @@
 <!--
-自有 Markdown：代码块交给 CodeBlock；标题和段落用原生语义元素。
-列表、表格、引用等块仍由 Marked 生成 HTML，再交给现有 markdown-body 样式。
-调用示例：<Markdown :content="text" compact />
+统一 Markdown 入口：流式解析、正式渲染和历史内容全部走 markstream-vue。
+代码块仍映射回项目自己的 CodeBlock，标题/段落补上项目排版类，避免两套视觉。
+调用示例：<Markdown :content="text" compact />。
 -->
 <script setup>
-import { computed } from 'vue'
+import { computed, defineComponent, h } from 'vue'
+import MarkdownRender, {
+  HeadingNode,
+  ParagraphNode,
+  setCustomComponents,
+} from 'markstream-vue'
+import 'markstream-vue/index.css'
 import CodeBlock from './CodeBlock.vue'
 import { useSmoothText } from '../utils/smooth-text.js'
-import { lexMarkdown, renderInline, renderToken } from '../utils/markdown.js'
 
 const props = defineProps({
   content: { type: String, default: '' },
   compact: Boolean,
   smooth: Boolean,
+  // 历史内容默认已经是最终态；思考流式处显式传 false。
+  final: { type: Boolean, default: true },
 })
 
-const { text } = useSmoothText(computed(() => props.smooth ? props.content : ''))
-const blocks = computed(() => lexMarkdown((props.smooth ? text.value : props.content) || '').filter(token => token.type !== 'space'))
-const headingSize = depth => depth <= 1 ? 'title-medium' : 'title-small'
+// 项目自己的代码卡片负责 Mermaid、全屏和复制；markstream 只负责增量解析。
+const CUSTOM_ID = 'agent-markdown'
 
-// 流式追加时大部分块没有变化；按原始 Markdown 缓存渲染结果，
-// 已稳定的段落只需复用 HTML，不再每个 delta 都重新解析。
-const htmlCache = new Map()
-function cachedHTML(key, render) {
-  if (htmlCache.has(key)) return htmlCache.get(key)
-  if (htmlCache.size > 2000) htmlCache.clear()
-  const value = render()
-  htmlCache.set(key, value)
-  return value
+// markstream 会特殊拦截 mermaid 代码块，绕开它才能继续使用项目 CodeBlock。
+// 语法层面改写成自定义语言，交给 code_block 映射后再还原成 mermaid。
+function protectMermaid(markdown) {
+  return String(markdown || '').replace(/^(\s*)(`{3,}|~{3,})mermaid\b/gm, '$1$2agent-mermaid')
 }
 
-function closedCode(token) {
-  const raw = String(token.raw || '').trim()
-  const fence = raw.match(/^(`{3,}|~{3,})/)
-  if (!fence) return true // 缩进代码块没有围栏，按完整代码处理
-  return raw.endsWith(fence[1])
-}
+const CodeBlockNode = defineComponent({
+  name: 'AgentMarkdownCodeBlock',
+  props: { node: { type: Object, required: true } },
+  setup(block) {
+    return () => h(CodeBlock, {
+      code: block.node.code || '',
+      language: block.node.language === 'agent-mermaid' ? 'mermaid' : (block.node.language || 'text'),
+      lineNumbers: String(block.node.code || '').split('\n').length > 8,
+    })
+  },
+})
 
-function inlineHTML(token) {
-  return cachedHTML(`inline\0${token.raw || ''}`, () => token.tokens?.length ? renderInline(token.tokens) : '')
-}
+const Heading = defineComponent({
+  name: 'AgentMarkdownHeading',
+  props: { node: { type: Object, required: true } },
+  setup(heading) {
+    return () => h(HeadingNode, {
+      node: heading.node,
+      class: ['ui-typography', 'ui-typography--heading', heading.node.depth <= 1 ? 'ui-typography--title-medium' : 'ui-typography--title-small'],
+    })
+  },
+})
 
-function blockHTML(token) {
-  return cachedHTML(`block\0${token.type}\0${token.raw || ''}`, () => renderToken(token))
-}
+const Paragraph = defineComponent({
+  name: 'AgentMarkdownParagraph',
+  props: { node: { type: Object, required: true } },
+  setup(paragraph) {
+    return () => h(ParagraphNode, {
+      node: paragraph.node,
+      class: ['ui-typography', 'ui-typography--body', 'ui-typography--body-medium'],
+    })
+  },
+})
 
-// 短单元格不折行：像“第 34 行”这种只有一两行的内容，交给浏览器按完整宽度分列，
-// 避免出现最后一行只剩一个字的瑕疵；长正文仍然正常换行。
-const SHORT_CELL = 16
+setCustomComponents(CUSTOM_ID, {
+  code_block: CodeBlockNode,
+  heading: Heading,
+  paragraph: Paragraph,
+})
+
+const { text, done } = useSmoothText(computed(() => props.smooth ? props.content : ''))
+const rawSource = computed(() => props.smooth ? text.value : (props.content || ''))
+const source = computed(() => protectMermaid(rawSource.value))
+
+// 和旧 Markdown 一样：短单元格不折行，长正文正常换行。
 function fitTables(root) {
-  if (!root?.querySelector('table')) return
+  if (!root?.querySelector?.('table')) return
   for (const cell of root.querySelectorAll('td')) {
-    const text = (cell.textContent || '').replace(/\s+/g, ' ').trim()
+    const content = (cell.textContent || '').replace(/\s+/g, ' ').trim()
     const block = cell.querySelector('br, img, pre, ul, ol, p, div')
-    cell.classList.toggle('md-cell--nowrap', text.length > 0 && text.length <= SHORT_CELL && !block)
+    cell.classList.toggle('md-cell--nowrap', content.length > 0 && content.length <= 16 && !block)
   }
 }
 const vTableFit = { mounted: fitTables, updated: fitTables }
 </script>
 
 <template>
-  <div class="markdown-body ui-md" v-table-fit :class="{ 'ui-md--compact': compact }">
-    <template v-for="(token, index) in blocks" :key="index">
-      <CodeBlock
-        v-if="token.type === 'code' && closedCode(token)"
-        :code="token.text"
-        :language="token.lang || 'text'"
-        :line-numbers="token.text.split('\n').length > 8"
-      />
-      <pre v-else-if="token.type === 'code'" class="ui-md__code-fallback"><code>{{ token.text }}</code></pre>
-      <component
-        v-else-if="token.type === 'heading'"
-        :is="`h${token.depth}`"
-        class="ui-typography ui-typography--heading"
-        :class="`ui-typography--${headingSize(token.depth)}`"
-      >
-        <span v-html="inlineHTML(token)"></span>
-      </component>
-      <p v-else-if="token.type === 'paragraph'" class="ui-typography ui-typography--body ui-typography--body-medium">
-        <span v-html="inlineHTML(token)"></span>
-      </p>
-      <div v-else-if="token.type === 'table'" class="ui-md__table" v-html="blockHTML(token)"></div>
-      <div v-else class="ui-md__block" v-html="blockHTML(token)"></div>
-    </template>
-  </div>
+  <MarkdownRender
+    v-table-fit
+    class="markdown-body ui-md markstream-vue"
+    :class="{ 'ui-md--compact': compact }"
+    :custom-id="CUSTOM_ID"
+    mode="chat"
+    :content="source"
+    :final="final && done"
+    :fade="false"
+    :smooth-streaming="false"
+    :typewriter="false"
+    :max-live-nodes="220"
+    :render-code-blocks-as-pre="false"
+  />
 </template>
 
-<style lang="scss" src="../styles/ui/Markdown.scss"></style>
+<style scoped lang="scss" src="../styles/ui/Markdown.scss"></style>

@@ -17,6 +17,7 @@
 import { appendFile, mkdir, readdir, rm, truncate } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { writeFile } from 'atomically'
 import { nanoid } from 'nanoid'
 import store from '../store.js'
@@ -423,7 +424,8 @@ const get = ({ sessionId }) => {
 // --- 历史分页：before 是消息下标；默认取最后一页 ---
 const page = async ({ sessionId, before, limit = 200 }) => {
     const session = await load(sessionId)
-    const messages = get({ sessionId })
+    // 与 /session/read 的 historyStart 使用同一套“可见历史”下标，避免 internal 消息让分页错位。
+    const messages = get({ sessionId }).filter(message => !message.internal)
     const size = Math.min(500, Math.max(1, Math.floor(Number(limit) || 200)))
     const end = Number.isInteger(before) ? Math.min(messages.length, Math.max(0, before)) : messages.length
     const start = Math.max(0, end - size)
@@ -474,7 +476,7 @@ const userText = message => {
 // --- 整个会话的轮次大纲：只带预览，长度用未截断原文 ---
 const outline = async sessionId => {
     await load(sessionId)
-    const records = store.sessions[sessionId].history.messages
+    const records = store.sessions[sessionId].history.messages.filter(record => !record.message?.internal)
     const turns = []
     let current = null
 
@@ -535,6 +537,69 @@ const outline = async sessionId => {
     return { turns, totalMessages: records.length }
 }
 
+// --- 全量历史搜索：直接流式扫描 JSONL，不把 22MB 会话塞进内存 ---
+const readableSearchText = value => String(value ?? '')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[*_~`>#]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const searchableText = message => {
+    if (!message || message.compact) return ''
+    const content = message.content
+    const text = typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+            ? content.filter(part => part?.type === 'text').map(part => part.text || '').join(' ')
+            : ''
+    return readableSearchText(text)
+}
+
+const search = async ({ sessionId, query, limit = 50 }) => {
+    const needle = String(query || '').replace(/\s+/g, ' ').trim().slice(0, 100)
+    if (!needle) return { results: [] }
+    const lower = needle.toLocaleLowerCase()
+    const max = Math.min(50, Math.max(1, Math.floor(Number(limit) || 50)))
+    const results = []
+    let index = -1
+    const file = Path.historyLog(sessionId)
+
+    const consume = record => {
+        const message = record?.message
+        if (!message || message.internal || message.compact) return
+        index += 1
+        const text = searchableText(message)
+        if (!text) return
+        const at = text.toLocaleLowerCase().indexOf(lower)
+        if (at < 0) return
+        const start = Math.max(0, at - 36)
+        const end = Math.min(text.length, at + needle.length + 90)
+        results.push({
+            id: record.messageId,
+            index,
+            role: message.role,
+            before: `${start ? '…' : ''}${text.slice(start, at)}`,
+            match: text.slice(at, at + needle.length),
+            after: `${text.slice(at + needle.length, end)}${end < text.length ? '…' : ''}`,
+        })
+    }
+
+    if (await Bun.file(file).exists()) {
+        const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
+        for await (const line of lines) {
+            if (results.length >= max) break
+            if (!line.trim()) continue
+            try {
+                consume(JSON.parse(line))
+            } catch {
+                // 损坏行跳过，不能让一条坏记录毁掉整个搜索。
+            }
+        }
+    }
+    return { results }
+}
+
 // --- 内存里加载了多少条会话；健康检查用 ---
 const count = () => Object.keys(store.sessions).length
 
@@ -572,6 +637,6 @@ const prepare = async () => {
 
 export default {
     load, create, save, saveSettings, list,
-    add, rollback, redo, redoCount, idsBefore, get, page, pageByOffset, outline,
+    add, rollback, redo, redoCount, idsBefore, get, page, pageByOffset, outline, search,
     count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
 }

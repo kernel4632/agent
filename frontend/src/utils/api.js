@@ -75,8 +75,14 @@ export const AgentAPI = {
   },
   // 从现有会话分出一个新分支；可以只复制到某条消息。
   forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
-  getSession:       (sessionID)                 => request(`/session/read/${encodeURIComponent(sessionID)}`),
+  getSession:       (sessionID, options = {}) => request(`/session/read/${encodeURIComponent(sessionID)}${(() => {
+    const params = new URLSearchParams()
+    if (Number.isInteger(options.historyStart)) params.set('historyStart', String(options.historyStart))
+    else if (options.historyLimit) params.set('historyLimit', String(options.historyLimit))
+    return params.size ? `?${params}` : ''
+  })()}`),
   getSessionHistory:(sessionID, before, limit = 200) => request(`/session/history/${encodeURIComponent(sessionID)}?${new URLSearchParams({ ...(Number.isInteger(before) ? { before: String(before) } : {}), limit: String(limit) })}`),
+  searchSessionMessages: (sessionID, query, limit = 50) => request(`/session/search/${encodeURIComponent(sessionID)}?${new URLSearchParams({ q: String(query || ''), limit: String(limit) })}`),
   getSessionOutline:(sessionID)                 => request(`/session/outline/${encodeURIComponent(sessionID)}`),
   renameSession:    (sessionID, title)          => request(`/session/rename/${encodeURIComponent(sessionID)}`, 'PATCH', { title }),
   // 已有会话切换模型；运行中也可以切，下一轮请求生效。

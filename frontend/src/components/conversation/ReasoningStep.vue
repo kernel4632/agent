@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
       <div class="cot-collapse__inner">
         <div class="cot-step__body">
           <div ref="previewEl" class="reasoning-preview" :class="{ 'is-preview': previewing }">
-            <Markdown v-if="shownReasoning.trim()" class="reasoning-markdown" :content="shownReasoning" compact />
+            <Markdown v-if="shownReasoning.trim()" class="reasoning-markdown" :content="shownReasoning" :final="!streaming" compact />
             <p v-else class="reasoning-placeholder">正在整理思路…</p>
           </div>
         </div>

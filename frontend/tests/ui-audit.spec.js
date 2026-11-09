@@ -65,7 +65,8 @@ test('empty chat and drawer, accessible navigation and unsupported capabilities'
   const general = page.getByRole('button', { name: /通用/ })
   await expect(general).toBeVisible()
   await expect(general).toBeEnabled()
-  if (testInfo.project.name === 'desktop') await expect(page.getByRole('button', { name: /工具管理/ })).toBeEnabled()
+  // 工具权限已经移入输入区，设置首页不该再有这个入口。
+  await expect(page.getByRole('button', { name: /工具管理/ })).toHaveCount(0)
   await screenshot(page, testInfo, 'settings')
   await general.click()
   await expect(page.getByRole('heading', { name: '通用', exact: true, level: 1 })).toBeVisible()
@@ -370,6 +371,34 @@ test('reasoning stays collapsed after the llm finishes', async ({ page }) => {
   const collapse = page.locator('.cot-step--reasoning .cot-collapse')
   await expect.poll(async () => Math.round(await collapse.evaluate(element => element.getBoundingClientRect().height))).toBe(0)
   await expect(page.locator('.cot-step--tool')).toHaveCount(1)
+})
+
+test('parallel running tools stay open until they finish', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('并行执行')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await mock.emit('session-1', [
+    { type: 'agent-start' },
+    { type: 'tool-call', toolCallId: 'parallel-1', toolName: 'execute_command', input: { command: 'sleep 1' } },
+    { type: 'tool-call', toolCallId: 'parallel-2', toolName: 'read_file', input: { path: 'a.txt' } },
+  ])
+  const tools = page.locator('.cot-step--tool')
+  await page.locator('.process-fold__head').first().click()
+  await expect(tools).toHaveCount(2)
+  await expect(tools.nth(1)).toHaveClass(/is-open/)
+  await expect(tools.nth(1)).toContainText('正在执行')
+  await expect(tools.nth(0)).toHaveClass(/is-open/)
+
+  await mock.emit('session-1', [
+    { type: 'tool-result', toolCallId: 'parallel-1', toolName: 'execute_command', output: { type: 'text', value: 'done' } },
+  ])
+  // 工具完成但下一次流式内容还没到：已完成的结果仍然保留。
+  await expect(tools.nth(0)).toHaveClass(/is-open/)
+
+  await mock.emit('session-1', [{ type: 'text-delta', text: '继续处理' }])
+  await expect(tools.nth(0)).not.toHaveClass(/is-open/)
 })
 
 test('tool row keeps declared metadata and shows generic input and output', async ({ page }, testInfo) => {
@@ -796,6 +825,49 @@ test('composer expand keeps the draft', async ({ page }, testInfo) => {
   await collapse.click()
   await expect(page.locator('.chat-composer')).not.toHaveClass(/is-expanded/)
   await expect(editor).toHaveValue('全屏里修改')
+})
+
+test('composer draft text and images survive reload per session', async ({ page }) => {
+  const mock = await backend(page)
+  const now = Date.now()
+  mock.sessions.set('draft-a', {
+    id: 'draft-a', title: '草稿 A', provider: 'Test Provider', model: 'test-model',
+    history: [{ messageId: 'a-u1', id: 'a-u1', role: 'user', content: '历史 A' }],
+    createdAt: now, updatedAt: now, settings: { reasoning: 'auto' }, todos: [], running: false, pending: [], undoable: 0,
+  })
+  mock.sessions.set('draft-b', {
+    id: 'draft-b', title: '草稿 B', provider: 'Test Provider', model: 'test-model',
+    history: [{ messageId: 'b-u1', id: 'b-u1', role: 'user', content: '历史 B' }],
+    createdAt: now, updatedAt: now, settings: { reasoning: 'auto' }, todos: [], running: false, pending: [], undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '草稿 A', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  const editor = page.getByRole('textbox', { name: '消息', exact: true })
+  await editor.fill('会话 A 的未发送草稿')
+
+  await openDrawer(page)
+  await page.getByRole('button', { name: '草稿 B', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await editor.fill('会话 B 的未发送草稿')
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'draft.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  })
+  await expect(page.locator('.chat-composer__image-thumb')).toHaveCount(1)
+  await page.waitForTimeout(400)
+
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('会话 B 的未发送草稿')
+  await expect(page.locator('.chat-composer__image-thumb')).toHaveCount(1)
+
+  await openDrawer(page)
+  await page.getByRole('button', { name: '草稿 A', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '项目与会话' })).toBeHidden()
+  await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('会话 A 的未发送草稿')
+  await expect(page.locator('.chat-composer__image-thumb')).toHaveCount(0)
 })
 
 test('reconnecting covers the composer with a status overlay', async ({ page }) => {
@@ -1890,49 +1962,90 @@ test('tool permissions save and MCP settings remain available', async ({ page },
   await page.goto('/')
   await navigate(page, '设置')
 
-  await page.getByRole('button', { name: /工具管理/ }).click()
-  await expect(page.getByText('读取文件', { exact: true })).toBeVisible()
-  await expect(page.getByText('执行命令', { exact: true })).toBeVisible()
-  // 每个工具和全局默认动作都是四选一，不再只有开关。
-  await expect(page.getByRole('radio')).toHaveCount(0)
-  await expect(page.getByText('禁止调用')).toHaveCount(0)
-  await expect(page.getByRole('combobox', { name: '默认动作' })).toBeVisible()
-  await screenshot(page, testInfo, 'settings-tools')
+  // 工具权限已经移到输入区；设置页不应再有这个入口。
+  await expect(page.getByRole('button', { name: /工具管理/ })).toHaveCount(0)
+  await screenshot(page, testInfo, 'settings-without-tools')
 
-  const readPermission = page.getByRole('combobox', { name: '读取文件 权限' })
+  // 入口在「模型与推理」旁边。
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await navigate(page, '新建对话')
+  const toolsTrigger = page.getByRole('button', { name: /工具权限/ })
+  await expect(toolsTrigger).toBeVisible()
+  await toolsTrigger.click()
+
+  const dialog = page.getByRole('dialog', { name: '工具权限' })
+  await expect(dialog).toBeVisible()
+  // 动作是四选一下拉框，不再是开关。
+  await expect(dialog.getByRole('switch')).toHaveCount(0)
+  await screenshot(page, testInfo, 'composer-tools-open')
+
+  const defaultAction = dialog.getByRole('combobox', { name: '默认动作' })
+  const readPermission = dialog.getByRole('combobox', { name: '读取文件 权限' })
+  const commandPermission = dialog.getByRole('combobox', { name: '执行命令 权限' })
+  await expect(defaultAction).toContainText('每次询问')
+  await expect(readPermission).toContainText('每次询问')
+
   await readPermission.click()
   await page.getByRole('option', { name: '直接执行' }).click()
   await expect.poll(() => mock.config().permission.read_file).toBe('allow')
 
-  const commandPermission = page.getByRole('combobox', { name: '执行命令 权限' })
   await commandPermission.click()
   await page.getByRole('option', { name: '直接执行' }).click()
   await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
 
+  // 单个工具可以单独选 AI 审核。
   await readPermission.click()
-  await page.getByRole('option', { name: '每次询问' }).click()
-  await expect.poll(() => mock.config().permission.read_file).toBe('ask')
+  await page.getByRole('option', { name: 'AI 审核' }).click()
+  await expect.poll(() => mock.config().permission.read_file).toBe('review')
+  await expect(readPermission).toContainText('AI 审核')
 
-  const defaultAction = page.getByRole('combobox', { name: '默认动作' })
+  // 默认动作只写全局 *，不把每个工具已经记住的规则清掉或改写。
   await defaultAction.click()
   await page.getByRole('option', { name: '全部批准' }).click()
   await expect.poll(() => mock.config().permission['*']).toBe('allow')
-  // 全局动作只写 *，不把每个工具已经记住的规则清掉或改写。
-  await expect.poll(() => mock.config().permission.read_file).toBe('ask')
+  await expect.poll(() => mock.config().permission.read_file).toBe('review')
   expect(mock.config().permission.write_file).toBeUndefined()
   await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
 
+  // 全局开着时审批层会把工具的 ask / review 盖过去，下拉框必须显示实际生效的动作。
+  await expect(readPermission).toContainText('直接执行')
+  await expect(commandPermission).toContainText('直接执行')
+  await expect(toolsTrigger).toHaveAttribute('aria-label', '工具权限（5/5 自动执行）')
+
+  // 全局开着时单独改成询问：必须一并撤掉全局，否则这一下在审批层里没有效果。
+  await readPermission.click()
+  await page.getByRole('option', { name: '每次询问' }).click()
+  await expect.poll(() => mock.config().permission.read_file).toBe('ask')
+  await expect.poll(() => mock.config().permission['*']).toBe('ask')
+  await expect(readPermission).toContainText('每次询问')
+  // 其余工具此刻原本就是开着的，撤掉全局后要在规则里留个底，不能跟着一起灭掉。
+  await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
+  await expect(commandPermission).toContainText('直接执行')
+  await expect(toolsTrigger).toHaveAttribute('aria-label', '工具权限（4/5 自动执行）')
+
+  // 默认动作可以整体切到 AI 审核；已有 allow 的工具不受影响。
   await defaultAction.click()
   await page.getByRole('option', { name: '全部 AI 审核' }).click()
   await expect.poll(() => mock.config().permission['*']).toBe('review')
+  await expect(defaultAction).toContainText('全部 AI 审核')
+  await expect(commandPermission).toContainText('直接执行')
+  await expect(readPermission).toContainText('每次询问')
+
+  await defaultAction.click()
+  await page.getByRole('option', { name: '全部拒绝' }).click()
+  await expect.poll(() => mock.config().permission['*']).toBe('deny')
 
   await defaultAction.click()
   await page.getByRole('option', { name: '每次询问' }).click()
   await expect.poll(() => mock.config().permission['*']).toBe('ask')
-  await expect.poll(() => mock.config().permission.read_file).toBe('ask')
-  await expect.poll(() => mock.config().permission.execute_command).toEqual({ '*': 'allow' })
 
-  await page.getByRole('button', { name: '返回', exact: true }).click()
+  // 关掉小窗再截图，避免截图里只有弹层看不到入口按钮本身。
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await screenshot(page, testInfo, 'composer-tools')
+
+  // 这里已经在聊天页，没有「返回」；直接用抽屉进设置。
+  await navigate(page, '设置')
   await page.getByRole('button', { name: /MCP 服务/ }).click()
   await expect(page.getByRole('button', { name: /^sample/ })).toBeVisible()
   await screenshot(page, testInfo, 'settings-mcp')
@@ -2111,7 +2224,7 @@ test('narrow composer keeps model and reasoning controls visible', async ({ page
   expect(await options.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
   const trigger = page.getByRole('button', { name: /模型与推理（当前 test-model/ })
   await expect(trigger).toBeVisible()
-  await expect(page.getByRole('button', { name: '工具权限' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /工具权限（/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /切换智能体/ })).toHaveCount(0)
   await trigger.click()
   const menu = page.getByRole('menu', { name: '模型与推理' })
@@ -2676,14 +2789,8 @@ test('narrow settings keep controls readable and inside the screen', async ({ pa
   await page.goto('/')
   await navigate(page, '设置')
   await page.waitForTimeout(500)
-  await page.getByRole('button', { name: /工具管理/ }).click()
-  await expect(page.getByRole('heading', { name: '工具管理', exact: true, level: 1 })).toBeVisible()
-  const toolsOverflow = await page.locator('.settings-screen:not([inert]) .settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)
-  expect(toolsOverflow).toBeLessThanOrEqual(1)
 
-  // 提示词多行输入不能把设置卡片撑出 320px 屏幕。
-  await page.getByRole('button', { name: '返回', exact: true }).click()
-  await page.waitForTimeout(400)
+  // 输入区的工具权限小窗在窄屏也要落在屏幕内；设置页已经不再有工具管理页。
   await page.getByRole('button', { name: /系统提示词/ }).click()
   await expect(page.getByRole('heading', { name: '系统提示词', exact: true, level: 1 })).toBeVisible()
   const overflow = await page.locator('.settings-screen:not([inert]) .settings-scroll').evaluate(element => element.scrollWidth - element.clientWidth)

@@ -68,8 +68,13 @@ app.onError(({ error, set, code }) => {
 
 // --- 入参形状：会话编号是所有会话路由的必备路径参数 ---
 // 只校形状，不做业务判断（会话在不在、目录存不存在仍由指令层检查）：
-// 形状不对在进 handler 之前就返回 422，不用每个 command 各自记得写类型检查。
+// 形状不对在进 handler 之前就返回 400，不用每个 command 各自记得写类型检查。
 const SessionParams = t.Object({ sessionId: t.String() })
+const MessagePart = t.Object({
+    type: t.String(),
+    text: t.Optional(t.String()),
+    image: t.Optional(t.String()),
+})
 
 // --- 服务状态 ---
 app.get('/health', async () => ({
@@ -117,7 +122,8 @@ app.group('/skill', skill => skill
 app.group('/agent', agent => agent
     .post('/send/:sessionId', ({ params, body }) => Chat.send({ ...params, ...body }), {
         params: SessionParams,
-        body: t.Object({ input: t.String() }),
+        // 正文可以是纯字符串，也可以是带图片的内容块数组；具体图片校验在 Chat.normalizeInput。
+        body: t.Object({ input: t.Union([t.String(), t.Array(MessagePart)]) }),
     })
     .post('/resume/:sessionId', ({ params }) => Chat.resume(params), { params: SessionParams })
     .post('/stop/:sessionId', ({ params, body }) => Chat.stop({ ...params, ...(body || {}) }), { params: SessionParams })
@@ -136,11 +142,20 @@ app.group('/session', session => session
         body: t.Object({ title: t.String(), cwd: t.Optional(t.String()), provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
     })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
-    .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .get('/read/:sessionId', ({ params, query }) => Session.read({
+        ...params,
+        historyLimit: query.historyLimit === undefined ? undefined : Number(query.historyLimit),
+        historyStart: query.historyStart === undefined ? undefined : Number(query.historyStart),
+    }))
     .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
         ...params,
         before: query.before === undefined ? undefined : Number(query.before),
         beforeOffset: query.beforeOffset === undefined ? undefined : Number(query.beforeOffset),
+        limit: query.limit === undefined ? undefined : Number(query.limit),
+    }))
+    .get('/search/:sessionId', ({ params, query }) => Session.searchHistory({
+        ...params,
+        query: query.q,
         limit: query.limit === undefined ? undefined : Number(query.limit),
     }))
     .get('/outline/:sessionId', ({ params }) => Session.historyOutline(params))

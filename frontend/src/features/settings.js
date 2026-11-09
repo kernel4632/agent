@@ -36,7 +36,7 @@ async function load() {
   }
 }
 
-// --- 工具权限只从当前后端的完整工具目录读取 ---
+// --- 工具目录：输入区的工具权限小窗和工具结果渲染共用这一份 ---
 function toolSettingsFor(catalog) {
   const tools = catalog
       .filter(tool => tool.configurable !== false)
@@ -47,8 +47,7 @@ function toolSettingsFor(catalog) {
         kindLabel: tool.kindLabel || tool.kind,
         kindHint: tool.kindHint || '',
         permission: tool.permission,
-        original: tool.permission,
-        // 工具脚本声明的渲染信息；设置页保存时不会把它写回 permission。
+        // 工具脚本声明的渲染信息；保存配置时不会把它写回 permission。
         ui: tool.ui && typeof tool.ui === 'object' && !Array.isArray(tool.ui) ? tool.ui : null,
       }))
   return { toolCatalog: catalog, tools }
@@ -118,9 +117,6 @@ function backendSnapshot(draft) {
     compact: draft.compact,
     mcp: draft.mcp,
     review: draft.review,
-    // original 只用来判断“这一项改过没有”，不是后端字段。
-    tools: (draft.tools || []).map(({ original, ...tool }) => tool),
-    defaultAction: draft.defaultAction || 'ask',
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -164,18 +160,14 @@ function open() {
     models: provider.models,
   }))
 
-  const globalAction = (store.config.raw?.permission || {})['*']
   store.settings.draft = isolateDraft({
     providers,
-    tools: store.config.tools,
     mcp: store.config.mcp,
     prompt: store.config.prompt,
     models: store.config.models,
     compact: store.config.compact,
     review: store.config.review,
     appearance: store.config.appearance,
-    // 全局默认动作；配置里没有时就是 ask。
-    defaultAction: ['allow', 'review', 'ask', 'deny'].includes(globalAction) ? globalAction : 'ask',
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
 }
@@ -191,23 +183,12 @@ function persist(options = {}) {
   return result
 }
 
-// --- 工具开关写回 permission；只写用户真的改过的那几个，对象规则里的参数模式保留 ---
-function permissionPayload(draft) {
-  const permission = { ...(store.config.raw?.permission || {}) }
-  for (const tool of draft.tools || []) {
-    if (tool.original !== undefined && tool.permission === tool.original) continue
-    const current = permission[tool.name]
-    if (current && typeof current === 'object' && !Array.isArray(current)) {
-      permission[tool.name] = { ...current, '*': tool.permission }
-    } else {
-      permission[tool.name] = tool.permission
-    }
-  }
-  // 全局默认动作只动 *。不改写每个工具已经记住的允许、审核或拒绝，避免下拉框来回切把规则清掉。
-  const savedDefault = (store.config.raw?.permission || {})['*'] || 'ask'
-  const desired = draft.defaultAction || 'ask'
-  if (desired !== savedDefault) permission['*'] = desired
-  return permission
+// --- 权限不在这里改 ---
+// 工具权限在输入区（ComposerTools）直接读写，不走设置页的草稿。
+// 设置页保存时把当前权限整份原样带回去，保证 PATCH /config/set 的整份替换
+// 不会把输入区刚改的权限抹掉。
+function permissionPayload() {
+  return { ...(store.config.raw?.permission || {}) }
 }
 
 // --- MCP 数组转回后端认的对象：键是服务名；远程服务存 url，本地服务存 command ---
@@ -233,7 +214,7 @@ function configPayload(draft) {
   return {
     providers: providerPayload(draft),
     mcp: mcpPayload(draft),
-    permission: permissionPayload(draft),
+    permission: permissionPayload(),
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
     models: draft.models,
     compact: draft.compact,
@@ -262,8 +243,6 @@ async function doPersist({ keepDraft = false, silent = false } = {}) {
     store.config.appearance = isolateDraft(draft.appearance)
     Appearance.save(draft.appearance)
     if (!await load()) throw new Error('设置已发送，但重新读取失败。请重试连接以确认保存状态。')
-    // 保存成功后，草稿里的“已保存值”跟着前进，改回旧值也要写回后端。
-    for (const tool of draft.tools || []) tool.original = tool.permission
     store.settings.savedAt = Date.now()
     initialBackendDraft = backendSnapshot(draft)
     lastAutoSaveError = ''

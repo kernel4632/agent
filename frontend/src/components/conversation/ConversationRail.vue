@@ -8,10 +8,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { groupMessageTurns, isFinishedStopTool } from "../../features/turns.js"
 import { outputText } from "../../utils/tool.js"
-import { renderMarkdown } from "../../utils/markdown.js"
+import { AgentAPI } from "../../utils/api.js"
+import { Notice } from "../../utils/notice.js"
+import Markdown from '../../ui/Markdown.vue'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
+  sessionId: { type: String, default: '' },
   scrollRoot: { type: Object, default: null },
 })
 const emit = defineEmits(['jump'])
@@ -56,7 +59,40 @@ const answerOf = turn => {
   const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
   return String(outputText(stopTool) || '').replace(/\s+/g, ' ').trim()
 }
+// 定位条不能只依赖首屏窗口里的消息；否则加了历史分页后刻度会只剩最近几条。
+// 大纲接口返回全会话轮次，滚动仍然只渲染可见刻度。
+const outline = ref([])
+let outlineTimer = 0
+async function refreshOutline() {
+  if (!props.sessionId) return
+  try {
+    const data = await AgentAPI.getSessionOutline(props.sessionId)
+    outline.value = Array.isArray(data?.turns) ? data.turns : []
+  } catch (error) {
+    Notice.show(error.message)
+  }
+}
+watch(() => props.sessionId, () => { void refreshOutline() }, { immediate: true })
+watch(() => props.messages.length, () => {
+  if (outlineTimer) window.clearTimeout(outlineTimer)
+  outlineTimer = window.setTimeout(() => { void refreshOutline() }, 800)
+})
+
 const nodes = computed(() => {
+  if (outline.value.length) {
+    return outline.value.map(turn => {
+      const prompt = String(turn.prompt || '')
+      const response = String(turn.response || '')
+      return {
+        id: turn.id,
+        index: turn.index,
+        length: prompt.length + response.length,
+        prompt,
+        response,
+        title: `${turn.role === 'user' ? '你' : '回答'}：${prompt || response}`.slice(0, 120),
+      }
+    })
+  }
   const turns = groupMessageTurns(props.messages).filter(turn => !turn.messages[0].compact)
   const merged = []
   for (let index = 0; index < turns.length; index += 1) {
@@ -104,8 +140,6 @@ const activeIndex = computed(() => {
 })
 const activeNode = computed(() => nodes.value[activeIndex.value] || null)
 const hoverNode = computed(() => nodes.value[hoverIndex.value] || null)
-const previewPrompt = computed(() => hoverNode.value?.prompt ? renderMarkdown(hoverNode.value.prompt) : '')
-const previewResponse = computed(() => hoverNode.value?.response ? renderMarkdown(hoverNode.value.response) : '')
 const ariaValue = computed(() => activeIndex.value + 1)
 
 const markTop = index => INSET + index * PITCH
@@ -208,7 +242,7 @@ function selectIndex(index) {
     frameTimer = 0
     const node = nodes.value[pendingIndex]
     pendingIndex = -1
-    if (node) emit('jump', node.id)
+    if (node) emit('jump', node)
   })
 }
 
@@ -291,6 +325,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (outlineTimer) window.clearTimeout(outlineTimer)
   scrollParent?.removeEventListener('scroll', syncFromScroll)
   scrollParent?.removeEventListener('wheel', releaseActive)
   scrollParent?.removeEventListener('touchstart', releaseActive)
@@ -337,8 +372,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">
-        <span v-if="previewPrompt" class="conversation-rail__preview-prompt"><span class="conversation-rail__preview-body" v-html="previewPrompt"></span></span>
-        <span v-if="previewResponse" class="conversation-rail__preview-response"><span class="conversation-rail__preview-body" v-html="previewResponse"></span></span>
+        <Markdown v-if="hoverNode.prompt" class="conversation-rail__preview-prompt" :content="hoverNode.prompt" compact />
+        <Markdown v-if="hoverNode.response" class="conversation-rail__preview-response" :content="hoverNode.response" compact />
       </span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>

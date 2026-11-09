@@ -21,6 +21,7 @@ import { openSync, closeSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { execSync } from 'node:child_process'
 import Path from './path.js'
+import { parse, executable } from './command.js'
 
 // 运行中的进程表：id → { child, fd, logFile, command, cwd, startedAt }。不能进 store，重启即清。
 const running = new Map()
@@ -40,6 +41,25 @@ const killTree = pid => {
     } catch { /* 进程已经自己退了，不算失败 */ }
 }
 
+// --- 决定一条命令怎么起：直接起进程，还是交给 shell ---
+// 能直接起就直起：参数原样交给系统，带空格的参数不会被劈成两个。
+// 只有真需要 shell 语法（管道、重定向、变量、通配……）或首词不是可执行文件时才退回去。
+const plan = (command, workdir) => {
+    const windows = process.platform === 'win32'
+    const parsed = parse(command, { windows })
+    const shellFallback = () => ({
+        cmd: windows ? ['cmd.exe', '/d', '/s', '/c', command] : ['sh', '-c', command],
+        direct: false,
+    })
+
+    // 解析失败（引号未闭合）或含 shell 专属语法：交给 shell，行为和改动前一致。
+    if (!parsed.ok || parsed.needsShell) return shellFallback()
+    if (!parsed.argv.length) return shellFallback()
+    // 首词不是能直接起的可执行文件：可能是 shell 内建（echo、cd、dir）或要 shell 自己报的错。
+    if (!executable(parsed.argv[0], { cwd: workdir })) return shellFallback()
+    return { cmd: parsed.argv, direct: true }
+}
+
 // --- 起一个进程并登记进进程表，stdout/stderr 都写日志文件 ---
 // 前台和后台共用这一个入口。
 const spawnTracked = async ({ command, workdir }) => {
@@ -47,16 +67,15 @@ const spawnTracked = async ({ command, workdir }) => {
     await mkdir(Path.processes(), { recursive: true })
     const logFile = join(Path.processes(), `${id}.log`)
     const fd = openSync(logFile, 'a')                                // 子进程直接写这个文件，输出实时可见
+    const decided = plan(command, workdir)
     const child = Bun.spawn({
-        cmd: process.platform === 'win32'
-            ? ['cmd.exe', '/d', '/s', '/c', command]
-            : ['sh', '-c', command],
+        cmd: decided.cmd,
         cwd: workdir,
         detached: process.platform !== 'win32',
         stdout: fd,
         stderr: fd,
     })
-    const entry = { child, fd, logFile, command, cwd: workdir, startedAt: Date.now() }
+    const entry = { child, fd, logFile, command, cwd: workdir, startedAt: Date.now(), direct: decided.direct }
     running.set(id, entry)
     // 进程退了自己关掉句柄；不清表——list 还要能看最后一眼退出码。
     child.exited.then(() => {

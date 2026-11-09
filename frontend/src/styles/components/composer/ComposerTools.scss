@@ -1,0 +1,107 @@
+/* ComposerTools.vue：输入区的工具权限小窗。默认动作和每个工具各一个下拉框。 */
+.composer-tools { display: inline-flex; }
+
+/* 入口按钮：和「模型与推理」同一档视觉重量，不抢镜。 */
+.composer-tools__trigger {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--la-secondary);
+  cursor: pointer;
+}
+.composer-tools__trigger:hover,
+.composer-tools__trigger[aria-expanded='true'] { background: var(--la-hover); color: var(--la-text); }
+.composer-tools__count { font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+
+/* 小窗：宽度按内容定，一行一个工具。 */
+.composer-tools__popup {
+  position: fixed;
+  inset: auto;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--la-line);
+  border-radius: var(--la-radius-panel);
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  box-shadow: var(--la-shadow-floating);
+}
+
+.composer-tools__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.composer-tools__title {
+  margin: 0;
+  color: var(--la-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 默认动作和工具各占一行：左边名称，右边动作下拉。 */
+.composer-tools__list { display: grid; gap: 6px; }
+.composer-tools__row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+}
+.composer-tools__row--default {
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--la-line);
+}
+.composer-tools__row--default .composer-tools__name { color: var(--la-text); font-weight: 600; }
+
+.composer-tools__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--la-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Select 默认是设置页的整行尺寸；这里收成小窗里的一行下拉，不能撑满整行。 */
+.composer-tools__select {
+  flex: none;
+  width: auto;
+  min-width: 132px;
+  max-width: 62%;
+}
+.composer-tools__select :deep(.ui-select__trigger) {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: var(--la-shape-sm);
+  font-size: 12px;
+}
+.composer-tools__select :deep(.ui-select__trigger svg) { width: 16px; height: 16px; }
+
+.composer-tools__empty,
+.composer-tools__hint {
+  margin: 10px 0 0;
+  color: var(--la-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+.composer-tools__empty { margin-top: 0; }
+
+/* 窄屏：小窗只缩宽度，行内名称过长时省略。 */
+@media (max-width: 480px) {
+  .composer-tools__popup { width: calc(100vw - 32px); }
+  .composer-tools__select { min-width: 120px; }
+}

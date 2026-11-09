@@ -14,6 +14,7 @@ import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from '../utils/notice.js' // 操作完成或失败的反馈
 import { formatToolOutput, toolStatus, outputText, subagentSteps } from '../utils/tool.js' // 历史和实时事件共用工具解释
 import { requestFromUsage } from '../utils/usage.js' // 请求统计统一投影
+import { ComposerDraft } from './composer-draft.js'
 import { DEFAULT_CONTEXT, NEW_SESSION_TITLE } from '../defaults.js' // 默认上下文与默认标题
 
 function partList(item) {
@@ -190,6 +191,8 @@ function normalize(source, previous = {}) {
     messages,                                            // 使用合并后的可见消息
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
+    draftLoaded: previous.draftLoaded || false,           // 是否已从本地 IndexedDB 恢复过
+    streamRevision: previous.streamRevision || 0,         // 全会话流式内容序号，工具折叠用
     contextTokens: lastRequest?.input || previous.contextTokens || 0, // 最后一次请求的提示词 token 就是上下文占用
     contextLimit: store.config.providers[provider]?.models.find(model => model.id === source.model)?.context || DEFAULT_CONTEXT,
     inputTokens: requests.length ? sum('input') : previous.inputTokens || 0,       // 历史里的累计输入
@@ -207,7 +210,7 @@ function summaryOf(session) {
     title: session.title || NEW_SESSION_TITLE,           // 列表显示标题，空标题使用默认文案
     model: session.model,                                // 当前使用模型
     status: session.status,                              // 运行或空闲状态
-    messageCount: session.messages.length,               // 消息数量用于列表摘要展示
+    messageCount: Number.isInteger(session.historyTotal) ? session.historyTotal : session.messages.length, // 窗口加载后仍保留全量消息数
     createdAt: session.createdAt,                        // 创建时间
     updatedAt: session.updatedAt,                        // 最近更新时间
     lastActiveAt: session.lastActiveAt,                  // 最近活跃时间
@@ -220,11 +223,14 @@ function syncSummary(session) {
   Object.assign(found, summaryOf(session))               // 将最新标题、状态、计数和时间写回列表
 }
 
-/** 读取后端真实历史，保留当前草稿、附件和连接状态。 */
+/** 读取后端真实历史，首屏只取最近一页，向上滚动时再补旧消息。 */
+const HISTORY_WINDOW = 200
+// 临时远跳前保存当前最近窗口；滚回底部时同步换回来，避免再请求一页造成高度闪烁。
+const recentViews = new Map()
 async function refresh(id) {
   const settingsAtStart = store.sessions[id]?.settings // 记住本次读取开始时的设置引用
   const revisionAtStart = store.sessions[id]?.eventRevision || 0
-  const source = await AgentAPI.getSession(id)
+  const source = await AgentAPI.getSession(id, { historyLimit: HISTORY_WINDOW })
   const current = store.sessions[id]
   const session = normalize(source, current)
   // 在 GET 途中完成的用户修改比这个快照更新，不能用旧快照覆盖。
@@ -236,9 +242,143 @@ async function refresh(id) {
     session.status = current.status
     session.eventRevision = current.eventRevision
   }
+  // 刷新窗口只包含最近一页；已经补进内存的更早历史不能被丢掉。
+  if (current && !current.temporaryHistory && Number.isInteger(current.historyStart)
+    && Number.isInteger(source.historyStart)
+    && current.historyStart < source.historyStart
+    && current.messages.length) {
+    const incoming = new Set(session.messages.map(message => message.id))
+    const older = current.messages.filter(message => !incoming.has(message.id)
+      && !String(message.id).startsWith('pending_')
+      && !String(message.id).startsWith('error_'))
+    if (older.length) {
+      session.messages = [...older, ...session.messages]
+      session.historyStart = current.historyStart
+    }
+  }
+  session.temporaryHistory = false
+  recentViews.delete(id)
+  // 首次打开时从本地草稿库恢复；已有内存会话不重复读，避免覆盖正在输入的内容。
+  if (!current) await ComposerDraft.hydrate(session)
   store.sessions[id] = session
   syncSummary(session)
   return session
+}
+
+/** 临时从指定位置加载到最新：定位条远跳时用，前后都留一点上下文。 */
+const LOAD_CONTEXT = 120
+async function loadFrom(id, index) {
+  const session = store.sessions[id]
+  if (!session || !Number.isInteger(index) || index < 0) return false
+  const recent = session.temporaryHistory ? null : {
+    messages: session.messages,
+    historyStart: session.historyStart,
+    historyTotal: session.historyTotal,
+  }
+  try {
+    const start = Math.max(0, index - LOAD_CONTEXT)
+    const source = await AgentAPI.getSession(id, { historyStart: start })
+    const current = store.sessions[id]
+    const next = normalize(source, current)
+    next.historyStart = Number(source.historyStart) || 0
+    next.historyTotal = Number(source.historyTotal) || next.historyStart + next.messages.length
+    next.temporaryHistory = true
+    if (recent) recentViews.set(id, recent)
+    store.sessions[id] = next
+    syncSummary(next)
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
+  }
+}
+
+/** 把临时视图同步换回离开前的最近窗口；返回 false 时才回退到网络刷新。 */
+function restoreRecent(id) {
+  const session = store.sessions[id]
+  const recent = recentViews.get(id)
+  if (!session || !recent) return false
+  session.messages = recent.messages
+  session.historyStart = recent.historyStart
+  session.historyTotal = recent.historyTotal
+  session.temporaryHistory = false
+  recentViews.delete(id)
+  syncSummary(session)
+  return true
+}
+
+/** 临时打开一段早期历史：定位条点得再远也能先加载目标附近再跳过去。 */
+async function loadAround(id, index) {
+  const session = store.sessions[id]
+  if (!session || !Number.isInteger(index) || index < 0) return false
+  try {
+    const total = Number(session.historyTotal || 0)
+    const before = Math.max(0, Math.min(total || index + 120, index + 120))
+    const page = await AgentAPI.getSessionHistory(id, before, 200)
+    if (!page?.messages?.length) return false
+    const source = {
+      id: session.id,
+      title: session.title,
+      cwd: session.cwd,
+      temporary: session.temporary,
+      provider: session.provider,
+      model: session.model,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      settings: session.settings,
+      history: page.messages,
+      toolTimings: session.toolTimings || {},
+      running: false,
+      pending: [],
+    }
+    const next = normalize(source, { settings: session.settings })
+    next.historyStart = page.start
+    next.historyTotal = page.total || session.historyTotal
+    next.temporaryHistory = true
+    store.sessions[id] = next
+    syncSummary(next)
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
+  }
+}
+
+/** 在时间线顶部补一页更早的历史；失败时保持现状。 */
+async function loadOlder(id, limit = HISTORY_WINDOW) {
+  const session = store.sessions[id]
+  if (!session || session.status === 'running') return false
+  if (!Number.isInteger(session.historyStart) || session.historyStart <= 0) return false
+  try {
+    const page = await AgentAPI.getSessionHistory(id, session.historyStart, limit)
+    if (!page?.messages?.length || page.start >= session.historyStart) return false
+    const source = {
+      id: session.id,
+      title: session.title,
+      cwd: session.cwd,
+      temporary: session.temporary,
+      provider: session.provider,
+      model: session.model,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      settings: session.settings,
+      history: page.messages,
+      toolTimings: session.toolTimings || {},
+      running: false,
+      pending: [],
+    }
+    const older = normalize(source, { settings: session.settings }).messages
+    const known = new Set(session.messages.map(message => message.id))
+    const fresh = older.filter(message => !known.has(message.id))
+    session.historyStart = page.start
+    session.historyTotal = page.total || session.historyTotal
+    if (!fresh.length) return false
+    session.messages = [...fresh, ...session.messages]
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
+  }
 }
 
 async function previewRollback(sessionID, messageID) {
@@ -293,6 +433,7 @@ async function fork(id, messageId) {
 /** 把后端返回的会话数据归一化并登记：目录有就更新摘要，没有就排到列表首位。 */
 function admit(source) {
   const session = normalize(source, store.sessions[source.id])
+  session.draftLoaded = true // 新会话没有历史草稿，后续输入可以直接持久化
   store.sessions[session.id] = session
   const found = store.sessionList.find(item => item.id === session.id)
   if (found) Object.assign(found, summaryOf(session))
@@ -300,4 +441,4 @@ function admit(source) {
   return session
 }
 
-export const History = { normalize, admit, refresh, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }
+export const History = { normalize, admit, refresh, loadOlder, loadFrom, loadAround, restoreRecent, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }

@@ -9,10 +9,11 @@
   const copy = await TempWorkspace.clone(sourceCwd)
 */
 
-import { access, cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import Path from './path.js'
+import Fs from './fs.js'
 
 const PREFIX = 'session-'
 const testing = process.env.NODE_ENV === 'test'
@@ -27,9 +28,7 @@ const base = () => {
     return join(tmpdir(), 'agent')
 }
 
-const exists = async path => {
-    try { await access(path); return true } catch { return false }
-}
+const exists = Fs.exists
 
 const managed = path => {
     const target = resolve(String(path || ''))

@@ -18,6 +18,7 @@ import { canContinueSession } from "../features/turns.js"
 import { Navigation } from '../commands/navigation.js'
 import { latestTodos } from "../utils/tool.js"
 import { sessionStats } from "../features/stats.js"
+import { ComposerDraft } from "../features/composer-draft.js"
 import { savePath } from '../utils/session-view.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
@@ -34,7 +35,16 @@ const conversationScroll = ref(null)
 const showReconnect = ref(false)
 let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
-function jumpToMessage(messageId) {
+async function jumpToMessage(target) {
+  const messageId = typeof target === 'string' ? target : target?.id
+  const index = typeof target === 'object' ? target?.index : undefined
+  if (!messageId) return
+  if (props.session && !props.session.messages.some(message => message.id === messageId)) {
+    if (!Number.isInteger(index)) return
+    const loaded = await History.loadFrom(props.session.id, index)
+    if (!loaded) return
+    await nextTick()
+  }
   timeline.value?.jumpToMessage(messageId)
 }
 
@@ -44,6 +54,34 @@ const draft = computed({
 })
 const files = computed(() => props.session?.files || props.files)
 const queued = computed(() => props.session ? (store.ui.queued[props.session.id] || []) : [])
+
+// 每个会话的未发送文字和图片单独持久化；输入变化先防抖，刷新/离开页面时强制落盘。
+const draftTimers = new Map()
+function queueDraftSave(session) {
+  if (!session?.id || !session.draftLoaded) return
+  const id = session.id
+  const value = {
+    text: session.draft || '',
+    files: (session.files || []).map(file => ({ ...file })),
+  }
+  clearTimeout(draftTimers.get(id))
+  draftTimers.set(id, setTimeout(() => {
+    draftTimers.delete(id)
+    void ComposerDraft.save(id, value)
+  }, 180))
+}
+function flushDraftSaves() {
+  for (const [id, timer] of draftTimers) {
+    clearTimeout(timer)
+    const session = store.sessions[id]
+    if (session?.draftLoaded) void ComposerDraft.save(id, { text: session.draft || '', files: session.files || [] })
+  }
+  draftTimers.clear()
+}
+watch([() => props.session?.id, draft, files], () => {
+  if (props.session) queueDraftSave(props.session)
+}, { deep: true })
+window.addEventListener('pagehide', flushDraftSaves)
 const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
 const resumable = computed(() => canContinueSession(props.session))
 const stats = computed(() => props.session ? sessionStats(props.session) : null)
@@ -67,12 +105,20 @@ watch([() => props.session?.connection, () => props.session?.status, () => props
   if (connection === 'reconnecting' && status === 'running' && !pending) reconnectTimer = setTimeout(() => { showReconnect.value = true }, 2000)
   else showReconnect.value = false
 }, { immediate: true })
-onBeforeUnmount(() => clearTimeout(reconnectTimer))
+onBeforeUnmount(() => {
+  clearTimeout(reconnectTimer)
+  flushDraftSaves()
+  window.removeEventListener('pagehide', flushDraftSaves)
+})
 
 async function submit(content) {
   if (props.busy) return
   if (!props.session) { emit('submit', content); return }
   const id = props.session.id
+  if (props.session.temporaryHistory) {
+    History.restoreRecent(id)
+    await nextTick()
+  }
   // 运行中不丢消息：先把文字和附件收进本地队列，等这一轮空闲再发。
   if (props.session.status === 'running' || (store.ui.queued[id] || []).length || props.session.stopping) {
     const item = Chat.enqueue(id, content)
@@ -113,6 +159,7 @@ function chooseReasoning(reasoning) {
         <ConversationRail
           v-if="session"
           :messages="session.messages"
+          :session-id="session.id"
           :scroll-root="conversationScroll"
           @jump="jumpToMessage"
         />
