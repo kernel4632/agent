@@ -131,7 +131,7 @@ export const AgentAPI = {
     }
     return response.blob()
   },
-  // 整份配置使用 providers[].models[]、models.{chat,compact,title,task} 和 compact.threshold。
+  // 整份配置使用 providers[].models[]、models.{chat,compact,title,task}、compact.threshold 和 contextKeep 的四个字段。
   updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
   // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
   testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),

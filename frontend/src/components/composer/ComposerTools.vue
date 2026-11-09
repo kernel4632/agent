@@ -56,14 +56,9 @@ function permissionWith(name, value, from = store.config.raw?.permission || {}) 
 
 async function save(permission) {
   const raw = store.config.raw || {}
-  await AgentAPI.updateConfig({
-    providers: raw.providers || [],
-    mcp: raw.mcp || {},
-    permission,
-    prompt: raw.prompt || { system: '', seeded: true },
-    models: raw.models || {},
-    compact: raw.compact || { threshold: 0.8 },
-  })
+  // PATCH /config/set 是整份替换：把服务端配置原样带回去，只换权限。
+  // 不逐项列字段，配置以后新增字段时这里自动跟上，不会把新字段抹回默认值。
+  await AgentAPI.updateConfig({ ...raw, permission })
   // 就地更新，不重新拉全量配置：小窗关掉再打开时状态要立刻是对的。
   store.config.raw = { ...raw, permission }
   store.config.tools = (store.config.tools || []).map(item => {

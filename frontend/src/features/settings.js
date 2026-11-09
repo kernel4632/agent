@@ -15,7 +15,7 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { Notice } from '../utils/notice.js'
 import { Appearance } from '../utils/appearance.js'
-import { DEFAULT_CONTEXT } from '../defaults.js'
+import { DEFAULT_CONTEXT, DEFAULT_CONTEXT_KEEP } from '../defaults.js'
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -96,6 +96,7 @@ function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
     modelTasks: meta.models,
     models: raw.models,
     compact: raw.compact,
+    contextKeep: raw.contextKeep || { ...DEFAULT_CONTEXT_KEEP },
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     appearance: store.config.appearance,
@@ -114,6 +115,7 @@ function backendSnapshot(draft) {
     prompt: draft.prompt,
     models: draft.models,
     compact: draft.compact,
+    contextKeep: draft.contextKeep,
     mcp: draft.mcp,
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
@@ -164,6 +166,7 @@ function open() {
     prompt: store.config.prompt,
     models: store.config.models,
     compact: store.config.compact,
+    contextKeep: store.config.contextKeep,
     appearance: store.config.appearance,
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
@@ -215,6 +218,7 @@ function configPayload(draft) {
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
     models: draft.models,
     compact: draft.compact,
+    contextKeep: draft.contextKeep,
   }
 }
 

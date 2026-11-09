@@ -21,6 +21,8 @@ export async function backend(page, { configured = true } = {}) {
     providers: configured ? [{ name: 'Test Provider', enabled: true, protocol: 'openai-compatible', stream: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: [{ id: 'test-model', name: 'test-model', context: 64000, capabilities: ['text', 'tools'] }], headers: { 'x-preserve': 'yes' }, body: { temperature: 0.25 } }] : [],
     models: { chat: { provider: configured ? 'Test Provider' : '', model: configured ? 'test-model' : '' }, compact: { provider: '', model: '' }, title: { provider: '', model: '' }, task: { provider: '', model: '' } },
     prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
+    // 和 server/features/config.js 的 normalize 一样：压缩后保留多少原文。
+    contextKeep: { firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 },
     permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
   }
   let backups = []

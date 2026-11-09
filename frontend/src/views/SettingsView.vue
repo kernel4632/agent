@@ -26,7 +26,7 @@ const settingsPages = [
   { id: 'appearance', label: '通用', description: '主题、强调色和界面偏好', icon: 'settings', group: '通用设置', tone: 'primary', component: AppearanceSettings },
   { id: 'providers', label: '模型供应商', description: '连接模型服务并管理可用模型', icon: 'globe', group: '模型与服务', tone: 'primary', component: ProviderList, nested: true },
   { id: 'model', label: '模型', description: '默认模型和任务分工', icon: 'spark', group: '模型与服务', tone: 'primary', component: ModelSettings },
-  { id: 'context', label: '上下文', description: '自动压缩阈值和历史整理', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
+  { id: 'context', label: '上下文', description: '自动压缩阈值和压缩后保留的原文', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptSettings },
   // 工具自动批准不在这里：它是「发这条消息时要不要拦」的临时判断，
   // 放在对话框输入区（ComposerTools），干活时不用离开当前上下文去翻设置。
