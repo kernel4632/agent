@@ -64,21 +64,14 @@
 .rikka-bubble--user { max-width: 100%; }
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-/* 虚拟行：总高度由 TanStack 给出，每行绝对定位，行内的间距算进被测量的高度。 */
-.conversation-flow--virtual {
-  position: relative;
-  display: block;
-  padding: 0;
-}
+/* 已加载轮次全量参与布局；旧历史由 JS 按页补，不再做行级虚拟化。 */
 .conversation-flow__row {
-  position: absolute;
-  top: 0;
-  left: 0;
-  box-sizing: border-box;
+  position: relative;
   width: 100%;
-  padding: 8px var(--la-chat-gutter) 12px;
+  min-width: 0;
+  box-sizing: border-box;
 }
-.conversation-flow--virtual .message { width: 100%; }
+.conversation-flow .message { width: 100%; }
 .conversation-latest-layer {
   position: fixed;
   z-index: 4;

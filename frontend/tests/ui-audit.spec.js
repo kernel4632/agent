@@ -636,10 +636,8 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   expect(mock.errors).toEqual([])
 })
 
-// 长会话首屏不能把所有图表一次画完：
-// 图表不再做第二层视口懒加载；虚拟列表只挂载视口附近的轮次，
-// 已挂载轮次里的图立即画，重新滚回来也不会先出现大块空白占位。
-test('long sessions render diagrams only for mounted turns', async ({ page }) => {
+// 长会话全量挂载已加载的轮次；图表不做第二层视口懒加载，滚回来不会先出现空白占位。
+test('long sessions render diagrams for all loaded turns', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -671,13 +669,13 @@ test('long sessions render diagrams only for mounted turns', async ({ page }) =>
   }))
   expect(counts.rendered).toBe(counts.total)
   expect(counts.placeholders).toBe(0)
-  expect(counts.rows).toBeLessThan(60)
+  expect(counts.rows).toBe(60)
   expect(counts.pending).toBe(0)
   expect(mock.errors).toEqual([])
 })
 
-// 长会话由虚拟列表只挂视口附近的轮次；数据始终是完整历史，但没有大块估算占位。
-test('long sessions virtualize turns and keep the scrollbar stable', async ({ page }) => {
+// 长会话全量挂载；分页只影响数据窗口，不在滚动时反复挂载/卸载整轮。
+test('long sessions mount loaded turns and keep the scrollbar stable', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
   await navigate(page, '新建对话')
@@ -711,9 +709,8 @@ test('long sessions virtualize turns and keep the scrollbar stable', async ({ pa
     }
   })
 
-  expect(state.turns).toBeGreaterThan(0)
-  expect(state.turns).toBeLessThan(320)
-  expect(state.nodes).toBeLessThan(4000)
+  expect(state.turns).toBe(320)
+  expect(state.nodes).toBeLessThan(12000)
   expect(state.pending).toBe(0)
   expect(state.scrollHeight).toBeGreaterThan(10000)
   expect(state.atBottom).toBe(true)
@@ -1458,6 +1455,8 @@ test('rail jump keeps the timeline height stable while scrolling', async ({ page
   await page.waitForTimeout(800)
   await rail.press('Home')
   const scroll = page.locator('.session-scroll')
+  // Home 会触发顶部补页，等补页和布局都落定后再看高度是否稳定。
+  await page.waitForTimeout(1200)
   const heights = []
   for (let index = 0; index < 7; index += 1) {
     await page.waitForTimeout(100)
@@ -1468,6 +1467,8 @@ test('rail jump keeps the timeline height stable while scrolling', async ({ page
   await expect(page.locator('.rikka-bubble--user').filter({ hasText: '第 55 轮' })).not.toBeInViewport()
 
   await rail.press('End')
+  // End 落到底后，Markdown/工具卡仍可能补一轮布局，等稳定再取样。
+  await page.waitForTimeout(900)
   const heightsBack = []
   for (let index = 0; index < 7; index += 1) {
     await page.waitForTimeout(100)

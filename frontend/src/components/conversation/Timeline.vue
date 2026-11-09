@@ -1,7 +1,7 @@
 <!--
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
-  用户消息和助手回复按轮排布；虚拟滚动和端锚定由 TanStack Virtual 负责。
+  用户消息和助手回复按轮排布；已加载的轮次全量挂载，旧历史按页补。
   按钮和图标按钮走 ui/；右键直接进聚光引导（MessageActions 内置），回退确认也在同一张卡片里。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
@@ -14,8 +14,7 @@ import { Notice } from "../../utils/notice.js"
 import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from '../../store.js'
 import { groupMessageTurns } from "../../features/turns.js"
 import { isSavedMessage } from "../../features/turns.js"
@@ -50,13 +49,9 @@ const turns = computed(() => {
   turnCache = merged
   return merged
 })
-const turnCount = computed(() => turns.value.length)
-// 只让轮次结构（数量、id）驱动虚拟器配置；正文增长不会重建 options。
-const turnRevision = computed(() => {
-  let signature = `${turns.value.length}:`
-  for (const turn of turns.value) signature += `${turn.id},`
-  return signature
-})
+// 全量挂载：轮次已经是当前历史窗口的边界，虚拟化会把整轮巨型回复反复挂载/测量，
+// 反而比浏览器原生滚动更卡。旧历史仍按页加载，但已加载的轮次不拆。
+const rows = computed(() => turns.value)
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
@@ -64,8 +59,10 @@ const latestPosition = ref({ right: '24px', bottom: '96px' })
 const rollbackTarget = ref(null)
 const rollbackPreview = ref(null)
 const flow = ref(null)
-const scrollElement = shallowRef(null)
 let scrollParent = null
+let contentObserver = null
+let followFrame = 0
+let bottomTimer = 0
 let jumpTimer = 0
 let jumping = false
 let saveTimer = 0
@@ -76,6 +73,25 @@ let resumeFollow = false
 let loadingEarlier = false
 let restoringHistory = false
 
+const maxScrollTop = () => scrollParent ? Math.max(0, scrollParent.scrollHeight - scrollParent.clientHeight) : 0
+const atBottom = (threshold = 8) => Boolean(scrollParent) && maxScrollTop() - scrollParent.scrollTop <= threshold
+
+function scrollToLatest(behavior = 'auto') {
+  if (!scrollParent) return
+  scrollParent.scrollTo({ top: scrollParent.scrollHeight, behavior })
+}
+
+// 流式增长、工具卡展开都只通过 rAF 贴一次底；读者上滚后 following=false，这里不再抢滚动。
+function requestFollow() {
+  if (!following.value || followFrame) return
+  followFrame = requestAnimationFrame(() => {
+    followFrame = 0
+    if (!following.value || !scrollParent) return
+    const max = maxScrollTop()
+    if (max > scrollParent.scrollTop + 1) scrollParent.scrollTop = max
+  })
+}
+
 async function restoreLatestHistory() {
   if (restoringHistory || !scrollParent || !session.value?.temporaryHistory) return
   restoringHistory = true
@@ -83,9 +99,7 @@ async function restoreLatestHistory() {
     const restored = History.restoreRecent(session.value.id)
     if (!restored) await History.refresh(session.value.id)
     await nextTick()
-    // 在浏览器绘制前直接换回最近窗口并贴底，避免中间帧出现旧高度。
-    virtualizer.value.measure()
-    virtualizer.value.scrollToEnd({ behavior: 'auto' })
+    scrollToLatest()
     setFollowing(true)
   } finally {
     restoringHistory = false
@@ -96,66 +110,25 @@ async function loadEarlier() {
   if (loadingEarlier || !scrollParent || !session.value || following.value) return
   if (!Number.isInteger(session.value.historyStart) || session.value.historyStart <= 0) return
   loadingEarlier = true
-  const beforeHeight = scrollParent.scrollHeight
-  const beforeTop = scrollParent.scrollTop
+  const scrollRect = scrollParent.getBoundingClientRect()
+  const anchor = [...scrollParent.querySelectorAll('[data-turn-id]')]
+    .find(element => element.getBoundingClientRect().bottom > scrollRect.top)
+  const anchorId = anchor?.getAttribute('data-turn-id') || ''
+  const anchorTop = anchor ? anchor.getBoundingClientRect().top - scrollRect.top : 0
   try {
     const loaded = await History.loadOlder(session.value.id)
     if (!loaded) return
     await nextTick()
-    requestAnimationFrame(() => {
-      if (!scrollParent) return
-      scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
-    })
+    if (anchorId) {
+      const element = scrollParent.querySelector(`[data-turn-id="${CSS.escape(anchorId)}"]`)
+      if (element) {
+        const currentTop = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
+        scrollParent.scrollTop += currentTop - anchorTop
+      }
+    }
   } finally {
     loadingEarlier = false
   }
-}
-
-// 按轮虚拟化：data 是完整轮次数组，虚拟器只挂载视口附近的行。
-// anchorTo: 'end' + followOnAppend 让贴底时的流式增长和追加都自动保持在末尾，
-// 不再手写 scrollHeight / scrollTop 补偿。
-const getItemKey = index => turns.value[index]?.id ?? index
-const virtualizerOptions = computed(() => {
-  turnRevision.value // 只有轮次结构变化才重新配置虚拟器
-  return {
-    count: turnCount.value,
-    getScrollElement: () => scrollElement.value,
-    estimateSize: () => 220,
-    getItemKey,
-    anchorTo: 'end',
-    followOnAppend: true,
-    scrollEndThreshold: 8,
-    overscan: 6,
-    initialOffset: () => savedView && savedView.pinned === false && Number.isFinite(savedView.top)
-      ? savedView.top
-      : 0,
-  }
-})
-const virtualizer = useVirtualizer(virtualizerOptions)
-const virtualItems = computed(() => virtualizer.value.getVirtualItems())
-const totalSize = computed(() => virtualizer.value.getTotalSize())
-// 虚拟项变化时尽量复用行对象，让已经稳定的历史轮次跳过组件更新。
-let rowCache = new Map()
-const rows = computed(() => {
-  const next = []
-  const seen = new Set()
-  for (const item of virtualItems.value) {
-    const turn = turns.value[item.index]
-    if (!turn) continue
-    const cacheKey = `${item.index}:${item.key}`
-    const previous = rowCache.get(cacheKey)
-    const row = previous && previous.turn === turn && previous.item.start === item.start ? previous : { item, turn }
-    rowCache.set(cacheKey, row)
-    seen.add(cacheKey)
-    next.push(row)
-  }
-  for (const key of rowCache.keys()) {
-    if (!seen.has(key)) rowCache.delete(key)
-  }
-  return next
-})
-const measureElement = element => {
-  if (element) virtualizer.value.measureElement(element)
 }
 
 // “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局。
@@ -171,6 +144,18 @@ function syncLatestPosition() {
 watch(following, value => {
   if (!value) nextTick(syncLatestPosition)
 })
+watch(flow, element => {
+  contentObserver?.disconnect()
+  contentObserver = null
+  if (!element) return
+  contentObserver = new ResizeObserver(() => {
+    // 流式正文、工具展开、代码块异步排版都会改内容高度；只读 following，
+    // 读者一旦上滚就不再跟随。
+    if (following.value) requestFollow()
+    else syncLatestPosition()
+  })
+  contentObserver.observe(element)
+}, { flush: 'post' })
 
 // 滚动事件很密，先记在内存里，停手后再落一次 localStorage。
 function rememberScroll() {
@@ -192,6 +177,7 @@ function setFollowing(value) {
   if (!value) resumeFollow = false
   scrollParent?.classList.toggle('is-following', value)
   following.value = Boolean(value)
+  if (value) requestFollow()
 }
 
 // 跳转期间不接受滚轮/程序滚动的跟随判定；结束后重新根据是否到底决定。
@@ -201,7 +187,7 @@ function beginJump() {
   jumpTimer = window.setTimeout(() => {
     jumping = false
     if (!scrollParent) return
-    following.value = virtualizer.value.isAtEnd(8)
+    following.value = atBottom()
     scrollParent.classList.toggle('is-following', following.value)
     rememberScroll()
   }, 1500)
@@ -226,7 +212,7 @@ function nestedScroller(target) {
 function onScroll() {
   if (!scrollParent) return
   if (!jumping) {
-    const atEnd = virtualizer.value.isAtEnd(8)
+    const atEnd = atBottom()
     if (atEnd && session.value?.temporaryHistory) void restoreLatestHistory()
     else if (!atEnd && following.value) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
@@ -247,7 +233,7 @@ function onWheel(event) {
   if (event.deltaY < 0) setFollowing(false)
   else if (event.deltaY > 0) {
     resumeFollow = true
-    if (virtualizer.value.isAtEnd(8)) setFollowing(true)
+    if (atBottom()) setFollowing(true)
   }
 }
 
@@ -274,7 +260,7 @@ function onTouchMove(event) {
   if (distance > 8 && scrollParent.scrollTop <= touchStartTop + 1) setFollowing(false)
   else if (distance < -8) {
     resumeFollow = true
-    if (virtualizer.value.isAtEnd(8)) setFollowing(true)
+    if (atBottom()) setFollowing(true)
   }
 }
 function onTouchEnd() {
@@ -300,7 +286,7 @@ function onKeyDown(event) {
   }
   resumeFollow = true
   requestAnimationFrame(() => {
-    if (virtualizer.value.isAtEnd(8)) setFollowing(true)
+    if (atBottom()) setFollowing(true)
   })
 }
 
@@ -315,20 +301,27 @@ function jumpToBottom() {
   beginJump()
   setFollowing(true)
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  virtualizer.value.scrollToEnd({ behavior: reduce ? 'auto' : 'smooth' })
+  scrollToLatest(reduce ? 'auto' : 'smooth')
+  // 平滑滚动期间 Markdown/图片还会继续排版，目标高度会变；落定后再补一次，
+  // 否则“回到最新”可能停在离底部一百多像素的位置。
+  clearTimeout(bottomTimer)
+  bottomTimer = window.setTimeout(() => {
+    if (following.value) scrollToLatest('auto')
+  }, 700)
 }
 
-// 定位条跳转：虚拟器按稳定 key 直接滚到目标轮次，不依赖目标是否已挂载。
-function jumpToMessage(messageId) {
-  const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
-  if (turnIndex < 0) return
+// 全量挂载下直接按轮次 DOM 定位；目标轮次如果还没加载，ChatView 会先 loadFrom。
+async function jumpToMessage(messageId) {
+  const target = turns.value.find(turn => turn.messages.some(message => message.id === messageId))
+  if (!target || !scrollParent) return
   beginJump()
   setFollowing(false)
+  await nextTick()
+  const element = scrollParent.querySelector(`[data-turn-id="${CSS.escape(target.id)}"]`)
+  if (!element) return
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  virtualizer.value.scrollToIndex(turnIndex, {
-    align: 'start',
-    behavior: reduce ? 'auto' : 'smooth',
-  })
+  const top = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop
+  scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
 }
 defineExpose({ jumpToMessage, jumpToBottom })
 
@@ -340,6 +333,8 @@ onBeforeUnmount(() => {
   unbindScrollRoot()
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
+  clearTimeout(bottomTimer)
+  if (followFrame) cancelAnimationFrame(followFrame)
 })
 
 function unbindScrollRoot() {
@@ -357,18 +352,16 @@ function unbindScrollRoot() {
   window.removeEventListener('pointercancel', onPointerUp)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('pagehide', flushScroll)
+  contentObserver?.disconnect()
+  contentObserver = null
   scrollParent = null
-  scrollElement.value = null
 }
 
 function bindScrollRoot(root) {
   // 会话切换时 Transition 可能先挂载新时间线、后交回滚动容器。
-  // 这里必须监听 scrollRoot，不能只在 onMounted 读一次，否则虚拟器拿到 null，
-  // scrollRect 永远是 0，虚拟范围为空。
   if (!root || root === scrollParent) return
   if (scrollParent) unbindScrollRoot()
   scrollParent = root
-  scrollElement.value = root
   scrollParent.classList.toggle('is-following', following.value)
   scrollParent.addEventListener('scroll', onScroll, { passive: true })
   scrollParent.addEventListener('wheel', onWheel, { passive: true })
@@ -386,13 +379,13 @@ function bindScrollRoot(root) {
   requestAnimationFrame(() => {
     if (!scrollParent) return
     const restoreTop = savedView && savedView.pinned === false && Number.isFinite(savedView.top) ? savedView.top : null
-    if (restoreTop == null) virtualizer.value.scrollToEnd({ behavior: 'auto' })
-    else virtualizer.value.scrollToOffset(restoreTop, { behavior: 'auto' })
+    if (restoreTop == null) scrollToLatest()
+    else scrollParent.scrollTop = restoreTop
     requestAnimationFrame(() => {
       if (!scrollParent) return
       // 恢复到顶部时不会产生 scroll 事件，这里主动补一页更早历史。
       if (scrollParent.scrollTop < 160) void loadEarlier()
-      following.value = virtualizer.value.isAtEnd(8)
+      following.value = atBottom()
       scrollParent.classList.toggle('is-following', following.value)
       syncLatestPosition()
     })
@@ -448,47 +441,43 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
 <template>
   <div
     ref="flow"
-    class="conversation-flow conversation-flow--virtual"
+    class="conversation-flow"
     role="log"
     aria-label="对话内容"
-    :style="{ height: `${totalSize}px` }"
   >
     <div
       v-for="row in rows"
-      :key="row.item.key"
-      :data-index="row.item.index"
-      :ref="measureElement"
+      :key="row.id"
       class="conversation-flow__row"
-      :style="{ transform: `translateY(${row.item.start}px)` }"
     >
       <article
-        :data-turn-id="row.turn.id"
+        :data-turn-id="row.id"
         class="message"
-        :class="[`message--${row.turn.role}`, { 'message--compact': row.turn.messages[0].compact }]"
-        :aria-label="row.turn.messages[0].compact ? '上下文压缩' : row.turn.role === 'user' ? '你的消息' : 'Agent 的回复'"
+        :class="[`message--${row.role}`, { 'message--compact': row.messages[0].compact }]"
+        :aria-label="row.messages[0].compact ? '上下文压缩' : row.role === 'user' ? '你的消息' : 'Agent 的回复'"
       >
-        <CompactionNotice v-if="row.turn.messages[0].compact" :content="row.turn.messages[0].content" />
-        <template v-else-if="row.turn.role === 'user'">
+        <CompactionNotice v-if="row.messages[0].compact" :content="row.messages[0].content" />
+        <template v-else-if="row.role === 'user'">
           <MessageActions
-            :items="userMenuItems(row.turn.messages[0])"
-            :target-id="row.turn.messages[0].id"
+            :items="userMenuItems(row.messages[0])"
+            :target-id="row.messages[0].id"
             label="消息操作"
             :running="session.status === 'running'"
             :rollback-target="rollbackTarget"
             :rollback-preview="rollbackPreview"
-            @request-open="event => requestRollback(row.turn.messages[0])"
+            @request-open="event => requestRollback(row.messages[0])"
             @close="clearRollback"
-            @action="onUserMenu(row.turn.messages[0], $event)"
+            @action="onUserMenu(row.messages[0], $event)"
             @rollback-confirm="confirmRollback"
           >
             <div class="rikka-message rikka-message--user">
-              <div class="rikka-bubble rikka-bubble--user" :data-message-id="row.turn.messages[0].id">
-                <Markdown :content="row.turn.messages[0].displayContent ?? row.turn.messages[0].content" />
-                <div v-if="row.turn.messages[0].images?.length" class="user-images">
-                  <img v-for="(image, index) in row.turn.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
+              <div class="rikka-bubble rikka-bubble--user" :data-message-id="row.messages[0].id">
+                <Markdown :content="row.messages[0].displayContent ?? row.messages[0].content" />
+                <div v-if="row.messages[0].images?.length" class="user-images">
+                  <img v-for="(image, index) in row.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
                 </div>
-                <div v-if="row.turn.messages[0].attachments?.length" class="user-attachments">
-                  <span v-for="(file, index) in row.turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
+                <div v-if="row.messages[0].attachments?.length" class="user-attachments">
+                  <span v-for="(file, index) in row.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
                     <Icon name="document" :size="14" />
                     <span class="user-attachment__name">{{ file.name }}</span>
                   </span>
@@ -499,10 +488,10 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
         </template>
         <template v-else>
           <AssistantTurn
-            :messages="row.turn.messages"
+            :messages="row.messages"
             :session-id="session.id"
             :running="session.status === 'running'"
-            :active="session.status === 'running' && row.turn.id === turns.at(-1)?.id"
+            :active="session.status === 'running' && row.id === turns.at(-1)?.id"
             :rollback-target="rollbackTarget"
             :rollback-preview="rollbackPreview"
             @rollback="requestRollback"
