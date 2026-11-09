@@ -11,6 +11,7 @@ const props = defineProps({
   sessionId: { type: String, required: true },
   running: Boolean,
   active: Boolean,
+  live: Boolean,
   rollbackTarget: { type: Object, default: null },
   rollbackPreview: { type: Object, default: null },
   menuItems: { type: Function, required: true },
@@ -60,6 +61,7 @@ const emit = defineEmits(['request-rollback', 'close', 'action', 'rollback-confi
         :session-id="sessionId"
         :running="running"
         :active="active"
+        :live="live"
         :rollback-target="rollbackTarget"
         :rollback-preview="rollbackPreview"
         @rollback="emit('request-rollback', $event)"

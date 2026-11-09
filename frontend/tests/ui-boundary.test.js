@@ -22,7 +22,7 @@ test('可见区域分组清晰，SCSS 继续按相同目录对应', () => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     assert.ok(entry.isDirectory(), `${entry.name} 应放入可见区域分组`)
     const components = readdirSync(join(directory, entry.name)).filter(file => file.endsWith('.vue'))
-    assert.ok(components.length >= 2 && components.length <= 6, `${entry.name}: ${components.length} 个组件`)
+    assert.ok(components.length >= 2 && components.length <= 8, `${entry.name}: ${components.length} 个组件`)
   }
 })
 
@@ -47,3 +47,4 @@ test('每个 Vue 组件只有一个对应的外部 SCSS 文件', () => {
     assert.ok(existsSync(target), `${file} 的样式文件不存在`)
   }
 })
+

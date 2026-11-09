@@ -21,12 +21,14 @@ import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
 import ReasoningStep from './ReasoningStep.vue'
 import ToolCall from '../activity/ToolCall.vue'
+import LazyBlock from '../../ui/LazyBlock.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
   active: Boolean,
+  live: Boolean,
   rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
   rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
@@ -221,8 +223,7 @@ watch(pendingKey, value => {
 // 3. 这一组把请求放在第一个工具上方，然后按原顺序展开思考/工具；
 // 4. 组内保持请求→思考→工具的顺序；
 // 5. 单个动作没有请求时直接显示；有请求的动作收进组里，保证请求和工具不分离。
-const processSections = computed(() => {
-  const sections = []
+const processSections = computed(() => {  const sections = []
   let group = null
   // 当前模型请求会跨过正文，继续作为后续动作组的元数据；
   // 同一个请求可以在正文前后各出现一次，但绝不会落到别的请求下面。
@@ -269,6 +270,17 @@ const processSections = computed(() => {
   }
   return sections
 })
+
+// 流式/当前轮必须完整挂载；只有稳定历史才允许把离屏大块折叠成占位。
+const eagerBlocks = computed(() => props.live || props.active || streaming.value)
+const blockEstimate = section => {
+  if (!section) return 90
+  if (section.type === 'group') return 120
+  if (section.step?.type === 'tool') return 110
+  if (section.step?.type === 'request' || section.step?.type === 'compact') return 50
+  const text = String(section.step?.text || '')
+  return Math.max(60, Math.min(420, Math.ceil(text.length / 80) * 24))
+}
 
 const groupStoreKey = `agent.process-groups:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 const groupOpen = ref((() => {
@@ -349,6 +361,7 @@ function clearTarget() { targetId.value = null; emit('close') }
         <Fold :open="processShown" :instant="approvalPending">
           <div class="process-fold__body context-sections">
             <template v-for="section in processSections" :key="section.key">
+              <LazyBlock :estimated-height="blockEstimate(section)" :eager="eagerBlocks">
               <template v-if="section.type === 'step'">
                 <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
                 <template v-else-if="section.step.type === 'compact'">
@@ -419,15 +432,18 @@ function clearTarget() { targetId.value = null; emit('close') }
                   </div>
                 </Fold>
               </div>
+              </LazyBlock>
             </template>
           </div>
         </Fold>
       </div>
-      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
-        <Markdown :content="shownBubble" />
-        <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
-        <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
-      </div>
+      <LazyBlock v-if="bubbleText" :estimated-height="180" :eager="eagerBlocks">
+        <div class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
+          <Markdown :content="shownBubble" />
+          <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
+          <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
+        </div>
+      </LazyBlock>
 
       <p v-if="error" class="message__error" role="alert">{{ error }}</p>
     </MessageActions>
@@ -435,4 +451,5 @@ function clearTarget() { targetId.value = null; emit('close') }
 </template>
 
 <style lang="scss" src="../../styles/components/conversation/AssistantTurn.scss"></style>
+
 
