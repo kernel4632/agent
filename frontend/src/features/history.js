@@ -151,6 +151,7 @@ function normalizeMessage(item, toolTimings, toolIndex) {
 
 function normalize(source, previous = {}) {
   const provider = source.provider
+  const manifest = source.historyManifest || null
 
   // 阶段一：将 AI SDK 协议消息转换为界面可渲染结构
   // 不保留后端原始 history：它在界面里只通过 messages 使用，留着会多占一倍内存。
@@ -184,10 +185,20 @@ function normalize(source, previous = {}) {
     undoable: source.undoable || 0,                      // 还能撤销几次回退，由后端说，刷新页面也不会丢
     settings: source.settings || previous.settings,      // 会话只保存思考强度
     title: sessionData.title || previous.title || '',    // 保留已有标题或使用空字符串
-    titleGenerated: previous.titleGenerated || (messages.length > 2), // 有历史消息的会话不重复生成标题
+    titleGenerated: previous.titleGenerated || ((source.historyTotal ?? messages.length) > 2), // 有历史消息的会话不重复生成标题
     provider,                                           // 模型选择器显示供应商
     model: source.model,                                // 不用全局默认模型替换未配置的会话
-    messages,                                            // 使用合并后的可见消息
+    messages,                                            // 当前段消息；更早内容按 manifest 展开
+    toolTimings: source.toolTimings || previous.toolTimings || {},
+    ...(manifest ? {
+      historyManifest: manifest,
+      segmentMessages: previous.segmentMessages || {},
+      historyStats: source.historyStats || previous.historyStats || null,
+    } : {
+      historyManifest: null,
+      segmentMessages: {},
+    }),
+    historyTotal: source.historyTotal ?? previous.historyTotal ?? messages.length,
     draft: previous.draft || '',                         // 刷新历史不丢失未发送草稿
     files: previous.files || [],                         // 刷新历史不丢失附件元数据
     draftLoaded: previous.draftLoaded || false,           // 是否已从本地 IndexedDB 恢复过
@@ -336,6 +347,33 @@ function rollbackTextPreview(message) {
   return text.length > 80 ? `${text.slice(0, 80)}…` : text
 }
 
+// --- 历史分段：manifest 里的 compact 和按需拉取的段内消息 ---
+export function normalizeCompact(item) {
+  if (!item) return null
+  return normalizeMessage(item, {}, new Map())
+}
+
+function normalizeSegment(source, toolTimings) {
+  const messages = []
+  const toolIndex = new Map()
+  for (const item of source?.messages || []) {
+    const message = normalizeMessage(item, toolTimings || {}, toolIndex)
+    if (message) messages.push(message)
+  }
+  return messages
+}
+
+async function loadSegment(sessionID, segmentID) {
+  const session = store.sessions[sessionID]
+  if (!session || !segmentID) return []
+  if (session.segmentMessages?.[segmentID]) return session.segmentMessages[segmentID]
+  const source = await AgentAPI.getSessionSegment(sessionID, segmentID)
+  const messages = normalizeSegment(source, session.toolTimings)
+  if (!session.segmentMessages) session.segmentMessages = {}
+  session.segmentMessages[segmentID] = messages
+  return messages
+}
+
 /** 建立分支后返回新 ID；是否打开由用户入口决定。 */
 async function fork(id, messageId) {
   try {
@@ -356,4 +394,4 @@ function admit(source) {
   return session
 }
 
-export const History = { normalize, admit, refresh, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork }
+export const History = { normalize, admit, refresh, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork, loadSegment, normalizeCompact }

@@ -38,7 +38,7 @@ defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
 async function jumpToMessage(target) {
   const messageId = typeof target === 'string' ? target : target?.id
   if (!messageId) return
-  timeline.value?.jumpToMessage(messageId)
+  timeline.value?.jumpToMessage(messageId, typeof target === 'object' ? target?.index : undefined)
 }
 
 const draft = computed({

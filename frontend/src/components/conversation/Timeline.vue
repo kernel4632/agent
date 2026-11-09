@@ -64,6 +64,7 @@ const historyBlocks = computed(() => {
         type: 'history',
         id: `history-${item.message.id}`,
         turns: segmentTurns,
+        count: segment.length,
         messages: segment,
       })
     }
@@ -84,10 +85,56 @@ const currentBlock = computed(() => currentTurns.value.length ? {
   turns: currentTurns.value,
   messages: currentMessages.value,
 } : null)
-const blocks = computed(() => currentBlock.value
-  ? [...historyBlocks.value, currentBlock.value]
-  : historyBlocks.value)
+const blocks = computed(() => {
+  if (manifestBlocks.value) {
+    return currentBlock.value ? [...manifestBlocks.value, currentBlock.value] : manifestBlocks.value
+  }
+  return currentBlock.value
+    ? [...historyBlocks.value, currentBlock.value]
+    : historyBlocks.value
+})
 const expandedHistory = reactive(new Set())
+const loadingSegments = reactive(new Set())
+const segmentTurnCache = new Map()
+const compactBlockCache = new Map()
+
+function turnsOfSegment(segment) {
+  const loaded = session.value?.segmentMessages?.[segment.id]
+  if (!Array.isArray(loaded)) return []
+  const cached = segmentTurnCache.get(segment.id)
+  if (cached?.source === loaded) return cached.turns
+  const turns = groupMessageTurns(loaded)
+  segmentTurnCache.set(segment.id, { source: loaded, turns })
+  return turns
+}
+
+function compactOfSegment(segment) {
+  if (compactBlockCache.has(segment.id)) return compactBlockCache.get(segment.id)
+  const compact = History.normalizeCompact(segment.compact)
+  compactBlockCache.set(segment.id, compact)
+  return compact
+}
+
+const manifestBlocks = computed(() => {
+  const segments = session.value?.historyManifest?.segments
+  if (!Array.isArray(segments)) return null
+  const list = []
+  for (const segment of segments) {
+    const turns = turnsOfSegment(segment)
+    if (segment.count > 0) {
+      list.push({
+        type: 'history',
+        id: segment.id,
+        turns,
+        count: segment.count,
+        segment,
+      })
+    }
+    const compact = compactOfSegment(segment)
+    if (compact) list.push({ type: 'compact', id: `compact-${segment.id}`, message: compact })
+  }
+  return list
+})
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
@@ -186,9 +233,25 @@ function flushScroll() {
   })
 }
 
-function toggleHistory(id) {
-  if (expandedHistory.has(id)) expandedHistory.delete(id)
-  else expandedHistory.add(id)
+async function toggleHistory(block) {
+  const id = block.id
+  if (expandedHistory.has(id)) {
+    expandedHistory.delete(id)
+    return
+  }
+  // manifest 段在第一次展开时才拉取；拉到之前保持折叠，不先撑开空白。
+  if (block.segment && block.count > 0 && !block.turns.length) {
+    loadingSegments.add(id)
+    try {
+      await History.loadSegment(session.value.id, id)
+    } catch (error) {
+      Notice.show(error.message)
+      return
+    } finally {
+      loadingSegments.delete(id)
+    }
+  }
+  expandedHistory.add(id)
 }
 
 function setFollowing(value) {
@@ -333,23 +396,48 @@ function jumpToBottom() {
 }
 
 // 目标消息可能在折叠历史里：先展开所属段，再按真实 DOM 定位。
-async function jumpToMessage(messageId) {
-  const targetTurn = [...historyBlocks.value.flatMap(block => block.turns), ...currentTurns.value]
+async function jumpToMessage(messageId, targetIndex) {
+  let targetTurn = [...historyBlocks.value.flatMap(block => block.turns), ...currentTurns.value]
     .find(turn => turn.messages.some(message => message.id === messageId))
-  if (!targetTurn) return
-  beginJump()
-  setFollowing(false)
-  const hiddenBlock = blocks.value.find(block => block.type === 'history'
+  const manifest = session.value?.historyManifest
+  let hiddenBlock = blocks.value.find(block => block.type === 'history'
     && !expandedHistory.has(block.id)
-    && block.messages.some(message => message.id === messageId))
-  if (hiddenBlock) {
+    && (block.messages?.some(message => message.id === messageId)
+      || block.segment?.messageIds?.includes(messageId)
+      || (targetIndex != null && block.segment
+        && targetIndex >= block.segment.startIndex
+        && targetIndex <= block.segment.compactIndex)))
+  if (hiddenBlock?.segment) {
+    // 段内消息按需加载；加载完再从真实 turn 里找目标。
+    if (!hiddenBlock.turns.length) await History.loadSegment(session.value.id, hiddenBlock.id)
     expandedHistory.add(hiddenBlock.id)
     await nextTick()
+    targetTurn = turnsOfSegment(hiddenBlock.segment)
+      .find(turn => turn.messages.some(message => message.id === messageId)) || targetTurn
+  } else if (hiddenBlock) {
+    expandedHistory.add(hiddenBlock.id)
+    await nextTick()
+  } else if (!targetTurn && manifest) {
+    // 搜索等入口可能只给 id；按已经加载的段找不到时，退回全段顺序找一次。
+    for (const segment of manifest.segments) {
+      if (!session.value.segmentMessages?.[segment.id]) await History.loadSegment(session.value.id, segment.id)
+      const turns = turnsOfSegment(segment)
+      const found = turns.find(turn => turn.messages.some(message => message.id === messageId))
+      if (found) {
+        expandedHistory.add(segment.id)
+        targetTurn = found
+        await nextTick()
+        break
+      }
+    }
   }
+  if (!targetTurn && !messageId) return
+  beginJump()
+  setFollowing(false)
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   await nextTick()
   const element = scrollParent?.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
-    || scrollParent?.querySelector(`[data-turn-id="${CSS.escape(targetTurn.id)}"]`)
+    || (targetTurn && scrollParent?.querySelector(`[data-turn-id="${CSS.escape(targetTurn.id)}"]`))
   if (!element || !scrollParent) return
   const top = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop
   scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
@@ -499,10 +587,10 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
   >
     <template v-for="block in blocks" :key="block.id">
       <section v-if="block.type === 'history'" class="history-fold">
-        <button type="button" class="history-fold__head" :aria-expanded="expandedHistory.has(block.id)" @click="toggleHistory(block.id)">
+        <button type="button" class="history-fold__head" :aria-expanded="expandedHistory.has(block.id)" @click="toggleHistory(block)">
           <span class="history-fold__icon"><Icon name="layers" :size="15" /></span>
           <span class="history-fold__title">已折叠的历史</span>
-          <span class="history-fold__meta">{{ block.turns.length }} 轮 · {{ block.messages.length }} 条</span>
+          <span class="history-fold__meta">{{ block.turns.length ? `${block.turns.length} 轮 · ` : '' }}{{ block.count }} 条{{ loadingSegments.has(block.id) ? ' · 加载中…' : '' }}</span>
           <Icon name="down" :size="14" class="history-fold__caret" :class="{ 'is-open': expandedHistory.has(block.id) }" aria-hidden="true" />
         </button>
         <Fold :open="expandedHistory.has(block.id)">

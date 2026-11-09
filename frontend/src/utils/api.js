@@ -111,6 +111,7 @@ export const AgentAPI = {
   // 从现有会话分出一个新分支；可以只复制到某条消息。
   forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
   getSession:       sessionID => request(`/session/read/${encodeURIComponent(sessionID)}`),
+  getSessionSegment: (sessionID, segmentID) => request(`/session/segment/${encodeURIComponent(sessionID)}/${encodeURIComponent(segmentID)}`),
   openSession:      (sessionID, onProgress) => openSession(sessionID, onProgress),
   searchSessionMessages: (sessionID, query, limit = 50) => request(`/session/search/${encodeURIComponent(sessionID)}?${new URLSearchParams({ q: String(query || ''), limit: String(limit) })}`),
   getSessionOutline:(sessionID)                 => request(`/session/outline/${encodeURIComponent(sessionID)}`),
