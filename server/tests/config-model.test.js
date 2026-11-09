@@ -328,6 +328,31 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
+    test('400 请求错误不进入无限重试', async () => {
+        await withHome(async () => {
+            let attempts = 0
+            const server = Bun.serve({
+                port: 0,
+                async fetch() {
+                    attempts += 1
+                    return new Response(JSON.stringify({ error: { message: 'reasoning_content missing' } }), {
+                        status: 400,
+                        headers: { 'content-type': 'application/json' },
+                    })
+                },
+            })
+            try {
+                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'deepseek-reasoner', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                const config = { ...await resolve({ provider: 'fake', model: 'deepseek-reasoner' }), stream: false, retryBaseDelay: 1, retryMaxDelay: 1 }
+                const agent = AgentCore.create({ history: [], config, callbacks: {} })
+                await expect(agent.send({ input: '不应重试' })).rejects.toBeTruthy()
+                expect(attempts).toBe(1)
+            } finally {
+                await server.stop(true)
+            }
+        })
+    })
+
     test('会话选的那个模型就是要用的那个，不是配置里的第一个', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: '第一个', name: '第一个' }, { id: '第二个', name: '第二个' }] }] })

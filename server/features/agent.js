@@ -133,6 +133,14 @@ const hasCapability = (profile, name) => profile.some(item => {
 // 到点就把错误交给 finishFailure（发 agent-finish.error 并清标记），用户自己发的消息不受影响。
 const RECOVERY_RETRY_ELAPSED = 120000
 const RECOVERY_RETRY_TRIES = 3
+// 400/401/403 这类请求错误重试也不会变好，尤其 DeepSeek 的 reasoning_content 缺失
+// 会变成无限重试；这类错误只展示一次，交给用户或上层修复配置/历史。
+const noRetryClientErrors = error => {
+    if (error?.kind === 'request' || error?.kind === 'auth') return false
+    const status = Number(error?.statusCode || 0)
+    if (status >= 400 && status < 500 && status !== 408 && status !== 429) return false
+    return true
+}
 // core 的 retry 可以传一个“要不要重试这个错误”的过滤函数；这里按次数收口。
 const recoveryRetry = () => {
     let tries = 0
@@ -148,6 +156,7 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
     const info = services.context.modelInfo(chosen)
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
+    const deepseek = /deepseek/i.test(chosen.model || '') || /deepseek/i.test(provider?.baseURL || '')
     const profileModel = provider?.models?.find(item => item.id === chosen.model)
     const generation = {}
     for (const field of ['temperature', 'topP', 'seed']) {
@@ -177,9 +186,7 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
             tools: hasCapability(profile, 'tools'),
             // DeepSeek 思考模式要求把上一轮 assistant 的 reasoning_content 原样带回；
             // agent-core 默认不回传 reasoning，这里按模型/地址识别后显式打开。
-            reasoning: hasCapability(profile, 'reasoning')
-                || /deepseek/i.test(chosen.model || '')
-                || /deepseek/i.test(provider?.baseURL || ''),
+            reasoning: hasCapability(profile, 'reasoning') || deepseek,
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
@@ -189,7 +196,10 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         // 恢复续跑必须封顶：provider 挂了或配置丢失时，无限重试会变成一个永不结束、
         // 永不清运行标记的空转任务，每次重启又续一次。只对恢复路径设总时限和次数上限，
         // 用户自己发的消息仍用 core 默认的无限重试，不因慢供应商而失败。
-        ...(recovery ? { retryMaxElapsed: RECOVERY_RETRY_ELAPSED, retry: recoveryRetry } : {}),
+        ...(recovery ? { retryMaxElapsed: RECOVERY_RETRY_ELAPSED, retry: recoveryRetry } : { retry: noRetryClientErrors }),
+        // 压缩后保留多少总结之前的原文；四个值都由 config 层补默认值，core 也认同名配置。
+        // firstTurns = 0 就是不要最初那几轮原始措辞，只信总结 + 最近现场。
+        contextKeep: { ...store.config.contextKeep },
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）+ 压缩输出规范。
         system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
