@@ -24,6 +24,7 @@ import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
 import History from '../features/history.js'
+import ContextUsage from '../utils/context-usage.js'
 import Rollback from '../features/rollback.js'
 import SessionGroups from '../features/session-groups.js'
 import Title from '../features/title.js'
@@ -34,7 +35,6 @@ import Path from '../utils/path.js'
 import TempWorkspace from '../utils/temp-workspace.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
-import ContextUsage from '../utils/context-usage.js'
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
@@ -139,6 +139,7 @@ const fork = async ({ sessionId, title, messageId }) => {
 // --- 读取一条会话 ---
 const HISTORY_PAGE = 200
 const read = async ({ sessionId, historyLimit, historyStart }) => {
+    await ContextUsage.hydrate(sessionId)
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
@@ -175,6 +176,7 @@ const read = async ({ sessionId, historyLimit, historyStart }) => {
         historyStart: start,
         historyTotal: total,
         historyStats: historyUsage(history, session.model.provider, session.model.model),
+        contextEstimate: ContextUsage.read(sessionId),
         todos: latestTodos(history),
         running,
         toolTimings: await ToolTiming.read(sessionId),

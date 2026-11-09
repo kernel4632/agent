@@ -15,7 +15,7 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { Notice } from '../utils/notice.js'
 import { Appearance } from '../utils/appearance.js'
-import { DEFAULT_CONTEXT } from '../defaults.js'
+import { DEFAULT_CONTEXT, DEFAULT_CONTEXT_KEEP } from '../defaults.js'
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -97,6 +97,7 @@ function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
     models: raw.models,
     compact: raw.compact,
     review: raw.review || { enabled: false, policy: '', timeout: 15000 },
+    contextKeep: raw.contextKeep || { ...DEFAULT_CONTEXT_KEEP },
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     appearance: store.config.appearance,
@@ -115,6 +116,7 @@ function backendSnapshot(draft) {
     prompt: draft.prompt,
     models: draft.models,
     compact: draft.compact,
+    contextKeep: draft.contextKeep,
     mcp: draft.mcp,
     review: draft.review,
   })
@@ -167,6 +169,7 @@ function open() {
     models: store.config.models,
     compact: store.config.compact,
     review: store.config.review,
+    contextKeep: store.config.contextKeep,
     appearance: store.config.appearance,
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
@@ -219,6 +222,7 @@ function configPayload(draft) {
     models: draft.models,
     compact: draft.compact,
     review: draft.review,
+    contextKeep: draft.contextKeep,
   }
 }
 

@@ -74,6 +74,33 @@ describe('server HTTP API', () => {
         })
     })
 
+    test('keeps contextKeep zero values and rejects keep settings out of range', async () => {
+        await withHome(async () => {
+            // 新目录用默认值：开场和最近各保留 3 轮，预算 20% / 30%。
+            const initial = await (await request('/config/read')).json()
+            expect(initial.contextKeep).toEqual({ firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 })
+
+            // 0 是有效值：显式写 0 必须原样保存，不能当成“没填”退回默认值。
+            const saved = await jsonRequest('/config/set', 'PATCH', { contextKeep: { firstTurns: 0, recentTurns: 0 } })
+            expect(saved.status).toBe(200)
+            expect((await saved.json()).contextKeep).toEqual({ firstTurns: 0, recentTurns: 0, firstShare: 0.2, recentShare: 0.3 })
+            expect((await (await request('/config/read')).json()).contextKeep).toMatchObject({ firstTurns: 0, recentTurns: 0 })
+
+            // 负数、小数、超范围、不是对象：四种都在入口就报 400，不会写进内存。
+            for (const contextKeep of [
+                { firstTurns: -1 },
+                { recentTurns: 1.5 },
+                { firstShare: 1.2 },
+                { recentShare: -0.1 },
+                'none',
+            ]) {
+                const rejected = await jsonRequest('/config/set', 'PATCH', { contextKeep })
+                expect(rejected.status).toBe(400)
+            }
+            expect((await (await request('/config/read')).json()).contextKeep).toMatchObject({ firstTurns: 0, recentTurns: 0 })
+        })
+    })
+
     test('creates, reads, renames, moves and removes a session through HTTP', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })

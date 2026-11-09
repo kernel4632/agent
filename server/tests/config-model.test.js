@@ -328,6 +328,31 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
+    test('400 请求错误不进入无限重试', async () => {
+        await withHome(async () => {
+            let attempts = 0
+            const server = Bun.serve({
+                port: 0,
+                async fetch() {
+                    attempts += 1
+                    return new Response(JSON.stringify({ error: { message: 'reasoning_content missing' } }), {
+                        status: 400,
+                        headers: { 'content-type': 'application/json' },
+                    })
+                },
+            })
+            try {
+                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false, retryBaseDelay: 1, retryMaxDelay: 1 }
+                const agent = AgentCore.create({ history: [], config, callbacks: {} })
+                await expect(agent.send({ input: '不应重试' })).rejects.toBeTruthy()
+                expect(attempts).toBe(1)
+            } finally {
+                await server.stop(true)
+            }
+        })
+    })
+
     test('会话选的那个模型就是要用的那个，不是配置里的第一个', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: '第一个', name: '第一个' }, { id: '第二个', name: '第二个' }] }] })
@@ -346,6 +371,44 @@ describe('交给 agent-core 的 config', () => {
             const config = await resolve({ provider: 'local', model: 'm' })
             expect(config.capabilities.tools).toBe(true)
             expect(config.capabilities.image).toBe(false)
+            expect(config.capabilities.reasoning).toBe(false)
+        })
+    })
+
+    test('声明回传思考能力的模型打开 reasoning 回传', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'm', capabilities: ['text', 'tools', 'reasoning', 'reasoning-replay'] }] }],
+            })
+            const config = await resolve({ provider: 'local', model: 'm' })
+            expect(config.capabilities.reasoning).toBe(true)
+        })
+    })
+
+    test('声明推理能力的模型历史 reasoning 真的进入请求体', async () => {
+        await withHome(async () => {
+            await withFakeModel(async ({ port, seen }) => {
+                await Settings.set({
+                    providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text', 'tools', 'reasoning', 'reasoning-replay'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
+                })
+                const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false }
+                const agent = AgentCore.create({
+                    history: [
+                        { id: 'u1', role: 'user', content: [{ type: 'text', text: '开始' }] },
+                        { id: 'a1', role: 'assistant', content: [
+                            { type: 'reasoning', text: '先思考' },
+                            { type: 'tool-call', toolCallId: 'c1', toolName: 'noop', input: {} },
+                        ] },
+                        { id: 't1', role: 'tool', content: [
+                            { type: 'tool-result', toolCallId: 'c1', toolName: 'noop', output: { type: 'text', value: 'ok' } },
+                        ] },
+                    ],
+                    config,
+                })
+                await agent.send({ input: '继续' })
+                const assistant = seen[0].messages.find(message => message.role === 'assistant' && message.tool_calls)
+                expect(assistant.reasoning_content).toBe('先思考')
+            })
         })
     })
 

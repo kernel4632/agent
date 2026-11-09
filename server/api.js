@@ -19,7 +19,7 @@
 // version 不写在这里：生成时从 package.json 取，避免两处版本号脱钩。
 export const info = {
     title: 'Universal Agent 后端接口文档',
-    description: '会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task,review}，压缩阈值为 compact.threshold，工具 AI 审核配置为 review，会话设置只有 reasoning。配置、MCP、技能和自动标题都是基座能力；本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。',
+    description: '会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task,review}，压缩阈值为 compact.threshold，压缩后保留多少原文由 contextKeep 的四个字段决定，工具 AI 审核配置为 review，会话设置只有 reasoning。配置、MCP、技能和自动标题都是基座能力；本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。',
 }
 
 // --- 服务地址 ---
@@ -271,6 +271,38 @@ export const components = {
                             "maximum": 120000
                         }
                     }
+                },
+                "contextKeep": {
+                    "type": "object",
+                    "description": "压缩后还留多少总结之前的原文。firstTurns 为 0 表示压缩后不带最初那几轮原始对话，只信总结 + 最近现场。本次发送的用户输入永远保留。",
+                    "properties": {
+                        "firstTurns": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 3,
+                            "description": "开场最多保留几个用户回合；0 = 一段都不留"
+                        },
+                        "recentTurns": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 3,
+                            "description": "总结之前最多保留几个回合"
+                        },
+                        "firstShare": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "default": 0.2,
+                            "description": "开场那段最多占多少上下文预算"
+                        },
+                        "recentShare": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "default": 0.3,
+                            "description": "总结前现场最多占多少上下文预算"
+                        }
+                    }
                 }
             }
         },
@@ -350,6 +382,18 @@ export const components = {
                             "type": "object",
                             "additionalProperties": true,
                             "description": "基于完整历史的用量聚合；token 总量、模型速度分组和最近序列不受 history 窗口影响"
+                        },
+                        "contextEstimate": {
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "当前上下文估算（onInject 采样）：tokens、budget、percentOfBudget、compactAt、untilCompact。采样会随会话落盘，服务重启后仍显示最后一次；从未跑过请求时为 null"
                         },
                         "todos": {
                             "type": "array",

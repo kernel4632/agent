@@ -1050,6 +1050,35 @@ test('settings auto-save on change and back keeps the chat draft', async ({ page
   expect(mock.errors).toEqual([])
 })
 
+test('context settings keep zero opening turns', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '设置')
+  await page.getByRole('button', { name: /上下文/ }).click()
+
+  // 开场保留轮数改成 0：0 是有效值，不能被当成“没填”退回默认的 3。
+  const opening = page.getByRole('slider', { name: '开场保留轮数' })
+  await opening.evaluate(element => {
+    element.value = '0'
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await opening.press('Tab')
+  await expect.poll(() => mock.config().contextKeep.firstTurns).toBe(0)
+  await expect(page.locator('.context-settings__value').nth(1)).toHaveText('不留')
+
+  // 其余字段仍然跟着滑条走，而且保存时不会把别的字段冲回默认值。
+  const recent = page.getByRole('slider', { name: '最近保留轮数' })
+  await recent.evaluate(element => {
+    element.value = '5'
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await recent.press('Tab')
+  await expect.poll(() => mock.config().contextKeep.recentTurns).toBe(5)
+  await expect.poll(() => mock.config().contextKeep.firstTurns).toBe(0)
+  expect(mock.config().compact.threshold).toBe(0.8)
+  expect(mock.errors).toEqual([])
+})
+
 test('slash-prefixed messages are sent as ordinary text', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -2204,8 +2233,11 @@ test('compaction threshold is saved in context settings', async ({ page }, testI
   await page.getByRole('button', { name: /上下文/ }).click()
   await expect(page.getByRole('heading', { name: '上下文', exact: true, level: 1 })).toBeVisible()
   await screenshot(page, testInfo, 'settings-context')
-  const threshold = page.getByLabel('阈值', { exact: true })
-  await threshold.fill('0.6')
+  const threshold = page.getByRole('slider', { name: '自动压缩阈值' })
+  await threshold.evaluate(element => {
+    element.value = '0.6'
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+  })
   await threshold.press('Tab')
   await expect.poll(() => mock.config().compact.threshold).toBe(0.6)
 })

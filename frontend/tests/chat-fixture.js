@@ -22,6 +22,8 @@ export async function backend(page, { configured = true } = {}) {
     models: { chat: { provider: configured ? 'Test Provider' : '', model: configured ? 'test-model' : '' }, compact: { provider: '', model: '' }, title: { provider: '', model: '' }, task: { provider: '', model: '' }, review: { provider: '', model: '' } },
     prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
     review: { enabled: false, policy: '', timeout: 15000 },
+    // 和 server/features/config.js 的 normalize 一样：压缩后保留多少原文。
+    contextKeep: { firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 },
     permission: { '*': 'ask', execute_command: { '*': 'ask' } }, mcp: { sample: { transport: 'sse', url: 'https://mcp.example.test' } },
   }
   let backups = []

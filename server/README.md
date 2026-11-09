@@ -115,6 +115,8 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
     "task": { "provider": "", "model": "" },
     "review": { "provider": "", "model": "" }
   },
+  "compact": { "threshold": 0.8 },
+  "contextKeep": { "firstTurns": 3, "recentTurns": 3, "firstShare": 0.2, "recentShare": 0.3 },
   "permission": { "*": "ask" },
   "review": { "enabled": false, "policy": "", "timeout": 15000 }
 }
@@ -123,6 +125,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 - 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。`family` 可选，只用于模型图标；留空时由 models.dev 目录和模型 ID 自动判断，歧义时不猜。
 - `maxOutput`、`temperature`、`topP`、`seed` 是可选生成参数；`maxOutput` 映射到 agent-core 的单次最大输出，其余原样交给 AI SDK。`body` 用来覆盖请求体里没有可视化字段的高级参数，例如 `{ "top_k": 20 }`。
 - `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task`、`review` 不填就回退到 `chat`。
+- `compact.threshold` 是自动压缩的触发比例。`contextKeep` 决定压缩后还留多少总结之前的原文：`firstTurns` 是开场最多保留几个用户回合（**填 0 就是压缩后不再带上最初那几轮原始对话**，只用总结 + 最近的现场），`recentTurns` 是总结之前最多保留几个回合，两个 `*Share` 分别是这两段最多占多少上下文预算。轮数写 0 就是 0，不会被当成“没填”退回默认值；本次发送的用户输入永远保留。
 - `review` 是工具调用 AI 审核：`enabled` 打开后，权限动作为 `review` 的调用先交给 `models.review` 判断；`policy` 留空用内置策略，`timeout` 限制单次审核时长（1000–120000 毫秒，默认 15000）。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
 - 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，其余错误无限次指数退避；首次 5 秒，单次退避上限 120 秒，总重试时长不限。
@@ -179,6 +182,8 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 ### 压缩
 
 上下文用到 `config.compact.threshold`（默认 0.8）时自动压缩。距压缩点只剩 5% 预算时，core 的 `onInject` 钩子会往下一笔请求临时附一句提醒（不写进历史），让模型本轮收口——阈值从压缩阈值推导（压缩点 - 5% 预算），用户调低压缩阈值时提醒点自动跟着挪；每个 run 只提醒一次。core 0.31.0 的估算把媒体块单独计费：图片每张按固定 token 算，不再让 base64 字符数虚增上下文；压缩触发比例与界面上显示的真实用量一致。手动压缩走 `POST /session/compact/{sessionId}`。压缩模型可以用 `models.compact` 单独配置；它只换连接，上下文预算仍按主模型算。
+
+压缩后的请求由「摘要 + 开场保留的原文 + 最近保留的原文 + 本次输入」拼成，两段原文保留多少轮由 `config.contextKeep` 决定：`firstTurns` 填 0 就只剩摘要和最近的现场，不再带最初那几轮原始对话。改完配置下一次请求就生效，正在跑的会话也会用新值。
 
 ## 工具
 

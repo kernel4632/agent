@@ -378,6 +378,14 @@ export function sessionStats(session) {
       threshold: store.config.compact.threshold,
       approximate: usedApproximate,
       over: Boolean(limit && used > limit),
+      estimate: session.contextEstimate
+        ? {
+            tokens: Number(session.contextEstimate.tokens || 0),
+            budget: Number(session.contextEstimate.budget || limit || 0),
+            percent: Number(session.contextEstimate.percentOfBudget || 0),
+            updatedAt: Number(session.contextEstimate.updatedAt || 0),
+          }
+        : null,
     },
     usage: {
       input: usageApproximate ? estimate.input : input,

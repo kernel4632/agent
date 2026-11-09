@@ -1,4 +1,4 @@
-.context-settings { min-width: 0; }
+.context-settings { display: grid; min-width: 0; gap: 24px; }
 .context-settings__control { display: flex; min-width: 0; align-items: center; gap: 12px; }
 .context-settings__slider { width: 180px; height: 32px; margin: 0; accent-color: var(--la-accent); cursor: pointer; }
 .context-settings__value { min-width: 44px; color: var(--la-secondary); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }

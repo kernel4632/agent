@@ -36,10 +36,22 @@ test('real backend accepts current config and completes a persisted conversation
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.getByRole('button', { name: /上下文/ }).click()
-  const threshold = testInfo.project.name === 'desktop' ? '0.6' : '0.7'
-  await page.getByLabel('阈值', { exact: true }).fill(threshold)
-  await page.getByLabel('阈值', { exact: true }).press('Tab')
-  await expect.poll(async () => (await config()).compact.threshold).toBe(Number(threshold))
+  const threshold = testInfo.project.name === 'desktop' ? 0.6 : 0.7
+  const slider = page.getByRole('slider', { name: '自动压缩阈值' })
+  await slider.evaluate((element, value) => {
+    element.value = String(value)
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+  }, threshold)
+  await slider.press('Tab')
+  await expect.poll(async () => (await config()).compact.threshold).toBe(threshold)
+  // 压缩后保留 0 轮开场：真实后端的 normalize 必须原样存回，不能被默认值盖掉。
+  const opening = page.getByRole('slider', { name: '开场保留轮数' })
+  await opening.evaluate(element => {
+    element.value = '0'
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await opening.press('Tab')
+  await expect.poll(async () => (await config()).contextKeep.firstTurns).toBe(0)
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await page.locator('.settings-row').filter({ hasText: '默认模型和任务分工' }).click()
   await page.getByRole('combobox', { name: '子任务', exact: true }).click()

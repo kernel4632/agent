@@ -24,6 +24,31 @@ test('历史读取期间收到的重试事件不会被旧快照清掉', async ()
   } finally { AgentAPI.getSession = original; delete store.sessions.race }
 })
 
+test('每次重试新增请求行，旧失败行和错误保留', async () => {
+  store.sessions.race = History.normalize(snapshot())
+  const assistant = {
+    id: 'assistant-retry', role: 'assistant', content: '', reasoning: '', tools: [], steps: [],
+    requests: [], isStreaming: true, startedAt: Date.now(),
+  }
+  const first = { id: 'first', status: 'running', startedAt: Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0 }
+  assistant.requests.push(first)
+  assistant.steps.push({ type: 'request', requestId: first.id })
+  store.sessions.race.messages = [assistant]
+  try {
+    await Chat.receive('race', { type: 'retry', attempt: 1, delay: 500, error: 'reasoning_content missing' })
+    assert.equal(assistant.requests.length, 2)
+    assert.equal(first.status, 'failed')
+    assert.match(first.error, /reasoning_content/)
+    assert.match(assistant.requests[1].retry, /第 1 次/)
+
+    await Chat.receive('race', { type: 'retry', attempt: 2, delay: 500, error: 'reasoning_content missing again' })
+    assert.equal(assistant.requests.length, 3)
+    assert.equal(assistant.requests[1].status, 'failed')
+    assert.match(assistant.requests[1].error, /again/)
+    assert.match(assistant.requests[2].retry, /第 2 次/)
+  } finally { delete store.sessions.race }
+})
+
 test('保存完成时更新当前会话，即使刷新期间会话对象被替换', async () => {
   const original = AgentAPI.saveSettings
   let complete

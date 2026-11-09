@@ -16,3 +16,10 @@ export const NEW_SESSION_TITLE = '新对话'
 
 // 自动压缩阈值的可编辑范围，设置页和保存前检查共用。
 export const COMPACT_RANGE = { min: 0.1, max: 0.99 }
+
+// 压缩后保留原文的默认值：只是首屏兜底和读不到配置时的保底，真实值由 /config/read 给。
+// 和 server/features/config.js 的默认值一致，方便对账。
+export const DEFAULT_CONTEXT_KEEP = { firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 }
+
+// 设置页里保留轮数的上限；0 是合法值，表示这段原文一点不保留。
+export const CONTEXT_KEEP_TURN_MAX = 10

@@ -7,6 +7,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import Icon from '../../ui/Icon.vue'
+import Fold from '../../ui/Fold.vue'
 
 const props = defineProps({
   request: { type: Object, required: true },
@@ -16,11 +17,47 @@ const props = defineProps({
 const now = ref(Date.now())
 const surface = ref(null)
 const narrow = ref(false)
+const expanded = ref(false)
 let timer = null
 let resizeObserver = null
 const compact = computed(() => props.kind === 'compact')
+const compactDiagnostic = computed(() => {
+  if (!compact.value) return ''
+  const reason = props.request.compactReason
+  const token = Number(props.request.compactToken || 0)
+  const budget = Number(props.request.compactBudget || 0)
+  const percent = token && budget ? Math.round(token / budget * 100) : 0
+  if (reason === 'automatic') return `自动压缩：估算 ${percent}%${props.request.compactCalibrated === false ? '（未校准）' : ''}`
+  if (reason === 'overflow-retry') return '模型报告上下文超长，强制压缩'
+  if (reason === 'manual') return '手动压缩'
+  return ''
+})
+const compactMetrics = computed(() => {
+  if (!compact.value || !props.request.compactChars) return ''
+  const ratio = Number(props.request.compactRatio || 0)
+  return `chars ${Math.round(props.request.compactChars).toLocaleString()} · ratio ${ratio} · ${props.request.compactCalibrated ? '已校准' : '未校准'}`
+})
 const running = computed(() => props.request.status === 'running')
 const failed = computed(() => props.request.status === 'failed')
+const errorText = computed(() => {
+  const value = props.request.error
+  if (value == null) return ''
+  if (typeof value === 'string') return value === '[object Object]' ? '模型请求失败' : value
+  if (typeof value === 'object') {
+    const text = value.message || value.error || value.responseBody || value.body
+    if (typeof text === 'string' && text.trim()) return text
+    try {
+      const json = JSON.stringify(value)
+      if (json && json !== '{}') return json
+    } catch { /* ignore */ }
+  }
+  return '模型请求失败'
+})
+const expandable = computed(() => failed.value && Boolean(errorText.value))
+function toggleError() {
+  if (expandable.value) expanded.value = !expanded.value
+}
+watch(() => props.request.id, () => { expanded.value = false })
 const retrying = computed(() => running.value && Boolean(props.request.retryUntil || props.request.retry))
 const retrySeconds = computed(() => {
   const until = Number(props.request.retryUntil || 0)
@@ -81,14 +118,20 @@ const detail = computed(() => {
       if (props.request.retryUntil) return `模型请求失败，第 ${attempt} 次自动重试，${retrySeconds.value}s 后继续…`
       return props.request.retry
     }
-    if (compact.value) return '正在把前面的对话总结成一段'
+    if (compact.value) return compactDiagnostic.value || '正在把前面的对话总结成一段'
     return firstTokenMs.value ? `首字 ${seconds(firstTokenMs.value)}，正在接收` : '等待模型返回第一个字'
   }
-  if (failed.value && props.request.error) return props.request.error
+  if (failed.value && errorText.value) return errorText.value
   return completedDetail()
 })
 const fullDetail = computed(() => {
-  if (running.value || failed.value) return detail.value
+  if (running.value || failed.value) {
+    return compactMetrics.value ? `${detail.value} · ${compactMetrics.value}` : detail.value
+  }
+  if (compact.value && compactDiagnostic.value) {
+    const base = `${compactDiagnostic.value} · ${completedDetail()}`
+    return compactMetrics.value ? `${base} · ${compactMetrics.value}` : base
+  }
   return completedParts(value => Number(value || 0).toLocaleString(), false).join(' · ')
 })
 
@@ -116,9 +159,15 @@ onBeforeUnmount(() => {
   <div
     ref="surface"
     class="request-status"
-    :class="{ 'is-running': running, 'is-retrying': retryingActive, 'is-failed': failed, 'is-done': !running && !failed }"
+    :class="{ 'is-running': running, 'is-retrying': retryingActive, 'is-failed': failed, 'is-done': !running && !failed, 'is-expandable': expandable, 'is-expanded': expanded }"
+    :role="expandable ? 'button' : undefined"
+    :tabindex="expandable ? 0 : undefined"
+    :aria-expanded="expandable ? expanded : undefined"
     :aria-label="`${label} ${detail}`"
     :title="fullDetail ? `${label} ${fullDetail}` : label"
+    @click="toggleError"
+    @keydown.enter.prevent="toggleError"
+    @keydown.space.prevent="toggleError"
   >
     <span class="request-status__icon">
       <span v-if="running" class="ui-spinner ui-spinner--small" aria-hidden="true"><span class="ui-spinner__ring"></span></span>
@@ -129,6 +178,10 @@ onBeforeUnmount(() => {
       <span v-if="detail" class="request-status__detail">{{ detail }}</span>
     </span>
     <span v-if="badge" class="request-status__badge">{{ badge }}</span>
+    <Icon v-if="expandable" name="down" :size="14" class="request-status__caret" :class="{ 'is-open': expanded }" aria-hidden="true" />
+    <Fold :open="expanded" class="request-status__error-fold">
+      <pre class="request-status__error">{{ errorText }}</pre>
+    </Fold>
   </div>
 </template>
 

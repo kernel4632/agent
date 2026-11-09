@@ -111,6 +111,15 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', flushDraftSaves)
 })
 
+async function continueRun() {
+  if (!props.session) return
+  // 继续发生在时间线底部；用户停在旧位置时先回到最新，压缩/新输出才看得见。
+  timeline.value?.jumpToBottom()
+  const ok = await Chat.resume(props.session.id)
+  if (ok) timeline.value?.jumpToBottom()
+  nextTick(() => composer.value?.focus())
+}
+
 async function submit(content) {
   if (props.busy) return
   if (!props.session) { emit('submit', content); return }
@@ -181,7 +190,7 @@ function chooseReasoning(reasoning) {
             </div>
           </Transition>
           <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files" :queued="queued" :draft-workspace="store.ui.draftCwd"
-            @submit="submit" @stop="Chat.stop(session.id)" @continue="Chat.resume(session.id)" @attach="attach" @remove-file="removeFile" @withdraw="withdrawQueued" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
+            @submit="submit" @stop="Chat.stop(session.id)" @continue="continueRun" @attach="attach" @remove-file="removeFile" @withdraw="withdrawQueued" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
         </div>
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>

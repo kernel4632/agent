@@ -194,6 +194,7 @@ function normalize(source, previous = {}) {
     draftLoaded: previous.draftLoaded || false,           // 是否已从本地 IndexedDB 恢复过
     streamRevision: previous.streamRevision || 0,         // 全会话流式内容序号，工具折叠用
     contextTokens: lastRequest?.input || previous.contextTokens || 0, // 最后一次请求的提示词 token 就是上下文占用
+    contextEstimate: source.contextEstimate || previous.contextEstimate || null, // 内核本轮压缩判断的估算值
     contextLimit: store.config.providers[provider]?.models.find(model => model.id === source.model)?.context || DEFAULT_CONTEXT,
     inputTokens: requests.length ? sum('input') : previous.inputTokens || 0,       // 历史里的累计输入
     outputTokens: requests.length ? sum('output') : previous.outputTokens || 0,    // 历史里的累计输出
