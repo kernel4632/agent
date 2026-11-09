@@ -247,7 +247,7 @@ const forwardedEvents = ({ sessionId, state }) => ({
             state.compactStartedAt = Date.now()
             data.startedAt = state.compactStartedAt
             // 把“为什么压”与触发口径一起留在服务日志里，方便排查估算误判。
-            console.log(`[compact ${sessionId}] reason=${event.reason || 'unknown'} token=${event.token ?? '?'} budget=${event.budget ?? '?'} threshold=${event.compactThreshold ?? '?'} ratio=${event.ratio ?? '?'}`)
+            console.log(`[compact ${sessionId}] reason=${event.reason || 'unknown'} token=${event.token ?? '?'} budget=${event.budget ?? '?'} threshold=${event.compactThreshold ?? '?'} ratio=${event.ratio ?? '?'} chars=${event.chars ?? '?'} media=${event.media ?? '?'} calibrated=${event.calibrated ?? '?'}`)
         }
         if (event.type === 'compact-finish') {
             const finishedAt = Date.now()
