@@ -59,6 +59,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   config.json          模型服务、按任务的默认模型、MCP、权限、提示词、压缩阈值
   config-backups/      配置自动备份，保留最近 20 份
   session-groups.json  会话自定义分组、组顺序和组内顺序
+  context-ratios.json  按 provider + model 记住真实 usage 学到的字符/token 比例，重启后作为 contextRatio 种子
   sessions-path.json   自定义会话目录指针（仅在改过会话位置后存在）
   sessions-move.json   等待重启执行的会话迁移（仅迁移期间存在）
   sessions/<id>/       每条会话一个目录；默认位置，也可单独放到其他磁盘

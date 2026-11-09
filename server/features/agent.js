@@ -25,6 +25,7 @@
 import AgentCore from '@kernel4632/agent-core'
 import store from '../store.js'
 import fail from '../utils/fail.js'
+import ContextRatios from '../utils/context-ratios.js'
 
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
@@ -309,6 +310,10 @@ const create = async ({ sessionId }) => {
     const session = await services.history.load(sessionId)                     // 先把会话元数据读进内存
     const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度
     const config = await resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
+    // 上一次进程从真实 usage 学到的字符/token 比例；core 冷启动没有它，
+    // 第一次估算会退回 0.6，长历史容易误压。按 provider + model 取回。
+    const rememberedRatio = await ContextRatios.read({ provider: config.providerName, model: config.model })
+    if (rememberedRatio) config.contextRatio = rememberedRatio.ratio
     const built = await services.tool.build({
         sessionId,
         onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口

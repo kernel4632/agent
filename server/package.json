@@ -1,6 +1,6 @@
 {
   "name": "universal-agent",
-  "version": "0.94.0",
+  "version": "0.95.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.69",
-    "@kernel4632/agent-core": "0.34.0",
+    "@kernel4632/agent-core": "0.35.0",
     "@vscode/ripgrep": "^1.18.0",
     "atomically": "^2.0.3",
     "elysia": "^1.4.29",

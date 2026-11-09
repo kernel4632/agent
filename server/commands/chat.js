@@ -24,6 +24,7 @@ import SSE from '../utils/sse.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
 import ContextUsage from '../utils/context-usage.js'
+import ContextRatios from '../utils/context-ratios.js'
 
 // 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
 const saveQueue = new Map()
@@ -168,9 +169,19 @@ const startAgent = ({ sessionId, agent, resume, token }) => async () => {
 }
 
 // --- 模型请求的开始和结束：记录首字时间、总耗时和用量 ---
+const rememberRatio = state => {
+    const info = state.agent?.getContextRatio?.()
+    if (info?.source !== 'usage') return
+    void ContextRatios.remember({
+        provider: state.agent?.config?.providerName || '',
+        model: state.agent?.config?.model || '',
+        ratio: info.ratio,
+        source: info.source,
+    })
+}
+
 const modelEvents = ({ sessionId, state }) => ({
-    onLLMStart: request => {
-        // core 每次真实请求都调这里，重试也算；同一个请求只开一行，重试沿用原来的开始时间。
+    onLLMStart: request => {        // core 每次真实请求都调这里，重试也算；同一个请求只开一行，重试沿用原来的开始时间。
         if (state.requesting) return
         state.requesting = true
         state.llmStartedAt = Date.now()
@@ -189,6 +200,8 @@ const modelEvents = ({ sessionId, state }) => ({
     onLLMFinish: result => {
         state.requesting = false
         const finishedAt = Date.now()
+        // usage 刚回来时 core 已经完成这一笔的校准；这里补记，避免最后一笔没有下一轮 onInject。
+        rememberRatio(state)
         state.pendingUsage = usageOf({
             usage: result.usage,
             startedAt: state.llmStartedAt || finishedAt,
@@ -250,7 +263,7 @@ const forwardedEvents = ({ sessionId, state }) => ({
             state.compactStartedAt = Date.now()
             data.startedAt = state.compactStartedAt
             // 把“为什么压”与触发口径一起留在服务日志里，方便排查估算误判。
-            console.log(`[compact ${sessionId}] reason=${event.reason || 'unknown'} token=${event.token ?? '?'} budget=${event.budget ?? '?'} threshold=${event.compactThreshold ?? '?'} ratio=${event.ratio ?? '?'} chars=${event.chars ?? '?'} media=${event.media ?? '?'} calibrated=${event.calibrated ?? '?'}`)
+            console.log(`[compact ${sessionId}] reason=${event.reason || 'unknown'} token=${event.token ?? '?'} budget=${event.budget ?? '?'} threshold=${event.compactThreshold ?? '?'} ratio=${event.ratio ?? '?'} ratioSource=${event.ratioSource ?? '?'} chars=${event.chars ?? '?'} media=${event.media ?? '?'} calibrated=${event.calibrated ?? '?'}`)
         }
         if (event.type === 'compact-finish') {
             const finishedAt = Date.now()
@@ -322,9 +335,18 @@ const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, 
 // onInject 由 core 在每轮请求前调用（压缩之后拿到的才是这一轮真实估算），钩子抛错时 core 已容错。
 const CONTEXT_MARGIN = 0.05
 const CONTEXT_REMINDER = '[System reminder] The context is close to the compaction threshold. Wrap up cleanly: finish the current step, call attempt_completion with a complete handover (or update the todo list with the next concrete step and the key file paths), so the conversation can be summarized without losing your place. Do not start large new work this turn.'
-const compactWarning = ({ state, sessionId }) => ({ tokens, budget, compactThreshold }) => {
+const compactWarning = ({ state, sessionId }) => ({ tokens, budget, compactThreshold, ratio, ratioSource }) => {
     // 每一轮都把当前用量记下来：ctx_usage 工具靠它回答模型“还剩多少”。
     ContextUsage.record(sessionId, { tokens, budget, compactThreshold })
+    // 只把真实 usage 学到的比例写进宿主缓存；host/default 不覆盖已学样本。
+    if (ratioSource === 'usage') {
+        void ContextRatios.remember({
+            provider: state.agent?.config?.providerName || '',
+            model: state.agent?.config?.model || '',
+            ratio,
+            source: ratioSource,
+        })
+    }
 
     if (state.compactReminded) return ''                                   // 这个 run 已经提醒过，不重复
     if (!Number.isFinite(budget)) return ''                                // 没有预算就没有压缩，不提醒
