@@ -31,6 +31,7 @@ const ratio = ref(0)
 const dragging = ref(false)
 const hoverIndex = ref(-1)
 const activeOverride = ref(null)
+const visibleIndex = ref(-1)
 const viewport = ref({ top: '0px', height: '0px' })
 const frameHeight = ref(0)
 const scrollTop = ref(0)
@@ -103,6 +104,7 @@ const nodes = computed(() => {
       const response = answerOf(next)
       merged.push({
         id: turn.messages[0].id,
+        index: props.messages.findIndex(message => message.id === turn.messages[0].id),
         length: prompt.length + response.length,
         prompt,
         response,
@@ -116,6 +118,7 @@ const nodes = computed(() => {
     if (!response) continue
     merged.push({
       id: turn.messages[0].id,
+      index: props.messages.findIndex(message => message.id === turn.messages[0].id),
       length: response.length,
       prompt: '',
       response,
@@ -124,6 +127,17 @@ const nodes = computed(() => {
   }
   return merged
 })
+const messageIndexById = computed(() => {
+  const map = new Map()
+  props.messages.forEach((message, index) => map.set(message.id, index))
+  return map
+})
+// 大纲里的 index 可能来自回退/压缩前，不能直接和当前 DOM 的消息下标比较；
+// 用当前 messages 的 id 重新定位每个刻度。
+const nodePositions = computed(() => nodes.value.map(node => {
+  const current = messageIndexById.value.get(node.id)
+  return Number.isInteger(current) ? current : Number(node.index)
+}))
 
 // 保留原定义：刻度宽度表示这一轮的文字量，短问题和长回答仍然可区分。
 const maxLength = computed(() => Math.max(1, ...nodes.value.map(node => node.length)))
@@ -134,8 +148,9 @@ const maxFrameHeight = computed(() => Math.max(0, Math.min(MAX_FRAME, (parseFloa
 
 const activeIndex = computed(() => {
   if (!nodes.value.length) return -1
-  // 点击/键盘定位后先锁定被点的刻度；滚动过程的连续 ratio 不能把蓝色提示带到别的消息。
+  // 点击/键盘定位后先锁定被点的刻度；滚动过程的连续位置不能把蓝色提示带到别的消息。
   if (activeOverride.value !== null) return Math.min(nodes.value.length - 1, Math.max(0, activeOverride.value))
+  if (visibleIndex.value >= 0) return visibleIndex.value
   return Math.min(nodes.value.length - 1, Math.max(0, Math.round(ratio.value * (nodes.value.length - 1))))
 })
 const activeNode = computed(() => nodes.value[activeIndex.value] || null)
@@ -174,6 +189,33 @@ function syncFromScroll() {
   if (!scrollParent || dragging.value) return
   const max = scrollParent.scrollHeight - scrollParent.clientHeight
   ratio.value = max > 0 ? clamp(scrollParent.scrollTop / max) : 0
+  // 高亮按“视口顶部实际是哪一轮 DOM”来定，不能拿等分比例近似：
+  // 每轮高度差异巨大时，比例会把蓝色刻度带到完全不相邻的消息上。
+  const rect = scrollParent.getBoundingClientRect()
+  const row = [...scrollParent.querySelectorAll('[data-turn-id]')]
+    .find(element => element.getBoundingClientRect().bottom > rect.top + 1)
+  if (!row) {
+    visibleIndex.value = -1
+    return
+  }
+  const id = row.getAttribute('data-turn-id') || ''
+  let index = nodes.value.findIndex(node => node.id === id)
+  if (index < 0) {
+    // 时间线轮的 id 可能是这一轮里某条助手/工具消息，大纲记的是用户消息；
+    // 按当前完整历史里的消息下标，找到它之前最近的大纲轮次。
+    const messageIndex = messageIndexById.value.get(id)
+    if (Number.isInteger(messageIndex)) {
+      for (let offset = 0; offset < nodes.value.length; offset += 1) {
+        if (nodePositions.value[offset] <= messageIndex) index = offset
+        else break
+      }
+    }
+  }
+  if (index < 0) {
+    // 最后兜底：轮次里任何一条消息能对上大纲节点都算命中。
+    index = nodes.value.findIndex(node => Boolean(row.querySelector(`[data-message-id="${CSS.escape(node.id)}"]`)))
+  }
+  visibleIndex.value = index
 }
 
 // 固定在视口右侧，但高度只覆盖对话滚动区；不跟着聊天列的内容宽度走。
@@ -296,6 +338,7 @@ function keydown(event) {
 }
 
 watch([activeIndex, () => nodes.value.length, frameHeight], () => followActive())
+watch(() => nodes.value.length, () => syncFromScroll())
 watch(frame, element => observeFrame(element), { flush: 'post' })
 watch(() => props.messages, () => nextTick(() => {
   syncViewport()
