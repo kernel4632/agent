@@ -147,6 +147,17 @@ describe('会话历史按 compact 分段', () => {
         })
     })
 
+    test('全量搜索跨封存段仍能找到旧消息', async () => {
+        await withHome(async root => {
+            const session = await History.create({ title: '搜索', cwd: root, settings: { reasoning: 'auto' } })
+            await append(History, session.id, [user('封存段里的关键字'), assistant('旧回答'), compact('摘要'), user('当前问题')])
+            History.clear()
+            const result = await History.search({ sessionId: session.id, query: '关键字' })
+            expect(result.results).toHaveLength(1)
+            expect(result.results[0].match).toBe('关键字')
+        })
+    })
+
     test('旧 JSONL 里已有 compact 时，首次加载自动迁移成分段', async () => {
         await withHome(async root => {
             const session = await History.create({ title: '迁移', cwd: root, settings: { reasoning: 'auto' } })
