@@ -415,6 +415,32 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
+    test('DeepSeek 旧工具调用没有 reasoning 时补占位字段', async () => {
+        await withHome(async () => {
+            await withFakeModel(async ({ port, seen }) => {
+                await Settings.set({
+                    providers: [{ name: 'fake', models: [{ id: 'deepseek-reasoner', capabilities: ['text', 'tools'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
+                })
+                const config = { ...await resolve({ provider: 'fake', model: 'deepseek-reasoner' }), stream: false }
+                const agent = AgentCore.create({
+                    history: [
+                        { id: 'u1', role: 'user', content: [{ type: 'text', text: '开始' }] },
+                        { id: 'a1', role: 'assistant', content: [
+                            { type: 'tool-call', toolCallId: 'c1', toolName: 'noop', input: {} },
+                        ] },
+                        { id: 't1', role: 'tool', content: [
+                            { type: 'tool-result', toolCallId: 'c1', toolName: 'noop', output: { type: 'text', value: 'ok' } },
+                        ] },
+                    ],
+                    config,
+                })
+                await agent.send({ input: '继续' })
+                const assistant = seen[0].messages.find(message => message.role === 'assistant' && message.tool_calls)
+                expect(assistant.reasoning_content).toBe(' ')
+            })
+        })
+    })
+
     test('请求头不是合法 JSON 时按用户填错处理，不抛程序异常', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm', name: 'm' }], headers: '{' }] })

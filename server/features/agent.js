@@ -26,6 +26,34 @@ import AgentCore from '@kernel4632/agent-core'
 import store from '../store.js'
 import fail from '../utils/fail.js'
 
+// DeepSeek 思考模式在历史 assistant 工具调用缺少 reasoning_content 时会直接 400。
+// agent-core 默认不回传 reasoning，且旧历史可能根本没有该块；在真正发请求前给
+// 缺失字段补占位，比污染 history 或让整轮任务失败更安全。只匹配 DeepSeek 模型。
+const nativeFetch = globalThis.fetch
+if (!globalThis.__agentDeepSeekFetch) {
+    globalThis.__agentDeepSeekFetch = true
+    globalThis.fetch = async (input, init = {}) => {
+        if (typeof init?.body === 'string' && init.body.includes('deepseek')) {
+            try {
+                const body = JSON.parse(init.body)
+                if (/deepseek/i.test(String(body.model || '')) && Array.isArray(body.messages)) {
+                    let changed = false
+                    for (const message of body.messages) {
+                        if (message.role !== 'assistant' || !message.tool_calls?.length) continue
+                        if (typeof message.reasoning_content === 'string') continue
+                        message.reasoning_content = ' '
+                        changed = true
+                    }
+                    if (changed) init = { ...init, body: JSON.stringify(body) }
+                }
+            } catch {
+                // 非 JSON 请求体原样发送。
+            }
+        }
+        return nativeFetch(input, init)
+    }
+}
+
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
 
