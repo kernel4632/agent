@@ -222,9 +222,16 @@ function syncFromScroll() {
     }
   }
   if (index < 0) {
-    // 当前行可能以助手消息开头，而大纲记的是用户消息；从行内任意 messageId 反查。
-    const ids = [...row.querySelectorAll('[data-message-id]')].map(element => element.getAttribute('data-message-id'))
-    index = nodes.value.findIndex(node => ids.includes(node.id))
+    // 当前行可能是超长助手轮，行内没有大纲记的用户消息 id；
+    // 沿 DOM 往前找最近的用户/上一轮行，才能把“正在读这轮回复”映射回同一个刻度。
+    let cursor = row
+    for (let hop = 0; cursor && hop < 3 && index < 0; hop += 1, cursor = cursor.previousElementSibling) {
+      const ids = [
+        cursor.getAttribute?.('data-turn-id') || '',
+        ...[...cursor.querySelectorAll?.('[data-message-id]') || []].map(element => element.getAttribute('data-message-id')),
+      ]
+      index = nodes.value.findIndex(node => ids.includes(node.id))
+    }
   }
   if (index < 0) {
     // 最后兜底：轮次里任何一条消息能对上大纲节点都算命中。
