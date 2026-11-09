@@ -27,10 +27,15 @@ const compactDiagnostic = computed(() => {
   const token = Number(props.request.compactToken || 0)
   const budget = Number(props.request.compactBudget || 0)
   const percent = token && budget ? Math.round(token / budget * 100) : 0
-  if (reason === 'automatic') return `自动压缩：估算 ${percent}%`
+  if (reason === 'automatic') return `自动压缩：估算 ${percent}%${props.request.compactCalibrated === false ? '（未校准）' : ''}`
   if (reason === 'overflow-retry') return '模型报告上下文超长，强制压缩'
   if (reason === 'manual') return '手动压缩'
   return ''
+})
+const compactMetrics = computed(() => {
+  if (!compact.value || !props.request.compactChars) return ''
+  const ratio = Number(props.request.compactRatio || 0)
+  return `chars ${Math.round(props.request.compactChars).toLocaleString()} · ratio ${ratio} · ${props.request.compactCalibrated ? '已校准' : '未校准'}`
 })
 const running = computed(() => props.request.status === 'running')
 const failed = computed(() => props.request.status === 'failed')
@@ -120,8 +125,13 @@ const detail = computed(() => {
   return completedDetail()
 })
 const fullDetail = computed(() => {
-  if (running.value || failed.value) return compactDiagnostic.value ? `${compactDiagnostic.value} · ${detail.value}` : detail.value
-  if (compact.value && compactDiagnostic.value) return `${compactDiagnostic.value} · ${completedDetail()}`
+  if (running.value || failed.value) {
+    return compactMetrics.value ? `${detail.value} · ${compactMetrics.value}` : detail.value
+  }
+  if (compact.value && compactDiagnostic.value) {
+    const base = `${compactDiagnostic.value} · ${completedDetail()}`
+    return compactMetrics.value ? `${base} · ${compactMetrics.value}` : base
+  }
   return completedParts(value => Number(value || 0).toLocaleString(), false).join(' · ')
 })
 

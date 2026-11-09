@@ -293,6 +293,9 @@ function startCompact(session, event) {
     compactBudget: Number(event.budget) || 0,
     compactThreshold: Number(event.compactThreshold) || 0,
     compactRatio: Number(event.ratio) || 0,
+    compactChars: Number(event.chars) || 0,
+    compactMedia: Number(event.media) || 0,
+    compactCalibrated: event.calibrated === true,
   }
   assistant.steps.push({ type: 'compact', request })
   assistant.isStreaming = true
