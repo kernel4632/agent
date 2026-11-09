@@ -342,8 +342,8 @@ describe('交给 agent-core 的 config', () => {
                 },
             })
             try {
-                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'deepseek-reasoner', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
-                const config = { ...await resolve({ provider: 'fake', model: 'deepseek-reasoner' }), stream: false, retryBaseDelay: 1, retryMaxDelay: 1 }
+                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false, retryBaseDelay: 1, retryMaxDelay: 1 }
                 const agent = AgentCore.create({ history: [], config, callbacks: {} })
                 await expect(agent.send({ input: '不应重试' })).rejects.toBeTruthy()
                 expect(attempts).toBe(1)
@@ -371,30 +371,17 @@ describe('交给 agent-core 的 config', () => {
             const config = await resolve({ provider: 'local', model: 'm' })
             expect(config.capabilities.tools).toBe(true)
             expect(config.capabilities.image).toBe(false)
-            expect(config.capabilities.reasoning).toBe(false)
-        })
-    })
-
-    test('DeepSeek 思考模式打开 reasoning 历史回传', async () => {
-        await withHome(async () => {
-            await Settings.set({
-                providers: [{
-                    name: 'deepseek-proxy',
-                    models: [{ id: 'deepseek-reasoner', capabilities: ['text', 'tools'] }],
-                }],
-            })
-            const config = await resolve({ provider: 'deepseek-proxy', model: 'deepseek-reasoner' })
             expect(config.capabilities.reasoning).toBe(true)
         })
     })
 
-    test('DeepSeek 工具调用的历史 reasoning 真的进入请求体', async () => {
+    test('任意模型的历史 reasoning 真的进入请求体', async () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
                 await Settings.set({
-                    providers: [{ name: 'fake', models: [{ id: 'deepseek-reasoner', capabilities: ['text', 'tools'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
+                    providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text', 'tools'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
                 })
-                const config = { ...await resolve({ provider: 'fake', model: 'deepseek-reasoner' }), stream: false }
+                const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false }
                 const agent = AgentCore.create({
                     history: [
                         { id: 'u1', role: 'user', content: [{ type: 'text', text: '开始' }] },
@@ -411,32 +398,6 @@ describe('交给 agent-core 的 config', () => {
                 await agent.send({ input: '继续' })
                 const assistant = seen[0].messages.find(message => message.role === 'assistant' && message.tool_calls)
                 expect(assistant.reasoning_content).toBe('先思考')
-            })
-        })
-    })
-
-    test('DeepSeek 旧工具调用没有 reasoning 时补占位字段', async () => {
-        await withHome(async () => {
-            await withFakeModel(async ({ port, seen }) => {
-                await Settings.set({
-                    providers: [{ name: 'fake', models: [{ id: 'deepseek-reasoner', capabilities: ['text', 'tools'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
-                })
-                const config = { ...await resolve({ provider: 'fake', model: 'deepseek-reasoner' }), stream: false }
-                const agent = AgentCore.create({
-                    history: [
-                        { id: 'u1', role: 'user', content: [{ type: 'text', text: '开始' }] },
-                        { id: 'a1', role: 'assistant', content: [
-                            { type: 'tool-call', toolCallId: 'c1', toolName: 'noop', input: {} },
-                        ] },
-                        { id: 't1', role: 'tool', content: [
-                            { type: 'tool-result', toolCallId: 'c1', toolName: 'noop', output: { type: 'text', value: 'ok' } },
-                        ] },
-                    ],
-                    config,
-                })
-                await agent.send({ input: '继续' })
-                const assistant = seen[0].messages.find(message => message.role === 'assistant' && message.tool_calls)
-                expect(assistant.reasoning_content).toBe(' ')
             })
         })
     })

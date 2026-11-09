@@ -26,34 +26,6 @@ import AgentCore from '@kernel4632/agent-core'
 import store from '../store.js'
 import fail from '../utils/fail.js'
 
-// DeepSeek 思考模式在历史 assistant 工具调用缺少 reasoning_content 时会直接 400。
-// agent-core 默认不回传 reasoning，且旧历史可能根本没有该块；在真正发请求前给
-// 缺失字段补占位，比污染 history 或让整轮任务失败更安全。只匹配 DeepSeek 模型。
-const nativeFetch = globalThis.fetch
-if (!globalThis.__agentDeepSeekFetch) {
-    globalThis.__agentDeepSeekFetch = true
-    globalThis.fetch = async (input, init = {}) => {
-        if (typeof init?.body === 'string' && init.body.includes('deepseek')) {
-            try {
-                const body = JSON.parse(init.body)
-                if (/deepseek/i.test(String(body.model || '')) && Array.isArray(body.messages)) {
-                    let changed = false
-                    for (const message of body.messages) {
-                        if (message.role !== 'assistant' || !message.tool_calls?.length) continue
-                        if (typeof message.reasoning_content === 'string') continue
-                        message.reasoning_content = ' '
-                        changed = true
-                    }
-                    if (changed) init = { ...init, body: JSON.stringify(body) }
-                }
-            } catch {
-                // 非 JSON 请求体原样发送。
-            }
-        }
-        return nativeFetch(input, init)
-    }
-}
-
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
 
@@ -161,8 +133,8 @@ const hasCapability = (profile, name) => profile.some(item => {
 // 到点就把错误交给 finishFailure（发 agent-finish.error 并清标记），用户自己发的消息不受影响。
 const RECOVERY_RETRY_ELAPSED = 120000
 const RECOVERY_RETRY_TRIES = 3
-// 400/401/403 这类请求错误重试也不会变好，尤其 DeepSeek 的 reasoning_content 缺失
-// 会变成无限重试；这类错误只展示一次，交给用户或上层修复配置/历史。
+// 400/401/403 这类请求错误重试也不会变好，尤其历史协议/字段缺失会无限重试；
+// 这类错误只展示一次，交给用户或上层修复配置/历史。
 const noRetryClientErrors = error => {
     if (error?.kind === 'request' || error?.kind === 'auth') return false
     const status = Number(error?.statusCode || 0)
@@ -184,7 +156,6 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
     const info = services.context.modelInfo(chosen)
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
-    const deepseek = /deepseek/i.test(chosen.model || '') || /deepseek/i.test(provider?.baseURL || '')
     const profileModel = provider?.models?.find(item => item.id === chosen.model)
     const generation = {}
     for (const field of ['temperature', 'topP', 'seed']) {
@@ -212,9 +183,9 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         capabilities: {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
-            // DeepSeek 思考模式要求把上一轮 assistant 的 reasoning_content 原样带回；
-            // agent-core 默认不回传 reasoning，这里按模型/地址识别后显式打开。
-            reasoning: hasCapability(profile, 'reasoning') || deepseek,
+            // reasoning 是模型输出的一部分，不是某个厂商的开关。历史里有 reasoning
+            // 块就默认全部回传，由 core 按当前协议编码；没有该块的模型自然不产生字段。
+            reasoning: true,
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
