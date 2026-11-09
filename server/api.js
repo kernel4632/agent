@@ -374,7 +374,7 @@ export const components = {
                                     "type": "null"
                                 }
                             ],
-                            "description": "当前进程内最近一轮的上下文估算（onInject 采样）：tokens、budget、percentOfBudget、compactAt、untilCompact；重启后首轮请求前为 null"
+                            "description": "当前上下文估算（onInject 采样）：tokens、budget、percentOfBudget、compactAt、untilCompact。采样会随会话落盘，服务重启后仍显示最后一次；从未跑过请求时为 null"
                         },
                         "todos": {
                             "type": "array",

@@ -12,8 +12,42 @@
  * 这是"当前这一轮"的瞬时状态，跨重启的历史值没有意义，反而会误导。
  */
 
-// sessionId → { tokens, budget, compactThreshold, updatedAt, sampled }
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import Path from './path.js'
+
+// sessionId → { tokens, budget, compactThreshold, updatedAt }
 const usage = new Map()
+
+const persist = (sessionId, entry) => {
+    if (!sessionId || !entry) return
+    void mkdir(Path.session(sessionId), { recursive: true })
+        .then(() => writeFile(Path.contextUsage(sessionId), JSON.stringify(entry)))
+        .catch(() => {})
+}
+
+/** 进程重启后恢复上一次采样；同一进程内仍以实时 record 为准。 */
+const hydrate = async sessionId => {
+    if (!sessionId || usage.has(sessionId)) return usage.get(sessionId) || null
+    try {
+        const entry = JSON.parse(await readFile(Path.contextUsage(sessionId), 'utf8'))
+        const tokens = Number(entry?.tokens)
+        const budget = Number(entry?.budget)
+        const threshold = Number(entry?.compactThreshold)
+        if (Number.isFinite(tokens) && Number.isFinite(budget) && budget > 0) {
+            const restored = {
+                tokens: Math.max(0, Math.round(tokens)),
+                budget: Math.round(budget),
+                compactThreshold: Number.isFinite(threshold) && threshold > 0 && threshold <= 1 ? threshold : 0.8,
+                updatedAt: Number(entry.updatedAt) || 0,
+            }
+            usage.set(sessionId, restored)
+            return restored
+        }
+    } catch {
+        // 还没有采样或文件损坏，按未运行过处理。
+    }
+    return null
+}
 
 /**
  * 记一次当前用量。
@@ -26,12 +60,14 @@ const record = (sessionId, sample = {}) => {
     const budget = Number(sample.budget)
     if (!Number.isFinite(tokens) || !Number.isFinite(budget) || budget <= 0) return
     const threshold = Number(sample.compactThreshold)
-    usage.set(sessionId, {
+    const entry = {
         tokens: Math.max(0, Math.round(tokens)),
         budget: Math.round(budget),
         compactThreshold: Number.isFinite(threshold) && threshold > 0 && threshold <= 1 ? threshold : 0.8,
         updatedAt: Date.now(),
-    })
+    }
+    usage.set(sessionId, entry)
+    persist(sessionId, entry)
 }
 
 /**
@@ -57,8 +93,11 @@ const read = sessionId => {
     }
 }
 
-/** 会话删除时清掉；不清理的话内存会随会话数量一直长。 */
-const remove = sessionId => { usage.delete(sessionId) }
+/** 会话删除时清掉；不清理的话内存和最后一份采样文件都会留下。 */
+const remove = sessionId => {
+    usage.delete(sessionId)
+    if (sessionId) void rm(Path.contextUsage(sessionId), { force: true }).catch(() => {})
+}
 
-export { record, read, remove }
-export default { record, read, remove }
+export { record, read, hydrate, remove }
+export default { record, read, hydrate, remove }

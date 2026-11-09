@@ -139,6 +139,7 @@ const fork = async ({ sessionId, title, messageId }) => {
 // --- 读取一条会话 ---
 const HISTORY_PAGE = 200
 const read = async ({ sessionId, historyLimit, historyStart }) => {
+    await ContextUsage.hydrate(sessionId)
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
