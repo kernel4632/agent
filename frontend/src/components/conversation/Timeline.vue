@@ -1,7 +1,7 @@
 <!--
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
-  用户消息和助手回复按轮排布；已加载的轮次全量挂载，旧历史按页补。
+  用户消息和助手回复按轮排布；历史轮次由 virtua 虚拟化，最新几轮始终挂载。
   按钮和图标按钮走 ui/；右键直接进聚光引导（MessageActions 内置），回退确认也在同一张卡片里。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
@@ -15,15 +15,12 @@ import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Virtualizer } from 'virtua/vue'
 import { store } from '../../store.js'
 import { groupMessageTurns } from "../../features/turns.js"
 import { isSavedMessage } from "../../features/turns.js"
 import Icon from '../../ui/Icon.vue'
-import Markdown from '../../ui/Markdown.vue'
-import MessageActions from './MessageActions.vue'
-import CompactionNotice from '../feedback/CompactionNotice.vue'
-
-import AssistantTurn from './AssistantTurn.vue'
+import TurnItem from './TurnItem.vue'
 
 const props = defineProps({
     // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
@@ -49,10 +46,25 @@ const turns = computed(() => {
   turnCache = merged
   return merged
 })
-// 全量挂载：轮次已经是当前历史窗口的边界，虚拟化会把整轮巨型回复反复挂载/测量，
-// 反而比浏览器原生滚动更卡。旧历史仍按页加载，但已加载的轮次不拆。
-const rows = computed(() => turns.value)
+// 全量数据留在内存，虚拟器只负责可见窗口；最新几轮始终挂载，流式行不会被回收。
 const timelineSessionID = session.value?.id || ''
+const LIVE_TAIL_TURNS = 3
+const virtualCaches = new Map()
+const initialVirtualCache = virtualCaches.get(timelineSessionID)
+const historicalLength = Math.max(0, turns.value.length - LIVE_TAIL_TURNS)
+const usableVirtualCache = Array.isArray(initialVirtualCache?.[0]) && initialVirtualCache[0].length === historicalLength
+  ? initialVirtualCache
+  : undefined
+const virtualizer = ref(null)
+const scrollElement = ref(null)
+// 最新几轮放在虚拟窗口外，流式增长不会让虚拟器按“距底部距离”反复修正滚动。
+const historicalTurns = computed(() => turns.value.slice(0, Math.max(0, turns.value.length - LIVE_TAIL_TURNS)))
+const liveTurns = computed(() => turns.value.slice(Math.max(0, turns.value.length - LIVE_TAIL_TURNS)))
+const itemProps = ({ item, index }) => ({
+  class: 'conversation-flow__row',
+  'data-turn-id': item.id,
+  'data-index': index,
+})
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
@@ -69,6 +81,7 @@ let saveTimer = 0
 let pointerActive = false
 let touchStartY = null
 let touchStartTop = 0
+let lastScrollTop = 0
 let resumeFollow = false
 
 const maxScrollTop = () => scrollParent ? Math.max(0, scrollParent.scrollHeight - scrollParent.clientHeight) : 0
@@ -88,6 +101,10 @@ function requestFollow() {
     const max = maxScrollTop()
     if (max > scrollParent.scrollTop + 1) scrollParent.scrollTop = max
   })
+}
+
+function onVirtualResize() {
+  if (following.value) requestFollow()
 }
 
 // “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局。
@@ -187,11 +204,15 @@ function nestedScroller(target) {
 
 function onScroll() {
   if (!scrollParent) return
+  const top = scrollParent.scrollTop
   if (!jumping) {
     const atEnd = atBottom()
-    if (!atEnd && following.value) setFollowing(false)
+    // 内容测量/虚拟器自身调整也会触发 scroll，不能把它当用户上滚；
+    // 只有按住指针或滚轮/触摸明确上滚时才关闭跟随。
+    if (pointerActive && top < lastScrollTop - 1) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
   }
+  lastScrollTop = top
   syncLatestPosition()
   rememberScroll()
 }
@@ -288,25 +309,52 @@ function jumpToBottom() {
 
 // 全量挂载下直接按轮次 DOM 定位。
 async function jumpToMessage(messageId) {
-  const target = turns.value.find(turn => turn.messages.some(message => message.id === messageId))
-  if (!target || !scrollParent) return
+  const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
+  if (turnIndex < 0) return
   beginJump()
   setFollowing(false)
-  await nextTick()
-  const element = scrollParent.querySelector(`[data-turn-id="${CSS.escape(target.id)}"]`)
-  if (!element) return
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  if (virtualizer.value && turnIndex < historicalTurns.value.length) {
+    virtualizer.value.scrollToIndex(turnIndex, { align: 'start', smooth: !reduce })
+    return
+  }
+  await nextTick()
+  const element = scrollParent?.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+    || scrollParent?.querySelector(`[data-turn-id="${CSS.escape(turns.value[turnIndex].id)}"]`)
+  if (!element || !scrollParent) return
   const top = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop
   scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
+  const targetId = messageId
+  const stabilize = (remaining = 8) => {
+    window.setTimeout(() => {
+      if (!remaining || !scrollParent) return
+      const current = scrollParent.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`)
+      if (current) {
+        const delta = current.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
+        if (Math.abs(delta) > 2) scrollParent.scrollTop += delta
+      }
+      stabilize(remaining - 1)
+    }, 120)
+  }
+  stabilize()
 }
 defineExpose({ jumpToMessage, jumpToBottom })
 
 onMounted(() => {
   bindScrollRoot(props.scrollRoot)
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!following.value || !virtualizer.value || !turns.value.length) return
+        virtualizer.value.scrollToIndex(turns.value.length - 1, { align: 'end' })
+      })
+    })
+  })
 })
 watch(() => props.scrollRoot, root => bindScrollRoot(root), { flush: 'post' })
 onBeforeUnmount(() => {
   unbindScrollRoot()
+  if (virtualizer.value && timelineSessionID) virtualCaches.set(timelineSessionID, virtualizer.value.cache)
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
   clearTimeout(bottomTimer)
@@ -331,6 +379,7 @@ function unbindScrollRoot() {
   contentObserver?.disconnect()
   contentObserver = null
   scrollParent = null
+  scrollElement.value = null
 }
 
 function bindScrollRoot(root) {
@@ -338,6 +387,7 @@ function bindScrollRoot(root) {
   if (!root || root === scrollParent) return
   if (scrollParent) unbindScrollRoot()
   scrollParent = root
+  scrollElement.value = root
   scrollParent.classList.toggle('is-following', following.value)
   scrollParent.addEventListener('scroll', onScroll, { passive: true })
   scrollParent.addEventListener('wheel', onWheel, { passive: true })
@@ -429,61 +479,53 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
     role="log"
     aria-label="对话内容"
   >
-    <div
-      v-for="row in rows"
-      :key="row.id"
-      class="conversation-flow__row"
+    <Virtualizer
+      ref="virtualizer"
+      :data="historicalTurns"
+      :scroll-ref="scrollElement"
+      :buffer-size="2000"
+      :item-props="itemProps"
+      :cache="usableVirtualCache"
+      class="conversation-flow__virtual"
+      @resize="onVirtualResize"
     >
-      <article
-        :data-turn-id="row.id"
-        class="message"
-        :class="[`message--${row.role}`, { 'message--compact': row.messages[0].compact }]"
-        :aria-label="row.messages[0].compact ? '上下文压缩' : row.role === 'user' ? '你的消息' : 'Agent 的回复'"
-      >
-        <CompactionNotice v-if="row.messages[0].compact" :content="row.messages[0].content" />
-        <template v-else-if="row.role === 'user'">
-          <MessageActions
-            :items="userMenuItems(row.messages[0])"
-            :target-id="row.messages[0].id"
-            label="消息操作"
-            :running="session.status === 'running'"
-            :rollback-target="rollbackTarget"
-            :rollback-preview="rollbackPreview"
-            @request-open="event => requestRollback(row.messages[0])"
-            @close="clearRollback"
-            @action="onUserMenu(row.messages[0], $event)"
-            @rollback-confirm="confirmRollback"
-          >
-            <div class="rikka-message rikka-message--user">
-              <div class="rikka-bubble rikka-bubble--user" :data-message-id="row.messages[0].id">
-                <Markdown :content="row.messages[0].displayContent ?? row.messages[0].content" />
-                <div v-if="row.messages[0].images?.length" class="user-images">
-                  <img v-for="(image, index) in row.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
-                </div>
-                <div v-if="row.messages[0].attachments?.length" class="user-attachments">
-                  <span v-for="(file, index) in row.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
-                    <Icon name="document" :size="14" />
-                    <span class="user-attachment__name">{{ file.name }}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </MessageActions>
-        </template>
-        <template v-else>
-          <AssistantTurn
-            :messages="row.messages"
-            :session-id="session.id"
-            :running="session.status === 'running'"
-            :active="session.status === 'running' && row.id === turns.at(-1)?.id"
-            :rollback-target="rollbackTarget"
-            :rollback-preview="rollbackPreview"
-            @rollback="requestRollback"
-            @fork="forkFrom"
-            @rollback-confirm="confirmRollback"
-          />
-        </template>
-      </article>
+      <template #default="{ item: turn }">
+        <TurnItem
+          :turn="turn"
+          :session-id="session.id"
+          :running="session.status === 'running'"
+          :active="false"
+          :rollback-target="rollbackTarget"
+          :rollback-preview="rollbackPreview"
+          :menu-items="userMenuItems"
+          @request-rollback="requestRollback"
+          @close="clearRollback"
+          @action="onUserMenu"
+          @rollback-confirm="confirmRollback"
+          @fork="forkFrom"
+        />
+      </template>
+    </Virtualizer>
+    <div
+      v-for="turn in liveTurns"
+      :key="turn.id"
+      class="conversation-flow__row conversation-flow__row--tail"
+      :data-turn-id="turn.id"
+    >
+      <TurnItem
+        :turn="turn"
+        :session-id="session.id"
+        :running="session.status === 'running'"
+        :active="session.status === 'running' && turn.id === turns.at(-1)?.id"
+        :rollback-target="rollbackTarget"
+        :rollback-preview="rollbackPreview"
+        :menu-items="userMenuItems"
+        @request-rollback="requestRollback"
+        @close="clearRollback"
+        @action="onUserMenu"
+        @rollback-confirm="confirmRollback"
+        @fork="forkFrom"
+      />
     </div>
     <div v-if="!following" class="conversation-latest-layer" :style="latestPosition">
       <button type="button" class="conversation-latest" @click="jumpToBottom">

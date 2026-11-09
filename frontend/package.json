@@ -1,7 +1,7 @@
 {
   "name": "agent-frontend",
   "private": true,
-  "version": "0.128.0",
+  "version": "0.129.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -25,6 +25,7 @@
     "katex": "^0.18.1",
     "markstream-vue": "^2.0.24",
     "mermaid": "^11.16.0",
+    "virtua": "^0.54.2",
     "vue": "^3.5.44"
   },
   "devDependencies": {

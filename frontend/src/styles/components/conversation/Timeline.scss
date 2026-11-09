@@ -64,12 +64,14 @@
 .rikka-bubble--user { max-width: 100%; }
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-/* 已加载轮次全量参与布局；旧历史由 JS 按页补，不再做行级虚拟化。 */
+/* 已加载轮次由 Virtua 决定挂载窗口；每行仍是正常文档流，不手写绝对定位。 */
+.conversation-flow__virtual { width: 100%; }
 .conversation-flow__row {
   position: relative;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  padding: 6px 0;
 }
 .conversation-flow .message { width: 100%; }
 .conversation-latest-layer {
