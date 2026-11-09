@@ -136,9 +136,8 @@ const fork = async ({ sessionId, title, messageId }) => {
     await Agent.create({ sessionId: branch.id })
     return { sessionId: branch.id }}
 
-// --- 读取一条会话 ---
-const HISTORY_PAGE = 200
-const read = async ({ sessionId, historyLimit, historyStart }) => {
+// --- 读取一条会话：一次性返回完整历史，不再分页 ---
+const read = async ({ sessionId }) => {
     await ContextUsage.hydrate(sessionId)
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
@@ -154,15 +153,6 @@ const read = async ({ sessionId, historyLimit, historyStart }) => {
         // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
 
-    const total = history.length
-    const requestedStart = Number(historyStart)
-    const requestedLimit = Number(historyLimit)
-    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(500, Math.floor(requestedLimit)) : 0
-    const start = Number.isFinite(requestedStart) && requestedStart >= 0
-      ? Math.min(total, Math.floor(requestedStart))
-      : limit ? Math.max(0, total - limit) : 0
-    const windowed = start > 0 || limit ? history.slice(start) : history
-
     return {
         id: session.id,
         title: session.title,
@@ -172,9 +162,8 @@ const read = async ({ sessionId, historyLimit, historyStart }) => {
         model: session.model.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        history: windowed,
-        historyStart: start,
-        historyTotal: total,
+        history,
+        historyTotal: history.length,
         historyStats: historyUsage(history, session.model.provider, session.model.model),
         contextEstimate: ContextUsage.read(sessionId),
         todos: latestTodos(history),
@@ -480,9 +469,6 @@ const redo = async ({ sessionId, files = true }) => {
 const count = () => History.count()
 
 // --- 历史分页与全会话大纲：前端只加载视口附近的历史 ---
-const historyPage = ({ sessionId, before, beforeOffset, limit }) => beforeOffset === undefined
-    ? History.page({ sessionId, before, limit })
-    : History.pageByOffset({ sessionId, beforeOffset, limit })
 const historyOutline = ({ sessionId }) => History.outline(sessionId)
 const searchHistory = ({ sessionId, query, limit }) => History.search({ sessionId, query, limit })
 
@@ -491,7 +477,7 @@ const runningCount = () => Agent.runningCount()
 
 export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
-    historyPage, historyOutline, searchHistory,
+    historyOutline, searchHistory,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
     count, runningCount,

@@ -361,81 +361,11 @@ const idsBefore = ({ sessionId, messageId }) => {
     return session.history.messages.slice(0, index).map(record => record.message.id)
 }
 
-// --- 直接流式扫描 JSONL 取一页，不把整份历史读进内存 ---
-const pageByOffset = async ({ sessionId, beforeOffset, limit = 200 }) => {
-    const size = Math.min(500, Math.max(1, Math.floor(Number(limit) || 200)))
-    if (!await Bun.file(Path.historyLog(sessionId)).exists()) {
-        // 旧会话还没迁到 JSONL：先按旧格式读，下一次保存会迁移。
-        const session = await load(sessionId)
-        const messages = get({ sessionId })
-        const end = Number.isInteger(beforeOffset) ? Math.max(0, beforeOffset) : messages.length
-        return {
-            messages: messages.slice(Math.max(0, end - size), end).map(({ messageId, ...message }) => ({ messageId, ...message })),
-            startOffset: 0,
-            endOffset: 0,
-            total: messages.length,
-            hasMore: end > size,
-        }
-    }
-    const end = Number.isInteger(beforeOffset) ? Math.max(0, beforeOffset) : Infinity
-    const ring = []
-    const offsets = []
-    let offset = 0
-    let total = 0
-    let buffer = Buffer.alloc(0)
-    const stream = createReadStream(Path.historyLog(sessionId))
-    try {
-        for await (const chunk of stream) {
-            buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk
-            let lineEnd = buffer.indexOf(10)
-            while (lineEnd >= 0) {
-                const line = buffer.subarray(0, lineEnd)
-                buffer = buffer.subarray(lineEnd + 1)
-                if (line.length && offset < end) {
-                    const record = JSON.parse(line.toString('utf8'))
-                    ring.push(record)
-                    offsets.push(offset)
-                    if (ring.length > size) { ring.shift(); offsets.shift() }
-                    total += 1
-                }
-                offset += lineEnd + 1
-                lineEnd = buffer.indexOf(10)
-            }
-        }
-    } catch (error) {
-        if (error?.code !== 'ENOENT') throw error
-    }
-    return {
-        messages: ring.map(record => ({ messageId: record.messageId, ...(record.message || record) })),
-        startOffset: offsets[0] ?? 0,
-        endOffset: Number.isFinite(end) ? Math.min(end, offset) : offset,
-        total,
-        hasMore: (offsets[0] ?? 0) > 0,
-    }
-}
-
 // --- 读取当前历史：把 messageId 摊回消息对象上 ---
 const get = ({ sessionId }) => {
     const session = store.sessions[sessionId]
     if (!session) throw new Error(`History not loaded: ${sessionId}`)
     return session.history.messages.map(({ messageId, message }) => ({ messageId, ...message }))
-}
-
-// --- 历史分页：before 是消息下标；默认取最后一页 ---
-const page = async ({ sessionId, before, limit = 200 }) => {
-    const session = await load(sessionId)
-    // 与 /session/read 的 historyStart 使用同一套“可见历史”下标，避免 internal 消息让分页错位。
-    const messages = get({ sessionId }).filter(message => !message.internal)
-    const size = Math.min(500, Math.max(1, Math.floor(Number(limit) || 200)))
-    const end = Number.isInteger(before) ? Math.min(messages.length, Math.max(0, before)) : messages.length
-    const start = Math.max(0, end - size)
-    return {
-        messages: messages.slice(start, end),
-        start,
-        end,
-        total: messages.length,
-        hasMore: start > 0,
-    }
 }
 
 const rawText = message => {
@@ -637,6 +567,6 @@ const prepare = async () => {
 
 export default {
     load, create, save, saveSettings, list,
-    add, rollback, redo, redoCount, idsBefore, get, page, pageByOffset, outline, search,
+    add, rollback, redo, redoCount, idsBefore, get, outline, search,
     count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
 }

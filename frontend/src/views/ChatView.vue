@@ -37,14 +37,7 @@ let reconnectTimer
 defineExpose({ focus: () => composer.value?.focus(), jumpToMessage })
 async function jumpToMessage(target) {
   const messageId = typeof target === 'string' ? target : target?.id
-  const index = typeof target === 'object' ? target?.index : undefined
   if (!messageId) return
-  if (props.session && !props.session.messages.some(message => message.id === messageId)) {
-    if (!Number.isInteger(index)) return
-    const loaded = await History.loadFrom(props.session.id, index)
-    if (!loaded) return
-    await nextTick()
-  }
   timeline.value?.jumpToMessage(messageId)
 }
 
@@ -124,10 +117,6 @@ async function submit(content) {
   if (props.busy) return
   if (!props.session) { emit('submit', content); return }
   const id = props.session.id
-  if (props.session.temporaryHistory) {
-    History.restoreRecent(id)
-    await nextTick()
-  }
   // 运行中不丢消息：先把文字和附件收进本地队列，等这一轮空闲再发。
   if (props.session.status === 'running' || (store.ui.queued[id] || []).length || props.session.stopping) {
     const item = Chat.enqueue(id, content)

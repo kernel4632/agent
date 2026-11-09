@@ -70,8 +70,6 @@ let pointerActive = false
 let touchStartY = null
 let touchStartTop = 0
 let resumeFollow = false
-let loadingEarlier = false
-let restoringHistory = false
 
 const maxScrollTop = () => scrollParent ? Math.max(0, scrollParent.scrollHeight - scrollParent.clientHeight) : 0
 const atBottom = (threshold = 8) => Boolean(scrollParent) && maxScrollTop() - scrollParent.scrollTop <= threshold
@@ -90,45 +88,6 @@ function requestFollow() {
     const max = maxScrollTop()
     if (max > scrollParent.scrollTop + 1) scrollParent.scrollTop = max
   })
-}
-
-async function restoreLatestHistory() {
-  if (restoringHistory || !scrollParent || !session.value?.temporaryHistory) return
-  restoringHistory = true
-  try {
-    const restored = History.restoreRecent(session.value.id)
-    if (!restored) await History.refresh(session.value.id)
-    await nextTick()
-    scrollToLatest()
-    setFollowing(true)
-  } finally {
-    restoringHistory = false
-  }
-}
-
-async function loadEarlier() {
-  if (loadingEarlier || !scrollParent || !session.value || following.value) return
-  if (!Number.isInteger(session.value.historyStart) || session.value.historyStart <= 0) return
-  loadingEarlier = true
-  const scrollRect = scrollParent.getBoundingClientRect()
-  const anchor = [...scrollParent.querySelectorAll('[data-turn-id]')]
-    .find(element => element.getBoundingClientRect().bottom > scrollRect.top)
-  const anchorId = anchor?.getAttribute('data-turn-id') || ''
-  const anchorTop = anchor ? anchor.getBoundingClientRect().top - scrollRect.top : 0
-  try {
-    const loaded = await History.loadOlder(session.value.id)
-    if (!loaded) return
-    await nextTick()
-    if (anchorId) {
-      const element = scrollParent.querySelector(`[data-turn-id="${CSS.escape(anchorId)}"]`)
-      if (element) {
-        const currentTop = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
-        scrollParent.scrollTop += currentTop - anchorTop
-      }
-    }
-  } finally {
-    loadingEarlier = false
-  }
 }
 
 // “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局。
@@ -230,10 +189,8 @@ function onScroll() {
   if (!scrollParent) return
   if (!jumping) {
     const atEnd = atBottom()
-    if (atEnd && session.value?.temporaryHistory) void restoreLatestHistory()
-    else if (!atEnd && following.value) setFollowing(false)
+    if (!atEnd && following.value) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
-    if (scrollParent.scrollTop < 160) void loadEarlier()
   }
   syncLatestPosition()
   rememberScroll()
@@ -247,8 +204,9 @@ function onWheel(event) {
     if (event.deltaY < 0 && nested.scrollTop > 0) return
     if (event.deltaY > 0 && nested.scrollTop + nested.clientHeight < nested.scrollHeight - 1) return
   }
-  if (event.deltaY < 0) setFollowing(false)
-  else if (event.deltaY > 0) {
+  if (event.deltaY < 0) {
+    setFollowing(false)
+  } else if (event.deltaY > 0) {
     resumeFollow = true
     if (atBottom()) setFollowing(true)
   }
@@ -274,8 +232,9 @@ function onTouchMove(event) {
   const touch = event.touches?.[0]
   if (!touch) return
   const distance = touch.clientY - touchStartY
-  if (distance > 8 && scrollParent.scrollTop <= touchStartTop + 1) setFollowing(false)
-  else if (distance < -8) {
+  if (distance > 8 && scrollParent.scrollTop <= touchStartTop + 1) {
+    setFollowing(false)
+  } else if (distance < -8) {
     resumeFollow = true
     if (atBottom()) setFollowing(true)
   }
@@ -327,7 +286,7 @@ function jumpToBottom() {
   }, 700)
 }
 
-// 全量挂载下直接按轮次 DOM 定位；目标轮次如果还没加载，ChatView 会先 loadFrom。
+// 全量挂载下直接按轮次 DOM 定位。
 async function jumpToMessage(messageId) {
   const target = turns.value.find(turn => turn.messages.some(message => message.id === messageId))
   if (!target || !scrollParent) return
@@ -409,8 +368,7 @@ function bindScrollRoot(root) {
     }
     requestAnimationFrame(() => {
       if (!scrollParent) return
-      // 恢复到顶部时不会产生 scroll 事件，这里主动补一页更早历史。
-      if (scrollParent.scrollTop < 160) void loadEarlier()
+      // 完整历史一次到位；这里只恢复位置或贴底，不再补页。
       following.value = atBottom()
       scrollParent.classList.toggle('is-following', following.value)
       syncLatestPosition()

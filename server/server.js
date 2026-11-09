@@ -140,17 +140,7 @@ app.group('/session', session => session
         body: t.Object({ title: t.String(), cwd: t.Optional(t.String()), provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
     })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
-    .get('/read/:sessionId', ({ params, query }) => Session.read({
-        ...params,
-        historyLimit: query.historyLimit === undefined ? undefined : Number(query.historyLimit),
-        historyStart: query.historyStart === undefined ? undefined : Number(query.historyStart),
-    }))
-    .get('/history/:sessionId', ({ params, query }) => Session.historyPage({
-        ...params,
-        before: query.before === undefined ? undefined : Number(query.before),
-        beforeOffset: query.beforeOffset === undefined ? undefined : Number(query.beforeOffset),
-        limit: query.limit === undefined ? undefined : Number(query.limit),
-    }))
+    .get('/read/:sessionId', ({ params }) => Session.read(params))
     .get('/search/:sessionId', ({ params, query }) => Session.searchHistory({
         ...params,
         query: query.q,

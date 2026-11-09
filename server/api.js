@@ -351,10 +351,6 @@ export const components = {
                             },
                             "description": "完整 history"
                         },
-                        "historyStart": {
-                            "type": "integer",
-                            "description": "当前页在完整历史中的起始下标"
-                        },
                         "historyTotal": {
                             "type": "integer",
                             "description": "完整历史的消息总数"
@@ -2377,30 +2373,11 @@ export const paths = {
                 "Session"
             ],
             "summary": "读取一条会话",
-            "description": "默认返回完整 history（已过滤 internal 消息）；传 historyLimit 时只返回最后 N 条并带 historyStart。",
+            "description": "一次返回完整 history（已过滤 internal 消息）。",
             "operationId": "sessionRead",
             "parameters": [
                 {
                     "$ref": "#/components/parameters/SessionId"
-                },
-                {
-                    "name": "historyLimit",
-                    "in": "query",
-                    "schema": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 500
-                    },
-                    "description": "只取最近 N 条历史，供首屏窗口加载"
-                },
-                {
-                    "name": "historyStart",
-                    "in": "query",
-                    "schema": {
-                        "type": "integer",
-                        "minimum": 0
-                    },
-                    "description": "从该可见历史下标一直返回到末尾，供定位条跳转早期历史"
                 }
             ],
             "responses": {
@@ -2410,95 +2387,6 @@ export const paths = {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/Session"
-                            }
-                        }
-                    }
-                },
-                "404": {
-                    "description": "会话不存在",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Error"
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    },
-    "/session/history/{sessionId}": {
-        "get": {
-            "tags": [
-                "Session"
-            ],
-            "summary": "分页读取会话历史",
-            "description": "before 是消息下标，默认从末尾读取一页。",
-            "operationId": "sessionHistory",
-            "parameters": [
-                {
-                    "$ref": "#/components/parameters/SessionId"
-                },
-                {
-                    "name": "before",
-                    "in": "query",
-                    "schema": {
-                        "type": "integer",
-                        "minimum": 0
-                    }
-                },
-                {
-                    "name": "beforeOffset",
-                    "in": "query",
-                    "schema": {
-                        "type": "integer",
-                        "minimum": 0
-                    },
-                    "description": "JSONL 字节偏移，优先使用；不传则从末尾扫描"
-                },
-                {
-                    "name": "limit",
-                    "in": "query",
-                    "schema": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 500
-                    }
-                }
-            ],
-            "responses": {
-                "200": {
-                    "description": "一页消息",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "messages": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object"
-                                        }
-                                    },
-                                    "start": {
-                                        "type": "integer"
-                                    },
-                                    "end": {
-                                        "type": "integer"
-                                    },
-                                    "startOffset": {
-                                        "type": "integer"
-                                    },
-                                    "endOffset": {
-                                        "type": "integer"
-                                    },
-                                    "total": {
-                                        "type": "integer"
-                                    },
-                                    "hasMore": {
-                                        "type": "boolean"
-                                    }
-                                }
                             }
                         }
                     }
@@ -4100,3 +3988,7 @@ export const paths = {
         }
     }
 }
+
+
+
+
