@@ -4,6 +4,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 4px;
@@ -15,6 +16,27 @@
 .request-status.is-done { opacity: .74; transition: opacity var(--ui-duration-fast) var(--ui-curve-standard); }
 .request-status.is-done:hover { opacity: 1; }
 .request-status.is-failed { color: var(--ui-color-error); }
+.request-status.is-expandable { cursor: pointer; border-radius: 8px; }
+.request-status.is-expandable:hover { background: var(--la-hover); }
+.request-status.is-expandable:focus-visible { outline: 2px solid var(--la-accent); outline-offset: 2px; }
+.request-status__caret { flex: none; transition: transform var(--ui-duration-fast) var(--ui-curve-standard); }
+.request-status__caret.is-open { transform: rotate(180deg); }
+.request-status__error {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  margin: 2px 0 2px 26px;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--ui-color-error) 28%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-color-error) 7%, transparent);
+  color: var(--ui-color-error);
+  font: 11.5px/1.6 var(--la-font-mono);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .request-status.is-retrying,
 .request-status.is-retrying .request-status__label,
 .request-status.is-retrying .request-status__detail { color: var(--ui-color-error); }

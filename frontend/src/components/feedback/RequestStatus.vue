@@ -16,11 +16,22 @@ const props = defineProps({
 const now = ref(Date.now())
 const surface = ref(null)
 const narrow = ref(false)
+const expanded = ref(false)
 let timer = null
 let resizeObserver = null
 const compact = computed(() => props.kind === 'compact')
 const running = computed(() => props.request.status === 'running')
 const failed = computed(() => props.request.status === 'failed')
+const errorText = computed(() => {
+  const value = props.request.error
+  if (value == null) return ''
+  return typeof value === 'string' ? value : JSON.stringify(value)
+})
+const expandable = computed(() => failed.value && Boolean(errorText.value))
+function toggleError() {
+  if (expandable.value) expanded.value = !expanded.value
+}
+watch(() => props.request.id, () => { expanded.value = false })
 const retrying = computed(() => running.value && Boolean(props.request.retryUntil || props.request.retry))
 const retrySeconds = computed(() => {
   const until = Number(props.request.retryUntil || 0)
@@ -84,7 +95,7 @@ const detail = computed(() => {
     if (compact.value) return '正在把前面的对话总结成一段'
     return firstTokenMs.value ? `首字 ${seconds(firstTokenMs.value)}，正在接收` : '等待模型返回第一个字'
   }
-  if (failed.value && props.request.error) return props.request.error
+  if (failed.value && errorText.value) return errorText.value
   return completedDetail()
 })
 const fullDetail = computed(() => {
@@ -116,9 +127,15 @@ onBeforeUnmount(() => {
   <div
     ref="surface"
     class="request-status"
-    :class="{ 'is-running': running, 'is-retrying': retryingActive, 'is-failed': failed, 'is-done': !running && !failed }"
+    :class="{ 'is-running': running, 'is-retrying': retryingActive, 'is-failed': failed, 'is-done': !running && !failed, 'is-expandable': expandable, 'is-expanded': expanded }"
+    :role="expandable ? 'button' : undefined"
+    :tabindex="expandable ? 0 : undefined"
+    :aria-expanded="expandable ? expanded : undefined"
     :aria-label="`${label} ${detail}`"
     :title="fullDetail ? `${label} ${fullDetail}` : label"
+    @click="toggleError"
+    @keydown.enter.prevent="toggleError"
+    @keydown.space.prevent="toggleError"
   >
     <span class="request-status__icon">
       <span v-if="running" class="ui-spinner ui-spinner--small" aria-hidden="true"><span class="ui-spinner__ring"></span></span>
@@ -129,6 +146,8 @@ onBeforeUnmount(() => {
       <span v-if="detail" class="request-status__detail">{{ detail }}</span>
     </span>
     <span v-if="badge" class="request-status__badge">{{ badge }}</span>
+    <Icon v-if="expandable" name="down" :size="14" class="request-status__caret" :class="{ 'is-open': expanded }" aria-hidden="true" />
+    <pre v-if="expanded" class="request-status__error">{{ errorText }}</pre>
   </div>
 </template>
 

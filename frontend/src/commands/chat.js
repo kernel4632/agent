@@ -291,6 +291,17 @@ function finishCompact(session, event) {
 // 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
 function startRequest(session, event = {}) {
   const assistant = streaming(session) || createAssistant(session)
+  // 重试事件已经先建好等待中的行；真正开始请求时复用它，不重复插一行。
+  const retryRequest = assistant.requests.findLast(item => item.status === 'running' && item.retryAttempt)
+  if (retryRequest) {
+    retryRequest.startedAt = Number(event.startedAt) || retryRequest.startedAt
+    retryRequest.firstTokenAt = Number(event.firstTokenAt) || 0
+    retryRequest.provider = event.provider || retryRequest.provider
+    retryRequest.model = event.model || retryRequest.model
+    assistant.request = retryRequest
+    assistant.isStreaming = true
+    return
+  }
   const request = {
     id: `request_${crypto.randomUUID()}`,
     status: 'running',
@@ -342,32 +353,43 @@ function finishRunRequest(session, event) {
   assistant.finishedAt = Date.now()
 }
 
-// --- 模型请求重试：保留停止按钮，并把退避时间显示在当前请求行上 ---
+// --- 模型请求重试：每次重试都是一条新的请求行，旧的失败行留在原地 ---
 function retryRun(session, event) {
   session.status = 'running'
   const assistant = streaming(session) || createAssistant(session)
   assistant.isStreaming = true
-  // 刷新后直接收到 retry 时还没有 llm-start；补一条请求行，否则用户看不到重试状态。
-  if (!assistant.steps.some(step => step.type === 'request')) {
-    const request = assistant.request || { status: 'running', input: 0, output: 0, cache: 0 }
-    request.id ||= `retry_${crypto.randomUUID()}`
-    request.status = 'running'
-    request.startedAt ||= Date.now()
-    assistant.requests.push(request)
-    assistant.steps.unshift({ type: 'request', requestId: request.id })
-  }
   const attempt = Math.max(1, Number(event.attempt) || 1)
   const delay = Number(event.delay || 0)
   const wait = delay > 0 ? `，${Math.max(1, Math.round(delay / 1000))}s 后继续` : '，请稍候'
   const retry = `模型请求失败，第 ${attempt} 次自动重试${wait}…`
-  assistant.retry = retry
-  // 重试原因挂在当前请求行上，用户不用再去别处找。
-  const request = assistant.requests.findLast(item => item.status === 'running')
-  if (request) {
-    request.retry = retry
-    request.retryAttempt = attempt
-    request.retryUntil = delay > 0 ? Date.now() + delay : 0
+  const errorText = String(event.error || event.errorText || '').trim() || '模型请求失败，正在自动重试'
+
+  // 上一次尝试结束：保留它的错误和用量，不能把整行改写成下一次重试。
+  const previous = assistant.requests.findLast(item => item.status === 'running') || assistant.requests.at(-1)
+  if (previous && previous.status === 'running') {
+    previous.status = 'failed'
+    previous.finishedAt = Date.now()
+    previous.durationMs = previous.finishedAt - (Number(previous.startedAt) || previous.finishedAt)
+    previous.error = errorText
   }
+
+  // 下一次尝试另开一行：等待退避、真正开始请求、失败或成功都在这行上发生。
+  const request = {
+    id: `retry_${crypto.randomUUID()}`,
+    status: 'running',
+    startedAt: Date.now(),
+    firstTokenAt: 0,
+    provider: previous?.provider || '',
+    model: previous?.model || '',
+    finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+    retry,
+    retryAttempt: attempt,
+    retryUntil: delay > 0 ? Date.now() + delay : 0,
+  }
+  assistant.requests.push(request)
+  assistant.steps.push({ type: 'request', requestId: request.id })
+  assistant.request = request
+  assistant.retry = retry
 }
 
 // --- 模型报错：结束当前请求，保留错误让用户看到 ---
@@ -395,14 +417,27 @@ function setTitle(session, event) {
   History.syncSummary(session)
 }
 
-// --- 这一轮结束：以 Server 写盘的最终历史为准 ---
+// --- 这一轮结束：以 Server 写盘的最终历史为准，但把本地失败请求留在最后一轮里 ---
 async function finishRun(sessionID, session, event) {
   session.status = 'idle'
+  const localMessages = session.messages
   const error = event.error || session.messages.findLast(message => message.error)?.error
   await History.refresh(sessionID)
   const refreshed = store.sessions[sessionID]
   refreshed.status = 'idle'
-  if (error) refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error }) // 每次失败一个独立 id，不用会重复的 SSE 序号
+  const failed = localMessages
+    .flatMap(message => message.role === 'assistant' ? (message.requests || []) : [])
+    .filter(request => request.status === 'failed')
+  const target = [...refreshed.messages].reverse().find(message => message.role === 'assistant')
+  if (target && failed.length) {
+    // 刷新会用磁盘历史重建 messages；失败尝试只存在于前端，重新挂回最后一轮，
+    // 这样重试结束后错误行不会凭空消失。
+    target.error = error || target.error
+    target.requests = [...(target.requests || []), ...failed]
+    target.steps = [...(target.steps || []), ...failed.map(request => ({ type: 'request', requestId: request.id }))]
+  } else if (error) {
+    refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error })
+  }
   void flushQueue(sessionID)
 }
 
