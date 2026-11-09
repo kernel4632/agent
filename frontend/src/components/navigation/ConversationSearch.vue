@@ -8,7 +8,6 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Dialog from '../../ui/Dialog.vue'
 import Button from '../../ui/Button.vue'
 import Icon from '../../ui/Icon.vue'
-import { AgentAPI } from '../../utils/api.js'
 import { searchConversation } from '../../features/conversation-search.js'
 
 const props = defineProps({
@@ -47,7 +46,7 @@ watch(query, async () => {
   if (list.value) list.value.scrollTop = 0
 })
 
-// 搜索走后端全量历史，首屏窗口外的旧消息也能找到。
+// 历史全量在内存里，搜索直接在本地做；不需要向后端再要一遍。
 watch([query, () => props.session?.id], () => {
   if (searchTimer) window.clearTimeout(searchTimer)
   const seq = ++searchSeq
@@ -58,17 +57,11 @@ watch([query, () => props.session?.id], () => {
     return
   }
   searching.value = true
-  searchTimer = window.setTimeout(async () => {
-    try {
-      const data = await AgentAPI.searchSessionMessages(props.session.id, text)
-      if (seq === searchSeq) results.value = Array.isArray(data?.results) ? data.results : []
-    } catch {
-      // 后端旧版本或暂时不可用时，退回到当前已加载的历史。
-      if (seq === searchSeq) results.value = searchConversation(messages.value, text)
-    } finally {
-      if (seq === searchSeq) searching.value = false
-    }
-  }, 180)
+  searchTimer = window.setTimeout(() => {
+    if (seq !== searchSeq) return
+    results.value = searchConversation(messages.value, text)
+    searching.value = false
+  }, 120)
 }, { immediate: true })
 
 watch(() => results.value.length, length => {

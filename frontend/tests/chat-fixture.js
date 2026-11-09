@@ -13,6 +13,40 @@ import { patternOf, serverRoutes } from './server-routes.js'
 // 模拟接口按 server.js 的真实注册来：已经删掉的路径不能继续假装返回成功。
 const routes = serverRoutes.map(route => ({ method: route.method, pattern: patternOf(route.path) }))
 
+// 管理总线的 op → 旧分支：测试沿用旧的路径写法，实现不用重写。
+const ADMIN_ROUTES = {
+  'config.read': ['GET', '/config/read'],
+  'config.set': ['PATCH', '/config/set'],
+  'config.meta': ['GET', '/config/meta'],
+  'config.export': ['GET', '/config/export'],
+  'config.import': ['POST', '/config/import'],
+  'config.backup.list': ['GET', '/config/backups'],
+  'config.backup.read': ['GET', '/config/backups'],
+  'config.restore': ['POST', '/config/restore'],
+  'config.test': ['POST', '/config/test'],
+  'mcp.list': ['GET', '/mcp/list'],
+  'mcp.save': ['POST', '/mcp/save'],
+  'mcp.import': ['POST', '/mcp/import'],
+  'mcp.remove': ['POST', '/mcp/remove'],
+  'mcp.toggle': ['PATCH', '/mcp/toggle'],
+  'mcp.test': ['POST', '/mcp/test'],
+  'skill.list': ['GET', '/skill/list'],
+  'skill.read': ['GET', '/skill/read'],
+  'skill.save': ['POST', '/skill/save'],
+  'skill.remove': ['POST', '/skill/remove'],
+  'skill.toggle': ['PATCH', '/skill/toggle'],
+  'skill.source': ['PATCH', '/skill/source'],
+  'storage.status': ['GET', '/storage/sessions'],
+  'storage.set': ['PUT', '/storage/sessions'],
+  'storage.cancel': ['DELETE', '/storage/sessions'],
+  'session.groups.set': ['PUT', '/session/groups'],
+  'model.family': ['GET', '/model/family'],
+  'model.icon': ['GET', '/model/icon'],
+  'fs.entries': ['GET', '/filesystem/entries'],
+  'tool.list': ['GET', '/tool/list'],
+  'tool.kinds': ['GET', '/tool/kinds'],
+}
+
 export async function backend(page, { configured = true } = {}) {
   let config = {
     providers: configured ? [{ name: 'Test Provider', enabled: true, protocol: 'openai-compatible', stream: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: [{ id: 'test-model', name: 'test-model', context: 64000, capabilities: ['text', 'tools'] }], headers: { 'x-preserve': 'yes' }, body: { temperature: 0.25 } }] : [],
@@ -149,18 +183,35 @@ export async function backend(page, { configured = true } = {}) {
   }
   await page.route('**/api/**', async route => {
     const request = route.request()
-    const path = new URL(request.url()).pathname.replace('/api', '')
-    const method = request.method()
-    const body = request.postData() ? request.postDataJSON() : undefined
+    let path = new URL(request.url()).pathname.replace('/api', '')
+    let method = request.method()
+    let body = request.postData() ? request.postDataJSON() : undefined
     calls.push({ path, method, body })
     if (!routes.some(route => route.method === method && route.pattern.test(path))) {
       errors.push(`不存在的接口：${method} ${path}`)
       return route.fulfill({ status: 404, json: { error: 'NOT_FOUND' } })
     }
+    // 管理总线：把 { op, ...参数 } 翻回具体分支，下面的实现一行不用改。
+    if (path === '/admin' && body?.op) {
+      const [aliasMethod, aliasPath] = ADMIN_ROUTES[body?.op] || []
+      if (!aliasMethod) {
+        errors.push(`未知的管理 op：${body?.op}`)
+        return route.fulfill({ status: 400, json: { error: `unknown op: ${body?.op}` } })
+      }
+      const { op, ...args } = body
+      path = op === 'config.backup.read' ? `/config/backups/${encodeURIComponent(args.id)}` : aliasPath
+      method = aliasMethod
+      // config.set 的旧分支直接吃整份配置，这里把 op 拆掉后的 config 展开。
+      body = op === 'config.set' ? (args.config || {}) : args
+    }
     const json = data => route.fulfill({ status: 200, json: data })
+    // GET /admin 只有模型图标（<img src> 用），直接给一个占位 SVG。
+    if (path === '/admin' && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg"></svg>' })
+    }
     if (path === '/filesystem/entries') {
-      const target = new URL(request.url()).searchParams.get('path') || 'C:/mock'
-      const mode = new URL(request.url()).searchParams.get('mode') || 'directory'
+      const target = body?.path || new URL(request.url()).searchParams.get('path') || 'C:/mock'
+      const mode = body?.mode || new URL(request.url()).searchParams.get('mode') || 'directory'
       const directories = {
         'C:/mock/.agent/sessions': { current: 'C:/mock', parent: null, entries: [{ name: 'D:', path: 'D:/', type: 'directory' }] },
         'C:/mock': { current: 'C:/mock', parent: null, entries: [{ name: 'D:', path: 'D:/', type: 'directory' }] },
@@ -238,7 +289,7 @@ export async function backend(page, { configured = true } = {}) {
     if (path === '/mcp/test') return json({ ok: true, name: body.name, tools: ['echo'] })
     if (path === '/skill/list') return json(skills)
     if (path === '/skill/read') {
-      const name = new URL(request.url()).searchParams.get('name')
+      const name = body?.name || new URL(request.url()).searchParams.get('name')
       const skill = skills.skills.find(item => item.name === name)
       return skill ? json(skill) : route.fulfill({ status: 404, json: { error: 'Skill not found' } })
     }

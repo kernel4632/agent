@@ -55,6 +55,18 @@ func (c *Client) Request(ctx context.Context, method, path string, body, result 
 	return c.request(ctx, method, path, body, result, 60*time.Second)
 }
 
+// Admin 调管理总线：设置页和能力页的动作全部走 POST /admin，body 里带 op。
+type AdminArgs map[string]any
+
+func (c *Client) Admin(ctx context.Context, op string, args AdminArgs, result any) error {
+	body := make(map[string]any, len(args)+1)
+	for key, value := range args {
+		body[key] = value
+	}
+	body["op"] = op
+	return c.Request(ctx, "POST", "/admin", body, result)
+}
+
 // Compact 发手动压缩请求。压缩在服务端要等模型生成总结后才返回响应头，
 // 所以单独去掉响应头超时，并把总时限放宽到 compactTimeout；ctx 取消仍生效。
 func (c *Client) Compact(ctx context.Context, id string, result any) error {

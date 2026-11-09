@@ -70,52 +70,30 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 ## HTTP API
 
-服务端公开 45 个地址、48 个接口（`/session/settings/{sessionId}` 有 GET 和 PATCH 两个方法，`/storage/sessions` 有 GET、PUT、DELETE 三个方法）：
+服务端只有 18 个接口：基座和会话各占一部分，设置页与能力页的动作全部收在 `POST /admin` 的 `op` 里。
 
 | 方法 | 地址 | 说明 |
 | --- | --- | --- |
 | `GET` | `/health` | 服务状态和版本 |
-| `GET` | `/tool/list` | 工具名、类别、权限动作和界面信息 |
-| `GET` | `/tool/kinds` | 工具类别 |
-| `GET` | `/mcp/list` | 已配置的 MCP 服务和本机识别到的服务 |
-| `POST` | `/mcp/save` | 新增或整体替换一个 MCP 服务 |
-| `POST` | `/mcp/import` | 按识别编号导入本机的 MCP 服务 |
-| `POST` | `/mcp/remove` | 删除一个 MCP 服务 |
-| `PATCH` | `/mcp/toggle` | 启用或停用一个 MCP 服务 |
-| `POST` | `/mcp/test` | 真实连接一次并列出工具名 |
-| `GET` | `/skill/list` | 生效技能、候选目录和启用状态 |
-| `GET` | `/skill/read` | 读取一个技能的正文 |
-| `POST` | `/skill/save` | 新建或改写本应用自己的技能 |
-| `POST` | `/skill/remove` | 删除本应用自己的技能 |
-| `PATCH` | `/skill/toggle` | 把技能从模型清单里拿掉或放回来 |
-| `PATCH` | `/skill/source` | 启用或停用一个外部技能目录 |
-| `GET` | `/config/read` | 读取配置 |
-| `GET` | `/config/meta` | 按任务的模型标签 |
-| `PATCH` | `/config/set` | 整体替换配置 |
-| `POST` | `/config/test` | 真实试一次模型请求 |
-| `GET` | `/session/list` | 磁盘上的全部会话，带搜索 |
+| `GET` | `/session/list` | 全部会话 + 分组，带搜索 |
 | `POST` | `/session/create` | 创建会话 |
-| `POST` | `/session/fork/{sessionId}` | 从现有会话分出一个新分支 |
-| `GET` | `/session/read/{sessionId}` | 会话、历史、任务清单、待批准 |
-| `GET` | `/session/changes/{sessionId}` | agent 改过的文件，改动前后对照 |
-| `GET` | `/session/settings/{sessionId}` | 会话运行设置 |
-| `PATCH` | `/session/settings/{sessionId}` | 修改会话运行设置 |
-| `GET` | `/session/tools/{sessionId}` | 每次改过文件的工具调用 |
-| `PATCH` | `/session/rename/{sessionId}` | 改标题 |
-| `POST` | `/session/title/{sessionId}` | 按后续对话重新生成标题 |
-| `PATCH` | `/session/model/{sessionId}` | 换会话模型 |
-| `PATCH` | `/session/cwd/{sessionId}` | 换会话当前目录 |
-| `DELETE` | `/session/remove/{sessionId}` | 删除会话 |
-| `POST` | `/session/rollback/preview/{sessionId}` | 回退前预览会消失多少消息、哪些文件 |
-| `POST` | `/session/rollback/{sessionId}` | 回退对话和文件 |
-| `POST` | `/session/rollback/tool/{sessionId}` | 只回退某一次工具调用改的文件 |
-| `POST` | `/session/redo/{sessionId}` | 撤销上一次回退 |
+| `GET` | `/session/read/{sessionId}` | 会话、完整历史、任务清单、待批准、设置 |
 | `POST` | `/session/compact/{sessionId}` | 压缩上下文 |
+| `POST` | `/session/fork/{sessionId}` | 从现有会话分出一个新分支 |
+| `DELETE` | `/session/remove/{sessionId}` | 删除会话 |
+| `PATCH` | `/session/rename/{sessionId}` | 改标题 |
+| `GET` | `/session/settings/{sessionId}` | 会话级设置快照：思考强度、模型、当前目录 |
+| `PATCH` | `/session/settings/{sessionId}` | 改其中任意几项 |
+| `POST` | `/session/rollback/{sessionId}` | 给 `messageId` 退对话，给 `toolCallId` 只退那次工具改的文件 |
+| `POST` | `/session/rollback/redo/{sessionId}` | 撤销上一次回退 |
 | `POST` | `/agent/send/{sessionId}` | 发送消息，过程走 SSE |
 | `POST` | `/agent/resume/{sessionId}` | 继续被中断的助手 |
 | `POST` | `/agent/stop/{sessionId}` | 停止任务 |
-| `POST` | `/agent/decide/{sessionId}` | 处理工具审批 |
+| `POST` | `/agent/decide/{sessionId}` | 处理工具审批：`allow` / `deny` |
 | `GET` | `/sse/connect/{sessionId}` | 订阅实时事件 |
+| `POST` | `/admin` | 管理总线：`{ op, ...参数 }`，op 见 `server/commands/admin.js` |
+
+`GET /admin?op=model.icon` 是唯一走 GET 的管理动作，因为它要直接当 `<img src>` 用。
 
 错误响应统一是 `{ "error": "说明" }`：填错按 400、找不到按 404、会话在跑按 409、程序问题按 500。
 接口清单、SSE 事件表和权限规则见 [`server/README.md`](server/README.md)。

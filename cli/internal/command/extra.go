@@ -98,7 +98,7 @@ func (o *options) configCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body := map[string]string{}
+			body := api.AdminArgs{}
 			if len(args) > 0 {
 				body["provider"] = args[0]
 			}
@@ -111,7 +111,7 @@ func (o *options) configCmd() *cobra.Command {
 				Model    string `json:"model"`
 				Text     string `json:"text"`
 			}
-			if err = client.Request(cmd.Context(), "POST", "/config/test", body, &result); err != nil {
+			if err = client.Admin(cmd.Context(), "config.test", body, &result); err != nil {
 				return err
 			}
 			return o.emit(cmd, result, func(w io.Writer) error {
@@ -195,7 +195,7 @@ func (o *options) mcp() *cobra.Command {
 				return err
 			}
 			var result any
-			if err = client.Request(cmd.Context(), "PATCH", "/mcp/toggle", map[string]any{"name": args[0], "enabled": enabled}, &result); err != nil {
+			if err = client.Admin(cmd.Context(), "mcp.toggle", api.AdminArgs{"name": args[0], "enabled": enabled}, &result); err != nil {
 				return err
 			}
 			return o.emit(cmd, result, func(w io.Writer) error {
@@ -221,7 +221,7 @@ func (o *options) mcp() *cobra.Command {
 				Tools []string `json:"tools"`
 				Error string   `json:"error"`
 			}
-			if err = client.Request(cmd.Context(), "POST", "/mcp/test", map[string]string{"name": args[0]}, &result); err != nil {
+			if err = client.Admin(cmd.Context(), "mcp.test", api.AdminArgs{"name": args[0]}, &result); err != nil {
 				return err
 			}
 			return o.emit(cmd, result, func(w io.Writer) error {
@@ -255,7 +255,7 @@ func (o *options) skills() *cobra.Command {
 		var catalog struct {
 			Skills []api.Skill `json:"skills"`
 		}
-		if err = client.Request(cmd.Context(), "GET", "/skill/list?cwd="+url.QueryEscape(target), nil, &catalog); err != nil {
+		if err = client.Admin(cmd.Context(), "skill.list", api.AdminArgs{"cwd": target}, &catalog); err != nil {
 			return err
 		}
 		return o.emit(cmd, catalog.Skills, func(w io.Writer) error {
@@ -294,7 +294,7 @@ func (o *options) skills() *cobra.Command {
 			}
 			var result any
 			body := map[string]any{"name": args[0], "enabled": enabled, "cwd": target}
-			if err = client.Request(cmd.Context(), "PATCH", "/skill/toggle", body, &result); err != nil {
+			if err = client.Admin(cmd.Context(), "skill.toggle", api.AdminArgs(body), &result); err != nil {
 				return err
 			}
 			return o.emit(cmd, result, func(w io.Writer) error {

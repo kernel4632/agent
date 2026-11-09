@@ -141,11 +141,18 @@ async function saveSettings(sessionID, change) {
   const next = { ...previous, ...change }
   session.settings = next
   try {
-    const settings = await AgentAPI.saveSettings(sessionID, change)
+    const snapshot = await AgentAPI.saveSettings(sessionID, change)
     // 读取历史可能已经替换会话对象，响应必须写到当前对象，不能写回过期引用。
     const current = store.sessions[sessionID]
-    if (current) current.settings = settings
-    return settings
+    if (current) {
+      // 接口返回的是会话级设置快照（思考强度 + 模型 + 目录）；
+      // session.settings 只放运行设置，模型和目录挂回会话自己的字段。
+      current.settings = { ...current.settings, reasoning: snapshot?.reasoning ?? current.settings?.reasoning }
+      if (snapshot?.provider !== undefined) current.provider = snapshot.provider
+      if (snapshot?.model !== undefined) current.model = snapshot.model
+      if (snapshot?.cwd !== undefined) current.cwd = snapshot.cwd
+    }
+    return snapshot
   } catch (error) {
     const current = store.sessions[sessionID]
     if (current) current.settings = previous
@@ -181,8 +188,9 @@ async function read(id) {
 // --- 加载会话列表 ---
 async function list() {
   try {
-    const sessions = await AgentAPI.getSessionList()
+    const { sessions, groups } = await AgentAPI.getSessionList()
     store.sessionList = sessions.map(serverSummaryOf) // 空列表就是还没有会话，不依赖工作区初始化
+    store.sessionGroups = Array.isArray(groups) ? groups : [] // 分组跟列表一起回来，不用第二次请求
     return true
   } catch (error) {
     // 启动时后端没起来不该在控制台留下未处理的 rejection；用可见的错误提示代替。
@@ -193,8 +201,9 @@ async function list() {
 
 // --- 重新加载会话列表 ---
 async function reload() {
-  const sessions = await AgentAPI.getSessionList()
+  const { sessions, groups } = await AgentAPI.getSessionList()
   store.sessionList = sessions.map(serverSummaryOf)
+  store.sessionGroups = Array.isArray(groups) ? groups : []
   return true
 }
 

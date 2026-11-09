@@ -26,13 +26,21 @@ describe('接口契约', () => {
     })
 
     test('界面上的工具类别和代码里的类别是同一组', async () => {
-        const response = await app.handle(new Request('http://localhost/tool/kinds'))
+        const response = await app.handle(new Request('http://localhost/admin', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ op: 'tool.kinds' }),
+        }))
         expect(response.status).toBe(200)
         expect(await response.json()).toEqual(Tool.KINDS)
     })
 
     test('界面上按任务配模型的下拉框和代码里的用途是同一组', async () => {
-        const response = await app.handle(new Request('http://localhost/config/meta'))
+        const response = await app.handle(new Request('http://localhost/admin', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ op: 'config.meta' }),
+        }))
         expect(response.status).toBe(200)
         expect((await response.json()).models).toEqual(Settings.MODELS)
     })

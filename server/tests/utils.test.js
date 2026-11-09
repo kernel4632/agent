@@ -18,6 +18,8 @@ import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
 import * as File from '../tools/file.js'
 import History from '../features/history.js'
+import Rollback from '../features/rollback.js'
+import Tool from '../features/tool.js'
 import Mcp from '../features/mcp.js'
 import SkillsFeature from '../features/skills.js'
 import Session from '../commands/session.js'
@@ -54,10 +56,13 @@ const jsonRequest = (path, method, body) => request(path, {
     body: JSON.stringify(body),
 })
 
+// 管理面的动作全部走一条总线：{ op, ...参数 }。
+const admin = (op, args = {}) => jsonRequest('/admin', 'POST', { op, ...args })
+
 describe('server HTTP API', () => {
     test('reads and replaces configuration through HTTP', async () => {
         await withHome(async () => {
-            const initial = await request('/config/read')
+            const initial = await admin('config.read')
             expect(initial.status).toBe(200)
             expect(await initial.json()).toMatchObject({
                 prompt: { system: expect.any(String), seeded: true },
@@ -65,7 +70,7 @@ describe('server HTTP API', () => {
             })
 
             const value = { providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } }
-            const saved = await jsonRequest('/config/set', 'PATCH', value)
+            const saved = await admin('config.set', { config: value })
             expect(saved.status).toBe(200)
             expect(await saved.json()).toMatchObject({
                 permission: { '*': 'ask' },
@@ -77,14 +82,14 @@ describe('server HTTP API', () => {
     test('keeps contextKeep zero values and rejects keep settings out of range', async () => {
         await withHome(async () => {
             // 新目录用默认值：开场和最近各保留 3 轮，预算 20% / 30%。
-            const initial = await (await request('/config/read')).json()
+            const initial = await (await admin('config.read')).json()
             expect(initial.contextKeep).toEqual({ firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 })
 
             // 0 是有效值：显式写 0 必须原样保存，不能当成“没填”退回默认值。
-            const saved = await jsonRequest('/config/set', 'PATCH', { contextKeep: { firstTurns: 0, recentTurns: 0 } })
+            const saved = await admin('config.set', { config: { contextKeep: { firstTurns: 0, recentTurns: 0 } } })
             expect(saved.status).toBe(200)
             expect((await saved.json()).contextKeep).toEqual({ firstTurns: 0, recentTurns: 0, firstShare: 0.2, recentShare: 0.3 })
-            expect((await (await request('/config/read')).json()).contextKeep).toMatchObject({ firstTurns: 0, recentTurns: 0 })
+            expect((await (await admin('config.read')).json()).contextKeep).toMatchObject({ firstTurns: 0, recentTurns: 0 })
 
             // 负数、小数、超范围、不是对象：四种都在入口就报 400，不会写进内存。
             for (const contextKeep of [
@@ -94,10 +99,10 @@ describe('server HTTP API', () => {
                 { recentShare: -0.1 },
                 'none',
             ]) {
-                const rejected = await jsonRequest('/config/set', 'PATCH', { contextKeep })
+                const rejected = await admin('config.set', { config: { contextKeep } })
                 expect(rejected.status).toBe(400)
             }
-            expect((await (await request('/config/read')).json()).contextKeep).toMatchObject({ firstTurns: 0, recentTurns: 0 })
+            expect((await (await admin('config.read')).json()).contextKeep).toMatchObject({ firstTurns: 0, recentTurns: 0 })
         })
     })
 
@@ -120,10 +125,6 @@ describe('server HTTP API', () => {
             expect(full).toMatchObject({ historyTotal: 3 })
             expect(full.history).toHaveLength(3)
 
-            const searched = await (await request(`/session/search/${sessionId}?q=two`)).json()
-            expect(searched.results).toHaveLength(1)
-            expect(searched.results[0]).toMatchObject({ id: expect.any(String), index: 1, match: 'two' })
-
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
             const session = await read.json()
@@ -135,9 +136,9 @@ describe('server HTTP API', () => {
             expect(renamed.status).toBe(200)
             expect(await renamed.json()).toMatchObject({ id: sessionId, title: 'Renamed task' })
 
-            const moved = await jsonRequest(`/session/cwd/${sessionId}`, 'PATCH', { cwd: process.cwd() })
+            const moved = await jsonRequest(`/session/settings/${sessionId}`, 'PATCH', { cwd: process.cwd() })
             expect(moved.status).toBe(200)
-            expect(await moved.json()).toEqual({ id: sessionId, cwd: process.cwd(), temporary: false })
+            expect(await moved.json()).toMatchObject({ cwd: process.cwd(), temporary: false })
 
             const removed = await request(`/session/remove/${sessionId}`, { method: 'DELETE' })
             expect(removed.status).toBe(200)
@@ -294,13 +295,13 @@ describe('server session list', () => {
             await Bun.sleep(5)
             const second = await Session.create({ title: 'Beta task' })
 
-            const all = await Session.list({})
+            const all = (await Session.list({})).sessions
             expect(all).toHaveLength(2)
             expect(all[0].id).toBe(second.sessionId)
             expect(all[0].temporary).toBe(true)
             expect(all[0].cwd).not.toBe(process.cwd())
 
-            const searched = await Session.list({ search: 'alpha' })
+            const searched = (await Session.list({ search: 'alpha' })).sessions
             expect(searched).toHaveLength(1)
             expect(searched[0].id).toBe(first.sessionId)
         })
@@ -313,13 +314,15 @@ describe('server session list', () => {
 
             const response = await request('/session/list')
             expect(response.status).toBe(200)
-            expect((await response.json()).map(item => item.title)).toEqual(['Visible'])
+            const body = await response.json()
+            expect(body.sessions.map(item => item.title)).toEqual(['Visible'])
+            expect(body.groups).toEqual([])
         })
     })
 
     test('returns an empty list when no session directory exists yet', async () => {
         await withHome(async () => {
-            expect(await Session.list({})).toEqual([])
+            expect(await Session.list({})).toEqual({ sessions: [], groups: [] })
         })
     })
 })
@@ -331,17 +334,16 @@ describe('server route walk', () => {
             const created = await jsonRequest('/session/create', 'POST', { title: 'Route walk' })
             const { sessionId } = await created.json()
 
-            for (const [path, method] of [
+            for (const [path, method, payload] of [
                 [`/session/compact/${sessionId}`, 'POST'],
-                [`/session/redo/${sessionId}`, 'POST'],
-                [`/session/changes/${sessionId}`, 'GET'],
-                [`/session/tools/${sessionId}`, 'GET'],
-                [`/session/cwd/${sessionId}`, 'PATCH'],
+                [`/session/rollback/redo/${sessionId}`, 'POST'],
+                [`/session/settings/${sessionId}`, 'PATCH', { cwd: process.cwd() }],
                 ['/health', 'GET'],
+                ['/admin', 'POST', { op: 'tool.kinds' }],
             ]) {
                 const response = await request(path, {
                     method,
-                    ...(method === 'PATCH' ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cwd: process.cwd() }) } : {}),
+                    ...(payload ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) } : {}),
                 })
                 const body = await response.json()
                 expect(response.status, `${method} ${path} 返回了 ${response.status}: ${JSON.stringify(body)}`).not.toBe(500)
@@ -354,7 +356,7 @@ describe('server provider test endpoint', () => {
     test('reports an unknown provider as a client error', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
-            const response = await jsonRequest('/config/test', 'POST', { provider: 'nope', model: 'm' })
+            const response = await admin('config.test', { provider: 'nope', model: 'm' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: 'Provider not found: nope' })
         })
@@ -363,7 +365,7 @@ describe('server provider test endpoint', () => {
     test('reports a provider without any model as a client error', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [] }] })
-            const response = await jsonRequest('/config/test', 'POST', { provider: 'local' })
+            const response = await admin('config.test', { provider: 'local' })
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: expect.stringContaining('local') })
         })
@@ -371,7 +373,7 @@ describe('server provider test endpoint', () => {
 
     test('reports an empty configuration as a client error', async () => {
         await withHome(async () => {
-            const response = await jsonRequest('/config/test', 'POST', {})
+            const response = await admin('config.test', {})
             expect(response.status).toBe(400)
             expect(await response.json()).toMatchObject({ error: 'no provider or model configured to test' })
         })
@@ -512,7 +514,7 @@ describe('server file snapshots', () => {
             await rm(removed, { force: true })
             await writeFile(created, 'brand new')
 
-            const changes = await Session.changes({ sessionId })
+            const changes = await Tool.diff({ sessionId })
             const byPath = Object.fromEntries(changes.map(item => [item.path, item]))
 
             expect(byPath[resolve(edited)]).toMatchObject({ before: 'before', after: 'after', added: false, deleted: false })
@@ -539,10 +541,17 @@ describe('server file snapshots', () => {
             await File.snapshot({ sessionId, messageId: second.message.id, toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'changed in step two')
 
-            const preview = await Session.rollbackPreview({ sessionId, messageId: first.messageId })
+            const preview = await Rollback.preview({ history: History, sessionId, messageId: first.messageId })
             expect(preview.messages).toBe(2)
-            expect(preview.files.map(file => file.path)).toEqual([resolve(target)])
-            expect(preview.files[0]).toMatchObject({ before: 'original', after: 'changed in step two' })
+            const entries = await Tool.entries({ sessionId })
+            const dropped = new Set(entries
+                .filter(entry => entry.toolCallId
+                    ? preview.toolCalls.includes(entry.toolCallId)
+                    : !preview.keep.includes(entry.messageId))
+                .flatMap(entry => entry.paths))
+            const files = (await Tool.diff({ sessionId })).filter(file => dropped.has(file.path))
+            expect(files.map(file => file.path)).toEqual([resolve(target)])
+            expect(files[0]).toMatchObject({ before: 'original', after: 'changed in step two' })
 
             const rolledBack = await Session.rollback({ sessionId, messageId: first.messageId, files: false })
             expect(rolledBack.restored).toEqual([])
@@ -596,78 +605,35 @@ describe('server tool approval and SSE', () => {
         })
     })
 
-    test('writes an always-allow decision back into the configuration file', async () => {
+    test('allow 只放行这一次，不往配置里写规则', async () => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'ask' } })
             const pending = Approval.check({ sessionId: 's', toolCallId: 'c3', toolName: 'read_file', input: { path: 'a.txt' } })
             await Bun.sleep(0)
-            await Approval.decide({ sessionId: 's', toolCallId: 'c3', decision: 'allow-always' })
+            await Approval.decide({ sessionId: 's', toolCallId: 'c3', decision: 'allow' })
             expect(await pending).toBe(true)
 
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'c4', toolName: 'read_file', input: { path: 'a.txt' } })).toBe(true)
+            // 同样的参数再来一次仍然要问：长期规则在“工具自动批准”里设，不靠弹窗记忆。
+            const again = Approval.check({ sessionId: 's', toolCallId: 'c4', toolName: 'read_file', input: { path: 'a.txt' } })
+            await Bun.sleep(0)
+            expect((await Approval.pending('s')).map(item => item.callID)).toEqual(['c4'])
+            await Approval.decide({ sessionId: 's', toolCallId: 'c4', decision: 'deny' })
+            expect(await again).toBe(false)
         })
     })
 
-    test('rejects an unknown decision with a client error and keeps waiting', async () => {
+    test('rejects a retired decision value with a client error and keeps waiting', async () => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'ask' } })
             const pending = Approval.check({ sessionId: 's', toolCallId: 'c5', toolName: 'execute_command', input: {} })
             await Bun.sleep(0)
-            await expect(Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'maybe' })).rejects.toMatchObject({ status: 400 })
-
-            await Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'allow-once' })
-            expect(await pending).toBe(true)
-        })
-    })
-
-    test.each(['input.txt', 'input (1).txt'])('remembers an exact Windows path across sessions: %s', async filename => {
-        await withHome(async () => {
-            await Settings.set({ permission: { '*': 'ask' } })
-            const target = 'F:\\workspace\\中文 目录\\' + filename
-            const waitFor = async (sessionId, callId) => {
-                // 审批请求什么时候登记由 check 的异步链决定，轮询等它出现再决定，不猜时序。
-                for (let index = 0; index < 200; index++) {
-                    if ((await Approval.pending(sessionId)).some(item => item.callID === callId)) return
-                    await Bun.sleep(10)
-                }
-                throw new Error(`approval ${callId} never appeared`)
+            // allow-always / allow-once 都已经不在契约里。
+            for (const decision of ['allow-always', 'allow-once', 'maybe']) {
+                await expect(Approval.decide({ sessionId: 's', toolCallId: 'c5', decision })).rejects.toMatchObject({ status: 400 })
             }
 
-            const first = Approval.check({ sessionId: 's', toolCallId: 'r1', toolName: 'read_file', input: { path: target } })
-            await waitFor('s', 'r1')
-            await Approval.decide({ sessionId: 's', toolCallId: 'r1', decision: 'allow-always' })
-            expect(await first).toBe(true)
-
-            // 同一会话：不再询问。
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'r2', toolName: 'read_file', input: { path: target } })).toBe(true)
-
-            // 新会话：审批状态里没有这条记录，规则要从配置里命中——issue #9 的主场景。
-            expect(await Approval.check({ sessionId: 'other', toolCallId: 'r3', toolName: 'read_file', input: { path: target } })).toBe(true)
-
-            // 相似但不同的路径不自动放行：仍然要问，最后拒绝掉。
-            const different = Approval.check({ sessionId: 'other', toolCallId: 'r4', toolName: 'read_file', input: { path: 'F:\\workspace\\中文 目录\\other (1).txt' } })
-            await waitFor('other', 'r4')
-            await Approval.decide({ sessionId: 'other', toolCallId: 'r4', decision: 'deny' })
-            expect(await different).toBe(false)
-        })
-    })
-    test('remembers a whole command instead of one exact argument list', async () => {
-        await withHome(async () => {
-            await Settings.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 's1', toolName: 'execute_command', input: { command: 'make build --fast' } })
-            await Bun.sleep(0)
-            await Approval.decide({ sessionId: 's', toolCallId: 's1', decision: 'allow-always' })
+            await Approval.decide({ sessionId: 's', toolCallId: 'c5', decision: 'allow' })
             expect(await pending).toBe(true)
-
-            expect(await Approval.check({ sessionId: 's', toolCallId: 's2', toolName: 'execute_command', input: { command: 'make build --release' } })).toBe(true)
-            // 不同子命令仍要问，最后拒绝掉：不给进程留未决的审批 Promise，-t 单跑也能正常退出。
-            const deploy = Approval.check({ sessionId: 's', toolCallId: 's3', toolName: 'execute_command', input: { command: 'make deploy' } })
-            for (let index = 0; index < 200; index++) {
-                if ((await Approval.pending('s')).some(item => item.callID === 's3')) break
-                await Bun.sleep(10)
-            }
-            await Approval.decide({ sessionId: 's', toolCallId: 's3', decision: 'deny' })
-            expect(await deploy).toBe(false)
         })
     })
 
@@ -683,7 +649,7 @@ describe('server tool approval and SSE', () => {
             expect(reloaded.pending).toHaveLength(1)
             expect(reloaded.pending[0]).toMatchObject({ callID: 'w1', tool: 'execute_command' })
 
-            await Approval.decide({ sessionId, toolCallId: 'w1', decision: 'allow-once' })
+            await Approval.decide({ sessionId, toolCallId: 'w1', decision: 'allow' })
             expect(await waiting).toBe(true)
             expect((await Session.read({ sessionId })).pending).toEqual([])
         })

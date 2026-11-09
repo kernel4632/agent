@@ -4,26 +4,28 @@
  * 本文件只做五件事：装配有状态模块、注册路由、把错误转成 HTTP 反馈、提供服务状态、启动服务。
  * 业务读写都在 commands/ 和 features/ 里完成；根目录不再有第二层业务目录。
  *
+ * 路由一共 19 条，分三层：
+ *   基座    /agent/*（发、继续、停、审批）+ /sse/connect + /session/{list,create,read,compact} + /health
+ *   会话    /session 下其余动作（分支、改名、设置、回退、撤销回退、删除、分段历史）
+ *   管理    /admin 一条总线，设置页和能力页的 29 个动作都在 op 里
+ * 加接口前先问自己属于哪层：管理动作进 /admin 的 op 表，不要新开路由。
+ *
  * 调用示例：
  *   await start({ port: 3000 })
- *   await app.handle(new Request('http://localhost/config/read'))   // 测试里直接调用
+ *   await app.handle(new Request('http://localhost/health'))   // 测试里直接调用
  */
 
 import { Elysia, t } from 'elysia'
-import Capabilities from './commands/capabilities.js'
+import Admin from './commands/admin.js'
 import Chat from './commands/chat.js'
-import Filesystem from './commands/filesystem.js'
 import Session from './commands/session.js'
 import Settings from './commands/settings.js'
-import StorageCommand from './commands/storage.js'
 import Agent from './features/agent.js'
 import Approval from './features/approval.js'
 import Config from './features/config.js'
 import Context from './features/context.js'
 import History from './features/history.js'
 import Mcp from './features/mcp.js'
-import ModelIcons from './features/model-icons.js'
-import SessionGroups from './features/session-groups.js'
 import Skills from './features/skills.js'
 import Storage from './features/storage.js'
 import Tool from './features/tool.js'
@@ -81,40 +83,10 @@ app.get('/health', async () => ({
     running: Session.runningCount(),
 }))
 
-// --- 工具目录 ---
-app.get('/tool/list', () => Settings.listTools())
-app.get('/tool/kinds', () => Settings.toolKinds())
-
-// --- 模型 family 与远程 logo：目录由 models.dev 提供，服务端缓存，前端只发起图片请求 ---
-app.group('/model', model => model
-    .get('/family', ({ query }) => ModelIcons.suggest({ model: query.model, family: query.family }))
-    .get('/icon', async ({ query, set }) => {
-        const body = await ModelIcons.icon({ model: query.model, family: query.family, theme: query.theme })
-        if (!body) {
-            set.status = 404
-            return 'Not found'
-        }
-        set.headers['content-type'] = 'image/svg+xml'
-        set.headers['cache-control'] = 'public, max-age=3600'
-        return body
-    }))
-
-// --- 本机 MCP 与技能：识别、导入和日常维护 ---
-app.group('/mcp', mcp => mcp
-    .get('/list', ({ query }) => Capabilities.mcpList({ cwd: query.cwd }))
-    .post('/save', ({ body }) => Capabilities.mcpSave(body || {}))
-    .post('/import', ({ body }) => Capabilities.mcpImport(body || {}))
-    .post('/remove', ({ body }) => Capabilities.mcpRemove(body || {}))
-    .patch('/toggle', ({ body }) => Capabilities.mcpToggle(body || {}))
-    .post('/test', ({ body }) => Capabilities.mcpTest(body || {})))
-
-app.group('/skill', skill => skill
-    .get('/list', ({ query }) => Capabilities.skillList({ cwd: query.cwd }))
-    .get('/read', ({ query }) => Capabilities.skillRead({ name: query.name, cwd: query.cwd }))
-    .post('/save', ({ body }) => Capabilities.skillSave(body || {}))
-    .post('/remove', ({ body }) => Capabilities.skillRemove(body || {}))
-    .patch('/toggle', ({ body }) => Capabilities.skillToggle(body || {}))
-    .patch('/source', ({ body }) => Capabilities.skillSource(body || {})))
+// --- 管理总线：设置页 / 能力页的全部动作 ---
+// GET 只给 model.icon，因为它要直接当 <img src>；其余一律 POST，body 里带 op。
+app.get('/admin', ({ query }) => Admin.get(query))
+app.post('/admin', ({ body }) => Admin.run(body || {}))
 
 // --- 对话：发送、继续、停止、审批 ---
 app.group('/agent', agent => agent
@@ -127,118 +99,44 @@ app.group('/agent', agent => agent
     .post('/stop/:sessionId', ({ params, body }) => Chat.stop({ ...params, ...(body || {}) }), { params: SessionParams })
     .post('/decide/:sessionId', ({ params, body }) => Chat.decide({ ...params, ...body }), {
         params: SessionParams,
+        // 只有两个值：放行这一次，或拒绝这一次。长期规则在「工具自动批准」里设。
         body: t.Object({ toolCallId: t.String(), decision: t.String() }),
     }))
 
 // --- 会话 ---
 app.group('/session', session => session
+    // 列表带上分组：分组只是显示顺序，不需要单独一条接口。
     .get('/list', ({ query }) => Session.list({ search: query.search }))
-    .get('/groups', () => SessionGroups.read())
-    .put('/groups', ({ body }) => SessionGroups.save(body || {}))
     .post('/create', ({ body }) => Session.create(body || {}), {
         // 标题必填（空白由指令层 trim 后再判，这里只管“给了个字符串”）
         body: t.Object({ title: t.String(), cwd: t.Optional(t.String()), provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
     })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
-    .get('/segment/:sessionId/:segmentId', ({ params }) => Session.readHistorySegment(params), {
-        params: t.Object({ sessionId: t.String(), segmentId: t.String() }),
-    })
-    .get('/open/:sessionId', ({ params, set }) => {
-        set.headers['content-type'] = 'text/event-stream; charset=utf-8'
-        set.headers['cache-control'] = 'no-cache'
-        set.headers['x-accel-buffering'] = 'no'
-        const encoder = new TextEncoder()
-        const started = Date.now()
-        let lastBytes = 0
-        let lastAt = started
-        let controller
-        const stream = new ReadableStream({ start(value) { controller = value } })
-        const send = payload => controller?.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
-        const onProgress = ({ bytes = 0, totalBytes = 0, done = false } = {}) => {
-            const now = Date.now()
-            const elapsed = (now - lastAt) / 1000
-            const speed = elapsed > 0 ? Math.max(0, Math.round((bytes - lastBytes) / elapsed)) : 0
-            if (elapsed > 0) { lastBytes = bytes; lastAt = now }
-            const percent = totalBytes > 0 ? Math.min(done ? 92 : 90, Math.round(bytes / totalBytes * 90)) : (done ? 92 : 0)
-            const eta = speed > 0 && totalBytes > bytes ? Math.round((totalBytes - bytes) / speed) : 0
-            send({ type: 'progress', phase: done ? 'parsed' : 'reading', percent, bytes, totalBytes, speed, eta, done })
-        }
-        void (async () => {
-            try {
-                const session = await Session.read({ ...params, onProgress, segmented: true })
-                send({ type: 'progress', phase: 'session', percent: 96, bytes: 0, totalBytes: 0, speed: 0, eta: 0, done: true })
-                send({ type: 'session', session })
-                controller.close()
-            } catch (error) {
-                send({ type: 'error', error: error.message || '读取会话失败' })
-                controller.close()
-            }
-        })()
-        return new Response(stream)
-    })
-    .get('/search/:sessionId', ({ params, query }) => Session.searchHistory({
-        ...params,
-        query: query.q,
-        limit: query.limit === undefined ? undefined : Number(query.limit),
-    }))
-    .get('/outline/:sessionId', ({ params }) => Session.historyOutline(params))
-    .get('/changes/:sessionId', ({ params }) => Session.changes(params))
-    .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
-    .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...body }))
-    .get('/tools/:sessionId', ({ params }) => Session.toolChanges(params))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }), {
         params: SessionParams,
         body: t.Object({ title: t.String() }),
     })
-    .post('/title/:sessionId', ({ params }) => Session.generateTitle(params))
-    .patch('/model/:sessionId', ({ params, body }) => Session.setModel({ ...params, ...body }), {
+    // 会话级设置都走这一条：思考强度、模型、当前目录。
+    .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
+    .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...(body || {}) }), {
         params: SessionParams,
-        body: t.Object({ provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
+        body: t.Object({
+            reasoning: t.Optional(t.String()),
+            provider: t.Optional(t.String()),
+            model: t.Optional(t.String()),
+            cwd: t.Optional(t.String()),
+        }),
     })
-    .patch('/cwd/:sessionId', ({ params, body }) => Session.setCwd({ ...params, ...body }), {
-        params: SessionParams,
-        body: t.Object({ cwd: t.String() }),
-    })
+    // 回退：给 messageId 退对话，给 toolCallId 只退那一次工具改的文件。
+    .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...(body || {}) }))
+    .post('/rollback/redo/:sessionId', ({ params, body }) => Session.redo({ ...params, ...(body || {}) }))
     .delete('/remove/:sessionId', ({ params }) => Session.remove(params))
-    .post('/rollback/preview/:sessionId', ({ params, body }) => Session.rollbackPreview({ ...params, ...body }))
-    .post('/rollback/tool/:sessionId', ({ params, body }) => Session.rollbackTool({ ...params, ...body }))
-    .post('/rollback/:sessionId', ({ params, body }) => Session.rollback({ ...params, ...body }))
-    .post('/redo/:sessionId', ({ params, body }) => Session.redo({ ...params, ...(body || {}) }))
     .post('/compact/:sessionId', ({ params, request, server }) => {
         // 模型生成总结前不会写响应字节，不能让 HTTP 空闲计时提前断开。
         server?.timeout(request, 0)
         return Session.compact(params)
     }))
-
-// --- 配置 ---
-app.group('/config', config => config
-    .get('/read', async () => {
-        await Settings.read()
-        return Settings.get()
-    })
-    .get('/meta', () => Settings.meta())
-    .get('/backups', () => Settings.backups())
-    .get('/backups/:id', ({ params }) => Settings.readBackup(params.id))
-    .post('/restore', ({ body }) => Settings.restore(body || {}))
-    .get('/export', ({ query, set }) => {
-        const secrets = query.secrets === '1'
-        set.headers['content-type'] = 'application/json; charset=utf-8'
-        set.headers['content-disposition'] = `attachment; filename="agent-config-${secrets ? 'full' : 'masked'}.json"`
-        return JSON.stringify(Settings.exportConfig({ secrets }), null, 2)
-    })
-    .post('/import', ({ body }) => Settings.importConfig(body || {}))
-    .patch('/set', ({ body }) => Settings.set(body))
-    .post('/test', ({ body }) => Settings.test(body || {})))
-
-// --- 文件系统浏览：设置页路径选择器用，只读目录/文件列表 ---
-app.get('/filesystem/entries', ({ query }) => Filesystem.entries(query))
-
-// --- 存储位置：会话数据可以单独放到其他磁盘，迁移在下次启动执行 ---
-app.group('/storage', storage => storage
-    .get('/sessions', () => StorageCommand.status())
-    .put('/sessions', ({ body }) => StorageCommand.setPath(body || {}))
-    .delete('/sessions', () => StorageCommand.cancel()))
 
 // --- SSE ---
 app.group('/sse', sse => sse

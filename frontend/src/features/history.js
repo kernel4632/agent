@@ -257,17 +257,9 @@ async function refresh(id, { showLoading = false } = {}) {
   if (loading) store.ui.sessionLoading = loading
   let source
   try {
-    source = await AgentAPI.openSession(id, event => {
-      if (!loading || store.ui.sessionLoading !== loading) return
-      loading.phase = event.phase || loading.phase
-      loading.percent = Math.max(loading.percent, Number(event.percent) || 0)
-      if (Number(event.totalBytes) > 0) {
-        loading.bytes = Number(event.bytes) || 0
-        loading.totalBytes = Number(event.totalBytes) || 0
-      }
-      loading.speed = Number(event.speed) || 0
-      loading.eta = Number(event.eta) || 0
-    })
+    // 会话一次性读全量：不再有进度流，先把进度条推到中间再直接收尾。
+    if (loading) loading.percent = 40
+    source = await AgentAPI.getSession(id)
     if (loading) {
       loading.phase = 'parsing'
       loading.percent = Math.max(loading.percent, 94)
@@ -307,12 +299,21 @@ async function refresh(id, { showLoading = false } = {}) {
   }
 }
 
+// 回退代价在本地算：历史全量在内存里，消息条数和工具调用都是现成的。
+// 文件部分不在这算——回退结果会带 restored，确认框不再预知。
 async function previewRollback(sessionID, messageID) {
-  try {
-    return await AgentAPI.previewRollback(sessionID, messageID)
-  } catch (error) {
-    Notice.show(error.message)
+  const session = store.sessions[sessionID]
+  if (!session) return null
+  const index = session.messages.findIndex(message => message.id === messageID)
+  if (index < 0) {
+    Notice.show('这条消息已经不在当前历史里')
     return null
+  }
+  const dropped = session.messages.slice(index)
+  return {
+    messages: dropped.filter(message => message.role !== 'tool').length,
+    toolCalls: dropped.flatMap(message => (message.tools || []).map(tool => tool.id)).filter(Boolean),
+    files: [],
   }
 }
 
@@ -363,15 +364,9 @@ function normalizeSegment(source, toolTimings) {
   return messages
 }
 
-async function loadSegment(sessionID, segmentID) {
-  const session = store.sessions[sessionID]
-  if (!session || !segmentID) return []
-  if (session.segmentMessages?.[segmentID]) return session.segmentMessages[segmentID]
-  const source = await AgentAPI.getSessionSegment(sessionID, segmentID)
-  const messages = normalizeSegment(source, session.toolTimings)
-  if (!session.segmentMessages) session.segmentMessages = {}
-  session.segmentMessages[segmentID] = messages
-  return messages
+async function loadSegment() {
+  // 历史已经是一次性全量读取，没有“按需展开的分段”了；保留入口供旧调用方兼容。
+  return []
 }
 
 /** 建立分支后返回新 ID；是否打开由用户入口决定。 */

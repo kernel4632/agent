@@ -37,7 +37,7 @@
 1. 先用 `/health`、监听端口和进程链确认当前实例；不要用 `taskkill /F /T` 连坐杀父进程。
 2. 停掉旧的 server 子进程，确认 3000 端口已释放。
 3. 用 DSH 的后台任务启动 `bun run server.js`（工作目录 `server/`），等 `/health` 返回且版本等于目标版本。
-4. 再验证 `/session/list`、`/config/read` 等只读接口，确认数据目录和配置没有被换掉。
+4. 再验证 `/session/list`、`/admin {op:"config.read"}` 等只读接口，确认数据目录和配置没有被换掉。
 5. 前端由 Vite HMR 更新，不需要为了新代码重启；只有构建产物或 Vite 进程异常时才处理。
 
 历史的进程管理事故仍然是教训：

@@ -141,7 +141,7 @@ func TestLateSubscriptionStillHandlesApprovalAfterStartWasCleared(t *testing.T) 
 	client, _ := api.New(server.URL)
 	err := Run(ctx, client, api.Session{ID: "s"}, "send", "test", Hooks{
 		Permission: func(ctx context.Context, p api.Permission) error {
-			return client.Decide(ctx, "s", p.CallID, "allow-once")
+			return client.Decide(ctx, "s", p.CallID, "allow")
 		},
 	})
 	if err != nil {

@@ -10,7 +10,7 @@
  *   await Chat.send({ sessionId, input: [{ type: 'text', text: '看这张图' }, { type: 'image', image: 'data:image/png;base64,...' }] })
  *   await Chat.resume({ sessionId })
  *   await Chat.stop({ sessionId })
- *   await Chat.decide({ sessionId, toolCallId, decision: 'allow-once' })
+ *   await Chat.decide({ sessionId, toolCallId, decision: 'allow' })
  */
 
 import { nanoid } from 'nanoid'
@@ -282,13 +282,15 @@ const annotateInterruption = (result, timing) => {
 
 const sendToolResult = ({ sessionId }) => async result => {
     const finishedAt = Date.now()
-    const timing = await ToolTiming.finish({
-        sessionId,
-        toolCallId: result.toolCallId || result.callID || result.callId || result.id,
-        at: finishedAt,
-    }).catch(() => null)
+    const toolCallId = result.toolCallId || result.callID || result.callId || result.id
+    const timing = await ToolTiming.finish({ sessionId, toolCallId, at: finishedAt }).catch(() => null)
     annotateInterruption(result, timing)
-    await SSE.send({ id: sessionId, data: { ...result, type: 'tool-result', ...(timing || {}) } })
+    // 这次调用改过哪些文件跟着结果一起推：前端不再需要单独的改动查询接口。
+    const changedPaths = await Tool.changedPaths({ sessionId, toolCallId }).catch(() => [])
+    await SSE.send({
+        id: sessionId,
+        data: { ...result, type: 'tool-result', ...(timing || {}), ...(changedPaths.length ? { changedPaths } : {}) },
+    })
 }
 
 // --- 每完成一步就落盘 ---

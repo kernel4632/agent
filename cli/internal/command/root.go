@@ -100,7 +100,7 @@ func (o *options) models() *cobra.Command {
 			return err
 		}
 		var config api.Config
-		if err = client.Request(cmd.Context(), "GET", "/config/read", nil, &config); err != nil {
+		if err = client.Admin(cmd.Context(), "config.read", nil, &config); err != nil {
 			return err
 		}
 		rows := []map[string]any{}
@@ -240,9 +240,9 @@ func (o *options) sessions() *cobra.Command {
 		return client.Stop(cmd.Context(), args[0], "", "")
 	}})
 	o.sessionExtras(root)
-	root.AddCommand(&cobra.Command{Use: "decide ID CALL_ID DECISION", Short: "审批：allow-once / allow-always / deny", Args: cobra.ExactArgs(3), RunE: func(cmd *cobra.Command, args []string) error {
-		if args[2] != "allow-once" && args[2] != "allow-always" && args[2] != "deny" {
-			return fmt.Errorf("decision 必须是 allow-once / allow-always / deny")
+	root.AddCommand(&cobra.Command{Use: "decide ID CALL_ID DECISION", Short: "审批：allow / deny", Args: cobra.ExactArgs(3), RunE: func(cmd *cobra.Command, args []string) error {
+		if args[2] != "allow" && args[2] != "deny" {
+			return fmt.Errorf("decision 必须是 allow / deny")
 		}
 		client, err := o.client()
 		if err != nil {
@@ -360,8 +360,8 @@ func (o *options) ask() *cobra.Command {
 	var permission string
 	var resume bool
 	cmd := &cobra.Command{Use: "ask [PROMPT]", Short: "单次提问；省略提示词时读取标准输入", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if permission != "ask" && permission != "deny" && permission != "allow-once" {
-			return fmt.Errorf("--permission 必须是 ask / deny / allow-once")
+		if permission != "ask" && permission != "deny" && permission != "allow" {
+			return fmt.Errorf("--permission 必须是 ask / deny / allow")
 		}
 		input := ""
 		if resume {
@@ -440,7 +440,7 @@ func (o *options) ask() *cobra.Command {
 			},
 			Permission: func(ctx context.Context, p api.Permission) error {
 				if permission == "ask" {
-					fmt.Fprintf(cmd.ErrOrStderr(), "待审批: %s %s\n使用 agent sessions decide %s %s allow-once（或 deny），再用 chat --session %s 连接。\n", p.Tool, chat.Plain(string(p.Input)), session.ID, p.CallID, session.ID)
+					fmt.Fprintf(cmd.ErrOrStderr(), "待审批: %s %s\n使用 agent sessions decide %s %s allow（或 deny），再用 chat --session %s 连接。\n", p.Tool, chat.Plain(string(p.Input)), session.ID, p.CallID, session.ID)
 					return chat.ErrPending
 				}
 				return client.Decide(ctx, session.ID, p.CallID, permission)
@@ -471,7 +471,7 @@ func (o *options) ask() *cobra.Command {
 		return writeAnswer(cmd.OutOrStdout(), stream, streamed.String(), finalText.String())
 	}}
 	s.flags(cmd)
-	cmd.Flags().StringVar(&permission, "permission", "ask", "遇到审批时退出等待 / 拒绝 / 允许本次：ask|deny|allow-once")
+	cmd.Flags().StringVar(&permission, "permission", "ask", "遇到审批时退出等待 / 拒绝 / 允许本次：ask|deny|allow")
 	cmd.Flags().BoolVar(&resume, "resume", false, "继续被中断的助手回复")
 	return cmd
 }

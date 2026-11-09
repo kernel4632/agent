@@ -18,14 +18,14 @@ func TestApprovalUsesCurrentContract(t *testing.T) {
 		}
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if body["toolCallId"] != "call-1" || body["decision"] != "allow-once" || len(body) != 2 {
+		if body["toolCallId"] != "call-1" || body["decision"] != "allow" || len(body) != 2 {
 			t.Errorf("wrong approval payload: %v", body)
 		}
 		fmt.Fprint(w, `{"ok":true}`)
 	}))
 	defer server.Close()
 	client, _ := New(server.URL)
-	if err := client.Decide(context.Background(), "session-1", "call-1", "allow-once"); err != nil {
+	if err := client.Decide(context.Background(), "session-1", "call-1", "allow"); err != nil {
 		t.Fatal(err)
 	}
 }

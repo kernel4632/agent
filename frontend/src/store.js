@@ -52,6 +52,7 @@ export const store = reactive({
   },
 
   sessionList: [],                                     // /session/list 返回的会话摘要，cwd 是每条会话自己的属性
+  sessionGroups: [],                                   // 分组与顺序，跟列表一起从服务端回来
   sessions: {},                                       // 已读取的完整会话，以 Session ID 为键
   config: {
     providers: {},                                    // 设置页可编辑供应商目录

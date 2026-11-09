@@ -738,33 +738,6 @@ describe('继续助手的 HTTP 接口', () => {
         })
     })
 
-    test('用户可以按后续对话重新生成标题，模型失败时用第一句话兜底', async () => {
-        await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
-            const { sessionId } = await Session.create({ title: '旧标题' })
-            await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('帮我修一下登录') } })
-            await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('好的') } })
-            await History.save(sessionId)
-
-            const original = Title.generate
-            Title.generate = async () => '修复登录问题'
-            try {
-                expect(await Session.generateTitle({ sessionId })).toEqual({ title: '修复登录问题' })
-            } finally {
-                Title.generate = original
-            }
-
-            Title.generate = async () => null
-            try {
-                expect(await Session.generateTitle({ sessionId })).toEqual({ title: '帮我修一下登录' })
-            } finally {
-                Title.generate = original
-            }
-
-            await expect(Session.generateTitle({ sessionId: 'missing' })).rejects.toMatchObject({ status: 404 })
-        })
-    })
-
     test('自动起标题成功时不会因为默认标题常量缺失而中断', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })

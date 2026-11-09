@@ -847,7 +847,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.input.Focus(), true
 	}
 	if m.permission != nil {
-		decision := map[string]string{"y": "allow-once", "a": "allow-always", "n": "deny"}[key]
+		decision := map[string]string{"y": "allow", "n": "deny"}[key]
 		if decision != "" {
 			m.permission.reply <- decision
 			m.permission = nil

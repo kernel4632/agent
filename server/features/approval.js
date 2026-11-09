@@ -87,29 +87,6 @@ const decideByRules = (toolName, matchValue, rules = store.config.permission || 
 const effectiveRules = () => store.config.permission || { '*': 'ask' }
 
 // 用户心里认为的"一个操作"：换参数还是同一个操作，换子命令才是另一个操作。
-// 取前两个词就够了：`bun test`、`make deploy` 是两个操作，`ls -la` 仍是 `ls`。
-const normalizeCommand = command => {
-    const words = String(command).trim().split(/\s+/)
-    const second = words[1] || ''
-    return !second || second.startsWith('-') ? words[0] : `${words[0]} ${second}`
-}
-
-const plainObject = value => value && typeof value === 'object' && !Array.isArray(value) ? value : null
-
-// --- 把"始终允许"写成一条全局规则 ---
-const remember = ({ toolName, input, matchValue }) => {
-    const pattern = toolName === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
-    // 精确参数里的 glob 特殊字符按字面量转义，模式才能匹配回保存时的原值；
-    // 反斜杠在 bash 模式下是字面量，不进字符类——否则模式永远匹配不上 Windows 路径（issue #9）。
-    // execute_command 的命令前缀模式以 * 结尾表示"这类命令都放行"，这个星号是通配，不转义。
-    const escaped = (toolName === 'execute_command' ? pattern : pattern.replace(/\*/g, '\\*'))
-        .replace(/\\/g, '\\\\')
-        .replace(/[?[\]{()}]/g, character => `\\${character}`)
-    store.config.permission = plainObject(store.config.permission) || { '*': 'ask' }
-    const toolRule = plainObject(store.config.permission[toolName])
-    if (toolRule) toolRule[escaped] = 'allow'
-    else store.config.permission[toolName] = { '*': 'ask', [escaped]: 'allow' }
-}
 
 // --- 放行这次调用，并让工具自己决定是否在写入前存快照 ---
 const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
@@ -191,19 +168,17 @@ const recheck = () => {
 }
 
 // --- 接收用户在界面上做的决定 ---
+// 只有两个值：放行这一次，或拒绝这一次。长期规则不在这里写——
+// “始终允许”属于工具自动批准，它直接改 config.permission，不走弹窗。
 const decide = async ({ sessionId, toolCallId, decision }) => {
     const approval = approvals.get(`${sessionId}:${toolCallId}`)
     if (!approval) return { ok: false }
-    if (!['allow-once', 'allow-always', 'deny'].includes(decision)) {
-        throw fail(400, `decision must be allow-once, allow-always or deny, got: ${decision}`)
+    if (decision !== 'allow' && decision !== 'deny') {
+        throw fail(400, `decision must be allow or deny, got: ${decision}`)
     }
 
     approvals.delete(`${sessionId}:${toolCallId}`)
-    if (decision === 'allow-always') {
-        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue }) // 把这条规则写进内存配置
-        await services.config.save()                                                                       // 规则立刻落盘，下次启动仍然生效
-    }
-    approval.resolve(decision !== 'deny')
+    approval.resolve(decision === 'allow')
     return { ok: true }
 }
 

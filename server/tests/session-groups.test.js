@@ -28,10 +28,11 @@ afterEach(async () => {
     await Promise.all(homes.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-const request = (method, body) => app.handle(new Request('http://localhost/session/groups', {
-    method,
+// 分组保存走管理总线；读取随 GET /session/list 一起返回。
+const request = (op, body = {}) => app.handle(new Request('http://localhost/admin', {
+    method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: JSON.stringify({ op, ...body }),
 }))
 
 describe('session groups', () => {
@@ -41,11 +42,11 @@ describe('session groups', () => {
                 { id: 'g1', name: '工作', sessions: ['s1', 's2'] },
                 { id: 'g2', name: '写作', sessions: [] },
             ]
-            const saved = await request('PUT', { groups })
+            const saved = await request('session.groups.set', { groups })
             expect(saved.status).toBe(200)
             expect((await saved.json()).groups).toEqual(groups)
 
-            const read = await request('GET')
+            const read = await app.handle(new Request('http://localhost/session/list'))
             expect(read.status).toBe(200)
             expect((await read.json()).groups).toEqual(groups)
         })
@@ -56,7 +57,7 @@ describe('session groups', () => {
             const current = [{ id: 'g1', name: '工作', sessions: ['s1'] }]
             await SessionGroups.save({ groups: current })
 
-            const duplicate = await request('PUT', {
+            const duplicate = await request('session.groups.set', {
                 groups: [
                     { id: 'g1', name: '工作', sessions: ['same'] },
                     { id: 'g2', name: '写作', sessions: ['same'] },

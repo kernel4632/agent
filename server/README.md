@@ -45,7 +45,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 ## 五个核心概念
 
 1. **会话**：唯一的长期容器。标题、当前目录 `cwd`、模型、历史、设置都在会话里。
-2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/cwd/{sessionId}` 改，agent 可以用 `cwd` 工具自己改。
+2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/settings/{sessionId}` 的 `cwd` 字段改，agent 可以用 `cwd` 工具自己改。
 3. **运行**：从发送消息开始，到结束或停止为止；过程通过 SSE 推送。
 4. **工具**：agent 改变外部世界的唯一方式，按类别放在 `tools/`。
 5. **扩展**：MCP、技能、子智能体、自动标题都是基座能力。
@@ -80,7 +80,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 
 会话历史、文件快照和工具输出占用会持续增长，可通过「设置 → 数据管理 → 会话数据目录」把整个 `sessions/` 单独放到其他磁盘。服务只写入待迁移标记，重启后在加载会话前复制并切换；旧目录保留。启动时也可以用 `AGENT_SESSIONS` 直接指定会话目录，此时界面为只读。
 
-第一次出现 `compact` 消息时，后端会把单体 `history.jsonl` 按压缩边界迁移成 `history-index.json + history/`。`GET /session/open/{sessionId}` 只返回 `historyManifest` 和最后一次压缩之后的当前段；展开历史段时前端调用 `GET /session/segment/{sessionId}/{segmentId}`。`GET /session/read/{sessionId}` 仍然返回完整历史，供 CLI 和旧客户端使用，不受分段影响。
+第一次出现 `compact` 消息时，后端会按压缩边界把历史分段存到磁盘（`history-index.json + history/`）。HTTP 层只暴露 `GET /session/read/{sessionId}`，一次返回完整历史；分段是存储细节，前端不再按需展开。
 
 新会话如果没有传 `cwd`，会在系统临时目录的 `agent/` 下创建独立工作区（`session-*`），避免 agent 默认在项目代码旁边动手。删除会话时清理该临时目录；用户在「切换工作区」里换成真实目录后，会话的 `temporary` 变为 `false`，旧临时目录也会被清理。可以用 `AGENT_TMP` 改临时工作区的根目录。
 
@@ -215,7 +215,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 工具名会带服务名前缀，例如 `everything_echo`；两个服务撞名时不会互相覆盖。
 
 一个服务连不上（命令不存在、握手超时）只跳过它，并通过 SSE 的 `mcp-error` 告诉前端；
-失败原因同时会出现在 `GET /mcp/list` 对应服务的 `error` 字段上，设置页能直接看到。
+失败原因同时会出现在管理总线 `mcp.list` 返回的对应服务 `error` 字段上，设置页能直接看到。
 **失败不会改你的配置**：进程内跳过重试（不重复白等 5 秒），但 `enabled` 保持你写的值，
 修好命令后重新保存或重启即可重新连上。
 
@@ -304,7 +304,7 @@ notepad "C:\temp\agent-data\config.json"
 bun start
 ```
 
-默认地址是 `http://localhost:3000`。浏览器打开 `http://localhost:3000/config/read` 能返回 JSON 就说明后端已启动。
+默认地址是 `http://localhost:3000`。用 `curl -X POST http://localhost:3000/admin -H "content-type: application/json" -d '{"op":"config.read"}'` 能返回 JSON 就说明后端已启动。
 
 ## 接口
 

@@ -50,15 +50,15 @@ test('保存技能和导入 MCP 时带上当前会话目录', async t => {
     store.ui.activeSessionID = ''
   }
 
-  assert.deepEqual(calls.map(call => [call.method, call.url]), [
-    ['POST', '/api/skill/save'],
-    ['PATCH', '/api/skill/toggle'],
-    ['PATCH', '/api/skill/source'],
-    ['POST', '/api/mcp/import'],
-    ['POST', '/api/mcp/test'],
+  assert.deepEqual(calls.map(call => [call.method, call.url, call.body?.op]), [
+    ['POST', '/api/admin', 'skill.save'],
+    ['POST', '/api/admin', 'skill.toggle'],
+    ['POST', '/api/admin', 'skill.source'],
+    ['POST', '/api/admin', 'mcp.import'],
+    ['POST', '/api/admin', 'mcp.test'],
   ])
-  assert.deepEqual(calls[0].body, { name: 'review', description: '审查', body: '正文', cwd: 'D:/work' })
-  assert.deepEqual(calls[1].body, { name: 'review', enabled: false, cwd: 'D:/work' })
-  assert.deepEqual(calls[3].body, { ids: ['cursor::github'], cwd: 'D:/work' })
-  assert.deepEqual(calls[4].body, { name: 'github' })
+  assert.deepEqual(calls[0].body, { op: 'skill.save', name: 'review', description: '审查', body: '正文', cwd: 'D:/work' })
+  assert.deepEqual(calls[1].body, { op: 'skill.toggle', name: 'review', enabled: false, cwd: 'D:/work' })
+  assert.deepEqual(calls[3].body, { op: 'mcp.import', ids: ['cursor::github'], cwd: 'D:/work' })
+  assert.deepEqual(calls[4].body, { op: 'mcp.test', name: 'github' })
 })

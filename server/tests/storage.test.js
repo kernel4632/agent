@@ -30,11 +30,14 @@ afterEach(async () => {
     await Promise.all(homes.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-const request = (method, body) => app.handle(new Request('http://localhost/storage/sessions', {
-    method,
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
+// 管理面统一走 /admin：{ op, ...参数 }
+const request = (op, body = {}) => app.handle(new Request('http://localhost/admin', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ op, ...body }),
 }))
+
+const admin = request
 
 describe('会话数据目录', () => {
     test('默认仍使用 AGENT_HOME/sessions', async () => {
@@ -59,7 +62,7 @@ describe('会话数据目录', () => {
             expect(Path.sessions()).toBe(old)
             const status = await Storage.status()
             expect(status.pending).toEqual({ from: old, path: target })
-            expect((await request('GET')).status).toBe(200)
+            expect((await request('storage.status')).status).toBe(200)
 
             // 模拟重启：清掉进程内路径缓存后重新 prepare。
             Path.unlock()
@@ -80,14 +83,14 @@ describe('会话数据目录', () => {
             await rm(target, { recursive: true, force: true })
             await Storage.prepare()
 
-            const invalid = await request('PUT', { path: 'relative/path' })
+            const invalid = await request('storage.set', { path: 'relative/path' })
             expect(invalid.status).toBe(400)
-            const created = await request('PUT', { path: target })
+            const created = await request('storage.set', { path: target })
             expect(created.status).toBe(200)
             expect((await created.json()).pending.path).toBe(target)
-            const status = await request('GET')
+            const status = await request('storage.status')
             expect((await status.json()).pending.path).toBe(target)
-            expect((await request('DELETE')).status).toBe(200)
+            expect((await request('storage.cancel')).status).toBe(200)
             expect((await Storage.status()).pending).toBeNull()
         })
     })
@@ -98,7 +101,7 @@ describe('会话数据目录', () => {
             homes.push(target)
             await writeFile(join(target, 'keep.txt'), 'keep')
             await Storage.prepare()
-            const response = await request('PUT', { path: target })
+            const response = await request('storage.set', { path: target })
             expect(response.status).toBe(409)
         })
     })
@@ -112,7 +115,7 @@ describe('会话数据目录', () => {
             Path.lock(process.env.AGENT_HOME)
             await Storage.prepare()
             expect(Path.sessions()).toBe(target)
-            const response = await request('PUT', { path: join(target, 'other') })
+            const response = await request('storage.set', { path: join(target, 'other') })
             expect(response.status).toBe(409)
         })
     })

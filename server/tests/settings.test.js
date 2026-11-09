@@ -53,8 +53,11 @@ describe('会话运行设置', () => {
     test('默认设置只有思考强度', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            expect(await Session.readSettings({ sessionId })).toEqual({
+            expect(await Session.readSettings({ sessionId })).toMatchObject({
                 reasoning: 'auto',
+                provider: 'local',
+                model: 'model',
+                temporary: true,
             })
         })
     })
@@ -181,15 +184,9 @@ describe('哪件事用哪个模型', () => {
             const { sessionId } = await Session.create({ title: '标题跟会话' })
             await Session.setModel({ sessionId, provider: 'local', model: '会话模型' })
 
-            const original = Title.generate
-            let used
-            Title.generate = async ({ connection }) => { used = connection; return '标题' }
-            try {
-                await Session.generateTitle({ sessionId })
-            } finally {
-                Title.generate = original
-            }
-            expect(used.model).toBe('会话模型')
+            // 自动起标题用的就是这条规则：models.title 没配时，跟着会话自己的模型走。
+            const session = await Session.read({ sessionId })
+            expect(Agent.taskModel('title', { provider: session.provider, model: session.model })).toEqual({ provider: 'local', model: '会话模型' })
         })
     })
 })
@@ -284,7 +281,7 @@ describe('会话模型切换', () => {
     test('HTTP 接口能切换模型', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            const response = await app.handle(new Request(`http://localhost/session/model/${sessionId}`, {
+            const response = await app.handle(new Request(`http://localhost/session/settings/${sessionId}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ provider: 'local', model: 'other' }),

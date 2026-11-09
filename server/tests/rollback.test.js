@@ -18,6 +18,8 @@ import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
+import Tool from '../features/tool.js'
+import Rollback from '../features/rollback.js'
 import * as File from '../tools/file.js'
 import store from '../store.js'
 // 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
@@ -65,20 +67,20 @@ describe('工具级回退', () => {
             await Approval.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'write_file', input: { path: second } })
             await writeFile(second, 'b1')
 
-            expect((await Session.toolChanges({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a', 'call-b'])
+            expect((await Tool.entries({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a', 'call-b'])
 
-            const result = await Session.rollbackTool({ sessionId, toolCallId: 'call-b' })
+            const result = await Session.rollback({ sessionId, toolCallId: 'call-b' })
             expect(result.restored).toContain(resolve(second))
             expect(await readFile(second, 'utf8')).toBe('b0')
             expect(await readFile(first, 'utf8')).toBe('a1')
-            expect((await Session.toolChanges({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a'])
+            expect((await Tool.entries({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a'])
 
             await Session.redo({ sessionId })
             expect(await readFile(second, 'utf8')).toBe('b1')
 
-            await Session.rollbackTool({ sessionId, toolCallId: 'call-b', files: false })
+            await Session.rollback({ sessionId, toolCallId: 'call-b', files: false })
             expect(await readFile(second, 'utf8')).toBe('b1')
-            expect((await Session.toolChanges({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a'])
+            expect((await Tool.entries({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a'])
 
             await rm(first, { force: true })
             await rm(second, { force: true })
@@ -89,7 +91,7 @@ describe('工具级回退', () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
             const { sessionId } = await Session.create({ title: 'No such call' })
-            await expect(Session.rollbackTool({ sessionId, toolCallId: 'never-happened' })).rejects.toThrow(/not found/i)
+            await expect(Session.rollback({ sessionId, toolCallId: 'never-happened' })).rejects.toThrow(/not found/i)
         })
     })
 
@@ -105,7 +107,7 @@ describe('工具级回退', () => {
             await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'after')
 
-            await Session.rollbackTool({ sessionId, toolCallId: 'call-x' })
+            await Session.rollback({ sessionId, toolCallId: 'call-x' })
             expect((await Session.read({ sessionId })).history).toHaveLength(1)
             expect(await readFile(target, 'utf8')).toBe('before')
 
@@ -124,7 +126,7 @@ describe('工具级回退', () => {
             await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'v2')
 
-            await Session.rollbackTool({ sessionId, toolCallId: 't2' })
+            await Session.rollback({ sessionId, toolCallId: 't2' })
             expect(await readFile(target, 'utf8')).toBe('v1')
 
             await rm(target, { force: true })
@@ -169,7 +171,7 @@ describe('助手块回退的粒度', () => {
     test('回退中间的助手消息只撤它自己和它附带的工具结果', async () => {
         await withHome(async () => {
             const { sessionId, user, a2 } = await seedRun()
-            const preview = await Session.rollbackPreview({ sessionId, messageId: a2.messageId })
+            const preview = await Rollback.preview({ history: History, sessionId, messageId: a2.messageId })
             expect(preview.messages).toBe(2)                               // a2 和它后面的 a3，工具结果不算
             expect(preview.toolCalls).toEqual(['call-2'])
 
@@ -187,7 +189,7 @@ describe('助手块回退的粒度', () => {
     test('回退最后一条助手消息只撤它自己', async () => {
         await withHome(async () => {
             const { sessionId, a3 } = await seedRun()
-            const preview = await Session.rollbackPreview({ sessionId, messageId: a3.messageId })
+            const preview = await Rollback.preview({ history: History, sessionId, messageId: a3.messageId })
             expect(preview.messages).toBe(1)
             expect(preview.toolCalls).toEqual([])
 
@@ -201,7 +203,7 @@ describe('助手块回退的粒度', () => {
     test('回退用户消息仍然是这条和之后的全部消失', async () => {
         await withHome(async () => {
             const { sessionId, user } = await seedRun()
-            const preview = await Session.rollbackPreview({ sessionId, messageId: user.messageId })
+            const preview = await Rollback.preview({ history: History, sessionId, messageId: user.messageId })
             expect(preview.messages).toBe(4)                               // u、a1、a2、a3
             expect(preview.toolCalls).toEqual(['call-1', 'call-2'])
 

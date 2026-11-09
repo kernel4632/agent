@@ -21,7 +21,36 @@ import Skill from '../tools/skill.js'
 import store from '../store.js'
 import { app } from '../server.js'
 
-const request = (path, options = {}) => app.handle(new Request(`http://localhost${path}`, options))
+// 管理面现在只有一条 POST /admin，测试里保留按旧名字调用的写法：
+// 这里把 "方法 + 路径 + query/body" 翻成 { op, ...参数 }，断言一行不用改。
+const OP_OF = {
+    'GET /mcp/list': 'mcp.list',
+    'POST /mcp/save': 'mcp.save',
+    'POST /mcp/import': 'mcp.import',
+    'POST /mcp/remove': 'mcp.remove',
+    'PATCH /mcp/toggle': 'mcp.toggle',
+    'POST /mcp/test': 'mcp.test',
+    'GET /skill/list': 'skill.list',
+    'GET /skill/read': 'skill.read',
+    'POST /skill/save': 'skill.save',
+    'POST /skill/remove': 'skill.remove',
+    'PATCH /skill/toggle': 'skill.toggle',
+    'PATCH /skill/source': 'skill.source',
+}
+
+const request = (path, options = {}) => {
+    const [pathname, search] = String(path).split('?')
+    const method = (options.method || 'GET').toUpperCase()
+    const op = OP_OF[`${method} ${pathname}`]
+    if (!op) return app.handle(new Request(`http://localhost${path}`, options))
+    const query = Object.fromEntries(new URLSearchParams(search || ''))
+    const body = options.body ? JSON.parse(options.body) : {}
+    return app.handle(new Request('http://localhost/admin', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op, ...query, ...body }),
+    }))
+}
 const json = (path, method, body) => request(path, {
     method,
     headers: { 'content-type': 'application/json' },
@@ -534,11 +563,13 @@ describe('能力接口装配', () => {
         })
     })
 
-    test('skills 与 mcp 路由都出现在服务里', async () => {
-        const paths = app.routes.map(route => `${route.method.toUpperCase()} ${route.path}`)
-        for (const route of [
-            'GET /mcp/list', 'POST /mcp/save', 'POST /mcp/import', 'POST /mcp/remove', 'PATCH /mcp/toggle', 'POST /mcp/test',
-            'GET /skill/list', 'GET /skill/read', 'POST /skill/save', 'POST /skill/remove', 'PATCH /skill/toggle', 'PATCH /skill/source',
-        ]) expect(paths).toContain(route)
+    test('管理总线接住了所有能力动作', async () => {
+        const routes = app.routes.map(route => `${route.method.toUpperCase()} ${route.path}`)
+        expect(routes).toContain('POST /admin')
+        const admin = (await import('../commands/admin.js')).default
+        for (const op of ['mcp.list', 'mcp.save', 'mcp.import', 'mcp.remove', 'mcp.toggle', 'mcp.test',
+            'skill.list', 'skill.read', 'skill.save', 'skill.remove', 'skill.toggle', 'skill.source']) {
+            expect(Object.keys(admin.OPS)).toContain(op)
+        }
     })
 })

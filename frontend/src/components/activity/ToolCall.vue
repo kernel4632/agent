@@ -187,8 +187,7 @@ function decide(decision) {
         <p>需要你的许可。检查工具和参数后再决定。</p>
         <div>
           <Button variant="danger" :disabled="tool.deciding" @click="decide('deny')">拒绝</Button>
-          <Button :disabled="tool.deciding" @click="decide('always-allow')">始终允许此参数</Button>
-          <Button variant="primary" :disabled="tool.deciding" @click="decide('allow-once')">允许一次</Button>
+          <Button variant="primary" :disabled="tool.deciding" @click="decide('allow')">允许</Button>
         </div>
       </div>
       <Fold :open="bodyOpen" :instant="instant" slow appear :fade="false">

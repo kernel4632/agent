@@ -90,15 +90,14 @@ agent sessions remove SESSION_ID
 
 供应商或模型名含空格时使用引号，例如 `/model "provider with spaces" gpt-model`；单引号也支持。
 
-`ask` 默认遇到待审批工具就返回非零退出码，显示会话 ID 和调用 ID，任务保留在服务端等待。可以显式选择 `--permission deny` 或 `--permission allow-once`，应用于本次运行遇到的审批，不写全局规则。已有全局 `deny` 仍由后端执行。
+`ask` 默认遇到待审批工具就返回非零退出码，显示会话 ID 和调用 ID，任务保留在服务端等待。可以显式选择 `--permission deny` 或 `--permission allow`，应用于本次运行遇到的审批，不写全局规则。已有全局 `deny` 仍由后端执行。
 
 ```powershell
-agent sessions decide SESSION_ID CALL_ID allow-once
+agent sessions decide SESSION_ID CALL_ID allow
 agent sessions decide SESSION_ID CALL_ID deny
-agent sessions decide SESSION_ID CALL_ID allow-always
 ```
 
-`allow-always` 会按后端语义保存全局权限规则。Ctrl+C 会请求停止，并提交当前模型已经生成的半段正文与思考。网络错误不会重发消息；重连失败时会提示任务可能仍在运行，可用 `sessions show/stop` 检查或停止。
+决定只有 allow / deny 两种：弹窗只管这一次，长期规则去「工具自动批准」里设。Ctrl+C 会请求停止，并提交当前模型已经生成的半段正文与思考。网络错误不会重发消息；重连失败时会提示任务可能仍在运行，可用 `sessions show/stop` 检查或停止。
 
 ## 验证
 

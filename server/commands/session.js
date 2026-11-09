@@ -27,7 +27,6 @@ import History from '../features/history.js'
 import ContextUsage from '../utils/context-usage.js'
 import Rollback from '../features/rollback.js'
 import SessionGroups from '../features/session-groups.js'
-import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import ToolTiming from '../features/tool-timing.js'
 import SSE from '../utils/sse.js'
@@ -325,21 +324,6 @@ const setModel = async ({ sessionId, provider, model }) => {
     return { ...session, provider: chosen, model: name }
 }
 
-// --- 按后续对话重新生成标题 ---
-const generateTitle = async ({ sessionId }) => {
-    const session = await History.load(sessionId)
-    const target = Agent.taskModel('title', session.model)
-    const messages = History.get({ sessionId }).filter(message => !message.internal)
-    const title = await Title.generate({ connection: Agent.connection(target), messages }) || Title.fallback(messages)
-    if (title) {
-        session.title = title
-        session.updatedAt = Date.now()
-        await History.save(sessionId)
-        await SSE.send({ id: sessionId, data: { type: 'title', title } })
-    }
-    return { title: session.title }
-}
-
 // --- 换目录 ---
 const setCwd = async ({ sessionId, cwd }) => {
     const session = await History.load(sessionId)
@@ -370,12 +354,27 @@ const remove = async ({ sessionId }) => {
     return { ok: true }
 }
 
+// --- 会话级设置快照：思考强度、模型、当前目录放一起 ---
+// 这三个都是“这条会话自己的”设置，读写都走同一个结构，前端只认一份。
 const readSettings = async ({ sessionId }) => {
-    await History.load(sessionId)
-    return Agent.readSettings(sessionId)
+    const session = await History.load(sessionId)
+    const settings = await Agent.readSettings(sessionId)
+    return {
+        reasoning: settings.reasoning,
+        provider: session.model.provider,
+        model: session.model.model,
+        cwd: session.cwd,
+        temporary: session.temporary === true,
+    }
 }
 
-const saveSettings = async ({ sessionId, ...change }) => Agent.saveSettings({ sessionId, ...change })
+// --- 改会话级设置：点名哪几项就改哪几项，最后回一份快照 ---
+const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
+    if (reasoning !== undefined) await Agent.saveSettings({ sessionId, reasoning })
+    if (provider !== undefined || model !== undefined) await setModel({ sessionId, provider, model })
+    if (cwd !== undefined) await setCwd({ sessionId, cwd })
+    return readSettings({ sessionId })
+}
 
 // --- 手动压缩 ---
 const compact = async ({ sessionId }) => {
@@ -408,35 +407,17 @@ const compact = async ({ sessionId }) => {
 }
 
 // --- 文件改动和工具回退 ---
-const changes = async ({ sessionId }) => {
-    await History.load(sessionId)
-    return Tool.diff({ sessionId })
-}
+// --- 回退：给 messageId 退对话（可连文件），给 toolCallId 只退那次工具改的文件 ---
+// 两个都给的时候不猜，直接报错——猜错会把用户不想退的对话退掉。
+const rollback = async ({ sessionId, messageId, toolCallId, files = true }) => {
+    if (messageId && toolCallId) throw fail(400, 'give messageId or toolCallId, not both')
+    if (!messageId && !toolCallId) throw fail(400, 'messageId or toolCallId is required')
 
-const toolChanges = async ({ sessionId }) => {
-    await History.load(sessionId)
-    return Tool.entries({ sessionId })
-}
-
-// --- 回退前先看会消失多少消息、哪些文件会被恢复 ---
-const rollbackPreview = async ({ sessionId, messageId }) => {
-    await History.load(sessionId)
-    const plan = Rollback.preview({ history: History, sessionId, messageId })
-    const droppedCalls = new Set(plan.toolCalls)
-    const entries = await Tool.entries({ sessionId })
-    const dropped = new Set()
-    for (const entry of entries) {
-        // 新快照记着真实调用 id，按它精确匹配；没有调用 id 的旧快照退回按消息归属判断。
-        const hit = entry.toolCallId ? droppedCalls.has(entry.toolCallId) : !plan.keep.includes(entry.messageId)
-        if (!hit) continue
-        for (const path of entry.paths) dropped.add(path)
+    if (toolCallId) {
+        const outcome = await rollbackTool({ sessionId, toolCallId, files })
+        return { ...await read({ sessionId }), restored: outcome.restored }
     }
-    const files = (await Tool.diff({ sessionId })).filter(file => dropped.has(file.path))
-    return { messages: plan.messages, toolCalls: plan.toolCalls, files }
-}
 
-// --- 消息和文件一起回退，也可以只退消息 ---
-const rollback = async ({ sessionId, messageId, files = true }) => {
     await History.load(sessionId)
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
@@ -467,22 +448,22 @@ const redo = async ({ sessionId, files = true }) => {
     return { ...await read({ sessionId }), restored }
 }
 
+// --- 列表与统计 ---
+// 分组只是显示顺序，跟列表一起返回，不再单开一条接口。
+const list = async ({ search } = {}) => ({
+    sessions: await History.list({ search }),
+    groups: (await SessionGroups.read()).groups || [],
+})
+
 // --- 统计会话数量 ---
 const count = () => History.count()
-
-// --- 历史分页与全会话大纲：前端只加载视口附近的历史 ---
-const historyOutline = ({ sessionId }) => History.outline(sessionId)
-const searchHistory = ({ sessionId, query, limit }) => History.search({ sessionId, query, limit })
-const readHistorySegment = ({ sessionId, segmentId }) => History.segment({ sessionId, segmentId })
 
 // --- 统计正在运行的任务 ---
 const runningCount = () => Agent.runningCount()
 
 export default {
-    create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
-    historyOutline, searchHistory,
-    readHistorySegment,
+    create, fork, list, read, rename, setModel, setCwd, remove,
     readSettings, saveSettings, compact,
-    changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
+    rollback, redo,
     count, runningCount,
 }

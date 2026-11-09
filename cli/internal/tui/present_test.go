@@ -414,7 +414,7 @@ func TestQuestionAndCommandStayAboveTheInput(t *testing.T) {
 	if strings.Contains(view.Content, "echo one echo two") {
 		t.Fatalf("multiline command was flattened:\n%s", view.Content)
 	}
-	if !strings.Contains(view.Content, "y 允许一次") {
+	if !strings.Contains(view.Content, "y 允许") {
 		t.Fatalf("confirm keys missing:\n%s", view.Content)
 	}
 }

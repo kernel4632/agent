@@ -281,7 +281,7 @@ func (m *model) footerHint(level int) string {
 	case m.overlay.kind != "":
 		hint = "esc 关闭   方向键移动   enter 确认"
 	case m.permission != nil:
-		hint = "y 允许一次   a 始终允许   n 拒绝"
+		hint = "y 允许   n 拒绝"
 	case len(choices) > 0 && m.choiceWrite:
 		hint = "直接输入   enter 发送   方向键改选"
 	case len(choices) > 0:
@@ -555,7 +555,7 @@ func (m *model) confirmDock(permit api.Permission) string {
 			body = string(permit.Input)
 		}
 	}
-	return m.limitDock(title + "\n" + body + "\n\ny 允许一次   a 始终允许   n 拒绝")
+	return m.limitDock(title + "\n" + body + "\n\ny 允许   n 拒绝")
 }
 
 func commandFields(raw json.RawMessage) (command, cwd string) {

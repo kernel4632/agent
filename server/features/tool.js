@@ -167,6 +167,17 @@ const snapshot = async call => {
 
 // --- 文件回退和 diff 都由文件工具实现 ---
 const entries = args => File.entries(args)
+// --- 某一次工具调用改过的文件：随 tool-result 一起推给前端 ---
+const changedPaths = async ({ sessionId, toolCallId } = {}) => {
+    if (!sessionId || !toolCallId) return []
+    const list = await entries({ sessionId })
+    const paths = new Set()
+    for (const entry of list) {
+        if (entry.toolCallId !== toolCallId) continue
+        for (const path of entry.paths) paths.add(path)
+    }
+    return [...paths]
+}
 const restoreTool = args => File.restoreTool(args)
 const restoreMessage = args => File.restoreMessage(args)
 const dropTool = args => File.dropTool(args)
@@ -185,6 +196,7 @@ export default {
     kindOf,
     snapshot,
     entries,
+    changedPaths,
     restoreTool,
     restoreMessage,
     dropTool,

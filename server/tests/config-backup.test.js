@@ -97,35 +97,34 @@ describe('configuration backups', () => {
             await Config.set(oldConfig())
             await Config.set(newConfig())
 
-            const list = await app.handle(new Request('http://localhost/config/backups'))
+            // 管理面统一走 /admin：{ op, ...参数 }
+            const admin = (op, args = {}) => app.handle(new Request('http://localhost/admin', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ op, ...args }),
+            }))
+
+            const list = await admin('config.backup.list')
             expect(list.status).toBe(200)
             const backups = await list.json()
             expect(backups.length).toBe(1)
 
-            const preview = await app.handle(new Request(`http://localhost/config/backups/${backups[0].id}`))
+            const preview = await admin('config.backup.read', { id: backups[0].id })
             expect(preview.status).toBe(200)
             expect(JSON.stringify(await preview.json())).not.toContain('secret-old-key')
 
-            const masked = await app.handle(new Request('http://localhost/config/export?secrets=0'))
+            const masked = await admin('config.export', { secrets: 0 })
             expect(masked.status).toBe(200)
             expect(await masked.text()).not.toContain('secret-old-key')
 
-            const full = await app.handle(new Request('http://localhost/config/export?secrets=1'))
+            const full = await admin('config.export', { secrets: 1 })
             expect(await full.text()).toContain('secret-new-key')
 
-            const invalid = await app.handle(new Request('http://localhost/config/import', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ config: { providers: [{}] } }),
-            }))
+            const invalid = await admin('config.import', { config: { providers: [{}] } })
             expect(invalid.status).toBe(400)
             expect(Config.get().providers[0].name).toBe('new-provider')
 
-            const restored = await app.handle(new Request('http://localhost/config/restore', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ id: backups[0].id }),
-            }))
+            const restored = await admin('config.restore', { id: backups[0].id })
             expect(restored.status).toBe(200)
             expect(Config.get().providers[0].name).toBe('old-provider')
             expect(Config.get().providers[0].models[0].context).toBe(1000000)

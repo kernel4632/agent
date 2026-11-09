@@ -1,6 +1,9 @@
 /*
 Agent HTTP 指令集：集中声明前端使用的正式 Server API 契约。
-普通请求统一解析 JSON；会话事件保留原始 Response 交给 SSE 工具按顺序读取。
+一共 18 条路由，分三层：
+  基座  /agent/*（发、继续、停、审批）、/sse/connect、/session/{list,create,read,compact}、/health
+  会话  /session 下其余动作（分支、改名、设置、回退、撤销回退、删除）
+  管理  POST /admin，body 里带 op（设置页和能力页的 30 个动作都在这里）
 调用示例：await AgentAPI.getConfig()、await AgentAPI.sendMessage(sessionID, content)。
 */
 import { NEW_SESSION_TITLE } from '../defaults.js'
@@ -27,41 +30,24 @@ async function request(path, method = 'GET', body) {
   return data                                           // 返回对应指令的业务结果
 }
 
+// --- 管理总线：设置页 / 能力页的所有动作 ---
+// 这些动作不属于 agent 契约，收在一条路上；op 就是动作名，其余字段是该动作的参数。
+const admin = (op, args = {}) => request('/admin', 'POST', { op, ...args })
 
-// --- 打开会话：服务端把“读历史”的进度流式发过来，最后再给完整会话 ---
-async function openSession(sessionID, onProgress) {
-  const response = await fetch(`${apiRoot}/session/open/${encodeURIComponent(sessionID)}`, {
-    headers: { accept: 'text/event-stream' },
+// 导出和图标要原始 Response（下载文件名 / SVG 字节），不经过 JSON 解析。
+async function adminRaw(op, args = {}) {
+  const response = await fetch(`${apiRoot}/admin`, {
+    method: 'POST',
     credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ op, ...args }),
   })
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || `打开会话失败 (${response.status})`)
+    throw new Error(data.error || `请求失败: ${response.status}`)
   }
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    let boundary = buffer.indexOf('\n\n')
-    while (boundary >= 0) {
-      const block = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
-      const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n')
-      if (data) {
-        const event = JSON.parse(data)
-        if (event.type === 'progress') onProgress?.(event)
-        else if (event.type === 'session') return event.session
-        else if (event.type === 'error') throw new Error(event.error || '打开会话失败')
-      }
-      boundary = buffer.indexOf('\n\n')
-    }
-  }
-  throw new Error('打开会话的连接提前结束了')
+  return response
 }
-
 
 
 // core 0.27 的压缩流带 request:'compact'，由聊天入口分流；compact-finish 带 content / usage。
@@ -76,32 +62,35 @@ function subscribeSession(sessionID, signal) {
 
 export const AgentAPI = {
   getHealth:        ()                          => request('/health'),
-  // 模型 family 自动识别和远程 logo；图标响应是 SVG，直接交给 <img>。
-  getModelFamily:   (model = '')                => request(`/model/family?model=${encodeURIComponent(model)}`),
-  modelIconUrl:     (model = '', family = '', theme = '') => `${apiRoot}/model/icon?model=${encodeURIComponent(model)}${family ? `&family=${encodeURIComponent(family)}` : ''}${theme ? `&theme=${encodeURIComponent(theme)}` : ''}&v=${modelIconRevision}`,
+  // 模型 family 自动识别和远程 logo；图标是 SVG，直接当图片地址用。
+  getModelFamily:   (model = '')                => admin('model.family', { model }),
+  modelIconUrl:     (model = '', family = '', theme = '') => `${apiRoot}/admin?op=model.icon&model=${encodeURIComponent(model)}${family ? `&family=${encodeURIComponent(family)}` : ''}${theme ? `&theme=${encodeURIComponent(theme)}` : ''}&v=${modelIconRevision}`,
   // 全部工具和当前权限，设置页画开关用。
-  getTools:         ()                          => request('/tool/list'),
+  getTools:         ()                          => admin('tool.list'),
   // 工具类别；名字和顺序由后端给。
-  getToolKinds:     ()                          => request('/tool/kinds'),
+  getToolKinds:     ()                          => admin('tool.kinds'),
   // 本机 MCP：已配置的服务 + 其他软件留下的配置（env / headers 只有键名）。
-  getMcpCatalog:    (cwd = '')                  => request(`/mcp/list${cwd ? `?cwd=${encodeURIComponent(cwd)}` : ''}`),
-  saveMcpServer:    (name, definition)          => request('/mcp/save', 'POST', { name, definition }),
-  importMcpServers: (ids, cwd = '')             => request('/mcp/import', 'POST', { ids, ...(cwd ? { cwd } : {}) }),
-  removeMcpServer:  (name)                      => request('/mcp/remove', 'POST', { name }),
-  toggleMcpServer:  (name, enabled)             => request('/mcp/toggle', 'PATCH', { name, enabled }),
+  getMcpCatalog:    (cwd = '')                  => admin('mcp.list', { cwd }),
+  saveMcpServer:    (name, definition)          => admin('mcp.save', { name, definition }),
+  importMcpServers: (ids, cwd = '')             => admin('mcp.import', { ids, cwd }),
+  removeMcpServer:  (name)                      => admin('mcp.remove', { name }),
+  toggleMcpServer:  (name, enabled)             => admin('mcp.toggle', { name, enabled }),
   // 真实连一次；连不上返回 { ok: false, error }，不算请求失败。
-  testMcpServer:    (name)                      => request('/mcp/test', 'POST', { name }),
+  testMcpServer:    (name)                      => admin('mcp.test', { name }),
   // 技能：生效清单 + 本机识别到的目录；禁用中的技能也带 enabled=false 返回。
-  getSkills:        (cwd = '')                  => request(`/skill/list${cwd ? `?cwd=${encodeURIComponent(cwd)}` : ''}`),
-  readSkill:        (name, cwd = '')            => request(`/skill/read?name=${encodeURIComponent(name)}${cwd ? `&cwd=${encodeURIComponent(cwd)}` : ''}`),
-  saveSkill:        (skill)                     => request('/skill/save', 'POST', skill),
-  removeSkill:      (body)                      => request('/skill/remove', 'POST', body),
-  toggleSkill:      (body)                      => request('/skill/toggle', 'PATCH', body),
-  toggleSkillSource:(body)                      => request('/skill/source', 'PATCH', body),
+  getSkills:        (cwd = '')                  => admin('skill.list', { cwd }),
+  readSkill:        (name, cwd = '')            => admin('skill.read', { name, cwd }),
+  saveSkill:        (skill)                     => admin('skill.save', skill),
+  removeSkill:      (body)                      => admin('skill.remove', body),
+  toggleSkill:      (body)                      => admin('skill.toggle', body),
+  toggleSkillSource:(body)                      => admin('skill.source', body),
+  // 列表和分组一起返回，前端只需要一次请求。
   getSessionList:   (search = '')               => request(`/session/list${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  getSessionGroups: ()                          => request('/session/groups'),
-  saveSessionGroups:(groups)                    => request('/session/groups', 'PUT', { groups }),
-  setSessionCwd:    (sessionID, cwd)            => request(`/session/cwd/${encodeURIComponent(sessionID)}`, 'PATCH', { cwd }),
+  // 分组就在列表响应里；这个入口只给还没拿过列表的地方用。
+  getSessionGroups: ()                          => request('/session/list').then(data => ({ groups: data.groups || [] })),
+  saveSessionGroups:(groups)                    => admin('session.groups.set', { groups }),
+  // 会话级设置：思考强度、模型、当前目录都走这一条。
+  setSessionCwd:    (sessionID, cwd)            => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', { cwd }),
   // 目录属于会话；未指定 cwd 时由后端使用自己的当前目录。
   createSession:    async (cwd, provider, model) => {
     const body = { title: NEW_SESSION_TITLE, provider, model, ...(cwd ? { cwd } : {}) }
@@ -111,13 +100,9 @@ export const AgentAPI = {
   // 从现有会话分出一个新分支；可以只复制到某条消息。
   forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
   getSession:       sessionID => request(`/session/read/${encodeURIComponent(sessionID)}`),
-  getSessionSegment: (sessionID, segmentID) => request(`/session/segment/${encodeURIComponent(sessionID)}/${encodeURIComponent(segmentID)}`),
-  openSession:      (sessionID, onProgress) => openSession(sessionID, onProgress),
-  searchSessionMessages: (sessionID, query, limit = 50) => request(`/session/search/${encodeURIComponent(sessionID)}?${new URLSearchParams({ q: String(query || ''), limit: String(limit) })}`),
-  getSessionOutline:(sessionID)                 => request(`/session/outline/${encodeURIComponent(sessionID)}`),
   renameSession:    (sessionID, title)          => request(`/session/rename/${encodeURIComponent(sessionID)}`, 'PATCH', { title }),
   // 已有会话切换模型；运行中也可以切，下一轮请求生效。
-  setSessionModel:  (sessionID, provider, model) => request(`/session/model/${encodeURIComponent(sessionID)}`, 'PATCH', { provider, model }),
+  setSessionModel:  (sessionID, provider, model) => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', { provider, model }),
   removeSession:    (sessionID)                 => request(`/session/remove/${encodeURIComponent(sessionID)}`, 'DELETE'),
   sendMessage:      (sessionID, input)          => request(`/agent/send/${encodeURIComponent(sessionID)}`, 'POST', { input }),
   // 原生继续被中断的助手回复；服务端调用 core.resume()，不添加用户消息。
@@ -125,45 +110,34 @@ export const AgentAPI = {
   // 停止时可以带上已经流出的半段回复，Server 先保存再停，刷新后不会丢正文。
   stopSession:      (sessionID, partial)        => request(`/agent/stop/${encodeURIComponent(sessionID)}`, 'POST', partial ? { partial } : undefined),
   subscribeSession,
-  // 后端读的字段名是 toolCallId；写成 callId 会静默返回 ok:false，审批决定等于没发。
+  // 后端读的字段名是 toolCallId；decision 只有 allow / deny。
   decideTool:       (sessionID, toolCallId, decision) => request(`/agent/decide/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, decision }),
-  getChanges:       (sessionID)                 => request(`/session/changes/${encodeURIComponent(sessionID)}`),
-  // 会话运行设置：思考强度。
+  // 会话级设置快照：思考强度、模型、当前目录。
   getSettings:      (sessionID)                 => request(`/session/settings/${encodeURIComponent(sessionID)}`),
   saveSettings:     (sessionID, change)         => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', change),
-  // 每次改过文件的工具调用；回退可以退到其中任意一次之前。
-  getToolCalls:     (sessionID)                 => request(`/session/tools/${encodeURIComponent(sessionID)}`),
   // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
-  // 回退任何一条消息时，它和它之后的对话都会退掉；preview 返回这次一起回退的工具调用。
-  previewRollback:  (sessionID, messageId)      => request(`/session/rollback/preview/${encodeURIComponent(sessionID)}`, 'POST', { messageId }),
+  // 带 toolCallId 就只退那一次工具改的文件，对话不动。
   rollback:         (sessionID, messageId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files }),
-  // 工具级回退：只退这一次工具调用改的文件，对话不动。
-  rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/tool/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
-  redo:             (sessionID, files = true)   => request(`/session/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
-  getConfig:        ()                          => request('/config/read'),
-  getConfigMeta:    ()                          => request('/config/meta'),
-  getConfigBackups: ()                          => request('/config/backups'),
-  getSessionStorage:()                          => request('/storage/sessions'),
-  setSessionStorage:(path)                      => request('/storage/sessions', 'PUT', { path }),
-  cancelSessionStorage:()                       => request('/storage/sessions', 'DELETE'),
-  getFilesystemEntries: ({ path = '', mode = 'directory' } = {}) => {
-    const query = new URLSearchParams({ path, mode })
-    return request(`/filesystem/entries?${query}`)
-  },
-  readConfigBackup: (id)                        => request(`/config/backups/${encodeURIComponent(id)}`),
-  restoreConfigBackup: (id)                     => request('/config/restore', 'POST', { id }),
-  importConfig:     (config)                    => request('/config/import', 'POST', { config }),
+  rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
+  redo:             (sessionID, files = true)   => request(`/session/rollback/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
+  // --- 以下全部走管理总线 ---
+  getConfig:        ()                          => admin('config.read'),
+  getConfigMeta:    ()                          => admin('config.meta'),
+  getConfigBackups: ()                          => admin('config.backup.list'),
+  getSessionStorage:()                          => admin('storage.status'),
+  setSessionStorage:(path)                      => admin('storage.set', { path }),
+  cancelSessionStorage:()                       => admin('storage.cancel'),
+  getFilesystemEntries: ({ path = '', mode = 'directory' } = {}) => admin('fs.entries', { path, mode }),
+  readConfigBackup: (id)                        => admin('config.backup.read', { id }),
+  restoreConfigBackup: (id)                     => admin('config.restore', { id }),
+  importConfig:     (config)                    => admin('config.import', { config }),
   // 导出走原始 Response，保留文件名/下载语义；默认脱敏，secrets=true 才包含 API Key。
   exportConfig:     async secrets => {
-    const response = await fetch(`${apiRoot}/config/export?secrets=${secrets ? 1 : 0}`, { credentials: 'include' })
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || `导出失败: ${response.status}`)
-    }
+    const response = await adminRaw('config.export', { secrets: secrets ? 1 : 0 })
     return response.blob()
   },
   // 整份配置使用 providers[].models[]、models.{chat,compact,title,task}、compact.threshold 和 contextKeep 的四个字段。
-  updateConfig:     (changes)                   => request('/config/set', 'PATCH', changes),
+  updateConfig:     (changes)                   => admin('config.set', { config: changes }),
   // 用已保存的供应商配置真实请求一次模型，确认这套配置能不能用。
-  testProvider:     (provider, model)           => request('/config/test', 'POST', { provider, model }),
+  testProvider:     (provider, model)           => admin('config.test', { provider, model }),
 }
