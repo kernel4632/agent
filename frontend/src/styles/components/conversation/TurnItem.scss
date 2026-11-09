@@ -1,1 +1,64 @@
-/* TurnItem 复用时间线既有 message / bubble 样式，这个文件只满足组件样式收口规则。 */
+/* TurnItem.vue：用户气泡和附件；共享布局仍由时间线持有。 */
+.rikka-message {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  contain: layout paint;
+}
+.rikka-message--user { align-items: flex-end; }
+.rikka-bubble {
+  max-width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--la-radius-panel);
+}
+.rikka-bubble--user {
+  max-width: 100%;
+  margin-left: 24px;
+  border-radius: 24px;
+  background: var(--la-accent-soft);
+  color: var(--ui-color-on-primary-container);
+  font-family: var(--la-font-reading);
+  font-size: 16px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+.rikka-bubble--user .markdown-body,
+.rikka-bubble--user .ui-typography { font-family: var(--la-font-reading); }
+.rikka-bubble--user .markdown-body { font-size: 16px; line-height: 1.7; }
+.rikka-bubble--user code { font-family: var(--la-font-mono) !important; }
+.user-attachments {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.user-attachment {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 12px;
+  line-height: 18px;
+}
+.user-attachment__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.user-images__thumb {
+  max-width: 180px;
+  max-height: 140px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 0.5px solid var(--la-line);
+}
