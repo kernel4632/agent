@@ -78,11 +78,20 @@ const readArchives = async sessionId => {
 }
 
 // --- 读取 JSONL：逐行流式扫描，不把整份文件当 JSON 解析 ---
-const readLog = async sessionId => {
+const readLog = async (sessionId, onProgress) => {
     const records = []
     const offsets = []
     let offset = 0
     let buffer = Buffer.alloc(0)
+    const totalBytes = await Bun.file(Path.historyLog(sessionId)).size
+    let lastReport = 0
+    const report = (done = false) => {
+        if (!onProgress) return
+        const now = Date.now()
+        if (!done && now - lastReport < 50) return
+        lastReport = now
+        onProgress({ bytes: offset, totalBytes, done })
+    }
     const stream = createReadStream(Path.historyLog(sessionId))
     try {
         for await (const chunk of stream) {
@@ -97,17 +106,21 @@ const readLog = async sessionId => {
                         offsets.push(offset)
                     } catch {
                         // 崩溃留下的最后半行不参与读取，下一次保存会把它截掉。
+                        report(true)
                         return { records, offsets, size: offset }
                     }
                 }
                 offset += lineEnd + 1
                 lineEnd = buffer.indexOf(10)
             }
+            report()
         }
     } catch (error) {
         if (error?.code !== 'ENOENT') throw error
+        report(true)
         return { records: [], offsets: [], size: 0, missing: true }
     }
+    report(true)
     return { records, offsets, size: offset }
 }
 
@@ -127,21 +140,25 @@ const readLegacy = async sessionId => {
     return { records: messages, offsets: [], size: 0, legacy: true, redo: rawHistory?.redo || [] }
 }
 
-const loadLog = async sessionId => {
-    if (await Bun.file(Path.historyLog(sessionId)).exists()) return readLog(sessionId)
+const loadLog = async (sessionId, onProgress) => {
+    if (await Bun.file(Path.historyLog(sessionId)).exists()) return readLog(sessionId, onProgress)
     if (await Bun.file(Path.history(sessionId)).exists()) return readLegacy(sessionId)
+    onProgress?.({ bytes: 0, totalBytes: 0, done: true })
     return { records: [], offsets: [], size: 0, legacy: false, redo: [] }
 }
 
-const load = async sessionId => {
-    if (store.sessions[sessionId]) return store.sessions[sessionId]
+const load = async (sessionId, { onProgress } = {}) => {
+    if (store.sessions[sessionId]) {
+        onProgress?.({ bytes: 1, totalBytes: 1, done: true })
+        return store.sessions[sessionId]
+    }
 
     const metaFile = Bun.file(Path.meta(sessionId))
     if (!await metaFile.exists()) throw fail(404, `Session not found: ${sessionId}`)
     const meta = await metaFile.json()                                // 当前形状的会话资料
     const temporary = meta.temporary === true
     if (temporary) await TempWorkspace.ensure(meta.cwd, true)
-    const log = await loadLog(sessionId)
+    const log = await loadLog(sessionId, onProgress)
     const settings = await readSessionFile(Path.settings(sessionId), { reasoning: 'auto' }, 'settings.json')
     const savedRedo = await readSessionFile(Path.historyRedo(sessionId), null, 'history-redo.json')
     const history = {

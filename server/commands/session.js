@@ -137,9 +137,9 @@ const fork = async ({ sessionId, title, messageId }) => {
     return { sessionId: branch.id }}
 
 // --- 读取一条会话：一次性返回完整历史，不再分页 ---
-const read = async ({ sessionId }) => {
+const read = async ({ sessionId, onProgress }) => {
     await ContextUsage.hydrate(sessionId)
-    const session = await History.load(sessionId)
+    const session = await History.load(sessionId, { onProgress })
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
     const running = Boolean(agent?.running)

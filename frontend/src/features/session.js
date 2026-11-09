@@ -169,7 +169,7 @@ async function read(id) {
   const sessionID = id.trim()
   if (!/^[\w-]+$/.test(sessionID)) { Notice.show('请输入有效的会话 ID'); return false }
   try {
-    const session = await History.refresh(sessionID)
+    const session = await History.refresh(sessionID, { showLoading: true })
     const found = locate(sessionID)
     if (!session.title && found) session.title = found.title
     if (!found) store.sessionList.unshift(History.summaryOf(session))

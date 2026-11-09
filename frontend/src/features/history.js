@@ -9,6 +9,7 @@
  *   await History.rollbackMessage({ sessionId, messageId })
  */
 
+import { nextTick, reactive } from 'vue'
 import { AgentAPI } from '../utils/api.js' // 持久化历史与回退接口
 import { store } from '../store.js' // 更新当前可见记录和会话摘要
 import { Notice } from '../utils/notice.js' // 操作完成或失败的反馈
@@ -223,26 +224,76 @@ function syncSummary(session) {
 }
 
 /** 读取后端真实历史：一次拿完整历史，直接渲染全部消息。 */
-async function refresh(id) {
+function nextFrame() {
+  return typeof requestAnimationFrame === 'function'
+    ? new Promise(resolve => requestAnimationFrame(resolve))
+    : Promise.resolve()
+}
+
+async function refresh(id, { showLoading = false } = {}) {
   const settingsAtStart = store.sessions[id]?.settings // 记住本次读取开始时的设置引用
   const revisionAtStart = store.sessions[id]?.eventRevision || 0
-  const source = await AgentAPI.getSession(id)
-  const current = store.sessions[id]
-  const session = normalize(source, current)
-  // 在 GET 途中完成的用户修改比这个快照更新，不能用旧快照覆盖。
-  if (current && current.settings !== settingsAtStart) session.settings = current.settings
-  // GET 期间收到的实时事件比快照更新；保留运行中的增量与请求状态。
-  const liveConnected = source.running && current?.connection === 'connected' && current.messages.some(message => message.isStreaming)
-  if (current?.status === 'running' && ((current.eventRevision || 0) !== revisionAtStart || liveConnected)) {
-    session.messages = current.messages
-    session.status = current.status
-    session.eventRevision = current.eventRevision
+  const loading = showLoading ? reactive({
+    active: true,
+    sessionId: id,
+    phase: 'reading',
+    percent: 0,
+    bytes: 0,
+    totalBytes: 0,
+    speed: 0,
+    eta: 0,
+  }) : null
+  if (loading) store.ui.sessionLoading = loading
+  let source
+  try {
+    source = await AgentAPI.openSession(id, event => {
+      if (!loading || store.ui.sessionLoading !== loading) return
+      loading.phase = event.phase || loading.phase
+      loading.percent = Math.max(loading.percent, Number(event.percent) || 0)
+      if (Number(event.totalBytes) > 0) {
+        loading.bytes = Number(event.bytes) || 0
+        loading.totalBytes = Number(event.totalBytes) || 0
+      }
+      loading.speed = Number(event.speed) || 0
+      loading.eta = Number(event.eta) || 0
+    })
+    if (loading) {
+      loading.phase = 'parsing'
+      loading.percent = Math.max(loading.percent, 94)
+      // 让 94% 先绘出来，再进行同步归一化；否则进度条会一直停在读文件阶段。
+      await nextFrame()
+    }
+    const current = store.sessions[id]
+    const session = normalize(source, current)
+    // 在 GET 途中完成的用户修改比这个快照更新，不能用旧快照覆盖。
+    if (current && current.settings !== settingsAtStart) session.settings = current.settings
+    // GET 期间收到的实时事件比快照更新；保留运行中的增量与请求状态。
+    const liveConnected = source.running && current?.connection === 'connected' && current.messages.some(message => message.isStreaming)
+    if (current?.status === 'running' && ((current.eventRevision || 0) !== revisionAtStart || liveConnected)) {
+      session.messages = current.messages
+      session.status = current.status
+      session.eventRevision = current.eventRevision
+    }
+    if (loading) {
+      loading.phase = 'rendering'
+      loading.percent = 99
+    }
+    // 首次打开时从本地草稿库恢复；已有内存会话不重复读，避免覆盖正在输入的内容。
+    if (!current) await ComposerDraft.hydrate(session)
+    store.sessions[id] = session
+    syncSummary(session)
+    if (loading) {
+      await nextTick()
+      loading.percent = 100
+      await nextFrame()
+      await nextFrame()
+      if (store.ui.sessionLoading === loading) loading.active = false
+    }
+    return session
+  } catch (error) {
+    if (loading && store.ui.sessionLoading === loading) loading.active = false
+    throw error
   }
-  // 首次打开时从本地草稿库恢复；已有内存会话不重复读，避免覆盖正在输入的内容。
-  if (!current) await ComposerDraft.hydrate(session)
-  store.sessions[id] = session
-  syncSummary(session)
-  return session
 }
 
 async function previewRollback(sessionID, messageID) {

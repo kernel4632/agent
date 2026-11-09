@@ -2367,6 +2367,23 @@ export const paths = {
             }
         }
     },
+    "/session/open/{sessionId}": {
+        "get": {
+            "tags": ["Session"],
+            "summary": "流式打开一条会话",
+            "description": "SSE：先发 progress（真实读取字节数、速度、预计剩余时间），最后发 session 完整内容。",
+            "operationId": "sessionOpen",
+            "parameters": [
+                { "$ref": "#/components/parameters/SessionId" }
+            ],
+            "responses": {
+                "200": {
+                    "description": "progress / session / error 事件流",
+                    "content": { "text/event-stream": { "schema": { "type": "string" } } }
+                }
+            }
+        }
+    },
     "/session/read/{sessionId}": {
         "get": {
             "tags": [

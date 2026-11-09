@@ -412,6 +412,15 @@ export async function backend(page, { configured = true } = {}) {
       })
       return json({ turns, totalMessages: session.history.length })
     }
+    if (path.startsWith('/session/open/')) {
+      const visible = session.history.filter(item => !item.internal)
+      const payload = { type: 'session', session: { ...session, history: visible, historyTotal: visible.length } }
+      return route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+        body: `data: ${JSON.stringify(payload)}\n\n`,
+      })
+    }
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。
     if (path.startsWith('/session/read/')) {
       const visible = session.history.filter(item => !item.internal)

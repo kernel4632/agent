@@ -28,7 +28,42 @@ async function request(path, method = 'GET', body) {
 }
 
 
-// --- 建立会话事件订阅 ---
+// --- 打开会话：服务端把“读历史”的进度流式发过来，最后再给完整会话 ---
+async function openSession(sessionID, onProgress) {
+  const response = await fetch(`${apiRoot}/session/open/${encodeURIComponent(sessionID)}`, {
+    headers: { accept: 'text/event-stream' },
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || `打开会话失败 (${response.status})`)
+  }
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let boundary = buffer.indexOf('\n\n')
+    while (boundary >= 0) {
+      const block = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+      const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n')
+      if (data) {
+        const event = JSON.parse(data)
+        if (event.type === 'progress') onProgress?.(event)
+        else if (event.type === 'session') return event.session
+        else if (event.type === 'error') throw new Error(event.error || '打开会话失败')
+      }
+      boundary = buffer.indexOf('\n\n')
+    }
+  }
+  throw new Error('打开会话的连接提前结束了')
+}
+
+
+
 // core 0.27 的压缩流带 request:'compact'，由聊天入口分流；compact-finish 带 content / usage。
 function subscribeSession(sessionID, signal) {
   return fetch(`${apiRoot}/sse/connect/${encodeURIComponent(sessionID)}`, {
@@ -76,6 +111,7 @@ export const AgentAPI = {
   // 从现有会话分出一个新分支；可以只复制到某条消息。
   forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
   getSession:       sessionID => request(`/session/read/${encodeURIComponent(sessionID)}`),
+  openSession:      (sessionID, onProgress) => openSession(sessionID, onProgress),
   searchSessionMessages: (sessionID, query, limit = 50) => request(`/session/search/${encodeURIComponent(sessionID)}?${new URLSearchParams({ q: String(query || ''), limit: String(limit) })}`),
   getSessionOutline:(sessionID)                 => request(`/session/outline/${encodeURIComponent(sessionID)}`),
   renameSession:    (sessionID, title)          => request(`/session/rename/${encodeURIComponent(sessionID)}`, 'PATCH', { title }),

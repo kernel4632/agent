@@ -47,6 +47,7 @@ export const store = reactive({
     draftCwd: '',                                       // 草稿页预选的工作区；空字符串表示发送时创建临时工作区
     toast: '',                                         // 短时全局反馈
     isLoading: true,                                   // 首次 API 数据加载状态
+    sessionLoading: null,                              // 正在打开的完整会话：{ active, sessionId, percent, phase, speed, eta, bytes, totalBytes }
     errorMessage: '',                                  // 最近一次跨页面 API 错误
   },
 

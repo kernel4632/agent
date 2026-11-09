@@ -1,0 +1,97 @@
+/* 打开完整历史时的全屏加载层；进度条来自真实读取字节数。 */
+.session-loading {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--la-bg) 56%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.session-loading__card {
+  width: min(420px, calc(100vw - 48px));
+  padding: 22px;
+  border: 1px solid var(--la-line);
+  border-radius: 20px;
+  background: var(--la-layer-02);
+  box-shadow: var(--ui-shadow-3);
+}
+
+.session-loading__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.session-loading__copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.session-loading__copy strong {
+  color: var(--la-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.session-loading__copy span,
+.session-loading__meta {
+  color: var(--la-muted);
+  font-size: 12px;
+}
+
+.session-loading__percent {
+  color: var(--la-text);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-loading__bar {
+  position: relative;
+  height: 7px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--la-text) 10%, transparent);
+}
+
+.session-loading__bar > span {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--la-accent) 70%, transparent), var(--la-accent));
+  transition: width 180ms var(--ui-curve-standard);
+}
+
+.session-loading__bar.is-waiting > span {
+  width: 34% !important;
+  animation: session-loading-slide 1.1s ease-in-out infinite;
+}
+
+.session-loading__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes session-loading-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(310%); }
+}
+
+.session-loading-enter-active,
+.session-loading-leave-active {
+  transition: opacity 180ms var(--ui-curve-standard);
+}
+
+.session-loading-enter-from,
+.session-loading-leave-to {
+  opacity: 0;
+}

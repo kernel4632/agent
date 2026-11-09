@@ -141,6 +141,39 @@ app.group('/session', session => session
     })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .get('/open/:sessionId', ({ params, set }) => {
+        set.headers['content-type'] = 'text/event-stream; charset=utf-8'
+        set.headers['cache-control'] = 'no-cache'
+        set.headers['x-accel-buffering'] = 'no'
+        const encoder = new TextEncoder()
+        const started = Date.now()
+        let lastBytes = 0
+        let lastAt = started
+        let controller
+        const stream = new ReadableStream({ start(value) { controller = value } })
+        const send = payload => controller?.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+        const onProgress = ({ bytes = 0, totalBytes = 0, done = false } = {}) => {
+            const now = Date.now()
+            const elapsed = (now - lastAt) / 1000
+            const speed = elapsed > 0 ? Math.max(0, Math.round((bytes - lastBytes) / elapsed)) : 0
+            if (elapsed > 0) { lastBytes = bytes; lastAt = now }
+            const percent = totalBytes > 0 ? Math.min(done ? 92 : 90, Math.round(bytes / totalBytes * 90)) : (done ? 92 : 0)
+            const eta = speed > 0 && totalBytes > bytes ? Math.round((totalBytes - bytes) / speed) : 0
+            send({ type: 'progress', phase: done ? 'parsed' : 'reading', percent, bytes, totalBytes, speed, eta, done })
+        }
+        void (async () => {
+            try {
+                const session = await Session.read({ ...params, onProgress })
+                send({ type: 'progress', phase: 'session', percent: 96, bytes: 0, totalBytes: 0, speed: 0, eta: 0, done: true })
+                send({ type: 'session', session })
+                controller.close()
+            } catch (error) {
+                send({ type: 'error', error: error.message || '读取会话失败' })
+                controller.close()
+            }
+        })()
+        return new Response(stream)
+    })
     .get('/search/:sessionId', ({ params, query }) => Session.searchHistory({
         ...params,
         query: query.q,

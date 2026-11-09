@@ -16,6 +16,7 @@ import CommandPalette from './components/navigation/CommandPalette.vue'
 import ConversationSearch from './components/navigation/ConversationSearch.vue'
 import Toast from './components/feedback/Toast.vue'
 import RestartNotice from './components/feedback/RestartNotice.vue'
+import SessionLoading from './components/feedback/SessionLoading.vue'
 import { shortcutListener } from './utils/shortcuts.js'
 import { Appearance } from "./utils/appearance.js"
 import { Session } from "./features/session.js"
@@ -211,6 +212,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
       </Transition>
 
       <Toast :message="store.ui.toast || ''" @close="Notice.clear()" />
+      <SessionLoading />
       <CommandPalette v-model:open="paletteOpen" :items="paletteItems" @select="runPalette" />
       <ConversationSearch :open="searchOpen" :session="session" @close="searchOpen = false" @select="selectSearchResult" />
     </div>
