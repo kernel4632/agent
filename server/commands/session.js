@@ -138,7 +138,7 @@ const fork = async ({ sessionId, title, messageId }) => {
 
 // --- 读取一条会话 ---
 const HISTORY_PAGE = 200
-const read = async ({ sessionId }) => {
+const read = async ({ sessionId, historyLimit, historyStart }) => {
     const session = await History.load(sessionId)
     const agent = Agent.runtime().get(sessionId)
     const visible = history => history.filter(message => !message.internal)
@@ -153,6 +153,15 @@ const read = async ({ sessionId }) => {
         // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
 
+    const total = history.length
+    const requestedStart = Number(historyStart)
+    const requestedLimit = Number(historyLimit)
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(500, Math.floor(requestedLimit)) : 0
+    const start = Number.isFinite(requestedStart) && requestedStart >= 0
+      ? Math.min(total, Math.floor(requestedStart))
+      : limit ? Math.max(0, total - limit) : 0
+    const windowed = start > 0 || limit ? history.slice(start) : history
+
     return {
         id: session.id,
         title: session.title,
@@ -162,15 +171,120 @@ const read = async ({ sessionId }) => {
         model: session.model.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        history,
-        historyStart: 0,
-        historyTotal: history.length,
+        history: windowed,
+        historyStart: start,
+        historyTotal: total,
+        historyStats: historyUsage(history, session.model.provider, session.model.model),
         todos: latestTodos(history),
         running,
         toolTimings: await ToolTiming.read(sessionId),
         pending: Approval.pending(sessionId),
         settings: await Agent.readSettings(sessionId),
         undoable: History.redoCount({ sessionId }),
+    }
+}
+
+// --- 会话级用量聚合：统计必须基于完整历史，而不是前端最近窗口 ---
+const MAX_TOKENS = 5_000_000
+const safeTokens = value => {
+    const number = Number(value)
+    return Number.isFinite(number) && number >= 0 && number <= MAX_TOKENS ? Math.round(number) : 0
+}
+
+function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
+    const requests = []
+    for (const message of history) {
+        if (!message || message.compact || !message.usage) continue
+        const usage = message.usage
+        const input = safeTokens(usage.input)
+        const output = safeTokens(usage.output)
+        const durationMs = Number(usage.durationMs || 0)
+        const firstTokenMs = Number(usage.firstTokenMs || 0)
+        const generation = durationMs > firstTokenMs ? durationMs - firstTokenMs : durationMs
+        requests.push({
+            input,
+            output,
+            cache: safeTokens(usage.cacheRead),
+            cacheWrite: safeTokens(usage.cacheWrite),
+            reasoning: safeTokens(usage.reasoning),
+            total: safeTokens(usage.total) || input + output,
+            provider: usage.provider || fallbackProvider,
+            model: usage.model || fallbackModel,
+            startedAt: Number(usage.startedAt || 0),
+            finishedAt: Number(usage.finishedAt || 0),
+            firstTokenMs,
+            durationMs,
+            tps: generation > 0 ? output / (generation / 1000) : 0,
+        })
+    }
+
+    let input = 0
+    let output = 0
+    let total = 0
+    let cacheRead = 0
+    let cacheWrite = 0
+    let reasoning = 0
+    let durationMs = 0
+    const groups = new Map()
+    for (const item of requests) {
+        input += item.input
+        output += item.output
+        total += item.total
+        cacheRead += item.cache
+        cacheWrite += item.cacheWrite
+        reasoning += item.reasoning
+        durationMs += item.durationMs
+        const key = `${item.provider}\u0000${item.model}`
+        const group = groups.get(key) || {
+            provider: item.provider, model: item.model, count: 0, output: 0,
+            durationMs: 0, durationCount: 0, generationMs: 0,
+            firstTokenMs: 0, firstTokenCount: 0, lastFirstTokenMs: 0,
+            lastTps: 0, lastAt: 0, latest: null,
+        }
+        group.count += 1
+        group.output += item.output
+        if (item.durationMs > 0) {
+            group.durationMs += item.durationMs
+            group.durationCount += 1
+            group.generationMs += item.durationMs > item.firstTokenMs ? item.durationMs - item.firstTokenMs : item.durationMs
+        }
+        if (item.firstTokenMs > 0) {
+            group.firstTokenMs += item.firstTokenMs
+            group.firstTokenCount += 1
+            group.lastFirstTokenMs = item.firstTokenMs
+        }
+        if (item.tps > 0) group.lastTps = item.tps
+        if (item.firstTokenMs > 0 || item.durationMs > 0) {
+            group.latest = {
+                firstTokenMs: item.firstTokenMs,
+                durationMs: item.durationMs,
+                tps: item.tps,
+                at: item.finishedAt || item.startedAt || 0,
+            }
+            group.lastAt = group.latest.at
+        }
+        groups.set(key, group)
+    }
+
+    const models = [...groups.values()].map(group => ({
+        provider: group.provider || '未知供应商',
+        model: group.model || '未知模型',
+        count: group.count,
+        averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
+        averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
+        averageTps: group.generationMs ? group.output / (group.generationMs / 1000) : 0,
+        lastFirstTokenMs: group.latest?.firstTokenMs || group.lastFirstTokenMs || 0,
+        lastDurationMs: group.latest?.durationMs || 0,
+        lastTps: group.latest?.tps || group.lastTps || 0,
+        lastAt: group.lastAt || 0,
+        latest: group.latest,
+    }))
+
+    return {
+        input, output, total, cacheRead, cacheWrite, reasoning, durationMs,
+        requests: requests.length,
+        models,
+        series: requests.slice(-18).map(item => ({ input: item.input, output: item.output, cache: item.cache })),
     }
 }
 
@@ -368,13 +482,14 @@ const historyPage = ({ sessionId, before, beforeOffset, limit }) => beforeOffset
     ? History.page({ sessionId, before, limit })
     : History.pageByOffset({ sessionId, beforeOffset, limit })
 const historyOutline = ({ sessionId }) => History.outline(sessionId)
+const searchHistory = ({ sessionId, query, limit }) => History.search({ sessionId, query, limit })
 
 // --- 统计正在运行的任务 ---
 const runningCount = () => Agent.runningCount()
 
 export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
-    historyPage, historyOutline,
+    historyPage, historyOutline, searchHistory,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
     count, runningCount,

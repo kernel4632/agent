@@ -1,0 +1,4058 @@
+/*
+ * 接口文档的内容源：只有这里需要手写，openapi.json 是生成产物。
+ *
+ * 为什么拆出来：openapi.json 以前是手写的，版本号会跟 package.json 脱钩
+ * （曾经停在 0.82.0 而 package.json 已经是 0.84.1，契约测试当场变红），
+ * 新增路由也容易忘了补文档。现在改由 scripts/openapi.js 生成：
+ *   - 版本号从 package.json 取，永远不会脱钩；
+ *   - 路由集合从 server.js 的注册里取，文档和实际接口必须一一对应；
+ *   - 缺条目或多了条目都直接报错，不写出半份文档。
+ *
+ * 本文件只放"接口说什么、参数是什么、响应长什么样"这类内容；
+ * "有哪些接口"由 server.js 决定，不在这里重复维护。
+ *
+ * 改接口时：改 server.js 的路由 + 改这里对应的条目，然后跑
+ *   cd server && bun run openapi
+ */
+
+// --- 基本信息 ---
+// version 不写在这里：生成时从 package.json 取，避免两处版本号脱钩。
+export const info = {
+    title: 'Universal Agent 后端接口文档',
+    description: '会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，会话设置只有 reasoning。配置、MCP、技能和自动标题都是基座能力；本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。',
+}
+
+// --- 服务地址 ---
+export const servers = [
+    {
+        "url": "http://localhost:3000",
+        "description": "本地开发服务器，默认端口 3000"
+    }
+]
+
+// --- 分组 ---
+export const tags = [
+    {
+        "name": "Status",
+        "description": "确认后端是否可用。"
+    },
+    {
+        "name": "Tool",
+        "description": "查看工具目录和工具类别。"
+    },
+    {
+        "name": "Capability",
+        "description": "识别本机的 MCP 服务与技能，并维护本应用启用的那一份。"
+    },
+    {
+        "name": "Session",
+        "description": "创建、读取、修改和回退会话。"
+    },
+    {
+        "name": "Agent",
+        "description": "发送消息、继续、停止和审批工具调用。"
+    },
+    {
+        "name": "Config",
+        "description": "读取和保存全局配置。"
+    },
+    {
+        "name": "Storage",
+        "description": "把不断增长的会话数据目录单独放到其他磁盘。"
+    },
+    {
+        "name": "SSE",
+        "description": "接收运行过程中的实时事件。"
+    }
+]
+
+// --- 复用结构 ---
+export const components = {
+    "parameters": {
+        "SessionId": {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "会话编号",
+            "schema": {
+                "type": "string"
+            }
+        }
+    },
+    "schemas": {
+        "Error": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "error"
+            ]
+        },
+        "Model": {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelEntry": {
+            "oneOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "context": {
+                            "type": "integer",
+                            "description": "上下文窗口，默认 128000"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "例如 text、tools、image"
+                        },
+                        "maxOutput": {
+                            "type": "integer",
+                            "description": "单次生成最大输出 token，可选"
+                        },
+                        "temperature": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 2,
+                            "description": "采样温度，可选"
+                        },
+                        "topP": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "Top P，可选"
+                        },
+                        "seed": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "随机种子，可选"
+                        },
+                        "body": {
+                            "type": "object",
+                            "description": "直接覆盖请求体的高级参数对象，可选",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            ]
+        },
+        "Provider": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "baseURL": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string",
+                    "enum": [
+                        "openai-compatible",
+                        "responses",
+                        "anthropic",
+                        "gemini"
+                    ]
+                },
+                "stream": {
+                    "type": "boolean"
+                },
+                "headers": {
+                    "type": "object"
+                },
+                "body": {
+                    "type": "object"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/ModelEntry"
+                    }
+                }
+            }
+        },
+        "Config": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/Provider"
+                    }
+                },
+                "models": {
+                    "type": "object",
+                    "properties": {
+                        "chat": {
+                            "$ref": "#/components/schemas/Model"
+                        },
+                        "compact": {
+                            "$ref": "#/components/schemas/Model"
+                        },
+                        "title": {
+                            "$ref": "#/components/schemas/Model"
+                        },
+                        "task": {
+                            "$ref": "#/components/schemas/Model"
+                        }
+                    }
+                },
+                "mcp": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "permission": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "prompt": {
+                    "type": "object",
+                    "properties": {
+                        "system": {
+                            "type": "string"
+                        },
+                        "seeded": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "compact": {
+                    "type": "object",
+                    "properties": {
+                        "threshold": {
+                            "type": "number",
+                            "minimum": 0.1,
+                            "maximum": 0.99
+                        }
+                    }
+                }
+            }
+        },
+        "Settings": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "auto",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                    ]
+                }
+            }
+        },
+        "SessionMeta": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "会话当前所在的目录"
+                },
+                "temporary": {
+                    "type": "boolean",
+                    "description": "是否使用自动创建的临时工作区；切换目录后变为 false"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "integer"
+                }
+            }
+        },
+        "Session": {
+            "allOf": [
+                {
+                    "$ref": "#/components/schemas/SessionMeta"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "history": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            },
+                            "description": "完整 history"
+                        },
+                        "historyStart": {
+                            "type": "integer",
+                            "description": "当前页在完整历史中的起始下标"
+                        },
+                        "historyTotal": {
+                            "type": "integer",
+                            "description": "完整历史的消息总数"
+                        },
+                        "historyStats": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "基于完整历史的用量聚合；token 总量、模型速度分组和最近序列不受 history 窗口影响"
+                        },
+                        "todos": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        },
+                        "running": {
+                            "type": "boolean"
+                        },
+                        "pending": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        },
+                        "settings": {
+                            "$ref": "#/components/schemas/Settings"
+                        },
+                        "undoable": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            ]
+        },
+        "SessionSearchResult": {
+            "type": "object",
+            "required": [
+                "id",
+                "index",
+                "role",
+                "before",
+                "match",
+                "after"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "before": {
+                    "type": "string"
+                },
+                "match": {
+                    "type": "string"
+                },
+                "after": {
+                    "type": "string"
+                }
+            }
+        },
+        "Change": {
+            "type": "object",            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "before": {
+                    "type": "string"
+                },
+                "after": {
+                    "type": "string"
+                },
+                "added": {
+                    "type": "boolean"
+                },
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "Tool": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "kindLabel": {
+                    "type": "string"
+                },
+                "kindHint": {
+                    "type": "string"
+                },
+                "permission": {
+                    "type": "string",
+                    "enum": [
+                        "allow",
+                        "ask",
+                        "deny"
+                    ]
+                },
+                "configurable": {
+                    "type": "boolean"
+                },
+                "ui": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "McpDefinition": {
+            "type": "object",
+            "properties": {
+                "transport": {
+                    "type": "string",
+                    "enum": [
+                        "stdio",
+                        "sse",
+                        "http"
+                    ]
+                },
+                "command": {
+                    "type": "string",
+                    "description": "stdio 服务的启动命令"
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "type": "string",
+                    "description": "sse / http 服务的地址"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "McpServer": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "definition": {
+                    "$ref": "#/components/schemas/McpDefinition"
+                },
+                "error": {
+                    "type": "string",
+                    "description": "本次进程内连接失败的原因。出现时说明这个服务现在起不来，工具不会加载；配置未被修改，修好后重新保存或重启即可重连。"
+                }
+            },
+            "required": [
+                "name",
+                "enabled",
+                "definition"
+            ]
+        },
+        "McpDetectedSource": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "servers": {
+                    "type": "integer",
+                    "description": "这个文件里认出来的服务数"
+                },
+                "error": {
+                    "type": "string",
+                    "description": "文件读不了或格式坏了时的原因"
+                }
+            },
+            "required": [
+                "id",
+                "app",
+                "path"
+            ]
+        },
+        "McpDetectedServer": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "导入时使用的稳定编号"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "definition": {
+                    "$ref": "#/components/schemas/McpDefinition"
+                },
+                "envKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "环境变量的键名，值不回传"
+                },
+                "headerKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "请求头的键名，值不回传"
+                },
+                "configured": {
+                    "type": "boolean",
+                    "description": "本应用里是否已经有同名服务"
+                }
+            },
+            "required": [
+                "id",
+                "name",
+                "app",
+                "source",
+                "path",
+                "definition",
+                "envKeys",
+                "headerKeys",
+                "configured"
+            ]
+        },
+        "Skill": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "body": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string",
+                    "description": "SKILL.md 的完整路径"
+                },
+                "directory": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "技能目录的编号"
+                },
+                "sourceLabel": {
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string",
+                    "description": "来自哪个软件"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "global",
+                        "project"
+                    ]
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "own",
+                        "app",
+                        "source"
+                    ]
+                },
+                "editable": {
+                    "type": "boolean",
+                    "description": "是否属于本应用、可以改写或删除"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "是否交给模型"
+                }
+            },
+            "required": [
+                "name",
+                "description",
+                "path",
+                "directory",
+                "source",
+                "sourceLabel",
+                "app",
+                "scope",
+                "kind",
+                "editable",
+                "enabled"
+            ]
+        },
+        "SkillRoot": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "global",
+                        "project"
+                    ]
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "own",
+                        "app",
+                        "source"
+                    ]
+                },
+                "editable": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exists": {
+                    "type": "boolean"
+                },
+                "skillCount": {
+                    "type": "integer"
+                },
+                "skills": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "目录里的技能名，最多 20 个"
+                }
+            },
+            "required": [
+                "id",
+                "label",
+                "app",
+                "path",
+                "scope",
+                "kind",
+                "editable",
+                "enabled",
+                "exists",
+                "skillCount",
+                "skills"
+            ]
+        }
+    }
+}
+
+// --- 每个接口的说明；键是路径，值是该方法下的定义 ---
+export const paths = {
+    "/health": {
+        "get": {
+            "tags": [
+                "Status"
+            ],
+            "summary": "查询服务是否可用",
+            "operationId": "health",
+            "responses": {
+                "200": {
+                    "description": "服务正常",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    },
+                                    "version": {
+                                        "type": "string",
+                                        "description": "当前运行进程启动时读取的后端版本号"
+                                    },
+                                    "targetVersion": {
+                                        "type": "string",
+                                        "description": "磁盘上 package.json 当前版本号；与运行版本不同说明需要重启"
+                                    },
+                                    "restartRequired": {
+                                        "type": "boolean",
+                                        "description": "运行版本与目标版本是否不一致"
+                                    },
+                                    "sessions": {
+                                        "type": "integer",
+                                        "description": "已经加载进内存的会话数量"
+                                    },
+                                    "running": {
+                                        "type": "integer",
+                                        "description": "正在执行任务的会话数量"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/tool/list": {
+        "get": {
+            "tags": [
+                "Tool"
+            ],
+            "summary": "列出全部工具和当前权限",
+            "operationId": "toolList",
+            "responses": {
+                "200": {
+                    "description": "工具目录，按名字排序",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Tool"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/tool/kinds": {
+        "get": {
+            "tags": [
+                "Tool"
+            ],
+            "summary": "列出工具类别",
+            "operationId": "toolKinds",
+            "responses": {
+                "200": {
+                    "description": "类别清单",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "kind": {
+                                            "type": "string"
+                                        },
+                                        "label": {
+                                            "type": "string"
+                                        },
+                                        "hint": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "label",
+                                        "hint"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/mcp/list": {
+        "get": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "列出已配置的 MCP 服务和本机识别结果",
+            "description": "识别只会读取其他软件的配置文件，不修改它们；环境变量和请求头的值不回传，只给键名。",
+            "operationId": "mcpList",
+            "parameters": [
+                {
+                    "name": "cwd",
+                    "in": "query",
+                    "required": false,
+                    "description": "按这个目录识别项目级 MCP 配置；不填用后端当前目录",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "已配置服务和识别到的服务",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "servers": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/McpServer"
+                                        }
+                                    },
+                                    "detected": {
+                                        "type": "object",
+                                        "properties": {
+                                            "sources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/components/schemas/McpDetectedSource"
+                                                }
+                                            },
+                                            "servers": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/components/schemas/McpDetectedServer"
+                                                }
+                                            }
+                                        },
+                                        "required": [
+                                            "sources",
+                                            "servers"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "servers",
+                                    "detected"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/mcp/save": {
+        "post": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "新增或整体替换一个 MCP 服务",
+            "operationId": "mcpSave",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "definition"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "服务名，工具名会以它作前缀"
+                                },
+                                "definition": {
+                                    "$ref": "#/components/schemas/McpDefinition"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的服务",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/McpServer"
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "名称为空、stdio 缺命令或 sse / http 缺地址",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/mcp/import": {
+        "post": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "按识别编号导入本机的 MCP 服务",
+            "description": "导入时重新读一遍源文件，环境变量和请求头的值会完整写进本应用的配置；同名服务不覆盖。",
+            "operationId": "mcpImport",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "ids"
+                            ],
+                            "properties": {
+                                "ids": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "maxItems": 50,
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "cwd": {
+                                    "type": "string",
+                                    "description": "识别项目级配置时使用的目录"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "导入结果；跳过的项带原因（missing / exists）",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "imported": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "skipped": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "missing",
+                                                        "exists"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "reason"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "imported",
+                                    "skipped"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "ids 为空、不是数组或超过 50 个",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/mcp/remove": {
+        "post": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "删除一个 MCP 服务",
+            "operationId": "mcpRemove",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "删除结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "ok",
+                                    "name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "名称为空",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "服务不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/mcp/toggle": {
+        "patch": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "启用或停用一个 MCP 服务",
+            "operationId": "mcpToggle",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "enabled"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "enabled": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的启用状态",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "enabled"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "enabled 不是布尔值或名称为空",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "服务不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/mcp/test": {
+        "post": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "真实连接一次 MCP 服务并列出工具名",
+            "operationId": "mcpTest",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "连接结果；起不来时 ok=false，error 给原因",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "tools": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "error": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "ok",
+                                    "name",
+                                    "tools"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "名称为空",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "服务不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/skill/list": {
+        "get": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "列出生效的技能和本机识别到的技能目录",
+            "description": "其他软件的技能目录默认只识别不启用；启用状态和禁用名单保存在数据目录的 skills.json。",
+            "operationId": "skillList",
+            "parameters": [
+                {
+                    "name": "cwd",
+                    "in": "query",
+                    "required": false,
+                    "description": "按这个目录查找项目技能；不填用后端当前目录",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "生效技能、全部候选目录和启用状态",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "skills": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/Skill"
+                                        }
+                                    },
+                                    "roots": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/SkillRoot"
+                                        }
+                                    },
+                                    "state": {
+                                        "type": "object",
+                                        "properties": {
+                                            "sources": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "disabled": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "required": [
+                                            "sources",
+                                            "disabled"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "skills",
+                                    "roots",
+                                    "state"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/skill/read": {
+        "get": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "读取一个技能的正文",
+            "operationId": "skillRead",
+            "parameters": [
+                {
+                    "name": "name",
+                    "in": "query",
+                    "required": true,
+                    "description": "技能名",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "cwd",
+                    "in": "query",
+                    "required": false,
+                    "description": "项目技能所在的目录",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "技能的完整内容",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Skill"
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "缺少技能名",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "技能不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/skill/save": {
+        "post": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "新建或改写本应用自己的技能",
+            "description": "只写数据目录的 skills/ 或当前目录的 .agent/skills；外部目录里的技能不会被改写。",
+            "operationId": "skillSave",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "description"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "技能名，也会作为文件夹名"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "一句话说明什么时候用"
+                                },
+                                "body": {
+                                    "type": "string",
+                                    "description": "技能正文（Markdown）"
+                                },
+                                "scope": {
+                                    "type": "string",
+                                    "enum": [
+                                        "global",
+                                        "project"
+                                    ],
+                                    "default": "global"
+                                },
+                                "cwd": {
+                                    "type": "string",
+                                    "description": "scope=project 时写进这个目录"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的技能",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Skill"
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "名称、说明或目录不合法",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/skill/remove": {
+        "post": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "删除本应用自己的技能",
+            "operationId": "skillRemove",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "scope": {
+                                    "type": "string",
+                                    "enum": [
+                                        "global",
+                                        "project"
+                                    ],
+                                    "default": "global"
+                                },
+                                "cwd": {
+                                    "type": "string",
+                                    "description": "scope=project 时从该目录删除"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "删除结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "ok",
+                                    "name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "名称不合法或目录不在允许范围内",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "技能不存在，或它在外部目录里",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/skill/toggle": {
+        "patch": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "把技能从模型清单里拿掉或放回来",
+            "operationId": "skillToggle",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "enabled"
+                            ],
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "enabled": {
+                                    "type": "boolean"
+                                },
+                                "cwd": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的状态",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "enabled"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "名称或 enabled 不合法",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "技能不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/skill/source": {
+        "patch": {
+            "tags": [
+                "Capability"
+            ],
+            "summary": "启用或停用一个外部技能目录",
+            "description": "启用前会确认真实存在且里面至少有一个能读的技能；路径必须落在已知配置目录（用户主目录、XDG 配置目录、Windows AppData 或本应用数据目录）内；本应用自己的目录永远生效，不能作为外部目录。",
+            "operationId": "skillSource",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "path",
+                                "enabled"
+                            ],
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "绝对路径"
+                                },
+                                "enabled": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的状态",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "path",
+                                    "enabled"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "路径不是绝对路径、目录不存在、没有可用技能、指向本应用目录，或不在已知配置目录白名单内",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/model/family": {
+        "get": {
+            "tags": [
+                "Model"
+            ],
+            "summary": "按模型 ID 或显式 family 解析模型族",
+            "operationId": "modelFamily",
+            "parameters": [
+                {
+                    "name": "model",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "family",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "family、候选列表和歧义标记"
+                }
+            }
+        }
+    },
+    "/model/icon": {
+        "get": {
+            "tags": [
+                "Model"
+            ],
+            "summary": "代理模型族的彩色 logo",
+            "operationId": "modelIcon",
+            "parameters": [
+                {
+                    "name": "model",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "family",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "theme",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "enum": [
+                            "light",
+                            "dark"
+                        ]
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "SVG 图标"
+                },
+                "404": {
+                    "description": "没有可用的 family 或 logo"
+                }
+            }
+        }
+    },
+    "/config/backups": {
+        "get": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "列出配置自动备份",
+            "operationId": "configBackups",
+            "responses": {
+                "200": {
+                    "description": "备份列表，按时间倒序"
+                }
+            }
+        }
+    },
+    "/config/backups/{id}": {
+        "get": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "读取一份配置备份（密钥脱敏）",
+            "operationId": "configBackupRead",
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "备份元数据和脱敏后的配置"
+                },
+                "404": {
+                    "description": "备份不存在"
+                }
+            }
+        }
+    },
+    "/config/restore": {
+        "post": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "恢复一份配置备份",
+            "operationId": "configRestore",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "id"
+                            ],
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "恢复结果"
+                },
+                "400": {
+                    "description": "备份格式错误"
+                },
+                "404": {
+                    "description": "备份不存在"
+                }
+            }
+        }
+    },
+    "/config/export": {
+        "get": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "导出配置；默认脱敏",
+            "operationId": "configExport",
+            "parameters": [
+                {
+                    "name": "secrets",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "enum": [
+                            "0",
+                            "1"
+                        ]
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "JSON 配置文件；secrets=1 时包含明文密钥"
+                }
+            }
+        }
+    },
+    "/config/import": {
+        "post": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "导入整份配置；脱敏字段保留同名供应商现有密钥",
+            "operationId": "configImport",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "config"
+                            ],
+                            "properties": {
+                                "config": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "导入结果"
+                },
+                "400": {
+                    "description": "配置格式错误"
+                }
+            }
+        }
+    },
+    "/config/read": {
+        "get": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "读取完整配置",
+            "operationId": "configRead",
+            "responses": {
+                "200": {
+                    "description": "当前配置",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Config"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/config/meta": {
+        "get": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "读取按任务配模型的标签",
+            "operationId": "configMeta",
+            "responses": {
+                "200": {
+                    "description": "任务模型标签",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "models": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "task": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "chat",
+                                                        "compact",
+                                                        "title",
+                                                        "task"
+                                                    ]
+                                                },
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "hint": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/config/set": {
+        "patch": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "整体替换并保存配置",
+            "description": "这是整体替换，不是局部合并。",
+            "operationId": "configSet",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Config"
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的完整配置",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Config"
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "提交的不是对象",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/config/test": {
+        "post": {
+            "tags": [
+                "Config"
+            ],
+            "summary": "真实请求一次模型",
+            "operationId": "configTest",
+            "requestBody": {
+                "required": false,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "provider": {
+                                    "type": "string"
+                                },
+                                "model": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "模型可用",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    },
+                                    "provider": {
+                                        "type": "string"
+                                    },
+                                    "model": {
+                                        "type": "string"
+                                    },
+                                    "text": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "供应商不存在、没有模型可试",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/groups": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "读取会话自定义分组",
+            "operationId": "sessionGroupsRead",
+            "responses": {
+                "200": {
+                    "description": "按顺序返回分组和组内会话 id"
+                }
+            }
+        },
+        "put": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "整体保存会话自定义分组",
+            "operationId": "sessionGroupsSave",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "groups"
+                            ],
+                            "properties": {
+                                "groups": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "required": [
+                                            "id",
+                                            "name",
+                                            "sessions"
+                                        ],
+                                        "properties": {
+                                            "id": {
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "sessions": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的分组"
+                },
+                "400": {
+                    "description": "分组格式、重名或会话重复"
+                }
+            }
+        }
+    },
+    "/session/list": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "列出磁盘上的全部会话",
+            "operationId": "sessionList",
+            "parameters": [
+                {
+                    "name": "search",
+                    "in": "query",
+                    "required": false,
+                    "description": "按标题或模型名筛选",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "会话元信息列表，最近用过的排前面",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/SessionMeta"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/create": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "新建一个会话",
+            "operationId": "sessionCreate",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "title"
+                            ],
+                            "properties": {
+                                "title": {
+                                    "type": "string",
+                                    "description": "会话名称，不能为空"
+                                },
+                                "cwd": {
+                                    "type": "string",
+                                    "description": "会话当前目录，不填就是后端启动目录"
+                                },
+                                "provider": {
+                                    "type": "string",
+                                    "description": "模型服务商，不填用 models.chat"
+                                },
+                                "model": {
+                                    "type": "string",
+                                    "description": "模型名，不填用该服务商的第一个模型"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "创建成功",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "sessionId": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "标题为空、目录不存在或供应商不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/fork/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "从会话分出一个新分支",
+            "description": "复制历史和运行设置；文件快照不复制。分支只读不写，原会话正在运行时也可以分支。",
+            "operationId": "sessionFork",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": false,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "title": {
+                                    "type": "string"
+                                },
+                                "messageId": {
+                                    "type": "string",
+                                    "description": "只复制到这条消息（含）"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "新分支编号",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "sessionId": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话或消息不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/read/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "读取一条会话",
+            "description": "默认返回完整 history（已过滤 internal 消息）；传 historyLimit 时只返回最后 N 条并带 historyStart。",
+            "operationId": "sessionRead",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                },
+                {
+                    "name": "historyLimit",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "description": "只取最近 N 条历史，供首屏窗口加载"
+                },
+                {
+                    "name": "historyStart",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "description": "从该可见历史下标一直返回到末尾，供定位条跳转早期历史"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "会话内容",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Session"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/history/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "分页读取会话历史",
+            "description": "before 是消息下标，默认从末尾读取一页。",
+            "operationId": "sessionHistory",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                },
+                {
+                    "name": "before",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                {
+                    "name": "beforeOffset",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "description": "JSONL 字节偏移，优先使用；不传则从末尾扫描"
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 500
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "一页消息",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "messages": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "start": {
+                                        "type": "integer"
+                                    },
+                                    "end": {
+                                        "type": "integer"
+                                    },
+                                    "startOffset": {
+                                        "type": "integer"
+                                    },
+                                    "endOffset": {
+                                        "type": "integer"
+                                    },
+                                    "total": {
+                                        "type": "integer"
+                                    },
+                                    "hasMore": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/search/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "全量搜索聊天记录",
+            "description": "流式扫描完整历史，返回消息 id、可见下标和命中片段；不依赖首屏窗口。",
+            "operationId": "sessionSearch",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                },
+                {
+                    "name": "q",
+                    "in": "query",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    },
+                    "description": "关键词"
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 50
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "搜索结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "results"
+                                ],
+                                "properties": {
+                                    "results": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/SessionSearchResult"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/outline/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "读取整个会话的轮次大纲",
+            "operationId": "sessionOutline",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "轮次预览和消息总数",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "turns": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "index": {
+                                                    "type": "integer"
+                                                },
+                                                "role": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "response": {
+                                                    "type": "string"
+                                                },
+                                                "length": {
+                                                    "type": "integer"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "totalMessages": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/changes/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "看 agent 改了哪些文件",
+            "operationId": "sessionChanges",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "改动列表",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Change"
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/settings/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "读会话运行设置",
+            "operationId": "sessionReadSettings",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "完整设置",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Settings"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "patch": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "改会话运行设置",
+            "description": "只改点名的那几项。思考强度变化需要没有任务在跑。",
+            "operationId": "sessionSaveSettings",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "reasoning": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "保存后的完整设置",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Settings"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/tools/{sessionId}": {
+        "get": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "列出记过文件的工具调用",
+            "operationId": "sessionTools",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "每次改过文件的工具调用",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "messageId": {
+                                            "type": "string"
+                                        },
+                                        "toolCallId": {
+                                            "type": "string"
+                                        },
+                                        "toolName": {
+                                            "type": "string"
+                                        },
+                                        "paths": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/rename/{sessionId}": {
+        "patch": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "给会话改名",
+            "operationId": "sessionRename",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "title"
+                            ],
+                            "properties": {
+                                "title": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "更新后的会话资料",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SessionMeta"
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "标题为空",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/title/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "按后续对话重新生成标题",
+            "description": "用户可以在聊了几轮之后手动重新起标题；模型失败时用第一句话兜底。",
+            "operationId": "sessionTitle",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "新的标题",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/model/{sessionId}": {
+        "patch": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "切换会话使用的模型",
+            "operationId": "sessionSetModel",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "provider": {
+                                    "type": "string"
+                                },
+                                "model": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "更新后的会话资料",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SessionMeta"
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "供应商或模型为空、供应商不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/cwd/{sessionId}": {
+        "patch": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "移动会话的当前目录",
+            "description": "目录只是会话的一个属性；历史不丢，也不需要新建会话。",
+            "operationId": "sessionSetCwd",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "cwd"
+                            ],
+                            "properties": {
+                                "cwd": {
+                                    "type": "string",
+                                    "description": "已经存在的文件夹"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "新的目录",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "string"
+                                    },
+                                    "cwd": {
+                                        "type": "string"
+                                    },
+                                    "temporary": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "目录为空或不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/remove/{sessionId}": {
+        "delete": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "删除会话",
+            "operationId": "sessionRemove",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "删除成功",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/rollback/preview/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "回退之前先看会改动什么",
+            "operationId": "sessionRollbackPreview",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "messageId"
+                            ],
+                            "properties": {
+                                "messageId": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "会消失的消息条数、牵连的工具调用和会被恢复的文件",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "messages": {
+                                        "type": "integer",
+                                        "description": "会消失的对话消息条数，工具结果不算"
+                                    },
+                                    "toolCalls": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "description": "这次回退会一起撤销的工具调用 id"
+                                    },
+                                    "files": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/Change"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话或消息不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/rollback/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "回退到某条消息之前",
+            "description": "这条消息和它之后的对话都会退掉；随消息回退的文件快照按调用 id 精确匹配。files=false 时只退对话，不碰磁盘上的文件。",
+            "operationId": "sessionRollback",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "messageId"
+                            ],
+                            "properties": {
+                                "messageId": {
+                                    "type": "string"
+                                },
+                                "files": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "回退后的完整会话，另带 restored",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Session"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "restored": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话或消息不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/rollback/tool/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "只退某一次工具调用改的文件",
+            "operationId": "sessionRollbackTool",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "toolCallId"
+                            ],
+                            "properties": {
+                                "toolCallId": {
+                                    "type": "string"
+                                },
+                                "files": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "被恢复的文件路径",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "restored": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话或工具调用不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/redo/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "撤销最近一次回退",
+            "operationId": "sessionRedo",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": false,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "files": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "撤销后的完整会话，另带 restored",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Session"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "restored": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/session/compact/{sessionId}": {
+        "post": {
+            "tags": [
+                "Session"
+            ],
+            "summary": "手动压缩上下文",
+            "operationId": "sessionCompact",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "压缩后的完整会话，另带总结文本",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Session"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "content": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "会话没有配置模型",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "任务正在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/agent/send/{sessionId}": {
+        "post": {
+            "tags": [
+                "Agent"
+            ],
+            "summary": "发送消息，启动任务",
+            "operationId": "agentSend",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "input"
+                            ],
+                            "properties": {
+                                "input": {
+                                    "oneOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "array",
+                                            "description": "内容块数组；图片块是 data URL 或 http(s) URL",
+                                            "items": {
+                                                "type": "object",
+                                                "required": [
+                                                    "type"
+                                                ],
+                                                "properties": {
+                                                    "type": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "text",
+                                                            "image"
+                                                        ]
+                                                    },
+                                                    "text": {
+                                                        "type": "string"
+                                                    },
+                                                    "image": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "任务已启动，过程走 SSE",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "input 为空",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "会话已有任务在运行",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/agent/resume/{sessionId}": {
+        "post": {
+            "tags": [
+                "Agent"
+            ],
+            "summary": "继续被中断的助手回复",
+            "operationId": "agentResume",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "已开始继续",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "会话不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "正在运行或最后一条不是助手回复",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/agent/stop/{sessionId}": {
+        "post": {
+            "tags": [
+                "Agent"
+            ],
+            "summary": "停止正在运行的任务",
+            "operationId": "agentStop",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": false,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "partial": {
+                                    "type": "object",
+                                    "properties": {
+                                        "content": {
+                                            "type": "string"
+                                        },
+                                        "reasoning": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "停止结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "partial 不是对象",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/agent/decide/{sessionId}": {
+        "post": {
+            "tags": [
+                "Agent"
+            ],
+            "summary": "审批工具调用",
+            "operationId": "agentDecide",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "toolCallId",
+                                "decision"
+                            ],
+                            "properties": {
+                                "toolCallId": {
+                                    "type": "string"
+                                },
+                                "decision": {
+                                    "type": "string",
+                                    "enum": [
+                                        "allow-once",
+                                        "allow-always",
+                                        "deny"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "审批结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "决定不认识",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/filesystem/entries": {
+        "get": {
+            "tags": [
+                "Storage"
+            ],
+            "summary": "列出服务端目录或文件",
+            "description": "路径选择器只读接口，只返回一层目录/文件，不读取文件内容。",
+            "operationId": "filesystemEntries",
+            "parameters": [
+                {
+                    "name": "path",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    },
+                    "description": "绝对路径；为空时从用户主目录开始"
+                },
+                {
+                    "name": "mode",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "enum": [
+                            "directory",
+                            "file"
+                        ]
+                    },
+                    "description": "directory 只返回目录；file 同时返回目录和文件"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "当前目录、父目录、快捷根目录和一层 entries",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "current": {
+                                        "type": "string"
+                                    },
+                                    "parent": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "home": {
+                                        "type": "string"
+                                    },
+                                    "roots": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "entries": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "path": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "directory",
+                                                        "file"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "truncated": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "mode 不合法",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "404": {
+                    "description": "目录不存在",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/storage/sessions": {
+        "get": {
+            "tags": [
+                "Storage"
+            ],
+            "summary": "读取会话数据目录和待迁移状态",
+            "operationId": "storageSessions",
+            "responses": {
+                "200": {
+                    "description": "当前目录、默认目录和待迁移状态",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {
+                                        "type": "string"
+                                    },
+                                    "defaultPath": {
+                                        "type": "string"
+                                    },
+                                    "envOverride": {
+                                        "type": "boolean"
+                                    },
+                                    "pending": {
+                                        "type": [
+                                            "object",
+                                            "null"
+                                        ],
+                                        "properties": {
+                                            "from": {
+                                                "type": "string"
+                                            },
+                                            "path": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "error": {
+                                        "type": "string"
+                                    },
+                                    "lastMove": {
+                                        "type": [
+                                            "object",
+                                            "null"
+                                        ],
+                                        "properties": {
+                                            "from": {
+                                                "type": "string"
+                                            },
+                                            "to": {
+                                                "type": "string"
+                                            },
+                                            "at": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "put": {
+            "tags": [
+                "Storage"
+            ],
+            "summary": "安排会话数据目录迁移",
+            "description": "只写入待迁移标记；服务重启后先复制会话目录，再切换位置。旧目录保留。",
+            "operationId": "storageSetSessions",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "path"
+                            ],
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "当前目录和待迁移目录",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {
+                                        "type": "string"
+                                    },
+                                    "pending": {
+                                        "type": "object",
+                                        "properties": {
+                                            "from": {
+                                                "type": "string"
+                                            },
+                                            "path": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "400": {
+                    "description": "路径不合法",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                },
+                "409": {
+                    "description": "目录被环境变量控制或不是空目录",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "delete": {
+            "tags": [
+                "Storage"
+            ],
+            "summary": "取消尚未执行的会话目录迁移",
+            "operationId": "storageCancelSessions",
+            "responses": {
+                "200": {
+                    "description": "取消结果",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ok": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/sse/connect/{sessionId}": {
+        "get": {
+            "tags": [
+                "SSE"
+            ],
+            "summary": "建立实时事件连接",
+            "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、mcp-error、compact-start、compact-finish、title。llm-start 带 startedAt（这次请求的真实开始时间）和 provider / model，llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 provider / model。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
+            "operationId": "sseConnect",
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/SessionId"
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "SSE 事件流",
+                    "content": {
+                        "text/event-stream": {
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -441,6 +441,9 @@ function findTool(session, id) {
 function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
     const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
+    // 全会话共享的流序号：工具结束后的折叠靠它判断“下一段模型内容真的到了”，
+    // 即使下一段正文落在另一条 assistant 消息里也能收到。
+    session.streamRevision = (session.streamRevision || 0) + 1
     markFirstToken(assistant)                                       // 第一段输出到了，请求行改说正在接收
     const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
     const text = event.text || '' // 服务端只承诺 text 一个字段

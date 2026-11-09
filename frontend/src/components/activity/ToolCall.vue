@@ -69,8 +69,8 @@ const duration = computed(() => {
 // 参数流式生成和工具执行中自动展开，让读者能实时看到正在写入/执行的内容；
 // 这一轮结束后恢复折叠，之后由用户自己决定要不要再看结果。
 const wantsAuto = computed(() => Boolean(props.active && (props.tool.assembling || props.tool.status === 'running')))
-// 同一时间只展开最新的工具。新工具要等上一个工具的高度收起，
-// 避免两个 Fold 同时运动；第一个工具直接展开。
+// 新工具要等上一个工具的高度收起，避免两个 Fold 同时运动；第一个工具直接展开。
+// 并行工具由外层同时传入 active，各自按自己的完成状态收起。
 const SETTLE_MS = 650
 const openReady = ref(false)
 let openTimer = null
@@ -132,14 +132,9 @@ watch(wantsAuto, (open, previous) => {
     lingerOpen.value = false
     return
   }
+  // 工具执行完不立刻收：先保留结果，等下一段流式内容真正到达（streamKey 变化）
+  // 再折叠。并行时另一个工具开始，也不会把已完成的这个提前收掉。
   lingerOpen.value = true
-})
-watch(() => props.active, active => {
-  if (active) return
-  // 下一个工具开始：上一个工具立即开始收起，给新工具让出高度。
-  clearOpenTimer()
-  openReady.value = false
-  lingerOpen.value = false
 })
 watch(() => props.instant, instant => {
   if (instant) lingerOpen.value = false

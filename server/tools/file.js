@@ -23,6 +23,7 @@ import picomatch from 'picomatch'
 import { rgPath } from '@vscode/ripgrep'
 import Path from '../utils/path.js'
 import fail from '../utils/fail.js'
+import Text from '../utils/text.js'
 
 // --- 搜索和列目录时永远跳过的目录 ---
 const SKIP = [
@@ -34,11 +35,7 @@ const SKIP = [
 const skipPath = path => String(path).replace(/\\/g, '/').split('/').some(part => SKIP.includes(part))
 
 // --- 搜索输出太长时只留头尾 ---
-const truncate = (text, limit = 6000) => {
-    if (text.length <= limit) return text
-    const half = Math.floor(limit / 2)
-    return `${text.slice(0, half)}\n\n...（中间省略 ${text.length - half * 2} 个字符）...\n\n${text.slice(-half)}`
-}
+const truncate = Text.truncate
 
 // 搜索和列目录的一次返回上限：超过就截断并明说截断了，不让模型以为已经看全。
 // 放在工具结果里而不是交给模型自己收窄——宽泛的关键词在稍大的仓库里一下就能撑爆上下文。

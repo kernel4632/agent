@@ -4,10 +4,11 @@
 调用示例：<ConversationSearch :open="searchOpen" :session="session" @close="searchOpen = false" @select="jumpToSearchResult" />
 -->
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Dialog from '../../ui/Dialog.vue'
 import Button from '../../ui/Button.vue'
 import Icon from '../../ui/Icon.vue'
+import { AgentAPI } from '../../utils/api.js'
 import { searchConversation } from '../../features/conversation-search.js'
 
 const props = defineProps({
@@ -20,8 +21,10 @@ const activeIndex = ref(0)
 const input = ref(null)
 const list = ref(null)
 const messages = computed(() => props.session?.messages || [])
-const results = computed(() => searchConversation(messages.value, query.value))
-const activeResult = computed(() => results.value[activeIndex.value] || null)
+const results = ref([])
+const searching = ref(false)
+let searchTimer = 0
+let searchSeq = 0
 
 watch(() => props.open, async open => {
   if (!open) return
@@ -44,6 +47,30 @@ watch(query, async () => {
   if (list.value) list.value.scrollTop = 0
 })
 
+// 搜索走后端全量历史，首屏窗口外的旧消息也能找到。
+watch([query, () => props.session?.id], () => {
+  if (searchTimer) window.clearTimeout(searchTimer)
+  const seq = ++searchSeq
+  const text = query.value.trim()
+  if (!text || !props.session?.id) {
+    results.value = []
+    searching.value = false
+    return
+  }
+  searching.value = true
+  searchTimer = window.setTimeout(async () => {
+    try {
+      const data = await AgentAPI.searchSessionMessages(props.session.id, text)
+      if (seq === searchSeq) results.value = Array.isArray(data?.results) ? data.results : []
+    } catch {
+      // 后端旧版本或暂时不可用时，退回到当前已加载的历史。
+      if (seq === searchSeq) results.value = searchConversation(messages.value, text)
+    } finally {
+      if (seq === searchSeq) searching.value = false
+    }
+  }, 180)
+}, { immediate: true })
+
 watch(() => results.value.length, length => {
   if (activeIndex.value >= length) activeIndex.value = Math.max(0, length - 1)
 })
@@ -54,7 +81,7 @@ function onOpenChange(open) {
 
 function choose(result = activeResult.value) {
   if (!result) return
-  emit('select', result.id)
+  emit('select', result)
 }
 
 async function move(step) {
@@ -68,6 +95,10 @@ function onEnter(event) {
   if (event.isComposing) return
   choose()
 }
+
+onBeforeUnmount(() => {
+  if (searchTimer) window.clearTimeout(searchTimer)
+})
 </script>
 
 <template>
@@ -93,7 +124,7 @@ function onEnter(event) {
 
     <div class="conversation-search">
       <div v-if="query" class="conversation-search__summary">
-        <span>{{ results.length }} 条结果</span>
+        <span>{{ searching ? '搜索中…' : `${results.length} 条结果` }}</span>
         <span class="conversation-search__hint">↑↓ 选择 · Enter 跳转</span>
       </div>
       <div ref="list" class="conversation-search__results">
@@ -114,7 +145,7 @@ function onEnter(event) {
           <Icon name="search" :size="24" />
           <span>输入关键词搜索当前聊天记录</span>
         </div>
-        <div v-else-if="!results.length" class="conversation-search__empty">
+        <div v-else-if="!searching && !results.length" class="conversation-search__empty">
           <Icon name="search" :size="24" />
           <span>没有找到匹配内容</span>
         </div>

@@ -216,7 +216,7 @@ export default store
 - `mcp` 是配置的一部分，属于基座能力。
 - `sessions[].cwd` 是唯一的位置概念，没有 `workspaceId`。
 - `history` 和 `settings` 属于会话；消息回退只改 `history`，不碰文件。
-- 权限只有一层：`config.permission` 的全局规则（allow / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。工具管理的「全部批准」只把全局 `*` 写成 allow，不改每个工具已经记住的规则。全局 allow 盖过工具默认的 ask，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。关掉全部批准只把全局改回 ask。
+- 权限只有一层：`config.permission` 的全局规则（allow / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。输入区「工具自动批准」小窗里的全选格子只把全局 `*` 写成 allow 来一次全开，不改每个工具已经记住的规则。全局 allow 盖过工具默认的 ask，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。全不选要把每个工具的默认动作写回 ask 才会真的全灭（只改全局，之前记住的 allow 会让开关继续亮着）；单关一个工具时先把它以外的工具此刻的状态写实，再撤全局，否则它们会跟着一起掉回询问。
 
 ## 六、请求流程
 

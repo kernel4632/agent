@@ -73,6 +73,43 @@ let pointerActive = false
 let touchStartY = null
 let touchStartTop = 0
 let resumeFollow = false
+let loadingEarlier = false
+let restoringHistory = false
+
+async function restoreLatestHistory() {
+  if (restoringHistory || !scrollParent || !session.value?.temporaryHistory) return
+  restoringHistory = true
+  try {
+    const restored = History.restoreRecent(session.value.id)
+    if (!restored) await History.refresh(session.value.id)
+    await nextTick()
+    // 在浏览器绘制前直接换回最近窗口并贴底，避免中间帧出现旧高度。
+    virtualizer.value.measure()
+    virtualizer.value.scrollToEnd({ behavior: 'auto' })
+    setFollowing(true)
+  } finally {
+    restoringHistory = false
+  }
+}
+
+async function loadEarlier() {
+  if (loadingEarlier || !scrollParent || !session.value || following.value) return
+  if (!Number.isInteger(session.value.historyStart) || session.value.historyStart <= 0) return
+  loadingEarlier = true
+  const beforeHeight = scrollParent.scrollHeight
+  const beforeTop = scrollParent.scrollTop
+  try {
+    const loaded = await History.loadOlder(session.value.id)
+    if (!loaded) return
+    await nextTick()
+    requestAnimationFrame(() => {
+      if (!scrollParent) return
+      scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
+    })
+  } finally {
+    loadingEarlier = false
+  }
+}
 
 // 按轮虚拟化：data 是完整轮次数组，虚拟器只挂载视口附近的行。
 // anchorTo: 'end' + followOnAppend 让贴底时的流式增长和追加都自动保持在末尾，
@@ -190,8 +227,10 @@ function onScroll() {
   if (!scrollParent) return
   if (!jumping) {
     const atEnd = virtualizer.value.isAtEnd(8)
-    if (!atEnd && following.value) setFollowing(false)
+    if (atEnd && session.value?.temporaryHistory) void restoreLatestHistory()
+    else if (!atEnd && following.value) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
+    if (scrollParent.scrollTop < 160) void loadEarlier()
   }
   syncLatestPosition()
   rememberScroll()
@@ -351,6 +390,8 @@ function bindScrollRoot(root) {
     else virtualizer.value.scrollToOffset(restoreTop, { behavior: 'auto' })
     requestAnimationFrame(() => {
       if (!scrollParent) return
+      // 恢复到顶部时不会产生 scroll 事件，这里主动补一页更早历史。
+      if (scrollParent.scrollTop < 160) void loadEarlier()
       following.value = virtualizer.value.isAtEnd(8)
       scrollParent.classList.toggle('is-following', following.value)
       syncLatestPosition()

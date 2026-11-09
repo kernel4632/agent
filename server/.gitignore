@@ -5,3 +5,6 @@ coverage/
 *.log
 .agents/
 skills-lock.json
+
+# Playwright MCP 的快照目录：在哪个目录跑就落在哪，属于工具产物不是源码
+.playwright-mcp/

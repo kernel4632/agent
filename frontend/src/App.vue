@@ -37,9 +37,9 @@ const session = computed(() => store.ui.view === 'chat' ? activeSession.value : 
 
 // 搜索窗口常驻，只切 open；关闭再打开时查询、结果和滚动位置都还在。
 watch(() => session.value?.id, () => { searchOpen.value = false })
-function selectSearchResult(messageId) {
+function selectSearchResult(result) {
   searchOpen.value = false
-  nextTick(() => draftView.value?.jumpToMessage(messageId))
+  nextTick(() => draftView.value?.jumpToMessage(result))
 }
 const appearance = computed(() => normalizeAppearance(store.settings.draft?.appearance ?? store.config.appearance))
 

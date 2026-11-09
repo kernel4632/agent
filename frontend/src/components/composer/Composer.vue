@@ -31,6 +31,7 @@ import { AgentAPI } from '../../utils/api.js'
 import { Session } from "../../features/session.js"
 import { Notice } from "../../utils/notice.js"
 import ComposerMenu from './ComposerMenu.vue'
+import ComposerTools from './ComposerTools.vue'
 import { ATTACHMENT_ACCEPT, ATTACHMENT_PATTERN } from "../../utils/attachment.js"
 
 const props = defineProps({
@@ -256,6 +257,8 @@ defineExpose({ focus: () => editor.value?.focus() })
           @choose-model="chooseModel" @update:reasoning="emit('update:reasoning', $event)"
           @configure="Navigation.openSettings('providers')"
         />
+        <!-- 工具自动批准：和模型/推理同一排，改成「这条消息要不要拦」发消息前就能定。 -->
+        <ComposerTools />
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><Icon name="plus" :size="18" /></button>

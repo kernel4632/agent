@@ -19,14 +19,14 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 | `store.js` | 全局数据中心：`config` 和 `sessions` 两个纯对象 |
 | `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`、`capabilities.js`；命令文件之间不互相 import，有状态 feature 需要的兄弟服务由 `server.js` 在启动时接起来 |
 | `features/` | 独立业务模块：历史、回退、Agent、审批、上下文、压缩、标题、工具登记、MCP、本机识别（discover）、技能管理（skills）；feature 文件之间不互相 import |
-| `utils/` | `fail.js`、`path.js`、`sse.js`、`skills.js`（技能扫描与启停状态，只读写技能文件，不碰业务配置） |
+| `utils/` | 无业务状态的共用小工具：带状态码的错误、数据路径拼接、SSE 服务端、子进程管理、命令分词、上下文用量台账，以及文件与文本的通用判断（`fs.js`、`text.js`）。不依赖任何 feature |
 | `tools/` | 按类别分组的工具，一个文件一组；只依赖 `store.js`、`utils/` 和运行时 context |
 
-根目录不放业务代码。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
+根目录只放入口和数据文件；脚本类产物（比如文档生成器）放 `scripts/`。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
 
-Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。只按该版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
+Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。实际使用的版本看 `package.json`，这里不重复写——写死的版本号一定会过期。只按当前版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
 
-0.30 起不再有 `maxSteps` / `step-limit`，循环轮数不设上限；运行中修改 `agent.config`（模型、思考强度、system、工具表）会在下一笔请求生效。`PATCH /session/model/:sessionId` 和保存思考强度不再要求任务空闲。
+循环轮数不设上限（早期版本的 `maxSteps` / `step-limit` 已移除）；运行中修改 `agent.config`（模型、思考强度、system、工具表）会在下一笔请求生效，切模型和保存思考强度不再要求任务空闲。
 
 模型没有调用任何工具时，最多追问 3 轮再结束；默认提示词要求每轮用 `attempt_completion` 收尾，追问时会再提醒一次。这样模型漏调结束工具时，不会把普通文字直接当成结果。
 
@@ -169,8 +169,8 @@ Agent 循环来自 `@kernel4632/agent-core` **0.30.4**（[仓库](https://github
 | 文件 | 工具 |
 | --- | --- |
 | `tools/file.js` | `read_file`（可传 `offset`/`limit` 按行分段；超过 200000 字符自动分段并给出 `nextOffset`）、`write_file`、`find_files`（`limit` 默认 200）、`search_text`（`limit` 默认 200 行）、`edit`（一次调用改一个文件）、`move_file`、`copy_file`（目标已存在时拒绝，不覆盖；move 的快照同时记录源和目标），以及文件快照和恢复 |
-| `tools/shell.js` | `execute_command`（可选 `background: true`：立刻返回进程卡；可选 `timeout`：毫秒数，默认 10 分钟。**到时未结束不会杀进程**，而是原地交给后台并返回 `timedOut: true` + 进程 id + 已产生的输出，接着用 `background` 的 log 看——不再因为猜短了时长而把整轮工作白跑掉） |
-| `tools/background.js` | `background`（log/stop/list：查看和停止后台进程；`log` 支持 `waitFor` / `waitMs` 等待新输出或特定行，不再靠反复轮询。启动进程只有 `execute_command` 的 `background: true` 一条路） |
+| `tools/shell.js` | `execute_command`（命令按 shell 风格分词：引号内空格是一个参数；不需要 shell 特性时直接起进程，管道/重定向/变量/通配才交给系统 shell。可选 `background: true`：立刻返回进程卡；可选 `timeout`：毫秒数，默认且最大 30000。**前台最多等 30 秒**，到时未结束不会杀进程，而是自动交给后台并返回 `timedOut: true` + 进程 id + 已产生的输出，提示模型继续并行工作，之后用 `background` 的 log 看） |
+| `tools/background.js` | `background`（log/stop/kill/list：查看和停止后台进程；`log` 支持 `waitFor` / `waitMs` 等待新输出或特定行，不再靠反复轮询。启动进程只有 `execute_command` 的 `background: true` 一条路） |
 | `tools/web.js` | `webfetch` |
 | `tools/context.js` | `ctx_usage`（当前上下文用量、压缩点和剩余量；数据来自 `onInject` 每轮上报的真实估算，让模型自己决定何时落盘、何时收口） |
 | `tools/todo.js` | `update_todo_list` |
@@ -297,229 +297,18 @@ bun start
 
 默认地址是 `http://localhost:3000`。浏览器打开 `http://localhost:3000/config/read` 能返回 JSON 就说明后端已启动。
 
-## 前端打开会话
+## 接口
 
-前端启动只读取 `/session/list`、`/config/read`、`/config/meta`、`/tool/list` 和 `/tool/kinds`。`/workspace/read`、`/agent/list`、`/command/list` 已移除，不用于初始化。配置按上面的当前字段保存；会话设置只有 `reasoning`。真实前后端联调运行 `cd frontend` 后执行 `bun run test:live`，数据使用 `tmp/` 下的独立目录，模型服务使用本机固定回复。
+接口的唯一来源是 `openapi.json`，它由 `api.js`（每个接口的说明）和 `server.js`（实际注册的路由）生成：
 
-固定顺序：
-
-```text
-1. GET  /session/read/:sessionId
-2. 用返回的完整 history 渲染页面
-3. GET  /sse/connect/:sessionId
-4. 接收仍在运行的流式事件
+```bash
+cd server
+bun run openapi          # 生成 openapi.json
+bun run openapi:check    # 只检查是否过期
 ```
 
-不要让 SSE 负责发送完整 history。断线时重新读一次会话，再重新连接 SSE；不要发送 `Last-Event-ID`，后端会从当前缓存的第一条事件开始重放。
-
-## HTTP 接口
-
-所有 JSON 请求使用 `Content-Type: application/json`。错误响应统一是 `{ "error": "错误说明" }`。
-
-| 状态码 | 含义 |
-| --- | --- |
-| `400` | 请求参数不正确，比如标题为空、目录不存在、供应商不存在、审批决定不认识 |
-| `404` | 会话、消息、技能或工具调用不存在 |
-| `409` | 会话已有任务在运行，或继续位置不对 |
-| `500` | 后端执行失败 |
-
-### 服务状态
-
-| 方法 | 地址 | 结果 |
-| --- | --- | --- |
-| `GET` | `/health` | `{ "ok": true, "version": "运行版本", "targetVersion": "代码版本", "restartRequired": false, "sessions": 2, "running": 1 }` |
-
-### 配置
-
-| 方法 | 地址 | 结果 |
-| --- | --- | --- |
-| `GET` | `/config/read` | 当前完整配置 |
-| `GET` | `/config/meta` | 按任务的模型标签：`models` |
-| `PATCH` | `/config/set` | 保存后的完整配置 |
-| `POST` | `/config/test` | `{ provider?, model? }`，真实请求一次模型 |
-| `GET` | `/config/backups` | 自动配置备份列表，按时间倒序 |
-| `GET` | `/config/backups/{id}` | 备份元数据和脱敏配置；不返回 API Key |
-| `POST` | `/config/restore` | `{ id }`，恢复前自动备份当前配置 |
-| `GET` | `/config/export?secrets=0\|1` | 下载配置；默认脱敏，`1` 才包含明文密钥 |
-| `POST` | `/config/import` | `{ config }`，整体导入；脱敏字段保留同名供应商现有密钥 |
-
-### 会话存储位置
-
-| 方法 | 地址 | 参数 | 结果 |
-| --- | --- | --- | --- |
-| `GET` | `/filesystem/entries` | `path`、`mode=directory\|file` | 只读列一层目录/文件，供路径选择器使用；不读取文件内容 |
-| `GET` | `/storage/sessions` | 无 | `{ path, defaultPath, envOverride, pending, error, lastMove }` |
-| `PUT` | `/storage/sessions` | `{ "path": "D:\\AgentSessions" }` | 只写入待迁移标记；重启后复制并切换，目标必须是空目录 |
-| `DELETE` | `/storage/sessions` | 无 | 取消尚未执行的迁移 |
-
-迁移只处理 `sessions/`，配置、工具和技能不动。`AGENT_SESSIONS` 存在时，`PUT` 会按 409 返回，界面上也不能修改。
-
-### 工具
-
-| 方法 | 地址 | 结果 |
-| --- | --- | --- |
-| `GET` | `/tool/list` | 工具名、类别、权限动作、`configurable`、工具自带的 `ui` |
-| `GET` | `/tool/kinds` | 工具类别：`kind`、`label`、`hint` |
-
-### 模型图标
-
-图标不放进仓库：优先取 LobeHub 的彩色 SVG，缺失时回退 models.dev 的单色 SVG；两者都由服务端代理并缓存，新模型或换 logo 不需要前端发版。
-
-| 方法 | 地址 | 参数 | 结果 |
-| --- | --- | --- | --- |
-| `GET` | `/model/family` | `model` 或 `family` | `{ family, candidates, ambiguous, source }`；多个候选时不自动选择 |
-| `GET` | `/model/icon` | `model` 或 `family`；可选 `theme=dark` 把剩余的 currentColor 换成浅色 | SVG；找不到时 404，前端回退通用模型图标 |
-
-### 能力管理
-
-MCP 和技能都可以先从本机识别，再由用户决定启用哪一部分。识别只读，管理只写本应用自己的配置和技能目录。
-
-| 方法 | 地址 | 请求体 / 参数 | 结果 |
-| --- | --- | --- | --- |
-| `GET` | `/mcp/list?cwd=` | 无 | `{ servers, detected: { sources, servers } }`；识别结果里 `env` / `headers` 只给键名 |
-| `POST` | `/mcp/save` | `{ "name", "definition" }` | 保存后的服务；`definition` 是 `transport`、`command`、`args`、`env`、`url`、`headers`、`enabled` |
-| `POST` | `/mcp/import` | `{ "ids": ["cursor::github"], "cwd?" }` | `{ imported, skipped }`；跳过原因 `missing` / `exists` |
-| `POST` | `/mcp/remove` | `{ "name" }` | `{ "ok": true, "name" }` |
-| `PATCH` | `/mcp/toggle` | `{ "name", "enabled" }` | `{ "name", "enabled" }` |
-| `POST` | `/mcp/test` | `{ "name" }` | 真实连一次：`{ ok, name, tools }`；失败时 `ok=false` 并带 `error` |
-| `GET` | `/skill/list?cwd=` | 无 | `{ skills, roots, state }`；`roots` 带 `exists`、`enabled`、`skillCount` |
-| `GET` | `/skill/read?name=&cwd=` | 无 | 技能的完整内容，含 `body` |
-| `POST` | `/skill/save` | `{ "name", "description", "body?", "scope?", "cwd?" }` | 保存后的技能；`scope` 是 `global` 或 `project` |
-| `POST` | `/skill/remove` | `{ "name", "scope?", "cwd?" }` | `{ "ok": true, "name" }`；外部目录里的技能不能删 |
-| `PATCH` | `/skill/toggle` | `{ "name", "enabled", "cwd?" }` | `{ "name", "enabled" }`；只影响模型清单，文件不动 |
-| `PATCH` | `/skill/source` | `{ "path", "enabled" }` | `{ "path", "enabled" }`；`path` 必须是存在且有可用技能的绝对路径，且只能落在已知配置目录（用户主目录、XDG 配置目录、Windows AppData、本应用数据目录）内，不搞全盘递归扫描 |
-`/mcp/list` 的 `cwd` 只影响项目级配置（`.mcp.json`、`.cursor/mcp.json`、`.vscode/mcp.json` 和 Claude Code 的项目表）；不填用后端当前目录。`/skill/list` 同理，只影响项目技能目录。
-
-识别只扫固定清单里的配置文件：Claude Desktop（三平台）、Claude Code（`~/.claude.json` 与 `~/.claude/settings.json`）、Cursor、VS Code、Windsurf、Cline、Roo Code、Continue、Gemini CLI、opencode、Codex、Zed、LM Studio；技能目录同理（`~/.agents/skills`、各工具 `skills/` 目录和当前目录的 `.agent/skills`）。不做全盘递归；技能扫描支持 symlink/junction 目录（readdir + stat，不用 Glob）。
-
-### 会话
-
-| 方法 | 地址 | 请求体 | 结果 |
-| --- | --- | --- | --- |
-| `GET` | `/session/list?search=` | 无 | 磁盘上全部会话的元信息，最近用过的排前面 |
-| `GET` | `/session/groups` | 无 | `{ groups: [{ id, name, sessions }] }`，数组顺序就是界面顺序 |
-| `PUT` | `/session/groups` | `{ "groups": [{ "id", "name", "sessions": [] }] }` | 整体保存分组；一个会话只能属于一个组，重名或重复会话按 400 返回 |
-| `POST` | `/session/create` | `{ "title", "cwd?", "provider?", "model?" }` | `{ "sessionId" }`；省略 `cwd` 时创建独立临时工作区 |
-| `POST` | `/session/fork/:sessionId` | `{ "title?", "messageId?" }` | `{ "sessionId" }`，复制历史和设置；不复制文件快照。分支只读，原会话运行中也能分支 |
-| `GET` | `/session/read/:sessionId` | 无 | 会话资料、完整 history、`todos`、`running`、`pending`、`settings`、`undoable` |
-| `GET` | `/session/history/:sessionId?before=&beforeOffset=&limit=` | 无 | 分页历史：`messages`、`start`、`end`、`startOffset`、`endOffset`、`total`、`hasMore`；`beforeOffset` 直接按 JSONL 字节游标扫描 |
-| `GET` | `/session/outline/:sessionId` | 无 | 全会话轮次大纲：`turns[{id,index,role,prompt,response}]` 和 `totalMessages` |
-| `PATCH` | `/session/rename/:sessionId` | `{ "title" }` | 更新后的会话资料 |
-| `POST` | `/session/title/:sessionId` | 无 | 按后续对话重新生成标题：`{ "title" }` |
-| `PATCH` | `/session/model/:sessionId` | `{ "provider?", "model?" }` | 更新后的会话资料；运行中返回 `409` |
-| `PATCH` | `/session/cwd/:sessionId` | `{ "cwd" }` | `{ "id", "cwd" }`；目录不存在返回 `400` |
-| `DELETE` | `/session/remove/:sessionId` | 无 | `{ "ok": true }` |
-| `GET` | `/session/settings/:sessionId` | 无 | 思考强度 |
-| `PATCH` | `/session/settings/:sessionId` | `{ "reasoning"? }` | 保存后的完整设置 |
-| `POST` | `/session/compact/:sessionId` | 无 | 压缩后的完整会话，另带 `content` |
-
-会话读取示例：
-
-```json
-{
-  "id": "session-id",
-  "title": "写前端",
-  "cwd": "D:/notes",
-  "provider": "default",
-  "model": "模型名",
-  "running": false,
-  "pending": [],
-  "todos": [{ "text": "读现有实现", "status": "completed" }],
-  "history": [
-    {
-      "messageId": "message-id",
-      "id": "block-id",
-      "role": "user",
-      "content": "帮我做一个页面"
-    }
-  ],
-  "settings": {
-    "reasoning": "auto"
-  },
-  "undoable": 0
-}
-```
-
-`pending` 是正在等用户批准的工具调用。审批请求只在 SSE 里出现一次；刷新页面后只有这个字段能告诉界面“有个工具在等你”。
-
-### 运行设置
-
-| 字段 | 默认 | 说明 |
-| --- | --- | --- |
-| `reasoning` | `auto` | `off` / `auto` / `low` / `medium` / `high` / `xhigh` / `max` |
-
-权限只有一层：`config.permission` 的全局规则，加每次询问的“始终允许 / 允许一次 / 拒绝”。没有会话级自动批准。全局 `*` 为 allow 是「全部批准」：它盖过工具默认的 ask，多行命令也不会因为前缀没对上再弹窗；明确的 deny 仍然拒绝。对象规则里的 `*` 是这个工具的默认动作，不是必须命中的通配；其余模式按参数匹配，并且 `*` 跨过斜杠和换行。规则已经是 allow 就直接放行，不会因为同一次调用重复出现再问一遍。配置每次保存后，还挂在弹窗上的审批会按新规则重新评估：改成了放行或拒绝就直接结算，不再等用户回来点按钮。
-
-模型能不能看图、能不能调用工具，只从 `providers[].models[].capabilities` 读取，不在会话里另存一份。
-
-### 回退与文件快照
-
-消息回退只改对话；文件恢复是文件工具的快照能力。接口允许分开做：
-
-| 方法 | 地址 | 请求体 | 结果 |
-| --- | --- | --- | --- |
-| `POST` | `/session/rollback/preview/:sessionId` | `{ "messageId" }` | `{ "messages": 4, "toolCalls": ["call-1"], "files": [...] }` |
-| `POST` | `/session/rollback/:sessionId` | `{ "messageId", "files?" }` | 回退后的完整会话，另带 `restored` |
-| `POST` | `/session/rollback/tool/:sessionId` | `{ "toolCallId", "files?" }` | 只退某次工具调用改的文件，另带 `restored` |
-| `POST` | `/session/redo/:sessionId` | `{ "files?" }` | 撤销最近一次回退，另带 `restored` |
-| `GET` | `/session/changes/:sessionId` | 无 | agent 改过的文件：`path`、`before`、`after`、`added`、`deleted` |
-| `GET` | `/session/tools/:sessionId` | 无 | 每次改过文件的工具调用，用来列出可回退的点 |
-
-`files` 传 `false` 只退对话，不动磁盘。回退任何一条消息时，它和它之后的对话都会退掉；预览的 `toolCalls` 是这次会一起回退的工具调用，文件恢复按调用 id 精确匹配，没有调用 id 的旧快照退回按消息归属判断。文件快照按工具调用分组，同一份内容只备份一次；它只由文件工具自己维护。
-
-### Agent
-
-| 方法 | 地址 | 请求体 | 结果 |
-| --- | --- | --- | --- |
-| `POST` | `/agent/send/:sessionId` | `{ "input" }`；`input` 是字符串，或内容块数组 `{ type: "text" \| "image" }`（图片为 data URL / http(s) URL，base64 上限 8M 字符） | `{ "ok": true }`，过程走 SSE |
-| `POST` | `/agent/resume/:sessionId` | 无 | `{ "ok": true }`，继续被中断的助手；服务启动时也会对被打断的会话自动调用 |
-| `POST` | `/agent/stop/:sessionId` | 可选 `{ "partial" }` | `{ "ok": true/false }` |
-| `POST` | `/agent/decide/:sessionId` | `{ "toolCallId", "decision" }` | `{ "ok": true/false }` |
-
-`decision` 只能是：
-
-| 值 | 含义 |
-| --- | --- |
-| `allow-once` | 只允许本次调用 |
-| `allow-always` | 允许本次，并把这类操作写进权限规则 |
-| `deny` | 拒绝本次调用 |
-
-`allow-always` 记住的是“用户心里那个操作”：命令类工具按命令前缀记，其他工具按完整参数记。
-
-图片随用户消息进入 history 常驻；每次请求模型前由配置的 `capabilities` 决定发不发图片块（`mediaFallback: 'strip'`），没开 `image` 能力的模型只看到文字，切换模型后图片仍然完整保留在历史里。base64 图片上限 8M 字符，data URL 与 http(s) URL 都接受。
-
-### SSE
-
-```text
-GET /sse/connect/:sessionId
-Accept: text/event-stream
-```
-
-每条事件的 `data` 是 JSON：
-
-| `type` | 主要字段 | 前端行为 |
-| --- | --- | --- |
-| `text-delta` | `text`，压缩时 `request: 'compact'` | 仅普通回答追加到 assistant 文本 |
-| `reasoning-delta` | `text`，压缩时 `request: 'compact'` | 仅普通回答追加到 assistant 思考文本 |
-| `retry` | `attempt`, `error`, `delay` | 显示正在重试 |
-| `llm-start` | `messages`, `tools`, `startedAt`, `provider`, `model` | 显示正在请求模型；`startedAt` 是这次请求的真实开始时间，供应商 / 模型用于统计，重连后计时接着走 |
-| `llm-first-token` | `firstTokenAt`, `firstTokenMs` | 第一次收到内容增量；用来显示首字时间，重连后也能恢复 |
-| `llm-finish` | `text`, `toolCalls`, `finishReason`, `usage`, `durationMs` | 统计本轮模型请求；`usage` 里带 `firstTokenMs`、`durationMs`、输入 / 输出 / 缓存和这次请求的 `provider` / `model` |
-| `tool-call` | `toolCallId`, `toolName`, `input` | 创建工具卡片 |
-| `tool-output` | `toolName`, `stream`, `data` | 追加工具实时输出 |
-| `tool-result` | `toolCallId`, `toolName`, `input`, `output` | 更新工具最终结果；拒绝、取消、无效调用也会结算 |
-| `permission` | `callID`, `tool`, `input` | 显示“始终允许 / 允许一次 / 拒绝” |
-| `permission-blocked` | `callID`, `tool`, `input`, `reason` | 被权限规则拒绝，不用等用户决定 |
-| `mcp-error` | `server`, `error` | 某个 MCP 服务没连上，只是跳过 |
-| `compact-start` / `compact-finish` | `messages` + `startedAt` / `content`, `usage`, `durationMs` | 上下文压缩进度；`usage` 已统一成 `input` / `output` / `cacheRead` / `total` |
-| `title` | `title` | 后端起好了标题 |
-| `agent-start` | 无 | 任务开始 |
-| `agent-resume` | 无 | 继续任务开始 |
-| `agent-finish` | `reason`, `usage`, `text`；失败时 `error` | 任务结束，前端重新读取会话 |
-
-工具结果 `output` 是 AI SDK 标准结构：`text`、`json`、`error-text`、`execution-denied`、`content`。用户主动停止只发一条 `agent-finish`，`reason` 是 `stopped`。
-
-压缩请求的原生流事件统一带 `request: 'compact'`，必须先分流，不能当成普通回答或停止时的 `partial`。`compact-start` 带 `messages` 和 `startedAt`；`compact-finish.content` 是总结正文，`usage` 已统一成 `input` / `output` / `cacheRead` / `total` / `durationMs`（不再是原始 AI SDK 字段）；`agent-finish.usage` 已包含自动压缩的请求消耗，不要再重复累加。手动压缩调用的是实例 `agent.compact()`，返回的 `content` 仍为字符串；底层 `Agent.compact.run()` 才返回 `{ content, usage }`，二者不混用。
+生成时逐条对账：少了说明、多了幽灵路由、缺 summary / operationId / responses，都直接报错退出。
+版本号只从 `package.json` 取。不存在第二份手写的接口清单——两份必然漂移。
 
 ## 部署注意事项
 
@@ -527,6 +316,3 @@ Accept: text/event-stream
 
 前端和后端不在同一个域名或端口时，浏览器会要求 CORS 响应头；当前后端没有单独配置 CORS。推荐让前端静态文件和后端使用同一个域名和端口，或在反向代理中转发 `/session`、`/agent`、`/sse`、`/config`、`/tool`。反向代理必须关闭 SSE 缓冲，并允许长连接。
 
-## 接口文档
-
-`openapi.json` 是每个接口的详细说明（参数、响应、错误），改接口时记得一起改。

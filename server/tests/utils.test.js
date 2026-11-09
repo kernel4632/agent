@@ -82,6 +82,25 @@ describe('server HTTP API', () => {
             expect(created.status).toBe(200)
             const { sessionId } = await created.json()
 
+            // historyLimit 只返回最近一页，并给出完整历史里的起始下标。
+            for (const content of ['one', 'two', 'three']) {
+                await History.add({ sessionId, message: { role: 'user', content } })
+            }
+            await History.save(sessionId)
+            const windowedResponse = await request(`/session/read/${sessionId}?historyLimit=2`)
+            expect(windowedResponse.status).toBe(200)
+            const windowed = await windowedResponse.json()
+            expect(windowed).toMatchObject({ historyStart: 1, historyTotal: 3 })
+            expect(windowed.history).toHaveLength(2)
+
+            const fromStart = await (await request(`/session/read/${sessionId}?historyStart=1`)).json()
+            expect(fromStart).toMatchObject({ historyStart: 1, historyTotal: 3 })
+            expect(fromStart.history).toHaveLength(2)
+
+            const searched = await (await request(`/session/search/${sessionId}?q=two`)).json()
+            expect(searched.results).toHaveLength(1)
+            expect(searched.results[0]).toMatchObject({ id: expect.any(String), index: 1, match: 'two' })
+
             const read = await request(`/session/read/${sessionId}`)
             expect(read.status).toBe(200)
             const session = await read.json()
@@ -144,6 +163,18 @@ describe('server HTTP API', () => {
             expect(response.status).toBe(400)
             const { error } = await response.json()
             expect(error).toContain('input')
+        })
+    })
+
+    test('accepts an image content-block input through HTTP validation', async () => {
+        await withHome(async () => {
+            const response = await jsonRequest('/agent/send/some-session', 'POST', {
+                input: [{ type: 'text', text: '看图' }, { type: 'image', image: 'data:image/png;base64,AA==' }],
+            })
+            expect(response.status).toBe(404) // 会话不存在，但已经过了形状校验
+            const { error } = await response.json()
+            expect(error).not.toContain('Expected string')
+            expect(error).not.toContain('input 不对')
         })
     })
 

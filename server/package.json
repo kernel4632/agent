@@ -1,12 +1,14 @@
 {
   "name": "universal-agent",
-  "version": "0.81.0",
+  "version": "0.89.1",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
     "build": "bun build server.js --outfile dist/server.js --target bun --minify",
     "test": "bun test",
+    "openapi": "bun scripts/openapi.js",
+    "openapi:check": "bun scripts/openapi.js --check",
     "test:real": "RUN_REAL_MODEL=1 RUN_REAL_AGENT=1 bun test tests/real.test.js"
   },
   "dependencies": {
@@ -19,6 +21,7 @@
     "html-to-text": "^10.0.1",
     "nanoid": "^5.1.5",
     "picomatch": "^4.0.3",
+    "smol-toml": "^1.9.1",
     "zod": "^4.0.0"
   },
   "devDependencies": {

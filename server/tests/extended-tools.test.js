@@ -281,10 +281,54 @@ describe('execute_command 的 background 参数', () => {
 
     test('background 参数缺省时保持原行为：等命令结束', async () => {
         const shell = (await import('../tools/shell.js')).default
+        expect(shell.inputSchema.properties.timeout).toMatchObject({ minimum: 1000, maximum: 30000 })
         const result = await shell.execute({ command: 'echo foreground-ok' }, {})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('foreground-ok')
         expect(result.background).toBeUndefined()
+    })
+
+    // 这条是修的那个 bug：引号里的空格应该是一个参数，不是一个分隔符。
+    // 以前的实现把整条命令当成一个 argv 塞给 cmd，引号既没被解析、
+    // 又被 cmd 当字面字符，`"not planned"` 到了程序里变成两个参数。
+    test('带空格的引号参数原样到达程序', async () => {
+        const shell = (await import('../tools/shell.js')).default
+        const script = await writeScript('echo-args', 'console.log(JSON.stringify(process.argv.slice(2)))')
+
+        const result = await shell.execute({
+            command: `"${process.execPath}" "${script}" "not planned"`,
+        }, {})
+        expect(result.exitCode).toBe(0)
+        // 两个词一个参数，而不是被劈成 "not" 和 "planned"
+        expect(JSON.parse(result.stdout.trim())).toEqual(['not planned'])
+        await rm(script, { force: true })
+    })
+
+    test('空引号参数也会传下去，不会被丢掉', async () => {
+        const shell = (await import('../tools/shell.js')).default
+        const script = await writeScript('echo-empty', 'console.log(process.argv.length - 2)')
+
+        const result = await shell.execute({
+            command: `"${process.execPath}" "${script}" ""`,
+        }, {})
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout.trim()).toBe('1')
+        await rm(script, { force: true })
+    })
+
+    test('引号里的 shell 字符不被当语法，真管道仍然能跑', async () => {
+        const shell = (await import('../tools/shell.js')).default
+        const script = await writeScript('echo-pipe', 'console.log(process.argv[2])')
+
+        // 引号里的 | 是普通字符，应该原样传给程序
+        const literal = await shell.execute({ command: `"${process.execPath}" "${script}" "a | b"` }, {})
+        expect(literal.stdout.trim()).toBe('a | b')
+
+        // 真管道必须走 shell，否则整条命令就不是一个程序了
+        const piped = await shell.execute({ command: 'echo hello | findstr hello' }, {})
+        expect(piped.exitCode).toBe(0)
+        expect(piped.stdout).toContain('hello')
+        await rm(script, { force: true })
     })
 
     test('超时不杀进程，交棒给后台，已产生的输出不丢', async () => {
@@ -299,13 +343,14 @@ describe('execute_command 的 background 参数', () => {
             expect(result.id).toMatch(/^[0-9a-f]{4}$/)
             // 关键：已经跑出来的输出还在，模型不必重跑命令
             expect(result.output).toContain('早先的输出')
-            expect(result.hint).toContain('background')
+            expect(result.hint).toContain('moved to the background')
+            expect(result.hint).toContain('continue with other independent work')
 
             // 交棒后真的能接着用 background 读日志和停掉——同一个进程没被重跑
             const log = await Background.execute({ action: 'log', id: result.id }, {})
             expect(log.running).toBe(true)
             expect(log.output).toContain('早先的输出')
-            await Background.execute({ action: 'stop', id: result.id }, {})
+            await Background.execute({ action: 'kill', id: result.id }, {})
             await rm(script, { force: true })
         })
     }, 30_000)
