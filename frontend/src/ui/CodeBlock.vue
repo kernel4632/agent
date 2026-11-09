@@ -8,6 +8,7 @@ import Button from './Button.vue'
 import Dialog from './Dialog.vue'
 import Icon from './Icon.vue'
 import { Notice } from '../utils/notice.js'
+import * as MermaidCache from '../utils/mermaid-cache.js'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
 const status = ref('复制')
 let timer
@@ -146,6 +147,16 @@ async function draw() {
     diagramError.value = result.error
     return
   }
+  // 同一张图在刷新/重新打开会话后也已经画过：优先读持久缓存，不重新跑 mermaid。
+  const persisted = await MermaidCache.read(key)
+  if (persisted) {
+    const result = { svg: persisted.svg, error: '' }
+    diagramCache.set(key, Promise.resolve(result))
+    if (token !== drawToken) return
+    diagram.value = result.svg
+    diagramError.value = result.error
+    return
+  }
 
   // mermaid 的临时元素按 id 挂在全局 DOM 上，两个组件实例不能撞 id，用随机 id 保证唯一。
   const id = `mermaid-${crypto.randomUUID()}`
@@ -165,6 +176,7 @@ async function draw() {
   })
   diagramCache.set(key, task)
   const result = await task
+  if (result.svg) void MermaidCache.write(key, result)
   if (token !== drawToken) return
   diagram.value = result.svg
   diagramError.value = result.error
