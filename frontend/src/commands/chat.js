@@ -283,6 +283,11 @@ function startCompact(session, event) {
     firstTokenAt: 0,
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
     content: '', reasoning: '',
+    compactReason: event.reason || '',
+    compactToken: Number(event.token) || 0,
+    compactBudget: Number(event.budget) || 0,
+    compactThreshold: Number(event.compactThreshold) || 0,
+    compactRatio: Number(event.ratio) || 0,
   }
   assistant.steps.push({ type: 'compact', request })
   assistant.isStreaming = true
