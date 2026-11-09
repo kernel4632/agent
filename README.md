@@ -6,7 +6,7 @@
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，48 个接口，`bun test` 覆盖每条路由 |
+| `server/` | 可用 | Bun + Elysia 服务端，`bun test` 覆盖每条路由 |
 | `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
 | `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
@@ -118,7 +118,7 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 | `GET` | `/sse/connect/{sessionId}` | 订阅实时事件 |
 
 错误响应统一是 `{ "error": "说明" }`：填错按 400、找不到按 404、会话在跑按 409、程序问题按 500。
-完整说明见 [`server/openapi.json`](server/openapi.json)，前端怎么接见 [`server/README.md`](server/README.md)。
+接口清单、SSE 事件表和权限规则见 [`server/README.md`](server/README.md)。
 
 ## macOS
 

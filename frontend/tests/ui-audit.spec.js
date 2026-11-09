@@ -1,5 +1,5 @@
 /*
-界面回归：使用受 OpenAPI 约束的模拟接口检查交互；真实联调由 ui-live.spec.js 负责。
+界面回归：使用受 server.js 路由约束的模拟接口检查交互；真实联调由 ui-live.spec.js 负责。
 和 ui-motion.spec.js 共用 chat-fixture.js 的接口 mock；动效断言在另一个文件。
 运行：bun run test:ui
 */
@@ -676,6 +676,58 @@ test('compact boundaries fold the history before them and keep the current segme
   await expect(page.getByText('压缩前的旧问题', { exact: true })).toBeVisible()
   await page.locator('.history-fold__head').click()
   await expect(page.getByText('压缩前的旧问题', { exact: true })).toHaveCount(0)
+  expect(mock.errors).toEqual([])
+})
+
+test('segmented session loads only the current segment and fetches a folded segment on demand', async ({ page }) => {
+  const mock = await backend(page)
+  mock.sessions.set('segmented-1', {
+    id: 'segmented-1',
+    title: '分段加载',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history: [
+      { messageId: 'segment-u2', role: 'user', content: '分段当前问题' },
+      { messageId: 'segment-a2', role: 'assistant', content: [{ type: 'text', text: '分段当前回答' }] },
+    ],
+    historyTotal: 5,
+    historyManifest: {
+      format: 2,
+      total: 5,
+      segments: [{
+        id: 'segment-0001',
+        count: 2,
+        startIndex: 0,
+        endIndex: 1,
+        compactIndex: 2,
+        messageIds: ['segment-u1', 'segment-a1'],
+        compact: { messageId: 'segment-c1', role: 'user', compact: true, content: '分段旧摘要' },
+      }],
+    },
+    segmentData: {
+      'segment-0001': [
+        { messageId: 'segment-u1', role: 'user', content: '分段旧问题' },
+        { messageId: 'segment-a1', role: 'assistant', content: [{ type: 'text', text: '分段旧回答' }] },
+      ],
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: { reasoning: 'auto' },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '分段加载', exact: true }).click()
+  await expect(page.locator('.history-fold')).toHaveCount(1)
+  await expect(page.getByText('分段当前问题', { exact: true })).toBeVisible()
+  await expect(page.getByText('分段旧问题', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.timeline-compaction')).toContainText('上下文已压缩')
+  await page.locator('.history-fold__head').click()
+  await expect(page.getByText('分段旧问题', { exact: true })).toBeVisible()
+  await expect(page.locator('.history-fold__meta')).toContainText('2 轮')
   expect(mock.errors).toEqual([])
 })
 

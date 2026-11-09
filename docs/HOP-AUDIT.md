@@ -35,7 +35,6 @@ features/              独立业务模块，互相不 import
 utils/                 fail.js、path.js、sse.js、usage.js
 tools/                 一个文件一组工具，启动时自动扫描
 tests/                 真实 HTTP 请求 + 临时数据目录
-openapi.json           接口说明，和 package.json 版本同步
 ```
 
 前端：
@@ -81,7 +80,7 @@ go test ./...
 
 - 加工具：只往 `server/tools/` 放一个文件，写 `name`、`kind`、`description`、`inputSchema`、`execute`；会改文件的工具再带 `snapshot`。
 - 改发送、停止、继续、回退：先看 `commands/chat.js` 的收尾顺序和 `tools/file.js` 的快照语义，再改测试。
-- 改接口：`server/openapi.json`、`server/README.md`、`frontend/src/utils/api.js` 三处一起改；`server/tests/contract.test.js` 会盯着路由和文档是否对得上。
+- 改接口：`server/README.md` 和 `frontend/src/utils/api.js` 一起改；路由只在 `server/server.js` 注册一次，前端测试直接解析它核对路径。`server/tests/contract.test.js` 会盯着版本、工具类别、结束工具名单和 SSE 事件表。
 - 加 feature 依赖：只改 `server.js` 的装配段，不要回到命令文件里各写一份 `Agent.bind(...)`。
 - 数据目录：测试和开发都用 `AGENT_HOME` 指向临时目录，不写真实 `~/.agent`。
 

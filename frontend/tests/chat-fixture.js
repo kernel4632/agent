@@ -8,13 +8,10 @@
 */
 import { expect } from '@playwright/test'
 import { createServer } from 'node:http'
-import { readFileSync } from 'node:fs'
+import { patternOf, serverRoutes } from './server-routes.js'
 
-// 模拟接口也受现行 OpenAPI 约束，已经删掉的路径不能继续假装返回成功。
-const contract = JSON.parse(readFileSync(new URL('../../server/openapi.json', import.meta.url), 'utf8'))
-const routes = Object.entries(contract.paths).flatMap(([path, methods]) => Object.keys(methods).map(method => ({
-  method: method.toUpperCase(), pattern: new RegExp(`^${path.replace(/\{[^}]+\}/g, '[^/]+')}$`),
-})))
+// 模拟接口按 server.js 的真实注册来：已经删掉的路径不能继续假装返回成功。
+const routes = serverRoutes.map(route => ({ method: route.method, pattern: patternOf(route.path) }))
 
 export async function backend(page, { configured = true } = {}) {
   let config = {
@@ -352,6 +349,13 @@ export async function backend(page, { configured = true } = {}) {
       })
       return json({ sessionId: id })
     }
+    if (path.startsWith('/session/segment/')) {
+      const parts = path.split('/')
+      const target = sessions.get(parts[3])
+      if (!target) return json({ error: 'Session not found' }, 404)
+      const segmentID = parts[4]
+      return json({ id: segmentID, messages: target.segmentData?.[segmentID] || [] })
+    }
     const id = path.split('/').at(-1)
     const session = sessions.get(id)
     if (path.startsWith('/session/model/')) {
@@ -414,7 +418,8 @@ export async function backend(page, { configured = true } = {}) {
     }
     if (path.startsWith('/session/open/')) {
       const visible = session.history.filter(item => !item.internal)
-      const payload = { type: 'session', session: { ...session, history: visible, historyTotal: visible.length } }
+      const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+      const payload = { type: 'session', session: { ...session, history: visible, historyTotal: total } }
       return route.fulfill({
         status: 200,
         headers: { 'content-type': 'text/event-stream; charset=utf-8' },
@@ -424,7 +429,8 @@ export async function backend(page, { configured = true } = {}) {
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。
     if (path.startsWith('/session/read/')) {
       const visible = session.history.filter(item => !item.internal)
-      return json({ ...session, history: visible, historyTotal: visible.length })
+      const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+      return json({ ...session, history: visible, historyTotal: total })
     }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }

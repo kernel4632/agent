@@ -110,7 +110,6 @@ server/
   server.js              入口：装配有状态模块、注册路由、统一错误、启动；健康检查也在这里
   store.js               全局数据中心：纯对象，直接看到 config 和 sessions
   package.json
-  openapi.json
   README.md
   .gitignore
   bun.lock
@@ -349,7 +348,7 @@ server.js
 - 删除 `components/results/` 中按工具类型维护的专用视图。`ToolResult.vue` 统一呈现输入参数、返回文本或 JSON、执行状态和已有动作；增加工具不再增加前端渲染器，也不把这些分支搬进一个大文件。
 - `components/` 按导航、输入、对话、运行信息、反馈、偏好设置、供应商设置、能力设置归类，每组 2～5 个 Vue 文件；对应 SCSS 同步迁移。分组用于浏览同类可见区域，不分拆 commands 功能主体。
 - `views/`、`ui/` 只保留 Vue 组件。页面装配表并回页面，控件出口改成显式导入；删除随品牌图标取消的 JS 和无调用者的头像工具。功能操作归 commands，通用传输和浏览器能力继续归 utils。
-- 删除 `frontend/docs/` 的过期接口副本和完成计划；保留精简的当前 README，接口以 `server/README.md`、`server/openapi.json`、`src/utils/api.js` 为准。完成计划不再长期留在源码旁。
+- 删除 `frontend/docs/` 的过期接口副本和完成计划；保留精简的当前 README，接口以 `server/README.md`、`server/server.js`、`src/utils/api.js` 为准。完成计划不再长期留在源码旁。
 - 根目录 `docs/frontend-*` 是已完成设计和旧结构的快照，一并清理；需要可视化时从当前源码生成到 `tmp/`，避免留下第二份过期说明。
 
 ## 十三、前端与当前后端保持一致
@@ -357,4 +356,4 @@ server.js
 - 会话列表直接读取 `/session/list`，目录只使用会话的 `cwd`；不再请求已删除的 `/workspace/read`、`/agent/list`、`/command/list`。
 - 配置按当前 `providers[].models[]`、`models.{chat,compact,title,task}`、`compact.threshold` 读写；会话设置只有 `reasoning`。模型能力用英文标识保存、中文标签显示。
 - 不展示后端已经移除的智能体编辑、斜杠命令、全局能力和高级设置；不增加旧接口兼容层。
-- `bun run test:live` 启动真实前后端验证读写，只有模型服务使用本机固定回复；模拟界面测试同时检查 OpenAPI 路径，不能用过期 mock 代替联调结果。
+- `bun run test:live` 启动真实前后端验证读写，只有模型服务使用本机固定回复；模拟界面测试同时检查 server.js 注册的路由，不能用过期 mock 代替联调结果。

@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { patternOf, serverRoutes } from './server-routes.js'
 import { readSSE } from '../src/utils/sse.js'
 import { AgentAPI } from '../src/utils/api.js'
 
@@ -30,7 +30,7 @@ test('a malformed frame is skipped without breaking the stream', async () => {
   assert.deepEqual(events.map(event => event.type), ['a', 'b'])
 })
 
-test('所有前端请求的方法与路径都存在于现行 OpenAPI', async t => {
+test('所有前端请求的方法与路径都存在于 server.js 注册的路由', async t => {
   const calls = []
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     calls.push({ url, options, body: options.body ? JSON.parse(options.body) : undefined })
@@ -114,11 +114,12 @@ test('所有前端请求的方法与路径都存在于现行 OpenAPI', async t =
   await AgentAPI.forkSession('session-test', { messageId: 'message-1' })
   await AgentAPI.resumeSession('session-test')
   await AgentAPI.removeSession('session-test')
-  const { paths } = JSON.parse(readFileSync(new URL('../../server/openapi.json', import.meta.url), 'utf8'))
+  // 前端发出的每条请求，必须在 server.js 里真实注册过。
   for (const call of calls) {
     const path = new URL(call.url, 'http://test').pathname.replace(/^\/api/, '')
-    const entry = Object.entries(paths).find(([template]) => new RegExp(`^${template.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(path))
-    assert.ok(entry?.[1][(call.options.method || 'GET').toLowerCase()], `接口不存在：${call.options.method || 'GET'} ${path}`)
+    const method = (call.options.method || 'GET').toUpperCase()
+    const exists = serverRoutes.some(route => route.method === method && patternOf(route.path).test(path))
+    assert.ok(exists, `接口不存在：${method} ${path}`)
   }
 })
 

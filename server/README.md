@@ -63,7 +63,9 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   sessions-move.json   等待重启执行的会话迁移（仅迁移期间存在）
   sessions/<id>/       每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
-    history.jsonl      追加式消息历史；正常保存只追加
+    history.jsonl      未发生上下文压缩时的追加式历史
+    history-index.json 压缩会话的分段索引：每个 compact 边界、段文件、当前段和压缩摘要
+    history/           压缩会话的封存段（segment-XXXX.jsonl）和当前段（current.jsonl）
     history-redo.json  回退撤销栈
     settings.json      思考强度
     tool-timings.json  工具开始/结束时间，刷新后恢复计时
@@ -77,6 +79,8 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 默认情况下全局技能在 `%USERPROFILE%\.agents\skills`，不在数据目录里；测试或容器里把 `AGENT_HOME` 指到临时目录时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。项目技能放在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。
 
 会话历史、文件快照和工具输出占用会持续增长，可通过「设置 → 数据管理 → 会话数据目录」把整个 `sessions/` 单独放到其他磁盘。服务只写入待迁移标记，重启后在加载会话前复制并切换；旧目录保留。启动时也可以用 `AGENT_SESSIONS` 直接指定会话目录，此时界面为只读。
+
+第一次出现 `compact` 消息时，后端会把单体 `history.jsonl` 按压缩边界迁移成 `history-index.json + history/`。`GET /session/open/{sessionId}` 只返回 `historyManifest` 和最后一次压缩之后的当前段；展开历史段时前端调用 `GET /session/segment/{sessionId}/{segmentId}`。`GET /session/read/{sessionId}` 仍然返回完整历史，供 CLI 和旧客户端使用，不受分段影响。
 
 新会话如果没有传 `cwd`，会在系统临时目录的 `agent/` 下创建独立工作区（`session-*`），避免 agent 默认在项目代码旁边动手。删除会话时清理该临时目录；用户在「切换工作区」里换成真实目录后，会话的 `temporary` 变为 `false`，旧临时目录也会被清理。可以用 `AGENT_TMP` 改临时工作区的根目录。
 
@@ -304,16 +308,20 @@ bun start
 
 ## 接口
 
-接口的唯一来源是 `openapi.json`，它由 `api.js`（每个接口的说明）和 `server.js`（实际注册的路由）生成：
+路由只有一处来源：`server.js` 里的注册语句（路径、方法、Elysia 入参校验都写在那里）。没有单独的接口清单文件，也没有生成步骤。
 
-```bash
-cd server
-bun run openapi          # 生成 openapi.json
-bun run openapi:check    # 只检查是否过期
-```
+- 前端测试直接解析 `server.js` 得到路由表（`frontend/tests/server-routes.js`）：mock 后端只回应真实注册过的路径，前端发起的每一次请求都必须在里面。
+- `bun test` 里的契约测试盯着需要对齐的东西：健康检查版本 = `package.json`、工具类别、按任务的模型、结束工具名单，以及下面的 SSE 事件表。
+- 改接口时改两处：本文档（前端怎么接）和 `frontend/src/utils/api.js`（前端实际发的请求）。
 
-生成时逐条对账：少了说明、多了幽灵路由、缺 summary / operationId / responses，都直接报错退出。
-版本号只从 `package.json` 取。不存在第二份手写的接口清单——两份必然漂移。
+### SSE 事件
+
+`GET /sse/connect/{sessionId}` 推的事件类型：`agent-start`、`agent-resume`、`agent-finish`、`text-delta`、`reasoning-delta`、`retry`、`llm-start`、`llm-first-token`、`llm-finish`、`tool-call`、`tool-output`、`tool-result`、`tool-input-start`、`tool-input-delta`、`tool-input-end`、`permission`、`permission-blocked`、`mcp-error`、`compact-start`、`compact-finish`、`title`。
+
+- `llm-start` 带 `startedAt`（这次请求的真实开始时间）和 `provider` / `model`。
+- `llm-first-token` 带 `firstTokenAt` / `firstTokenMs`；`llm-finish.usage` 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 `provider` / `model`。
+- 压缩请求的原生流事件带 `request=compact`，不能追加到助手正文、思考或停止时的 partial；`compact-start` 带 `messages` 和 `startedAt`，`compact-finish` 带 `content`、`durationMs` 和统一后的 `usage`。
+- `agent-finish.usage` 包含自动压缩用量；工具拒绝、取消和无效调用也会发一条 `tool-result`。
 
 ## 部署注意事项
 
