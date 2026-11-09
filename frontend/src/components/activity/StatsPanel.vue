@@ -22,6 +22,16 @@ const rawPercent = computed(() => {
   return Math.max(0, Number(context.value.used || 0) / limit * 100)
 })
 const percent = computed(() => Math.min(100, rawPercent.value))
+const estimate = computed(() => context.value.estimate || null)
+const estimatePercent = computed(() => {
+  if (!estimate.value) return 0
+  const budget = Number(estimate.value.budget || context.value.limit || 0)
+  if (!budget) return 0
+  return Math.max(0, Number(estimate.value.tokens || 0) / budget * 100)
+})
+const estimateClass = computed(() => estimatePercent.value >= 100
+  ? 'is-danger'
+  : estimatePercent.value >= threshold.value ? 'is-warn' : '')
 const percentText = computed(() => {
   const prefix = contextApproximate.value ? '~' : ''
   if (rawPercent.value > 0 && rawPercent.value < 1) return `${prefix}<1%`
@@ -176,12 +186,24 @@ const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? '
         <div class="stats-panel__hero">
           <div class="stats-panel__ring">
             <RingProgress :class="ringClass" :value="percent" :max="100" :size="92" :stroke-width="8" label="上下文占用" />
+            <RingProgress
+              v-if="estimate"
+              class="stats-panel__ring-estimate"
+              :class="estimateClass"
+              :value="estimatePercent"
+              :max="100"
+              :size="92"
+              :stroke-width="8"
+              label="预估上下文占用"
+              aria-hidden="true"
+            />
             <span class="stats-panel__percent">{{ percentText }}</span>
           </div>
           <div class="stats-panel__context">
             <div class="stats-panel__value">
               <strong>{{ formatTokens(context.used, contextApproximate) }}</strong>
               <span>/ {{ formatTokens(context.limit) }}</span>
+              <span v-if="estimate" class="stats-panel__estimate">（估算 {{ formatTokens(estimate.tokens) }}）</span>
             </div>
             <div class="stats-panel__left" :class="{ 'is-over': context.over }">
               <span>{{ context.over ? '超出' : '剩余' }} {{ formatTokens(context.over ? overBy : remaining, contextApproximate) }}</span>

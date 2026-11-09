@@ -54,14 +54,26 @@
   content: "";
 }
 .stats-panel__ring :deep(.ui-ring-progress) { position: relative; color: var(--la-accent); }
+.stats-panel__ring :deep(.stats-panel__ring-estimate) {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  color: var(--la-accent);
+  opacity: .38;
+  pointer-events: none;
+}
+.stats-panel__ring :deep(.stats-panel__ring-estimate .ui-ring-progress__track) { stroke: transparent; }
+.stats-panel__ring :deep(.stats-panel__ring-estimate.is-warn) { color: var(--la-warning); }
+.stats-panel__ring :deep(.stats-panel__ring-estimate.is-danger) { color: var(--ui-color-error); }
 .stats-panel__ring :deep(.ui-ring-progress__track) { stroke: color-mix(in srgb, var(--la-text) 16%, transparent); }
 .stats-panel__ring :deep(.ui-ring-progress.is-warn) { color: var(--la-warning); }
 .stats-panel__ring :deep(.ui-ring-progress.is-danger) { color: var(--ui-color-error); }
-.stats-panel__percent { position: absolute; color: var(--la-text); font-size: 18px; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.stats-panel__percent { position: absolute; z-index: 2; color: var(--la-text); font-size: 18px; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .stats-panel__context { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .stats-panel__value { display: flex; min-width: 0; align-items: baseline; gap: 5px; }
 .stats-panel__value strong { color: var(--la-text); font-size: 24px; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; line-height: 1.12; }
 .stats-panel__value span { color: var(--la-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-panel__value .stats-panel__estimate { color: color-mix(in srgb, var(--la-muted) 82%, transparent); font-size: 11px; }
 .stats-panel__left { color: var(--la-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .stats-panel__left.is-over { color: var(--ui-color-error); }
 /* 上下文进度条：比原先粗一档，轨道和阈值标记都要看得清。 */
