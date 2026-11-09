@@ -53,6 +53,38 @@ const validationMessage = error => {
     return field ? `${where}里的 ${field} 不对：${reason}` : `${where}格式不对：${reason}`
 }
 
+// --- gzip 压缩：JSON 响应在客户端支持时压缩，28MB → 10MB ---
+// SSE 不压缩（fetch 不会为 EventStream 解压，只会为 Response.body 解压）。
+const compress = response => {
+    if (typeof response !== 'object' || response.constructor !== Object) return response
+    return new Response(JSON.stringify(response), {
+        headers: { 'content-type': 'application/json', 'content-encoding': 'gzip' },
+    })
+}
+
+const shouldCompress = request => {
+    const header = request.headers.get('accept-encoding') || ''
+    return /\bgzip\b/i.test(header)
+}
+
+app.onAfterHandle(({ request, response, set }) => {
+    // Response 已经是原始对象、SVG 或下载，不再包一次。
+    if (response instanceof Response) return response
+    // SSE 走 EventStream，fetch 不会解压，跳过。
+    if (set.headers['content-type'] === 'text/event-stream') return response
+    // 客户端支持 gzip 且响应体是 JSON 对象时压缩。
+    if (shouldCompress(request) && typeof response === 'object' && response.constructor === Object) {
+        const body = JSON.stringify(response)
+        return new Response(Bun.gzipSync(body), {
+            headers: {
+                'content-type': 'application/json',
+                'content-encoding': 'gzip',
+            },
+        })
+    }
+    return response
+})
+
 // --- 转换业务错误 ---
 app.onError(({ error, set, code }) => {
     // 入参形状不对是用户能自己改的。状态码沿用项目既有约定 400（契约里一直这么返回），
@@ -112,7 +144,10 @@ app.group('/session', session => session
         body: t.Object({ title: t.String(), cwd: t.Optional(t.String()), provider: t.Optional(t.String()), model: t.Optional(t.String()) }),
     })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
-    .get('/read/:sessionId', ({ params }) => Session.read(params))
+    // ?after=<messageId>  增量读，只返回该消息之后的新内容（finishRun / stop / 重连用）
+    // ?segmented=true      只返回 manifest + 当前段，首次打开有历史的长会话用
+    // ?segment=<segmentId> 读某一个封存段的消息，折叠的历史段展开时用
+    .get('/read/:sessionId', ({ params, query }) => Session.read({ ...params, ...query }))
     .patch('/rename/:sessionId', ({ params, body }) => Session.rename({ ...params, ...body }), {
         params: SessionParams,
         body: t.Object({ title: t.String() }),

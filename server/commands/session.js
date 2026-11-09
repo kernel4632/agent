@@ -136,7 +136,13 @@ const fork = async ({ sessionId, title, messageId }) => {
     return { sessionId: branch.id }}
 
 // --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
-const read = async ({ sessionId, onProgress, segmented = false }) => {
+const read = async ({ sessionId, onProgress, segmented = false, after, segment: segmentId } = {}) => {
+    // --- segment 模式：只读一个封存段，给折叠的历史段展开用 ---
+    if (segmentId) {
+        const messages = await History.segment({ sessionId, segmentId })
+        return { id: sessionId, segment: segmentId, messages }
+    }
+
     await ContextUsage.hydrate(sessionId)
     const session = await History.load(sessionId, { onProgress })
     const agent = Agent.runtime().get(sessionId)
@@ -151,7 +157,32 @@ const read = async ({ sessionId, onProgress, segmented = false }) => {
         if (agent) agent.history = history
         // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
-    const page = segmented ? History.page({ sessionId, history }) : null
+
+    // --- after 模式：增量读，只返回指定消息之后的新增内容 ---
+    // historyStats / toolTimings / contextEstimate 基于完整历史，不能只算增量。
+    if (after) {
+        const afterIndex = history.findIndex(message => message.messageId === after || message.id === after)
+        const delta = afterIndex >= 0 ? history.slice(afterIndex + 1) : history
+        return {
+            id: session.id,
+            running,
+            historyTotal: history.length,
+            historyStats: historyUsage(history, session.model.provider, session.model.model),
+            contextEstimate: ContextUsage.read(sessionId),
+            todos: latestTodos(history),
+            toolTimings: await ToolTiming.read(sessionId),
+            pending: Approval.pending(sessionId),
+            undoable: History.redoCount({ sessionId }),
+            updatedAt: session.updatedAt,
+            // delta 是这次新增的消息，before 告诉前端在哪条消息后面插
+            delta,
+            after,
+        }
+    }
+
+    // --- segmented 模式：只给 manifest + 当前段，首次打开有 compact 历史的长会话用 ---
+    const usePage = segmented === 'true' || segmented === true
+    const page = usePage ? History.page({ sessionId, history }) : null
 
     return {
         id: session.id,

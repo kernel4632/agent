@@ -126,7 +126,7 @@ function normalizeMessage(item, toolTimings, toolIndex) {
         if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId })
       }
     }
-    // 旧会话没有 parts 顺序时，退回“思考 → 正文 → 工具”的旧顺序。
+    // 旧会话没有 parts 顺序时，退回"思考 → 正文 → 工具"的旧顺序。
     if (!message.steps.length) {
       if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
       if (message.content) message.steps.push({ type: 'text', text: message.content })
@@ -164,7 +164,7 @@ function normalize(source, previous = {}) {
     if (message) messages.push(message)                  // 用户和助手消息进入可见时间线
   }
   // 刷新页面时，后端会把仍在等待的用户审批放在 source.pending 里。
-  // 历史里的工具调用本身只有“调用中”，必须用这份清单把它标回“等待你的许可”，否则按钮会消失。
+  // 历史里的工具调用本身只有"调用中"，必须用这份清单把它标回"等待你的许可"，否则按钮会消失。
   for (const pending of source.pending || []) {
     const callID = pending.callID || pending.toolCallId              // 两种字段名都认
     const tool = toolIndex.get(callID)
@@ -234,16 +234,20 @@ function syncSummary(session) {
   Object.assign(found, summaryOf(session))               // 将最新标题、状态、计数和时间写回列表
 }
 
-/** 读取后端真实历史：一次拿完整历史，直接渲染全部消息。 */
+/** 读取后端真实历史。
+ * showLoading=true 展示加载浮层（首次打开会话用）。
+ * force=true 强制全量读（回退、分支等处用）；默认务为增量读。
+ */
 function nextFrame() {
   return typeof requestAnimationFrame === 'function'
     ? new Promise(resolve => requestAnimationFrame(resolve))
     : Promise.resolve()
 }
 
-async function refresh(id, { showLoading = false } = {}) {
-  const settingsAtStart = store.sessions[id]?.settings // 记住本次读取开始时的设置引用
-  const revisionAtStart = store.sessions[id]?.eventRevision || 0
+async function refresh(id, { showLoading = false, force = false } = {}) {
+  const current = store.sessions[id]
+  const settingsAtStart = current?.settings
+  const revisionAtStart = current?.eventRevision || 0
   const loading = showLoading ? reactive({
     active: true,
     sessionId: id,
@@ -255,18 +259,43 @@ async function refresh(id, { showLoading = false } = {}) {
     eta: 0,
   }) : null
   if (loading) store.ui.sessionLoading = loading
-  let source
+
   try {
-    // 会话一次性读全量：不再有进度流，先把进度条推到中间再直接收尾。
     if (loading) loading.percent = 40
-    source = await AgentAPI.getSession(id)
+
+    // 增量读：已有内存会话且不强制全量时，只拉最后一条已保存消息之后的新增内容。
+    // 效果：28 MB → 几 KB；历史统计由服务端按完整历史算，前端只接收尾巴。
+    if (current && !force && current.messages.length > 0) {
+      const lastSaved = [...current.messages].reverse().find(m => m.id && !m.id.startsWith('pending_') && !m.id.startsWith('error_'))
+      if (lastSaved?.id) {
+        const delta = await AgentAPI.getSessionDelta(id, lastSaved.id)
+        if (loading) {
+          loading.phase = 'parsing'
+          loading.percent = Math.max(loading.percent, 94)
+          await nextFrame()
+        }
+        applyDelta(id, delta, { settingsAtStart, revisionAtStart })
+        if (loading) {
+          loading.phase = 'rendering'
+          loading.percent = 99
+          await nextTick()
+          loading.percent = 100
+          await nextFrame(); await nextFrame()
+          if (store.ui.sessionLoading === loading) loading.active = false
+        }
+        return store.sessions[id]
+      }
+    }
+
+    // 全量读：首次打开、force、内存中没有历史。
+    // 有 compact 历史的长会话首次打开用分段模式：只给 manifest + 当前段，旧段点开才读。
+    const useSegmented = !current && showLoading
+    const source = await (useSegmented ? AgentAPI.getSessionSegmented(id) : AgentAPI.getSession(id))
     if (loading) {
       loading.phase = 'parsing'
       loading.percent = Math.max(loading.percent, 94)
-      // 让 94% 先绘出来，再进行同步归一化；否则进度条会一直停在读文件阶段。
       await nextFrame()
     }
-    const current = store.sessions[id]
     const session = normalize(source, current)
     // 在 GET 途中完成的用户修改比这个快照更新，不能用旧快照覆盖。
     if (current && current.settings !== settingsAtStart) session.settings = current.settings
@@ -288,8 +317,7 @@ async function refresh(id, { showLoading = false } = {}) {
     if (loading) {
       await nextTick()
       loading.percent = 100
-      await nextFrame()
-      await nextFrame()
+      await nextFrame(); await nextFrame()
       if (store.ui.sessionLoading === loading) loading.active = false
     }
     return session
@@ -297,6 +325,48 @@ async function refresh(id, { showLoading = false } = {}) {
     if (loading && store.ui.sessionLoading === loading) loading.active = false
     throw error
   }
+}
+
+/**
+ * 把增量响应合并进内存会话。
+ * delta.delta 是增量消息数组，delta.historyStats 等是基于完整历史的统计字段。
+ */
+function applyDelta(id, delta, { settingsAtStart, revisionAtStart } = {}) {
+  const current = store.sessions[id]
+  if (!current) return
+
+  // 先建工具索引，增量消息里的 tool-result 可以回填到已有工具上
+  const toolIndex = new Map()
+  for (const msg of current.messages) for (const tool of (msg.tools || [])) toolIndex.set(tool.id, tool)
+
+  const newMessages = []
+  for (const item of (delta.delta || [])) {
+    const message = normalizeMessage(item, current.toolTimings || {}, toolIndex)
+    if (message) newMessages.push(message)
+  }
+
+  // 标记等待审批的工具
+  for (const pending of (delta.pending || [])) {
+    const callID = pending.callID || pending.toolCallId
+    const tool = toolIndex.get(callID)
+    if (tool) tool.status = 'waiting'
+  }
+
+  // 保留历史中真实落盘的消息，截掉本地临时占位，再拼增量
+  const base = current.messages.filter(m => m.id && !m.id.startsWith('pending_') && !m.id.startsWith('error_'))
+  current.messages = [...base, ...newMessages]
+
+  // 更新基于完整历史的统计字段（服务端算，前端不重算）
+  if (delta.historyTotal != null) current.historyTotal = delta.historyTotal
+  if (delta.historyStats) current.historyStats = delta.historyStats
+  if (delta.contextEstimate !== undefined) current.contextEstimate = delta.contextEstimate
+  if (delta.todos) current.todos = delta.todos
+  if (delta.toolTimings) current.toolTimings = delta.toolTimings
+  if (delta.undoable != null) current.undoable = delta.undoable
+  if (delta.running != null) current.status = delta.running ? 'running' : 'idle'
+  current.updatedAt = delta.updatedAt || current.updatedAt
+
+  syncSummary(current)
 }
 
 // 回退代价在本地算：历史全量在内存里，消息条数和工具调用都是现成的。
@@ -322,7 +392,8 @@ async function rollbackMessage(sessionID, messageID, files = true) {
     const session = store.sessions[sessionID]
     const message = session.messages.find(item => item.id === messageID)
     const result = await AgentAPI.rollback(sessionID, messageID, files)
-    await refresh(sessionID)
+    // 回退改了磁盘历史，必须强制全量读，不能走增量
+    await refresh(sessionID, { force: true })
     // 回退成功的反馈由输入框上方的撤销条承担，不再额外弹 Toast。
     store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
     store.sessions[sessionID].rollback = {
@@ -337,7 +408,8 @@ async function rollbackMessage(sessionID, messageID, files = true) {
 async function undoRollback(sessionID, files = true) {
   try {
     await AgentAPI.redo(sessionID, files)
-    await refresh(sessionID)
+    // 撤销回退也是磁盘历史变化，强制全量读
+    await refresh(sessionID, { force: true })
     store.sessions[sessionID].rollback = null
   } catch (error) { Notice.show(error.message) }
 }
@@ -364,9 +436,17 @@ function normalizeSegment(source, toolTimings) {
   return messages
 }
 
-async function loadSegment() {
-  // 历史已经是一次性全量读取，没有“按需展开的分段”了；保留入口供旧调用方兼容。
-  return []
+/** 按需读取一个封存历史段；读过的缓存在 session.segmentMessages，折叠只卸载 DOM。 */
+async function loadSegment(sessionID, segmentId) {
+  const session = store.sessions[sessionID]
+  if (!session || !segmentId) return []
+  // 已经加载过的段直接从内存返回，不再请求后端
+  if (session.segmentMessages?.[segmentId]) return session.segmentMessages[segmentId]
+  const source = await AgentAPI.getSessionSegment(sessionID, segmentId)
+  const messages = normalizeSegment(source, session.toolTimings)
+  if (!session.segmentMessages) session.segmentMessages = {}
+  session.segmentMessages[segmentId] = messages
+  return messages
 }
 
 /** 建立分支后返回新 ID；是否打开由用户入口决定。 */
