@@ -10,7 +10,6 @@ import { groupMessageTurns, isFinishedStopTool } from "../../features/turns.js"
 import { outputText } from "../../utils/tool.js"
 import { AgentAPI } from "../../utils/api.js"
 import { Notice } from "../../utils/notice.js"
-import Markdown from '../../ui/Markdown.vue'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -415,8 +414,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <span v-if="hoverNode" class="conversation-rail__preview" :style="{ top: `${previewTop}px` }" aria-hidden="true">
-        <Markdown v-if="hoverNode.prompt" class="conversation-rail__preview-prompt" :content="hoverNode.prompt" compact />
-        <Markdown v-if="hoverNode.response" class="conversation-rail__preview-response" :content="hoverNode.response" compact />
+        <span v-if="hoverNode.prompt" class="conversation-rail__preview-prompt">{{ hoverNode.prompt }}</span>
+        <span v-if="hoverNode.response" class="conversation-rail__preview-response">{{ hoverNode.response }}</span>
       </span>
       <span class="conversation-rail__sr" v-if="activeNode">当前定位：{{ activeNode.title }}</span>
     </div>
