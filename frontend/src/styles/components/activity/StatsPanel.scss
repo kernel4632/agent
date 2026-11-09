@@ -59,12 +59,10 @@
   inset: 0;
   z-index: 1;
   color: var(--la-accent);
-  opacity: .38;
+  opacity: .32;
   pointer-events: none;
 }
 .stats-panel__ring :deep(.stats-panel__ring-estimate .ui-ring-progress__track) { stroke: transparent; }
-.stats-panel__ring :deep(.stats-panel__ring-estimate.is-warn) { color: var(--la-warning); }
-.stats-panel__ring :deep(.stats-panel__ring-estimate.is-danger) { color: var(--ui-color-error); }
 .stats-panel__ring :deep(.ui-ring-progress__track) { stroke: color-mix(in srgb, var(--la-text) 16%, transparent); }
 .stats-panel__ring :deep(.ui-ring-progress.is-warn) { color: var(--la-warning); }
 .stats-panel__ring :deep(.ui-ring-progress.is-danger) { color: var(--ui-color-error); }
@@ -73,15 +71,15 @@
 .stats-panel__value { display: flex; min-width: 0; align-items: baseline; gap: 5px; }
 .stats-panel__value strong { color: var(--la-text); font-size: 24px; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; line-height: 1.12; }
 .stats-panel__value span { color: var(--la-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stats-panel__value .stats-panel__estimate { color: color-mix(in srgb, var(--la-muted) 82%, transparent); font-size: 11px; }
 .stats-panel__left { color: var(--la-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .stats-panel__left.is-over { color: var(--ui-color-error); }
 /* 上下文进度条：比原先粗一档，轨道和阈值标记都要看得清。 */
 .stats-panel__contextbar { position: relative; height: 7px; margin-top: 4px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--la-text) 10%, transparent); }
-.stats-panel__contextbar-used { position: absolute; inset-block: 0; left: 0; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--la-accent) 72%, transparent), var(--la-accent)); transition: width var(--ui-duration-medium) var(--ui-curve-standard); }
+.stats-panel__contextbar-estimate { position: absolute; inset-block: 0; left: 0; border-radius: 999px; background: color-mix(in srgb, var(--la-accent) 36%, transparent); transition: width var(--ui-duration-medium) var(--ui-curve-standard); }
+.stats-panel__contextbar-used { position: absolute; z-index: 1; inset-block: 0; left: 0; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--la-accent) 72%, transparent), var(--la-accent)); transition: width var(--ui-duration-medium) var(--ui-curve-standard); }
 .stats-panel__contextbar.is-warn .stats-panel__contextbar-used { background: linear-gradient(90deg, color-mix(in srgb, var(--la-warning) 72%, transparent), var(--la-warning)); }
 .stats-panel__contextbar.is-danger .stats-panel__contextbar-used { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-color-error) 72%, transparent), var(--ui-color-error)); }
-.stats-panel__contextbar-mark { position: absolute; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--la-text) 60%, transparent); }
+.stats-panel__contextbar-mark { position: absolute; z-index: 2; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--la-text) 60%, transparent); }
 .stats-panel__threshold-label { color: var(--la-muted); font-size: 10.5px; line-height: 1.2; }
 .stats-panel__divider { height: 1px; background: var(--la-line); }
 

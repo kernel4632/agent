@@ -29,9 +29,6 @@ const estimatePercent = computed(() => {
   if (!budget) return 0
   return Math.max(0, Number(estimate.value.tokens || 0) / budget * 100)
 })
-const estimateClass = computed(() => estimatePercent.value >= 100
-  ? 'is-danger'
-  : estimatePercent.value >= threshold.value ? 'is-warn' : '')
 const percentText = computed(() => {
   const prefix = contextApproximate.value ? '~' : ''
   if (rawPercent.value > 0 && rawPercent.value < 1) return `${prefix}<1%`
@@ -189,7 +186,6 @@ const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? '
             <RingProgress
               v-if="estimate"
               class="stats-panel__ring-estimate"
-              :class="estimateClass"
               :value="estimatePercent"
               :max="100"
               :size="92"
@@ -203,12 +199,12 @@ const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? '
             <div class="stats-panel__value">
               <strong>{{ formatTokens(context.used, contextApproximate) }}</strong>
               <span>/ {{ formatTokens(context.limit) }}</span>
-              <span v-if="estimate" class="stats-panel__estimate">（估算 {{ formatTokens(estimate.tokens) }}）</span>
             </div>
             <div class="stats-panel__left" :class="{ 'is-over': context.over }">
               <span>{{ context.over ? '超出' : '剩余' }} {{ formatTokens(context.over ? overBy : remaining, contextApproximate) }}</span>
             </div>
             <div class="stats-panel__contextbar" :class="ringClass" role="img" :aria-label="`上下文已用 ${percentText}，自动压缩阈值 ${Math.round(threshold)}%`">
+              <span v-if="estimate" class="stats-panel__contextbar-estimate" :style="{ width: `${Math.min(100, estimatePercent)}%` }"></span>
               <span class="stats-panel__contextbar-used" :style="{ width: `${percent}%` }"></span>
               <i v-if="threshold > 0 && threshold < 100" class="stats-panel__contextbar-mark" :style="{ left: `${threshold}%` }" :title="`自动压缩阈值 ${Math.round(threshold)}%`"></i>
             </div>

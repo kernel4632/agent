@@ -383,8 +383,6 @@ export function sessionStats(session) {
             tokens: Number(session.contextEstimate.tokens || 0),
             budget: Number(session.contextEstimate.budget || limit || 0),
             percent: Number(session.contextEstimate.percentOfBudget || 0),
-            compactAt: Number(session.contextEstimate.compactAt || 0),
-            untilCompact: Number(session.contextEstimate.untilCompact || 0),
             updatedAt: Number(session.contextEstimate.updatedAt || 0),
           }
         : null,
