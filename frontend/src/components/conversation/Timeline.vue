@@ -74,6 +74,7 @@ let touchStartY = null
 let touchStartTop = 0
 let resumeFollow = false
 let loadingEarlier = false
+let loadSuppressedUntil = 0
 let restoringHistory = false
 
 async function restoreLatestHistory() {
@@ -96,18 +97,36 @@ async function loadEarlier() {
   if (loadingEarlier || !scrollParent || !session.value || following.value) return
   if (!Number.isInteger(session.value.historyStart) || session.value.historyStart <= 0) return
   loadingEarlier = true
-  const beforeHeight = scrollParent.scrollHeight
-  const beforeTop = scrollParent.scrollTop
+  loadSuppressedUntil = performance.now() + 500
+  // 以当前视口第一轮为锚点。只补 scrollHeight 会让虚拟器自己的 end 锚定把位置
+  // 再改一次，用户就会看到列表突然往下跳。
+  const firstItem = virtualItems.value[0]
+  const anchorTurn = firstItem ? turns.value[firstItem.index] : null
+  const anchorId = anchorTurn?.id || ''
+  const anchorTop = anchorId && scrollParent
+    ? (scrollParent.querySelector(`[data-turn-id="${CSS.escape(anchorId)}"]`)?.getBoundingClientRect().top
+      - scrollParent.getBoundingClientRect().top) || 0
+    : 0
   try {
     const loaded = await History.loadOlder(session.value.id)
     if (!loaded) return
     await nextTick()
-    requestAnimationFrame(() => {
-      if (!scrollParent) return
-      scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
-    })
+    const anchorIndex = anchorId ? turns.value.findIndex(turn => turn.id === anchorId) : -1
+    if (anchorIndex >= 0) {
+      virtualizer.value.scrollToIndex(anchorIndex, { align: 'start', behavior: 'auto' })
+      await nextTick()
+      const element = scrollParent.querySelector(`[data-turn-id="${CSS.escape(anchorId)}"]`)
+      if (element) {
+        const currentTop = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
+        scrollParent.scrollTop += currentTop - anchorTop
+      }
+    } else {
+      scrollParent.scrollTop += scrollParent.scrollHeight - beforeHeight
+    }
   } finally {
     loadingEarlier = false
+    // 恢复锚点会触发一次程序滚动，不能把它当成用户又滚到顶部而立即再加载一页。
+    loadSuppressedUntil = performance.now() + 500
   }
 }
 
@@ -230,7 +249,7 @@ function onScroll() {
     if (atEnd && session.value?.temporaryHistory) void restoreLatestHistory()
     else if (!atEnd && following.value) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
-    if (scrollParent.scrollTop < 160) void loadEarlier()
+    if (scrollParent.scrollTop < 160 && performance.now() >= loadSuppressedUntil) void loadEarlier()
   }
   syncLatestPosition()
   rememberScroll()
