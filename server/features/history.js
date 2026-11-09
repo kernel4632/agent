@@ -77,7 +77,52 @@ const readArchives = async sessionId => {
     return { records, archives: index.archives, format: index.format || 0 }
 }
 
-// --- 读取 JSONL：逐行流式扫描，不把整份文件当 JSON 解析 ---
+// --- 读取一个 JSONL 分块；分块和旧单体日志用同一种记录格式 ---
+const readRecords = async (file, label, required = true) => {
+    const records = []
+    if (!await Bun.file(file).exists()) {
+        if (required) throw fail(500, `会话历史分块丢失：${label}`)
+        return records
+    }
+    const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
+    for await (const line of lines) {
+        if (!line.trim()) continue
+        try {
+            records.push(JSON.parse(line))
+        } catch {
+            // 崩溃留下的最后半行不参与读取。
+            break
+        }
+    }
+    return records
+}
+
+// --- 读取按 compact 边界拆开的存段 ---
+// manifest 里的 segment.compact 是压缩消息本身；分块文件里只放它之前的原始消息。
+const readSegmented = async sessionId => {
+    const manifest = await readSessionFile(Path.historyIndex(sessionId), null, 'history-index.json')
+    if (!manifest || manifest.format !== 2 || !Array.isArray(manifest.segments)) {
+        throw fail(500, '会话历史索引损坏')
+    }
+    const records = []
+    for (const segment of manifest.segments) {
+        const file = join(Path.historyArchives(sessionId), segment.file)
+        records.push(...await readRecords(file, segment.file))
+        if (segment.compact) records.push(segment.compact)
+    }
+    const current = await readRecords(join(Path.historyArchives(sessionId), manifest.current?.file || 'current.jsonl'), 'current.jsonl', false)
+    records.push(...current)
+    return {
+        records,
+        offsets: [],
+        size: Number(manifest.bytes) || 0,
+        legacy: false,
+        segmented: true,
+        manifest,
+        current,
+    }
+}
+
 const readLog = async (sessionId, onProgress) => {
     const records = []
     const offsets = []
@@ -141,11 +186,15 @@ const readLegacy = async sessionId => {
 }
 
 const loadLog = async (sessionId, onProgress) => {
+    const index = await readSessionFile(Path.historyIndex(sessionId), null, 'history-index.json')
+    if (index?.format === 2) return readSegmented(sessionId)
     if (await Bun.file(Path.historyLog(sessionId)).exists()) return readLog(sessionId, onProgress)
     if (await Bun.file(Path.history(sessionId)).exists()) return readLegacy(sessionId)
     onProgress?.({ bytes: 0, totalBytes: 0, done: true })
     return { records: [], offsets: [], size: 0, legacy: false, redo: [] }
 }
+
+const needsSegmentation = log => log.records.some(record => record?.message?.compact)
 
 const load = async (sessionId, { onProgress } = {}) => {
     if (store.sessions[sessionId]) {
@@ -168,6 +217,8 @@ const load = async (sessionId, { onProgress } = {}) => {
         offsets: log.offsets,
         fileSize: log.size,
         legacy: log.legacy === true,
+        segmented: log.segmented === true,
+        manifest: log.manifest || null,
     }
 
     const session = {
@@ -184,6 +235,15 @@ const load = async (sessionId, { onProgress } = {}) => {
     }
 
     store.sessions[sessionId] = session
+    // 老会话第一次打开时按 compact 边界拆一次；拆分失败不能影响读取，
+    // 下次保存还会再试，旧 JSONL 仍然完整。
+    if (!history.segmented && needsSegmentation(log)) {
+        try {
+            await writeAllSegmented(session)
+        } catch (error) {
+            console.warn(`[session] 历史分块迁移失败，继续使用 JSONL：${error.message}`)
+        }
+    }
     return session
 }
 
@@ -226,13 +286,95 @@ const writeAll = async session => {
     history.fileSize = size
     history.legacy = false
     history.rewrite = false
+    history.segmented = false
+    history.manifest = null
     // 旧格式迁移完成后删掉这些文件；JSONL 是唯一历史来源。
     await rm(Path.history(session.id), { force: true })
     await rm(Path.historyArchives(session.id), { recursive: true, force: true })
     await rm(Path.historyIndex(session.id), { force: true })
 }
 
-// --- 正常对话只追加新行，不碰已经写好的历史 ---
+// --- 按 compact 边界把完整历史拆成“封存段 + 当前段” ---
+// 每段文件只放 compact 之前的原始消息；compact 本身存在 manifest 里，
+// 前端不打开段也能显示压缩摘要。
+const segmentFileName = index => `segment-${String(index + 1).padStart(4, '0')}.jsonl`
+const jsonlText = records => records.map(record => `${JSON.stringify(record)}\n`).join('')
+
+const writeAllSegmented = async session => {
+    const history = session.history
+    const directory = Path.historyArchives(session.id)
+    await rm(directory, { recursive: true, force: true })
+    await mkdir(directory, { recursive: true })
+    const segments = []
+    const messages = history.messages
+    let start = 0
+    let bytes = 0
+    for (let index = 0; index < messages.length; index += 1) {
+        const record = messages[index]
+        if (!record?.message?.compact) continue
+        const raw = messages.slice(start, index)
+        const id = `segment-${String(segments.length + 1).padStart(4, '0')}`
+        const file = segmentFileName(segments.length)
+        const text = jsonlText(raw)
+        await writeFile(join(directory, file), text)
+        bytes += Buffer.byteLength(text)
+        segments.push({
+            id,
+            file,
+            count: raw.length,
+            startIndex: start,
+            endIndex: index - 1,
+            compactIndex: index,
+            messageIds: raw.map(record => record.messageId),
+            compact: record,
+        })
+        start = index + 1
+    }
+    const current = messages.slice(start)
+    const currentFile = 'current.jsonl'
+    const currentText = jsonlText(current)
+    await writeFile(join(directory, currentFile), currentText)
+    bytes += Buffer.byteLength(currentText)
+    const manifest = {
+        format: 2,
+        segments,
+        current: { file: currentFile, count: current.length, startIndex: start },
+        bytes,
+        updatedAt: Date.now(),
+    }
+    await writeFile(Path.historyIndex(session.id), JSON.stringify(manifest))
+    history.segmented = true
+    history.manifest = manifest
+    history.persistedCount = messages.length
+    history.offsets = []
+    history.fileSize = bytes
+    history.legacy = false
+    history.rewrite = false
+    // 分块是唯一历史来源后，删掉旧单体日志，避免下次误读旧内容。
+    await rm(Path.historyLog(session.id), { force: true })
+    await rm(Path.history(session.id), { force: true })
+}
+
+// --- 只追加当前段；出现新 compact 才整份重新分段 ---
+const appendSegmented = async session => {
+    const history = session.history
+    const messages = history.messages
+    if (!history.manifest?.current) return writeAllSegmented(session)
+    if (history.persistedCount > messages.length) return writeAllSegmented(session)
+    const records = messages.slice(history.persistedCount)
+    if (!records.length) return
+    if (records.some(record => record?.message?.compact)) return writeAllSegmented(session)
+    const file = join(Path.historyArchives(session.id), history.manifest.current.file)
+    const text = jsonlText(records)
+    await appendFile(file, text)
+    history.manifest.current.count += records.length
+    history.manifest.updatedAt = Date.now()
+    history.manifest.bytes = (Number(history.manifest.bytes) || 0) + Buffer.byteLength(text)
+    await writeFile(Path.historyIndex(session.id), JSON.stringify(history.manifest))
+    history.persistedCount = messages.length
+    history.fileSize = (history.fileSize || 0) + Buffer.byteLength(text)
+}
+
 const appendNew = async session => {
     const history = session.history
     const records = history.messages.slice(history.persistedCount)
@@ -262,7 +404,14 @@ const save = async sessionId => {
     await mkdir(Path.session(sessionId), { recursive: true })
 
     const history = session.history
-    if (history.legacy || history.rewrite || !Number.isInteger(history.persistedCount) || history.persistedCount > history.messages.length) {
+    const hasCompact = history.messages.some(record => record?.message?.compact)
+    if (hasCompact) {
+        if (!history.segmented || history.rewrite || !Number.isInteger(history.persistedCount) || history.persistedCount > history.messages.length) {
+            await writeAllSegmented(session)
+        } else if (history.messages.length > history.persistedCount) {
+            await appendSegmented(session)
+        }
+    } else if (history.legacy || history.rewrite || history.segmented || !Number.isInteger(history.persistedCount) || history.persistedCount > history.messages.length) {
         await writeAll(session)
     } else if (history.messages.length > history.persistedCount) {
         await appendNew(session)
@@ -385,6 +534,54 @@ const get = ({ sessionId }) => {
     return session.history.messages.map(({ messageId, message }) => ({ messageId, ...message }))
 }
 
+// --- 给前端的 manifest：不暴露磁盘路径，只给段 id、计数和压缩消息 ---
+const publicRecord = record => ({ messageId: record.messageId, ...record.message })
+
+const manifestFor = session => {
+    const history = session?.history
+    if (!history?.segmented || !history.manifest) return null
+    return {
+        format: 2,
+        total: history.messages.length,
+        currentStart: history.manifest.current?.startIndex ?? 0,
+        segments: history.manifest.segments.map(segment => ({
+            id: segment.id,
+            count: segment.count,
+            startIndex: segment.startIndex,
+            endIndex: segment.endIndex,
+            compactIndex: segment.compactIndex,
+            messageIds: segment.messageIds || [],
+            compact: publicRecord(segment.compact),
+        })),
+    }
+}
+
+// --- 前端初次只拿 manifest + 当前段；历史段展开时再按 id 读 ---
+const page = ({ sessionId, history }) => {
+    const session = store.sessions[sessionId]
+    if (!session) throw new Error(`History not loaded: ${sessionId}`)
+    const records = Array.isArray(history) ? history : get({ sessionId })
+    let currentStart = 0
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+        if (records[index]?.compact) { currentStart = index + 1; break }
+    }
+    return {
+        manifest: manifestFor(session),
+        current: records.slice(currentStart),
+        currentStart,
+    }
+}
+
+const segment = async ({ sessionId, segmentId }) => {
+    await load(sessionId)
+    const history = store.sessions[sessionId].history
+    const found = history.manifest?.segments?.find(item => item.id === segmentId)
+    if (!found) throw fail(404, `History segment not found: ${segmentId}`)
+    const file = join(Path.historyArchives(sessionId), found.file)
+    const records = await readRecords(file, found.file)
+    return { id: found.id, messages: records.filter(record => !record.message?.internal).map(publicRecord) }
+}
+
 const rawText = message => {
     const parts = Array.isArray(message?.content) ? message.content : []
     const text = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('')
@@ -484,7 +681,7 @@ const outline = async sessionId => {
     return { turns, totalMessages: records.length }
 }
 
-// --- 全量历史搜索：直接流式扫描 JSONL，不把 22MB 会话塞进内存 ---
+// --- 全量历史搜索：先在内存里拼回完整历史，跨所有封存段和当前段 ---
 const readableSearchText = value => String(value ?? '')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
@@ -509,17 +706,17 @@ const search = async ({ sessionId, query, limit = 50 }) => {
     const lower = needle.toLocaleLowerCase()
     const max = Math.min(50, Math.max(1, Math.floor(Number(limit) || 50)))
     const results = []
+    await load(sessionId)
     let index = -1
-    const file = Path.historyLog(sessionId)
-
-    const consume = record => {
+    for (const record of store.sessions[sessionId].history.messages) {
+        if (results.length >= max) break
         const message = record?.message
-        if (!message || message.internal || message.compact) return
+        if (!message || message.internal || message.compact) continue
         index += 1
         const text = searchableText(message)
-        if (!text) return
+        if (!text) continue
         const at = text.toLocaleLowerCase().indexOf(lower)
-        if (at < 0) return
+        if (at < 0) continue
         const start = Math.max(0, at - 36)
         const end = Math.min(text.length, at + needle.length + 90)
         results.push({
@@ -531,22 +728,8 @@ const search = async ({ sessionId, query, limit = 50 }) => {
             after: `${text.slice(at + needle.length, end)}${end < text.length ? '…' : ''}`,
         })
     }
-
-    if (await Bun.file(file).exists()) {
-        const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
-        for await (const line of lines) {
-            if (results.length >= max) break
-            if (!line.trim()) continue
-            try {
-                consume(JSON.parse(line))
-            } catch {
-                // 损坏行跳过，不能让一条坏记录毁掉整个搜索。
-            }
-        }
-    }
     return { results }
 }
-
 // --- 内存里加载了多少条会话；健康检查用 ---
 const count = () => Object.keys(store.sessions).length
 
@@ -584,6 +767,6 @@ const prepare = async () => {
 
 export default {
     load, create, save, saveSettings, list,
-    add, rollback, redo, redoCount, idsBefore, get, outline, search,
+    add, rollback, redo, redoCount, idsBefore, get, outline, search, page, segment, manifestFor,
     count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
 }

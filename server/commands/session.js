@@ -136,8 +136,8 @@ const fork = async ({ sessionId, title, messageId }) => {
     await Agent.create({ sessionId: branch.id })
     return { sessionId: branch.id }}
 
-// --- 读取一条会话：一次性返回完整历史，不再分页 ---
-const read = async ({ sessionId, onProgress }) => {
+// --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
+const read = async ({ sessionId, onProgress, segmented = false }) => {
     await ContextUsage.hydrate(sessionId)
     const session = await History.load(sessionId, { onProgress })
     const agent = Agent.runtime().get(sessionId)
@@ -152,6 +152,7 @@ const read = async ({ sessionId, onProgress }) => {
         if (agent) agent.history = history
         // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
     }
+    const page = segmented ? History.page({ sessionId, history }) : null
 
     return {
         id: session.id,
@@ -162,7 +163,8 @@ const read = async ({ sessionId, onProgress }) => {
         model: session.model.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        history,
+        history: page?.manifest ? page.current : history,
+        ...(page?.manifest ? { historyManifest: page.manifest } : {}),
         historyTotal: history.length,
         historyStats: historyUsage(history, session.model.provider, session.model.model),
         contextEstimate: ContextUsage.read(sessionId),
@@ -471,6 +473,7 @@ const count = () => History.count()
 // --- 历史分页与全会话大纲：前端只加载视口附近的历史 ---
 const historyOutline = ({ sessionId }) => History.outline(sessionId)
 const searchHistory = ({ sessionId, query, limit }) => History.search({ sessionId, query, limit })
+const readHistorySegment = ({ sessionId, segmentId }) => History.segment({ sessionId, segmentId })
 
 // --- 统计正在运行的任务 ---
 const runningCount = () => Agent.runningCount()
@@ -478,6 +481,7 @@ const runningCount = () => Agent.runningCount()
 export default {
     create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
     historyOutline, searchHistory,
+    readHistorySegment,
     readSettings, saveSettings, compact,
     changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
     count, runningCount,

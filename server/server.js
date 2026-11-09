@@ -141,6 +141,9 @@ app.group('/session', session => session
     })
     .post('/fork/:sessionId', ({ params, body }) => Session.fork({ ...params, ...(body || {}) }))
     .get('/read/:sessionId', ({ params }) => Session.read(params))
+    .get('/segment/:sessionId/:segmentId', ({ params }) => Session.readHistorySegment(params), {
+        params: t.Object({ sessionId: t.String(), segmentId: t.String() }),
+    })
     .get('/open/:sessionId', ({ params, set }) => {
         set.headers['content-type'] = 'text/event-stream; charset=utf-8'
         set.headers['cache-control'] = 'no-cache'
@@ -163,7 +166,7 @@ app.group('/session', session => session
         }
         void (async () => {
             try {
-                const session = await Session.read({ ...params, onProgress })
+                const session = await Session.read({ ...params, onProgress, segmented: true })
                 send({ type: 'progress', phase: 'session', percent: 96, bytes: 0, totalBytes: 0, speed: 0, eta: 0, done: true })
                 send({ type: 'session', session })
                 controller.close()
