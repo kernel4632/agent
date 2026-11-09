@@ -22,6 +22,20 @@ const streaming = session => session.messages.findLast(message => message.role =
 const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
 const flushingQueues = new Set()                          // 正在把排队消息送入下一轮的会话
 
+// SSE 兼容旧后端：Error 对象/错误对象不能直接 String() 成 "[object Object]"。
+function errorTextOf(value, fallback = '模型请求失败') {
+  if (typeof value === 'string' && value.trim() && value !== '[object Object]') return value
+  if (value && typeof value === 'object') {
+    const text = value.message || value.error || value.responseBody || value.body
+    if (typeof text === 'string' && text.trim()) return text
+    try {
+      const json = JSON.stringify(value)
+      if (json && json !== '{}' && json !== 'null') return json
+    } catch { /* ignore */ }
+  }
+  return fallback
+}
+
 function createAssistant(session) {
   const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], steps: [], requests: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
   session.messages.push(message)
@@ -362,7 +376,7 @@ function retryRun(session, event) {
   const delay = Number(event.delay || 0)
   const wait = delay > 0 ? `，${Math.max(1, Math.round(delay / 1000))}s 后继续` : '，请稍候'
   const retry = `模型请求失败，第 ${attempt} 次自动重试${wait}…`
-  const errorText = String(event.error || event.errorText || '').trim() || '模型请求失败，正在自动重试'
+  const errorText = errorTextOf(event.error ?? event.errorText, '模型请求失败，正在自动重试')
 
   // 上一次尝试结束：保留它的错误和用量，不能把整行改写成下一次重试。
   const previous = assistant.requests.findLast(item => item.status === 'running') || assistant.requests.at(-1)
@@ -401,7 +415,7 @@ function failRun(session, event) {
     request.finishedAt = Date.now()
     request.durationMs = request.finishedAt - request.startedAt
   }
-  const message = event.errorText || event.error?.message || '模型请求失败'
+  const message = errorTextOf(event.error ?? event.errorText, '模型请求失败')
   if (request) request.error = message
   assistant.error = message
   assistant.isStreaming = false

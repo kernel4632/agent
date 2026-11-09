@@ -25,7 +25,16 @@ const failed = computed(() => props.request.status === 'failed')
 const errorText = computed(() => {
   const value = props.request.error
   if (value == null) return ''
-  return typeof value === 'string' ? value : JSON.stringify(value)
+  if (typeof value === 'string') return value === '[object Object]' ? '模型请求失败' : value
+  if (typeof value === 'object') {
+    const text = value.message || value.error || value.responseBody || value.body
+    if (typeof text === 'string' && text.trim()) return text
+    try {
+      const json = JSON.stringify(value)
+      if (json && json !== '{}') return json
+    } catch { /* ignore */ }
+  }
+  return '模型请求失败'
 })
 const expandable = computed(() => failed.value && Boolean(errorText.value))
 function toggleError() {
