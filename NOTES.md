@@ -301,7 +301,7 @@ server.js
 - `utils/fail.js` 被 commands、features、tools 二十多处共用，保留；文件头压短，不为凑行数硬加函数。
 - 纯逻辑文件即使很短，只要它是一个完整功能（比如 `compact`），就保留。
 
-这是内部重构，完整图见 `docs/server-target.html`。
+这是内部重构，图按需从当前源码生成到 `tmp/`，不再在 `docs/` 里留淡话。
 
 ## 九、发布前不写向后兼容
 
