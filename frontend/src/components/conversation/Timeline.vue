@@ -29,57 +29,64 @@ const props = defineProps({
 })
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
-// 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
-// 流式输出只改最后一轮；前面已经完成的轮次复用原对象，避免每个 token 都让整条时间线重渲染。
-let turnCache = []
-const turns = computed(() => {
-  const next = groupMessageTurns(messages.value)
-  const previous = turnCache
-  const merged = next.map((turn, index) => {
-    const old = previous[index]
-    return old
-      && old.id === turn.id
-      && old.messages.length === turn.messages.length
-      && old.messages.every((message, offset) => message === turn.messages[offset])
-      ? old
-      : turn
-  })
-  turnCache = merged
-  return merged
-})
-// 以 compact 记录为边界切历史：每段原始对话默认折叠，后面紧跟它对应的压缩摘要；
-// 最后一段（最后一次压缩之后）是当前对话，始终完整展开。
-const blocks = computed(() => {
-  const list = []
-  let pending = []
-  for (const message of messages.value) {
-    if (message.compact) {
-      const segmentTurns = groupMessageTurns(pending)
-      if (segmentTurns.length) {
-        list.push({
-          type: 'history',
-          id: `history-${message.id}`,
-          turns: segmentTurns,
-          messages: pending,
-        })
-      }
-      list.push({ type: 'compact', id: `compact-${message.id}`, message })
-      pending = []
-    } else {
-      pending.push(message)
+// compact 记录只增不减：每次流式增量只扫新追加的消息，折叠历史段不重算。
+let compactCache = { source: null, scanned: 0, items: [] }
+const compactItems = computed(() => {
+  const list = messages.value
+  if (compactCache.source !== list || list.length < compactCache.scanned) {
+    compactCache = { source: list, scanned: 0, items: [] }
+  }
+  let changed = false
+  for (let index = compactCache.scanned; index < list.length; index += 1) {
+    if (list[index].compact) {
+      compactCache.items.push({ message: list[index], index })
+      changed = true
     }
   }
-  const currentTurns = groupMessageTurns(pending)
-  if (currentTurns.length) {
-    list.push({
-      type: 'current',
-      id: 'current',
-      turns: currentTurns,
-      messages: pending,
-    })
-  }
-  return list
+  compactCache.scanned = list.length
+  // 数组内容变了要换一个新引用，否则下游 computed 看不到新 compact。
+  if (changed) compactCache.items = [...compactCache.items]
+  return compactCache.items
 })
+// 历史段只在出现新的 compact 时重建；流式输出只影响最后一段。
+let historyCache = { source: null, items: null, blocks: [] }
+const historyBlocks = computed(() => {
+  const items = compactItems.value
+  if (historyCache.source === messages.value && historyCache.items === items) return historyCache.blocks
+  const list = messages.value
+  const blocks = []
+  let start = 0
+  for (const item of items) {
+    const segment = list.slice(start, item.index)
+    const segmentTurns = groupMessageTurns(segment)
+    if (segmentTurns.length) {
+      blocks.push({
+        type: 'history',
+        id: `history-${item.message.id}`,
+        turns: segmentTurns,
+        messages: segment,
+      })
+    }
+    blocks.push({ type: 'compact', id: `compact-${item.message.id}`, message: item.message })
+    start = item.index + 1
+  }
+  historyCache = { source: list, items, blocks }
+  return blocks
+})
+const currentMessages = computed(() => {
+  const last = compactItems.value.at(-1)
+  return messages.value.slice(last ? last.index + 1 : 0)
+})
+const currentTurns = computed(() => groupMessageTurns(currentMessages.value))
+const currentBlock = computed(() => currentTurns.value.length ? {
+  type: 'current',
+  id: 'current',
+  turns: currentTurns.value,
+  messages: currentMessages.value,
+} : null)
+const blocks = computed(() => currentBlock.value
+  ? [...historyBlocks.value, currentBlock.value]
+  : historyBlocks.value)
 const expandedHistory = reactive(new Set())
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
@@ -327,7 +334,8 @@ function jumpToBottom() {
 
 // 目标消息可能在折叠历史里：先展开所属段，再按真实 DOM 定位。
 async function jumpToMessage(messageId) {
-  const targetTurn = turns.value.find(turn => turn.messages.some(message => message.id === messageId))
+  const targetTurn = [...historyBlocks.value.flatMap(block => block.turns), ...currentTurns.value]
+    .find(turn => turn.messages.some(message => message.id === messageId))
   if (!targetTurn) return
   beginJump()
   setFollowing(false)
@@ -527,7 +535,7 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
             :turn="turn"
             :session-id="session.id"
             :running="session.status === 'running'"
-            :active="session.status === 'running' && turn.id === turns.at(-1)?.id"
+            :active="session.status === 'running' && turn.id === currentTurns.at(-1)?.id"
             :rollback-target="rollbackTarget"
             :rollback-preview="rollbackPreview"
             :menu-items="userMenuItems"
