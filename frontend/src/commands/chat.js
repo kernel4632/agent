@@ -276,6 +276,11 @@ function resumeRun(session) {
 // --- 上下文压缩：同样是一次模型请求，在时间线里单独占一行，用户不会觉得界面卡住了 ---
 function startCompact(session, event) {
   const assistant = streaming(session) || createAssistant(session)
+  if (event.reason === 'automatic' && Number(event.token) && Number(event.budget)) {
+    Notice.show(`上下文估算 ${Math.round(event.token / event.budget * 100)}%，正在压缩后继续`)
+  } else if (event.reason === 'overflow-retry') {
+    Notice.show('模型报告上下文超长，正在压缩后继续')
+  }
   const request = {
     id: `compact_${crypto.randomUUID()}`,
     status: 'running',
