@@ -178,9 +178,12 @@ const modelEvents = ({ sessionId, state }) => ({
         // 每轮现读 config：运行中切模型后，这一笔就按新供应商/模型记录。
         state.provider = state.agent?.config?.providerName || ''
         state.model = state.agent?.config?.model || ''
+        // request.messages 是这次发给模型的完整上下文（可能几十万 token）；
+        // 界面只需要“请求开始了”，把这份副本塞进 SSE 会白等一次巨大序列化和 JSON.parse。
+        const { messages: _messages, ...meta } = request || {}
         return SSE.send({
             id: sessionId,
-            data: { type: 'llm-start', ...request, startedAt: state.llmStartedAt, provider: state.provider, model: state.model },
+            data: { type: 'llm-start', ...meta, startedAt: state.llmStartedAt, provider: state.provider, model: state.model },
         })
     },
     onLLMFinish: result => {
