@@ -500,17 +500,66 @@ function findTool(session, id) {
   return null
 }
 
+function applyMessageDelta(session, event) {
+  const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
+  // 全会话共享的流序号：工具结束后的折叠靠它判断“下一段模型内容真的到了”，
+  // 即使下一段正文落在另一条 assistant 消息里也能收到。
+  session.streamRevision = (session.streamRevision || 0) + 1
+  markFirstToken(assistant)                                       // 第一段输出到了，请求行改说正在接收
+  const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
+  const text = event.text || '' // 服务端只承诺 text 一个字段
+  assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
+  appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
+}
+
+// 后台标签页不逐条渲染 delta：网络还在收，但 rAF/绘制被节流。
+// 这里把连续正文/思考合并成一个字符串，切回前台只触发一次渲染。
+const pendingDeltas = new Map()
+let visibilityBound = false
+const isHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+const scheduleFrame = callback => typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(callback, 0)
+
+function queueDelta(sessionID, event) {
+  if (!visibilityBound) {
+    visibilityBound = true
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') for (const id of [...pendingDeltas.keys()]) flushDeltas(id)
+    })
+  }
+  let queue = pendingDeltas.get(sessionID)
+  if (!queue) { queue = []; pendingDeltas.set(sessionID, queue) }
+  const last = queue.at(-1)
+  if (last && last.type === event.type && last.request === (event.request || '')) last.text += event.text || ''
+  else queue.push({ type: event.type, request: event.request || '', text: event.text || '' })
+  if (!queue.frame) queue.frame = scheduleFrame(() => flushDeltas(sessionID))
+}
+
+function flushDeltas(sessionID) {
+  const queue = pendingDeltas.get(sessionID)
+  const session = store.sessions[sessionID]
+  if (!queue || !session) return
+  queue.frame = 0
+  const batch = queue.splice(0, queue.length)
+  for (const item of batch) {
+    if (item.request === 'compact') applyCompactDelta(session, item)
+    else applyMessageDelta(session, item)
+  }
+  History.syncSummary(session)
+  if (queue.length) queue.frame = scheduleFrame(() => flushDeltas(sessionID))
+  else pendingDeltas.delete(sessionID)
+}
+
+function applyCompactDelta(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  if (!step) return
+  const field = event.type === 'text-delta' ? 'content' : 'reasoning'
+  step.request[field] = (step.request[field] || '') + (event.text || '')
+}
+
 function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
-    const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
-    // 全会话共享的流序号：工具结束后的折叠靠它判断“下一段模型内容真的到了”，
-    // 即使下一段正文落在另一条 assistant 消息里也能收到。
-    session.streamRevision = (session.streamRevision || 0) + 1
-    markFirstToken(assistant)                                       // 第一段输出到了，请求行改说正在接收
-    const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
-    const text = event.text || '' // 服务端只承诺 text 一个字段
-    assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
-    appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
+    applyMessageDelta(session, event)
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
     // 子任务事件挂到发起它的 new_task 工具下面；找不到父节点时宁可只显示描述，也不串到别的工具上。
     const assistant = streaming(session) || createAssistant(session) // 子任务事件也要有承载消息
@@ -587,19 +636,23 @@ function receiveTool(session, event) {
 async function receive(sessionID, event) {
   const session = store.sessions[sessionID]
   if (!session) return
+  const deltaEvent = event.type === 'text-delta' || event.type === 'reasoning-delta'
+  // 工具/请求/结束事件到达前，先把后台积压的正文按顺序落下去。
+  if (!deltaEvent) flushDeltas(sessionID)
   session.eventRevision = (session.eventRevision || 0) + 1
   session.lastEventAt = Date.now()
   // 压缩的开始和结束显示成一行；压缩流里的正文留在这一行里实时显示，不进正常回答。
   if (event.type === 'compact-start') return startCompact(session, event)
   if (event.type === 'compact-finish') return finishCompact(session, event)
   if (event.request === 'compact') {
-    if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
-      const assistant = streaming(session) || createAssistant(session)
-      const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
-      if (step) {
-        const field = event.type === 'text-delta' ? 'content' : 'reasoning'
-        step.request[field] = (step.request[field] || '') + (event.text || '')
-      }
+    if (deltaEvent) applyCompactDelta(session, event)
+    return
+  }
+  if (deltaEvent) {
+    if (isHidden()) queueDelta(sessionID, event)
+    else {
+      receiveMessage(session, event)
+      History.syncSummary(store.sessions[sessionID])
     }
     return
   }

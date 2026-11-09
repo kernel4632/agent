@@ -31,14 +31,28 @@ export async function readSSE(response, receiveEvent) {
     while (true) {
       const { done, value } = await reader.read()
       if (value) parser.feed(decoder.decode(value, { stream: !done }))
-      while (queue.length) {
-        const event = queue.shift()
+      let sliceStart = performance.now()
+      let processed = 0
+      let index = 0
+      while (index < queue.length) {
+        const event = queue[index++]
         if (!event.data || event.data === '[DONE]') continue
         // 坏帧只跳过这一条，不拖垮整条连接（和旧实现行为一致）
         let payload
         try { payload = JSON.parse(event.data) } catch { continue }
         await receiveEvent({ ...payload, eventID: Number(event.id || 0) })
+        processed += 1
+        // 后台标签页里 receive 只做合并，不需要让出时间；前台大块积压时按 8ms 切片，
+        // 否则一个网络 chunk 里的几千条事件会堵住整帧。
+        if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+          if (processed >= 80 || performance.now() - sliceStart >= 8) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+            sliceStart = performance.now()
+            processed = 0
+          }
+        }
       }
+      queue.length = 0
       if (done) return
     }
   } finally {
