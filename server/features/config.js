@@ -35,6 +35,7 @@ const MODELS = [
     { task: 'compact', label: '压缩上下文', hint: '把长对话总结成一段' },
     { task: 'title', label: '生成标题', hint: '给会话起一个短标题' },
     { task: 'task', label: '子任务', hint: '子 agent 干活时用的模型' },
+    { task: 'review', label: '工具审核', hint: '自动审核工具调用的模型' },
 ]
 
 // --- 一个模型必须带 id；上下文和能力缺省时用最保守的值 ---
@@ -87,6 +88,17 @@ const target = value => isObject(value)
     }
     : { provider: '', model: '' }
 
+// --- 自动审核：开关、策略和超时；坏值回到安全默认 ---
+const review = value => {
+    const source = isObject(value) ? value : {}
+    const timeout = Number(source.timeout)
+    return {
+        enabled: source.enabled === true,
+        policy: typeof source.policy === 'string' ? source.policy : '',
+        timeout: Number.isFinite(timeout) ? Math.min(120000, Math.max(1000, timeout)) : 15000,
+    }
+}
+
 // --- 压缩保留量：四个值都有默认值，但用户显式写的 0 要保住 ---
 // firstTurns = 0 是合法且常用的配置（压缩后不带最初那几轮原文），所以用 ?? 而不是 ||，
 // 否则 0 会被当成“没填”退回默认值。轮数必须是非负整数，占比必须落在 [0,1]。
@@ -128,9 +140,11 @@ const normalize = raw => {
             compact: target(config.models?.compact),
             title: target(config.models?.title),
             task: target(config.models?.task),
+            review: target(config.models?.review),
         },
         mcp: isObject(config.mcp) ? config.mcp : {},
         permission: isObject(config.permission) ? config.permission : {},
+        review: review(config.review),
         prompt: { system, seeded: true },
         compact: {
             threshold: Number(config.compact?.threshold) >= 0.1 && Number(config.compact?.threshold) <= 0.99

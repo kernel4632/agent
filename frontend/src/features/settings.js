@@ -36,7 +36,7 @@ async function load() {
   }
 }
 
-// --- 工具目录：输入区的工具自动批准小窗和工具结果渲染共用这一份 ---
+// --- 工具目录：输入区的工具权限小窗和工具结果渲染共用这一份 ---
 function toolSettingsFor(catalog) {
   const tools = catalog
       .filter(tool => tool.configurable !== false)
@@ -96,6 +96,7 @@ function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
     modelTasks: meta.models,
     models: raw.models,
     compact: raw.compact,
+    review: raw.review || { enabled: false, policy: '', timeout: 15000 },
     contextKeep: raw.contextKeep || { ...DEFAULT_CONTEXT_KEEP },
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
@@ -117,6 +118,7 @@ function backendSnapshot(draft) {
     compact: draft.compact,
     contextKeep: draft.contextKeep,
     mcp: draft.mcp,
+    review: draft.review,
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
 }
@@ -166,6 +168,7 @@ function open() {
     prompt: store.config.prompt,
     models: store.config.models,
     compact: store.config.compact,
+    review: store.config.review,
     contextKeep: store.config.contextKeep,
     appearance: store.config.appearance,
   })
@@ -184,7 +187,7 @@ function persist(options = {}) {
 }
 
 // --- 权限不在这里改 ---
-// 工具自动批准在输入区（ComposerTools）直接读写，不走设置页的草稿。
+// 工具权限在输入区（ComposerTools）直接读写，不走设置页的草稿。
 // 设置页保存时把当前权限整份原样带回去，保证 PATCH /config/set 的整份替换
 // 不会把输入区刚改的权限抹掉。
 function permissionPayload() {
@@ -218,6 +221,7 @@ function configPayload(draft) {
     prompt: { ...store.config.raw?.prompt, system: draft.prompt },
     models: draft.models,
     compact: draft.compact,
+    review: draft.review,
     contextKeep: draft.contextKeep,
   }
 }

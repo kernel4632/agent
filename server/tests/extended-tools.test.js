@@ -324,8 +324,8 @@ describe('execute_command 的 background 参数', () => {
         const literal = await shell.execute({ command: `"${process.execPath}" "${script}" "a | b"` }, {})
         expect(literal.stdout.trim()).toBe('a | b')
 
-        // 真管道必须走 shell，否则整条命令就不是一个程序了
-        const piped = await shell.execute({ command: 'echo hello | findstr hello' }, {})
+        // 真管道必须走 shell，否则整条命令就不是一个程序了；过滤命令按平台选。
+        const piped = await shell.execute({ command: process.platform === 'win32' ? 'echo hello | findstr hello' : 'echo hello | grep hello' }, {})
         expect(piped.exitCode).toBe(0)
         expect(piped.stdout).toContain('hello')
         await rm(script, { force: true })

@@ -181,10 +181,12 @@ const store = {
       compact: { provider: '', model: '' },
       title: { provider: '', model: '' },
       task: { provider: '', model: '' },
+      review: { provider: '', model: '' },
     },
 
     mcp: {},
     permission: {},
+    review: { enabled: false, policy: '', timeout: 15000 },
     prompt: { system: '', seeded: false },
     compact: { threshold: 0.8 },
   },
@@ -216,7 +218,7 @@ export default store
 - `mcp` 是配置的一部分，属于基座能力。
 - `sessions[].cwd` 是唯一的位置概念，没有 `workspaceId`。
 - `history` 和 `settings` 属于会话；消息回退只改 `history`，不碰文件。
-- 权限只有一层：`config.permission` 的全局规则（allow / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。输入区「工具自动批准」小窗里的全选格子只把全局 `*` 写成 allow 来一次全开，不改每个工具已经记住的规则。全局 allow 盖过工具默认的 ask，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。全不选要把每个工具的默认动作写回 ask 才会真的全灭（只改全局，之前记住的 allow 会让开关继续亮着）；单关一个工具时先把它以外的工具此刻的状态写实，再撤全局，否则它们会跟着一起掉回询问。
+- 权限只有一层：`config.permission` 的全局规则（allow / review / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。review 先问 `review` 配置和 `models.review` 指向的审核模型，只有 allow 直接执行，deny 直接拒绝，ask、超时或审核故障都转人工。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。输入区「工具权限」小窗里默认动作只写全局 `*`，不改每个工具已经记住的规则；全局 allow 盖过工具默认的 ask / review，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。把单个工具改成 ask / review 时，如果全局还是 allow，会先把其余工具此刻的状态写实再撤全局，否则它们会跟着一起掉回询问。
 
 ## 六、请求流程
 
@@ -355,6 +357,6 @@ server.js
 ## 十三、前端与当前后端保持一致
 
 - 会话列表直接读取 `/session/list`，目录只使用会话的 `cwd`；不再请求已删除的 `/workspace/read`、`/agent/list`、`/command/list`。
-- 配置按当前 `providers[].models[]`、`models.{chat,compact,title,task}`、`compact.threshold` 读写；会话设置只有 `reasoning`。模型能力用英文标识保存、中文标签显示。
+- 配置按当前 `providers[].models[]`、`models.{chat,compact,title,task,review}`、`compact.threshold`、`review` 读写；会话设置只有 `reasoning`。模型能力用英文标识保存、中文标签显示。
 - 不展示后端已经移除的智能体编辑、斜杠命令、全局能力和高级设置；不增加旧接口兼容层。
 - `bun run test:live` 启动真实前后端验证读写，只有模型服务使用本机固定回复；模拟界面测试同时检查 OpenAPI 路径，不能用过期 mock 代替联调结果。

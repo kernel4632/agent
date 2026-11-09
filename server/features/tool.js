@@ -71,7 +71,7 @@ const scan = async () => {
 // --- 这个工具当前显示的权限动作 ---
 const permissionOf = name => {
     const rules = store.config.permission || {}
-    const actionOf = value => value === 'allow' ? 'allow' : value === 'deny' ? 'deny' : 'ask'
+    const actionOf = value => value === 'allow' ? 'allow' : value === 'deny' ? 'deny' : value === 'review' ? 'review' : 'ask'
     const rule = rules[name]
     if (typeof rule === 'string') return actionOf(rule)
     if (rule && typeof rule === 'object' && !Array.isArray(rule)) return actionOf(rule['*'])

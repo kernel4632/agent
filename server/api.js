@@ -19,7 +19,7 @@
 // version 不写在这里：生成时从 package.json 取，避免两处版本号脱钩。
 export const info = {
     title: 'Universal Agent 后端接口文档',
-    description: '会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task}，压缩阈值为 compact.threshold，压缩后保留多少原文由 contextKeep 的四个字段决定，会话设置只有 reasoning。配置、MCP、技能和自动标题都是基座能力；本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。',
+    description: '会话是唯一的长期容器，cwd 只是会话当前所在的目录。前端初始化读取 /session/list、/config/read、/config/meta、/tool/list 和 /tool/kinds。配置模型使用 providers[].models[] 与 models.{chat,compact,title,task,review}，压缩阈值为 compact.threshold，压缩后保留多少原文由 contextKeep 的四个字段决定，工具 AI 审核配置为 review，会话设置只有 reasoning。配置、MCP、技能和自动标题都是基座能力；本机的 MCP 配置和技能目录可以通过 /mcp/*、/skill/* 识别和管理。',
 }
 
 // --- 服务地址 ---
@@ -221,6 +221,9 @@ export const components = {
                         },
                         "task": {
                             "$ref": "#/components/schemas/Model"
+                        },
+                        "review": {
+                            "$ref": "#/components/schemas/Model"
                         }
                     }
                 },
@@ -250,6 +253,22 @@ export const components = {
                             "type": "number",
                             "minimum": 0.1,
                             "maximum": 0.99
+                        }
+                    }
+                },
+                "review": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "policy": {
+                            "type": "string"
+                        },
+                        "timeout": {
+                            "type": "number",
+                            "minimum": 1000,
+                            "maximum": 120000
                         }
                     }
                 },
@@ -470,6 +489,7 @@ export const components = {
                     "type": "string",
                     "enum": [
                         "allow",
+                        "review",
                         "ask",
                         "deny"
                     ]
@@ -4078,7 +4098,7 @@ export const paths = {
                 "SSE"
             ],
             "summary": "建立实时事件连接",
-            "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-blocked、mcp-error、compact-start、compact-finish、title。llm-start 带 startedAt（这次请求的真实开始时间）和 provider / model，llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 provider / model。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
+            "description": "事件类型：agent-start、agent-resume、agent-finish、text-delta、reasoning-delta、retry、llm-start、llm-first-token、llm-finish、tool-call、tool-output、tool-result、permission、permission-review、permission-blocked、mcp-error、compact-start、compact-finish、title。permission 在 AI 审核不确定时另带 review（reviewer、decision、reason），说明为什么转人工；permission-review 是 AI 审核直接放行，带 callID、tool、input、reviewer、decision、reason；permission-blocked 在 AI 拒绝时也带 review。llm-start 带 startedAt（这次请求的真实开始时间）和 provider / model，llm-first-token 带 firstTokenAt / firstTokenMs，llm-finish.usage 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 provider / model。压缩请求的原生流事件带 request=compact，不能追加到助手正文、思考或停止时的 partial；compact-start 带 messages 和 startedAt，compact-finish 带 content、durationMs 和统一后的 usage。agent-finish.usage 包含自动压缩用量。工具拒绝、取消和无效调用也会发 tool-result。",
             "operationId": "sseConnect",
             "parameters": [
                 {

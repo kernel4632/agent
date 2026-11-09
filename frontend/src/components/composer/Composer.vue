@@ -257,7 +257,7 @@ defineExpose({ focus: () => editor.value?.focus() })
           @choose-model="chooseModel" @update:reasoning="emit('update:reasoning', $event)"
           @configure="Navigation.openSettings('providers')"
         />
-        <!-- 工具自动批准：和模型/推理同一排，改成「这条消息要不要拦」发消息前就能定。 -->
+        <!-- 工具权限：和模型/推理同一排，改成「这条消息要不要拦」发消息前就能定。 -->
         <ComposerTools />
       </div>
       <div class="chat-composer__right">

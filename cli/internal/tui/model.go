@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/kernel4632/agent/cli/internal/api"
 	"github.com/kernel4632/agent/cli/internal/chat"
+	"github.com/kernel4632/agent/cli/internal/render"
 )
 
 const (
@@ -64,6 +65,7 @@ type model struct {
 	width, height                                                                     int
 	status, notice, panel, liveText, liveReasoning, liveLog, lastControl, finalAnswer string
 	showReasoning                                                                     bool
+	pendingReasoning                                                                  bool // 模型选完接着打开思考强度
 	focus                                                                             int
 	overlay                                                                           overlayState
 	tools                                                                             map[string]api.Tool
@@ -84,7 +86,7 @@ type model struct {
 	frameTop, frameVP, statsWidth                                                     int
 	suggestAt                                                                         int
 	suggestQuery, suggestMute                                                         string
-	runID, paint                                                                      int
+	runID, paint, spin                                                                int
 	gaveUp, seenFocus, sized, away                                                    bool
 	lastEvent                                                                         time.Time
 	streams                                                                           streamHold
@@ -158,10 +160,10 @@ func newModel(ctx context.Context, client *api.Client, session api.Session) *mod
 	styles := textarea.DefaultDarkStyles()
 	styles.Focused.CursorLine = lipgloss.NewStyle()
 	styles.Blurred.CursorLine = lipgloss.NewStyle()
-	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
-	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorDim))
+	styles.Blurred.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorDim))
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorAccent))
+	styles.Blurred.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color(render.ColorMuted))
 	styles.Cursor.Shape = tea.CursorBar
 	input.SetStyles(styles)
 	// 输入法预编辑跟着终端光标。假光标不会上报位置，真实光标就留在最后一行，中文会先出现在底栏。
@@ -246,7 +248,7 @@ func (m *model) begin(action, input string) tea.Cmd {
 			}
 		}
 		go func() {
-			ticker := time.NewTicker(time.Second)
+			ticker := time.NewTicker(120 * time.Millisecond) // 转圈和秒数共用这一拍；120ms 是 8 帧/秒，够顺又不费
 			defer ticker.Stop()
 			for {
 				select {
@@ -335,7 +337,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.seenFocus = true // 首帧之前的焦点是终端启动，不算从别的界面回来
 		}
 		m.width, m.height = msg.Width, msg.Height
-		m.input.SetWidth(max(10, msg.Width-2))
+		m.input.SetWidth(m.inputWidth())
 		limit := max(3, min(10, msg.Height/4))
 		m.input.MaxHeight = limit
 		if m.input.Height() > limit {
@@ -429,6 +431,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.closeOverlay()
 		if msg.err != nil {
 			m.notice = msg.err.Error()
+			m.pendingReasoning = false
 		} else {
 			m.notice = ""
 			if msg.session.ID == "" {
@@ -443,7 +446,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.steps = nil
 				m.renderConversation(true)
 				if msg.session.Running || len(msg.session.Pending) > 0 {
+					m.pendingReasoning = false
 					return m, tea.Batch(m.begin("watch", ""), m.input.Focus())
+				}
+				if m.pendingReasoning {
+					m.pendingReasoning = false
+					m.openReasoning() // 模型换好了，接着问思考强度；回车就落定
+					return m, nil
 				}
 				return m, m.input.Focus()
 			}
@@ -513,6 +522,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.renderConversation(false)
 		return m, nil
 	case clockMsg:
+		if m.running {
+			m.spin++ // 转圈只在任务运行时有意义
+		}
 		return m, m.wait() // 这条消息占用了等待，必须重新排上，否则后续事件没人收
 	case tea.BlurMsg:
 		if m.seenFocus {

@@ -525,7 +525,7 @@ function receiveMessage(session, event) {
 }
 
 // --- 工具事件：参数流、调用、审批、流式输出、结果 ---
-const TOOL_EVENTS = new Set(['tool-input-start', 'tool-input-delta', 'tool-input-end', 'tool-call', 'permission', 'tool-output', 'tool-result', 'permission-blocked'])
+const TOOL_EVENTS = new Set(['tool-input-start', 'tool-input-delta', 'tool-input-end', 'tool-call', 'permission', 'permission-review', 'tool-output', 'tool-result', 'permission-blocked'])
 function receiveTool(session, event) {
   if (event.type === 'tool-input-start') {
     // 模型开始拼工具参数：先占一行，别等整个 JSON 收完才出现。
@@ -553,7 +553,12 @@ function receiveTool(session, event) {
     }
     markFirstToken(streaming(session) || createAssistant(session))
   } else if (event.type === 'permission') {
-    toolFor(session, event, 'waiting')
+    const tool = toolFor(session, event, 'waiting')
+    if (tool && event.review) tool.review = event.review
+  } else if (event.type === 'permission-review') {
+    // AI 审核放行时没有弹窗，这条事件是唯一的“谁放行的”说明。
+    const tool = toolFor(session, event)
+    if (tool) tool.review = { reviewer: event.reviewer, decision: event.decision, reason: event.reason }
   } else if (event.type === 'tool-output') {
     const tool = toolFor(session, event)
     if (tool) {
@@ -577,6 +582,7 @@ function receiveTool(session, event) {
     // 结果类型用 execution-denied，和“用户拒绝”走同一条 rejected 判断。
     const tool = toolFor(session, event, 'rejected')
     if (tool) {
+      if (event.review) tool.review = event.review
       tool.output = { type: 'execution-denied', reason: `已被权限规则拦下（${event.reason}）` }
       tool.preview = formatToolOutput(tool.output)
     }

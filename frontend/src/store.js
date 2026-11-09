@@ -58,8 +58,9 @@ export const store = reactive({
     toolCatalog: [],                                  // 全部工具（含渲染信息，控制工具也在）
     kindOptions: [],                                  // 工具类别；名字和顺序由后端给
     modelTasks: [],                                   // /config/meta.models 给出的任务标签
-    models: {},                                       // 按任务的模型选择：chat、compact、title、task
+    models: {},                                       // 按任务的模型选择：chat、compact、title、task、review
     compact: { threshold: DEFAULT_COMPACT_THRESHOLD }, // 全局压缩阈值
+    review: { enabled: false, policy: '', timeout: 15000 }, // 工具调用 AI 审核
     contextKeep: { ...DEFAULT_CONTEXT_KEEP },        // 压缩后保留多少原文；首屏先用默认值，读到配置后再覆盖
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词

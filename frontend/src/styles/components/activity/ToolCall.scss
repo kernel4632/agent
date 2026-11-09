@@ -15,6 +15,11 @@
   overflow-wrap: normal;
 }
 .approval { display: grid; gap: 8px; margin: 0 0 8px; }
+.approval__review { padding-left: 8px; border-left: 2px solid color-mix(in srgb, var(--la-accent) 40%, transparent); }
+.cot-step__review { margin: 0 0 8px; color: var(--la-secondary); font-size: 12.5px; line-height: 18px; }
+.cot-step__review--allow { color: var(--la-success); }
+.cot-step__review--deny { color: var(--la-danger); }
+.cot-step__review--ask { color: var(--la-warning); }
 .approval p { margin: 0; color: var(--la-secondary); font-size: 12.5px; line-height: 18px; }
 .approval > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .approval .button { height: 40px; padding: 0 14px; font-size: 13px; }

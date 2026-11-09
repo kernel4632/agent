@@ -70,13 +70,22 @@ const store = {
             compact: { provider: '', model: '' },
             title: { provider: '', model: '' },
             task: { provider: '', model: '' },
+            review: { provider: '', model: '' },
         },
 
         // 外部工具服务：一个服务一项，键是服务名。
         mcp: {},
 
-        // 工具权限规则：allow / ask / deny。
+        // 工具权限规则：allow / review / ask / deny。
         permission: {},
+
+        // 工具调用自动审核：启用后，权限动作为 review 的调用先问一次审核模型。
+        // policy 留空使用 review.js 里的内置策略；timeout 是单次审核的上限。
+        review: {
+            enabled: false,
+            policy: '',
+            timeout: 15000,
+        },
 
         // 用户自己写的系统提示词；seeded 表示默认值已经填过一次。
         prompt: { system: '', seeded: false },

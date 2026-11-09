@@ -166,7 +166,9 @@ function normalize(source, previous = {}) {
   for (const pending of source.pending || []) {
     const callID = pending.callID || pending.toolCallId              // 两种字段名都认
     const tool = toolIndex.get(callID)
-    if (tool) tool.status = 'waiting'
+    if (!tool) continue
+    tool.status = 'waiting'
+    if (pending.review) tool.review = pending.review                 // 刷新后仍能看到 AI 为什么转人工
   }
   // 统计从每条助手消息的请求用量里重新算，刷新后总消耗和上下文不会归零。
   const requests = messages.flatMap(message => message.requests || [])

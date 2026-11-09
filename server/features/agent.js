@@ -102,7 +102,7 @@ const configured = target => {
 }
 
 // --- 某件事用哪个模型：先看 models 里那一项，再退到调用方给的连接（会话自己的模型），最后退到第一个可用模型 ---
-// 标题和压缩各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
+// 标题、压缩和工具审核各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
 const taskModel = (task, fallback) => configured(store.config.models?.[task]) || configured(fallback) || defaultModel()
 const firstModel = () => {
     const provider = (store.config.providers || []).find(item => item.enabled !== false)

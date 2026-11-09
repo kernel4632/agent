@@ -112,29 +112,33 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
     "chat": { "provider": "default", "model": "your-model" },
     "compact": { "provider": "", "model": "" },
     "title": { "provider": "", "model": "" },
-    "task": { "provider": "", "model": "" }
+    "task": { "provider": "", "model": "" },
+    "review": { "provider": "", "model": "" }
   },
   "compact": { "threshold": 0.8 },
   "contextKeep": { "firstTurns": 3, "recentTurns": 3, "firstShare": 0.2, "recentShare": 0.3 },
-  "permission": { "*": "ask" }
+  "permission": { "*": "ask" },
+  "review": { "enabled": false, "policy": "", "timeout": 15000 }
 }
 ```
 
 - 每个模型自己带 `context` 和 `capabilities`，没有全局能力表。`family` 可选，只用于模型图标；留空时由 models.dev 目录和模型 ID 自动判断，歧义时不猜。
 - `maxOutput`、`temperature`、`topP`、`seed` 是可选生成参数；`maxOutput` 映射到 agent-core 的单次最大输出，其余原样交给 AI SDK。`body` 用来覆盖请求体里没有可视化字段的高级参数，例如 `{ "top_k": 20 }`。
-- `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task` 不填就回退到 `chat`。
+- `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task`、`review` 不填就回退到 `chat`。
 - `compact.threshold` 是自动压缩的触发比例。`contextKeep` 决定压缩后还留多少总结之前的原文：`firstTurns` 是开场最多保留几个用户回合（**填 0 就是压缩后不再带上最初那几轮原始对话**，只用总结 + 最近的现场），`recentTurns` 是总结之前最多保留几个回合，两个 `*Share` 分别是这两段最多占多少上下文预算。轮数写 0 就是 0，不会被当成“没填”退回默认值；本次发送的用户输入永远保留。
+- `review` 是工具调用 AI 审核：`enabled` 打开后，权限动作为 `review` 的调用先交给 `models.review` 判断；`policy` 留空用内置策略，`timeout` 限制单次审核时长（1000–120000 毫秒，默认 15000）。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
 - 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，其余错误无限次指数退避；首次 5 秒，单次退避上限 120 秒，总重试时长不限。
 - `prompt.seeded` 表示默认提示词已经填过一次；用户保存空字符串后不会被重新填回。
 
 ### 权限规则
 
-`permission` 的每条规则只有三种动作：
+`permission` 的每条规则有四种动作：
 
 | 动作 | 结果 |
 | --- | --- |
 | `"allow"` | 直接执行 |
+| `"review"` | 先让审核模型判断，只有它明确允许才直接执行 |
 | `"ask"` | 停下来等用户点允许或拒绝 |
 | `"deny"` | 直接拒绝，不执行，也不登记审批 |
 
@@ -154,6 +158,18 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 ```
 
 `deny` 是硬规则，写错的动作按 `ask` 处理。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
+
+### 自动审核
+
+权限动作为 `review` 时，审批关口先把这次调用、当前目录和最后一条用户请求交给 `models.review`（不配就和 `chat` 共用）。审核器只判断、不执行工具，也不改规则：
+
+| 审核结论 | 结果 |
+| --- | --- |
+| `allow` | 直接执行，SSE 推 `permission-review` 让界面说明是谁放行的 |
+| `deny` | 直接拒绝，SSE 推 `permission-blocked` 并带审核原因 |
+| `ask` | 回到人工审批弹窗，审核原因一起显示 |
+
+任何失败都按 `ask` 处理：未启用、没有可用审核模型、超时、网络错误、返回不是合法 JSON。审核请求不无限重试，也绝不静默放行。全局 `*` 为 `allow` 时仍然盖过工具的 `review`，和盖过 `ask` 的规则一致；`deny` 不受影响。
 
 ### 项目规则
 
