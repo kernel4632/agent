@@ -375,10 +375,10 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('声明推理能力的模型打开 reasoning 回传', async () => {
+    test('声明回传思考能力的模型打开 reasoning 回传', async () => {
         await withHome(async () => {
             await Settings.set({
-                providers: [{ name: 'local', models: [{ id: 'm', capabilities: ['text', 'tools', 'reasoning'] }] }],
+                providers: [{ name: 'local', models: [{ id: 'm', capabilities: ['text', 'tools', 'reasoning', 'reasoning-replay'] }] }],
             })
             const config = await resolve({ provider: 'local', model: 'm' })
             expect(config.capabilities.reasoning).toBe(true)
@@ -389,7 +389,7 @@ describe('交给 agent-core 的 config', () => {
         await withHome(async () => {
             await withFakeModel(async ({ port, seen }) => {
                 await Settings.set({
-                    providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text', 'tools', 'reasoning'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
+                    providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text', 'tools', 'reasoning', 'reasoning-replay'] }], baseURL: `http://127.0.0.1:${port}/v1`, stream: false }],
                 })
                 const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false }
                 const agent = AgentCore.create({

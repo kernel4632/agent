@@ -125,6 +125,7 @@ const hasCapability = (profile, name) => profile.some(item => {
     if (name === 'tools') return value === '工具'
     if (name === 'image') return value === '图片'
     if (name === 'reasoning') return value === '推理'
+    if (name === 'reasoning-replay') return value === '回传思考'
     return false
 })
 
@@ -184,9 +185,9 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         capabilities: {
             image: hasCapability(profile, 'image'),
             tools: hasCapability(profile, 'tools'),
-            // reasoning 是否回传由模型配置里的「推理输出」能力决定，不看模型名、
-            // 供应商名或中转站地址。模型没声明该能力时保持 core 默认（不回传）。
-            reasoning: hasCapability(profile, 'reasoning'),
+            // 推理输出和“把推理回传”是两件事：前者是展示，后者是协议兼容。
+            // 只有模型声明 reasoning-replay 才回传，避免有推理但不接受回传的模型被 400。
+            reasoning: hasCapability(profile, 'reasoning-replay'),
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
