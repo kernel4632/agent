@@ -641,6 +641,44 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
 })
 
 // 长会话全量挂载已加载的轮次；图表不做第二层视口懒加载，滚回来不会先出现空白占位。
+test('compact boundaries fold the history before them and keep the current segment open', async ({ page }) => {
+  const mock = await backend(page)
+  mock.sessions.set('fold-1', {
+    id: 'fold-1',
+    title: '压缩折叠',
+    provider: 'Test Provider',
+    model: 'test-model',
+    history: [
+      { messageId: 'fold-u1', role: 'user', content: '压缩前的旧问题' },
+      { messageId: 'fold-a1', role: 'assistant', content: [{ type: 'text', text: '压缩前的旧回答' }] },
+      { messageId: 'fold-c1', role: 'user', compact: true, content: '## 旧历史摘要\n这是压缩摘要。' },
+      { messageId: 'fold-u2', role: 'user', content: '压缩后的当前问题' },
+      { messageId: 'fold-a2', role: 'assistant', content: [{ type: 'text', text: '压缩后的当前回答' }] },
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    settings: { reasoning: 'auto' },
+    todos: [],
+    running: false,
+    pending: [],
+    undoable: 0,
+  })
+  await page.goto('/')
+  await openDrawer(page)
+  await page.getByRole('button', { name: '压缩折叠', exact: true }).click()
+  await expect(page.locator('.history-fold')).toHaveCount(1)
+  await expect(page.locator('.timeline-compaction')).toContainText('上下文已压缩')
+  await page.locator('.timeline-compaction .compaction-notice__button').click()
+  await expect(page.locator('.timeline-compaction')).toContainText('旧历史摘要')
+  await expect(page.getByText('压缩后的当前问题', { exact: true })).toBeVisible()
+  await expect(page.getByText('压缩前的旧问题', { exact: true })).toHaveCount(0)
+  await page.locator('.history-fold__head').click()
+  await expect(page.getByText('压缩前的旧问题', { exact: true })).toBeVisible()
+  await page.locator('.history-fold__head').click()
+  await expect(page.getByText('压缩前的旧问题', { exact: true })).toHaveCount(0)
+  expect(mock.errors).toEqual([])
+})
+
 test('long sessions render diagrams for all loaded turns', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -673,8 +711,7 @@ test('long sessions render diagrams for all loaded turns', async ({ page }) => {
   }))
   expect(counts.rendered).toBe(counts.total)
   expect(counts.placeholders).toBe(0)
-  expect(counts.rows).toBeGreaterThan(0)
-  expect(counts.rows).toBeLessThan(60)
+  expect(counts.rows).toBe(60)
   expect(counts.pending).toBe(0)
   expect(mock.errors).toEqual([])
 })
@@ -714,9 +751,8 @@ test('long sessions mount loaded turns and keep the scrollbar stable', async ({ 
     }
   })
 
-  expect(state.turns).toBeGreaterThan(0)
-  expect(state.turns).toBeLessThan(100)
-  expect(state.nodes).toBeLessThan(12000)
+  expect(state.turns).toBe(320)
+  expect(state.nodes).toBeLessThan(20000)
   expect(state.pending).toBe(0)
   expect(state.scrollHeight).toBeGreaterThan(10000)
   expect(state.atBottom).toBe(true)

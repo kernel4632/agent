@@ -1,7 +1,7 @@
 <!--
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
-  用户消息和助手回复按轮排布；历史轮次由 virtua 虚拟化，最新几轮始终挂载。
+  用户消息和助手回复按轮排布；历史按 compact 边界折叠，最后一次压缩之后始终展开。
   按钮和图标按钮走 ui/；右键直接进聚光引导（MessageActions 内置），回退确认也在同一张卡片里。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
@@ -14,12 +14,13 @@ import { Notice } from "../../utils/notice.js"
 import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Virtualizer } from 'virtua/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { store } from '../../store.js'
 import { groupMessageTurns } from "../../features/turns.js"
 import { isSavedMessage } from "../../features/turns.js"
 import Icon from '../../ui/Icon.vue'
+import Fold from '../../ui/Fold.vue'
+import CompactionNotice from '../feedback/CompactionNotice.vue'
 import TurnItem from './TurnItem.vue'
 
 const props = defineProps({
@@ -46,25 +47,41 @@ const turns = computed(() => {
   turnCache = merged
   return merged
 })
-// 全量数据留在内存，虚拟器只负责可见窗口；最新几轮始终挂载，流式行不会被回收。
-const timelineSessionID = session.value?.id || ''
-const LIVE_TAIL_TURNS = 3
-const virtualCaches = new Map()
-const initialVirtualCache = virtualCaches.get(timelineSessionID)
-const historicalLength = Math.max(0, turns.value.length - LIVE_TAIL_TURNS)
-const usableVirtualCache = Array.isArray(initialVirtualCache?.[0]) && initialVirtualCache[0].length === historicalLength
-  ? initialVirtualCache
-  : undefined
-const virtualizer = ref(null)
-const scrollElement = ref(null)
-// 最新几轮放在虚拟窗口外，流式增长不会让虚拟器按“距底部距离”反复修正滚动。
-const historicalTurns = computed(() => turns.value.slice(0, Math.max(0, turns.value.length - LIVE_TAIL_TURNS)))
-const liveTurns = computed(() => turns.value.slice(Math.max(0, turns.value.length - LIVE_TAIL_TURNS)))
-const itemProps = ({ item, index }) => ({
-  class: 'conversation-flow__row',
-  'data-turn-id': item.id,
-  'data-index': index,
+// 以 compact 记录为边界切历史：每段原始对话默认折叠，后面紧跟它对应的压缩摘要；
+// 最后一段（最后一次压缩之后）是当前对话，始终完整展开。
+const blocks = computed(() => {
+  const list = []
+  let pending = []
+  for (const message of messages.value) {
+    if (message.compact) {
+      const segmentTurns = groupMessageTurns(pending)
+      if (segmentTurns.length) {
+        list.push({
+          type: 'history',
+          id: `history-${message.id}`,
+          turns: segmentTurns,
+          messages: pending,
+        })
+      }
+      list.push({ type: 'compact', id: `compact-${message.id}`, message })
+      pending = []
+    } else {
+      pending.push(message)
+    }
+  }
+  const currentTurns = groupMessageTurns(pending)
+  if (currentTurns.length) {
+    list.push({
+      type: 'current',
+      id: 'current',
+      turns: currentTurns,
+      messages: pending,
+    })
+  }
+  return list
 })
+const expandedHistory = reactive(new Set())
+const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
@@ -101,10 +118,6 @@ function requestFollow() {
     const max = maxScrollTop()
     if (max > scrollParent.scrollTop + 1) scrollParent.scrollTop = max
   })
-}
-
-function onVirtualResize() {
-  if (following.value) requestFollow()
 }
 
 // “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局。
@@ -164,6 +177,11 @@ function flushScroll() {
     anchorOffset: anchor?.offset || 0,
     pinned: following.value,
   })
+}
+
+function toggleHistory(id) {
+  if (expandedHistory.has(id)) expandedHistory.delete(id)
+  else expandedHistory.add(id)
 }
 
 function setFollowing(value) {
@@ -307,21 +325,23 @@ function jumpToBottom() {
   }, 700)
 }
 
-// 全量挂载下直接按轮次 DOM 定位。
+// 目标消息可能在折叠历史里：先展开所属段，再按真实 DOM 定位。
 async function jumpToMessage(messageId) {
-  const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
-  if (turnIndex < 0) return
+  const targetTurn = turns.value.find(turn => turn.messages.some(message => message.id === messageId))
+  if (!targetTurn) return
   beginJump()
   setFollowing(false)
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  if (virtualizer.value && turnIndex < historicalTurns.value.length) {
-    virtualizer.value.scrollToIndex(turnIndex, { align: 'start', smooth: !reduce })
-    // 目标行可能在虚拟窗口外，等它挂载后再按真实 DOM 校准一次。
-    await new Promise(resolve => setTimeout(resolve, 180))
+  const hiddenBlock = blocks.value.find(block => block.type === 'history'
+    && !expandedHistory.has(block.id)
+    && block.messages.some(message => message.id === messageId))
+  if (hiddenBlock) {
+    expandedHistory.add(hiddenBlock.id)
+    await nextTick()
   }
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   await nextTick()
   const element = scrollParent?.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
-    || scrollParent?.querySelector(`[data-turn-id="${CSS.escape(turns.value[turnIndex].id)}"]`)
+    || scrollParent?.querySelector(`[data-turn-id="${CSS.escape(targetTurn.id)}"]`)
   if (!element || !scrollParent) return
   const top = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop
   scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
@@ -343,19 +363,10 @@ defineExpose({ jumpToMessage, jumpToBottom })
 
 onMounted(() => {
   bindScrollRoot(props.scrollRoot)
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!following.value || !virtualizer.value || !turns.value.length) return
-        virtualizer.value.scrollToIndex(turns.value.length - 1, { align: 'end' })
-      })
-    })
-  })
 })
 watch(() => props.scrollRoot, root => bindScrollRoot(root), { flush: 'post' })
 onBeforeUnmount(() => {
   unbindScrollRoot()
-  if (virtualizer.value && timelineSessionID) virtualCaches.set(timelineSessionID, virtualizer.value.cache)
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
   clearTimeout(bottomTimer)
@@ -380,7 +391,6 @@ function unbindScrollRoot() {
   contentObserver?.disconnect()
   contentObserver = null
   scrollParent = null
-  scrollElement.value = null
 }
 
 function bindScrollRoot(root) {
@@ -388,7 +398,6 @@ function bindScrollRoot(root) {
   if (!root || root === scrollParent) return
   if (scrollParent) unbindScrollRoot()
   scrollParent = root
-  scrollElement.value = root
   scrollParent.classList.toggle('is-following', following.value)
   scrollParent.addEventListener('scroll', onScroll, { passive: true })
   scrollParent.addEventListener('wheel', onWheel, { passive: true })
@@ -480,54 +489,57 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
     role="log"
     aria-label="对话内容"
   >
-    <Virtualizer
-      ref="virtualizer"
-      :data="historicalTurns"
-      :scroll-ref="scrollElement"
-      :buffer-size="2000"
-      :item-props="itemProps"
-      :cache="usableVirtualCache"
-      class="conversation-flow__virtual"
-      @resize="onVirtualResize"
-    >
-      <template #default="{ item: turn }">
-        <TurnItem
-          :turn="turn"
-          :session-id="session.id"
-          :running="session.status === 'running'"
-          :active="false"
-          :rollback-target="rollbackTarget"
-          :rollback-preview="rollbackPreview"
-          :menu-items="userMenuItems"
-          @request-rollback="requestRollback"
-          @close="clearRollback"
-          @action="onUserMenu"
-          @rollback-confirm="confirmRollback"
-          @fork="forkFrom"
-        />
+    <template v-for="block in blocks" :key="block.id">
+      <section v-if="block.type === 'history'" class="history-fold">
+        <button type="button" class="history-fold__head" :aria-expanded="expandedHistory.has(block.id)" @click="toggleHistory(block.id)">
+          <span class="history-fold__icon"><Icon name="layers" :size="15" /></span>
+          <span class="history-fold__title">已折叠的历史</span>
+          <span class="history-fold__meta">{{ block.turns.length }} 轮 · {{ block.messages.length }} 条</span>
+          <Icon name="down" :size="14" class="history-fold__caret" :class="{ 'is-open': expandedHistory.has(block.id) }" aria-hidden="true" />
+        </button>
+        <Fold :open="expandedHistory.has(block.id)">
+          <div class="history-fold__body">
+            <div v-for="turn in block.turns" :key="turn.id" class="conversation-flow__row" :data-turn-id="turn.id">
+              <TurnItem
+                :turn="turn"
+                :session-id="session.id"
+                :running="session.status === 'running'"
+                :active="false"
+                :rollback-target="rollbackTarget"
+                :rollback-preview="rollbackPreview"
+                :menu-items="userMenuItems"
+                @request-rollback="requestRollback"
+                @close="clearRollback"
+                @action="onUserMenu"
+                @rollback-confirm="confirmRollback"
+                @fork="forkFrom"
+              />
+            </div>
+          </div>
+        </Fold>
+      </section>
+      <div v-else-if="block.type === 'compact'" class="timeline-compaction" :data-message-id="block.message.id">
+        <CompactionNotice :content="block.message.content" />
+      </div>
+      <template v-else>
+        <div v-for="turn in block.turns" :key="turn.id" class="conversation-flow__row" :data-turn-id="turn.id">
+          <TurnItem
+            :turn="turn"
+            :session-id="session.id"
+            :running="session.status === 'running'"
+            :active="session.status === 'running' && turn.id === turns.at(-1)?.id"
+            :rollback-target="rollbackTarget"
+            :rollback-preview="rollbackPreview"
+            :menu-items="userMenuItems"
+            @request-rollback="requestRollback"
+            @close="clearRollback"
+            @action="onUserMenu"
+            @rollback-confirm="confirmRollback"
+            @fork="forkFrom"
+          />
+        </div>
       </template>
-    </Virtualizer>
-    <div
-      v-for="turn in liveTurns"
-      :key="turn.id"
-      class="conversation-flow__row conversation-flow__row--tail"
-      :data-turn-id="turn.id"
-    >
-      <TurnItem
-        :turn="turn"
-        :session-id="session.id"
-        :running="session.status === 'running'"
-        :active="session.status === 'running' && turn.id === turns.at(-1)?.id"
-        :rollback-target="rollbackTarget"
-        :rollback-preview="rollbackPreview"
-        :menu-items="userMenuItems"
-        @request-rollback="requestRollback"
-        @close="clearRollback"
-        @action="onUserMenu"
-        @rollback-confirm="confirmRollback"
-        @fork="forkFrom"
-      />
-    </div>
+    </template>
     <div v-if="!following" class="conversation-latest-layer" :style="latestPosition">
       <button type="button" class="conversation-latest" @click="jumpToBottom">
         <Icon name="down" :size="14" />
