@@ -157,6 +157,20 @@ watch(flow, element => {
   contentObserver.observe(element)
 }, { flush: 'post' })
 
+// 记录当前视口最上方的轮次及其相对偏移；刷新后按“同一轮 + 同一偏移”恢复，
+// 不拿会随 Markdown/图片高度变化的 scrollTop 当锚点。
+function visibleAnchor() {
+  if (!scrollParent) return null
+  const rect = scrollParent.getBoundingClientRect()
+  const element = [...scrollParent.querySelectorAll('[data-turn-id]')]
+    .find(item => item.getBoundingClientRect().bottom > rect.top + 1)
+  if (!element) return null
+  return {
+    id: element.getAttribute('data-turn-id') || '',
+    offset: element.getBoundingClientRect().top - rect.top,
+  }
+}
+
 // 滚动事件很密，先记在内存里，停手后再落一次 localStorage。
 function rememberScroll() {
   if (!scrollParent || !timelineSessionID) return
@@ -167,8 +181,11 @@ function flushScroll() {
   clearTimeout(saveTimer)
   saveTimer = 0
   if (!scrollParent || !timelineSessionID) return
+  const anchor = visibleAnchor()
   saveScroll(timelineSessionID, {
     top: scrollParent.scrollTop,
+    anchorId: anchor?.id || '',
+    anchorOffset: anchor?.offset || 0,
     pinned: following.value,
   })
 }
@@ -379,8 +396,17 @@ function bindScrollRoot(root) {
   requestAnimationFrame(() => {
     if (!scrollParent) return
     const restoreTop = savedView && savedView.pinned === false && Number.isFinite(savedView.top) ? savedView.top : null
-    if (restoreTop == null) scrollToLatest()
-    else scrollParent.scrollTop = restoreTop
+    if (restoreTop == null) {
+      scrollToLatest()
+    } else {
+      const anchor = savedView.anchorId && scrollParent.querySelector(`[data-turn-id="${CSS.escape(savedView.anchorId)}"]`)
+      if (anchor) {
+        const currentOffset = anchor.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
+        scrollParent.scrollTop += currentOffset - savedView.anchorOffset
+      } else {
+        scrollParent.scrollTop = restoreTop
+      }
+    }
     requestAnimationFrame(() => {
       if (!scrollParent) return
       // 恢复到顶部时不会产生 scroll 事件，这里主动补一页更早历史。

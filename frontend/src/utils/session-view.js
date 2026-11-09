@@ -58,6 +58,8 @@ export function readScroll(sessionID) {
   if (!value || !Number.isFinite(value.top)) return null
   return {
     top: Math.max(0, value.top),
+    anchorId: typeof value.anchorId === 'string' ? value.anchorId : '',
+    anchorOffset: Number.isFinite(value.anchorOffset) ? value.anchorOffset : 0,
     pinned: Boolean(value.pinned),
   }
 }
@@ -66,6 +68,8 @@ export function saveScroll(sessionID, scroll) {
   if (!sessionID || !Number.isFinite(scroll?.top)) return
   writeJSON(`${SCROLL_PREFIX}${sessionID}`, {
     top: Math.max(0, scroll.top),
+    anchorId: typeof scroll.anchorId === 'string' ? scroll.anchorId : '',
+    anchorOffset: Number.isFinite(scroll.anchorOffset) ? scroll.anchorOffset : 0,
     pinned: Boolean(scroll.pinned),
   })
 }
