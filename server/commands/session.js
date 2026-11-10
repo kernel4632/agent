@@ -54,62 +54,23 @@ const agentMaterials = async sessionId => {
     return { session, settings: Agent.readSettings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
 }
 
-// --- Agent 缓存取回入口 ---
-const agentSource = sessionId => ({
-    peek: async () => ({ session: await History.load(sessionId), context: Context }),
-    build: () => agentMaterials(sessionId),
-    mcpRevision: () => Tool.mcpRevision(Mcp),
-    getHistory: id => History.get({ sessionId: id }),
+// --- 取回缓存的 Agent，没有或已过期就按最新材料装配 ---
+const getAgent = sessionId => Agent.get({
+    sessionId,
+    assemble: {
+        peek: async () => ({ session: await History.load(sessionId), context: Context }),
+        build: () => agentMaterials(sessionId),
+        mcpRevision: () => Tool.mcpRevision(Mcp),
+        getHistory: id => History.get({ sessionId: id }),
+    },
 })
 
-const getAgent = sessionId => Agent.get({ sessionId, assemble: agentSource(sessionId) })
 const createAgent = async sessionId => Agent.create({ sessionId, ...await agentMaterials(sessionId) })
-
-// --- 改会话的思考强度（原在 agent.js，搬到这里因为要读写历史） ---
-const saveAgentSettings = async ({ sessionId, ...change }) => {
-    const session = await History.load(sessionId)
-    const current = Agent.normalizeSettings(session.settings, Agent.defaultSettings())
-    const saved = Agent.normalizeSettings(change, current)
-    await History.saveSettings({ sessionId, settings: saved })
-    if (change.reasoning === undefined || change.reasoning === current.reasoning) return saved
-    const agent = Agent.runtime().get(sessionId)
-    if (agent?.running) {
-        Object.assign(agent.config, await Agent.resolve({ session, settings: saved, context: Context }))
-        return saved
-    }
-    Agent.invalidate(sessionId)
-    await createAgent(sessionId)
-    return saved
-}
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
     if (typeof title !== 'string' || !title.trim()) throw fail(400, 'title must be a non-empty string')
     return title.trim()
-}
-
-// --- 新会话用哪个模型：点名了就查它，没点名就用配置里的对话默认 ---
-const chooseModel = ({ provider, model }) => {
-    const first = Agent.defaultModel()
-    const namedProvider = typeof provider === 'string' && provider.trim() ? provider.trim() : ''
-    const namedModel = typeof model === 'string' && model.trim() ? model.trim() : ''
-
-    // 什么都没点名：用 config.models.chat。
-    if (!namedProvider && !namedModel) {
-        if (!first.provider) return { provider: '', model: '' }
-        Agent.connection(first)
-        return first
-    }
-
-    const name = namedProvider || first.provider
-    if (!name) return { provider: '', model: '' }
-    const info = (store.config.providers || []).find(item => item.name === name)
-    if (!info) throw fail(400, `Provider not found: ${name}`)
-
-    const own = info.models?.[0]
-    const chosen = namedModel || own?.id || ''
-    Agent.connection({ provider: name, model: chosen })
-    return { provider: name, model: chosen }
 }
 
 // --- 目录必须是真实存在的文件夹 ---
@@ -123,7 +84,27 @@ const folder = async path => {
 // --- 创建会话 ---
 const create = async ({ title, cwd, provider, model }) => {
     const clean = cleanTitle(title)
-    const chosen = chooseModel({ provider, model })
+
+    // --- 选模型：点名了就查它，没点名就用配置里的对话默认 ---
+    const first = Agent.defaultModel()
+    const namedProvider = typeof provider === 'string' && provider.trim() ? provider.trim() : ''
+    const namedModel = typeof model === 'string' && model.trim() ? model.trim() : ''
+    let chosen
+    if (!namedProvider && !namedModel) {
+        if (first.provider) Agent.connection(first)
+        chosen = first.provider ? first : { provider: '', model: '' }
+    } else {
+        const name = namedProvider || first.provider
+        if (!name) chosen = { provider: '', model: '' }
+        else {
+            const info = (store.config.providers || []).find(item => item.name === name)
+            if (!info) throw fail(400, `Provider not found: ${name}`)
+            const own = info.models?.[0]
+            const id = namedModel || own?.id || ''
+            Agent.connection({ provider: name, model: id })
+            chosen = { provider: name, model: id }
+        }
+    }
     // 没有指定目录时用独立临时工作区，避免 agent 默认在项目代码旁边动手。
     const requested = typeof cwd === 'string' && cwd.trim() ? cwd : ''
     const temporary = !requested
@@ -204,7 +185,15 @@ const read = async ({ sessionId, onProgress, segmented = false, after, segment: 
         historyTotal: history.length,
         historyStats: historyUsage(history, session.model.provider, session.model.model),
         contextEstimate: ContextUsage.read(sessionId),
-        todos: latestTodos(history),
+        todos: (() => {
+            for (const message of [...history].reverse()) {
+                for (const part of Array.isArray(message.content) ? message.content : []) {
+                    if (part.type !== 'tool-result' || part.toolName !== 'update_todo_list') continue
+                    if (part.output?.value?.items) return part.output.value.items
+                }
+            }
+            return []
+        })(),
         toolTimings: await ToolTiming.read(sessionId),
         pending: Approval.pending(sessionId),
         undoable: History.redoCount({ sessionId }),
@@ -344,17 +333,6 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
     }
 }
 
-// --- 从历史里取出最新一份任务清单 ---
-const latestTodos = history => {
-    for (const message of [...history].reverse()) {
-        for (const part of Array.isArray(message.content) ? message.content : []) {
-            if (part.type !== 'tool-result' || part.toolName !== 'update_todo_list') continue
-            if (part.output?.value?.items) return part.output.value.items
-        }
-    }
-    return []
-}
-
 // --- 重命名 ---
 const rename = async ({ sessionId, title }) => {
     const session = await History.load(sessionId)
@@ -434,7 +412,22 @@ const readSettings = async ({ sessionId }) => {
 
 // --- 改会话级设置：点名哪几项就改哪几项，最后回一份快照 ---
 const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
-    if (reasoning !== undefined) await saveAgentSettings({ sessionId, reasoning })
+    // --- 改思考强度：读历史、归一、写回、必要时重建 Agent ---
+    if (reasoning !== undefined) {
+        const session = await History.load(sessionId)
+        const current = Agent.normalizeSettings(session.settings, Agent.defaultSettings())
+        const saved = Agent.normalizeSettings({ reasoning }, current)
+        await History.saveSettings({ sessionId, settings: saved })
+        if (reasoning !== current.reasoning) {
+            const agent = Agent.runtime().get(sessionId)
+            if (agent?.running) {
+                Object.assign(agent.config, await Agent.resolve({ session, settings: saved, context: Context }))
+            } else {
+                Agent.invalidate(sessionId)
+                await createAgent(sessionId)
+            }
+        }
+    }
     if (provider !== undefined || model !== undefined) await setModel({ sessionId, provider, model })
     if (cwd !== undefined) await setCwd({ sessionId, cwd })
     return readSettings({ sessionId })
