@@ -21,6 +21,11 @@ import { readAttachments } from '../utils/attachment.js'
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
 const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
+
+// 本地错误气泡只属于上一轮；重新发送或继续时先清掉，不能让它挂在新请求下面。
+function dropLocalErrors(session) {
+  if (session) session.messages = session.messages.filter(message => !String(message.id || '').startsWith('error_'))
+}
 const flushingQueues = new Set()                          // 正在把排队消息送入下一轮的会话
 
 // SSE 兼容旧后端：Error 对象/错误对象不能直接 String() 成 "[object Object]"。
@@ -170,6 +175,7 @@ async function send(sessionID, content, queuedFiles = null) {
   const input = imageParts.length
     ? [...(text.trim() ? [{ type: 'text', text }] : []), ...imageParts]
     : text
+  dropLocalErrors(session)
   void subscribe(sessionID)
   // content 保留完整输入（回退后还能重新发送附件正文），气泡只读 displayContent。
   session.messages.push({
@@ -207,6 +213,7 @@ async function send(sessionID, content, queuedFiles = null) {
 async function resume(sessionID) {
   const session = store.sessions[sessionID]
   if (!session || session.status === 'running' || stopping.has(sessionID)) return false
+  dropLocalErrors(session)
   void subscribe(sessionID)
   session.status = 'running'
   session.connection = 'connecting'

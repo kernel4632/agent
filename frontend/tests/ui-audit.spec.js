@@ -1052,6 +1052,26 @@ test('stopping before the first token still offers continue', async ({ page }) =
   expect(mock.errors).toEqual([])
 })
 
+test('a local run error is cleared when the next run starts', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep running')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+
+  const session = mock.sessions.get('session-1')
+  session.history.push({ messageId: 'assistant-1', role: 'assistant', content: [{ type: 'text', text: '做到一半' }] })
+  await mock.emit('session-1', [{ type: 'agent-finish', error: 'EBADF: bad file descriptor, fstat' }])
+  await expect(page.getByText('EBADF: bad file descriptor, fstat', { exact: true })).toBeVisible()
+  const continueButton = page.getByRole('button', { name: '继续助手', exact: true })
+  await expect(continueButton).toBeVisible()
+  await continueButton.click()
+  await expect(page.getByText('EBADF: bad file descriptor, fstat', { exact: true })).toHaveCount(0)
+  await expect.poll(() => mock.calls.some(call => call.path === '/agent/resume/session-1')).toBe(true)
+  expect(mock.errors).toEqual([])
+})
+
 test('typing after an interruption sends a new message instead of resuming', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
