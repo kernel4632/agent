@@ -237,6 +237,8 @@ const load = async (sessionId, { onProgress } = {}) => {
     store.sessions[sessionId] = session
     // 老会话第一次打开时按 compact 边界拆一次；拆分失败不能影响读取，
     // 下次保存还会再试，旧 JSONL 仍然完整。
+    // 迁移必须留在 load 里，不能推迟到 save：manifestFor() 只认 history.segmented，
+    // 不在这里拆的话，老会话第一次打开拿不到 manifest，read 会把全部历史发给前端。
     if (!history.segmented && needsSegmentation(log)) {
         try {
             await writeAllSegmented(session)
