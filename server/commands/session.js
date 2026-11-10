@@ -6,7 +6,8 @@
  * 这一层只把两边按用户看到的顺序串起来。
  *
  * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
- *   Agent    会话装配与运行状态（create/invalidate/readSettings/resolve）
+ *   Agent    会话运行状态（invalidate/readSettings/resolve）
+ *   Assemble 会话装配（create/get），同层的 assemble.js
  *   History  会话数据的唯一读写口（load/add/save/destroy）
  *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
  *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
@@ -20,9 +21,11 @@
 
 import { stat } from 'node:fs/promises'
 import store from '../store.js'
+import Assemble from './assemble.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
+import Context from '../features/context.js'
 import History from '../features/history.js'
 import ContextUsage from '../utils/context-usage.js'
 import Rollback from '../features/rollback.js'
@@ -34,6 +37,23 @@ import Path from '../utils/path.js'
 import TempWorkspace from '../utils/temp-workspace.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
+
+// --- 改会话的思考强度（原在 agent.js，搬到这里因为要读写历史） ---
+const saveAgentSettings = async ({ sessionId, ...change }) => {
+    const session = await History.load(sessionId)
+    const current = Agent.normalizeSettings(session.settings, Agent.defaultSettings())
+    const saved = Agent.normalizeSettings(change, current)
+    await History.saveSettings({ sessionId, settings: saved })
+    if (change.reasoning === undefined || change.reasoning === current.reasoning) return saved
+    const agent = Agent.runtime().get(sessionId)
+    if (agent?.running) {
+        Object.assign(agent.config, await Agent.resolve({ session, settings: saved, context: Context }))
+        return saved
+    }
+    Agent.invalidate(sessionId)
+    await Assemble.create({ sessionId })
+    return saved
+}
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
@@ -91,7 +111,7 @@ const create = async ({ title, cwd, provider, model }) => {
             model: chosen.model,
             settings: Agent.defaultSettings(),
         })
-        await Agent.create({ sessionId: session.id })
+        await Assemble.create({ sessionId: session.id })
     } catch (error) {
         if (temporary) await TempWorkspace.remove(cwdPath, true).catch(() => {})
         throw error
@@ -123,7 +143,7 @@ const fork = async ({ sessionId, title, messageId }) => {
             temporary: source.temporary,
             provider: source.model.provider,
             model: source.model.model,
-            settings: await Agent.readSettings(sessionId),
+            settings: Agent.readSettings(source),
         })
     } catch (error) {
         if (source.temporary) await TempWorkspace.remove(branchCwd, true).catch(() => {})
@@ -132,7 +152,7 @@ const fork = async ({ sessionId, title, messageId }) => {
     // 历史复制到新目录，消息重新编号，分支之后的操作不会影响原会话。
     for (const { messageId: oldId, ...message } of kept) await History.add({ sessionId: branch.id, message })
     await History.save(branch.id)
-    await Agent.create({ sessionId: branch.id })
+    await Assemble.create({ sessionId: branch.id })
     return { sessionId: branch.id }}
 
 // --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
@@ -186,7 +206,7 @@ const read = async ({ sessionId, onProgress, segmented = false, after, segment: 
         history: page?.manifest ? page.current : history,
         ...(page?.manifest ? { historyManifest: page.manifest } : {}),
         ...stats,
-        settings: await Agent.readSettings(sessionId),
+        settings: Agent.readSettings(session),
     }
 }
 
@@ -332,11 +352,11 @@ const setModel = async ({ sessionId, provider, model }) => {
     const agent = Agent.runtime().get(sessionId)
     if (agent?.running) {
         // core 0.30 每轮现读 agent.config；运行中只换配置，不重建实例、不中断当前任务。
-        const settings = await Agent.readSettings(sessionId)
-        Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name } }))
+        const settings = Agent.readSettings(session)
+        Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name }, context: Context }))
     } else {
         Agent.invalidate(sessionId)
-        await Agent.create({ sessionId })
+        await Assemble.create({ sessionId })
     }
     return { ...session, provider: chosen, model: name }
 }
@@ -375,7 +395,7 @@ const remove = async ({ sessionId }) => {
 // 这三个都是“这条会话自己的”设置，读写都走同一个结构，前端只认一份。
 const readSettings = async ({ sessionId }) => {
     const session = await History.load(sessionId)
-    const settings = await Agent.readSettings(sessionId)
+    const settings = Agent.readSettings(session)
     return {
         reasoning: settings.reasoning,
         provider: session.model.provider,
@@ -387,7 +407,7 @@ const readSettings = async ({ sessionId }) => {
 
 // --- 改会话级设置：点名哪几项就改哪几项，最后回一份快照 ---
 const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
-    if (reasoning !== undefined) await Agent.saveSettings({ sessionId, reasoning })
+    if (reasoning !== undefined) await saveAgentSettings({ sessionId, reasoning })
     if (provider !== undefined || model !== undefined) await setModel({ sessionId, provider, model })
     if (cwd !== undefined) await setCwd({ sessionId, cwd })
     return readSettings({ sessionId })
@@ -395,7 +415,7 @@ const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
 
 // --- 手动压缩 ---
 const compact = async ({ sessionId }) => {
-    const agent = await Agent.get({ sessionId })                         // 已经装配好的 agent
+    const agent = await Assemble.get({ sessionId })                         // 已经装配好的 agent
     const start = agent.history.length                                  // 压缩前的位置
     let compactStartedAt = 0
     let compactUsage

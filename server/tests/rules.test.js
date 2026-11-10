@@ -12,8 +12,8 @@ import { tmpdir } from 'node:os'
 import Agent from '../features/agent.js'
 import Context from '../features/context.js'
 import Session from '../commands/session.js'
+import Assemble from '../commands/assemble.js'
 import store from '../store.js'
-import '../server.js'
 
 const provider = [{ name: 'local', models: [{ id: 'model', name: 'model' }] }]
 
@@ -40,6 +40,7 @@ const withRules = async callback => {
 const resolve = async ({ cwd }) => Agent.resolve({
     session: { cwd, model: { provider: 'local', model: 'model' } },
     settings: Agent.defaultSettings(),
+    context: Context,
 })
 
 describe('项目规则', () => {
@@ -92,14 +93,14 @@ describe('项目规则', () => {
         await withRules(async ({ cwd, write }) => {
             await write('AGENTS.md', '装配时的规则')
             const { sessionId } = await Session.create({ title: '规则', cwd })
-            const agent = await Agent.get({ sessionId })
+            const agent = await Assemble.get({ sessionId })
             expect(agent.config.system).toContain('装配时的规则')
             // 压缩规范跟着装配后的 system 走，自动压缩才拿得到。
             expect(agent.config.system).toContain('上下文压缩')
 
             await write('AGENTS.md', '改过之后的规则')
             await new Promise(resolve => setTimeout(resolve, 20))
-            const again = await Agent.get({ sessionId })
+            const again = await Assemble.get({ sessionId })
             expect(again.config.system).toContain('改过之后的规则')
             expect(again.config.system).toContain('上下文压缩')
         })

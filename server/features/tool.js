@@ -10,8 +10,9 @@
  *   const catalog = await Tool.list()                       // 设置页用
  *   const { tools } = await Tool.build({                   // 会话启动时装配
  *       sessionId,
- *       taskConfig,
- *       onPermission: Approval.check,                        // 工具执行前的审批关口
+ *       mcp: Mcp,                                  // 外部 MCP 服务由调用方传入
+ *       skills: Skills,                              // 技能清单也由调用方传入
+ *       onPermission: Assemble.check,                        // 工具执行前的审批关口
  *       saveSession: () => History.save(sessionId),          // 工具改会话后落盘
  *   })
  *   // 返回 { tools, mcpRevision, release }；release 由 Agent 销毁时调用。
@@ -27,9 +28,7 @@ import Path from '../utils/path.js'
 import Skill from '../tools/skill.js'
 import * as File from '../tools/file.js'
 
-// MCP 和技能由命令层在启动时绑定；本文件不 import 别的 feature。
-let services = {}
-const bind = value => { services = value }
+// MCP 和技能由调用方传入；本文件不 import 别的 feature。
 
 /*
  * 工具类别：工具文件自己写 kind，扫描时登记；
@@ -129,9 +128,9 @@ const attach = (tool, sessionId, { saveSession }) => ({
 
 // --- 组装一条会话的工具表：主 Agent 使用全部工具 ---
 // 外部 MCP 工具按配置版本租用；Agent 销毁时释放租约，最后一个 Agent 释放后才关连接。
-const build = async ({ sessionId, onPermission, saveSession }) => {
-    const session = store.sessions[sessionId]                       // 本次装配对应的会话
-    const lease = await services.mcp.acquire({ sessionId })
+const build = async ({ sessionId, onPermission, saveSession, mcp, skills }) => {
+    const session = store.sessions[sessionId]
+    const lease = await mcp.acquire({ sessionId })
     try {
         const { tools: registered } = await scan()                  // 扫描内置工具和用户工具
         const catalog = new Map(registered)                         // 按名字索引，后面同名会覆盖
@@ -143,7 +142,7 @@ const build = async ({ sessionId, onPermission, saveSession }) => {
 
         // 技能不把正文塞进工具表，只给一个按需读正文的工具；
         // 技能清单的扫描能力（features/skills）由启动装配注入。
-        const skill = await Skill.build({ cwd: session.cwd, skills: services.skills })  // 技能正文留在磁盘上，用时才读
+        const skill = await Skill.build({ cwd: session.cwd, skills })
         if (skill) catalog.set(skill.name, skill)
 
         const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
@@ -155,8 +154,8 @@ const build = async ({ sessionId, onPermission, saveSession }) => {
     }
 }
 
-// --- 当前 MCP 配置版本；Agent 用它判断自己的工具快照是否过期 ---
-const mcpRevision = () => services.mcp?.revision?.() || 0
+// --- 当前 MCP 配置版本；由调用方传入 mcp 对象调用 ---
+const mcpRevision = mcp => mcp?.revision?.() || 0
 
 // --- 工具真正执行之前：交给工具自己的快照钩子 ---
 const snapshot = async call => {
@@ -191,7 +190,6 @@ export default {
     list,
     build,
     mcpRevision,
-    bind,
     ready,
     kindOf,
     snapshot,

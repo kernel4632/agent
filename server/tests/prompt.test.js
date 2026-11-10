@@ -9,9 +9,8 @@ import { tmpdir } from 'node:os'
 import Settings from '../commands/settings.js'
 import Path from '../utils/path.js'
 import Agent from '../features/agent.js'
+import Context from '../features/context.js'
 import store, { DEFAULT_PROMPT } from '../store.js'
-// 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
-import '../server.js'
 
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-prompt-${crypto.randomUUID()}`)
@@ -35,6 +34,7 @@ const provider = [{ name: 'local', models: [{ id: 'model', name: 'model' }] }]
 const resolve = async () => Agent.resolve({
     session: { model: { provider: 'local', model: 'model' } },
     settings: Agent.defaultSettings(),
+    context: Context,
 })
 
 describe('默认系统提示词', () => {

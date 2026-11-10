@@ -15,6 +15,7 @@ import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
 import Agent from '../features/agent.js'
+import Context from '../features/context.js'
 import store from '../store.js'
 import SSE from '../utils/sse.js'
 import { app } from '../server.js'
@@ -347,9 +348,9 @@ describe('重启恢复', () => {
 
             // 恢复路径上的配置要带封顶的重试策略；用户自己发消息的路径不带。
             const session = await History.load(sessionId)
-            const settings = await Agent.readSettings(sessionId)
-            const recovery = await Agent.resolve({ session, settings, recovery: true })
-            const normal = await Agent.resolve({ session, settings })
+            const settings = Agent.readSettings(session)
+            const recovery = await Agent.resolve({ session, settings, recovery: true, context: Context })
+            const normal = await Agent.resolve({ session, settings, context: Context })
 
             // 恢复路径封顶；用户路径也有通用过滤，但不限制总时长/次数。
             expect(recovery.retryMaxElapsed).toBeGreaterThan(0)

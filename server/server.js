@@ -1,7 +1,7 @@
 /*
- * Web 服务入口：装配有状态模块，接收 HTTP 触发，交给对应的指令，再按状态码把错误发回去。
+ * Web 服务入口：接收 HTTP 触发，交给对应的指令，再按状态码把错误发回去。
  *
- * 本文件只做五件事：装配有状态模块、注册路由、把错误转成 HTTP 反馈、提供服务状态、启动服务。
+ * 本文件只做四件事：注册路由、把错误转成 HTTP 反馈、提供服务状态、启动服务。
  * 业务读写都在 commands/ 和 features/ 里完成；根目录不再有第二层业务目录。
  *
  * 路由一共 19 条，分三层：
@@ -20,24 +20,11 @@ import Admin from './commands/admin.js'
 import Chat from './commands/chat.js'
 import Session from './commands/session.js'
 import Settings from './commands/settings.js'
-import Agent from './features/agent.js'
-import Approval from './features/approval.js'
-import Config from './features/config.js'
-import Context from './features/context.js'
 import History from './features/history.js'
 import Mcp from './features/mcp.js'
-import Skills from './features/skills.js'
 import Storage from './features/storage.js'
-import Tool from './features/tool.js'
 import { cleanup } from './utils/process.js'
 import SSE from './utils/sse.js'
-
-// --- 装配有状态模块：feature 之间不互相 import，需要的兄弟服务在这里接起来 ---
-Mcp.bind({ config: Config })                                                         // MCP 服务增删改后把配置写回磁盘
-Tool.bind({ mcp: Mcp, skills: Skills })                                              // 工具表里要能取到 MCP 服务和技能清单
-Approval.bind({ tool: Tool, config: Config })                                        // 审批要查工具类别，并把“始终允许”写回配置
-Config.bind({ onConfigChange: () => Approval.recheck() })                            // 配置变了，等待中的审批按新规则重问
-Agent.bind({ history: History, tool: Tool, approval: Approval, context: Context })   // 会话装配要读历史、工具表、审批和上下文
 
 const app = new Elysia()
 

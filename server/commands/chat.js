@@ -2,8 +2,8 @@
  * 对话指令：发送、继续、停止和审批决定。
  *
  * 一次运行的编排都在这里：启动 Agent、把过程推成 SSE、保存新消息、收尾。
- * 模型请求和工具循环由 @kernel4632/agent-core 负责；本文件只 import features 和 utils，
- * 不 import 别的命令文件。有状态模块的装配在 server.js。
+ * 模型请求和工具循环由 @kernel4632/agent-core 负责；本文件 import features、utils，
+ * 以及同层的 assemble.js（Agent 的装配），不 import 别的命令文件。
  *
  * 调用示例：
  *   await Chat.send({ sessionId, input: '你好' })
@@ -14,8 +14,10 @@
  */
 
 import { nanoid } from 'nanoid'
+import Assemble from './assemble.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
+import Context from '../features/context.js'
 import History from '../features/history.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
@@ -42,7 +44,7 @@ const finishRun = async (sessionId, token) => {
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
     History.setRunning(sessionId, false)
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
-    await Agent.settle(sessionId)
+    await Assemble.settle(sessionId)
 }
 
 // --- 取一条消息里的纯文本 ---
@@ -163,7 +165,7 @@ const validateRun = async ({ sessionId, input, resume }) => {
     if (state?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试') // 停止中不能启动
 
     await History.load(sessionId)                                        // 加载历史到内存
-    const agent = await Agent.get({ sessionId })                         // 装配 agent（如果还没有的话）
+    const agent = await Assemble.get({ sessionId }) // 装配 agent（如果还没有的话）
     if (sessions.get(sessionId)?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试')
     if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能再发
 
@@ -333,7 +335,7 @@ const saveStep = ({ sessionId, agent, state }) => () => {
 }
 
 // --- 工具审批：同时留下"哪条用户消息"和"哪次工具调用" ---
-const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, signal }) => Approval.check({
+const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, signal }) => Assemble.check({
     sessionId,
     messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
     toolCallId,
@@ -374,7 +376,7 @@ const compactWarning = ({ state, sessionId }) => ({ tokens, budget, compactThres
 
 const startRun = async ({ sessionId, input, resume, agent, recovery = false }) => {
     const session = await History.load(sessionId)
-    const settings = await Agent.readSettings(sessionId)
+    const settings = Agent.readSettings(session)
     const state = sessions.get(sessionId)
     if (state?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试')
 
@@ -390,7 +392,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
     let task
     try {
         const options = {
-            config: await Agent.resolve({ session, settings, recovery }),
+            config: await Agent.resolve({ session, settings, recovery, context: Context }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, token }),
                 onInject: compactWarning({ state: runState, sessionId }),
@@ -469,7 +471,7 @@ const recover = async () => {
     for (const { id } of candidates) {
         try {
             await History.load(id)
-            const agent = await Agent.get({ sessionId: id })
+            const agent = await Assemble.get({ sessionId: id })
             if (agent.running) continue
             const visible = History.get({ sessionId: id }).filter(message => !message.internal)
             if (skipRecovery(visible) || !resumable(visible)) {

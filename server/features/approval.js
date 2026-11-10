@@ -7,11 +7,11 @@
  * 全局 `*` 为 allow 是「全部批准」：工具默认写成 ask 也不能把多行命令打回弹窗，只有明确的 deny 能拦住。
  * 规则已经是 allow 的调用直接放行，不再因为重复出现而停下来问。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
- * 工具查询和配置保存由命令层在启动时 bind；本文件不 import 任何 feature。
+ * 工具查询（快照、扫描、类别）由调用方传入；本文件不 import 任何 feature。
  *
  * 调用示例：
- *   Approval.bind({ tool, config })                        // 命令层启动时注入
- *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal })
+ *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal,
+ *       snapshot: Tool.snapshot, ready: Tool.ready, kindOf: Tool.kindOf })
  *   await Approval.decide({ sessionId, toolCallId, decision: 'allow-once' })
  *   Approval.pending(sessionId)
  */
@@ -21,9 +21,7 @@ import store from '../store.js'
 import fail from '../utils/fail.js'
 import SSE from '../utils/sse.js'
 
-// 工具查询和配置保存在命令层启动时注入；本文件不 import 别的 feature。
-let services = {}
-const bind = value => { services = value }
+// 工具查询（快照、扫描、类别）由调用方传入；本文件不 import 任何 feature。
 
 // 等用户决定的工具调用：key 是 `${sessionId}:${toolCallId}`，value 里带着唤醒 Agent 的 resolve。
 const approvals = new Map()
@@ -101,8 +99,8 @@ const effectiveRules = () => store.config.permission || { '*': 'ask' }
 // 用户心里认为的"一个操作"：换参数还是同一个操作，换子命令才是另一个操作。
 
 // --- 放行这次调用，并让工具自己决定是否在写入前存快照 ---
-const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
-    await services.tool.snapshot({
+const allow = async ({ sessionId, messageId, toolCallId, toolName, input, snapshot }) => {
+    await snapshot({
         sessionId,
         messageId,
         toolCallId,
@@ -132,15 +130,15 @@ const waitForUser = ({ sessionId, toolCallId, name, input, matchValue, signal })
 })
 
 // --- 检查一个工具调用能不能执行 ---
-const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal }) => {
+const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal, snapshot, ready, kindOf }) => {
     const name = toolName
     const mcpServers = Object.keys(store.config.mcp || {})
     // 直接调用审批（测试、脚本）时工具表可能还没装配，这里补一次扫描。
-    await services.tool.ready()
+    await ready()
 
     // 记清单、结束循环这些内部工具不碰磁盘，也没有"要不要批准"这回事。
-    if (services.tool.kindOf({ toolName: name, mcpServers }) === 'never') {
-        return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (kindOf({ toolName: name, mcpServers }) === 'never') {
+        return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
     }
 
     const matchValue = flattenInput(input)
@@ -148,14 +146,14 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     if (rules.denied) return false
 
     // allow 就是放行。重复出现同一次调用不再改回询问，否则自动执行形同失效。
-    if (rules.decision === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (rules.decision === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
 
     // 没有会话上下文时按无人值守放行。
-    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
 
     const answer = await waitForUser({ sessionId, toolCallId, name, input, matchValue, signal })
     if (!answer) return false
-    return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
 }
 
 // --- 列出这个会话还在等谁批准 ---
@@ -201,4 +199,4 @@ const remove = sessionId => {
     }
 }
 
-export default { check, decide, pending, recheck, remove, bind }
+export default { check, decide, pending, recheck, remove }

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 
 import AgentCore from '@kernel4632/agent-core'
 import Approval from '../features/approval.js'
+import Assemble from '../commands/assemble.js'
 import Path from '../utils/path.js'
 import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
@@ -507,9 +508,9 @@ describe('server file snapshots', () => {
             await History.save(sessionId)
             const messageId = added.message.id
 
-            await Approval.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'write_file', input: { path: edited } })
-            await Approval.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'write_file', input: { path: removed } })
-            await Approval.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'write_file', input: { path: created } })
+            await Assemble.check({ sessionId, messageId, toolCallId: 'd1', toolName: 'write_file', input: { path: edited } })
+            await Assemble.check({ sessionId, messageId, toolCallId: 'd2', toolName: 'write_file', input: { path: removed } })
+            await Assemble.check({ sessionId, messageId, toolCallId: 'd3', toolName: 'write_file', input: { path: created } })
             await writeFile(edited, 'after')
             await rm(removed, { force: true })
             await writeFile(created, 'brand new')
@@ -581,7 +582,7 @@ describe('server file snapshots', () => {
             const added = await History.add({ sessionId, message: AgentCore.history.user({ content: 'create a file' }) })
             await History.save(sessionId)
 
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'write_file', input: { path: target } })
+            await Assemble.check({ sessionId, messageId: added.message.id, toolCallId: 'snap-new', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'created by agent')
 
             const rolledBack = await Session.rollback({ sessionId, messageId: added.messageId })
@@ -595,10 +596,10 @@ describe('server tool approval and SSE', () => {
     test('allows configured tools and returns a denial decision', async () => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'allow' } })
-            expect(await Approval.check({ sessionId: 's', toolCallId: 'c1', toolName: 'execute_command', input: {} })).toBe(true)
+            expect(await Assemble.check({ sessionId: 's', toolCallId: 'c1', toolName: 'execute_command', input: {} })).toBe(true)
 
             await Settings.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 'c2', toolName: 'execute_command', input: {} })
+            const pending = Assemble.check({ sessionId: 's', toolCallId: 'c2', toolName: 'execute_command', input: {} })
             await Bun.sleep(0)
             expect(await Approval.decide({ sessionId: 's', toolCallId: 'c2', decision: 'deny' })).toEqual({ ok: true })
             expect(await pending).toBe(false)
@@ -608,13 +609,13 @@ describe('server tool approval and SSE', () => {
     test('allow 只放行这一次，不往配置里写规则', async () => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 'c3', toolName: 'read_file', input: { path: 'a.txt' } })
+            const pending = Assemble.check({ sessionId: 's', toolCallId: 'c3', toolName: 'read_file', input: { path: 'a.txt' } })
             await Bun.sleep(0)
             await Approval.decide({ sessionId: 's', toolCallId: 'c3', decision: 'allow' })
             expect(await pending).toBe(true)
 
             // 同样的参数再来一次仍然要问：长期规则在“工具自动批准”里设，不靠弹窗记忆。
-            const again = Approval.check({ sessionId: 's', toolCallId: 'c4', toolName: 'read_file', input: { path: 'a.txt' } })
+            const again = Assemble.check({ sessionId: 's', toolCallId: 'c4', toolName: 'read_file', input: { path: 'a.txt' } })
             await Bun.sleep(0)
             expect((await Approval.pending('s')).map(item => item.callID)).toEqual(['c4'])
             await Approval.decide({ sessionId: 's', toolCallId: 'c4', decision: 'deny' })
@@ -625,7 +626,7 @@ describe('server tool approval and SSE', () => {
     test('rejects a retired decision value with a client error and keeps waiting', async () => {
         await withHome(async () => {
             await Settings.set({ permission: { '*': 'ask' } })
-            const pending = Approval.check({ sessionId: 's', toolCallId: 'c5', toolName: 'execute_command', input: {} })
+            const pending = Assemble.check({ sessionId: 's', toolCallId: 'c5', toolName: 'execute_command', input: {} })
             await Bun.sleep(0)
             // allow-always / allow-once 都已经不在契约里。
             for (const decision of ['allow-always', 'allow-once', 'maybe']) {
@@ -642,7 +643,7 @@ describe('server tool approval and SSE', () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'Waiting approval' })
 
-            const waiting = Approval.check({ sessionId, toolCallId: 'w1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
+            const waiting = Assemble.check({ sessionId, toolCallId: 'w1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
             await Bun.sleep(0)
 
             const reloaded = await Session.read({ sessionId })

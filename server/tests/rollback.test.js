@@ -18,12 +18,11 @@ import Agent from '../features/agent.js'
 import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
+import Assemble from '../commands/assemble.js'
 import Tool from '../features/tool.js'
 import Rollback from '../features/rollback.js'
 import * as File from '../tools/file.js'
 import store from '../store.js'
-// 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
-import '../server.js'
 
 // 每个测试使用独立目录和干净的内存数据。
 const withHome = async callback => {
@@ -170,9 +169,9 @@ describe('正文块与工具调用级回退', () => {
             })
             await History.save(sessionId)
 
-            await Approval.check({ sessionId, messageId: 'a1', toolCallId: 'c1', toolName: 'write_file', input: { path: first } })
+            await Assemble.check({ sessionId, messageId: 'a1', toolCallId: 'c1', toolName: 'write_file', input: { path: first } })
             await writeFile(first, 'a1')
-            await Approval.check({ sessionId, messageId: 'a1', toolCallId: 'c2', toolName: 'write_file', input: { path: second } })
+            await Assemble.check({ sessionId, messageId: 'a1', toolCallId: 'c2', toolName: 'write_file', input: { path: second } })
             await writeFile(second, 'b1')
 
             await Session.rollback({ sessionId, messageId: added.messageId, partIndex: 2 })
@@ -195,9 +194,9 @@ describe('工具级回退', () => {
             await History.save(sessionId)
             const messageId = added.message.id
 
-            await Approval.check({ sessionId, messageId, toolCallId: 'call-a', toolName: 'write_file', input: { path: first } })
+            await Assemble.check({ sessionId, messageId, toolCallId: 'call-a', toolName: 'write_file', input: { path: first } })
             await writeFile(first, 'a1')
-            await Approval.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'write_file', input: { path: second } })
+            await Assemble.check({ sessionId, messageId, toolCallId: 'call-b', toolName: 'write_file', input: { path: second } })
             await writeFile(second, 'b1')
 
             expect((await Tool.entries({ sessionId })).map(entry => entry.toolCallId)).toEqual(['call-a', 'call-b'])
@@ -237,7 +236,7 @@ describe('工具级回退', () => {
             const added = await History.add({ sessionId, message: AgentCore.history.user({ content: '改一个文件' }) })
             await History.save(sessionId)
 
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'write_file', input: { path: target } })
+            await Assemble.check({ sessionId, messageId: added.message.id, toolCallId: 'call-x', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'after')
 
             await Session.rollback({ sessionId, toolCallId: 'call-x' })
@@ -254,9 +253,9 @@ describe('工具级回退', () => {
             const target = await tempFile('agent-twice', 'v0')
 
             const { sessionId } = await Session.create({ title: 'Two edits' })
-            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'write_file', input: { path: target } })
+            await Assemble.check({ sessionId, messageId: 'm', toolCallId: 't1', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'v1')
-            await Approval.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'write_file', input: { path: target } })
+            await Assemble.check({ sessionId, messageId: 'm', toolCallId: 't2', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'v2')
 
             await Session.rollback({ sessionId, toolCallId: 't2' })
@@ -274,7 +273,7 @@ describe('工具级回退', () => {
             const { sessionId } = await Session.create({ title: 'Invalid rollback' })
             const added = await History.add({ sessionId, message: AgentCore.history.user({ content: '改一个文件' }) })
             await History.save(sessionId)
-            await Approval.check({ sessionId, messageId: added.message.id, toolCallId: 'call-invalid', toolName: 'write_file', input: { path: target } })
+            await Assemble.check({ sessionId, messageId: added.message.id, toolCallId: 'call-invalid', toolName: 'write_file', input: { path: target } })
             await writeFile(target, 'after')
 
             await expect(Session.rollback({ sessionId, messageId: 'missing-message', files: true })).rejects.toThrow(/not found/i)
@@ -387,7 +386,7 @@ describe('权限规则的拒绝动作', () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow', execute_command: 'deny' } })
             const { sessionId } = await Session.create({ title: 'Deny wins' })
 
-            const allowed = await Approval.check({ sessionId, toolCallId: 'deny-1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
+            const allowed = await Assemble.check({ sessionId, toolCallId: 'deny-1', toolName: 'execute_command', input: { command: 'rm -rf build' } })
             expect(allowed).toBe(false)
             expect(Approval.pending(sessionId)).toEqual([])
         })
@@ -401,8 +400,8 @@ describe('权限规则的拒绝动作', () => {
             })
             const { sessionId } = await Session.create({ title: 'Last match' })
 
-            expect(await Approval.check({ sessionId, toolCallId: 'make-build', toolName: 'execute_command', input: { command: 'make build' } })).toBe(true)
-            expect(await Approval.check({ sessionId, toolCallId: 'make-deploy', toolName: 'execute_command', input: { command: 'make deploy' } })).toBe(false)
+            expect(await Assemble.check({ sessionId, toolCallId: 'make-build', toolName: 'execute_command', input: { command: 'make build' } })).toBe(true)
+            expect(await Assemble.check({ sessionId, toolCallId: 'make-deploy', toolName: 'execute_command', input: { command: 'make deploy' } })).toBe(false)
         })
     })
 
@@ -410,7 +409,7 @@ describe('权限规则的拒绝动作', () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'deny', execute_command: 'allow' } })
             const { sessionId } = await Session.create({ title: 'Override' })
-            expect(await Approval.check({ sessionId, toolCallId: 'shell-ok', toolName: 'execute_command', input: { command: 'ls' } })).toBe(true)
+            expect(await Assemble.check({ sessionId, toolCallId: 'shell-ok', toolName: 'execute_command', input: { command: 'ls' } })).toBe(true)
         })
     })
 
@@ -419,8 +418,8 @@ describe('权限规则的拒绝动作', () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'deny' } })
             const { sessionId } = await Session.create({ title: 'Internal tools' })
 
-            expect(await Approval.check({ sessionId, toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '' } })).toBe(true)
-            expect(await Approval.check({ sessionId, toolCallId: 'shell-deny', toolName: 'execute_command', input: { command: 'ls' } })).toBe(false)
+            expect(await Assemble.check({ sessionId, toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '' } })).toBe(true)
+            expect(await Assemble.check({ sessionId, toolCallId: 'shell-deny', toolName: 'execute_command', input: { command: 'ls' } })).toBe(false)
         })
     })
 
@@ -429,7 +428,7 @@ describe('权限规则的拒绝动作', () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { execute_command: 'maybe' } })
             const { sessionId } = await Session.create({ title: 'Unknown action' })
 
-            const task = Approval.check({ sessionId, toolCallId: 'unknown-1', toolName: 'execute_command', input: { command: 'ls' } })
+            const task = Assemble.check({ sessionId, toolCallId: 'unknown-1', toolName: 'execute_command', input: { command: 'ls' } })
             await Bun.sleep(0)
             expect(Approval.pending(sessionId)).toHaveLength(1)
             await Approval.decide({ sessionId, toolCallId: 'unknown-1', decision: 'deny' })
@@ -447,7 +446,7 @@ describe('允许规则直接放行', () => {
                 permission: { '*': 'ask', mcp: 'allow', sample_tool: { '*': 'ask' } },
             })
             const { sessionId } = await Session.create({ title: 'MCP group' })
-            expect(await Approval.check({ sessionId, toolCallId: 'mcp-1', toolName: 'sample_tool', input: {} })).toBe(true)
+            expect(await Assemble.check({ sessionId, toolCallId: 'mcp-1', toolName: 'sample_tool', input: {} })).toBe(true)
             expect(Approval.pending(sessionId)).toEqual([])
 
             await Settings.set({
@@ -455,7 +454,7 @@ describe('允许规则直接放行', () => {
                 mcp: { sample: { transport: 'http', url: 'https://mcp.example.test' } },
                 permission: { '*': 'ask', mcp: 'deny', sample_tool: { '*': 'allow' } },
             })
-            expect(await Approval.check({ sessionId, toolCallId: 'mcp-2', toolName: 'sample_tool', input: {} })).toBe(false)
+            expect(await Assemble.check({ sessionId, toolCallId: 'mcp-2', toolName: 'sample_tool', input: {} })).toBe(false)
         })
     })
 
@@ -465,7 +464,7 @@ describe('允许规则直接放行', () => {
             const { sessionId } = await Session.create({ title: 'Recheck on config change' })
 
             // 先让一条调用挂进弹窗，再模拟用户去设置页开全部批准。
-            const waiting = Approval.check({ sessionId, toolCallId: 'stuck-1', toolName: 'read_file', input: { path: 'a.txt' } })
+            const waiting = Assemble.check({ sessionId, toolCallId: 'stuck-1', toolName: 'read_file', input: { path: 'a.txt' } })
             await Bun.sleep(0)
             expect(Approval.pending(sessionId)).toHaveLength(1)
 
@@ -480,7 +479,7 @@ describe('允许规则直接放行', () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'Recheck deny' })
 
-            const waiting = Approval.check({ sessionId, toolCallId: 'stuck-2', toolName: 'read_file', input: { path: 'a.txt' } })
+            const waiting = Assemble.check({ sessionId, toolCallId: 'stuck-2', toolName: 'read_file', input: { path: 'a.txt' } })
             await Bun.sleep(0)
             expect(Approval.pending(sessionId)).toHaveLength(1)
 
@@ -495,7 +494,7 @@ describe('允许规则直接放行', () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
             const { sessionId } = await Session.create({ title: 'Allow repeats' })
 
-            const call = id => Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })
+            const call = id => Assemble.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })
             for (const id of ['a1', 'a2', 'a3', 'a4', 'a5']) expect(await call(id)).toBe(true)
             expect(Approval.pending(sessionId)).toEqual([])
         })
@@ -508,7 +507,7 @@ describe('允许规则直接放行', () => {
                 permission: { execute_command: { '*': 'allow', 'rm *': 'deny' } },
             })
             const { sessionId } = await Session.create({ title: 'Star default' })
-            const run = (id, command) => Approval.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
+            const run = (id, command) => Assemble.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
 
             expect(await run('newline', 'cd /tmp\nls')).toBe(true)
             expect(await run('empty', '')).toBe(true)
@@ -525,14 +524,14 @@ describe('允许规则直接放行', () => {
             })
             const { sessionId } = await Session.create({ title: 'Prefix slash' })
 
-            expect(await Approval.check({
+            expect(await Assemble.check({
                 sessionId,
                 toolCallId: 'cd-sub',
                 toolName: 'execute_command',
                 input: { command: 'cd /tmp/qslrun && echo hi' },
             })).toBe(true)
 
-            const other = Approval.check({ sessionId, toolCallId: 'ls', toolName: 'execute_command', input: { command: 'ls' } })
+            const other = Assemble.check({ sessionId, toolCallId: 'ls', toolName: 'execute_command', input: { command: 'ls' } })
             await Bun.sleep(0)
             expect(Approval.pending(sessionId)).toHaveLength(1)
             await Approval.decide({ sessionId, toolCallId: 'ls', decision: 'deny' })
@@ -547,7 +546,7 @@ describe('允许规则直接放行', () => {
                 permission: { '*': 'allow', execute_command: { '*': 'ask', 'rm *': 'deny', 'ls*': 'allow' } },
             })
             const { sessionId } = await Session.create({ title: 'Allow all multiline' })
-            const run = (id, command) => Approval.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
+            const run = (id, command) => Assemble.check({ sessionId, toolCallId: id, toolName: 'execute_command', input: { command } })
             const script = "echo \"第一行\"\necho \"第二行\"\necho \"多行命令测试通过\""
             const heredoc = "cd /home/proj && python3 - <<'PY'\nimport io\np='/tmp/a'\nprint(1)\nPY"
 
@@ -567,7 +566,7 @@ describe('允许规则直接放行', () => {
             const { sessionId } = await Session.create({ title: 'Prefix multiline' })
             const command = "cd /home/proj && python3 - <<'PY'\nimport io\np='/tmp/a'\nprint(1)\nPY"
 
-            expect(await Approval.check({
+            expect(await Assemble.check({
                 sessionId,
                 toolCallId: 'heredoc',
                 toolName: 'execute_command',
@@ -583,7 +582,7 @@ describe('允许规则直接放行', () => {
             const { sessionId } = await Session.create({ title: 'Different inputs' })
 
             for (const path of ['a.txt', 'b.txt', 'c.txt', 'd.txt']) {
-                expect(await Approval.check({ sessionId, toolCallId: path, toolName: 'read_file', input: { path } })).toBe(true)
+                expect(await Assemble.check({ sessionId, toolCallId: path, toolName: 'read_file', input: { path } })).toBe(true)
             }
             expect(Approval.pending(sessionId)).toEqual([])
         })
@@ -595,7 +594,7 @@ describe('允许规则直接放行', () => {
             const { sessionId } = await Session.create({ title: 'Deny first' })
 
             for (const id of ['d1', 'd2', 'd3']) {
-                expect(await Approval.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })).toBe(false)
+                expect(await Assemble.check({ sessionId, toolCallId: id, toolName: 'read_file', input: { path: 'a.txt' } })).toBe(false)
             }
             expect(Approval.pending(sessionId)).toEqual([])
         })

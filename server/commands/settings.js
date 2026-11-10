@@ -3,7 +3,7 @@
  *
  * 配置读取、当前形状检查和保存都在 features/config.js；工具扫描在 features/tool.js。
  * 两边都是设置页要的数据，所以合成一个命令文件，不再为工具目录单独留一个转手文件。
- * 本文件只 import features，不 import 别的命令；有状态模块的装配在 server.js。
+ * 本文件只 import features，不 import 别的命令。
  *
  * 调用示例：
  *   await Settings.read()
@@ -16,7 +16,9 @@
 
 import { fileURLToPath } from 'node:url'
 import Agent from '../features/agent.js'
+import Approval from '../features/approval.js'
 import Config from '../features/config.js'
+import Context from '../features/context.js'
 import Tool from '../features/tool.js'
 
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
@@ -24,21 +26,23 @@ const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
 const runtimeVersion = await Bun.file(packageFile).json().then(config => config.version).catch(() => '')
 let cachedVersion = runtimeVersion || null
 
-// --- 配置读写与界面元数据：直接交给 feature，不在这里转手处理 ---
-const { MODELS, read, set, get, meta } = Config
+// --- 配置读写与界面元数据 ---
+// set/restore/importConfig 改完配置后要重评挂着的审批，旧规则下卡住的调用按新规则走。
+const { MODELS, read, get, meta } = Config
+const set = async config => { const result = await Config.set(config); Approval.recheck(); return result }
 
 // --- 工具目录：设置页画权限开关用 ---
 const listTools = () => Tool.list()
 const toolKinds = () => Tool.KINDS
 
 // --- 真实试一次模型请求 ---
-const test = async ({ provider, model } = {}) => Agent.testModel({ provider, model })
+const test = async ({ provider, model } = {}) => Agent.testModel({ provider, model, context: Context })
 
 const backups = () => Config.backups()
 const readBackup = id => Config.readBackup(id)
-const restore = body => Config.restore(body)
+const restore = async body => { const result = await Config.restore(body); Approval.recheck(); return result }
 const exportConfig = query => Config.export(query)
-const importConfig = body => Config.import(body)
+const importConfig = async body => { const result = await Config.import(body); Approval.recheck(); return result }
 
 // --- 读取后端版本：运行版本在进程启动时固定，目标版本每次读仓库文件 ---
 const version = async () => {

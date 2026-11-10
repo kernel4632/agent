@@ -83,14 +83,14 @@ describe('项目结构', () => {
         expect(entries.filter(entry => !allowed.has(entry) && !generated.has(entry))).toEqual([])
     })
 
-    test('直接 import 命令的测试都经过服务入口装配', async () => {
-        const directory = fileURLToPath(new URL('./', import.meta.url))
-        const files = (await readdir(directory)).filter(name => name.endsWith('.test.js'))
-        for (const file of files) {
-            const code = await Bun.file(new URL(`./${file}`, import.meta.url)).text()
-            if (!code.includes("from '../commands/")) continue
-            // 有状态服务只在 server.js 装配；漏了它，单独跑这个文件时命令会缺依赖。
-            expect(code.includes("'../server.js'"), `${file} 没 import ../server.js`).toBe(true)
+    test('features 之间不互相引用，也不引用 commands；编排只在 commands 里', async () => {
+        const directory = fileURLToPath(new URL('../features/', import.meta.url))
+        for (const file of (await readdir(directory)).filter(name => name.endsWith('.js'))) {
+            const code = await Bun.file(new URL(`../features/${file}`, import.meta.url)).text()
+            expect(code.includes("from './"), `${file} 引用了同层的 feature`).toBe(false)
+            expect(code.includes("from '../features/"), `${file} 引用了别的 feature`).toBe(false)
+            expect(code.includes("from '../commands/"), `${file} 引用了 commands`).toBe(false)
+            expect(code.includes('const bind = '), `${file} 还在用 bind 注入兄弟能力`).toBe(false)
         }
     })
 

@@ -11,11 +11,11 @@ import { tmpdir } from 'node:os'
 
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
+import Context from '../features/context.js'
 import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import Chat from '../commands/chat.js'
 import store from '../store.js'
-import '../server.js'
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=='
 const withHome = async callback => {
@@ -38,6 +38,7 @@ const withHome = async callback => {
 const resolve = async ({ provider, model, settings = {} }) => Agent.resolve({
     session: { model: { provider, model } },
     settings: { ...Agent.defaultSettings(), ...settings },
+    context: Context,
 })
 
 // 起一个假模型服务：记录每次请求体，回一句固定的话。

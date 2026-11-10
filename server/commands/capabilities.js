@@ -14,6 +14,7 @@
  *   await Capabilities.skillSave({ name: 'review', description: '审查', body: '...' })
  */
 
+import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import Mcp from '../features/mcp.js'
 import Skills from '../features/skills.js'
@@ -26,7 +27,11 @@ const mcpList = async ({ cwd } = {}) => ({
 })
 
 // --- 手动新增或替换一个服务 ---
-const mcpSave = async ({ name, definition } = {}) => Mcp.save({ name, definition })
+const mcpSave = async ({ name, definition } = {}) => {
+    const result = await Mcp.save({ name, definition })
+    await Config.save()
+    return result
+}
 
 // --- 按识别编号导入；名称已经存在时不覆盖，避免覆盖用户自己的配置 ---
 const mcpImport = async ({ ids, cwd } = {}) => {
@@ -51,14 +56,23 @@ const mcpImport = async ({ ids, cwd } = {}) => {
             continue
         }
         await Mcp.save({ name: found.name, definition: found.definition })
+        await Config.save()
         configured.add(found.name)
         imported.push(found.name)
     }
     return { imported, skipped }
 }
 
-const mcpRemove = async ({ name } = {}) => Mcp.remove({ name })
-const mcpToggle = async ({ name, enabled } = {}) => Mcp.toggle({ name, enabled })
+const mcpRemove = async ({ name } = {}) => {
+    const result = await Mcp.remove({ name })
+    await Config.save()
+    return result
+}
+const mcpToggle = async ({ name, enabled } = {}) => {
+    const result = await Mcp.toggle({ name, enabled })
+    await Config.save()
+    return result
+}
 const mcpTest = async ({ name } = {}) => Mcp.test({ name })
 
 // --- 技能：生效清单、目录、正文和增改删 ---
