@@ -24,7 +24,7 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 
 根目录只放入口和数据文件；脚本类产物（比如文档生成器）放 `scripts/`。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
 
-Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。实际使用的版本看 `package.json`，这里不重复写——写死的版本号一定会过期。只按当前版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
+Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。实际使用的版本看 `package.json`，这里不重复写——写死的版本号一定会过期。只按当前版本契约接入，不保留旧版适配。助手/工具末尾继续调用 `agent.resume()`；用户末尾由宿主补内部续跑提示调用 `agent.send()`，不再插入并删除用户占位消息。
 
 循环轮数不设上限（早期版本的 `maxSteps` / `step-limit` 已移除）；运行中修改 `agent.config`（模型、思考强度、system、工具表）会在下一笔请求生效，切模型和保存思考强度不再要求任务空闲。
 
@@ -37,6 +37,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 - 任务开跑前把 `running: true` 写进 meta，收尾（成功、失败、被停止）后清掉；
 - 服务启动时扫描全部会话，对所有还带着 `running: true` 的会话逐条处理：
   - 历史末尾是助手回复（包括悬着没有结果的工具调用）→ 直接 `Chat.resume` 自动续跑，过程和手动发送一样走 SSE；
+- 历史末尾是用户消息（模型还没返回就被打断）→ 也走 `Chat.resume`，宿主补一条内部续跑提示重新请求；提示标为 `internal`，不写入历史、不出现在界面，用户不用回退重发；
   - 历史末尾是用户消息 → 只清标记，等用户自己发下一句；
   - 尾部 tool 消息里已经有 `attempt_completion` / `ask_followup_question` 的结果 → 任务其实已正常收尾，只清标记；
 - 恢复异步进行，不挡启动；单条会话失败（比如供应商配置丢了）只记日志并清标记，不影响其他会话和服务启动。

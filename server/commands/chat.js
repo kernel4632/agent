@@ -144,6 +144,15 @@ const normalizeInput = input => {
     return parts.some(part => part.type === 'text') ? parts : null
 }
 
+// --- 继续时的末尾判断 ---
+// 助手/工具可以原生 resume；末尾是用户消息时说明上一请求在模型返回前被打断，
+// 用一条内部续跑提示再发一次（不写进历史，也不在界面上多出用户气泡）。
+const RESUME_USER_PROMPT = '[System notice] The previous user request was interrupted before the assistant replied. Continue that request now. Do not ask for confirmation, do not repeat completed work, and do not mention this notice.'
+
+const lastConversationMessage = history => [...history]
+    .reverse()
+    .find(message => !message.internal && message.role !== 'tool')
+
 // --- 发送前检查：输入、停止状态、运行状态和继续位置 ---
 const validateRun = async ({ sessionId, input, resume }) => {
     if (!resume && !inputHasText(input)) throw fail(400, 'input must be a non-empty string')
@@ -154,8 +163,11 @@ const validateRun = async ({ sessionId, input, resume }) => {
     if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
     if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
-    if (resume && [...agent.history].reverse().find(message => !message.internal && message.role !== 'tool')?.role !== 'assistant') {
-        throw fail(409, '最后一条消息不是助手回复，不能继续')
+    if (resume) {
+        const last = lastConversationMessage(agent.history)
+        if (!last || (last.role !== 'assistant' && last.role !== 'user')) {
+            throw fail(409, '最后一条消息不是用户或助手回复，不能继续')
+        }
     }
     return agent
 }
@@ -384,7 +396,17 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                 onPermission: askBeforeTool({ sessionId, agent }),
             },
         }
-        task = resume ? agent.resume(options) : agent.send({ ...options, input })
+        const last = lastConversationMessage(agent.history)
+        const resumeUser = resume && last?.role === 'user'
+        if (resumeUser) {
+            // 末尾还没有助手内容，core 的 resume 不接受；补一条内部续跑消息重新请求。
+            const before = agent.history.length
+            task = agent.send({ ...options, input: RESUME_USER_PROMPT })
+            const addedUser = agent.history.slice(before).find(message => message.role === 'user')
+            if (addedUser) addedUser.internal = true
+        } else {
+            task = resume ? agent.resume(options) : agent.send({ ...options, input })
+        }
     } catch (error) {
         await finishRun(sessionId, token)
         throw error

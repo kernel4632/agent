@@ -468,20 +468,42 @@ describe('继续被中断的助手', () => {
         })
     })
 
-    test('任务在跑或最后一条不是助手回复时拒绝继续', async () => {
+    test('任务在跑时拒绝继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()
-            Agent.runtime().set(sessionId, {
+            const running = {
+                history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
+                running: { task: Promise.resolve() },
+                stop: async () => ({ ok: true }),
+            }
+            Agent.runtime().set(sessionId, running)
+            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+        })
+    })
+
+    test('最后一条是用户消息时用内部续跑提示继续，不写入第二个用户消息', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const agent = {
                 history: [{ id: 'u1', role: 'user', content: text('开始') }],
                 running: null,
                 stop: async () => ({ ok: true }),
-            })
-            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+                send(options) {
+                    agent.history.push({ id: 'internal-user', role: 'user', content: text(options.input) })
+                    return options.callbacks.onStart().then(() => {
+                        agent.history.push({ id: 'a1', role: 'assistant', content: text('继续完成') })
+                        return { reason: 'finished' }
+                    })
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
 
-            const running = Agent.runtime().get(sessionId)
-            running.history = [{ id: 'a1', role: 'assistant', content: text('做到一半') }]
-            running.running = { task: Promise.resolve() }
-            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+            expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
+            await waitForHistory(sessionId, 2)
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.role)).toEqual(['user', 'assistant'])
+            expect(history.map(message => message.id)).toEqual(['u1', 'a1'])
+            expect(JSON.stringify(history)).not.toContain('System notice')
         })
     })
 
@@ -669,18 +691,18 @@ describe('继续助手的 HTTP 接口', () => {
         })
     })
 
-    test('最后一条不是助手回复时返回 409', async () => {
+    test('空历史不能继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             Agent.runtime().set(sessionId, {
-                history: [{ id: 'u1', role: 'user', content: text('还没回答') }],
+                history: [],
                 running: null,
                 stop: async () => ({ ok: true }),
             })
 
             const response = await resumeRequest(sessionId)
             expect(response.status).toBe(409)
-            expect(await response.json()).toMatchObject({ error: expect.stringContaining('助手') })
+            expect(await response.json()).toMatchObject({ error: expect.stringContaining('不能继续') })
         })
     })
 
