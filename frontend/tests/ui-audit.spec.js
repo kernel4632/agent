@@ -14,6 +14,16 @@ async function openContextGroups(page) {
   }
 }
 
+async function openStepActions(page, target) {
+  await target.click()
+  const trigger = page.locator('.step-actions-float__trigger')
+  await expect(trigger).toBeVisible()
+  await trigger.click()
+  const panel = page.locator('.step-actions-float__panel')
+  await expect(panel).toBeVisible()
+  return panel
+}
+
 async function screenshot(page, testInfo, name) {
   const layout = await page.evaluate(() => ['html', 'body', '.app-theme', '.rikka-app', '.rikka-main', '.app-main', '.app-drawer', '.topbar', '.chat-composer'].map(selector => {
     const element = document.querySelector(selector)
@@ -89,7 +99,7 @@ test('mocked conversation: create, stream, rename, persistence, rollback and del
   await expect(page.getByRole('button', { name: '文件面板', exact: true })).toHaveCount(0)
   // 模型还没提出任务清单时，顶栏不显示清单按钮。
   await expect(page.getByRole('button', { name: '任务清单', exact: true })).toHaveCount(0)
-  await page.locator('.rikka-bubble--user').first().locator('xpath=ancestor::*[contains(@class,"message-step")]').locator('.step-actions__rail').click()
+  await openStepActions(page, page.locator('.rikka-bubble--user').first())
   // 步骤窄条打开后选择回退，再在确认窗口里确认。
   await page.getByRole('button', { name: '回退到此步骤之前' }).click()
   await expect(page.getByRole('heading', { name: '回退到此步骤之前', exact: true })).toBeVisible()
@@ -140,7 +150,7 @@ test('assistant reply block can be rolled back to that reply', async ({ page }) 
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
-  await page.locator('.rikka-bubble--assistant').first().locator('xpath=ancestor::*[contains(@class,"assistant-step")]').locator('.step-actions__rail').click()
+  await openStepActions(page, page.locator('.rikka-bubble--assistant').first())
   await page.getByRole('button', { name: '回退到此步骤之前' }).click()
   await expect(page.getByRole('heading', { name: '回退到此步骤之前', exact: true })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: '同时把文件改回这一步之前' })).toBeChecked()
@@ -2165,7 +2175,7 @@ test('message action forks the conversation at that message', async ({ page }, t
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
-  await page.locator('.rikka-bubble--user').first().locator('xpath=ancestor::*[contains(@class,"message-step")]').locator('.step-actions__rail').click()
+  await openStepActions(page, page.locator('.rikka-bubble--user').first())
   await page.getByRole('button', { name: '从此步骤创建分支', exact: true }).click()
   await expect(page.getByRole('heading', { name: '从此步骤创建分支', exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'message-actions')
@@ -2185,14 +2195,11 @@ test('step rail stays usable on mobile and leaves the native context menu alone'
 
   // 右键事件不再被业务代码拦截，页面里不会冒出步骤面板或确认框。
   await page.locator('.rikka-bubble--user').first().dispatchEvent('contextmenu')
-  await expect(page.locator('.step-actions__panel')).toHaveCount(0)
+  await expect(page.locator('.step-actions-float__panel')).toHaveCount(0)
   await expect(page.locator('dialog[open]')).toHaveCount(0)
 
-  const rail = page.locator('.message-step .step-actions__rail').first()
-  await expect(rail).toBeVisible()
-  await rail.click()
-  const panel = page.locator('.step-actions__panel')
-  await expect(panel).toBeVisible()
+  const panel = await openStepActions(page, page.locator('.rikka-bubble--user').first())
+  await expect(page.locator('.step-actions-float')).toHaveCount(1)
   await expect(panel.getByRole('button', { name: '回退到此步骤之前' })).toBeVisible()
   await expect(panel.getByRole('button', { name: '从此步骤创建分支' })).toBeVisible()
   await screenshot(page, testInfo, 'step-rail-mobile')

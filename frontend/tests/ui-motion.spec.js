@@ -330,13 +330,14 @@ test.describe('chat motion', () => {
     await newSession(page, '操作层动效')
 
     await watchMotion(page)
-    await page.locator('.rikka-bubble--user').first().locator('xpath=ancestor::*[contains(@class,"message-step")]').locator('.step-actions__rail').click()
-    // 步骤窄条展开后，覆盖层本身要有真实的 opacity/transform 过渡。
-    const panel = page.locator('.step-actions__panel')
+    await page.locator('.rikka-bubble--user').first().click()
+    await page.locator('.step-actions-float__trigger').click()
+    // 全局步骤浮层的菜单要有真实的 opacity/transform 过渡。
+    const panel = page.locator('.step-actions-float__panel')
     await expect(panel).toBeVisible()
-    await waitForMotion(page, 'step-actions__panel')
+    await waitForMotion(page, 'step-actions-float__panel')
     const motion = await readMotion(page)
-    const card = moving(motion, 'step-actions__panel')
+    const card = moving(motion, 'step-actions-float__panel')
     expect(card.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
     expect(card.some(item => item.opacity !== '1' || item.transform !== 'none')).toBe(true)
     expect(card.some(item => item.duration >= 120 && item.duration <= 200)).toBe(true)

@@ -2,9 +2,9 @@
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
 思考、工具和中间正文按发生顺序合成一张时间线卡片；完成任务/询问用户这类结束工具的结果才是正式回复，直接显示在卡片下方，不再套背景。
 没有结束工具时（停止、报错、断网）才把已经流出的正文当临时回复。
-每轮按模型请求切成步骤：思考和工具属于步骤内的内容，每个步骤左侧有一条操作窄条；
-右键和长按完全交还浏览器，窄条只负责打开步骤的回退/分支菜单。
-调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :active="active" @rollback="..." @fork="..." />
+每轮按模型请求切成步骤：思考和工具属于步骤内的内容；操作由 Timeline 的全局浮层承载。
+右键和长按完全交还浏览器，全局浮层根据 data-step-* 找到当前步骤。
+调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :active="active" />
 -->
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -17,18 +17,15 @@ import { isFinishedStopTool, isSavedMessage } from "../../features/turns.js"
 import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
 import ReasoningStep from './ReasoningStep.vue'
-import StepActions from './StepActions.vue'
 import ToolCall from '../activity/ToolCall.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
-  running: Boolean,
   active: Boolean,
 })
-const emit = defineEmits(['rollback', 'fork'])
 
-// 步骤操作只认已经落盘的消息；pending/error 没有可回退的后端 id。
+// 步骤操作由 Timeline 的全局浮层读取 data-step-*，这里不再渲染每步窄条。
 const savedTarget = message => isSavedMessage(message) ? message : null
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
@@ -250,27 +247,54 @@ const processSections = computed(() => {  const sections = []
   return sections
 })
 
-// 一个步骤 = 一个模型请求的思考/正文/工具，连同紧跟其后的正文。
-// 处理过程仍共用外层折叠；这里只把 sections 切成步骤，给每一步一条操作窄条。
+// 一个步骤 = 一次模型请求；一个 context-group 里如果包含多次请求，也要拆开。
+function splitGroup(section) {
+  if (section.type !== 'group') return [section]
+  const chunks = []
+  let chunk = []
+  for (const step of section.steps) {
+    const startsRequest = step.type === 'request' || step.type === 'compact'
+    // 连续的请求（重试）不拆；已经有内容/工具后再来请求才是新步骤。
+    const hasAction = chunk.some(item => item.type !== 'request' && item.type !== 'compact')
+    if (startsRequest && hasAction) {
+      chunks.push(chunk)
+      chunk = []
+    }
+    chunk.push(step)
+  }
+  if (chunk.length) chunks.push(chunk)
+  if (chunks.length <= 1) return [section]
+  return chunks.map((steps, index) => ({
+    type: 'group',
+    key: `${section.key}-${index}`,
+    steps,
+    summary: summarizeSteps(steps.filter(step => step.type !== 'request' && step.type !== 'compact')),
+  }))
+}
+
+// 步骤边界只认 request；思考、正文、工具都是该步骤的内容。
 const stepBlocks = computed(() => {
   const blocks = []
   let current = null
   for (const section of processSections.value) {
-    // 每个 context-group 是一次请求的动作组；它开启新步骤，后面的正文留在同一步。
-    if (!current || section.type === 'group') {
-      current = { key: section.key, sections: [] }
-      blocks.push(current)
+    for (const part of splitGroup(section)) {
+      if (!current || part.type === 'group') {
+        current = { key: part.key, sections: [] }
+        blocks.push(current)
+      }
+      current.sections.push(part)
     }
-    current.sections.push(section)
   }
   return blocks.map(block => {
     const steps = block.sections.flatMap(section => section.type === 'group' ? section.steps : [section.step])
     const messages = []
     const seen = new Set()
     for (const step of steps) {
-      if (!step.message || seen.has(step.message.id)) continue
-      seen.add(step.message.id)
-      messages.push(step.message)
+      // request/text 步骤只带 messageId，不一定挂 message 对象；从本轮消息里补齐。
+      const message = step.message || props.messages.find(item => item.id === step.messageId)
+      if (!message || seen.has(message.id)) continue
+      seen.add(message.id)
+      messages.push(message)
     }
     return {
       ...block,
@@ -317,15 +341,15 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
         </button>
         <Fold :open="processShown" :instant="approvalPending">
           <div class="process-fold__body context-sections">
-            <div v-for="block in stepBlocks" :key="block.key" class="assistant-step">
-              <StepActions
-                :rollback-target="block.rollbackTarget"
-                :fork-target="block.forkTarget"
-                :running="running"
-                label="步骤操作"
-                @rollback="emit('rollback', $event)"
-                @fork="emit('fork', $event)"
-              />
+            <div
+              v-for="block in stepBlocks"
+              :key="block.key"
+              class="assistant-step"
+              :data-step-key="block.key"
+              :data-step-rollback="block.rollbackTarget?.id || ''"
+              :data-step-fork="block.forkTarget?.id || ''"
+              data-step-label="步骤操作"
+            >
               <div class="assistant-step__body">
             <template v-for="section in block.sections" :key="section.key">
               <template v-if="section.type === 'step'">
@@ -404,15 +428,14 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
           </div>
         </Fold>
       </div>
-      <div v-if="bubbleText" class="assistant-step assistant-step--response">
-        <StepActions
-          :rollback-target="bubbleTarget"
-          :fork-target="bubbleTarget"
-          :running="running"
-          label="回复操作"
-          @rollback="emit('rollback', $event)"
-          @fork="emit('fork', $event)"
-        />
+      <div
+        v-if="bubbleText"
+        class="assistant-step assistant-step--response"
+        data-step-key="response"
+        :data-step-rollback="bubbleTarget?.id || ''"
+        :data-step-fork="bubbleTarget?.id || ''"
+        data-step-label="回复操作"
+      >
         <div class="assistant-step__body">
           <div class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
             <Markdown :content="shownBubble" />

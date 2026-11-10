@@ -16,10 +16,10 @@ import { readScroll, saveScroll } from '../../utils/session-view.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { store } from '../../store.js'
 import { groupMessageTurns } from "../../features/turns.js"
-import { isSavedMessage } from "../../features/turns.js"
 import Icon from '../../ui/Icon.vue'
 import Fold from '../../ui/Fold.vue'
 import CompactionNotice from '../feedback/CompactionNotice.vue'
+import StepActions from './StepActions.vue'
 import TurnItem from './TurnItem.vue'
 
 const props = defineProps({
@@ -139,6 +139,18 @@ const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
 const flow = ref(null)
+// 全局只有一个步骤浮层；数据来自悬停步骤的 data-step-*，不占正文宽度。
+const stepAction = reactive({
+  visible: false,
+  left: 0,
+  top: 0,
+  rollbackId: '',
+  forkId: '',
+  label: '步骤操作',
+})
+let stepActionElement = null
+let stepActionTimer = 0
+let stepActionBusy = false
 let scrollParent = null
 let contentObserver = null
 let followFrame = 0
@@ -298,9 +310,107 @@ function onScroll() {
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
   }
   lastScrollTop = top
+  positionStepAction()
   syncLatestPosition()
   rememberScroll()
 }
+
+function positionStepAction() {
+  if (!stepAction.visible || !stepActionElement?.isConnected) return
+  const rect = stepActionElement.getBoundingClientRect()
+  if (rect.bottom < 0 || rect.top > window.innerHeight) {
+    hideStepAction()
+    return
+  }
+  // 浮层放在步骤左侧的空白里；窄屏没有空白时收进视口边缘。
+  stepAction.left = Math.max(8, rect.left - 54)
+  stepAction.top = Math.max(8, Math.min(window.innerHeight - 52, rect.top + 8))
+}
+
+function showStepAction(element) {
+  if (!element) return
+  let rollbackId = element.getAttribute('data-step-rollback') || ''
+  let forkId = element.getAttribute('data-step-fork') || ''
+  // 旧历史可能没把 messageId 带进分组；从步骤内的任意消息兜底，保证浮层仍可用。
+  if (!rollbackId || !forkId) {
+    const messageId = element.querySelector('[data-message-id]')?.getAttribute('data-message-id') || ''
+    rollbackId = rollbackId || messageId
+    forkId = forkId || messageId
+  }
+  if (!rollbackId && !forkId) return
+  clearTimeout(stepActionTimer)
+  stepActionElement = element
+  stepAction.rollbackId = rollbackId
+  stepAction.forkId = forkId
+  stepAction.label = element.getAttribute('data-step-label') || '步骤操作'
+  stepAction.visible = true
+  positionStepAction()
+}
+
+function hideStepAction() {
+  clearTimeout(stepActionTimer)
+  stepAction.visible = false
+  stepActionElement = null
+}
+
+function scheduleHideStepAction(delay = 220) {
+  if (stepActionBusy) return
+  clearTimeout(stepActionTimer)
+  stepActionTimer = window.setTimeout(hideStepAction, delay)
+}
+
+function onStepPointerOver(event) {
+  if (event.target.closest?.('.step-actions-float')) {
+    clearTimeout(stepActionTimer)
+    return
+  }
+  const element = event.target.closest?.('[data-step-key]')
+  if (element) showStepAction(element)
+  else scheduleHideStepAction()
+}
+
+function onStepPointerLeave() {
+  scheduleHideStepAction(260)
+}
+
+function onStepPointerDown(event) {
+  if (event.target.closest?.('.step-actions-float')) return
+  const element = event.target.closest?.('[data-step-key]')
+  if (element) showStepAction(element)
+}
+
+function onStepActionEnter() {
+  clearTimeout(stepActionTimer)
+}
+
+function onStepActionBusy(value) {
+  stepActionBusy = value
+  if (value) clearTimeout(stepActionTimer)
+}
+
+function onStepActionLeave() {
+  scheduleHideStepAction(180)
+}
+
+function onDocumentPointerDown(event) {
+  if (!stepAction.visible) return
+  if (event.target.closest?.('[data-step-key]')
+    || event.target.closest?.('.step-actions-float')
+    || event.target.closest?.('.ui-dialog')) return
+  hideStepAction()
+}
+
+function onDocumentPointerMove(event) {
+  if (!stepAction.visible) return
+  if (event.target.closest?.('.step-actions-float') || event.target.closest?.('.ui-dialog')) {
+    clearTimeout(stepActionTimer)
+  }
+}
+
+function onViewportResize() {
+  positionStepAction()
+}
+
 
 function onWheel(event) {
   if (!scrollParent) return
@@ -456,10 +566,17 @@ defineExpose({ jumpToMessage, jumpToBottom })
 
 onMounted(() => {
   bindScrollRoot(props.scrollRoot)
+  document.addEventListener('pointerdown', onDocumentPointerDown, { passive: true })
+  document.addEventListener('pointermove', onDocumentPointerMove, { passive: true })
+  window.addEventListener('resize', onViewportResize)
 })
 watch(() => props.scrollRoot, root => bindScrollRoot(root), { flush: 'post' })
 onBeforeUnmount(() => {
   unbindScrollRoot()
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+  document.removeEventListener('pointermove', onDocumentPointerMove)
+  window.removeEventListener('resize', onViewportResize)
+  clearTimeout(stepActionTimer)
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
   clearTimeout(bottomTimer)
@@ -529,19 +646,23 @@ function bindScrollRoot(root) {
   })
 }
 // 步骤操作：回退从步骤第一条消息开始，分支保留到步骤最后一条消息。
-async function rollbackStep({ message, files = true } = {}) {
-  if (!isSavedMessage(message)) return
+async function rollbackStep({ id, message, files = true } = {}) {
+  const messageId = id || message?.id
+  if (!messageId) return
   const sessionID = session.value.id
   if (session.value.status === 'running') {
     const { Chat } = await import('../../commands/chat.js')
     await Chat.stop(sessionID)
   }
-  await History.rollbackMessage(sessionID, message.id, files)
+  hideStepAction()
+  await History.rollbackMessage(sessionID, messageId, files)
 }
 
-async function forkStep(message) {
-  if (!isSavedMessage(message)) return
-  const id = await History.fork(session.value.id, message.id)
+async function forkStep(idOrMessage) {
+  const messageId = typeof idOrMessage === 'string' ? idOrMessage : idOrMessage?.id
+  if (!messageId) return
+  hideStepAction()
+  const id = await History.fork(session.value.id, messageId)
   if (id) await Navigation.openChat(id)
 }
 </script>
@@ -552,6 +673,9 @@ async function forkStep(message) {
     class="conversation-flow"
     role="log"
     aria-label="对话内容"
+    @pointerover="onStepPointerOver"
+    @pointerdown="onStepPointerDown"
+    @pointerleave="onStepPointerLeave"
   >
     <template v-for="block in blocks" :key="block.id">
       <section v-if="block.type === 'history'" class="history-fold">
@@ -567,10 +691,7 @@ async function forkStep(message) {
               <TurnItem
                 :turn="turn"
                 :session-id="session.id"
-                :running="session.status === 'running'"
                 :active="false"
-                @rollback="rollbackStep"
-                @fork="forkStep"
               />
             </div>
           </div>
@@ -584,10 +705,7 @@ async function forkStep(message) {
           <TurnItem
             :turn="turn"
             :session-id="session.id"
-            :running="session.status === 'running'"
             :active="session.status === 'running' && turn.id === currentTurns.at(-1)?.id"
-            @rollback="rollbackStep"
-            @fork="forkStep"
           />
         </div>
       </template>
@@ -598,6 +716,20 @@ async function forkStep(message) {
         回到最新
       </button>
     </div>
+  </div>
+  <div class="step-action-anchor" @pointerenter="onStepActionEnter" @pointerleave="onStepActionLeave">
+    <StepActions
+      :visible="stepAction.visible"
+      :left="stepAction.left"
+      :top="stepAction.top"
+      :rollback-id="stepAction.rollbackId"
+      :fork-id="stepAction.forkId"
+      :label="stepAction.label"
+      :running="session.status === 'running'"
+      @rollback="rollbackStep"
+      @fork="forkStep"
+      @busy="onStepActionBusy"
+    />
   </div>
 </template>
 

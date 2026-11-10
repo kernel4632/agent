@@ -2,7 +2,6 @@
 <script setup>
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
-import StepActions from './StepActions.vue'
 import CompactionNotice from '../feedback/CompactionNotice.vue'
 import AssistantTurn from './AssistantTurn.vue'
 import { computed } from 'vue'
@@ -11,10 +10,8 @@ import { isSavedMessage } from '../../features/turns.js'
 const props = defineProps({
   turn: { type: Object, required: true },
   sessionId: { type: String, required: true },
-  running: Boolean,
   active: Boolean,
 })
-const emit = defineEmits(['rollback', 'fork'])
 const userActionTarget = computed(() => isSavedMessage(props.turn.messages[0]) ? props.turn.messages[0] : null)
 </script>
 
@@ -26,15 +23,13 @@ const userActionTarget = computed(() => isSavedMessage(props.turn.messages[0]) ?
   >
     <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
     <template v-else-if="turn.role === 'user'">
-      <div class="message-step">
-        <StepActions
-          :rollback-target="userActionTarget"
-          :fork-target="userActionTarget"
-          :running="running"
-          label="用户消息操作"
-          @rollback="emit('rollback', $event)"
-          @fork="emit('fork', $event)"
-        />
+      <div
+        class="message-step"
+        :data-step-key="`user-${turn.messages[0].id}`"
+        :data-step-rollback="userActionTarget?.id || ''"
+        :data-step-fork="userActionTarget?.id || ''"
+        data-step-label="用户消息操作"
+      >
         <div class="message-step__body">
           <div class="rikka-message rikka-message--user">
             <div class="rikka-bubble rikka-bubble--user" :data-message-id="turn.messages[0].id">
@@ -57,10 +52,7 @@ const userActionTarget = computed(() => isSavedMessage(props.turn.messages[0]) ?
       <AssistantTurn
         :messages="turn.messages"
         :session-id="sessionId"
-        :running="running"
         :active="active"
-        @rollback="emit('rollback', $event)"
-        @fork="emit('fork', $event)"
       />
     </template>
   </article>

@@ -64,7 +64,14 @@
 .rikka-bubble--user { max-width: 100%; }
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-/* 历史按 compact 边界切段；折叠时不挂载段内消息。 */
+/* 步骤浮层的透明事件层：只让浮层本体接收指针，不挡住对话。 */
+.step-action-anchor {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+
 .history-fold {
   display: flex;
   width: 100%;

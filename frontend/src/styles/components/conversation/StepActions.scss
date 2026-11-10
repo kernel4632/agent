@@ -1,95 +1,65 @@
-/* 步骤左侧窄条：高度由 flex 拉伸到整步；面板从左侧覆盖整步。 */
-.step-actions {
-  position: static;
+/* 全局步骤浮层：固定定位，不占正文宽度；只跟随鼠标所在的步骤移动。 */
+.step-actions-float {
+  position: fixed;
+  z-index: 12;
   display: flex;
-  flex: 0 0 14px;
-  align-self: stretch;
-  min-width: 14px;
+  align-items: flex-start;
+  pointer-events: auto;
+  transition: top .14s ease, left .14s ease;
 }
 
-.step-actions__rail {
-  position: relative;
-  display: flex;
-  width: 14px;
-  min-height: 0;
+.step-actions-float__trigger {
+  display: inline-flex;
+  height: 34px;
   align-items: center;
-  justify-content: center;
-  align-self: stretch;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--la-muted);
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--la-line);
+  border-radius: 9px;
+  background: var(--la-layer-01);
+  box-shadow: var(--la-shadow-overlay);
+  color: var(--la-secondary);
   cursor: pointer;
 }
 
-/* 触屏扩展命中区域：视觉上仍是窄条，实际可点击宽度接近 44px。 */
-.step-actions__rail::after {
-  position: absolute;
-  inset-block: 0;
-  right: -15px;
-  width: 44px;
-  content: "";
-}
-
-.step-actions__rail:hover,
-.step-actions__rail:focus-visible {
-  background: var(--la-hover);
+.step-actions-float__trigger:hover,
+.step-actions-float__trigger:focus-visible,
+.step-actions-float__trigger[aria-expanded="true"] {
+  border-color: var(--la-accent-border);
+  background: var(--la-layer-02);
   color: var(--la-text);
 }
 
-.step-actions__rail:focus-visible {
-  outline: 2px solid var(--la-accent);
-  outline-offset: 2px;
-}
+.step-actions-float__trigger:focus-visible { outline: 2px solid var(--la-accent); outline-offset: 2px; }
+.step-actions-float__trigger:disabled { opacity: .45; cursor: default; }
 
-.step-actions__grip {
-  width: 3px;
-  height: min(28px, 100%);
-  min-height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 48%, transparent);
-  transition: height .16s ease, background .16s ease;
-}
-
-.step-actions__rail:hover .step-actions__grip,
-.step-actions__rail:focus-visible .step-actions__grip,
-.step-actions__rail[aria-expanded="true"] .step-actions__grip {
-  height: min(48px, 100%);
-  background: var(--la-accent);
-}
-
-.step-actions__panel {
+.step-actions-float__panel {
   position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: block;
-  padding: 12px 16px;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  display: flex;
+  width: max-content;
+  min-width: 230px;
+  max-width: min(320px, calc(100vw - 24px));
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
   border: 1px solid var(--la-line);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--la-layer-01);
   box-shadow: var(--la-shadow-overlay);
-  transform-origin: left center;
 }
 
-.step-actions__items {
-  position: sticky;
-  top: 12px;
-  z-index: 1;
+.step-actions-float__item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.step-actions__item {
-  display: inline-flex;
-  min-height: 40px;
+  min-height: 38px;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--la-line);
-  border-radius: 10px;
-  background: var(--la-layer-02);
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--la-text);
   font: inherit;
   font-size: 13px;
@@ -97,42 +67,44 @@
   cursor: pointer;
 }
 
-.step-actions__item:hover:not(:disabled) { background: var(--la-layer-03); }
-.step-actions__item:focus-visible { outline: 2px solid var(--la-accent); outline-offset: 2px; }
-.step-actions__item:disabled { opacity: .45; cursor: default; }
-.step-actions__close {
-  display: inline-grid;
-  width: 40px;
-  height: 40px;
-  margin-left: auto;
+.step-actions-float__item:hover:not(:disabled) { background: var(--la-hover); }
+.step-actions-float__item:focus-visible { outline: 2px solid var(--la-accent); outline-offset: -2px; }
+.step-actions-float__item:disabled { opacity: .45; cursor: default; }
+.step-actions-float__close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--la-muted);
   cursor: pointer;
 }
-.step-actions__close:hover { background: var(--la-hover); color: var(--la-text); }
-.step-actions__close:focus-visible { outline: 2px solid var(--la-accent); outline-offset: 2px; }
-.step-actions__hint { margin: 0; color: var(--la-muted); font-size: 12px; line-height: 18px; }
-.step-actions__summary { margin: 0 0 12px; color: var(--la-secondary); font-size: 13.5px; line-height: 21px; }
+.step-actions-float__close:hover { background: var(--la-hover); color: var(--la-text); }
+.step-actions-float__hint { margin: 2px 6px 4px; color: var(--la-muted); font-size: 12px; line-height: 18px; }
+.step-actions-float__summary { margin: 0 0 12px; color: var(--la-secondary); font-size: 13.5px; line-height: 21px; }
 
+.step-actions-float-enter-active,
+.step-actions-float-leave-active,
 .step-actions-panel-enter-active,
 .step-actions-panel-leave-active {
-  transition: opacity .16s ease, transform .16s ease;
+  transition: opacity .14s ease, transform .14s ease;
 }
 
+.step-actions-float-enter-from,
+.step-actions-float-leave-to,
 .step-actions-panel-enter-from,
 .step-actions-panel-leave-to {
   opacity: 0;
-  transform: scaleX(.96);
+  transform: translateY(-4px);
 }
 
 @media (max-width: 767px) {
-  .step-actions { flex-basis: 12px; min-width: 12px; }
-  .step-actions__rail { width: 12px; }
-  .step-actions__rail::after { right: -16px; width: 44px; }
-  .step-actions__panel { padding: 12px; }
-  .step-actions__items { flex-direction: column; }
-  .step-actions__item { width: 100%; }
+  .step-actions-float { z-index: 13; }
+  .step-actions-float__panel { min-width: 220px; }
+  .step-actions-float__trigger { height: 38px; padding-inline: 10px; }
 }
