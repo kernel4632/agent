@@ -1035,6 +1035,9 @@ test('stopping before the first token still offers continue', async ({ page }) =
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep waiting')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  // agent 已启动但 llm-start 还没到：这是“准备中”，不能假装已经在请求模型。
+  await expect(page.locator('.request-status')).toHaveCount(0)
+  await mock.emit('session-1', [{ type: 'llm-start', startedAt: Date.now() - 5000 }])
   await expect(page.getByText('正在请求模型…', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: '停止生成', exact: true }).click()

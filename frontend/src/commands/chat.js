@@ -43,18 +43,10 @@ function errorTextOf(value, fallback = '模型请求失败') {
 }
 
 function createAssistant(session) {
-  // 先放一条本地请求行：用户按下发送后界面立刻说明“正在请求模型”，
-  // 不等 llm-start 才长出第一行。真正的 llm-start 到了会复用这一行补时间。
-  const request = {
-    id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: Date.now(),
-    firstTokenAt: 0, provider: '', model: '', finishedAt: 0, durationMs: 0,
-    input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
-    rawText: '', rawToolInput: '', provisional: true,
-  }
   const message = {
     id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '',
-    tools: [], steps: [{ type: 'request', requestId: request.id }], requests: [request],
-    isStreaming: true, startedAt: Date.now(), request,
+    tools: [], steps: [], requests: [], isStreaming: true, startedAt: Date.now(),
+    request: { status: 'running', input: 0, output: 0, cache: 0 },
   }
   session.messages.push(message)
   return message
@@ -67,7 +59,6 @@ function finishRequest(request, usage, durationMs) {
   if (!request) return null
   request.status = 'completed'
   request.finishedAt = Date.now()
-  request.provisional = false
   Object.assign(request, usageFields(usage, durationMs ?? request.finishedAt - request.startedAt))
   // TPS 只算模型原始输出：正文 + 工具参数，不含会被改写的思考。
   const raw = `${request.rawText || ''}${request.rawToolInput || ''}`
@@ -355,17 +346,6 @@ function startRequest(session, event = {}) {
     retryRequest.rawText = ''
     retryRequest.rawToolInput = ''
     assistant.request = retryRequest
-    assistant.isStreaming = true
-    return
-  }
-  const provisional = assistant.requests.findLast(item => item.provisional && item.status === 'running')
-  if (provisional) {
-    provisional.startedAt = Number(event.startedAt) || provisional.startedAt
-    provisional.firstTokenAt = Number(event.firstTokenAt) || 0
-    provisional.provider = event.provider || ''
-    provisional.model = event.model || ''
-    provisional.provisional = false
-    assistant.request = provisional
     assistant.isStreaming = true
     return
   }
