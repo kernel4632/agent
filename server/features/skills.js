@@ -406,30 +406,5 @@ const source = async ({ path, enabled } = {}) => {
     return { path: target, enabled }
 }
 
-export default {
-    // 扫描与读取
-    state,
-    saveState,
-    setDisabled,
-    setSource,
-    whitelistRoots,
-    isWhitelisted,
-    candidates,
-    scan,
-    describe,
-    list,
-    read,
-    ownRoot,
-    findOwn,
-    isOwnPath,
-    samePath,
-    inside,
-    isDirectory,
-    isFile,
-    // 用户动作
-    save,
-    remove,
-    toggle,
-    source,
-}
+export default { list, read, save, remove, toggle, source }
 
