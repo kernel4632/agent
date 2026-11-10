@@ -167,21 +167,23 @@ const snapshot = async call => {
 // --- 文件回退和 diff 都由文件工具实现 ---
 const entries = args => File.entries(args)
 // --- 某一次工具调用改过的文件：随 tool-result 一起推给前端 ---
-const changedPaths = async ({ sessionId, toolCallId } = {}) => {
+const paths = async ({ sessionId, toolCallId } = {}) => {
     if (!sessionId || !toolCallId) return []
     const list = await entries({ sessionId })
-    const paths = new Set()
+    const found = new Set()
     for (const entry of list) {
         if (entry.toolCallId !== toolCallId) continue
-        for (const path of entry.paths) paths.add(path)
+        for (const path of entry.paths) found.add(path)
     }
-    return [...paths]
+    return [...found]
 }
-const restoreTool = args => File.restoreTool(args)
-const restoreMessage = args => File.restoreMessage(args)
-const dropTool = args => File.dropTool(args)
+// --- 恢复文件：带 toolCallId 退回这一次工具调用之前；带 keepMessages 退回某条消息之前 ---
+const restore = args => args?.toolCallId ? File.restoreTool(args) : File.restoreMessage(args)
+// --- 只丢掉这次工具调用的快照，不动文件 ---
+const drop = args => File.dropTool(args)
 const undo = args => File.undo(args)
-const clearUndo = args => File.clearUndo(args)
+// --- 清空撤销栈：新消息代表新的时间线 ---
+const clear = args => File.clearUndo(args)
 const diff = args => File.diff(args)
 const remove = args => File.remove(args)
 
@@ -194,12 +196,11 @@ export default {
     kindOf,
     snapshot,
     entries,
-    changedPaths,
-    restoreTool,
-    restoreMessage,
-    dropTool,
+    paths,
+    restore,
+    drop,
     undo,
-    clearUndo,
+    clear,
     diff,
     remove,
 }

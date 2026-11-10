@@ -486,7 +486,7 @@ const rollbackPart = async ({ sessionId, messageId, partIndex, files, compact })
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能回退
     const plan = Rollback.cutPlan({ history: History, sessionId, messageId, partIndex }) // 算出回退后还留哪些消息块
     const restored = files
-        ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
+        ? await Tool.restore({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
         : []                                                             // files=false 时不恢复文件，只退消息
     await Rollback.cut({ history: History, agent: Agent, sessionId, messageId, partIndex }) // 执行回退
     return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
@@ -497,8 +497,8 @@ const rollbackToolCall = async ({ sessionId, toolCallId, files }) => {
     await History.load(sessionId)
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     const restored = files
-        ? await Tool.restoreTool({ sessionId, toolCallId })              // 恢复这次工具调用改的文件
-        : await Tool.dropTool({ sessionId, toolCallId })                 // 只清快照，不恢复
+        ? await Tool.restore({ sessionId, toolCallId })              // 恢复这次工具调用改的文件
+        : await Tool.drop({ sessionId, toolCallId })                 // 只清快照，不恢复
     return { ...await read({ sessionId }), restored }                    // 这条路径一直返回完整结果，compact 不生效，接口行为保持原样
 }
 
@@ -507,7 +507,7 @@ const rollbackMessage = async ({ sessionId, messageId, files, compact }) => {
     await History.load(sessionId)
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     const plan = Rollback.preview({ history: History, sessionId, messageId }) // 算出回退后还留哪些消息块
-    const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
+    const restored = files ? await Tool.restore({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
     await Rollback.messages({ history: History, agent: Agent, sessionId, messageId }) // 执行回退
     return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
 }
