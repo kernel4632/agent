@@ -137,53 +137,43 @@ const fork = async ({ sessionId, title, messageId }) => {
 
 // --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
 const read = async ({ sessionId, onProgress, segmented = false, after, segment: segmentId } = {}) => {
-    // --- segment 模式：只读一个封存段，给折叠的历史段展开用 ---
+    // segment 模式：只读一个封存段，给折叠的历史段展开用（数据结构不同，单独处理）
     if (segmentId) {
         const messages = await History.segment({ sessionId, segmentId })
         return { id: sessionId, segment: segmentId, messages }
     }
 
+    // 加载历史、装配 agent、过滤内部消息：所有分支都需要
     await ContextUsage.hydrate(sessionId)
     const session = await History.load(sessionId, { onProgress })
     const agent = Agent.runtime().get(sessionId)
-    const visible = history => history.filter(message => !message.internal)
     const running = Boolean(agent?.running)
+    const visible = history => history.filter(message => !message.internal)
+    const history = running ? visible(agent.history) : visible(History.get({ sessionId }))
+    if (!running && agent) agent.history = history                      // 打开会话只读历史，不在此时装配 Agent
 
-    let history
-    if (running) {
-        history = visible(agent.history)
-    } else {
-        history = visible(History.get({ sessionId }))
-        if (agent) agent.history = history
-        // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
+    // 统计数据：所有分支都需要，只算一次
+    const stats = {
+        historyTotal: history.length,
+        historyStats: historyUsage(history, session.model.provider, session.model.model),
+        contextEstimate: ContextUsage.read(sessionId),
+        todos: latestTodos(history),
+        toolTimings: await ToolTiming.read(sessionId),
+        pending: Approval.pending(sessionId),
+        undoable: History.redoCount({ sessionId }),
+        running,
     }
 
-    // --- after 模式：增量读，只返回指定消息之后的新增内容 ---
-    // historyStats / toolTimings / contextEstimate 基于完整历史，不能只算增量。
+    // after 模式：增量读，只返回指定消息之后的新增内容
     if (after) {
-        const afterIndex = history.findIndex(message => message.messageId === after || message.id === after)
+        const afterIndex = history.findIndex(m => m.messageId === after || m.id === after)
         const delta = afterIndex >= 0 ? history.slice(afterIndex + 1) : history
-        return {
-            id: session.id,
-            running,
-            historyTotal: history.length,
-            historyStats: historyUsage(history, session.model.provider, session.model.model),
-            contextEstimate: ContextUsage.read(sessionId),
-            todos: latestTodos(history),
-            toolTimings: await ToolTiming.read(sessionId),
-            pending: Approval.pending(sessionId),
-            undoable: History.redoCount({ sessionId }),
-            updatedAt: session.updatedAt,
-            // delta 是这次新增的消息，before 告诉前端在哪条消息后面插
-            delta,
-            after,
-        }
+        return { id: session.id, ...stats, delta, after, updatedAt: session.updatedAt }
     }
 
-    // --- segmented 模式：只给 manifest + 当前段，首次打开有 compact 历史的长会话用 ---
+    // 正常/分段分支：全量或当前段
     const usePage = segmented === 'true' || segmented === true
     const page = usePage ? History.page({ sessionId, history }) : null
-
     return {
         id: session.id,
         title: session.title,
@@ -195,23 +185,16 @@ const read = async ({ sessionId, onProgress, segmented = false, after, segment: 
         updatedAt: session.updatedAt,
         history: page?.manifest ? page.current : history,
         ...(page?.manifest ? { historyManifest: page.manifest } : {}),
-        historyTotal: history.length,
-        historyStats: historyUsage(history, session.model.provider, session.model.model),
-        contextEstimate: ContextUsage.read(sessionId),
-        todos: latestTodos(history),
-        running,
-        toolTimings: await ToolTiming.read(sessionId),
-        pending: Approval.pending(sessionId),
+        ...stats,
         settings: await Agent.readSettings(sessionId),
-        undoable: History.redoCount({ sessionId }),
     }
 }
 
 // --- 会话级用量聚合：统计必须基于完整历史，而不是前端最近窗口 ---
-const MAX_TOKENS = 5_000_000
+// 挡脏值：数字合法且 >= 0 就接受，没有上限（以后上下文窗口可能超过现在的数字）。
 const safeTokens = value => {
     const number = Number(value)
-    return Number.isFinite(number) && number >= 0 && number <= MAX_TOKENS ? Math.round(number) : 0
+    return Number.isFinite(number) && number >= 0 ? Math.round(number) : 0
 }
 
 function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
@@ -437,9 +420,55 @@ const compact = async ({ sessionId }) => {
     return { ...await read({ sessionId }), content }
 }
 
-// --- 文件改动和工具回退 ---
 // --- 回退：给 messageId 退对话（可连文件），给 toolCallId 只退那次工具改的文件 ---
+// 三种回退模式：消息级（整条对话）、正文块级（一条消息里的某个块）、工具调用级（只退文件）。
 // 两个都给的时候不猜，直接报错——猜错会把用户不想退的对话退掉。
+const rollback = async (params) => {
+    const { sessionId, messageId, toolCallId, partIndex, files = true, compact = false } = params
+
+    // 参数校验：三种模式互斥
+    if (messageId && toolCallId) throw fail(400, 'give messageId or toolCallId, not both')
+    if (!messageId && !toolCallId) throw fail(400, 'messageId or toolCallId is required')
+    if (partIndex !== undefined && toolCallId) throw fail(400, 'partIndex only works with messageId')
+
+    // 分派到三种模式
+    if (partIndex !== undefined) return rollbackPart({ sessionId, messageId, partIndex, files, compact })
+    if (toolCallId) return rollbackToolCall({ sessionId, toolCallId, files })
+    return rollbackMessage({ sessionId, messageId, files, compact })
+}
+
+// --- 正文块/工具调用级回退：同一条 assistant 消息只保留目标之前的内容 ---
+const rollbackPart = async ({ sessionId, messageId, partIndex, files, compact }) => {
+    await History.load(sessionId)                                        // 加载历史到内存
+    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能回退
+    const plan = Rollback.cutPlan({ history: History, sessionId, messageId, partIndex }) // 算出回退后还留哪些消息块
+    const restored = files
+        ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
+        : []                                                             // files=false 时不恢复文件，只退消息
+    await Rollback.cut({ history: History, agent: Agent, sessionId, messageId, partIndex }) // 执行回退
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
+}
+
+// --- 工具调用级回退：只退某一次工具改的文件，对话不动 ---
+const rollbackToolCall = async ({ sessionId, toolCallId, files }) => {
+    await History.load(sessionId)
+    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    const restored = files
+        ? await Tool.restoreTool({ sessionId, toolCallId })              // 恢复这次工具调用改的文件
+        : await Tool.dropTool({ sessionId, toolCallId })                 // 只清快照，不恢复
+    return { ...await read({ sessionId }), restored }                    // 这条路径一直返回完整结果，compact 不生效，接口行为保持原样
+}
+
+// --- 消息级回退：退到某条消息之前，可连文件一起退 ---
+const rollbackMessage = async ({ sessionId, messageId, files, compact }) => {
+    await History.load(sessionId)
+    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    const plan = Rollback.preview({ history: History, sessionId, messageId }) // 算出回退后还留哪些消息块
+    const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
+    await Rollback.messages({ history: History, agent: Agent, sessionId, messageId }) // 执行回退
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
+}
+
 // --- 回退/撤销的紧凑响应：前端已经知道目标，不需要再拿 12k 条历史 ---
 const compactRollback = async (sessionId, restored) => {
     const session = await History.load(sessionId)
@@ -449,49 +478,6 @@ const compactRollback = async (sessionId, restored) => {
         undoable: History.redoCount({ sessionId }),
         restored,
     }
-}
-
-const rollback = async ({ sessionId, messageId, toolCallId, partIndex, files = true, compact = false }) => {
-    if (messageId && toolCallId) throw fail(400, 'give messageId or toolCallId, not both')
-    if (!messageId && !toolCallId) throw fail(400, 'messageId or toolCallId is required')
-    if (partIndex !== undefined && toolCallId) throw fail(400, 'partIndex only works with messageId')
-
-    // 正文块/工具调用级回退：同一条 assistant 消息只保留目标之前的内容。
-    if (partIndex !== undefined) {
-        if (!messageId) throw fail(400, 'partIndex requires messageId')
-        await History.load(sessionId)
-        if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
-        const plan = Rollback.cutPlan({ history: History, sessionId, messageId, partIndex })
-        const restored = files
-            ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
-            : []
-        await Rollback.cut({ history: History, agent: Agent, sessionId, messageId, partIndex })
-        return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
-    }
-
-    if (toolCallId) {
-        const outcome = await rollbackTool({ sessionId, toolCallId, files })
-        return { ...await read({ sessionId }), restored: outcome.restored }
-    }
-
-    await History.load(sessionId)
-    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
-
-    // 先算出回退后还留哪些消息块，再恢复文件；文件失败时消息保持原样。
-    const plan = Rollback.preview({ history: History, sessionId, messageId })
-    const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
-    await Rollback.messages({ history: History, agent: Agent, sessionId, messageId })
-    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
-}
-
-// --- 只退某一次工具调用改的文件，对话不动 ---
-const rollbackTool = async ({ sessionId, toolCallId, files = true }) => {
-    await History.load(sessionId)
-    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
-    const restored = files
-        ? await Tool.restoreTool({ sessionId, toolCallId })
-        : await Tool.dropTool({ sessionId, toolCallId })
-    return { restored }
 }
 
 // --- 撤销最近一次回退 ---
