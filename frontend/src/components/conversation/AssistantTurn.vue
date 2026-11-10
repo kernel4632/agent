@@ -25,8 +25,16 @@ const props = defineProps({
   active: Boolean,
 })
 
-// 步骤操作由 Timeline 的全局浮层读取 data-step-*，这里不再渲染每步窄条。
+// 步骤操作由 Timeline 的全局浮层读取 data-cut-*，这里不再渲染每步窄条。
 const savedTarget = message => isSavedMessage(message) ? message : null
+// 正文/工具行自己带精确切口；没有 partIndex 的旧历史仍退回整条消息操作。
+const cutAttrs = step => step.partIndex === undefined ? {} : {
+  'data-cut-row': '',
+  'data-cut-message-id': step.messageId,
+  'data-cut-part-index': step.partIndex,
+  'data-cut-kind': step.type,
+  'data-cut-label': step.type === 'tool' ? '工具操作' : '回复操作',
+}
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
 const vAutoScroll = {
@@ -49,6 +57,14 @@ const fallbackText = computed(() => props.messages
 // 正式气泡的归属：它来自带结束工具的那条消息；没有结束工具时（textOnly）
 // 气泡显示的是最后一条消息流出的正文，回退聚光也按这条框住它。
 const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
+const bubbleTarget = computed(() => savedTarget(finalMessage.value || props.messages.at(-1)))
+// 最终气泡由结束工具产生；精确回退从该 tool-call 的原始 content 位置切开。
+const bubblePartIndex = computed(() => {
+  const message = finalMessage.value
+  const tool = message?.tools?.find(isFinishedStopTool)
+  if (!tool) return undefined
+  return message.steps?.find(step => step.type === 'tool' && step.toolId === tool.id)?.partIndex
+})
 const bubbleMessageId = computed(() => finalMessage.value?.id || defaultTarget.value?.id || null)
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
 // 一轮任务里“模型请求结束、工具还在执行、下一次请求尚未开始”不是整轮结束。
@@ -83,10 +99,10 @@ const steps = computed(() => {
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
-        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text, messageId: message.id })
+        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text, messageId: message.id, partIndex: entry.partIndex })
       } else if (entry.type === 'tool') {
         const tool = (message.tools || []).find(item => item.id === entry.toolId)
-        if (tool && !isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool, messageId: message.id })
+        if (tool && !isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool, messageId: message.id, partIndex: entry.partIndex })
       } else if (entry.type === 'request') {
         const request = (message.requests || []).find(item => item.id === entry.requestId)
         if (request) list.push({ key: `${message.id}-request-${index}`, type: 'request', request, messageId: message.id })
@@ -304,7 +320,6 @@ const stepBlocks = computed(() => {
     }
   })
 })
-const bubbleTarget = computed(() => savedTarget(finalMessage.value || props.messages.at(-1)))
 
 const groupStoreKey = `agent.process-groups:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 const groupOpen = ref((() => {
@@ -358,7 +373,7 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
                   <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
                   <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
                 </template>
-                <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
+                <div v-else-if="section.step.type === 'text'" v-bind="cutAttrs(section.step)" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
                   <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
                   <div class="cot-step__main">
                     <div class="cot-step__body cot-step__body--text">
@@ -376,6 +391,7 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
                 />
                 <ToolCall
                   v-else-if="section.step.type === 'tool'"
+                  v-bind="cutAttrs(section.step)"
                   :data-message-id="section.step.messageId"
                   :tool="section.step.tool"
                   :session-id="sessionId"
@@ -410,6 +426,7 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
                       />
                       <ToolCall
                         v-else
+                        v-bind="cutAttrs(step)"
                         :data-message-id="step.messageId"
                         :tool="step.tool"
                         :session-id="sessionId"
@@ -435,6 +452,13 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
         :data-step-rollback="bubbleTarget?.id || ''"
         :data-step-fork="bubbleTarget?.id || ''"
         data-step-label="回复操作"
+        v-bind="bubblePartIndex === undefined ? {} : {
+          'data-cut-row': '',
+          'data-cut-message-id': bubbleTarget?.id || '',
+          'data-cut-part-index': bubblePartIndex,
+          'data-cut-kind': 'response',
+          'data-cut-label': '回复操作',
+        }"
       >
         <div class="assistant-step__body">
           <div class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">

@@ -115,17 +115,18 @@ function normalizeMessage(item, toolTimings, toolIndex) {
   // 保留原始 part 顺序：正文、思考和工具必须按模型实际发生的顺序显示。
   message.steps = []
   if (item.role === 'assistant') {
-    for (const part of parts) {
+    // partIndex 指向原始 content 数组；块级回退靠它定位正文/工具调用。
+    parts.forEach((part, index) => {
       if (part.type === 'reasoning') {
         const text = part.reasoning || part.text || ''
-        if (text) message.steps.push({ type: 'reasoning', text })
+        if (text) message.steps.push({ type: 'reasoning', text, partIndex: index })
       } else if (part.type === 'text') {
-        if (part.text) message.steps.push({ type: 'text', text: part.text })
+        if (part.text) message.steps.push({ type: 'text', text: part.text, partIndex: index })
       } else if (part.type === 'tool-invocation' || part.type === 'tool-call') {
         const call = part.toolInvocation || part
-        if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId })
+        if (call.toolCallId) message.steps.push({ type: 'tool', toolId: call.toolCallId, partIndex: index })
       }
-    }
+    })
     // 旧会话没有 parts 顺序时，退回"思考 → 正文 → 工具"的旧顺序。
     if (!message.steps.length) {
       if (message.reasoning) message.steps.push({ type: 'reasoning', text: message.reasoning })
@@ -387,11 +388,11 @@ async function previewRollback(sessionID, messageID) {
   }
 }
 
-async function rollbackMessage(sessionID, messageID, files = true) {
+async function rollbackMessage(sessionID, messageID, files = true, partIndex) {
   try {
     const session = store.sessions[sessionID]
     const message = session.messages.find(item => item.id === messageID)
-    const result = await AgentAPI.rollback(sessionID, messageID, files)
+    const result = await AgentAPI.rollback(sessionID, messageID, files, partIndex)
     // 回退改了磁盘历史，必须强制全量读，不能走增量
     await refresh(sessionID, { force: true })
     // 回退成功的反馈由输入框上方的撤销条承担，不再额外弹 Toast。

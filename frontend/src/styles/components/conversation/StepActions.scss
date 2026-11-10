@@ -105,6 +105,16 @@
 
 @media (max-width: 767px) {
   .step-actions-float { z-index: 13; }
-  .step-actions-float__panel { min-width: 220px; }
-  .step-actions-float__trigger { height: 38px; padding-inline: 10px; }
+  .step-actions-float__trigger {
+    width: 34px;
+    height: 34px;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+  .step-actions-float__trigger svg:last-child { display: none; }
+  .step-actions-float__panel {
+    top: calc(100% + 4px);
+    min-width: 220px;
+  }
 }

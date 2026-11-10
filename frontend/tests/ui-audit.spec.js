@@ -18,6 +18,7 @@ async function openStepActions(page, target) {
   await target.click()
   const trigger = page.locator('.step-actions-float__trigger')
   await expect(trigger).toBeVisible()
+  await page.waitForTimeout(80)
   await trigger.click()
   const panel = page.locator('.step-actions-float__panel')
   await expect(panel).toBeVisible()
@@ -100,10 +101,10 @@ test('mocked conversation: create, stream, rename, persistence, rollback and del
   // 模型还没提出任务清单时，顶栏不显示清单按钮。
   await expect(page.getByRole('button', { name: '任务清单', exact: true })).toHaveCount(0)
   await openStepActions(page, page.locator('.rikka-bubble--user').first())
-  // 步骤窄条打开后选择回退，再在确认窗口里确认。
-  await page.getByRole('button', { name: '回退到此步骤之前' }).click()
-  await expect(page.getByRole('heading', { name: '回退到此步骤之前', exact: true })).toBeVisible()
-  await expect(page.getByRole('checkbox', { name: '同时把文件改回这一步之前' })).toBeChecked()
+  // 用户消息是整条消息边界，回退它和之后的全部内容。
+  await page.getByRole('button', { name: '回退到这条消息之前' }).click()
+  await expect(page.getByRole('heading', { name: '回退到这条消息之前', exact: true })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: '同时把文件改回这个位置之前' })).toBeChecked()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('一个新的项目')
   await expect(page.locator('.chat-notice--undo')).toHaveCount(1)
@@ -151,12 +152,12 @@ test('assistant reply block can be rolled back to that reply', async ({ page }) 
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
 
   await openStepActions(page, page.locator('.rikka-bubble--assistant').first())
-  await page.getByRole('button', { name: '回退到此步骤之前' }).click()
-  await expect(page.getByRole('heading', { name: '回退到此步骤之前', exact: true })).toBeVisible()
-  await expect(page.getByRole('checkbox', { name: '同时把文件改回这一步之前' })).toBeChecked()
+  await page.getByRole('button', { name: '回退到这条回复之前' }).click()
+  await expect(page.getByRole('heading', { name: '回退到这条回复之前', exact: true })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: '同时把文件改回这个位置之前' })).toBeChecked()
   await page.getByRole('button', { name: '确认回退', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/rollback/session-1')?.body)
-    .toEqual({ messageId: 'assistant-1', files: true })
+    .toEqual({ messageId: 'assistant-1', files: true, partIndex: 1 })
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toHaveValue('')
   await expect(page.getByRole('button', { name: '撤销回退', exact: true })).toBeVisible()
   expect(mock.errors).toEqual([])
@@ -2201,12 +2202,60 @@ test('message action forks the conversation at that message', async ({ page }, t
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
   await openStepActions(page, page.locator('.rikka-bubble--user').first())
-  await page.getByRole('button', { name: '从此步骤创建分支', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '从此步骤创建分支', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '从此消息创建分支', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '从此消息创建分支', exact: true })).toBeVisible()
   await screenshot(page, testInfo, 'message-actions')
   await page.getByRole('button', { name: '创建分支', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/fork/session-1')?.body)
     .toEqual({ messageId: 'user-1' })
+})
+
+test('tool row cuts that call and every call after it', async ({ page }, testInfo) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('开始')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  const session = mock.sessions.get('session-1')
+  session.title = '工具回退'
+  session.history = [
+    { messageId: 'user-1', id: 'core-user-1', role: 'user', content: '开始' },
+    {
+      messageId: 'assistant-1',
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '前半段' },
+        { type: 'tool-call', toolCallId: 'c1', toolName: 'read_file', input: { path: 'a.txt' } },
+        { type: 'tool-call', toolCallId: 'c2', toolName: 'write_file', input: { path: 'b.txt' } },
+        { type: 'tool-call', toolCallId: 'c3', toolName: 'read_file', input: { path: 'c.txt' } },
+      ],
+    },
+    {
+      messageId: 'tool-1',
+      role: 'tool',
+      content: ['c1', 'c2', 'c3'].map(id => ({ type: 'tool-result', toolCallId: id, toolName: 'read_file', output: { type: 'text', value: id } })),
+    },
+    { messageId: 'assistant-2', role: 'assistant', content: [{ type: 'text', text: '后面的回复' }] },
+  ]
+  await page.reload()
+  await navigate(page, '工具回退')
+  await page.locator('.process-fold__head').first().click()
+  await openContextGroups(page)
+
+  const tools = page.locator('.cot-step--tool')
+  await expect(tools).toHaveCount(3)
+  const target = page.locator('.cot-step--tool[data-cut-part-index="2"]')
+  const panel = await openStepActions(page, target)
+  await expect(page.locator('.step-actions-float')).toHaveAttribute('data-part-index', '2')
+  await panel.getByRole('button', { name: '回退到这次工具调用之前', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '回退到这次工具调用之前', exact: true })).toBeVisible()
+  await screenshot(page, testInfo, 'tool-call-rollback')
+  await page.getByRole('button', { name: '确认回退', exact: true }).click()
+  await expect.poll(() => mock.calls.find(call => call.path === '/session/rollback/session-1')?.body)
+    .toEqual({ messageId: 'assistant-1', files: true, partIndex: 2 })
+  expect(mock.errors).toEqual([])
 })
 
 test('step rail stays usable on mobile and leaves the native context menu alone', async ({ page }, testInfo) => {
@@ -2225,8 +2274,8 @@ test('step rail stays usable on mobile and leaves the native context menu alone'
 
   const panel = await openStepActions(page, page.locator('.rikka-bubble--user').first())
   await expect(page.locator('.step-actions-float')).toHaveCount(1)
-  await expect(panel.getByRole('button', { name: '回退到此步骤之前' })).toBeVisible()
-  await expect(panel.getByRole('button', { name: '从此步骤创建分支' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: '回退到这条消息之前' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: '从此消息创建分支' })).toBeVisible()
   await screenshot(page, testInfo, 'step-rail-mobile')
   await panel.getByRole('button', { name: '关闭步骤操作' }).click()
   await expect(panel).toHaveCount(0)

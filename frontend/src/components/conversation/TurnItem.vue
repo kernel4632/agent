@@ -25,6 +25,10 @@ const userActionTarget = computed(() => isSavedMessage(props.turn.messages[0]) ?
     <template v-else-if="turn.role === 'user'">
       <div
         class="message-step"
+        data-cut-row
+        :data-cut-message-id="userActionTarget?.id || ''"
+        data-cut-kind="user"
+        data-cut-label="用户消息操作"
         :data-step-key="`user-${turn.messages[0].id}`"
         :data-step-rollback="userActionTarget?.id || ''"
         :data-step-fork="userActionTarget?.id || ''"

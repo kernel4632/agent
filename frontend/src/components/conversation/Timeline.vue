@@ -146,11 +146,14 @@ const stepAction = reactive({
   top: 0,
   rollbackId: '',
   forkId: '',
+  partIndex: undefined,
+  kind: 'step',
   label: '步骤操作',
 })
 let stepActionElement = null
 let stepActionTimer = 0
 let stepActionBusy = false
+let stepActionPinned = false
 let scrollParent = null
 let contentObserver = null
 let followFrame = 0
@@ -322,27 +325,31 @@ function positionStepAction() {
     hideStepAction()
     return
   }
-  // 浮层放在步骤左侧的空白里；窄屏没有空白时收进视口边缘。
-  stepAction.left = Math.max(8, rect.left - 54)
-  stepAction.top = Math.max(8, Math.min(window.innerHeight - 52, rect.top + 8))
+  // 对齐到这一行自己的图标；没有图标的用户消息按行顶对齐。
+  const icon = stepActionElement.querySelector('.cot-step__icon, .request-status__icon, .context-group__icon')
+  const anchor = icon ? icon.getBoundingClientRect() : rect
+  const anchorTop = icon ? anchor.top + anchor.height / 2 : anchor.top + 8
+  // 桌面放在行图标左侧的空白；手机没有空白，浮层缩成图标大小盖在原图标上，不挤正文。
+  stepAction.left = window.innerWidth < 768
+    ? Math.max(4, anchor.left - 4)
+    : Math.max(8, anchor.left - 64)
+  stepAction.top = Math.max(8, Math.min(window.innerHeight - 52, anchorTop - 17))
 }
 
 function showStepAction(element) {
   if (!element) return
-  let rollbackId = element.getAttribute('data-step-rollback') || ''
-  let forkId = element.getAttribute('data-step-fork') || ''
-  // 旧历史可能没把 messageId 带进分组；从步骤内的任意消息兜底，保证浮层仍可用。
-  if (!rollbackId || !forkId) {
-    const messageId = element.querySelector('[data-message-id]')?.getAttribute('data-message-id') || ''
-    rollbackId = rollbackId || messageId
-    forkId = forkId || messageId
-  }
-  if (!rollbackId && !forkId) return
+  const part = element.getAttribute('data-cut-part-index')
+  const partIndex = part === null || part === '' ? undefined : Number(part)
+  const rollbackId = element.getAttribute('data-cut-message-id') || ''
+  const forkId = rollbackId
+  if (!rollbackId) return
   clearTimeout(stepActionTimer)
   stepActionElement = element
   stepAction.rollbackId = rollbackId
   stepAction.forkId = forkId
-  stepAction.label = element.getAttribute('data-step-label') || '步骤操作'
+  stepAction.partIndex = Number.isInteger(partIndex) ? partIndex : undefined
+  stepAction.kind = element.getAttribute('data-cut-kind') || 'step'
+  stepAction.label = element.getAttribute('data-cut-label') || '步骤操作'
   stepAction.visible = true
   positionStepAction()
 }
@@ -351,6 +358,7 @@ function hideStepAction() {
   clearTimeout(stepActionTimer)
   stepAction.visible = false
   stepActionElement = null
+  stepActionPinned = false
 }
 
 function scheduleHideStepAction(delay = 220) {
@@ -364,9 +372,12 @@ function onStepPointerOver(event) {
     clearTimeout(stepActionTimer)
     return
   }
-  const element = event.target.closest?.('[data-step-key]')
-  if (element) showStepAction(element)
-  else scheduleHideStepAction()
+  const element = event.target.closest?.('[data-cut-row]')
+  if (element) {
+    // 点击选中后，后续 hover 不能再把目标换成布局移动后落到鼠标下的另一行。
+    if (stepActionPinned && stepAction.visible) return
+    showStepAction(element)
+  } else scheduleHideStepAction()
 }
 
 function onStepPointerLeave() {
@@ -375,8 +386,11 @@ function onStepPointerLeave() {
 
 function onStepPointerDown(event) {
   if (event.target.closest?.('.step-actions-float')) return
-  const element = event.target.closest?.('[data-step-key]')
-  if (element) showStepAction(element)
+  const element = event.target.closest?.('[data-cut-row]')
+  if (element) {
+    stepActionPinned = true
+    showStepAction(element)
+  }
 }
 
 function onStepActionEnter() {
@@ -394,7 +408,7 @@ function onStepActionLeave() {
 
 function onDocumentPointerDown(event) {
   if (!stepAction.visible) return
-  if (event.target.closest?.('[data-step-key]')
+  if (event.target.closest?.('[data-cut-row]')
     || event.target.closest?.('.step-actions-float')
     || event.target.closest?.('.ui-dialog')) return
   hideStepAction()
@@ -646,7 +660,7 @@ function bindScrollRoot(root) {
   })
 }
 // 步骤操作：回退从步骤第一条消息开始，分支保留到步骤最后一条消息。
-async function rollbackStep({ id, message, files = true } = {}) {
+async function rollbackStep({ id, message, partIndex, files = true } = {}) {
   const messageId = id || message?.id
   if (!messageId) return
   const sessionID = session.value.id
@@ -655,7 +669,7 @@ async function rollbackStep({ id, message, files = true } = {}) {
     await Chat.stop(sessionID)
   }
   hideStepAction()
-  await History.rollbackMessage(sessionID, messageId, files)
+  await History.rollbackMessage(sessionID, messageId, files, partIndex)
 }
 
 async function forkStep(idOrMessage) {
@@ -724,6 +738,8 @@ async function forkStep(idOrMessage) {
       :top="stepAction.top"
       :rollback-id="stepAction.rollbackId"
       :fork-id="stepAction.forkId"
+      :part-index="stepAction.partIndex"
+      :kind="stepAction.kind"
       :label="stepAction.label"
       :running="session.status === 'running'"
       @rollback="rollbackStep"
