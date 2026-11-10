@@ -494,6 +494,11 @@ export async function backend(page, { configured = true } = {}) {
     if (path.startsWith('/session/read/')) {
       const visible = session.history.filter(item => !item.internal)
       const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+      const after = new URL(request.url()).searchParams.get('after')
+      if (after) {
+        const index = visible.findIndex(item => item.messageId === after || item.id === after)
+        return json({ ...session, delta: index < 0 ? [] : visible.slice(index + 1), historyTotal: total })
+      }
       return json({ ...session, history: visible, historyTotal: total })
     }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
@@ -517,6 +522,10 @@ export async function backend(page, { configured = true } = {}) {
       if (body.input === 'keep running') {
         session.running = true
         return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 5000 }, { type: 'text-delta', text: '正在处理' }])
+      }
+      if (body.input === 'keep waiting') {
+        session.running = true
+        return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 5000 }])
       }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({
@@ -557,11 +566,12 @@ export async function backend(page, { configured = true } = {}) {
       return emit(id, [{ type: 'agent-finish', reason: 'stopped' }])
     }
     if (path.startsWith('/agent/resume/')) {
-      await json({ ok: true })
       session.running = false
-      // 真实后端会先追加一条内部提示，再让模型接着写；read 时必须过滤掉它。
+      // 真实后端会先追加一条内部提示和助手回复，再返回并推 SSE；
+      // 先落 history 再 fulfill，避免前端 agent-finish 刷新时读到旧历史。
       session.history.push({ messageId: 'internal-continue', role: 'user', internal: true, content: CONTINUE_TEXT })
       session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' }, content: [{ type: 'text', text: '继续完成' }] })
+      await json({ ok: true })
       return emit(id, [
         { type: 'agent-resume' },
         { type: 'llm-start', startedAt: Date.now() - 700 },

@@ -262,9 +262,9 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><Icon name="plus" :size="18" /></button>
-        <Button v-if="isRunning && draft.trim()" key="queue" variant="plain" class="chat-composer__send is-queue" type="submit" aria-label="排队发送" title="当前回复结束后自动发送" :disabled="busy || !selectedModel"><Icon name="up" :size="18" /></Button>
         <Transition name="send" mode="out-in">
-          <Button v-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><Icon name="stop" :size="18" /></Button>
+          <Button v-if="isRunning && draft.trim()" key="queue" variant="plain" class="chat-composer__send is-queue" type="submit" aria-label="排队发送" title="当前回复结束后自动发送" :disabled="busy || !selectedModel"><Icon name="up" :size="18" /></Button>
+          <Button v-else-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><Icon name="stop" :size="18" /></Button>
           <Button v-else-if="canContinue && !draft.trim()" key="continue" variant="plain" class="chat-composer__send is-continue" type="button" aria-label="继续助手" title="继续助手" :disabled="busy || !selectedModel" @click="emit('continue')"><Icon name="play" :size="18" /></Button>
           <Button v-else key="send" variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><Icon name="up" :size="18" /></Button>
         </Transition>

@@ -1016,6 +1016,29 @@ test('stop keeps the partial assistant text and offers continue', async ({ page 
   expect(mock.errors).toEqual([])
 })
 
+test('stopping before the first token still offers continue', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep waiting')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '停止生成', exact: true }).click()
+  const continueButton = page.getByRole('button', { name: '继续助手', exact: true })
+  await expect(continueButton).toBeVisible()
+  await expect(page.getByRole('button', { name: '停止生成' })).toHaveCount(0)
+  // 发送/继续/停止共用一个位置，不会同时出现两个。
+  await expect(page.locator('.chat-composer__send')).toHaveCount(1)
+  await expect(page.locator('.rikka-bubble--user')).toHaveCount(1)
+
+  await continueButton.click()
+  await expect.poll(() => mock.calls.some(call => call.path === '/agent/resume/session-1')).toBe(true)
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('继续完成')
+  await expect(page.locator('.rikka-bubble--user')).toHaveCount(1)
+  expect(mock.errors).toEqual([])
+})
+
 test('typing after an interruption sends a new message instead of resuming', async ({ page }) => {
   const mock = await backend(page)
   await page.goto('/')
@@ -1391,8 +1414,10 @@ test('messages queue while running and can be withdrawn back to composer', async
   await expect(page.getByRole('button', { name: '停止生成' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: '消息', exact: true })).toBeEditable()
 
-  // 运行中仍能编辑并提交：消息进入队列，而不是被拒绝或清空。
+  // 运行中写了草稿：操作位切成排队发送，不再同时显示停止按钮。
   await input.fill('排队消息')
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toHaveCount(0)
+  await expect(page.locator('.chat-composer__send')).toHaveCount(1)
   await page.getByRole('button', { name: '排队发送' }).click()
   await expect(input).toHaveValue('')
   const queued = page.locator('.chat-composer__queued-item')
