@@ -6,8 +6,7 @@
  * 这一层只把两边按用户看到的顺序串起来。
  *
  * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
- *   Agent    会话运行状态（invalidate/readSettings/resolve）
- *   Assemble 会话装配（create/get），同层的 assemble.js
+ *   Agent    会话装配与运行状态（create/get/invalidate/readSettings/resolve）
  *   History  会话数据的唯一读写口（load/add/save/destroy）
  *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
  *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
@@ -21,12 +20,13 @@
 
 import { stat } from 'node:fs/promises'
 import store from '../store.js'
-import Assemble from './assemble.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
 import Context from '../features/context.js'
 import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
+import Skills from '../features/skills.js'
 import ContextUsage from '../utils/context-usage.js'
 import Rollback from '../features/rollback.js'
 import SessionGroups from '../features/session-groups.js'
@@ -37,6 +37,33 @@ import Path from '../utils/path.js'
 import TempWorkspace from '../utils/temp-workspace.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
+
+// --- 工具执行前的审批关口：审批不持有工具表，工具参数由这里递给它 ---
+const checkPermission = params => Approval.check({
+    ...params,
+    snapshot: Tool.snapshot,
+    ready: Tool.ready,
+    kindOf: Tool.kindOf,
+})
+
+// --- 装配一条会话的 Agent 要用的全部材料 ---
+const agentMaterials = async sessionId => {
+    const session = await History.load(sessionId)
+    const saveSession = () => History.save(sessionId)
+    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
+    return { session, settings: Agent.readSettings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
+}
+
+// --- Agent 缓存取回入口 ---
+const agentSource = sessionId => ({
+    peek: async () => ({ session: await History.load(sessionId), context: Context }),
+    build: () => agentMaterials(sessionId),
+    mcpRevision: () => Tool.mcpRevision(Mcp),
+    getHistory: id => History.get({ sessionId: id }),
+})
+
+const getAgent = sessionId => Agent.get({ sessionId, assemble: agentSource(sessionId) })
+const createAgent = async sessionId => Agent.create({ sessionId, ...await agentMaterials(sessionId) })
 
 // --- 改会话的思考强度（原在 agent.js，搬到这里因为要读写历史） ---
 const saveAgentSettings = async ({ sessionId, ...change }) => {
@@ -51,7 +78,7 @@ const saveAgentSettings = async ({ sessionId, ...change }) => {
         return saved
     }
     Agent.invalidate(sessionId)
-    await Assemble.create({ sessionId })
+    await createAgent(sessionId)
     return saved
 }
 
@@ -111,7 +138,7 @@ const create = async ({ title, cwd, provider, model }) => {
             model: chosen.model,
             settings: Agent.defaultSettings(),
         })
-        await Assemble.create({ sessionId: session.id })
+        await createAgent(session.id)
     } catch (error) {
         if (temporary) await TempWorkspace.remove(cwdPath, true).catch(() => {})
         throw error
@@ -152,7 +179,7 @@ const fork = async ({ sessionId, title, messageId }) => {
     // 历史复制到新目录，消息重新编号，分支之后的操作不会影响原会话。
     for (const { messageId: oldId, ...message } of kept) await History.add({ sessionId: branch.id, message })
     await History.save(branch.id)
-    await Assemble.create({ sessionId: branch.id })
+    await createAgent(branch.id)
     return { sessionId: branch.id }}
 
 // --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
@@ -356,7 +383,7 @@ const setModel = async ({ sessionId, provider, model }) => {
         Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name }, context: Context }))
     } else {
         Agent.invalidate(sessionId)
-        await Assemble.create({ sessionId })
+        await createAgent(sessionId)
     }
     return { ...session, provider: chosen, model: name }
 }
@@ -415,7 +442,7 @@ const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
 
 // --- 手动压缩 ---
 const compact = async ({ sessionId }) => {
-    const agent = await Assemble.get({ sessionId })                         // 已经装配好的 agent
+    const agent = await getAgent(sessionId)                         // 已经装配好的 agent
     const start = agent.history.length                                  // 压缩前的位置
     let compactStartedAt = 0
     let compactUsage

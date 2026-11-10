@@ -17,7 +17,7 @@ import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
 import SkillFeature from '../features/skills.js'
 import Session from '../commands/session.js'
-import Assemble from '../commands/assemble.js'
+import { getAgent, settleAgent } from './agent-helpers.js'
 import Skill from '../tools/skill.js'
 import store from '../store.js'
 import { app } from '../server.js'
@@ -517,12 +517,12 @@ describe('MCP 配置版本与 Agent 快照', () => {
         await withHome(async ({ project }) => {
             await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'MCP revision', cwd: project })
-            const before = await Assemble.get({ sessionId })
+            const before = await getAgent(sessionId)
             const version = Mcp.revision()
 
             await Mcp.save({ name: 'disabled-test', definition: { command: 'bun', enabled: false } })
             expect(Mcp.revision()).toBe(version + 1)
-            const after = await Assemble.get({ sessionId })
+            const after = await getAgent(sessionId)
             expect(after).not.toBe(before)
             expect(after.mcpRevision).toBe(Mcp.revision())
 
@@ -535,17 +535,17 @@ describe('MCP 配置版本与 Agent 快照', () => {
         await withHome(async ({ project }) => {
             await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'MCP running', cwd: project })
-            const before = await Assemble.get({ sessionId })
+            const before = await getAgent(sessionId)
             before.running = {}                                      // 模拟这一轮还没结束
 
             await Mcp.save({ name: 'disabled-test', definition: { command: 'bun', enabled: false } })
-            expect(await Assemble.get({ sessionId })).toBe(before)
+            expect(await getAgent(sessionId)).toBe(before)
             expect(before.stale).toBe(true)
 
             before.running = null
-            await Assemble.settle(sessionId)
+            await settleAgent(sessionId)
             expect(Agent.runtime().get(sessionId)).toBeUndefined()
-            expect(await Assemble.get({ sessionId })).not.toBe(before)
+            expect(await getAgent(sessionId)).not.toBe(before)
 
             await Mcp.remove({ name: 'disabled-test' })
             await Mcp.close()

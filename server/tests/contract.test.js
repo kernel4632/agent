@@ -94,6 +94,15 @@ describe('项目结构', () => {
         }
     })
 
+    test('commands 之间不互相引用；每个指令文件自己编排', async () => {
+        const directory = fileURLToPath(new URL('../commands/', import.meta.url))
+        for (const file of (await readdir(directory)).filter(name => name.endsWith('.js'))) {
+            const code = await Bun.file(new URL(`../commands/${file}`, import.meta.url)).text()
+            expect(code.includes("from './"), `${file} 引用了同层的 command`).toBe(false)
+            expect(code.includes("from '../commands/"), `${file} 引用了别的 command`).toBe(false)
+        }
+    })
+
     test('store 只放全局配置和会话两份数据', async () => {
         expect(Object.keys(store).sort()).toEqual(['config', 'sessions'])
         expect(store.config.models).toBeDefined()

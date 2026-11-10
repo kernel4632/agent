@@ -2,8 +2,8 @@
  * 对话指令：发送、继续、停止和审批决定。
  *
  * 一次运行的编排都在这里：启动 Agent、把过程推成 SSE、保存新消息、收尾。
- * 模型请求和工具循环由 @kernel4632/agent-core 负责；本文件 import features、utils，
- * 以及同层的 assemble.js（Agent 的装配），不 import 别的命令文件。
+ * 模型请求和工具循环由 @kernel4632/agent-core 负责；本文件只 import features 和 utils，
+ * 不 import 别的命令文件。Agent 的装配（取齐历史、工具、审批、上下文）写在本文件里。
  *
  * 调用示例：
  *   await Chat.send({ sessionId, input: '你好' })
@@ -14,11 +14,12 @@
  */
 
 import { nanoid } from 'nanoid'
-import Assemble from './assemble.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Context from '../features/context.js'
 import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
+import Skills from '../features/skills.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import ToolTiming from '../features/tool-timing.js'
@@ -27,6 +28,33 @@ import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
 import ContextUsage from '../utils/context-usage.js'
 import ContextRatios from '../utils/context-ratios.js'
+
+// --- 工具执行前的审批关口：审批不持有工具表，工具参数由这里递给它 ---
+const checkPermission = params => Approval.check({
+    ...params,
+    snapshot: Tool.snapshot,
+    ready: Tool.ready,
+    kindOf: Tool.kindOf,
+})
+
+// --- 装配一条会话的 Agent 要用的全部材料 ---
+const agentMaterials = async sessionId => {
+    const session = await History.load(sessionId)
+    const saveSession = () => History.save(sessionId)
+    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
+    return { session, settings: Agent.readSettings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
+}
+
+// --- Agent 缓存取回入口 ---
+const agentSource = sessionId => ({
+    peek: async () => ({ session: await History.load(sessionId), context: Context }),
+    build: () => agentMaterials(sessionId),
+    mcpRevision: () => Tool.mcpRevision(Mcp),
+    getHistory: id => History.get({ sessionId: id }),
+})
+
+const getAgent = sessionId => Agent.get({ sessionId, assemble: agentSource(sessionId) })
+const createAgent = async sessionId => Agent.create({ sessionId, ...await agentMaterials(sessionId) })
 
 // 一个会话的运行状态：用一个状态机代替两个独立的 Map/Set，避免竞态窗口。
 // status 可能的值：idle （空闲） | starting （启动中） | running （运行中） | stopping （停止中）。
@@ -44,7 +72,7 @@ const finishRun = async (sessionId, token) => {
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
     History.setRunning(sessionId, false)
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
-    await Assemble.settle(sessionId)
+    await Agent.settle(sessionId, Tool.mcpRevision(Mcp))
 }
 
 // --- 取一条消息里的纯文本 ---
@@ -165,7 +193,7 @@ const validateRun = async ({ sessionId, input, resume }) => {
     if (state?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试') // 停止中不能启动
 
     await History.load(sessionId)                                        // 加载历史到内存
-    const agent = await Assemble.get({ sessionId }) // 装配 agent（如果还没有的话）
+    const agent = await getAgent(sessionId) // 装配 agent（如果还没有的话）
     if (sessions.get(sessionId)?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试')
     if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能再发
 
@@ -335,7 +363,7 @@ const saveStep = ({ sessionId, agent, state }) => () => {
 }
 
 // --- 工具审批：同时留下"哪条用户消息"和"哪次工具调用" ---
-const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, signal }) => Assemble.check({
+const askBeforeTool = ({ sessionId, agent }) => ({ toolCallId, toolName, input, signal }) => checkPermission({
     sessionId,
     messageId: agent.history.findLast(message => message.role === 'user' && !message.internal)?.id,
     toolCallId,
@@ -471,7 +499,7 @@ const recover = async () => {
     for (const { id } of candidates) {
         try {
             await History.load(id)
-            const agent = await Assemble.get({ sessionId: id })
+            const agent = await getAgent(id)
             if (agent.running) continue
             const visible = History.get({ sessionId: id }).filter(message => !message.internal)
             if (skipRecovery(visible) || !resumable(visible)) {

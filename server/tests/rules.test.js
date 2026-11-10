@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import Agent from '../features/agent.js'
 import Context from '../features/context.js'
 import Session from '../commands/session.js'
-import Assemble from '../commands/assemble.js'
+import { getAgent } from './agent-helpers.js'
 import store from '../store.js'
 
 const provider = [{ name: 'local', models: [{ id: 'model', name: 'model' }] }]
@@ -93,14 +93,14 @@ describe('项目规则', () => {
         await withRules(async ({ cwd, write }) => {
             await write('AGENTS.md', '装配时的规则')
             const { sessionId } = await Session.create({ title: '规则', cwd })
-            const agent = await Assemble.get({ sessionId })
+            const agent = await getAgent(sessionId)
             expect(agent.config.system).toContain('装配时的规则')
             // 压缩规范跟着装配后的 system 走，自动压缩才拿得到。
             expect(agent.config.system).toContain('上下文压缩')
 
             await write('AGENTS.md', '改过之后的规则')
             await new Promise(resolve => setTimeout(resolve, 20))
-            const again = await Assemble.get({ sessionId })
+            const again = await getAgent(sessionId)
             expect(again.config.system).toContain('改过之后的规则')
             expect(again.config.system).toContain('上下文压缩')
         })

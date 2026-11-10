@@ -12,7 +12,7 @@
  *       sessionId,
  *       mcp: Mcp,                                  // 外部 MCP 服务由调用方传入
  *       skills: Skills,                              // 技能清单也由调用方传入
- *       onPermission: Assemble.check,                        // 工具执行前的审批关口
+ *       onPermission: checkPermission,                        // 工具执行前的审批关口
  *       saveSession: () => History.save(sessionId),          // 工具改会话后落盘
  *   })
  *   // 返回 { tools, mcpRevision, release }；release 由 Agent 销毁时调用。

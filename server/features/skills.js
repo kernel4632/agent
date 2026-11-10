@@ -3,7 +3,7 @@
  *
  * 技能来源有三类：应用自己的全局目录、会话目录下的 .agent/skills、用户启用的外部目录；
  * 状态保存在数据目录的 skills.json。扫描结果只在这里实现，tools/skill.js 和
- * commands/capabilities.js 共用同一份，避免两套规则漂移。
+ * commands/admin.js 的技能方法和本文件共用同一份规则。
  *
  * 调用示例：
  *   const { skills } = await Skills.list({ cwd })

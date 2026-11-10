@@ -9,7 +9,7 @@
  *     }
  *   }
  * 连上的服务给出工具名带服务名前缀，两个服务撞名时不会互相覆盖。
- * 存盘由调用方（commands/capabilities.js）在增删改之后接着调 Config.save()；本文件不 import 其他 feature。
+ * commands/admin.js 在增删改之后接着调 Config.save()；本文件不 import 其他 feature。
  *
  * 调用示例：
  *   const lease = await Mcp.acquire({ sessionId })
