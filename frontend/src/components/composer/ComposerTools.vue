@@ -35,8 +35,13 @@ const mcpAllowed = computed(() => allowAll.value || (store.config.raw?.permissio
 // 所以全局开着时每个工具实际都是自动执行，这里必须照实显示，否则勾选状态在说谎。
 // deny 是硬规则，全局放行也拦得住，不能画成开着。
 const allowed = tool => tool.permission === 'deny' ? false : (allowAll.value || tool.permission === 'allow')
-const allowedCount = computed(() => tools.value.filter(allowed).length + (mcpAllowed.value ? 1 : 0))
-const totalCount = computed(() => tools.value.length + (hasMcp.value ? 1 : 0))
+// 计数和界面必须来自同一份开关列表，避免 MCP 开关加进界面却没算进分母。
+const switches = computed(() => [
+  ...tools.value.map(tool => ({ key: tool.name, on: allowed(tool) })),
+  ...(hasMcp.value ? [{ key: 'mcp', on: mcpAllowed.value }] : []),
+])
+const allowedCount = computed(() => switches.value.filter(item => item.on).length)
+const totalCount = computed(() => switches.value.length)
 
 // 万能开关的三态：全开是勾，关掉一部分是横线，全关是空。
 // 全局 * 为 allow 也算全开：它已经让所有工具直接执行了。这时这一格不能变成「关着」，
