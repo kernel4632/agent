@@ -206,13 +206,16 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
         const output = safeTokens(usage.output)
         const durationMs = Number(usage.durationMs || 0)
         const firstTokenMs = Number(usage.firstTokenMs || 0)
-        const generation = durationMs > firstTokenMs ? durationMs - firstTokenMs : durationMs
+        const reasoning = safeTokens(usage.reasoning)
+        // TPS 只看原始生成：usage.output 去掉 reasoning；分母用整次请求耗时，
+        // 不再减去首字时间，否则供应商把首字和正文一起返回时会冲成几千 tok/s。
+        const rawOutput = Math.max(0, output - reasoning)
         requests.push({
             input,
             output,
             cache: safeTokens(usage.cacheRead),
             cacheWrite: safeTokens(usage.cacheWrite),
-            reasoning: safeTokens(usage.reasoning),
+            reasoning,
             total: safeTokens(usage.total) || input + output,
             provider: usage.provider || fallbackProvider,
             model: usage.model || fallbackModel,
@@ -220,7 +223,7 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
             finishedAt: Number(usage.finishedAt || 0),
             firstTokenMs,
             durationMs,
-            tps: generation > 0 ? output / (generation / 1000) : 0,
+            tps: durationMs > 0 ? rawOutput / (durationMs / 1000) : 0,
         })
     }
 
@@ -248,11 +251,11 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
             lastTps: 0, lastAt: 0, latest: null,
         }
         group.count += 1
-        group.output += item.output
+        group.output += Math.max(0, item.output - item.reasoning)
         if (item.durationMs > 0) {
             group.durationMs += item.durationMs
             group.durationCount += 1
-            group.generationMs += item.durationMs > item.firstTokenMs ? item.durationMs - item.firstTokenMs : item.durationMs
+            group.generationMs += item.durationMs
         }
         if (item.firstTokenMs > 0) {
             group.firstTokenMs += item.firstTokenMs
