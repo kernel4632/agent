@@ -56,17 +56,28 @@ const matchPattern = (value, pattern) => {
     }
 }
 
+// --- MCP 工具按服务名前缀识别，允许用一个 mcp 开关统一批准 ---
+const isMcpTool = toolName => Object.keys(store.config.mcp || {}).some(server => toolName.startsWith(`${server}_`))
+
 // --- 按规则决定放行、询问还是拒绝 ---
 const decideByRules = (toolName, matchValue, rules = store.config.permission || { '*': 'ask' }) => {
-    const toolRule = rules[toolName]
     const fallback = normalize(rules['*'])
     let decision = fallback
     let patterns = null
-    if (typeof toolRule === 'string') decision = normalize(toolRule)
-    if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
-        // `*` 是这个工具的默认动作。设置页的“自动执行”写的就是它，不能再要求参数真的匹配到星号。
-        if ('*' in toolRule) decision = normalize(toolRule['*'])
-        patterns = toolRule
+    const applyRule = rule => {
+        if (typeof rule === 'string') decision = normalize(rule)
+        if (rule && typeof rule === 'object' && !Array.isArray(rule)) {
+            // `*` 是这个组的默认动作；参数模式在下面继续匹配。
+            if ('*' in rule) decision = normalize(rule['*'])
+            return rule
+        }
+        return null
+    }
+    // 一个 mcp 开关统管全部 MCP 工具：组规则存在时，旧的单工具规则不再拆台。
+    if (isMcpTool(toolName) && rules.mcp !== undefined) {
+        patterns = applyRule(rules.mcp)
+    } else if (rules[toolName] !== undefined) {
+        patterns = applyRule(rules[toolName])
     }
     // 多行脚本经常对不上「cd /tmp*」这种前缀。工具默认是 ask 时会弹窗。
     // 全部批准把全局写成 allow，这一层必须盖过工具默认的 ask；deny 仍然是硬规则。
@@ -74,6 +85,7 @@ const decideByRules = (toolName, matchValue, rules = store.config.permission || 
     if (patterns) {
         // 最后一条命中的说了算，deny 可以盖过前面的允许。全部批准时，命中 ask 不再把结果打回弹窗。
         for (const [pattern, result] of Object.entries(patterns)) {
+            if (pattern === '*') continue
             if (!matchPattern(matchValue, pattern)) continue
             const matched = normalize(result)
             if (matched === 'ask' && fallback === 'allow') continue

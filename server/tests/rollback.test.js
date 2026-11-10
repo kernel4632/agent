@@ -439,6 +439,26 @@ describe('权限规则的拒绝动作', () => {
 })
 
 describe('允许规则直接放行', () => {
+    test('一个 mcp 开关可以统批准所有 MCP 工具', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                mcp: { sample: { transport: 'http', url: 'https://mcp.example.test' } },
+                permission: { '*': 'ask', mcp: 'allow', sample_tool: { '*': 'ask' } },
+            })
+            const { sessionId } = await Session.create({ title: 'MCP group' })
+            expect(await Approval.check({ sessionId, toolCallId: 'mcp-1', toolName: 'sample_tool', input: {} })).toBe(true)
+            expect(Approval.pending(sessionId)).toEqual([])
+
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                mcp: { sample: { transport: 'http', url: 'https://mcp.example.test' } },
+                permission: { '*': 'ask', mcp: 'deny', sample_tool: { '*': 'allow' } },
+            })
+            expect(await Approval.check({ sessionId, toolCallId: 'mcp-2', toolName: 'sample_tool', input: {} })).toBe(false)
+        })
+    })
+
     test('配置改成全部批准后，挂着的审批自动放行', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
