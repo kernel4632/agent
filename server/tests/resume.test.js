@@ -143,23 +143,30 @@ describe('继续被中断的助手', () => {
 
     test('手动压缩返回文本并把 compact-finish 用量写入 compact 历史', async () => {
         await withHome(async () => {
-            const sessionId = await setup()
-            const agent = {
-                history: [{ id: 'u1', role: 'user', content: text('已有记录') }],
-                config: { baseURL: 'http://fixture/v1', model: 'fixture' },
-                running: null,
-                async compact({ onCompact }) {
-                    await onCompact({ type: 'compact-start', messages: [] })
-                    await onCompact({ type: 'compact-finish', content: '手动总结', usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } })
-                    agent.history.push(AgentCore.history.compact({ id: 'c1', content: '手动总结' }))
-                    return '手动总结'
-                },
+            // compact 现在直接走静态路径，不依赖 runtime Agent 实例。
+            const server = Bun.serve({
+                port: 0,
+                fetch: () => Response.json({
+                    id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fixture',
+                    choices: [{ index: 0, message: { role: 'assistant', content: '手动总结' }, finish_reason: 'stop' }],
+                    usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 },
+                }),
+            })
+            try {
+                // 必须先设置带 baseURL 的 provider，再建会话， compact 才能拿到连接配置。
+                await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                const { sessionId } = await Session.create({ title: '压缩测试' })
+                await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('已有记录') } })
+                await History.save(sessionId)
+                const result = await Session.compact({ sessionId })
+                expect(result.content).toBe('手动总结')
+                const compact = result.history.find(message => message.compact)
+                expect(compact).toBeDefined()
+                expect(compact.usage).toMatchObject({ input: 4, output: 2, total: 6 })
+                expect(compact.compact).toBe(true)
+            } finally {
+                server.stop(true)
             }
-            Agent.runtime().set(sessionId, agent)
-            const result = await Session.compact({ sessionId })
-            expect(result.content).toBe('手动总结')
-            expect(result.history.find(message => message.id === 'c1').usage).toMatchObject({ input: 4, output: 2, total: 6 })
-            expect(result.history.find(message => message.id === 'c1').compact).toBe(true)
         })
     })
 

@@ -81,6 +81,7 @@ const connection = ({ provider: name, model }) => {
         baseURL: provider.baseURL || '',
         apiKey: provider.apiKey || '',
         protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
+        stream: provider.stream !== false,
         provider: { headers, body: provider.body || {} },
     }
 }

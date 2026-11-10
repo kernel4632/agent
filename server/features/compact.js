@@ -4,7 +4,7 @@
  * 这是纯逻辑边界：调用方把历史消息和连接配置传进来，
  * 压缩结果和总结消息块直接返回；写历史和 SSE 通知由命令层接手，本文件不 import 别的 feature。
  *
- * 不再依赖装配好的 Agent 实例：直接调 agent-core 的静态 Agent.context.build 裁剪上下文，
+ * 不依赖装配好的 Agent 实例：直接调 agent-core 的静态 Agent.context.build 裁剪上下文，
  * 再用 Agent.compact.run 发压缩请求。调用方只需提供纯历史消息和连接配置。
  *
  * 调用示例：
@@ -21,17 +21,9 @@ const run = async ({ sessionId, history, llm, system = '', onEvent }) => {
     if (!history?.length) throw fail(400, `No messages to compact: ${sessionId}`)
     if (!llm?.baseURL || !llm?.model) throw fail(400, `Session has no model configured: ${sessionId}`)
     const { messages } = Agent.context.build({ history, system })
-    const { content, usage } = await Agent.compact.run({ messages, llm, stream: true, onCompact: onEvent })
+    const { content, usage } = await Agent.compact.run({ messages, llm, stream: llm.stream !== false, onCompact: onEvent })
     const message = Agent.history.compact({ content })    // agent-core 的 compact 消息块，可直接写进 History
     return { content, usage, message }
 }
 
-// 已有 runtime Agent 实例时的路径：用实例方法，结果追加到 agent.history
-const runWithAgent = async ({ agent, onEvent }) => {
-    if (agent.running) throw fail(409, `Agent is already running: ${agent.id || ''}`)
-    // 模型地址没填时压缩必然失败，说清是配置问题，别报成程序错误。
-    if (!agent.config.baseURL || !agent.config.model) throw fail(400, `Session has no model configured`)
-    return agent.compact({ onCompact: onEvent })
-}
-
-export default { run, runWithAgent }
+export default { run }

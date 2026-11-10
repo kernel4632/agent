@@ -441,24 +441,14 @@ const compact = async ({ sessionId }) => {
         return SSE.send({ id: sessionId, data: event })
     }
 
-    if (runtimeAgent) {
-        // --- Agent 实例已在 runtime：用实例方法，total 结果追加到 agent.history ---
-        const start = runtimeAgent.history.length
-        content = await Compact.runWithAgent({ agent: runtimeAgent, onEvent })
-        for (const message of runtimeAgent.history.slice(start)) {
-            if (message.compact && compactUsage) message.usage = compactUsage
-            await History.add({ sessionId, message })
-        }
-    } else {
-        // --- 没有 runtime Agent：用静态路径，不需要装配 ---
-        const session = await History.load(sessionId)
-        const records = History.get({ sessionId })
-        const history = records.map(({ messageId, ...message }) => message)
-        const llm = Agent.connection(session.model)
-        const result = await Compact.run({ sessionId, history, llm, onEvent })
-        content = result.content
-        await History.add({ sessionId, message: { ...result.message, ...(compactUsage ? { usage: compactUsage } : {}) } })
-    }
+    // 不依赖 runtime Agent 实例：用静态路径，history + llm 直接发压缩请求。
+    const session = await History.load(sessionId)
+    const records = History.get({ sessionId })
+    const history = records.map(({ messageId, ...message }) => message)
+    const llm = Agent.connection(session.model)
+    const result = await Compact.run({ sessionId, history, llm, onEvent })
+    content = result.content
+    await History.add({ sessionId, message: { ...result.message, ...(compactUsage ? { usage: compactUsage } : {}) } })
     await History.save(sessionId)
     return { ...await read({ sessionId }), content }
 }
