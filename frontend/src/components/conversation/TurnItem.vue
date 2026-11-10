@@ -1,21 +1,21 @@
-<!-- 时间线中的一轮；虚拟化历史区和始终挂载的 live tail 共用同一份渲染。 -->
+<!-- 时间线中的一轮；用户消息和助手回复共用步骤窄条，右键保持浏览器原生。 -->
 <script setup>
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
-import MessageActions from './MessageActions.vue'
+import StepActions from './StepActions.vue'
 import CompactionNotice from '../feedback/CompactionNotice.vue'
 import AssistantTurn from './AssistantTurn.vue'
+import { computed } from 'vue'
+import { isSavedMessage } from '../../features/turns.js'
 
 const props = defineProps({
   turn: { type: Object, required: true },
   sessionId: { type: String, required: true },
   running: Boolean,
   active: Boolean,
-  rollbackTarget: { type: Object, default: null },
-  rollbackPreview: { type: Object, default: null },
-  menuItems: { type: Function, required: true },
 })
-const emit = defineEmits(['request-rollback', 'close', 'action', 'rollback-confirm', 'fork'])
+const emit = defineEmits(['rollback', 'fork'])
+const userActionTarget = computed(() => isSavedMessage(props.turn.messages[0]) ? props.turn.messages[0] : null)
 </script>
 
 <template>
@@ -26,33 +26,32 @@ const emit = defineEmits(['request-rollback', 'close', 'action', 'rollback-confi
   >
     <CompactionNotice v-if="turn.messages[0].compact" :content="turn.messages[0].content" />
     <template v-else-if="turn.role === 'user'">
-      <MessageActions
-        :items="menuItems(turn.messages[0])"
-        :target-id="turn.messages[0].id"
-        label="消息操作"
-        :running="running"
-        :rollback-target="rollbackTarget"
-        :rollback-preview="rollbackPreview"
-        @request-open="emit('request-rollback', turn.messages[0])"
-        @close="emit('close')"
-        @action="emit('action', turn.messages[0], $event)"
-        @rollback-confirm="emit('rollback-confirm', $event)"
-      >
-        <div class="rikka-message rikka-message--user">
-          <div class="rikka-bubble rikka-bubble--user" :data-message-id="turn.messages[0].id">
-            <Markdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
-            <div v-if="turn.messages[0].images?.length" class="user-images">
-              <img v-for="(image, index) in turn.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
-            </div>
-            <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
-              <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
-                <Icon name="document" :size="14" />
-                <span class="user-attachment__name">{{ file.name }}</span>
-              </span>
+      <div class="message-step">
+        <StepActions
+          :rollback-target="userActionTarget"
+          :fork-target="userActionTarget"
+          :running="running"
+          label="用户消息操作"
+          @rollback="emit('rollback', $event)"
+          @fork="emit('fork', $event)"
+        />
+        <div class="message-step__body">
+          <div class="rikka-message rikka-message--user">
+            <div class="rikka-bubble rikka-bubble--user" :data-message-id="turn.messages[0].id">
+              <Markdown :content="turn.messages[0].displayContent ?? turn.messages[0].content" />
+              <div v-if="turn.messages[0].images?.length" class="user-images">
+                <img v-for="(image, index) in turn.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
+              </div>
+              <div v-if="turn.messages[0].attachments?.length" class="user-attachments">
+                <span v-for="(file, index) in turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
+                  <Icon name="document" :size="14" />
+                  <span class="user-attachment__name">{{ file.name }}</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </MessageActions>
+      </div>
     </template>
     <template v-else>
       <AssistantTurn
@@ -60,11 +59,8 @@ const emit = defineEmits(['request-rollback', 'close', 'action', 'rollback-confi
         :session-id="sessionId"
         :running="running"
         :active="active"
-        :rollback-target="rollbackTarget"
-        :rollback-preview="rollbackPreview"
-        @rollback="emit('request-rollback', $event)"
+        @rollback="emit('rollback', $event)"
         @fork="emit('fork', $event)"
-        @rollback-confirm="emit('rollback-confirm', $event)"
       />
     </template>
   </article>

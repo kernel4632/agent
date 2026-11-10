@@ -377,7 +377,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (outlineTimer) window.clearTimeout(outlineTimer)
   scrollParent?.removeEventListener('scroll', syncFromScroll)
   scrollParent?.removeEventListener('wheel', releaseActive)
   scrollParent?.removeEventListener('touchstart', releaseActive)

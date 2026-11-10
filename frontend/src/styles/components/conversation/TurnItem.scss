@@ -1,4 +1,16 @@
 /* TurnItem.vue：用户气泡和附件；共享布局仍由时间线持有。 */
+.message-step {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+}
+.message-step__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
 .rikka-message {
   display: flex;
   width: 100%;

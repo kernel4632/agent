@@ -498,17 +498,16 @@ export async function backend(page, { configured = true } = {}) {
     }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
-    if (path.startsWith('/session/rollback/preview/')) return json({ messages: 1, files: [] })
+    if (path.startsWith('/session/rollback/redo/')) {
+      session.history = session.redo || []
+      session.redo = []
+      session.undoable = 0
+      return json({ ...session, restored: [] })
+    }
     if (path.startsWith('/session/rollback/')) {
       session.redo = session.history
       session.history = []
       session.undoable = 1
-      return json({ ...session, restored: [] })
-    }
-    if (path.startsWith('/session/redo/')) {
-      session.history = session.redo || []
-      session.redo = []
-      session.undoable = 0
       return json({ ...session, restored: [] })
     }
     if (path.startsWith('/agent/send/')) {

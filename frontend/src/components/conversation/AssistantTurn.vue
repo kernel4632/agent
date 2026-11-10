@@ -2,13 +2,11 @@
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
 思考、工具和中间正文按发生顺序合成一张时间线卡片；完成任务/询问用户这类结束工具的结果才是正式回复，直接显示在卡片下方，不再套背景。
 没有结束工具时（停止、报错、断网）才把已经流出的正文当临时回复。
-右键或长按这一整轮，直接打开聚光引导（见 MessageActions）：框住落点所在的那条消息和它的工具，菜单卡片只给复制/回退/分支三个按钮；复制目标那一条的内容（stop 工具输出或正文），不展示预览。
-调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :rollback-target="..." :rollback-preview="..." @rollback="..." @fork="..." @rollback-confirm="..." />
+每轮按模型请求切成步骤：思考和工具属于步骤内的内容，每个步骤左侧有一条操作窄条；
+右键和长按完全交还浏览器，窄条只负责打开步骤的回退/分支菜单。
+调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :active="active" @rollback="..." @fork="..." />
 -->
 <script setup>
-import { Notice } from "../../utils/notice.js"
-import { copyText } from '../../utils/clipboard.js'
-
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
@@ -16,10 +14,10 @@ import { store } from '../../store.js'
 import { useSmoothText } from '../../utils/smooth-text.js'
 import { outputText, toolTitle } from "../../utils/tool.js"
 import { isFinishedStopTool, isSavedMessage } from "../../features/turns.js"
-import MessageActions from './MessageActions.vue'
 import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
 import ReasoningStep from './ReasoningStep.vue'
+import StepActions from './StepActions.vue'
 import ToolCall from '../activity/ToolCall.vue'
 
 const props = defineProps({
@@ -27,33 +25,17 @@ const props = defineProps({
   sessionId: { type: String, required: true },
   running: Boolean,
   active: Boolean,
-  rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
-  rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
-const emit = defineEmits(['rollback', 'fork', 'rollback-confirm'])
+const emit = defineEmits(['rollback', 'fork'])
 
-// 复制目标那一条消息自己的内容：正式回复取结束工具的输出，否则取正文。
-function messageText(message) {
-  if (!message) return content.value
-  const stopTool = (message.tools || []).find(isFinishedStopTool)
-  return (stopTool ? outputText(stopTool).trim() : String(message.content || '').trim()) || content.value
-}
-
-// 右键落点决定回退/分支的目标消息：点在哪一步就归哪条助手消息；
-// 打开聚光时由 resolveTarget 从事件里解析（找不到时保留 null，退回默认目标）。
-const targetId = ref(null)
-const targeted = messageId => {
-    const message = props.messages.find(item => item.id === messageId)
-    return message && actionable(message) ? message : null
-}
+// 步骤操作只认已经落盘的消息；pending/error 没有可回退的后端 id。
+const savedTarget = message => isSavedMessage(message) ? message : null
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
 const vAutoScroll = {
   mounted: element => { element.scrollTop = element.scrollHeight },
   updated: element => { element.scrollTop = element.scrollHeight },
 }
-
-const actionable = message => isSavedMessage(message)
 
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
 const stopTexts = computed(() => props.messages.flatMap(message =>
@@ -67,7 +49,6 @@ const fallbackText = computed(() => props.messages
   .map(message => String(message.content || '').trim())
   .filter(Boolean)
   .join('\n\n'))
-const content = computed(() => finalText.value || fallbackText.value)
 // 正式气泡的归属：它来自带结束工具的那条消息；没有结束工具时（textOnly）
 // 气泡显示的是最后一条消息流出的正文，回退聚光也按这条框住它。
 const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
@@ -269,6 +250,38 @@ const processSections = computed(() => {  const sections = []
   return sections
 })
 
+// 一个步骤 = 一个模型请求的思考/正文/工具，连同紧跟其后的正文。
+// 处理过程仍共用外层折叠；这里只把 sections 切成步骤，给每一步一条操作窄条。
+const stepBlocks = computed(() => {
+  const blocks = []
+  let current = null
+  for (const section of processSections.value) {
+    // 每个 context-group 是一次请求的动作组；它开启新步骤，后面的正文留在同一步。
+    if (!current || section.type === 'group') {
+      current = { key: section.key, sections: [] }
+      blocks.push(current)
+    }
+    current.sections.push(section)
+  }
+  return blocks.map(block => {
+    const steps = block.sections.flatMap(section => section.type === 'group' ? section.steps : [section.step])
+    const messages = []
+    const seen = new Set()
+    for (const step of steps) {
+      if (!step.message || seen.has(step.message.id)) continue
+      seen.add(step.message.id)
+      messages.push(step.message)
+    }
+    return {
+      ...block,
+      messages,
+      rollbackTarget: savedTarget(messages[0]) || null,
+      forkTarget: savedTarget(messages.at(-1)) || null,
+    }
+  })
+})
+const bubbleTarget = computed(() => savedTarget(finalMessage.value || props.messages.at(-1)))
+
 const groupStoreKey = `agent.process-groups:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 const groupOpen = ref((() => {
   try { return JSON.parse(localStorage.getItem(groupStoreKey) || '{}') || {} } catch { return {} }
@@ -290,54 +303,11 @@ const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 const shownBubble = computed(() => finalText.value || bubbleContent.value)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
-
-const defaultTarget = computed(() => [...props.messages].reverse().find(actionable) || null)
-// 落点在已落盘的消息上时用那一条，否则退回默认目标；分支和回退用同一个目标。
-const targetedMessage = computed(() => targeted(targetId.value) || defaultTarget.value)
-const rollbackTarget = computed(() => targetedMessage.value)
-const forkTarget = computed(() => targetedMessage.value)
-const menuItems = computed(() => {
-  // 任务运行中仍显示回退/分支：分支由服务端直接做（只读快照），回退在确认后先停止任务再退。
-  if (!rollbackTarget.value) return [{ value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value }]
-  return [
-    { value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value },
-    { value: 'rollback', label: '回退到这条回复', icon: 'undo' },
-    { value: 'fork', label: '从这里分支', icon: 'branch' },
-  ]
-})
-
-function onMenu(action) {
-  if (action === 'copy') copyMessage(messageText(rollbackTarget.value))
-  else if (action === 'rollback') emit('rollback', rollbackTarget.value)
-  else if (action === 'fork') emit('fork', forkTarget.value)
-}
-
-// 复制只在本区域反馈，剪贴板工具不依赖页面。
-async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
-
-// 右键打开聚光：从落点解析目标消息，找不到时退回整轮默认目标（最后一条已落盘）。
-function resolveTarget(event) {
-  if (event?.target instanceof Element) targetId.value = event.target.closest('[data-message-id]')?.getAttribute('data-message-id') || targetId.value
-  return targetId.value
-}
-// 聚光关闭或回退结束就清掉落点，下一次右键重新解析。
-function clearTarget() { targetId.value = null; emit('close') }
+const defaultTarget = computed(() => [...props.messages].reverse().find(savedTarget) || null)
 </script>
 
 <template>
   <div ref="turnEl" class="assistant-message rikka-message rikka-message--assistant">
-    <MessageActions
-      :items="menuItems"
-      :target-id="rollbackTarget?.id || null"
-      label="助手消息操作"
-      :running="running"
-      :rollback-target="rollbackTarget"
-      :rollback-preview="rollbackPreview"
-      @request-open="resolveTarget"
-      @close="clearTarget"
-      @action="onMenu"
-      @rollback-confirm="emit('rollback-confirm', $event)"
-    >
       <div v-if="treeSteps.length" class="cot-card process-fold">
         <button type="button" class="process-fold__head" :aria-expanded="processShown" @click="toggleProcess">
           <span class="process-fold__icon"><Icon name="assistant" :size="16" /></span>
@@ -347,7 +317,17 @@ function clearTarget() { targetId.value = null; emit('close') }
         </button>
         <Fold :open="processShown" :instant="approvalPending">
           <div class="process-fold__body context-sections">
-            <template v-for="section in processSections" :key="section.key">
+            <div v-for="block in stepBlocks" :key="block.key" class="assistant-step">
+              <StepActions
+                :rollback-target="block.rollbackTarget"
+                :fork-target="block.forkTarget"
+                :running="running"
+                label="步骤操作"
+                @rollback="emit('rollback', $event)"
+                @fork="emit('fork', $event)"
+              />
+              <div class="assistant-step__body">
+            <template v-for="section in block.sections" :key="section.key">
               <template v-if="section.type === 'step'">
                 <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
                 <template v-else-if="section.step.type === 'compact'">
@@ -419,17 +399,30 @@ function clearTarget() { targetId.value = null; emit('close') }
                 </Fold>
               </div>
             </template>
+              </div>
+            </div>
           </div>
         </Fold>
       </div>
-      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
-        <Markdown :content="shownBubble" />
-        <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
-        <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
+      <div v-if="bubbleText" class="assistant-step assistant-step--response">
+        <StepActions
+          :rollback-target="bubbleTarget"
+          :fork-target="bubbleTarget"
+          :running="running"
+          label="回复操作"
+          @rollback="emit('rollback', $event)"
+          @fork="emit('fork', $event)"
+        />
+        <div class="assistant-step__body">
+          <div class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
+            <Markdown :content="shownBubble" />
+            <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
+            <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
+          </div>
+          <p v-if="error" class="message__error" role="alert">{{ error }}</p>
+        </div>
       </div>
-
-      <p v-if="error" class="message__error" role="alert">{{ error }}</p>
-    </MessageActions>
+      <p v-else-if="error" class="message__error" role="alert">{{ error }}</p>
   </div>
 </template>
 

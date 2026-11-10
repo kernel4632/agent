@@ -2,7 +2,7 @@
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
   用户消息和助手回复按轮排布；历史按 compact 边界折叠，最后一次压缩之后始终展开。
-  按钮和图标按钮走 ui/；右键直接进聚光引导（MessageActions 内置），回退确认也在同一张卡片里。
+  按钮和图标按钮走 ui/；右键和长按交还浏览器，步骤回退/分支由每条步骤左侧的窄条打开。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
@@ -11,7 +11,6 @@ import { History } from "../../features/history.js"
 import { Navigation } from '../../commands/navigation.js'
 
 import { Notice } from "../../utils/notice.js"
-import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -139,8 +138,6 @@ const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
-const rollbackTarget = ref(null)
-const rollbackPreview = ref(null)
 const flow = ref(null)
 let scrollParent = null
 let contentObserver = null
@@ -531,51 +528,22 @@ function bindScrollRoot(root) {
     })
   })
 }
-// 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
-const canRollback = message => isSavedMessage(message)
-
-// 右键打开聚光时就取代价预览：用户点“回退”切换到确认态时代价已经在了。
-async function requestRollback(message) {
-  if (!canRollback(message)) return
-  rollbackTarget.value = message
-  rollbackPreview.value = await History.previewRollback(session.value.id, message.id)
-}
-function clearRollback() {
-  rollbackTarget.value = null
-  rollbackPreview.value = null
-}
-async function confirmRollback(restoreFiles) {
+// 步骤操作：回退从步骤第一条消息开始，分支保留到步骤最后一条消息。
+async function rollbackStep({ message, files = true } = {}) {
+  if (!isSavedMessage(message)) return
   const sessionID = session.value.id
   if (session.value.status === 'running') {
     const { Chat } = await import('../../commands/chat.js')
     await Chat.stop(sessionID)
   }
-  await History.rollbackMessage(sessionID, rollbackTarget.value?.id, restoreFiles)
-  clearRollback()
+  await History.rollbackMessage(sessionID, message.id, files)
 }
 
-// 从这条用户消息分出一个新对话，原对话不动。
-async function forkFrom(message) {
+async function forkStep(message) {
+  if (!isSavedMessage(message)) return
   const id = await History.fork(session.value.id, message.id)
   if (id) await Navigation.openChat(id)
 }
-
-function userMenuItems(message) {
-  const items = [{ value: 'copy', label: '复制消息', icon: 'copy' }]
-  if (canRollback(message)) {
-    items.push({ value: 'rollback', label: '回退到这条消息', icon: 'undo' })
-    items.push({ value: 'fork', label: '从这里分支', icon: 'branch' })
-  }
-  return items
-}
-
-function onUserMenu(message, action) {
-  if (action === 'copy') copyMessage(message.displayContent ?? message.content)
-  else if (action === 'rollback') requestRollback(message)
-  else if (action === 'fork') { clearRollback(); forkFrom(message) }
-}
-
-async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
 </script>
 
 <template>
@@ -601,14 +569,8 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
                 :session-id="session.id"
                 :running="session.status === 'running'"
                 :active="false"
-                :rollback-target="rollbackTarget"
-                :rollback-preview="rollbackPreview"
-                :menu-items="userMenuItems"
-                @request-rollback="requestRollback"
-                @close="clearRollback"
-                @action="onUserMenu"
-                @rollback-confirm="confirmRollback"
-                @fork="forkFrom"
+                @rollback="rollbackStep"
+                @fork="forkStep"
               />
             </div>
           </div>
@@ -624,14 +586,8 @@ async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制
             :session-id="session.id"
             :running="session.status === 'running'"
             :active="session.status === 'running' && turn.id === currentTurns.at(-1)?.id"
-            :rollback-target="rollbackTarget"
-            :rollback-preview="rollbackPreview"
-            :menu-items="userMenuItems"
-            @request-rollback="requestRollback"
-            @close="clearRollback"
-            @action="onUserMenu"
-            @rollback-confirm="confirmRollback"
-            @fork="forkFrom"
+            @rollback="rollbackStep"
+            @fork="forkStep"
           />
         </div>
       </template>

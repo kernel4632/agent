@@ -330,16 +330,16 @@ test.describe('chat motion', () => {
     await newSession(page, '操作层动效')
 
     await watchMotion(page)
-    await page.locator('.rikka-bubble--user').first().click({ button: 'right' })
-    // 右键直接打开聚光引导；引导层和卡片进入时都要真的动。
-    const actions = page.getByRole('dialog', { name: '消息操作', exact: true })
-    await expect(actions).toBeVisible()
-    await waitForMotion(page, 'rollback-spotlight__card')
+    await page.locator('.rikka-bubble--user').first().locator('xpath=ancestor::*[contains(@class,"message-step")]').locator('.step-actions__rail').click()
+    // 步骤窄条展开后，覆盖层本身要有真实的 opacity/transform 过渡。
+    const panel = page.locator('.step-actions__panel')
+    await expect(panel).toBeVisible()
+    await waitForMotion(page, 'step-actions__panel')
     const motion = await readMotion(page)
-    const card = moving(motion, 'rollback-spotlight__card')
+    const card = moving(motion, 'step-actions__panel')
     expect(card.length, JSON.stringify(motion.list)).toBeGreaterThan(0)
     expect(card.some(item => item.opacity !== '1' || item.transform !== 'none')).toBe(true)
-    expect(card.some(item => item.duration >= 200 && item.duration <= 240)).toBe(true)
+    expect(card.some(item => item.duration >= 120 && item.duration <= 200)).toBe(true)
   })
 })
 
