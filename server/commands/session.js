@@ -14,7 +14,7 @@
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫', cwd: 'D:/notes' })
  *   const session = await Session.read({ sessionId })
- *   await Session.setCwd({ sessionId, cwd: 'D:/other' })
+ *   await Session.dir({ sessionId, cwd: 'D:/other' })
  *   await Session.rollback({ sessionId, messageId })
  */
 
@@ -343,10 +343,10 @@ const rename = async ({ sessionId, title }) => {
 }
 
 // --- 换模型 ---
-const setModel = async ({ sessionId, provider, model }) => {
+const model = async ({ sessionId, provider, model: modelId }) => {
     const session = await History.load(sessionId)
     const chosen = typeof provider === 'string' && provider.trim() ? provider.trim() : session.model.provider
-    const name = typeof model === 'string' && model.trim() ? model.trim() : session.model.model
+    const name = typeof modelId === 'string' && modelId.trim() ? modelId.trim() : session.model.model
     if (!chosen || !name) throw fail(400, 'provider and model must be non-empty strings')
     Agent.connection({ provider: chosen, model: name })
 
@@ -357,8 +357,8 @@ const setModel = async ({ sessionId, provider, model }) => {
     const agent = Agent.runtime().get(sessionId)
     if (agent?.running) {
         // core 0.30 每轮现读 agent.config；运行中只换配置，不重建实例、不中断当前任务。
-        const settings = Agent.settings(session)
-        Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name }, context: Context }))
+        const agentSettings = Agent.settings(session)
+        Object.assign(agent.config, await Agent.resolve({ session, settings: agentSettings, target: { provider: chosen, model: name }, context: Context }))
     } else {
         Agent.invalidate(sessionId)
         await createAgent(sessionId)
@@ -367,7 +367,7 @@ const setModel = async ({ sessionId, provider, model }) => {
 }
 
 // --- 换目录 ---
-const setCwd = async ({ sessionId, cwd }) => {
+const dir = async ({ sessionId, cwd }) => {
     const session = await History.load(sessionId)
     const previous = session.cwd
     const wasTemporary = session.temporary === true
@@ -398,7 +398,7 @@ const remove = async ({ sessionId }) => {
 
 // --- 会话级设置快照：思考强度、模型、当前目录放一起 ---
 // 这三个都是“这条会话自己的”设置，读写都走同一个结构，前端只认一份。
-const readSettings = async ({ sessionId }) => {
+const settings = async ({ sessionId }) => {
     const session = await History.load(sessionId)
     const settings = Agent.settings(session)
     return {
@@ -411,7 +411,7 @@ const readSettings = async ({ sessionId }) => {
 }
 
 // --- 改会话级设置：点名哪几项就改哪几项，最后回一份快照 ---
-const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
+const patch = async ({ sessionId, reasoning, provider, model: modelName, cwd }) => {
     // --- 改思考强度：读历史、归一、写回、必要时重建 Agent ---
     if (reasoning !== undefined) {
         const session = await History.load(sessionId)
@@ -428,9 +428,9 @@ const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
             }
         }
     }
-    if (provider !== undefined || model !== undefined) await setModel({ sessionId, provider, model })
-    if (cwd !== undefined) await setCwd({ sessionId, cwd })
-    return readSettings({ sessionId })
+    if (provider !== undefined || modelName !== undefined) await model({ sessionId, provider, model: modelName })
+    if (cwd !== undefined) await dir({ sessionId, cwd })
+    return settings({ sessionId })
 }
 
 // --- 手动压缩 ---
@@ -544,11 +544,11 @@ const list = async ({ search } = {}) => ({
 const count = () => History.count()
 
 // --- 统计正在运行的任务 ---
-const runningCount = () => Agent.count()
+const running = () => Agent.count()
 
 export default {
-    create, fork, list, read, rename, setModel, setCwd, remove,
-    readSettings, saveSettings, compact,
+    create, fork, list, read, rename, model, dir, remove,
+    settings, patch, compact,
     rollback, redo,
-    count, runningCount,
+    count, running,
 }

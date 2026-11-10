@@ -99,7 +99,7 @@ const MessagePart = t.Object({
 app.get('/health', async () => ({
     ...await Settings.health(),
     sessions: Session.count(),
-    running: Session.runningCount(),
+    running: Session.running(),
 }))
 
 // --- 管理总线：设置页 / 能力页的全部动作 ---
@@ -140,8 +140,8 @@ app.group('/session', session => session
         body: t.Object({ title: t.String() }),
     })
     // 会话级设置都走这一条：思考强度、模型、当前目录。
-    .get('/settings/:sessionId', ({ params }) => Session.readSettings(params))
-    .patch('/settings/:sessionId', ({ params, body }) => Session.saveSettings({ ...params, ...(body || {}) }), {
+    .get('/settings/:sessionId', ({ params }) => Session.settings(params))
+    .patch('/settings/:sessionId', ({ params, body }) => Session.patch({ ...params, ...(body || {}) }), {
         params: SessionParams,
         body: t.Object({
             reasoning: t.Optional(t.String()),

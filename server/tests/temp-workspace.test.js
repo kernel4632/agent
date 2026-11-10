@@ -64,7 +64,7 @@ describe('临时工作区', () => {
             const before = await Session.read({ sessionId })
             expect(before.temporary).toBe(true)
 
-            const moved = await Session.setCwd({ sessionId, cwd: target })
+            const moved = await Session.dir({ sessionId, cwd: target })
             expect(moved).toEqual({ id: sessionId, cwd: target, temporary: false })
             const after = await Session.read({ sessionId })
             expect(after.temporary).toBe(false)

@@ -10,8 +10,8 @@
  *   Settings.get()
  *   await Settings.set({ providers: [], permission: { '*': 'ask' } })
  *   await Settings.test({ provider: 'local', model: 'qwen3' })
- *   await Settings.listTools()
- *   Settings.toolKinds()
+ *   await Settings.tools()
+ *   Settings.kinds()
  */
 
 import { fileURLToPath } from 'node:url'
@@ -32,15 +32,15 @@ const { MODELS, read, get, meta } = Config
 const set = async config => { const result = await Config.set(config); Approval.recheck(); return result }
 
 // --- 工具目录：设置页画权限开关用 ---
-const listTools = () => Tool.list()
-const toolKinds = () => Tool.KINDS
+const tools = () => Tool.list()
+const kinds = () => Tool.KINDS
 
 // --- 真实试一次模型请求 ---
 const test = async ({ provider, model } = {}) => Agent.test({ provider, model, context: Context })
 
 const backups = () => Config.backups()
-const readBackup = id => Config.backup(id)
-const restore = async body => { const result = await Config.restore(body); Approval.recheck(); return result }
+const backup = id => Config.backup(id)
+const save = async body => { const result = await Config.restore(body); Approval.recheck(); return result }
 const exportConfig = query => Config.export(query)
 const importConfig = async body => { const result = await Config.import(body); Approval.recheck(); return result }
 
@@ -71,4 +71,4 @@ const health = async () => {
     }
 }
 
-export default { MODELS, read, set, get, meta, test, version, targetVersion, health, listTools, toolKinds, backups, readBackup, restore, exportConfig, importConfig }
+export default { MODELS, read, set, get, meta, test, version, targetVersion, health, tools, kinds, backups, backup, save, export: exportConfig, import: importConfig }
