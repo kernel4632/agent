@@ -2192,6 +2192,7 @@ test('tool permissions save and MCP settings remain available', async ({ page },
   await expect(readTool).toHaveAttribute('aria-pressed', 'true')
   await expect(commandTool).toHaveAttribute('aria-pressed', 'true')
   await expect(toolsTrigger).toHaveAttribute('aria-label', '工具自动批准（5/5 已自动执行）')
+  await expect(toolsTrigger.locator('.composer-tools__count')).toHaveText('5/5')
   await expect(allowAll).toHaveAttribute('aria-pressed', 'true')
 
   // 全局开着时关掉单个工具：必须一并撤掉全局批准，否则这一下点击在审批层里没有效果。

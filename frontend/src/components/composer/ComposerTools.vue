@@ -184,7 +184,7 @@ function onKeydown(event) {
       @click="toggle"
     >
       <Icon name="permission" :size="18" />
-      <span class="composer-tools__count">{{ allowedCount }}/{{ tools.length }}</span>
+      <span class="composer-tools__count">{{ allowedCount }}/{{ totalCount }}</span>
     </button>
 
     <div
