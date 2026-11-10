@@ -704,7 +704,8 @@ describe('server tool approval and SSE', () => {
         await SSE.close({ id })
     })
 
-    test('replacing a connection keeps cached events and writes to the new one', async () => {        const id = `sse-replace-${crypto.randomUUID()}`
+    test('multiple subscribers receive cached and new events independently', async () => {
+        const id = `sse-multi-${crypto.randomUUID()}`
         const first = await SSE.connect({ id, request: new Request('http://localhost/sse') })
         const firstReader = first.body.getReader()
         await SSE.send({ id, data: { type: 'kept' } })
@@ -713,12 +714,15 @@ describe('server tool approval and SSE', () => {
 
         const second = await SSE.connect({ id, request: new Request('http://localhost/sse') })
         const secondReader = second.body.getReader()
-        const event = await Promise.race([secondReader.read(), Bun.sleep(500).then(() => null)])
-        expect(event?.done).not.toBe(true)
-        expect(new TextDecoder().decode(event.value)).toContain('kept')
+        const cached = await Promise.race([secondReader.read(), Bun.sleep(500).then(() => null)])
+        expect(cached?.done).not.toBe(true)
+        expect(new TextDecoder().decode(cached.value)).toContain('kept')
 
-        const closed = await Promise.race([firstReader.read(), Bun.sleep(500).then(() => null)])
-        expect(closed?.done).toBe(true)
+        await SSE.send({ id, data: { type: 'both' } })
+        const firstNext = await Promise.race([firstReader.read(), Bun.sleep(500).then(() => null)])
+        const secondNext = await Promise.race([secondReader.read(), Bun.sleep(500).then(() => null)])
+        expect(new TextDecoder().decode(firstNext.value)).toContain('both')
+        expect(new TextDecoder().decode(secondNext.value)).toContain('both')
         await SSE.close({ id })
     })
 

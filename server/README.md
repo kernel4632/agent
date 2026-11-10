@@ -326,7 +326,7 @@ bun start
 
 ### SSE 事件
 
-`GET /sse/connect/{sessionId}` 推的事件类型：`agent-start`、`agent-resume`、`agent-finish`、`text-delta`、`reasoning-delta`、`retry`、`llm-start`、`llm-first-token`、`llm-finish`、`tool-call`、`tool-output`、`tool-result`、`tool-input-start`、`tool-input-delta`、`tool-input-end`、`permission`、`permission-blocked`、`mcp-error`、`compact-start`、`compact-finish`、`title`。
+`GET /sse/connect/{sessionId}` 推的事件类型：`agent-start`、`agent-resume`、`agent-finish`、`text-delta`、`reasoning-delta`、`retry`、`llm-start`、`llm-first-token`、`llm-finish`、`tool-call`、`tool-output`、`tool-result`、`tool-input-start`、`tool-input-delta`、`tool-input-end`、`permission`、`permission-blocked`、`mcp-error`、`compact-start`、`compact-finish`、`title`。同一会话允许同时有多个订阅者（多个标签页/窗口）：每个连接都会先收到缓存事件，之后的新事件广播给所有连接，断开其中一个不影响其他连接。
 
 - `llm-start` 带 `startedAt`（这次请求的真实开始时间）和 `provider` / `model`。
 - `llm-first-token` 带 `firstTokenAt` / `firstTokenMs`；`llm-finish.usage` 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 `provider` / `model`。
