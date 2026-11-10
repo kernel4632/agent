@@ -19,11 +19,14 @@ const toolCallIdsOf = message => (Array.isArray(message.content) ? message.conte
     .map(part => part.toolCallId)
     .filter(Boolean)
 
+// --- 前端历史里 messageId 和 core id 都出现过；回退两种都认 ---
+const findMessageIndex = (messages, messageId) => messages.findIndex(message => message.messageId === messageId || message.id === messageId)
+
 // --- 回退之前先算清楚会消失多少条消息、牵连哪些工具调用 ---
 // 不管退哪条消息，它和它之后的全部都会消失；工具结果不算对话消息，但它的快照要跟着退。
 const preview = ({ history, sessionId, messageId }) => {
     const messages = history.get({ sessionId })                    // 当前会话的完整消息
-    const index = messages.findIndex(message => message.messageId === messageId) // 目标消息在历史里的位置
+    const index = findMessageIndex(messages, messageId)            // 目标消息在历史里的位置
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
 
     const dropped = messages.slice(index)                          // 会消失的全部记录
@@ -40,7 +43,7 @@ const preview = ({ history, sessionId, messageId }) => {
 // 保留的工具结果按 toolCallId 留下，不能因为整条 tool 消息在后就一起丢。
 const cutPlan = ({ history, sessionId, messageId, partIndex }) => {
     const records = history.records({ sessionId })
-    const index = records.findIndex(record => record.messageId === messageId)
+    const index = records.findIndex(record => record.messageId === messageId || record.message.id === messageId)
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
     const record = records[index]
     const content = record.message.content
@@ -80,7 +83,7 @@ const cutPlan = ({ history, sessionId, messageId, partIndex }) => {
         if (parts.length) next.push({ ...later, message: { ...later.message, content: parts } })
     }
 
-    return { next, keepMessages, dropToolCalls: [...droppedCalls] }
+    return { next, keepMessages, dropToolCalls: [...droppedCalls], recordId: record.messageId }
 }
 
 // --- 按正文块/工具调用切口回退对话；文件恢复由指令层先做 ---
@@ -88,7 +91,7 @@ const cut = async ({ history, agent, sessionId, messageId, partIndex }) => {
     const session = await history.load(sessionId)
     if (agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     const plan = cutPlan({ history, sessionId, messageId, partIndex })
-    await history.replaceFrom({ sessionId, messageId, next: plan.next })
+    await history.replaceFrom({ sessionId, messageId: plan.recordId, next: plan.next })
     await history.save(sessionId)
     const running = agent.runtime().get(sessionId)
     if (running) running.history = history.get({ sessionId })
@@ -100,7 +103,11 @@ const messages = async ({ history, agent, sessionId, messageId }) => {
     const session = await history.load(sessionId)
     if (agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
-    await history.rollback({ sessionId, messageId })
+    const records = history.records({ sessionId })
+    const index = records.findIndex(record => record.messageId === messageId || record.message.id === messageId)
+    const target = records[index]
+    if (!target) throw fail(404, `Message not found: ${messageId}`)
+    await history.rollback({ sessionId, messageId: target.messageId })
     await history.save(sessionId)
     const running = agent.runtime().get(sessionId)
     if (running) running.history = history.get({ sessionId })      // 空闲 agent 的内存历史跟着回退

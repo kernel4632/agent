@@ -133,6 +133,16 @@ describe('正文块与工具调用级回退', () => {
         })
     })
 
+    test('前端传 core id 时也能找到同一条历史记录', async () => {
+        await withHome(async () => {
+            const { sessionId } = await seed()
+            await Session.rollback({ sessionId, messageId: 'a1', partIndex: 2, files: false })
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.id)).toEqual(['u1', 'a1', 't1'])
+            expect(history[1].content).toEqual([text('先做前半段')[0], call('c1')])
+        })
+    })
+
     test('只恢复被切掉的工具改动，前面工具的文件改动保留', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
