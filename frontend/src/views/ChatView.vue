@@ -152,7 +152,11 @@ function chooseReasoning(reasoning) {
     <div :class="session ? 'session-main' : 'draft-main'">
       <div :class="session ? 'session-conversation' : 'draft-empty'" :aria-hidden="session ? undefined : 'true'">
         <div v-if="session" ref="conversationScroll" class="session-scroll">
-          <Transition name="session-swap" mode="out-in"><Timeline ref="timeline" :key="session.id" :scroll-root="conversationScroll" /></Transition>
+          <Transition name="session-swap" mode="out-in">
+            <div :key="session.id" class="session-swap">
+              <Timeline ref="timeline" :scroll-root="conversationScroll" />
+            </div>
+          </Transition>
         </div>
         <ConversationRail
           v-if="session"

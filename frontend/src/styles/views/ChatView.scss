@@ -133,6 +133,7 @@
 }
 
 /* 会话切换：旧时间线先淡出，新时间线再上移淡入，不在同一帧叠两套消息。 */
+.session-swap { width: 100%; min-width: 0; }
 .session-swap-enter-active { transition: opacity var(--la-motion-enter) var(--ui-curve-standard), transform var(--la-motion-enter) var(--ui-curve-standard); }
 .session-swap-leave-active { transition: opacity var(--la-motion-exit) var(--ui-curve-standard), transform var(--la-motion-exit) var(--ui-curve-standard); }
 .session-swap-enter-from { opacity: 0; transform: translateY(var(--la-motion-rise)); }
