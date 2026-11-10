@@ -693,8 +693,18 @@ describe('server tool approval and SSE', () => {
         expect(result?.done).toBe(true)
     })
 
-    test('replacing a connection keeps cached events and writes to the new one', async () => {
-        const id = `sse-replace-${crypto.randomUUID()}`
+    test('idle SSE gets a heartbeat before the server idle timeout', async () => {
+        const id = `sse-idle-${crypto.randomUUID()}`
+        const response = await SSE.connect({ id, request: new Request('http://localhost/sse') })
+        const reader = response.body.getReader()
+
+        const first = await Promise.race([reader.read(), Bun.sleep(4500).then(() => null)])
+        expect(first?.done).not.toBe(true)
+        expect(new TextDecoder().decode(first.value)).toContain('keep-alive')
+        await SSE.close({ id })
+    })
+
+    test('replacing a connection keeps cached events and writes to the new one', async () => {        const id = `sse-replace-${crypto.randomUUID()}`
         const first = await SSE.connect({ id, request: new Request('http://localhost/sse') })
         const firstReader = first.body.getReader()
         await SSE.send({ id, data: { type: 'kept' } })

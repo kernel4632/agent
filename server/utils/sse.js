@@ -12,7 +12,9 @@
  *   await SSE.close({ id: sessionId })   // 会话结束，断开并释放缓存
  */
 
-const HEARTBEAT_MS = 15000
+// Bun/Elysia 的空闲连接会在几秒内被关掉；心跳必须比它短，否则安静等待模型时
+// 实时连接会被当成空闲连接清掉，下一批事件只能在页面刷新后从历史里补。
+const HEARTBEAT_MS = 3000
 const encoder = new TextEncoder()
 const sessions = new Map()
 
