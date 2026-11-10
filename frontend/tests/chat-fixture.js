@@ -528,7 +528,8 @@ export async function backend(page, { configured = true } = {}) {
       }
       if (body.input === 'keep waiting') {
         session.running = true
-        return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 5000 }])
+        // 只发 agent-start，故意不发 llm-start：界面必须在按下发送后就有请求状态。
+        return emit(id, [{ type: 'agent-start' }])
       }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({
