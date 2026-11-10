@@ -50,6 +50,118 @@ const tempFile = async (prefix, content) => {
     return path
 }
 
+describe('正文块与工具调用级回退', () => {
+    const text = value => [{ type: 'text', text: value }]
+    const call = (id, name = 'read_file') => ({ type: 'tool-call', toolCallId: id, toolName: name, input: {} })
+    const result = id => ({ type: 'tool-result', toolCallId: id, toolName: 'read_file', output: { type: 'text', value: id } })
+
+    const seed = async () => {
+        await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
+        const { sessionId } = await Session.create({ title: '精确回退' })
+        await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
+        const a1 = await History.add({
+            sessionId,
+            message: {
+                id: 'a1',
+                role: 'assistant',
+                content: [text('先做前半段')[0], call('c1'), call('c2'), call('c3')],
+            },
+        })
+        await History.add({
+            sessionId,
+            message: { id: 't1', role: 'tool', content: [result('c1'), result('c2'), result('c3')] },
+        })
+        await History.add({ sessionId, message: { id: 'a2', role: 'assistant', content: text('后面的回复') } })
+        await History.save(sessionId)
+        return { sessionId, a1: a1.messageId }
+    }
+
+    test('回退到中间的工具调用：保留它前面的工具，删除它和后面的工具及结果', async () => {
+        await withHome(async () => {
+            const { sessionId, a1 } = await seed()
+            await Session.rollback({ sessionId, messageId: a1, partIndex: 2 })
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.id)).toEqual(['u1', 'a1', 't1'])
+            expect(history[1].content).toEqual([text('先做前半段')[0], call('c1')])
+            expect(history[2].content).toEqual([result('c1')])
+        })
+    })
+
+    test('回退到正文块：保留前面的工具结果，删除正文及之后所有内容', async () => {
+        await withHome(async () => {
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
+            const { sessionId } = await Session.create({ title: '正文回退' })
+            await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
+            const a1 = await History.add({
+                sessionId,
+                message: {
+                    id: 'a1',
+                    role: 'assistant',
+                    content: [text('第一段')[0], call('c1'), text('第二段')[0], call('c2')],
+                },
+            })
+            await History.add({ sessionId, message: { id: 't1', role: 'tool', content: [result('c1'), result('c2')] } })
+            await History.add({ sessionId, message: { id: 'a2', role: 'assistant', content: text('后续') } })
+            await History.save(sessionId)
+
+            await Session.rollback({ sessionId, messageId: a1.messageId, partIndex: 2 })
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.id)).toEqual(['u1', 'a1', 't1'])
+            expect(history[1].content).toEqual([text('第一段')[0], call('c1')])
+            expect(history[2].content).toEqual([result('c1')])
+        })
+    })
+
+    test('切掉第一条内容且前面没有内容时整条助手消息消失，撤销能完整恢复', async () => {
+        await withHome(async () => {
+            const { sessionId, a1 } = await seed()
+            await Session.rollback({ sessionId, messageId: a1, partIndex: 0 })
+            expect(History.get({ sessionId }).map(message => message.id)).toEqual(['u1'])
+
+            await Session.redo({ sessionId })
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.id)).toEqual(['u1', 'a1', 't1', 'a2'])
+            expect(history[1].content).toEqual([text('先做前半段')[0], call('c1'), call('c2'), call('c3')])
+        })
+    })
+
+    test('partIndex 越界或指向不可操作块时返回 400', async () => {
+        await withHome(async () => {
+            const { sessionId, a1 } = await seed()
+            await expect(Session.rollback({ sessionId, messageId: a1, partIndex: 99 }))
+                .rejects.toMatchObject({ status: 400 })
+        })
+    })
+
+    test('只恢复被切掉的工具改动，前面工具的文件改动保留', async () => {
+        await withHome(async () => {
+            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })
+            const first = await tempFile('agent-cut-a', 'a0')
+            const second = await tempFile('agent-cut-b', 'b0')
+            const { sessionId } = await Session.create({ title: '精确文件回退' })
+            const added = await History.add({
+                sessionId,
+                message: {
+                    id: 'a1',
+                    role: 'assistant',
+                    content: [text('准备改文件')[0], call('c1', 'write_file'), call('c2', 'write_file')],
+                },
+            })
+            await History.save(sessionId)
+
+            await Approval.check({ sessionId, messageId: 'a1', toolCallId: 'c1', toolName: 'write_file', input: { path: first } })
+            await writeFile(first, 'a1')
+            await Approval.check({ sessionId, messageId: 'a1', toolCallId: 'c2', toolName: 'write_file', input: { path: second } })
+            await writeFile(second, 'b1')
+
+            await Session.rollback({ sessionId, messageId: added.messageId, partIndex: 2 })
+            expect(await readFile(first, 'utf8')).toBe('a1')
+            expect(await readFile(second, 'utf8')).toBe('b0')
+            expect(History.get({ sessionId }).at(-1).content).toEqual([text('准备改文件')[0], call('c1', 'write_file')])
+        })
+    })
+})
+
 describe('工具级回退', () => {
     test('只退指定的那一次工具调用，别的调用成果保留', async () => {
         await withHome(async () => {

@@ -440,9 +440,23 @@ const compact = async ({ sessionId }) => {
 // --- 文件改动和工具回退 ---
 // --- 回退：给 messageId 退对话（可连文件），给 toolCallId 只退那次工具改的文件 ---
 // 两个都给的时候不猜，直接报错——猜错会把用户不想退的对话退掉。
-const rollback = async ({ sessionId, messageId, toolCallId, files = true }) => {
+const rollback = async ({ sessionId, messageId, toolCallId, partIndex, files = true }) => {
     if (messageId && toolCallId) throw fail(400, 'give messageId or toolCallId, not both')
     if (!messageId && !toolCallId) throw fail(400, 'messageId or toolCallId is required')
+    if (partIndex !== undefined && toolCallId) throw fail(400, 'partIndex only works with messageId')
+
+    // 正文块/工具调用级回退：同一条 assistant 消息只保留目标之前的内容。
+    if (partIndex !== undefined) {
+        if (!messageId) throw fail(400, 'partIndex requires messageId')
+        await History.load(sessionId)
+        if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+        const plan = Rollback.cutPlan({ history: History, sessionId, messageId, partIndex })
+        const restored = files
+            ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
+            : []
+        await Rollback.cut({ history: History, agent: Agent, sessionId, messageId, partIndex })
+        return { ...await read({ sessionId }), restored }
+    }
 
     if (toolCallId) {
         const outcome = await rollbackTool({ sessionId, toolCallId, files })

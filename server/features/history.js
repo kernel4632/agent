@@ -477,6 +477,28 @@ const add = async ({ sessionId, message }) => {
     return record
 }
 
+// --- 读取原始记录：精确回退要在不丢 messageId 的前提下重写一条消息 ---
+const records = ({ sessionId }) => {
+    const session = store.sessions[sessionId]
+    if (!session) throw new Error(`History not loaded: ${sessionId}`)
+    return session.history.messages.map(record => ({ messageId: record.messageId, message: record.message }))
+}
+
+// --- 从某条消息开始替换尾部：正文块回退会保留同一条消息的前半段 ---
+const replaceFrom = ({ sessionId, messageId, next }) => {
+    const session = store.sessions[sessionId]
+    const index = session.history.messages.findIndex(record => record.messageId === messageId)
+    if (index < 0) throw fail(404, `Message not found: ${messageId}`)
+
+    const removed = session.history.messages.slice(index)
+    session.history.messages.splice(index, session.history.messages.length - index, ...next)
+    // redo 对象记住原始尾部；撤销时整段换回去，不会和截断后的同一条消息重复。
+    session.history.redo.push({ replaceFrom: index, records: removed })
+    session.history.rewrite = true
+    session.updatedAt = Date.now()
+    return session
+}
+
 // --- 回退到这条消息之前；不管退哪条消息，它和它之后的全部都会消失 ---
 const rollback = async ({ sessionId, messageId }) => {
     const session = store.sessions[sessionId]
@@ -491,8 +513,12 @@ const rollback = async ({ sessionId, messageId }) => {
 // --- 撤销最近一次回退 ---
 const redo = async ({ sessionId }) => {
     const session = store.sessions[sessionId]
-    const records = session.history.redo.pop()
-    if (records) session.history.messages.push(...records)
+    const last = session.history.redo.pop()
+    if (last?.replaceFrom != null) {
+        session.history.messages.splice(last.replaceFrom, session.history.messages.length - last.replaceFrom, ...last.records)
+    } else if (Array.isArray(last)) {
+        session.history.messages.push(...last)
+    }
     session.history.rewrite = true
     session.updatedAt = Date.now()
 }
@@ -767,6 +793,6 @@ const prepare = async () => {
 
 export default {
     load, create, save, saveSettings, list,
-    add, rollback, redo, redoCount, idsBefore, get, outline, search, page, segment, manifestFor,
+    add, rollback, redo, redoCount, idsBefore, get, records, replaceFrom, outline, search, page, segment, manifestFor,
     count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
 }
