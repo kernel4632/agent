@@ -186,8 +186,8 @@ const fork = async ({ sessionId, title, messageId }) => {
 const read = async ({ sessionId, onProgress, segmented = false, after, segment: segmentId } = {}) => {
     // segment 模式：只读一个封存段，给折叠的历史段展开用（数据结构不同，单独处理）
     if (segmentId) {
-        const messages = await History.segment({ sessionId, segmentId })
-        return { id: sessionId, segment: segmentId, messages }
+        const segment = await History.segment({ sessionId, segmentId })
+        return { id: sessionId, segment: segmentId, messages: segment.messages }
     }
 
     // 加载历史、装配 agent、过滤内部消息：所有分支都需要
