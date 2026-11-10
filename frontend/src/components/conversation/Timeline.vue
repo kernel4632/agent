@@ -380,7 +380,9 @@ function onStepPointerOver(event) {
   } else scheduleHideStepAction()
 }
 
-function onStepPointerLeave() {
+function onStepPointerLeave(event) {
+  // 触摸抬起后浏览器会补一个 pointerleave；这不是用户移开，不能把刚点出的操作块收掉。
+  if (event.pointerType && event.pointerType !== 'mouse') return
   scheduleHideStepAction(260)
 }
 
@@ -402,7 +404,8 @@ function onStepActionBusy(value) {
   if (value) clearTimeout(stepActionTimer)
 }
 
-function onStepActionLeave() {
+function onStepActionLeave(event) {
+  if (event.pointerType && event.pointerType !== 'mouse') return
   scheduleHideStepAction(180)
 }
 

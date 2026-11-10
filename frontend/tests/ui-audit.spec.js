@@ -2279,6 +2279,11 @@ test('step rail stays usable on mobile and leaves the native context menu alone'
   await screenshot(page, testInfo, 'step-rail-mobile')
   await panel.getByRole('button', { name: '关闭步骤操作' }).click()
   await expect(panel).toHaveCount(0)
+  // 触摸抬起会补一个 pointerleave；它不能把刚点出的浮层收掉。
+  await page.locator('.message-step').dispatchEvent('pointerdown', { pointerType: 'touch' })
+  await page.locator('.conversation-flow').dispatchEvent('pointerleave', { pointerType: 'touch' })
+  await page.waitForTimeout(400)
+  await expect(page.locator('.step-actions-float')).toBeVisible()
   expect(mock.errors).toEqual([])
 })
 
