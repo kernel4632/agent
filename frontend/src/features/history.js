@@ -479,7 +479,11 @@ export function normalizeCompact(item) {
 function normalizeSegment(source, toolTimings) {
   const messages = []
   const toolIndex = new Map()
-  for (const item of source?.messages || []) {
+  // 接口正常返回 messages 数组；旧服务端可能把 { id, messages } 整包塞进来，
+  // 这里兼容一层，避免折叠段一跳转就抛 "object is not iterable"。
+  const raw = Array.isArray(source) ? source : source?.messages
+  const list = Array.isArray(raw) ? raw : Array.isArray(raw?.messages) ? raw.messages : []
+  for (const item of list) {
     const message = normalizeMessage(item, toolTimings || {}, toolIndex)
     if (message) messages.push(message)
   }
