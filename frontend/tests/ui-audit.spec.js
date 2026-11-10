@@ -620,13 +620,24 @@ test('mermaid code blocks render as diagrams and fall back to source on error', 
   // 复位后滚轮缩放：滚动后缩放比例要偏离 100%。指针位置按全屏层包围盒取，不依赖视口尺寸。
   await layer.getByRole('button', { name: '复位视图' }).click()
   const initial = await layer.locator('.ui-code-block__zoom-value').textContent()
+  const box = await fullscreenStage.boundingBox()
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  // 双指捏合：两个触摸指针向外拉开，图表应放大而不是被浏览器吃掉。
+  const canvas = layer.locator('.ui-code-block__canvas')
+  const pinchBefore = Number((await layer.locator('.ui-code-block__zoom-value').textContent()).replace('%', ''))
+  await canvas.dispatchEvent('pointerdown', { pointerId: 11, pointerType: 'touch', clientX: cx - 60, clientY: cy })
+  await canvas.dispatchEvent('pointerdown', { pointerId: 12, pointerType: 'touch', clientX: cx + 60, clientY: cy })
+  await canvas.dispatchEvent('pointermove', { pointerId: 11, pointerType: 'touch', clientX: cx - 150, clientY: cy })
+  await canvas.dispatchEvent('pointermove', { pointerId: 12, pointerType: 'touch', clientX: cx + 150, clientY: cy })
+  await expect.poll(async () => Number((await layer.locator('.ui-code-block__zoom-value').textContent()).replace('%', ''))).toBeGreaterThan(pinchBefore)
+  await canvas.dispatchEvent('pointerup', { pointerId: 11, pointerType: 'touch', clientX: cx - 150, clientY: cy })
+  await canvas.dispatchEvent('pointerup', { pointerId: 12, pointerType: 'touch', clientX: cx + 150, clientY: cy })
+  await layer.getByRole('button', { name: '复位视图' }).click()
   // 放大没有 800% 上限：连续点到超过 800%，仍必须继续增加。
   for (let index = 0; index < 12; index += 1) await layer.getByRole('button', { name: '放大', exact: true }).click()
   await expect.poll(async () => Number((await layer.locator('.ui-code-block__zoom-value').textContent()).replace('%', ''))).toBeGreaterThan(800)
   await layer.getByRole('button', { name: '复位视图' }).click()
-  const box = await fullscreenStage.boundingBox()
-  const cx = box.x + box.width / 2
-  const cy = box.y + box.height / 2
   await page.mouse.move(cx, cy)
   await page.mouse.wheel(0, -400)
   await expect.poll(() => layer.locator('.ui-code-block__zoom-value').textContent()).not.toBe(initial)

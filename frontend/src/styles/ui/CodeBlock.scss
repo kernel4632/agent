@@ -71,6 +71,7 @@
   left: 50%;
   top: 50%;
   transform-origin: center;
+  touch-action: none;
   padding: 8px;
   /* 图表自己带底色和抬高阴影：全屏层其余部分是毛玻璃透视，
      只有这一块完全遮挡背景，图才读得清；阴影让它从透出的内容里浮出来。 */

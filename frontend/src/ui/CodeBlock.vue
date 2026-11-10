@@ -223,6 +223,9 @@ const viewStyle = computed(() => ({ transform: `translate(calc(-50% + ${pan.valu
 async function fitView() {
   scale.value = 1
   pan.value = { x: 0, y: 0 }
+  drag = null
+  pinch = null
+  pointers.clear()
   await nextTick()
   const svg = stage.value?.querySelector('svg')
   const box = stage.value?.getBoundingClientRect()
@@ -248,20 +251,92 @@ function onWheel(event) {
 }
 
 let drag = null
+const pointers = new Map()
+let pinch = null
+
+function startPinch() {
+  const [first, second] = [...pointers.values()]
+  if (!first || !second) return
+  const box = stage.value?.getBoundingClientRect()
+  if (!box?.width) return
+  const midpointX = (first.x + second.x) / 2 - box.left - box.width / 2
+  const midpointY = (first.y + second.y) / 2 - box.top - box.height / 2
+  pinch = {
+    distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+    scale: scale.value,
+    pan: { ...pan.value },
+    midpointX,
+    midpointY,
+  }
+}
+
+function movePinch() {
+  const [first, second] = [...pointers.values()]
+  if (!first || !second || !pinch) return
+  const box = stage.value?.getBoundingClientRect()
+  if (!box?.width) return
+  const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y))
+  const next = clampScale(pinch.scale * (distance / pinch.distance))
+  const ratio = next / pinch.scale
+  const midpointX = (first.x + second.x) / 2 - box.left - box.width / 2
+  const midpointY = (first.y + second.y) / 2 - box.top - box.height / 2
+  pan.value = {
+    x: midpointX - (pinch.midpointX - pinch.pan.x) * ratio,
+    y: midpointY - (pinch.midpointY - pinch.pan.y) * ratio,
+  }
+  scale.value = next
+}
+
 function dragStart(event) {
+  if (event.pointerType === 'touch') {
+    event.preventDefault()
+    window.getSelection()?.removeAllRanges()
+    try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pointers.size === 1) {
+      drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
+      pinch = null
+    } else if (pointers.size === 2) {
+      drag = null
+      startPinch()
+    }
+    return
+  }
   if (event.button !== 0) return
   // 拖拽平移不是选文字；不阻止默认行为时 SVG/foreignObject 里的文本会被一并选中。
   event.preventDefault()
   window.getSelection()?.removeAllRanges()
   drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
-  event.currentTarget.setPointerCapture(event.pointerId)
+  try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
 }
+
 function dragMove(event) {
+  if (event.pointerType === 'touch') {
+    if (!pointers.has(event.pointerId)) return
+    event.preventDefault()
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pinch) movePinch()
+    else if (drag) pan.value = { x: event.clientX - drag.x, y: event.clientY - drag.y }
+    return
+  }
   if (drag) pan.value = { x: event.clientX - drag.x, y: event.clientY - drag.y }
 }
+
 function dragEnd(event) {
+  if (event.pointerType === 'touch') {
+    pointers.delete(event.pointerId)
+    try { event.currentTarget.releasePointerCapture?.(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
+    pinch = null
+    if (pointers.size === 1) {
+      const remaining = [...pointers.values()][0]
+      drag = { x: remaining.x - pan.value.x, y: remaining.y - pan.value.y }
+    } else if (!pointers.size) {
+      drag = null
+    }
+    return
+  }
   drag = null
-  event.currentTarget.releasePointerCapture?.(event.pointerId)
+  try { event.currentTarget.releasePointerCapture?.(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
 }
 // 点击图表外的空处关闭；点在图上是拖拽平移，不触发。
 function closeOnEmpty(event) { if (event.target === event.currentTarget) fullscreen.value = false }
