@@ -120,9 +120,9 @@ describe('哪件事用哪个模型', () => {
     test('不点名时压缩和标题都跟对话模型走', async () => {
         await withHome(async () => {
             await newSession()
-            expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: 'model' })
-            expect(Agent.taskModel('title')).toEqual({ provider: 'local', model: 'model' })
-            expect(Agent.taskModel('task')).toEqual({ provider: 'local', model: 'model' })
+            expect(Agent.model('compact')).toEqual({ provider: 'local', model: 'model' })
+            expect(Agent.model('title')).toEqual({ provider: 'local', model: 'model' })
+            expect(Agent.model('task')).toEqual({ provider: 'local', model: 'model' })
         })
     })
 
@@ -155,9 +155,9 @@ describe('哪件事用哪个模型', () => {
                     task: { provider: 'local', model: '任务模型' },
                 },
             })
-            expect(Agent.taskModel('title')).toEqual({ provider: 'local', model: '标题模型' })
-            expect(Agent.taskModel('task')).toEqual({ provider: 'local', model: '任务模型' })
-            expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: '主模型' })
+            expect(Agent.model('title')).toEqual({ provider: 'local', model: '标题模型' })
+            expect(Agent.model('task')).toEqual({ provider: 'local', model: '任务模型' })
+            expect(Agent.model('compact')).toEqual({ provider: 'local', model: '主模型' })
         })
     })
 
@@ -171,7 +171,7 @@ describe('哪件事用哪个模型', () => {
                 providers: [{ name: 'local', models: [{ id: '主模型', name: '主模型' }, { id: '小模型', name: '小模型' }] }],
                 models: { compact: { provider: '', model: '' } },
             })
-            expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: '主模型' })
+            expect(Agent.model('compact')).toEqual({ provider: 'local', model: '主模型' })
         })
     })
 
@@ -186,7 +186,7 @@ describe('哪件事用哪个模型', () => {
 
             // 自动起标题用的就是这条规则：models.title 没配时，跟着会话自己的模型走。
             const session = await Session.read({ sessionId })
-            expect(Agent.taskModel('title', { provider: session.provider, model: session.model })).toEqual({ provider: 'local', model: '会话模型' })
+            expect(Agent.model('title', { provider: session.provider, model: session.model })).toEqual({ provider: 'local', model: '会话模型' })
         })
     })
 })

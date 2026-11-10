@@ -48,7 +48,7 @@ const getAgent = sessionId => Agent.get({
             const session = await History.load(sessionId)
             const saveSession = () => History.save(sessionId)
             const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
-            return { session, settings: Agent.readSettings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
+            return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
         },
         mcpRevision: () => Tool.mcpRevision(Mcp),
         getHistory: id => History.get({ sessionId: id }),
@@ -141,7 +141,7 @@ const CONTEXT_REMINDER = '[System reminder] The context is close to the compacti
 const startRun = async ({ sessionId, input, resume, agent, recovery = false }) => {
     // --- 读会话和设置，再次检查停止状态 ---
     const session = await History.load(sessionId)
-    const settings = Agent.readSettings(session)
+    const settings = Agent.settings(session)
     if (sessions.get(sessionId)?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     // --- 落盘"运行中"标记 ---
@@ -395,7 +395,7 @@ const run = async ({ sessionId, input, resume = false, recovery = false }) => {
         if (!resume) {
             const session = await History.load(sessionId)
             if (session.title === Title.UNTITLED) {
-                const target = Agent.taskModel('title', session.model)
+                const target = Agent.model('title', session.model)
                 const messages = History.get({ sessionId }).filter(message => !message.internal)
                 const title = await Title.generate({ connection: Agent.connection(target), messages })
                 const final = title || Title.fallback(messages)

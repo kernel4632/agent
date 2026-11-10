@@ -39,7 +39,7 @@ const withRules = async callback => {
 
 const resolve = async ({ cwd }) => Agent.resolve({
     session: { cwd, model: { provider: 'local', model: 'model' } },
-    settings: Agent.defaultSettings(),
+    settings: Agent.defaults(),
     context: Context,
 })
 

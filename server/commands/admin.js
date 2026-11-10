@@ -99,7 +99,7 @@ const OPS = {
     'config.backup.list': () => Config.backups(),
     'config.backup.read': ({ id } = {}) => Config.readBackup(id),
     'config.restore': ({ id } = {}) => restoreConfig({ id }),
-    'config.test': ({ provider, model } = {}) => Agent.testModel({ provider, model, context: Context }),
+    'config.test': ({ provider, model } = {}) => Agent.test({ provider, model, context: Context }),
 
     // --- MCP ---
     'mcp.list': async ({ cwd } = {}) => ({

@@ -37,7 +37,7 @@ const withHome = async callback => {
 
 const resolve = async ({ provider, model, settings = {} }) => Agent.resolve({
     session: { model: { provider, model } },
-    settings: { ...Agent.defaultSettings(), ...settings },
+    settings: { ...Agent.defaults(), ...settings },
     context: Context,
 })
 

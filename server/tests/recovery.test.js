@@ -348,7 +348,7 @@ describe('重启恢复', () => {
 
             // 恢复路径上的配置要带封顶的重试策略；用户自己发消息的路径不带。
             const session = await History.load(sessionId)
-            const settings = Agent.readSettings(session)
+            const settings = Agent.settings(session)
             const recovery = await Agent.resolve({ session, settings, recovery: true, context: Context })
             const normal = await Agent.resolve({ session, settings, context: Context })
 

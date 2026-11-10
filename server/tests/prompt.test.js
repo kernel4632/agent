@@ -33,7 +33,7 @@ const provider = [{ name: 'local', models: [{ id: 'model', name: 'model' }] }]
 
 const resolve = async () => Agent.resolve({
     session: { model: { provider: 'local', model: 'model' } },
-    settings: Agent.defaultSettings(),
+    settings: Agent.defaults(),
     context: Context,
 })
 

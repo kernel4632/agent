@@ -51,7 +51,7 @@ const agentMaterials = async sessionId => {
     const session = await History.load(sessionId)
     const saveSession = () => History.save(sessionId)
     const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
-    return { session, settings: Agent.readSettings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
+    return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
 }
 
 // --- 取回缓存的 Agent，没有或已过期就按最新材料装配 ---
@@ -86,7 +86,7 @@ const create = async ({ title, cwd, provider, model }) => {
     const clean = cleanTitle(title)
 
     // --- 选模型：点名了就查它，没点名就用配置里的对话默认 ---
-    const first = Agent.defaultModel()
+    const first = Agent.model()
     const namedProvider = typeof provider === 'string' && provider.trim() ? provider.trim() : ''
     const namedModel = typeof model === 'string' && model.trim() ? model.trim() : ''
     let chosen
@@ -117,7 +117,7 @@ const create = async ({ title, cwd, provider, model }) => {
             temporary,
             provider: chosen.provider,
             model: chosen.model,
-            settings: Agent.defaultSettings(),
+            settings: Agent.defaults(),
         })
         await createAgent(session.id)
     } catch (error) {
@@ -151,7 +151,7 @@ const fork = async ({ sessionId, title, messageId }) => {
             temporary: source.temporary,
             provider: source.model.provider,
             model: source.model.model,
-            settings: Agent.readSettings(source),
+            settings: Agent.settings(source),
         })
     } catch (error) {
         if (source.temporary) await TempWorkspace.remove(branchCwd, true).catch(() => {})
@@ -222,7 +222,7 @@ const read = async ({ sessionId, onProgress, segmented = false, after, segment: 
         history: page?.manifest ? page.current : history,
         ...(page?.manifest ? { historyManifest: page.manifest } : {}),
         ...stats,
-        settings: Agent.readSettings(session),
+        settings: Agent.settings(session),
     }
 }
 
@@ -357,7 +357,7 @@ const setModel = async ({ sessionId, provider, model }) => {
     const agent = Agent.runtime().get(sessionId)
     if (agent?.running) {
         // core 0.30 每轮现读 agent.config；运行中只换配置，不重建实例、不中断当前任务。
-        const settings = Agent.readSettings(session)
+        const settings = Agent.settings(session)
         Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name }, context: Context }))
     } else {
         Agent.invalidate(sessionId)
@@ -400,7 +400,7 @@ const remove = async ({ sessionId }) => {
 // 这三个都是“这条会话自己的”设置，读写都走同一个结构，前端只认一份。
 const readSettings = async ({ sessionId }) => {
     const session = await History.load(sessionId)
-    const settings = Agent.readSettings(session)
+    const settings = Agent.settings(session)
     return {
         reasoning: settings.reasoning,
         provider: session.model.provider,
@@ -415,8 +415,8 @@ const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
     // --- 改思考强度：读历史、归一、写回、必要时重建 Agent ---
     if (reasoning !== undefined) {
         const session = await History.load(sessionId)
-        const current = Agent.normalizeSettings(session.settings, Agent.defaultSettings())
-        const saved = Agent.normalizeSettings({ reasoning }, current)
+        const current = Agent.normalize(session.settings, Agent.defaults())
+        const saved = Agent.normalize({ reasoning }, current)
         await History.saveSettings({ sessionId, settings: saved })
         if (reasoning !== current.reasoning) {
             const agent = Agent.runtime().get(sessionId)
@@ -544,7 +544,7 @@ const list = async ({ search } = {}) => ({
 const count = () => History.count()
 
 // --- 统计正在运行的任务 ---
-const runningCount = () => Agent.runningCount()
+const runningCount = () => Agent.count()
 
 export default {
     create, fork, list, read, rename, setModel, setCwd, remove,

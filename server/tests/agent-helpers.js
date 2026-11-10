@@ -31,7 +31,7 @@ const agentMaterials = async sessionId => {
     const session = await History.load(sessionId)                 // 会话元数据和历史先读进内存
     const saveSession = () => History.save(sessionId)             // 工具改了会话后能立刻落盘
     const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills }) // 工具表和 MCP 租约
-    return { session, settings: Agent.readSettings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
+    return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
 }
 
 // --- 取回缓存的 Agent，没有或已过期就按最新材料装配 ---

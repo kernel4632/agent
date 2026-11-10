@@ -36,7 +36,7 @@ const listTools = () => Tool.list()
 const toolKinds = () => Tool.KINDS
 
 // --- 真实试一次模型请求 ---
-const test = async ({ provider, model } = {}) => Agent.testModel({ provider, model, context: Context })
+const test = async ({ provider, model } = {}) => Agent.test({ provider, model, context: Context })
 
 const backups = () => Config.backups()
 const readBackup = id => Config.readBackup(id)

@@ -10,7 +10,7 @@
  *
  * 调用示例：
  *   const agent = await Agent.get({ sessionId, assemble })
- *   const settings = Agent.readSettings(session)   // session 已加载
+ *   const settings = Agent.settings(session)   // session 已加载
  *   const config = await Agent.resolve({ session, settings, context })   // context 由调用方传入
  */
 
@@ -92,9 +92,6 @@ const configured = target => {
     return provider ? { provider: provider.name, model: target.model } : null
 }
 
-// --- 某件事用哪个模型：先看 models 里那一项，再退到调用方给的连接（会话自己的模型），最后退到第一个可用模型 ---
-// 标题和压缩各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
-const taskModel = (task, fallback) => configured(store.config.models?.[task]) || configured(fallback) || defaultModel()
 const firstModel = () => {
     const provider = (store.config.providers || []).find(item => item.enabled !== false)
     const model = provider?.models?.[0]
@@ -104,8 +101,13 @@ const firstModel = () => {
     }
 }
 
-// --- 新会话默认用 models.chat；没配或配置失效时回退到第一个模型 ---
-const defaultModel = () => configured(store.config.models?.chat) || firstModel()
+// --- 某件事用哪个模型 ---
+// 不传 task：新会话默认用 models.chat，没配或失效时回退到第一个模型。
+// 传 task：先看 models[task]，再退到调用方给的连接（会话自己的模型），最后退到默认模型。
+// 标题和压缩各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
+const model = (task, fallback) => task
+    ? configured(store.config.models?.[task]) || configured(fallback) || model()
+    : configured(store.config.models?.chat) || firstModel()
 
 // --- 把配置翻成 agent-core 认的字段 ---
 const hasCapability = (profile, name) => profile.some(item => {
@@ -213,12 +215,12 @@ const threshold = () => {
 }
 
 // --- 真实试一次模型请求 ---
-const testModel = async ({ provider: name, model, context }) => {
+const test = async ({ provider: name, model: id, context }) => {
     if (name) {
         const provider = (store.config.providers || []).find(item => item.name === name)
         if (!provider) throw fail(400, `Provider not found: ${name}`)
         const first = provider.models?.[0]
-        const chosen = model || first?.id
+        const chosen = id || first?.id
         if (!chosen) throw fail(400, `Provider has no model to test: ${name}`)
         return attempt({ provider: name, model: chosen }, context)
     }
@@ -230,7 +232,7 @@ const testModel = async ({ provider: name, model, context }) => {
 // --- 试一次真实请求 ---
 const attempt = async (chosen, context) => {
     const result = await AgentCore.llm.chat({
-        ...await resolveFor({ session: { model: chosen }, settings: defaultSettings(), context }),
+        ...await resolveFor({ session: { model: chosen }, settings: defaults(), context }),
         messages: [{ role: 'user', content: 'hi' }],
         stream: false,
     })
@@ -241,12 +243,12 @@ const attempt = async (chosen, context) => {
 //  会话设置
 // =======================================================================
 
-const defaultSettings = () => ({
+const defaults = () => ({
     reasoning: 'auto',
 })
 
 // --- 收一份用户提交的设置，坏值保持原样或忽略 ---
-const normalizeSettings = (input = {}, base = defaultSettings()) => {
+const normalize = (input = {}, base = defaults()) => {
     const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {
         reasoning: REASONING_LEVELS.includes(rawReasoning) ? rawReasoning : base.reasoning,
@@ -254,9 +256,7 @@ const normalizeSettings = (input = {}, base = defaultSettings()) => {
 }
 
 // --- 读设置：传入已加载的会话，不再自己加载历史 ---
-const readSettings = session => normalizeSettings(session.settings, defaultSettings())
-
-// saveSettings 移到 commands/session.js：它要读写历史，不再属于这里。
+const settings = session => normalize(session.settings, defaults())
 
 // =======================================================================
 //  装配 Agent
@@ -350,7 +350,7 @@ const settle = async (sessionId, mcpRevision) => {
 const runtime = () => agents
 
 // --- 正在跑的会话数量 ---
-const runningCount = () => [...agents.values()].filter(agent => agent.running).length
+const count = () => [...agents.values()].filter(agent => agent.running).length
 
 // --- 供应商/模型切换后重建 ---
 const invalidate = sessionId => {
@@ -360,8 +360,8 @@ const invalidate = sessionId => {
 }
 
 export default {
-    defaultSettings, normalizeSettings, readSettings,
-    connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel,
-    create, get: getAgent, runtime, runningCount, invalidate, settle,
+    defaults, normalize, settings,
+    connection, model, resolve: resolveFor, test,
+    create, get: getAgent, runtime, count, invalidate, settle,
     REASONING_LEVELS, threshold,
 }
