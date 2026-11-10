@@ -196,7 +196,7 @@ const read = async ({ sessionId, onProgress, segmented = false, after, segment: 
         })(),
         toolTimings: await ToolTiming.read(sessionId),
         pending: Approval.pending(sessionId),
-        undoable: History.redoCount({ sessionId }),
+        undoable: History.redos({ sessionId }),
         running,
     }
 
@@ -417,7 +417,7 @@ const saveSettings = async ({ sessionId, reasoning, provider, model, cwd }) => {
         const session = await History.load(sessionId)
         const current = Agent.normalize(session.settings, Agent.defaults())
         const saved = Agent.normalize({ reasoning }, current)
-        await History.saveSettings({ sessionId, settings: saved })
+        await History.settings({ sessionId, settings: saved })
         if (reasoning !== current.reasoning) {
             const agent = Agent.runtime().get(sessionId)
             if (agent?.running) {
@@ -518,7 +518,7 @@ const compactRollback = async (sessionId, restored) => {
     return {
         id: sessionId,
         historyTotal: session.history.messages.length,
-        undoable: History.redoCount({ sessionId }),
+        undoable: History.redos({ sessionId }),
         restored,
     }
 }

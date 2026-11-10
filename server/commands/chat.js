@@ -69,8 +69,8 @@ const finishRun = async (sessionId, token) => {
     if (state?.token !== token) return                                  // token 已失效，不再处理
     sessions.delete(sessionId)                                           // 清除运行状态
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
-    History.setRunning(sessionId, false)
-    await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
+    History.running(sessionId, false)
+    await History.mark(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
     await Agent.settle(sessionId, Tool.mcpRevision(Mcp))
 }
 
@@ -146,8 +146,8 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
 
     // --- 落盘"运行中"标记 ---
     // await：标记必须在模型请求之前真的落到磁盘，否则进程刚好在写入前被杀死就没有线索。
-    History.setRunning(sessionId, true)
-    await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
+    History.running(sessionId, true)
+    await History.mark(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
 
     // --- 组装运行状态和 token ---
     const runState = { agent, llmStartedAt: 0, firstTokenAt: 0, contentStartedAt: 0, lastContentAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
@@ -459,7 +459,7 @@ const run = async ({ sessionId, input, resume = false, recovery = false }) => {
 //   3. 单条失败只记日志并清标记，不拖其他会话，也不拖服务启动。
 const recover = async () => {
     // --- 找到磁盘上标记为"运行中"的会话 ---
-    const candidates = await History.runningOnDisk()
+    const candidates = await History.stale()
     const recovered = []
     for (const { id } of candidates) {
         try {
@@ -481,8 +481,8 @@ const recover = async () => {
             const last = [...visible].reverse().find(message => !message.internal && message.role !== 'tool')
             const canResume = last?.role === 'assistant'
             if (skip || !canResume) {
-                History.setRunning(id, false)
-                await History.saveMeta(id)
+                History.running(id, false)
+                await History.mark(id)
                 continue
             }
 
@@ -492,8 +492,8 @@ const recover = async () => {
         } catch (error) {
             // 一条会话恢复失败不该拖垮服务启动，也不该让它永远卡在"运行中"：清掉标记，下轮再说。
             console.error(`[recovery] 会话 ${id} 自动续跑失败：${error.message}`)
-            History.setRunning(id, false)
-            await History.saveMeta(id).catch(() => {})
+            History.running(id, false)
+            await History.mark(id).catch(() => {})
         }
     }
     return { recovered }

@@ -194,7 +194,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-            History.setRunning(sessionId, true)
+            History.running(sessionId, true)
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -227,7 +227,7 @@ describe('重启恢复', () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'c1', toolName: 'shell', input: {} }] } })
-            History.setRunning(sessionId, true)
+            History.running(sessionId, true)
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -247,7 +247,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('我说的最后一句话') } })
-            History.setRunning(sessionId, true)   // 模拟“任务开跑后还没产出助手回复就被重启”
+            History.running(sessionId, true)   // 模拟“任务开跑后还没产出助手回复就被重启”
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -318,7 +318,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-            History.setRunning(sessionId, true)
+            History.running(sessionId, true)
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -372,7 +372,7 @@ describe('重启恢复', () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
             await History.save(sessionId)
-            await History.saveMeta(sessionId)
+            await History.mark(sessionId)
 
             // 模拟重启后配置里的供应商没了：Agent.get 装配会抛错。
             await Settings.set({ providers: [{ name: 'other', models: [{ id: 'model', name: 'model' }], baseURL: 'http://127.0.0.1:9/v1' }] })

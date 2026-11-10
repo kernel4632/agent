@@ -456,7 +456,7 @@ const save = async sessionId => {
 }
 
 // --- 只保存设置 ---
-const saveSettings = async ({ sessionId, settings }) => {
+const settings = async ({ sessionId, settings }) => {
     const session = store.sessions[sessionId]
     if (!session) throw new Error(`Session not loaded: ${sessionId}`)
     session.settings = settings
@@ -558,10 +558,10 @@ const redo = async ({ sessionId }) => {
 }
 
 // --- 任务开跑 / 结束时更新运行标记 ---
-// 这两个入口故意只改内存：开跑时落盘由 startRun 的 saveMeta 负责，收尾时的落盘也
-// 用 saveMeta 补一笔（syncHistory 发生在 finishRun 之前，会把 true 一起写下去）。
+// 这个入口故意只改内存：开跑时落盘由 startRun 的 mark 负责，收尾时的落盘也
+// 用 mark 补一笔（syncHistory 发生在 finishRun 之前，会把 true 一起写下去）。
 // 崩溃时最多留下一个“其实已结束”的脏标记，恢复时能识别。
-const setRunning = (sessionId, running) => {
+const running = (sessionId, running) => {
     const session = store.sessions[sessionId]
     if (!session) return
     session.running = Boolean(running)
@@ -569,7 +569,7 @@ const setRunning = (sessionId, running) => {
 }
 
 // --- 只把 meta 写回磁盘：运行标记的变化用，不动历史也不清 SSE 缓存 ---
-const saveMeta = async sessionId => {
+const mark = async sessionId => {
     const session = store.sessions[sessionId]
     if (!session) return
     await mkdir(Path.session(sessionId), { recursive: true })
@@ -577,7 +577,7 @@ const saveMeta = async sessionId => {
 }
 
 // --- 还有几次回退可以撤销 ---
-const redoCount = ({ sessionId }) => store.sessions[sessionId]?.history.redo.length || 0
+const redos = ({ sessionId }) => store.sessions[sessionId]?.history.redo.length || 0
 
 // --- 回退后还留着哪些消息块 id；文件恢复靠它判断恢复范围 ---
 const idsBefore = ({ sessionId, messageId }) => {
@@ -794,7 +794,7 @@ const search = async ({ sessionId, query, limit = 50 }) => {
 const count = () => Object.keys(store.sessions).length
 
 // --- 磁盘上还带着运行标记的会话：重启后从这里挑出要自动续跑的 ---
-const runningOnDisk = async () => {
+const stale = async () => {
     const sessions = []
     for (const entry of await readdir(Path.sessions()).catch(() => [])) {
         const meta = await Bun.file(Path.meta(entry)).json().catch(() => null)
@@ -826,7 +826,7 @@ const prepare = async () => {
 }
 
 export default {
-    load, create, save, saveSettings, list,
-    add, rollback, redo, redoCount, idsBefore, get, records, replaceFrom, outline, search, page, segment, manifestFor,
-    count, remove, clear, destroy, prepare, setRunning, saveMeta, runningOnDisk,
+    load, create, save, settings, list,
+    add, rollback, redo, redos, idsBefore, get, records, replaceFrom, outline, search, page, segment, manifestFor,
+    count, remove, clear, destroy, prepare, running, mark, stale,
 }
