@@ -143,6 +143,17 @@ describe('正文块与工具调用级回退', () => {
         })
     })
 
+    test('compact 回退只返回计数，不返回完整历史', async () => {
+        await withHome(async () => {
+            const { sessionId, a1 } = await seed()
+            const result = await Session.rollback({ sessionId, messageId: a1, partIndex: 2, files: false, compact: true })
+            expect(result).toMatchObject({ id: sessionId, historyTotal: 3, undoable: 1, restored: [] })
+            expect(result.history).toBeUndefined()
+            const undone = await Session.redo({ sessionId, files: false, compact: true })
+            expect(undone).toMatchObject({ id: sessionId, historyTotal: 4, undoable: 0 })
+        })
+    })
+
     test('只恢复被切掉的工具改动，前面工具的文件改动保留', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'allow' } })

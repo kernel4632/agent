@@ -440,7 +440,18 @@ const compact = async ({ sessionId }) => {
 // --- 文件改动和工具回退 ---
 // --- 回退：给 messageId 退对话（可连文件），给 toolCallId 只退那次工具改的文件 ---
 // 两个都给的时候不猜，直接报错——猜错会把用户不想退的对话退掉。
-const rollback = async ({ sessionId, messageId, toolCallId, partIndex, files = true }) => {
+// --- 回退/撤销的紧凑响应：前端已经知道目标，不需要再拿 12k 条历史 ---
+const compactRollback = async (sessionId, restored) => {
+    const session = await History.load(sessionId)
+    return {
+        id: sessionId,
+        historyTotal: session.history.messages.length,
+        undoable: History.redoCount({ sessionId }),
+        restored,
+    }
+}
+
+const rollback = async ({ sessionId, messageId, toolCallId, partIndex, files = true, compact = false }) => {
     if (messageId && toolCallId) throw fail(400, 'give messageId or toolCallId, not both')
     if (!messageId && !toolCallId) throw fail(400, 'messageId or toolCallId is required')
     if (partIndex !== undefined && toolCallId) throw fail(400, 'partIndex only works with messageId')
@@ -455,7 +466,7 @@ const rollback = async ({ sessionId, messageId, toolCallId, partIndex, files = t
             ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
             : []
         await Rollback.cut({ history: History, agent: Agent, sessionId, messageId, partIndex })
-        return { ...await read({ sessionId }), restored }
+        return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
     }
 
     if (toolCallId) {
@@ -470,7 +481,7 @@ const rollback = async ({ sessionId, messageId, toolCallId, partIndex, files = t
     const plan = Rollback.preview({ history: History, sessionId, messageId })
     const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
     await Rollback.messages({ history: History, agent: Agent, sessionId, messageId })
-    return { ...await read({ sessionId }), restored }
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
 }
 
 // --- 只退某一次工具调用改的文件，对话不动 ---
@@ -484,13 +495,13 @@ const rollbackTool = async ({ sessionId, toolCallId, files = true }) => {
 }
 
 // --- 撤销最近一次回退 ---
-const redo = async ({ sessionId, files = true }) => {
+const redo = async ({ sessionId, files = true, compact = false }) => {
     await History.load(sessionId)
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
     const restored = files ? await Tool.undo({ sessionId }) : []
     await Rollback.undo({ history: History, agent: Agent, sessionId })
-    return { ...await read({ sessionId }), restored }
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
 }
 
 // --- 列表与统计 ---

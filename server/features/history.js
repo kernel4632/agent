@@ -260,7 +260,7 @@ const create = async ({ title, cwd, temporary, provider, model, settings }) => {
         createdAt: now,
         updatedAt: now,
         running: false,
-        history: { messages: [], redo: [], persistedCount: 0, offsets: [], fileSize: 0, legacy: false, rewrite: false },
+        history: { messages: [], redo: [], persistedCount: 0, offsets: [], fileSize: 0, legacy: false, rewrite: false, rewriteFrom: null },
         settings,
     }
     store.sessions[id] = session
@@ -286,6 +286,7 @@ const writeAll = async session => {
     history.fileSize = size
     history.legacy = false
     history.rewrite = false
+    history.rewriteFrom = null
     history.segmented = false
     history.manifest = null
     // 旧格式迁移完成后删掉这些文件；JSONL 是唯一历史来源。
@@ -350,9 +351,31 @@ const writeAllSegmented = async session => {
     history.fileSize = bytes
     history.legacy = false
     history.rewrite = false
+    history.rewriteFrom = null
     // 分块是唯一历史来源后，删掉旧单体日志，避免下次误读旧内容。
     await rm(Path.historyLog(session.id), { force: true })
     await rm(Path.history(session.id), { force: true })
+}
+
+// --- 只重写当前段：回退/撤销通常落在最新段，前面的封存段不用动 ---
+const writeCurrentSegmented = async session => {
+    const history = session.history
+    const current = history.manifest?.current
+    if (!current) return writeAllSegmented(session)
+    const records = history.messages.slice(current.startIndex)
+    const file = join(Path.historyArchives(session.id), current.file)
+    const oldSize = await Bun.file(file).size
+    const text = jsonlText(records)
+    const newSize = Buffer.byteLength(text)
+    await writeFile(file, text)
+    current.count = records.length
+    history.manifest.bytes = (Number(history.manifest.bytes) || 0) + newSize - oldSize
+    history.manifest.updatedAt = Date.now()
+    await writeFile(Path.historyIndex(session.id), JSON.stringify(history.manifest))
+    history.persistedCount = history.messages.length
+    history.fileSize = (Number(history.fileSize) || 0) + newSize - oldSize
+    history.rewrite = false
+    history.rewriteFrom = null
 }
 
 // --- 只追加当前段；出现新 compact 才整份重新分段 ---
@@ -407,7 +430,11 @@ const save = async sessionId => {
     const hasCompact = history.messages.some(record => record?.message?.compact)
     if (hasCompact) {
         if (!history.segmented || history.rewrite || !Number.isInteger(history.persistedCount) || history.persistedCount > history.messages.length) {
-            await writeAllSegmented(session)
+            const canRewriteCurrent = Number.isInteger(history.rewriteFrom)
+                && history.manifest?.current
+                && history.rewriteFrom >= history.manifest.current.startIndex
+            if (canRewriteCurrent) await writeCurrentSegmented(session)
+            else await writeAllSegmented(session)
         } else if (history.messages.length > history.persistedCount) {
             await appendSegmented(session)
         }
@@ -495,6 +522,7 @@ const replaceFrom = ({ sessionId, messageId, next }) => {
     // redo 对象记住原始尾部；撤销时整段换回去，不会和截断后的同一条消息重复。
     session.history.redo.push({ replaceFrom: index, records: removed })
     session.history.rewrite = true
+    session.history.rewriteFrom = index
     session.updatedAt = Date.now()
     return session
 }
@@ -505,8 +533,10 @@ const rollback = async ({ sessionId, messageId }) => {
     const index = session.history.messages.findIndex(record => record.messageId === messageId)
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
 
-    session.history.redo.push(session.history.messages.splice(index))
+    session.history.redo.push({ replaceFrom: index, records: session.history.messages.slice(index) })
+    session.history.messages.splice(index)
     session.history.rewrite = true
+    session.history.rewriteFrom = index
     session.updatedAt = Date.now()
 }
 
@@ -516,8 +546,10 @@ const redo = async ({ sessionId }) => {
     const last = session.history.redo.pop()
     if (last?.replaceFrom != null) {
         session.history.messages.splice(last.replaceFrom, session.history.messages.length - last.replaceFrom, ...last.records)
+        session.history.rewriteFrom = last.replaceFrom
     } else if (Array.isArray(last)) {
         session.history.messages.push(...last)
+        session.history.rewriteFrom = null
     }
     session.history.rewrite = true
     session.updatedAt = Date.now()

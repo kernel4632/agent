@@ -90,6 +90,8 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 - `{ messageId, partIndex, files }`：从 assistant content 的指定正文/工具调用之前回退，保留同一条消息里它前面的内容；
 - `{ toolCallId, files }`：只恢复这次工具调用改过的文件，对话历史不动。
 
+回退请求带 `compact: true` 时只返回 `historyTotal`、`undoable` 和 `restored`，不再回传完整历史；前端已经在本地知道切口，可直接截断渲染。
+
 新会话如果没有传 `cwd`，会在系统临时目录的 `agent/` 下创建独立工作区（`session-*`），避免 agent 默认在项目代码旁边动手。删除会话时清理该临时目录；用户在「切换工作区」里换成真实目录后，会话的 `temporary` 变为 `false`，旧临时目录也会被清理。可以用 `AGENT_TMP` 改临时工作区的根目录。
 
 ## 配置

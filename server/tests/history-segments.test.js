@@ -129,6 +129,29 @@ describe('会话历史按 compact 分段', () => {
         })
     })
 
+    test('回退当前段只重写 current，封存段字节不变，撤销能恢复', async () => {
+        await withHome(async root => {
+            const session = await History.create({ title: '当前段回退', cwd: root, settings: { reasoning: 'auto' } })
+            await append(History, session.id, [user('旧问题'), assistant('旧回答'), compact('摘要'), user('当前问题'), assistant('当前回答')])
+            const manifest = JSON.parse(await readFile(Path.historyIndex(session.id), 'utf8'))
+            const segmentFile = join(Path.historyArchives(session.id), manifest.segments[0].file)
+            const currentFile = join(Path.historyArchives(session.id), manifest.current.file)
+            const segmentBefore = await readFile(segmentFile, 'utf8')
+            const currentBefore = await readFile(currentFile, 'utf8')
+            const target = History.get({ sessionId: session.id }).find(message => message.content?.[0]?.text === '当前问题')
+
+            await History.rollback({ sessionId: session.id, messageId: target.messageId })
+            await History.save(session.id)
+            expect(await readFile(segmentFile, 'utf8')).toBe(segmentBefore)
+            expect(await readFile(currentFile, 'utf8')).not.toBe(currentBefore)
+
+            await History.redo({ sessionId: session.id })
+            await History.save(session.id)
+            expect(await readFile(segmentFile, 'utf8')).toBe(segmentBefore)
+            expect(await readFile(currentFile, 'utf8')).toBe(currentBefore)
+        })
+    })
+
     test('回退跨段后重写分段，旧段不会留下被回退消息', async () => {
         await withHome(async root => {
             const session = await History.create({ title: '回退', cwd: root, settings: { reasoning: 'auto' } })
