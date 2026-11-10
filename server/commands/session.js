@@ -6,7 +6,7 @@
  * 这一层只把两边按用户看到的顺序串起来。
  *
  * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
- *   Agent    会话装配与运行状态（create/get/invalidate/settings/resolve）
+ *   Agent    运行状态、连接配置、设置解析（invalidate/settings/resolve/connection）
  *   History  会话数据的唯一读写口（load/add/save/destroy）
  *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
  *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
@@ -47,6 +47,7 @@ const checkPermission = params => Approval.check({
 })
 
 // --- 装配一条会话的 Agent 要用的全部材料 ---
+// 注意：compact 不再走这条路，直接用 Agent.context.build + Agent.connection。
 const agentMaterials = async sessionId => {
     const session = await History.load(sessionId)
     const saveSession = () => History.save(sessionId)
@@ -54,17 +55,7 @@ const agentMaterials = async sessionId => {
     return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
 }
 
-// --- 取回缓存的 Agent，没有或已过期就按最新材料装配 ---
-const getAgent = sessionId => Agent.get({
-    sessionId,
-    assemble: {
-        peek: async () => ({ session: await History.load(sessionId), context: Context }),
-        build: () => agentMaterials(sessionId),
-        mcpRevision: () => Tool.revision(Mcp),
-        getHistory: id => History.get({ sessionId: id }),
-    },
-})
-
+// create 和 fork 完成后预热 Agent，让工具表在就绪就已装载。
 const createAgent = async sessionId => Agent.create({ sessionId, ...await agentMaterials(sessionId) })
 
 // --- 整理用户填的标题 ---
@@ -435,30 +426,38 @@ const patch = async ({ sessionId, reasoning, provider, model: modelName, cwd }) 
 }
 
 // --- 手动压缩 ---
+// --- 手动压缩 ---
 const compact = async ({ sessionId }) => {
-    const agent = await getAgent(sessionId)                         // 已经装配好的 agent
-    const start = agent.history.length                                  // 压缩前的位置
+    const runtimeAgent = Agent.runtime().get(sessionId)
+    let content
     let compactStartedAt = 0
     let compactUsage
-    const content = await Compact.run({
-        sessionId,
-        agent,
-        onEvent: event => {
-            if (event.type === 'compact-start') compactStartedAt = Date.now()
-            if (event.type === 'compact-finish') {
-                const finishedAt = Date.now()
-                compactUsage = usageOf({
-                    usage: event.usage,
-                    startedAt: compactStartedAt || finishedAt,
-                    finishedAt,
-                })
-            }
-            return SSE.send({ id: sessionId, data: event })
-        },
-    })
-    for (const message of agent.history.slice(start)) {
-        if (message.compact && compactUsage) message.usage = compactUsage
-        await History.add({ sessionId, message }) // 只保存新追加的总结
+    const onEvent = event => {
+        if (event.type === 'compact-start') compactStartedAt = Date.now()
+        if (event.type === 'compact-finish') {
+            const finishedAt = Date.now()
+            compactUsage = usageOf({ usage: event.usage, startedAt: compactStartedAt || finishedAt, finishedAt })
+        }
+        return SSE.send({ id: sessionId, data: event })
+    }
+
+    if (runtimeAgent) {
+        // --- Agent 实例已在 runtime：用实例方法，total 结果追加到 agent.history ---
+        const start = runtimeAgent.history.length
+        content = await Compact.runWithAgent({ agent: runtimeAgent, onEvent })
+        for (const message of runtimeAgent.history.slice(start)) {
+            if (message.compact && compactUsage) message.usage = compactUsage
+            await History.add({ sessionId, message })
+        }
+    } else {
+        // --- 没有 runtime Agent：用静态路径，不需要装配 ---
+        const session = await History.load(sessionId)
+        const records = History.get({ sessionId })
+        const history = records.map(({ messageId, ...message }) => message)
+        const llm = Agent.connection(session.model)
+        const result = await Compact.run({ sessionId, history, llm, onEvent })
+        content = result.content
+        await History.add({ sessionId, message: { ...result.message, ...(compactUsage ? { usage: compactUsage } : {}) } })
     }
     await History.save(sessionId)
     return { ...await read({ sessionId }), content }
