@@ -23,10 +23,12 @@ const tokens = value => {
     return Math.round(number)
 }
 
-const usageOf = ({ usage, startedAt, finishedAt, firstTokenAt, provider, model }) => {
+const usageOf = ({ usage, startedAt, finishedAt, firstTokenAt, generationMs, provider, model }) => {
     const input = tokens(usage?.inputTokens)
     const output = tokens(usage?.outputTokens)
     const first = Number(firstTokenAt || 0)
+    // 生成窗口只包括正文/工具参数的可见输出，不含 reasoning。
+    const generation = Number(generationMs || 0)
     // 供应商没给总数时自己加；给了也要校验，脏值退回到自己算的那份
     const reported = tokens(usage?.totalTokens)
     return {
@@ -43,6 +45,7 @@ const usageOf = ({ usage, startedAt, finishedAt, firstTokenAt, provider, model }
         firstTokenMs: first && startedAt ? Math.max(0, first - startedAt) : 0,
         finishedAt,
         durationMs: Math.max(0, finishedAt - startedAt),
+        generationMs: Number.isFinite(generation) && generation > 0 ? Math.round(generation) : 0,
     }
 }
 

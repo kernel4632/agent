@@ -150,7 +150,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
 
     // --- 组装运行状态和 token ---
-    const runState = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
+    const runState = { agent, llmStartedAt: 0, firstTokenAt: 0, contentStartedAt: 0, lastContentAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
     const token = { stopped: false, state: runState }
     sessions.set(sessionId, { status: 'running', token, agent })
 
@@ -190,6 +190,8 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                 runState.requesting = true
                 runState.llmStartedAt = Date.now()
                 runState.firstTokenAt = 0
+                runState.contentStartedAt = 0
+                runState.lastContentAt = 0
                 // 每轮现读 config：运行中切模型后，这一笔就按新供应商/模型记录。
                 runState.provider = agent?.config?.providerName || ''
                 runState.model = agent?.config?.model || ''
@@ -211,6 +213,9 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                     startedAt: runState.llmStartedAt || finishedAt,
                     finishedAt,
                     firstTokenAt: runState.firstTokenAt,
+                    generationMs: runState.contentStartedAt && runState.lastContentAt
+                        ? Math.max(0, runState.lastContentAt - runState.contentStartedAt)
+                        : 0,
                     provider: runState.provider,
                     model: runState.model,
                 })
@@ -226,6 +231,12 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                 if (event?.type === 'error') return
                 // 第一次收到内容增量时记下首字时间
                 const isContent = event?.type?.endsWith('-delta') || event?.type === 'tool-call' || event?.type?.startsWith('tool-input')
+                const isVisible = event?.type === 'text-delta' || event?.type === 'tool-call' || event?.type?.startsWith('tool-input')
+                if (isVisible) {
+                    const now = Date.now()
+                    if (!runState.contentStartedAt) runState.contentStartedAt = now
+                    runState.lastContentAt = now
+                }
                 if (!runState.firstTokenAt && isContent) {
                     runState.firstTokenAt = Date.now()
                     SSE.send({ id: sessionId, data: { type: 'llm-first-token', firstTokenAt: runState.firstTokenAt, firstTokenMs: Math.max(0, runState.firstTokenAt - (runState.llmStartedAt || runState.firstTokenAt)) } })
@@ -243,6 +254,8 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
             },
             onToolCall: async call => {
                 const startedAt = Date.now()
+                if (!runState.contentStartedAt) runState.contentStartedAt = startedAt
+                runState.lastContentAt = startedAt
                 const toolCallId = call.toolCallId || call.callID || call.callId || call.id
                 await ToolTiming.start({ sessionId, toolCallId, at: startedAt }).catch(() => {})
                 return SSE.send({ id: sessionId, data: { ...call, type: 'tool-call', startedAt } })
@@ -281,7 +294,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                     }
                 }
                 // 这次调用改过哪些文件跟着结果一起推：前端不再需要单独的改动查询接口。
-                const changedPaths = await Tool.changedPaths({ sessionId, toolCallId }).catch(() => [])
+                const changedPaths = await Tool.paths({ sessionId, toolCallId }).catch(() => [])
                 await SSE.send({
                     id: sessionId,
                     data: { ...result, type: 'tool-result', ...(timing || {}), ...(changedPaths.length ? { changedPaths } : {}) },
@@ -377,7 +390,7 @@ const run = async ({ sessionId, input, resume = false, recovery = false }) => {
     })()
 
     // --- 新消息代表新的时间线，之前的回退不能再撤销 ---
-    await Tool.clearUndo({ sessionId })
+    await Tool.clear({ sessionId })
 
     // --- 启动这一轮 ---
     const { task, token } = await startRun({ sessionId, input: payload, resume, agent, recovery })
