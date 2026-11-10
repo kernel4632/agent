@@ -335,7 +335,11 @@ function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
 }
-const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
+const bubbleText = computed(() => {
+  // 本地精确回退后，结束工具已从这条消息里移除；不要再把旧正文当成最终回复。
+  if (props.messages.some(message => message.rollbackCut)) return ''
+  return finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : ''))
+})
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 // 结束工具的输出是一整段突然到达的正式回复；这里不再逐字追赶，
 // 否则它会和处理过程折叠同时改变高度，形成连续闪烁。

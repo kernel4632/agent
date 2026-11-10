@@ -388,16 +388,57 @@ async function previewRollback(sessionID, messageID) {
   }
 }
 
+// 回退/撤销只在本地保留一份轻量快照，避免为了撤销再拉完整历史。
+const rollbackSnapshots = new Map()
+
+function snapshotBeforeRollback(session) {
+  return {
+    messages: [...session.messages],
+    historyTotal: session.historyTotal,
+    undoable: session.undoable,
+  }
+}
+
+function cutLocalMessages(session, messageID, partIndex) {
+  const index = session.messages.findIndex(item => item.id === messageID)
+  if (index < 0) return false
+  if (partIndex === undefined) {
+    session.messages = session.messages.slice(0, index)
+    return true
+  }
+  const target = session.messages[index]
+  const steps = (target.steps || []).filter(step => step.partIndex === undefined || step.partIndex < partIndex)
+  const toolIds = new Set(steps.filter(step => step.type === 'tool').map(step => step.toolId).filter(Boolean))
+  const keepsContent = steps.some(step => step.type === 'text' || step.type === 'reasoning' || step.type === 'tool')
+  const next = session.messages.slice(0, index)
+  if (keepsContent) {
+    next.push({
+      ...target,
+      steps,
+      tools: (target.tools || []).filter(tool => toolIds.has(tool.id)),
+      rollbackCut: true,
+    })
+  }
+  session.messages = next
+  return true
+}
+
 async function rollbackMessage(sessionID, messageID, files = true, partIndex) {
   try {
     const session = store.sessions[sessionID]
     const message = session.messages.find(item => item.id === messageID)
-    const result = await AgentAPI.rollback(sessionID, messageID, files, partIndex)
-    // 回退改了磁盘历史，必须强制全量读，不能走增量
-    await refresh(sessionID, { force: true })
+    const before = snapshotBeforeRollback(session)
+    const result = await AgentAPI.rollback(sessionID, messageID, files, partIndex, true)
+    // 服务端已经写入新历史；这里只做本地截断，不再下载完整历史。
+    const cut = cutLocalMessages(session, messageID, partIndex)
+    if (!cut) await refresh(sessionID, { force: true })
+    session.historyTotal = result.historyTotal ?? session.messages.length
+    session.undoable = result.undoable ?? 1
+    if (cut) rollbackSnapshots.set(sessionID, before)
+    else rollbackSnapshots.delete(sessionID)
     // 回退成功的反馈由输入框上方的撤销条承担，不再额外弹 Toast。
-    store.sessions[sessionID].draft = message?.role === 'user' ? message.content || '' : ''
-    store.sessions[sessionID].rollback = {
+    session.draft = message?.role === 'user' ? message.content || '' : ''
+    session.rollback = {
       where: message?.role === 'user' ? '已回退到用户消息之前' : '已回退到助手回复之前',
       preview: rollbackTextPreview(message),
       files: result.restored?.length || 0,
@@ -408,10 +449,18 @@ async function rollbackMessage(sessionID, messageID, files = true, partIndex) {
 
 async function undoRollback(sessionID, files = true) {
   try {
-    await AgentAPI.redo(sessionID, files)
-    // 撤销回退也是磁盘历史变化，强制全量读
-    await refresh(sessionID, { force: true })
-    store.sessions[sessionID].rollback = null
+    const session = store.sessions[sessionID]
+    const before = rollbackSnapshots.get(sessionID)
+    const result = await AgentAPI.redo(sessionID, files, true)
+    if (before) {
+      session.messages = before.messages
+      session.historyTotal = result.historyTotal ?? before.historyTotal
+      session.undoable = result.undoable ?? before.undoable
+      rollbackSnapshots.delete(sessionID)
+    } else {
+      await refresh(sessionID, { force: true })
+    }
+    session.rollback = null
   } catch (error) { Notice.show(error.message) }
 }
 

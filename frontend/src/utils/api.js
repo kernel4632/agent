@@ -123,9 +123,9 @@ export const AgentAPI = {
   saveSettings:     (sessionID, change)         => request(`/session/settings/${encodeURIComponent(sessionID)}`, 'PATCH', change),
   // files=false 表示只退对话不动文件，用户可以在回退确认框里选。
   // 带 toolCallId 就只退那一次工具改的文件，对话不动。
-  rollback:         (sessionID, messageId, files = true, partIndex) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files, ...(partIndex === undefined ? {} : { partIndex }) }),
+  rollback:         (sessionID, messageId, files = true, partIndex, compact = false) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files, ...(partIndex === undefined ? {} : { partIndex }), ...(compact ? { compact: true } : {}) }),
   rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
-  redo:             (sessionID, files = true)   => request(`/session/rollback/redo/${encodeURIComponent(sessionID)}`, 'POST', { files }),
+  redo:             (sessionID, files = true, compact = false) => request(`/session/rollback/redo/${encodeURIComponent(sessionID)}`, 'POST', { files, ...(compact ? { compact: true } : {}) }),
   // --- 以下全部走管理总线 ---
   getConfig:        ()                          => admin('config.read'),
   getConfigMeta:    ()                          => admin('config.meta'),
