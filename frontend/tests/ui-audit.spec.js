@@ -2129,6 +2129,13 @@ test('tool permissions save and MCP settings remain available', async ({ page },
 
   const readTool = dialog.getByRole('button', { name: /读取文件/ })
   const commandTool = dialog.getByRole('button', { name: /执行命令/ })
+  const mcpTool = dialog.getByRole('button', { name: /MCP 工具/ })
+  await expect(mcpTool).toHaveAttribute('aria-pressed', 'false')
+  await mcpTool.click()
+  await expect.poll(() => mock.config().permission.mcp).toBe('allow')
+  await expect(mcpTool).toHaveAttribute('aria-pressed', 'true')
+  await mcpTool.click()
+  await expect.poll(() => mock.config().permission.mcp).toBe('ask')
   await expect(readTool).toHaveAttribute('aria-pressed', 'false')
   await readTool.click()
   await expect.poll(() => mock.config().permission.read_file).toBe('allow')

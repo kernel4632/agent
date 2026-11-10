@@ -25,19 +25,23 @@ const busy = ref('')
 
 // 只列可配置的工具：attempt_completion 这类内部工具由 kind: 'never' 标出来，
 // 它们不碰磁盘也没有「要不要批准」这回事，摆出来只会让人以为能关掉。
-const tools = computed(() => (store.config.tools || []).filter(tool => tool.configurable !== false))
+// 只列可配置的内置工具；MCP 工具统一收进下面一个开关。
+const tools = computed(() => (store.config.tools || []).filter(tool => tool.configurable !== false && tool.kind !== 'mcp'))
+const hasMcp = computed(() => Object.keys(store.config.raw?.mcp || {}).length > 0 || (store.config.tools || []).some(tool => tool.kind === 'mcp'))
 const allowAll = computed(() => (store.config.raw?.permission || {})['*'] === 'allow')
+const mcpAllowed = computed(() => allowAll.value || (store.config.raw?.permission || {}).mcp === 'allow')
 
 // 审批层里全局 allow 会盖过工具自己的 ask（「全部自动执行」的承诺），
 // 所以全局开着时每个工具实际都是自动执行，这里必须照实显示，否则勾选状态在说谎。
 // deny 是硬规则，全局放行也拦得住，不能画成开着。
 const allowed = tool => tool.permission === 'deny' ? false : (allowAll.value || tool.permission === 'allow')
-const allowedCount = computed(() => tools.value.filter(allowed).length)
+const allowedCount = computed(() => tools.value.filter(allowed).length + (mcpAllowed.value ? 1 : 0))
+const totalCount = computed(() => tools.value.length + (hasMcp.value ? 1 : 0))
 
 // 万能开关的三态：全开是勾，关掉一部分是横线，全关是空。
 // 全局 * 为 allow 也算全开：它已经让所有工具直接执行了。这时这一格不能变成「关着」，
 // 否则点下去只会把全局再设一遍 allow，永远关不掉——用户要的是「集体开关」。
-const masterOn = computed(() => allowAll.value || (tools.value.length > 0 && allowedCount.value === tools.value.length))
+const masterOn = computed(() => allowAll.value || (totalCount.value > 0 && allowedCount.value === totalCount.value))
 const partial = computed(() => !masterOn.value && allowedCount.value > 0)
 
 // --- 只算权限这一份，其余配置原样带回去 ---
@@ -82,6 +86,30 @@ async function flip(tool) {
         if (item.name === tool.name || item.permission === 'deny') continue
         permission = permissionWith(item.name, 'allow', permission)
       }
+      // 全局 allow 撤掉时，MCP 组开关不能跟著掉回询问。
+      if (hasMcp.value && mcpAllowed.value) permission = permissionWith('mcp', 'allow', permission)
+      permission['*'] = 'ask'
+    }
+    await save(permission)
+  } catch (error) {
+    Notice.show(error.message)
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function flipMcp() {
+  if (busy.value) return
+  const next = mcpAllowed.value ? 'ask' : 'allow'
+  busy.value = 'mcp'
+  try {
+    let permission = permissionWith('mcp', next)
+    if (next === 'ask' && allowAll.value) {
+      // 关 MCP 组时保留其他内置工具开着，只撤掉全局 allow。
+      for (const item of tools.value) {
+        if (item.permission === 'deny') continue
+        permission = permissionWith(item.name, 'allow', permission)
+      }
       permission['*'] = 'ask'
     }
     await save(permission)
@@ -109,6 +137,7 @@ async function flipAll() {
       if (item.permission === 'deny') continue
       permission = permissionWith(item.name, 'ask', permission)
     }
+    if (hasMcp.value) permission = permissionWith('mcp', 'ask', permission)
     permission['*'] = 'ask'
     await save(permission)
   } catch (error) {
@@ -145,7 +174,7 @@ function onKeydown(event) {
   <span class="composer-tools">
     <button
       ref="trigger" type="button" class="composer-tools__trigger"
-      :aria-label="`工具自动批准（${allowedCount}/${tools.length} 已自动执行）`"
+      :aria-label="`工具自动批准（${allowedCount}/${totalCount} 已自动执行）`"
       aria-haspopup="dialog" :aria-expanded="open" :aria-controls="id"
       @click="toggle"
     >
@@ -175,7 +204,19 @@ function onKeydown(event) {
           <span class="composer-tools__name">全部自动执行</span>
         </button>
 
-        <!-- 每个工具本身也是一个开关：点一下切换，不再拼「文字 + 右侧开关」两段式。 -->
+        <!-- 所有 MCP 工具共用一个组开关，不按服务/工具铺几十个格子。 -->
+        <button
+          v-if="hasMcp" type="button"
+          class="composer-tools__tool composer-tools__tool--mcp" :class="{ 'is-on': mcpAllowed }"
+          :aria-pressed="mcpAllowed" :disabled="busy === 'mcp'"
+          title="MCP · 所有外部 MCP 工具"
+          @click="flipMcp"
+        >
+          <span class="composer-tools__check"><Icon :name="mcpAllowed ? 'check' : 'info'" :size="14" /></span>
+          <span class="composer-tools__name">MCP 工具</span>
+        </button>
+
+        <!-- 每个内置工具本身也是一个开关：点一下切换，不再拼「文字 + 右侧开关」两段式。 -->
         <button
           v-for="tool in tools" :key="tool.name" type="button"
           class="composer-tools__tool" :class="{ 'is-on': allowed(tool) }"
@@ -189,7 +230,7 @@ function onKeydown(event) {
       </div>
       <p v-else class="composer-tools__empty">暂无可配置的工具</p>
 
-      <p class="composer-tools__hint">已自动执行的工具不再弹审批，其余每次调用前先问你。最上面一格一次改动下面所有开关。</p>
+      <p class="composer-tools__hint">已自动执行的工具不再弹审批；MCP 工具由上面的一个开关统一控制。最上面一格一次改动下面所有开关。</p>
     </div>
   </span>
 </template>

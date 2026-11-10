@@ -65,6 +65,13 @@
   font-weight: 600;
 }
 
+/* MCP 是一个组开关：一个格子统管所有外部 MCP 工具。 */
+.composer-tools__tool--mcp {
+  grid-column: 1 / -1;
+  justify-content: center;
+  font-weight: 600;
+}
+
 .composer-tools__tool {
   display: flex;
   min-width: 0;
