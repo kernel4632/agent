@@ -264,43 +264,16 @@ const processSections = computed(() => {  const sections = []
   return sections
 })
 
-// 一个步骤 = 一次模型请求；一个 context-group 里如果包含多次请求，也要拆开。
-function splitGroup(section) {
-  if (section.type !== 'group') return [section]
-  const chunks = []
-  let chunk = []
-  for (const step of section.steps) {
-    const startsRequest = step.type === 'request' || step.type === 'compact'
-    // 连续的请求（重试）不拆；已经有内容/工具后再来请求才是新步骤。
-    const hasAction = chunk.some(item => item.type !== 'request' && item.type !== 'compact')
-    if (startsRequest && hasAction) {
-      chunks.push(chunk)
-      chunk = []
-    }
-    chunk.push(step)
-  }
-  if (chunk.length) chunks.push(chunk)
-  if (chunks.length <= 1) return [section]
-  return chunks.map((steps, index) => ({
-    type: 'group',
-    key: `${section.key}-${index}`,
-    steps,
-    summary: summarizeSteps(steps.filter(step => step.type !== 'request' && step.type !== 'compact')),
-  }))
-}
-
-// 步骤边界只认 request；思考、正文、工具都是该步骤的内容。
+// 一段连续的工具/思考动作合并成一个折叠组；只有助手正文才把动作组切开。
 const stepBlocks = computed(() => {
   const blocks = []
   let current = null
   for (const section of processSections.value) {
-    for (const part of splitGroup(section)) {
-      if (!current || part.type === 'group') {
-        current = { key: part.key, sections: [] }
-        blocks.push(current)
-      }
-      current.sections.push(part)
+    if (!current || section.type === 'group') {
+      current = { key: section.key, sections: [] }
+      blocks.push(current)
     }
+    current.sections.push(section)
   }
   return blocks.map(block => {
     const steps = block.sections.flatMap(section => section.type === 'group' ? section.steps : [section.step])
@@ -331,7 +304,7 @@ const lastGroupKey = computed(() => processSections.value.filter(section => sect
 // 组里还有运行中的工具时不收，避免并行工具被下一条流式输出折叠。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
 const activeGroupKey = computed(() => (turnActive.value || processClosing.value) && lastStepType.value !== 'text' ? lastGroupKey.value : null)
-const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || section.steps?.some(isRunningRequest) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
+const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || (section.steps?.some(isRunningRequest) && section.key === lastGroupKey.value && lastStepType.value !== 'text') || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
