@@ -39,7 +39,7 @@ const toolKinds = () => Tool.KINDS
 const test = async ({ provider, model } = {}) => Agent.test({ provider, model, context: Context })
 
 const backups = () => Config.backups()
-const readBackup = id => Config.readBackup(id)
+const readBackup = id => Config.backup(id)
 const restore = async body => { const result = await Config.restore(body); Approval.recheck(); return result }
 const exportConfig = query => Config.export(query)
 const importConfig = async body => { const result = await Config.import(body); Approval.recheck(); return result }

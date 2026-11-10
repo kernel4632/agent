@@ -356,6 +356,6 @@ const close = async () => {
 }
 
 // --- 最近一次连接失败的原因；设置页用它提示“这个服务起不来” ---
-const lastError = name => failures.get(connectionKey(name)) || ''
+const error = name => failures.get(connectionKey(name)) || ''
 
-export default { tools, warm, acquire, connect, close, list, save, remove, toggle, test, lastError, revision: revisionOf }
+export default { tools, warm, acquire, connect, close, list, save, remove, toggle, test, error, revision: revisionOf }

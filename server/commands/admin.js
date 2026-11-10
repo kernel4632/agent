@@ -97,7 +97,7 @@ const OPS = {
     'config.export': exportConfig,
     'config.import': ({ config } = {}) => importConfig({ config }),
     'config.backup.list': () => Config.backups(),
-    'config.backup.read': ({ id } = {}) => Config.readBackup(id),
+    'config.backup.read': ({ id } = {}) => Config.backup(id),
     'config.restore': ({ id } = {}) => restoreConfig({ id }),
     'config.test': ({ provider, model } = {}) => Agent.test({ provider, model, context: Context }),
 
@@ -122,7 +122,7 @@ const OPS = {
 
     // --- 会话存储位置 ---
     'storage.status': () => Storage.status(),
-    'storage.set': ({ path } = {}) => Storage.setPath(path),
+    'storage.set': ({ path } = {}) => Storage.move(path),
     'storage.cancel': () => Storage.cancel(),
 
     // --- 会话分组 ---

@@ -46,7 +46,7 @@ const resolve = async ({ cwd }) => Agent.resolve({
 describe('项目规则', () => {
     test('没有规则文件时 system 是用户提示词加压缩规范', async () => {
         await withRules(async ({ write }) => {
-            const result = await Context.systemFor({ config: { prompt: { system: '我的提示词' } }, cwd: join(tmpdir(), '不存在的目录') })
+            const result = await Context.system({ config: { prompt: { system: '我的提示词' } }, cwd: join(tmpdir(), '不存在的目录') })
             expect(result).toContain('我的提示词')
             expect(result).toContain('上下文压缩')
         })
@@ -55,7 +55,7 @@ describe('项目规则', () => {
     test('AGENTS.md 的内容拼在用户提示词后面', async () => {
         await withRules(async ({ cwd, write }) => {
             await write('AGENTS.md', '# 规则\n\n每改完一点就提交。')
-            const result = await Context.systemFor({ config: { prompt: { system: '我的提示词' } }, cwd })
+            const result = await Context.system({ config: { prompt: { system: '我的提示词' } }, cwd })
             expect(result).toContain('我的提示词')
             expect(result).toContain('每改完一点就提交。')
             expect(result.indexOf('我的提示词')).toBeLessThan(result.indexOf('每改完一点就提交。'))
@@ -65,7 +65,7 @@ describe('项目规则', () => {
     test('AGENTS.md 不在时看 CLAUDE.md', async () => {
         await withRules(async ({ cwd, write }) => {
             await write('CLAUDE.md', 'claude 的规则')
-            const result = await Context.systemFor({ config: { prompt: { system: '' } }, cwd })
+            const result = await Context.system({ config: { prompt: { system: '' } }, cwd })
             expect(result).toContain('claude 的规则')
         })
     })
@@ -73,11 +73,11 @@ describe('项目规则', () => {
     test('文件变了下次读取就是新的，不用重启', async () => {
         await withRules(async ({ cwd, write }) => {
             await write('AGENTS.md', '第一版')
-            expect(await Context.systemFor({ config: {}, cwd })).toContain('第一版')
+            expect(await Context.system({ config: {}, cwd })).toContain('第一版')
             // 同一毫秒内的改写在 Windows 上 mtime 相同，等过这一毫秒再改。
             await new Promise(resolve => setTimeout(resolve, 20))
             await write('AGENTS.md', '第二版')
-            expect(await Context.systemFor({ config: {}, cwd })).toContain('第二版')
+            expect(await Context.system({ config: {}, cwd })).toContain('第二版')
         })
     })
 

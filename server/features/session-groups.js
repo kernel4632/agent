@@ -77,7 +77,7 @@ const save = async input => {
     return state
 }
 
-const removeSession = async sessionId => {
+const remove = async sessionId => {
     const current = await read()
     let changed = false
     const groups = current.groups.map(group => {
@@ -94,4 +94,4 @@ const clear = () => {
     writing = Promise.resolve()
 }
 
-export default { read, save, removeSession, clear }
+export default { read, save, remove, clear }

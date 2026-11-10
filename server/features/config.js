@@ -226,7 +226,7 @@ const backupList = async () => {
     return list.sort((a, b) => b.createdAt - a.createdAt)
 }
 
-const readBackup = async id => {
+const backup = async id => {
     const path = backupPath(id)
     if (!await Bun.file(path).exists()) throw fail(404, `config backup not found: ${id}`)
     let raw
@@ -296,5 +296,5 @@ const save = async () => {
 
 export default {
     MODELS, read, set, get, meta, save,
-    backups: backupList, readBackup, restore, export: exportConfig, import: importConfig,
+    backups: backupList, backup, restore, export: exportConfig, import: importConfig,
 }

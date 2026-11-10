@@ -76,7 +76,7 @@ describe('session groups', () => {
                     { id: 'g2', name: '写作', sessions: ['s3'] },
                 ],
             })
-            await SessionGroups.removeSession('s1')
+            await SessionGroups.remove('s1')
             expect((await SessionGroups.read()).groups).toEqual([
                 { id: 'g1', name: '工作', sessions: ['s2'] },
                 { id: 'g2', name: '写作', sessions: ['s3'] },

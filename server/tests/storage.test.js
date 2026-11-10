@@ -58,7 +58,7 @@ describe('会话数据目录', () => {
             await writeFile(join(old, 's1', 'meta.json'), '{"title":"旧会话"}')
 
             await Storage.prepare()
-            await Storage.setPath(target)
+            await Storage.move(target)
             expect(Path.sessions()).toBe(old)
             const status = await Storage.status()
             expect(status.pending).toEqual({ from: old, path: target })

@@ -57,7 +57,7 @@ describe('configuration backups', () => {
 
             const backups = await Config.backups()
             expect(backups.length).toBe(1)
-            const preview = await Config.readBackup(backups[0].id)
+            const preview = await Config.backup(backups[0].id)
             expect(preview.config.providers[0].apiKey).not.toBe('secret-old-key')
             expect(JSON.stringify(preview)).not.toContain('secret-old-key')
 

@@ -148,7 +148,7 @@ const recoveryRetry = () => {
 const resolveFor = async ({ session, settings, target, recovery = false, context }) => {
     const chosen = target || session.model
     const linked = connection(chosen)
-    const info = context.modelInfo(chosen)
+    const info = context.info(chosen)
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
     const profileModel = provider?.models?.find(item => item.id === chosen.model)
@@ -195,7 +195,7 @@ const resolveFor = async ({ session, settings, target, recovery = false, context
         // firstTurns = 0 就是不要最初那几轮原始措辞，只信总结 + 最近现场。
         contextKeep: { ...store.config.contextKeep },
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）+ 压缩输出规范。
-        system: await context.systemFor({ config: store.config, cwd: session?.cwd }),
+        system: await context.system({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
         // 中间会插一条提醒，避免模型漏调结束工具就直接把文字当成结果（参考 Roo Code 的连续错误上限）。
         noToolRounds: 3,
@@ -266,7 +266,7 @@ const settings = session => normalize(session.settings, defaults())
 const refreshSystem = async (instance, session, context) => {
     // 测试注入的假实例没有 config；没有就不刷，下次真装配时自然会读到规则。
     if (!instance?.config) return
-    instance.config.system = await context.systemFor({ config: store.config, cwd: session.cwd })
+    instance.config.system = await context.system({ config: store.config, cwd: session.cwd })
 }
 
 // --- 为一个会话建出 Agent 实例 ---

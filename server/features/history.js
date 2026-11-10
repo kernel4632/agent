@@ -514,7 +514,7 @@ const records = ({ sessionId }) => {
 }
 
 // --- 从某条消息开始替换尾部：正文块回退会保留同一条消息的前半段 ---
-const replaceFrom = ({ sessionId, messageId, next }) => {
+const replace = ({ sessionId, messageId, next }) => {
     const session = store.sessions[sessionId]
     const index = session.history.messages.findIndex(record => record.messageId === messageId)
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
@@ -578,14 +578,6 @@ const mark = async sessionId => {
 
 // --- 还有几次回退可以撤销 ---
 const redos = ({ sessionId }) => store.sessions[sessionId]?.history.redo.length || 0
-
-// --- 回退后还留着哪些消息块 id；文件恢复靠它判断恢复范围 ---
-const idsBefore = ({ sessionId, messageId }) => {
-    const session = store.sessions[sessionId]
-    const index = session.history.messages.findIndex(record => record.messageId === messageId)
-    if (index < 0) throw fail(404, `Message not found: ${messageId}`)
-    return session.history.messages.slice(0, index).map(record => record.message.id)
-}
 
 // --- 读取当前历史：把 messageId 摊回消息对象上 ---
 const get = ({ sessionId }) => {
@@ -827,6 +819,6 @@ const prepare = async () => {
 
 export default {
     load, create, save, settings, list,
-    add, rollback, redo, redos, idsBefore, get, records, replaceFrom, outline, search, page, segment, manifestFor,
+    add, rollback, redo, redos, get, records, replace, outline, search, page, segment,
     count, remove, clear, destroy, prepare, running, mark, stale,
 }

@@ -6,9 +6,8 @@
  * 按修改时间缓存，文件变了下次装配时自动换新。压缩是另一件事，见 compact.js。
  *
  * 调用示例：
- *   const system = Context.system({ config: store.config })
- *   const full = await Context.systemFor({ config: store.config, cwd: 'D:/notes' })
- *   const info = Context.modelInfo({ provider: 'local', model: 'qwen3' })
+ *   const full = await Context.system({ config: store.config, cwd: 'D:/notes' })
+ *   const info = Context.info({ provider: 'local', model: 'qwen3' })
  */
 
 import { readFile, stat } from 'node:fs/promises'
@@ -39,7 +38,7 @@ const readRules = async cwd => {
 }
 
 // --- 这个模型的上下文长度和能力 ---
-const modelInfo = ({ provider: name, model }) => {
+const info = ({ provider: name, model }) => {
     const provider = (store.config.providers || []).find(item => item.name === name)
     const entry = (provider?.models || []).find(item => item?.id === model)
     if (!entry) return { context: DEFAULT_CONTEXT, capabilities: null }
@@ -49,8 +48,6 @@ const modelInfo = ({ provider: name, model }) => {
     }
 }
 
-// --- 最终交给模型的 system：用户写的那段提示词 ---
-const system = ({ config = store.config } = {}) => (config.prompt?.system || '').trim()
 
 // 项目规则的读取缓存：key 是目录，value 是 { mtimeMs, text }；文件变了自动换新。
 const rulesCache = new Map()
@@ -89,12 +86,12 @@ const COMPACT_GUIDE = `# 上下文压缩
 规则：具体细节优先于概括；不得编造；区分已确认事实和推测；能解释约束的失败尝试要保留；只输出总结本身，不要寒暄或元评论。摘要通常应有 1500-3000 字，宁可保留可执行细节，也不要只写标题。`
 
 // --- 组装发给模型的 system：用户提示词、工作区规则、压缩规范各管一段 ---
-const systemFor = async ({ config = store.config, cwd } = {}) => {
-    const parts = [system({ config })]
+const system = async ({ config = store.config, cwd } = {}) => {
+    const parts = [(config.prompt?.system || '').trim()]
     const rulesText = await rules(cwd)
     if (rulesText) parts.push(`# Workspace rules\n\nThe rules below come from the project files in the current working directory. Follow them in addition to the user's instructions.\n\n${rulesText}`)
     parts.push(COMPACT_GUIDE)
     return parts.filter(Boolean).join('\n\n')
 }
 
-export default { DEFAULT_CONTEXT, modelInfo, system, systemFor }
+export default { info, system }

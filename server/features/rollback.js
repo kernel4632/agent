@@ -41,7 +41,7 @@ const preview = ({ history, sessionId, messageId }) => {
 // partIndex 是 assistant content 数组里的位置；保留它前面的内容，
 // 切掉它和它后面的所有内容，再删掉这条消息之后的所有对话。
 // 保留的工具结果按 toolCallId 留下，不能因为整条 tool 消息在后就一起丢。
-const cutPlan = ({ history, sessionId, messageId, partIndex }) => {
+const plan = ({ history, sessionId, messageId, partIndex }) => {
     const records = history.records({ sessionId })
     const index = records.findIndex(record => record.messageId === messageId || record.message.id === messageId)
     if (index < 0) throw fail(404, `Message not found: ${messageId}`)
@@ -90,8 +90,8 @@ const cutPlan = ({ history, sessionId, messageId, partIndex }) => {
 const cut = async ({ history, agent, sessionId, messageId, partIndex }) => {
     const session = await history.load(sessionId)
     if (agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
-    const plan = cutPlan({ history, sessionId, messageId, partIndex })
-    await history.replaceFrom({ sessionId, messageId: plan.recordId, next: plan.next })
+    const cutting = plan({ history, sessionId, messageId, partIndex })
+    await history.replace({ sessionId, messageId: cutting.recordId, next: cutting.next })
     await history.save(sessionId)
     const running = agent.runtime().get(sessionId)
     if (running) running.history = history.get({ sessionId })
@@ -126,4 +126,4 @@ const undo = async ({ history, agent, sessionId }) => {
     return history.load(sessionId)
 }
 
-export default { messages, cut, cutPlan, undo, preview }
+export default { messages, cut, plan, undo, preview }

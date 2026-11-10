@@ -23,7 +23,7 @@ const checkPermission = params => Approval.check({
     ...params,
     snapshot: Tool.snapshot,        // 放行时让工具自己决定存不存快照
     ready: Tool.ready,              // 工具表没扫描过时先补一次
-    kindOf: Tool.kindOf,            // 查这个工具属于哪一类
+    kindOf: Tool.kind,            // 查这个工具属于哪一类
 })
 
 // --- 装配一条会话的 Agent 要用的全部材料 ---
@@ -40,12 +40,12 @@ const getAgent = sessionId => Agent.get({
     assemble: {
         peek: async () => ({ session: await History.load(sessionId), context: Context }), // 先只读元数据判断缓存还能不能用
         build: () => agentMaterials(sessionId),                                          // 要重建时才真的取材料
-        mcpRevision: () => Tool.mcpRevision(Mcp),                                        // 当前 MCP 配置版本
+        mcpRevision: () => Tool.revision(Mcp),                                        // 当前 MCP 配置版本
         getHistory: id => History.get({ sessionId: id }),                                // 已存的历史
     },
 })
 
 // --- 一轮结束后回收已经过期的 Agent ---
-const settleAgent = sessionId => Agent.settle(sessionId, Tool.mcpRevision(Mcp))
+const settleAgent = sessionId => Agent.settle(sessionId, Tool.revision(Mcp))
 
 export { getAgent, settleAgent, checkPermission }

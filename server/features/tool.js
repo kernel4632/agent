@@ -109,7 +109,7 @@ const ready = async () => {
 }
 
 // --- 这个工具属于哪一类；MCP 工具按配置里的服务名前缀认 ---
-const kindOf = ({ toolName, mcpServers = [] }) => {
+const kind = ({ toolName, mcpServers = [] }) => {
     if (mcpServers.some(name => toolName.startsWith(`${name}_`))) return 'mcp'
     if (toolName === 'skill') return 'read'
     return current.tools.get(toolName)?.kind || 'other'
@@ -155,7 +155,7 @@ const build = async ({ sessionId, onPermission, saveSession, mcp, skills }) => {
 }
 
 // --- 当前 MCP 配置版本；由调用方传入 mcp 对象调用 ---
-const mcpRevision = mcp => mcp?.revision?.() || 0
+const revision = mcp => mcp?.revision?.() || 0
 
 // --- 工具真正执行之前：交给工具自己的快照钩子 ---
 const snapshot = async call => {
@@ -191,9 +191,9 @@ export default {
     KINDS,
     list,
     build,
-    mcpRevision,
+    revision,
     ready,
-    kindOf,
+    kind,
     snapshot,
     entries,
     paths,

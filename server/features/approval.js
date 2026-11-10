@@ -11,7 +11,7 @@
  *
  * 调用示例：
  *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal,
- *       snapshot: Tool.snapshot, ready: Tool.ready, kindOf: Tool.kindOf })
+ *       snapshot: Tool.snapshot, ready: Tool.ready, kindOf: Tool.kind })
  *   await Approval.decide({ sessionId, toolCallId, decision: 'allow-once' })
  *   Approval.pending(sessionId)
  */

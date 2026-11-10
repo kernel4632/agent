@@ -34,7 +34,7 @@ const checkPermission = params => Approval.check({
     ...params,
     snapshot: Tool.snapshot,
     ready: Tool.ready,
-    kindOf: Tool.kindOf,
+    kindOf: Tool.kind,
 })
 
 // --- 取回缓存的 Agent，没有或已过期就按最新材料装配 ---
@@ -50,7 +50,7 @@ const getAgent = sessionId => Agent.get({
             const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
             return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
         },
-        mcpRevision: () => Tool.mcpRevision(Mcp),
+        mcpRevision: () => Tool.revision(Mcp),
         getHistory: id => History.get({ sessionId: id }),
     },
 })
@@ -71,7 +71,7 @@ const finishRun = async (sessionId, token) => {
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
     History.running(sessionId, false)
     await History.mark(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
-    await Agent.settle(sessionId, Tool.mcpRevision(Mcp))
+    await Agent.settle(sessionId, Tool.revision(Mcp))
 }
 
 // --- 把 Agent 内存里的新消息同步到历史文件 ---

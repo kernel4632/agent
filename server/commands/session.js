@@ -43,7 +43,7 @@ const checkPermission = params => Approval.check({
     ...params,
     snapshot: Tool.snapshot,
     ready: Tool.ready,
-    kindOf: Tool.kindOf,
+    kindOf: Tool.kind,
 })
 
 // --- 装配一条会话的 Agent 要用的全部材料 ---
@@ -60,7 +60,7 @@ const getAgent = sessionId => Agent.get({
     assemble: {
         peek: async () => ({ session: await History.load(sessionId), context: Context }),
         build: () => agentMaterials(sessionId),
-        mcpRevision: () => Tool.mcpRevision(Mcp),
+        mcpRevision: () => Tool.revision(Mcp),
         getHistory: id => History.get({ sessionId: id }),
     },
 })
@@ -390,7 +390,7 @@ const remove = async ({ sessionId }) => {
     await SSE.close({ id: sessionId })
     await History.destroy(sessionId)
     if (session.temporary) await TempWorkspace.remove(session.cwd, true).catch(error => console.error(`[session ${sessionId}] 清理临时工作区失败：${error.message}`))
-    await SessionGroups.removeSession(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
+    await SessionGroups.remove(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
     ToolTiming.forget(sessionId)
     ContextUsage.remove(sessionId)
     return { ok: true }
@@ -484,7 +484,7 @@ const rollback = async (params) => {
 const rollbackPart = async ({ sessionId, messageId, partIndex, files, compact }) => {
     await History.load(sessionId)                                        // 加载历史到内存
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能回退
-    const plan = Rollback.cutPlan({ history: History, sessionId, messageId, partIndex }) // 算出回退后还留哪些消息块
+    const plan = Rollback.plan({ history: History, sessionId, messageId, partIndex }) // 算出回退后还留哪些消息块
     const restored = files
         ? await Tool.restore({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
         : []                                                             // files=false 时不恢复文件，只退消息
